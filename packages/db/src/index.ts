@@ -13,3 +13,10 @@ export {
   verifyAuditChain,
   type AuditFieldValue,
 } from './audit';
+export {
+  createNeonDb,
+  checkConnection,
+  isSchemaApplied,
+  type ExecutableDb,
+  type NeonDb,
+} from './client';
