@@ -1,46 +1,53 @@
 # ADR-0007: Provider stack for persistence, storage, pipeline, and AI
 
-- **Status:** Proposed (per-provider ADRs to be Accepted at each phase)
+- **Status:** Accepted — mandated by the Build Specification §15 and PRD §16.
 - **Date:** 2026-07-19
 - **Deciders:** VisaStack engineering
+- **Spec link:** Build Spec §15 (Production architecture baseline), PRD §16.
 
 ## Context
 
-Several PRD requirements exceed Vercel's built-in primitives: durable
-malware quarantine, point-in-time recovery for RPO/RTO, an AI gateway with
-caching/cost/eval controls, and a recoverable multi-state document
-pipeline. We need to choose best-of-breed, Vercel-compatible services and
-keep each behind a swappable package seam.
+Several requirements exceed Vercel's built-in primitives: durable malware
+quarantine, point-in-time recovery for RPO/RTO, a server-only AI gateway
+with cost/eval controls, and a recoverable multi-state document pipeline.
+The Build Specification is prescriptive about the production baseline, so
+these are not open choices — they are the contract. Each provider is still
+wrapped behind a package seam so it can be tested and, if ever necessary,
+replaced without touching domain rules (the spec itself requires "storage
+and AI adapters prevent vendor lock-in", §16).
 
-## Decision (proposed)
+## Decision (spec-mandated)
 
-| Concern | Choice | Package seam | Accept at |
-|---------|--------|--------------|-----------|
-| Relational DB (with PITR) | **Neon Postgres** (serverless, branch-per-PR) | `@visastack/db` | Phase 1 |
-| ORM / migrations | **Drizzle** (type-safe, migration-first) | `@visastack/db` | Phase 1 |
-| Object storage + quarantine | **Cloudflare R2 / S3** (separate quarantine & clean buckets) | `@visastack/storage` | Phase 3 |
-| Malware scanning | AV scan step (e.g. ClamAV worker / scanning API) | `@visastack/pipeline` | Phase 3 |
-| Durable pipeline | **Inngest** (retries, state machine, recoverable steps) | `@visastack/pipeline` | Phase 3 |
-| AI gateway | **Vercel AI Gateway** fronting GPT-5.6 Terra (caching, cost caps, eval, outage handling) | `@visastack/ai-gateway` | Phase 4 |
-| Secrets / KMS | Vercel env + **AWS KMS / Infisical** (envelope encryption, rotation) | `@visastack/crypto` | Phase 1+ |
-| Observability | **Sentry** + OpenTelemetry + fail-closed audit log | `@visastack/observability` | Phase 6 |
+| Concern | Choice (per spec) | Package seam | Phase |
+|---------|-------------------|--------------|-------|
+| Canonical writable store | **Neon PostgreSQL** — the *only* canonical writable data store; protected production branch; synthetic-only preview branches | `@visastack/db` | 1 (Foundation) |
+| ORM / migrations | **Drizzle ORM** — reviewed, reversible migrations | `@visastack/db` | 1 |
+| Identity | **WorkOS AuthKit** — users, organizations, passkeys, MFA (see ADR-0006). VisaStack's policy engine stays authoritative for applicant resources | `@visastack/auth` | 1 |
+| Authorization | **VisaStack policy engine** — server-authoritative, default-deny, fail-closed audit | `@visastack/policy` | 1 |
+| Object storage | **Private AWS S3** — separate quarantine & clean buckets, Block Public Access, KMS, object versioning + lifecycle, one-time presigned upload / short-lived signed download | `@visastack/storage` | 1–3 |
+| Encryption / secrets | **AWS KMS** envelope encryption by sensitivity class; secrets in a managed vault, rotated | `@visastack/crypto` | 1+ |
+| Durable job pipeline | **AWS SQS + isolated Lambda/container workers** — scan, conversion, OCR, deterministic parse, AI extraction, pack generation; idempotency keys, bounded retries, dead-letter queue | `@visastack/pipeline` | 3 |
+| AI gateway | **Server-only, provider-neutral AI Gateway over the OpenAI Responses API** with Structured Outputs; standard model **GPT-5.6 Terra**; model/task/prompt registry, cost ledger, evaluation suite | `@visastack/ai-gateway` | 3 |
+| Observability | **Sentry (or equivalent)** + structured logs without document contents; separate append-only audit sink | `@visastack/observability` | 1+ |
 
-Each provider is wrapped behind its package's interface. Application and
-domain code never import a vendor SDK directly.
+Application and domain code never import a vendor SDK directly; each seam
+exposes a VisaStack interface.
 
 ## Consequences
 
-- **Positive:** every capability the PRD needs has a concrete, compatible
-  home; providers are swappable; PR previews get isolated DB branches.
-- **Trade-offs:** several external accounts and their costs/keys; each is
-  a supply-chain and availability dependency to monitor.
-- **Follow-ups:** promote each row to its own Accepted ADR when its phase
-  begins, with the integration details and the fallback/outage plan.
+- **Positive:** the implementation matches the authoritative baseline
+  exactly; nothing is guessed; the isolated-worker model keeps risky file
+  processing off the interactive request path.
+- **Trade-offs:** AWS (S3 + SQS + Lambda + KMS) is operated alongside
+  Vercel and Neon — more surface than an all-Vercel stack, but required for
+  the quarantine/clean separation, envelope encryption, and durable jobs
+  the spec mandates.
+- **Follow-ups:** each seam gets its integration + outage/fallback plan
+  documented when its phase begins.
 
-## Alternatives considered
+## Supersedes
 
-- **Supabase all-in-one** (DB + storage + auth) — fewer vendors and lower
-  cost, but weaker fit for the org/verification and step-up auth model
-  (see ADR-0006) and less control over the quarantine pipeline.
-- **Vercel Blob only** for documents — lacks the quarantine/scan
-  separation the PRD requires; rejected for document storage.
+This replaces the earlier *proposed* version of ADR-0007, which had
+suggested Cloudflare R2 and Inngest. Those contradicted Build Spec §15
+(AWS S3; AWS SQS + Lambda/container workers) and are dropped. The spec is
+the authority.
