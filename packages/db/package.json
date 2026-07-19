@@ -17,12 +17,12 @@
   },
   "dependencies": {
     "@visastack/core": "workspace:*",
-    "drizzle-orm": "^0.36.4"
+    "drizzle-orm": "^0.45.2"
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.2.13",
     "@types/node": "^22.10.2",
-    "drizzle-kit": "^0.28.1",
+    "drizzle-kit": "^0.31.0",
     "typescript": "^5.7.2",
     "vitest": "^2.1.8"
   }

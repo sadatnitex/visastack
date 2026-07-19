@@ -5,7 +5,7 @@ CREATE TYPE "public"."consent_type" AS ENUM('CORE_PROCESSING', 'AI_EXTRACTION', 
 CREATE TYPE "public"."membership_role" AS ENUM('OWNER', 'ADMIN', 'CASE_MANAGER', 'REVIEWER');--> statement-breakpoint
 CREATE TYPE "public"."organization_status" AS ENUM('PENDING_VERIFICATION', 'ACTIVE', 'SUSPENDED', 'REJECTED', 'CLOSED');--> statement-breakpoint
 CREATE TYPE "public"."permission_action" AS ENUM('VIEW_METADATA', 'PREVIEW', 'COMMENT', 'PROPOSE_EDIT', 'APPROVE_EDIT', 'DOWNLOAD_ORIGINAL', 'DOWNLOAD_REDACTED', 'DOWNLOAD_PACK', 'EXPORT_PROFILE', 'SHARE', 'MANAGE');--> statement-breakpoint
-CREATE TABLE IF NOT EXISTS "accounts" (
+CREATE TABLE "accounts" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"email" text NOT NULL,
 	"email_verified_at" timestamp with time zone,
@@ -14,7 +14,7 @@ CREATE TABLE IF NOT EXISTS "accounts" (
 	CONSTRAINT "accounts_email_unique" UNIQUE("email")
 );
 --> statement-breakpoint
-CREATE TABLE IF NOT EXISTS "applicants" (
+CREATE TABLE "applicants" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"owner_account_id" uuid NOT NULL,
 	"display_name" text NOT NULL,
@@ -23,7 +23,7 @@ CREATE TABLE IF NOT EXISTS "applicants" (
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE IF NOT EXISTS "audit_events" (
+CREATE TABLE "audit_events" (
 	"seq" bigserial PRIMARY KEY NOT NULL,
 	"occurred_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"event_type" text NOT NULL,
@@ -45,7 +45,7 @@ CREATE TABLE IF NOT EXISTS "audit_events" (
 	"hash" text NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE IF NOT EXISTS "consent_records" (
+CREATE TABLE "consent_records" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"account_id" uuid NOT NULL,
 	"type" "consent_type" NOT NULL,
@@ -54,7 +54,7 @@ CREATE TABLE IF NOT EXISTS "consent_records" (
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE IF NOT EXISTS "memberships" (
+CREATE TABLE "memberships" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"account_id" uuid NOT NULL,
 	"organization_id" uuid NOT NULL,
@@ -65,7 +65,7 @@ CREATE TABLE IF NOT EXISTS "memberships" (
 	CONSTRAINT "memberships_account_org_unique" UNIQUE("account_id","organization_id")
 );
 --> statement-breakpoint
-CREATE TABLE IF NOT EXISTS "organizations" (
+CREATE TABLE "organizations" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"name" text NOT NULL,
 	"status" "organization_status" DEFAULT 'PENDING_VERIFICATION' NOT NULL,
@@ -73,37 +73,12 @@ CREATE TABLE IF NOT EXISTS "organizations" (
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-DO $$ BEGIN
- ALTER TABLE "applicants" ADD CONSTRAINT "applicants_owner_account_id_accounts_id_fk" FOREIGN KEY ("owner_account_id") REFERENCES "public"."accounts"("id") ON DELETE restrict ON UPDATE no action;
-EXCEPTION
- WHEN duplicate_object THEN null;
-END $$;
---> statement-breakpoint
-DO $$ BEGIN
- ALTER TABLE "audit_events" ADD CONSTRAINT "audit_events_actor_account_id_accounts_id_fk" FOREIGN KEY ("actor_account_id") REFERENCES "public"."accounts"("id") ON DELETE set null ON UPDATE no action;
-EXCEPTION
- WHEN duplicate_object THEN null;
-END $$;
---> statement-breakpoint
-DO $$ BEGIN
- ALTER TABLE "consent_records" ADD CONSTRAINT "consent_records_account_id_accounts_id_fk" FOREIGN KEY ("account_id") REFERENCES "public"."accounts"("id") ON DELETE cascade ON UPDATE no action;
-EXCEPTION
- WHEN duplicate_object THEN null;
-END $$;
---> statement-breakpoint
-DO $$ BEGIN
- ALTER TABLE "memberships" ADD CONSTRAINT "memberships_account_id_accounts_id_fk" FOREIGN KEY ("account_id") REFERENCES "public"."accounts"("id") ON DELETE cascade ON UPDATE no action;
-EXCEPTION
- WHEN duplicate_object THEN null;
-END $$;
---> statement-breakpoint
-DO $$ BEGIN
- ALTER TABLE "memberships" ADD CONSTRAINT "memberships_organization_id_organizations_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organizations"("id") ON DELETE cascade ON UPDATE no action;
-EXCEPTION
- WHEN duplicate_object THEN null;
-END $$;
---> statement-breakpoint
-CREATE INDEX IF NOT EXISTS "audit_events_occurred_at_idx" ON "audit_events" USING btree ("occurred_at");--> statement-breakpoint
-CREATE INDEX IF NOT EXISTS "audit_events_applicant_idx" ON "audit_events" USING btree ("applicant_id");--> statement-breakpoint
+ALTER TABLE "applicants" ADD CONSTRAINT "applicants_owner_account_id_accounts_id_fk" FOREIGN KEY ("owner_account_id") REFERENCES "public"."accounts"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "audit_events" ADD CONSTRAINT "audit_events_actor_account_id_accounts_id_fk" FOREIGN KEY ("actor_account_id") REFERENCES "public"."accounts"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "consent_records" ADD CONSTRAINT "consent_records_account_id_accounts_id_fk" FOREIGN KEY ("account_id") REFERENCES "public"."accounts"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "memberships" ADD CONSTRAINT "memberships_account_id_accounts_id_fk" FOREIGN KEY ("account_id") REFERENCES "public"."accounts"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "memberships" ADD CONSTRAINT "memberships_organization_id_organizations_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organizations"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+CREATE INDEX "audit_events_occurred_at_idx" ON "audit_events" USING btree ("occurred_at");--> statement-breakpoint
+CREATE INDEX "audit_events_applicant_idx" ON "audit_events" USING btree ("applicant_id");--> statement-breakpoint
 CREATE RULE "audit_events_no_update" AS ON UPDATE TO "audit_events" DO INSTEAD NOTHING;--> statement-breakpoint
 CREATE RULE "audit_events_no_delete" AS ON DELETE TO "audit_events" DO INSTEAD NOTHING;

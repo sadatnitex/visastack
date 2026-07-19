@@ -87,12 +87,7 @@ export const memberships = pgTable(
     active: boolean('active').notNull().default(true),
     ...timestamps,
   },
-  (table) => ({
-    accountOrgUnique: unique('memberships_account_org_unique').on(
-      table.accountId,
-      table.organizationId,
-    ),
-  }),
+  (table) => [unique('memberships_account_org_unique').on(table.accountId, table.organizationId)],
 );
 
 // --- Consent records (separate consent per purpose) ------------------------
@@ -133,8 +128,8 @@ export const auditEvents = pgTable(
     prevHash: text('prev_hash'),
     hash: text('hash').notNull(),
   },
-  (table) => ({
-    occurredAtIdx: index('audit_events_occurred_at_idx').on(table.occurredAt),
-    applicantIdx: index('audit_events_applicant_idx').on(table.applicantId),
-  }),
+  (table) => [
+    index('audit_events_occurred_at_idx').on(table.occurredAt),
+    index('audit_events_applicant_idx').on(table.applicantId),
+  ],
 );
