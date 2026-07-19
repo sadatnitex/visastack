@@ -1,12 +1,15 @@
 import {
   CONSENT_TYPES,
   MEMBERSHIP_ROLES,
+  MISSION_STATES,
   ORGANIZATION_STATUSES,
   PERMISSION_ACTIONS,
 } from '@visastack/core';
+import { sql } from 'drizzle-orm';
 import {
   bigserial,
   boolean,
+  check,
   index,
   jsonb,
   pgEnum,
@@ -38,6 +41,14 @@ export const applicantRelationship = pgEnum('applicant_relationship', [
 ]);
 export const auditResult = pgEnum('audit_result', ['ALLOWED', 'DENIED']);
 export const auditMethod = pgEnum('audit_method', ['MANUAL', 'DOCUMENT', 'API', 'SYSTEM']);
+export const missionState = pgEnum('mission_state', MISSION_STATES);
+export const grantStatus = pgEnum('grant_status', [
+  'PENDING_ACCEPTANCE',
+  'ACTIVE',
+  'PAUSED',
+  'REVOKED',
+  'EXPIRED',
+]);
 
 // --- Shared timestamp columns ----------------------------------------------
 const timestamps = {
@@ -131,5 +142,54 @@ export const auditEvents = pgTable(
   (table) => [
     index('audit_events_occurred_at_idx').on(table.occurredAt),
     index('audit_events_applicant_idx').on(table.applicantId),
+  ],
+);
+
+// --- Missions (parallel destination/purpose workspaces; Build Spec §4.3) ----
+export const missions = pgTable('missions', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  applicantId: uuid('applicant_id')
+    .notNull()
+    .references(() => applicants.id, { onDelete: 'cascade' }),
+  title: text('title').notNull(),
+  destination: text('destination'),
+  purpose: text('purpose'),
+  state: missionState('state').notNull().default('DRAFT'),
+  ...timestamps,
+});
+
+// --- Grants (scoped, accepted, time-bound delegations; Build Spec §4.4) -----
+export const grants = pgTable(
+  'grants',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    applicantId: uuid('applicant_id')
+      .notNull()
+      .references(() => applicants.id, { onDelete: 'cascade' }),
+    // Recipient is a specific account and/or an organization (at least one).
+    recipientAccountId: uuid('recipient_account_id').references(() => accounts.id, {
+      onDelete: 'cascade',
+    }),
+    recipientOrganizationId: uuid('recipient_organization_id').references(() => organizations.id, {
+      onDelete: 'cascade',
+    }),
+    // Mission-scoped when set; applicant-wide (still category-constrained) when null.
+    missionId: uuid('mission_id').references(() => missions.id, { onDelete: 'cascade' }),
+    actions: permissionAction('actions').array().notNull(),
+    categories: text('categories').array(),
+    purpose: text('purpose').notNull(),
+    status: grantStatus('status').notNull().default('PENDING_ACCEPTANCE'),
+    acceptedAt: timestamp('accepted_at', { withTimezone: true }),
+    startAt: timestamp('start_at', { withTimezone: true }).notNull().defaultNow(),
+    expiryAt: timestamp('expiry_at', { withTimezone: true }),
+    ...timestamps,
+  },
+  (table) => [
+    index('grants_applicant_idx').on(table.applicantId),
+    // A grant must name a recipient — never an ownerless delegation.
+    check(
+      'grants_recipient_present',
+      sql`${table.recipientAccountId} is not null or ${table.recipientOrganizationId} is not null`,
+    ),
   ],
 );

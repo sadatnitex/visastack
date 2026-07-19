@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { PGlite } from '@electric-sql/pglite';
 import { sql } from 'drizzle-orm';
@@ -129,5 +130,65 @@ describe('schema — audit trail is append-only and tamper-evident', () => {
       },
     ];
     expect(verifyAuditChain(tampered)).toBe(false);
+  });
+});
+
+describe('schema — missions & grants', () => {
+  async function seedApplicant(db: Awaited<ReturnType<typeof freshDb>>) {
+    const account = one(
+      await db
+        .insert(schema.accounts)
+        .values({ email: `${randomUUID()}@x.com` })
+        .returning(),
+    );
+    return one(
+      await db
+        .insert(schema.applicants)
+        .values({ ownerAccountId: account.id, displayName: 'Owner' })
+        .returning(),
+    );
+  }
+
+  it('creates a mission with the default DRAFT state', async () => {
+    const db = await freshDb();
+    const applicant = await seedApplicant(db);
+    const mission = one(
+      await db
+        .insert(schema.missions)
+        .values({ applicantId: applicant.id, title: 'UK Tourist Visa' })
+        .returning(),
+    );
+    expect(mission.state).toBe('DRAFT');
+  });
+
+  it('stores a grant with an actions array and a recipient', async () => {
+    const db = await freshDb();
+    const applicant = await seedApplicant(db);
+    const org = one(
+      await db.insert(schema.organizations).values({ name: 'Acme Travel' }).returning(),
+    );
+    const grant = one(
+      await db
+        .insert(schema.grants)
+        .values({
+          applicantId: applicant.id,
+          recipientOrganizationId: org.id,
+          actions: ['PREVIEW', 'DOWNLOAD_REDACTED'],
+          purpose: 'visa_application',
+        })
+        .returning(),
+    );
+    expect(grant.status).toBe('PENDING_ACCEPTANCE');
+    expect(grant.actions).toEqual(['PREVIEW', 'DOWNLOAD_REDACTED']);
+  });
+
+  it('rejects a grant with no recipient (check constraint)', async () => {
+    const db = await freshDb();
+    const applicant = await seedApplicant(db);
+    await expect(
+      db
+        .insert(schema.grants)
+        .values({ applicantId: applicant.id, actions: ['PREVIEW'], purpose: 'x' }),
+    ).rejects.toThrow();
   });
 });
