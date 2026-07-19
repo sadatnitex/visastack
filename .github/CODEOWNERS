@@ -1,0 +1,13 @@
+# CODEOWNERS — every change requires review from a code owner.
+# Ordering matters: the last matching pattern wins.
+
+# Default owner for everything.
+*                       @sadatnitex
+
+# Governance, CI, and security surfaces get extra scrutiny.
+/.github/               @sadatnitex
+/docs/adr/              @sadatnitex
+/SECURITY.md            @sadatnitex
+
+# The Universal Core is the domain contract — guard it closely.
+/packages/core/         @sadatnitex
