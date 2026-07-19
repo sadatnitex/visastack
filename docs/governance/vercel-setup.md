@@ -25,8 +25,16 @@ Set these once under **Project → Settings → Build & Deployment**:
 
 With Root Directory = `apps/web` and "include files outside" enabled,
 Vercel installs at the workspace root, resolves `@visastack/core`, and
-builds the app with full Next.js runtime support (SSR + API routes). No
-`vercel.json` is required.
+builds the app with full Next.js runtime support (SSR + API routes).
+
+The **Framework Preset is pinned in code** via
+[`apps/web/vercel.json`](../../apps/web/vercel.json) (`"framework":
+"nextjs"`). This is necessary because the project was auto-created with an
+"Other" preset before the Next.js app existed, and setting the Root
+Directory alone does not re-run framework detection — without the pin,
+Vercel looked for a static `public/` directory and failed. Pinning it in
+`vercel.json` keeps the setting reproducible rather than relying on a
+dashboard toggle.
 
 Turbo Remote Caching may be enabled later to share the CI/Vercel build cache.
 
