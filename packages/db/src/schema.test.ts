@@ -192,3 +192,78 @@ describe('schema — missions & grants', () => {
     ).rejects.toThrow();
   });
 });
+
+describe('schema — document vault', () => {
+  async function seedApplicant(db: Awaited<ReturnType<typeof freshDb>>) {
+    const account = one(
+      await db
+        .insert(schema.accounts)
+        .values({ email: `${randomUUID()}@x.com` })
+        .returning(),
+    );
+    return one(
+      await db
+        .insert(schema.applicants)
+        .values({ ownerAccountId: account.id, displayName: 'Owner' })
+        .returning(),
+    );
+  }
+
+  it('creates a document + version with safe defaults', async () => {
+    const db = await freshDb();
+    const applicant = await seedApplicant(db);
+    const storageObject = one(
+      await db
+        .insert(schema.storageObjects)
+        .values({ bucket: 'QUARANTINE', objectKey: randomUUID() })
+        .returning(),
+    );
+    const document = one(
+      await db
+        .insert(schema.documents)
+        .values({ applicantId: applicant.id, originalName: 'passport.pdf' })
+        .returning(),
+    );
+    const version = one(
+      await db
+        .insert(schema.documentVersions)
+        .values({ documentId: document.id, storageObjectId: storageObject.id })
+        .returning(),
+    );
+    expect(version.versionNumber).toBe(1);
+    expect(version.processingStatus).toBe('UPLOADING');
+    expect(version.safetyStatus).toBe('PENDING');
+  });
+
+  it('enforces unique (document, version number)', async () => {
+    const db = await freshDb();
+    const applicant = await seedApplicant(db);
+    const storageObject = one(
+      await db
+        .insert(schema.storageObjects)
+        .values({ bucket: 'CLEAN', objectKey: randomUUID() })
+        .returning(),
+    );
+    const document = one(
+      await db
+        .insert(schema.documents)
+        .values({ applicantId: applicant.id, originalName: 'a.pdf' })
+        .returning(),
+    );
+    await db
+      .insert(schema.documentVersions)
+      .values({ documentId: document.id, storageObjectId: storageObject.id, versionNumber: 1 });
+    await expect(
+      db
+        .insert(schema.documentVersions)
+        .values({ documentId: document.id, storageObjectId: storageObject.id, versionNumber: 1 }),
+    ).rejects.toThrow();
+  });
+
+  it('rejects an invalid storage bucket at the database level', async () => {
+    const db = await freshDb();
+    await expect(
+      db.execute(sql`INSERT INTO storage_objects (bucket, object_key) VALUES ('PUBLIC', 'k')`),
+    ).rejects.toThrow();
+  });
+});
