@@ -1,0 +1,52 @@
+name: DB Migrate (manual)
+
+# Applies the reviewed Drizzle migrations to Neon from CI, so no local
+# machine is needed. Requires a repository secret `DATABASE_URL` (the Neon
+# connection string). Trigger manually from the Actions tab and type
+# "migrate" to confirm.
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type "migrate" to confirm applying migrations to Neon'
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: db-migrate
+  cancel-in-progress: false
+
+jobs:
+  migrate:
+    if: ${{ github.event.inputs.confirm == 'migrate' }}
+    name: Apply migrations to Neon
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Apply migrations
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          if [ -z "${DATABASE_URL}" ]; then
+            echo "::error::DATABASE_URL secret is not set. Add it in Settings → Secrets and variables → Actions."
+            exit 1
+          fi
+          pnpm --filter @visastack/db db:migrate
