@@ -17,6 +17,8 @@ export {
   createNeonDb,
   checkConnection,
   isSchemaApplied,
+  resolveDatabaseUrl,
+  DATABASE_URL_ENV_CANDIDATES,
   type ExecutableDb,
   type NeonDb,
 } from './client';

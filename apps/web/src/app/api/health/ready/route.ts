@@ -1,4 +1,10 @@
-import { checkConnection, createNeonDb, isSchemaApplied } from '@visastack/db';
+import {
+  DATABASE_URL_ENV_CANDIDATES,
+  checkConnection,
+  createNeonDb,
+  isSchemaApplied,
+  resolveDatabaseUrl,
+} from '@visastack/db';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -12,6 +18,8 @@ export const dynamic = 'force-dynamic';
  * sensitive data in responses). Database errors are reported as a generic
  * code so a connection string can never leak into the body.
  */
+const WORKOS_ENV_VARS = ['WORKOS_API_KEY', 'WORKOS_CLIENT_ID', 'WORKOS_COOKIE_PASSWORD'] as const;
+
 /** Variable-keyed read — avoids both the index-signature and literal-key lint rules. */
 function readEnv(name: string): string | undefined {
   return process.env[name];
@@ -22,14 +30,16 @@ function isPresent(name: string): boolean {
   return typeof value === 'string' && value.length > 0;
 }
 
+function presenceMap(names: readonly string[]): Record<string, boolean> {
+  return Object.fromEntries(names.map((name) => [name, isPresent(name)]));
+}
+
 export async function GET(): Promise<Response> {
   const isProduction = readEnv('VERCEL_ENV') === 'production';
 
   const env = {
-    DATABASE_URL: isPresent('DATABASE_URL'),
-    WORKOS_API_KEY: isPresent('WORKOS_API_KEY'),
-    WORKOS_CLIENT_ID: isPresent('WORKOS_CLIENT_ID'),
-    WORKOS_COOKIE_PASSWORD: isPresent('WORKOS_COOKIE_PASSWORD'),
+    database: presenceMap(DATABASE_URL_ENV_CANDIDATES),
+    workos: presenceMap(WORKOS_ENV_VARS),
   };
 
   let db: { connected: boolean; schemaApplied: boolean; error?: string } = {
@@ -37,7 +47,7 @@ export async function GET(): Promise<Response> {
     schemaApplied: false,
   };
 
-  const connectionString = readEnv('DATABASE_URL');
+  const connectionString = resolveDatabaseUrl(process.env);
   if (connectionString) {
     try {
       const client = createNeonDb(connectionString);
