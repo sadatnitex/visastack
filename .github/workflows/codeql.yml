@@ -18,6 +18,10 @@ jobs:
     name: Analyze (${{ matrix.language }})
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    # CodeQL code scanning requires GitHub Advanced Security on private
+    # repositories. Run it only where supported so it never false-fails.
+    # Enable GHAS (or make the repo public) to activate it as a hard gate.
+    if: github.event.repository.visibility == 'public'
     strategy:
       fail-fast: false
       matrix:

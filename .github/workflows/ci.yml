@@ -35,6 +35,15 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      # GHAS-free dependency vulnerability gate (works on private repos).
+      # Hard gate on what we actually ship (production deps); dev-tooling
+      # advisories are surfaced but do not block, since they never deploy.
+      - name: Audit production dependencies
+        run: pnpm audit --prod --audit-level high
+
+      - name: Audit dev dependencies (informational)
+        run: pnpm audit --dev --audit-level high || true
+
       - name: Lint & format check
         run: pnpm run lint
 

@@ -6,17 +6,25 @@ intended configuration.
 
 ## Project settings
 
-| Setting | Value |
-|---------|-------|
-| Framework preset | Next.js |
-| Root directory | `apps/web` |
-| Include files outside root dir | **Enabled** (monorepo needs `packages/*`) |
-| Build command | *(auto)* `next build` — or `turbo run build --filter=@visastack/web` |
-| Install command | `pnpm install --frozen-lockfile` |
-| Node.js version | 22.x |
+The monorepo build is driven by the repo-root [`vercel.json`](../../vercel.json),
+so the Vercel **Root Directory stays at the repository root** (the default).
+That file pins the framework, install, build, and output paths:
 
-Vercel auto-detects the pnpm workspace and Turborepo. Turbo Remote Caching
-may be enabled later to share the CI/Vercel build cache.
+| Setting | Source | Value |
+|---------|--------|-------|
+| Framework preset | `vercel.json` | `nextjs` |
+| Root directory | Vercel project | repository root (default) |
+| Install command | `vercel.json` | `pnpm install --frozen-lockfile` |
+| Build command | `vercel.json` | `pnpm turbo run build --filter=@visastack/web` |
+| Output directory | `vercel.json` | `apps/web/.next` |
+| Node.js version | Vercel project | 22.x |
+
+> If you prefer the dashboard approach instead of `vercel.json`, set Root
+> Directory to `apps/web` with "Include files outside root directory"
+> enabled — but do not use both at once, since a non-root Root Directory
+> hides the repo-root `vercel.json`.
+
+Turbo Remote Caching may be enabled later to share the CI/Vercel build cache.
 
 ## Deployments
 

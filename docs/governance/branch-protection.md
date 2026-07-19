@@ -11,9 +11,12 @@ is the source of truth for what they should be.
 - **Require review from Code Owners.**
 - **Dismiss stale approvals** when new commits are pushed.
 - **Require status checks to pass before merging:**
-  - `CI / Lint · Build · Typecheck · Test`
-  - `CodeQL`
-  - `Dependency Review`
+  - `CI / Lint · Build · Typecheck · Test` (includes `pnpm audit` on
+    production dependencies — the active, GHAS-free vulnerability gate)
+  - `CodeQL` — **once GitHub Advanced Security is enabled** (or the repo is
+    public); until then this workflow skips on private repos and must not be
+    marked required.
+  - `Dependency Review` — same GHAS condition as CodeQL.
 - **Require branches to be up to date before merging.**
 - **Require conversation resolution before merging.**
 - **Require linear history** (squash or rebase merges only).

@@ -12,6 +12,11 @@ jobs:
     name: Review dependency changes
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    # The dependency-review action requires GitHub Advanced Security on
+    # private repositories. Run it only where it is supported so it never
+    # false-fails; the main CI job runs `pnpm audit` as a GHAS-free
+    # dependency vulnerability gate that works on any repository.
+    if: github.event.repository.visibility == 'public'
     steps:
       - name: Checkout
         uses: actions/checkout@v4
