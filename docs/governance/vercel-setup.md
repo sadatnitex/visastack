@@ -4,25 +4,29 @@
 dashboard when connecting the GitHub repository; this file records the
 intended configuration.
 
-## Project settings
+## Project settings (one-time, in the Vercel dashboard)
 
-The monorepo build is driven by the repo-root [`vercel.json`](../../vercel.json),
-so the Vercel **Root Directory stays at the repository root** (the default).
-That file pins the framework, install, build, and output paths:
+VisaStack is a pnpm/Turborepo monorepo with the Next.js app under
+`apps/web`. Vercel detects Next.js by finding `next` in the
+`package.json` **at the Root Directory** — so the Root Directory must point
+at the app, not the repo root. A repo-root `vercel.json` cannot substitute
+for this (Vercel reported `No Next.js version detected` when we tried).
 
-| Setting | Source | Value |
-|---------|--------|-------|
-| Framework preset | `vercel.json` | `nextjs` |
-| Root directory | Vercel project | repository root (default) |
-| Install command | `vercel.json` | `pnpm install --frozen-lockfile` |
-| Build command | `vercel.json` | `pnpm turbo run build --filter=@visastack/web` |
-| Output directory | `vercel.json` | `apps/web/.next` |
-| Node.js version | Vercel project | 22.x |
+Set these once under **Project → Settings → Build & Deployment**:
 
-> If you prefer the dashboard approach instead of `vercel.json`, set Root
-> Directory to `apps/web` with "Include files outside root directory"
-> enabled — but do not use both at once, since a non-root Root Directory
-> hides the repo-root `vercel.json`.
+| Setting | Value |
+|---------|-------|
+| Framework preset | Next.js (auto-detected once Root Directory is set) |
+| **Root Directory** | **`apps/web`** |
+| Include files outside the root directory | **Enabled** (needed for `packages/*`) |
+| Install command | *(auto)* `pnpm install` (pnpm enables frozen lockfile in CI) |
+| Build command | *(auto)* `next build` |
+| Node.js version | 22.x |
+
+With Root Directory = `apps/web` and "include files outside" enabled,
+Vercel installs at the workspace root, resolves `@visastack/core`, and
+builds the app with full Next.js runtime support (SSR + API routes). No
+`vercel.json` is required.
 
 Turbo Remote Caching may be enabled later to share the CI/Vercel build cache.
 
