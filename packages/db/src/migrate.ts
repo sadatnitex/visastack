@@ -2,6 +2,7 @@ import { fileURLToPath } from 'node:url';
 import { neon } from '@neondatabase/serverless';
 import { drizzle } from 'drizzle-orm/neon-http';
 import { migrate } from 'drizzle-orm/neon-http/migrator';
+import { DATABASE_URL_ENV_CANDIDATES, resolveDatabaseUrl } from './client';
 
 /**
  * Applies the reviewed SQL migrations to Neon. Run deliberately (not on every
@@ -13,9 +14,11 @@ import { migrate } from 'drizzle-orm/neon-http/migrator';
  * reviewed operation (Build Spec §15).
  */
 async function main(): Promise<void> {
-  const { DATABASE_URL: connectionString } = process.env;
+  const connectionString = resolveDatabaseUrl(process.env);
   if (!connectionString) {
-    throw new Error('DATABASE_URL is not set');
+    throw new Error(
+      `No database connection string found. Set one of these as a repository Actions secret: ${DATABASE_URL_ENV_CANDIDATES.join(', ')}.`,
+    );
   }
   const db = drizzle(neon(connectionString));
   const migrationsFolder = fileURLToPath(new URL('../migrations', import.meta.url));
