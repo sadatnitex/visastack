@@ -19,7 +19,7 @@ const securityHeaders = [
 const nextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
-  transpilePackages: ['@visastack/core'],
+  transpilePackages: ['@visastack/core', '@visastack/db'],
   async headers() {
     return [{ source: '/:path*', headers: securityHeaders }];
   },
