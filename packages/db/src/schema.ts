@@ -1,5 +1,6 @@
 import {
   CONSENT_TYPES,
+  DOCUMENT_STATES,
   MEMBERSHIP_ROLES,
   MISSION_STATES,
   ORGANIZATION_STATUSES,
@@ -7,10 +8,12 @@ import {
 } from '@visastack/core';
 import { sql } from 'drizzle-orm';
 import {
+  bigint,
   bigserial,
   boolean,
   check,
   index,
+  integer,
   jsonb,
   pgEnum,
   pgTable,
@@ -49,6 +52,15 @@ export const grantStatus = pgEnum('grant_status', [
   'REVOKED',
   'EXPIRED',
 ]);
+export const documentState = pgEnum('document_state', DOCUMENT_STATES);
+export const documentSafetyStatus = pgEnum('document_safety_status', [
+  'PENDING',
+  'SCANNING',
+  'CLEAN',
+  'QUARANTINED',
+  'FAILED',
+]);
+export const storageBucket = pgEnum('storage_bucket', ['QUARANTINE', 'CLEAN']);
 
 // --- Shared timestamp columns ----------------------------------------------
 const timestamps = {
@@ -191,5 +203,64 @@ export const grants = pgTable(
       'grants_recipient_present',
       sql`${table.recipientAccountId} is not null or ${table.recipientOrganizationId} is not null`,
     ),
+  ],
+);
+
+// --- Document Vault (Build Spec §4.2) --------------------------------------
+// Encrypted bytes in private object storage. The key is an immutable UUID and
+// is never the display filename (Build Spec §7).
+export const storageObjects = pgTable('storage_objects', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  bucket: storageBucket('bucket').notNull(),
+  objectKey: text('object_key').notNull().unique(),
+  contentHash: text('content_hash'),
+  sizeBytes: bigint('size_bytes', { mode: 'number' }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+// The logical document. Approved display name is versioned separately; the
+// original filename is preserved forever.
+export const documents = pgTable('documents', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  applicantId: uuid('applicant_id')
+    .notNull()
+    .references(() => applicants.id, { onDelete: 'cascade' }),
+  approvedName: text('approved_name'),
+  originalName: text('original_name').notNull(),
+  docType: text('doc_type'),
+  subject: text('subject'),
+  issuer: text('issuer'),
+  documentDate: text('document_date'),
+  source: text('source'),
+  uploaderAccountId: uuid('uploader_account_id').references(() => accounts.id, {
+    onDelete: 'set null',
+  }),
+  expiresAt: timestamp('expires_at', { withTimezone: true }),
+  ...timestamps,
+});
+
+// An uploaded/generated version. Replacement/versioning never destroys prior
+// mission snapshots.
+export const documentVersions = pgTable(
+  'document_versions',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    documentId: uuid('document_id')
+      .notNull()
+      .references(() => documents.id, { onDelete: 'cascade' }),
+    versionNumber: integer('version_number').notNull().default(1),
+    storageObjectId: uuid('storage_object_id')
+      .notNull()
+      .references(() => storageObjects.id, { onDelete: 'restrict' }),
+    processingStatus: documentState('processing_status').notNull().default('UPLOADING'),
+    safetyStatus: documentSafetyStatus('safety_status').notNull().default('PENDING'),
+    sizeBytes: bigint('size_bytes', { mode: 'number' }),
+    pages: integer('pages'),
+    sha256: text('sha256'),
+    ...timestamps,
+  },
+  (table) => [
+    unique('document_versions_doc_version_unique').on(table.documentId, table.versionNumber),
+    index('document_versions_document_idx').on(table.documentId),
   ],
 );
