@@ -1,0 +1,23 @@
+{
+  "name": "@visastack/policy",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Server-authoritative, default-deny authorization policy engine.",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@visastack/core": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  }
+}
