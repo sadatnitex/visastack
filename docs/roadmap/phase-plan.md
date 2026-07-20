@@ -104,7 +104,10 @@ likelihood; pack manifest/checksums verified.
 - [x] Scoped/accepted/time-limited grants + access transparency
   *(`createGrant`/`acceptGrant`/`revokeGrant`/`pause`/`resume`,
   `listAccessForApplicant`; end-to-end with the policy engine)*.
-- [ ] Assignments, notes, evidence requests, permissioned bulk export *(4b)*.
+- [x] Assignments, notes, evidence requests, permissioned bulk export
+  *(`assignMember`, `addNote`, `requestEvidence`/`respondEvidence`, and
+  `bulkExport` — policy-engine-gated, only EXPORT_PROFILE-granted applicants
+  included)*.
 
 **Gate:** grants are accept-required, purpose-bound, revocable next-request;
 membership never exposes records; bulk export permission-checked.

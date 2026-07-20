@@ -70,6 +70,11 @@ export const packVersionStatus = pgEnum('pack_version_status', [
   'DEPRECATED',
 ]);
 export const requirementKind = pgEnum('requirement_kind', ['FIELD', 'DOCUMENT']);
+export const evidenceRequestStatus = pgEnum('evidence_request_status', [
+  'OPEN',
+  'FULFILLED',
+  'DECLINED',
+]);
 export const factStatus = pgEnum('fact_status', FACT_STATUSES);
 export const fieldSensitivity = pgEnum('field_sensitivity', [
   'STANDARD',
@@ -442,6 +447,64 @@ export const missionSnapshots = pgTable(
   (table) => [
     unique('mission_snapshots_mission_version_unique').on(table.missionId, table.version),
   ],
+);
+
+// --- Collaboration: assignments, notes, evidence requests (Build Spec §2; PRD §5)
+// An org member is assigned to work a mission (still access-gated by grants).
+export const assignments = pgTable(
+  'assignments',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    organizationId: uuid('organization_id')
+      .notNull()
+      .references(() => organizations.id, { onDelete: 'cascade' }),
+    memberAccountId: uuid('member_account_id')
+      .notNull()
+      .references(() => accounts.id, { onDelete: 'cascade' }),
+    missionId: uuid('mission_id')
+      .notNull()
+      .references(() => missions.id, { onDelete: 'cascade' }),
+    ...timestamps,
+  },
+  (table) => [
+    unique('assignments_unique').on(table.organizationId, table.memberAccountId, table.missionId),
+  ],
+);
+
+export const missionNotes = pgTable(
+  'mission_notes',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    missionId: uuid('mission_id')
+      .notNull()
+      .references(() => missions.id, { onDelete: 'cascade' }),
+    authorAccountId: uuid('author_account_id'),
+    body: text('body').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index('mission_notes_mission_idx').on(table.missionId)],
+);
+
+// An org asks an applicant for a specific field or document type.
+export const evidenceRequests = pgTable(
+  'evidence_requests',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    organizationId: uuid('organization_id')
+      .notNull()
+      .references(() => organizations.id, { onDelete: 'cascade' }),
+    applicantId: uuid('applicant_id')
+      .notNull()
+      .references(() => applicants.id, { onDelete: 'cascade' }),
+    kind: requirementKind('kind').notNull(),
+    fieldKey: text('field_key'),
+    docType: text('doc_type'),
+    message: text('message'),
+    status: evidenceRequestStatus('status').notNull().default('OPEN'),
+    respondedAt: timestamp('responded_at', { withTimezone: true }),
+    ...timestamps,
+  },
+  (table) => [index('evidence_requests_applicant_idx').on(table.applicantId)],
 );
 
 // --- Account deletion workflow (Build Spec §13; PRD §2) ---------------------
