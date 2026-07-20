@@ -1,0 +1,28 @@
+{
+  "name": "@visastack/adapters",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Concrete, no-external-dependency adapters: Neon-bytea blob storage and a built-in structural safety scanner (StoragePort/BlobStore/ScannerPort).",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@visastack/core": "workspace:*",
+    "@visastack/db": "workspace:*",
+    "@visastack/services": "workspace:*",
+    "drizzle-orm": "^0.45.2"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "^0.2.13",
+    "@types/node": "^22.10.2",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  }
+}

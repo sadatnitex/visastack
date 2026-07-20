@@ -33,3 +33,24 @@ export interface StoragePort {
   /** Issue a time-limited read reference for an object. */
   issueReadRef(input: IssueReadRefInput): Promise<AccessRef>;
 }
+
+/** The bytes carried by a stored object. */
+export interface StoredBytes {
+  readonly contentType: string;
+  readonly bytes: Uint8Array;
+}
+
+export interface PutObjectInput extends StoredBytes {
+  readonly bucket: StorageBucket;
+  readonly objectKey: string;
+}
+
+/**
+ * The write/read-bytes half of object storage, separate from `StoragePort` so
+ * existing read-only consumers are unaffected. A concrete backend (Neon-bytea
+ * today, S3 later) implements both.
+ */
+export interface BlobStore {
+  putObject(input: PutObjectInput): Promise<void>;
+  getObject(objectKey: string): Promise<StoredBytes | undefined>;
+}

@@ -58,9 +58,12 @@ export type {
   AccessDisposition,
   AccessRef,
   AccessVariant,
+  BlobStore,
   IssueReadRefInput,
+  PutObjectInput,
   StorageBucket,
   StoragePort,
+  StoredBytes,
 } from './storage';
 
 export { type AccountExport, exportAccount } from './export';
