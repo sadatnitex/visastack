@@ -41,12 +41,13 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      # Accept any of the standard Neon/Vercel connection-string secret names;
+      # the migrate script resolves the first one present.
       - name: Apply migrations
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
-        run: |
-          if [ -z "${DATABASE_URL}" ]; then
-            echo "::error::DATABASE_URL secret is not set. Add it in Settings → Secrets and variables → Actions."
-            exit 1
-          fi
-          pnpm --filter @visastack/db db:migrate
+          POSTGRES_URL: ${{ secrets.POSTGRES_URL }}
+          DATABASE_URL_UNPOOLED: ${{ secrets.DATABASE_URL_UNPOOLED }}
+          POSTGRES_URL_NON_POOLING: ${{ secrets.POSTGRES_URL_NON_POOLING }}
+          POSTGRES_PRISMA_URL: ${{ secrets.POSTGRES_PRISMA_URL }}
+        run: pnpm --filter @visastack/db db:migrate
