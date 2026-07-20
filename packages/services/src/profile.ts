@@ -81,6 +81,15 @@ export interface EditFactInput {
   readonly reason?: string;
   /** Groups a repeating record (e.g. a specific passport). */
   readonly repeatingRecordKey?: string;
+  /**
+   * Provenance (Build Spec §9). Defaults to a MANUAL edit. The AI approval
+   * path sets method DOCUMENT with the source version and model/prompt tags —
+   * an approved AI proposal is still a human-authorized, immutable version.
+   */
+  readonly method?: 'MANUAL' | 'DOCUMENT' | 'API' | 'SYSTEM';
+  readonly sourceDocumentVersionId?: string;
+  readonly modelVersion?: string;
+  readonly promptVersion?: string;
 }
 
 export interface EditFactResult {
@@ -206,9 +215,12 @@ export async function editFact(
             factId: fact.id,
             value: input.value,
             status: input.status ?? 'APPLICANT_CONFIRMED',
-            method: 'MANUAL',
+            method: input.method ?? 'MANUAL',
             actorAccountId: input.actorAccountId,
             reason: input.reason ?? null,
+            sourceDocumentVersionId: input.sourceDocumentVersionId ?? null,
+            modelVersion: input.modelVersion ?? null,
+            promptVersion: input.promptVersion ?? null,
             approvedAt: new Date(),
           })
           .returning(),
