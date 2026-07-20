@@ -62,6 +62,7 @@ export const documentSafetyStatus = pgEnum('document_safety_status', [
   'FAILED',
 ]);
 export const storageBucket = pgEnum('storage_bucket', ['QUARANTINE', 'CLEAN']);
+export const deletionStatus = pgEnum('deletion_status', ['PENDING', 'CANCELLED', 'EXECUTED']);
 export const factStatus = pgEnum('fact_status', FACT_STATUSES);
 export const fieldSensitivity = pgEnum('field_sensitivity', [
   'STANDARD',
@@ -139,9 +140,10 @@ export const auditEvents = pgTable(
     seq: bigserial('seq', { mode: 'number' }).primaryKey(),
     occurredAt: timestamp('occurred_at', { withTimezone: true }).notNull().defaultNow(),
     eventType: text('event_type').notNull(),
-    actorAccountId: uuid('actor_account_id').references(() => accounts.id, {
-      onDelete: 'set null',
-    }),
+    // Plain uuid, not an FK: the audit log is immutable and hash-chained, so the
+    // actor identifier is retained verbatim forever. A `set null` FK would both
+    // break the hash chain and be rejected by the append-only RULE on deletion.
+    actorAccountId: uuid('actor_account_id'),
     actorRole: text('actor_role'),
     action: permissionAction('action'),
     result: auditResult('result'),
@@ -358,3 +360,18 @@ export const evidenceLinks = pgTable(
   },
   (table) => [unique('evidence_links_unique').on(table.factVersionId, table.documentVersionId)],
 );
+
+// --- Account deletion workflow (Build Spec §13; PRD §2) ---------------------
+// A deletion request is reversible during a grace window and executed after it.
+// accountId is set null on execution so the request survives as a tombstone.
+export const accountDeletionRequests = pgTable('account_deletion_requests', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  accountId: uuid('account_id').references(() => accounts.id, { onDelete: 'set null' }),
+  status: deletionStatus('status').notNull().default('PENDING'),
+  requestedAt: timestamp('requested_at', { withTimezone: true }).notNull().defaultNow(),
+  scheduledFor: timestamp('scheduled_for', { withTimezone: true }).notNull(),
+  cancelledAt: timestamp('cancelled_at', { withTimezone: true }),
+  executedAt: timestamp('executed_at', { withTimezone: true }),
+  reason: text('reason'),
+  ...timestamps,
+});
