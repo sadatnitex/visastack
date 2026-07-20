@@ -112,6 +112,15 @@ likelihood; pack manifest/checksums verified.
 **Gate:** grants are accept-required, purpose-bound, revocable next-request;
 membership never exposes records; bulk export permission-checked.
 
+## Retention & legal hold (PRD 5 — cross-cutting)
+
+- [x] Retention policies per document type + eligibility-based purge that never
+  touches held data *(`setRetentionPolicy`, `documentsPastRetention`,
+  `purgeExpiredDocuments`)*.
+- [x] Legal hold that **overrides deletion** *(`placeLegalHold` /
+  `releaseLegalHold`; `executeAccountDeletion` refuses while any active hold
+  exists on the account's applicants)*.
+
 ## Controlled Launch (Spec Phase 5 / PRD 6)
 
 - [ ] Internal synthetic testing → Travel Router real-data pilot →

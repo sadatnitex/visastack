@@ -131,6 +131,30 @@ export async function executeAccountDeletion(
     return err(serviceError('invalid', 'grace window has not elapsed'));
   }
 
+  // Legal hold overrides deletion (Build Spec §13): an active hold on ANY of the
+  // account's applicants blocks erasure until the hold is released.
+  const ownedApplicantIds = (
+    await db
+      .select({ id: schema.applicants.id })
+      .from(schema.applicants)
+      .where(eq(schema.applicants.ownerAccountId, input.accountId))
+  ).map((a) => a.id);
+  if (ownedApplicantIds.length > 0) {
+    const held = first(
+      await db
+        .select({ id: schema.legalHolds.id })
+        .from(schema.legalHolds)
+        .where(
+          and(
+            inArray(schema.legalHolds.applicantId, ownedApplicantIds),
+            eq(schema.legalHolds.active, true),
+          ),
+        )
+        .limit(1),
+    );
+    if (held) return err(serviceError('invalid', 'an active legal hold blocks deletion'));
+  }
+
   return db.transaction(async (tx) => {
     const applicantRows = await tx
       .select({ id: schema.applicants.id })
