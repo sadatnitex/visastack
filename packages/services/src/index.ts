@@ -66,6 +66,18 @@ export type {
 export { type AccountExport, exportAccount } from './export';
 
 export {
+  type Mission,
+  type MissionSnapshot,
+  type MissingRequirement,
+  type Readiness,
+  attachPackVersion,
+  computeReadiness,
+  createMission,
+  snapshotMission,
+  transitionMission,
+} from './missions';
+
+export {
   type Pack,
   type PackRequirement,
   type PackVersion,
