@@ -66,6 +66,28 @@ export type {
 export { type AccountExport, exportAccount } from './export';
 
 export {
+  type Membership,
+  type Organization,
+  addMembership,
+  createOrganization,
+  isOrgAdmin,
+  reviewOrganization,
+  setMembershipActive,
+  suspendOrganization,
+} from './organizations';
+
+export {
+  type CreateGrantInput,
+  type Grant,
+  acceptGrant,
+  createGrant,
+  listAccessForApplicant,
+  pauseGrant,
+  resumeGrant,
+  revokeGrant,
+} from './sharing';
+
+export {
   type Mission,
   type MissionSnapshot,
   type MissingRequirement,

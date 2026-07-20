@@ -98,10 +98,13 @@ likelihood; pack manifest/checksums verified.
 
 ## Agencies & Sharing — *Collaboration* (Spec Phase 4 / PRD 5)
 
-- [ ] Organization verification (`PENDING_VERIFICATION` → `ACTIVE` …);
-  no self-upgrade to provider.
-- [ ] Assignments, scoped/accepted/time-limited grants, access
-  transparency, notes, evidence requests, permissioned bulk export.
+- [x] Organization verification (`PENDING_VERIFICATION` → `ACTIVE` …);
+  no self-upgrade to provider *(`createOrganization`, `reviewOrganization`
+  (independent reviewer), `suspendOrganization`, membership management)*.
+- [x] Scoped/accepted/time-limited grants + access transparency
+  *(`createGrant`/`acceptGrant`/`revokeGrant`/`pause`/`resume`,
+  `listAccessForApplicant`; end-to-end with the policy engine)*.
+- [ ] Assignments, notes, evidence requests, permissioned bulk export *(4b)*.
 
 **Gate:** grants are accept-required, purpose-bound, revocable next-request;
 membership never exposes records; bulk export permission-checked.
