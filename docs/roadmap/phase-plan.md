@@ -86,10 +86,12 @@ benchmark is measured once the real model adapter is wired.
   *(`createPack`/`addPackVersion`/`addRequirement` (citation-required) →
   `approvePackVersion` (freezes manifest + sha256 checksum) →
   `publishPackVersion`; content immutable once out of DRAFT)*.
-- [ ] Parallel Mission Workspaces; readiness (no approval probability);
-  reviewer workflow; grounded letters/translations; versioned pack
-  generation with manifest/checksums.
-- [ ] Immutable mission snapshots.
+- [x] Parallel Mission Workspaces; readiness (no approval probability);
+  reviewer workflow *(`createMission`, `attachPackVersion` (PUBLISHED only),
+  `computeReadiness` (completeness only), guarded `transitionMission` state
+  machine)*. Grounded letters/translations remain a later slice.
+- [x] Immutable mission snapshots *(`snapshotMission`: checksummed,
+  sequential, never mutated)*.
 
 **Gate:** snapshot regression tests pass; readiness never shows approval
 likelihood; pack manifest/checksums verified.
