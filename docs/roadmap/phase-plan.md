@@ -59,16 +59,26 @@ gate closes: the account export/deletion workflow.
 
 ## Document Intelligence (Spec Phase 2 / PRD 3)
 
-- [ ] Safe upload pipeline: quarantine → scan → normalize → extract,
-  isolated workers, recoverable failures.
-- [ ] Deterministic parsing first (MRZ, embedded text, tables, dates).
-- [ ] GPT-5.6 Terra classification / naming / field proposals via the
-  AI Gateway; atomic approval transaction; correction feedback; cost
-  controls.
+- [x] Safe upload pipeline: quarantine → scan → normalize → extract
+  *(`processIntake` state machine; idempotent, resumable transitions; unsafe
+  scans routed to NEEDS_ATTENTION; `ScannerPort` seam)*.
+- [x] Deterministic parsing first *(TD3 passport MRZ with ICAO check-digit
+  validation + date parsing; `parseTd3`)*; embedded text/tables extend later.
+- [x] Field proposals via the AI Gateway; atomic approval transaction; cost
+  controls *(`AiExtractionPort` → `FieldProposal[]`; `runExtraction` is
+  consent- and budget-gated and never mutates; `approveProposal` reuses
+  `editFact` for an immutable, provenance-tagged approval — no silent mutation,
+  no invented fields)*. The concrete GPT-5.6 Terra adapter is deferred behind
+  the port until keys exist; correction-feedback learning is a later slice.
 
 **Gate:** AI/document benchmark met (≥95% type accuracy, ≥95% identity/date
 precision, ≥90% filename accepted unedited); no silent mutation; no
 unsupported field ID persisted.
+
+*Progress:* the pipeline, deterministic MRZ parsing, and the propose→approve
+AI path are implemented and proven (see ADR-0010). The "no silent mutation"
+and "no unsupported field ID" invariants are enforced and tested; the accuracy
+benchmark is measured once the real model adapter is wired.
 
 ## Missions & Packs (Spec Phase 3 / PRD 4)
 

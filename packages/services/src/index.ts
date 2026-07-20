@@ -66,6 +66,34 @@ export type {
 export { type AccountExport, exportAccount } from './export';
 
 export {
+  type MrzError,
+  type Td3Result,
+  checkDigit,
+  parseTd3,
+} from './mrz';
+
+export {
+  type ScannerPort,
+  type ScanResult,
+  nextIntakeState,
+  processIntake,
+} from './intake';
+
+export {
+  type AiBudget,
+  type AiExtractionInput,
+  type AiExtractionPort,
+  type AiExtractionResult,
+  type AiUsage,
+  type ApproveProposalInput,
+  type FieldProposal,
+  type RunExtractionInput,
+  approveProposal,
+  awaitingReview,
+  runExtraction,
+} from './ai';
+
+export {
   type DeletionRequest,
   cancelAccountDeletion,
   executeAccountDeletion,
