@@ -53,3 +53,28 @@ export {
   listFactHistory,
   registerFieldDefinition,
 } from './profile';
+
+export type {
+  AccessDisposition,
+  AccessRef,
+  AccessVariant,
+  IssueReadRefInput,
+  StorageBucket,
+  StoragePort,
+} from './storage';
+
+export {
+  type AddDocumentVersionInput,
+  type AddDocumentVersionResult,
+  type Document,
+  type DocumentAccessInput,
+  type DocumentVersion,
+  type DownloadDocumentInput,
+  type RegisterDocumentInput,
+  type StorageObject,
+  addDocumentVersion,
+  downloadDocument,
+  listDocuments,
+  previewDocument,
+  registerDocument,
+} from './documents';

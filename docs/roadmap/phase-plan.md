@@ -41,16 +41,19 @@ closed; no production data in preview; threat model approved.
 - [x] Master Profile: canonical + repeating records, manual editing with
   immutable `FactVersion` history and provenance *(policy-authorized,
   atomically-approved `editFact`; no silent mutation)*.
-- [ ] Document Vault metadata; permission-aware preview/download.
+- [x] Document Vault metadata; permission-aware preview/download
+  *(`registerDocument`/`addDocumentVersion`; policy-gated
+  `previewDocument`/`downloadDocument` via a `StoragePort` seam; step-up for
+  originals)*.
 - [ ] Account export + deletion workflow.
 
 **Gate:** 100% of profile mutations require authorized approval or manual
 edit; export/deletion passes; no-AI manual path fully usable.
 
-*Progress:* the no-AI manual path is implemented and proven (every mutation is
-policy-authorized, consent-gated, and audited atomically — see ADR-0009).
-Remaining before the gate closes: Document Vault preview/download service and
-the account export/deletion workflow.
+*Progress:* the no-AI manual path and the permission-aware Document Vault are
+implemented and proven (every mutation and access is policy-authorized,
+consent-gated, and audited atomically — see ADR-0009). Remaining before the
+gate closes: the account export/deletion workflow.
 
 ## Document Intelligence (Spec Phase 2 / PRD 3)
 
