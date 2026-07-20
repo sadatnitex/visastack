@@ -57,6 +57,13 @@
       "when": 1784559945268,
       "tag": "0007_wise_giant_girl",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1784574246656,
+      "tag": "0008_yielding_starhawk",
+      "breakpoints": true
     }
   ]
 }

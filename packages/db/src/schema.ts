@@ -507,6 +507,32 @@ export const evidenceRequests = pgTable(
   (table) => [index('evidence_requests_applicant_idx').on(table.applicantId)],
 );
 
+// --- Retention & legal hold (Build Spec §13; PRD §5) -----------------------
+// A legal hold on an applicant blocks erasure while active (overrides deletion).
+export const legalHolds = pgTable(
+  'legal_holds',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    applicantId: uuid('applicant_id')
+      .notNull()
+      .references(() => applicants.id, { onDelete: 'cascade' }),
+    reason: text('reason').notNull(),
+    placedByAccountId: uuid('placed_by_account_id'),
+    active: boolean('active').notNull().default(true),
+    releasedAt: timestamp('released_at', { withTimezone: true }),
+    ...timestamps,
+  },
+  (table) => [index('legal_holds_applicant_idx').on(table.applicantId)],
+);
+
+// Retention policy per document type: how long to keep before eligible purge.
+export const retentionPolicies = pgTable('retention_policies', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  docType: text('doc_type').notNull().unique(),
+  retentionDays: integer('retention_days').notNull(),
+  ...timestamps,
+});
+
 // --- Account deletion workflow (Build Spec §13; PRD §2) ---------------------
 // A deletion request is reversible during a grace window and executed after it.
 // accountId is set null on execution so the request survives as a tombstone.

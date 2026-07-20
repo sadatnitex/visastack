@@ -66,6 +66,19 @@ export type {
 export { type AccountExport, exportAccount } from './export';
 
 export {
+  type LegalHold,
+  type RetentionPolicy,
+  documentsPastRetention,
+  getRetentionPolicies,
+  hasActiveLegalHold,
+  listLegalHolds,
+  placeLegalHold,
+  purgeExpiredDocuments,
+  releaseLegalHold,
+  setRetentionPolicy,
+} from './retention';
+
+export {
   type Assignment,
   type BulkExportRow,
   type EvidenceRequest,
