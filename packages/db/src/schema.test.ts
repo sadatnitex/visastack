@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { PGlite } from '@electric-sql/pglite';
-import { sql } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/pglite';
 import { migrate } from 'drizzle-orm/pglite/migrator';
 import { describe, expect, it } from 'vitest';
@@ -264,6 +264,121 @@ describe('schema — document vault', () => {
     const db = await freshDb();
     await expect(
       db.execute(sql`INSERT INTO storage_objects (bucket, object_key) VALUES ('PUBLIC', 'k')`),
+    ).rejects.toThrow();
+  });
+});
+
+describe('schema — Master Profile fact model', () => {
+  async function seedApplicant(db: Awaited<ReturnType<typeof freshDb>>) {
+    const account = one(
+      await db
+        .insert(schema.accounts)
+        .values({ email: `${randomUUID()}@x.com` })
+        .returning(),
+    );
+    return one(
+      await db
+        .insert(schema.applicants)
+        .values({ ownerAccountId: account.id, displayName: 'Owner' })
+        .returning(),
+    );
+  }
+
+  it('points a fact at its immutable current version (approval)', async () => {
+    const db = await freshDb();
+    const applicant = await seedApplicant(db);
+    const fieldDef = one(
+      await db
+        .insert(schema.fieldDefinitions)
+        .values({ key: 'passport.number', dataType: 'string' })
+        .returning(),
+    );
+    const fact = one(
+      await db
+        .insert(schema.facts)
+        .values({ applicantId: applicant.id, fieldDefinitionId: fieldDef.id })
+        .returning(),
+    );
+    const version = one(
+      await db
+        .insert(schema.factVersions)
+        .values({ factId: fact.id, value: 'A1234567', status: 'APPLICANT_CONFIRMED' })
+        .returning(),
+    );
+    // Approval sets the current-version pointer.
+    const [updated] = await db
+      .update(schema.facts)
+      .set({ currentVersionId: version.id })
+      .where(eq(schema.facts.id, fact.id))
+      .returning();
+    expect(updated?.currentVersionId).toBe(version.id);
+    expect(version.status).toBe('APPLICANT_CONFIRMED');
+  });
+
+  it('defaults a fact version to DECLARED', async () => {
+    const db = await freshDb();
+    const applicant = await seedApplicant(db);
+    const fieldDef = one(
+      await db
+        .insert(schema.fieldDefinitions)
+        .values({ key: 'name.full', dataType: 'string' })
+        .returning(),
+    );
+    const fact = one(
+      await db
+        .insert(schema.facts)
+        .values({ applicantId: applicant.id, fieldDefinitionId: fieldDef.id })
+        .returning(),
+    );
+    const version = one(
+      await db.insert(schema.factVersions).values({ factId: fact.id, value: 'x' }).returning(),
+    );
+    expect(version.status).toBe('DECLARED');
+  });
+
+  it('enforces unique evidence links (fact version ↔ document version)', async () => {
+    const db = await freshDb();
+    const applicant = await seedApplicant(db);
+    const fieldDef = one(
+      await db
+        .insert(schema.fieldDefinitions)
+        .values({ key: 'passport.expiry', dataType: 'date' })
+        .returning(),
+    );
+    const fact = one(
+      await db
+        .insert(schema.facts)
+        .values({ applicantId: applicant.id, fieldDefinitionId: fieldDef.id })
+        .returning(),
+    );
+    const version = one(
+      await db.insert(schema.factVersions).values({ factId: fact.id }).returning(),
+    );
+    const storageObject = one(
+      await db
+        .insert(schema.storageObjects)
+        .values({ bucket: 'CLEAN', objectKey: randomUUID() })
+        .returning(),
+    );
+    const document = one(
+      await db
+        .insert(schema.documents)
+        .values({ applicantId: applicant.id, originalName: 'p.pdf' })
+        .returning(),
+    );
+    const docVersion = one(
+      await db
+        .insert(schema.documentVersions)
+        .values({ documentId: document.id, storageObjectId: storageObject.id })
+        .returning(),
+    );
+    await db
+      .insert(schema.evidenceLinks)
+      .values({ factVersionId: version.id, documentVersionId: docVersion.id });
+    await expect(
+      db
+        .insert(schema.evidenceLinks)
+        .values({ factVersionId: version.id, documentVersionId: docVersion.id }),
     ).rejects.toThrow();
   });
 });

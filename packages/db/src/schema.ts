@@ -1,6 +1,7 @@
 import {
   CONSENT_TYPES,
   DOCUMENT_STATES,
+  FACT_STATUSES,
   MEMBERSHIP_ROLES,
   MISSION_STATES,
   ORGANIZATION_STATUSES,
@@ -61,6 +62,12 @@ export const documentSafetyStatus = pgEnum('document_safety_status', [
   'FAILED',
 ]);
 export const storageBucket = pgEnum('storage_bucket', ['QUARANTINE', 'CLEAN']);
+export const factStatus = pgEnum('fact_status', FACT_STATUSES);
+export const fieldSensitivity = pgEnum('field_sensitivity', [
+  'STANDARD',
+  'SENSITIVE',
+  'RESTRICTED',
+]);
 
 // --- Shared timestamp columns ----------------------------------------------
 const timestamps = {
@@ -263,4 +270,91 @@ export const documentVersions = pgTable(
     unique('document_versions_doc_version_unique').on(table.documentId, table.versionNumber),
     index('document_versions_document_idx').on(table.documentId),
   ],
+);
+
+// --- Master Profile: canonical field registry (Build Spec §4.1) ------------
+// AI cannot invent canonical fields; they come from this registry.
+export const fieldDefinitions = pgTable('field_definitions', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  key: text('key').notNull().unique(),
+  dataType: text('data_type').notNull(),
+  sensitivity: fieldSensitivity('sensitivity').notNull().default('STANDARD'),
+  repeating: boolean('repeating').notNull().default(false),
+  packId: text('pack_id'),
+  validation: jsonb('validation'),
+  ...timestamps,
+});
+
+// A fact = a field instance for an applicant. The current value is a POINTER
+// to an immutable fact_version; history is never overwritten (Build Spec §9).
+export const facts = pgTable(
+  'facts',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    applicantId: uuid('applicant_id')
+      .notNull()
+      .references(() => applicants.id, { onDelete: 'cascade' }),
+    fieldDefinitionId: uuid('field_definition_id')
+      .notNull()
+      .references(() => fieldDefinitions.id, { onDelete: 'restrict' }),
+    // Groups a repeating record (e.g. a specific passport). Null for singletons.
+    repeatingRecordKey: text('repeating_record_key'),
+    // Pointer to the current fact_versions row; set on approval. Plain uuid to
+    // avoid a circular FK (facts <-> fact_versions); integrity enforced in the
+    // service layer inside the atomic approval transaction (Build Spec §8).
+    currentVersionId: uuid('current_version_id'),
+    ...timestamps,
+  },
+  (table) => [index('facts_applicant_idx').on(table.applicantId)],
+);
+
+// Immutable fact value + full provenance (Build Spec §9). Never updated.
+export const factVersions = pgTable(
+  'fact_versions',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    factId: uuid('fact_id')
+      .notNull()
+      .references(() => facts.id, { onDelete: 'cascade' }),
+    value: text('value'),
+    normalizedValue: text('normalized_value'),
+    status: factStatus('status').notNull().default('DECLARED'),
+    method: auditMethod('method').notNull().default('MANUAL'),
+    actorAccountId: uuid('actor_account_id').references(() => accounts.id, {
+      onDelete: 'set null',
+    }),
+    reason: text('reason'),
+    sourceDocumentVersionId: uuid('source_document_version_id').references(
+      () => documentVersions.id,
+      { onDelete: 'set null' },
+    ),
+    modelVersion: text('model_version'),
+    promptVersion: text('prompt_version'),
+    schemaVersion: text('schema_version'),
+    observedAt: timestamp('observed_at', { withTimezone: true }),
+    effectiveFrom: timestamp('effective_from', { withTimezone: true }),
+    validUntil: timestamp('valid_until', { withTimezone: true }),
+    approvedAt: timestamp('approved_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index('fact_versions_fact_idx').on(table.factId)],
+);
+
+// Links a document version (page/region) to a fact version as supporting
+// evidence — may exist without changing a fact (Build Spec §8).
+export const evidenceLinks = pgTable(
+  'evidence_links',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    factVersionId: uuid('fact_version_id')
+      .notNull()
+      .references(() => factVersions.id, { onDelete: 'cascade' }),
+    documentVersionId: uuid('document_version_id')
+      .notNull()
+      .references(() => documentVersions.id, { onDelete: 'cascade' }),
+    page: integer('page'),
+    region: jsonb('region'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [unique('evidence_links_unique').on(table.factVersionId, table.documentVersionId)],
 );
