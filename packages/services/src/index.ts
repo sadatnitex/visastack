@@ -66,6 +66,20 @@ export type {
 export { type AccountExport, exportAccount } from './export';
 
 export {
+  type Assignment,
+  type BulkExportRow,
+  type EvidenceRequest,
+  type MissionNote,
+  addNote,
+  assignMember,
+  bulkExport,
+  listAssignments,
+  listNotes,
+  requestEvidence,
+  respondEvidence,
+} from './agency';
+
+export {
   type Membership,
   type Organization,
   addMembership,
