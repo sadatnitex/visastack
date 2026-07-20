@@ -43,6 +43,13 @@
       "when": 1784556583251,
       "tag": "0005_fearless_the_twelve",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1784557844989,
+      "tag": "0006_goofy_corsair",
+      "breakpoints": true
     }
   ]
 }

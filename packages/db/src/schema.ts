@@ -63,6 +63,13 @@ export const documentSafetyStatus = pgEnum('document_safety_status', [
 ]);
 export const storageBucket = pgEnum('storage_bucket', ['QUARANTINE', 'CLEAN']);
 export const deletionStatus = pgEnum('deletion_status', ['PENDING', 'CANCELLED', 'EXECUTED']);
+export const packVersionStatus = pgEnum('pack_version_status', [
+  'DRAFT',
+  'APPROVED',
+  'PUBLISHED',
+  'DEPRECATED',
+]);
+export const requirementKind = pgEnum('requirement_kind', ['FIELD', 'DOCUMENT']);
 export const factStatus = pgEnum('fact_status', FACT_STATUSES);
 export const fieldSensitivity = pgEnum('field_sensitivity', [
   'STANDARD',
@@ -176,6 +183,8 @@ export const missions = pgTable('missions', {
   destination: text('destination'),
   purpose: text('purpose'),
   state: missionState('state').notNull().default('DRAFT'),
+  // The published requirement pack version this mission is assembled against.
+  packVersionId: uuid('pack_version_id'),
   ...timestamps,
 });
 
@@ -359,6 +368,80 @@ export const evidenceLinks = pgTable(
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [unique('evidence_links_unique').on(table.factVersionId, table.documentVersionId)],
+);
+
+// --- Requirement Packs & Pack Studio (Build Spec §4.5; PRD §4) --------------
+// A pack is a named, composable requirement set. Its content is versioned and
+// immutable once published; every requirement carries a citation.
+export const packs = pgTable('packs', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  key: text('key').notNull().unique(),
+  name: text('name').notNull(),
+  description: text('description'),
+  ownerOrganizationId: uuid('owner_organization_id').references(() => organizations.id, {
+    onDelete: 'set null',
+  }),
+  ...timestamps,
+});
+
+export const packVersions = pgTable(
+  'pack_versions',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    packId: uuid('pack_id')
+      .notNull()
+      .references(() => packs.id, { onDelete: 'cascade' }),
+    version: integer('version').notNull(),
+    status: packVersionStatus('status').notNull().default('DRAFT'),
+    // Deterministic snapshot of the requirements + a checksum over it, set on
+    // approval; a published version is immutable and verifiable.
+    manifest: jsonb('manifest'),
+    checksum: text('checksum'),
+    approvedByAccountId: uuid('approved_by_account_id'),
+    approvedAt: timestamp('approved_at', { withTimezone: true }),
+    publishedAt: timestamp('published_at', { withTimezone: true }),
+    ...timestamps,
+  },
+  (table) => [unique('pack_versions_pack_version_unique').on(table.packId, table.version)],
+);
+
+export const packRequirements = pgTable(
+  'pack_requirements',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    packVersionId: uuid('pack_version_id')
+      .notNull()
+      .references(() => packVersions.id, { onDelete: 'cascade' }),
+    kind: requirementKind('kind').notNull(),
+    // A FIELD requirement names a canonical field key; a DOCUMENT one a docType.
+    fieldKey: text('field_key'),
+    docType: text('doc_type'),
+    // Every requirement is grounded in a cited source (Build Spec §4.5).
+    citation: text('citation').notNull(),
+    optional: boolean('optional').notNull().default(false),
+    notes: text('notes'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index('pack_requirements_version_idx').on(table.packVersionId)],
+);
+
+// --- Mission snapshots (immutable; Build Spec §4.3) -------------------------
+export const missionSnapshots = pgTable(
+  'mission_snapshots',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    missionId: uuid('mission_id')
+      .notNull()
+      .references(() => missions.id, { onDelete: 'cascade' }),
+    version: integer('version').notNull(),
+    content: jsonb('content').notNull(),
+    checksum: text('checksum').notNull(),
+    createdByAccountId: uuid('created_by_account_id'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    unique('mission_snapshots_mission_version_unique').on(table.missionId, table.version),
+  ],
 );
 
 // --- Account deletion workflow (Build Spec §13; PRD §2) ---------------------
