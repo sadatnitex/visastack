@@ -45,10 +45,12 @@ closed; no production data in preview; threat model approved.
   *(`registerDocument`/`addDocumentVersion`; policy-gated
   `previewDocument`/`downloadDocument` via a `StoragePort` seam; step-up for
   originals)*.
-- [ ] Account export + deletion workflow.
+- [x] Account export + deletion workflow *(`exportAccount` full snapshot;
+  `requestAccountDeletion`/`cancelAccountDeletion`/`executeAccountDeletion`
+  with a reversible grace window; audit preserved verbatim on erasure)*.
 
 **Gate:** 100% of profile mutations require authorized approval or manual
-edit; export/deletion passes; no-AI manual path fully usable.
+edit; export/deletion passes; no-AI manual path fully usable. **→ MET.**
 
 *Progress:* the no-AI manual path and the permission-aware Document Vault are
 implemented and proven (every mutation and access is policy-authorized,

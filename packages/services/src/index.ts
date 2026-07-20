@@ -63,6 +63,15 @@ export type {
   StoragePort,
 } from './storage';
 
+export { type AccountExport, exportAccount } from './export';
+
+export {
+  type DeletionRequest,
+  cancelAccountDeletion,
+  executeAccountDeletion,
+  requestAccountDeletion,
+} from './deletion';
+
 export {
   type AddDocumentVersionInput,
   type AddDocumentVersionResult,
