@@ -66,6 +66,21 @@ export type {
 export { type AccountExport, exportAccount } from './export';
 
 export {
+  type Pack,
+  type PackRequirement,
+  type PackVersion,
+  type RequirementInput,
+  addPackVersion,
+  addRequirement,
+  approvePackVersion,
+  buildManifest,
+  createPack,
+  listRequirements,
+  publishPackVersion,
+  verifyPackChecksum,
+} from './packs';
+
+export {
   type MrzError,
   type Td3Result,
   checkDigit,

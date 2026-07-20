@@ -82,7 +82,10 @@ benchmark is measured once the real model adapter is wired.
 
 ## Missions & Packs (Spec Phase 3 / PRD 4)
 
-- [ ] Pack Studio; cited, versioned, admin-approved requirement packs.
+- [x] Pack Studio; cited, versioned, admin-approved requirement packs
+  *(`createPack`/`addPackVersion`/`addRequirement` (citation-required) →
+  `approvePackVersion` (freezes manifest + sha256 checksum) →
+  `publishPackVersion`; content immutable once out of DRAFT)*.
 - [ ] Parallel Mission Workspaces; readiness (no approval probability);
   reviewer workflow; grounded letters/translations; versioned pack
   generation with manifest/checksums.
