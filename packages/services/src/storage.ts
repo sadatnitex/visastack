@@ -1,0 +1,35 @@
+/**
+ * Storage port — the seam between the domain and object storage.
+ *
+ * The Document Vault stores encrypted bytes in private buckets (Build Spec §7).
+ * The domain never talks to a concrete provider or a hard-coded address: it
+ * depends on this port, and a real adapter (S3 + KMS presigned URLs) is
+ * injected at the edge. Tests inject a deterministic fake. This keeps the
+ * services provider-agnostic and fully testable with no external service.
+ */
+
+export type StorageBucket = 'QUARANTINE' | 'CLEAN';
+export type AccessDisposition = 'preview' | 'download';
+export type AccessVariant = 'original' | 'redacted';
+
+/** A short-lived, read-only reference to a stored object (e.g. a signed URL). */
+export interface AccessRef {
+  readonly url: string;
+  /** ISO-8601 expiry — access is always time-bounded. */
+  readonly expiresAt: string;
+  readonly disposition: AccessDisposition;
+  readonly variant: AccessVariant;
+}
+
+export interface IssueReadRefInput {
+  readonly bucket: StorageBucket;
+  readonly objectKey: string;
+  readonly disposition: AccessDisposition;
+  readonly variant: AccessVariant;
+  readonly expiresInSeconds: number;
+}
+
+export interface StoragePort {
+  /** Issue a time-limited read reference for an object. */
+  issueReadRef(input: IssueReadRefInput): Promise<AccessRef>;
+}
