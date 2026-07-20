@@ -13,6 +13,7 @@ import {
   bigserial,
   boolean,
   check,
+  customType,
   index,
   integer,
   jsonb,
@@ -23,6 +24,28 @@ import {
   unique,
   uuid,
 } from 'drizzle-orm/pg-core';
+
+/**
+ * Portable `bytea` column. Postgres drivers disagree on how they return binary:
+ * PGlite hands back a Uint8Array/Buffer, while neon-http returns a `\x…` hex
+ * string. This normalizes both to `Uint8Array` so the same code runs in tests
+ * and production.
+ */
+const bytea = customType<{ data: Uint8Array; driverData: Buffer | string }>({
+  dataType() {
+    return 'bytea';
+  },
+  toDriver(value) {
+    return Buffer.from(value);
+  },
+  fromDriver(value) {
+    if (typeof value === 'string') {
+      const hex = value.startsWith('\\x') ? value.slice(2) : value;
+      return Uint8Array.from(Buffer.from(hex, 'hex'));
+    }
+    return Uint8Array.from(value);
+  },
+});
 
 /**
  * Canonical schema — Foundation slice (tenancy/identity + consent + audit).
@@ -531,6 +554,19 @@ export const retentionPolicies = pgTable('retention_policies', {
   docType: text('doc_type').notNull().unique(),
   retentionDays: integer('retention_days').notNull(),
   ...timestamps,
+});
+
+// --- Blob store (Neon-bytea storage backend; Build Spec §7) -----------------
+// Encrypted-at-rest bytes for a stored object, keyed by its opaque object key
+// (never the display filename). This is the no-external-dependency storage
+// backend; an S3 adapter can replace it behind the same StoragePort (ADR-0011).
+export const storageBlobs = pgTable('storage_blobs', {
+  objectKey: text('object_key').primaryKey(),
+  bucket: storageBucket('bucket').notNull(),
+  contentType: text('content_type').notNull(),
+  bytes: bytea('bytes').notNull(),
+  sizeBytes: bigint('size_bytes', { mode: 'number' }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
 // --- Account deletion workflow (Build Spec §13; PRD §2) ---------------------

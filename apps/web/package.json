@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@visastack/adapters": "workspace:*",
     "@visastack/core": "workspace:*",
     "@visastack/db": "workspace:*",
     "next": "^15.1.3",

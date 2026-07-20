@@ -20,6 +20,9 @@ importers:
 
   apps/web:
     dependencies:
+      '@visastack/adapters':
+        specifier: workspace:*
+        version: link:../../packages/adapters
       '@visastack/core':
         specifier: workspace:*
         version: link:../../packages/core
@@ -48,6 +51,34 @@ importers:
       typescript:
         specifier: ^5.7.2
         version: 5.9.3
+
+  packages/adapters:
+    dependencies:
+      '@visastack/core':
+        specifier: workspace:*
+        version: link:../core
+      '@visastack/db':
+        specifier: workspace:*
+        version: link:../db
+      '@visastack/services':
+        specifier: workspace:*
+        version: link:../services
+      drizzle-orm:
+        specifier: ^0.45.2
+        version: 0.45.2(@electric-sql/pglite@0.2.17)(@neondatabase/serverless@0.10.4)(@types/pg@8.11.6)
+    devDependencies:
+      '@electric-sql/pglite':
+        specifier: ^0.2.13
+        version: 0.2.17
+      '@types/node':
+        specifier: ^22.10.2
+        version: 22.20.1
+      typescript:
+        specifier: ^5.7.2
+        version: 5.9.3
+      vitest:
+        specifier: ^2.1.8
+        version: 2.1.9(@types/node@22.20.1)
 
   packages/core:
     devDependencies:

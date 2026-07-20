@@ -78,7 +78,13 @@ unsupported field ID persisted.
 *Progress:* the pipeline, deterministic MRZ parsing, and the propose→approve
 AI path are implemented and proven (see ADR-0010). The "no silent mutation"
 and "no unsupported field ID" invariants are enforced and tested; the accuracy
-benchmark is measured once the real model adapter is wired.
+benchmark is measured once the real model adapter is wired. **Storage and
+scanning are now wired with zero external dependencies (ADR-0011):**
+`@visastack/adapters` provides a Neon-bytea `NeonBlobStorage` (signed in-app
+serving at `/api/blob/[key]`) and a built-in `BasicSafetyScanner`, proven
+end-to-end (real PDF → `AWAITING_REVIEW`, executable → `NEEDS_ATTENTION`). Real
+S3+KMS / ClamAV / OpenAI adapters swap in behind the same ports; the AV +
+accuracy gates stay open until then.
 
 ## Missions & Packs (Spec Phase 3 / PRD 4)
 
