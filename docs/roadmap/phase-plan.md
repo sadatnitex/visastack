@@ -124,13 +124,19 @@ membership never exposes records; bulk export permission-checked.
 ## Controlled Launch (Spec Phase 5 / PRD 6)
 
 - [ ] Internal synthetic testing → Travel Router real-data pilot →
-  selected agencies → public travelers.
-- [ ] Availability/perf/RPO/RTO, restore drill, WCAG 2.2 AA, English/Bangla,
-  incident runbook.
+  selected agencies → public travelers *(needs the wired adapters + rollout)*.
+- [~] Availability/perf/RPO/RTO, restore drill, WCAG 2.2 AA, English/Bangla,
+  incident runbook — **partly delivered:** English/Bangla message catalog
+  (`@visastack/i18n`, fallback + interpolation), liveness (`/api/health/live`)
+  + readiness probes, and the incident runbook + RPO/RTO/restore-drill docs
+  (`docs/operations/`). Remaining: WCAG 2.2 AA (needs the UI), live
+  availability/perf monitoring, and executing the restore drill.
 
 **Gate:** benchmarks, recovery, and **external penetration test** pass with
 no unresolved Critical/High; accessibility + English/Bangla critical paths
-pass; migration/rollback/smoke green.
+pass; migration/rollback/smoke green. *(The pentest and AI/document accuracy
+benchmarks require the external adapters — S3+KMS, ClamAV, OpenAI Terra — to be
+wired with the operator's keys; they remain open until then.)*
 
 ---
 
