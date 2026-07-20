@@ -67,8 +67,11 @@ describe('NeonBlobStorage', () => {
       sig: url.searchParams.get('sig') ?? '',
     };
     expect(verifyBlobToken(SECRET, fields)).toBe(true);
-    // Tampered signature fails.
-    expect(verifyBlobToken(SECRET, { ...fields, sig: `${fields.sig.slice(0, -1)}0` })).toBe(false);
+    // Tampered signature fails. Flip the last hex char deterministically so the
+    // mutated value can never coincide with the original (the exp is time-based).
+    const last = fields.sig.slice(-1);
+    const tampered = `${fields.sig.slice(0, -1)}${last === '0' ? '1' : '0'}`;
+    expect(verifyBlobToken(SECRET, { ...fields, sig: tampered })).toBe(false);
     // Expired token fails.
     expect(verifyBlobToken(SECRET, fields, (fields.exp + 1) * 1000)).toBe(false);
     // Wrong secret fails.

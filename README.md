@@ -2,56 +2,144 @@
 
 Universal, pack-composable visa and immigration platform. Applicants and
 verified agencies turn documents into structured, permission-aware profiles
-through a governed, AI-assisted workflow — with an equivalent no-AI manual
-path.
+through a governed, AI-assisted workflow — with an equivalent **no-AI manual
+path**. Applicants own their data; agencies get exactly the access they are
+granted, and every action is authorized, consent-gated, and audited.
 
-> **Status:** Phase 0 — foundation. The product contract is the revised
-> 3-page PRD plus the companion Build Specification. A feature is not
-> complete unless it satisfies both documents and its acceptance tests.
+> **Status:** PRD Phases 1–5 are complete and in production, plus the
+> pure-domain parts of Phase 6. The whole system runs end-to-end on **Vercel +
+> Neon alone** — no AWS, ClamAV, or model-provider account is required. Stronger
+> backends (S3+KMS, ClamAV, an LLM) drop in behind stable ports with no domain
+> change. The product contract is the 3-page PRD plus the Build Specification;
+> a feature is not complete unless it satisfies both and its acceptance tests.
 
-## Principles
+## What's live
 
-- **Remote-first.** No required local setup. GitHub for source and CI,
-  Vercel for hosting. See [ADR-0002](docs/adr/0002-remote-first-delivery.md).
-- **Universal Core + composable Packs.** A framework-agnostic domain engine,
-  extended by versioned, cited, admin-approved requirement packs.
-- **No silent mutation.** Every record change is an explicit, versioned,
-  atomically-approved proposal.
-- **Fail closed.** Permissions deny by default and audit even on denial.
-- **Modular & upgradeable.** One package per concern behind a stable seam.
+| Area | Capability |
+| --- | --- |
+| **Applicant Core** | Accounts, separated consent (core / AI / sharing / marketing), applicant + family + guarded-minor records, and a Master Profile whose every value is an immutable, atomically-approved `FactVersion` (no silent mutation). Account export + deletion. |
+| **Document Vault** | Private storage keyed by opaque object IDs (never the filename); permission-aware preview/download with step-up before original bytes are released. |
+| **Document Intelligence** | Quarantine → scan → normalize → extract pipeline (idempotent, recoverable); deterministic passport-MRZ (TD3) parsing with check-digit validation; an AI Gateway that only **proposes** fields — a human approves, nothing is written silently. |
+| **Missions & Packs** | Cited, versioned, checksummed requirement packs (Pack Studio); parallel mission workspaces; readiness as **completeness only** (never an approval probability); reviewer state machine; immutable, checksummed snapshots. |
+| **Agencies & Sharing** | Organization verification (no self-upgrade); scoped, accepted, time-limited, revocable grants; access transparency; assignments, notes, evidence requests; permissioned bulk export. |
+| **Retention & legal hold** | Retention policies with eligibility-based purge; legal holds that **override deletion**. |
+| **Reliability** | Liveness + readiness probes; English/Bangla i18n; incident runbook + RPO/RTO/restore-drill docs. |
+
+## Principles (enforced, not aspirational)
+
+- **Default-deny permissions.** The policy engine is the authoritative decision
+  point; membership never implies access, and denials are audited.
+- **Fail-closed, tamper-evident audit.** Every mutation and its SHA-256
+  hash-chained audit event commit together; database `RULE`s make the log
+  append-only.
+- **No silent mutation.** Record changes are explicit, immutable, versioned, and
+  atomically approved — the AI path proposes; a human approves.
+- **Provider-agnostic ports.** Storage, scanning, and AI sit behind interfaces;
+  infrastructure is swapped, never the domain.
+- **Remote-first.** No required local setup — GitHub for source/CI, Vercel for
+  hosting, Neon for data. See [ADR-0002](docs/adr/0002-remote-first-delivery.md).
 
 ## Repository layout
 
 ```
 visastack/
 ├── apps/
-│   └── web/            # Next.js App Router app (deployed on Vercel)
+│   └── web/              # Next.js App Router app (UI + API routes) on Vercel
 ├── packages/
-│   └── core/           # Universal Core — framework-agnostic domain logic
+│   ├── core/             # Universal Core — framework-agnostic domain vocab, Result, brands
+│   ├── db/               # Drizzle schema + migrations, audit hashing, Neon client
+│   ├── policy/           # Default-deny authorization engine
+│   ├── services/         # Application services (the write side; transactional, audited)
+│   ├── adapters/         # Concrete infra adapters: Neon-bytea storage, structural scanner
+│   └── i18n/             # English/Bangla message catalog + typed translator
 ├── docs/
-│   ├── adr/            # Architecture Decision Records
-│   ├── architecture/   # System overview & context
-│   ├── governance/     # Delivery, branch protection, security process
-│   └── roadmap/        # Phased delivery plan
-└── .github/            # CI/CD, CodeQL, dependency review, governance
+│   ├── adr/              # Architecture Decision Records (0001–0011)
+│   ├── architecture/     # Data model, permission model, pipeline, AI gateway
+│   ├── governance/       # Delivery, branch protection, Vercel/service wiring
+│   ├── operations/       # Incident runbook, RPO/RTO & restore drill
+│   ├── roadmap/          # Phased delivery plan + acceptance criteria
+│   ├── security/         # Threat model
+│   └── product/          # PRD v1.1 + Build Spec v1.1
+└── .github/              # CI (lint · build · typecheck · test + prod audit), governance
 ```
+
+## Architecture in one paragraph
+
+The **Universal Core** holds framework-agnostic domain primitives. The **db**
+package is the only canonical writable store (Neon Postgres) via Drizzle, with a
+tamper-evident audit chain. The **policy** engine renders explicit allow/deny
+decisions. The **services** layer is the transactional write side: every
+operation is policy-authorized, consent-gated where required, and audited
+atomically — it accepts a transaction-capable `Db` handle and never constructs a
+client (see [ADR-0009](docs/adr/0009-service-layer-transactional-driver.md)).
+The **adapters** package supplies concrete infrastructure behind the service
+ports; today `NeonBlobStorage` (bytes in Postgres) and `BasicSafetyScanner`
+(structural validation) — swappable for S3+KMS / ClamAV
+([ADR-0011](docs/adr/0011-neon-bytea-storage-and-structural-scanner.md)). The
+**web** app renders the UI and hosts API routes (health probes, signed blob
+serving).
+
+## Ports & adapters (how to make it stronger)
+
+Everything external is injected behind an interface, so upgrades are edge-only:
+
+| Port | Default (no external account) | Production swap-in |
+| --- | --- | --- |
+| `StoragePort` / `BlobStore` | `NeonBlobStorage` (bytea in Postgres, signed `/api/blob/[key]` serving) | S3 + KMS |
+| `ScannerPort` | `BasicSafetyScanner` (magic-byte allow-list + size limits) | ClamAV |
+| `AiExtractionPort` | *(manual path — no AI required)* | OpenAI / other model |
+
+The built-in scanner is an **accepted, documented reduced control** — it is not
+antivirus; it is paired with the human-approval gate. See ADR-0011.
+
+## Environment variables
+
+Set these in Vercel (Production + Preview). The app reports *presence*, never
+values, on `/api/health/ready`.
+
+| Variable | Purpose | Required for |
+| --- | --- | --- |
+| `DATABASE_URL` (or `POSTGRES_URL`, …) | Neon connection string | database + migrations |
+| `BLOB_SIGNING_SECRET` | HMAC secret for signed blob URLs | document serving via Neon-bytea |
+| `WORKOS_API_KEY` / `WORKOS_CLIENT_ID` / `WORKOS_COOKIE_PASSWORD` | WorkOS AuthKit | the login flow (when wired) |
+
+Migrations run automatically at build time on Vercel (`pnpm --filter
+@visastack/db db:migrate && next build`).
 
 ## Quickstart
 
 ```bash
 pnpm install
-pnpm run check          # lint + typecheck + test
+pnpm run check          # lint + typecheck + test (67 tests, in-memory PGlite — no DB needed)
 pnpm run build          # build the workspace
 ```
 
-Requires Node 22 (`.nvmrc`) and pnpm 10+.
+Requires Node 22 (`.nvmrc`) and pnpm 10+. Tests run migrations against an
+in-memory Postgres (PGlite), so correctness — FK/enum/unique constraints, the
+append-only audit rules, and every service invariant — is proven in CI with zero
+external dependencies.
+
+## Web app
+
+- `/` — product landing (Apple-HIG design system: system font stack, light/dark,
+  accessible, responsive).
+- `/status` — live system status, polling the real health probes.
+- `/api/health/live`, `/api/health/ready` — liveness / readiness.
+- `/api/blob/[key]` — signed, expiring blob serving (returns `503` until
+  `BLOB_SIGNING_SECRET` is set).
 
 ## Documentation
 
-- [Architecture overview](docs/architecture/overview.md)
-- [Phased delivery plan](docs/roadmap/phase-plan.md)
-- [Architecture Decision Records](docs/adr/)
-- [Contributing](CONTRIBUTING.md) · [Security](SECURITY.md)
+- [Architecture overview](docs/architecture/overview.md) ·
+  [Data model](docs/architecture/data-model.md) ·
+  [Permission model](docs/architecture/permission-model.md)
+- [Phased delivery plan](docs/roadmap/phase-plan.md) ·
+  [Acceptance criteria](docs/roadmap/acceptance-criteria.md)
+- [Operations runbook](docs/operations/runbook.md) ·
+  [Recovery: RPO/RTO & restore drill](docs/operations/recovery.md)
+- [Threat model](docs/security/threat-model.md)
+- [Architecture Decision Records](docs/adr/) ·
+  [Contributing](CONTRIBUTING.md) · [Security](SECURITY.md)
 
 ## License
 
