@@ -14,10 +14,17 @@ import { addDocumentVersion, previewDocument, registerDocument } from './documen
 import {
   addMembership,
   createOrganization,
+  listOrgMemberships,
   reviewOrganization,
   suspendOrganization,
 } from './organizations';
-import { acceptGrant, createGrant, listAccessForApplicant, revokeGrant } from './sharing';
+import {
+  acceptGrant,
+  createGrant,
+  listAccessForApplicant,
+  listGrantsForRecipientAccount,
+  revokeGrant,
+} from './sharing';
 import type { AccessRef, IssueReadRefInput, StoragePort } from './storage';
 
 const migrationsFolder = fileURLToPath(new URL('../../db/migrations', import.meta.url));
@@ -193,6 +200,41 @@ describe('sharing — grant lifecycle end-to-end with the policy engine', () => 
     await revokeGrant(db, { actorAccountId: account.id, grantId: grant.value.id });
     const afterRevoke = await preview();
     expect(isErr(afterRevoke)).toBe(true);
+  });
+
+  it('lists incoming grants for a recipient account and org members', async () => {
+    const { account, applicantId } = await ownerWithDoc(db, 'inbox-owner@example.com');
+    const recipient = await provisionAccount(db, { email: 'recipient@example.com' });
+    if (!isOk(recipient)) throw new Error('provision');
+
+    const grant = await createGrant(db, {
+      actorAccountId: account.id,
+      applicantId,
+      recipientAccountId: recipient.value.id,
+      actions: ['PREVIEW'],
+      purpose: 'review',
+    });
+    if (!isOk(grant)) throw new Error('grant');
+
+    // The recipient sees the pending grant with the subject's name.
+    const incoming = await listGrantsForRecipientAccount(db, recipient.value.id);
+    expect(incoming).toHaveLength(1);
+    expect(incoming[0]?.grant.status).toBe('PENDING_ACCEPTANCE');
+    expect(incoming[0]?.applicantName.length).toBeGreaterThan(0);
+
+    // Org membership listing is admin-gated and resolves emails.
+    const org = await createOrganization(db, { actorAccountId: account.id, name: 'Acme' });
+    if (!isOk(org)) throw new Error('org');
+    const members = await listOrgMemberships(db, account.id, org.value.id);
+    expect(isOk(members)).toBe(true);
+    if (isOk(members)) {
+      expect(members.value).toHaveLength(1);
+      expect(members.value[0]?.role).toBe('OWNER');
+      expect(members.value[0]?.email).toBe('inbox-owner@example.com');
+    }
+    // A non-member cannot list members.
+    const denied = await listOrgMemberships(db, recipient.value.id, org.value.id);
+    expect(isErr(denied)).toBe(true);
   });
 
   it('only the recipient can accept, and only the owner can create/revoke', async () => {

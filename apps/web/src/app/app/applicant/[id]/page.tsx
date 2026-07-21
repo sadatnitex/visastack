@@ -77,6 +77,9 @@ export default async function ApplicantPage({
           <Link href={`/app/applicant/${id}/missions`} className="btn btn-secondary">
             Missions
           </Link>
+          <Link href={`/app/applicant/${id}/history`} className="btn btn-secondary">
+            History
+          </Link>
           <Link href={`/app/applicant/${id}/evidence`} className="btn btn-secondary">
             Evidence
           </Link>

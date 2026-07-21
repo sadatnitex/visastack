@@ -1,7 +1,14 @@
-import { getOrganization, isOrgAdmin, listEvidenceRequestsForOrg } from '@visastack/services';
+import {
+  getOrganization,
+  isOrgAdmin,
+  listEvidenceRequestsForOrg,
+  listOrgMemberships,
+} from '@visastack/services';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { withSession } from '../../../../lib/session';
+import { toggleMemberAction } from './actions';
+import { AddMemberForm } from './member-form';
 import { RequestEvidenceForm } from './request-evidence-form';
 
 export const dynamic = 'force-dynamic';
@@ -31,9 +38,17 @@ export default async function OrgConsolePage({
     const org = await getOrganization(db, orgId);
     if (!org) return null;
     const admin = await isOrgAdmin(db, accountId, orgId);
-    if (!admin) return { org, admin: false, requests: [] };
-    const requests = await listEvidenceRequestsForOrg(db, accountId, orgId);
-    return { org, admin: true, requests: requests.ok ? requests.value : [] };
+    if (!admin) return { org, admin: false, requests: [], members: [] };
+    const [requests, members] = await Promise.all([
+      listEvidenceRequestsForOrg(db, accountId, orgId),
+      listOrgMemberships(db, accountId, orgId),
+    ]);
+    return {
+      org,
+      admin: true,
+      requests: requests.ok ? requests.value : [],
+      members: members.ok ? members.value : [],
+    };
   });
 
   if (!data) notFound();
@@ -95,6 +110,49 @@ export default async function OrgConsolePage({
               </a>
             </article>
           </div>
+
+          <article className="card" style={{ marginTop: '1.5rem' }}>
+            <p className="card-kicker">Team</p>
+            <h2 className="card-title">Members</h2>
+            <p className="card-body" style={{ marginBottom: '1.25rem' }}>
+              Membership is organizational bookkeeping — it never grants access to an applicant's
+              records on its own. Access is always an accepted grant.
+            </p>
+            {data.members.length > 0 ? (
+              <div className="rows" style={{ marginBottom: '1.5rem' }}>
+                {data.members.map((m) => (
+                  <div className="row" key={m.membershipId}>
+                    <span className="row-key">
+                      {m.email}
+                      <span className="muted" style={{ fontSize: '0.8rem', marginLeft: '0.5rem' }}>
+                        {m.role}
+                      </span>
+                    </span>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                      <span className={`badge ${m.active ? 'badge-success' : 'badge-neutral'}`}>
+                        {m.active ? 'Active' : 'Inactive'}
+                      </span>
+                      {m.role !== 'OWNER' ? (
+                        <form action={toggleMemberAction}>
+                          <input type="hidden" name="organizationId" value={orgId} />
+                          <input type="hidden" name="membershipId" value={m.membershipId} />
+                          <input type="hidden" name="active" value={String(!m.active)} />
+                          <button
+                            type="submit"
+                            className="btn btn-secondary"
+                            style={{ padding: '0.3rem 0.85rem', fontSize: '0.8rem' }}
+                          >
+                            {m.active ? 'Deactivate' : 'Reactivate'}
+                          </button>
+                        </form>
+                      ) : null}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+            <AddMemberForm organizationId={orgId} />
+          </article>
 
           <article className="card" style={{ marginTop: '1.5rem' }}>
             <p className="card-kicker">Activity</p>

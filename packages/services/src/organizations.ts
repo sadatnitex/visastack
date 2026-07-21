@@ -106,6 +106,46 @@ export async function listAllOrganizations(db: Db): Promise<Organization[]> {
   return [...rows].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
 }
 
+/** A membership resolved with the member's email, for the org console. */
+export interface OrgMemberView {
+  readonly membershipId: string;
+  readonly accountId: string;
+  readonly email: string;
+  readonly role: MembershipRole;
+  readonly active: boolean;
+}
+
+/** Members of an organization (org OWNER/ADMIN only), with their emails. */
+export async function listOrgMemberships(
+  db: Db,
+  actorAccountId: string,
+  organizationId: string,
+): Promise<Result<OrgMemberView[], ServiceError>> {
+  if (!(await isOrgAdmin(db, actorAccountId, organizationId))) {
+    return err(serviceError('forbidden', 'only an org OWNER/ADMIN can view members'));
+  }
+  const rows = await db
+    .select({
+      membershipId: schema.memberships.id,
+      accountId: schema.memberships.accountId,
+      email: schema.accounts.email,
+      role: schema.memberships.role,
+      active: schema.memberships.active,
+    })
+    .from(schema.memberships)
+    .innerJoin(schema.accounts, eq(schema.accounts.id, schema.memberships.accountId))
+    .where(eq(schema.memberships.organizationId, organizationId));
+  return ok(
+    rows.map((r) => ({
+      membershipId: r.membershipId,
+      accountId: r.accountId,
+      email: r.email,
+      role: r.role,
+      active: r.active,
+    })),
+  );
+}
+
 /** Create an organization (PENDING_VERIFICATION) with the creator as OWNER. */
 export async function createOrganization(
   db: Db,
