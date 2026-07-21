@@ -47,6 +47,11 @@ export default async function AdminPage() {
             Compliance controls: retention policies, legal holds, and organization verification.
           </p>
         </div>
+        {data.admin ? (
+          <Link href="/app/admin/packs" className="btn btn-secondary">
+            Pack Studio
+          </Link>
+        ) : null}
       </div>
 
       {!data.admin ? (

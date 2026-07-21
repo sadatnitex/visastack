@@ -233,6 +233,26 @@ export async function listRequirements(db: Db, packVersionId: string): Promise<P
     .where(eq(schema.packRequirements.packVersionId, packVersionId));
 }
 
+/** Every pack (Pack Studio overview), newest first. */
+export async function listPacks(db: Db): Promise<Pack[]> {
+  const rows = await db.select().from(schema.packs);
+  return [...rows].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+}
+
+/** Load one pack by id. */
+export async function getPack(db: Db, packId: string): Promise<Pack | undefined> {
+  return first(await db.select().from(schema.packs).where(eq(schema.packs.id, packId)).limit(1));
+}
+
+/** Versions of a pack, highest version first. */
+export async function listPackVersions(db: Db, packId: string): Promise<PackVersion[]> {
+  const rows = await db
+    .select()
+    .from(schema.packVersions)
+    .where(eq(schema.packVersions.packId, packId));
+  return [...rows].sort((a, b) => b.version - a.version);
+}
+
 /**
  * Approve a DRAFT version (admin/reviewer action). Freezes the manifest +
  * checksum; the version becomes immutable content.
