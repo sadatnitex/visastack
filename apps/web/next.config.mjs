@@ -20,6 +20,13 @@ const nextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
   transpilePackages: ['@visastack/core', '@visastack/db'],
+  // The pooled Neon driver talks to Postgres over a WebSocket via `ws`. If
+  // webpack bundles `ws`, its optional `bufferutil` require is mangled and the
+  // frame-mask fallback is lost ("b.mask is not a function"), which kills the
+  // connection ("Connection terminated unexpectedly") and 500s every DB page.
+  // Keeping these external makes Node load the real packages at runtime, where
+  // the pure-JS mask fallback works. (Next 15 stable key.)
+  serverExternalPackages: ['@neondatabase/serverless', 'ws'],
   async headers() {
     return [{ source: '/:path*', headers: securityHeaders }];
   },
