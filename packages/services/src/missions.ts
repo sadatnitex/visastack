@@ -49,6 +49,54 @@ async function ownedMission(
   return ok(mission);
 }
 
+/** List an applicant's missions (owner-scoped). */
+export async function listMissions(
+  db: Db,
+  actorAccountId: string,
+  applicantId: string,
+): Promise<Result<Mission[], ServiceError>> {
+  const applicant = await getApplicant(db, applicantId);
+  if (!applicant) return err(serviceError('not_found', 'applicant not found'));
+  if (applicant.ownerAccountId !== actorAccountId) {
+    return err(serviceError('forbidden', 'not authorized for this applicant'));
+  }
+  const rows = await db
+    .select()
+    .from(schema.missions)
+    .where(eq(schema.missions.applicantId, applicantId));
+  return ok(rows);
+}
+
+/** Load one mission, owner-scoped. */
+export async function getMissionForOwner(
+  db: Db,
+  actorAccountId: string,
+  missionId: string,
+): Promise<Result<Mission, ServiceError>> {
+  return ownedMission(db, actorAccountId, missionId);
+}
+
+/** Immutable snapshots for a mission, newest version first (owner-scoped). */
+export async function listMissionSnapshots(
+  db: Db,
+  actorAccountId: string,
+  missionId: string,
+): Promise<Result<MissionSnapshot[], ServiceError>> {
+  const owned = await ownedMission(db, actorAccountId, missionId);
+  if (!owned.ok) return owned;
+  const rows = await db
+    .select()
+    .from(schema.missionSnapshots)
+    .where(eq(schema.missionSnapshots.missionId, missionId));
+  const sorted = [...rows].sort((a, b) => b.version - a.version);
+  return ok(sorted);
+}
+
+/** The legal next states from a given mission state (for UI affordances). */
+export function legalTransitions(from: MissionState): readonly MissionState[] {
+  return TRANSITIONS[from] ?? [];
+}
+
 export async function createMission(
   db: Db,
   input: {

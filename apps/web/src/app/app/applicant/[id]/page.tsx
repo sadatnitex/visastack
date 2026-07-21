@@ -73,9 +73,14 @@ export default async function ApplicantPage({
             {RELATIONSHIP_LABELS[data.applicant.relationship] ?? data.applicant.relationship}
           </p>
         </div>
-        <Link href={`/app/applicant/${id}/sharing`} className="btn btn-secondary">
-          Sharing
-        </Link>
+        <div style={{ display: 'flex', gap: '0.6rem' }}>
+          <Link href={`/app/applicant/${id}/missions`} className="btn btn-secondary">
+            Missions
+          </Link>
+          <Link href={`/app/applicant/${id}/sharing`} className="btn btn-secondary">
+            Sharing
+          </Link>
+        </div>
       </div>
 
       {!data.coreGranted ? (

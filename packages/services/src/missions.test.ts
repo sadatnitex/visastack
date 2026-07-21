@@ -14,6 +14,9 @@ import {
   attachPackVersion,
   computeReadiness,
   createMission,
+  getMissionForOwner,
+  listMissionSnapshots,
+  listMissions,
   snapshotMission,
   transitionMission,
 } from './missions';
@@ -22,6 +25,7 @@ import {
   addRequirement,
   approvePackVersion,
   createPack,
+  listPublishedPackVersions,
   publishPackVersion,
 } from './packs';
 import { editFact, registerFieldDefinition } from './profile';
@@ -222,6 +226,38 @@ describe('missions — workspace, readiness, workflow, snapshot', () => {
     // The append-only audit rule protects the row; snapshots are never rewritten.
     const rows = await db.select().from(schema.missionSnapshots);
     expect(rows).toHaveLength(2);
+  });
+
+  it('lists published packs, owner missions, and snapshots via the read helpers', async () => {
+    const { account, applicantId } = await seed(db);
+    const packVersionId = await publishedPack(db, account.id);
+
+    // Only PUBLISHED versions are catalogued, with their requirement count.
+    const catalog = await listPublishedPackVersions(db);
+    expect(catalog).toHaveLength(1);
+    expect(catalog[0]?.packVersionId).toBe(packVersionId);
+    expect(catalog[0]?.requirementCount).toBe(2);
+
+    const mission = await createMission(db, {
+      actorAccountId: account.id,
+      applicantId,
+      title: 'UK Visa',
+    });
+    if (!isOk(mission)) throw new Error('mission');
+
+    const missions = await listMissions(db, account.id, applicantId);
+    expect(isOk(missions)).toBe(true);
+    if (isOk(missions)) expect(missions.value).toHaveLength(1);
+
+    const owned = await getMissionForOwner(db, account.id, mission.value.id);
+    expect(isOk(owned)).toBe(true);
+
+    await snapshotMission(db, { actorAccountId: account.id, missionId: mission.value.id });
+    await snapshotMission(db, { actorAccountId: account.id, missionId: mission.value.id });
+    const snaps = await listMissionSnapshots(db, account.id, mission.value.id);
+    expect(isOk(snaps)).toBe(true);
+    // Newest version first.
+    if (isOk(snaps)) expect(snaps.value.map((s) => s.version)).toEqual([2, 1]);
   });
 
   it("refuses actions on another owner's mission", async () => {

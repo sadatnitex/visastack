@@ -48,6 +48,42 @@ export function buildManifest(requirements: readonly PackRequirement[]): {
   return { manifest, checksum };
 }
 
+/** A published, attachable pack version resolved with its pack identity. */
+export interface PublishedPackVersion {
+  readonly packVersionId: string;
+  readonly packKey: string;
+  readonly packName: string;
+  readonly version: number;
+  readonly requirementCount: number;
+}
+
+/**
+ * Every PUBLISHED pack version, with its pack identity and requirement count —
+ * the catalog a mission owner picks from when attaching a pack.
+ */
+export async function listPublishedPackVersions(db: Db): Promise<PublishedPackVersion[]> {
+  const rows = await db
+    .select({
+      packVersionId: schema.packVersions.id,
+      packKey: schema.packs.key,
+      packName: schema.packs.name,
+      version: schema.packVersions.version,
+    })
+    .from(schema.packVersions)
+    .innerJoin(schema.packs, eq(schema.packs.id, schema.packVersions.packId))
+    .where(eq(schema.packVersions.status, 'PUBLISHED'));
+
+  return Promise.all(
+    rows.map(async (row) => {
+      const reqs = await db
+        .select({ id: schema.packRequirements.id })
+        .from(schema.packRequirements)
+        .where(eq(schema.packRequirements.packVersionId, row.packVersionId));
+      return { ...row, requirementCount: reqs.length };
+    }),
+  );
+}
+
 /** Create a pack (its first version is added separately). */
 export async function createPack(
   db: Db,
