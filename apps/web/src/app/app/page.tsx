@@ -41,6 +41,9 @@ export default async function AppPage() {
           </p>
         </div>
         <div style={{ display: 'flex', gap: '0.6rem', alignItems: 'center' }}>
+          <Link href="/app/agency" className="btn btn-secondary">
+            Agency
+          </Link>
           <Link href="/app/privacy" className="btn btn-secondary">
             Privacy
           </Link>

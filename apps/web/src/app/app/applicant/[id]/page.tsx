@@ -73,9 +73,12 @@ export default async function ApplicantPage({
             {RELATIONSHIP_LABELS[data.applicant.relationship] ?? data.applicant.relationship}
           </p>
         </div>
-        <div style={{ display: 'flex', gap: '0.6rem' }}>
+        <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap' }}>
           <Link href={`/app/applicant/${id}/missions`} className="btn btn-secondary">
             Missions
+          </Link>
+          <Link href={`/app/applicant/${id}/evidence`} className="btn btn-secondary">
+            Evidence
           </Link>
           <Link href={`/app/applicant/${id}/sharing`} className="btn btn-secondary">
             Sharing

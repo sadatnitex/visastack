@@ -153,6 +153,44 @@ export async function requestEvidence(
   });
 }
 
+/** Evidence requests directed at an applicant (owner-scoped), newest first. */
+export async function listEvidenceRequestsForApplicant(
+  db: Db,
+  actorAccountId: string,
+  applicantId: string,
+): Promise<Result<EvidenceRequest[], ServiceError>> {
+  const applicant = first(
+    await db.select().from(schema.applicants).where(eq(schema.applicants.id, applicantId)).limit(1),
+  );
+  if (!applicant) return err(serviceError('not_found', 'applicant not found'));
+  if (applicant.ownerAccountId !== actorAccountId) {
+    return err(serviceError('forbidden', 'not authorized to view these requests'));
+  }
+  const rows = await db
+    .select()
+    .from(schema.evidenceRequests)
+    .where(eq(schema.evidenceRequests.applicantId, applicantId));
+  const sorted = [...rows].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+  return ok(sorted);
+}
+
+/** Evidence requests raised by an organization (org OWNER/ADMIN only), newest first. */
+export async function listEvidenceRequestsForOrg(
+  db: Db,
+  actorAccountId: string,
+  organizationId: string,
+): Promise<Result<EvidenceRequest[], ServiceError>> {
+  if (!(await isOrgAdmin(db, actorAccountId, organizationId))) {
+    return err(serviceError('forbidden', 'only an org OWNER/ADMIN can view these requests'));
+  }
+  const rows = await db
+    .select()
+    .from(schema.evidenceRequests)
+    .where(eq(schema.evidenceRequests.organizationId, organizationId));
+  const sorted = [...rows].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+  return ok(sorted);
+}
+
 /** The applicant owner responds to an evidence request. */
 export async function respondEvidence(
   db: Db,

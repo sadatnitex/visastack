@@ -8,5 +8,10 @@ import { authkitMiddleware } from '@workos-inc/authkit-nextjs';
 export default authkitMiddleware();
 
 export const config = {
-  matcher: ['/', '/status', '/app/:path*', '/callback'],
+  // `/app` must be listed explicitly: the `/app/:path*` pattern does not match
+  // the bare `/app` path, so without this the middleware is skipped there and
+  // AuthKit's session-token refresh falls into the RSC render — which cannot
+  // write cookies ("Cookies can only be modified in a Server Action or Route
+  // Handler"). Listing `/app` lets the middleware refresh the token first.
+  matcher: ['/', '/status', '/app', '/app/:path*', '/callback'],
 };
