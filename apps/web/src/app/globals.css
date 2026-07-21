@@ -370,6 +370,78 @@ main {
   color: var(--text);
 }
 
+/* Interactive rows (link to detail) */
+.row-link {
+  text-decoration: none;
+  color: inherit;
+  cursor: pointer;
+  transition: opacity 0.15s ease;
+}
+.row-link:hover {
+  opacity: 0.7;
+}
+
+/* Text inputs / selects shared control */
+.input {
+  width: 100%;
+  padding: 0.6rem 0.85rem;
+  border-radius: 10px;
+  border: 1px solid var(--hairline);
+  background: var(--bg-subtle);
+  color: var(--text);
+  font-size: 0.95rem;
+  font-family: inherit;
+}
+.input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+/* Master Profile field editor */
+.field-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1.1rem;
+}
+.field-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+.field-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+.field-label {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+.field-control {
+  display: flex;
+  gap: 0.6rem;
+  align-items: center;
+}
+.field-msg {
+  margin: 0;
+  font-size: 0.82rem;
+}
+.field-msg-ok {
+  color: var(--success);
+}
+.field-msg-err {
+  color: var(--danger);
+}
+
+/* Document uploader */
+.uploader {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
 /* Footer */
 .footer {
   border-top: 1px solid var(--hairline-soft);
