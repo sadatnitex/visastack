@@ -2,6 +2,7 @@ import { CONSENT_TYPES, type ConsentType } from '@visastack/core';
 import { getConsents, listApplicants } from '@visastack/services';
 import { signOut } from '@workos-inc/authkit-nextjs';
 import Link from 'next/link';
+import { isPlatformAdmin } from '../../lib/admin';
 import { withSession } from '../../lib/session';
 import { createApplicantAction, setConsentAction } from './actions';
 
@@ -23,6 +24,7 @@ const RELATIONSHIP_LABELS: Record<string, string> = {
 export default async function AppPage() {
   const data = await withSession(async ({ db, accountId, email }) => ({
     email,
+    isAdmin: isPlatformAdmin(email),
     consents: await getConsents(db, accountId),
     applicants: await listApplicants(db, accountId),
   }));
@@ -44,6 +46,11 @@ export default async function AppPage() {
           <Link href="/app/agency" className="btn btn-secondary">
             Agency
           </Link>
+          {data.isAdmin ? (
+            <Link href="/app/admin" className="btn btn-secondary">
+              Admin
+            </Link>
+          ) : null}
           <Link href="/app/privacy" className="btn btn-secondary">
             Privacy
           </Link>

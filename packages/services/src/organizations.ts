@@ -100,6 +100,12 @@ export async function getOrganization(
   );
 }
 
+/** Every organization (platform-admin overview), newest first. */
+export async function listAllOrganizations(db: Db): Promise<Organization[]> {
+  const rows = await db.select().from(schema.organizations);
+  return [...rows].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+}
+
 /** Create an organization (PENDING_VERIFICATION) with the creator as OWNER. */
 export async function createOrganization(
   db: Db,
