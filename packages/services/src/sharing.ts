@@ -212,6 +212,30 @@ export function resumeGrant(
   return ownerTransition(db, input.actorAccountId, input.grantId, 'ACTIVE', 'GRANT_RESUMED');
 }
 
+/** A grant directed at the current account, resolved with the subject's name. */
+export interface IncomingGrant {
+  readonly grant: Grant;
+  readonly applicantName: string;
+}
+
+/**
+ * Grants whose recipient is this account (the "shared with you" inbox),
+ * newest first. Used to surface pending grants the recipient can accept.
+ */
+export async function listGrantsForRecipientAccount(
+  db: Db,
+  accountId: string,
+): Promise<IncomingGrant[]> {
+  const rows = await db
+    .select({ grant: schema.grants, applicantName: schema.applicants.displayName })
+    .from(schema.grants)
+    .innerJoin(schema.applicants, eq(schema.applicants.id, schema.grants.applicantId))
+    .where(eq(schema.grants.recipientAccountId, accountId));
+  return [...rows]
+    .sort((a, b) => b.grant.createdAt.getTime() - a.grant.createdAt.getTime())
+    .map((r) => ({ grant: r.grant, applicantName: r.applicantName }));
+}
+
 /** Access transparency: every grant on an applicant (owner only). */
 export async function listAccessForApplicant(
   db: Db,
