@@ -19,11 +19,13 @@
   "dependencies": {
     "@neondatabase/serverless": "^0.10.4",
     "@visastack/core": "workspace:*",
-    "drizzle-orm": "^0.45.2"
+    "drizzle-orm": "^0.45.2",
+    "ws": "^8.18.0"
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.2.13",
     "@types/node": "^22.10.2",
+    "@types/ws": "^8.5.13",
     "drizzle-kit": "^0.31.0",
     "tsx": "^4.19.2",
     "typescript": "^5.7.2",

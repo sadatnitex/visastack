@@ -1,6 +1,8 @@
-import { neon } from '@neondatabase/serverless';
+import { Pool, neon, neonConfig } from '@neondatabase/serverless';
 import { type SQL, sql } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/neon-http';
+import { drizzle as drizzlePool } from 'drizzle-orm/neon-serverless';
+import ws from 'ws';
 import * as schema from './schema';
 
 /**
@@ -46,6 +48,21 @@ export function createNeonDb(connectionString: string) {
 }
 
 export type NeonDb = ReturnType<typeof createNeonDb>;
+
+/**
+ * A transaction-capable pooled client (WebSocket-based) for the application
+ * write path. The stateless `neon-http` client above cannot open interactive
+ * transactions, which the service layer requires (ADR-0009). Create one per
+ * request and end it when done.
+ */
+export function createPooledDb(connectionString: string) {
+  if (!neonConfig.webSocketConstructor) neonConfig.webSocketConstructor = ws;
+  const pool = new Pool({ connectionString });
+  const db = drizzlePool(pool, { schema });
+  return { db, pool };
+}
+
+export type PooledDb = ReturnType<typeof createPooledDb>['db'];
 
 /** Returns true if a trivial query succeeds (throws are the caller's to handle). */
 export async function checkConnection(db: ExecutableDb): Promise<boolean> {

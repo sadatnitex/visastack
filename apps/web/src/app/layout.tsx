@@ -34,6 +34,7 @@ export default function RootLayout({ children }: { readonly children: ReactNode 
             <a href="https://github.com/sadatnitex/visastack" rel="noreferrer noopener">
               Source
             </a>
+            <Link href="/app">Sign in</Link>
           </nav>
         </header>
         <main id="main">{children}</main>

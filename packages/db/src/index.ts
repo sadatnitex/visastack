@@ -15,10 +15,12 @@ export {
 } from './audit';
 export {
   createNeonDb,
+  createPooledDb,
   checkConnection,
   isSchemaApplied,
   resolveDatabaseUrl,
   DATABASE_URL_ENV_CANDIDATES,
   type ExecutableDb,
   type NeonDb,
+  type PooledDb,
 } from './client';
