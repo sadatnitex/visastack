@@ -1,17 +1,29 @@
 import { authkitMiddleware } from '@workos-inc/authkit-nextjs';
 
 /**
- * AuthKit session middleware. It keeps the WorkOS session fresh on the routes
- * that use it; per-page protection is enforced with `withAuth({ ensureSignedIn })`.
- * Public routes (landing, status, health/blob APIs) are intentionally excluded.
+ * AuthKit middleware with `middlewareAuth` enabled.
+ *
+ * Enabling middleware-level auth makes the middleware the single place that
+ * performs the WorkOS session handshake AND the access-token refresh. Both
+ * write cookies, which is only legal in middleware or a route handler — never
+ * during a Server Component render. With this enabled, protected pages call
+ * `withAuth()` only to *read* the (already-refreshed) session, so no cookie
+ * write ever falls into the RSC. Without it, `withAuth({ ensureSignedIn })` in a
+ * page triggers the refresh during render and throws "Cookies can only be
+ * modified in a Server Action or Route Handler".
+ *
+ * Everything under the matcher requires a signed-in user except the paths in
+ * `unauthenticatedPaths` (public landing, status, and the OAuth callback);
+ * unauthenticated visitors to protected routes are redirected to sign-in by the
+ * middleware itself.
  */
-export default authkitMiddleware();
+export default authkitMiddleware({
+  middlewareAuth: {
+    enabled: true,
+    unauthenticatedPaths: ['/', '/status', '/callback'],
+  },
+});
 
 export const config = {
-  // `/app` must be listed explicitly: the `/app/:path*` pattern does not match
-  // the bare `/app` path, so without this the middleware is skipped there and
-  // AuthKit's session-token refresh falls into the RSC render — which cannot
-  // write cookies ("Cookies can only be modified in a Server Action or Route
-  // Handler"). Listing `/app` lets the middleware refresh the token first.
   matcher: ['/', '/status', '/app', '/app/:path*', '/callback'],
 };
