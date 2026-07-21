@@ -14,6 +14,7 @@ import { executeAccountDeletion, requestAccountDeletion } from './deletion';
 import { addDocumentVersion, registerDocument } from './documents';
 import {
   documentsPastRetention,
+  listActiveLegalHolds,
   placeLegalHold,
   purgeExpiredDocuments,
   releaseLegalHold,
@@ -92,6 +93,23 @@ describe('legal hold overrides deletion', () => {
     expect(
       await db.select().from(schema.accounts).where(eq(schema.accounts.id, account.id)),
     ).toHaveLength(0);
+  });
+
+  it('lists only active legal holds via listActiveLegalHolds', async () => {
+    const { applicantId } = await consentedApplicant(db, 'active-hold@example.com');
+    const officer = await operator(db, 'officer-active@example.com');
+
+    const hold = await placeLegalHold(db, {
+      actorAccountId: officer,
+      applicantId,
+      reason: 'audit',
+    });
+    if (!isOk(hold)) throw new Error('hold');
+
+    expect(await listActiveLegalHolds(db)).toHaveLength(1);
+
+    await releaseLegalHold(db, { actorAccountId: officer, holdId: hold.value.id });
+    expect(await listActiveLegalHolds(db)).toHaveLength(0);
   });
 });
 

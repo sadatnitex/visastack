@@ -117,6 +117,12 @@ export async function listLegalHolds(db: Db, applicantId: string): Promise<Legal
   return db.select().from(schema.legalHolds).where(eq(schema.legalHolds.applicantId, applicantId));
 }
 
+/** All currently active legal holds (platform-admin overview), newest first. */
+export async function listActiveLegalHolds(db: Db): Promise<LegalHold[]> {
+  const rows = await db.select().from(schema.legalHolds).where(eq(schema.legalHolds.active, true));
+  return [...rows].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+}
+
 /** Create or update the retention policy for a document type (upsert by docType). */
 export async function setRetentionPolicy(
   db: Db,
