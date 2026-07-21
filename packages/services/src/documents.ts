@@ -202,6 +202,49 @@ export async function listDocuments(
   return ok(rows);
 }
 
+/** A document plus the safety/processing status of its latest version. */
+export interface DocumentSummary {
+  readonly id: string;
+  readonly originalName: string;
+  readonly docType: string | null;
+  readonly latestVersionId: string | null;
+  readonly safetyStatus: DocumentVersion['safetyStatus'] | null;
+  readonly processingStatus: DocumentVersion['processingStatus'] | null;
+  readonly createdAt: string;
+}
+
+/** List an applicant's documents with the latest version's status (owner-scoped). */
+export async function listDocumentsDetailed(
+  db: Db,
+  actorAccountId: string,
+  applicantId: string,
+): Promise<Result<DocumentSummary[], ServiceError>> {
+  const listed = await listDocuments(db, actorAccountId, applicantId);
+  if (!listed.ok) return listed;
+
+  const summaries: DocumentSummary[] = [];
+  for (const doc of listed.value) {
+    const version = first(
+      await db
+        .select()
+        .from(schema.documentVersions)
+        .where(eq(schema.documentVersions.documentId, doc.id))
+        .orderBy(desc(schema.documentVersions.versionNumber))
+        .limit(1),
+    );
+    summaries.push({
+      id: doc.id,
+      originalName: doc.originalName,
+      docType: doc.docType,
+      latestVersionId: version?.id ?? null,
+      safetyStatus: version?.safetyStatus ?? null,
+      processingStatus: version?.processingStatus ?? null,
+      createdAt: doc.createdAt.toISOString(),
+    });
+  }
+  return ok(summaries);
+}
+
 // --- Permission-aware access -----------------------------------------------
 
 /** Map the grant rows for an applicant into the policy engine's Grant shape. */

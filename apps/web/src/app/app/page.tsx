@@ -1,6 +1,7 @@
 import { CONSENT_TYPES, type ConsentType } from '@visastack/core';
 import { getConsents, listApplicants } from '@visastack/services';
 import { signOut } from '@workos-inc/authkit-nextjs';
+import Link from 'next/link';
 import { withSession } from '../../lib/session';
 import { createApplicantAction, setConsentAction } from './actions';
 
@@ -87,12 +88,17 @@ export default async function AppPage() {
           ) : (
             <div className="rows" style={{ marginBottom: '1rem' }}>
               {data.applicants.map((a) => (
-                <div className="row" key={a.id}>
+                <Link className="row row-link" key={a.id} href={`/app/applicant/${a.id}`}>
                   <span className="row-key">{a.displayName}</span>
-                  <span className="badge badge-neutral">
-                    {RELATIONSHIP_LABELS[a.relationship] ?? a.relationship}
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <span className="badge badge-neutral">
+                      {RELATIONSHIP_LABELS[a.relationship] ?? a.relationship}
+                    </span>
+                    <span className="muted" aria-hidden="true">
+                      →
+                    </span>
                   </span>
-                </div>
+                </Link>
               ))}
             </div>
           )}

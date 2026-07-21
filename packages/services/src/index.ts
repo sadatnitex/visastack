@@ -11,6 +11,7 @@
  * in-memory PGlite.
  */
 
+export type { Actor } from '@visastack/policy';
 export type { Db, Schema } from './db';
 export { type ServiceError, type ServiceErrorCode, serviceError } from './errors';
 
@@ -47,9 +48,11 @@ export {
   type Fact,
   type FactVersion,
   type FieldDefinition,
+  type ProfileEntry,
   type RegisterFieldInput,
   editFact,
   getCurrentFactVersion,
+  listApplicantProfile,
   listFactHistory,
   registerFieldDefinition,
 } from './profile';
@@ -184,6 +187,7 @@ export {
   type AddDocumentVersionResult,
   type Document,
   type DocumentAccessInput,
+  type DocumentSummary,
   type DocumentVersion,
   type DownloadDocumentInput,
   type RegisterDocumentInput,
@@ -191,6 +195,7 @@ export {
   addDocumentVersion,
   downloadDocument,
   listDocuments,
+  listDocumentsDetailed,
   previewDocument,
   registerDocument,
 } from './documents';

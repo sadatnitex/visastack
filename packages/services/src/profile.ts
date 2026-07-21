@@ -282,3 +282,50 @@ export async function listFactHistory(db: Db, factId: string): Promise<FactVersi
     .where(eq(schema.factVersions.factId, factId))
     .orderBy(asc(schema.factVersions.createdAt));
 }
+
+/** A profile fact resolved to its current value, for read/display. */
+export interface ProfileEntry {
+  readonly factId: string;
+  readonly fieldKey: string;
+  readonly repeatingRecordKey: string | null;
+  readonly value: string | null;
+  readonly status: FactStatus | null;
+  readonly method: string | null;
+  readonly updatedAt: string | null;
+}
+
+/**
+ * Every fact for an applicant, resolved to its current (approved) value and
+ * ordered by field key. A read projection over the fact/version pointer graph —
+ * the shape the Master Profile editor renders.
+ */
+export async function listApplicantProfile(db: Db, applicantId: string): Promise<ProfileEntry[]> {
+  const rows = await db
+    .select({
+      factId: schema.facts.id,
+      fieldKey: schema.fieldDefinitions.key,
+      repeatingRecordKey: schema.facts.repeatingRecordKey,
+      value: schema.factVersions.value,
+      status: schema.factVersions.status,
+      method: schema.factVersions.method,
+      updatedAt: schema.factVersions.createdAt,
+    })
+    .from(schema.facts)
+    .innerJoin(
+      schema.fieldDefinitions,
+      eq(schema.facts.fieldDefinitionId, schema.fieldDefinitions.id),
+    )
+    .leftJoin(schema.factVersions, eq(schema.facts.currentVersionId, schema.factVersions.id))
+    .where(eq(schema.facts.applicantId, applicantId))
+    .orderBy(asc(schema.fieldDefinitions.key));
+
+  return rows.map((row) => ({
+    factId: row.factId,
+    fieldKey: row.fieldKey,
+    repeatingRecordKey: row.repeatingRecordKey,
+    value: row.value,
+    status: row.status,
+    method: row.method,
+    updatedAt: row.updatedAt ? row.updatedAt.toISOString() : null,
+  }));
+}

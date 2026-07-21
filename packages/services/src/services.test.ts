@@ -14,6 +14,7 @@ import type { Db } from './db';
 import {
   editFact,
   getCurrentFactVersion,
+  listApplicantProfile,
   listFactHistory,
   registerFieldDefinition,
 } from './profile';
@@ -307,6 +308,40 @@ describe('master profile — manual edit is versioned, atomic, authorized', () =
     if (!isOk(home) || !isOk(work)) return;
     // Distinct repeating records → distinct facts.
     expect(home.value.fact.id).not.toBe(work.value.fact.id);
+  });
+
+  it('projects each fact to its current value via listApplicantProfile', async () => {
+    const { account, applicant } = await seedApplicant('p5@example.com');
+    await registerFieldDefinition(db, { key: 'given_name', dataType: 'string' });
+    await registerFieldDefinition(db, { key: 'family_name', dataType: 'string' });
+
+    await editFact(db, {
+      actorAccountId: account.id,
+      applicantId: applicant.id,
+      fieldKey: 'given_name',
+      value: 'Ada',
+    });
+    // Re-edit family name so the projection must return the LATEST version.
+    await editFact(db, {
+      actorAccountId: account.id,
+      applicantId: applicant.id,
+      fieldKey: 'family_name',
+      value: 'Byron',
+    });
+    await editFact(db, {
+      actorAccountId: account.id,
+      applicantId: applicant.id,
+      fieldKey: 'family_name',
+      value: 'Lovelace',
+    });
+
+    const profile = await listApplicantProfile(db, applicant.id);
+    // Ordered by field key: family_name before given_name.
+    expect(profile.map((p) => p.fieldKey)).toEqual(['family_name', 'given_name']);
+    const byKey = new Map(profile.map((p) => [p.fieldKey, p]));
+    expect(byKey.get('family_name')?.value).toBe('Lovelace');
+    expect(byKey.get('given_name')?.value).toBe('Ada');
+    expect(byKey.get('given_name')?.status).toBe('APPLICANT_CONFIRMED');
   });
 
   it('rejects a record key on a non-repeating field', async () => {

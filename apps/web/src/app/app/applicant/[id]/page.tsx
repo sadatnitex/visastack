@@ -1,0 +1,158 @@
+import {
+  getApplicant,
+  hasConsent,
+  listApplicantProfile,
+  listDocumentsDetailed,
+} from '@visastack/services';
+import Link from 'next/link';
+import { notFound } from 'next/navigation';
+import { withSession } from '../../../../lib/session';
+import { previewDocumentAction } from './actions';
+import { DocumentUploader } from './document-uploader';
+import { ProfileEditor } from './profile-editor';
+
+export const dynamic = 'force-dynamic';
+
+const RELATIONSHIP_LABELS: Record<string, string> = {
+  SELF: 'Myself',
+  FAMILY_MEMBER: 'Family member',
+  MINOR_GUARDIAN: 'Minor (guardian)',
+};
+
+const SAFETY_BADGE: Record<string, { label: string; tone: string }> = {
+  CLEAN: { label: 'Clean', tone: 'badge-success' },
+  QUARANTINED: { label: 'Quarantined', tone: 'badge-danger' },
+  SCANNING: { label: 'Scanning', tone: 'badge-neutral' },
+  PENDING: { label: 'Pending', tone: 'badge-neutral' },
+};
+
+export default async function ApplicantPage({
+  params,
+}: {
+  readonly params: Promise<{ id: string }>;
+}) {
+  const { id } = await params;
+
+  const data = await withSession(async ({ db, accountId }) => {
+    const applicant = await getApplicant(db, id);
+    if (!applicant || applicant.ownerAccountId !== accountId) return null;
+    const [profile, documents, coreGranted] = await Promise.all([
+      listApplicantProfile(db, id),
+      listDocumentsDetailed(db, accountId, id),
+      hasConsent(db, accountId, 'CORE_PROCESSING'),
+    ]);
+    return {
+      applicant,
+      profile,
+      documents: documents.ok ? documents.value : [],
+      coreGranted,
+    };
+  });
+
+  if (!data) notFound();
+
+  const values: Record<string, { value: string | null; status: string | null }> = {};
+  for (const entry of data.profile) {
+    values[entry.fieldKey] = { value: entry.value, status: entry.status };
+  }
+
+  return (
+    <section className="section container">
+      <div style={{ marginBottom: '1.5rem' }}>
+        <Link href="/app" className="muted" style={{ fontSize: '0.9rem' }}>
+          ← Workspace
+        </Link>
+      </div>
+      <div className="toolbar" style={{ marginBottom: '2rem' }}>
+        <div>
+          <span className="eyebrow">Applicant</span>
+          <h1 className="section-title" style={{ margin: '0.25rem 0 0' }}>
+            {data.applicant.displayName}
+          </h1>
+          <p className="muted" style={{ margin: '0.35rem 0 0' }}>
+            {RELATIONSHIP_LABELS[data.applicant.relationship] ?? data.applicant.relationship}
+          </p>
+        </div>
+      </div>
+
+      {!data.coreGranted ? (
+        <div className="card" style={{ marginBottom: '2rem' }}>
+          <p className="card-body">
+            Grant <strong>Core processing</strong> consent from your{' '}
+            <Link href="/app">workspace</Link> to edit this profile and upload documents.
+          </p>
+        </div>
+      ) : null}
+
+      <div className="grid">
+        <article className="card">
+          <p className="card-kicker">Master Profile</p>
+          <h2 className="card-title">Structured facts</h2>
+          <p className="card-body" style={{ marginBottom: '1.25rem' }}>
+            Every save appends an immutable, provenance-tracked version — earlier values are never
+            overwritten.
+          </p>
+          {data.coreGranted ? (
+            <ProfileEditor applicantId={id} values={values} />
+          ) : (
+            <p className="muted">Consent required.</p>
+          )}
+        </article>
+
+        <article className="card">
+          <p className="card-kicker">Document Vault</p>
+          <h2 className="card-title">Uploads &amp; safety</h2>
+          <p className="card-body" style={{ marginBottom: '1.25rem' }}>
+            Documents are stored privately and pass a structural safety scan before they can be
+            previewed.
+          </p>
+
+          {data.documents.length === 0 ? (
+            <p className="muted" style={{ marginBottom: '1.25rem' }}>
+              No documents yet.
+            </p>
+          ) : (
+            <div className="rows" style={{ marginBottom: '1.5rem' }}>
+              {data.documents.map((doc) => {
+                const badge = SAFETY_BADGE[doc.safetyStatus ?? 'PENDING'] ?? {
+                  label: doc.safetyStatus ?? 'Pending',
+                  tone: 'badge-neutral',
+                };
+                const previewable = doc.safetyStatus === 'CLEAN';
+                return (
+                  <div className="row" key={doc.id}>
+                    <span className="row-key" style={{ wordBreak: 'break-word' }}>
+                      {doc.originalName}
+                    </span>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                      <span className={`badge ${badge.tone}`}>{badge.label}</span>
+                      {previewable ? (
+                        <form action={previewDocumentAction}>
+                          <input type="hidden" name="applicantId" value={id} />
+                          <input type="hidden" name="documentId" value={doc.id} />
+                          <button
+                            type="submit"
+                            className="btn btn-secondary"
+                            style={{ padding: '0.3rem 0.9rem', fontSize: '0.8rem' }}
+                          >
+                            Preview
+                          </button>
+                        </form>
+                      ) : null}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {data.coreGranted ? (
+            <DocumentUploader applicantId={id} />
+          ) : (
+            <p className="muted">Consent required.</p>
+          )}
+        </article>
+      </div>
+    </section>
+  );
+}
