@@ -14,7 +14,12 @@ import { withAuth } from '@workos-inc/authkit-nextjs';
 export async function withSession<T>(
   fn: (ctx: { readonly db: Db; readonly accountId: string; readonly email: string }) => Promise<T>,
 ): Promise<T> {
-  const { user } = await withAuth({ ensureSignedIn: true });
+  // Read-only: the middleware (with `middlewareAuth` enabled) has already
+  // enforced sign-in and refreshed the token, so this never writes cookies
+  // during the render. `ensureSignedIn` is intentionally NOT passed — forcing a
+  // refresh here is what threw "Cookies can only be modified in a Server Action
+  // or Route Handler" on protected pages.
+  const { user } = await withAuth();
   if (!user?.email) throw new Error('no authenticated user');
 
   const connectionString = resolveDatabaseUrl(process.env);
