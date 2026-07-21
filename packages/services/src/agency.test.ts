@@ -10,6 +10,8 @@ import {
   addNote,
   assignMember,
   bulkExport,
+  listEvidenceRequestsForApplicant,
+  listEvidenceRequestsForOrg,
   listNotes,
   requestEvidence,
   respondEvidence,
@@ -18,7 +20,7 @@ import { createApplicant } from './applicants';
 import { setConsent } from './consent';
 import type { Db } from './db';
 import { createMission } from './missions';
-import { createOrganization } from './organizations';
+import { createOrganization, listMembershipsForAccount } from './organizations';
 import { editFact, registerFieldDefinition } from './profile';
 import { acceptGrant, createGrant } from './sharing';
 
@@ -133,6 +135,42 @@ describe('agency collaboration — assignments, notes, evidence', () => {
     });
     expect(isOk(resp)).toBe(true);
     if (isOk(resp)) expect(resp.value.status).toBe('FULFILLED');
+  });
+
+  it('lists evidence requests for the applicant and the org, and org memberships', async () => {
+    const { account, applicantId } = await consentedApplicant(db, 'ev2@example.com');
+    const agentAcc = await provisionAccount(db, { email: 'agent-ev2@acme.com' });
+    if (!isOk(agentAcc)) throw new Error('provision');
+    const org = await createOrganization(db, { actorAccountId: agentAcc.value.id, name: 'Acme' });
+    if (!isOk(org)) throw new Error('org');
+
+    await requestEvidence(db, {
+      actorAccountId: agentAcc.value.id,
+      organizationId: org.value.id,
+      applicantId,
+      kind: 'FIELD',
+      fieldKey: 'passport_number',
+    });
+
+    // Applicant owner sees the request; a stranger is forbidden.
+    const forApplicant = await listEvidenceRequestsForApplicant(db, account.id, applicantId);
+    expect(isOk(forApplicant)).toBe(true);
+    if (isOk(forApplicant)) expect(forApplicant.value).toHaveLength(1);
+    const stranger = await listEvidenceRequestsForApplicant(db, agentAcc.value.id, applicantId);
+    expect(isErr(stranger)).toBe(true);
+
+    // Org admin sees the org's requests; a non-admin is forbidden.
+    const forOrg = await listEvidenceRequestsForOrg(db, agentAcc.value.id, org.value.id);
+    expect(isOk(forOrg)).toBe(true);
+    if (isOk(forOrg)) expect(forOrg.value).toHaveLength(1);
+    const notAdmin = await listEvidenceRequestsForOrg(db, account.id, org.value.id);
+    expect(isErr(notAdmin)).toBe(true);
+
+    // The creator is an OWNER member of the org.
+    const memberships = await listMembershipsForAccount(db, agentAcc.value.id);
+    expect(memberships).toHaveLength(1);
+    expect(memberships[0]?.role).toBe('OWNER');
+    expect(memberships[0]?.organization.id).toBe(org.value.id);
   });
 });
 

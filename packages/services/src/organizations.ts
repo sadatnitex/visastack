@@ -55,6 +55,51 @@ async function isMember(db: Db, accountId: string, organizationId: string): Prom
   return m !== undefined;
 }
 
+/** An organization the account belongs to, with the account's role/active flag. */
+export interface OrgMembershipView {
+  readonly organization: Organization;
+  readonly membershipId: string;
+  readonly role: MembershipRole;
+  readonly active: boolean;
+}
+
+/** Every organization the account is a member of, with its membership. */
+export async function listMembershipsForAccount(
+  db: Db,
+  accountId: string,
+): Promise<OrgMembershipView[]> {
+  const rows = await db
+    .select({
+      organization: schema.organizations,
+      membershipId: schema.memberships.id,
+      role: schema.memberships.role,
+      active: schema.memberships.active,
+    })
+    .from(schema.memberships)
+    .innerJoin(schema.organizations, eq(schema.organizations.id, schema.memberships.organizationId))
+    .where(eq(schema.memberships.accountId, accountId));
+  return rows.map((row) => ({
+    organization: row.organization,
+    membershipId: row.membershipId,
+    role: row.role,
+    active: row.active,
+  }));
+}
+
+/** Load one organization by id (no scoping — callers enforce membership). */
+export async function getOrganization(
+  db: Db,
+  organizationId: string,
+): Promise<Organization | undefined> {
+  return first(
+    await db
+      .select()
+      .from(schema.organizations)
+      .where(eq(schema.organizations.id, organizationId))
+      .limit(1),
+  );
+}
+
 /** Create an organization (PENDING_VERIFICATION) with the creator as OWNER. */
 export async function createOrganization(
   db: Db,

@@ -95,6 +95,8 @@ export {
   assignMember,
   bulkExport,
   listAssignments,
+  listEvidenceRequestsForApplicant,
+  listEvidenceRequestsForOrg,
   listNotes,
   requestEvidence,
   respondEvidence,
@@ -102,10 +104,13 @@ export {
 
 export {
   type Membership,
+  type OrgMembershipView,
   type Organization,
   addMembership,
   createOrganization,
+  getOrganization,
   isOrgAdmin,
+  listMembershipsForAccount,
   reviewOrganization,
   setMembershipActive,
   suspendOrganization,
