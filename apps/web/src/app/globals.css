@@ -251,6 +251,10 @@ main {
 .btn-secondary:hover {
   background: var(--bg-subtle);
 }
+.nav-cta {
+  padding: 0.4rem 1.1rem;
+  font-size: 0.9rem;
+}
 .btn-danger {
   background: var(--danger);
   color: #fff;

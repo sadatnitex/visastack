@@ -31,10 +31,9 @@ export default function RootLayout({ children }: { readonly children: ReactNode 
           <nav className="nav-links" aria-label="Primary">
             <Link href="/#capabilities">Platform</Link>
             <Link href="/status">Status</Link>
-            <a href="https://github.com/sadatnitex/visastack" rel="noreferrer noopener">
-              Source
-            </a>
-            <Link href="/app">Sign in</Link>
+            <Link className="btn btn-secondary nav-cta" href="/app">
+              Sign in
+            </Link>
           </nav>
         </header>
         <main id="main">{children}</main>
