@@ -25,10 +25,12 @@ export {
 } from './accounts';
 
 export {
+  type ConsentRecord,
   type ConsentState,
   type SetConsentInput,
   getConsents,
   hasConsent,
+  listConsentHistory,
   setConsent,
 } from './consent';
 
@@ -179,6 +181,7 @@ export {
   type DeletionRequest,
   cancelAccountDeletion,
   executeAccountDeletion,
+  getPendingDeletion,
   requestAccountDeletion,
 } from './deletion';
 

@@ -251,6 +251,33 @@ main {
 .btn-secondary:hover {
   background: var(--bg-subtle);
 }
+.btn-danger {
+  background: var(--danger);
+  color: #fff;
+}
+.btn-danger:hover {
+  filter: brightness(1.08);
+}
+.btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+/* Inline notices */
+.notice {
+  padding: 0.85rem 1rem;
+  border-radius: 12px;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  border: 1px solid var(--hairline);
+  background: var(--bg-subtle);
+  color: var(--text-secondary);
+}
+.notice-warn {
+  color: var(--warning);
+  background: var(--warning-bg);
+  border-color: transparent;
+}
 
 /* Section headings */
 .section-head {

@@ -8,9 +8,14 @@ import { migrate } from 'drizzle-orm/pglite/migrator';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { provisionAccount } from './accounts';
 import { createApplicant } from './applicants';
-import { setConsent } from './consent';
+import { listConsentHistory, setConsent } from './consent';
 import type { Db } from './db';
-import { cancelAccountDeletion, executeAccountDeletion, requestAccountDeletion } from './deletion';
+import {
+  cancelAccountDeletion,
+  executeAccountDeletion,
+  getPendingDeletion,
+  requestAccountDeletion,
+} from './deletion';
 import { addDocumentVersion, registerDocument } from './documents';
 import { exportAccount } from './export';
 import { editFact, registerFieldDefinition } from './profile';
@@ -163,5 +168,61 @@ describe('account deletion workflow', () => {
     });
     expect(isErr(result)).toBe(true);
     if (isErr(result)) expect(result.error.code).toBe('forbidden');
+  });
+
+  it('exposes the pending request via getPendingDeletion, cleared on cancel', async () => {
+    const { account } = await seedFullAccount(db, 'del4@example.com');
+    expect(await getPendingDeletion(db, account.id)).toBeUndefined();
+
+    const req = await requestAccountDeletion(db, {
+      actorAccountId: account.id,
+      accountId: account.id,
+    });
+    expect(isOk(req)).toBe(true);
+
+    const pending = await getPendingDeletion(db, account.id);
+    expect(pending?.status).toBe('PENDING');
+
+    await cancelAccountDeletion(db, { actorAccountId: account.id, accountId: account.id });
+    expect(await getPendingDeletion(db, account.id)).toBeUndefined();
+  });
+});
+
+describe('consent history', () => {
+  let db: Db;
+  beforeEach(async () => {
+    db = await freshDb();
+  });
+
+  it('records the full grant/revoke trail newest-first', async () => {
+    const provisioned = await provisionAccount(db, { email: 'ch@example.com' });
+    if (!isOk(provisioned)) throw new Error('provision');
+    const accountId = provisioned.value.id;
+
+    await setConsent(db, {
+      actorAccountId: accountId,
+      accountId,
+      type: 'CORE_PROCESSING',
+      granted: true,
+    });
+    await setConsent(db, {
+      actorAccountId: accountId,
+      accountId,
+      type: 'MARKETING',
+      granted: true,
+    });
+    await setConsent(db, {
+      actorAccountId: accountId,
+      accountId,
+      type: 'MARKETING',
+      granted: false,
+    });
+
+    const history = await listConsentHistory(db, accountId);
+    expect(history).toHaveLength(3);
+    // Newest first: the MARKETING revoke is the most recent row.
+    expect(history[0]?.type).toBe('MARKETING');
+    expect(history[0]?.revokedAt).not.toBeNull();
+    expect(history[0]?.grantedAt).toBeNull();
   });
 });

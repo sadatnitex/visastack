@@ -65,6 +65,20 @@ export async function hasConsent(db: Db, accountId: string, type: ConsentType): 
   return row !== undefined && row.grantedAt !== null && row.revokedAt === null;
 }
 
+export type ConsentRecord = typeof schema.consentRecords.$inferSelect;
+
+/**
+ * Full consent history for an account, newest first. Records are append-only,
+ * so this is the complete grant/revoke trail per purpose (Build Spec §13).
+ */
+export async function listConsentHistory(db: Db, accountId: string): Promise<ConsentRecord[]> {
+  return db
+    .select()
+    .from(schema.consentRecords)
+    .where(eq(schema.consentRecords.accountId, accountId))
+    .orderBy(desc(schema.consentRecords.createdAt));
+}
+
 /** Grant or revoke one consent type for the actor's own account. */
 export async function setConsent(
   db: Db,
