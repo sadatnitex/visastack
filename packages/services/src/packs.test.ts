@@ -12,6 +12,8 @@ import {
   addRequirement,
   approvePackVersion,
   createPack,
+  listPackVersions,
+  listPacks,
   publishPackVersion,
   verifyPackChecksum,
 } from './packs';
@@ -68,6 +70,19 @@ describe('Pack Studio — versioned, cited, admin-approved requirement packs', (
     if (!isOk(v1) || !isOk(v2)) return;
     expect(v1.value.version).toBe(1);
     expect(v2.value.version).toBe(2);
+  });
+
+  it('lists packs and pack versions (highest version first)', async () => {
+    const pack = await createPack(db, { actorAccountId: actor, key: 'pv', name: 'PV' });
+    if (!isOk(pack)) throw new Error('pack');
+    await addPackVersion(db, { actorAccountId: actor, packId: pack.value.id });
+    await addPackVersion(db, { actorAccountId: actor, packId: pack.value.id });
+
+    const packs = await listPacks(db);
+    expect(packs.map((p) => p.key)).toContain('pv');
+
+    const versions = await listPackVersions(db, pack.value.id);
+    expect(versions.map((v) => v.version)).toEqual([2, 1]);
   });
 
   it('rejects a requirement with no citation', async () => {
