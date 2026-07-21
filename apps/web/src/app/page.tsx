@@ -63,16 +63,12 @@ export default function HomePage() {
           get exactly the access they’re granted.
         </p>
         <div className="cta-row">
-          <Link className="btn btn-primary" href="/status">
+          <Link className="btn btn-primary" href="/app">
+            Get started — sign in
+          </Link>
+          <Link className="btn btn-secondary" href="/status">
             View system status
           </Link>
-          <a
-            className="btn btn-secondary"
-            href="https://github.com/sadatnitex/visastack"
-            rel="noreferrer noopener"
-          >
-            Explore the source
-          </a>
         </div>
       </section>
 
