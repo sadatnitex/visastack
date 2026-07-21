@@ -33,6 +33,14 @@ async function pendingRequest(db: Db, accountId: string): Promise<DeletionReques
   );
 }
 
+/** The account's currently pending deletion request, if any (read-only). */
+export async function getPendingDeletion(
+  db: Db,
+  accountId: string,
+): Promise<DeletionRequest | undefined> {
+  return pendingRequest(db, accountId);
+}
+
 /** Open a reversible deletion request for the actor's own account. */
 export async function requestAccountDeletion(
   db: Db,

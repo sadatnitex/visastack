@@ -40,16 +40,21 @@ export default async function AppPage() {
             {data.email}
           </p>
         </div>
-        <form
-          action={async () => {
-            'use server';
-            await signOut();
-          }}
-        >
-          <button type="submit" className="btn btn-secondary">
-            Sign out
-          </button>
-        </form>
+        <div style={{ display: 'flex', gap: '0.6rem', alignItems: 'center' }}>
+          <Link href="/app/privacy" className="btn btn-secondary">
+            Privacy
+          </Link>
+          <form
+            action={async () => {
+              'use server';
+              await signOut();
+            }}
+          >
+            <button type="submit" className="btn btn-secondary">
+              Sign out
+            </button>
+          </form>
+        </div>
       </div>
 
       <div className="grid">
