@@ -1,11 +1,12 @@
 'use server';
 
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { BasicSafetyScanner } from '@visastack/adapters';
 import type { ApplicantId } from '@visastack/core';
 import type { Actor, Db } from '@visastack/services';
 import {
   addDocumentVersion,
+  checkUploadQuota,
   editFact,
   getApplicant,
   previewDocument,
@@ -73,17 +74,26 @@ export async function uploadDocumentAction(
   if (!(file instanceof File) || file.size === 0) {
     return { ok: false, message: 'Choose a file to upload.' };
   }
-  if (file.size > 15 * 1024 * 1024) {
-    return { ok: false, message: 'File exceeds the 15 MB limit.' };
-  }
 
   const bytes = new Uint8Array(await file.arrayBuffer());
   const contentType = file.type || 'application/octet-stream';
   const originalName = file.name || 'document';
+  const sha256 = createHash('sha256').update(bytes).digest('hex');
 
   const result = await withSession(async ({ db, accountId }) => {
     if (!(await assertOwned(db, accountId, applicantId))) {
       return { ok: false, message: 'Not authorized.' } satisfies ActionState;
+    }
+
+    // Fail-closed, before any bytes are written (master directive §10): a
+    // quota is never silently exceeded.
+    const quota = await checkUploadQuota(db, {
+      applicantId,
+      accountId,
+      uploadSizeBytes: bytes.byteLength,
+    });
+    if (!quota.allowed) {
+      return { ok: false, message: quota.reason } satisfies ActionState;
     }
 
     const registered = await registerDocument(db, {
@@ -96,7 +106,10 @@ export async function uploadDocumentAction(
       return { ok: false, message: registered.error.message } satisfies ActionState;
     }
 
-    const objectKey = `${applicantId}/${randomUUID()}`;
+    // Opaque key only — never the applicant id, email, or filename (§10).
+    // The bucket/applicant association lives solely in the domain tables
+    // (documents/document_versions/storage_objects), never in the object path.
+    const objectKey = randomUUID();
     const storage = createStorage(db);
     await storage.putObject({ objectKey, bucket: 'QUARANTINE', contentType, bytes });
 
@@ -106,6 +119,7 @@ export async function uploadDocumentAction(
       bucket: 'QUARANTINE',
       objectKey,
       sizeBytes: bytes.byteLength,
+      sha256,
     });
     if (!versioned.ok) {
       return { ok: false, message: versioned.error.message } satisfies ActionState;
