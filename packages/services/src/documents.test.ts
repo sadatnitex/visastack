@@ -279,6 +279,9 @@ describe('document vault — preview never leaks originals to third parties (Mil
     // for an `original` variant token.
     if (isOk(preview)) expect(preview.value.variant).toBe('original');
     expect(storage.calls.at(-1)?.variant).toBe('original');
+    // The display filename (original name, since nothing has been approved
+    // yet) flows into the reference — never the opaque storage key.
+    expect(storage.calls.at(-1)?.filename).toBe('passport.pdf');
   });
 
   it('mints a REDACTED variant for a granted third party — never the original bytes', async () => {

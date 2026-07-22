@@ -392,6 +392,9 @@ async function accessDocument(
     disposition,
     variant: effectiveVariant,
     expiresInSeconds: DEFAULT_ACCESS_TTL_SECONDS,
+    // The current approved name if one exists, else the preserved original —
+    // never the opaque storage key (master directive §10/§18/§21E).
+    filename: document.approvedName ?? document.originalName,
   });
   return ok(ref);
 }
