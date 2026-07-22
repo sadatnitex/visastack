@@ -38,7 +38,7 @@ From `.env.example` and `docs/governance/service-wiring.md`:
 | Capability | Highest truthful label | Evidence / notes |
 |---|---|---|
 | WorkOS login → workspace | **Production verified** | Confirmed on `visastack-five` this session. |
-| Local identity binding to WorkOS user | **Domain model only (incorrect)** | `provisionAccount` keys by email (`packages/services/src/accounts.ts`); no immutable `workosUserId`. Email change ⇒ duplicate/oprhaned account risk. |
+| Local identity binding to WorkOS user | **Service implemented + tested (this branch)** | `accounts.workos_user_id` added (migration `0010`, nullable+unique); `provisionAccount` binds by immutable WorkOS id, claims a legacy account only on a verified email, and refuses a takeover. 6 tests. *Follow-up:* a later migration makes the column NOT NULL once all live users are bound. |
 | Account provisioning (idempotent) | **Production verified** | `provisionAccount` idempotent by email; runs on every `/app` load. |
 | Consent (separated, per-purpose) | **Service implemented + UI present** | `consent.ts`, `/app` consent controls. Not independently E2E-verified this session. |
 | Applicant/family records | **Service implemented + UI present** | `applicants.ts`, `/app`, `/app/applicant/[id]`. |
@@ -61,7 +61,7 @@ From `.env.example` and `docs/governance/service-wiring.md`:
 
 **P0**
 - **Preview served original bytes under a "redacted" label.** `/api/blob/[key]` returned the stored original bytes for any valid token regardless of the signed `variant`; `previewDocument` minted a `redacted` variant for everyone. A third-party PREVIEW token would therefore have returned the original document. *Fixed on this branch:* the serving route now fails closed for any non-`original` variant (HTTP 501), and `accessDocument` mints an `original` preview only for the applicant owner; third parties get `redacted` (fail-closed until real renditions exist). Tests added in `documents.test.ts`.
-- **Identity keyed by mutable email**, not the immutable WorkOS user id (account-takeover / duplicate-account risk on email change). *Not yet fixed — highest-priority remaining Release A item.*
+- **Identity keyed by mutable email**, not the immutable WorkOS user id (account-takeover / duplicate-account risk on email change). *Fixed on this branch* — `workos_user_id` binding (migration `0010` + `provisionAccount` rewrite + 6 tests); email is now mutable contact data. Follow-up: make the column NOT NULL after all live users are bound.
 
 **P1**
 - Readiness returned 200 while degraded. *Fixed on this branch (503 + core WorkOS-config gate).*
@@ -97,7 +97,7 @@ From `.env.example` and `docs/governance/service-wiring.md`:
 
 ## Immediate next priorities (in order)
 
-1. WorkOS immutable-id identity binding (staged, non-destructive migration + takeover tests) — Release A.
+1. ~~WorkOS immutable-id identity binding~~ — **done on this branch** (migration `0010`, `provisionAccount`, 6 tests). Follow-up: NOT-NULL migration once live users are bound.
 2. Playwright auth regression + deployed-preview smoke workflow (Milestone 0/1).
 3. Real generated redacted renditions + download-time re-authorization (Milestone 2 completion) — unblocks third-party preview.
 4. Release B: private async upload + production storage adapter contract + durable jobs.
