@@ -256,3 +256,67 @@ describe('document vault — permission-aware access', () => {
     void account;
   });
 });
+
+describe('document vault — preview never leaks originals to third parties (Milestone 2 / P0)', () => {
+  let db: Db;
+  let storage: FakeStorage;
+  beforeEach(async () => {
+    db = await freshDb();
+    storage = new FakeStorage();
+  });
+
+  it('mints an ORIGINAL variant for the applicant owner previewing their own clean document', async () => {
+    const { document } = await seedOwnerWithDocument(db, 'p1@example.com');
+
+    const preview = await previewDocument(db, storage, {
+      actor: { kind: 'applicant_owner', applicantId: document.applicantId as never },
+      documentId: document.id,
+      purpose: 'owner_preview',
+    });
+
+    expect(isOk(preview)).toBe(true);
+    // The owner sees the clean original; the serving route only releases bytes
+    // for an `original` variant token.
+    if (isOk(preview)) expect(preview.value.variant).toBe('original');
+    expect(storage.calls.at(-1)?.variant).toBe('original');
+  });
+
+  it('mints a REDACTED variant for a granted third party — never the original bytes', async () => {
+    const { applicant, document } = await seedOwnerWithDocument(db, 'p2@example.com');
+    const org = await db
+      .insert(schema.organizations)
+      .values({ name: 'Acme Travel', status: 'ACTIVE' })
+      .returning();
+    const orgId = org[0]?.id;
+    if (!orgId) throw new Error('org failed');
+    const member = await provisionAccount(db, { email: 'agent-p2@acme.com' });
+    if (!isOk(member)) throw new Error('provision failed');
+
+    await db.insert(schema.grants).values({
+      applicantId: applicant.id,
+      recipientOrganizationId: orgId,
+      actions: ['PREVIEW'],
+      purpose: 'visa_application',
+      status: 'ACTIVE',
+      acceptedAt: new Date(),
+    });
+    const membership: Membership = {
+      organizationId: orgId as never,
+      role: 'CASE_MANAGER',
+      active: true,
+    };
+
+    const preview = await previewDocument(db, storage, {
+      actor: { kind: 'organization_member', accountId: member.value.id as never, membership },
+      documentId: document.id,
+      purpose: 'visa_application',
+    });
+
+    // The grant authorises PREVIEW, but the third party must NEVER receive an
+    // `original` variant token — only a `redacted` one, which the serving route
+    // fails closed on until real renditions exist.
+    expect(isOk(preview)).toBe(true);
+    if (isOk(preview)) expect(preview.value.variant).toBe('redacted');
+    expect(storage.calls.at(-1)?.variant).toBe('redacted');
+  });
+});

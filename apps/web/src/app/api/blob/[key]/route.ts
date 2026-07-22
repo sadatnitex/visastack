@@ -41,6 +41,16 @@ export async function GET(
     return new Response('forbidden', { status: 403 });
   }
 
+  // Security boundary (Milestone 2 / ADR-0011 correction): this route serves the
+  // stored ORIGINAL bytes. It may therefore only ever honour an `original`
+  // variant token. A `redacted` (or any non-original) variant must NOT fall
+  // through to the original bytes — until real generated renditions exist, a
+  // redacted request fails closed rather than leaking the source document. The
+  // variant is part of the signed token, so it cannot be tampered with.
+  if (fields.variant !== 'original') {
+    return new Response('redacted rendition not available', { status: 501 });
+  }
+
   const storage = new NeonBlobStorage({
     db: createNeonDb(connectionString),
     signingSecret: secret,
