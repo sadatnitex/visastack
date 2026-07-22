@@ -14,7 +14,7 @@
 
 **Production verified.** WorkOS AuthKit login reaches the authenticated workspace (`/app`) on `visastack-five.vercel.app` — confirmed interactively by the account owner this session, after a chain of fixes (PRs #29–#39). Middleware (`apps/web/src/middleware.ts`, `middlewareAuth.enabled`) owns session enforcement and token refresh; `/callback` (`apps/web/src/app/callback/route.ts`, `handleAuth`) is the OAuth callback; `withSession()` reads the refreshed session read-only. The Neon WebSocket masking fix is in place and must remain (`apps/web/src/instrumentation.ts` → `WS_NO_BUFFER_UTIL`/`WS_NO_UTF_8_VALIDATE`; `serverExternalPackages`; pool `error` listener in `apps/web/src/lib/session.ts`).
 
-**Gap:** there is no automated end-to-end authentication regression test running against the deployed app. No Playwright is configured in the repo (`apps/web` has no `playwright.config.*`, no `@playwright/test`).
+**Gap (narrowing):** a Playwright foundation now exists (`apps/web/playwright.config.ts`, `apps/web/e2e/`) — a no-secret spec (unauthenticated redirect, callback reachability, protected-route denial, public pages) and a credential-gated authenticated spec (sign-in, applicant creation, fact persistence, logout/re-sign-in, session termination). The no-secret spec and a plain-HTTP smoke script (`apps/web/scripts/smoke.mjs`) both run automatically against the real deployed URL via a `deployment_status`-triggered GitHub Actions workflow — **Preview verified once the workflow runs on this PR's deployment; not yet observed by this session** (the sandbox's outbound proxy blocks `vercel.app`, so these could not be executed against the live deployment from here — they are unit/config-verified locally and will run for real in GitHub Actions, which has normal internet access). The authenticated spec is **implemented, not yet verified** — it requires `WORKOS_STAGING_TEST_EMAIL`/`WORKOS_STAGING_TEST_PASSWORD` repository secrets (documented, not set) and its hosted-UI selectors have not been exercised against real WorkOS staging.
 
 ## Route inventory
 
@@ -88,16 +88,20 @@ From `.env.example` and `docs/governance/service-wiring.md`:
 
 ## Changes made on this branch (this session)
 
-1. Governing directive saved (`docs/roadmap/reliability-document-intelligence-upgrade.md`).
+1. Governing directives saved (`docs/roadmap/reliability-document-intelligence-upgrade.md`, `docs/roadmap/master-build-pilot-commercialization-directive.md`).
 2. This baseline audit.
 3. **P0 preview fix** — `/api/blob/[key]` fails closed for non-`original` variants; owner-only original preview in `documents.ts`; + tests.
-4. **Honest readiness** — `/api/health/ready` returns 503 when core (DB/schema/WorkOS config) is not ready; optional capabilities reported separately.
+4. **Honest readiness** — `/api/health/ready` returns 503 when core (DB/schema/WorkOS config) is not ready; optional capabilities reported separately; unit-tested (5 tests, mocked DB, no live DB/secrets needed).
 5. **PII-safe logging** — `withSession` logs `acct:<hash>` instead of the raw email.
-6. README / landing / status wording corrected to "Technical Preview".
+6. **WorkOS immutable-id identity binding** — migration `0010`, `provisionAccount` rewrite, 6 tests (idempotency, changed-email no-duplicate, legacy claim+audit, unverified fail-closed, takeover guard, distinct identities).
+7. **No-secret smoke tests** — `apps/web/scripts/smoke.mjs` (plain-fetch, 7 checks) + a `deployment_status`-triggered `deploy-smoke.yml` workflow that runs it against the real deployed URL with no secrets.
+8. **Playwright foundation** — `playwright.config.ts`, `e2e/no-secret-auth.spec.ts` (always runs, no secrets), `e2e/authenticated-workspace.spec.ts` (skips cleanly without `WORKOS_STAGING_TEST_EMAIL`/`WORKOS_STAGING_TEST_PASSWORD`), wired into `playwright-smoke.yml` (no-secret) and `workos-staging-e2e.yml` (credential-gated, documented secret names, no values).
+9. **Neon pooled-transaction regression** (`packages/db/src/pooled-transaction.regression.test.ts`) — protects `createPooledDb`'s `ws` env-flag forcing (no live DB needed), statically verifies `next.config.mjs`'s `serverExternalPackages` and `instrumentation.ts` still contain the mitigation, and adds a **live** interactive-transaction check over the real pooled/WebSocket path that skips cleanly without a `DATABASE_URL`-family secret.
+10. README / landing / status wording corrected to "Technical Preview".
 
 ## Immediate next priorities (in order)
 
 1. ~~WorkOS immutable-id identity binding~~ — **done on this branch** (migration `0010`, `provisionAccount`, 6 tests). Follow-up: NOT-NULL migration once live users are bound.
-2. Playwright auth regression + deployed-preview smoke workflow (Milestone 0/1).
+2. ~~Playwright auth regression + deployed-preview smoke workflow~~ — **implemented on this branch**; the no-secret path (smoke script + `no-secret-auth.spec.ts`) is Preview-verifiable once the `deployment_status` workflows run against this PR's Vercel preview (not yet observed by this session — see Authentication status above). The authenticated spec remains unverified pending `WORKOS_STAGING_TEST_EMAIL`/`WORKOS_STAGING_TEST_PASSWORD` secrets.
 3. Real generated redacted renditions + download-time re-authorization (Milestone 2 completion) — unblocks third-party preview.
-4. Release B: private async upload + production storage adapter contract + durable jobs.
+4. Release B: private async upload + production storage adapter contract + durable jobs (per the master directive, using Vercel Private Blob — not S3/KMS — for the pilot).

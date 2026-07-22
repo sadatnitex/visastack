@@ -1,8 +1,11 @@
 # VisaStack Reliability & Document-Intelligence Upgrade — governing directive
 
-> This document is the authoritative delivery directive for the reliability &
-> document-intelligence upgrade. It is reproduced verbatim from the engagement
-> brief and is to be followed strictly. Progress is tracked in
+> **Superseded on infrastructure, sequencing and commercialization policy** by
+> [`master-build-pilot-commercialization-directive.md`](./master-build-pilot-commercialization-directive.md),
+> which is now the current governing directive. This document's milestone
+> content (Milestones 0–11) still stands and is being executed through that
+> directive's PR sequence (§26); read the master directive first for authority
+> order and current scope. Progress is tracked in
 > [`docs/audits/current-product-baseline.md`](../audits/current-product-baseline.md)
 > and in the pull request for branch
 > `claude/visastack-reliability-document-intelligence`.
