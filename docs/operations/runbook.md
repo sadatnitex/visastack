@@ -9,19 +9,37 @@ concrete dashboards/URLs live in the Vercel and Neon consoles, not in the repo.
 - **Liveness** — `GET /api/health/live`: process is up. Never touches the DB.
 - **Readiness** — `GET /api/health/ready`: reports env presence (never values),
   DB connectivity, and whether migrations are applied. In production it hides
-  details and returns only `{ "status": "ready" | "not_ready" }`.
+  details and returns only `{ "status": "ready" | "degraded" }`.
 
 A deploy is healthy when readiness returns `ready` and the latest migration is
 applied (build-time migration runs on every production deploy).
 
 ## Common incidents
 
-### Readiness = `not_ready`
+### Readiness = `degraded`
 1. Check the Neon console: is the production branch reachable / not suspended?
 2. Confirm the connection string env var is present (readiness reports presence).
 3. Check the latest Vercel deploy's build log for a migration failure.
 4. If migrations failed, fix forward with a new reviewed migration — never edit
    an applied migration.
+
+### Signed-in pages 500 with "Connection terminated unexpectedly"
+The authenticated app reaches Neon over a WebSocket (the pooled,
+transaction-capable driver — ADR-0009). If the `ws` frame masker is broken by
+bundling you get `TypeError: b.mask is not a function`, the socket dies with
+"Connection terminated unexpectedly", and every DB-backed page 500s on its
+first query — typically right after sign-in, on `/app`.
+1. Look for `[withSession] failed for <email> — …` in the Vercel function
+   logs; the `[cause]` names the real failure. Next.js otherwise masks it
+   behind an opaque `Digest:` number with no detail.
+2. The fix lives in code and must stay: `apps/web/src/instrumentation.ts` sets
+   `WS_NO_BUFFER_UTIL` / `WS_NO_UTF_8_VALIDATE` so `ws` uses its always-defined
+   pure-JS masker, and `apps/web/next.config.mjs` keeps
+   `@neondatabase/serverless` + `ws` in `serverExternalPackages`. If this
+   regresses, confirm both are present.
+3. A dropped *idle* connection alone should not crash the request — `withSession`
+   attaches an `error` listener to the pool. A crash originating there means the
+   listener was removed.
 
 ### Audit chain verification fails
 1. The `audit_events` hash chain is append-only (DB RULEs + SHA-256 chain).

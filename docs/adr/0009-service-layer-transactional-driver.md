@@ -55,6 +55,18 @@ interactive transactions.
   slice) must construct the pooled `neon-serverless` client, not reuse the
   `neon-http` probe client. This is documented at the `Db` type and enforced by
   runtime behavior (a transaction call throws on `neon-http`).
+- **Operational hazard (WebSocket frame masking):** the pooled
+  `neon-serverless` driver reaches Neon over a WebSocket via `ws`. When `ws` is
+  bundled, its optional `bufferutil` require is mangled and frame masking breaks
+  (`TypeError: b.mask is not a function` → "Connection terminated
+  unexpectedly"), 500-ing every DB-backed page on its first query. Mitigated in
+  code, and it must stay: `next.config.mjs` keeps `@neondatabase/serverless` and
+  `ws` in `serverExternalPackages`, and the web app's `instrumentation.ts` sets
+  `WS_NO_BUFFER_UTIL` / `WS_NO_UTF_8_VALIDATE` before `ws` evaluates so it uses
+  the pure-JS masker, which survives bundling. `withSession` also attaches an
+  `error` listener to the pool so a dropped idle connection can't crash the
+  invocation, and logs the real cause behind Next.js's opaque digest. See the
+  operations runbook.
 - **Follow-ups:** account export + deletion workflow; then the WorkOS AuthKit
   login slice that supplies the authenticated `actorAccountId` these services
   expect; then wiring HTTP endpoints on the pooled driver.
