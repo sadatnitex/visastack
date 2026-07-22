@@ -40,6 +40,7 @@ export async function GET(): Promise<Response> {
   const env = {
     database: presenceMap(DATABASE_URL_ENV_CANDIDATES),
     workos: presenceMap(WORKOS_ENV_VARS),
+    redirectUri: isPresent('NEXT_PUBLIC_WORKOS_REDIRECT_URI'),
   };
 
   let db: { connected: boolean; schemaApplied: boolean; error?: string } = {
@@ -58,11 +59,24 @@ export async function GET(): Promise<Response> {
     }
   }
 
-  const status = db.connected && db.schemaApplied ? 'ready' : 'degraded';
-  const body = isProduction ? { status } : { status, env, db };
+  // The authenticated MANUAL core is ready only when the database is reachable
+  // AND migrated AND the WorkOS auth configuration required to sign in is
+  // present (Milestone 1 — honest readiness). Optional capabilities (AI,
+  // signed blob storage) are reported separately and never gate the core.
+  const workosConfigured = WORKOS_ENV_VARS.every(isPresent) && env.redirectUri;
+  const coreReady = db.connected && db.schemaApplied && workosConfigured;
+  const status = coreReady ? 'ready' : 'degraded';
 
+  // Optional-capability visibility (not a core gate): signed document access.
+  const capabilities = { signedBlobStorage: isPresent('BLOB_SIGNING_SECRET') };
+
+  const body = isProduction ? { status } : { status, env, db, capabilities };
+
+  // HTTP status now carries the truth: 200 = core ready, 503 = a required core
+  // dependency is unavailable or unmigrated. Load balancers and the deploy
+  // smoke can gate on the status code alone.
   return new Response(JSON.stringify(body), {
-    status: 200,
+    status: coreReady ? 200 : 503,
     headers: { 'content-type': 'application/json', 'cache-control': 'no-store' },
   });
 }
