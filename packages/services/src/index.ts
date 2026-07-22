@@ -21,6 +21,7 @@ export {
   type Account,
   type ProvisionAccountInput,
   getAccountByEmail,
+  getAccountByWorkosUserId,
   provisionAccount,
 } from './accounts';
 

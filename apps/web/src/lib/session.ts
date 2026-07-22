@@ -1,8 +1,19 @@
 import 'server-only';
+import { createHash } from 'node:crypto';
 import { isOk } from '@visastack/core';
 import { createPooledDb, resolveDatabaseUrl } from '@visastack/db';
 import { type Db, provisionAccount } from '@visastack/services';
 import { withAuth } from '@workos-inc/authkit-nextjs';
+
+/**
+ * A short, privacy-preserving reference for a subject, safe to write to logs.
+ * We never log the raw email (Build Spec §14 / threat model: no PII in logs);
+ * a truncated salt-free SHA-256 is enough to correlate a user's requests
+ * without being reversible to the address in a log aggregator.
+ */
+function subjectRef(email: string): string {
+  return `acct:${createHash('sha256').update(email.trim().toLowerCase()).digest('hex').slice(0, 12)}`;
+}
 
 /**
  * The session→account bridge. WorkOS AuthKit owns authentication; this maps the
@@ -37,7 +48,13 @@ export async function withSession<T>(
   });
   const handle = db as unknown as Db;
   try {
-    const provisioned = await provisionAccount(handle, { email: user.email });
+    // Bind the local account to the immutable WorkOS user id from the trusted
+    // server session (never a client-supplied id); email is mutable contact data.
+    const provisioned = await provisionAccount(handle, {
+      email: user.email,
+      workosUserId: user.id,
+      emailVerified: user.emailVerified,
+    });
     if (!isOk(provisioned)) {
       throw new Error(`account provisioning failed: ${provisioned.error.message}`);
     }
@@ -48,7 +65,7 @@ export async function withSession<T>(
     // actual message (DB connectivity, a failing query, a WorkOS refresh) is
     // invisible. This is the single log line that turns a digest into a
     // diagnosis.
-    console.error('[withSession] failed for', user.email, '—', error);
+    console.error('[withSession] failed for', subjectRef(user.email), '—', error);
     throw error;
   } finally {
     await pool.end();

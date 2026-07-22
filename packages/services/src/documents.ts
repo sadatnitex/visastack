@@ -290,6 +290,16 @@ export interface DocumentAccessInput {
   readonly now?: Date;
 }
 
+/**
+ * Whether this actor is the applicant's owner. The owner actor is minted by the
+ * caller only after it has verified `applicant.ownerAccountId === session
+ * account` (see the preview server action), so an owner actor for this
+ * document's applicant is authoritative.
+ */
+function isApplicantOwner(actor: Actor, applicantId: string): boolean {
+  return actor.kind === 'applicant_owner' && actor.applicantId === applicantId;
+}
+
 async function accessDocument(
   db: Db,
   storage: StoragePort,
@@ -306,6 +316,18 @@ async function accessDocument(
       .limit(1),
   );
   if (!document) return err(serviceError('not_found', 'document not found'));
+
+  // Preview variant is owner-scoped (Milestone 2): the applicant's owner may
+  // preview their own clean ORIGINAL; any third party gets a `redacted` variant,
+  // which the serving route fails closed on until real renditions exist — it can
+  // never expose the original bytes as a "preview". Downloads keep the requested
+  // variant (original still requires DOWNLOAD_ORIGINAL + step-up).
+  const effectiveVariant: AccessVariant =
+    disposition === 'preview'
+      ? isApplicantOwner(input.actor, document.applicantId)
+        ? 'original'
+        : 'redacted'
+      : variant;
 
   const now = input.now ?? new Date();
   const grants = await loadGrants(db, document.applicantId);
@@ -337,7 +359,7 @@ async function accessDocument(
       resourceType: 'document',
       resourceId: document.id,
       reason: decision.allowed ? null : decision.reason,
-      metadata: { variant, disposition, purpose: input.purpose },
+      metadata: { variant: effectiveVariant, disposition, purpose: input.purpose },
     });
   });
 
@@ -368,13 +390,18 @@ async function accessDocument(
     bucket: storageObject.bucket,
     objectKey: storageObject.objectKey,
     disposition,
-    variant,
+    variant: effectiveVariant,
     expiresInSeconds: DEFAULT_ACCESS_TTL_SECONDS,
   });
   return ok(ref);
 }
 
-/** Permission-checked preview (redacted rendition). */
+/**
+ * Permission-checked preview. The owner previews their own clean original; any
+ * third party is issued a `redacted` variant, which the serving route fails
+ * closed on until real generated renditions exist (Milestone 2) — preview never
+ * exposes original bytes to a non-owner.
+ */
 export async function previewDocument(
   db: Db,
   storage: StoragePort,

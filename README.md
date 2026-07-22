@@ -6,20 +6,30 @@ through a governed, AI-assisted workflow — with an equivalent **no-AI manual
 path**. Applicants own their data; agencies get exactly the access they are
 granted, and every action is authorized, consent-gated, and audited.
 
-> **Status:** PRD Phases 1–5 are complete and in production, plus the
-> pure-domain parts of Phase 6. The whole system runs end-to-end on **Vercel +
-> Neon alone** — no AWS, ClamAV, or model-provider account is required. Stronger
-> backends (S3+KMS, ClamAV, an LLM) drop in behind stable ports with no domain
-> change. The product contract is the 3-page PRD plus the Build Specification;
-> a feature is not complete unless it satisfies both and its acceptance tests.
+> **Status: Technical Preview — authenticated applicant core under active
+> validation.** WorkOS login and the authenticated workspace are
+> production-verified on Vercel + Neon. Much of the system below is implemented
+> at the **domain/service** layer with strong, tested guarantees, but is not yet
+> verified end-to-end through the real user interface — document intelligence
+> (real normalization/OCR/AI), generated redacted renditions, private production
+> storage, and real malware scanning are **not** complete. Stronger backends
+> (S3+KMS, a real scanner, an LLM) drop in behind stable ports with no domain
+> change. For the honest, capability-by-capability breakdown with evidence, see
+> [`docs/audits/current-product-baseline.md`](docs/audits/current-product-baseline.md).
+> The product contract is the 3-page PRD plus the Build Specification; a feature
+> is not "complete" until it is verified end-to-end, not merely built.
 
-## What's live
+## What's implemented
+
+> These describe implemented **domain/service** guarantees. "Implemented" is not
+> the same as "verified end-to-end through the UI in production" — see the
+> baseline audit for the precise label on each capability.
 
 | Area | Capability |
 | --- | --- |
 | **Applicant Core** | Accounts, separated consent (core / AI / sharing / marketing), applicant + family + guarded-minor records, and a Master Profile whose every value is an immutable, atomically-approved `FactVersion` (no silent mutation). Account export + deletion. |
-| **Document Vault** | Private storage keyed by opaque object IDs (never the filename); permission-aware preview/download with step-up before original bytes are released. |
-| **Document Intelligence** | Quarantine → scan → normalize → extract pipeline (idempotent, recoverable); deterministic passport-MRZ (TD3) parsing with check-digit validation; an AI Gateway that only **proposes** fields — a human approves, nothing is written silently. |
+| **Document Vault** | Private storage keyed by opaque object IDs (never the filename); permission-aware access with step-up before original bytes are released. *Preview is owner-only clean-original until real redacted renditions ship; third-party preview is fail-closed. Storage today is reduced-control Neon-bytea, not the sensitive-document production design.* |
+| **Document Intelligence** | *Port + scaffold only.* Deterministic passport-MRZ (TD3) parsing exists; the quarantine → scan → normalize → extract pipeline advances state but does **not** yet perform real normalization/OCR, and no production AI adapter is wired. When enabled, the AI Gateway only **proposes** fields — a human approves, nothing is written silently. |
 | **Missions & Packs** | Cited, versioned, checksummed requirement packs (Pack Studio); parallel mission workspaces; readiness as **completeness only** (never an approval probability); reviewer state machine; immutable, checksummed snapshots. |
 | **Agencies & Sharing** | Organization verification (no self-upgrade); scoped, accepted, time-limited, revocable grants; access transparency; assignments, notes, evidence requests; permissioned bulk export. |
 | **Retention & legal hold** | Retention policies with eligibility-based purge; legal holds that **override deletion**. |

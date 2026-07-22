@@ -112,8 +112,13 @@ const timestamps = {
 };
 
 // --- Accounts (WorkOS-backed login) ----------------------------------------
+// Identity is keyed by the immutable WorkOS user id (`workosUserId`), not the
+// mutable email. The column is nullable + unique during the staged migration:
+// legacy rows are bound on next sign-in (one-time, verified-email claim), then a
+// later migration makes it NOT NULL. Email is mutable contact data.
 export const accounts = pgTable('accounts', {
   id: uuid('id').primaryKey().defaultRandom(),
+  workosUserId: text('workos_user_id').unique(),
   email: text('email').notNull().unique(),
   emailVerifiedAt: timestamp('email_verified_at', { withTimezone: true }),
   ...timestamps,

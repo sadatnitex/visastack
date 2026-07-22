@@ -1,0 +1,37 @@
+name: Deploy Smoke
+
+# Vercel's GitHub App creates a GitHub Deployment + deployment_status for every
+# preview and production build; `state: success` carries the live URL in
+# `environment_url` / `target_url`. This runs the no-secret smoke check
+# (master directive §8A) against that exact deployed URL — never localhost —
+# with no repository secrets required.
+on:
+  deployment_status:
+
+permissions:
+  contents: read
+  deployments: read
+
+jobs:
+  smoke:
+    name: No-secret smoke check
+    if: github.event.deployment_status.state == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+
+      - name: Run smoke checks against the deployed URL
+        working-directory: apps/web
+        env:
+          SMOKE_BASE_URL: ${{ github.event.deployment_status.environment_url || github.event.deployment_status.target_url }}
+        run: node scripts/smoke.mjs
