@@ -1,3 +1,4 @@
+import { withAuth } from '@workos-inc/authkit-nextjs';
 import type { Metadata, Viewport } from 'next';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
@@ -17,7 +18,18 @@ export const viewport: Viewport = {
   ],
 };
 
-export default function RootLayout({ children }: { readonly children: ReactNode }) {
+export default async function RootLayout({ children }: { readonly children: ReactNode }) {
+  // Read-only auth check so the nav reflects the real session (middleware owns
+  // the refresh, so this never writes cookies during render). Defaults to
+  // signed-out if the read fails, so a hiccup never breaks the whole shell.
+  let signedIn = false;
+  try {
+    const { user } = await withAuth();
+    signedIn = Boolean(user);
+  } catch {
+    signedIn = false;
+  }
+
   return (
     <html lang="en">
       <body>
@@ -32,7 +44,7 @@ export default function RootLayout({ children }: { readonly children: ReactNode 
             <Link href="/#capabilities">Platform</Link>
             <Link href="/status">Status</Link>
             <a className="btn btn-secondary nav-cta" href="/app">
-              Sign in
+              {signedIn ? 'Workspace' : 'Sign in'}
             </a>
           </nav>
         </header>
