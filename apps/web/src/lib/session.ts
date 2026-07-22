@@ -26,11 +26,30 @@ export async function withSession<T>(
   if (!connectionString) throw new Error('database not configured');
 
   const { db, pool } = createPooledDb(connectionString);
+  // A Neon/pg `Pool` emits an `error` event when an *idle* backend connection
+  // fails (the WebSocket dropping mid-request is the common case on serverless).
+  // With no listener attached, Node re-throws it as an uncaught exception that
+  // crashes the whole invocation — surfacing as a bare "server-side exception"
+  // digest with nothing actionable in the logs. Swallowing it here keeps the
+  // request's own error handling (below) authoritative.
+  pool.on('error', (error) => {
+    console.error('[withSession] idle pool connection error', error);
+  });
   const handle = db as unknown as Db;
   try {
     const provisioned = await provisionAccount(handle, { email: user.email });
-    if (!isOk(provisioned)) throw new Error('account provisioning failed');
+    if (!isOk(provisioned)) {
+      throw new Error(`account provisioning failed: ${provisioned.error.message}`);
+    }
     return await fn({ db: handle, accountId: provisioned.value.id, email: user.email });
+  } catch (error) {
+    // Surface the real cause in the server logs. Next.js masks render-time
+    // exceptions behind an opaque digest in production, so without this the
+    // actual message (DB connectivity, a failing query, a WorkOS refresh) is
+    // invisible. This is the single log line that turns a digest into a
+    // diagnosis.
+    console.error('[withSession] failed for', user.email, '—', error);
+    throw error;
   } finally {
     await pool.end();
   }
