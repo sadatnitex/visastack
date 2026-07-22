@@ -48,7 +48,13 @@ export async function withSession<T>(
   });
   const handle = db as unknown as Db;
   try {
-    const provisioned = await provisionAccount(handle, { email: user.email });
+    // Bind the local account to the immutable WorkOS user id from the trusted
+    // server session (never a client-supplied id); email is mutable contact data.
+    const provisioned = await provisionAccount(handle, {
+      email: user.email,
+      workosUserId: user.id,
+      emailVerified: user.emailVerified,
+    });
     if (!isOk(provisioned)) {
       throw new Error(`account provisioning failed: ${provisioned.error.message}`);
     }
