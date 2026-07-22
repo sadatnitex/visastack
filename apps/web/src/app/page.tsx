@@ -51,10 +51,25 @@ const PRINCIPLES: readonly string[] = [
   'Fully manual, no-AI path',
 ];
 
-export default function HomePage() {
+interface HomePageProps {
+  readonly searchParams: Promise<{ readonly auth_error?: string }>;
+}
+
+export default async function HomePage({ searchParams }: HomePageProps) {
+  // A failed WorkOS sign-in redirects here with a short, non-PII reference id
+  // (see apps/web/src/app/callback/route.ts) — recoverable messaging instead
+  // of the bare 500 AuthKit's own default error response would otherwise show.
+  const { auth_error: authError } = await searchParams;
+
   return (
     <>
       <section className="hero container">
+        {authError ? (
+          <p className="notice notice-warn" role="alert">
+            Sign-in didn’t complete. Please try again — if it keeps happening, contact support with
+            reference <strong>{authError}</strong>.
+          </p>
+        ) : null}
         <span className="eyebrow">
           Technical Preview · authenticated applicant core under validation
         </span>
