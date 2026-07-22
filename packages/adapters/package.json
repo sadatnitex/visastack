@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "Concrete, no-external-dependency adapters: Neon-bytea blob storage and a built-in structural safety scanner (StoragePort/BlobStore/ScannerPort).",
+  "description": "Concrete storage/scanning adapters: Neon-bytea blob storage (dev/test), Vercel Private Blob (pilot), and a built-in structural safety scanner (StoragePort/BlobStore/ScannerPort).",
   "main": "./src/index.ts",
   "types": "./src/index.ts",
   "exports": {
@@ -14,6 +14,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@vercel/blob": "^2.6.1",
     "@visastack/core": "workspace:*",
     "@visastack/db": "workspace:*",
     "@visastack/services": "workspace:*",
