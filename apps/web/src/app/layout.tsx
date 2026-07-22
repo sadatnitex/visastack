@@ -31,9 +31,9 @@ export default function RootLayout({ children }: { readonly children: ReactNode 
           <nav className="nav-links" aria-label="Primary">
             <Link href="/#capabilities">Platform</Link>
             <Link href="/status">Status</Link>
-            <Link className="btn btn-secondary nav-cta" href="/app">
+            <a className="btn btn-secondary nav-cta" href="/app">
               Sign in
-            </Link>
+            </a>
           </nav>
         </header>
         <main id="main">{children}</main>

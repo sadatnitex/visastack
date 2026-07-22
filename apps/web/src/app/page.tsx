@@ -63,9 +63,9 @@ export default function HomePage() {
           get exactly the access they’re granted.
         </p>
         <div className="cta-row">
-          <Link className="btn btn-primary" href="/app">
+          <a className="btn btn-primary" href="/app">
             Get started — sign in
-          </Link>
+          </a>
           <Link className="btn btn-secondary" href="/status">
             View system status
           </Link>
