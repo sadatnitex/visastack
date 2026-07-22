@@ -1,0 +1,88 @@
+name: WorkOS Staging E2E (authenticated)
+
+# Optional authenticated E2E against WorkOS STAGING only (master directive
+# §8C). Runs only when the required repository secrets exist; clearly skipped
+# otherwise. Never touches production credentials, never logs credentials or
+# session tokens, uses a synthetic WorkOS-staging test identity, and creates
+# no real applicant data.
+#
+# Required repository secrets (names only — no values are ever committed):
+#   WORKOS_STAGING_TEST_EMAIL     — a synthetic WorkOS-staging test user email
+#   WORKOS_STAGING_TEST_PASSWORD  — that user's password
+#   E2E_BASE_URL (optional)       — target URL; defaults to the triggering
+#                                   deployment's URL, or the production URL
+#
+# To enable: add the two required secrets under
+# Settings → Secrets and variables → Actions. Leave them unset to keep this
+# workflow a no-op.
+on:
+  deployment_status:
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  deployments: read
+
+jobs:
+  check-configured:
+    name: Report whether staging E2E is configured
+    runs-on: ubuntu-latest
+    outputs:
+      configured: ${{ steps.check.outputs.configured }}
+    steps:
+      - name: Check required secrets
+        id: check
+        env:
+          HAS_EMAIL: ${{ secrets.WORKOS_STAGING_TEST_EMAIL != '' }}
+          HAS_PASSWORD: ${{ secrets.WORKOS_STAGING_TEST_PASSWORD != '' }}
+        run: |
+          if [ "$HAS_EMAIL" = "true" ] && [ "$HAS_PASSWORD" = "true" ]; then
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+            echo "WORKOS_STAGING_TEST_EMAIL and WORKOS_STAGING_TEST_PASSWORD are both set — running the authenticated E2E spec."
+          else
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "Skipping: WORKOS_STAGING_TEST_EMAIL and/or WORKOS_STAGING_TEST_PASSWORD are not set on this repository."
+            echo "This is expected for a controlled pilot without staging test credentials configured yet — not a failure."
+          fi
+
+  authenticated-e2e:
+    name: Authenticated workspace journey (WorkOS staging)
+    needs: check-configured
+    if: needs.check-configured.outputs.configured == 'true' && (github.event_name == 'workflow_dispatch' || github.event.deployment_status.state == 'success')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Playwright Chromium
+        working-directory: apps/web
+        run: npx playwright install --with-deps chromium
+
+      - name: Run the authenticated workspace journey
+        working-directory: apps/web
+        env:
+          PLAYWRIGHT_BASE_URL: ${{ vars.E2E_BASE_URL || github.event.deployment_status.environment_url || github.event.deployment_status.target_url }}
+          WORKOS_STAGING_TEST_EMAIL: ${{ secrets.WORKOS_STAGING_TEST_EMAIL }}
+          WORKOS_STAGING_TEST_PASSWORD: ${{ secrets.WORKOS_STAGING_TEST_PASSWORD }}
+        run: npx playwright test authenticated-workspace.spec.ts
+
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: workos-staging-e2e-report
+          path: apps/web/playwright-report/
+          retention-days: 7
