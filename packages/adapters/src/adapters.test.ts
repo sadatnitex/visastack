@@ -14,7 +14,8 @@ import {
 import { drizzle } from 'drizzle-orm/pglite';
 import { migrate } from 'drizzle-orm/pglite/migrator';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { NeonBlobStorage, verifyBlobToken } from './neon-blob';
+import { verifyBlobToken } from './blob-token';
+import { NeonBlobStorage } from './neon-blob';
 import { BasicSafetyScanner } from './scanner';
 
 const migrationsFolder = fileURLToPath(new URL('../../db/migrations', import.meta.url));

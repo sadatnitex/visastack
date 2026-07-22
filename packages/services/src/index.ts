@@ -223,3 +223,15 @@ export {
   previewDocument,
   registerDocument,
 } from './documents';
+
+export {
+  type CheckUploadQuotaInput,
+  DEFAULT_UPLOAD_QUOTAS,
+  type QuotaDecision,
+  type UploadQuotaConfig,
+  checkUploadQuota,
+  getAccountEvidenceBytes,
+  getApplicantEvidenceBytes,
+  getPlatformEvidenceBytes,
+  loadUploadQuotaConfig,
+} from './quotas';

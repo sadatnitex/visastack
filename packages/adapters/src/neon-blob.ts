@@ -1,4 +1,3 @@
-import { createHmac, timingSafeEqual } from 'node:crypto';
 import { schema } from '@visastack/db';
 import type {
   AccessRef,
@@ -10,6 +9,7 @@ import type {
   StoredBytes,
 } from '@visastack/services';
 import { eq } from 'drizzle-orm';
+import { signBlobToken } from './blob-token';
 
 /**
  * Neon-bytea storage backend (ADR-0011). Stores object bytes in Postgres and
@@ -18,48 +18,13 @@ import { eq } from 'drizzle-orm';
  * engine has already authorized the access before `issueReadRef` is called, so
  * the serving route only needs to verify the signature and expiry.
  *
- * The same class satisfies both `StoragePort` (read refs) and `BlobStore`
- * (bytes I/O); an S3 adapter can replace it behind the same interfaces.
+ * REDUCED-CONTROL, NON-COMMERCIAL (master directive §10/§21E): bytes live in
+ * the application database, not a purpose-built object store. Retained only
+ * for automated tests, local development, and legacy migration compatibility.
+ * `VercelPrivateBlobStorage` is the pilot/commercial-track backend; both
+ * satisfy the same `StoragePort`/`BlobStore` ports, so callers never branch on
+ * which one is active.
  */
-
-export interface BlobTokenFields {
-  readonly objectKey: string;
-  readonly disposition: string;
-  readonly variant: string;
-  readonly exp: number;
-  readonly sig: string;
-}
-
-function signToken(
-  secret: string,
-  objectKey: string,
-  disposition: string,
-  variant: string,
-  exp: number,
-): string {
-  return createHmac('sha256', secret)
-    .update(`${objectKey}.${disposition}.${variant}.${exp}`)
-    .digest('hex');
-}
-
-/** Verify a blob access token: correct signature and not expired. */
-export function verifyBlobToken(
-  secret: string,
-  fields: BlobTokenFields,
-  now: number = Date.now(),
-): boolean {
-  if (!Number.isFinite(fields.exp) || fields.exp * 1000 < now) return false;
-  const expected = signToken(
-    secret,
-    fields.objectKey,
-    fields.disposition,
-    fields.variant,
-    fields.exp,
-  );
-  const a = Buffer.from(expected);
-  const b = Buffer.from(fields.sig);
-  return a.length === b.length && timingSafeEqual(a, b);
-}
 
 export interface NeonBlobStorageOptions {
   readonly db: Db;
@@ -116,14 +81,16 @@ export class NeonBlobStorage implements StoragePort, BlobStore {
 
   async issueReadRef(input: IssueReadRefInput): Promise<AccessRef> {
     const exp = Math.floor(Date.now() / 1000) + input.expiresInSeconds;
-    const sig = signToken(
+    const filename = input.filename ?? '';
+    const sig = signBlobToken(
       this.signingSecret,
       input.objectKey,
       input.disposition,
       input.variant,
       exp,
+      filename,
     );
-    const query = `d=${input.disposition}&v=${input.variant}&exp=${exp}&sig=${sig}`;
+    const query = `d=${input.disposition}&v=${input.variant}&exp=${exp}&sig=${sig}${filename ? `&f=${encodeURIComponent(filename)}` : ''}`;
     return {
       url: `${this.baseUrl}/api/blob/${encodeURIComponent(input.objectKey)}?${query}`,
       expiresAt: new Date(exp * 1000).toISOString(),

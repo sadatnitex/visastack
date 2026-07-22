@@ -27,6 +27,13 @@ export interface IssueReadRefInput {
   readonly disposition: AccessDisposition;
   readonly variant: AccessVariant;
   readonly expiresInSeconds: number;
+  /**
+   * The display filename to serve in `Content-Disposition` (master directive
+   * §10/§18/§21E). The CURRENT approved name if one exists, else the
+   * preserved original name — never the opaque storage key. Embedded in the
+   * signed reference so it cannot be substituted after minting.
+   */
+  readonly filename?: string;
 }
 
 export interface StoragePort {

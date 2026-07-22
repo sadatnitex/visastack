@@ -1,14 +1,17 @@
-import { NeonBlobStorage, verifyBlobToken } from '@visastack/adapters';
+import { verifyBlobToken } from '@visastack/adapters';
 import { createNeonDb, resolveDatabaseUrl } from '@visastack/db';
+import { createStorage } from '../../../../lib/storage';
 
 /**
  * Signed blob serving route (ADR-0011).
  *
  * Streams a stored object's bytes ONLY when presented with a valid, unexpired
- * HMAC token. The token is minted by `NeonBlobStorage.issueReadRef` after the
+ * HMAC token. The token is minted by `issueReadRef` (Neon-bytea or Vercel
+ * Private Blob, whichever backend is active — see `createStorage`) after the
  * policy engine has already authorized the access (in `previewDocument` /
- * `downloadDocument`), so this route re-checks the signature and expiry rather
- * than re-running authorization — the standard signed-URL capability pattern.
+ * `downloadDocument`), so this route re-checks the signature and expiry
+ * rather than re-running authorization — the standard signed-URL capability
+ * pattern.
  */
 
 export const dynamic = 'force-dynamic';
@@ -18,18 +21,36 @@ function readEnv(name: string): string | undefined {
   return process.env[name];
 }
 
+/**
+ * Build a safe `Content-Disposition` value from an untrusted display filename
+ * (master directive §10/§18/§21E: the approved filename, never the opaque
+ * object key). Strips control characters and quotes to keep the classic
+ * `filename="..."` form unambiguous, and always adds the RFC 5987
+ * `filename*=UTF-8''...` form so non-ASCII/legal names round-trip correctly
+ * in modern browsers.
+ */
+function contentDisposition(kind: 'inline' | 'attachment', filename: string | undefined): string {
+  if (!filename) return kind;
+  // biome-ignore lint/suspicious/noControlCharactersInRegex: intentionally stripping control chars from an untrusted header value.
+  const cleaned = filename.replace(/[\x00-\x1f\x7f"\\]/g, '').slice(0, 255);
+  const encoded = encodeURIComponent(filename).slice(0, 512);
+  return `${kind}; filename="${cleaned || 'document'}"; filename*=UTF-8''${encoded}`;
+}
+
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ key: string }> },
 ): Promise<Response> {
   const { key } = await params;
   const url = new URL(request.url);
+  const filenameParam = url.searchParams.get('f');
   const fields = {
     objectKey: key,
     disposition: url.searchParams.get('d') ?? '',
     variant: url.searchParams.get('v') ?? '',
     exp: Number(url.searchParams.get('exp')),
     sig: url.searchParams.get('sig') ?? '',
+    ...(filenameParam !== null ? { filename: filenameParam } : {}),
   };
 
   const secret = readEnv('BLOB_SIGNING_SECRET');
@@ -51,11 +72,7 @@ export async function GET(
     return new Response('redacted rendition not available', { status: 501 });
   }
 
-  const storage = new NeonBlobStorage({
-    db: createNeonDb(connectionString),
-    signingSecret: secret,
-    baseUrl: url.origin,
-  });
+  const storage = createStorage(createNeonDb(connectionString));
   const object = await storage.getObject(key);
   if (!object) return new Response('not found', { status: 404 });
 
@@ -67,7 +84,10 @@ export async function GET(
     status: 200,
     headers: {
       'Content-Type': object.contentType,
-      'Content-Disposition': fields.disposition === 'download' ? 'attachment' : 'inline',
+      'Content-Disposition': contentDisposition(
+        fields.disposition === 'download' ? 'attachment' : 'inline',
+        fields.filename,
+      ),
       'Cache-Control': 'private, no-store',
     },
   });
