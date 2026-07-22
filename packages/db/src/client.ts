@@ -27,6 +27,11 @@ export const DATABASE_URL_ENV_CANDIDATES = [
   'POSTGRES_PRISMA_URL',
 ] as const;
 
+/** Variable-keyed default write — avoids the index-signature and literal-key lint rules. */
+function ensureEnv(name: string, value: string): void {
+  if (process.env[name] === undefined) process.env[name] = value;
+}
+
 /** Resolve the connection string from the first present candidate variable. */
 export function resolveDatabaseUrl(
   env: Readonly<Record<string, string | undefined>>,
@@ -56,6 +61,11 @@ export type NeonDb = ReturnType<typeof createNeonDb>;
  * request and end it when done.
  */
 export function createPooledDb(connectionString: string) {
+  // Force `ws` to its pure-JS frame masker (see apps/web instrumentation.ts for
+  // the full rationale). The web app's instrumentation hook sets these before
+  // `ws` evaluates; this is a defensive fallback for any other entrypoint.
+  ensureEnv('WS_NO_BUFFER_UTIL', '1');
+  ensureEnv('WS_NO_UTF_8_VALIDATE', '1');
   if (!neonConfig.webSocketConstructor) neonConfig.webSocketConstructor = ws;
   const pool = new Pool({ connectionString });
   const db = drizzlePool(pool, { schema });
