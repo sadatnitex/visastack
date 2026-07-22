@@ -55,7 +55,9 @@ export default function HomePage() {
   return (
     <>
       <section className="hero container">
-        <span className="eyebrow">Universal · pack-composable · governed</span>
+        <span className="eyebrow">
+          Technical Preview · authenticated applicant core under validation
+        </span>
         <h1 className="hero-title">One profile. Every visa.</h1>
         <p className="hero-sub">
           VisaStack turns documents into structured, permission-aware profiles — through a governed,
@@ -77,8 +79,9 @@ export default function HomePage() {
           <div className="section-head">
             <h2 className="section-title">Everything, in one governed core</h2>
             <p className="section-sub">
-              Six capability areas are live in production today — each authorized, consent-gated,
-              and audited on the same tamper-evident foundation.
+              Six capability areas are being built on one governed core — each authorized,
+              consent-gated, and audited on the same tamper-evident foundation. VisaStack is a
+              technical preview; capabilities are enabled as they are verified end-to-end.
             </p>
           </div>
           <div className="grid">
@@ -116,9 +119,9 @@ export default function HomePage() {
         <div className="container center">
           <h2 className="section-title">Built to be swapped, never rewritten</h2>
           <p className="section-sub" style={{ marginBottom: '2rem' }}>
-            Storage, scanning, and AI sit behind stable ports. Today it runs end-to-end on Vercel
-            and Neon with zero external accounts; drop in S3, ClamAV, or a model provider later with
-            no change to the domain.
+            Storage, scanning, and AI sit behind stable ports. The authenticated applicant core runs
+            on Vercel and Neon today; production storage, real malware scanning, and a model
+            provider drop in behind those ports as each is verified — with no change to the domain.
           </p>
           <Link className="btn btn-primary" href="/status">
             Check what’s live
