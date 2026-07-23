@@ -116,6 +116,54 @@ describe('BasicSafetyScanner', () => {
     expect((await scanner.scan({ bucket: 'QUARANTINE', objectKey: 'junk' })).safe).toBe(false);
     expect((await scanner.scan({ bucket: 'QUARANTINE', objectKey: 'missing' })).safe).toBe(false);
   });
+
+  it('accepts a DOCX (ZIP magic bytes) and plain TXT/MD content', async () => {
+    const DOCX_MAGIC = new Uint8Array([0x50, 0x4b, 0x03, 0x04, 0x14, 0x00, 0x06, 0x00]);
+    await storage.putObject({
+      bucket: 'QUARANTINE',
+      objectKey: 'docx',
+      contentType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      bytes: DOCX_MAGIC,
+    });
+    await storage.putObject({
+      bucket: 'QUARANTINE',
+      objectKey: 'txt',
+      contentType: 'text/plain',
+      bytes: new TextEncoder().encode('Bank Statement\nAccount Number: 12345\n'),
+    });
+    await storage.putObject({
+      bucket: 'QUARANTINE',
+      objectKey: 'md',
+      contentType: 'text/markdown',
+      bytes: new TextEncoder().encode('# Employment Certificate\n\nThis certifies employment.'),
+    });
+
+    expect((await scanner.scan({ bucket: 'QUARANTINE', objectKey: 'docx' })).safe).toBe(true);
+    expect((await scanner.scan({ bucket: 'QUARANTINE', objectKey: 'txt' })).safe).toBe(true);
+    expect((await scanner.scan({ bucket: 'QUARANTINE', objectKey: 'md' })).safe).toBe(true);
+  });
+
+  it('rejects a shebang script even though it is otherwise plain text', async () => {
+    await storage.putObject({
+      bucket: 'QUARANTINE',
+      objectKey: 'script',
+      contentType: 'text/plain',
+      bytes: new TextEncoder().encode('#!/bin/sh\nrm -rf /'),
+    });
+    expect((await scanner.scan({ bucket: 'QUARANTINE', objectKey: 'script' })).safe).toBe(false);
+  });
+
+  it('rejects binary content with embedded NUL/control bytes as neither a known type nor text', async () => {
+    await storage.putObject({
+      bucket: 'QUARANTINE',
+      objectKey: 'binary-junk',
+      contentType: 'application/octet-stream',
+      bytes: new Uint8Array([0x10, 0x00, 0x05, 0x02, 0x99, 0x01]),
+    });
+    expect((await scanner.scan({ bucket: 'QUARANTINE', objectKey: 'binary-junk' })).safe).toBe(
+      false,
+    );
+  });
 });
 
 describe('end-to-end: real bytes through the intake pipeline (no S3, no ClamAV)', () => {
