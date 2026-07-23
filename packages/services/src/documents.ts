@@ -206,11 +206,20 @@ export async function listDocuments(
 export interface DocumentSummary {
   readonly id: string;
   readonly originalName: string;
+  readonly approvedName: string | null;
   readonly docType: string | null;
   readonly latestVersionId: string | null;
   readonly safetyStatus: DocumentVersion['safetyStatus'] | null;
   readonly processingStatus: DocumentVersion['processingStatus'] | null;
   readonly createdAt: string;
+  /** A naming proposal awaiting a human decision (Release C), if any. */
+  readonly pendingNameVersion: { readonly id: string; readonly proposedName: string } | null;
+  /** Deterministic classification of the latest version, if it ran. */
+  readonly classification: {
+    readonly classifiedType: string | null;
+    readonly confidence: number;
+    readonly reviewRequired: boolean;
+  } | null;
 }
 
 /** List an applicant's documents with the latest version's status (owner-scoped). */
@@ -232,14 +241,47 @@ export async function listDocumentsDetailed(
         .orderBy(desc(schema.documentVersions.versionNumber))
         .limit(1),
     );
+
+    const latestNameVersion = first(
+      await db
+        .select()
+        .from(schema.documentNameVersions)
+        .where(eq(schema.documentNameVersions.documentId, doc.id))
+        .orderBy(desc(schema.documentNameVersions.versionNumber))
+        .limit(1),
+    );
+
+    const classification = version
+      ? first(
+          await db
+            .select()
+            .from(schema.documentClassifications)
+            .where(eq(schema.documentClassifications.documentVersionId, version.id))
+            .orderBy(desc(schema.documentClassifications.createdAt))
+            .limit(1),
+        )
+      : undefined;
+
     summaries.push({
       id: doc.id,
       originalName: doc.originalName,
+      approvedName: doc.approvedName,
       docType: doc.docType,
       latestVersionId: version?.id ?? null,
       safetyStatus: version?.safetyStatus ?? null,
       processingStatus: version?.processingStatus ?? null,
       createdAt: doc.createdAt.toISOString(),
+      pendingNameVersion:
+        latestNameVersion && latestNameVersion.decision === 'PENDING'
+          ? { id: latestNameVersion.id, proposedName: latestNameVersion.proposedName }
+          : null,
+      classification: classification
+        ? {
+            classifiedType: classification.classifiedType,
+            confidence: classification.confidence,
+            reviewRequired: classification.reviewRequired,
+          }
+        : null,
     });
   }
   return ok(summaries);

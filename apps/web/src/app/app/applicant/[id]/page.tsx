@@ -11,6 +11,7 @@ import { notFound } from 'next/navigation';
 import { withSession } from '../../../../lib/session';
 import { previewDocumentAction } from './actions';
 import { DocumentUploader } from './document-uploader';
+import { NameReview } from './name-review';
 import { ProfileEditor } from './profile-editor';
 import { UsageMeter } from './usage-meter';
 
@@ -150,26 +151,45 @@ export default async function ApplicantPage({
                 };
                 const previewable = doc.safetyStatus === 'CLEAN';
                 return (
-                  <div className="row" key={doc.id}>
-                    <span className="row-key" style={{ wordBreak: 'break-word' }}>
-                      {doc.originalName}
-                    </span>
-                    <span style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-                      <span className={`badge ${badge.tone}`}>{badge.label}</span>
-                      {previewable ? (
-                        <form action={previewDocumentAction}>
-                          <input type="hidden" name="applicantId" value={id} />
-                          <input type="hidden" name="documentId" value={doc.id} />
-                          <button
-                            type="submit"
-                            className="btn btn-secondary"
-                            style={{ padding: '0.3rem 0.9rem', fontSize: '0.8rem' }}
-                          >
-                            Preview
-                          </button>
-                        </form>
-                      ) : null}
-                    </span>
+                  <div
+                    key={doc.id}
+                    style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}
+                  >
+                    <div className="row">
+                      <span className="row-key" style={{ wordBreak: 'break-word' }}>
+                        {doc.approvedName ?? doc.originalName}
+                      </span>
+                      <span style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                        <span className={`badge ${badge.tone}`}>{badge.label}</span>
+                        {previewable ? (
+                          <form action={previewDocumentAction}>
+                            <input type="hidden" name="applicantId" value={id} />
+                            <input type="hidden" name="documentId" value={doc.id} />
+                            <button
+                              type="submit"
+                              className="btn btn-secondary"
+                              style={{ padding: '0.3rem 0.9rem', fontSize: '0.8rem' }}
+                            >
+                              Preview
+                            </button>
+                          </form>
+                        ) : null}
+                      </span>
+                    </div>
+                    {doc.pendingNameVersion ? (
+                      <NameReview
+                        applicantId={id}
+                        nameVersionId={doc.pendingNameVersion.id}
+                        originalName={doc.originalName}
+                        proposedName={doc.pendingNameVersion.proposedName}
+                        classification={doc.classification}
+                      />
+                    ) : doc.classification?.reviewRequired ? (
+                      <p className="muted" style={{ fontSize: '0.75rem' }}>
+                        Automatic classification needs review — not confident enough to propose a
+                        name.
+                      </p>
+                    ) : null}
                   </div>
                 );
               })}

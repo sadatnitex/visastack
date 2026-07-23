@@ -2,8 +2,12 @@ import type { DocumentState } from '@visastack/core';
 import { type Result, err, ok } from '@visastack/core';
 import { eq } from 'drizzle-orm';
 import { appendAuditEvent } from './audit';
+import { classifyDocumentText } from './classification';
 import { type Db, first, required, schema } from './db';
+import { proposeDocumentName } from './document-naming';
 import { type ServiceError, serviceError } from './errors';
+import type { TextExtractionPort } from './extraction';
+import { buildProposedName, extensionOf } from './naming';
 
 /**
  * Document intake pipeline (Build Spec §6): quarantine → scan → normalize →
@@ -11,7 +15,15 @@ import { type ServiceError, serviceError } from './errors';
  * separately-committed step, so a failure leaves a valid resumable state
  * (recoverable) and re-running from any state simply continues. An unsafe scan
  * routes to NEEDS_ATTENTION and never advances to processing.
+ *
+ * EXTRACTING (master directive §11, Release C) now does real deterministic
+ * work: fetch bytes, run text extraction, classify, and propose a filename —
+ * persisted as ProcessingRun/ExtractionRun/DocumentClassification/
+ * DocumentNameVersion rows. NORMALIZING remains a pass-through: no real
+ * normalization work exists yet, and this is stated here rather than implied.
  */
+
+export const PIPELINE_VERSION = '1.0.0';
 
 export interface ScanResult {
   readonly safe: boolean;
@@ -91,6 +103,169 @@ async function commitTransition(
 }
 
 /**
+ * Run deterministic extraction + classification + naming for one document
+ * version and persist the result. Never throws for an expected extraction
+ * failure (unsupported format, corrupt file, etc.) — those are recorded on
+ * the ProcessingRun/ExtractionRun rows and the pipeline still advances, so a
+ * document the deterministic extractor can't handle still reaches
+ * AWAITING_REVIEW for manual classification/naming.
+ */
+async function runExtractionStep(
+  db: Db,
+  extractor: TextExtractionPort,
+  version: DocumentVersion,
+): Promise<void> {
+  const document = first(
+    await db
+      .select({
+        id: schema.documents.id,
+        applicantId: schema.documents.applicantId,
+        originalName: schema.documents.originalName,
+      })
+      .from(schema.documents)
+      .innerJoin(
+        schema.documentVersions,
+        eq(schema.documentVersions.documentId, schema.documents.id),
+      )
+      .where(eq(schema.documentVersions.id, version.id))
+      .limit(1),
+  );
+  if (!document) return; // orphaned version; nothing to extract against
+
+  const storageObject = first(
+    await db
+      .select()
+      .from(schema.storageObjects)
+      .where(eq(schema.storageObjects.id, version.storageObjectId))
+      .limit(1),
+  );
+  if (!storageObject) return;
+
+  const applicant = first(
+    await db
+      .select()
+      .from(schema.applicants)
+      .where(eq(schema.applicants.id, document.applicantId))
+      .limit(1),
+  );
+
+  const run = required(
+    first(
+      await db
+        .insert(schema.processingRuns)
+        .values({ documentVersionId: version.id, pipelineVersion: PIPELINE_VERSION })
+        .returning(),
+    ),
+    'processing run',
+  );
+
+  const outcome = await extractor.extract({
+    bucket: storageObject.bucket,
+    objectKey: storageObject.objectKey,
+    originalName: document.originalName,
+  });
+
+  if (!outcome.ok) {
+    await db.transaction(async (tx) => {
+      await tx.insert(schema.extractionRuns).values({
+        processingRunId: run.id,
+        documentVersionId: version.id,
+        parserName: 'dispatcher',
+        parserVersion: PIPELINE_VERSION,
+        status: 'FAILED',
+        errorCode: outcome.code,
+      });
+      await tx
+        .update(schema.processingRuns)
+        .set({ status: 'FAILED', errorCode: outcome.code, completedAt: new Date() })
+        .where(eq(schema.processingRuns.id, run.id));
+      await appendAuditEvent(tx, {
+        eventType: 'DOCUMENT_EXTRACTION_RUN',
+        method: 'SYSTEM',
+        result: 'ALLOWED',
+        applicantId: document.applicantId,
+        resourceType: 'document_version',
+        resourceId: version.id,
+        metadata: { status: 'FAILED', code: outcome.code },
+      });
+    });
+    return;
+  }
+
+  const { result } = outcome;
+  const classification = classifyDocumentText(result.text);
+
+  await db.transaction(async (tx) => {
+    const extractionRun = required(
+      first(
+        await tx
+          .insert(schema.extractionRuns)
+          .values({
+            processingRunId: run.id,
+            documentVersionId: version.id,
+            parserName: result.parserName,
+            parserVersion: result.parserVersion,
+            status: 'SUCCEEDED',
+            extractedText: result.text,
+            truncated: result.truncated,
+            pageCount: result.pageCount,
+            confidence: classification.confidence,
+            warnings: result.warnings,
+          })
+          .returning(),
+      ),
+      'extraction run',
+    );
+
+    await tx.insert(schema.documentClassifications).values({
+      extractionRunId: extractionRun.id,
+      documentVersionId: version.id,
+      classifiedType: classification.classifiedType,
+      confidence: classification.confidence,
+      reviewRequired: classification.reviewRequired,
+      rationale: classification.rationale,
+    });
+
+    await tx
+      .update(schema.processingRuns)
+      .set({ status: 'COMPLETED', completedAt: new Date() })
+      .where(eq(schema.processingRuns.id, run.id));
+
+    await appendAuditEvent(tx, {
+      eventType: 'DOCUMENT_EXTRACTION_RUN',
+      method: 'SYSTEM',
+      result: 'ALLOWED',
+      applicantId: document.applicantId,
+      resourceType: 'document_version',
+      resourceId: version.id,
+      metadata: {
+        status: 'SUCCEEDED',
+        classifiedType: classification.classifiedType,
+        confidence: classification.confidence,
+      },
+    });
+  });
+
+  // A filename proposal only when classification cleared review (never
+  // proposes a name built on a guessed type).
+  if (classification.classifiedType && !classification.reviewRequired) {
+    const proposedName = buildProposedName({
+      classifiedType: classification.classifiedType,
+      primarySubject: applicant?.displayName ?? 'Unknown',
+      ...(classification.mrz ? { issuerOrContext: classification.mrz.issuingCountry } : {}),
+      ...(classification.mrz
+        ? { relevantDateOrPeriod: `Expires ${classification.mrz.expiryDate}` }
+        : {}),
+      extension: extensionOf(document.originalName),
+    });
+    await proposeDocumentName(db, {
+      documentId: document.id,
+      proposedName,
+    });
+  }
+}
+
+/**
  * Drive a document version through the intake pipeline to a terminal state
  * (AWAITING_REVIEW on success, NEEDS_ATTENTION on an unsafe scan). Idempotent:
  * calling it on an already-terminal version is a no-op.
@@ -98,6 +273,7 @@ async function commitTransition(
 export async function processIntake(
   db: Db,
   scanner: ScannerPort,
+  extractor: TextExtractionPort,
   input: { readonly documentVersionId: string },
 ): Promise<Result<DocumentVersion, ServiceError>> {
   let version = await loadVersion(db, input.documentVersionId);
@@ -125,6 +301,14 @@ export async function processIntake(
         processingStatus: result.safe ? 'NORMALIZING' : 'NEEDS_ATTENTION',
         safetyStatus: result.safe ? 'CLEAN' : 'QUARANTINED',
       });
+      continue;
+    }
+
+    if (state === 'EXTRACTING') {
+      // If this throws, the version stays in EXTRACTING and is resumable —
+      // same recoverability contract as the scanner step above.
+      await runExtractionStep(db, extractor, version);
+      version = await commitTransition(db, version, { processingStatus: 'AWAITING_REVIEW' });
       continue;
     }
 

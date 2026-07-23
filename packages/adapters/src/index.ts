@@ -13,3 +13,8 @@ export { NeonBlobStorage, type NeonBlobStorageOptions } from './neon-blob';
 export { VercelPrivateBlobStorage, type VercelPrivateBlobStorageOptions } from './vercel-blob';
 
 export { BasicSafetyScanner, type BasicSafetyScannerOptions } from './scanner';
+
+export {
+  DeterministicTextExtractor,
+  type DeterministicTextExtractorOptions,
+} from './text-extraction';

@@ -17,6 +17,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { verifyBlobToken } from './blob-token';
 import { NeonBlobStorage } from './neon-blob';
 import { BasicSafetyScanner } from './scanner';
+import { DeterministicTextExtractor } from './text-extraction';
 
 const migrationsFolder = fileURLToPath(new URL('../../db/migrations', import.meta.url));
 const SECRET = 'test-signing-secret';
@@ -121,10 +122,12 @@ describe('end-to-end: real bytes through the intake pipeline (no S3, no ClamAV)'
   let db: Db;
   let storage: NeonBlobStorage;
   let scanner: BasicSafetyScanner;
+  let extractor: DeterministicTextExtractor;
   beforeEach(async () => {
     db = await freshDb();
     storage = new NeonBlobStorage({ db, signingSecret: SECRET, baseUrl: 'https://app.example' });
     scanner = new BasicSafetyScanner({ blobStore: storage });
+    extractor = new DeterministicTextExtractor({ blobStore: storage });
   });
 
   async function upload(email: string, bytes: Uint8Array) {
@@ -171,14 +174,14 @@ describe('end-to-end: real bytes through the intake pipeline (no S3, no ClamAV)'
     const good = await upload('good@example.com', PDF);
     const bad = await upload('bad@example.com', EXE);
 
-    const okResult = await processIntake(db, scanner, { documentVersionId: good });
+    const okResult = await processIntake(db, scanner, extractor, { documentVersionId: good });
     expect(isOk(okResult)).toBe(true);
     if (isOk(okResult)) {
       expect(okResult.value.processingStatus).toBe('AWAITING_REVIEW');
       expect(okResult.value.safetyStatus).toBe('CLEAN');
     }
 
-    const badResult = await processIntake(db, scanner, { documentVersionId: bad });
+    const badResult = await processIntake(db, scanner, extractor, { documentVersionId: bad });
     expect(isOk(badResult)).toBe(true);
     if (isOk(badResult)) {
       expect(badResult.value.processingStatus).toBe('NEEDS_ATTENTION');
