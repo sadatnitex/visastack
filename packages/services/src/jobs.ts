@@ -1,5 +1,6 @@
 import { and, asc, desc, eq, inArray, lte, sql } from 'drizzle-orm';
 import { type Db, first, required, schema } from './db';
+import type { TextExtractionPort } from './extraction';
 import type { ScannerPort } from './intake';
 import { processIntake } from './intake';
 
@@ -179,6 +180,7 @@ export interface IntakeWorkerResult {
 export async function runIntakeWorker(
   db: Db,
   scanner: ScannerPort,
+  extractor: TextExtractionPort,
   options: { readonly limit?: number } = {},
 ): Promise<IntakeWorkerResult> {
   const jobs = await claimJobs(db, options.limit ?? DEFAULT_CLAIM_LIMIT);
@@ -186,7 +188,7 @@ export async function runIntakeWorker(
   let failed = 0;
   for (const job of jobs) {
     try {
-      const result = await processIntake(db, scanner, {
+      const result = await processIntake(db, scanner, extractor, {
         documentVersionId: job.documentVersionId,
       });
       if (!result.ok) throw new Error(result.error.message);

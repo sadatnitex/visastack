@@ -2,6 +2,7 @@ import { fileURLToPath } from 'node:url';
 import { PGlite } from '@electric-sql/pglite';
 import { isErr, isOk } from '@visastack/core';
 import { schema } from '@visastack/db';
+import { eq } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/pglite';
 import { migrate } from 'drizzle-orm/pglite/migrator';
 import { beforeEach, describe, expect, it } from 'vitest';
@@ -16,7 +17,9 @@ import {
 import { createApplicant } from './applicants';
 import { setConsent } from './consent';
 import type { Db } from './db';
+import { getLatestNameVersion } from './document-naming';
 import { addDocumentVersion, registerDocument } from './documents';
+import type { ExtractionOutcome, TextExtractionPort } from './extraction';
 import { type ScannerPort, processIntake } from './intake';
 import { checkDigit, parseTd3 } from './mrz';
 import { getCurrentFactVersion, registerFieldDefinition } from './profile';
@@ -121,10 +124,17 @@ describe('document intake pipeline', () => {
       return { safe: false, detail: 'eicar' };
     },
   };
+  const noOpExtractor: TextExtractionPort = {
+    async extract(): Promise<ExtractionOutcome> {
+      return { ok: false, code: 'unsupported_format', message: 'test fixture: not exercised here' };
+    },
+  };
 
   it('drives a clean document to AWAITING_REVIEW', async () => {
     const { versionId } = await seedVersion(db, 'intake1@example.com');
-    const result = await processIntake(db, cleanScanner, { documentVersionId: versionId });
+    const result = await processIntake(db, cleanScanner, noOpExtractor, {
+      documentVersionId: versionId,
+    });
     expect(isOk(result)).toBe(true);
     if (!isOk(result)) return;
     expect(result.value.processingStatus).toBe('AWAITING_REVIEW');
@@ -133,7 +143,9 @@ describe('document intake pipeline', () => {
 
   it('quarantines an unsafe document (NEEDS_ATTENTION, never processed)', async () => {
     const { versionId } = await seedVersion(db, 'intake2@example.com');
-    const result = await processIntake(db, infectedScanner, { documentVersionId: versionId });
+    const result = await processIntake(db, infectedScanner, noOpExtractor, {
+      documentVersionId: versionId,
+    });
     expect(isOk(result)).toBe(true);
     if (!isOk(result)) return;
     expect(result.value.processingStatus).toBe('NEEDS_ATTENTION');
@@ -142,8 +154,10 @@ describe('document intake pipeline', () => {
 
   it('is idempotent when already terminal', async () => {
     const { versionId } = await seedVersion(db, 'intake3@example.com');
-    await processIntake(db, cleanScanner, { documentVersionId: versionId });
-    const again = await processIntake(db, cleanScanner, { documentVersionId: versionId });
+    await processIntake(db, cleanScanner, noOpExtractor, { documentVersionId: versionId });
+    const again = await processIntake(db, cleanScanner, noOpExtractor, {
+      documentVersionId: versionId,
+    });
     expect(isOk(again)).toBe(true);
     if (isOk(again)) expect(again.value.processingStatus).toBe('AWAITING_REVIEW');
   });
@@ -158,11 +172,116 @@ describe('document intake pipeline', () => {
         return { safe: true };
       },
     };
-    await expect(processIntake(db, flaky, { documentVersionId: versionId })).rejects.toThrow();
+    await expect(
+      processIntake(db, flaky, noOpExtractor, { documentVersionId: versionId }),
+    ).rejects.toThrow();
     // State is parked at SCANNING and resumes cleanly on retry.
-    const resumed = await processIntake(db, flaky, { documentVersionId: versionId });
+    const resumed = await processIntake(db, flaky, noOpExtractor, {
+      documentVersionId: versionId,
+    });
     expect(isOk(resumed)).toBe(true);
     if (isOk(resumed)) expect(resumed.value.processingStatus).toBe('AWAITING_REVIEW');
+  });
+
+  it('classifies a passport from its embedded MRZ text and proposes a filename', async () => {
+    const { versionId, applicantId } = await seedVersion(db, 'intake5@example.com');
+    const documentRow = (
+      await db
+        .select()
+        .from(schema.documents)
+        .innerJoin(
+          schema.documentVersions,
+          eq(schema.documentVersions.documentId, schema.documents.id),
+        )
+        .where(eq(schema.documentVersions.id, versionId))
+    )[0];
+    if (!documentRow) throw new Error('document not found');
+    const document = documentRow.documents;
+
+    const passportExtractor: TextExtractionPort = {
+      async extract(): Promise<ExtractionOutcome> {
+        return {
+          ok: true,
+          result: {
+            text: `PASSPORT\n${L1}\n${L2}\n`,
+            truncated: false,
+            pageCount: 1,
+            warnings: [],
+            parserName: 'test-fixture',
+            parserVersion: '1.0.0',
+          },
+        };
+      },
+    };
+
+    const result = await processIntake(db, cleanScanner, passportExtractor, {
+      documentVersionId: versionId,
+    });
+    expect(isOk(result)).toBe(true);
+    if (!isOk(result)) return;
+    expect(result.value.processingStatus).toBe('AWAITING_REVIEW');
+
+    const runs = await db
+      .select()
+      .from(schema.processingRuns)
+      .where(eq(schema.processingRuns.documentVersionId, versionId));
+    expect(runs).toHaveLength(1);
+    expect(runs[0]?.status).toBe('COMPLETED');
+
+    const extractions = await db
+      .select()
+      .from(schema.extractionRuns)
+      .where(eq(schema.extractionRuns.documentVersionId, versionId));
+    expect(extractions).toHaveLength(1);
+    expect(extractions[0]?.status).toBe('SUCCEEDED');
+    expect(extractions[0]?.parserName).toBe('test-fixture');
+
+    const classifications = await db
+      .select()
+      .from(schema.documentClassifications)
+      .where(eq(schema.documentClassifications.documentVersionId, versionId));
+    expect(classifications).toHaveLength(1);
+    expect(classifications[0]?.classifiedType).toBe('PASSPORT');
+    expect(classifications[0]?.confidence).toBe(100);
+    expect(classifications[0]?.reviewRequired).toBe(false);
+
+    const applicantRow = (
+      await db.select().from(schema.applicants).where(eq(schema.applicants.id, applicantId))
+    )[0];
+    const nameVersion = await getLatestNameVersion(db, document.id);
+    expect(nameVersion?.decision).toBe('PENDING');
+    expect(nameVersion?.proposedName).toContain('Passport');
+    expect(nameVersion?.proposedName).toContain(applicantRow?.displayName ?? '');
+    expect(nameVersion?.proposedName.endsWith('.pdf')).toBe(true);
+  });
+
+  it('advances to AWAITING_REVIEW even when extraction fails (unsupported format)', async () => {
+    const { versionId } = await seedVersion(db, 'intake6@example.com');
+    const failingExtractor: TextExtractionPort = {
+      async extract(): Promise<ExtractionOutcome> {
+        return { ok: false, code: 'unsupported_format', message: 'image format, no OCR' };
+      },
+    };
+    const result = await processIntake(db, cleanScanner, failingExtractor, {
+      documentVersionId: versionId,
+    });
+    expect(isOk(result)).toBe(true);
+    if (!isOk(result)) return;
+    expect(result.value.processingStatus).toBe('AWAITING_REVIEW');
+
+    const runs = await db
+      .select()
+      .from(schema.processingRuns)
+      .where(eq(schema.processingRuns.documentVersionId, versionId));
+    expect(runs[0]?.status).toBe('FAILED');
+    expect(runs[0]?.errorCode).toBe('unsupported_format');
+
+    // No classification/naming proposal was invented from a failed extraction.
+    const classifications = await db
+      .select()
+      .from(schema.documentClassifications)
+      .where(eq(schema.documentClassifications.documentVersionId, versionId));
+    expect(classifications).toHaveLength(0);
   });
 });
 

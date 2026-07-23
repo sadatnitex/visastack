@@ -11,6 +11,7 @@ import { createApplicant } from './applicants';
 import { setConsent } from './consent';
 import type { Db } from './db';
 import { addDocumentVersion, registerDocument } from './documents';
+import type { TextExtractionPort } from './extraction';
 import type { ScannerPort } from './intake';
 import { enqueueIntakeJob, listFailedJobs, retryFailedJob, runIntakeWorker } from './jobs';
 
@@ -65,6 +66,11 @@ const infectedScanner: ScannerPort = {
     return { safe: false, detail: 'eicar' };
   },
 };
+const noOpExtractor: TextExtractionPort = {
+  async extract() {
+    return { ok: false, code: 'unsupported_format', message: 'test fixture: not exercised here' };
+  },
+};
 
 describe('low-volume durable job queue — async intake', () => {
   let db: Db;
@@ -84,7 +90,7 @@ describe('low-volume durable job queue — async intake', () => {
     const versionId = await seedVersion(db, 'j2@example.com');
     const job = await enqueueIntakeJob(db, { documentVersionId: versionId });
 
-    const result = await runIntakeWorker(db, cleanScanner);
+    const result = await runIntakeWorker(db, cleanScanner, noOpExtractor);
     expect(result).toEqual({ processed: 1, failed: 0 });
 
     const [version] = await db
@@ -106,7 +112,7 @@ describe('low-volume durable job queue — async intake', () => {
     const versionId = await seedVersion(db, 'j3@example.com');
     await enqueueIntakeJob(db, { documentVersionId: versionId });
 
-    const result = await runIntakeWorker(db, infectedScanner);
+    const result = await runIntakeWorker(db, infectedScanner, noOpExtractor);
     expect(result).toEqual({ processed: 1, failed: 0 });
 
     const [version] = await db
@@ -118,7 +124,7 @@ describe('low-volume durable job queue — async intake', () => {
   });
 
   it('is a fast no-op when nothing is due', async () => {
-    const result = await runIntakeWorker(db, cleanScanner);
+    const result = await runIntakeWorker(db, cleanScanner, noOpExtractor);
     expect(result).toEqual({ processed: 0, failed: 0 });
   });
 
@@ -138,7 +144,7 @@ describe('low-volume durable job queue — async intake', () => {
     };
 
     // Attempt 1: fails, retried with backoff (availableAt pushed into the future).
-    const first = await runIntakeWorker(db, brokenScanner);
+    const first = await runIntakeWorker(db, brokenScanner, noOpExtractor);
     expect(first).toEqual({ processed: 0, failed: 1 });
     const afterFirst = (
       await db.select().from(schema.processingJobs).where(eq(schema.processingJobs.id, job.id))
@@ -149,7 +155,7 @@ describe('low-volume durable job queue — async intake', () => {
     expect(afterFirst?.availableAt.getTime()).toBeGreaterThan(Date.now());
 
     // Not due yet — a worker pass right now finds nothing to claim.
-    const notYetDue = await runIntakeWorker(db, brokenScanner);
+    const notYetDue = await runIntakeWorker(db, brokenScanner, noOpExtractor);
     expect(notYetDue).toEqual({ processed: 0, failed: 0 });
 
     // Simulate the backoff having elapsed.
@@ -159,7 +165,7 @@ describe('low-volume durable job queue — async intake', () => {
       .where(eq(schema.processingJobs.id, job.id));
 
     // Attempt 2 (the last one, maxAttempts: 2): fails again, exhausted -> FAILED.
-    const second = await runIntakeWorker(db, brokenScanner);
+    const second = await runIntakeWorker(db, brokenScanner, noOpExtractor);
     expect(second).toEqual({ processed: 0, failed: 1 });
     const afterSecond = (
       await db.select().from(schema.processingJobs).where(eq(schema.processingJobs.id, job.id))
@@ -172,7 +178,7 @@ describe('low-volume durable job queue — async intake', () => {
       .update(schema.processingJobs)
       .set({ availableAt: new Date(0) })
       .where(eq(schema.processingJobs.id, job.id));
-    const afterExhausted = await runIntakeWorker(db, brokenScanner);
+    const afterExhausted = await runIntakeWorker(db, brokenScanner, noOpExtractor);
     expect(afterExhausted).toEqual({ processed: 0, failed: 0 });
   });
 
@@ -182,13 +188,13 @@ describe('low-volume durable job queue — async intake', () => {
     await enqueueIntakeJob(db, { documentVersionId: v1 });
     await enqueueIntakeJob(db, { documentVersionId: v2 });
 
-    const first = await runIntakeWorker(db, cleanScanner, { limit: 1 });
+    const first = await runIntakeWorker(db, cleanScanner, noOpExtractor, { limit: 1 });
     expect(first).toEqual({ processed: 1, failed: 0 });
 
-    const second = await runIntakeWorker(db, cleanScanner, { limit: 1 });
+    const second = await runIntakeWorker(db, cleanScanner, noOpExtractor, { limit: 1 });
     expect(second).toEqual({ processed: 1, failed: 0 });
 
-    const third = await runIntakeWorker(db, cleanScanner, { limit: 1 });
+    const third = await runIntakeWorker(db, cleanScanner, noOpExtractor, { limit: 1 });
     expect(third).toEqual({ processed: 0, failed: 0 });
   });
 
@@ -205,7 +211,7 @@ describe('low-volume durable job queue — async intake', () => {
         throw new Error('scanner unavailable');
       },
     };
-    await runIntakeWorker(db, brokenScanner);
+    await runIntakeWorker(db, brokenScanner, noOpExtractor);
 
     const failed = await listFailedJobs(db);
     expect(failed).toHaveLength(1);

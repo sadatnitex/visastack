@@ -190,11 +190,46 @@ export {
 } from './mrz';
 
 export {
+  PIPELINE_VERSION,
   type ScannerPort,
   type ScanResult,
   nextIntakeState,
   processIntake,
 } from './intake';
+
+export {
+  type ExtractedDocument,
+  type ExtractionErrorCode,
+  type ExtractionOutcome,
+  type TextExtractionInput,
+  type TextExtractionPort,
+  MAX_EXTRACTED_TEXT_CHARS,
+  capExtractedText,
+} from './extraction';
+
+export {
+  CONFIDENCE_THRESHOLD,
+  type ClassificationResult,
+  classifyDocumentText,
+} from './classification';
+
+export {
+  type NameComponentsInput,
+  buildProposedName,
+  extensionOf,
+  sanitizeNameComponent,
+} from './naming';
+
+export {
+  type DecideDocumentNameInput,
+  type DocumentNameVersion,
+  type NameDecision,
+  type ProposeDocumentNameInput,
+  decideDocumentName,
+  getLatestNameVersion,
+  listNameVersions,
+  proposeDocumentName,
+} from './document-naming';
 
 export {
   type FailedJobSummary,
