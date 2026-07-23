@@ -185,6 +185,13 @@ export {
 } from './intake';
 
 export {
+  type IntakeWorkerResult,
+  type ProcessingJob,
+  enqueueIntakeJob,
+  runIntakeWorker,
+} from './jobs';
+
+export {
   type AiBudget,
   type AiExtractionInput,
   type AiExtractionPort,
