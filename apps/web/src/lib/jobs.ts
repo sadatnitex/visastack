@@ -1,5 +1,5 @@
 import 'server-only';
-import { BasicSafetyScanner } from '@visastack/adapters';
+import { BasicSafetyScanner, DeterministicTextExtractor } from '@visastack/adapters';
 import { createPooledDb, resolveDatabaseUrl } from '@visastack/db';
 import { type IntakeWorkerResult, runIntakeWorker } from '@visastack/services';
 import { createStorage } from './storage';
@@ -38,7 +38,8 @@ export async function triggerIntakeWorker(
     const handle = db as unknown as Parameters<typeof runIntakeWorker>[0];
     const storage = createStorage(handle);
     const scanner = new BasicSafetyScanner({ blobStore: storage });
-    return await runIntakeWorker(handle, scanner, options);
+    const extractor = new DeterministicTextExtractor({ blobStore: storage });
+    return await runIntakeWorker(handle, scanner, extractor, options);
   } catch (error) {
     console.error('[triggerIntakeWorker] worker pass failed', error);
     return { processed: 0, failed: 0 };

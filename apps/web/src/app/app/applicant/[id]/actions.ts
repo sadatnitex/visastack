@@ -6,6 +6,7 @@ import type { Actor, Db } from '@visastack/services';
 import {
   addDocumentVersion,
   checkUploadQuota,
+  decideDocumentName,
   editFact,
   enqueueIntakeJob,
   getApplicant,
@@ -145,6 +146,54 @@ export async function uploadDocumentAction(
     return {
       ok: true,
       message: `${originalName} uploaded and queued for a safety scan.`,
+    } satisfies ActionState;
+  });
+
+  if (result.ok) revalidatePath(`/app/applicant/${applicantId}`);
+  return result;
+}
+
+/**
+ * Decide an automatic filename proposal (master directive §11). The reviewer
+ * may accept the proposed text unchanged, accept an edited version, or
+ * reject it outright — never applied silently.
+ */
+export async function decideDocumentNameAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const applicantId = String(formData.get('applicantId') ?? '');
+  const nameVersionId = String(formData.get('nameVersionId') ?? '');
+  const originalProposal = String(formData.get('originalProposal') ?? '');
+  const action = String(formData.get('nameAction') ?? '');
+  const finalName = String(formData.get('finalName') ?? '').trim();
+
+  if (action !== 'accept' && action !== 'reject') {
+    return { ok: false, message: 'Unknown action.' };
+  }
+  if (action === 'accept' && finalName.length === 0) {
+    return { ok: false, message: 'Enter a filename before approving.' };
+  }
+
+  const result = await withSession(async ({ db, accountId }) => {
+    if (!(await assertOwned(db, accountId, applicantId))) {
+      return { ok: false, message: 'Not authorized.' } satisfies ActionState;
+    }
+    const decided = await decideDocumentName(db, {
+      actorAccountId: accountId,
+      nameVersionId,
+      decision:
+        action === 'reject'
+          ? 'REJECTED'
+          : finalName === originalProposal
+            ? 'ACCEPTED_UNCHANGED'
+            : 'ACCEPTED_EDITED',
+      ...(action === 'accept' ? { finalName } : {}),
+    });
+    if (!decided.ok) return { ok: false, message: decided.error.message } satisfies ActionState;
+    return {
+      ok: true,
+      message: action === 'reject' ? 'Naming proposal rejected.' : 'Filename approved.',
     } satisfies ActionState;
   });
 
