@@ -1,21 +1,22 @@
 'use server';
 
 import { createHash, randomUUID } from 'node:crypto';
-import { BasicSafetyScanner } from '@visastack/adapters';
 import type { ApplicantId } from '@visastack/core';
 import type { Actor, Db } from '@visastack/services';
 import {
   addDocumentVersion,
   checkUploadQuota,
   editFact,
+  enqueueIntakeJob,
   getApplicant,
   previewDocument,
-  processIntake,
   registerDocument,
   registerFieldDefinition,
 } from '@visastack/services';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
+import { after } from 'next/server';
+import { triggerIntakeWorker } from '../../../../lib/jobs';
 import { profileField } from '../../../../lib/profile-fields';
 import { withSession } from '../../../../lib/session';
 import { createStorage } from '../../../../lib/storage';
@@ -64,7 +65,7 @@ export async function saveFactAction(_prev: ActionState, formData: FormData): Pr
   return result;
 }
 
-/** Upload a document: store bytes → register → version → run intake pipeline. */
+/** Upload a document: store bytes → register → version → queue intake processing. */
 export async function uploadDocumentAction(
   _prev: ActionState,
   formData: FormData,
@@ -125,19 +126,18 @@ export async function uploadDocumentAction(
       return { ok: false, message: versioned.error.message } satisfies ActionState;
     }
 
-    const scanner = new BasicSafetyScanner({ blobStore: storage });
-    const intake = await processIntake(db, scanner, {
-      documentVersionId: versioned.value.version.id,
-    });
-    if (!intake.ok) {
-      return { ok: false, message: intake.error.message } satisfies ActionState;
-    }
-    const clean = intake.value.safetyStatus === 'CLEAN';
+    // Processing runs off the request path (master directive §5 — DB-backed
+    // low-volume jobs, not a synchronous in-request scan): the job row is the
+    // durable record of work to do, so a crash here loses no work. `after()`
+    // fires the worker once the response has been sent for near-instant
+    // processing in the common case; the periodic sweep at
+    // /api/jobs/process-intake is the durability backstop if that doesn't run.
+    await enqueueIntakeJob(db, { documentVersionId: versioned.value.version.id });
+    after(() => triggerIntakeWorker());
+
     return {
       ok: true,
-      message: clean
-        ? `${originalName} uploaded and passed the safety scan.`
-        : `${originalName} uploaded but was quarantined by the safety scan.`,
+      message: `${originalName} uploaded and queued for a safety scan.`,
     } satisfies ActionState;
   });
 
