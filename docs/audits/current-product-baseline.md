@@ -2,8 +2,8 @@
 
 **Audit date:** 2026-07-22
 **Branch:** `claude/visastack-storage-async-intake`
-**Base commit (`main`):** `87e8eeb` (Reliability upgrade Release A + P0 preview fix + smoke/Playwright/Neon regression, #40 — merged and promoted to production this session)
-**Production deployment:** `visastack-five.vercel.app` — Vercel project `prj_RZcDRy1odwehHuDqsiGwvVGC0epe`. PR #40's login/identity/health fixes were verified in production before this branch started. The Storage-PR work below (Vercel Private Blob adapter, quotas, opaque keys, filename-in-Content-Disposition) is **new on this branch and not yet deployed** — no preview or production URL exists for it yet.
+**Base commit (`main`):** `4e76ba6` (Storage Release B part 1, #41 — merged and promoted to production this session, on top of #40's `87e8eeb`)
+**Production deployment:** `visastack-five.vercel.app` — Vercel project `prj_RZcDRy1odwehHuDqsiGwvVGC0epe`. PR #40's login/identity/health fixes and PR #41's storage work (Vercel Private Blob adapter, quotas, opaque keys, filename-in-Content-Disposition) are both merged and live in production; deployment-triggered smoke/Playwright/WorkOS-staging checks passed against the production deployment for both. `BLOB_READ_WRITE_TOKEN` has since been configured and a redeploy (`dpl_58rWNmAyJd361FEwvyovR7EXtKLd`) picked it up with no error/fatal runtime logs — but a real upload→store→serve round-trip has not yet been exercised against live traffic (see the Object storage row below).
 
 > Truth-labelling taxonomy (per the upgrade directive). Every capability is one
 > of: **Domain model only · Service implemented · UI present · Infrastructure
@@ -50,8 +50,8 @@ From `.env.example` and `docs/governance/service-wiring.md`:
 | Document download (redacted) | **Service implemented; not wired in UI** | `downloadDocument`; no UI trigger found. |
 | Upload processing pipeline | **Service implemented — states advance without doing the work** | `intake.ts`/`pipeline.test.ts`; `NORMALIZING`/`EXTRACTING` transitions do not perform normalization/OCR. Still synchronous, in-request, whole-file-in-memory — durable async intake (Inngest) is deferred to a follow-up PR. |
 | Malware/structural scanning | **Service implemented — reduced-control** | `packages/adapters/src/scanner.ts` is a structural scanner, explicitly not antivirus. |
-| Upload quotas | **Service implemented + tested (this branch)** | `packages/services/src/quotas.ts` — per-file/per-applicant/per-account/platform-wide caps, fail-closed before any bytes are written, config-driven via env overrides with conservative pilot defaults. 10 tests (PGlite). Not yet Production verified (no live deployment of this branch). |
-| Object storage | **Service implemented + tested (this branch); NOT yet Production verified** | `VercelPrivateBlobStorage` (`packages/adapters/src/vercel-blob.ts`) — genuine `access: 'private'` Vercel Blob backend, selected automatically when `BLOB_READ_WRITE_TOKEN` is set; bytes are served only through the app's own signed `/api/blob/[key]` route (never a direct Vercel presigned URL), preserving per-request `Content-Disposition` and a single audit-enforcement point. 6 unit tests against a mocked `@vercel/blob`. No live `BLOB_READ_WRITE_TOKEN` exists in this sandbox, so the adapter has not been exercised against a real Vercel Blob store — that verification must happen in a real deployment. `NeonBlobStorage` (bytes in Postgres) remains the fallback when the token is absent, still labelled reduced-control/non-commercial (master directive §10/§21E). `deleteObject` exists on the new adapter but is not yet wired into any retention/deletion workflow (documented follow-up). |
+| Upload quotas | **Production deployed** | `packages/services/src/quotas.ts` — per-file/per-applicant/per-account/platform-wide caps, fail-closed before any bytes are written, config-driven via env overrides with conservative pilot defaults. 10 tests (PGlite). Merged in PR #41, live in production. |
+| Object storage | **Production deployed; round-trip NOT yet verified** | `VercelPrivateBlobStorage` (`packages/adapters/src/vercel-blob.ts`) — genuine `access: 'private'` Vercel Blob backend. `BLOB_READ_WRITE_TOKEN` is now configured in the Vercel project and a redeploy (`dpl_58rWNmAyJd361FEwvyovR7EXtKLd`) picked it up cleanly — no error/fatal runtime logs since. `createStorage()` therefore selects `VercelPrivateBlobStorage` in production today. What's still unverified: an actual upload → `putObject` → `issueReadRef` → `/api/blob/[key]` round-trip has not been exercised against real user traffic — only 6 unit tests against a mocked `@vercel/blob`, plus the clean-boot check above. `NeonBlobStorage` (bytes in Postgres) remains the fallback if the token is ever absent, still labelled reduced-control/non-commercial (master directive §10/§21E). `deleteObject` exists on the new adapter but is not yet wired into any retention/deletion workflow (documented follow-up). |
 | AI extraction / gateway | **Port only** | `ai.ts` port; no production adapter, no model wired. |
 | Missions & requirement packs | **Service implemented + UI present** | `missions.ts`, `packs.ts`, mission/admin pages. Owner-driven state machine. |
 | Sharing / scoped grants | **Service implemented + UI present** | `sharing.ts`; recipient inbox exists; no full permission-filtered recipient workspace. |
@@ -82,12 +82,12 @@ From `.env.example` and `docs/governance/service-wiring.md`:
 ## Acceptance criteria — status (summary)
 
 - **Passing/production-verified:** authenticated login and workspace entry (PR #40, confirmed via deployed smoke/Playwright checks); idempotent account provisioning; WorkOS-id identity binding; append-only audit chain (unit-verified); default-deny document authorization (unit-verified); honest readiness.
-- **Service implemented + tested, not yet Production verified (this branch):** Vercel Private Blob object storage; upload quotas; opaque object keys; filename-carrying `Content-Disposition`.
+- **Production deployed, round-trip not yet verified:** Vercel Private Blob object storage (token configured, redeployed cleanly, no live-upload evidence yet — deliberately deferred); upload quotas; opaque object keys; filename-carrying `Content-Disposition`.
 - **Open:** deployed authenticated-E2E regression (WorkOS staging secrets); real async intake; real normalization/OCR/AI; persisted extraction & proposal review; automatic filename proposal + approval; document→profile approval UI; true redacted renditions; real malware scanning; durable job queue; existing-byte migration off Neon-bytea; permission-filtered shared/agency workspaces; account export/deletion drill; backup-restore drill; pen-test; EN/BN critical paths; WCAG 2.2 AA gate; AI/document benchmarks.
 
 ## Current security exceptions (must remain visibly labelled)
 
-- **Reduced-control storage fallback:** `NeonBlobStorage` (bytes in Postgres) remains the backend whenever `BLOB_READ_WRITE_TOKEN` is unset — acceptable only for synthetic/internal testing, dev, and legacy data; not the sensitive-document production design. `VercelPrivateBlobStorage` is the commercial-track backend but is not yet Production verified from this sandbox.
+- **Reduced-control storage fallback:** `NeonBlobStorage` (bytes in Postgres) remains the fallback backend whenever `BLOB_READ_WRITE_TOKEN` is unset — acceptable only for synthetic/internal testing, dev, and legacy data; not the sensitive-document production design. `VercelPrivateBlobStorage` is now the active production backend (token configured, redeploy confirmed clean), but a real upload→serve round-trip has not yet been exercised against live traffic.
 - **Reduced-control scanning:** structural scanner is not antivirus; real-data upload must stay gated until a real malware control is active.
 - **No true redacted rendition:** third-party preview is fail-closed (disabled) until real renditions ship.
 - **No durable job queue yet:** upload processing runs synchronously in-request; a stalled/failed pipeline step has no retry/backoff, only the existing fail-closed error path.
@@ -97,7 +97,7 @@ From `.env.example` and `docs/governance/service-wiring.md`:
 1. Governing directives saved (`docs/roadmap/reliability-document-intelligence-upgrade.md`, `docs/roadmap/master-build-pilot-commercialization-directive.md`).
 2. P0 preview fix, honest readiness (503 when degraded), PII-safe logging, WorkOS immutable-id identity binding (migration `0010`), no-secret smoke tests, Playwright foundation, Neon pooled-transaction regression, README/landing wording corrections. Full detail in PR #40's description and commit history (`87e8eeb`).
 
-## Changes made on this branch (Storage PR, `claude/visastack-storage-async-intake`)
+## Changes merged in PR #41 (Storage Release B part 1, `claude/visastack-storage-async-intake`)
 
 1. **Upload quotas** (`packages/services/src/quotas.ts`) — per-file/per-applicant/per-account/platform-wide caps, config-driven via env overrides, conservative pilot defaults (10/50/100/500/700 MB), enforced fail-closed before any bytes are written. 10 tests (PGlite).
 2. **Blob-token extraction** (`packages/adapters/src/blob-token.ts`) — `signBlobToken`/`verifyBlobToken` factored out of `neon-blob.ts` so both storage backends share one signing implementation; extended to sign the display filename as part of the tamper-proof payload. 5 tests.
@@ -110,8 +110,8 @@ From `.env.example` and `docs/governance/service-wiring.md`:
 
 ## Immediate next priorities (in order)
 
-1. Open the Storage PR, get it reviewed, and — pending explicit human approval — merge and deploy it so the Vercel Private Blob adapter can be Production verified against a real `BLOB_READ_WRITE_TOKEN`.
+1. Real upload → store → serve round-trip verification of `VercelPrivateBlobStorage` against live traffic — deliberately deferred for now (per explicit decision this session); revisit either via a manual UI test or an automated Playwright upload spec when prioritized.
 2. Real generated redacted renditions + download-time re-authorization (Milestone 2 completion) — unblocks third-party preview.
-3. Durable async intake (Inngest) + existing-byte migration tool off Neon-bytea — the remaining Release B scope deferred out of the Storage PR.
+3. Durable async intake (Inngest) + existing-byte migration tool off Neon-bytea — the remaining Release B scope deferred out of PR #41.
 4. Deployed authenticated-E2E regression once `WORKOS_STAGING_TEST_EMAIL`/`WORKOS_STAGING_TEST_PASSWORD` secrets are provisioned.
-5. Release C/D per the master directive sequencing (Processing PR, then AI PR) — not started; blocked on Storage PR approval per the directive's sequencing rule.
+5. Release C/D per the master directive sequencing (Processing PR, then AI PR) — not started; blocked on explicit approval to proceed per the directive's sequencing rule.
