@@ -9,6 +9,7 @@ import {
 } from '@visastack/services';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { profileField } from '../../../../lib/profile-fields';
 import { withSession } from '../../../../lib/session';
 import { snapshotMissionAction, transitionMissionAction } from './actions';
 import { AttachPackForm, type PackOption } from './attach-pack-form';
@@ -138,15 +139,19 @@ export default async function MissionPage({
                     Missing
                   </p>
                   <div className="rows">
-                    {data.readiness.missing.map((m) => (
-                      <div className="row" key={`${m.kind}-${m.key}`}>
-                        <span className="row-key">{m.key || '(unnamed)'}</span>
-                        <span className="badge badge-neutral">
-                          {m.kind === 'FIELD' ? 'Field' : 'Document'}
-                          {m.optional ? ' · optional' : ''}
-                        </span>
-                      </div>
-                    ))}
+                    {data.readiness.missing.map((m) => {
+                      const label =
+                        m.kind === 'FIELD' ? (profileField(m.key)?.label ?? m.key) : m.key;
+                      return (
+                        <div className="row" key={`${m.kind}-${m.key}`}>
+                          <span className="row-key">{label || '(unnamed)'}</span>
+                          <span className="badge badge-neutral">
+                            {m.kind === 'FIELD' ? 'Field' : 'Document'}
+                            {m.optional ? ' · optional' : ''}
+                          </span>
+                        </div>
+                      );
+                    })}
                   </div>
                 </>
               ) : null}
