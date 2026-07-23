@@ -86,6 +86,7 @@ export const documentSafetyStatus = pgEnum('document_safety_status', [
 ]);
 export const storageBucket = pgEnum('storage_bucket', ['QUARANTINE', 'CLEAN']);
 export const deletionStatus = pgEnum('deletion_status', ['PENDING', 'CANCELLED', 'EXECUTED']);
+export const jobStatus = pgEnum('job_status', ['PENDING', 'CLAIMED', 'DONE', 'FAILED']);
 export const packVersionStatus = pgEnum('pack_version_status', [
   'DRAFT',
   'APPROVED',
@@ -313,6 +314,35 @@ export const documentVersions = pgTable(
   (table) => [
     unique('document_versions_doc_version_unique').on(table.documentId, table.versionNumber),
     index('document_versions_document_idx').on(table.documentId),
+  ],
+);
+
+// --- Low-volume durable job queue (Release B; master directive §5 approved
+// infra: "DB-backed jobs for low pilot volume", no external queue/Inngest) ---
+// Decouples intake processing from the upload HTTP request. A row is claimed
+// with `FOR UPDATE SKIP LOCKED` (see packages/services/src/jobs.ts) so
+// concurrent workers never double-process the same job. A failure retries
+// with exponential backoff up to maxAttempts, then parks at FAILED — visible
+// and inspectable, never silently dropped.
+export const processingJobs = pgTable(
+  'processing_jobs',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    documentVersionId: uuid('document_version_id')
+      .notNull()
+      .references(() => documentVersions.id, { onDelete: 'cascade' }),
+    status: jobStatus('status').notNull().default('PENDING'),
+    attempts: integer('attempts').notNull().default(0),
+    maxAttempts: integer('max_attempts').notNull().default(5),
+    availableAt: timestamp('available_at', { withTimezone: true }).notNull().defaultNow(),
+    claimedAt: timestamp('claimed_at', { withTimezone: true }),
+    completedAt: timestamp('completed_at', { withTimezone: true }),
+    lastError: text('last_error'),
+    ...timestamps,
+  },
+  (table) => [
+    index('processing_jobs_status_available_idx').on(table.status, table.availableAt),
+    index('processing_jobs_document_version_idx').on(table.documentVersionId),
   ],
 );
 

@@ -2,8 +2,9 @@
 
 **Audit date:** 2026-07-22
 **Branch:** `claude/visastack-storage-async-intake`
-**Base commit (`main`):** `4e76ba6` (Storage Release B part 1, #41 — merged and promoted to production this session, on top of #40's `87e8eeb`)
-**Production deployment:** `visastack-five.vercel.app` — Vercel project `prj_RZcDRy1odwehHuDqsiGwvVGC0epe`. PR #40's login/identity/health fixes and PR #41's storage work (Vercel Private Blob adapter, quotas, opaque keys, filename-in-Content-Disposition) are both merged and live in production; deployment-triggered smoke/Playwright/WorkOS-staging checks passed against the production deployment for both. `BLOB_READ_WRITE_TOKEN` has since been configured and a redeploy (`dpl_58rWNmAyJd361FEwvyovR7EXtKLd`) picked it up with no error/fatal runtime logs — but a real upload→store→serve round-trip has not yet been exercised against live traffic (see the Object storage row below).
+**Base commit (`main`):** `7077fc2` (docs follow-up, #42 — merged), on top of #41's `4e76ba6` (Storage Release B part 1) and #40's `87e8eeb`.
+**Branch scope this round:** low-volume durable job queue for intake processing (completing the async-intake piece of Release B that #41 deliberately deferred) — **not yet committed/pushed/PR'd**.
+**Production deployment:** `visastack-five.vercel.app` — Vercel project `prj_RZcDRy1odwehHuDqsiGwvVGC0epe`. PR #40's login/identity/health fixes and PR #41's storage work (Vercel Private Blob adapter, quotas, opaque keys, filename-in-Content-Disposition) are both merged and live in production; deployment-triggered smoke/Playwright/WorkOS-staging checks passed against the production deployment for both. `BLOB_READ_WRITE_TOKEN` has since been configured and a redeploy (`dpl_58rWNmAyJd361FEwvyovR7EXtKLd`) picked it up with no error/fatal runtime logs — but a real upload→store→serve round-trip has not yet been exercised against live traffic (see the Object storage row below). This round's job-queue work is **new, unit-tested, not yet deployed** — no preview/production URL exists for it yet.
 
 > Truth-labelling taxonomy (per the upgrade directive). Every capability is one
 > of: **Domain model only · Service implemented · UI present · Infrastructure
@@ -29,11 +30,12 @@ From `.env.example` and `docs/governance/service-wiring.md`:
 - **Signed blob storage (required for document preview/download):** `BLOB_SIGNING_SECRET` — consumed by `/api/blob/[key]` and both storage backends. *Fixed: now in `.env.example`.*
 - **Object storage backend (Release B):** `BLOB_READ_WRITE_TOKEN` — when present, `createStorage()` selects `VercelPrivateBlobStorage` (real private access); when absent, falls back to `NeonBlobStorage` (reduced-control, dev/test/legacy only).
 - **Upload quotas (optional overrides):** `QUOTA_MAX_UPLOAD_MB`, `QUOTA_MAX_APPLICANT_EVIDENCE_MB`, `QUOTA_MAX_ACCOUNT_EVIDENCE_MB`, `QUOTA_PLATFORM_WARNING_MB`, `QUOTA_PLATFORM_HARD_STOP_MB` — conservative pilot defaults (10/50/100/500/700 MB) apply when unset.
-- **Declared but not yet wired (future phases):** `INNGEST_*` (durable job queue — not yet implemented), `AI_*`/`OPENAI_*`, `SENTRY_*`. `STORAGE_*` (S3-compatible) is an optional future migration path, not required now that Vercel Private Blob is wired.
+- **Async intake sweep (optional; this round):** `CRON_SECRET` — authorizes the periodic `/api/jobs/process-intake` sweep (Vercel Cron). Absent → the route fails closed (503); uploads still enqueue and process via the immediate post-upload trigger regardless, so this only gates the durability backstop, not the common path.
+- **Declared but not yet wired (future phases):** `AI_*`/`OPENAI_*`, `SENTRY_*`. `STORAGE_*` (S3-compatible) is an optional future migration path, not required now that Vercel Private Blob is wired. `INNGEST_*` has been removed from the env contract — intake processing uses a DB-backed job queue instead (master directive §5: Inngest is not on the approved-infra list).
 
 ## Database migration inventory
 
-11 reviewed Drizzle migrations, `0000_superb_blazing_skull.sql` … `0010_light_kulan_gath.sql`, applied at build time by the Vercel `buildCommand` (`pnpm --filter @visastack/db db:migrate && next build`) and via the manual `db-migrate.yml` workflow. `accounts.workos_user_id` (nullable, unique) landed in migration `0010` (PR #40) — `provisionAccount` now binds by immutable WorkOS id; `email` is mutable contact data. No schema changes on this branch (Storage PR touches only application code).
+12 reviewed Drizzle migrations, `0000_superb_blazing_skull.sql` … `0011_flaky_shape.sql`, applied at build time by the Vercel `buildCommand` (`pnpm --filter @visastack/db db:migrate && next build`) and via the manual `db-migrate.yml` workflow. `accounts.workos_user_id` (nullable, unique) landed in migration `0010` (PR #40). Migration `0011` (this round) is additive-only: a `job_status` enum and a `processing_jobs` table (FK to `document_versions`, `ON DELETE CASCADE`) — no existing table altered.
 
 ## Module-by-module implementation matrix
 
@@ -48,7 +50,7 @@ From `.env.example` and `docs/governance/service-wiring.md`:
 | Document register/version metadata | **Service implemented + UI present** | `documents.ts`, applicant page upload form. Object keys are now opaque UUIDs (this branch) — no applicant id/email/filename in the physical storage path. |
 | Document preview | **Service implemented — P0 fixed (PR #40)** | Owner-only `original` variant; third parties get `redacted` (fail-closed). `Content-Disposition` now carries the approved/original display filename via the signed token (this branch) instead of an anonymous byte stream. |
 | Document download (redacted) | **Service implemented; not wired in UI** | `downloadDocument`; no UI trigger found. |
-| Upload processing pipeline | **Service implemented — states advance without doing the work** | `intake.ts`/`pipeline.test.ts`; `NORMALIZING`/`EXTRACTING` transitions do not perform normalization/OCR. Still synchronous, in-request, whole-file-in-memory — durable async intake (Inngest) is deferred to a follow-up PR. |
+| Upload processing pipeline | **Service implemented + tested (this round); NOT yet deployed** | `intake.ts`'s state machine is unchanged — `NORMALIZING`/`EXTRACTING` still advance without performing normalization/OCR (that's the Processing PR's scope, not this one). What changed: it no longer runs synchronously in the upload request. `packages/services/src/jobs.ts` adds a DB-backed job queue (`processing_jobs` table, migration `0011`) — `enqueueIntakeJob` on upload, `runIntakeWorker` claims due jobs with `FOR UPDATE SKIP LOCKED` and retries failures with exponential backoff up to `maxAttempts` before parking at `FAILED`. Triggered two ways: immediately after the upload response via `next/server`'s `after()` (near-instant in the common case, on its own fresh DB connection — the request's pooled connection is already closed by then), and via a Vercel Cron sweep at `/api/jobs/process-intake` (durability backstop, `CRON_SECRET`-gated, fails closed if unset). 6 tests (PGlite) covering enqueue, success, the NEEDS_ATTENTION-is-not-a-failure case, backoff/retry, exhaustion to FAILED, and claim-limit batching. No Inngest or other paid queue — DB-backed jobs are explicitly approved infra (master directive §5). |
 | Malware/structural scanning | **Service implemented — reduced-control** | `packages/adapters/src/scanner.ts` is a structural scanner, explicitly not antivirus. |
 | Upload quotas | **Production deployed** | `packages/services/src/quotas.ts` — per-file/per-applicant/per-account/platform-wide caps, fail-closed before any bytes are written, config-driven via env overrides with conservative pilot defaults. 10 tests (PGlite). Merged in PR #41, live in production. |
 | Object storage | **Production deployed; round-trip NOT yet verified** | `VercelPrivateBlobStorage` (`packages/adapters/src/vercel-blob.ts`) — genuine `access: 'private'` Vercel Blob backend. `BLOB_READ_WRITE_TOKEN` is now configured in the Vercel project and a redeploy (`dpl_58rWNmAyJd361FEwvyovR7EXtKLd`) picked it up cleanly — no error/fatal runtime logs since. `createStorage()` therefore selects `VercelPrivateBlobStorage` in production today. What's still unverified: an actual upload → `putObject` → `issueReadRef` → `/api/blob/[key]` round-trip has not been exercised against real user traffic — only 6 unit tests against a mocked `@vercel/blob`, plus the clean-boot check above. `NeonBlobStorage` (bytes in Postgres) remains the fallback if the token is ever absent, still labelled reduced-control/non-commercial (master directive §10/§21E). `deleteObject` exists on the new adapter but is not yet wired into any retention/deletion workflow (documented follow-up). |
@@ -70,10 +72,13 @@ From `.env.example` and `docs/governance/service-wiring.md`:
 - **Object storage path leaked applicant identity.** Upload objects were keyed `${applicantId}/${uuid}` — the applicant id was directly recoverable from the storage path. *Fixed:* object keys are now bare, opaque UUIDs; the applicant/document association lives only in the domain tables.
 - **`Content-Disposition` never carried the approved display filename** — served bytes as an anonymous stream. *Fixed:* the filename is now part of the signed blob-access token payload (tamper-proof) and flows through to both the classic and RFC 5987 `Content-Disposition` forms.
 
+**P1 — resolved this round (job queue, not yet deployed)**
+- **Upload processing was synchronous and blocked the HTTP response.** *Fixed:* processing now runs via a DB-backed job queue (`processing_jobs`, migration `0011`) triggered by `after()` post-response, with a Vercel Cron sweep as a durability backstop. See the "Upload processing pipeline" matrix row above for detail. Not yet Production verified — no live deployment of this branch yet.
+
 **P1**
 - Signed blob URLs do not re-check a revoked grant until token expiry (short TTL mitigates; not eliminated).
-- Upload processing is still synchronous and loads whole files into memory — durable async intake (Inngest) is deferred to a follow-up PR, per the master directive's own permission to split Release B into reviewable pieces.
 - `VercelPrivateBlobStorage.deleteObject` exists but is not yet wired into any retention/deletion workflow.
+- A failed job parks at `FAILED` with no admin UI to inspect/retry it — visible only via a direct DB query today.
 
 **P2**
 - Upload UI limited to PDF/PNG/JPEG.
@@ -83,14 +88,15 @@ From `.env.example` and `docs/governance/service-wiring.md`:
 
 - **Passing/production-verified:** authenticated login and workspace entry (PR #40, confirmed via deployed smoke/Playwright checks); idempotent account provisioning; WorkOS-id identity binding; append-only audit chain (unit-verified); default-deny document authorization (unit-verified); honest readiness.
 - **Production deployed, round-trip not yet verified:** Vercel Private Blob object storage (token configured, redeployed cleanly, no live-upload evidence yet — deliberately deferred); upload quotas; opaque object keys; filename-carrying `Content-Disposition`.
-- **Open:** deployed authenticated-E2E regression (WorkOS staging secrets); real async intake; real normalization/OCR/AI; persisted extraction & proposal review; automatic filename proposal + approval; document→profile approval UI; true redacted renditions; real malware scanning; durable job queue; existing-byte migration off Neon-bytea; permission-filtered shared/agency workspaces; account export/deletion drill; backup-restore drill; pen-test; EN/BN critical paths; WCAG 2.2 AA gate; AI/document benchmarks.
+- **Service implemented + tested, not yet deployed:** the DB-backed async intake job queue (this round).
+- **Open:** deployed authenticated-E2E regression (WorkOS staging secrets); real normalization/OCR/deterministic extraction (Processing PR); real AI extraction; persisted extraction & proposal review; automatic filename proposal + approval; document→profile approval UI; true redacted renditions; real malware scanning; existing-byte migration off Neon-bytea; permission-filtered shared/agency workspaces; account export/deletion drill; backup-restore drill; pen-test; EN/BN critical paths; WCAG 2.2 AA gate; AI/document benchmarks.
 
 ## Current security exceptions (must remain visibly labelled)
 
 - **Reduced-control storage fallback:** `NeonBlobStorage` (bytes in Postgres) remains the fallback backend whenever `BLOB_READ_WRITE_TOKEN` is unset — acceptable only for synthetic/internal testing, dev, and legacy data; not the sensitive-document production design. `VercelPrivateBlobStorage` is now the active production backend (token configured, redeploy confirmed clean), but a real upload→serve round-trip has not yet been exercised against live traffic.
 - **Reduced-control scanning:** structural scanner is not antivirus; real-data upload must stay gated until a real malware control is active.
 - **No true redacted rendition:** third-party preview is fail-closed (disabled) until real renditions ship.
-- **No durable job queue yet:** upload processing runs synchronously in-request; a stalled/failed pipeline step has no retry/backoff, only the existing fail-closed error path.
+- **No admin UI for stuck/failed processing jobs:** a job that exhausts its retries parks at `FAILED` — visible only via a direct database query, not a dashboard.
 
 ## Changes made on PR #40 (merged, production-verified)
 
@@ -108,10 +114,21 @@ From `.env.example` and `docs/governance/service-wiring.md`:
 7. **`.env.example`** — added the previously-missing `BLOB_SIGNING_SECRET`, plus `BLOB_READ_WRITE_TOKEN` and quota override variables.
 8. This baseline audit, updated to reflect the above truthfully.
 
+## Changes made this round (Storage Release B — async intake completion, not yet committed/PR'd)
+
+1. **DB-backed durable job queue** (`packages/services/src/jobs.ts`, migration `0011`) — `processing_jobs` table (status/attempts/maxAttempts/availableAt/claimedAt/completedAt/lastError), `enqueueIntakeJob`, and `runIntakeWorker` (claims due jobs with `FOR UPDATE SKIP LOCKED`, runs the existing `processIntake` unchanged, retries failures with exponential backoff, parks exhausted jobs at `FAILED`). 6 tests (PGlite).
+2. **Decoupled upload from processing** (`apps/web/src/app/app/applicant/[id]/actions.ts`) — `uploadDocumentAction` now enqueues a job instead of calling `processIntake` inline; the returned message says "queued for a safety scan" rather than claiming an immediate result.
+3. **Post-response trigger** (`apps/web/src/lib/jobs.ts`) — `triggerIntakeWorker()` opens its own short-lived pooled DB connection (the request's connection is already closed by the time `after()` fires) and runs one worker pass; called via `next/server`'s `after()` right after the upload action returns, so processing starts without blocking the HTTP response.
+4. **Durability backstop** (`apps/web/src/app/api/jobs/process-intake/route.ts`, `apps/web/vercel.json`) — a `CRON_SECRET`-gated sweep route wired to a daily Vercel Cron entry, draining up to 100 jobs per sweep in case the post-upload trigger doesn't run (crash, cold-start timeout, etc.).
+5. **Readiness reporting** (`apps/web/src/app/api/health/ready/route.ts`) — added `asyncIntakeSweep` to the optional-capabilities block (presence of `CRON_SECRET`), non-gating.
+6. **`.env.example`** — replaced the placeholder `INNGEST_*` vars (never approved infra) with `CRON_SECRET`.
+7. This baseline audit, updated to reflect the above truthfully.
+
 ## Immediate next priorities (in order)
 
-1. Real upload → store → serve round-trip verification of `VercelPrivateBlobStorage` against live traffic — deliberately deferred for now (per explicit decision this session); revisit either via a manual UI test or an automated Playwright upload spec when prioritized.
-2. Real generated redacted renditions + download-time re-authorization (Milestone 2 completion) — unblocks third-party preview.
-3. Durable async intake (Inngest) + existing-byte migration tool off Neon-bytea — the remaining Release B scope deferred out of PR #41.
-4. Deployed authenticated-E2E regression once `WORKOS_STAGING_TEST_EMAIL`/`WORKOS_STAGING_TEST_PASSWORD` secrets are provisioned.
-5. Release C/D per the master directive sequencing (Processing PR, then AI PR) — not started; blocked on explicit approval to proceed per the directive's sequencing rule.
+1. Commit, push, and open a draft PR for this round's job-queue work; deploy and verify a real upload actually gets picked up and processed by the worker (not just the mocked/PGlite unit tests) before calling it Production verified.
+2. Real upload → store → serve round-trip verification of `VercelPrivateBlobStorage` against live traffic — deliberately deferred (per explicit decision last round); revisit either via a manual UI test or an automated Playwright upload spec when prioritized. (Would naturally piggyback on #1's live-upload verification.)
+3. Real generated redacted renditions + download-time re-authorization (Milestone 2 completion) — unblocks third-party preview.
+4. Existing-byte migration tool off Neon-bytea onto Vercel Private Blob — the one remaining piece of Release B scope not yet started.
+5. Deployed authenticated-E2E regression once `WORKOS_STAGING_TEST_EMAIL`/`WORKOS_STAGING_TEST_PASSWORD` secrets are provisioned.
+6. Processing PR (Release C: deterministic extraction + automatic naming) per the master directive sequencing — not started; blocked on explicit approval to proceed.
