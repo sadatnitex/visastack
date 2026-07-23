@@ -7,7 +7,7 @@ import { drizzle } from 'drizzle-orm/pglite';
 import { migrate } from 'drizzle-orm/pglite/migrator';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { getAccountByEmail, provisionAccount } from './accounts';
-import { addFamilyMember, createApplicant, listApplicants } from './applicants';
+import { addFamilyMember, createApplicant, listAllApplicants, listApplicants } from './applicants';
 import { appendAuditEvent } from './audit';
 import { getConsents, hasConsent, setConsent } from './consent';
 import type { Db } from './db';
@@ -175,6 +175,16 @@ describe('applicants — consent-gated subject records', () => {
 
     const all = await listApplicants(db, account.id);
     expect(all).toHaveLength(2);
+  });
+
+  it('lists every applicant platform-wide, for admin pickers/lookups', async () => {
+    const a = await seedConsentedAccount(db, 'admin-list-a@example.com');
+    const b = await seedConsentedAccount(db, 'admin-list-b@example.com');
+    await createApplicant(db, { actorAccountId: a.id, ownerAccountId: a.id, displayName: 'A' });
+    await createApplicant(db, { actorAccountId: b.id, ownerAccountId: b.id, displayName: 'B' });
+
+    const all = await listAllApplicants(db);
+    expect(all.map((applicant) => applicant.displayName).sort()).toEqual(['A', 'B']);
   });
 
   it('refuses to create a record for another account', async () => {

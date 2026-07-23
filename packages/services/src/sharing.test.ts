@@ -22,6 +22,7 @@ import {
   acceptGrant,
   createGrant,
   listAccessForApplicant,
+  listAccessForApplicantDetailed,
   listGrantsForRecipientAccount,
   revokeGrant,
 } from './sharing';
@@ -235,6 +236,41 @@ describe('sharing — grant lifecycle end-to-end with the policy engine', () => 
     // A non-member cannot list members.
     const denied = await listOrgMemberships(db, recipient.value.id, org.value.id);
     expect(isErr(denied)).toBe(true);
+  });
+
+  it('resolves a grant recipient to a human-readable identity (account email or org name)', async () => {
+    const { account, applicantId } = await ownerWithDoc(db, 'recip-owner@example.com');
+    const recipient = await provisionAccount(db, { email: 'recip-agent@example.com' });
+    if (!isOk(recipient)) throw new Error('provision');
+    const accountGrant = await createGrant(db, {
+      actorAccountId: account.id,
+      applicantId,
+      recipientAccountId: recipient.value.id,
+      actions: ['PREVIEW'],
+      purpose: 'review',
+    });
+    if (!isOk(accountGrant)) throw new Error('grant');
+
+    const org = await createOrganization(db, { actorAccountId: account.id, name: 'Acme Travel' });
+    if (!isOk(org)) throw new Error('org');
+    const orgGrant = await createGrant(db, {
+      actorAccountId: account.id,
+      applicantId,
+      recipientOrganizationId: org.value.id,
+      actions: ['PREVIEW'],
+      purpose: 'visa_application',
+    });
+    if (!isOk(orgGrant)) throw new Error('grant');
+
+    const detailed = await listAccessForApplicantDetailed(db, account.id, applicantId);
+    expect(isOk(detailed)).toBe(true);
+    if (!isOk(detailed)) return;
+    const byId = new Map(detailed.value.map((g) => [g.id, g.recipient]));
+    expect(byId.get(accountGrant.value.id)).toEqual({
+      kind: 'account',
+      label: 'recip-agent@example.com',
+    });
+    expect(byId.get(orgGrant.value.id)).toEqual({ kind: 'organization', label: 'Acme Travel' });
   });
 
   it('only the recipient can accept, and only the owner can create/revoke', async () => {

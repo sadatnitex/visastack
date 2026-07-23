@@ -63,6 +63,59 @@ export async function listAssignments(db: Db, missionId: string): Promise<Assign
   return db.select().from(schema.assignments).where(eq(schema.assignments.missionId, missionId));
 }
 
+/** An assignment resolved with the member's email, for the org console. */
+export interface AssignmentView {
+  readonly id: string;
+  readonly memberAccountId: string;
+  readonly memberEmail: string;
+  readonly createdAt: string;
+}
+
+/** Same as `listAssignments`, but resolves each assignee's email. */
+export async function listAssignmentsDetailed(
+  db: Db,
+  missionId: string,
+): Promise<AssignmentView[]> {
+  const rows = await db
+    .select({
+      id: schema.assignments.id,
+      memberAccountId: schema.assignments.memberAccountId,
+      memberEmail: schema.accounts.email,
+      createdAt: schema.assignments.createdAt,
+    })
+    .from(schema.assignments)
+    .innerJoin(schema.accounts, eq(schema.accounts.id, schema.assignments.memberAccountId))
+    .where(eq(schema.assignments.missionId, missionId));
+  return rows.map((row) => ({ ...row, createdAt: row.createdAt.toISOString() }));
+}
+
+/** A mission this org can act on (a grant naming it), for the collaboration console. */
+export interface OrgMission {
+  readonly missionId: string;
+  readonly title: string;
+  readonly applicantId: string;
+  readonly applicantName: string;
+}
+
+/** Missions reachable by this org via a mission-scoped grant. */
+export async function listMissionsForOrganization(
+  db: Db,
+  organizationId: string,
+): Promise<OrgMission[]> {
+  const rows = await db
+    .selectDistinct({
+      missionId: schema.missions.id,
+      title: schema.missions.title,
+      applicantId: schema.applicants.id,
+      applicantName: schema.applicants.displayName,
+    })
+    .from(schema.grants)
+    .innerJoin(schema.missions, eq(schema.missions.id, schema.grants.missionId))
+    .innerJoin(schema.applicants, eq(schema.applicants.id, schema.missions.applicantId))
+    .where(eq(schema.grants.recipientOrganizationId, organizationId));
+  return rows;
+}
+
 /** Add a note to a mission (author recorded; append-only in practice). */
 export async function addNote(
   db: Db,
@@ -189,6 +242,54 @@ export async function listEvidenceRequestsForOrg(
     .where(eq(schema.evidenceRequests.organizationId, organizationId));
   const sorted = [...rows].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
   return ok(sorted);
+}
+
+export interface EvidenceRequestWithApplicant extends EvidenceRequest {
+  readonly applicantName: string;
+}
+
+/** Same as `listEvidenceRequestsForOrg`, but resolves each request's applicant name. */
+export async function listEvidenceRequestsForOrgDetailed(
+  db: Db,
+  actorAccountId: string,
+  organizationId: string,
+): Promise<Result<EvidenceRequestWithApplicant[], ServiceError>> {
+  const listed = await listEvidenceRequestsForOrg(db, actorAccountId, organizationId);
+  if (!listed.ok) return listed;
+  const result: EvidenceRequestWithApplicant[] = [];
+  for (const request of listed.value) {
+    const applicant = first(
+      await db
+        .select({ displayName: schema.applicants.displayName })
+        .from(schema.applicants)
+        .where(eq(schema.applicants.id, request.applicantId))
+        .limit(1),
+    );
+    result.push({ ...request, applicantName: applicant?.displayName ?? 'Unknown applicant' });
+  }
+  return ok(result);
+}
+
+/** An applicant who has granted this organization something — the legitimate targets for an evidence request. */
+export interface OrgApplicant {
+  readonly applicantId: string;
+  readonly displayName: string;
+}
+
+/** Applicants with any grant naming this org (candidate targets for evidence requests). */
+export async function listApplicantsForOrganization(
+  db: Db,
+  organizationId: string,
+): Promise<OrgApplicant[]> {
+  const rows = await db
+    .selectDistinct({
+      applicantId: schema.grants.applicantId,
+      displayName: schema.applicants.displayName,
+    })
+    .from(schema.grants)
+    .innerJoin(schema.applicants, eq(schema.applicants.id, schema.grants.applicantId))
+    .where(eq(schema.grants.recipientOrganizationId, organizationId));
+  return rows;
 }
 
 /** The applicant owner responds to an evidence request. */

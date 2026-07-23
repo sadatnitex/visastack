@@ -1,4 +1,4 @@
-import { and, asc, eq, inArray, lte, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, lte, sql } from 'drizzle-orm';
 import { type Db, first, required, schema } from './db';
 import type { ScannerPort } from './intake';
 import { processIntake } from './intake';
@@ -101,6 +101,67 @@ async function failJob(db: Db, job: ProcessingJob, errorMessage: string): Promis
       updatedAt: new Date(),
     })
     .where(eq(schema.processingJobs.id, job.id));
+}
+
+/** A FAILED job with enough document context for an admin to act on it. */
+export interface FailedJobSummary {
+  readonly id: string;
+  readonly documentVersionId: string;
+  readonly documentId: string;
+  readonly documentName: string;
+  readonly applicantId: string;
+  readonly attempts: number;
+  readonly maxAttempts: number;
+  readonly lastError: string | null;
+  readonly updatedAt: string;
+}
+
+/** Jobs that exhausted their retries — parked, never silently dropped, admin-visible. */
+export async function listFailedJobs(db: Db, limit = 50): Promise<FailedJobSummary[]> {
+  const rows = await db
+    .select({
+      id: schema.processingJobs.id,
+      documentVersionId: schema.processingJobs.documentVersionId,
+      documentId: schema.documents.id,
+      documentName: schema.documents.originalName,
+      applicantId: schema.documents.applicantId,
+      attempts: schema.processingJobs.attempts,
+      maxAttempts: schema.processingJobs.maxAttempts,
+      lastError: schema.processingJobs.lastError,
+      updatedAt: schema.processingJobs.updatedAt,
+    })
+    .from(schema.processingJobs)
+    .innerJoin(
+      schema.documentVersions,
+      eq(schema.processingJobs.documentVersionId, schema.documentVersions.id),
+    )
+    .innerJoin(schema.documents, eq(schema.documentVersions.documentId, schema.documents.id))
+    .where(eq(schema.processingJobs.status, 'FAILED'))
+    .orderBy(desc(schema.processingJobs.updatedAt))
+    .limit(limit);
+
+  return rows.map((row) => ({ ...row, updatedAt: row.updatedAt.toISOString() }));
+}
+
+/**
+ * Re-queue a FAILED job with a fresh retry budget (an admin has intervened,
+ * so it deserves another full attempt count rather than picking up where a
+ * possibly-transient failure left off). No-op (returns false) if the job
+ * isn't currently FAILED — never resurrects a job another path already moved.
+ */
+export async function retryFailedJob(db: Db, jobId: string): Promise<boolean> {
+  const updated = await db
+    .update(schema.processingJobs)
+    .set({
+      status: 'PENDING',
+      attempts: 0,
+      lastError: null,
+      availableAt: new Date(),
+      updatedAt: new Date(),
+    })
+    .where(and(eq(schema.processingJobs.id, jobId), eq(schema.processingJobs.status, 'FAILED')))
+    .returning({ id: schema.processingJobs.id });
+  return updated.length > 0;
 }
 
 export interface IntakeWorkerResult {

@@ -251,3 +251,49 @@ export async function listAccessForApplicant(
     .where(eq(schema.grants.applicantId, applicantId));
   return ok(rows);
 }
+
+/** A grant's recipient, resolved to something a human recognizes rather than a raw id. */
+export interface GrantRecipient {
+  readonly kind: 'account' | 'organization' | 'unknown';
+  readonly label: string;
+}
+
+export interface GrantWithRecipient extends Grant {
+  readonly recipient: GrantRecipient;
+}
+
+/** Same as `listAccessForApplicant`, but resolves WHO each grant was given to. */
+export async function listAccessForApplicantDetailed(
+  db: Db,
+  actorAccountId: string,
+  applicantId: string,
+): Promise<Result<GrantWithRecipient[], ServiceError>> {
+  const listed = await listAccessForApplicant(db, actorAccountId, applicantId);
+  if (!listed.ok) return listed;
+
+  const result: GrantWithRecipient[] = [];
+  for (const grant of listed.value) {
+    let recipient: GrantRecipient = { kind: 'unknown', label: 'Unknown recipient' };
+    if (grant.recipientAccountId) {
+      const account = first(
+        await db
+          .select({ email: schema.accounts.email })
+          .from(schema.accounts)
+          .where(eq(schema.accounts.id, grant.recipientAccountId))
+          .limit(1),
+      );
+      recipient = { kind: 'account', label: account?.email ?? 'Unknown recipient' };
+    } else if (grant.recipientOrganizationId) {
+      const organization = first(
+        await db
+          .select({ name: schema.organizations.name })
+          .from(schema.organizations)
+          .where(eq(schema.organizations.id, grant.recipientOrganizationId))
+          .limit(1),
+      );
+      recipient = { kind: 'organization', label: organization?.name ?? 'Unknown organization' };
+    }
+    result.push({ ...grant, recipient });
+  }
+  return ok(result);
+}

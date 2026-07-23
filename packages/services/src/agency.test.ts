@@ -10,8 +10,12 @@ import {
   addNote,
   assignMember,
   bulkExport,
+  listApplicantsForOrganization,
+  listAssignmentsDetailed,
   listEvidenceRequestsForApplicant,
   listEvidenceRequestsForOrg,
+  listEvidenceRequestsForOrgDetailed,
+  listMissionsForOrganization,
   listNotes,
   requestEvidence,
   respondEvidence,
@@ -171,6 +175,110 @@ describe('agency collaboration — assignments, notes, evidence', () => {
     expect(memberships).toHaveLength(1);
     expect(memberships[0]?.role).toBe('OWNER');
     expect(memberships[0]?.organization.id).toBe(org.value.id);
+  });
+
+  it('resolves the applicant name on each org evidence request', async () => {
+    const { applicantId } = await consentedApplicant(db, 'ev3@example.com');
+    const agentAcc = await provisionAccount(db, { email: 'agent-ev3@acme.com' });
+    if (!isOk(agentAcc)) throw new Error('provision');
+    const org = await createOrganization(db, { actorAccountId: agentAcc.value.id, name: 'Acme' });
+    if (!isOk(org)) throw new Error('org');
+
+    await requestEvidence(db, {
+      actorAccountId: agentAcc.value.id,
+      organizationId: org.value.id,
+      applicantId,
+      kind: 'FIELD',
+      fieldKey: 'passport_number',
+    });
+
+    const detailed = await listEvidenceRequestsForOrgDetailed(db, agentAcc.value.id, org.value.id);
+    expect(isOk(detailed)).toBe(true);
+    if (isOk(detailed)) {
+      expect(detailed.value).toHaveLength(1);
+      expect(detailed.value[0]?.applicantName).toBe('Owner');
+    }
+  });
+
+  it('resolves an assignment to the assigned member email', async () => {
+    const { account, applicantId } = await consentedApplicant(db, 'assign@example.com');
+    const mission = await createMission(db, {
+      actorAccountId: account.id,
+      applicantId,
+      title: 'M',
+    });
+    if (!isOk(mission)) throw new Error('mission');
+    const agentAcc = await provisionAccount(db, { email: 'agent-assign@acme.com' });
+    if (!isOk(agentAcc)) throw new Error('provision');
+    const org = await createOrganization(db, { actorAccountId: agentAcc.value.id, name: 'Acme' });
+    if (!isOk(org)) throw new Error('org');
+
+    await assignMember(db, {
+      actorAccountId: agentAcc.value.id,
+      organizationId: org.value.id,
+      memberAccountId: agentAcc.value.id,
+      missionId: mission.value.id,
+    });
+
+    const assignments = await listAssignmentsDetailed(db, mission.value.id);
+    expect(assignments).toHaveLength(1);
+    expect(assignments[0]?.memberEmail).toBe('agent-assign@acme.com');
+  });
+
+  it('lists missions reachable by an org via a mission-scoped grant', async () => {
+    const { account, applicantId } = await consentedApplicant(db, 'orgmission@example.com');
+    const mission = await createMission(db, {
+      actorAccountId: account.id,
+      applicantId,
+      title: 'Business trip',
+    });
+    if (!isOk(mission)) throw new Error('mission');
+    const agentAcc = await provisionAccount(db, { email: 'agent-orgmission@acme.com' });
+    if (!isOk(agentAcc)) throw new Error('provision');
+    const org = await createOrganization(db, { actorAccountId: agentAcc.value.id, name: 'Acme' });
+    if (!isOk(org)) throw new Error('org');
+
+    // No grant yet — the mission isn't visible.
+    expect(await listMissionsForOrganization(db, org.value.id)).toHaveLength(0);
+
+    await createGrant(db, {
+      actorAccountId: account.id,
+      applicantId,
+      recipientOrganizationId: org.value.id,
+      missionId: mission.value.id,
+      actions: ['PREVIEW'],
+      purpose: 'collaboration',
+    });
+
+    const missions = await listMissionsForOrganization(db, org.value.id);
+    expect(missions).toHaveLength(1);
+    expect(missions[0]?.missionId).toBe(mission.value.id);
+    expect(missions[0]?.title).toBe('Business trip');
+    expect(missions[0]?.applicantName).toBe('Owner');
+  });
+
+  it('lists only applicants who have granted this org something', async () => {
+    const a = await consentedApplicant(db, 'orgapp-a@example.com');
+    const b = await consentedApplicant(db, 'orgapp-b@example.com');
+    const agentAcc = await provisionAccount(db, { email: 'agent-orgapp@acme.com' });
+    if (!isOk(agentAcc)) throw new Error('provision');
+    const org = await createOrganization(db, { actorAccountId: agentAcc.value.id, name: 'Acme' });
+    if (!isOk(org)) throw new Error('org');
+
+    // A has granted this org something; B has not.
+    await createGrant(db, {
+      actorAccountId: a.account.id,
+      applicantId: a.applicantId,
+      recipientOrganizationId: org.value.id,
+      actions: ['PREVIEW'],
+      purpose: 'review',
+    });
+    void b;
+
+    const applicants = await listApplicantsForOrganization(db, org.value.id);
+    expect(applicants).toHaveLength(1);
+    expect(applicants[0]?.applicantId).toBe(a.applicantId);
+    expect(applicants[0]?.displayName).toBe('Owner');
   });
 });
 
