@@ -28,12 +28,17 @@ function resolveBaseUrl(): string {
  *
  * Vercel Private Blob is selected whenever `BLOB_READ_WRITE_TOKEN` is
  * configured — the pilot/commercial-track backend. Falling back to
- * Neon-bytea keeps local development and tests working with zero external
- * accounts, but that path is REDUCED-CONTROL and NON-COMMERCIAL (bytes live
- * in the application database, not a purpose-built object store) — it must
- * never be the active backend for a real deployment handling real evidence.
+ * Neon-bytea keeps local development, automated tests, and PR previews
+ * working with zero external accounts (the directive's own §3 taxonomy
+ * classifies pull-request previews as "development" mode, alongside local
+ * dev and tests) — that path is REDUCED-CONTROL and NON-COMMERCIAL (bytes
+ * live in the application database, not a purpose-built object store).
  *
- * Fail-closed either way: access references must always be signed.
+ * FAIL CLOSED in production (`VERCEL_ENV === 'production'`): the controlled
+ * pilot handling real evidence must never silently degrade to reduced-control
+ * storage just because the token wasn't configured — that's a deployment
+ * misconfiguration, not something to paper over (§10/§21E: "fail closed when
+ * only reduced-control mode available").
  */
 export function createStorage(db: Db): StoragePort & BlobStore {
   const signingSecret = readEnv('BLOB_SIGNING_SECRET');
@@ -43,6 +48,12 @@ export function createStorage(db: Db): StoragePort & BlobStore {
   const blobToken = readEnv('BLOB_READ_WRITE_TOKEN');
   if (blobToken) {
     return new VercelPrivateBlobStorage({ db, signingSecret, baseUrl, token: blobToken });
+  }
+
+  if (readEnv('VERCEL_ENV') === 'production') {
+    throw new Error(
+      'BLOB_READ_WRITE_TOKEN is not configured in production — refusing to fall back to reduced-control Neon-bytea storage for real evidence',
+    );
   }
   return new NeonBlobStorage({ db, signingSecret, baseUrl });
 }
