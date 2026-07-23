@@ -4,7 +4,7 @@ import { notFound } from 'next/navigation';
 import { isPlatformAdmin } from '../../../../../lib/admin';
 import { withSession } from '../../../../../lib/session';
 import { approveVersionAction, openVersionAction, publishVersionAction } from '../actions';
-import { AddRequirementForm } from '../pack-forms';
+import { AddRequirementForm, VerifyChecksumForm } from '../pack-forms';
 
 export const dynamic = 'force-dynamic';
 
@@ -133,9 +133,22 @@ export default async function PackDetailPage({
                 )}
 
                 {version.checksum ? (
-                  <p className="muted" style={{ fontSize: '0.75rem', marginTop: '0.75rem' }}>
-                    Checksum: {version.checksum.slice(0, 16)}…
-                  </p>
+                  <div style={{ marginTop: '0.75rem' }}>
+                    <p className="muted" style={{ fontSize: '0.75rem', marginBottom: '0.5rem' }}>
+                      Checksum: {version.checksum.slice(0, 16)}…
+                    </p>
+                    <div style={{ display: 'flex', gap: '0.6rem', alignItems: 'flex-start' }}>
+                      <VerifyChecksumForm packVersionId={version.id} />
+                      <a
+                        href={`/app/admin/packs/${packId}/versions/${version.id}/manifest`}
+                        className="btn btn-secondary"
+                        style={{ padding: '0.3rem 0.85rem', fontSize: '0.8rem' }}
+                        download
+                      >
+                        Download manifest
+                      </a>
+                    </div>
+                  </div>
                 ) : null}
 
                 {isDraft ? (

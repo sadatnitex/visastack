@@ -6,6 +6,7 @@ import {
   approvePackVersion,
   createPack,
   publishPackVersion,
+  verifyPackChecksum,
 } from '@visastack/services';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
@@ -110,6 +111,26 @@ export async function approveVersionAction(formData: FormData): Promise<void> {
     await approvePackVersion(db, { actorAccountId: accountId, packVersionId });
   });
   revalidatePath(`/app/admin/packs/${packId}`);
+}
+
+/** Recompute a version's manifest checksum and compare it to the frozen value. Platform-admin only. */
+export async function verifyChecksumAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const packVersionId = String(formData.get('packVersionId') ?? '').trim();
+  if (packVersionId.length === 0) return { ok: false, message: 'Missing version.' };
+
+  return withSession(async ({ db, email }) => {
+    if (!isPlatformAdmin(email)) return DENIED;
+    const valid = await verifyPackChecksum(db, packVersionId);
+    return {
+      ok: valid,
+      message: valid
+        ? 'Checksum matches — the requirement content is unchanged since approval.'
+        : 'Checksum mismatch — the requirement content has changed since approval.',
+    } satisfies ActionState;
+  });
 }
 
 /** Publish an APPROVED version, making it attachable by missions. Platform-admin only. */

@@ -1,7 +1,12 @@
 'use client';
 
 import { useActionState } from 'react';
-import { type ActionState, addRequirementAction, createPackAction } from './actions';
+import {
+  type ActionState,
+  addRequirementAction,
+  createPackAction,
+  verifyChecksumAction,
+} from './actions';
 
 const INITIAL: ActionState = { ok: true, message: '' };
 
@@ -116,6 +121,28 @@ export function AddRequirementForm({
           </p>
         ) : null}
       </div>
+    </form>
+  );
+}
+
+export function VerifyChecksumForm({ packVersionId }: { readonly packVersionId: string }) {
+  const [state, formAction, pending] = useActionState(verifyChecksumAction, INITIAL);
+  return (
+    <form action={formAction} style={{ display: 'inline-block' }}>
+      <input type="hidden" name="packVersionId" value={packVersionId} />
+      <button
+        type="submit"
+        className="btn btn-secondary"
+        style={{ padding: '0.3rem 0.85rem', fontSize: '0.8rem' }}
+        disabled={pending}
+      >
+        {pending ? 'Verifying…' : 'Verify checksum'}
+      </button>
+      {state.message ? (
+        <p className={`field-msg ${state.ok ? 'field-msg-ok' : 'field-msg-err'}`}>
+          {state.message}
+        </p>
+      ) : null}
     </form>
   );
 }
