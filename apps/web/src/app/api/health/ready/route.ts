@@ -67,8 +67,14 @@ export async function GET(): Promise<Response> {
   const coreReady = db.connected && db.schemaApplied && workosConfigured;
   const status = coreReady ? 'ready' : 'degraded';
 
-  // Optional-capability visibility (not a core gate): signed document access.
-  const capabilities = { signedBlobStorage: isPresent('BLOB_SIGNING_SECRET') };
+  // Optional-capability visibility (not a core gate): signed document access
+  // and the periodic durable-job sweep (uploads still enqueue and process via
+  // `after()` without this — it only gates the /api/jobs/process-intake
+  // backstop route).
+  const capabilities = {
+    signedBlobStorage: isPresent('BLOB_SIGNING_SECRET'),
+    asyncIntakeSweep: isPresent('CRON_SECRET'),
+  };
 
   const body = isProduction ? { status } : { status, env, db, capabilities };
 
