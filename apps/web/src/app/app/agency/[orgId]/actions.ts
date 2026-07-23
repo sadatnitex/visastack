@@ -3,6 +3,8 @@
 import type { MembershipRole } from '@visastack/core';
 import {
   addMembership,
+  addNote,
+  assignMember,
   getAccountByEmail,
   requestEvidence,
   setMembershipActive,
@@ -85,6 +87,39 @@ export async function addMemberAction(
     });
     if (!added.ok) return { ok: false, message: added.error.message } satisfies ActionState;
     return { ok: true, message: `${memberEmail} added as ${role}.` } satisfies ActionState;
+  });
+  if (result.ok) revalidatePath(`/app/agency/${organizationId}`);
+  return result;
+}
+
+/** Assign an org member to a mission (org admin). Bookkeeping only — never grants access on its own. */
+export async function assignMemberAction(formData: FormData): Promise<void> {
+  const organizationId = String(formData.get('organizationId') ?? '');
+  const missionId = String(formData.get('missionId') ?? '');
+  const memberAccountId = String(formData.get('memberAccountId') ?? '');
+  if (missionId.length === 0 || memberAccountId.length === 0) return;
+  await withSession(async ({ db, accountId }) => {
+    await assignMember(db, {
+      actorAccountId: accountId,
+      organizationId,
+      memberAccountId,
+      missionId,
+    });
+  });
+  revalidatePath(`/app/agency/${organizationId}`);
+}
+
+/** Add a case note to a mission (org admin). */
+export async function addNoteAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  const organizationId = String(formData.get('organizationId') ?? '');
+  const missionId = String(formData.get('missionId') ?? '');
+  const body = String(formData.get('body') ?? '').trim();
+  if (body.length === 0) return { ok: false, message: 'Enter a note.' };
+
+  const result = await withSession(async ({ db, accountId }) => {
+    const note = await addNote(db, { actorAccountId: accountId, missionId, body });
+    if (!note.ok) return { ok: false, message: note.error.message } satisfies ActionState;
+    return { ok: true, message: 'Note added.' } satisfies ActionState;
   });
   if (result.ok) revalidatePath(`/app/agency/${organizationId}`);
   return result;
