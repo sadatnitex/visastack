@@ -374,6 +374,33 @@ main {
   background: var(--bg-subtle);
 }
 
+/* Usage meter (quota bars) */
+.meter {
+  height: 6px;
+  border-radius: var(--radius-pill);
+  background: var(--bg-subtle);
+  overflow: hidden;
+}
+.meter-fill {
+  height: 100%;
+  border-radius: var(--radius-pill);
+  background: var(--accent);
+  transition: width 0.2s ease;
+}
+.meter-fill.meter-warn {
+  background: var(--warning);
+}
+.meter-fill.meter-full {
+  background: var(--danger);
+}
+.meter-label {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  margin-bottom: 0.4rem;
+}
+
 /* Definition rows (status details) */
 .rows {
   display: flex;

@@ -38,6 +38,11 @@ export async function saveFactAction(_prev: ActionState, formData: FormData): Pr
   const applicantId = String(formData.get('applicantId') ?? '');
   const fieldKey = String(formData.get('fieldKey') ?? '');
   const value = String(formData.get('value') ?? '').trim();
+  const repeatingRecordKeyRaw = formData.get('repeatingRecordKey');
+  const repeatingRecordKey =
+    typeof repeatingRecordKeyRaw === 'string' && repeatingRecordKeyRaw.length > 0
+      ? repeatingRecordKeyRaw
+      : null;
   const def = profileField(fieldKey);
   if (!def) return { ok: false, message: 'Unknown field.' };
   if (value.length === 0) return { ok: false, message: 'Enter a value first.' };
@@ -50,12 +55,14 @@ export async function saveFactAction(_prev: ActionState, formData: FormData): Pr
       key: def.key,
       dataType: def.type === 'date' ? 'date' : 'string',
       sensitivity: def.sensitivity,
+      repeating: def.group !== undefined,
     });
     const edit = await editFact(db, {
       actorAccountId: accountId,
       applicantId,
       fieldKey: def.key,
       value,
+      ...(repeatingRecordKey !== null ? { repeatingRecordKey } : {}),
     });
     if (!edit.ok) return { ok: false, message: edit.error.message } satisfies ActionState;
     return { ok: true, message: `${def.label} saved.` } satisfies ActionState;
