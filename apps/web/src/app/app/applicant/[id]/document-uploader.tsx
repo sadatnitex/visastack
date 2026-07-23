@@ -14,7 +14,7 @@ export function DocumentUploader({ applicantId }: { readonly applicantId: string
       <input
         name="file"
         type="file"
-        accept=".pdf,.png,.jpg,.jpeg,image/png,image/jpeg,application/pdf"
+        accept=".pdf,.png,.jpg,.jpeg,.docx,.txt,.md,image/png,image/jpeg,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,text/markdown"
         required
         className="input"
         aria-label="Document file"
@@ -28,7 +28,7 @@ export function DocumentUploader({ applicantId }: { readonly applicantId: string
         </p>
       ) : null}
       <p className="muted" style={{ fontSize: '0.8rem', margin: 0 }}>
-        PDF, PNG or JPEG · up to 15 MB · scanned for safety on upload.
+        PDF, PNG, JPEG, DOCX, TXT or MD · up to 15 MB · scanned for safety on upload.
       </p>
     </form>
   );
