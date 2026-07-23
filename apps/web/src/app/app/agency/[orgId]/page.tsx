@@ -1,14 +1,20 @@
 import {
   getOrganization,
   isOrgAdmin,
-  listEvidenceRequestsForOrg,
+  listApplicantsForOrganization,
+  listAssignmentsDetailed,
+  listEvidenceRequestsForOrgDetailed,
+  listMissionsForOrganization,
+  listNotes,
   listOrgMemberships,
 } from '@visastack/services';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { profileField } from '../../../../lib/profile-fields';
 import { withSession } from '../../../../lib/session';
 import { toggleMemberAction } from './actions';
 import { AddMemberForm } from './member-form';
+import { MissionCollaboration } from './mission-collaboration';
 import { RequestEvidenceForm } from './request-evidence-form';
 
 export const dynamic = 'force-dynamic';
@@ -38,16 +44,42 @@ export default async function OrgConsolePage({
     const org = await getOrganization(db, orgId);
     if (!org) return null;
     const admin = await isOrgAdmin(db, accountId, orgId);
-    if (!admin) return { org, admin: false, requests: [], members: [] };
-    const [requests, members] = await Promise.all([
-      listEvidenceRequestsForOrg(db, accountId, orgId),
+    if (!admin) {
+      return { org, admin: false, requests: [], members: [], applicants: [], missions: [] };
+    }
+    const [requests, members, applicants, orgMissions] = await Promise.all([
+      listEvidenceRequestsForOrgDetailed(db, accountId, orgId),
       listOrgMemberships(db, accountId, orgId),
+      listApplicantsForOrganization(db, orgId),
+      listMissionsForOrganization(db, orgId),
     ]);
+    const membersResolved = members.ok ? members.value : [];
+    const missions = await Promise.all(
+      orgMissions.map(async (mission) => {
+        const [assignments, notes] = await Promise.all([
+          listAssignmentsDetailed(db, mission.missionId),
+          listNotes(db, mission.missionId),
+        ]);
+        return {
+          ...mission,
+          assignments,
+          notes: notes.map((n) => ({
+            id: n.id,
+            body: n.body,
+            createdAt: n.createdAt.toISOString(),
+            authorEmail:
+              membersResolved.find((m) => m.accountId === n.authorAccountId)?.email ?? 'Unknown',
+          })),
+        };
+      }),
+    );
     return {
       org,
       admin: true,
       requests: requests.ok ? requests.value : [],
-      members: members.ok ? members.value : [],
+      members: membersResolved,
+      applicants,
+      missions,
     };
   });
 
@@ -91,7 +123,7 @@ export default async function OrgConsolePage({
               <p className="card-body" style={{ marginBottom: '1.25rem' }}>
                 Ask an applicant for a specific field or document. They decide whether to fulfil it.
               </p>
-              <RequestEvidenceForm organizationId={orgId} />
+              <RequestEvidenceForm organizationId={orgId} applicants={data.applicants} />
             </article>
 
             <article className="card">
@@ -155,6 +187,36 @@ export default async function OrgConsolePage({
           </article>
 
           <article className="card" style={{ marginTop: '1.5rem' }}>
+            <p className="card-kicker">Collaborate</p>
+            <h2 className="card-title">Missions</h2>
+            <p className="card-body" style={{ marginBottom: '1.25rem' }}>
+              Assign a team member and leave case notes on any mission this organization has a grant
+              for.
+            </p>
+            {data.missions.length === 0 ? (
+              <p className="card-body">
+                No missions are reachable yet — an applicant must grant this organization access to
+                a specific mission.
+              </p>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                {data.missions.map((mission) => (
+                  <MissionCollaboration
+                    key={mission.missionId}
+                    organizationId={orgId}
+                    missionId={mission.missionId}
+                    title={mission.title}
+                    applicantName={mission.applicantName}
+                    members={data.members.map((m) => ({ accountId: m.accountId, email: m.email }))}
+                    assignments={mission.assignments}
+                    notes={mission.notes}
+                  />
+                ))}
+              </div>
+            )}
+          </article>
+
+          <article className="card" style={{ marginTop: '1.5rem' }}>
             <p className="card-kicker">Activity</p>
             <h2 className="card-title">Evidence requests</h2>
             {data.requests.length === 0 ? (
@@ -163,13 +225,28 @@ export default async function OrgConsolePage({
               <div className="rows" style={{ marginTop: '0.5rem' }}>
                 {data.requests.map((req) => {
                   const rb = REQ_STATUS[req.status] ?? { label: req.status, tone: 'badge-neutral' };
-                  const target = req.kind === 'FIELD' ? req.fieldKey : req.docType;
+                  const target =
+                    req.kind === 'FIELD'
+                      ? ((req.fieldKey ? profileField(req.fieldKey)?.label : undefined) ??
+                        req.fieldKey)
+                      : req.docType;
                   return (
-                    <div className="row" key={req.id}>
-                      <span className="row-key">
-                        {req.kind === 'FIELD' ? 'Field' : 'Document'}: {target ?? '(unspecified)'}
+                    <div
+                      className="row"
+                      key={req.id}
+                      style={{ flexDirection: 'column', alignItems: 'stretch', gap: '0.2rem' }}
+                    >
+                      <div
+                        style={{ display: 'flex', justifyContent: 'space-between', gap: '0.75rem' }}
+                      >
+                        <span className="row-key">
+                          {req.kind === 'FIELD' ? 'Field' : 'Document'}: {target ?? '(unspecified)'}
+                        </span>
+                        <span className={`badge ${rb.tone}`}>{rb.label}</span>
+                      </div>
+                      <span className="muted" style={{ fontSize: '0.8rem' }}>
+                        {req.applicantName}
                       </span>
-                      <span className={`badge ${rb.tone}`}>{rb.label}</span>
                     </div>
                   );
                 })}

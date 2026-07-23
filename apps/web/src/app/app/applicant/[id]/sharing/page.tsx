@@ -1,4 +1,4 @@
-import { getApplicant, listAccessForApplicant } from '@visastack/services';
+import { getApplicant, listAccessForApplicantDetailed } from '@visastack/services';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { withSession } from '../../../../../lib/session';
@@ -48,7 +48,7 @@ export default async function SharingPage({
   const data = await withSession(async ({ db, accountId }) => {
     const applicant = await getApplicant(db, id);
     if (!applicant || applicant.ownerAccountId !== accountId) return null;
-    const access = await listAccessForApplicant(db, accountId, id);
+    const access = await listAccessForApplicantDetailed(db, accountId, id);
     return { applicant, grants: access.ok ? access.value : [] };
   });
 
@@ -117,11 +117,15 @@ export default async function SharingPage({
                         gap: '0.75rem',
                       }}
                     >
-                      <span className="row-key">{grant.purpose}</span>
+                      <span className="row-key">
+                        {grant.recipient.label}
+                        {grant.recipient.kind === 'organization' ? ' (organization)' : ''}
+                      </span>
                       <span className={`badge ${badge.tone}`}>{badge.label}</span>
                     </div>
                     <p className="muted" style={{ margin: 0, fontSize: '0.8rem' }}>
-                      {grant.actions.length} permission{grant.actions.length === 1 ? '' : 's'}
+                      {grant.purpose} · {grant.actions.length} permission
+                      {grant.actions.length === 1 ? '' : 's'}
                       {grant.expiryAt
                         ? ` · expires ${new Date(grant.expiryAt).toLocaleDateString()}`
                         : ''}

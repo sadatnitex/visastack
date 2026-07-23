@@ -1,6 +1,7 @@
 import { getApplicant, listApplicantProfile, listFactHistory } from '@visastack/services';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { profileField } from '../../../../../lib/profile-fields';
 import { withSession } from '../../../../../lib/session';
 
 export const dynamic = 'force-dynamic';
@@ -47,6 +48,7 @@ export default async function HistoryPage({
     const withHistory = await Promise.all(
       entries.map(async (entry) => ({
         fieldKey: entry.fieldKey,
+        repeatingRecordKey: entry.repeatingRecordKey,
         versions: (await listFactHistory(db, entry.factId)).map((v) => ({
           id: v.id,
           value: v.value,
@@ -89,9 +91,20 @@ export default async function HistoryPage({
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
           {data.facts.map((fact) => (
-            <article className="card" key={fact.fieldKey}>
+            <article
+              className="card"
+              key={`${fact.fieldKey}-${fact.repeatingRecordKey ?? 'single'}`}
+            >
               <h2 className="card-title" style={{ marginBottom: '1rem' }}>
-                {fact.fieldKey}
+                {profileField(fact.fieldKey)?.label ?? fact.fieldKey}
+                {fact.repeatingRecordKey ? (
+                  <span
+                    className="muted"
+                    style={{ fontSize: '0.75rem', fontWeight: 400, marginLeft: '0.5rem' }}
+                  >
+                    (record {fact.repeatingRecordKey.slice(0, 8)})
+                  </span>
+                ) : null}
               </h2>
               <div className="rows">
                 {fact.versions.map((v, i) => (

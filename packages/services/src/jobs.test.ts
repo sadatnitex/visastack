@@ -12,7 +12,7 @@ import { setConsent } from './consent';
 import type { Db } from './db';
 import { addDocumentVersion, registerDocument } from './documents';
 import type { ScannerPort } from './intake';
-import { enqueueIntakeJob, runIntakeWorker } from './jobs';
+import { enqueueIntakeJob, listFailedJobs, retryFailedJob, runIntakeWorker } from './jobs';
 
 const migrationsFolder = fileURLToPath(new URL('../../db/migrations', import.meta.url));
 
@@ -190,5 +190,41 @@ describe('low-volume durable job queue — async intake', () => {
 
     const third = await runIntakeWorker(db, cleanScanner, { limit: 1 });
     expect(third).toEqual({ processed: 0, failed: 0 });
+  });
+
+  it('lists exhausted jobs with document context, and lets an admin retry one', async () => {
+    const versionId = await seedVersion(db, 'j6@example.com');
+    const job = await enqueueIntakeJob(db, { documentVersionId: versionId });
+    await db
+      .update(schema.processingJobs)
+      .set({ maxAttempts: 1 })
+      .where(eq(schema.processingJobs.id, job.id));
+
+    const brokenScanner: ScannerPort = {
+      async scan() {
+        throw new Error('scanner unavailable');
+      },
+    };
+    await runIntakeWorker(db, brokenScanner);
+
+    const failed = await listFailedJobs(db);
+    expect(failed).toHaveLength(1);
+    expect(failed[0]?.documentName).toBe('p.pdf');
+    expect(failed[0]?.lastError).toContain('scanner unavailable');
+    expect(failed[0]?.attempts).toBe(1);
+
+    const retried = await retryFailedJob(db, job.id);
+    expect(retried).toBe(true);
+
+    const afterRetry = (
+      await db.select().from(schema.processingJobs).where(eq(schema.processingJobs.id, job.id))
+    )[0];
+    expect(afterRetry?.status).toBe('PENDING');
+    expect(afterRetry?.attempts).toBe(0);
+    expect(afterRetry?.lastError).toBeNull();
+    expect(await listFailedJobs(db)).toHaveLength(0);
+
+    // Retrying a job that isn't FAILED is a safe no-op.
+    expect(await retryFailedJob(db, job.id)).toBe(false);
   });
 });

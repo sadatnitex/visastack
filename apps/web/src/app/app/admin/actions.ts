@@ -2,7 +2,9 @@
 
 import {
   placeLegalHold,
+  purgeExpiredDocuments,
   releaseLegalHold,
+  retryFailedJob,
   reviewOrganization,
   setRetentionPolicy,
 } from '@visastack/services';
@@ -69,6 +71,41 @@ export async function releaseLegalHoldAction(formData: FormData): Promise<void> 
     await releaseLegalHold(db, { actorAccountId: accountId, holdId });
   });
   revalidatePath('/app/admin');
+}
+
+/** Re-queue a FAILED intake job with a fresh retry budget. Platform-admin only. */
+export async function retryJobAction(formData: FormData): Promise<void> {
+  const jobId = String(formData.get('jobId') ?? '').trim();
+  if (jobId.length === 0) return;
+  await withSession(async ({ db, email }) => {
+    if (!isPlatformAdmin(email)) return;
+    await retryFailedJob(db, jobId);
+  });
+  revalidatePath('/app/admin');
+}
+
+/**
+ * Permanently delete every document past its retention policy (never one
+ * under an active legal hold). Platform-admin only. Irreversible.
+ */
+export async function purgeExpiredDocumentsAction(
+  _prev: ActionState,
+  _formData: FormData,
+): Promise<ActionState> {
+  const result = await withSession(async ({ db, accountId, email }) => {
+    if (!isPlatformAdmin(email)) return DENIED;
+    const purged = await purgeExpiredDocuments(db, { actorAccountId: accountId });
+    if (!purged.ok) return { ok: false, message: purged.error.message } satisfies ActionState;
+    return {
+      ok: true,
+      message:
+        purged.value.purged === 0
+          ? 'Nothing was eligible to purge.'
+          : `Permanently deleted ${purged.value.purged} document${purged.value.purged === 1 ? '' : 's'}.`,
+    } satisfies ActionState;
+  });
+  if (result.ok) revalidatePath('/app/admin');
+  return result;
 }
 
 /** Verify or reject a pending organization. Platform-admin only (and not a member). */

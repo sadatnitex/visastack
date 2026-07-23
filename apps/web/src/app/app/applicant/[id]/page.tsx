@@ -1,8 +1,10 @@
 import {
   getApplicant,
+  getApplicantEvidenceBytes,
   hasConsent,
   listApplicantProfile,
   listDocumentsDetailed,
+  loadUploadQuotaConfig,
 } from '@visastack/services';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
@@ -10,6 +12,7 @@ import { withSession } from '../../../../lib/session';
 import { previewDocumentAction } from './actions';
 import { DocumentUploader } from './document-uploader';
 import { ProfileEditor } from './profile-editor';
+import { UsageMeter } from './usage-meter';
 
 export const dynamic = 'force-dynamic';
 
@@ -36,24 +39,37 @@ export default async function ApplicantPage({
   const data = await withSession(async ({ db, accountId }) => {
     const applicant = await getApplicant(db, id);
     if (!applicant || applicant.ownerAccountId !== accountId) return null;
-    const [profile, documents, coreGranted] = await Promise.all([
+    const [profile, documents, coreGranted, evidenceBytes] = await Promise.all([
       listApplicantProfile(db, id),
       listDocumentsDetailed(db, accountId, id),
       hasConsent(db, accountId, 'CORE_PROCESSING'),
+      getApplicantEvidenceBytes(db, id),
     ]);
     return {
       applicant,
       profile,
       documents: documents.ok ? documents.value : [],
       coreGranted,
+      evidenceBytes,
+      quota: loadUploadQuotaConfig(),
     };
   });
 
   if (!data) notFound();
 
   const values: Record<string, { value: string | null; status: string | null }> = {};
+  const repeatingValues: Record<
+    string,
+    Record<string, { value: string | null; status: string | null }>
+  > = {};
   for (const entry of data.profile) {
-    values[entry.fieldKey] = { value: entry.value, status: entry.status };
+    if (entry.repeatingRecordKey === null) {
+      values[entry.fieldKey] = { value: entry.value, status: entry.status };
+    } else {
+      const byRecord = repeatingValues[entry.fieldKey] ?? {};
+      byRecord[entry.repeatingRecordKey] = { value: entry.value, status: entry.status };
+      repeatingValues[entry.fieldKey] = byRecord;
+    }
   }
 
   return (
@@ -107,7 +123,7 @@ export default async function ApplicantPage({
             overwritten.
           </p>
           {data.coreGranted ? (
-            <ProfileEditor applicantId={id} values={values} />
+            <ProfileEditor applicantId={id} values={values} repeatingValues={repeatingValues} />
           ) : (
             <p className="muted">Consent required.</p>
           )}
@@ -161,7 +177,16 @@ export default async function ApplicantPage({
           )}
 
           {data.coreGranted ? (
-            <DocumentUploader applicantId={id} />
+            <>
+              <div style={{ marginBottom: '1.25rem' }}>
+                <UsageMeter
+                  label="Evidence storage"
+                  usedBytes={data.evidenceBytes}
+                  limitBytes={data.quota.maxApplicantEvidenceBytes}
+                />
+              </div>
+              <DocumentUploader applicantId={id} />
+            </>
           ) : (
             <p className="muted">Consent required.</p>
           )}

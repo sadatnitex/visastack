@@ -50,22 +50,34 @@ export function RetentionPolicyForm() {
   );
 }
 
-export function LegalHoldForm() {
+interface LegalHoldFormProps {
+  readonly applicants: readonly { readonly id: string; readonly displayName: string }[];
+}
+
+export function LegalHoldForm({ applicants }: LegalHoldFormProps) {
   const [state, formAction, pending] = useActionState(placeLegalHoldAction, INITIAL);
   return (
     <form action={formAction} className="field-list">
       <div className="field-row">
         <label className="field-label" htmlFor="applicantId">
-          Applicant ID
+          Applicant
         </label>
-        <input
-          id="applicantId"
-          name="applicantId"
-          type="text"
-          required
-          className="input"
-          placeholder="The applicant to hold"
-        />
+        {applicants.length === 0 ? (
+          <p className="muted" style={{ fontSize: '0.85rem' }}>
+            No applicants exist yet.
+          </p>
+        ) : (
+          <select id="applicantId" name="applicantId" required className="input" defaultValue="">
+            <option value="" disabled>
+              Choose an applicant…
+            </option>
+            {applicants.map((a) => (
+              <option key={a.id} value={a.id}>
+                {a.displayName}
+              </option>
+            ))}
+          </select>
+        )}
       </div>
       <div className="field-row">
         <label className="field-label" htmlFor="reason">

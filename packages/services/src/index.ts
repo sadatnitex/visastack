@@ -42,6 +42,7 @@ export {
   addFamilyMember,
   createApplicant,
   getApplicant,
+  listAllApplicants,
   listApplicants,
 } from './applicants';
 
@@ -90,15 +91,23 @@ export {
 
 export {
   type Assignment,
+  type AssignmentView,
   type BulkExportRow,
   type EvidenceRequest,
+  type EvidenceRequestWithApplicant,
   type MissionNote,
+  type OrgApplicant,
+  type OrgMission,
   addNote,
   assignMember,
   bulkExport,
+  listApplicantsForOrganization,
   listAssignments,
+  listAssignmentsDetailed,
   listEvidenceRequestsForApplicant,
   listEvidenceRequestsForOrg,
+  listEvidenceRequestsForOrgDetailed,
+  listMissionsForOrganization,
   listNotes,
   requestEvidence,
   respondEvidence,
@@ -124,10 +133,13 @@ export {
 export {
   type CreateGrantInput,
   type Grant,
+  type GrantRecipient,
+  type GrantWithRecipient,
   type IncomingGrant,
   acceptGrant,
   createGrant,
   listAccessForApplicant,
+  listAccessForApplicantDetailed,
   listGrantsForRecipientAccount,
   pauseGrant,
   resumeGrant,
@@ -185,9 +197,12 @@ export {
 } from './intake';
 
 export {
+  type FailedJobSummary,
   type IntakeWorkerResult,
   type ProcessingJob,
   enqueueIntakeJob,
+  listFailedJobs,
+  retryFailedJob,
   runIntakeWorker,
 } from './jobs';
 
