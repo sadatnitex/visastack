@@ -1,13 +1,17 @@
 import {
+  documentsPastRetention,
   getRetentionPolicies,
   listActiveLegalHolds,
+  listAllApplicants,
   listAllOrganizations,
+  listFailedJobs,
 } from '@visastack/services';
 import Link from 'next/link';
 import { isPlatformAdmin } from '../../../lib/admin';
 import { withSession } from '../../../lib/session';
-import { releaseLegalHoldAction, reviewOrganizationAction } from './actions';
+import { releaseLegalHoldAction, retryJobAction, reviewOrganizationAction } from './actions';
 import { LegalHoldForm, RetentionPolicyForm } from './admin-forms';
+import { PurgeButton } from './purge-button';
 
 export const dynamic = 'force-dynamic';
 
@@ -22,13 +26,20 @@ const ORG_STATUS: Record<string, { label: string; tone: string }> = {
 export default async function AdminPage() {
   const data = await withSession(async ({ db, email }) => {
     if (!isPlatformAdmin(email)) return { admin: false as const };
-    const [policies, holds, orgs] = await Promise.all([
+    const [policies, holds, orgs, failedJobs, applicants, purgeEligible] = await Promise.all([
       getRetentionPolicies(db),
       listActiveLegalHolds(db),
       listAllOrganizations(db),
+      listFailedJobs(db),
+      listAllApplicants(db),
+      documentsPastRetention(db),
     ]);
-    return { admin: true as const, policies, holds, orgs };
+    return { admin: true as const, policies, holds, orgs, failedJobs, applicants, purgeEligible };
   });
+
+  const applicantName = (applicantId: string): string =>
+    (data.admin ? data.applicants.find((a) => a.id === applicantId)?.displayName : undefined) ??
+    applicantId;
 
   return (
     <section className="section container">
@@ -110,7 +121,7 @@ export default async function AdminPage() {
                         }}
                       >
                         <span className="row-key" style={{ wordBreak: 'break-word' }}>
-                          {h.applicantId}
+                          {applicantName(h.applicantId)}
                         </span>
                         <form action={releaseLegalHoldAction}>
                           <input type="hidden" name="holdId" value={h.id} />
@@ -130,9 +141,94 @@ export default async function AdminPage() {
                   ))}
                 </div>
               )}
-              <LegalHoldForm />
+              <LegalHoldForm
+                applicants={data.applicants.map((a) => ({ id: a.id, displayName: a.displayName }))}
+              />
             </article>
           </div>
+
+          <article className="card" style={{ marginTop: '1.5rem' }}>
+            <p className="card-kicker">Processing</p>
+            <h2 className="card-title">Failed intake jobs</h2>
+            {data.failedJobs.length === 0 ? (
+              <p className="card-body">
+                No failed jobs. A job is parked here only after it exhausts every retry attempt.
+              </p>
+            ) : (
+              <div className="rows" style={{ marginTop: '0.5rem' }}>
+                {data.failedJobs.map((job) => (
+                  <div
+                    className="row"
+                    key={job.id}
+                    style={{ flexDirection: 'column', alignItems: 'stretch', gap: '0.4rem' }}
+                  >
+                    <div
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        gap: '0.75rem',
+                      }}
+                    >
+                      <span className="row-key" style={{ wordBreak: 'break-word' }}>
+                        {job.documentName}
+                      </span>
+                      <span style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                        <span className="badge badge-danger">
+                          {job.attempts}/{job.maxAttempts} attempts
+                        </span>
+                        <form action={retryJobAction}>
+                          <input type="hidden" name="jobId" value={job.id} />
+                          <button
+                            type="submit"
+                            className="btn btn-secondary"
+                            style={{ padding: '0.3rem 0.85rem', fontSize: '0.8rem' }}
+                          >
+                            Retry
+                          </button>
+                        </form>
+                      </span>
+                    </div>
+                    {job.lastError ? (
+                      <span
+                        className="muted"
+                        style={{ fontSize: '0.8rem', fontFamily: 'var(--font-mono)' }}
+                      >
+                        {job.lastError}
+                      </span>
+                    ) : null}
+                  </div>
+                ))}
+              </div>
+            )}
+          </article>
+
+          <article className="card" style={{ marginTop: '1.5rem' }}>
+            <p className="card-kicker">Retention</p>
+            <h2 className="card-title">Documents eligible for purge</h2>
+            {data.purgeEligible.length === 0 ? (
+              <p className="card-body">
+                No documents are currently past their retention policy (or all are under an active
+                legal hold).
+              </p>
+            ) : (
+              <>
+                <div className="rows" style={{ marginBottom: '1.25rem' }}>
+                  {data.purgeEligible.map((doc) => (
+                    <div className="row" key={doc.id}>
+                      <span className="row-key" style={{ wordBreak: 'break-word' }}>
+                        {doc.originalName}
+                      </span>
+                      <span className="muted" style={{ fontSize: '0.8rem' }}>
+                        {applicantName(doc.applicantId)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+                <PurgeButton eligibleCount={data.purgeEligible.length} />
+              </>
+            )}
+          </article>
 
           <article className="card" style={{ marginTop: '1.5rem' }}>
             <p className="card-kicker">Verification</p>
