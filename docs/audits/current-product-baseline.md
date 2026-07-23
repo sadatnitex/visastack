@@ -1,10 +1,10 @@
 # VisaStack — current product baseline (truthful audit)
 
-**Audit date:** 2026-07-22
-**Branch:** `claude/visastack-storage-async-intake`
-**Base commit (`main`):** `7077fc2` (docs follow-up, #42 — merged), on top of #41's `4e76ba6` (Storage Release B part 1) and #40's `87e8eeb`.
-**Branch scope this round:** low-volume durable job queue for intake processing (completing the async-intake piece of Release B that #41 deliberately deferred) — **not yet committed/pushed/PR'd**.
-**Production deployment:** `visastack-five.vercel.app` — Vercel project `prj_RZcDRy1odwehHuDqsiGwvVGC0epe`. PR #40's login/identity/health fixes and PR #41's storage work (Vercel Private Blob adapter, quotas, opaque keys, filename-in-Content-Disposition) are both merged and live in production; deployment-triggered smoke/Playwright/WorkOS-staging checks passed against the production deployment for both. `BLOB_READ_WRITE_TOKEN` has since been configured and a redeploy (`dpl_58rWNmAyJd361FEwvyovR7EXtKLd`) picked it up with no error/fatal runtime logs — but a real upload→store→serve round-trip has not yet been exercised against live traffic (see the Object storage row below). This round's job-queue work is **new, unit-tested, not yet deployed** — no preview/production URL exists for it yet.
+**Audit date:** 2026-07-23
+**Branch:** `claude/visastack-ui-completeness`
+**Base commit (`main`):** `b5256e7` (Storage Release B part 2 — DB-backed async intake job queue, #43 — merged), on top of #42's `7077fc2` (docs follow-up), #41's `4e76ba6` (Storage Release B part 1), and #40's `87e8eeb`.
+**Branch scope this round:** UI completeness pass — surface already-implemented, already-tested backend capabilities that had no UI (or an awkward/raw-ID UI) before asking for Processing PR (Release C) approval. No new domain capability was invented; every service-layer addition is a read/query wrapper or wiring around an existing capability, except where noted. **Not yet committed/pushed/PR'd** as of this audit.
+**Production deployment:** `visastack-five.vercel.app` — Vercel project `prj_RZcDRy1odwehHuDqsiGwvVGC0epe`. PRs #40–#43 are merged and live in production (login/identity/health fixes, Vercel Private Blob storage + quotas + opaque keys, and the DB-backed async intake job queue); deployment-triggered smoke/Playwright/WorkOS-staging checks passed against production for all four. A live upload→store→serve round-trip and a live job-queue pickup have still not been exercised against real user traffic (see the Object storage and Upload processing pipeline rows below) — deliberately deferred, unchanged from the prior audit. This round's UI-completeness work is **new, unit/typecheck-verified, not yet deployed** — no preview/production URL exists for it yet.
 
 > Truth-labelling taxonomy (per the upgrade directive). Every capability is one
 > of: **Domain model only · Service implemented · UI present · Infrastructure
@@ -46,19 +46,20 @@ From `.env.example` and `docs/governance/service-wiring.md`:
 | Account provisioning (idempotent) | **Production verified** | `provisionAccount` idempotent by WorkOS id; runs on every `/app` load. |
 | Consent (separated, per-purpose) | **Service implemented + UI present** | `consent.ts`, `/app` consent controls. Not independently E2E-verified this session. |
 | Applicant/family records | **Service implemented + UI present** | `applicants.ts`, `/app`, `/app/applicant/[id]`. |
-| Master Profile (immutable fact versions) | **Service implemented; UI = passport subset only** | `profile.ts`; UI exposes a small identity/passport field subset, not the canonical registry. |
+| Master Profile (immutable fact versions) | **Service implemented; UI = passport subset + one proven repeating-record group** | `profile.ts`; UI exposes the identity/passport field subset plus a new "Prior visa" repeating-record group (`repeatingRecordKey`) proving out the multi-instance mechanism end-to-end (add/edit/history). The full universal + target-group canonical field registry remains Release F (Profile PR) scope — deliberately not invented here (see `apps/web/src/lib/profile-fields.ts` comment). Sensitivity badges (`SENSITIVE`/`RESTRICTED`) now render next to each field label. |
 | Document register/version metadata | **Service implemented + UI present** | `documents.ts`, applicant page upload form. Object keys are now opaque UUIDs (this branch) — no applicant id/email/filename in the physical storage path. |
 | Document preview | **Service implemented — P0 fixed (PR #40)** | Owner-only `original` variant; third parties get `redacted` (fail-closed). `Content-Disposition` now carries the approved/original display filename via the signed token (this branch) instead of an anonymous byte stream. |
-| Document download (redacted) | **Service implemented; not wired in UI** | `downloadDocument`; no UI trigger found. |
+| Document download (original/redacted) | **Service implemented; UI intentionally NOT wired — real blocker, not an oversight** | `downloadDocument` exists, but `DOWNLOAD_ORIGINAL` unconditionally requires `stepUpSatisfied: true` in `packages/policy/src/authorize.ts`'s `STEP_UP_ACTIONS` — even for the applicant owner — and no step-up authentication flow exists anywhere in the app to satisfy it. Separately, `/api/blob/[key]/route.ts` serves only `variant === 'original'` tokens (501 for anything else) by design, so a REDACTED download (owner or third party) would also 501 today, pending real renditions. Building a download button now would mean either inventing new step-up auth out of scope for this round, or bypassing the step-up check — a security regression. **Decision: skipped, not built**, until step-up auth or real redacted renditions ship. |
 | Upload processing pipeline | **Service implemented + tested (this round); NOT yet deployed** | `intake.ts`'s state machine is unchanged — `NORMALIZING`/`EXTRACTING` still advance without performing normalization/OCR (that's the Processing PR's scope, not this one). What changed: it no longer runs synchronously in the upload request. `packages/services/src/jobs.ts` adds a DB-backed job queue (`processing_jobs` table, migration `0011`) — `enqueueIntakeJob` on upload, `runIntakeWorker` claims due jobs with `FOR UPDATE SKIP LOCKED` and retries failures with exponential backoff up to `maxAttempts` before parking at `FAILED`. Triggered two ways: immediately after the upload response via `next/server`'s `after()` (near-instant in the common case, on its own fresh DB connection — the request's pooled connection is already closed by then), and via a Vercel Cron sweep at `/api/jobs/process-intake` (durability backstop, `CRON_SECRET`-gated, fails closed if unset). 6 tests (PGlite) covering enqueue, success, the NEEDS_ATTENTION-is-not-a-failure case, backoff/retry, exhaustion to FAILED, and claim-limit batching. No Inngest or other paid queue — DB-backed jobs are explicitly approved infra (master directive §5). |
 | Malware/structural scanning | **Service implemented — reduced-control** | `packages/adapters/src/scanner.ts` is a structural scanner, explicitly not antivirus. |
 | Upload quotas | **Production deployed** | `packages/services/src/quotas.ts` — per-file/per-applicant/per-account/platform-wide caps, fail-closed before any bytes are written, config-driven via env overrides with conservative pilot defaults. 10 tests (PGlite). Merged in PR #41, live in production. |
 | Object storage | **Production deployed; round-trip NOT yet verified** | `VercelPrivateBlobStorage` (`packages/adapters/src/vercel-blob.ts`) — genuine `access: 'private'` Vercel Blob backend. `BLOB_READ_WRITE_TOKEN` is now configured in the Vercel project and a redeploy (`dpl_58rWNmAyJd361FEwvyovR7EXtKLd`) picked it up cleanly — no error/fatal runtime logs since. `createStorage()` therefore selects `VercelPrivateBlobStorage` in production today. What's still unverified: an actual upload → `putObject` → `issueReadRef` → `/api/blob/[key]` round-trip has not been exercised against real user traffic — only 6 unit tests against a mocked `@vercel/blob`, plus the clean-boot check above. `NeonBlobStorage` (bytes in Postgres) remains the fallback if the token is ever absent, still labelled reduced-control/non-commercial (master directive §10/§21E). `deleteObject` exists on the new adapter but is not yet wired into any retention/deletion workflow (documented follow-up). |
 | AI extraction / gateway | **Port only** | `ai.ts` port; no production adapter, no model wired. |
 | Missions & requirement packs | **Service implemented + UI present** | `missions.ts`, `packs.ts`, mission/admin pages. Owner-driven state machine. |
-| Sharing / scoped grants | **Service implemented + UI present** | `sharing.ts`; recipient inbox exists; no full permission-filtered recipient workspace. |
-| Agency console | **UI present — raw IDs / field keys** | Requires typing internal UUIDs & raw field keys. |
-| Retention / legal hold | **Service implemented** | `retention.ts`, admin UI. |
+| Sharing / scoped grants | **Service implemented + UI present** | `sharing.ts`; recipient inbox exists; the applicant sharing page now resolves and shows each grant's recipient identity (account email or org name) via `listAccessForApplicantDetailed` instead of just showing purpose/permission counts. Still no full permission-filtered recipient workspace. |
+| Agency console | **UI present — pickers replace raw IDs (this round); some raw field keys remain** | Evidence-request applicant field is now a `<select>` populated from `listApplicantsForOrganization` (orgs that have actually been granted access) instead of a free-text applicant-ID input; field-key input gained a `<datalist>` of canonical keys. Assignments and mission notes are now visible/actionable per mission via `listAssignmentsDetailed`/`listNotes`/`listMissionsForOrganization` and a new `<MissionCollaboration>` panel (assign member, add note). Legal-hold form (admin) also now uses an applicant picker instead of a raw UUID field. |
+| Retention / legal hold | **Service implemented + UI present (purge action, this round)** | `retention.ts`, admin UI; legal-hold creation now uses an applicant picker. New: an admin "Documents eligible for purge" card lists the eligible count and a `<PurgeButton>` that calls `purgeExpiredDocuments` behind a `window.confirm()` guard (irreversible — same confirm pattern as the existing deletion panel). The underlying purge/retention logic is unchanged; only UI wiring was added. |
+| Requirement pack manifest / checksum | **Service implemented + UI present (this round)** | `verifyPackChecksum`/`buildManifest` existed but had no UI trigger. Pack Studio's version detail now shows a "Verify checksum" button (recomputes and compares against the frozen value) and a "Download manifest" link (admin-gated GET route streaming the exact requirement set the checksum was computed over, recomputed live — never stored bytes). |
 | Audit chain (append-only, hash-linked) | **Service implemented** | `audit.ts`; advisory-lock serialized; verified in unit tests. |
 | Readiness/liveness probes | **Production verified (now corrected)** | `/api/health/*`. Readiness previously returned HTTP 200 while degraded — corrected on this branch (503 when degraded). |
 
@@ -75,28 +76,32 @@ From `.env.example` and `docs/governance/service-wiring.md`:
 **P1 — resolved this round (job queue, not yet deployed)**
 - **Upload processing was synchronous and blocked the HTTP response.** *Fixed:* processing now runs via a DB-backed job queue (`processing_jobs`, migration `0011`) triggered by `after()` post-response, with a Vercel Cron sweep as a durability backstop. See the "Upload processing pipeline" matrix row above for detail. Not yet Production verified — no live deployment of this branch yet.
 
+**P1 — resolved this round (UI completeness, not yet deployed)**
+- **A failed job parked at `FAILED` with no admin UI to inspect/retry it.** *Fixed:* `listFailedJobs`/`retryFailedJob` (`packages/services/src/jobs.ts`) plus an admin "Failed intake jobs" card showing document name, attempts/maxAttempts, last error, and a one-click retry (resets to `PENDING`, `attempts: 0`, `availableAt: now()`).
+
 **P1**
 - Signed blob URLs do not re-check a revoked grant until token expiry (short TTL mitigates; not eliminated).
 - `VercelPrivateBlobStorage.deleteObject` exists but is not yet wired into any retention/deletion workflow.
-- A failed job parks at `FAILED` with no admin UI to inspect/retry it — visible only via a direct DB query today.
+- Document download has no UI path for either the owner or a grant recipient — not an oversight; blocked on step-up authentication (see the "Document download" matrix row above), which does not yet exist anywhere in the app.
 
 **P2**
 - Upload UI limited to PDF/PNG/JPEG.
-- Agency & shared workspaces surface raw UUIDs / field keys.
+- Agency & shared workspaces surface raw UUIDs / field keys. *Partially resolved this round:* evidence-request applicant selection, legal-hold applicant selection, and mission assignment are now pickers; field-key entry still accepts free text (with a datalist of known keys) since the canonical registry itself is out of scope until the Profile PR.
 
 ## Acceptance criteria — status (summary)
 
 - **Passing/production-verified:** authenticated login and workspace entry (PR #40, confirmed via deployed smoke/Playwright checks); idempotent account provisioning; WorkOS-id identity binding; append-only audit chain (unit-verified); default-deny document authorization (unit-verified); honest readiness.
-- **Production deployed, round-trip not yet verified:** Vercel Private Blob object storage (token configured, redeployed cleanly, no live-upload evidence yet — deliberately deferred); upload quotas; opaque object keys; filename-carrying `Content-Disposition`.
-- **Service implemented + tested, not yet deployed:** the DB-backed async intake job queue (this round).
-- **Open:** deployed authenticated-E2E regression (WorkOS staging secrets); real normalization/OCR/deterministic extraction (Processing PR); real AI extraction; persisted extraction & proposal review; automatic filename proposal + approval; document→profile approval UI; true redacted renditions; real malware scanning; existing-byte migration off Neon-bytea; permission-filtered shared/agency workspaces; account export/deletion drill; backup-restore drill; pen-test; EN/BN critical paths; WCAG 2.2 AA gate; AI/document benchmarks.
+- **Production deployed, round-trip not yet verified:** Vercel Private Blob object storage (token configured, redeployed cleanly, no live-upload evidence yet — deliberately deferred); upload quotas; opaque object keys; filename-carrying `Content-Disposition`; DB-backed async intake job queue (PR #43, no live upload has exercised it yet).
+- **Service implemented + tested, not yet deployed:** this round's UI-completeness batch — repeating Master Profile records, evidence-storage usage meters, failed-job admin visibility/retry, retention-purge UI, agency mission collaboration (assignments/notes), applicant/evidence-request pickers replacing raw IDs, pack manifest/checksum UI, workspace dashboard summary. 97/97 service-package tests pass (up from 90); all packages typecheck/build/lint clean.
+- **Deliberately not built (real blocker, tracked, not a gap to silently close):** document download UI for either owner or third party — requires step-up authentication that doesn't exist yet, or would otherwise mean bypassing the policy engine's `stepUpSatisfied` check.
+- **Open:** deployed authenticated-E2E regression (WorkOS staging secrets); real normalization/OCR/deterministic extraction (Processing PR); real AI extraction; persisted extraction & proposal review; automatic filename proposal + approval; document→profile approval UI; true redacted renditions; step-up authentication; real malware scanning; existing-byte migration off Neon-bytea; permission-filtered shared/agency workspaces; full canonical Master Profile field registry (Profile PR); account export/deletion drill; backup-restore drill; pen-test; EN/BN critical paths; WCAG 2.2 AA gate; AI/document benchmarks.
 
 ## Current security exceptions (must remain visibly labelled)
 
 - **Reduced-control storage fallback:** `NeonBlobStorage` (bytes in Postgres) remains the fallback backend whenever `BLOB_READ_WRITE_TOKEN` is unset — acceptable only for synthetic/internal testing, dev, and legacy data; not the sensitive-document production design. `VercelPrivateBlobStorage` is now the active production backend (token configured, redeploy confirmed clean), but a real upload→serve round-trip has not yet been exercised against live traffic.
 - **Reduced-control scanning:** structural scanner is not antivirus; real-data upload must stay gated until a real malware control is active.
-- **No true redacted rendition:** third-party preview is fail-closed (disabled) until real renditions ship.
-- **No admin UI for stuck/failed processing jobs:** a job that exhausts its retries parks at `FAILED` — visible only via a direct database query, not a dashboard.
+- **No true redacted rendition:** third-party preview is fail-closed (disabled) until real renditions ship. As a direct consequence, no document download UI exists for any party (owner or third party) — see the "Document download" matrix row.
+- **No step-up authentication:** `DOWNLOAD_ORIGINAL` requires `stepUpSatisfied: true` (policy engine, `packages/policy/src/authorize.ts`) but no flow exists to satisfy it. This is why a Document Download button was deliberately not built this round rather than shipped as a security shortcut.
 
 ## Changes made on PR #40 (merged, production-verified)
 
@@ -124,11 +129,34 @@ From `.env.example` and `docs/governance/service-wiring.md`:
 6. **`.env.example`** — replaced the placeholder `INNGEST_*` vars (never approved infra) with `CRON_SECRET`.
 7. This baseline audit, updated to reflect the above truthfully.
 
+## Changes made this round (UI completeness, not yet committed/PR'd)
+
+Backend was already implemented and unit-tested for all of the below; this round added the read-query wrappers needed for detail views (recipient identity, applicant name resolution, mission discovery, assignment/note views, failed-job listing) plus the UI to expose them. No domain capability was invented.
+
+**Services layer** (`packages/services/src/`):
+1. `applicants.ts` — `listAllApplicants` (platform-wide, admin-only by caller convention).
+2. `agency.ts` — `listAssignmentsDetailed` (assignment → member email), `listMissionsForOrganization` (missions reachable via a mission-scoped grant to the org), `listEvidenceRequestsForOrgDetailed` (adds resolved applicant name), `listApplicantsForOrganization` (applicants who have granted the org something — powers the evidence-request applicant picker).
+3. `sharing.ts` — `listAccessForApplicantDetailed` (resolves each grant's recipient to an account email or organization name).
+4. `jobs.ts` — `listFailedJobs` (joins `processing_jobs` → `document_versions` → `documents`), `retryFailedJob` (resets a `FAILED` job to `PENDING`; no-op if not currently failed).
+5. 8 new tests added across `agency.test.ts`, `sharing.test.ts`, `jobs.test.ts`, `services.test.ts` (service package: 97/97 passing, up from 90).
+
+**UI** (`apps/web/src/`):
+6. Master Profile repeating records — `profile-fields.ts` gains `group`/`groupLabel` and a "Prior visa" field group; `profile-editor.tsx` rewritten with a `RepeatingGroup` component (add new record instances client-side via `crypto.randomUUID()`, one card per instance); `actions.ts`/`page.tsx`/`history/page.tsx` thread `repeatingRecordKey` through save and history views. Sensitivity badges (`SENSITIVE`/`RESTRICTED`) now render per field.
+7. Evidence storage usage meters — new `usage-meter.tsx` component; wired into the applicant page (per-applicant) and the workspace dashboard (account-wide), both against `loadUploadQuotaConfig()` limits.
+8. Admin: failed-job visibility + retry (new card + `retryJobAction`), retention-purge UI (new `purge-button.tsx` behind `window.confirm()` + `purgeExpiredDocumentsAction`), legal-hold form now uses an applicant picker instead of a raw UUID input.
+9. Agency console: new `mission-collaboration.tsx` (assignee badges, assign-member picker filtered to unassigned members, notes list + add-note form); evidence-request form's applicant field is now a picker; field-key input gained a canonical-keys datalist; evidence-request activity now shows resolved applicant name and field label.
+10. Applicant sharing page shows each grant's resolved recipient identity instead of only purpose/permission counts.
+11. Pack Studio: "Verify checksum" button (`verifyChecksumAction`) and a "Download manifest" admin-gated route (`.../versions/[versionId]/manifest/route.ts`, recomputed live from current requirement rows, never stored bytes).
+12. Mission detail page resolves canonical field labels (`profileField(...)?.label`) instead of showing raw field keys in the missing-requirements list.
+13. Workspace dashboard (`/app`) gains an "Overview" card: applicant/document counts, grants awaiting acceptance, and an account-wide evidence usage meter.
+14. This baseline audit, updated to reflect the above truthfully — including one explicitly **skipped** item (Document Download UI) and why (see the "Document download" matrix row and the Known defects / security exceptions sections above).
+
 ## Immediate next priorities (in order)
 
-1. Commit, push, and open a draft PR for this round's job-queue work; deploy and verify a real upload actually gets picked up and processed by the worker (not just the mocked/PGlite unit tests) before calling it Production verified.
-2. Real upload → store → serve round-trip verification of `VercelPrivateBlobStorage` against live traffic — deliberately deferred (per explicit decision last round); revisit either via a manual UI test or an automated Playwright upload spec when prioritized. (Would naturally piggyback on #1's live-upload verification.)
+1. Commit, push, and open a draft PR for this round's UI-completeness batch; get it reviewed and merged (explicit human approval required before merge, per standing project policy).
+2. Real upload → store → serve round-trip verification of `VercelPrivateBlobStorage`, and a real job-queue pickup verification, against live traffic — both deliberately deferred across the last two rounds; revisit via a manual UI test or an automated Playwright upload spec when prioritized.
 3. Real generated redacted renditions + download-time re-authorization (Milestone 2 completion) — unblocks third-party preview.
-4. Existing-byte migration tool off Neon-bytea onto Vercel Private Blob — the one remaining piece of Release B scope not yet started.
-5. Deployed authenticated-E2E regression once `WORKOS_STAGING_TEST_EMAIL`/`WORKOS_STAGING_TEST_PASSWORD` secrets are provisioned.
-6. Processing PR (Release C: deterministic extraction + automatic naming) per the master directive sequencing — not started; blocked on explicit approval to proceed.
+4. Step-up authentication for `DOWNLOAD_ORIGINAL` — the actual blocker on shipping any document-download UI; needs its own design/scoping pass, not a quick add.
+5. Existing-byte migration tool off Neon-bytea onto Vercel Private Blob — the one remaining piece of Release B scope not yet started.
+6. Deployed authenticated-E2E regression once `WORKOS_STAGING_TEST_EMAIL`/`WORKOS_STAGING_TEST_PASSWORD` secrets are provisioned.
+7. Processing PR (Release C: deterministic extraction + automatic naming) per the master directive sequencing — not started; blocked on explicit approval to proceed.
