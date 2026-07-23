@@ -87,6 +87,18 @@ export const documentSafetyStatus = pgEnum('document_safety_status', [
 export const storageBucket = pgEnum('storage_bucket', ['QUARANTINE', 'CLEAN']);
 export const deletionStatus = pgEnum('deletion_status', ['PENDING', 'CANCELLED', 'EXECUTED']);
 export const jobStatus = pgEnum('job_status', ['PENDING', 'CLAIMED', 'DONE', 'FAILED']);
+export const processingRunStatus = pgEnum('processing_run_status', [
+  'RUNNING',
+  'COMPLETED',
+  'FAILED',
+]);
+export const extractionRunStatus = pgEnum('extraction_run_status', ['SUCCEEDED', 'FAILED']);
+export const nameVersionDecision = pgEnum('name_version_decision', [
+  'PENDING',
+  'ACCEPTED_UNCHANGED',
+  'ACCEPTED_EDITED',
+  'REJECTED',
+]);
 export const packVersionStatus = pgEnum('pack_version_status', [
   'DRAFT',
   'APPROVED',
@@ -314,6 +326,108 @@ export const documentVersions = pgTable(
   (table) => [
     unique('document_versions_doc_version_unique').on(table.documentId, table.versionNumber),
     index('document_versions_document_idx').on(table.documentId),
+  ],
+);
+
+// --- Persisted document intelligence (Release C; master directive §11/§13) -
+// Deterministic extraction/classification/naming records. Scoped to what this
+// release actually implements — the AI-proposal tables (FieldProposal,
+// EvidenceLocation, Conflict, CorrectionFeedback) belong to the separate AI PR
+// and are deliberately NOT added here.
+
+// One row per processIntake execution that reached real extraction work
+// (a retry gets its own row — never overwritten — so history is inspectable).
+export const processingRuns = pgTable(
+  'processing_runs',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    documentVersionId: uuid('document_version_id')
+      .notNull()
+      .references(() => documentVersions.id, { onDelete: 'cascade' }),
+    status: processingRunStatus('status').notNull().default('RUNNING'),
+    pipelineVersion: text('pipeline_version').notNull(),
+    startedAt: timestamp('started_at', { withTimezone: true }).notNull().defaultNow(),
+    completedAt: timestamp('completed_at', { withTimezone: true }),
+    errorCode: text('error_code'),
+  },
+  (table) => [index('processing_runs_document_version_idx').on(table.documentVersionId)],
+);
+
+// One row per deterministic-parser invocation within a processing run.
+// Extracted text is capped (never unbounded OCR/text retained indefinitely —
+// master directive §11).
+export const extractionRuns = pgTable(
+  'extraction_runs',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    processingRunId: uuid('processing_run_id')
+      .notNull()
+      .references(() => processingRuns.id, { onDelete: 'cascade' }),
+    documentVersionId: uuid('document_version_id')
+      .notNull()
+      .references(() => documentVersions.id, { onDelete: 'cascade' }),
+    parserName: text('parser_name').notNull(),
+    parserVersion: text('parser_version').notNull(),
+    status: extractionRunStatus('status').notNull(),
+    extractedText: text('extracted_text'),
+    truncated: boolean('truncated').notNull().default(false),
+    pageCount: integer('page_count'),
+    confidence: integer('confidence'), // 0-100; null when extraction failed
+    warnings: jsonb('warnings').$type<readonly string[]>(),
+    errorCode: text('error_code'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index('extraction_runs_document_version_idx').on(table.documentVersionId)],
+);
+
+// One row per classification attempt. `classifiedType` is free text (mirrors
+// `documents.docType`) rather than a closed enum, so adding a new document
+// type never requires a migration; the controlled vocabulary lives in
+// application code (classification.ts).
+export const documentClassifications = pgTable(
+  'document_classifications',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    extractionRunId: uuid('extraction_run_id')
+      .notNull()
+      .references(() => extractionRuns.id, { onDelete: 'cascade' }),
+    documentVersionId: uuid('document_version_id')
+      .notNull()
+      .references(() => documentVersions.id, { onDelete: 'cascade' }),
+    classifiedType: text('classified_type'), // null when confidence is too low to call it
+    confidence: integer('confidence').notNull(), // 0-100
+    reviewRequired: boolean('review_required').notNull().default(true),
+    rationale: text('rationale'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index('document_classifications_document_version_idx').on(table.documentVersionId)],
+);
+
+// Immutable filename-proposal history at the logical-document level (naming
+// never touches the opaque storage key or `originalName` — master directive
+// §11/§21E). A version starts PENDING; a human decision (accept
+// unchanged/edited, or reject) is recorded, never silently applied.
+export const documentNameVersions = pgTable(
+  'document_name_versions',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    documentId: uuid('document_id')
+      .notNull()
+      .references(() => documents.id, { onDelete: 'cascade' }),
+    versionNumber: integer('version_number').notNull(),
+    proposedName: text('proposed_name').notNull(),
+    finalName: text('final_name'),
+    decision: nameVersionDecision('decision').notNull().default('PENDING'),
+    decidedByAccountId: uuid('decided_by_account_id').references(() => accounts.id, {
+      onDelete: 'set null',
+    }),
+    reason: text('reason'),
+    decidedAt: timestamp('decided_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    unique('document_name_versions_doc_version_unique').on(table.documentId, table.versionNumber),
+    index('document_name_versions_document_idx').on(table.documentId),
   ],
 );
 
