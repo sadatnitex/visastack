@@ -21,6 +21,17 @@ import type { BlobStore, ScanResult, ScannerPort } from '@visastack/services';
  * central directory, which is out of scope here. The deterministic text
  * extractor (`mammoth`) is the real second check: a mislabeled ZIP fails
  * there with `corrupt_file`/`parser_error` rather than silently succeeding.
+ *
+ * SECURITY: the plain-text path is deliberately gated to the exact declared
+ * content types the upload UI/extraction layer support (`text/plain`,
+ * `text/markdown`) — NOT "anything that decodes as clean UTF-8". HTML and
+ * SVG source are both ordinary UTF-8 text with no control characters, so a
+ * heuristic that accepted any such content would let a caller who bypasses
+ * the file picker (a raw Server Action call) mark `text/html`/`image/svg+xml`
+ * content "safe", which `/api/blob/[key]` would later serve inline under the
+ * app's own origin — a stored-XSS vector via SVG script execution or
+ * HTML-sniffing. Gating on the declared type closes that: an upload
+ * declaring `text/html` is rejected here regardless of its byte content.
  */
 
 const MAGIC_ALLOW: ReadonlyArray<{ readonly label: string; readonly bytes: readonly number[] }> = [
@@ -37,8 +48,8 @@ const MAGIC_DENY: ReadonlyArray<{ readonly label: string; readonly bytes: readon
   { label: 'shell script', bytes: [0x23, 0x21] }, // #!
 ];
 
-/** How much of the file to sample when checking for plain text (TXT/MD have no magic bytes). */
-const TEXT_SNIFF_BYTES = 8192;
+/** Declared content types the plain-text path accepts — nothing else, regardless of byte shape. */
+const PLAIN_TEXT_CONTENT_TYPES: ReadonlySet<string> = new Set(['text/plain', 'text/markdown']);
 
 function startsWith(bytes: Uint8Array, prefix: readonly number[]): boolean {
   if (bytes.length < prefix.length) return false;
@@ -54,12 +65,15 @@ function startsWith(bytes: Uint8Array, prefix: readonly number[]): boolean {
  * characters other than tab/newline/carriage-return. This is the same
  * "reject anything binary-shaped" posture as the magic-byte deny list, just
  * applied to content that has no header signature to check instead.
+ *
+ * Decodes the WHOLE (already size-bounded) byte array rather than an
+ * arbitrary sample — decoding a fixed-length prefix can split a multi-byte
+ * UTF-8 sequence at the boundary and reject a perfectly valid file.
  */
 function looksLikePlainText(bytes: Uint8Array): boolean {
-  const sample = bytes.subarray(0, TEXT_SNIFF_BYTES);
   let text: string;
   try {
-    text = new TextDecoder('utf-8', { fatal: true }).decode(sample);
+    text = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
   } catch {
     return false;
   }
@@ -102,7 +116,9 @@ export class BasicSafetyScanner implements ScannerPort {
     for (const allow of MAGIC_ALLOW) {
       if (startsWith(bytes, allow.bytes)) return { safe: true, detail: allow.label };
     }
-    if (looksLikePlainText(bytes)) return { safe: true, detail: 'text' };
+    if (PLAIN_TEXT_CONTENT_TYPES.has(object.contentType) && looksLikePlainText(bytes)) {
+      return { safe: true, detail: 'text' };
+    }
     return { safe: false, detail: 'unrecognized file type' };
   }
 }

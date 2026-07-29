@@ -164,6 +164,48 @@ describe('BasicSafetyScanner', () => {
       false,
     );
   });
+
+  it('rejects HTML/SVG content declared under a spoofed content type, even though the bytes are clean UTF-8 text (stored-XSS regression)', async () => {
+    // A caller that bypasses the file picker (a raw Server Action call) could
+    // declare any content type it likes. HTML/SVG source is ordinary,
+    // control-character-free UTF-8 text — indistinguishable from a real TXT/MD
+    // file by content alone — so the plain-text path must gate on the
+    // declared type, not just "does this decode as clean text".
+    await storage.putObject({
+      bucket: 'QUARANTINE',
+      objectKey: 'html-xss',
+      contentType: 'text/html',
+      bytes: new TextEncoder().encode('<script>alert(document.cookie)</script>'),
+    });
+    await storage.putObject({
+      bucket: 'QUARANTINE',
+      objectKey: 'svg-xss',
+      contentType: 'image/svg+xml',
+      bytes: new TextEncoder().encode(
+        '<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>',
+      ),
+    });
+    expect((await scanner.scan({ bucket: 'QUARANTINE', objectKey: 'html-xss' })).safe).toBe(false);
+    expect((await scanner.scan({ bucket: 'QUARANTINE', objectKey: 'svg-xss' })).safe).toBe(false);
+  });
+
+  it('accepts a valid multi-byte UTF-8 TXT file larger than the old fixed sample size, with no truncation false-negative', async () => {
+    // Regression for a boundary bug: decoding only a fixed-size prefix can
+    // split a multi-byte UTF-8 sequence exactly at the cut, rejecting a
+    // perfectly valid file. Build ASCII padding long enough to push a 3-byte
+    // UTF-8 character ("é" is 2 bytes; use "字" — a 3-byte CJK character — to
+    // straddle an 8192-byte boundary deterministically) across the old
+    // sample-size boundary.
+    const padding = 'A'.repeat(8190);
+    const text = `${padding}字 - a valid non-ASCII bank statement footer.`;
+    await storage.putObject({
+      bucket: 'QUARANTINE',
+      objectKey: 'large-utf8',
+      contentType: 'text/plain',
+      bytes: new TextEncoder().encode(text),
+    });
+    expect((await scanner.scan({ bucket: 'QUARANTINE', objectKey: 'large-utf8' })).safe).toBe(true);
+  });
 });
 
 describe('end-to-end: real bytes through the intake pipeline (no S3, no ClamAV)', () => {
