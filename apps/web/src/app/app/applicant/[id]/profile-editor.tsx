@@ -3,7 +3,11 @@
 import { useState } from 'react';
 import { useActionState } from 'react';
 import {
+  PACK_DESCRIPTIONS,
+  PACK_LABELS,
+  PACK_ORDER,
   type ProfileFieldDef,
+  type ProfilePack,
   repeatingGroups,
   singleFields,
 } from '../../../../lib/profile-fields';
@@ -173,13 +177,20 @@ interface ProfileEditorProps {
   readonly repeatingValues: Readonly<Record<string, Readonly<Record<string, ProfileValue>>>>;
 }
 
-export function ProfileEditor({ applicantId, values, repeatingValues }: ProfileEditorProps) {
-  const groups = repeatingGroups();
+interface PackSectionProps {
+  readonly applicantId: string;
+  readonly pack: ProfilePack;
+  readonly values: Readonly<Record<string, ProfileValue>>;
+  readonly repeatingValues: Readonly<Record<string, Readonly<Record<string, ProfileValue>>>>;
+}
+
+function PackSection({ applicantId, pack, values, repeatingValues }: PackSectionProps) {
+  const groups = repeatingGroups(pack);
 
   return (
-    <div>
+    <>
       <div className="field-list">
-        {singleFields().map((field) => {
+        {singleFields(pack).map((field) => {
           const current = values[field.key];
           return (
             <FieldRow
@@ -222,6 +233,46 @@ export function ProfileEditor({ applicantId, values, repeatingValues }: ProfileE
           />
         );
       })}
+    </>
+  );
+}
+
+export function ProfileEditor({ applicantId, values, repeatingValues }: ProfileEditorProps) {
+  const [universalPack, ...targetGroupPacks] = PACK_ORDER;
+
+  return (
+    <div>
+      {universalPack ? (
+        <PackSection
+          applicantId={applicantId}
+          pack={universalPack}
+          values={values}
+          repeatingValues={repeatingValues}
+        />
+      ) : null}
+
+      {targetGroupPacks.map((pack) => (
+        <details key={pack} style={{ marginTop: '1.75rem' }}>
+          <summary
+            style={{ cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: '0.15rem' }}
+          >
+            <span className="card-kicker" style={{ margin: 0 }}>
+              {PACK_LABELS[pack]}
+            </span>
+            <span className="muted" style={{ fontSize: '0.8rem' }}>
+              {PACK_DESCRIPTIONS[pack]}
+            </span>
+          </summary>
+          <div style={{ marginTop: '1rem' }}>
+            <PackSection
+              applicantId={applicantId}
+              pack={pack}
+              values={values}
+              repeatingValues={repeatingValues}
+            />
+          </div>
+        </details>
+      ))}
     </div>
   );
 }
