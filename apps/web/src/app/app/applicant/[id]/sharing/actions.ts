@@ -32,6 +32,8 @@ export async function createGrantAction(
     .toLowerCase();
   const purpose = String(formData.get('purpose') ?? '').trim();
   const actions = formData.getAll('action').map(String).filter(isPermissionAction);
+  const categories = formData.getAll('category').map(String);
+  const documentIds = formData.getAll('documentId').map(String);
   const expiryDaysRaw = String(formData.get('expiryDays') ?? '').trim();
 
   if (recipientEmail.length === 0) return { ok: false, message: 'Enter a recipient email.' };
@@ -64,6 +66,8 @@ export async function createGrantAction(
       recipientAccountId: recipient.id,
       actions,
       purpose,
+      ...(categories.length > 0 ? { categories } : {}),
+      ...(documentIds.length > 0 ? { documentIds } : {}),
       ...(expiryAt ? { expiryAt } : {}),
     });
     if (!created.ok) return { ok: false, message: created.error.message } satisfies ActionState;

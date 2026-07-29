@@ -99,6 +99,13 @@
       "when": 1785326640509,
       "tag": "0013_funny_bishop",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1785340696705,
+      "tag": "0014_bored_cloak",
+      "breakpoints": true
     }
   ]
 }

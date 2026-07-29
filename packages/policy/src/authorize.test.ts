@@ -22,6 +22,7 @@ const member: Actor = {
   accountId: account,
   membership: { organizationId: org, role: 'REVIEWER', active: true },
 };
+const individual: Actor = { kind: 'individual_recipient', accountId: account };
 
 function ctx(overrides: Partial<AuthContext> = {}): AuthContext {
   return {
@@ -109,6 +110,72 @@ describe('authorize — membership is not authorization (law 2)', () => {
         context: ctx({ grants: [grant()] }),
       }),
     ).toEqual({ allowed: false, reason: 'grant_revoked' });
+  });
+});
+
+describe('authorize — individual_recipient (direct account-to-account sharing, no org)', () => {
+  function directGrant(overrides: Partial<Grant> = {}): Grant {
+    return {
+      applicantId: applicant,
+      recipientAccountId: account,
+      actions: ['PREVIEW'],
+      purpose: PURPOSE,
+      status: 'ACTIVE',
+      acceptedAt: '2026-07-01T00:00:00Z',
+      startAt: '2026-07-01T00:00:00Z',
+      ...overrides,
+    };
+  }
+
+  it('denies with no grant at all', () => {
+    expect(
+      authorize({ actor: individual, action: 'VIEW_METADATA', resource: res(), context: ctx() }),
+    ).toEqual({ allowed: false, reason: 'default_deny' });
+  });
+
+  it('allows once a direct grant is accepted and active — no membership/organization involved', () => {
+    expect(
+      authorize({
+        actor: individual,
+        action: 'PREVIEW',
+        resource: res(),
+        context: ctx({ grants: [directGrant()] }),
+      }),
+    ).toEqual({ allowed: true });
+  });
+
+  it('does not match a grant addressed to a different account', () => {
+    const otherAccount = 'acc-2' as AccountId;
+    expect(
+      authorize({
+        actor: individual,
+        action: 'PREVIEW',
+        resource: res(),
+        context: ctx({ grants: [directGrant({ recipientAccountId: otherAccount })] }),
+      }),
+    ).toEqual({ allowed: false, reason: 'default_deny' });
+  });
+
+  it('respects revocation and expiry exactly like every other actor kind', () => {
+    expect(
+      authorize({
+        actor: individual,
+        action: 'PREVIEW',
+        resource: res(),
+        context: ctx({ grants: [directGrant({ status: 'REVOKED' })] }),
+      }),
+    ).toEqual({ allowed: false, reason: 'grant_revoked' });
+  });
+
+  it('still requires step-up for DOWNLOAD_ORIGINAL', () => {
+    expect(
+      authorize({
+        actor: individual,
+        action: 'DOWNLOAD_ORIGINAL',
+        resource: res(),
+        context: ctx({ grants: [directGrant({ actions: ['DOWNLOAD_ORIGINAL'] })] }),
+      }),
+    ).toEqual({ allowed: false, reason: 'step_up_required' });
   });
 });
 

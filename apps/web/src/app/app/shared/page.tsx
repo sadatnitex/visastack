@@ -86,6 +86,19 @@ export default async function SharedWithMePage() {
                       </button>
                     </form>
                   ) : null}
+                  {grant.status === 'ACTIVE' ? (
+                    <Link
+                      href={`/app/shared/${grant.id}`}
+                      className="btn btn-secondary"
+                      style={{
+                        padding: '0.35rem 1rem',
+                        fontSize: '0.85rem',
+                        alignSelf: 'flex-start',
+                      }}
+                    >
+                      Open workspace
+                    </Link>
+                  ) : null}
                 </div>
               );
             })}

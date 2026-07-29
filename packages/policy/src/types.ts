@@ -54,6 +54,13 @@ export type Actor =
       readonly accountId: AccountId;
       readonly membership: Membership;
     }
+  /**
+   * A grant recipient with no organization involved at all — the direct
+   * account-to-account sharing path (`Grant.recipientAccountId` with no
+   * `recipientOrganizationId`). Distinct from `organization_member`, which
+   * requires a real `Membership` and is meaningless for a plain individual.
+   */
+  | { readonly kind: 'individual_recipient'; readonly accountId: AccountId }
   | { readonly kind: 'support_admin'; readonly accountId: AccountId };
 
 export interface Resource {

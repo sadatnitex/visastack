@@ -68,6 +68,7 @@ export async function saveFactAction(_prev: ActionState, formData: FormData): Pr
       dataType: def.type === 'date' ? 'date' : 'string',
       sensitivity: def.sensitivity,
       repeating: def.group !== undefined,
+      packId: def.pack,
     });
     const edit = await editFact(db, {
       actorAccountId: accountId,

@@ -1,4 +1,8 @@
-import { getApplicant, listAccessForApplicantDetailed } from '@visastack/services';
+import {
+  getApplicant,
+  listAccessForApplicantDetailed,
+  listDocumentsDetailed,
+} from '@visastack/services';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { withSession } from '../../../../../lib/session';
@@ -48,8 +52,15 @@ export default async function SharingPage({
   const data = await withSession(async ({ db, accountId }) => {
     const applicant = await getApplicant(db, id);
     if (!applicant || applicant.ownerAccountId !== accountId) return null;
-    const access = await listAccessForApplicantDetailed(db, accountId, id);
-    return { applicant, grants: access.ok ? access.value : [] };
+    const [access, documents] = await Promise.all([
+      listAccessForApplicantDetailed(db, accountId, id),
+      listDocumentsDetailed(db, accountId, id),
+    ]);
+    return {
+      applicant,
+      grants: access.ok ? access.value : [],
+      documents: documents.ok ? documents.value : [],
+    };
   });
 
   if (!data) notFound();
@@ -82,7 +93,13 @@ export default async function SharingPage({
             Share with an existing VisaStack user by email. They must accept before any access
             begins.
           </p>
-          <GrantForm applicantId={id} />
+          <GrantForm
+            applicantId={id}
+            documents={data.documents.map((d) => ({
+              id: d.id,
+              displayName: d.approvedName ?? d.originalName,
+            }))}
+          />
         </article>
 
         <article className="card">

@@ -139,6 +139,17 @@ function evaluateBase(
         'default_deny',
       );
     }
+    case 'individual_recipient': {
+      // The direct account-to-account sharing path — no organization/
+      // membership concept applies; the grant's own status is the only gate.
+      return evaluateGrants(
+        action,
+        resource,
+        context,
+        (g) => g.recipientAccountId === actor.accountId,
+        'default_deny',
+      );
+    }
     case 'support_admin': {
       // Support access is never an ordinary role permission (law 8); it
       // requires an explicit just-in-time support grant.

@@ -1,6 +1,7 @@
 'use client';
 
 import { useActionState } from 'react';
+import { PACK_LABELS, PACK_ORDER } from '../../../../../lib/profile-fields';
 import { type ActionState, createGrantAction } from './actions';
 
 const INITIAL: ActionState = { ok: true, message: '' };
@@ -14,7 +15,13 @@ const SHAREABLE_ACTIONS: ReadonlyArray<{ value: string; label: string; defaultOn
   { value: 'PROPOSE_EDIT', label: 'Propose edits' },
 ];
 
-export function GrantForm({ applicantId }: { readonly applicantId: string }) {
+export function GrantForm({
+  applicantId,
+  documents,
+}: {
+  readonly applicantId: string;
+  readonly documents: ReadonlyArray<{ readonly id: string; readonly displayName: string }>;
+}) {
   const [state, formAction, pending] = useActionState(createGrantAction, INITIAL);
 
   return (
@@ -65,6 +72,38 @@ export function GrantForm({ applicantId }: { readonly applicantId: string }) {
           ))}
         </div>
       </fieldset>
+
+      <fieldset className="fieldset">
+        <legend className="field-label">Limit to profile categories (optional)</legend>
+        <p className="muted" style={{ fontSize: '0.8rem', margin: '0 0 0.5rem' }}>
+          Leave all unchecked to share every category. Checking any narrows access to only those.
+        </p>
+        <div className="checks">
+          {PACK_ORDER.map((pack) => (
+            <label className="check" key={pack}>
+              <input type="checkbox" name="category" value={pack} />
+              <span>{PACK_LABELS[pack]}</span>
+            </label>
+          ))}
+        </div>
+      </fieldset>
+
+      {documents.length > 0 ? (
+        <fieldset className="fieldset">
+          <legend className="field-label">Limit to specific documents (optional)</legend>
+          <p className="muted" style={{ fontSize: '0.8rem', margin: '0 0 0.5rem' }}>
+            Leave all unchecked to share every document.
+          </p>
+          <div className="checks">
+            {documents.map((doc) => (
+              <label className="check" key={doc.id}>
+                <input type="checkbox" name="documentId" value={doc.id} />
+                <span>{doc.displayName}</span>
+              </label>
+            ))}
+          </div>
+        </fieldset>
+      ) : null}
 
       <div className="field-row">
         <label className="field-label" htmlFor="expiryDays">
