@@ -1,0 +1,1 @@
+ALTER TABLE "grants" ADD COLUMN "document_ids" uuid[];

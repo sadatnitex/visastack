@@ -257,6 +257,11 @@ export const grants = pgTable(
     missionId: uuid('mission_id').references(() => missions.id, { onDelete: 'cascade' }),
     actions: permissionAction('actions').array().notNull(),
     categories: text('categories').array(),
+    // Document allow-list (Collaboration PR / Release G) — closes the gap
+    // between the policy engine's Grant.documentIds (packages/policy/src/types.ts)
+    // and persistence; previously modeled in the policy layer but never
+    // actually storable.
+    documentIds: uuid('document_ids').array(),
     purpose: text('purpose').notNull(),
     status: grantStatus('status').notNull().default('PENDING_ACCEPTANCE'),
     acceptedAt: timestamp('accepted_at', { withTimezone: true }),

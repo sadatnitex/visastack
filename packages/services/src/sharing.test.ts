@@ -11,16 +11,20 @@ import { createApplicant } from './applicants';
 import { setConsent } from './consent';
 import type { Db } from './db';
 import { addDocumentVersion, previewDocument, registerDocument } from './documents';
+import { createMission } from './missions';
 import {
   addMembership,
   createOrganization,
   listOrgMemberships,
   reviewOrganization,
+  setMembershipActive,
   suspendOrganization,
 } from './organizations';
+import { editFact, registerFieldDefinition } from './profile';
 import {
   acceptGrant,
   createGrant,
+  getRecipientWorkspace,
   listAccessForApplicant,
   listAccessForApplicantDetailed,
   listGrantsForRecipientAccount,
@@ -306,5 +310,295 @@ describe('sharing — grant lifecycle end-to-end with the policy engine', () => 
     });
     expect(isErr(badAccept)).toBe(true);
     if (isErr(badAccept)) expect(badAccept.error.code).toBe('forbidden');
+  });
+});
+
+describe('getRecipientWorkspace — the actual permission-filtered read path (Release G)', () => {
+  let db: Db;
+  beforeEach(async () => {
+    db = await freshDb();
+  });
+
+  async function ownerWithFieldAndDoc(db: Db, email: string) {
+    const { account, applicantId, documentId } = await ownerWithDoc(db, email);
+    await registerFieldDefinition(db, {
+      key: 'given_name',
+      dataType: 'string',
+      sensitivity: 'STANDARD',
+      packId: 'universal',
+    });
+    const edit = await editFact(db, {
+      actorAccountId: account.id,
+      applicantId,
+      fieldKey: 'given_name',
+      value: 'Anna',
+    });
+    if (!isOk(edit)) throw new Error('edit');
+    return { account, applicantId, documentId };
+  }
+
+  it('a direct (individual, non-org) recipient sees exactly what their grant permits — the primary share-by-email path', async () => {
+    const { account, applicantId } = await ownerWithFieldAndDoc(db, 'recipient-owner@example.com');
+    const recipient = await provisionAccount(db, { email: 'recipient@example.com' });
+    if (!isOk(recipient)) throw new Error('provision');
+
+    const grant = await createGrant(db, {
+      actorAccountId: account.id,
+      applicantId,
+      recipientAccountId: recipient.value.id,
+      actions: ['VIEW_METADATA', 'PREVIEW'],
+      purpose: 'visa_application',
+    });
+    if (!isOk(grant)) throw new Error('grant');
+
+    // Before acceptance: no workspace.
+    const beforeAccept = await getRecipientWorkspace(db, {
+      actorAccountId: recipient.value.id,
+      grantId: grant.value.id,
+    });
+    expect(isErr(beforeAccept)).toBe(true);
+
+    const accepted = await acceptGrant(db, {
+      actorAccountId: recipient.value.id,
+      grantId: grant.value.id,
+    });
+    expect(isOk(accepted)).toBe(true);
+
+    const workspace = await getRecipientWorkspace(db, {
+      actorAccountId: recipient.value.id,
+      grantId: grant.value.id,
+    });
+    expect(isOk(workspace)).toBe(true);
+    if (!isOk(workspace)) return;
+    expect(workspace.value.applicantDisplayName).toBe('Owner');
+    expect(workspace.value.fields).toEqual([
+      { fieldKey: 'given_name', value: 'Anna', status: 'APPLICANT_CONFIRMED' },
+    ]);
+    expect(workspace.value.documents).toHaveLength(1);
+    expect(workspace.value.missionScopeUnavailable).toBe(false);
+  });
+
+  it('a stranger (not the grant recipient) cannot open the workspace', async () => {
+    const { account, applicantId } = await ownerWithFieldAndDoc(db, 'ro2@example.com');
+    const recipient = await provisionAccount(db, { email: 'r2@example.com' });
+    const stranger = await provisionAccount(db, { email: 's2@example.com' });
+    if (!isOk(recipient) || !isOk(stranger)) throw new Error('provision');
+    const grant = await createGrant(db, {
+      actorAccountId: account.id,
+      applicantId,
+      recipientAccountId: recipient.value.id,
+      actions: ['VIEW_METADATA'],
+      purpose: 'p',
+    });
+    if (!isOk(grant)) throw new Error('grant');
+    await acceptGrant(db, { actorAccountId: recipient.value.id, grantId: grant.value.id });
+
+    const result = await getRecipientWorkspace(db, {
+      actorAccountId: stranger.value.id,
+      grantId: grant.value.id,
+    });
+    expect(isErr(result)).toBe(true);
+    if (isErr(result)) expect(result.error.code).toBe('forbidden');
+  });
+
+  it('an org-mediated recipient sees the same data via a real membership', async () => {
+    const { account, applicantId } = await ownerWithFieldAndDoc(db, 'ro3@example.com');
+    const agent = await provisionAccount(db, { email: 'agent3@example.com' });
+    if (!isOk(agent)) throw new Error('provision');
+    const org = await createOrganization(db, { actorAccountId: agent.value.id, name: 'Acme' });
+    if (!isOk(org)) throw new Error('org');
+    const grant = await createGrant(db, {
+      actorAccountId: account.id,
+      applicantId,
+      recipientOrganizationId: org.value.id,
+      actions: ['VIEW_METADATA', 'PREVIEW'],
+      purpose: 'p',
+    });
+    if (!isOk(grant)) throw new Error('grant');
+    await acceptGrant(db, { actorAccountId: agent.value.id, grantId: grant.value.id });
+
+    const workspace = await getRecipientWorkspace(db, {
+      actorAccountId: agent.value.id,
+      grantId: grant.value.id,
+    });
+    expect(isOk(workspace)).toBe(true);
+    if (!isOk(workspace)) return;
+    expect(workspace.value.fields).toHaveLength(1);
+    expect(workspace.value.documents).toHaveLength(1);
+  });
+
+  it('an org member whose membership was deactivated loses workspace access', async () => {
+    const { account, applicantId } = await ownerWithFieldAndDoc(db, 'ro4@example.com');
+    const agent = await provisionAccount(db, { email: 'agent4@example.com' });
+    if (!isOk(agent)) throw new Error('provision');
+    const org = await createOrganization(db, { actorAccountId: agent.value.id, name: 'Acme' });
+    if (!isOk(org)) throw new Error('org');
+    const grant = await createGrant(db, {
+      actorAccountId: account.id,
+      applicantId,
+      recipientOrganizationId: org.value.id,
+      actions: ['VIEW_METADATA'],
+      purpose: 'p',
+    });
+    if (!isOk(grant)) throw new Error('grant');
+    await acceptGrant(db, { actorAccountId: agent.value.id, grantId: grant.value.id });
+
+    const members = await listOrgMemberships(db, agent.value.id, org.value.id);
+    if (!isOk(members)) throw new Error('members');
+    const membership = members.value.find((m) => m.accountId === agent.value.id);
+    if (!membership) throw new Error('membership not found');
+    const deactivated = await setMembershipActive(db, {
+      actorAccountId: agent.value.id,
+      organizationId: org.value.id,
+      membershipId: membership.membershipId,
+      active: false,
+    });
+    expect(isOk(deactivated)).toBe(true);
+
+    const result = await getRecipientWorkspace(db, {
+      actorAccountId: agent.value.id,
+      grantId: grant.value.id,
+    });
+    expect(isErr(result)).toBe(true);
+    if (isErr(result)) expect(result.error.code).toBe('forbidden');
+  });
+
+  it('categories scope which fields are visible (pack allow-list)', async () => {
+    const { account, applicantId } = await ownerWithFieldAndDoc(db, 'ro5@example.com');
+    await registerFieldDefinition(db, {
+      key: 'company_name',
+      dataType: 'string',
+      sensitivity: 'STANDARD',
+      packId: 'business',
+    });
+    await editFact(db, {
+      actorAccountId: account.id,
+      applicantId,
+      fieldKey: 'company_name',
+      value: 'Acme Corp',
+    });
+    const recipient = await provisionAccount(db, { email: 'r5@example.com' });
+    if (!isOk(recipient)) throw new Error('provision');
+    const grant = await createGrant(db, {
+      actorAccountId: account.id,
+      applicantId,
+      recipientAccountId: recipient.value.id,
+      actions: ['VIEW_METADATA'],
+      purpose: 'p',
+      categories: ['universal'],
+    });
+    if (!isOk(grant)) throw new Error('grant');
+    await acceptGrant(db, { actorAccountId: recipient.value.id, grantId: grant.value.id });
+
+    const workspace = await getRecipientWorkspace(db, {
+      actorAccountId: recipient.value.id,
+      grantId: grant.value.id,
+    });
+    expect(isOk(workspace)).toBe(true);
+    if (!isOk(workspace)) return;
+    // Only the universal-pack field is visible; the business-pack field is scoped out.
+    expect(workspace.value.fields.map((f) => f.fieldKey)).toEqual(['given_name']);
+  });
+
+  it('documentIds scope which documents are visible', async () => {
+    const { account, applicantId, documentId } = await ownerWithFieldAndDoc(db, 'ro6@example.com');
+    // A second, unlisted document.
+    const doc2 = await registerDocument(db, {
+      actorAccountId: account.id,
+      applicantId,
+      originalName: 'second.pdf',
+    });
+    if (!isOk(doc2)) throw new Error('doc2');
+    await addDocumentVersion(db, {
+      actorAccountId: account.id,
+      documentId: doc2.value.id,
+      bucket: 'CLEAN',
+      objectKey: 'obj-second',
+    });
+
+    const recipient = await provisionAccount(db, { email: 'r6@example.com' });
+    if (!isOk(recipient)) throw new Error('provision');
+    const grant = await createGrant(db, {
+      actorAccountId: account.id,
+      applicantId,
+      recipientAccountId: recipient.value.id,
+      actions: ['PREVIEW'],
+      purpose: 'p',
+      documentIds: [documentId],
+    });
+    if (!isOk(grant)) throw new Error('grant');
+    await acceptGrant(db, { actorAccountId: recipient.value.id, grantId: grant.value.id });
+
+    const workspace = await getRecipientWorkspace(db, {
+      actorAccountId: recipient.value.id,
+      grantId: grant.value.id,
+    });
+    expect(isOk(workspace)).toBe(true);
+    if (!isOk(workspace)) return;
+    expect(workspace.value.documents.map((d) => d.id)).toEqual([documentId]);
+  });
+
+  it('a mission-scoped grant surfaces nothing and flags missionScopeUnavailable (fail closed, not fake)', async () => {
+    const { account, applicantId } = await ownerWithFieldAndDoc(db, 'ro7@example.com');
+    const recipient = await provisionAccount(db, { email: 'r7@example.com' });
+    if (!isOk(recipient)) throw new Error('provision');
+    // A real mission row is required (FK), but no fact/document ever carries
+    // a missionId regardless — the scoping still fails closed with real data.
+    const mission = await createMission(db, {
+      actorAccountId: account.id,
+      applicantId,
+      title: 'UK Student Visa',
+    });
+    if (!isOk(mission)) throw new Error('mission');
+    const grant = await createGrant(db, {
+      actorAccountId: account.id,
+      applicantId,
+      recipientAccountId: recipient.value.id,
+      actions: ['VIEW_METADATA', 'PREVIEW'],
+      purpose: 'p',
+      missionId: mission.value.id,
+    });
+    if (!isOk(grant)) throw new Error('grant');
+    await acceptGrant(db, { actorAccountId: recipient.value.id, grantId: grant.value.id });
+
+    const workspace = await getRecipientWorkspace(db, {
+      actorAccountId: recipient.value.id,
+      grantId: grant.value.id,
+    });
+    expect(isOk(workspace)).toBe(true);
+    if (!isOk(workspace)) return;
+    expect(workspace.value.fields).toEqual([]);
+    expect(workspace.value.documents).toEqual([]);
+    expect(workspace.value.missionScopeUnavailable).toBe(true);
+  });
+
+  it('revoking the grant immediately blocks the workspace on the next call', async () => {
+    const { account, applicantId } = await ownerWithFieldAndDoc(db, 'ro8@example.com');
+    const recipient = await provisionAccount(db, { email: 'r8@example.com' });
+    if (!isOk(recipient)) throw new Error('provision');
+    const grant = await createGrant(db, {
+      actorAccountId: account.id,
+      applicantId,
+      recipientAccountId: recipient.value.id,
+      actions: ['VIEW_METADATA'],
+      purpose: 'p',
+    });
+    if (!isOk(grant)) throw new Error('grant');
+    await acceptGrant(db, { actorAccountId: recipient.value.id, grantId: grant.value.id });
+
+    const before = await getRecipientWorkspace(db, {
+      actorAccountId: recipient.value.id,
+      grantId: grant.value.id,
+    });
+    expect(isOk(before)).toBe(true);
+
+    await revokeGrant(db, { actorAccountId: account.id, grantId: grant.value.id });
+
+    const after = await getRecipientWorkspace(db, {
+      actorAccountId: recipient.value.id,
+      grantId: grant.value.id,
+    });
+    expect(isErr(after)).toBe(true);
+    if (isErr(after)) expect(after.error.code).toBe('forbidden');
   });
 });

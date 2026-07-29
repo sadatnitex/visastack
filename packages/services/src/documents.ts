@@ -1,20 +1,13 @@
-import type {
-  AccountId,
-  AgencyId,
-  ApplicantId,
-  DocumentId,
-  MissionId,
-  PermissionAction,
-  Result,
-} from '@visastack/core';
+import type { ApplicantId, DocumentId, PermissionAction, Result } from '@visastack/core';
 import { err, ok } from '@visastack/core';
-import { type Actor, type Grant, authorize } from '@visastack/policy';
+import { type Actor, authorize } from '@visastack/policy';
 import { desc, eq } from 'drizzle-orm';
 import { getApplicant } from './applicants';
 import { appendAuditEvent } from './audit';
 import { hasConsent } from './consent';
 import { type Db, first, required, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
+import { loadGrantsForPolicy } from './sharing';
 import type { AccessRef, AccessVariant, StorageBucket, StoragePort } from './storage';
 
 /**
@@ -289,29 +282,6 @@ export async function listDocumentsDetailed(
 
 // --- Permission-aware access -----------------------------------------------
 
-/** Map the grant rows for an applicant into the policy engine's Grant shape. */
-async function loadGrants(db: Db, applicantId: string): Promise<Grant[]> {
-  const rows = await db
-    .select()
-    .from(schema.grants)
-    .where(eq(schema.grants.applicantId, applicantId));
-  return rows.map((row) => ({
-    applicantId: row.applicantId as ApplicantId,
-    actions: row.actions as PermissionAction[],
-    purpose: row.purpose,
-    status: row.status,
-    startAt: row.startAt.toISOString(),
-    ...(row.recipientAccountId ? { recipientAccountId: row.recipientAccountId as AccountId } : {}),
-    ...(row.recipientOrganizationId
-      ? { recipientOrganizationId: row.recipientOrganizationId as AgencyId }
-      : {}),
-    ...(row.missionId ? { missionId: row.missionId as MissionId } : {}),
-    ...(row.categories ? { categories: row.categories } : {}),
-    ...(row.acceptedAt ? { acceptedAt: row.acceptedAt.toISOString() } : {}),
-    ...(row.expiryAt ? { expiryAt: row.expiryAt.toISOString() } : {}),
-  }));
-}
-
 /** Best-effort audit identity for an actor (owner carries no account id). */
 function actorAudit(actor: Actor): { actorAccountId: string | null; actorRole: string } {
   switch (actor.kind) {
@@ -319,6 +289,8 @@ function actorAudit(actor: Actor): { actorAccountId: string | null; actorRole: s
       return { actorAccountId: null, actorRole: 'applicant_owner' };
     case 'organization_member':
       return { actorAccountId: actor.accountId, actorRole: `org:${actor.membership.role}` };
+    case 'individual_recipient':
+      return { actorAccountId: actor.accountId, actorRole: 'individual_recipient' };
     case 'support_admin':
       return { actorAccountId: actor.accountId, actorRole: 'support_admin' };
   }
@@ -372,7 +344,7 @@ async function accessDocument(
       : variant;
 
   const now = input.now ?? new Date();
-  const grants = await loadGrants(db, document.applicantId);
+  const grants = await loadGrantsForPolicy(db, document.applicantId);
   const decision = authorize({
     actor: input.actor,
     action,
