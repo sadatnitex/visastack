@@ -18,3 +18,8 @@ export {
   DeterministicTextExtractor,
   type DeterministicTextExtractorOptions,
 } from './text-extraction';
+
+export {
+  OpenAiExtractionAdapter,
+  type OpenAiExtractionAdapterOptions,
+} from './openai-extraction';

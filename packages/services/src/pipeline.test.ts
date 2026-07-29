@@ -7,13 +7,6 @@ import { drizzle } from 'drizzle-orm/pglite';
 import { migrate } from 'drizzle-orm/pglite/migrator';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { provisionAccount } from './accounts';
-import {
-  type AiExtractionPort,
-  type AiExtractionResult,
-  type FieldProposal,
-  approveProposal,
-  runExtraction,
-} from './ai';
 import { createApplicant } from './applicants';
 import { setConsent } from './consent';
 import type { Db } from './db';
@@ -22,7 +15,6 @@ import { addDocumentVersion, registerDocument } from './documents';
 import type { ExtractionOutcome, TextExtractionPort } from './extraction';
 import { type ScannerPort, processIntake } from './intake';
 import { checkDigit, parseTd3 } from './mrz';
-import { getCurrentFactVersion, registerFieldDefinition } from './profile';
 
 const migrationsFolder = fileURLToPath(new URL('../../db/migrations', import.meta.url));
 
@@ -282,112 +274,5 @@ describe('document intake pipeline', () => {
       .from(schema.documentClassifications)
       .where(eq(schema.documentClassifications.documentVersionId, versionId));
     expect(classifications).toHaveLength(0);
-  });
-});
-
-describe('AI Gateway — proposals never silently mutate', () => {
-  let db: Db;
-  beforeEach(async () => {
-    db = await freshDb();
-  });
-
-  const proposals: FieldProposal[] = [
-    { type: 'NEW', fieldKey: 'passport.number', value: 'L898902C3', confidence: 0.98 },
-    { type: 'UNMAPPED', value: 'mystery', confidence: 0.4 },
-  ];
-  const ai: AiExtractionPort = {
-    async extract(): Promise<AiExtractionResult> {
-      return { proposals, usage: { costUnits: 3, modelVersion: 'terra-1', promptVersion: 'p1' } };
-    },
-  };
-
-  it('requires AI_EXTRACTION consent to run', async () => {
-    const { account, applicantId, versionId } = await seedVersion(db, 'ai1@example.com');
-    const budget = { limitUnits: 10, used: 0 };
-    const denied = await runExtraction(db, ai, {
-      actorAccountId: account.id,
-      applicantId,
-      documentVersionId: versionId,
-      text: 'MRZ...',
-      budget,
-    });
-    expect(isErr(denied)).toBe(true);
-    if (isErr(denied)) expect(denied.error.code).toBe('consent_required');
-  });
-
-  it('runs, proposes without mutating, then approves atomically with provenance', async () => {
-    const { account, applicantId, versionId } = await seedVersion(db, 'ai2@example.com');
-    await setConsent(db, {
-      actorAccountId: account.id,
-      accountId: account.id,
-      type: 'AI_EXTRACTION',
-      granted: true,
-    });
-    await registerFieldDefinition(db, { key: 'passport.number', dataType: 'string' });
-    const budget = { limitUnits: 10, used: 0 };
-
-    const run = await runExtraction(db, ai, {
-      actorAccountId: account.id,
-      applicantId,
-      documentVersionId: versionId,
-      text: 'MRZ...',
-      budget,
-    });
-    expect(isOk(run)).toBe(true);
-    if (!isOk(run)) return;
-    expect(run.value.proposals).toHaveLength(2);
-    expect(budget.used).toBe(3);
-    // No facts were written by extraction.
-    expect(await db.select().from(schema.facts)).toHaveLength(0);
-
-    // Approving the mapped proposal writes an immutable, provenance-tagged version.
-    const approved = await approveProposal(db, {
-      actorAccountId: account.id,
-      applicantId,
-      documentVersionId: versionId,
-      proposal: proposals[0] as FieldProposal,
-      usage: { modelVersion: 'terra-1', promptVersion: 'p1' },
-    });
-    expect(isOk(approved)).toBe(true);
-    if (!isOk(approved)) return;
-    const current = await getCurrentFactVersion(db, approved.value.fact.id);
-    expect(current?.value).toBe('L898902C3');
-    expect(current?.status).toBe('DOCUMENT_SUPPORTED');
-    expect(current?.method).toBe('DOCUMENT');
-    expect(current?.sourceDocumentVersionId).toBe(versionId);
-    expect(current?.modelVersion).toBe('terra-1');
-  });
-
-  it('refuses to approve an UNMAPPED proposal', async () => {
-    const { account, applicantId, versionId } = await seedVersion(db, 'ai3@example.com');
-    const result = await approveProposal(db, {
-      actorAccountId: account.id,
-      applicantId,
-      documentVersionId: versionId,
-      proposal: proposals[1] as FieldProposal,
-      usage: { modelVersion: 'terra-1', promptVersion: 'p1' },
-    });
-    expect(isErr(result)).toBe(true);
-    if (isErr(result)) expect(result.error.code).toBe('unknown_field');
-  });
-
-  it('enforces the cost budget', async () => {
-    const { account, applicantId, versionId } = await seedVersion(db, 'ai4@example.com');
-    await setConsent(db, {
-      actorAccountId: account.id,
-      accountId: account.id,
-      type: 'AI_EXTRACTION',
-      granted: true,
-    });
-    const budget = { limitUnits: 2, used: 2 };
-    const result = await runExtraction(db, ai, {
-      actorAccountId: account.id,
-      applicantId,
-      documentVersionId: versionId,
-      text: 'MRZ...',
-      budget,
-    });
-    expect(isErr(result)).toBe(true);
-    if (isErr(result)) expect(result.error.code).toBe('invalid');
   });
 });

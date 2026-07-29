@@ -17,7 +17,9 @@ export type ServiceErrorCode =
   /** The field key is not in the canonical registry — it cannot be invented. */
   | 'unknown_field'
   /** The request is malformed (e.g. a non-repeating field with a record key). */
-  | 'invalid';
+  | 'invalid'
+  /** A dependent external service (e.g. the AI provider) failed or is unreachable. */
+  | 'upstream_error';
 
 export interface ServiceError {
   readonly code: ServiceErrorCode;
