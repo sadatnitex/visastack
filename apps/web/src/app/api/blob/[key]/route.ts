@@ -89,6 +89,11 @@ export async function GET(
         fields.filename,
       ),
       'Cache-Control': 'private, no-store',
+      // Defense in depth alongside the scanner's declared-content-type gate
+      // (packages/adapters/src/scanner.ts): never let a browser MIME-sniff
+      // stored bytes into an executable type regardless of what Content-Type
+      // ended up being served.
+      'X-Content-Type-Options': 'nosniff',
     },
   });
 }
