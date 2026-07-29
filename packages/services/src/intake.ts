@@ -1,6 +1,6 @@
 import type { DocumentState } from '@visastack/core';
 import { type Result, err, ok } from '@visastack/core';
-import { eq } from 'drizzle-orm';
+import { and, desc, eq } from 'drizzle-orm';
 import { appendAuditEvent } from './audit';
 import { classifyDocumentText } from './classification';
 import { type Db, first, required, schema } from './db';
@@ -263,6 +263,32 @@ async function runExtractionStep(
       proposedName,
     });
   }
+}
+
+/**
+ * The most recent successfully deterministically-extracted text for a
+ * document version (AI Gateway input — packages/services/src/ai.ts). Returns
+ * undefined if extraction never succeeded (e.g. `unsupported_format`), in
+ * which case there is nothing grounded to hand the AI adapter.
+ */
+export async function getLatestExtractedText(
+  db: Db,
+  documentVersionId: string,
+): Promise<string | undefined> {
+  const row = first(
+    await db
+      .select({ text: schema.extractionRuns.extractedText })
+      .from(schema.extractionRuns)
+      .where(
+        and(
+          eq(schema.extractionRuns.documentVersionId, documentVersionId),
+          eq(schema.extractionRuns.status, 'SUCCEEDED'),
+        ),
+      )
+      .orderBy(desc(schema.extractionRuns.createdAt))
+      .limit(1),
+  );
+  return row?.text ?? undefined;
 }
 
 /**

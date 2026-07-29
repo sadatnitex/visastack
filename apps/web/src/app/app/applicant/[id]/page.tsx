@@ -4,12 +4,15 @@ import {
   hasConsent,
   listApplicantProfile,
   listDocumentsDetailed,
+  listPendingProposals,
   loadUploadQuotaConfig,
 } from '@visastack/services';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { createAiExtractor } from '../../../../lib/ai';
 import { withSession } from '../../../../lib/session';
 import { previewDocumentAction } from './actions';
+import { AiProposalReview, RunAiExtractionButton } from './ai-review';
 import { DocumentUploader } from './document-uploader';
 import { NameReview } from './name-review';
 import { ProfileEditor } from './profile-editor';
@@ -40,18 +43,24 @@ export default async function ApplicantPage({
   const data = await withSession(async ({ db, accountId }) => {
     const applicant = await getApplicant(db, id);
     if (!applicant || applicant.ownerAccountId !== accountId) return null;
-    const [profile, documents, coreGranted, evidenceBytes] = await Promise.all([
-      listApplicantProfile(db, id),
-      listDocumentsDetailed(db, accountId, id),
-      hasConsent(db, accountId, 'CORE_PROCESSING'),
-      getApplicantEvidenceBytes(db, id),
-    ]);
+    const [profile, documents, coreGranted, aiGranted, evidenceBytes, pendingProposals] =
+      await Promise.all([
+        listApplicantProfile(db, id),
+        listDocumentsDetailed(db, accountId, id),
+        hasConsent(db, accountId, 'CORE_PROCESSING'),
+        hasConsent(db, accountId, 'AI_EXTRACTION'),
+        getApplicantEvidenceBytes(db, id),
+        listPendingProposals(db, id),
+      ]);
     return {
       applicant,
       profile,
       documents: documents.ok ? documents.value : [],
       coreGranted,
+      aiGranted,
+      aiConfigured: Boolean(createAiExtractor()),
       evidenceBytes,
+      pendingProposals,
       quota: loadUploadQuotaConfig(),
     };
   });
@@ -111,6 +120,17 @@ export default async function ApplicantPage({
           <p className="card-body">
             Grant <strong>Core processing</strong> consent from your{' '}
             <Link href="/app">workspace</Link> to edit this profile and upload documents.
+          </p>
+        </div>
+      ) : null}
+
+      {data.aiConfigured && data.coreGranted && !data.aiGranted ? (
+        <div className="card" style={{ marginBottom: '2rem' }}>
+          <p className="card-body">
+            Grant <strong>AI extraction</strong> consent from your{' '}
+            <Link href="/app">workspace</Link> to get automatic field suggestions from your
+            documents — every suggestion still requires your explicit approval before it changes
+            your profile.
           </p>
         </div>
       ) : null}
@@ -190,6 +210,34 @@ export default async function ApplicantPage({
                         name.
                       </p>
                     ) : null}
+                    {(() => {
+                      if (!data.aiConfigured || !data.aiGranted || !doc.classification) return null;
+                      const versionId = doc.latestVersionId;
+                      if (!versionId) return null;
+                      const proposalsForDoc = data.pendingProposals.filter(
+                        (p) => p.proposal.documentVersionId === versionId,
+                      );
+                      return (
+                        <>
+                          <RunAiExtractionButton applicantId={id} documentVersionId={versionId} />
+                          {proposalsForDoc.map(({ proposal, evidence }) => (
+                            <AiProposalReview
+                              key={proposal.id}
+                              applicantId={id}
+                              proposal={{
+                                id: proposal.id,
+                                type: proposal.type,
+                                fieldKey: proposal.fieldKey,
+                                value: proposal.value,
+                                confidence: proposal.confidence,
+                                rationale: proposal.rationale,
+                                evidenceSnippets: evidence.map((e) => e.snippet),
+                              }}
+                            />
+                          ))}
+                        </>
+                      );
+                    })()}
                   </div>
                 );
               })}

@@ -193,6 +193,7 @@ export {
   PIPELINE_VERSION,
   type ScannerPort,
   type ScanResult,
+  getLatestExtractedText,
   nextIntakeState,
   processIntake,
 } from './intake';
@@ -242,17 +243,27 @@ export {
 } from './jobs';
 
 export {
-  type AiBudget,
+  type AiExtractionErrorCode,
   type AiExtractionInput,
+  type AiExtractionOutcome,
   type AiExtractionPort,
   type AiExtractionResult,
   type AiUsage,
   type ApproveProposalInput,
+  type EvidenceLocationRow,
   type FieldProposal,
+  type FieldProposalRow,
+  type ProposalWithEvidence,
+  type RejectProposalInput,
   type RunExtractionInput,
+  type RunExtractionSummary,
   approveProposal,
-  awaitingReview,
+  countAiExtractionAttempts,
+  documentAiCostUnits,
+  listPendingProposals,
+  rejectProposal,
   runExtraction,
+  totalAiCostUnits,
 } from './ai';
 
 export {

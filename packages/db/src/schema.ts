@@ -6,6 +6,7 @@ import {
   MISSION_STATES,
   ORGANIZATION_STATUSES,
   PERMISSION_ACTIONS,
+  PROPOSAL_TYPES,
 } from '@visastack/core';
 import { sql } from 'drizzle-orm';
 import {
@@ -117,6 +118,9 @@ export const fieldSensitivity = pgEnum('field_sensitivity', [
   'SENSITIVE',
   'RESTRICTED',
 ]);
+export const proposalType = pgEnum('proposal_type', PROPOSAL_TYPES);
+export const proposalStatus = pgEnum('proposal_status', ['PENDING', 'APPROVED', 'REJECTED']);
+export const aiExtractionRunStatus = pgEnum('ai_extraction_run_status', ['SUCCEEDED', 'FAILED']);
 
 // --- Shared timestamp columns ----------------------------------------------
 const timestamps = {
@@ -330,10 +334,9 @@ export const documentVersions = pgTable(
 );
 
 // --- Persisted document intelligence (Release C; master directive §11/§13) -
-// Deterministic extraction/classification/naming records. Scoped to what this
-// release actually implements — the AI-proposal tables (FieldProposal,
-// EvidenceLocation, Conflict, CorrectionFeedback) belong to the separate AI PR
-// and are deliberately NOT added here.
+// Deterministic extraction/classification/naming records. The AI-proposal
+// tables (FieldProposal, EvidenceLocation, Conflict, CorrectionFeedback)
+// belong to the separate AI PR — see "AI Gateway" further below.
 
 // One row per processIntake execution that reached real extraction work
 // (a retry gets its own row — never overwritten — so history is inspectable).
@@ -545,6 +548,148 @@ export const evidenceLinks = pgTable(
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [unique('evidence_links_unique').on(table.factVersionId, table.documentVersionId)],
+);
+
+// --- AI Gateway (AI PR; master directive §8/§26 item 4) ---------------------
+// Extraction produces PROPOSALS, never silent writes (Build Spec §8). Every
+// invocation of the AI adapter is recorded here - the durable, append-only
+// cost ledger IS this table (SUM(cost_units)), not a separate mutable
+// counter, matching the audit-friendly, immutable-history pattern used
+// everywhere else in this schema (fact_versions, extraction_runs, etc.).
+export const aiExtractionRuns = pgTable(
+  'ai_extraction_runs',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    documentVersionId: uuid('document_version_id')
+      .notNull()
+      .references(() => documentVersions.id, { onDelete: 'cascade' }),
+    applicantId: uuid('applicant_id')
+      .notNull()
+      .references(() => applicants.id, { onDelete: 'cascade' }),
+    status: aiExtractionRunStatus('status').notNull(),
+    modelVersion: text('model_version').notNull(),
+    promptVersion: text('prompt_version').notNull(),
+    costUnits: integer('cost_units').notNull().default(0),
+    errorCode: text('error_code'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('ai_extraction_runs_document_version_idx').on(table.documentVersionId),
+    index('ai_extraction_runs_applicant_idx').on(table.applicantId),
+  ],
+);
+
+// A field proposal from a single AI extraction run. Never written directly to
+// a fact - only approveProposal (packages/services/src/ai.ts) can turn one
+// into an immutable fact_versions row, reusing the same atomic-approval
+// machinery as a manual edit. confidence is 0-100 (matches the same scale
+// used by document_classifications/extraction_runs elsewhere in this file);
+// the AI adapter itself reports 0..1 and the service layer converts.
+export const fieldProposals = pgTable(
+  'field_proposals',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    aiExtractionRunId: uuid('ai_extraction_run_id')
+      .notNull()
+      .references(() => aiExtractionRuns.id, { onDelete: 'cascade' }),
+    documentVersionId: uuid('document_version_id')
+      .notNull()
+      .references(() => documentVersions.id, { onDelete: 'cascade' }),
+    applicantId: uuid('applicant_id')
+      .notNull()
+      .references(() => applicants.id, { onDelete: 'cascade' }),
+    type: proposalType('type').notNull(),
+    // Free text, not an FK to field_definitions.key - an UNMAPPED proposal has
+    // none, and validity against the registry is checked in the service layer
+    // (mirrors document_classifications.classified_type's same rationale).
+    fieldKey: text('field_key'),
+    value: text('value'),
+    confidence: integer('confidence').notNull(), // 0-100
+    rationale: text('rationale'),
+    status: proposalStatus('status').notNull().default('PENDING'),
+    decidedByAccountId: uuid('decided_by_account_id').references(() => accounts.id, {
+      onDelete: 'set null',
+    }),
+    decidedAt: timestamp('decided_at', { withTimezone: true }),
+    // Set once the proposal is approved and written as a fact version.
+    factVersionId: uuid('fact_version_id').references(() => factVersions.id, {
+      onDelete: 'set null',
+    }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('field_proposals_document_version_idx').on(table.documentVersionId),
+    index('field_proposals_applicant_status_idx').on(table.applicantId, table.status),
+  ],
+);
+
+// The source-text excerpt the model cited for a proposed value - lets a human
+// reviewer verify against the evidence instead of trusting the model blindly.
+// Distinct from evidence_links (which links an already-APPROVED fact version
+// to a document region/page); this is pre-approval, proposal-scoped, and
+// text-offset based since deterministic extraction has no page/region
+// coordinates to offer.
+export const evidenceLocations = pgTable(
+  'evidence_locations',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    fieldProposalId: uuid('field_proposal_id')
+      .notNull()
+      .references(() => fieldProposals.id, { onDelete: 'cascade' }),
+    snippet: text('snippet').notNull(),
+    charStart: integer('char_start'),
+    charEnd: integer('char_end'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index('evidence_locations_field_proposal_idx').on(table.fieldProposalId)],
+);
+
+// Recorded when approving a proposal would overwrite an already-trusted fact
+// value (APPLICANT_CONFIRMED/DOCUMENT_SUPPORTED/AGENCY_REVIEWED) with a
+// different one. The new version is still written (status CONFLICTED, never
+// silently discarded and never silently promoted to a trusted status) so the
+// disagreement is visible and the human resolves it explicitly.
+export const conflicts = pgTable(
+  'conflicts',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    fieldProposalId: uuid('field_proposal_id')
+      .notNull()
+      .references(() => fieldProposals.id, { onDelete: 'cascade' }),
+    factId: uuid('fact_id')
+      .notNull()
+      .references(() => facts.id, { onDelete: 'cascade' }),
+    previousFactVersionId: uuid('previous_fact_version_id')
+      .notNull()
+      .references(() => factVersions.id, { onDelete: 'cascade' }),
+    newFactVersionId: uuid('new_fact_version_id')
+      .notNull()
+      .references(() => factVersions.id, { onDelete: 'cascade' }),
+    note: text('note'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('conflicts_field_proposal_idx').on(table.fieldProposalId),
+    index('conflicts_fact_idx').on(table.factId),
+  ],
+);
+
+// Recorded when a human edits a proposed value before approving it
+// (edit-before-approve) - a lightweight, write-only feedback signal for
+// future model-quality review. No reader exists yet; this is intentionally
+// just durable capture, not a retraining pipeline.
+export const correctionFeedback = pgTable(
+  'correction_feedback',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    fieldProposalId: uuid('field_proposal_id')
+      .notNull()
+      .references(() => fieldProposals.id, { onDelete: 'cascade' }),
+    originalValue: text('original_value'),
+    correctedValue: text('corrected_value').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index('correction_feedback_field_proposal_idx').on(table.fieldProposalId)],
 );
 
 // --- Requirement Packs & Pack Studio (Build Spec §4.5; PRD §4) --------------

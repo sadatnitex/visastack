@@ -5,18 +5,29 @@ import type { ApplicantId } from '@visastack/core';
 import type { Actor, Db } from '@visastack/services';
 import {
   addDocumentVersion,
+  approveProposal,
   checkUploadQuota,
   decideDocumentName,
   editFact,
   enqueueIntakeJob,
   getApplicant,
+  getLatestExtractedText,
   previewDocument,
   registerDocument,
   registerFieldDefinition,
+  rejectProposal,
+  runExtraction,
 } from '@visastack/services';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { after } from 'next/server';
+import {
+  aiBudgetLimitUnits,
+  aiMaxAttemptsPerDocument,
+  aiMaxPagesPerDocument,
+  aiPerDocumentBudgetLimitUnits,
+  createAiExtractor,
+} from '../../../../lib/ai';
 import { triggerIntakeWorker } from '../../../../lib/jobs';
 import { profileField } from '../../../../lib/profile-fields';
 import { withSession } from '../../../../lib/session';
@@ -223,4 +234,99 @@ export async function previewDocumentAction(formData: FormData): Promise<void> {
   });
 
   if (url) redirect(url);
+}
+
+/**
+ * Run AI extraction over a document's already deterministically-extracted
+ * text (AI Gateway — master directive §8/§26 item 4). Produces PENDING
+ * proposals only; nothing is written to the profile here.
+ */
+export async function runAiExtractionAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const applicantId = String(formData.get('applicantId') ?? '');
+  const documentVersionId = String(formData.get('documentVersionId') ?? '');
+
+  const result = await withSession(async ({ db, accountId }) => {
+    if (!(await assertOwned(db, accountId, applicantId))) {
+      return { ok: false, message: 'Not authorized.' } satisfies ActionState;
+    }
+    const ai = createAiExtractor();
+    if (!ai) {
+      return { ok: false, message: 'AI extraction is not configured.' } satisfies ActionState;
+    }
+    const text = await getLatestExtractedText(db, documentVersionId);
+    if (!text) {
+      return {
+        ok: false,
+        message: 'No extracted text available yet for this document.',
+      } satisfies ActionState;
+    }
+    const maxAttempts = aiMaxAttemptsPerDocument();
+    const maxPages = aiMaxPagesPerDocument();
+    const run = await runExtraction(db, ai, {
+      actorAccountId: accountId,
+      applicantId,
+      documentVersionId,
+      text,
+      budgetLimitUnits: aiBudgetLimitUnits(),
+      perDocumentBudgetLimitUnits: aiPerDocumentBudgetLimitUnits(),
+      ...(maxAttempts !== undefined ? { maxAttemptsPerDocument: maxAttempts } : {}),
+      ...(maxPages !== undefined ? { maxPagesPerDocument: maxPages } : {}),
+    });
+    if (!run.ok) return { ok: false, message: run.error.message } satisfies ActionState;
+    return {
+      ok: true,
+      message: `AI extraction proposed ${run.value.proposals.length} field(s) for review.`,
+    } satisfies ActionState;
+  });
+
+  if (result.ok) revalidatePath(`/app/applicant/${applicantId}`);
+  return result;
+}
+
+/**
+ * Decide a PENDING AI field proposal (Build Spec §8): approve — optionally
+ * with a human-edited value — or reject. Never applied silently.
+ */
+export async function decideProposalAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const applicantId = String(formData.get('applicantId') ?? '');
+  const proposalId = String(formData.get('proposalId') ?? '');
+  const decision = String(formData.get('proposalAction') ?? '');
+  const correctedValue = String(formData.get('correctedValue') ?? '').trim();
+
+  if (decision !== 'approve' && decision !== 'reject') {
+    return { ok: false, message: 'Unknown action.' };
+  }
+
+  const result = await withSession(async ({ db, accountId }) => {
+    if (!(await assertOwned(db, accountId, applicantId))) {
+      return { ok: false, message: 'Not authorized.' } satisfies ActionState;
+    }
+    if (decision === 'reject') {
+      const rejected = await rejectProposal(db, { actorAccountId: accountId, proposalId });
+      if (!rejected.ok) return { ok: false, message: rejected.error.message } satisfies ActionState;
+      return { ok: true, message: 'Proposal rejected.' } satisfies ActionState;
+    }
+    const approved = await approveProposal(db, {
+      actorAccountId: accountId,
+      proposalId,
+      ...(correctedValue ? { correctedValue } : {}),
+    });
+    if (!approved.ok) return { ok: false, message: approved.error.message } satisfies ActionState;
+    return {
+      ok: true,
+      message:
+        approved.value.version.status === 'CONFLICTED'
+          ? 'Approved, but this conflicts with an already-confirmed value — flagged for review.'
+          : 'Proposal approved and saved to the profile.',
+    } satisfies ActionState;
+  });
+
+  if (result.ok) revalidatePath(`/app/applicant/${applicantId}`);
+  return result;
 }
