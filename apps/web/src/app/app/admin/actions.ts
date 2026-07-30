@@ -63,25 +63,39 @@ export async function placeLegalHoldAction(
 }
 
 /** Release a legal hold. Platform-admin only. */
-export async function releaseLegalHoldAction(formData: FormData): Promise<void> {
+export async function releaseLegalHoldAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
   const holdId = String(formData.get('holdId') ?? '').trim();
-  if (holdId.length === 0) return;
-  await withSession(async ({ db, accountId, email }) => {
-    if (!isPlatformAdmin(email)) return;
-    await releaseLegalHold(db, { actorAccountId: accountId, holdId });
+  if (holdId.length === 0) return { ok: false, message: 'Missing hold id.' };
+  const result = await withSession(async ({ db, accountId, email }) => {
+    if (!isPlatformAdmin(email)) return DENIED;
+    const released = await releaseLegalHold(db, { actorAccountId: accountId, holdId });
+    if (!released.ok) return { ok: false, message: released.error.message } satisfies ActionState;
+    return { ok: true, message: 'Legal hold released.' } satisfies ActionState;
   });
-  revalidatePath('/app/admin');
+  if (result.ok) revalidatePath('/app/admin');
+  return result;
 }
 
 /** Re-queue a FAILED intake job with a fresh retry budget. Platform-admin only. */
-export async function retryJobAction(formData: FormData): Promise<void> {
+export async function retryJobAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
   const jobId = String(formData.get('jobId') ?? '').trim();
-  if (jobId.length === 0) return;
-  await withSession(async ({ db, email }) => {
-    if (!isPlatformAdmin(email)) return;
-    await retryFailedJob(db, jobId);
+  if (jobId.length === 0) return { ok: false, message: 'Missing job id.' };
+  const result = await withSession(async ({ db, email }) => {
+    if (!isPlatformAdmin(email)) return DENIED;
+    const retried = await retryFailedJob(db, jobId);
+    if (!retried) {
+      return {
+        ok: false,
+        message: 'That job is no longer failed — it may have already been retried.',
+      } satisfies ActionState;
+    }
+    return { ok: true, message: 'Job re-queued for another attempt.' } satisfies ActionState;
   });
-  revalidatePath('/app/admin');
+  if (result.ok) revalidatePath('/app/admin');
+  return result;
 }
 
 /**
@@ -109,13 +123,26 @@ export async function purgeExpiredDocumentsAction(
 }
 
 /** Verify or reject a pending organization. Platform-admin only (and not a member). */
-export async function reviewOrganizationAction(formData: FormData): Promise<void> {
+export async function reviewOrganizationAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
   const organizationId = String(formData.get('organizationId') ?? '').trim();
   const decision = String(formData.get('decision') ?? '') === 'ACTIVE' ? 'ACTIVE' : 'REJECTED';
-  if (organizationId.length === 0) return;
-  await withSession(async ({ db, accountId, email }) => {
-    if (!isPlatformAdmin(email)) return;
-    await reviewOrganization(db, { reviewerAccountId: accountId, organizationId, decision });
+  if (organizationId.length === 0) return { ok: false, message: 'Missing organization id.' };
+  const result = await withSession(async ({ db, accountId, email }) => {
+    if (!isPlatformAdmin(email)) return DENIED;
+    const reviewed = await reviewOrganization(db, {
+      reviewerAccountId: accountId,
+      organizationId,
+      decision,
+    });
+    if (!reviewed.ok) return { ok: false, message: reviewed.error.message } satisfies ActionState;
+    return {
+      ok: true,
+      message: decision === 'ACTIVE' ? 'Organization verified.' : 'Organization rejected.',
+    } satisfies ActionState;
   });
-  revalidatePath('/app/admin');
+  if (result.ok) revalidatePath('/app/admin');
+  return result;
 }

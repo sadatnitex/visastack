@@ -93,20 +93,28 @@ export async function addMemberAction(
 }
 
 /** Assign an org member to a mission (org admin). Bookkeeping only — never grants access on its own. */
-export async function assignMemberAction(formData: FormData): Promise<void> {
+export async function assignMemberAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
   const organizationId = String(formData.get('organizationId') ?? '');
   const missionId = String(formData.get('missionId') ?? '');
   const memberAccountId = String(formData.get('memberAccountId') ?? '');
-  if (missionId.length === 0 || memberAccountId.length === 0) return;
-  await withSession(async ({ db, accountId }) => {
-    await assignMember(db, {
+  if (missionId.length === 0 || memberAccountId.length === 0) {
+    return { ok: false, message: 'Choose a member to assign.' };
+  }
+  const result = await withSession(async ({ db, accountId }) => {
+    const assigned = await assignMember(db, {
       actorAccountId: accountId,
       organizationId,
       memberAccountId,
       missionId,
     });
+    if (!assigned.ok) return { ok: false, message: assigned.error.message } satisfies ActionState;
+    return { ok: true, message: 'Member assigned.' } satisfies ActionState;
   });
-  revalidatePath(`/app/agency/${organizationId}`);
+  if (result.ok) revalidatePath(`/app/agency/${organizationId}`);
+  return result;
 }
 
 /** Add a case note to a mission (org admin). */
@@ -126,18 +134,27 @@ export async function addNoteAction(_prev: ActionState, formData: FormData): Pro
 }
 
 /** Activate or deactivate a membership (org admin). Deactivation ends access. */
-export async function toggleMemberAction(formData: FormData): Promise<void> {
+export async function toggleMemberAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
   const organizationId = String(formData.get('organizationId') ?? '');
   const membershipId = String(formData.get('membershipId') ?? '');
   const active = String(formData.get('active') ?? '') === 'true';
-  if (membershipId.length === 0) return;
-  await withSession(async ({ db, accountId }) => {
-    await setMembershipActive(db, {
+  if (membershipId.length === 0) return { ok: false, message: 'Missing membership id.' };
+  const result = await withSession(async ({ db, accountId }) => {
+    const updated = await setMembershipActive(db, {
       actorAccountId: accountId,
       organizationId,
       membershipId,
       active,
     });
+    if (!updated.ok) return { ok: false, message: updated.error.message } satisfies ActionState;
+    return {
+      ok: true,
+      message: active ? 'Member reactivated.' : 'Member deactivated.',
+    } satisfies ActionState;
   });
-  revalidatePath(`/app/agency/${organizationId}`);
+  if (result.ok) revalidatePath(`/app/agency/${organizationId}`);
+  return result;
 }

@@ -5,26 +5,45 @@ import { type ApplicantRelationship, createApplicant, setConsent } from '@visast
 import { revalidatePath } from 'next/cache';
 import { withSession } from '../../lib/session';
 
+/** Result surfaced back to the client for inline feedback. */
+export interface ActionState {
+  readonly ok: boolean;
+  readonly message: string;
+}
+
 const RELATIONSHIPS: readonly ApplicantRelationship[] = ['SELF', 'FAMILY_MEMBER', 'MINOR_GUARDIAN'];
 
 /** Grant or revoke one consent type for the signed-in account. */
-export async function setConsentAction(formData: FormData): Promise<void> {
+export async function setConsentAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
   const type = String(formData.get('type'));
   const granted = formData.get('granted') === 'true';
-  if (!CONSENT_TYPES.includes(type as ConsentType)) return;
-  await withSession(async ({ db, accountId }) => {
-    await setConsent(db, {
+  if (!CONSENT_TYPES.includes(type as ConsentType))
+    return { ok: false, message: 'Unknown consent type.' };
+  const result = await withSession(async ({ db, accountId }) => {
+    const set = await setConsent(db, {
       actorAccountId: accountId,
       accountId,
       type: type as ConsentType,
       granted,
     });
+    if (!set.ok) return { ok: false, message: set.error.message } satisfies ActionState;
+    return {
+      ok: true,
+      message: granted ? 'Consent granted.' : 'Consent revoked.',
+    } satisfies ActionState;
   });
-  revalidatePath('/app');
+  if (result.ok) revalidatePath('/app');
+  return result;
 }
 
 /** Create an applicant record owned by the signed-in account. */
-export async function createApplicantAction(formData: FormData): Promise<void> {
+export async function createApplicantAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
   const displayName = String(formData.get('displayName') ?? '').trim();
   const relationshipRaw = String(formData.get('relationship') ?? 'SELF');
   const relationship: ApplicantRelationship = RELATIONSHIPS.includes(
@@ -32,14 +51,17 @@ export async function createApplicantAction(formData: FormData): Promise<void> {
   )
     ? (relationshipRaw as ApplicantRelationship)
     : 'SELF';
-  if (displayName.length === 0) return;
-  await withSession(async ({ db, accountId }) => {
-    await createApplicant(db, {
+  if (displayName.length === 0) return { ok: false, message: 'Enter a name.' };
+  const result = await withSession(async ({ db, accountId }) => {
+    const created = await createApplicant(db, {
       actorAccountId: accountId,
       ownerAccountId: accountId,
       displayName,
       relationship,
     });
+    if (!created.ok) return { ok: false, message: created.error.message } satisfies ActionState;
+    return { ok: true, message: `${displayName} added.` } satisfies ActionState;
   });
-  revalidatePath('/app');
+  if (result.ok) revalidatePath('/app');
+  return result;
 }

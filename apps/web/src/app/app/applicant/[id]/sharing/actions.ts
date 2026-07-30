@@ -81,19 +81,31 @@ export async function createGrantAction(
   return result;
 }
 
+const OP_LABELS: Record<string, string> = {
+  revoke: 'revoked',
+  pause: 'paused',
+  resume: 'resumed',
+};
+
 /** Revoke, pause, or resume a grant (applicant owner). */
-export async function updateGrantAction(formData: FormData): Promise<void> {
+export async function updateGrantAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
   const applicantId = String(formData.get('applicantId') ?? '');
   const grantId = String(formData.get('grantId') ?? '');
   const op = String(formData.get('op') ?? '');
-  if (grantId.length === 0) return;
+  if (grantId.length === 0) return { ok: false, message: 'Missing grant id.' };
 
-  await withSession(async ({ db, accountId }) => {
+  const result = await withSession(async ({ db, accountId }) => {
     const input = { actorAccountId: accountId, grantId };
     if (op === 'revoke') return revokeGrant(db, input);
     if (op === 'pause') return pauseGrant(db, input);
     if (op === 'resume') return resumeGrant(db, input);
-    return undefined;
+    return { ok: false, error: { message: 'Unknown operation.' } } as const;
   });
+
+  if (!result.ok) return { ok: false, message: result.error.message };
   revalidatePath(`/app/applicant/${applicantId}/sharing`);
+  return { ok: true, message: `Access ${OP_LABELS[op] ?? 'updated'}.` };
 }

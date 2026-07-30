@@ -55,14 +55,23 @@ export async function createPackAction(
 }
 
 /** Open a new DRAFT version of a pack. Platform-admin only. */
-export async function openVersionAction(formData: FormData): Promise<void> {
+export async function openVersionAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
   const packId = String(formData.get('packId') ?? '').trim();
-  if (packId.length === 0) return;
-  await withSession(async ({ db, accountId, email }) => {
-    if (!isPlatformAdmin(email)) return;
-    await addPackVersion(db, { actorAccountId: accountId, packId });
+  if (packId.length === 0) return { ok: false, message: 'Missing pack id.' };
+  const result = await withSession(async ({ db, accountId, email }) => {
+    if (!isPlatformAdmin(email)) return DENIED;
+    const opened = await addPackVersion(db, { actorAccountId: accountId, packId });
+    if (!opened.ok) return { ok: false, message: opened.error.message } satisfies ActionState;
+    return {
+      ok: true,
+      message: `Draft version ${opened.value.version} opened.`,
+    } satisfies ActionState;
   });
-  revalidatePath(`/app/admin/packs/${packId}`);
+  if (result.ok) revalidatePath(`/app/admin/packs/${packId}`);
+  return result;
 }
 
 /** Add a cited requirement to a DRAFT version. Platform-admin only. */
@@ -102,15 +111,21 @@ export async function addRequirementAction(
 }
 
 /** Approve (freeze) a DRAFT version, then optionally publish. Platform-admin only. */
-export async function approveVersionAction(formData: FormData): Promise<void> {
+export async function approveVersionAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
   const packId = String(formData.get('packId') ?? '').trim();
   const packVersionId = String(formData.get('packVersionId') ?? '').trim();
-  if (packVersionId.length === 0) return;
-  await withSession(async ({ db, accountId, email }) => {
-    if (!isPlatformAdmin(email)) return;
-    await approvePackVersion(db, { actorAccountId: accountId, packVersionId });
+  if (packVersionId.length === 0) return { ok: false, message: 'Missing version id.' };
+  const result = await withSession(async ({ db, accountId, email }) => {
+    if (!isPlatformAdmin(email)) return DENIED;
+    const approved = await approvePackVersion(db, { actorAccountId: accountId, packVersionId });
+    if (!approved.ok) return { ok: false, message: approved.error.message } satisfies ActionState;
+    return { ok: true, message: 'Version approved and checksummed.' } satisfies ActionState;
   });
-  revalidatePath(`/app/admin/packs/${packId}`);
+  if (result.ok) revalidatePath(`/app/admin/packs/${packId}`);
+  return result;
 }
 
 /** Recompute a version's manifest checksum and compare it to the frozen value. Platform-admin only. */
@@ -134,13 +149,24 @@ export async function verifyChecksumAction(
 }
 
 /** Publish an APPROVED version, making it attachable by missions. Platform-admin only. */
-export async function publishVersionAction(formData: FormData): Promise<void> {
+export async function publishVersionAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
   const packId = String(formData.get('packId') ?? '').trim();
   const packVersionId = String(formData.get('packVersionId') ?? '').trim();
-  if (packVersionId.length === 0) return;
-  await withSession(async ({ db, accountId, email }) => {
-    if (!isPlatformAdmin(email)) return;
-    await publishPackVersion(db, { actorAccountId: accountId, packVersionId });
+  if (packVersionId.length === 0) return { ok: false, message: 'Missing version id.' };
+  const result = await withSession(async ({ db, accountId, email }) => {
+    if (!isPlatformAdmin(email)) return DENIED;
+    const published = await publishPackVersion(db, { actorAccountId: accountId, packVersionId });
+    if (!published.ok) {
+      return { ok: false, message: published.error.message } satisfies ActionState;
+    }
+    return {
+      ok: true,
+      message: 'Version published — attachable by missions now.',
+    } satisfies ActionState;
   });
-  revalidatePath(`/app/admin/packs/${packId}`);
+  if (result.ok) revalidatePath(`/app/admin/packs/${packId}`);
+  return result;
 }
