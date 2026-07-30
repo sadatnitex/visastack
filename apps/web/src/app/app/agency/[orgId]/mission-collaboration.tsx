@@ -43,6 +43,7 @@ export function MissionCollaboration({
   notes,
 }: MissionCollaborationProps) {
   const [noteState, noteAction, notePending] = useActionState(addNoteAction, INITIAL);
+  const [assignState, assignAction, assignPending] = useActionState(assignMemberAction, INITIAL);
   const assignedAccountIds = new Set(assignments.map((a) => a.memberAccountId));
   const assignableMembers = members.filter((m) => !assignedAccountIds.has(m.accountId));
 
@@ -79,7 +80,7 @@ export function MissionCollaboration({
           </div>
         )}
         {assignableMembers.length > 0 ? (
-          <form action={assignMemberAction} style={{ display: 'flex', gap: '0.5rem' }}>
+          <form action={assignAction} style={{ display: 'flex', gap: '0.5rem' }}>
             <input type="hidden" name="organizationId" value={organizationId} />
             <input type="hidden" name="missionId" value={missionId} />
             <select name="memberAccountId" className="input" required defaultValue="">
@@ -96,10 +97,16 @@ export function MissionCollaboration({
               type="submit"
               className="btn btn-secondary"
               style={{ padding: '0.3rem 0.85rem', fontSize: '0.8rem' }}
+              disabled={assignPending}
             >
-              Assign
+              {assignPending ? 'Assigning…' : 'Assign'}
             </button>
           </form>
+        ) : null}
+        {assignState.message ? (
+          <p className={`field-msg ${assignState.ok ? 'field-msg-ok' : 'field-msg-err'}`}>
+            {assignState.message}
+          </p>
         ) : null}
       </div>
 

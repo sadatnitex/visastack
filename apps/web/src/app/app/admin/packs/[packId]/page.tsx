@@ -3,8 +3,12 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { isPlatformAdmin } from '../../../../../lib/admin';
 import { withSession } from '../../../../../lib/session';
-import { approveVersionAction, openVersionAction, publishVersionAction } from '../actions';
 import { AddRequirementForm, VerifyChecksumForm } from '../pack-forms';
+import {
+  ApproveVersionButton,
+  OpenVersionButton,
+  PublishVersionButton,
+} from '../pack-version-buttons';
 
 export const dynamic = 'force-dynamic';
 
@@ -66,12 +70,7 @@ export default async function PackDetailPage({
             </p>
           ) : null}
         </div>
-        <form action={openVersionAction}>
-          <input type="hidden" name="packId" value={packId} />
-          <button type="submit" className="btn btn-secondary">
-            Open new draft version
-          </button>
-        </form>
+        <OpenVersionButton packId={packId} />
       </div>
 
       {data.versions.length === 0 ? (
@@ -156,24 +155,12 @@ export default async function PackDetailPage({
                     <div style={{ margin: '1.25rem 0' }}>
                       <AddRequirementForm packId={packId} packVersionId={version.id} />
                     </div>
-                    <form action={approveVersionAction}>
-                      <input type="hidden" name="packId" value={packId} />
-                      <input type="hidden" name="packVersionId" value={version.id} />
-                      <button type="submit" className="btn btn-primary">
-                        Approve version
-                      </button>
-                    </form>
+                    <ApproveVersionButton packId={packId} packVersionId={version.id} />
                   </>
                 ) : null}
 
                 {isApproved ? (
-                  <form action={publishVersionAction} style={{ marginTop: '1rem' }}>
-                    <input type="hidden" name="packId" value={packId} />
-                    <input type="hidden" name="packVersionId" value={version.id} />
-                    <button type="submit" className="btn btn-primary">
-                      Publish version
-                    </button>
-                  </form>
+                  <PublishVersionButton packId={packId} packVersionId={version.id} />
                 ) : null}
               </article>
             );

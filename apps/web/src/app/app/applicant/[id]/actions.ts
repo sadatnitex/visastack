@@ -235,6 +235,7 @@ export async function previewDocumentAction(formData: FormData): Promise<void> {
   });
 
   if (url) redirect(url);
+  redirect(`/app/applicant/${applicantId}?preview_error=1`);
 }
 
 /**

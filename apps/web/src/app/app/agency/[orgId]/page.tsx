@@ -12,8 +12,8 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { profileField } from '../../../../lib/profile-fields';
 import { withSession } from '../../../../lib/session';
-import { toggleMemberAction } from './actions';
 import { AddMemberForm } from './member-form';
+import { MemberToggleButton } from './member-toggle-button';
 import { MissionCollaboration } from './mission-collaboration';
 import { RequestEvidenceForm } from './request-evidence-form';
 
@@ -165,18 +165,11 @@ export default async function OrgConsolePage({
                         {m.active ? 'Active' : 'Inactive'}
                       </span>
                       {m.role !== 'OWNER' ? (
-                        <form action={toggleMemberAction}>
-                          <input type="hidden" name="organizationId" value={orgId} />
-                          <input type="hidden" name="membershipId" value={m.membershipId} />
-                          <input type="hidden" name="active" value={String(!m.active)} />
-                          <button
-                            type="submit"
-                            className="btn btn-secondary"
-                            style={{ padding: '0.3rem 0.85rem', fontSize: '0.8rem' }}
-                          >
-                            {m.active ? 'Deactivate' : 'Reactivate'}
-                          </button>
-                        </form>
+                        <MemberToggleButton
+                          organizationId={orgId}
+                          membershipId={m.membershipId}
+                          active={m.active}
+                        />
                       ) : null}
                     </span>
                   </div>

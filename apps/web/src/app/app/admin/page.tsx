@@ -9,7 +9,7 @@ import {
 import Link from 'next/link';
 import { isPlatformAdmin } from '../../../lib/admin';
 import { withSession } from '../../../lib/session';
-import { releaseLegalHoldAction, retryJobAction, reviewOrganizationAction } from './actions';
+import { OrgReviewButtons, ReleaseHoldButton, RetryJobButton } from './action-buttons';
 import { LegalHoldForm, RetentionPolicyForm } from './admin-forms';
 import { PurgeButton } from './purge-button';
 
@@ -123,16 +123,7 @@ export default async function AdminPage() {
                         <span className="row-key" style={{ wordBreak: 'break-word' }}>
                           {applicantName(h.applicantId)}
                         </span>
-                        <form action={releaseLegalHoldAction}>
-                          <input type="hidden" name="holdId" value={h.id} />
-                          <button
-                            type="submit"
-                            className="btn btn-secondary"
-                            style={{ padding: '0.3rem 0.85rem', fontSize: '0.8rem' }}
-                          >
-                            Release
-                          </button>
-                        </form>
+                        <ReleaseHoldButton holdId={h.id} />
                       </div>
                       <span className="muted" style={{ fontSize: '0.8rem' }}>
                         {h.reason}
@@ -177,16 +168,7 @@ export default async function AdminPage() {
                         <span className="badge badge-danger">
                           {job.attempts}/{job.maxAttempts} attempts
                         </span>
-                        <form action={retryJobAction}>
-                          <input type="hidden" name="jobId" value={job.id} />
-                          <button
-                            type="submit"
-                            className="btn btn-secondary"
-                            style={{ padding: '0.3rem 0.85rem', fontSize: '0.8rem' }}
-                          >
-                            Retry
-                          </button>
-                        </form>
+                        <RetryJobButton jobId={job.id} />
                       </span>
                     </div>
                     {job.lastError ? (
@@ -257,32 +239,7 @@ export default async function AdminPage() {
                       <span className="row-key">{org.name}</span>
                       <span style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
                         <span className={`badge ${badge.tone}`}>{badge.label}</span>
-                        {pending ? (
-                          <>
-                            <form action={reviewOrganizationAction}>
-                              <input type="hidden" name="organizationId" value={org.id} />
-                              <input type="hidden" name="decision" value="ACTIVE" />
-                              <button
-                                type="submit"
-                                className="btn btn-primary"
-                                style={{ padding: '0.3rem 0.85rem', fontSize: '0.8rem' }}
-                              >
-                                Verify
-                              </button>
-                            </form>
-                            <form action={reviewOrganizationAction}>
-                              <input type="hidden" name="organizationId" value={org.id} />
-                              <input type="hidden" name="decision" value="REJECTED" />
-                              <button
-                                type="submit"
-                                className="btn btn-secondary"
-                                style={{ padding: '0.3rem 0.85rem', fontSize: '0.8rem' }}
-                              >
-                                Reject
-                              </button>
-                            </form>
-                          </>
-                        ) : null}
+                        {pending ? <OrgReviewButtons organizationId={org.id} /> : null}
                       </span>
                     </div>
                   );

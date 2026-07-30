@@ -1,4 +1,3 @@
-import type { MissionState } from '@visastack/core';
 import {
   computeReadiness,
   getApplicant,
@@ -11,8 +10,8 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { profileField } from '../../../../lib/profile-fields';
 import { withSession } from '../../../../lib/session';
-import { snapshotMissionAction, transitionMissionAction } from './actions';
 import { AttachPackForm, type PackOption } from './attach-pack-form';
+import { SnapshotButton, TransitionButtons } from './mission-buttons';
 
 export const dynamic = 'force-dynamic';
 
@@ -26,8 +25,6 @@ const STATE_LABELS: Record<string, string> = {
   CLOSED: 'Closed',
   CANCELLED: 'Cancelled',
 };
-
-const DESTRUCTIVE: ReadonlySet<MissionState> = new Set(['CANCELLED']);
 
 // A snapshot taken once the mission has reached this stage of the reviewer
 // workflow is the application packet (Build Spec §4.5's "pack production"),
@@ -93,12 +90,7 @@ export default async function MissionPage({
             {STATE_LABELS[mission.state] ?? mission.state}
           </p>
         </div>
-        <form action={snapshotMissionAction}>
-          <input type="hidden" name="missionId" value={mission.id} />
-          <button type="submit" className="btn btn-secondary">
-            Snapshot
-          </button>
-        </form>
+        <SnapshotButton missionId={mission.id} />
       </div>
 
       <div className="grid">
@@ -180,19 +172,8 @@ export default async function MissionPage({
           {nextStates.length === 0 ? (
             <p className="card-body">This mission is in a terminal state.</p>
           ) : (
-            <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap', marginTop: '0.5rem' }}>
-              {nextStates.map((to) => (
-                <form action={transitionMissionAction} key={to}>
-                  <input type="hidden" name="missionId" value={mission.id} />
-                  <input type="hidden" name="to" value={to} />
-                  <button
-                    type="submit"
-                    className={`btn ${DESTRUCTIVE.has(to) ? 'btn-danger' : 'btn-secondary'}`}
-                  >
-                    {STATE_LABELS[to] ?? to}
-                  </button>
-                </form>
-              ))}
+            <div style={{ marginTop: '0.5rem' }}>
+              <TransitionButtons missionId={mission.id} nextStates={nextStates} />
             </div>
           )}
         </article>

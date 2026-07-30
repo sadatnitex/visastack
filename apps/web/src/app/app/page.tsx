@@ -11,8 +11,9 @@ import { signOut } from '@workos-inc/authkit-nextjs';
 import Link from 'next/link';
 import { isPlatformAdmin } from '../../lib/admin';
 import { withSession } from '../../lib/session';
-import { createApplicantAction, setConsentAction } from './actions';
+import { AddApplicantForm } from './add-applicant-form';
 import { UsageMeter } from './applicant/[id]/usage-meter';
+import { ConsentButton } from './consent-button';
 
 export const dynamic = 'force-dynamic';
 
@@ -138,17 +139,7 @@ export default async function AppPage() {
             {CONSENT_TYPES.map((type) => (
               <div className="row" key={type}>
                 <span className="row-key">{CONSENT_LABELS[type]}</span>
-                <form action={setConsentAction}>
-                  <input type="hidden" name="type" value={type} />
-                  <input type="hidden" name="granted" value={String(!data.consents[type])} />
-                  <button
-                    type="submit"
-                    className={`btn ${data.consents[type] ? 'btn-secondary' : 'btn-primary'}`}
-                    style={{ padding: '0.35rem 1rem', fontSize: '0.85rem' }}
-                  >
-                    {data.consents[type] ? 'Revoke' : 'Grant'}
-                  </button>
-                </form>
+                <ConsentButton type={type} granted={Boolean(data.consents[type])} />
               </div>
             ))}
           </div>
@@ -178,48 +169,7 @@ export default async function AppPage() {
           )}
 
           {coreGranted ? (
-            <form
-              action={createApplicantAction}
-              style={{
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '0.75rem',
-                marginTop: '1rem',
-              }}
-            >
-              <input
-                name="displayName"
-                placeholder="Full name"
-                required
-                style={{
-                  padding: '0.6rem 0.85rem',
-                  borderRadius: '10px',
-                  border: '1px solid var(--hairline)',
-                  background: 'var(--bg-subtle)',
-                  color: 'var(--text)',
-                  fontSize: '0.95rem',
-                }}
-              />
-              <select
-                name="relationship"
-                defaultValue="SELF"
-                style={{
-                  padding: '0.6rem 0.85rem',
-                  borderRadius: '10px',
-                  border: '1px solid var(--hairline)',
-                  background: 'var(--bg-subtle)',
-                  color: 'var(--text)',
-                  fontSize: '0.95rem',
-                }}
-              >
-                <option value="SELF">Myself</option>
-                <option value="FAMILY_MEMBER">Family member</option>
-                <option value="MINOR_GUARDIAN">Minor (guardian)</option>
-              </select>
-              <button type="submit" className="btn btn-primary">
-                Add applicant
-              </button>
-            </form>
+            <AddApplicantForm />
           ) : (
             <p className="card-body" style={{ marginTop: '1rem' }}>
               Grant <strong>Core processing</strong> consent to start adding applicant records.

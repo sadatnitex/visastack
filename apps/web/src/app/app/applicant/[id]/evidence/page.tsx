@@ -2,7 +2,7 @@ import { getApplicant, listEvidenceRequestsForApplicant } from '@visastack/servi
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { withSession } from '../../../../../lib/session';
-import { respondEvidenceAction } from './actions';
+import { RespondButtons } from './respond-buttons';
 
 export const dynamic = 'force-dynamic';
 
@@ -86,32 +86,7 @@ export default async function EvidencePage({
                     </p>
                   ) : null}
                   {req.status === 'OPEN' ? (
-                    <div style={{ display: 'flex', gap: '0.5rem' }}>
-                      <form action={respondEvidenceAction}>
-                        <input type="hidden" name="applicantId" value={id} />
-                        <input type="hidden" name="requestId" value={req.id} />
-                        <input type="hidden" name="decision" value="FULFILLED" />
-                        <button
-                          type="submit"
-                          className="btn btn-primary"
-                          style={{ padding: '0.3rem 0.9rem', fontSize: '0.8rem' }}
-                        >
-                          Fulfil
-                        </button>
-                      </form>
-                      <form action={respondEvidenceAction}>
-                        <input type="hidden" name="applicantId" value={id} />
-                        <input type="hidden" name="requestId" value={req.id} />
-                        <input type="hidden" name="decision" value="DECLINED" />
-                        <button
-                          type="submit"
-                          className="btn btn-secondary"
-                          style={{ padding: '0.3rem 0.9rem', fontSize: '0.8rem' }}
-                        >
-                          Decline
-                        </button>
-                      </form>
-                    </div>
+                    <RespondButtons applicantId={id} requestId={req.id} />
                   ) : null}
                 </div>
               );

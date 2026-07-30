@@ -35,10 +35,13 @@ const SAFETY_BADGE: Record<string, { label: string; tone: string }> = {
 
 export default async function ApplicantPage({
   params,
+  searchParams,
 }: {
   readonly params: Promise<{ id: string }>;
+  readonly searchParams: Promise<{ readonly preview_error?: string }>;
 }) {
   const { id } = await params;
+  const { preview_error: previewError } = await searchParams;
 
   const data = await withSession(async ({ db, accountId }) => {
     const applicant = await getApplicant(db, id);
@@ -114,6 +117,12 @@ export default async function ApplicantPage({
           </Link>
         </div>
       </div>
+
+      {previewError ? (
+        <p className="notice notice-warn" role="alert" style={{ marginBottom: '1.5rem' }}>
+          Couldn't open that preview — the document may no longer be available. Please try again.
+        </p>
+      ) : null}
 
       {!data.coreGranted ? (
         <div className="card" style={{ marginBottom: '2rem' }}>

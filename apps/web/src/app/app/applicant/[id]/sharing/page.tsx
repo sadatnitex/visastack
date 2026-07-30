@@ -6,8 +6,8 @@ import {
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { withSession } from '../../../../../lib/session';
-import { updateGrantAction } from './actions';
 import { GrantForm } from './grant-form';
+import { GrantOpButtons } from './grant-op-buttons';
 
 export const dynamic = 'force-dynamic';
 
@@ -18,29 +18,6 @@ const STATUS_BADGE: Record<string, { label: string; tone: string }> = {
   REVOKED: { label: 'Revoked', tone: 'badge-danger' },
   EXPIRED: { label: 'Expired', tone: 'badge-neutral' },
 };
-
-function opButton(
-  applicantId: string,
-  grantId: string,
-  op: string,
-  label: string,
-  variant: string,
-) {
-  return (
-    <form action={updateGrantAction}>
-      <input type="hidden" name="applicantId" value={applicantId} />
-      <input type="hidden" name="grantId" value={grantId} />
-      <input type="hidden" name="op" value={op} />
-      <button
-        type="submit"
-        className={`btn ${variant}`}
-        style={{ padding: '0.3rem 0.85rem', fontSize: '0.8rem' }}
-      >
-        {label}
-      </button>
-    </form>
-  );
-}
 
 export default async function SharingPage({
   params,
@@ -148,17 +125,21 @@ export default async function SharingPage({
                         : ''}
                     </p>
                     {canPause || canResume || canRevoke ? (
-                      <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                        {canPause
-                          ? opButton(id, grant.id, 'pause', 'Pause', 'btn-secondary')
-                          : null}
-                        {canResume
-                          ? opButton(id, grant.id, 'resume', 'Resume', 'btn-secondary')
-                          : null}
-                        {canRevoke
-                          ? opButton(id, grant.id, 'revoke', 'Revoke', 'btn-danger')
-                          : null}
-                      </div>
+                      <GrantOpButtons
+                        applicantId={id}
+                        grantId={grant.id}
+                        ops={[
+                          ...(canPause
+                            ? [{ op: 'pause' as const, label: 'Pause', variant: 'btn-secondary' }]
+                            : []),
+                          ...(canResume
+                            ? [{ op: 'resume' as const, label: 'Resume', variant: 'btn-secondary' }]
+                            : []),
+                          ...(canRevoke
+                            ? [{ op: 'revoke' as const, label: 'Revoke', variant: 'btn-danger' }]
+                            : []),
+                        ]}
+                      />
                     ) : null}
                   </div>
                 );
