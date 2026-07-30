@@ -15,6 +15,7 @@ import {
   computeReadiness,
   createMission,
   getMissionForOwner,
+  getMissionSnapshot,
   listMissionSnapshots,
   listMissions,
   snapshotMission,
@@ -258,6 +259,124 @@ describe('missions — workspace, readiness, workflow, snapshot', () => {
     expect(isOk(snaps)).toBe(true);
     // Newest version first.
     if (isOk(snaps)) expect(snaps.value.map((s) => s.version)).toEqual([2, 1]);
+  });
+
+  it('does not count an unresolved-conflict fact as satisfying a requirement (Release H)', async () => {
+    const { account, applicantId } = await seed(db);
+    const packVersionId = await publishedPack(db, account.id);
+    const mission = await createMission(db, {
+      actorAccountId: account.id,
+      applicantId,
+      title: 'UK Visa',
+    });
+    if (!isOk(mission)) throw new Error('mission');
+    await attachPackVersion(db, {
+      actorAccountId: account.id,
+      missionId: mission.value.id,
+      packVersionId,
+    });
+
+    await registerFieldDefinition(db, { key: 'passport.number', dataType: 'string' });
+    // A current fact version exists, but its status is CONFLICTED — present,
+    // but not currently trustworthy (Build Spec §4.5/§9). Satisfying the
+    // document requirement too, so only the field requirement is at issue.
+    await editFact(db, {
+      actorAccountId: account.id,
+      applicantId,
+      fieldKey: 'passport.number',
+      value: 'A1',
+      status: 'CONFLICTED',
+    });
+    const doc = await registerDocument(db, {
+      actorAccountId: account.id,
+      applicantId,
+      originalName: 'bank.pdf',
+      docType: 'bank_statement',
+    });
+    if (!isOk(doc)) throw new Error('doc');
+    await addDocumentVersion(db, {
+      actorAccountId: account.id,
+      documentId: doc.value.id,
+      bucket: 'CLEAN',
+      objectKey: 'k',
+    });
+
+    const readiness = await computeReadiness(db, mission.value.id);
+    expect(isOk(readiness)).toBe(true);
+    if (!isOk(readiness)) return;
+    expect(readiness.value.ready).toBe(false);
+    expect(readiness.value.satisfiedRequired).toBe(1);
+    expect(readiness.value.missing).toHaveLength(1);
+    expect(readiness.value.missing[0]).toMatchObject({
+      kind: 'FIELD',
+      key: 'passport.number',
+      reason: 'unresolved_conflict',
+    });
+  });
+
+  it('maps each pack requirement to the specific value/documents that satisfy it, in a snapshot (Release H)', async () => {
+    const { account, applicantId } = await seed(db);
+    const packVersionId = await publishedPack(db, account.id);
+    const mission = await createMission(db, {
+      actorAccountId: account.id,
+      applicantId,
+      title: 'UK Visa',
+    });
+    if (!isOk(mission)) throw new Error('mission');
+    await attachPackVersion(db, {
+      actorAccountId: account.id,
+      missionId: mission.value.id,
+      packVersionId,
+    });
+
+    await registerFieldDefinition(db, { key: 'passport.number', dataType: 'string' });
+    await editFact(db, {
+      actorAccountId: account.id,
+      applicantId,
+      fieldKey: 'passport.number',
+      value: 'A1',
+    });
+    const doc = await registerDocument(db, {
+      actorAccountId: account.id,
+      applicantId,
+      originalName: 'bank.pdf',
+      docType: 'bank_statement',
+    });
+    if (!isOk(doc)) throw new Error('doc');
+    await addDocumentVersion(db, {
+      actorAccountId: account.id,
+      documentId: doc.value.id,
+      bucket: 'CLEAN',
+      objectKey: 'k',
+    });
+
+    const snap = await snapshotMission(db, {
+      actorAccountId: account.id,
+      missionId: mission.value.id,
+    });
+    expect(isOk(snap)).toBe(true);
+    if (!isOk(snap)) return;
+    const content = snap.value.content as {
+      requirementMapping: ReadonlyArray<{
+        kind: string;
+        key: string;
+        satisfied: boolean;
+        value?: string | null;
+        documents?: ReadonlyArray<{ id: string; displayName: string }>;
+      }>;
+    };
+    expect(content.requirementMapping).toHaveLength(2);
+    const field = content.requirementMapping.find((m) => m.kind === 'FIELD');
+    expect(field).toMatchObject({ key: 'passport.number', satisfied: true, value: 'A1' });
+    const document = content.requirementMapping.find((m) => m.kind === 'DOCUMENT');
+    expect(document?.satisfied).toBe(true);
+    expect(document?.documents).toHaveLength(1);
+    expect(document?.documents?.[0]?.displayName).toBe('bank.pdf');
+
+    // The stored snapshot is retrievable in full — not just its checksum.
+    const fetched = await getMissionSnapshot(db, account.id, mission.value.id, snap.value.id);
+    expect(isOk(fetched)).toBe(true);
+    if (isOk(fetched)) expect(fetched.value.checksum).toBe(snap.value.checksum);
   });
 
   it("refuses actions on another owner's mission", async () => {

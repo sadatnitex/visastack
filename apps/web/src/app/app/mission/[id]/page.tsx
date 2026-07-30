@@ -29,6 +29,11 @@ const STATE_LABELS: Record<string, string> = {
 
 const DESTRUCTIVE: ReadonlySet<MissionState> = new Set(['CANCELLED']);
 
+// A snapshot taken once the mission has reached this stage of the reviewer
+// workflow is the application packet (Build Spec §4.5's "pack production"),
+// not just a working evidence capture.
+const PACKET_STATES: ReadonlySet<string> = new Set(['READY_TO_EXPORT', 'LOCKED', 'CLOSED']);
+
 export default async function MissionPage({
   params,
 }: {
@@ -145,9 +150,12 @@ export default async function MissionPage({
                       return (
                         <div className="row" key={`${m.kind}-${m.key}`}>
                           <span className="row-key">{label || '(unnamed)'}</span>
-                          <span className="badge badge-neutral">
-                            {m.kind === 'FIELD' ? 'Field' : 'Document'}
-                            {m.optional ? ' · optional' : ''}
+                          <span
+                            className={`badge ${m.reason === 'unresolved_conflict' ? 'badge-danger' : 'badge-neutral'}`}
+                          >
+                            {m.reason === 'unresolved_conflict'
+                              ? 'Needs attention · disputed value'
+                              : `${m.kind === 'FIELD' ? 'Field' : 'Document'}${m.optional ? ' · optional' : ''}`}
                           </span>
                         </div>
                       );
@@ -198,14 +206,30 @@ export default async function MissionPage({
             </p>
           ) : (
             <div className="rows" style={{ marginTop: '0.5rem' }}>
-              {data.snapshots.map((snap) => (
-                <div className="row" key={snap.id}>
-                  <span className="row-key">Version {snap.version}</span>
-                  <span className="row-val" title={snap.checksum} style={{ fontSize: '0.75rem' }}>
-                    {snap.checksum.slice(0, 12)}…
-                  </span>
-                </div>
-              ))}
+              {data.snapshots.map((snap) => {
+                const content = snap.content as { state?: string } | null;
+                const isPacket = content?.state ? PACKET_STATES.has(content.state) : false;
+                return (
+                  <Link
+                    href={`/app/mission/${mission.id}/snapshots/${snap.id}`}
+                    className="row"
+                    key={snap.id}
+                    style={{ textDecoration: 'none', color: 'inherit' }}
+                  >
+                    <span className="row-key">
+                      Version {snap.version}
+                      {isPacket ? (
+                        <span className="badge badge-success" style={{ marginLeft: '0.5rem' }}>
+                          Application packet
+                        </span>
+                      ) : null}
+                    </span>
+                    <span className="row-val" title={snap.checksum} style={{ fontSize: '0.75rem' }}>
+                      {snap.checksum.slice(0, 12)}…
+                    </span>
+                  </Link>
+                );
+              })}
             </div>
           )}
         </article>
