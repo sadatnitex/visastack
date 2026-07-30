@@ -26,6 +26,7 @@ import type { Db } from './db';
 import { createMission } from './missions';
 import { createOrganization, listMembershipsForAccount } from './organizations';
 import { editFact, registerFieldDefinition } from './profile';
+import { RATE_LIMITS } from './rate-limit';
 import { acceptGrant, createGrant } from './sharing';
 
 const migrationsFolder = fileURLToPath(new URL('../../db/migrations', import.meta.url));
@@ -139,6 +140,33 @@ describe('agency collaboration — assignments, notes, evidence', () => {
     });
     expect(isOk(resp)).toBe(true);
     if (isOk(resp)) expect(resp.value.status).toBe('FULFILLED');
+  });
+
+  it('refuses further evidence requests once the anti-automation limit is hit (Build Spec §14)', async () => {
+    const { applicantId } = await consentedApplicant(db, 'ev-rate@example.com');
+    const agentAcc = await provisionAccount(db, { email: 'agent-ev-rate@acme.com' });
+    if (!isOk(agentAcc)) throw new Error('provision');
+    const org = await createOrganization(db, { actorAccountId: agentAcc.value.id, name: 'Acme' });
+    if (!isOk(org)) throw new Error('org');
+
+    const attempt = () =>
+      requestEvidence(db, {
+        actorAccountId: agentAcc.value.id,
+        organizationId: org.value.id,
+        applicantId,
+        kind: 'DOCUMENT',
+        docType: 'bank_statement',
+      });
+
+    for (let i = 0; i < RATE_LIMITS.EVIDENCE_REQUEST.limit; i++) {
+      const result = await attempt();
+      expect(isOk(result)).toBe(true);
+    }
+    const overLimit = await attempt();
+    expect(isErr(overLimit)).toBe(true);
+    if (isErr(overLimit)) {
+      expect(overLimit.error.code).toBe('rate_limited');
+    }
   });
 
   it('lists evidence requests for the applicant and the org, and org memberships', async () => {

@@ -33,6 +33,9 @@ importers:
       '@visastack/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@visastack/i18n':
+        specifier: workspace:*
+        version: link:../../packages/i18n
       '@visastack/services':
         specifier: workspace:*
         version: link:../../packages/services

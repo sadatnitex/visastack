@@ -145,6 +145,7 @@ export function MissionCollaboration({
             type="text"
             className="input"
             placeholder="Add a case note…"
+            aria-label="Case note"
             required
           />
           <button

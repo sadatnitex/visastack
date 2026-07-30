@@ -310,3 +310,20 @@ export {
   getPlatformEvidenceBytes,
   loadUploadQuotaConfig,
 } from './quotas';
+
+export {
+  type CheckRateLimitInput,
+  RATE_LIMITS,
+  type RateLimitConfig,
+  type RateLimitDecision,
+  checkRateLimit,
+} from './rate-limit';
+
+export {
+  PRODUCT_EVENT_TYPES,
+  type PilotScorecardRow,
+  type ProductEventType,
+  type RecordProductEventInput,
+  getPilotScorecard,
+  recordProductEvent,
+} from './product-events';

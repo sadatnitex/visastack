@@ -7,6 +7,7 @@ import { appendAuditEvent } from './audit';
 import { hasConsent } from './consent';
 import { type Db, first, required, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
+import { recordProductEvent } from './product-events';
 import { loadGrantsForPolicy } from './sharing';
 import type { AccessRef, AccessVariant, StorageBucket, StoragePort } from './storage';
 
@@ -172,6 +173,10 @@ export async function addDocumentVersion(
       resourceType: 'document_version',
       resourceId: version.id,
       metadata: { documentId: input.documentId, versionNumber: nextNumber },
+    });
+    await recordProductEvent(tx, {
+      eventType: 'DOCUMENT_UPLOADED',
+      accountId: input.actorAccountId,
     });
     return ok({ version, storageObject });
   });

@@ -4,6 +4,7 @@ import { appendAuditEvent } from './audit';
 import { hasConsent } from './consent';
 import { type Db, first, required, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
+import { recordProductEvent } from './product-events';
 
 /**
  * Applicant, family-member, and authorized minor/guardian records
@@ -93,6 +94,10 @@ export async function createApplicant(
       resourceType: 'applicant',
       resourceId: applicant.id,
       metadata: { relationship },
+    });
+    await recordProductEvent(tx, {
+      eventType: 'APPLICANT_CREATED',
+      accountId: input.actorAccountId,
     });
     return ok(applicant);
   });

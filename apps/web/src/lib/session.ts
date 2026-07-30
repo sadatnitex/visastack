@@ -4,6 +4,7 @@ import { isOk } from '@visastack/core';
 import { createPooledDb, resolveDatabaseUrl } from '@visastack/db';
 import { type Db, provisionAccount } from '@visastack/services';
 import { withAuth } from '@workos-inc/authkit-nextjs';
+import { redirect } from 'next/navigation';
 
 /**
  * A short, privacy-preserving reference for a subject, safe to write to logs.
@@ -31,7 +32,13 @@ export async function withSession<T>(
   // refresh here is what threw "Cookies can only be modified in a Server Action
   // or Route Handler" on protected pages.
   const { user } = await withAuth();
-  if (!user?.email) throw new Error('no authenticated user');
+  // A signed-in visit already passed middleware's sign-in check; landing here
+  // with no user means the session lapsed between that check and this render
+  // (or this action's submission) — e.g. an expired/revoked WorkOS session.
+  // That's routine, recoverable, and not a bug: send them back through the
+  // existing sign-in flow instead of surfacing the generic error boundary,
+  // which would misleadingly read as a server fault ("this is on our side").
+  if (!user?.email) redirect('/app');
 
   const connectionString = resolveDatabaseUrl(process.env);
   if (!connectionString) throw new Error('database not configured');

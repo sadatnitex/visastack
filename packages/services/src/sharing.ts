@@ -13,6 +13,8 @@ import { getApplicant } from './applicants';
 import { appendAuditEvent } from './audit';
 import { type Db, first, required, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
+import { recordProductEvent } from './product-events';
+import { RATE_LIMITS, checkRateLimit } from './rate-limit';
 
 /**
  * Sharing — scoped, accepted, time-limited grants (Build Spec §4.4; PRD §5).
@@ -88,6 +90,13 @@ export async function createGrant(
   if (input.purpose.trim().length === 0)
     return err(serviceError('invalid', 'a purpose is required'));
 
+  const rateLimit = await checkRateLimit(
+    db,
+    { subjectId: input.actorAccountId, action: 'grant.create' },
+    RATE_LIMITS.GRANT_CREATE,
+  );
+  if (!rateLimit.allowed) return err(serviceError('rate_limited', rateLimit.reason));
+
   return db.transaction(async (tx) => {
     const grant = required(
       first(
@@ -119,6 +128,10 @@ export async function createGrant(
       resourceType: 'grant',
       resourceId: grant.id,
       metadata: { purpose: grant.purpose, actions: input.actions.length },
+    });
+    await recordProductEvent(tx, {
+      eventType: 'GRANT_CREATED',
+      accountId: input.actorAccountId,
     });
     return ok(grant);
   });

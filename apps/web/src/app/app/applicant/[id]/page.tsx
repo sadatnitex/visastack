@@ -1,3 +1,4 @@
+import { type MessageKey, type Translator, createTranslator } from '@visastack/i18n';
 import {
   getApplicant,
   getApplicantEvidenceBytes,
@@ -10,6 +11,7 @@ import {
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { createAiExtractor } from '../../../../lib/ai';
+import { getLocale } from '../../../../lib/locale';
 import { withSession } from '../../../../lib/session';
 import { previewDocumentAction } from './actions';
 import { AiProposalReview, RunAiExtractionButton } from './ai-review';
@@ -26,12 +28,20 @@ const RELATIONSHIP_LABELS: Record<string, string> = {
   MINOR_GUARDIAN: 'Minor (guardian)',
 };
 
-const SAFETY_BADGE: Record<string, { label: string; tone: string }> = {
-  CLEAN: { label: 'Clean', tone: 'badge-success' },
-  QUARANTINED: { label: 'Quarantined', tone: 'badge-danger' },
-  SCANNING: { label: 'Scanning', tone: 'badge-neutral' },
-  PENDING: { label: 'Pending', tone: 'badge-neutral' },
+const SAFETY_BADGE_KEYS: Record<string, { key: MessageKey; tone: string }> = {
+  CLEAN: { key: 'document.status.clean', tone: 'badge-success' },
+  QUARANTINED: { key: 'document.status.quarantined', tone: 'badge-danger' },
+  SCANNING: { key: 'document.status.scanning', tone: 'badge-neutral' },
+  PENDING: { key: 'document.status.pending', tone: 'badge-neutral' },
 };
+
+function safetyBadge(status: string, t: Translator): { label: string; tone: string } {
+  const entry = SAFETY_BADGE_KEYS[status] ?? {
+    key: 'document.status.pending' as const,
+    tone: 'badge-neutral',
+  };
+  return { label: t(entry.key), tone: entry.tone };
+}
 
 export default async function ApplicantPage({
   params,
@@ -42,6 +52,8 @@ export default async function ApplicantPage({
 }) {
   const { id } = await params;
   const { preview_error: previewError } = await searchParams;
+  const locale = await getLocale();
+  const t = createTranslator(locale);
 
   const data = await withSession(async ({ db, accountId }) => {
     const applicant = await getApplicant(db, id);
@@ -174,10 +186,7 @@ export default async function ApplicantPage({
           ) : (
             <div className="rows" style={{ marginBottom: '1.5rem' }}>
               {data.documents.map((doc) => {
-                const badge = SAFETY_BADGE[doc.safetyStatus ?? 'PENDING'] ?? {
-                  label: doc.safetyStatus ?? 'Pending',
-                  tone: 'badge-neutral',
-                };
+                const badge = safetyBadge(doc.safetyStatus ?? 'PENDING', t);
                 const previewable = doc.safetyStatus === 'CLEAN';
                 return (
                   <div

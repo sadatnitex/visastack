@@ -1,3 +1,4 @@
+import { createTranslator } from '@visastack/i18n';
 import {
   computeReadiness,
   getApplicant,
@@ -8,6 +9,7 @@ import {
 } from '@visastack/services';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { getLocale } from '../../../../lib/locale';
 import { profileField } from '../../../../lib/profile-fields';
 import { withSession } from '../../../../lib/session';
 import { AttachPackForm, type PackOption } from './attach-pack-form';
@@ -37,6 +39,8 @@ export default async function MissionPage({
   readonly params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
+  const locale = await getLocale();
+  const t = createTranslator(locale);
 
   const data = await withSession(async ({ db, accountId }) => {
     const owned = await getMissionForOwner(db, accountId, id);
@@ -130,6 +134,13 @@ export default async function MissionPage({
                   </span>
                 </div>
               </div>
+              <p className="muted" style={{ fontSize: '0.85rem', marginBottom: '1rem' }}>
+                {data.readiness.ready
+                  ? t('mission.readiness.ready')
+                  : t('mission.readiness.missing', {
+                      count: data.readiness.requiredCount - data.readiness.satisfiedRequired,
+                    })}
+              </p>
               {data.readiness.missing.length > 0 ? (
                 <>
                   <p className="card-kicker" style={{ marginBottom: '0.5rem' }}>

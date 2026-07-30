@@ -882,3 +882,46 @@ export const accountDeletionRequests = pgTable('account_deletion_requests', {
   reason: text('reason'),
   ...timestamps,
 });
+
+// --- Rate limiting (Build Spec §14 — usage controls / anti-automation) -----
+// Fixed-window counters keyed by (subject, action, windowStart). One row per
+// account per action per window; `count` is incremented atomically via
+// upsert, so this never needs a separate lock or an external store (Redis) —
+// consistent with the no-external-dependency posture used elsewhere (e.g. the
+// Neon-bytea blob store). Bounded, not unbounded: rows are naturally
+// deduplicated to at most one per subject/action/window, and cheap to prune.
+export const rateLimitBuckets = pgTable(
+  'rate_limit_buckets',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    subjectId: text('subject_id').notNull(),
+    action: text('action').notNull(),
+    windowStart: timestamp('window_start', { withTimezone: true }).notNull(),
+    count: integer('count').notNull().default(0),
+    ...timestamps,
+  },
+  (table) => [
+    unique('rate_limit_buckets_subject_action_window').on(
+      table.subjectId,
+      table.action,
+      table.windowStart,
+    ),
+  ],
+);
+
+// --- Pilot product events (Build Spec §14/§23-25 — privacy-preserving usage
+// measurement) ----------------------------------------------------------
+// A minimal, append-only funnel event log: which known milestone happened,
+// when, and by which account — never a free-text property bag, so it can
+// never accidentally carry PII. `accountId` is the same opaque identifier
+// already used throughout the audit trail, not a new identifier.
+export const productEvents = pgTable(
+  'product_events',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    eventType: text('event_type').notNull(),
+    accountId: uuid('account_id').references(() => accounts.id, { onDelete: 'set null' }),
+    occurredAt: timestamp('occurred_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index('product_events_type_time_idx').on(table.eventType, table.occurredAt)],
+);

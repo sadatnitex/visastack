@@ -6,6 +6,7 @@ import { appendAuditEvent } from './audit';
 import { hasConsent } from './consent';
 import { type Db, first, required, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
+import { recordProductEvent } from './product-events';
 import { type EditFactResult, editFact, getCurrentFactVersion } from './profile';
 
 /**
@@ -288,6 +289,10 @@ export async function runExtraction(
         costUnits: usage.costUnits,
         modelVersion: usage.modelVersion,
       },
+    });
+    await recordProductEvent(tx, {
+      eventType: 'AI_EXTRACTION_RUN',
+      accountId: input.actorAccountId,
     });
 
     return { aiExtractionRunId: run.id, proposals: savedProposals };

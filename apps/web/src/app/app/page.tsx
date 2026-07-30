@@ -1,4 +1,5 @@
 import { CONSENT_TYPES, type ConsentType } from '@visastack/core';
+import { type MessageKey, createTranslator } from '@visastack/i18n';
 import {
   getAccountEvidenceBytes,
   getConsents,
@@ -10,6 +11,7 @@ import {
 import { signOut } from '@workos-inc/authkit-nextjs';
 import Link from 'next/link';
 import { isPlatformAdmin } from '../../lib/admin';
+import { getLocale } from '../../lib/locale';
 import { withSession } from '../../lib/session';
 import { AddApplicantForm } from './add-applicant-form';
 import { UsageMeter } from './applicant/[id]/usage-meter';
@@ -17,11 +19,11 @@ import { ConsentButton } from './consent-button';
 
 export const dynamic = 'force-dynamic';
 
-const CONSENT_LABELS: Record<ConsentType, string> = {
-  CORE_PROCESSING: 'Core processing',
-  AI_EXTRACTION: 'AI extraction',
-  SHARING: 'Sharing',
-  MARKETING: 'Marketing',
+const CONSENT_MESSAGE_KEYS: Record<ConsentType, MessageKey> = {
+  CORE_PROCESSING: 'consent.core.title',
+  AI_EXTRACTION: 'consent.ai.title',
+  SHARING: 'consent.sharing.title',
+  MARKETING: 'consent.marketing.title',
 };
 
 const RELATIONSHIP_LABELS: Record<string, string> = {
@@ -31,6 +33,8 @@ const RELATIONSHIP_LABELS: Record<string, string> = {
 };
 
 export default async function AppPage() {
+  const locale = await getLocale();
+  const t = createTranslator(locale);
   const data = await withSession(async ({ db, accountId, email }) => {
     const applicants = await listApplicants(db, accountId);
     const [consents, evidenceBytes, incomingGrants, documentCounts] = await Promise.all([
@@ -138,8 +142,8 @@ export default async function AppPage() {
           <div className="rows">
             {CONSENT_TYPES.map((type) => (
               <div className="row" key={type}>
-                <span className="row-key">{CONSENT_LABELS[type]}</span>
-                <ConsentButton type={type} granted={Boolean(data.consents[type])} />
+                <span className="row-key">{t(CONSENT_MESSAGE_KEYS[type])}</span>
+                <ConsentButton type={type} granted={Boolean(data.consents[type])} locale={locale} />
               </div>
             ))}
           </div>
