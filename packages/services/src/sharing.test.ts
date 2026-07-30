@@ -21,6 +21,7 @@ import {
   suspendOrganization,
 } from './organizations';
 import { editFact, registerFieldDefinition } from './profile';
+import { RATE_LIMITS } from './rate-limit';
 import {
   acceptGrant,
   createGrant,
@@ -205,6 +206,31 @@ describe('sharing — grant lifecycle end-to-end with the policy engine', () => 
     await revokeGrant(db, { actorAccountId: account.id, grantId: grant.value.id });
     const afterRevoke = await preview();
     expect(isErr(afterRevoke)).toBe(true);
+  });
+
+  it('refuses to create further grants once the anti-automation limit is hit (Build Spec §14)', async () => {
+    const { account, applicantId } = await ownerWithDoc(db, 'rate-limited-owner@example.com');
+    const recipient = await provisionAccount(db, { email: 'rate-limited-recipient@example.com' });
+    if (!isOk(recipient)) throw new Error('provision');
+
+    const attempt = () =>
+      createGrant(db, {
+        actorAccountId: account.id,
+        applicantId,
+        recipientAccountId: recipient.value.id,
+        actions: ['PREVIEW'],
+        purpose: 'visa_application',
+      });
+
+    for (let i = 0; i < RATE_LIMITS.GRANT_CREATE.limit; i++) {
+      const result = await attempt();
+      expect(isOk(result)).toBe(true);
+    }
+    const overLimit = await attempt();
+    expect(isErr(overLimit)).toBe(true);
+    if (isErr(overLimit)) {
+      expect(overLimit.error.code).toBe('rate_limited');
+    }
   });
 
   it('lists incoming grants for a recipient account and org members', async () => {

@@ -19,7 +19,9 @@ export type ServiceErrorCode =
   /** The request is malformed (e.g. a non-repeating field with a record key). */
   | 'invalid'
   /** A dependent external service (e.g. the AI provider) failed or is unreachable. */
-  | 'upstream_error';
+  | 'upstream_error'
+  /** The actor has exceeded an anti-automation rate limit; retry later. */
+  | 'rate_limited';
 
 export interface ServiceError {
   readonly code: ServiceErrorCode;

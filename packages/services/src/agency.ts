@@ -6,6 +6,7 @@ import { appendAuditEvent } from './audit';
 import { type Db, first, required, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
 import { isOrgAdmin } from './organizations';
+import { RATE_LIMITS, checkRateLimit } from './rate-limit';
 
 /**
  * Collaboration surface (Build Spec §2; PRD §5): assignments, mission notes,
@@ -176,6 +177,14 @@ export async function requestEvidence(
   if (input.kind === 'DOCUMENT' && !input.docType) {
     return err(serviceError('invalid', 'a DOCUMENT request needs a docType'));
   }
+
+  const rateLimit = await checkRateLimit(
+    db,
+    { subjectId: input.actorAccountId, action: 'evidence.request' },
+    RATE_LIMITS.EVIDENCE_REQUEST,
+  );
+  if (!rateLimit.allowed) return err(serviceError('rate_limited', rateLimit.reason));
+
   return db.transaction(async (tx) => {
     const request = required(
       first(

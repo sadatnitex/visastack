@@ -310,3 +310,11 @@ export {
   getPlatformEvidenceBytes,
   loadUploadQuotaConfig,
 } from './quotas';
+
+export {
+  type CheckRateLimitInput,
+  RATE_LIMITS,
+  type RateLimitConfig,
+  type RateLimitDecision,
+  checkRateLimit,
+} from './rate-limit';

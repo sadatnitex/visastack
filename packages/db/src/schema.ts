@@ -882,3 +882,29 @@ export const accountDeletionRequests = pgTable('account_deletion_requests', {
   reason: text('reason'),
   ...timestamps,
 });
+
+// --- Rate limiting (Build Spec §14 — usage controls / anti-automation) -----
+// Fixed-window counters keyed by (subject, action, windowStart). One row per
+// account per action per window; `count` is incremented atomically via
+// upsert, so this never needs a separate lock or an external store (Redis) —
+// consistent with the no-external-dependency posture used elsewhere (e.g. the
+// Neon-bytea blob store). Bounded, not unbounded: rows are naturally
+// deduplicated to at most one per subject/action/window, and cheap to prune.
+export const rateLimitBuckets = pgTable(
+  'rate_limit_buckets',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    subjectId: text('subject_id').notNull(),
+    action: text('action').notNull(),
+    windowStart: timestamp('window_start', { withTimezone: true }).notNull(),
+    count: integer('count').notNull().default(0),
+    ...timestamps,
+  },
+  (table) => [
+    unique('rate_limit_buckets_subject_action_window').on(
+      table.subjectId,
+      table.action,
+      table.windowStart,
+    ),
+  ],
+);
