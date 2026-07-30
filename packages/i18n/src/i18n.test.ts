@@ -33,4 +33,9 @@ describe('i18n — bilingual translator', () => {
       expect(EN[key]).toBeDefined();
     }
   });
+
+  it('every English key has a Bangla translation except the one documented fallback case', () => {
+    const untranslated = (Object.keys(EN) as MessageKey[]).filter((key) => BN[key] === undefined);
+    expect(untranslated).toEqual(['legalHold.active']);
+  });
 });

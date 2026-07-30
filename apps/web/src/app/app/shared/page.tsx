@@ -1,19 +1,22 @@
+import { type MessageKey, createTranslator } from '@visastack/i18n';
 import { listGrantsForRecipientAccount } from '@visastack/services';
 import Link from 'next/link';
+import { getLocale } from '../../../lib/locale';
 import { withSession } from '../../../lib/session';
 import { acceptGrantAction } from './actions';
 
 export const dynamic = 'force-dynamic';
 
-const STATUS_BADGE: Record<string, { label: string; tone: string }> = {
-  PENDING_ACCEPTANCE: { label: 'Awaiting your acceptance', tone: 'badge-warning' },
-  ACTIVE: { label: 'Active', tone: 'badge-success' },
-  PAUSED: { label: 'Paused', tone: 'badge-neutral' },
-  REVOKED: { label: 'Revoked', tone: 'badge-danger' },
-  EXPIRED: { label: 'Expired', tone: 'badge-neutral' },
+const STATUS_BADGE: Record<string, { key: MessageKey; tone: string }> = {
+  PENDING_ACCEPTANCE: { key: 'grant.status.awaitingYourAcceptance', tone: 'badge-warning' },
+  ACTIVE: { key: 'grant.status.active', tone: 'badge-success' },
+  PAUSED: { key: 'grant.status.paused', tone: 'badge-neutral' },
+  REVOKED: { key: 'grant.status.revoked', tone: 'badge-danger' },
+  EXPIRED: { key: 'grant.status.expired', tone: 'badge-neutral' },
 };
 
 export default async function SharedWithMePage() {
+  const t = createTranslator(await getLocale());
   const grants = await withSession(async ({ db, accountId }) =>
     listGrantsForRecipientAccount(db, accountId),
   );
@@ -45,10 +48,10 @@ export default async function SharedWithMePage() {
         ) : (
           <div className="rows">
             {grants.map(({ grant, applicantName }) => {
-              const badge = STATUS_BADGE[grant.status] ?? {
-                label: grant.status,
-                tone: 'badge-neutral',
-              };
+              const entry = STATUS_BADGE[grant.status];
+              const badge = entry
+                ? { label: t(entry.key), tone: entry.tone }
+                : { label: grant.status, tone: 'badge-neutral' };
               return (
                 <div
                   className="row"

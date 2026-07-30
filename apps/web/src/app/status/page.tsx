@@ -65,9 +65,9 @@ function ProbeCard({
   return (
     <article className="card">
       <div className="toolbar" style={{ marginBottom: '1rem' }}>
-        <h3 className="card-title" style={{ margin: 0 }}>
+        <h2 className="card-title" style={{ margin: 0 }}>
           {title}
-        </h3>
+        </h2>
         {probeResult ? (
           <span className={badgeClass(probeResult.status, probeResult.ok)}>
             {probeResult.status}

@@ -2,6 +2,8 @@ import { withAuth } from '@workos-inc/authkit-nextjs';
 import type { Metadata, Viewport } from 'next';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
+import { getLocale } from '../lib/locale';
+import { setLocaleAction } from './actions';
 import './globals.css';
 
 export const metadata: Metadata = {
@@ -29,9 +31,10 @@ export default async function RootLayout({ children }: { readonly children: Reac
   } catch {
     signedIn = false;
   }
+  const locale = await getLocale();
 
   return (
-    <html lang="en">
+    <html lang={locale}>
       <body>
         <a className="skip-link" href="#main">
           Skip to content
@@ -43,6 +46,12 @@ export default async function RootLayout({ children }: { readonly children: Reac
           <nav className="nav-links" aria-label="Primary">
             <Link href="/#capabilities">Platform</Link>
             <Link href="/status">Status</Link>
+            <form action={setLocaleAction} aria-label="Language">
+              <input type="hidden" name="locale" value={locale === 'en' ? 'bn' : 'en'} />
+              <button type="submit" className="lang-switch">
+                {locale === 'en' ? 'বাংলা' : 'English'}
+              </button>
+            </form>
             <a className="btn btn-secondary nav-cta" href="/app">
               {signedIn ? 'Workspace' : 'Sign in'}
             </a>

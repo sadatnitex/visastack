@@ -1,3 +1,4 @@
+import { createTranslator } from '@visastack/i18n';
 import {
   getApplicant,
   listAccessForApplicantDetailed,
@@ -5,19 +6,13 @@ import {
 } from '@visastack/services';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { grantStatusBadge } from '../../../../../lib/grant-status';
+import { getLocale } from '../../../../../lib/locale';
 import { withSession } from '../../../../../lib/session';
 import { GrantForm } from './grant-form';
 import { GrantOpButtons } from './grant-op-buttons';
 
 export const dynamic = 'force-dynamic';
-
-const STATUS_BADGE: Record<string, { label: string; tone: string }> = {
-  PENDING_ACCEPTANCE: { label: 'Pending acceptance', tone: 'badge-neutral' },
-  ACTIVE: { label: 'Active', tone: 'badge-success' },
-  PAUSED: { label: 'Paused', tone: 'badge-warning' },
-  REVOKED: { label: 'Revoked', tone: 'badge-danger' },
-  EXPIRED: { label: 'Expired', tone: 'badge-neutral' },
-};
 
 export default async function SharingPage({
   params,
@@ -25,6 +20,7 @@ export default async function SharingPage({
   readonly params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
+  const t = createTranslator(await getLocale());
 
   const data = await withSession(async ({ db, accountId }) => {
     const applicant = await getApplicant(db, id);
@@ -87,10 +83,7 @@ export default async function SharingPage({
           ) : (
             <div className="rows" style={{ marginTop: '0.5rem' }}>
               {data.grants.map((grant) => {
-                const badge = STATUS_BADGE[grant.status] ?? {
-                  label: grant.status,
-                  tone: 'badge-neutral',
-                };
+                const badge = grantStatusBadge(grant.status, t);
                 const canPause = grant.status === 'ACTIVE';
                 const canResume = grant.status === 'PAUSED';
                 const canRevoke =

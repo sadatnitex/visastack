@@ -19,12 +19,15 @@
   --bg-subtle: #f5f5f7;
   --text: #1d1d1f;
   --text-secondary: #6e6e73;
-  --text-tertiary: #86868b;
+  --text-tertiary: #737378;
   --accent: #0071e3;
   --accent-hover: #0077ed;
+  /* Solid-fill contexts (white text on top): identical to --accent in light
+     mode, but a real, distinct, darker value in dark mode — see below. */
+  --accent-strong: #0071e3;
   --hairline: #d2d2d7;
   --hairline-soft: #e8e8ed;
-  --success: #1d8a34;
+  --success: #127f29;
   --success-bg: #e3f5e8;
   --warning: #9a6400;
   --warning-bg: #fdf3dc;
@@ -54,6 +57,10 @@
     --text-tertiary: #86868b;
     --accent: #2997ff;
     --accent-hover: #47a6ff;
+    /* Darker than --accent: white text on a #2997ff fill only reaches 3.02:1
+       (fails WCAG AA's 4.5:1 for normal text), but #2997ff itself reads fine
+       as text/links on the dark background. Two roles, two values. */
+    --accent-strong: #0876de;
     --hairline: #2a2a2d;
     --hairline-soft: #242426;
     --success: #46d16a;
@@ -115,7 +122,7 @@ a:hover {
   position: absolute;
   left: -999px;
   top: 0;
-  background: var(--accent);
+  background: var(--accent-strong);
   color: #fff;
   padding: 0.65rem 1rem;
   border-radius: var(--radius-sm);
@@ -163,6 +170,19 @@ a:hover {
 .nav-links a:hover {
   color: var(--text);
   text-decoration: none;
+}
+.lang-switch {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+  font-family: inherit;
+  cursor: pointer;
+}
+.lang-switch:hover {
+  color: var(--text);
+  text-decoration: underline;
 }
 
 /* Layout */
@@ -237,7 +257,7 @@ main {
   transform: scale(0.97);
 }
 .btn-primary {
-  background: var(--accent);
+  background: var(--accent-strong);
   color: #fff;
 }
 .btn-primary:hover {
