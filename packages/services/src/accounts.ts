@@ -3,6 +3,7 @@ import { and, eq, isNull } from 'drizzle-orm';
 import { appendAuditEvent } from './audit';
 import { type Db, first, isUniqueViolation, required, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
+import { recordProductEvent } from './product-events';
 
 /**
  * Account provisioning (Build Spec §2, §13).
@@ -94,6 +95,7 @@ async function createAccount(
         resourceType: 'account',
         resourceId: account.id,
       });
+      await recordProductEvent(tx, { eventType: 'ACCOUNT_CREATED', accountId: account.id });
       return ok(account);
     });
   } catch (error) {

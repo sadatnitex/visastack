@@ -1,5 +1,7 @@
 import {
+  type ProductEventType,
   documentsPastRetention,
+  getPilotScorecard,
   getRetentionPolicies,
   listActiveLegalHolds,
   listAllApplicants,
@@ -15,6 +17,15 @@ import { PurgeButton } from './purge-button';
 
 export const dynamic = 'force-dynamic';
 
+const SCORECARD_LABELS: Record<ProductEventType, string> = {
+  ACCOUNT_CREATED: 'Accounts created',
+  APPLICANT_CREATED: 'Applicant records added',
+  DOCUMENT_UPLOADED: 'Documents uploaded',
+  MISSION_CREATED: 'Missions started',
+  GRANT_CREATED: 'Grants created',
+  AI_EXTRACTION_RUN: 'AI extractions run',
+};
+
 const ORG_STATUS: Record<string, { label: string; tone: string }> = {
   PENDING_VERIFICATION: { label: 'Pending verification', tone: 'badge-warning' },
   ACTIVE: { label: 'Active', tone: 'badge-success' },
@@ -26,15 +37,26 @@ const ORG_STATUS: Record<string, { label: string; tone: string }> = {
 export default async function AdminPage() {
   const data = await withSession(async ({ db, email }) => {
     if (!isPlatformAdmin(email)) return { admin: false as const };
-    const [policies, holds, orgs, failedJobs, applicants, purgeEligible] = await Promise.all([
-      getRetentionPolicies(db),
-      listActiveLegalHolds(db),
-      listAllOrganizations(db),
-      listFailedJobs(db),
-      listAllApplicants(db),
-      documentsPastRetention(db),
-    ]);
-    return { admin: true as const, policies, holds, orgs, failedJobs, applicants, purgeEligible };
+    const [policies, holds, orgs, failedJobs, applicants, purgeEligible, scorecard] =
+      await Promise.all([
+        getRetentionPolicies(db),
+        listActiveLegalHolds(db),
+        listAllOrganizations(db),
+        listFailedJobs(db),
+        listAllApplicants(db),
+        documentsPastRetention(db),
+        getPilotScorecard(db),
+      ]);
+    return {
+      admin: true as const,
+      policies,
+      holds,
+      orgs,
+      failedJobs,
+      applicants,
+      purgeEligible,
+      scorecard,
+    };
   });
 
   const applicantName = (applicantId: string): string =>
@@ -74,6 +96,28 @@ export default async function AdminPage() {
         </article>
       ) : (
         <>
+          <article className="card" style={{ marginBottom: '1.5rem' }}>
+            <p className="card-kicker">Pilot measurement</p>
+            <h2 className="card-title">Product scorecard</h2>
+            <p className="card-body" style={{ marginBottom: '1rem' }}>
+              Real usage milestones, counted from an append-only event log — no PII, no free-text
+              properties.
+            </p>
+            <div className="rows">
+              {data.scorecard.map((row) => (
+                <div className="row" key={row.eventType}>
+                  <span className="row-key">{SCORECARD_LABELS[row.eventType]}</span>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                    <span className="muted" style={{ fontSize: '0.8rem' }}>
+                      {row.last7Days} last 7 days
+                    </span>
+                    <span className="badge badge-neutral">{row.total} total</span>
+                  </span>
+                </div>
+              ))}
+            </div>
+          </article>
+
           <div className="grid">
             <article className="card">
               <p className="card-kicker">Retention</p>

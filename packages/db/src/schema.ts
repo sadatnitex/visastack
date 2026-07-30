@@ -908,3 +908,20 @@ export const rateLimitBuckets = pgTable(
     ),
   ],
 );
+
+// --- Pilot product events (Build Spec §14/§23-25 — privacy-preserving usage
+// measurement) ----------------------------------------------------------
+// A minimal, append-only funnel event log: which known milestone happened,
+// when, and by which account — never a free-text property bag, so it can
+// never accidentally carry PII. `accountId` is the same opaque identifier
+// already used throughout the audit trail, not a new identifier.
+export const productEvents = pgTable(
+  'product_events',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    eventType: text('event_type').notNull(),
+    accountId: uuid('account_id').references(() => accounts.id, { onDelete: 'set null' }),
+    occurredAt: timestamp('occurred_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index('product_events_type_time_idx').on(table.eventType, table.occurredAt)],
+);

@@ -7,6 +7,7 @@ import { appendAuditEvent } from './audit';
 import { hasConsent } from './consent';
 import { type Db, first, required, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
+import { recordProductEvent } from './product-events';
 
 /**
  * Mission Workspaces (Build Spec §4.3; PRD §4).
@@ -166,6 +167,10 @@ export async function createMission(
       missionId: mission.id,
       resourceType: 'mission',
       resourceId: mission.id,
+    });
+    await recordProductEvent(tx, {
+      eventType: 'MISSION_CREATED',
+      accountId: input.actorAccountId,
     });
     return ok(mission);
   });

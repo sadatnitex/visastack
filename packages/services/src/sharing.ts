@@ -13,6 +13,7 @@ import { getApplicant } from './applicants';
 import { appendAuditEvent } from './audit';
 import { type Db, first, required, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
+import { recordProductEvent } from './product-events';
 import { RATE_LIMITS, checkRateLimit } from './rate-limit';
 
 /**
@@ -127,6 +128,10 @@ export async function createGrant(
       resourceType: 'grant',
       resourceId: grant.id,
       metadata: { purpose: grant.purpose, actions: input.actions.length },
+    });
+    await recordProductEvent(tx, {
+      eventType: 'GRANT_CREATED',
+      accountId: input.actorAccountId,
     });
     return ok(grant);
   });

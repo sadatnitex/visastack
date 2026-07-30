@@ -318,3 +318,12 @@ export {
   type RateLimitDecision,
   checkRateLimit,
 } from './rate-limit';
+
+export {
+  PRODUCT_EVENT_TYPES,
+  type PilotScorecardRow,
+  type ProductEventType,
+  type RecordProductEventInput,
+  getPilotScorecard,
+  recordProductEvent,
+} from './product-events';
