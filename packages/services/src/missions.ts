@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import type { MissionState } from '@visastack/core';
 import { type Result, err, ok } from '@visastack/core';
-import { and, eq, isNotNull } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { getApplicant } from './applicants';
 import { appendAuditEvent } from './audit';
 import { hasConsent } from './consent';
@@ -90,6 +90,31 @@ export async function listMissionSnapshots(
     .where(eq(schema.missionSnapshots.missionId, missionId));
   const sorted = [...rows].sort((a, b) => b.version - a.version);
   return ok(sorted);
+}
+
+/** Load one immutable snapshot by id, owner-scoped via its parent mission. */
+export async function getMissionSnapshot(
+  db: Db,
+  actorAccountId: string,
+  missionId: string,
+  snapshotId: string,
+): Promise<Result<MissionSnapshot, ServiceError>> {
+  const owned = await ownedMission(db, actorAccountId, missionId);
+  if (!owned.ok) return owned;
+  const snapshot = first(
+    await db
+      .select()
+      .from(schema.missionSnapshots)
+      .where(
+        and(
+          eq(schema.missionSnapshots.id, snapshotId),
+          eq(schema.missionSnapshots.missionId, missionId),
+        ),
+      )
+      .limit(1),
+  );
+  if (!snapshot) return err(serviceError('not_found', 'snapshot not found'));
+  return ok(snapshot);
 }
 
 /** The legal next states from a given mission state (for UI affordances). */
@@ -198,6 +223,8 @@ export interface MissingRequirement {
   readonly kind: 'FIELD' | 'DOCUMENT';
   readonly key: string;
   readonly optional: boolean;
+  /** Distinguishes "never provided" from "provided but not currently trustworthy". */
+  readonly reason: 'not_provided' | 'unresolved_conflict';
 }
 
 export interface Readiness {
@@ -207,6 +234,30 @@ export interface Readiness {
   readonly missing: readonly MissingRequirement[];
   /** Completeness only — never an approval likelihood. */
   readonly ready: boolean;
+}
+
+/**
+ * Load, per canonical field key, whether the applicant's current fact version
+ * is CONFLICTED (an AI proposal disagreed with an already-trusted value and
+ * neither was silently discarded — Build Spec §8/§9). A conflicted value is
+ * present but not currently trustworthy, so it must not count as satisfying a
+ * requirement — this is the "consistency" half of readiness (Build Spec
+ * §4.5), distinct from mere presence.
+ */
+async function loadFactStatusByKey(
+  db: Db,
+  applicantId: string,
+): Promise<Map<string, (typeof schema.factVersions.$inferSelect)['status']>> {
+  const rows = await db
+    .select({ key: schema.fieldDefinitions.key, status: schema.factVersions.status })
+    .from(schema.facts)
+    .innerJoin(
+      schema.fieldDefinitions,
+      eq(schema.fieldDefinitions.id, schema.facts.fieldDefinitionId),
+    )
+    .innerJoin(schema.factVersions, eq(schema.factVersions.id, schema.facts.currentVersionId))
+    .where(eq(schema.facts.applicantId, applicantId));
+  return new Map(rows.map((r) => [r.key, r.status]));
 }
 
 /** Compute completeness of a mission against its attached pack version. */
@@ -227,24 +278,7 @@ export async function computeReadiness(
     .from(schema.packRequirements)
     .where(eq(schema.packRequirements.packVersionId, mission.packVersionId));
 
-  // Approved field keys for this applicant (a fact with a current version).
-  const factKeys = new Set(
-    (
-      await db
-        .select({ key: schema.fieldDefinitions.key })
-        .from(schema.facts)
-        .innerJoin(
-          schema.fieldDefinitions,
-          eq(schema.fieldDefinitions.id, schema.facts.fieldDefinitionId),
-        )
-        .where(
-          and(
-            eq(schema.facts.applicantId, mission.applicantId),
-            isNotNull(schema.facts.currentVersionId),
-          ),
-        )
-    ).map((r) => r.key),
-  );
+  const factStatusByKey = await loadFactStatusByKey(db, mission.applicantId);
   const docTypes = new Set(
     (
       await db
@@ -261,12 +295,21 @@ export async function computeReadiness(
   let satisfiedRequired = 0;
   for (const req of requirements) {
     const key = req.kind === 'FIELD' ? (req.fieldKey ?? '') : (req.docType ?? '');
-    const satisfied = req.kind === 'FIELD' ? factKeys.has(key) : docTypes.has(key);
+    const factStatus = req.kind === 'FIELD' ? factStatusByKey.get(key) : undefined;
+    const present = req.kind === 'FIELD' ? factStatus !== undefined : docTypes.has(key);
+    const satisfied = present && factStatus !== 'CONFLICTED';
     if (!req.optional) {
       requiredCount++;
       if (satisfied) satisfiedRequired++;
     }
-    if (!satisfied) missing.push({ kind: req.kind, key, optional: req.optional });
+    if (!satisfied) {
+      missing.push({
+        kind: req.kind,
+        key,
+        optional: req.optional,
+        reason: factStatus === 'CONFLICTED' ? 'unresolved_conflict' : 'not_provided',
+      });
+    }
   }
 
   return ok({
@@ -326,9 +369,80 @@ function stableStringify(value: unknown): string {
     .join(',')}}`;
 }
 
+export interface RequirementMappingEntry {
+  readonly kind: 'FIELD' | 'DOCUMENT';
+  readonly key: string;
+  readonly citation: string;
+  readonly optional: boolean;
+  readonly satisfied: boolean;
+  readonly value?: string | null;
+  readonly documents?: ReadonlyArray<{
+    readonly id: string;
+    readonly docType: string | null;
+    readonly displayName: string;
+  }>;
+}
+
 /**
- * Capture an immutable, checksummed snapshot of the mission's current evidence
- * and readiness. Snapshots are never mutated; versions increment.
+ * Resolve each of a pack version's requirements to the specific fact value or
+ * document(s) that satisfy it (Build Spec §4.5's "requirement mapping"), from
+ * already-loaded snapshot data rather than re-fetching per requirement.
+ */
+async function buildRequirementMapping(
+  db: Db,
+  packVersionId: string,
+  facts: Readonly<Record<string, string | null>>,
+  factStatusByKey: ReadonlyMap<string, string>,
+  documents: ReadonlyArray<{
+    readonly id: string;
+    readonly docType: string | null;
+    readonly originalName: string;
+    readonly approvedName: string | null;
+  }>,
+): Promise<RequirementMappingEntry[]> {
+  const requirements = await db
+    .select()
+    .from(schema.packRequirements)
+    .where(eq(schema.packRequirements.packVersionId, packVersionId));
+
+  return requirements.map((req): RequirementMappingEntry => {
+    if (req.kind === 'FIELD') {
+      const key = req.fieldKey ?? '';
+      const status = factStatusByKey.get(key);
+      const present = status !== undefined;
+      return {
+        kind: 'FIELD',
+        key,
+        citation: req.citation,
+        optional: req.optional,
+        satisfied: present && status !== 'CONFLICTED',
+        value: present ? (facts[key] ?? null) : null,
+      };
+    }
+    const key = req.docType ?? '';
+    const matches = documents.filter((d) => d.docType === key);
+    return {
+      kind: 'DOCUMENT',
+      key,
+      citation: req.citation,
+      optional: req.optional,
+      satisfied: matches.length > 0,
+      documents: matches.map((d) => ({
+        id: d.id,
+        docType: d.docType,
+        displayName: d.approvedName ?? d.originalName,
+      })),
+    };
+  });
+}
+
+/**
+ * Capture an immutable, checksummed snapshot of the mission's current
+ * evidence, per-requirement mapping, and readiness. Snapshots are never
+ * mutated; versions increment. Once a mission has reached READY_TO_EXPORT or
+ * later, this snapshot IS the application packet (Build Spec §4.5's "pack
+ * production") — the same immutable, checksummed capture, not a separate
+ * artifact.
  */
 export async function snapshotMission(
   db: Db,
@@ -339,7 +453,11 @@ export async function snapshotMission(
   const mission = owned.value;
 
   const factRows = await db
-    .select({ key: schema.fieldDefinitions.key, value: schema.factVersions.value })
+    .select({
+      key: schema.fieldDefinitions.key,
+      value: schema.factVersions.value,
+      status: schema.factVersions.status,
+    })
     .from(schema.facts)
     .innerJoin(
       schema.fieldDefinitions,
@@ -348,7 +466,11 @@ export async function snapshotMission(
     .innerJoin(schema.factVersions, eq(schema.factVersions.id, schema.facts.currentVersionId))
     .where(eq(schema.facts.applicantId, mission.applicantId));
   const facts: Record<string, string | null> = {};
-  for (const row of factRows) facts[row.key] = row.value;
+  const factStatusByKey = new Map<string, string>();
+  for (const row of factRows) {
+    facts[row.key] = row.value;
+    factStatusByKey.set(row.key, row.status);
+  }
 
   const documents = await db
     .select({
@@ -361,12 +483,16 @@ export async function snapshotMission(
     .where(eq(schema.documents.applicantId, mission.applicantId));
 
   const readiness = mission.packVersionId ? await computeReadiness(db, mission.id) : null;
+  const requirementMapping = mission.packVersionId
+    ? await buildRequirementMapping(db, mission.packVersionId, facts, factStatusByKey, documents)
+    : [];
   const content = {
     missionId: mission.id,
     state: mission.state,
     packVersionId: mission.packVersionId,
     facts,
     documents,
+    requirementMapping,
     readiness: readiness?.ok ? readiness.value : null,
   };
   const checksum = createHash('sha256').update(stableStringify(content)).digest('hex');
