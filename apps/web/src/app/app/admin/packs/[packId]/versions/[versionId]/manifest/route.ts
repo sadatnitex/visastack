@@ -16,8 +16,8 @@ export async function GET(
 ): Promise<Response> {
   const { versionId } = await params;
 
-  const manifest = await withSession(async ({ db, email }) => {
-    if (!isPlatformAdmin(email)) return null;
+  const manifest = await withSession(async ({ db, accountId, email }) => {
+    if (!(await isPlatformAdmin(db, { accountId, email }))) return null;
     const requirements = await listRequirements(db, versionId);
     return buildManifest(requirements).manifest;
   });

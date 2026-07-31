@@ -100,6 +100,7 @@ describe('legal hold overrides deletion', () => {
       actorAccountId: officer,
       applicantId,
       reason: 'litigation X',
+      stepUpSatisfied: true,
     });
     expect(isOk(hold)).toBe(true);
     if (!isOk(hold)) return;
@@ -112,7 +113,11 @@ describe('legal hold overrides deletion', () => {
       await db.select().from(schema.accounts).where(eq(schema.accounts.id, account.id)),
     ).toHaveLength(1);
 
-    await releaseLegalHold(db, { actorAccountId: officer, holdId: hold.value.id });
+    await releaseLegalHold(db, {
+      actorAccountId: officer,
+      holdId: hold.value.id,
+      stepUpSatisfied: true,
+    });
     const executed = await executeAccountDeletion(db, { accountId: account.id });
     expect(isOk(executed)).toBe(true);
     expect(
@@ -128,13 +133,50 @@ describe('legal hold overrides deletion', () => {
       actorAccountId: officer,
       applicantId,
       reason: 'audit',
+      stepUpSatisfied: true,
     });
     if (!isOk(hold)) throw new Error('hold');
 
     expect(await listActiveLegalHolds(db)).toHaveLength(1);
 
-    await releaseLegalHold(db, { actorAccountId: officer, holdId: hold.value.id });
+    await releaseLegalHold(db, {
+      actorAccountId: officer,
+      holdId: hold.value.id,
+      stepUpSatisfied: true,
+    });
     expect(await listActiveLegalHolds(db)).toHaveLength(0);
+  });
+
+  it('refuses to place or release a legal hold without step-up (master directive §7 "PR 5")', async () => {
+    const { applicantId } = await consentedApplicant(db, 'stepup-hold@example.com');
+    const officer = await operator(db, 'officer-stepup@example.com');
+
+    const deniedPlace = await placeLegalHold(db, {
+      actorAccountId: officer,
+      applicantId,
+      reason: 'no reauth yet',
+      stepUpSatisfied: false,
+    });
+    expect(isErr(deniedPlace)).toBe(true);
+    if (isErr(deniedPlace)) expect(deniedPlace.error.code).toBe('step_up_required');
+    expect(await listActiveLegalHolds(db)).toHaveLength(0);
+
+    const hold = await placeLegalHold(db, {
+      actorAccountId: officer,
+      applicantId,
+      reason: 'genuine hold',
+      stepUpSatisfied: true,
+    });
+    if (!isOk(hold)) throw new Error('hold');
+
+    const deniedRelease = await releaseLegalHold(db, {
+      actorAccountId: officer,
+      holdId: hold.value.id,
+      stepUpSatisfied: false,
+    });
+    expect(isErr(deniedRelease)).toBe(true);
+    if (isErr(deniedRelease)) expect(deniedRelease.error.code).toBe('step_up_required');
+    expect(await listActiveLegalHolds(db)).toHaveLength(1); // still active
   });
 });
 
@@ -187,10 +229,14 @@ describe('retention purge', () => {
       actorAccountId: officer,
       applicantId,
       reason: 'hold',
+      stepUpSatisfied: true,
     });
     if (!isOk(hold)) throw new Error('hold');
     expect(await documentsPastRetention(db)).toHaveLength(0);
-    const noop = await purgeExpiredDocuments(db, { actorAccountId: officer });
+    const noop = await purgeExpiredDocuments(db, {
+      actorAccountId: officer,
+      stepUpSatisfied: true,
+    });
     expect(isOk(noop)).toBe(true);
     if (isOk(noop)) {
       expect(noop.value.queuedForErasure).toBe(0);
@@ -198,8 +244,15 @@ describe('retention purge', () => {
     }
 
     // Release the hold → purge queues erasure, but never deletes synchronously.
-    await releaseLegalHold(db, { actorAccountId: officer, holdId: hold.value.id });
-    const purged = await purgeExpiredDocuments(db, { actorAccountId: officer });
+    await releaseLegalHold(db, {
+      actorAccountId: officer,
+      holdId: hold.value.id,
+      stepUpSatisfied: true,
+    });
+    const purged = await purgeExpiredDocuments(db, {
+      actorAccountId: officer,
+      stepUpSatisfied: true,
+    });
     expect(isOk(purged)).toBe(true);
     if (isOk(purged)) {
       expect(purged.value.queuedForErasure).toBe(1);
@@ -255,7 +308,10 @@ describe('retention purge', () => {
       sql`update documents set created_at = now() - interval '60 days' where id = ${doc.value.id}`,
     );
 
-    const purged = await purgeExpiredDocuments(db, { actorAccountId: officer });
+    const purged = await purgeExpiredDocuments(db, {
+      actorAccountId: officer,
+      stepUpSatisfied: true,
+    });
     expect(isOk(purged)).toBe(true);
     if (isOk(purged)) expect(purged.value.queuedForErasure).toBe(1);
 
@@ -264,6 +320,7 @@ describe('retention purge', () => {
       actorAccountId: officer,
       applicantId,
       reason: 'late hold',
+      stepUpSatisfied: true,
     });
     expect(isOk(hold)).toBe(true);
 
@@ -274,5 +331,40 @@ describe('retention purge', () => {
     expect(await db.select().from(schema.documents)).toHaveLength(1);
     const job = (await db.select().from(schema.erasureJobs))[0];
     expect(job?.status).toBe('BLOCKED_BY_HOLD');
+  });
+
+  it('refuses to run retention purge without step-up, queuing nothing (master directive §7 "PR 5")', async () => {
+    const { account, applicantId } = await consentedApplicant(db, 'stepup-purge@example.com');
+    const officer = await operator(db, 'officer-purge-stepup@example.com');
+    await setRetentionPolicy(db, {
+      actorAccountId: account.id,
+      docType: 'receipt',
+      retentionDays: 30,
+    });
+    const doc = await registerDocument(db, {
+      actorAccountId: account.id,
+      applicantId,
+      originalName: 'r3.pdf',
+      docType: 'receipt',
+    });
+    if (!isOk(doc)) throw new Error('doc');
+    await addDocumentVersion(db, {
+      actorAccountId: account.id,
+      documentId: doc.value.id,
+      bucket: 'CLEAN',
+      objectKey: 'obj-ret-stepup',
+    });
+    await db.execute(
+      sql`update documents set created_at = now() - interval '60 days' where id = ${doc.value.id}`,
+    );
+    expect(await documentsPastRetention(db)).toHaveLength(1);
+
+    const denied = await purgeExpiredDocuments(db, {
+      actorAccountId: officer,
+      stepUpSatisfied: false,
+    });
+    expect(isErr(denied)).toBe(true);
+    if (isErr(denied)) expect(denied.error.code).toBe('step_up_required');
+    expect(await db.select().from(schema.erasureJobs)).toHaveLength(0);
   });
 });

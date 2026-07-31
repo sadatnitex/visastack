@@ -5,11 +5,11 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
  * Platform capability registry (master recovery directive §7): server-
  * authoritative. `agencyCollaboration`'s PR 1 authorization defects
  * (docs/audits/commercial-readiness-recovery-baseline.md §7) were repaired
- * and covered by the hostile-authorization suite in PR 2, so it now reports
- * `available` like any other configured capability. `bulkExport` stays
- * `disabled` regardless of environment — not because it is broken, but
- * because `EXPORT_PROFILE` is a step-up action and no real WorkOS step-up
- * mechanism exists anywhere in the app yet (PR 5 scope); see
+ * and covered by the hostile-authorization suite in PR 2. `bulkExport`'s
+ * PR 5 gap (EXPORT_PROFILE is a step-up action, and no real WorkOS step-up
+ * mechanism existed anywhere in the app) was closed by a genuine WorkOS
+ * reauthentication flow (apps/web/src/lib/step-up.ts). Both now report
+ * `available` like any other configured capability; see
  * apps/web/src/lib/capabilities.ts.
  */
 
@@ -67,7 +67,7 @@ describe('getPlatformCapabilities', () => {
     expect(getPlatformCapabilities().agencyCollaboration).toBe('available');
   });
 
-  it('gates bulkExport to disabled even when everything else is fully configured', async () => {
+  it('reports bulkExport available now that a genuine WorkOS step-up flow backs it (PR 5)', async () => {
     setEnv('VERCEL_ENV', 'production');
     setEnv('WORKOS_API_KEY', 'x');
     setEnv('WORKOS_CLIENT_ID', 'x');
@@ -75,7 +75,7 @@ describe('getPlatformCapabilities', () => {
     setEnv('NEXT_PUBLIC_WORKOS_REDIRECT_URI', 'https://example.test/callback');
     setEnv('BLOB_READ_WRITE_TOKEN', 'x');
     const { getPlatformCapabilities } = await import('./capabilities');
-    expect(getPlatformCapabilities().bulkExport).toBe('disabled');
+    expect(getPlatformCapabilities().bulkExport).toBe('available');
   });
 
   it('leaves direct individual-to-individual sharing available (not among the confirmed defects)', async () => {
@@ -146,13 +146,6 @@ describe('getPlatformCapabilities', () => {
 });
 
 describe('capabilityUnavailableMessage', () => {
-  it('gives a specific, non-security-detail-leaking reason for bulkExport', async () => {
-    const { capabilityUnavailableMessage } = await import('./capabilities');
-    const message = capabilityUnavailableMessage('bulkExport');
-    expect(message.length).toBeGreaterThan(0);
-    expect(message.toLowerCase()).not.toContain('step-up bypass');
-  });
-
   it('falls back to a generic honest message for any other capability', async () => {
     const { capabilityUnavailableMessage } = await import('./capabilities');
     expect(capabilityUnavailableMessage('payments').length).toBeGreaterThan(0);

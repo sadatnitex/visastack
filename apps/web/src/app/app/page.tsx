@@ -50,7 +50,7 @@ export default async function AppPage() {
     ]);
     return {
       email,
-      isAdmin: isPlatformAdmin(email),
+      isAdmin: await isPlatformAdmin(db, { accountId, email }),
       consents,
       applicants,
       quota: loadUploadQuotaConfig(),

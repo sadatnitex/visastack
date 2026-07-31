@@ -7,8 +7,8 @@ import { CreatePackForm } from './pack-forms';
 export const dynamic = 'force-dynamic';
 
 export default async function PackStudioPage() {
-  const data = await withSession(async ({ db, email }) => {
-    if (!isPlatformAdmin(email)) return { admin: false as const };
+  const data = await withSession(async ({ db, accountId, email }) => {
+    if (!(await isPlatformAdmin(db, { accountId, email }))) return { admin: false as const };
     return { admin: true as const, packs: await listPacks(db) };
   });
 

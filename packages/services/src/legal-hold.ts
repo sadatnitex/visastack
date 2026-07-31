@@ -32,11 +32,24 @@ export async function hasActiveLegalHold(db: Db, applicantId: string): Promise<b
   return hold !== undefined;
 }
 
-/** Place a legal hold on an applicant (privileged/compliance action). */
+/**
+ * Place a legal hold on an applicant (privileged/compliance action).
+ * Step-up gated (master directive §7 "PR 5"): `stepUpSatisfied` must be
+ * honestly derived from a genuine WorkOS reauthentication — see
+ * `apps/web/src/lib/step-up.ts`.
+ */
 export async function placeLegalHold(
   db: Db,
-  input: { readonly actorAccountId: string; readonly applicantId: string; readonly reason: string },
+  input: {
+    readonly actorAccountId: string;
+    readonly applicantId: string;
+    readonly reason: string;
+    readonly stepUpSatisfied: boolean;
+  },
 ): Promise<Result<LegalHold, ServiceError>> {
+  if (!input.stepUpSatisfied) {
+    return err(serviceError('step_up_required', 'placing a legal hold requires reauthentication'));
+  }
   if (input.reason.trim().length === 0) return err(serviceError('invalid', 'a reason is required'));
   const applicant = first(
     await db
@@ -75,11 +88,23 @@ export async function placeLegalHold(
   });
 }
 
-/** Release a legal hold (privileged/compliance action). */
+/**
+ * Release a legal hold (privileged/compliance action). Step-up gated — see
+ * `placeLegalHold`.
+ */
 export async function releaseLegalHold(
   db: Db,
-  input: { readonly actorAccountId: string; readonly holdId: string },
+  input: {
+    readonly actorAccountId: string;
+    readonly holdId: string;
+    readonly stepUpSatisfied: boolean;
+  },
 ): Promise<Result<LegalHold, ServiceError>> {
+  if (!input.stepUpSatisfied) {
+    return err(
+      serviceError('step_up_required', 'releasing a legal hold requires reauthentication'),
+    );
+  }
   const hold = first(
     await db
       .select()

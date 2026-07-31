@@ -12,6 +12,7 @@
  */
 
 export type { Actor } from '@visastack/policy';
+export { STEP_UP_ACTIONS } from '@visastack/policy';
 export type { Db, Schema } from './db';
 export { type ServiceError, type ServiceErrorCode, serviceError } from './errors';
 
@@ -20,9 +21,11 @@ export { type AuditEventInput, type AuditEventRow, appendAuditEvent } from './au
 export {
   type Account,
   type ProvisionAccountInput,
+  type UnboundAccountSummary,
   getAccountByEmail,
   getAccountByWorkosUserId,
   provisionAccount,
+  reportUnboundAccounts,
 } from './accounts';
 
 export {
@@ -109,6 +112,27 @@ export {
   type SizeOrHashMismatch,
   reconcileOrphans,
 } from './reconciliation';
+
+export {
+  type StepUpAssuranceFields,
+  issueStepUpAssurance,
+  signStepUpAssurance,
+  verifyStepUpAssurance,
+} from './step-up';
+
+export {
+  PLATFORM_ROLES,
+  type GrantPlatformRoleInput,
+  type PlatformAuthInput,
+  type PlatformRole,
+  type PlatformRoleGrant,
+  type RevokePlatformRoleInput,
+  grantPlatformRole,
+  hasAnyPlatformRole,
+  isPlatformOwner,
+  listActivePlatformRoles,
+  revokePlatformRole,
+} from './platform-roles';
 
 export {
   type Assignment,

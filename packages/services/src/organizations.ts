@@ -177,6 +177,9 @@ export async function createOrganization(
 /**
  * Review a PENDING_VERIFICATION organization (platform-admin action). The
  * reviewer must NOT be a member — an org can never verify itself (Build Spec §2).
+ * Step-up gated as "organization verification" (master directive §7 "PR 5"):
+ * `stepUpSatisfied` must be honestly derived from a genuine WorkOS
+ * reauthentication — see `apps/web/src/lib/step-up.ts`.
  */
 export async function reviewOrganization(
   db: Db,
@@ -184,8 +187,14 @@ export async function reviewOrganization(
     readonly reviewerAccountId: string;
     readonly organizationId: string;
     readonly decision: 'ACTIVE' | 'REJECTED';
+    readonly stepUpSatisfied: boolean;
   },
 ): Promise<Result<Organization, ServiceError>> {
+  if (!input.stepUpSatisfied) {
+    return err(
+      serviceError('step_up_required', 'reviewing an organization requires reauthentication'),
+    );
+  }
   const org = first(
     await db
       .select()

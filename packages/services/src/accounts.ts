@@ -1,5 +1,5 @@
 import { type Result, err, ok } from '@visastack/core';
-import { and, eq, isNull } from 'drizzle-orm';
+import { and, count, desc, eq, inArray, isNull } from 'drizzle-orm';
 import { appendAuditEvent } from './audit';
 import { type Db, first, isUniqueViolation, required, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
@@ -23,6 +23,14 @@ import { recordProductEvent } from './product-events';
  * An email that already belongs to a *different* WorkOS id is refused
  * (account-takeover guard). Callers without a WorkOS id (tests, legacy paths)
  * keep the email-keyed behaviour and never bind.
+ *
+ * The same takeover guard applies to the concurrent-creation race inside
+ * `createAccount`: when two sign-ins race and the loser's insert fails on
+ * the email-uniqueness constraint (not its own id), the winner's row is
+ * only ever returned if it is bound to the SAME identity. A same-email,
+ * different-identity race is a genuine conflict, not a race to resolve —
+ * it fails closed (master directive §7 "PR 5"), never silently handing one
+ * identity's session the other identity's account.
  */
 
 export type Account = typeof schema.accounts.$inferSelect;
@@ -99,13 +107,33 @@ async function createAccount(
       return ok(account);
     });
   } catch (error) {
-    // Concurrent creation: the email- or id-unique constraint fired. Re-read the
-    // winner rather than failing (idempotent under races).
+    // Concurrent creation: the email- or id-unique constraint fired.
     if (isUniqueViolation(error)) {
       if (values.workosUserId) {
+        // Our own id won the race — re-read and return it (idempotent).
         const byId = await findByWorkosUserId(db, values.workosUserId);
         if (byId) return ok(byId);
+        // Not our id: the violation must be the email constraint — a
+        // concurrent request already claimed this email. Only trust it when
+        // that account is bound to the SAME identity we're provisioning;
+        // never hand back an account bound to a different WorkOS identity
+        // just because the email matches (fail closed on a genuine conflict,
+        // mirroring provisionAccount's own synchronous takeover guard).
+        const byEmail = await findByEmail(db, values.email);
+        if (byEmail?.workosUserId === values.workosUserId) return ok(byEmail);
+        await db.transaction(async (tx) => {
+          await appendAuditEvent(tx, {
+            eventType: 'ACCOUNT_IDENTITY_CONFLICT',
+            method: 'SYSTEM',
+            result: 'DENIED',
+            resourceType: 'account',
+            resourceId: byEmail?.id ?? null,
+          });
+        });
+        return err(serviceError('forbidden', 'this email is bound to a different identity'));
       }
+      // No identity on this attempt (legacy/no-id caller): email-keyed,
+      // matching provisionAccount's own legacy-caller path.
       const byEmail = await findByEmail(db, values.email);
       if (byEmail) return ok(byEmail);
     }
@@ -220,4 +248,51 @@ export async function provisionAccount(
 
   // 3. Fresh account, bound to the identity when present.
   return createAccount(db, { email, workosUserId, emailVerifiedAt });
+}
+
+export interface UnboundAccountSummary {
+  readonly id: string;
+  readonly email: string;
+  readonly emailVerifiedAt: string | null;
+  readonly createdAt: string;
+  /** Applicants owned by this account — a signal for "still relevant" vs. dead weight. */
+  readonly applicantCount: number;
+}
+
+/**
+ * Read-only report of accounts with no bound WorkOS identity (master
+ * directive §7 "PR 5" — WorkOS ID migration). `workos_user_id` cannot become
+ * `NOT NULL` (migration `0010` deliberately left it nullable for exactly this
+ * staged rollout) until every legitimate account is confirmed bound; this is
+ * the confirmation tool, not a migration. An unbound account resolves itself
+ * safely the moment its owner next signs in (`provisionAccount`'s existing
+ * legacy-claim path) — nothing here mutates anything.
+ */
+export async function reportUnboundAccounts(db: Db): Promise<readonly UnboundAccountSummary[]> {
+  const accounts = await db
+    .select()
+    .from(schema.accounts)
+    .where(isNull(schema.accounts.workosUserId))
+    .orderBy(desc(schema.accounts.createdAt));
+  if (accounts.length === 0) return [];
+
+  const counts = await db
+    .select({ ownerAccountId: schema.applicants.ownerAccountId, n: count() })
+    .from(schema.applicants)
+    .where(
+      inArray(
+        schema.applicants.ownerAccountId,
+        accounts.map((a) => a.id),
+      ),
+    )
+    .groupBy(schema.applicants.ownerAccountId);
+  const byOwner = new Map(counts.map((c) => [c.ownerAccountId, c.n]));
+
+  return accounts.map((a) => ({
+    id: a.id,
+    email: a.email,
+    emailVerifiedAt: a.emailVerifiedAt?.toISOString() ?? null,
+    createdAt: a.createdAt.toISOString(),
+    applicantCount: byOwner.get(a.id) ?? 0,
+  }));
 }

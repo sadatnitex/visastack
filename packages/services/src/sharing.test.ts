@@ -3,6 +3,7 @@ import { PGlite } from '@electric-sql/pglite';
 import { isErr, isOk } from '@visastack/core';
 import { schema } from '@visastack/db';
 import type { Membership } from '@visastack/policy';
+import { eq } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/pglite';
 import { migrate } from 'drizzle-orm/pglite/migrator';
 import { beforeEach, describe, expect, it } from 'vitest';
@@ -111,6 +112,7 @@ async function activateOrg(db: Db, organizationId: string): Promise<void> {
     reviewerAccountId: reviewer.value.id,
     organizationId,
     decision: 'ACTIVE',
+    stepUpSatisfied: true,
   });
   if (!isOk(reviewed)) throw new Error('review');
 }
@@ -133,6 +135,7 @@ describe('organizations — verification and membership', () => {
       reviewerAccountId: ownerAcc.value.id,
       organizationId: org.value.id,
       decision: 'ACTIVE',
+      stepUpSatisfied: true,
     });
     expect(isErr(selfReview)).toBe(true);
     if (isErr(selfReview)) expect(selfReview.error.code).toBe('forbidden');
@@ -143,6 +146,7 @@ describe('organizations — verification and membership', () => {
       reviewerAccountId: admin.value.id,
       organizationId: org.value.id,
       decision: 'ACTIVE',
+      stepUpSatisfied: true,
     });
     expect(isOk(reviewed)).toBe(true);
     if (isOk(reviewed)) expect(reviewed.value.status).toBe('ACTIVE');
@@ -152,6 +156,32 @@ describe('organizations — verification and membership', () => {
       organizationId: org.value.id,
     });
     expect(isOk(suspended)).toBe(true);
+  });
+
+  it('refuses to review an organization without step-up, even for a legitimate independent reviewer (master directive §7 "PR 5")', async () => {
+    const ownerAcc = await provisionAccount(db, { email: 'oo-stepup@example.com' });
+    if (!isOk(ownerAcc)) throw new Error('provision');
+    const org = await createOrganization(db, { actorAccountId: ownerAcc.value.id, name: 'Acme' });
+    if (!isOk(org)) throw new Error('org');
+    const admin = await provisionAccount(db, { email: 'platform-admin-stepup@example.com' });
+    if (!isOk(admin)) throw new Error('provision');
+
+    const denied = await reviewOrganization(db, {
+      reviewerAccountId: admin.value.id,
+      organizationId: org.value.id,
+      decision: 'ACTIVE',
+      stepUpSatisfied: false,
+    });
+    expect(isErr(denied)).toBe(true);
+    if (isErr(denied)) expect(denied.error.code).toBe('step_up_required');
+    expect(
+      (
+        await db
+          .select()
+          .from(schema.organizations)
+          .where(eq(schema.organizations.id, org.value.id))
+      )[0]?.status,
+    ).toBe('PENDING_VERIFICATION');
   });
 
   it('only an OWNER/ADMIN can add members', async () => {
@@ -238,6 +268,53 @@ describe('sharing — grant lifecycle end-to-end with the policy engine', () => 
     await revokeGrant(db, { actorAccountId: account.id, grantId: grant.value.id });
     const afterRevoke = await preview();
     expect(isErr(afterRevoke)).toBe(true);
+  });
+
+  it('refuses to create a grant handing out DOWNLOAD_ORIGINAL without step-up (master directive §7 "PR 5")', async () => {
+    const { account, applicantId } = await ownerWithDoc(db, 'sensitive-owner@example.com');
+    const recipient = await provisionAccount(db, { email: 'sensitive-recipient@example.com' });
+    if (!isOk(recipient)) throw new Error('provision');
+
+    const denied = await createGrant(db, {
+      actorAccountId: account.id,
+      applicantId,
+      recipientAccountId: recipient.value.id,
+      actions: ['DOWNLOAD_ORIGINAL'],
+      purpose: 'visa_application',
+    });
+    expect(isErr(denied)).toBe(true);
+    if (isErr(denied)) expect(denied.error.code).toBe('step_up_required');
+  });
+
+  it('creates a grant handing out DOWNLOAD_ORIGINAL once step-up is honestly satisfied', async () => {
+    const { account, applicantId } = await ownerWithDoc(db, 'sensitive-owner-2@example.com');
+    const recipient = await provisionAccount(db, { email: 'sensitive-recipient-2@example.com' });
+    if (!isOk(recipient)) throw new Error('provision');
+
+    const created = await createGrant(db, {
+      actorAccountId: account.id,
+      applicantId,
+      recipientAccountId: recipient.value.id,
+      actions: ['DOWNLOAD_ORIGINAL'],
+      purpose: 'visa_application',
+      stepUpSatisfied: true,
+    });
+    expect(isOk(created)).toBe(true);
+  });
+
+  it('never requires step-up for an ordinary grant with no sensitive actions', async () => {
+    const { account, applicantId } = await ownerWithDoc(db, 'ordinary-owner@example.com');
+    const recipient = await provisionAccount(db, { email: 'ordinary-recipient@example.com' });
+    if (!isOk(recipient)) throw new Error('provision');
+
+    const created = await createGrant(db, {
+      actorAccountId: account.id,
+      applicantId,
+      recipientAccountId: recipient.value.id,
+      actions: ['PREVIEW', 'COMMENT'],
+      purpose: 'visa_application',
+    });
+    expect(isOk(created)).toBe(true);
   });
 
   it('refuses to create further grants once the anti-automation limit is hit (Build Spec §14)', async () => {

@@ -27,14 +27,6 @@ export function isWorkosConfigured(): boolean {
  * Capabilities gated `disabled` in controlled pilot pending a specific,
  * tracked dependency — not because the underlying feature is unimplemented.
  *
- * - `bulkExport`: PR 2 rebuilt it to use the actor's real membership role,
- *   preserved scopes, and an honest `stepUpSatisfied` input instead of a
- *   hardcoded `true` — but `EXPORT_PROFILE` is a step-up action and no real
- *   WorkOS step-up mechanism exists anywhere in the app yet (PR 5 scope), so
- *   every export now correctly denies. Stays gated here — not because it is
- *   broken, but because it is currently unusable by construction — until
- *   PR 5 ships a real step-up flow the export route can thread through.
- *
  * `agencyCollaboration`'s PR 1 gap (addNote/assignMember/requestEvidence/
  * setMembershipActive — see
  * docs/audits/commercial-readiness-recovery-baseline.md §7) was repaired and
@@ -42,10 +34,19 @@ export function isWorkosConfigured(): boolean {
  * packages/services/src/agency.test.ts /
  * packages/services/src/organizations.test.ts); it is no longer gated here.
  *
+ * `bulkExport`'s PR 5 gap (EXPORT_PROFILE is a step-up action, and no real
+ * WorkOS step-up mechanism existed anywhere in the app) is closed:
+ * `apps/web/src/lib/step-up.ts` checks genuine WorkOS session recency
+ * (`checkRecentAuth`, the real `auth_time` JWT claim) and forces a real
+ * reauthentication challenge (`getSignInUrl({ maxAge })`) when it's stale —
+ * never a client-supplied boolean. The export route
+ * (`app/agency/[orgId]/export/route.ts`) threads a genuinely-earned
+ * `stepUpSatisfied` through. It is no longer gated here.
+ *
  * Remove an entry here only once its blocking dependency has actually
  * landed and this comment is updated to say so.
  */
-const KNOWN_SECURITY_GAPS: ReadonlySet<keyof PlatformCapabilities> = new Set(['bulkExport']);
+const KNOWN_SECURITY_GAPS: ReadonlySet<keyof PlatformCapabilities> = new Set([]);
 
 function gapAware(state: CapabilityState, key: keyof PlatformCapabilities): CapabilityState {
   return KNOWN_SECURITY_GAPS.has(key) ? 'disabled' : state;
@@ -113,10 +114,7 @@ export function isCapabilityAvailable(
   return capabilities[key] === 'available';
 }
 
-const UNAVAILABLE_MESSAGES: Partial<Record<keyof PlatformCapabilities, string>> = {
-  bulkExport:
-    'Bulk export is temporarily unavailable in the controlled pilot: it requires a step-up confirmation step that has not been built yet. Export an individual applicant’s own data from Privacy › Export instead.',
-};
+const UNAVAILABLE_MESSAGES: Partial<Record<keyof PlatformCapabilities, string>> = {};
 
 /**
  * A safe, user-facing explanation for a disabled/unconfigured capability.

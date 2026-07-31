@@ -626,13 +626,13 @@ const BULK_EXPORT_MAX_APPLICANTS = 500;
  * non-`ACTIVE`/unaccepted/expired grant, and is bounded.
  *
  * Step-up: `stepUpSatisfied` is derived honestly from `input.stepUpSatisfied`
- * — there is still no real WorkOS step-up mechanism anywhere in the app
- * (that is PR 5 scope), so this is never hardcoded `true` here. Because
- * `EXPORT_PROFILE` is a `STEP_UP_ACTIONS` action, every export will
- * correctly deny until a caller can honestly supply `true`, which requires
- * PR 5's server-generated, action-bound assurance record. The
- * `bulkExport` platform capability therefore stays gated `disabled` even
- * after this PR — see apps/web/src/lib/capabilities.ts.
+ * — this function never hardcodes `true`. Because `EXPORT_PROFILE` is a
+ * `STEP_UP_ACTIONS` action, every export denies unless the caller can
+ * honestly supply `true`, which now requires a genuine WorkOS
+ * reauthentication plus a server-generated, action-bound assurance record
+ * (`apps/web/src/lib/step-up.ts`, master recovery directive §7 "PR 5"). The
+ * `bulkExport` platform capability reports `available` accordingly — see
+ * apps/web/src/lib/capabilities.ts.
  */
 export async function bulkExport(
   db: Db,
