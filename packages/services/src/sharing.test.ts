@@ -86,6 +86,12 @@ async function ownerWithDoc(db: Db, email: string) {
     documentId: doc.value.id,
     bucket: 'CLEAN',
     objectKey: `obj-${email}`,
+    // Simulates a version that already cleared the intake pipeline — this
+    // suite exercises grant/preview authorization, not the pipeline itself,
+    // and previewDocument/downloadDocument now require a servable,
+    // confirmed-safe version (master directive §7 "PR 3").
+    safetyStatus: 'CLEAN',
+    processingStatus: 'AWAITING_REVIEW',
   });
   return { account, applicantId: applicant.value.id, documentId: doc.value.id };
 }

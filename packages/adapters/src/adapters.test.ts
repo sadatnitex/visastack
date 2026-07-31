@@ -13,6 +13,7 @@ import {
 } from '@visastack/services';
 import { drizzle } from 'drizzle-orm/pglite';
 import { migrate } from 'drizzle-orm/pglite/migrator';
+import JSZip from 'jszip';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { verifyBlobToken } from './blob-token';
 import { NeonBlobStorage } from './neon-blob';
@@ -31,6 +32,17 @@ async function freshDb(): Promise<Db> {
 
 const PDF = new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d, 0x31, 0x2e, 0x37]); // %PDF-1.7
 const EXE = new Uint8Array([0x4d, 0x5a, 0x90, 0x00]); // MZ...
+
+/** A genuinely valid minimal DOCX — the scanner now validates real OOXML structure, not just ZIP magic bytes. */
+async function buildMinimalDocx(): Promise<Uint8Array> {
+  const zip = new JSZip();
+  zip.file(
+    '[Content_Types].xml',
+    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types/>',
+  );
+  zip.folder('word')?.file('document.xml', '<w:document/>');
+  return zip.generateAsync({ type: 'uint8array' });
+}
 
 describe('NeonBlobStorage', () => {
   let db: Db;
@@ -91,6 +103,20 @@ describe('BasicSafetyScanner', () => {
     scanner = new BasicSafetyScanner({ blobStore: storage });
   });
 
+  it('rejects a file over the configured size limit, even one with valid magic bytes', async () => {
+    const tinyLimitScanner = new BasicSafetyScanner({ blobStore: storage, maxBytes: 16 });
+    const overLimit = new Uint8Array([...PDF, ...new Array(20).fill(0x20)]); // valid PDF prefix, padded past 16 bytes
+    await storage.putObject({
+      bucket: 'QUARANTINE',
+      objectKey: 'oversized',
+      contentType: 'application/pdf',
+      bytes: overLimit,
+    });
+    const result = await tinyLimitScanner.scan({ bucket: 'QUARANTINE', objectKey: 'oversized' });
+    expect(result.safe).toBe(false);
+    expect(result.detail).toContain('size limit');
+  });
+
   it('accepts a real document type and rejects an executable / unknown', async () => {
     await storage.putObject({
       bucket: 'QUARANTINE',
@@ -117,13 +143,12 @@ describe('BasicSafetyScanner', () => {
     expect((await scanner.scan({ bucket: 'QUARANTINE', objectKey: 'missing' })).safe).toBe(false);
   });
 
-  it('accepts a DOCX (ZIP magic bytes) and plain TXT/MD content', async () => {
-    const DOCX_MAGIC = new Uint8Array([0x50, 0x4b, 0x03, 0x04, 0x14, 0x00, 0x06, 0x00]);
+  it('accepts a genuinely valid DOCX and plain TXT/MD content', async () => {
     await storage.putObject({
       bucket: 'QUARANTINE',
       objectKey: 'docx',
       contentType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-      bytes: DOCX_MAGIC,
+      bytes: await buildMinimalDocx(),
     });
     await storage.putObject({
       bucket: 'QUARANTINE',
@@ -141,6 +166,45 @@ describe('BasicSafetyScanner', () => {
     expect((await scanner.scan({ bucket: 'QUARANTINE', objectKey: 'docx' })).safe).toBe(true);
     expect((await scanner.scan({ bucket: 'QUARANTINE', objectKey: 'txt' })).safe).toBe(true);
     expect((await scanner.scan({ bucket: 'QUARANTINE', objectKey: 'md' })).safe).toBe(true);
+  });
+
+  it('exposes its name and version, used to persist which scanner produced a result', () => {
+    expect(scanner.name.length).toBeGreaterThan(0);
+    expect(scanner.version.length).toBeGreaterThan(0);
+  });
+
+  it('rejects a zip-shaped upload that is not actually a valid DOCX (regression: a magic-byte match alone used to be accepted as "docx")', async () => {
+    const zip = new JSZip();
+    zip.folder('xl')?.file('workbook.xml', '<workbook/>');
+    zip.file(
+      '[Content_Types].xml',
+      '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types/>',
+    );
+    const xlsxBytes = await zip.generateAsync({ type: 'uint8array' });
+    await storage.putObject({
+      bucket: 'QUARANTINE',
+      objectKey: 'fake-docx',
+      contentType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      bytes: xlsxBytes,
+    });
+    const result = await scanner.scan({ bucket: 'QUARANTINE', objectKey: 'fake-docx' });
+    expect(result.safe).toBe(false);
+    expect(result.detail).toContain('invalid docx structure');
+  });
+
+  it('rejects a PDF containing an active-content marker (embedded JavaScript)', async () => {
+    const pdfWithJs = new TextEncoder().encode(
+      '%PDF-1.7\n1 0 obj\n<< /OpenAction 2 0 R >>\nendobj\n2 0 obj\n<< /S /JavaScript /JS (app.alert(1)) >>\nendobj\n%%EOF',
+    );
+    await storage.putObject({
+      bucket: 'QUARANTINE',
+      objectKey: 'active-pdf',
+      contentType: 'application/pdf',
+      bytes: pdfWithJs,
+    });
+    const result = await scanner.scan({ bucket: 'QUARANTINE', objectKey: 'active-pdf' });
+    expect(result.safe).toBe(false);
+    expect(result.detail).toContain('active PDF content');
   });
 
   it('rejects a shebang script even though it is otherwise plain text', async () => {

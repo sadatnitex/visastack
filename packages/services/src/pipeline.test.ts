@@ -107,11 +107,15 @@ describe('document intake pipeline', () => {
   });
 
   const cleanScanner: ScannerPort = {
+    name: 'test-scanner',
+    version: '0.0.0',
     async scan() {
       return { safe: true };
     },
   };
   const infectedScanner: ScannerPort = {
+    name: 'test-scanner',
+    version: '0.0.0',
     async scan() {
       return { safe: false, detail: 'eicar' };
     },
@@ -158,6 +162,8 @@ describe('document intake pipeline', () => {
     const { versionId } = await seedVersion(db, 'intake4@example.com');
     let calls = 0;
     const flaky: ScannerPort = {
+      name: 'test-scanner',
+      version: '0.0.0',
       async scan() {
         calls++;
         if (calls === 1) throw new Error('scanner down');
