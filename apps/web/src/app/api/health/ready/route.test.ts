@@ -14,6 +14,7 @@ const REQUIRED_ENV = [
   'WORKOS_COOKIE_PASSWORD',
   'NEXT_PUBLIC_WORKOS_REDIRECT_URI',
   'DATABASE_URL',
+  'VERCEL_ENV',
 ] as const;
 
 const ORIGINAL_ENV: Record<string, string | undefined> = {};
@@ -36,6 +37,7 @@ beforeEach(() => {
   setEnv('WORKOS_COOKIE_PASSWORD', 'x'.repeat(32));
   setEnv('NEXT_PUBLIC_WORKOS_REDIRECT_URI', 'https://example.test/callback');
   setEnv('DATABASE_URL', 'postgres://example.invalid/db');
+  unsetEnv('VERCEL_ENV');
 });
 
 afterEach(() => {
@@ -116,5 +118,29 @@ describe('GET /api/health/ready — honest health (200 vs 503)', () => {
     const text = await res.text();
     expect(text).not.toContain(getEnv('WORKOS_COOKIE_PASSWORD'));
     expect(text).not.toContain(getEnv('DATABASE_URL'));
+  });
+
+  it('always reports the real deployment mode and the full platform capability registry (master recovery directive §6/§7)', async () => {
+    mockDb({});
+    const { GET } = await import('./route');
+    const res = await GET();
+    const body = await res.json();
+    expect(body.deploymentMode).toBe('development');
+    expect(body.platform).toBeDefined();
+    expect(body.platform.authentication).toBe('available');
+    expect(body.platform.agencyCollaboration).toBe('disabled');
+    expect(body.platform.bulkExport).toBe('disabled');
+  });
+
+  it('withholds the verbose env/db breakdown but still reports deploymentMode and platform on a real deployment', async () => {
+    setEnv('VERCEL_ENV', 'production');
+    mockDb({});
+    const { GET } = await import('./route');
+    const res = await GET();
+    const body = await res.json();
+    expect(body.deploymentMode).toBe('controlled_pilot');
+    expect(body.platform).toBeDefined();
+    expect(body.env).toBeUndefined();
+    expect(body.db).toBeUndefined();
   });
 });

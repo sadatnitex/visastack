@@ -10,6 +10,10 @@ import {
 } from '@visastack/services';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import {
+  capabilityUnavailableMessage,
+  getPlatformCapabilities,
+} from '../../../../lib/capabilities';
 import { profileField } from '../../../../lib/profile-fields';
 import { withSession } from '../../../../lib/session';
 import { AddMemberForm } from './member-form';
@@ -39,6 +43,7 @@ export default async function OrgConsolePage({
   readonly params: Promise<{ orgId: string }>;
 }) {
   const { orgId } = await params;
+  const capabilities = getPlatformCapabilities();
 
   const data = await withSession(async ({ db, accountId }) => {
     const org = await getOrganization(db, orgId);
@@ -116,6 +121,12 @@ export default async function OrgConsolePage({
         </article>
       ) : (
         <>
+          {capabilities.agencyCollaboration !== 'available' ? (
+            <div className="notice notice-warn" style={{ marginBottom: '1.5rem' }}>
+              {capabilityUnavailableMessage('agencyCollaboration')}
+            </div>
+          ) : null}
+
           <div className="grid">
             <article className="card">
               <p className="card-kicker">Collect</p>
@@ -133,13 +144,24 @@ export default async function OrgConsolePage({
                 Download the profiles of every applicant who granted this organization an accepted
                 export grant. Each applicant is re-checked by the policy engine at export time.
               </p>
-              <a
-                href={`/app/agency/${orgId}/export?purpose=agency_review`}
-                className="btn btn-primary"
-                download
-              >
-                Download bulk export
-              </a>
+              {capabilities.bulkExport === 'available' ? (
+                <a
+                  href={`/app/agency/${orgId}/export?purpose=agency_review`}
+                  className="btn btn-primary"
+                  download
+                >
+                  Download bulk export
+                </a>
+              ) : (
+                <>
+                  <button type="button" className="btn btn-primary" disabled>
+                    Download bulk export
+                  </button>
+                  <p className="muted" style={{ fontSize: '0.85rem', marginTop: '0.6rem' }}>
+                    {capabilityUnavailableMessage('bulkExport')}
+                  </p>
+                </>
+              )}
             </article>
           </div>
 

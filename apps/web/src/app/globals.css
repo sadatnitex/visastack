@@ -287,6 +287,35 @@ main {
   cursor: not-allowed;
 }
 
+/* Controlled-pilot / deployment-mode banner (global, root layout) */
+.pilot-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem 0.9rem;
+  padding: 0.55rem 1rem;
+  font-size: 0.85rem;
+  line-height: 1.4;
+  text-align: center;
+  color: var(--warning);
+  background: var(--warning-bg);
+  border-bottom: 1px solid var(--hairline);
+}
+.pilot-banner-label {
+  font-weight: 700;
+}
+.pilot-banner-detail {
+  color: var(--warning);
+}
+.pilot-banner-link {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
 /* Inline notices */
 .notice {
   padding: 0.85rem 1rem;

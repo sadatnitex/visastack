@@ -5,37 +5,38 @@ import {
   isSchemaApplied,
   resolveDatabaseUrl,
 } from '@visastack/db';
+import {
+  getPlatformCapabilities,
+  isPresent,
+  isWorkosConfigured,
+} from '../../../../lib/capabilities';
+import { getDeploymentMode, isRealDeployment } from '../../../../lib/deployment-mode';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 /**
- * Readiness probe. Reports whether required configuration is present and
- * whether the database is reachable and migrated.
+ * Readiness probe. Reports whether required configuration is present,
+ * whether the database is reachable and migrated, and — truthfully, not
+ * merely a green build (master recovery directive §6/§7 "PR 1") — the
+ * current deployment mode and full platform capability registry.
  *
  * Security: it NEVER returns secret values — only presence booleans — and
- * the detailed breakdown is withheld in production (Build Spec §14: no
- * sensitive data in responses). Database errors are reported as a generic
- * code so a connection string can never leak into the body.
+ * the detailed breakdown is withheld on a real deployment (Build Spec §14:
+ * no sensitive data in responses). Database errors are reported as a
+ * generic code so a connection string can never leak into the body. The
+ * deployment mode and capability registry are NOT sensitive — surfacing
+ * them honestly, always, is the entire point of this PR.
  */
 const WORKOS_ENV_VARS = ['WORKOS_API_KEY', 'WORKOS_CLIENT_ID', 'WORKOS_COOKIE_PASSWORD'] as const;
-
-/** Variable-keyed read — avoids both the index-signature and literal-key lint rules. */
-function readEnv(name: string): string | undefined {
-  return process.env[name];
-}
-
-function isPresent(name: string): boolean {
-  const value = readEnv(name);
-  return typeof value === 'string' && value.length > 0;
-}
 
 function presenceMap(names: readonly string[]): Record<string, boolean> {
   return Object.fromEntries(names.map((name) => [name, isPresent(name)]));
 }
 
 export async function GET(): Promise<Response> {
-  const isProduction = readEnv('VERCEL_ENV') === 'production';
+  const deploymentMode = getDeploymentMode();
+  const verbose = !isRealDeployment();
 
   const env = {
     database: presenceMap(DATABASE_URL_ENV_CANDIDATES),
@@ -63,20 +64,28 @@ export async function GET(): Promise<Response> {
   // AND migrated AND the WorkOS auth configuration required to sign in is
   // present (Milestone 1 — honest readiness). Optional capabilities (AI,
   // signed blob storage) are reported separately and never gate the core.
-  const workosConfigured = WORKOS_ENV_VARS.every(isPresent) && env.redirectUri;
-  const coreReady = db.connected && db.schemaApplied && workosConfigured;
+  const coreReady = db.connected && db.schemaApplied && isWorkosConfigured();
   const status = coreReady ? 'ready' : 'degraded';
 
   // Optional-capability visibility (not a core gate): signed document access
   // and the periodic durable-job sweep (uploads still enqueue and process via
   // `after()` without this — it only gates the /api/jobs/process-intake
   // backstop route).
-  const capabilities = {
+  const optionalCapabilities = {
     signedBlobStorage: isPresent('BLOB_SIGNING_SECRET'),
     asyncIntakeSweep: isPresent('CRON_SECRET'),
   };
 
-  const body = isProduction ? { status } : { status, env, db, capabilities };
+  const body = verbose
+    ? {
+        status,
+        deploymentMode,
+        env,
+        db,
+        capabilities: optionalCapabilities,
+        platform: getPlatformCapabilities(),
+      }
+    : { status, deploymentMode, platform: getPlatformCapabilities() };
 
   // HTTP status now carries the truth: 200 = core ready, 503 = a required core
   // dependency is unavailable or unmigrated. Load balancers and the deploy
