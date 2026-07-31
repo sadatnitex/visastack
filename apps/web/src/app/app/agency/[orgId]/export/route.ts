@@ -10,14 +10,17 @@ import { withSession } from '../../../../../lib/session';
  *
  * Streams a JSON attachment containing ONLY applicants who granted this org an
  * accepted EXPORT_PROFILE grant for the given purpose. Authorization (org
- * OWNER/ADMIN) and per-applicant policy checks are enforced by `bulkExport`.
+ * OWNER/ADMIN, real membership role) and per-applicant policy checks are
+ * enforced by `bulkExport` (rebuilt from first principles in PR 2 — see
+ * docs/audits/commercial-readiness-recovery-baseline.md §7).
  *
- * Gated `disabled` in the controlled pilot (master recovery directive §7
- * "PR 1"): the Phase 0 audit confirmed `bulkExport` constructs a synthetic
- * actor with a hardcoded ADMIN role and a hardcoded `stepUpSatisfied: true`,
- * silently bypassing the policy engine's step-up gate on every call — see
- * docs/audits/commercial-readiness-recovery-baseline.md §7. Gated here, at
- * the route boundary, not merely hidden in the UI.
+ * Gated `disabled` in the controlled pilot: `EXPORT_PROFILE` requires
+ * genuine step-up, and no real WorkOS step-up mechanism exists anywhere in
+ * the app yet (PR 5 scope). `stepUpSatisfied` is passed as `false` here,
+ * honestly — never hardcoded `true` — so this route denies every export
+ * until PR 5 lands and this route is updated to thread a real assurance
+ * record through. Gated here, at the route boundary, not merely hidden in
+ * the UI.
  */
 export const dynamic = 'force-dynamic';
 
@@ -36,7 +39,12 @@ export async function GET(
   }
 
   const result = await withSession(async ({ db, accountId }) =>
-    bulkExport(db, { actorAccountId: accountId, organizationId: orgId, purpose }),
+    bulkExport(db, {
+      actorAccountId: accountId,
+      organizationId: orgId,
+      purpose,
+      stepUpSatisfied: false,
+    }),
   );
 
   if (!result.ok) return new Response(`export failed: ${result.error.message}`, { status: 403 });

@@ -63,6 +63,12 @@ async function ownerWithDoc(db: Db, email: string) {
     type: 'CORE_PROCESSING',
     granted: true,
   });
+  await setConsent(db, {
+    actorAccountId: account.id,
+    accountId: account.id,
+    type: 'SHARING',
+    granted: true,
+  });
   const applicant = await createApplicant(db, {
     actorAccountId: account.id,
     ownerAccountId: account.id,
@@ -82,6 +88,25 @@ async function ownerWithDoc(db: Db, email: string) {
     objectKey: `obj-${email}`,
   });
   return { account, applicantId: applicant.value.id, documentId: doc.value.id };
+}
+
+/**
+ * Independently verify a PENDING_VERIFICATION org (createGrant requires an
+ * ACTIVE, verified recipient organization). The reviewer is a disposable,
+ * unrelated account, matching the real rule that an org can never verify
+ * itself.
+ */
+async function activateOrg(db: Db, organizationId: string): Promise<void> {
+  const reviewer = await provisionAccount(db, {
+    email: `reviewer-${organizationId}@platform.example.com`,
+  });
+  if (!isOk(reviewer)) throw new Error('reviewer');
+  const reviewed = await reviewOrganization(db, {
+    reviewerAccountId: reviewer.value.id,
+    organizationId,
+    decision: 'ACTIVE',
+  });
+  if (!isOk(reviewed)) throw new Error('review');
 }
 
 describe('organizations — verification and membership', () => {
@@ -156,6 +181,7 @@ describe('sharing — grant lifecycle end-to-end with the policy engine', () => 
     if (!isOk(agentAcc)) throw new Error('provision');
     const org = await createOrganization(db, { actorAccountId: agentAcc.value.id, name: 'Acme' });
     if (!isOk(org)) throw new Error('org');
+    await activateOrg(db, org.value.id);
     const orgId = org.value.id;
 
     // Owner grants PREVIEW to the org, purpose-bound.
@@ -283,6 +309,7 @@ describe('sharing — grant lifecycle end-to-end with the policy engine', () => 
 
     const org = await createOrganization(db, { actorAccountId: account.id, name: 'Acme Travel' });
     if (!isOk(org)) throw new Error('org');
+    await activateOrg(db, org.value.id);
     const orgGrant = await createGrant(db, {
       actorAccountId: account.id,
       applicantId,
@@ -433,6 +460,7 @@ describe('getRecipientWorkspace — the actual permission-filtered read path (Re
     if (!isOk(agent)) throw new Error('provision');
     const org = await createOrganization(db, { actorAccountId: agent.value.id, name: 'Acme' });
     if (!isOk(org)) throw new Error('org');
+    await activateOrg(db, org.value.id);
     const grant = await createGrant(db, {
       actorAccountId: account.id,
       applicantId,
@@ -459,6 +487,19 @@ describe('getRecipientWorkspace — the actual permission-filtered read path (Re
     if (!isOk(agent)) throw new Error('provision');
     const org = await createOrganization(db, { actorAccountId: agent.value.id, name: 'Acme' });
     if (!isOk(org)) throw new Error('org');
+    await activateOrg(db, org.value.id);
+    // A second OWNER, so deactivating `agent`'s membership below does not
+    // trip the last-active-owner protection (setMembershipActive) — this
+    // test is about workspace access, not owner-safety, which is covered
+    // separately in organizations.test.ts.
+    const coOwner = await provisionAccount(db, { email: 'agent4-co-owner@example.com' });
+    if (!isOk(coOwner)) throw new Error('provision');
+    await addMembership(db, {
+      actorAccountId: agent.value.id,
+      organizationId: org.value.id,
+      accountId: coOwner.value.id,
+      role: 'OWNER',
+    });
     const grant = await createGrant(db, {
       actorAccountId: account.id,
       applicantId,

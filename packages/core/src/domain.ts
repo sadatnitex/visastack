@@ -92,3 +92,14 @@ export type DocumentState = (typeof DOCUMENT_STATES)[number];
 /** Build Spec §13 — separate consent records. */
 export const CONSENT_TYPES = ['CORE_PROCESSING', 'AI_EXTRACTION', 'SHARING', 'MARKETING'] as const;
 export type ConsentType = (typeof CONSENT_TYPES)[number];
+
+/**
+ * Build Spec §4.1 — Master Profile packs. "universal" applies to every
+ * applicant; "professional", "business", "medical" are target-group packs.
+ * Also the canonical category vocabulary a grant's `categories` allow-list
+ * scopes against (packages/services/src/sharing.ts) — one definition shared
+ * by the profile registry (apps/web) and grant-scope validation
+ * (packages/services), not two independently-maintained lists.
+ */
+export const PROFILE_PACKS = ['universal', 'professional', 'business', 'medical'] as const;
+export type ProfilePack = (typeof PROFILE_PACKS)[number];

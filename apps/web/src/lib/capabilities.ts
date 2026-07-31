@@ -25,26 +25,27 @@ export function isWorkosConfigured(): boolean {
 
 /**
  * Capabilities gated `disabled` in controlled pilot pending a specific,
- * tracked repair — not because the underlying feature is unimplemented, but
- * because the Phase 0 code audit confirmed a real authorization defect.
+ * tracked dependency — not because the underlying feature is unimplemented.
  *
- * Evidence: docs/audits/commercial-readiness-recovery-baseline.md §7/§12.
- *   - agencyCollaboration: addNote() has no authorization check at all;
- *     assignMember()/requestEvidence() don't verify the org actually has a
- *     grant covering the mission/applicant; setMembershipActive() is a
- *     confirmed cross-tenant IDOR (updates by membership id alone, without
- *     scoping to the caller's own organization).
- *   - bulkExport: constructs a synthetic actor with a hardcoded ADMIN role
- *     and a hardcoded `stepUpSatisfied: true`, silently bypassing the
- *     policy engine's step-up gate on every call.
+ * - `bulkExport`: PR 2 rebuilt it to use the actor's real membership role,
+ *   preserved scopes, and an honest `stepUpSatisfied` input instead of a
+ *   hardcoded `true` — but `EXPORT_PROFILE` is a step-up action and no real
+ *   WorkOS step-up mechanism exists anywhere in the app yet (PR 5 scope), so
+ *   every export now correctly denies. Stays gated here — not because it is
+ *   broken, but because it is currently unusable by construction — until
+ *   PR 5 ships a real step-up flow the export route can thread through.
  *
- * Remove an entry here only once its PR 2 repair has landed, is tested by
- * the hostile-authorization suite, and this comment is updated to say so.
+ * `agencyCollaboration`'s PR 1 gap (addNote/assignMember/requestEvidence/
+ * setMembershipActive — see
+ * docs/audits/commercial-readiness-recovery-baseline.md §7) was repaired and
+ * covered by the hostile-authorization suite in PR 2 (see
+ * packages/services/src/agency.test.ts /
+ * packages/services/src/organizations.test.ts); it is no longer gated here.
+ *
+ * Remove an entry here only once its blocking dependency has actually
+ * landed and this comment is updated to say so.
  */
-const KNOWN_SECURITY_GAPS: ReadonlySet<keyof PlatformCapabilities> = new Set([
-  'agencyCollaboration',
-  'bulkExport',
-]);
+const KNOWN_SECURITY_GAPS: ReadonlySet<keyof PlatformCapabilities> = new Set(['bulkExport']);
 
 function gapAware(state: CapabilityState, key: keyof PlatformCapabilities): CapabilityState {
   return KNOWN_SECURITY_GAPS.has(key) ? 'disabled' : state;
@@ -113,10 +114,8 @@ export function isCapabilityAvailable(
 }
 
 const UNAVAILABLE_MESSAGES: Partial<Record<keyof PlatformCapabilities, string>> = {
-  agencyCollaboration:
-    'Agency case collaboration (assignments, case notes, evidence requests, and membership changes) is temporarily unavailable while its authorization checks are hardened for the controlled pilot. This is a planned, tracked gap, not an outage — see /status.',
   bulkExport:
-    'Bulk export is temporarily unavailable while its authorization is rebuilt for the controlled pilot. Export an individual applicant’s own data from Privacy › Export instead.',
+    'Bulk export is temporarily unavailable in the controlled pilot: it requires a step-up confirmation step that has not been built yet. Export an individual applicant’s own data from Privacy › Export instead.',
 };
 
 /**

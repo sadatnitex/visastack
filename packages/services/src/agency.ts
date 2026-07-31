@@ -1,25 +1,113 @@
-import type { ApplicantId } from '@visastack/core';
+import type {
+  AccountId,
+  AgencyId,
+  ApplicantId,
+  MissionId,
+  PermissionAction,
+} from '@visastack/core';
 import { type Result, err, ok } from '@visastack/core';
 import { authorize } from '@visastack/policy';
-import { eq } from 'drizzle-orm';
+import { and, eq, gt, isNotNull, isNull, lte, or } from 'drizzle-orm';
 import { appendAuditEvent } from './audit';
 import { type Db, first, required, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
 import { isOrgAdmin } from './organizations';
 import { RATE_LIMITS, checkRateLimit } from './rate-limit';
+import { loadGrantsForPolicy } from './sharing';
 
 /**
  * Collaboration surface (Build Spec §2; PRD §5): assignments, mission notes,
- * evidence requests, and permissioned bulk export. Assignment and notes are
- * organizational bookkeeping and never by themselves grant record access — that
- * is always a grant evaluated by the policy engine (see bulkExport).
+ * evidence requests, and permissioned bulk export.
+ *
+ * Assignment and notes are organizational bookkeeping, but — unlike the
+ * pre-PR-2 version of this file — bookkeeping is no longer accepted at face
+ * value: every mutating function here proves the organization currently
+ * holds a real, active, accepted, unexpired grant that would permit the
+ * relevant action, before touching the mission/applicant. Membership alone
+ * is still never access (Build Spec law 2); it is the entry ticket, not the
+ * grant.
  */
 
 export type Assignment = typeof schema.assignments.$inferSelect;
 export type MissionNote = typeof schema.missionNotes.$inferSelect;
 export type EvidenceRequest = typeof schema.evidenceRequests.$inferSelect;
 
-/** Assign an org member to a mission (org OWNER/ADMIN only). */
+/**
+ * True if the organization holds at least one grant for `applicantId` that,
+ * evaluated on the grant's own declared purpose, permits `action` — scoped
+ * to `missionId` if given. Reuses the canonical policy engine
+ * (`packages/policy`) per candidate grant instead of re-deriving scope/
+ * status/expiry rules here, so mission-scope-vs-applicant-wide semantics
+ * (Build Spec law 5) stay in exactly one place.
+ *
+ * This answers "does the org currently have standing here at all" — a
+ * coarser, non-purpose-bound question than `authorize()`'s "can this
+ * specific request proceed" (which callers already answer separately for
+ * actual data access). Callers of this function are responsible for
+ * verifying the acting individual's own membership/role before calling it —
+ * this only proves the ORGANIZATION's grant, not the caller's standing
+ * within it.
+ */
+async function orgGrantPermits(
+  db: Db,
+  organizationId: string,
+  applicantId: string,
+  action: PermissionAction,
+  missionId?: string,
+): Promise<boolean> {
+  const grants = await loadGrantsForPolicy(db, applicantId);
+  const orgGrants = grants.filter((g) => g.recipientOrganizationId === organizationId);
+  if (orgGrants.length === 0) return false;
+  const now = new Date();
+  return orgGrants.some(
+    (g) =>
+      authorize({
+        actor: {
+          kind: 'organization_member',
+          accountId: 'org-grant-scope-check' as AccountId,
+          membership: { organizationId: organizationId as AgencyId, role: 'ADMIN', active: true },
+        },
+        action,
+        resource: {
+          applicantId: applicantId as ApplicantId,
+          ...(missionId ? { missionId: missionId as MissionId } : {}),
+        },
+        context: { now, purpose: g.purpose, stepUpSatisfied: false, grants: [g] },
+      }).allowed,
+  );
+}
+
+/** True if the account is an active member (any role) of the organization. */
+async function isActiveMember(db: Db, accountId: string, organizationId: string): Promise<boolean> {
+  const m = first(
+    await db
+      .select()
+      .from(schema.memberships)
+      .where(
+        and(
+          eq(schema.memberships.accountId, accountId),
+          eq(schema.memberships.organizationId, organizationId),
+        ),
+      )
+      .limit(1),
+  );
+  return m?.active === true;
+}
+
+/**
+ * Assign an org member to a mission (org OWNER/ADMIN only).
+ *
+ * Proves, in order: the actor is an active org OWNER/ADMIN; the assignee is
+ * an active member of the SAME organization (not just any account id); the
+ * mission exists; and the organization currently holds an active, accepted,
+ * unexpired grant that would permit `MANAGE` on that mission (mission-scoped
+ * or applicant-wide) — closing the confirmed gap where an org could assign
+ * members to missions it has no relationship to at all
+ * (docs/audits/commercial-readiness-recovery-baseline.md §7).
+ *
+ * Idempotent at the application layer: an identical (org, mission, member)
+ * assignment returns the existing row rather than inserting a duplicate.
+ */
 export async function assignMember(
   db: Db,
   input: {
@@ -32,6 +120,38 @@ export async function assignMember(
   if (!(await isOrgAdmin(db, input.actorAccountId, input.organizationId))) {
     return err(serviceError('forbidden', 'only an org OWNER/ADMIN can assign members'));
   }
+  if (!(await isActiveMember(db, input.memberAccountId, input.organizationId))) {
+    return err(
+      serviceError('invalid', 'the assignee must be an active member of this organization'),
+    );
+  }
+  const mission = first(
+    await db.select().from(schema.missions).where(eq(schema.missions.id, input.missionId)).limit(1),
+  );
+  if (!mission) return err(serviceError('not_found', 'mission not found'));
+  if (
+    !(await orgGrantPermits(db, input.organizationId, mission.applicantId, 'MANAGE', mission.id))
+  ) {
+    return err(
+      serviceError('forbidden', 'this organization has no current grant covering that mission'),
+    );
+  }
+
+  const existing = first(
+    await db
+      .select()
+      .from(schema.assignments)
+      .where(
+        and(
+          eq(schema.assignments.organizationId, input.organizationId),
+          eq(schema.assignments.missionId, input.missionId),
+          eq(schema.assignments.memberAccountId, input.memberAccountId),
+        ),
+      )
+      .limit(1),
+  );
+  if (existing) return ok(existing);
+
   return db.transaction(async (tx) => {
     const assignment = required(
       first(
@@ -51,6 +171,7 @@ export async function assignMember(
       actorAccountId: input.actorAccountId,
       method: 'MANUAL',
       result: 'ALLOWED',
+      applicantId: mission.applicantId,
       missionId: input.missionId,
       resourceType: 'assignment',
       resourceId: assignment.id,
@@ -98,32 +219,148 @@ export interface OrgMission {
   readonly applicantName: string;
 }
 
-/** Missions reachable by this org via a mission-scoped grant. */
+/**
+ * Missions reachable by this org via a CURRENT grant: `ACTIVE`, accepted,
+ * started, and not expired. Mission-scoped grants match only their mission;
+ * applicant-wide grants (`missionId IS NULL`) match every mission of that
+ * applicant. Previously returned a mission for ANY grant row regardless of
+ * status/acceptance/expiry — see
+ * docs/audits/commercial-readiness-recovery-baseline.md §7.
+ */
 export async function listMissionsForOrganization(
   db: Db,
   organizationId: string,
 ): Promise<OrgMission[]> {
+  const now = new Date();
   const rows = await db
     .selectDistinct({
       missionId: schema.missions.id,
       title: schema.missions.title,
       applicantId: schema.applicants.id,
       applicantName: schema.applicants.displayName,
+      grantMissionId: schema.grants.missionId,
     })
     .from(schema.grants)
-    .innerJoin(schema.missions, eq(schema.missions.id, schema.grants.missionId))
-    .innerJoin(schema.applicants, eq(schema.applicants.id, schema.missions.applicantId))
-    .where(eq(schema.grants.recipientOrganizationId, organizationId));
-  return rows;
+    .innerJoin(schema.applicants, eq(schema.applicants.id, schema.grants.applicantId))
+    .innerJoin(schema.missions, eq(schema.missions.applicantId, schema.applicants.id))
+    .where(
+      and(
+        eq(schema.grants.recipientOrganizationId, organizationId),
+        eq(schema.grants.status, 'ACTIVE'),
+        isNotNull(schema.grants.acceptedAt),
+        lte(schema.grants.startAt, now),
+        or(isNull(schema.grants.expiryAt), gt(schema.grants.expiryAt, now)),
+      ),
+    );
+  // A mission-scoped grant only reaches its own mission; the SQL join above
+  // is applicant-wide (it must be, to also surface applicant-wide grants),
+  // so the mission-scope narrowing happens here.
+  return rows
+    .filter((r) => r.grantMissionId === null || r.grantMissionId === r.missionId)
+    .map(({ missionId, title, applicantId, applicantName }) => ({
+      missionId,
+      title,
+      applicantId,
+      applicantName,
+    }));
 }
 
-/** Add a note to a mission (author recorded; append-only in practice). */
+const NOTE_MAX_LENGTH = 2000;
+
+/**
+ * Add a note to a mission (append-only). Authorized if the actor is: the
+ * applicant owner; an individual (non-organization) grant recipient whose
+ * grant permits `COMMENT` on this mission; or an active member of an
+ * organization that holds a current grant permitting `COMMENT` on this
+ * mission. Previously had no authorization check at all — see
+ * docs/audits/commercial-readiness-recovery-baseline.md §7.
+ */
 export async function addNote(
   db: Db,
   input: { readonly actorAccountId: string; readonly missionId: string; readonly body: string },
 ): Promise<Result<MissionNote, ServiceError>> {
-  if (input.body.trim().length === 0)
-    return err(serviceError('invalid', 'a note body is required'));
+  const body = input.body.trim();
+  if (body.length === 0) return err(serviceError('invalid', 'a note body is required'));
+  if (body.length > NOTE_MAX_LENGTH) {
+    return err(serviceError('invalid', `a note may be at most ${NOTE_MAX_LENGTH} characters`));
+  }
+
+  const mission = first(
+    await db.select().from(schema.missions).where(eq(schema.missions.id, input.missionId)).limit(1),
+  );
+  if (!mission) return err(serviceError('not_found', 'mission not found'));
+
+  const applicant = first(
+    await db
+      .select()
+      .from(schema.applicants)
+      .where(eq(schema.applicants.id, mission.applicantId))
+      .limit(1),
+  );
+  const isOwner = applicant?.ownerAccountId === input.actorAccountId;
+
+  let authorized = isOwner;
+
+  if (!authorized) {
+    const grants = await loadGrantsForPolicy(db, mission.applicantId);
+    const now = new Date();
+    authorized = grants.some(
+      (g) =>
+        g.recipientAccountId === input.actorAccountId &&
+        authorize({
+          actor: { kind: 'individual_recipient', accountId: input.actorAccountId as AccountId },
+          action: 'COMMENT',
+          resource: {
+            applicantId: mission.applicantId as ApplicantId,
+            missionId: mission.id as MissionId,
+          },
+          context: { now, purpose: g.purpose, stepUpSatisfied: false, grants: [g] },
+        }).allowed,
+    );
+  }
+
+  if (!authorized) {
+    const memberships = await db
+      .select()
+      .from(schema.memberships)
+      .where(
+        and(
+          eq(schema.memberships.accountId, input.actorAccountId),
+          eq(schema.memberships.active, true),
+        ),
+      );
+    for (const membership of memberships) {
+      if (
+        await orgGrantPermits(
+          db,
+          membership.organizationId,
+          mission.applicantId,
+          'COMMENT',
+          mission.id,
+        )
+      ) {
+        authorized = true;
+        break;
+      }
+    }
+  }
+
+  if (!authorized) {
+    await db.transaction(async (tx) => {
+      await appendAuditEvent(tx, {
+        eventType: 'MISSION_NOTE_DENIED',
+        actorAccountId: input.actorAccountId,
+        method: 'MANUAL',
+        result: 'DENIED',
+        applicantId: mission.applicantId,
+        missionId: input.missionId,
+        resourceType: 'mission_note',
+        resourceId: null,
+      });
+    });
+    return err(serviceError('forbidden', 'not authorized to comment on this mission'));
+  }
+
   return db.transaction(async (tx) => {
     const note = required(
       first(
@@ -132,7 +369,7 @@ export async function addNote(
           .values({
             missionId: input.missionId,
             authorAccountId: input.actorAccountId,
-            body: input.body.trim(),
+            body,
           })
           .returning(),
       ),
@@ -143,6 +380,7 @@ export async function addNote(
       actorAccountId: input.actorAccountId,
       method: 'MANUAL',
       result: 'ALLOWED',
+      applicantId: mission.applicantId,
       missionId: input.missionId,
       resourceType: 'mission_note',
       resourceId: note.id,
@@ -155,7 +393,15 @@ export async function listNotes(db: Db, missionId: string): Promise<MissionNote[
   return db.select().from(schema.missionNotes).where(eq(schema.missionNotes.missionId, missionId));
 }
 
-/** An organization requests a specific field or document from an applicant. */
+/**
+ * An organization requests a specific field or document from an applicant.
+ * Requires, beyond org-admin: the organization currently holds an active,
+ * accepted, unexpired, applicant-wide-or-any-mission grant permitting
+ * `MANAGE` for this applicant — closing the confirmed gap where any org
+ * admin could request evidence from any applicant with no prior
+ * relationship at all (docs/audits/commercial-readiness-recovery-baseline.md
+ * §7).
+ */
 export async function requestEvidence(
   db: Db,
   input: {
@@ -176,6 +422,14 @@ export async function requestEvidence(
   }
   if (input.kind === 'DOCUMENT' && !input.docType) {
     return err(serviceError('invalid', 'a DOCUMENT request needs a docType'));
+  }
+  if (input.message !== undefined && input.message.length > 1000) {
+    return err(serviceError('invalid', 'message may be at most 1000 characters'));
+  }
+  if (!(await orgGrantPermits(db, input.organizationId, input.applicantId, 'MANAGE'))) {
+    return err(
+      serviceError('forbidden', 'this organization has no current grant for that applicant'),
+    );
   }
 
   const rateLimit = await checkRateLimit(
@@ -361,10 +615,24 @@ export interface BulkExportRow {
   readonly facts: Record<string, string | null>;
 }
 
+/** Hard ceiling on applicants included in one bulk export (bounded result size). */
+const BULK_EXPORT_MAX_APPLICANTS = 500;
+
 /**
- * Permissioned bulk export for an organization: includes ONLY applicants who
- * granted the org an accepted EXPORT_PROFILE grant for `purpose`. Each
- * applicant is checked through the policy engine (default-deny) and audited.
+ * Permissioned bulk export for an organization, rebuilt from first
+ * principles (master recovery directive §7 "PR 2"). Uses the actor's REAL
+ * membership role (never a synthetic one), reauthorizes each applicant
+ * immediately before export via the real policy engine, excludes any
+ * non-`ACTIVE`/unaccepted/expired grant, and is bounded.
+ *
+ * Step-up: `stepUpSatisfied` is derived honestly from `input.stepUpSatisfied`
+ * — there is still no real WorkOS step-up mechanism anywhere in the app
+ * (that is PR 5 scope), so this is never hardcoded `true` here. Because
+ * `EXPORT_PROFILE` is a `STEP_UP_ACTIONS` action, every export will
+ * correctly deny until a caller can honestly supply `true`, which requires
+ * PR 5's server-generated, action-bound assurance record. The
+ * `bulkExport` platform capability therefore stays gated `disabled` even
+ * after this PR — see apps/web/src/lib/capabilities.ts.
  */
 export async function bulkExport(
   db: Db,
@@ -372,45 +640,97 @@ export async function bulkExport(
     readonly actorAccountId: string;
     readonly organizationId: string;
     readonly purpose: string;
+    readonly stepUpSatisfied: boolean;
   },
 ): Promise<Result<BulkExportRow[], ServiceError>> {
-  if (!(await isOrgAdmin(db, input.actorAccountId, input.organizationId))) {
+  const actorMembership = first(
+    await db
+      .select()
+      .from(schema.memberships)
+      .where(
+        and(
+          eq(schema.memberships.accountId, input.actorAccountId),
+          eq(schema.memberships.organizationId, input.organizationId),
+        ),
+      )
+      .limit(1),
+  );
+  if (
+    !actorMembership?.active ||
+    (actorMembership.role !== 'OWNER' && actorMembership.role !== 'ADMIN')
+  ) {
     return err(serviceError('forbidden', 'only an org OWNER/ADMIN can bulk export'));
   }
 
-  // Candidate applicants: those with any grant naming this org.
+  // Candidate applicants: those with any grant naming this org, bounded.
   const grantRows = await db
     .select()
     .from(schema.grants)
     .where(eq(schema.grants.recipientOrganizationId, input.organizationId));
 
   const now = new Date();
+  const candidateApplicantIds = [...new Set(grantRows.map((g) => g.applicantId))].slice(
+    0,
+    BULK_EXPORT_MAX_APPLICANTS,
+  );
   const rows: BulkExportRow[] = [];
-  for (const applicantId of new Set(grantRows.map((g) => g.applicantId))) {
+  for (const applicantId of candidateApplicantIds) {
     const grants = grantRows
       .filter((g) => g.applicantId === applicantId)
       .map((g) => ({
         applicantId: g.applicantId as ApplicantId,
-        recipientOrganizationId: input.organizationId as never,
-        actions: g.actions as never,
+        recipientOrganizationId: input.organizationId as AgencyId,
+        actions: g.actions as PermissionAction[],
         purpose: g.purpose,
         status: g.status,
         startAt: g.startAt.toISOString(),
+        ...(g.categories ? { categories: g.categories } : {}),
         ...(g.acceptedAt ? { acceptedAt: g.acceptedAt.toISOString() } : {}),
         ...(g.expiryAt ? { expiryAt: g.expiryAt.toISOString() } : {}),
       }));
 
-    const decision = authorize({
-      actor: {
-        kind: 'organization_member',
-        accountId: input.actorAccountId as never,
-        membership: { organizationId: input.organizationId as never, role: 'ADMIN', active: true },
-      },
-      action: 'EXPORT_PROFILE',
-      resource: { applicantId: applicantId as ApplicantId },
-      context: { now, purpose: input.purpose, stepUpSatisfied: true, grants },
+    // Which of this applicant's grants actually allow EXPORT_PROFILE here,
+    // evaluated per-grant WITHOUT that grant's own category restriction: a
+    // category-scoped grant must still make the applicant reachable at all
+    // (category only narrows WHICH facts are visible below, exactly like a
+    // grant with no category restriction covers every pack) — category is
+    // fundamentally a fact-level filter, not an applicant-level gate.
+    // Mission/document scope are deliberately NOT stripped here: bulk export
+    // is inherently profile-wide, and neither a mission- nor a
+    // document-scoped grant should ever reach it (Build Spec law 5 — mission
+    // access never implies the whole profile; no fact carries a missionId or
+    // documentId for such a grant to match against).
+    const allowingGrants = grants.filter((g) => {
+      const { categories: _categories, ...categoryless } = g;
+      return authorize({
+        actor: {
+          kind: 'organization_member',
+          accountId: input.actorAccountId as AccountId,
+          membership: {
+            organizationId: input.organizationId as AgencyId,
+            role: actorMembership.role,
+            active: actorMembership.active,
+          },
+        },
+        action: 'EXPORT_PROFILE',
+        resource: { applicantId: applicantId as ApplicantId },
+        context: {
+          now,
+          purpose: input.purpose,
+          stepUpSatisfied: input.stepUpSatisfied,
+          grants: [categoryless],
+        },
+      }).allowed;
     });
-    if (!decision.allowed) continue;
+    if (allowingGrants.length === 0) continue;
+
+    // Category scope: only export facts whose pack is on an allow-list from
+    // at least one allowing grant's OWN (unstripped) categories — a grant
+    // with no `categories` restriction covers every pack.
+    const unrestricted = allowingGrants.some((g) => g.categories === undefined);
+    const allowedCategories = unrestricted
+      ? undefined
+      : new Set(allowingGrants.flatMap((g) => g.categories ?? []));
 
     const applicant = first(
       await db
@@ -421,7 +741,11 @@ export async function bulkExport(
     );
     if (!applicant) continue;
     const factRows = await db
-      .select({ key: schema.fieldDefinitions.key, value: schema.factVersions.value })
+      .select({
+        key: schema.fieldDefinitions.key,
+        packId: schema.fieldDefinitions.packId,
+        value: schema.factVersions.value,
+      })
       .from(schema.facts)
       .innerJoin(
         schema.fieldDefinitions,
@@ -430,7 +754,10 @@ export async function bulkExport(
       .innerJoin(schema.factVersions, eq(schema.factVersions.id, schema.facts.currentVersionId))
       .where(eq(schema.facts.applicantId, applicantId));
     const facts: Record<string, string | null> = {};
-    for (const row of factRows) facts[row.key] = row.value;
+    for (const row of factRows) {
+      if (allowedCategories && (!row.packId || !allowedCategories.has(row.packId))) continue;
+      facts[row.key] = row.value;
+    }
     rows.push({ applicantId, displayName: applicant.displayName, facts });
   }
 
@@ -443,7 +770,11 @@ export async function bulkExport(
       result: 'ALLOWED',
       resourceType: 'organization',
       resourceId: input.organizationId,
-      metadata: { included: rows.length, purpose: input.purpose },
+      metadata: {
+        included: rows.length,
+        candidates: candidateApplicantIds.length,
+        purpose: input.purpose,
+      },
     });
   });
   return ok(rows);

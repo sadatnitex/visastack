@@ -304,7 +304,25 @@ export async function addMembership(
   });
 }
 
-/** Activate/deactivate a membership (OWNER/ADMIN only). Deactivation ends access. */
+/**
+ * Activate/deactivate a membership (OWNER/ADMIN only). Deactivation ends
+ * access immediately.
+ *
+ * Rebuilt to close a confirmed cross-tenant IDOR
+ * (docs/audits/commercial-readiness-recovery-baseline.md §7): the previous
+ * version verified the actor's role in `organizationId` but then updated by
+ * `membershipId` ALONE, with no clause tying the target row back to that
+ * same organization — any org admin (including one who had just
+ * self-registered a brand-new organization) could deactivate or reactivate
+ * any account's membership in ANY other organization, given only its UUID.
+ *
+ * Now: the target must be confirmed to belong to `organizationId` before
+ * anything happens; only an OWNER may change another OWNER's membership;
+ * the last active OWNER can never be deactivated; and the whole
+ * precondition-check-then-write sequence is race-safe via row locking
+ * (`FOR UPDATE` on every OWNER row of the org before evaluating the
+ * last-owner rule), not a plain read-then-write.
+ */
 export async function setMembershipActive(
   db: Db,
   input: {
@@ -314,27 +332,99 @@ export async function setMembershipActive(
     readonly active: boolean;
   },
 ): Promise<Result<Membership, ServiceError>> {
-  if (!(await isOrgAdmin(db, input.actorAccountId, input.organizationId))) {
+  const actorMembership = first(
+    await db
+      .select()
+      .from(schema.memberships)
+      .where(
+        and(
+          eq(schema.memberships.accountId, input.actorAccountId),
+          eq(schema.memberships.organizationId, input.organizationId),
+        ),
+      )
+      .limit(1),
+  );
+  if (
+    !actorMembership?.active ||
+    (actorMembership.role !== 'OWNER' && actorMembership.role !== 'ADMIN')
+  ) {
     return err(serviceError('forbidden', 'only an org OWNER/ADMIN can change memberships'));
   }
+
+  const target = first(
+    await db
+      .select()
+      .from(schema.memberships)
+      .where(
+        and(
+          eq(schema.memberships.id, input.membershipId),
+          eq(schema.memberships.organizationId, input.organizationId),
+        ),
+      )
+      .limit(1),
+  );
+  if (!target) {
+    return err(serviceError('not_found', 'membership not found in this organization'));
+  }
+  if (target.role === 'OWNER' && actorMembership.role !== 'OWNER') {
+    return err(serviceError('forbidden', "only an OWNER can change another OWNER's membership"));
+  }
+
   return db.transaction(async (tx) => {
-    const updated = required(
-      first(
-        await tx
-          .update(schema.memberships)
-          .set({ active: input.active, updatedAt: new Date() })
-          .where(eq(schema.memberships.id, input.membershipId))
-          .returning(),
-      ),
-      'membership',
-    );
+    if (!input.active && target.role === 'OWNER') {
+      // Lock every OWNER row of this org so a concurrent attempt to
+      // deactivate a DIFFERENT owner serializes against this one instead of
+      // both independently observing "another owner exists" and both
+      // succeeding, leaving zero active owners.
+      const owners = await tx
+        .select()
+        .from(schema.memberships)
+        .where(
+          and(
+            eq(schema.memberships.organizationId, input.organizationId),
+            eq(schema.memberships.role, 'OWNER'),
+          ),
+        )
+        .for('update');
+      const otherActiveOwners = owners.filter((o) => o.active && o.id !== input.membershipId);
+      if (otherActiveOwners.length === 0) {
+        await appendAuditEvent(tx, {
+          eventType: 'MEMBERSHIP_CHANGE_DENIED',
+          actorAccountId: input.actorAccountId,
+          action: 'MANAGE',
+          method: 'MANUAL',
+          result: 'DENIED',
+          resourceType: 'membership',
+          resourceId: input.membershipId,
+          reason: 'last_active_owner',
+        });
+        return err(serviceError('invalid', 'cannot deactivate the last active owner'));
+      }
+    }
+
+    const rows = await tx
+      .update(schema.memberships)
+      .set({ active: input.active, updatedAt: new Date() })
+      .where(
+        and(
+          eq(schema.memberships.id, input.membershipId),
+          eq(schema.memberships.organizationId, input.organizationId),
+        ),
+      )
+      .returning();
+    const updated = first(rows);
+    if (!updated) {
+      return err(serviceError('not_found', 'membership no longer exists in this organization'));
+    }
     await appendAuditEvent(tx, {
       eventType: input.active ? 'MEMBERSHIP_ACTIVATED' : 'MEMBERSHIP_DEACTIVATED',
       actorAccountId: input.actorAccountId,
+      action: 'MANAGE',
       method: 'MANUAL',
       result: 'ALLOWED',
       resourceType: 'membership',
       resourceId: updated.id,
+      metadata: { organizationId: input.organizationId, targetRole: target.role },
     });
     return ok(updated);
   });

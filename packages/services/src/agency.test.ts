@@ -24,7 +24,7 @@ import { createApplicant } from './applicants';
 import { setConsent } from './consent';
 import type { Db } from './db';
 import { createMission } from './missions';
-import { createOrganization, listMembershipsForAccount } from './organizations';
+import { createOrganization, listMembershipsForAccount, reviewOrganization } from './organizations';
 import { editFact, registerFieldDefinition } from './profile';
 import { RATE_LIMITS } from './rate-limit';
 import { acceptGrant, createGrant } from './sharing';
@@ -48,6 +48,12 @@ async function consentedApplicant(db: Db, email: string) {
     type: 'CORE_PROCESSING',
     granted: true,
   });
+  await setConsent(db, {
+    actorAccountId: account.id,
+    accountId: account.id,
+    type: 'SHARING',
+    granted: true,
+  });
   const applicant = await createApplicant(db, {
     actorAccountId: account.id,
     ownerAccountId: account.id,
@@ -55,6 +61,25 @@ async function consentedApplicant(db: Db, email: string) {
   });
   if (!isOk(applicant)) throw new Error('applicant');
   return { account, applicantId: applicant.value.id };
+}
+
+/**
+ * Independently verify a PENDING_VERIFICATION org (createGrant requires an
+ * ACTIVE, verified recipient organization). The reviewer is a disposable,
+ * unrelated account, matching the real rule that an org can never verify
+ * itself.
+ */
+async function activateOrg(db: Db, organizationId: string): Promise<void> {
+  const reviewer = await provisionAccount(db, {
+    email: `reviewer-${organizationId}@platform.example.com`,
+  });
+  if (!isOk(reviewer)) throw new Error('reviewer');
+  const reviewed = await reviewOrganization(db, {
+    reviewerAccountId: reviewer.value.id,
+    organizationId,
+    decision: 'ACTIVE',
+  });
+  if (!isOk(reviewed)) throw new Error('review');
 }
 
 describe('agency collaboration — assignments, notes, evidence', () => {
@@ -75,6 +100,21 @@ describe('agency collaboration — assignments, notes, evidence', () => {
     if (!isOk(agentAcc)) throw new Error('provision');
     const org = await createOrganization(db, { actorAccountId: agentAcc.value.id, name: 'Acme' });
     if (!isOk(org)) throw new Error('org');
+    await activateOrg(db, org.value.id);
+
+    // The org needs a current grant covering this mission before it can
+    // assign members or comment (Build Spec law 2: membership alone is
+    // never access).
+    const grant = await createGrant(db, {
+      actorAccountId: account.id,
+      applicantId,
+      recipientOrganizationId: org.value.id,
+      missionId: mission.value.id,
+      actions: ['MANAGE', 'COMMENT'],
+      purpose: 'collaboration',
+    });
+    if (!isOk(grant)) throw new Error('grant');
+    await acceptGrant(db, { actorAccountId: agentAcc.value.id, grantId: grant.value.id });
 
     const assigned = await assignMember(db, {
       actorAccountId: agentAcc.value.id,
@@ -110,6 +150,17 @@ describe('agency collaboration — assignments, notes, evidence', () => {
     if (!isOk(agentAcc)) throw new Error('provision');
     const org = await createOrganization(db, { actorAccountId: agentAcc.value.id, name: 'Acme' });
     if (!isOk(org)) throw new Error('org');
+    await activateOrg(db, org.value.id);
+
+    const grant = await createGrant(db, {
+      actorAccountId: account.id,
+      applicantId,
+      recipientOrganizationId: org.value.id,
+      actions: ['MANAGE'],
+      purpose: 'collaboration',
+    });
+    if (!isOk(grant)) throw new Error('grant');
+    await acceptGrant(db, { actorAccountId: agentAcc.value.id, grantId: grant.value.id });
 
     const req = await requestEvidence(db, {
       actorAccountId: agentAcc.value.id,
@@ -143,11 +194,22 @@ describe('agency collaboration — assignments, notes, evidence', () => {
   });
 
   it('refuses further evidence requests once the anti-automation limit is hit (Build Spec §14)', async () => {
-    const { applicantId } = await consentedApplicant(db, 'ev-rate@example.com');
+    const { account, applicantId } = await consentedApplicant(db, 'ev-rate@example.com');
     const agentAcc = await provisionAccount(db, { email: 'agent-ev-rate@acme.com' });
     if (!isOk(agentAcc)) throw new Error('provision');
     const org = await createOrganization(db, { actorAccountId: agentAcc.value.id, name: 'Acme' });
     if (!isOk(org)) throw new Error('org');
+    await activateOrg(db, org.value.id);
+
+    const grant = await createGrant(db, {
+      actorAccountId: account.id,
+      applicantId,
+      recipientOrganizationId: org.value.id,
+      actions: ['MANAGE'],
+      purpose: 'collaboration',
+    });
+    if (!isOk(grant)) throw new Error('grant');
+    await acceptGrant(db, { actorAccountId: agentAcc.value.id, grantId: grant.value.id });
 
     const attempt = () =>
       requestEvidence(db, {
@@ -175,6 +237,17 @@ describe('agency collaboration — assignments, notes, evidence', () => {
     if (!isOk(agentAcc)) throw new Error('provision');
     const org = await createOrganization(db, { actorAccountId: agentAcc.value.id, name: 'Acme' });
     if (!isOk(org)) throw new Error('org');
+    await activateOrg(db, org.value.id);
+
+    const grant = await createGrant(db, {
+      actorAccountId: account.id,
+      applicantId,
+      recipientOrganizationId: org.value.id,
+      actions: ['MANAGE'],
+      purpose: 'collaboration',
+    });
+    if (!isOk(grant)) throw new Error('grant');
+    await acceptGrant(db, { actorAccountId: agentAcc.value.id, grantId: grant.value.id });
 
     await requestEvidence(db, {
       actorAccountId: agentAcc.value.id,
@@ -206,11 +279,22 @@ describe('agency collaboration — assignments, notes, evidence', () => {
   });
 
   it('resolves the applicant name on each org evidence request', async () => {
-    const { applicantId } = await consentedApplicant(db, 'ev3@example.com');
+    const { account, applicantId } = await consentedApplicant(db, 'ev3@example.com');
     const agentAcc = await provisionAccount(db, { email: 'agent-ev3@acme.com' });
     if (!isOk(agentAcc)) throw new Error('provision');
     const org = await createOrganization(db, { actorAccountId: agentAcc.value.id, name: 'Acme' });
     if (!isOk(org)) throw new Error('org');
+    await activateOrg(db, org.value.id);
+
+    const grant = await createGrant(db, {
+      actorAccountId: account.id,
+      applicantId,
+      recipientOrganizationId: org.value.id,
+      actions: ['MANAGE'],
+      purpose: 'collaboration',
+    });
+    if (!isOk(grant)) throw new Error('grant');
+    await acceptGrant(db, { actorAccountId: agentAcc.value.id, grantId: grant.value.id });
 
     await requestEvidence(db, {
       actorAccountId: agentAcc.value.id,
@@ -240,6 +324,18 @@ describe('agency collaboration — assignments, notes, evidence', () => {
     if (!isOk(agentAcc)) throw new Error('provision');
     const org = await createOrganization(db, { actorAccountId: agentAcc.value.id, name: 'Acme' });
     if (!isOk(org)) throw new Error('org');
+    await activateOrg(db, org.value.id);
+
+    const grant = await createGrant(db, {
+      actorAccountId: account.id,
+      applicantId,
+      recipientOrganizationId: org.value.id,
+      missionId: mission.value.id,
+      actions: ['MANAGE'],
+      purpose: 'collaboration',
+    });
+    if (!isOk(grant)) throw new Error('grant');
+    await acceptGrant(db, { actorAccountId: agentAcc.value.id, grantId: grant.value.id });
 
     await assignMember(db, {
       actorAccountId: agentAcc.value.id,
@@ -265,11 +361,12 @@ describe('agency collaboration — assignments, notes, evidence', () => {
     if (!isOk(agentAcc)) throw new Error('provision');
     const org = await createOrganization(db, { actorAccountId: agentAcc.value.id, name: 'Acme' });
     if (!isOk(org)) throw new Error('org');
+    await activateOrg(db, org.value.id);
 
     // No grant yet — the mission isn't visible.
     expect(await listMissionsForOrganization(db, org.value.id)).toHaveLength(0);
 
-    await createGrant(db, {
+    const grant = await createGrant(db, {
       actorAccountId: account.id,
       applicantId,
       recipientOrganizationId: org.value.id,
@@ -277,6 +374,14 @@ describe('agency collaboration — assignments, notes, evidence', () => {
       actions: ['PREVIEW'],
       purpose: 'collaboration',
     });
+    if (!isOk(grant)) throw new Error('grant');
+
+    // Still pending acceptance — still not visible (regression guard: a
+    // grant must be actually accepted, not merely created, before it grants
+    // any standing at all).
+    expect(await listMissionsForOrganization(db, org.value.id)).toHaveLength(0);
+
+    await acceptGrant(db, { actorAccountId: agentAcc.value.id, grantId: grant.value.id });
 
     const missions = await listMissionsForOrganization(db, org.value.id);
     expect(missions).toHaveLength(1);
@@ -292,6 +397,7 @@ describe('agency collaboration — assignments, notes, evidence', () => {
     if (!isOk(agentAcc)) throw new Error('provision');
     const org = await createOrganization(db, { actorAccountId: agentAcc.value.id, name: 'Acme' });
     if (!isOk(org)) throw new Error('org');
+    await activateOrg(db, org.value.id);
 
     // A has granted this org something; B has not.
     await createGrant(db, {
@@ -322,6 +428,7 @@ describe('permissioned bulk export', () => {
     if (!isOk(agentAcc)) throw new Error('provision');
     const org = await createOrganization(db, { actorAccountId: agentAcc.value.id, name: 'Acme' });
     if (!isOk(org)) throw new Error('org');
+    await activateOrg(db, org.value.id);
     const orgId = org.value.id;
     await registerFieldDefinition(db, { key: 'name.full', dataType: 'string' });
 
@@ -355,6 +462,7 @@ describe('permissioned bulk export', () => {
       actorAccountId: agentAcc.value.id,
       organizationId: orgId,
       purpose: 'bulk',
+      stepUpSatisfied: true,
     });
     expect(isOk(exported)).toBe(true);
     if (!isOk(exported)) return;
@@ -368,12 +476,14 @@ describe('permissioned bulk export', () => {
     if (!isOk(agentAcc)) throw new Error('provision');
     const org = await createOrganization(db, { actorAccountId: agentAcc.value.id, name: 'Acme' });
     if (!isOk(org)) throw new Error('org');
+    await activateOrg(db, org.value.id);
     const stranger = await provisionAccount(db, { email: 'stranger-bulk@example.com' });
     if (!isOk(stranger)) throw new Error('provision');
     const result = await bulkExport(db, {
       actorAccountId: stranger.value.id,
       organizationId: org.value.id,
       purpose: 'bulk',
+      stepUpSatisfied: false,
     });
     expect(isErr(result)).toBe(true);
     if (isErr(result)) expect(result.error.code).toBe('forbidden');

@@ -2,11 +2,15 @@ import { PLATFORM_CAPABILITY_KEYS } from '@visastack/core';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 /**
- * Platform capability registry (master recovery directive §7 "PR 1"):
- * server-authoritative, and the two capabilities with a confirmed
- * authorization defect (docs/audits/commercial-readiness-recovery-baseline.md
- * §7) must report `disabled` regardless of environment, until their PR 2
- * repair lands.
+ * Platform capability registry (master recovery directive §7): server-
+ * authoritative. `agencyCollaboration`'s PR 1 authorization defects
+ * (docs/audits/commercial-readiness-recovery-baseline.md §7) were repaired
+ * and covered by the hostile-authorization suite in PR 2, so it now reports
+ * `available` like any other configured capability. `bulkExport` stays
+ * `disabled` regardless of environment — not because it is broken, but
+ * because `EXPORT_PROFILE` is a step-up action and no real WorkOS step-up
+ * mechanism exists anywhere in the app yet (PR 5 scope); see
+ * apps/web/src/lib/capabilities.ts.
  */
 
 const ENV_KEYS = [
@@ -52,7 +56,7 @@ describe('getPlatformCapabilities', () => {
     expect(PLATFORM_CAPABILITY_KEYS.length).toBe(20);
   });
 
-  it('gates agencyCollaboration to disabled even when everything else is fully configured', async () => {
+  it('reports agencyCollaboration available once its PR 1 defects are repaired (PR 2) and everything else is configured', async () => {
     setEnv('VERCEL_ENV', 'production');
     setEnv('WORKOS_API_KEY', 'x');
     setEnv('WORKOS_CLIENT_ID', 'x');
@@ -60,7 +64,7 @@ describe('getPlatformCapabilities', () => {
     setEnv('NEXT_PUBLIC_WORKOS_REDIRECT_URI', 'https://example.test/callback');
     setEnv('BLOB_READ_WRITE_TOKEN', 'x');
     const { getPlatformCapabilities } = await import('./capabilities');
-    expect(getPlatformCapabilities().agencyCollaboration).toBe('disabled');
+    expect(getPlatformCapabilities().agencyCollaboration).toBe('available');
   });
 
   it('gates bulkExport to disabled even when everything else is fully configured', async () => {
@@ -142,14 +146,6 @@ describe('getPlatformCapabilities', () => {
 });
 
 describe('capabilityUnavailableMessage', () => {
-  it('gives a specific, non-security-detail-leaking reason for agencyCollaboration', async () => {
-    const { capabilityUnavailableMessage } = await import('./capabilities');
-    const message = capabilityUnavailableMessage('agencyCollaboration');
-    expect(message.length).toBeGreaterThan(0);
-    expect(message.toLowerCase()).not.toContain('idor');
-    expect(message.toLowerCase()).not.toContain('vulnerability');
-  });
-
   it('gives a specific, non-security-detail-leaking reason for bulkExport', async () => {
     const { capabilityUnavailableMessage } = await import('./capabilities');
     const message = capabilityUnavailableMessage('bulkExport');
