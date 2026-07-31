@@ -8,6 +8,15 @@
  *
  * Without SMOKE_BASE_URL set, this exits 0 immediately (skipped) rather than
  * failing CI runs that have nothing to point it at.
+ *
+ * A Vercel deployment occasionally fails before this script ever runs, with
+ * errorCode BUILD_FAILED / "Resource provisioning failed", zero build log
+ * events, and `ready` firing within ~1s of `buildingAt` — a transient
+ * platform-side provisioning hiccup, not a code defect (confirmed against
+ * this exact repo's history — see
+ * docs/audits/commercial-readiness-recovery-baseline.md §3). The fix is a
+ * fresh push to retrigger a real build attempt, matching this repo's
+ * existing precedent (commit b04d9ff).
  */
 
 function log(line) {
