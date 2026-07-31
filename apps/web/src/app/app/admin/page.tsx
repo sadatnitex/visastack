@@ -6,14 +6,21 @@ import {
   listActiveLegalHolds,
   listAllApplicants,
   listAllOrganizations,
+  listErasureJobsNeedingAttention,
   listFailedJobs,
 } from '@visastack/services';
 import Link from 'next/link';
 import { isPlatformAdmin } from '../../../lib/admin';
 import { withSession } from '../../../lib/session';
-import { OrgReviewButtons, ReleaseHoldButton, RetryJobButton } from './action-buttons';
+import {
+  OrgReviewButtons,
+  ReleaseHoldButton,
+  RetryErasureJobButton,
+  RetryJobButton,
+} from './action-buttons';
 import { LegalHoldForm, RetentionPolicyForm } from './admin-forms';
 import { PurgeButton } from './purge-button';
+import { ReconcileButtons } from './reconcile-buttons';
 
 export const dynamic = 'force-dynamic';
 
@@ -37,12 +44,13 @@ const ORG_STATUS: Record<string, { label: string; tone: string }> = {
 export default async function AdminPage() {
   const data = await withSession(async ({ db, email }) => {
     if (!isPlatformAdmin(email)) return { admin: false as const };
-    const [policies, holds, orgs, failedJobs, applicants, purgeEligible, scorecard] =
+    const [policies, holds, orgs, failedJobs, erasureJobs, applicants, purgeEligible, scorecard] =
       await Promise.all([
         getRetentionPolicies(db),
         listActiveLegalHolds(db),
         listAllOrganizations(db),
         listFailedJobs(db),
+        listErasureJobsNeedingAttention(db),
         listAllApplicants(db),
         documentsPastRetention(db),
         getPilotScorecard(db),
@@ -53,6 +61,7 @@ export default async function AdminPage() {
       holds,
       orgs,
       failedJobs,
+      erasureJobs,
       applicants,
       purgeEligible,
       scorecard,
@@ -227,6 +236,73 @@ export default async function AdminPage() {
                 ))}
               </div>
             )}
+          </article>
+
+          <article className="card" style={{ marginTop: '1.5rem' }}>
+            <p className="card-kicker">Erasure</p>
+            <h2 className="card-title">Erasure jobs needing attention</h2>
+            {data.erasureJobs.length === 0 ? (
+              <p className="card-body">
+                No erasure jobs are failed or blocked. A job parks here only after it exhausts every
+                retry attempt, or while it's waiting on a legal hold to clear.
+              </p>
+            ) : (
+              <div className="rows" style={{ marginTop: '0.5rem' }}>
+                {data.erasureJobs.map((job) => (
+                  <div
+                    className="row"
+                    key={job.id}
+                    style={{ flexDirection: 'column', alignItems: 'stretch', gap: '0.4rem' }}
+                  >
+                    <div
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        gap: '0.75rem',
+                      }}
+                    >
+                      <span className="row-key" style={{ wordBreak: 'break-word' }}>
+                        {job.objectKey}
+                      </span>
+                      <span style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                        <span
+                          className={`badge ${job.status === 'BLOCKED_BY_HOLD' ? 'badge-warning' : 'badge-danger'}`}
+                        >
+                          {job.status === 'BLOCKED_BY_HOLD'
+                            ? 'Blocked by hold'
+                            : `${job.attempts}/${job.maxAttempts} attempts`}
+                        </span>
+                        <RetryErasureJobButton jobId={job.id} />
+                      </span>
+                    </div>
+                    <span className="muted" style={{ fontSize: '0.8rem' }}>
+                      {job.reason === 'ACCOUNT_DELETION' ? 'Account deletion' : 'Retention purge'}
+                    </span>
+                    {job.lastError ? (
+                      <span
+                        className="muted"
+                        style={{ fontSize: '0.8rem', fontFamily: 'var(--font-mono)' }}
+                      >
+                        {job.lastError}
+                      </span>
+                    ) : null}
+                  </div>
+                ))}
+              </div>
+            )}
+          </article>
+
+          <article className="card" style={{ marginTop: '1.5rem' }}>
+            <p className="card-kicker">Storage integrity</p>
+            <h2 className="card-title">Orphan reconciliation</h2>
+            <p className="card-body" style={{ marginBottom: '1.25rem' }}>
+              Detects drift between storage metadata and actual bytes: dangling references, blobs
+              with no reference, duplicate references, and size/hash mismatches. Cleanup only ever
+              removes a metadata row with no backing bytes and no remaining document — it never
+              deletes bytes that still exist.
+            </p>
+            <ReconcileButtons />
           </article>
 
           <article className="card" style={{ marginTop: '1.5rem' }}>

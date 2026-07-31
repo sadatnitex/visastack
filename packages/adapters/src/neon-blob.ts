@@ -4,12 +4,18 @@ import type {
   BlobStore,
   Db,
   IssueReadRefInput,
+  ListObjectKeysInput,
+  ListObjectsPage,
   PutObjectInput,
+  StorageBucket,
   StoragePort,
   StoredBytes,
 } from '@visastack/services';
-import { eq } from 'drizzle-orm';
+import { and, asc, eq, gt } from 'drizzle-orm';
 import { signBlobToken } from './blob-token';
+
+const DEFAULT_LIST_LIMIT = 100;
+const MAX_LIST_LIMIT = 1000;
 
 /**
  * Neon-bytea storage backend (ADR-0011). Stores object bytes in Postgres and
@@ -77,6 +83,31 @@ export class NeonBlobStorage implements StoragePort, BlobStore {
     )[0];
     if (!row) return undefined;
     return { contentType: row.contentType, bytes: row.bytes };
+  }
+
+  /** Idempotent: deleting an already-absent key affects zero rows, not an error. */
+  async deleteObject(_bucket: StorageBucket, objectKey: string): Promise<void> {
+    await this.db.delete(schema.storageBlobs).where(eq(schema.storageBlobs.objectKey, objectKey));
+  }
+
+  async listObjectKeys(input: ListObjectKeysInput): Promise<ListObjectsPage> {
+    const limit = Math.min(input.limit ?? DEFAULT_LIST_LIMIT, MAX_LIST_LIMIT);
+    const rows = await this.db
+      .select({ objectKey: schema.storageBlobs.objectKey })
+      .from(schema.storageBlobs)
+      .where(
+        and(
+          eq(schema.storageBlobs.bucket, input.bucket),
+          input.cursor ? gt(schema.storageBlobs.objectKey, input.cursor) : undefined,
+        ),
+      )
+      .orderBy(asc(schema.storageBlobs.objectKey))
+      .limit(limit + 1);
+    const page = rows.slice(0, limit);
+    return {
+      objectKeys: page.map((r) => r.objectKey),
+      cursor: rows.length > limit ? page[page.length - 1]?.objectKey : undefined,
+    };
   }
 
   async issueReadRef(input: IssueReadRefInput): Promise<AccessRef> {

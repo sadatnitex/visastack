@@ -1,10 +1,12 @@
-import { del, get, put } from '@vercel/blob';
+import { del, get, list, put } from '@vercel/blob';
 import { schema } from '@visastack/db';
 import type {
   AccessRef,
   BlobStore,
   Db,
   IssueReadRefInput,
+  ListObjectKeysInput,
+  ListObjectsPage,
   PutObjectInput,
   StorageBucket,
   StoragePort,
@@ -12,6 +14,9 @@ import type {
 } from '@visastack/services';
 import { eq } from 'drizzle-orm';
 import { signBlobToken } from './blob-token';
+
+const DEFAULT_LIST_LIMIT = 100;
+const MAX_LIST_LIMIT = 1000;
 
 /**
  * Vercel Private Blob storage backend (master directive §10 — Release B).
@@ -96,12 +101,28 @@ export class VercelPrivateBlobStorage implements StoragePort, BlobStore {
   }
 
   /**
-   * Delete the underlying blob. NOT yet wired into the retention/deletion
-   * workflow (tracked as a follow-up, master directive §10) — exposed so that
-   * workflow can call it once it is.
+   * Delete the underlying blob (master directive §7 "PR 4" — the erasure
+   * outbox in `packages/services/src/erasure.ts` is the only caller). Vercel
+   * Blob's `del` is itself idempotent: deleting an already-absent pathname is
+   * not an error.
    */
   async deleteObject(bucket: StorageBucket, objectKey: string): Promise<void> {
     await del(pathnameFor(bucket, objectKey), this.token ? { token: this.token } : undefined);
+  }
+
+  async listObjectKeys(input: ListObjectKeysInput): Promise<ListObjectsPage> {
+    const prefix = `${input.bucket.toLowerCase()}/`;
+    const result = await list({
+      prefix,
+      ...(input.cursor ? { cursor: input.cursor } : {}),
+      limit: Math.min(input.limit ?? DEFAULT_LIST_LIMIT, MAX_LIST_LIMIT),
+      mode: 'expanded',
+      ...(this.token ? { token: this.token } : {}),
+    });
+    return {
+      objectKeys: result.blobs.map((b) => b.pathname.slice(prefix.length)),
+      cursor: result.hasMore ? result.cursor : undefined,
+    };
   }
 
   async issueReadRef(input: IssueReadRefInput): Promise<AccessRef> {

@@ -14,7 +14,7 @@ export function PurgeButton({ eligibleCount }: { readonly eligibleCount: number 
       onSubmit={(e) => {
         if (
           !window.confirm(
-            `Permanently delete ${eligibleCount} document${eligibleCount === 1 ? '' : 's'} past retention? This cannot be undone.`,
+            `Queue ${eligibleCount} document${eligibleCount === 1 ? '' : 's'} past retention for deletion? This cannot be undone once the erasure worker verifies the bytes are gone.`,
           )
         ) {
           e.preventDefault();
@@ -23,8 +23,8 @@ export function PurgeButton({ eligibleCount }: { readonly eligibleCount: number 
     >
       <button type="submit" className="btn btn-danger" disabled={pending}>
         {pending
-          ? 'Purging…'
-          : `Purge ${eligibleCount} document${eligibleCount === 1 ? '' : 's'} now`}
+          ? 'Queuing…'
+          : `Queue ${eligibleCount} document${eligibleCount === 1 ? '' : 's'} for deletion`}
       </button>
       {state.message ? (
         <p className={`field-msg ${state.ok ? 'field-msg-ok' : 'field-msg-err'}`}>

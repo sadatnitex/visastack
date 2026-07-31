@@ -73,6 +73,12 @@ function fakeBlobStore(objects: Readonly<Record<string, StoredBytes>>): BlobStor
     async putObject() {
       throw new Error('not used in this test');
     },
+    async deleteObject() {
+      throw new Error('not used in this test');
+    },
+    async listObjectKeys() {
+      throw new Error('not used in this test');
+    },
   };
 }
 

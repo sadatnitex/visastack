@@ -88,6 +88,18 @@ export const documentSafetyStatus = pgEnum('document_safety_status', [
 export const storageBucket = pgEnum('storage_bucket', ['QUARANTINE', 'CLEAN']);
 export const deletionStatus = pgEnum('deletion_status', ['PENDING', 'CANCELLED', 'EXECUTED']);
 export const jobStatus = pgEnum('job_status', ['PENDING', 'CLAIMED', 'DONE', 'FAILED']);
+export const erasureJobReason = pgEnum('erasure_job_reason', [
+  'ACCOUNT_DELETION',
+  'RETENTION_PURGE',
+]);
+export const erasureJobStatus = pgEnum('erasure_job_status', [
+  'PENDING',
+  'CLAIMED',
+  'DELETED',
+  'VERIFIED',
+  'FAILED',
+  'BLOCKED_BY_HOLD',
+]);
 export const processingRunStatus = pgEnum('processing_run_status', [
   'RUNNING',
   'COMPLETED',
@@ -904,6 +916,47 @@ export const accountDeletionRequests = pgTable('account_deletion_requests', {
   reason: text('reason'),
   ...timestamps,
 });
+
+// --- Erasure outbox (master directive §7 "PR 4") ----------------------------
+// Durable, retriable record of every external-object deletion the domain
+// still owes. Deliberately decoupled from `processingJobs` — a distinct
+// low-volume queue for a distinct concern, not a premature generalization
+// (a unified job-queue mechanism, if warranted, is PR 6's explicit scope).
+// Denormalized (bucket/objectKey/expectedHash copied onto the row, and
+// documentId/applicantId are plain uuids, not FKs) for the same reason
+// `auditEvents.actorAccountId` is a plain uuid: a job must remain fully
+// actionable — and its history fully readable — after the domain rows it
+// started from are gone. `documentId`/`applicantId` are populated for
+// RETENTION_PURGE (the worker defers the document's own removal until the
+// bytes are verified gone, and rechecks the hold at that point — closing the
+// same race `hasActiveLegalHold` prevents elsewhere) and are informational
+// only for ACCOUNT_DELETION (whose applicant is already gone by the time the
+// job is created; the account-level hold check happens up front instead).
+export const erasureJobs = pgTable(
+  'erasure_jobs',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    reason: erasureJobReason('reason').notNull(),
+    status: erasureJobStatus('status').notNull().default('PENDING'),
+    bucket: storageBucket('bucket').notNull(),
+    objectKey: text('object_key').notNull(),
+    expectedHash: text('expected_hash'),
+    storageObjectId: uuid('storage_object_id').notNull(),
+    documentId: uuid('document_id'),
+    applicantId: uuid('applicant_id'),
+    attempts: integer('attempts').notNull().default(0),
+    maxAttempts: integer('max_attempts').notNull().default(5),
+    availableAt: timestamp('available_at', { withTimezone: true }).notNull().defaultNow(),
+    claimedAt: timestamp('claimed_at', { withTimezone: true }),
+    completedAt: timestamp('completed_at', { withTimezone: true }),
+    lastError: text('last_error'),
+    ...timestamps,
+  },
+  (table) => [
+    index('erasure_jobs_status_available_idx').on(table.status, table.availableAt),
+    index('erasure_jobs_storage_object_idx').on(table.storageObjectId),
+  ],
+);
 
 // --- Rate limiting (Build Spec §14 — usage controls / anti-automation) -----
 // Fixed-window counters keyed by (subject, action, windowStart). One row per
