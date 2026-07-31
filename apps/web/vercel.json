@@ -6,6 +6,14 @@
     {
       "path": "/api/jobs/process-intake",
       "schedule": "0 3 * * *"
+    },
+    {
+      "path": "/api/jobs/process-deletions",
+      "schedule": "10 3 * * *"
+    },
+    {
+      "path": "/api/jobs/process-erasure",
+      "schedule": "20 3 * * *"
     }
   ]
 }

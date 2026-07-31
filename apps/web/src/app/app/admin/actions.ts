@@ -1,16 +1,22 @@
 'use server';
 
 import {
+  type StorageBucket,
   placeLegalHold,
   purgeExpiredDocuments,
+  reconcileOrphans,
   releaseLegalHold,
+  retryErasureJob,
   retryFailedJob,
   reviewOrganization,
   setRetentionPolicy,
 } from '@visastack/services';
 import { revalidatePath } from 'next/cache';
+import { after } from 'next/server';
 import { isPlatformAdmin } from '../../../lib/admin';
+import { triggerErasureWorker } from '../../../lib/jobs';
 import { withSession } from '../../../lib/session';
+import { createStorage } from '../../../lib/storage';
 
 /** Result surfaced back to the client for inline feedback. */
 export interface ActionState {
@@ -99,8 +105,10 @@ export async function retryJobAction(_prev: ActionState, formData: FormData): Pr
 }
 
 /**
- * Permanently delete every document past its retention policy (never one
- * under an active legal hold). Platform-admin only. Irreversible.
+ * Queue every document past its retention policy (never one under an active
+ * legal hold) for erasure. Platform-admin only. Irreversible once the erasure
+ * worker verifies the bytes are gone — this only queues the work; it does not
+ * delete anything itself (master directive §7 "PR 4").
  */
 export async function purgeExpiredDocumentsAction(
   _prev: ActionState,
@@ -110,13 +118,126 @@ export async function purgeExpiredDocumentsAction(
     if (!isPlatformAdmin(email)) return DENIED;
     const purged = await purgeExpiredDocuments(db, { actorAccountId: accountId });
     if (!purged.ok) return { ok: false, message: purged.error.message } satisfies ActionState;
+    const { queuedForErasure, blockedByHold } = purged.value;
+    if (queuedForErasure === 0 && blockedByHold === 0) {
+      return { ok: true, message: 'Nothing was eligible to purge.' } satisfies ActionState;
+    }
+    const parts = [
+      queuedForErasure > 0
+        ? `${queuedForErasure} document${queuedForErasure === 1 ? '' : 's'} queued for deletion`
+        : null,
+      blockedByHold > 0 ? `${blockedByHold} skipped (now under legal hold)` : null,
+    ].filter((part): part is string => part !== null);
+    return { ok: true, message: `${parts.join('; ')}.` } satisfies ActionState;
+  });
+  if (result.ok) {
+    revalidatePath('/app/admin');
+    // Queuing is synchronous; the actual byte deletion is not (master
+    // directive §7 "PR 4"). Kick the erasure worker now for near-instant
+    // cleanup in the common case — /api/jobs/process-erasure is the backstop.
+    after(() => triggerErasureWorker());
+  }
+  return result;
+}
+
+/** Re-queue a FAILED or BLOCKED_BY_HOLD erasure job with a fresh retry budget. Platform-admin only. */
+export async function retryErasureJobAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const jobId = String(formData.get('jobId') ?? '').trim();
+  if (jobId.length === 0) return { ok: false, message: 'Missing job id.' };
+  const result = await withSession(async ({ db, email }) => {
+    if (!isPlatformAdmin(email)) return DENIED;
+    const retried = await retryErasureJob(db, jobId);
+    if (!retried) {
+      return {
+        ok: false,
+        message: 'That job is no longer failed or blocked — it may have already been retried.',
+      } satisfies ActionState;
+    }
     return {
       ok: true,
-      message:
-        purged.value.purged === 0
-          ? 'Nothing was eligible to purge.'
-          : `Permanently deleted ${purged.value.purged} document${purged.value.purged === 1 ? '' : 's'}.`,
+      message: 'Erasure job re-queued for another attempt.',
     } satisfies ActionState;
+  });
+  if (result.ok) {
+    revalidatePath('/app/admin');
+    after(() => triggerErasureWorker());
+  }
+  return result;
+}
+
+/**
+ * Run the orphan reconciliation sweep (master directive §7 "PR 4") across
+ * both storage buckets. Dry run by default — only explicit `mode=mutate`
+ * corrects anything, and even then only the one unambiguous, reversible
+ * finding (a metadata row with no backing bytes and no remaining reference).
+ * Platform-admin only.
+ */
+export async function reconcileOrphansAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const dryRun = String(formData.get('mode') ?? 'dry-run') !== 'mutate';
+  const result = await withSession(async ({ db, accountId, email }) => {
+    if (!isPlatformAdmin(email)) return DENIED;
+    const storage = createStorage(db);
+    const buckets: readonly StorageBucket[] = ['CLEAN', 'QUARANTINE'];
+    const reports = await Promise.all(
+      buckets.map((bucket) =>
+        reconcileOrphans(db, storage, { actorAccountId: accountId, bucket, dryRun }),
+      ),
+    );
+    const totals = reports.reduce(
+      (sum, r) => ({
+        dbReferencesWithoutBlob: sum.dbReferencesWithoutBlob + r.dbReferencesWithoutBlob.length,
+        blobsWithoutDbReference: sum.blobsWithoutDbReference + r.blobsWithoutDbReference.length,
+        duplicateReferences: sum.duplicateReferences + r.duplicateReferences.length,
+        sizeOrHashMismatches: sum.sizeOrHashMismatches + r.sizeOrHashMismatches.length,
+        verifiedButStillPresent: sum.verifiedButStillPresent + r.verifiedButStillPresent.length,
+        cleaned: sum.cleaned + r.cleaned,
+      }),
+      {
+        dbReferencesWithoutBlob: 0,
+        blobsWithoutDbReference: 0,
+        duplicateReferences: 0,
+        sizeOrHashMismatches: 0,
+        verifiedButStillPresent: 0,
+        cleaned: 0,
+      },
+    );
+    const total =
+      totals.dbReferencesWithoutBlob +
+      totals.blobsWithoutDbReference +
+      totals.duplicateReferences +
+      totals.sizeOrHashMismatches +
+      totals.verifiedButStillPresent;
+    if (total === 0)
+      return { ok: true, message: 'No drift found. Storage is consistent.' } satisfies ActionState;
+    const summary = [
+      totals.dbReferencesWithoutBlob > 0
+        ? `${totals.dbReferencesWithoutBlob} reference${totals.dbReferencesWithoutBlob === 1 ? '' : 's'} with no bytes`
+        : null,
+      totals.blobsWithoutDbReference > 0
+        ? `${totals.blobsWithoutDbReference} blob${totals.blobsWithoutDbReference === 1 ? '' : 's'} with no reference`
+        : null,
+      totals.duplicateReferences > 0
+        ? `${totals.duplicateReferences} duplicate reference(s)`
+        : null,
+      totals.sizeOrHashMismatches > 0
+        ? `${totals.sizeOrHashMismatches} size/hash mismatch(es)`
+        : null,
+      totals.verifiedButStillPresent > 0
+        ? `${totals.verifiedButStillPresent} verified-deleted object(s) still present`
+        : null,
+    ]
+      .filter((part): part is string => part !== null)
+      .join(', ');
+    const action = dryRun
+      ? 'Dry run'
+      : `Cleaned ${totals.cleaned} dangling reference${totals.cleaned === 1 ? '' : 's'}`;
+    return { ok: true, message: `${action}: ${summary}.` } satisfies ActionState;
   });
   if (result.ok) revalidatePath('/app/admin');
   return result;

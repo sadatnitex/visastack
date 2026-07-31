@@ -52,6 +52,19 @@ export interface PutObjectInput extends StoredBytes {
   readonly objectKey: string;
 }
 
+/** One page of an object listing, for bounded reconciliation sweeps. */
+export interface ListObjectsPage {
+  readonly objectKeys: readonly string[];
+  /** Present when more keys remain; pass back in as `cursor` to continue. */
+  readonly cursor: string | undefined;
+}
+
+export interface ListObjectKeysInput {
+  readonly bucket: StorageBucket;
+  readonly cursor?: string;
+  readonly limit?: number;
+}
+
 /**
  * The write/read-bytes half of object storage, separate from `StoragePort` so
  * existing read-only consumers are unaffected. A concrete backend (Neon-bytea
@@ -60,4 +73,8 @@ export interface PutObjectInput extends StoredBytes {
 export interface BlobStore {
   putObject(input: PutObjectInput): Promise<void>;
   getObject(objectKey: string): Promise<StoredBytes | undefined>;
+  /** Idempotent: deleting an already-absent object is not an error. */
+  deleteObject(bucket: StorageBucket, objectKey: string): Promise<void>;
+  /** Bounded, paginated listing — used only by the orphan reconciliation sweep. */
+  listObjectKeys(input: ListObjectKeysInput): Promise<ListObjectsPage>;
 }

@@ -17,6 +17,7 @@ that changes behavior.
 | Security | [`security/threat-model.md`](security/threat-model.md) | Threat model + control matrix (living). |
 | — Tenant isolation | [`security/tenant-isolation-matrix.md`](security/tenant-isolation-matrix.md) | Cross-tenant boundary → enforcement → test map (living). |
 | — Document trust boundary | [`security/document-trust-boundary.md`](security/document-trust-boundary.md) | Upload/scan/serve boundary → enforcement → test map (living). |
+| — Erasure & retention | [`security/erasure-and-retention-boundary.md`](security/erasure-and-retention-boundary.md) | Deletion outbox, legal hold, account export boundary → enforcement → test map (living). |
 | Roadmap | [`roadmap/phase-plan.md`](roadmap/phase-plan.md) | Delivery sequence (Build Spec §20). |
 | — Acceptance | [`roadmap/acceptance-criteria.md`](roadmap/acceptance-criteria.md) | Release gates (Build Spec §19). |
 | Governance | [`governance/`](governance/) | Branch protection, delivery process, Vercel. |

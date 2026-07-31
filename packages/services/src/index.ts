@@ -67,6 +67,8 @@ export type {
   AccessVariant,
   BlobStore,
   IssueReadRefInput,
+  ListObjectKeysInput,
+  ListObjectsPage,
   PutObjectInput,
   StorageBucket,
   StoragePort,
@@ -77,6 +79,7 @@ export { type AccountExport, exportAccount } from './export';
 
 export {
   type LegalHold,
+  type PurgeExpiredDocumentsResult,
   type RetentionPolicy,
   documentsPastRetention,
   getRetentionPolicies,
@@ -88,6 +91,24 @@ export {
   releaseLegalHold,
   setRetentionPolicy,
 } from './retention';
+
+export {
+  type ErasureJob,
+  type ErasureJobReason,
+  type ErasureJobSummary,
+  type ErasureWorkerResult,
+  listErasureJobsNeedingAttention,
+  retryErasureJob,
+  runErasureWorker,
+} from './erasure';
+
+export {
+  type DuplicateObjectReference,
+  type OrphanReconciliationReport,
+  type ReconcileOrphansInput,
+  type SizeOrHashMismatch,
+  reconcileOrphans,
+} from './reconciliation';
 
 export {
   type Assignment,
@@ -280,6 +301,7 @@ export {
   cancelAccountDeletion,
   executeAccountDeletion,
   getPendingDeletion,
+  listDueDeletions,
   requestAccountDeletion,
 } from './deletion';
 

@@ -1,127 +1,28 @@
 import { type Result, err, ok } from '@visastack/core';
-import { and, eq, inArray } from 'drizzle-orm';
+import { eq, inArray } from 'drizzle-orm';
 import { appendAuditEvent } from './audit';
 import { type Db, first, required, schema } from './db';
+import { enqueueErasureJob } from './erasure';
 import { type ServiceError, serviceError } from './errors';
+import { hasActiveLegalHold } from './legal-hold';
 
 /**
- * Retention & legal hold (Build Spec §13; PRD §5).
- *
- * A legal hold on an applicant blocks erasure while active — it overrides
- * deletion (see deletion.ts, which consults `hasActiveLegalHold`). Retention
- * policies define how long a document type is kept before it becomes eligible
- * for purge; purge never touches a held applicant's documents.
+ * Retention (Build Spec §13; PRD §5) — how long a document type is kept
+ * before it becomes eligible for purge. See legal-hold.ts for the hold
+ * primitives this module consults; purge never touches a held applicant's
+ * documents.
  */
 
-export type LegalHold = typeof schema.legalHolds.$inferSelect;
+export {
+  type LegalHold,
+  hasActiveLegalHold,
+  listActiveLegalHolds,
+  listLegalHolds,
+  placeLegalHold,
+  releaseLegalHold,
+} from './legal-hold';
+
 export type RetentionPolicy = typeof schema.retentionPolicies.$inferSelect;
-
-/** True if the applicant currently has any active legal hold. */
-export async function hasActiveLegalHold(db: Db, applicantId: string): Promise<boolean> {
-  const hold = first(
-    await db
-      .select()
-      .from(schema.legalHolds)
-      .where(
-        and(eq(schema.legalHolds.applicantId, applicantId), eq(schema.legalHolds.active, true)),
-      )
-      .limit(1),
-  );
-  return hold !== undefined;
-}
-
-/** Place a legal hold on an applicant (privileged/compliance action). */
-export async function placeLegalHold(
-  db: Db,
-  input: { readonly actorAccountId: string; readonly applicantId: string; readonly reason: string },
-): Promise<Result<LegalHold, ServiceError>> {
-  if (input.reason.trim().length === 0) return err(serviceError('invalid', 'a reason is required'));
-  const applicant = first(
-    await db
-      .select()
-      .from(schema.applicants)
-      .where(eq(schema.applicants.id, input.applicantId))
-      .limit(1),
-  );
-  if (!applicant) return err(serviceError('not_found', 'applicant not found'));
-
-  return db.transaction(async (tx) => {
-    const hold = required(
-      first(
-        await tx
-          .insert(schema.legalHolds)
-          .values({
-            applicantId: input.applicantId,
-            reason: input.reason.trim(),
-            placedByAccountId: input.actorAccountId,
-          })
-          .returning(),
-      ),
-      'legal hold',
-    );
-    await appendAuditEvent(tx, {
-      eventType: 'LEGAL_HOLD_PLACED',
-      actorAccountId: input.actorAccountId,
-      action: 'MANAGE',
-      method: 'MANUAL',
-      result: 'ALLOWED',
-      applicantId: input.applicantId,
-      resourceType: 'legal_hold',
-      resourceId: hold.id,
-    });
-    return ok(hold);
-  });
-}
-
-/** Release a legal hold (privileged/compliance action). */
-export async function releaseLegalHold(
-  db: Db,
-  input: { readonly actorAccountId: string; readonly holdId: string },
-): Promise<Result<LegalHold, ServiceError>> {
-  const hold = first(
-    await db
-      .select()
-      .from(schema.legalHolds)
-      .where(eq(schema.legalHolds.id, input.holdId))
-      .limit(1),
-  );
-  if (!hold) return err(serviceError('not_found', 'legal hold not found'));
-  if (!hold.active) return err(serviceError('invalid', 'legal hold is already released'));
-
-  return db.transaction(async (tx) => {
-    const updated = required(
-      first(
-        await tx
-          .update(schema.legalHolds)
-          .set({ active: false, releasedAt: new Date(), updatedAt: new Date() })
-          .where(eq(schema.legalHolds.id, input.holdId))
-          .returning(),
-      ),
-      'legal hold',
-    );
-    await appendAuditEvent(tx, {
-      eventType: 'LEGAL_HOLD_RELEASED',
-      actorAccountId: input.actorAccountId,
-      action: 'MANAGE',
-      method: 'MANUAL',
-      result: 'ALLOWED',
-      applicantId: hold.applicantId,
-      resourceType: 'legal_hold',
-      resourceId: updated.id,
-    });
-    return ok(updated);
-  });
-}
-
-export async function listLegalHolds(db: Db, applicantId: string): Promise<LegalHold[]> {
-  return db.select().from(schema.legalHolds).where(eq(schema.legalHolds.applicantId, applicantId));
-}
-
-/** All currently active legal holds (platform-admin overview), newest first. */
-export async function listActiveLegalHolds(db: Db): Promise<LegalHold[]> {
-  const rows = await db.select().from(schema.legalHolds).where(eq(schema.legalHolds.active, true));
-  return [...rows].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
-}
 
 /** Create or update the retention policy for a document type (upsert by docType). */
 export async function setRetentionPolicy(
@@ -206,37 +107,71 @@ export async function documentsPastRetention(
   });
 }
 
-/** Purge documents past retention (not under legal hold). Audited. */
+export interface PurgeExpiredDocumentsResult {
+  /** Documents whose bytes were queued for erasure (see erasure.ts) — not yet actually deleted. */
+  readonly queuedForErasure: number;
+  /** Documents that were purge-eligible a moment ago but are now held, rechecked at the last possible instant. */
+  readonly blockedByHold: number;
+}
+
+/**
+ * Queue every document past its retention policy (not under legal hold) for
+ * erasure. Never deletes anything itself — enqueues one erasure job per
+ * storage object and leaves the document/storage rows in place until
+ * erasure.ts's worker verifies the external bytes are actually gone (master
+ * directive §7 "PR 4": never report "deleted" before that verification).
+ * Audited per document, inside the same transaction as its own recheck, so a
+ * hold placed after `documentsPastRetention`'s read is never raced past.
+ */
 export async function purgeExpiredDocuments(
   db: Db,
   input: { readonly actorAccountId: string; readonly now?: Date },
-): Promise<Result<{ readonly purged: number }, ServiceError>> {
+): Promise<Result<PurgeExpiredDocumentsResult, ServiceError>> {
   const expired = await documentsPastRetention(db, input.now ?? new Date());
-  if (expired.length === 0) return ok({ purged: 0 });
-  const documentIds = expired.map((d) => d.id);
+  if (expired.length === 0) return ok({ queuedForErasure: 0, blockedByHold: 0 });
 
-  return db.transaction(async (tx) => {
-    const versions = await tx
-      .select({ storageObjectId: schema.documentVersions.storageObjectId })
-      .from(schema.documentVersions)
-      .where(inArray(schema.documentVersions.documentId, documentIds));
-    const storageObjectIds = [...new Set(versions.map((v) => v.storageObjectId))];
+  let queuedForErasure = 0;
+  let blockedByHold = 0;
+  for (const document of expired) {
+    await db.transaction(async (tx) => {
+      const held = await hasActiveLegalHold(tx, document.applicantId);
+      if (held) {
+        blockedByHold++;
+        return;
+      }
+      const versions = await tx
+        .select({ storageObjectId: schema.documentVersions.storageObjectId })
+        .from(schema.documentVersions)
+        .where(eq(schema.documentVersions.documentId, document.id));
+      const storageObjectIds = [...new Set(versions.map((v) => v.storageObjectId))];
+      if (storageObjectIds.length === 0) return;
 
-    await tx.delete(schema.documents).where(inArray(schema.documents.id, documentIds));
-    if (storageObjectIds.length > 0) {
-      await tx
-        .delete(schema.storageObjects)
+      const objects = await tx
+        .select()
+        .from(schema.storageObjects)
         .where(inArray(schema.storageObjects.id, storageObjectIds));
-    }
-    await appendAuditEvent(tx, {
-      eventType: 'RETENTION_PURGE',
-      actorAccountId: input.actorAccountId,
-      method: 'SYSTEM',
-      result: 'ALLOWED',
-      resourceType: 'document',
-      resourceId: null,
-      metadata: { purged: documentIds.length },
+      for (const object of objects) {
+        await enqueueErasureJob(tx, {
+          reason: 'RETENTION_PURGE',
+          bucket: object.bucket,
+          objectKey: object.objectKey,
+          expectedHash: object.contentHash,
+          storageObjectId: object.id,
+          documentId: document.id,
+          applicantId: document.applicantId,
+        });
+      }
+      queuedForErasure++;
+      await appendAuditEvent(tx, {
+        eventType: 'RETENTION_PURGE_QUEUED',
+        actorAccountId: input.actorAccountId,
+        method: 'SYSTEM',
+        result: 'ALLOWED',
+        applicantId: document.applicantId,
+        resourceType: 'document',
+        resourceId: document.id,
+      });
     });
-    return ok({ purged: documentIds.length });
-  });
+  }
+  return ok({ queuedForErasure, blockedByHold });
 }

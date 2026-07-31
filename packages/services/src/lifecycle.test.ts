@@ -17,10 +17,35 @@ import {
   requestAccountDeletion,
 } from './deletion';
 import { addDocumentVersion, registerDocument } from './documents';
+import { runErasureWorker } from './erasure';
 import { exportAccount } from './export';
 import { editFact, registerFieldDefinition } from './profile';
+import type {
+  BlobStore,
+  ListObjectsPage,
+  PutObjectInput,
+  StorageBucket,
+  StoredBytes,
+} from './storage';
 
 const migrationsFolder = fileURLToPath(new URL('../../db/migrations', import.meta.url));
+
+/** Deterministic in-memory blob store — no S3, no network. */
+class FakeBlobStore implements BlobStore {
+  private readonly objects = new Map<string, StoredBytes>();
+  async putObject(input: PutObjectInput): Promise<void> {
+    this.objects.set(input.objectKey, { contentType: input.contentType, bytes: input.bytes });
+  }
+  async getObject(objectKey: string): Promise<StoredBytes | undefined> {
+    return this.objects.get(objectKey);
+  }
+  async deleteObject(_bucket: StorageBucket, objectKey: string): Promise<void> {
+    this.objects.delete(objectKey);
+  }
+  async listObjectKeys(): Promise<ListObjectsPage> {
+    return { objectKeys: [...this.objects.keys()], cursor: undefined };
+  }
+}
 
 async function freshDb(): Promise<Db> {
   const client = new PGlite();
@@ -131,6 +156,13 @@ describe('account deletion workflow', () => {
 
   it('executes after the window, removing owned data and preserving audit', async () => {
     const { account, applicantId } = await seedFullAccount(db, 'del2@example.com');
+    const storage = new FakeBlobStore();
+    await storage.putObject({
+      bucket: 'CLEAN',
+      objectKey: 'obj-del2@example.com',
+      contentType: 'application/pdf',
+      bytes: new Uint8Array([9, 9, 9]),
+    });
     const req = await requestAccountDeletion(db, {
       actorAccountId: account.id,
       accountId: account.id,
@@ -142,14 +174,29 @@ describe('account deletion workflow', () => {
     expect(isOk(executed)).toBe(true);
     if (isOk(executed)) expect(executed.value.status).toBe('EXECUTED');
 
-    // Account, applicant, documents, and storage objects are gone.
+    // Account and applicant are gone immediately (the logical cascade).
     expect(
       await db.select().from(schema.accounts).where(eq(schema.accounts.id, account.id)),
     ).toHaveLength(0);
     expect(
       await db.select().from(schema.applicants).where(eq(schema.applicants.id, applicantId)),
     ).toHaveLength(0);
+    // Storage objects survive the logical cascade — erasure.ts owns removing
+    // them, only after the external bytes are verified deleted. One erasure
+    // job is queued, carrying the object's bucket/key/hash independently of
+    // the (already-gone) document version that used to reference it.
+    expect(await db.select().from(schema.storageObjects)).toHaveLength(1);
+    const jobs = await db.select().from(schema.erasureJobs);
+    expect(jobs).toHaveLength(1);
+    expect(jobs[0]?.status).toBe('PENDING');
+    expect(jobs[0]?.reason).toBe('ACCOUNT_DELETION');
+
+    // The worker completes the job: bytes deleted, verified, then (and only
+    // then) the storage object row itself is removed.
+    const workerResult = await runErasureWorker(db, storage, { limit: 5 });
+    expect(workerResult).toEqual({ processed: 1, blocked: 0, failed: 0 });
     expect(await db.select().from(schema.storageObjects)).toHaveLength(0);
+    expect(await storage.getObject('obj-del2@example.com')).toBeUndefined();
 
     // The audit trail is preserved (anonymized) and the tombstone remains.
     expect((await db.select().from(schema.auditEvents)).length).toBeGreaterThan(0);

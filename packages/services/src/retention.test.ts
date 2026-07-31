@@ -12,6 +12,7 @@ import { setConsent } from './consent';
 import type { Db } from './db';
 import { executeAccountDeletion, requestAccountDeletion } from './deletion';
 import { addDocumentVersion, registerDocument } from './documents';
+import { runErasureWorker } from './erasure';
 import {
   documentsPastRetention,
   listActiveLegalHolds,
@@ -20,8 +21,32 @@ import {
   releaseLegalHold,
   setRetentionPolicy,
 } from './retention';
+import type {
+  BlobStore,
+  ListObjectsPage,
+  PutObjectInput,
+  StorageBucket,
+  StoredBytes,
+} from './storage';
 
 const migrationsFolder = fileURLToPath(new URL('../../db/migrations', import.meta.url));
+
+/** Deterministic in-memory blob store — no S3, no network. */
+class FakeBlobStore implements BlobStore {
+  private readonly objects = new Map<string, StoredBytes>();
+  async putObject(input: PutObjectInput): Promise<void> {
+    this.objects.set(input.objectKey, { contentType: input.contentType, bytes: input.bytes });
+  }
+  async getObject(objectKey: string): Promise<StoredBytes | undefined> {
+    return this.objects.get(objectKey);
+  }
+  async deleteObject(_bucket: StorageBucket, objectKey: string): Promise<void> {
+    this.objects.delete(objectKey);
+  }
+  async listObjectKeys(): Promise<ListObjectsPage> {
+    return { objectKeys: [...this.objects.keys()], cursor: undefined };
+  }
+}
 
 async function freshDb(): Promise<Db> {
   const client = new PGlite();
@@ -119,16 +144,17 @@ describe('retention purge', () => {
     db = await freshDb();
   });
 
-  it("purges documents past their retention, but never a held applicant's", async () => {
+  it("queues documents past their retention for erasure, but never a held applicant's", async () => {
     const { account, applicantId } = await consentedApplicant(db, 'ret@example.com');
     const officer = await operator(db, 'officer2@example.com');
+    const storage = new FakeBlobStore();
     await setRetentionPolicy(db, {
       actorAccountId: account.id,
       docType: 'receipt',
       retentionDays: 30,
     });
 
-    // A receipt document with a version.
+    // A receipt document with a version, and real bytes behind its object key.
     const doc = await registerDocument(db, {
       actorAccountId: account.id,
       applicantId,
@@ -141,6 +167,12 @@ describe('retention purge', () => {
       documentId: doc.value.id,
       bucket: 'CLEAN',
       objectKey: 'obj-ret',
+    });
+    await storage.putObject({
+      bucket: 'CLEAN',
+      objectKey: 'obj-ret',
+      contentType: 'application/pdf',
+      bytes: new Uint8Array([1, 2, 3]),
     });
     // Backdate its creation beyond the retention window.
     await db.execute(
@@ -160,14 +192,87 @@ describe('retention purge', () => {
     expect(await documentsPastRetention(db)).toHaveLength(0);
     const noop = await purgeExpiredDocuments(db, { actorAccountId: officer });
     expect(isOk(noop)).toBe(true);
-    if (isOk(noop)) expect(noop.value.purged).toBe(0);
+    if (isOk(noop)) {
+      expect(noop.value.queuedForErasure).toBe(0);
+      expect(noop.value.blockedByHold).toBe(0);
+    }
 
-    // Release the hold → purge removes the document and its storage object.
+    // Release the hold → purge queues erasure, but never deletes synchronously.
     await releaseLegalHold(db, { actorAccountId: officer, holdId: hold.value.id });
     const purged = await purgeExpiredDocuments(db, { actorAccountId: officer });
     expect(isOk(purged)).toBe(true);
-    if (isOk(purged)) expect(purged.value.purged).toBe(1);
+    if (isOk(purged)) {
+      expect(purged.value.queuedForErasure).toBe(1);
+      expect(purged.value.blockedByHold).toBe(0);
+    }
+    // Nothing is "deleted" yet — bytes haven't been verified gone.
+    expect(await db.select().from(schema.documents)).toHaveLength(1);
+    expect(await db.select().from(schema.storageObjects)).toHaveLength(1);
+    const queued = await db.select().from(schema.erasureJobs);
+    expect(queued).toHaveLength(1);
+    expect(queued[0]?.status).toBe('PENDING');
+    expect(queued[0]?.reason).toBe('RETENTION_PURGE');
+
+    // The worker deletes, verifies, and only then removes the document/object.
+    const result = await runErasureWorker(db, storage, { limit: 5 });
+    expect(result).toEqual({ processed: 1, blocked: 0, failed: 0 });
     expect(await db.select().from(schema.documents)).toHaveLength(0);
     expect(await db.select().from(schema.storageObjects)).toHaveLength(0);
+    expect(await storage.getObject('obj-ret')).toBeUndefined();
+    const finalJob = (await db.select().from(schema.erasureJobs))[0];
+    expect(finalJob?.status).toBe('VERIFIED');
+  });
+
+  it('blocks the erasure worker (not the queue step) when a hold appears after queuing', async () => {
+    const { account, applicantId } = await consentedApplicant(db, 'ret-race@example.com');
+    const officer = await operator(db, 'officer-race@example.com');
+    const storage = new FakeBlobStore();
+    await setRetentionPolicy(db, {
+      actorAccountId: account.id,
+      docType: 'receipt',
+      retentionDays: 30,
+    });
+    const doc = await registerDocument(db, {
+      actorAccountId: account.id,
+      applicantId,
+      originalName: 'r2.pdf',
+      docType: 'receipt',
+    });
+    if (!isOk(doc)) throw new Error('doc');
+    await addDocumentVersion(db, {
+      actorAccountId: account.id,
+      documentId: doc.value.id,
+      bucket: 'CLEAN',
+      objectKey: 'obj-ret-race',
+    });
+    await storage.putObject({
+      bucket: 'CLEAN',
+      objectKey: 'obj-ret-race',
+      contentType: 'application/pdf',
+      bytes: new Uint8Array([1]),
+    });
+    await db.execute(
+      sql`update documents set created_at = now() - interval '60 days' where id = ${doc.value.id}`,
+    );
+
+    const purged = await purgeExpiredDocuments(db, { actorAccountId: officer });
+    expect(isOk(purged)).toBe(true);
+    if (isOk(purged)) expect(purged.value.queuedForErasure).toBe(1);
+
+    // A hold lands after the job is already queued, before the worker runs.
+    const hold = await placeLegalHold(db, {
+      actorAccountId: officer,
+      applicantId,
+      reason: 'late hold',
+    });
+    expect(isOk(hold)).toBe(true);
+
+    const result = await runErasureWorker(db, storage, { limit: 5 });
+    expect(result).toEqual({ processed: 0, blocked: 1, failed: 0 });
+    // Nothing was touched: bytes, document, and storage object all survive.
+    expect(await storage.getObject('obj-ret-race')).toBeDefined();
+    expect(await db.select().from(schema.documents)).toHaveLength(1);
+    const job = (await db.select().from(schema.erasureJobs))[0];
+    expect(job?.status).toBe('BLOCKED_BY_HOLD');
   });
 });

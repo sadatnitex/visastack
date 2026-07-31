@@ -4,6 +4,7 @@ import { useActionState } from 'react';
 import {
   type ActionState,
   releaseLegalHoldAction,
+  retryErasureJobAction,
   retryJobAction,
   reviewOrganizationAction,
 } from './actions';
@@ -41,6 +42,28 @@ export function ReleaseHoldButton({ holdId }: { readonly holdId: string }) {
 
 export function RetryJobButton({ jobId }: { readonly jobId: string }) {
   const [state, formAction, pending] = useActionState(retryJobAction, INITIAL);
+  return (
+    <form action={formAction}>
+      <input type="hidden" name="jobId" value={jobId} />
+      <button
+        type="submit"
+        className="btn btn-secondary"
+        style={{ padding: '0.3rem 0.85rem', fontSize: '0.8rem' }}
+        disabled={pending}
+      >
+        {pending ? 'Retrying…' : 'Retry'}
+      </button>
+      {state.message ? (
+        <p className={`field-msg ${state.ok ? 'field-msg-ok' : 'field-msg-err'}`}>
+          {state.message}
+        </p>
+      ) : null}
+    </form>
+  );
+}
+
+export function RetryErasureJobButton({ jobId }: { readonly jobId: string }) {
+  const [state, formAction, pending] = useActionState(retryErasureJobAction, INITIAL);
   return (
     <form action={formAction}>
       <input type="hidden" name="jobId" value={jobId} />
