@@ -26,8 +26,8 @@ export default async function PackDetailPage({
 }) {
   const { packId } = await params;
 
-  const data = await withSession(async ({ db, email }) => {
-    if (!isPlatformAdmin(email)) return { admin: false as const };
+  const data = await withSession(async ({ db, accountId, email }) => {
+    if (!(await isPlatformAdmin(db, { accountId, email }))) return { admin: false as const };
     const pack = await getPack(db, packId);
     if (!pack) return { admin: true as const, pack: null };
     const versions = await listPackVersions(db, packId);

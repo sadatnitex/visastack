@@ -100,6 +100,12 @@ export const erasureJobStatus = pgEnum('erasure_job_status', [
   'FAILED',
   'BLOCKED_BY_HOLD',
 ]);
+export const platformRole = pgEnum('platform_role', [
+  'PLATFORM_OWNER',
+  'SECURITY_ADMIN',
+  'COMPLIANCE_ADMIN',
+  'SUPPORT_ADMIN',
+]);
 export const processingRunStatus = pgEnum('processing_run_status', [
   'RUNNING',
   'COMPLETED',
@@ -955,6 +961,41 @@ export const erasureJobs = pgTable(
   (table) => [
     index('erasure_jobs_status_available_idx').on(table.status, table.availableAt),
     index('erasure_jobs_storage_object_idx').on(table.storageObjectId),
+  ],
+);
+
+// --- Platform administration (master directive §7 "PR 5") ------------------
+// Replaces an env-var allowlist (ADMIN_EMAILS) as the authority for
+// platform-level actions. Immutable and append-only: a grant is never
+// updated or deleted, only revoked (revokedAt/revokedByAccountId/reason
+// set); re-granting after revocation creates a new row, so the full history
+// of who held what, when, and why is always reconstructable — the audit log
+// records the transition, this table is the durable state itself.
+// `workosUserId` is a point-in-time snapshot of the identity actually
+// verified at grant time, independent of the account row's current value.
+export const platformRoles = pgTable(
+  'platform_roles',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    accountId: uuid('account_id')
+      .notNull()
+      .references(() => accounts.id, { onDelete: 'cascade' }),
+    workosUserId: text('workos_user_id'),
+    role: platformRole('role').notNull(),
+    assignedByAccountId: uuid('assigned_by_account_id').references(() => accounts.id, {
+      onDelete: 'set null',
+    }),
+    assignedAt: timestamp('assigned_at', { withTimezone: true }).notNull().defaultNow(),
+    reason: text('reason').notNull(),
+    revokedAt: timestamp('revoked_at', { withTimezone: true }),
+    revokedByAccountId: uuid('revoked_by_account_id').references(() => accounts.id, {
+      onDelete: 'set null',
+    }),
+    revokedReason: text('revoked_reason'),
+  },
+  (table) => [
+    index('platform_roles_account_idx').on(table.accountId),
+    index('platform_roles_active_idx').on(table.accountId, table.revokedAt),
   ],
 );
 

@@ -88,6 +88,7 @@ async function ownerOrg(db: Db, email: string, name: string) {
     reviewerAccountId: reviewer.value.id,
     organizationId: org.value.id,
     decision: 'ACTIVE',
+    stepUpSatisfied: true,
   });
   if (!isOk(reviewed)) throw new Error('review');
   return { account: acc.value, organizationId: org.value.id };
@@ -124,6 +125,7 @@ describe('cross-tenant isolation — two organizations, one applicant', () => {
       recipientOrganizationId: orgA.organizationId,
       actions: ['MANAGE', 'COMMENT', 'EXPORT_PROFILE'],
       purpose: 'collaboration',
+      stepUpSatisfied: true,
     });
     if (!isOk(grant)) throw new Error('grant');
     await acceptGrant(db, { actorAccountId: orgA.account.id, grantId: grant.value.id });
@@ -390,6 +392,7 @@ describe('grant scope cannot be escaped', () => {
       actions: ['EXPORT_PROFILE'],
       purpose: 'bulk',
       categories: ['universal'],
+      stepUpSatisfied: true,
     });
     if (!isOk(grant)) throw new Error('grant');
     await acceptGrant(db, { actorAccountId: org.account.id, grantId: grant.value.id });

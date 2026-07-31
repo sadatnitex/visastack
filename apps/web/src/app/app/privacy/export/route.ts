@@ -1,5 +1,6 @@
 import { exportAccount } from '@visastack/services';
 import { withSession } from '../../../../lib/session';
+import { establishStepUp } from '../../../../lib/step-up';
 
 /**
  * Self-service data export (Build Spec §13; PRD §2 — data portability).
@@ -7,15 +8,28 @@ import { withSession } from '../../../../lib/session';
  * Streams the signed-in account's complete, structured snapshot as a JSON
  * attachment. Authorization is enforced by `exportAccount` (self-only) after
  * `withSession` establishes the account from the WorkOS session.
+ *
+ * A full account snapshot (every applicant, document, profile fact, and the
+ * audit trail) is exactly the kind of bulk, silent-exfiltration target a
+ * hijacked session could otherwise abuse with no further check ever
+ * required — so it is step-up gated (master directive §7 "PR 5"), same
+ * mechanism as agency bulk export.
  */
 export const dynamic = 'force-dynamic';
 
-export async function GET(): Promise<Response> {
-  const snapshot = await withSession(async ({ db, accountId }) => {
+export async function GET(request: Request): Promise<Response> {
+  const outcome = await withSession(async ({ db, accountId }) => {
+    const stepUp = await establishStepUp(
+      { accountId, action: 'ACCOUNT_EXPORT', resourceId: accountId },
+      request.url,
+    );
+    if (!stepUp.satisfied) return { redirect: stepUp.reauthUrl } as const;
     const result = await exportAccount(db, { actorAccountId: accountId, accountId });
-    return result.ok ? result.value : null;
+    return { snapshot: result.ok ? result.value : null } as const;
   });
 
+  if ('redirect' in outcome) return Response.redirect(outcome.redirect, 302);
+  const snapshot = outcome.snapshot;
   if (!snapshot) return new Response('export failed', { status: 403 });
 
   const body = JSON.stringify(snapshot, null, 2);

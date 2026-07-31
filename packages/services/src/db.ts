@@ -38,7 +38,30 @@ export function required<T>(row: T | undefined, what: string): T {
   return row;
 }
 
-/** True for a Postgres unique-violation error (SQLSTATE 23505). */
+function sqlState(error: unknown): string | undefined {
+  return typeof error === 'object' &&
+    error !== null &&
+    'code' in error &&
+    typeof error.code === 'string'
+    ? error.code
+    : undefined;
+}
+
+/**
+ * True for a Postgres unique-violation error (SQLSTATE 23505). Drizzle wraps
+ * every driver error in a `DrizzleQueryError` (`pg-core/session.ts`), with the
+ * real driver error — the one actually carrying `.code` — attached as
+ * `.cause`, not on the wrapper itself. Checking only the top-level error
+ * silently never matches, which would turn every race this guards (account
+ * identity binding, retention policy upserts, etc.) into an unhandled 500
+ * instead of the intended race-recovery path. Walks a couple of `.cause`
+ * levels defensively rather than assuming exactly one layer of wrapping.
+ */
 export function isUniqueViolation(error: unknown): boolean {
-  return typeof error === 'object' && error !== null && 'code' in error && error.code === '23505';
+  let current: unknown = error;
+  for (let depth = 0; depth < 3 && current !== undefined && current !== null; depth++) {
+    if (sqlState(current) === '23505') return true;
+    current = current instanceof Error ? current.cause : undefined;
+  }
+  return false;
 }

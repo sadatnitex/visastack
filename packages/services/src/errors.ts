@@ -10,6 +10,8 @@
 export type ServiceErrorCode =
   /** The actor is not permitted to perform this action on this resource. */
   | 'forbidden'
+  /** The actor may proceed, but only after a genuine, recent reauthentication. */
+  | 'step_up_required'
   /** A referenced resource does not exist. */
   | 'not_found'
   /** A required consent (Build Spec §13) has not been granted. */

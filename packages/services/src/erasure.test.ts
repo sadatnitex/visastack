@@ -290,7 +290,12 @@ describe('erasure outbox', () => {
     const originalGetObject = storage.getObject.bind(storage);
     storage.getObject = async (objectKey: string) => {
       const result = await originalGetObject(objectKey);
-      await placeLegalHold(db, { actorAccountId: applicantId, applicantId, reason: 'mid-flight' });
+      await placeLegalHold(db, {
+        actorAccountId: applicantId,
+        applicantId,
+        reason: 'mid-flight',
+        stepUpSatisfied: true,
+      });
       return result;
     };
 

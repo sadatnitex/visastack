@@ -4,23 +4,33 @@ import {
   getPilotScorecard,
   getRetentionPolicies,
   listActiveLegalHolds,
+  listActivePlatformRoles,
   listAllApplicants,
   listAllOrganizations,
   listErasureJobsNeedingAttention,
   listFailedJobs,
+  reportUnboundAccounts,
 } from '@visastack/services';
 import Link from 'next/link';
-import { isPlatformAdmin } from '../../../lib/admin';
+import { isPlatformAdmin, isPlatformOwnerAccount } from '../../../lib/admin';
 import { withSession } from '../../../lib/session';
 import {
   OrgReviewButtons,
   ReleaseHoldButton,
   RetryErasureJobButton,
   RetryJobButton,
+  RevokeRoleButton,
 } from './action-buttons';
-import { LegalHoldForm, RetentionPolicyForm } from './admin-forms';
+import { GrantRoleForm, LegalHoldForm, RetentionPolicyForm } from './admin-forms';
 import { PurgeButton } from './purge-button';
 import { ReconcileButtons } from './reconcile-buttons';
+
+const PLATFORM_ROLE_LABELS: Record<string, string> = {
+  PLATFORM_OWNER: 'Platform owner',
+  SECURITY_ADMIN: 'Security admin',
+  COMPLIANCE_ADMIN: 'Compliance admin',
+  SUPPORT_ADMIN: 'Support admin',
+};
 
 export const dynamic = 'force-dynamic';
 
@@ -42,19 +52,33 @@ const ORG_STATUS: Record<string, { label: string; tone: string }> = {
 };
 
 export default async function AdminPage() {
-  const data = await withSession(async ({ db, email }) => {
-    if (!isPlatformAdmin(email)) return { admin: false as const };
-    const [policies, holds, orgs, failedJobs, erasureJobs, applicants, purgeEligible, scorecard] =
-      await Promise.all([
-        getRetentionPolicies(db),
-        listActiveLegalHolds(db),
-        listAllOrganizations(db),
-        listFailedJobs(db),
-        listErasureJobsNeedingAttention(db),
-        listAllApplicants(db),
-        documentsPastRetention(db),
-        getPilotScorecard(db),
-      ]);
+  const data = await withSession(async ({ db, accountId, email }) => {
+    if (!(await isPlatformAdmin(db, { accountId, email }))) return { admin: false as const };
+    const [
+      policies,
+      holds,
+      orgs,
+      failedJobs,
+      erasureJobs,
+      applicants,
+      purgeEligible,
+      scorecard,
+      roles,
+      unboundAccounts,
+      owner,
+    ] = await Promise.all([
+      getRetentionPolicies(db),
+      listActiveLegalHolds(db),
+      listAllOrganizations(db),
+      listFailedJobs(db),
+      listErasureJobsNeedingAttention(db),
+      listAllApplicants(db),
+      documentsPastRetention(db),
+      getPilotScorecard(db),
+      listActivePlatformRoles(db),
+      reportUnboundAccounts(db),
+      isPlatformOwnerAccount(db, { accountId, email }),
+    ]);
     return {
       admin: true as const,
       policies,
@@ -65,6 +89,9 @@ export default async function AdminPage() {
       applicants,
       purgeEligible,
       scorecard,
+      roles,
+      unboundAccounts,
+      owner,
     };
   });
 
@@ -100,7 +127,7 @@ export default async function AdminPage() {
         <article className="card">
           <p className="card-body">
             This area is restricted to platform administrators. If you should have access, ask an
-            existing administrator to add your email to the allowlist.
+            existing platform owner to grant you a role.
           </p>
         </article>
       ) : (
@@ -126,6 +153,88 @@ export default async function AdminPage() {
               ))}
             </div>
           </article>
+
+          <article className="card" style={{ marginBottom: '1.5rem' }}>
+            <p className="card-kicker">Identity</p>
+            <h2 className="card-title">Platform roles</h2>
+            <p className="card-body" style={{ marginBottom: '1rem' }}>
+              Replaces the old ADMIN_EMAILS allowlist. A grant is never deleted, only revoked, so
+              the full history of who held what and why is always reconstructable.
+            </p>
+            {data.roles.length === 0 ? (
+              <p className="card-body" style={{ marginBottom: '1.25rem' }}>
+                No active grants.
+              </p>
+            ) : (
+              <div className="rows" style={{ marginBottom: '1.25rem' }}>
+                {data.roles.map((r) => (
+                  <div
+                    className="row"
+                    key={r.id}
+                    style={{ flexDirection: 'column', alignItems: 'stretch', gap: '0.4rem' }}
+                  >
+                    <div
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        gap: '0.75rem',
+                      }}
+                    >
+                      <span className="row-key">{PLATFORM_ROLE_LABELS[r.role] ?? r.role}</span>
+                      <span style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                        <span className="muted" style={{ fontSize: '0.8rem' }}>
+                          {r.assignedAt.toLocaleDateString()}
+                        </span>
+                        {data.owner ? <RevokeRoleButton grantId={r.id} /> : null}
+                      </span>
+                    </div>
+                    <span className="muted" style={{ fontSize: '0.8rem' }}>
+                      {r.reason}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+            {data.owner ? (
+              <GrantRoleForm />
+            ) : (
+              <p className="muted" style={{ fontSize: '0.85rem' }}>
+                Only a platform owner can grant or revoke roles.
+              </p>
+            )}
+          </article>
+
+          {data.unboundAccounts.length > 0 ? (
+            <article className="card" style={{ marginBottom: '1.5rem' }}>
+              <p className="card-kicker">Identity</p>
+              <h2 className="card-title">Accounts awaiting WorkOS identity binding</h2>
+              <p className="card-body" style={{ marginBottom: '1rem' }}>
+                Read-only migration report — resolves itself the moment each owner next signs in.
+                The
+                <code>workos_user_id</code> column becomes required only once this list is empty.
+              </p>
+              <div className="rows">
+                {data.unboundAccounts.map((a) => (
+                  <div className="row" key={a.id}>
+                    <span className="row-key" style={{ wordBreak: 'break-word' }}>
+                      {a.email}
+                    </span>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                      <span className="muted" style={{ fontSize: '0.8rem' }}>
+                        since {new Date(a.createdAt).toLocaleDateString()}
+                      </span>
+                      <span
+                        className={`badge ${a.applicantCount > 0 ? 'badge-warning' : 'badge-neutral'}`}
+                      >
+                        {a.applicantCount} applicant{a.applicantCount === 1 ? '' : 's'}
+                      </span>
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </article>
+          ) : null}
 
           <div className="grid">
             <article className="card">

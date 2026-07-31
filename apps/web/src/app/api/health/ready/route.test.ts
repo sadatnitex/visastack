@@ -129,7 +129,7 @@ describe('GET /api/health/ready — honest health (200 vs 503)', () => {
     expect(body.platform).toBeDefined();
     expect(body.platform.authentication).toBe('available');
     expect(body.platform.agencyCollaboration).toBe('available');
-    expect(body.platform.bulkExport).toBe('disabled');
+    expect(body.platform.bulkExport).toBe('available');
   });
 
   it('withholds the verbose env/db breakdown but still reports deploymentMode and platform on a real deployment', async () => {

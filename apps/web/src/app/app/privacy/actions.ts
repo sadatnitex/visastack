@@ -2,7 +2,9 @@
 
 import { cancelAccountDeletion, requestAccountDeletion } from '@visastack/services';
 import { revalidatePath } from 'next/cache';
+import { redirect } from 'next/navigation';
 import { withSession } from '../../../lib/session';
+import { establishStepUp } from '../../../lib/step-up';
 
 /** Result surfaced back to the client for inline feedback. */
 export interface ActionState {
@@ -10,13 +12,25 @@ export interface ActionState {
   readonly message: string;
 }
 
-/** Open a reversible deletion request (7-day grace window) for the signed-in account. */
+/**
+ * Open a reversible deletion request (7-day grace window) for the signed-in
+ * account. Step-up gated (master directive §7 "PR 5" — "account deletion
+ * confirmation"): this is the exact moment the deletion clock starts, so it
+ * requires a genuine, recent WorkOS reauthentication, not just an existing
+ * session. Cancelling a pending request is not gated — undoing a dangerous
+ * action needs no extra proof.
+ */
 export async function requestDeletionAction(
   _prev: ActionState,
   formData: FormData,
 ): Promise<ActionState> {
   const reason = String(formData.get('reason') ?? '').trim();
   const result = await withSession(async ({ db, accountId }) => {
+    const stepUp = await establishStepUp(
+      { accountId, action: 'ACCOUNT_DELETION_REQUEST', resourceId: accountId },
+      '/app/privacy',
+    );
+    if (!stepUp.satisfied) redirect(stepUp.reauthUrl);
     const req = await requestAccountDeletion(db, {
       actorAccountId: accountId,
       accountId,

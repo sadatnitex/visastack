@@ -78,6 +78,7 @@ async function activateOrg(db: Db, organizationId: string): Promise<void> {
     reviewerAccountId: reviewer.value.id,
     organizationId,
     decision: 'ACTIVE',
+    stepUpSatisfied: true,
   });
   if (!isOk(reviewed)) throw new Error('review');
 }
@@ -446,6 +447,7 @@ describe('permissioned bulk export', () => {
       recipientOrganizationId: orgId,
       actions: ['EXPORT_PROFILE'],
       purpose: 'bulk',
+      stepUpSatisfied: true,
     });
     if (!isOk(grant)) throw new Error('grant');
     await acceptGrant(db, { actorAccountId: agentAcc.value.id, grantId: grant.value.id });

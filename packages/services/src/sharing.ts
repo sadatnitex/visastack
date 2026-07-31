@@ -9,7 +9,12 @@ import {
   type PermissionAction,
 } from '@visastack/core';
 import { type Result, err, ok } from '@visastack/core';
-import { type Actor as PolicyActor, type Grant as PolicyGrant, authorize } from '@visastack/policy';
+import {
+  type Actor as PolicyActor,
+  type Grant as PolicyGrant,
+  STEP_UP_ACTIONS,
+  authorize,
+} from '@visastack/policy';
 import { and, eq, inArray } from 'drizzle-orm';
 import { getApplicant } from './applicants';
 import { appendAuditEvent } from './audit';
@@ -75,6 +80,14 @@ export interface CreateGrantInput {
   readonly documentIds?: readonly string[];
   readonly missionId?: string;
   readonly expiryAt?: Date;
+  /**
+   * Required `true` when `actions` includes any `STEP_UP_ACTIONS` member
+   * (granting `DOWNLOAD_ORIGINAL`/`EXPORT_PROFILE`/`SHARE` is itself a
+   * highly sensitive act, independent of anything the recipient later does
+   * with it) — see `createGrant`'s doc comment. Optional and ignored for an
+   * ordinary grant; never defaults to satisfied.
+   */
+  readonly stepUpSatisfied?: boolean;
 }
 
 /** No grant may outlive its creation by more than this — a bound, not a default. */
@@ -92,9 +105,14 @@ const GRANT_MAX_DURATION_DAYS = 365;
  * packs; actions must be canonical `PermissionAction`s; expiry, if given,
  * must be in the future and within `GRANT_MAX_DURATION_DAYS`.
  *
- * NOT yet implemented here: "genuine step-up for sensitive grants" (master
- * directive §7 "PR 2"). No real WorkOS step-up mechanism exists anywhere in
- * the app yet — that is PR 5 scope. Tracked, not silently dropped.
+ * Step-up: creating a grant that hands out a `STEP_UP_ACTIONS` action
+ * (`DOWNLOAD_ORIGINAL`, `EXPORT_PROFILE`, `SHARE`) is itself the sensitive
+ * act — a hijacked session could otherwise silently grant a hostile
+ * recipient standing access with no further check ever required. Such a
+ * grant is denied unless `input.stepUpSatisfied` is honestly `true` (master
+ * recovery directive §7 "PR 5"; never hardcoded — the caller must derive it
+ * from a genuine WorkOS reauthentication, see `apps/web/src/lib/step-up.ts`).
+ * An ordinary grant (view/preview/comment-only) needs no step-up.
  */
 export async function createGrant(
   db: Db,
@@ -121,6 +139,11 @@ export async function createGrant(
     (action) => !(PERMISSION_ACTIONS as readonly string[]).includes(action),
   );
   if (invalidAction) return err(serviceError('invalid', `unknown action: ${invalidAction}`));
+  if (input.actions.some((action) => STEP_UP_ACTIONS.includes(action)) && !input.stepUpSatisfied) {
+    return err(
+      serviceError('step_up_required', 'granting this level of access requires reauthentication'),
+    );
+  }
   if (input.purpose.trim().length === 0) {
     return err(serviceError('invalid', 'a purpose is required'));
   }

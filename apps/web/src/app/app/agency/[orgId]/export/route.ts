@@ -4,6 +4,7 @@ import {
   getPlatformCapabilities,
 } from '../../../../../lib/capabilities';
 import { withSession } from '../../../../../lib/session';
+import { establishStepUp } from '../../../../../lib/step-up';
 
 /**
  * Permissioned bulk export for an organization (Build Spec §2; PRD §5).
@@ -14,13 +15,11 @@ import { withSession } from '../../../../../lib/session';
  * enforced by `bulkExport` (rebuilt from first principles in PR 2 — see
  * docs/audits/commercial-readiness-recovery-baseline.md §7).
  *
- * Gated `disabled` in the controlled pilot: `EXPORT_PROFILE` requires
- * genuine step-up, and no real WorkOS step-up mechanism exists anywhere in
- * the app yet (PR 5 scope). `stepUpSatisfied` is passed as `false` here,
- * honestly — never hardcoded `true` — so this route denies every export
- * until PR 5 lands and this route is updated to thread a real assurance
- * record through. Gated here, at the route boundary, not merely hidden in
- * the UI.
+ * `EXPORT_PROFILE` is a step-up action (Build Spec §14): `establishStepUp`
+ * checks the real WorkOS session recency server-side and, if stale, sends
+ * the browser through a genuine WorkOS reauthentication challenge rather
+ * than denying outright — completing it redirects back to this exact URL,
+ * which retries and this time succeeds. Never a client-supplied boolean.
  */
 export const dynamic = 'force-dynamic';
 
@@ -38,15 +37,23 @@ export async function GET(
     });
   }
 
-  const result = await withSession(async ({ db, accountId }) =>
-    bulkExport(db, {
+  const outcome = await withSession(async ({ db, accountId }) => {
+    const stepUp = await establishStepUp(
+      { accountId, action: 'EXPORT_PROFILE', resourceId: orgId },
+      request.url,
+    );
+    if (!stepUp.satisfied) return { redirect: stepUp.reauthUrl } as const;
+    const result = await bulkExport(db, {
       actorAccountId: accountId,
       organizationId: orgId,
       purpose,
-      stepUpSatisfied: false,
-    }),
-  );
+      stepUpSatisfied: true,
+    });
+    return { result } as const;
+  });
 
+  if ('redirect' in outcome) return Response.redirect(outcome.redirect, 302);
+  const result = outcome.result;
   if (!result.ok) return new Response(`export failed: ${result.error.message}`, { status: 403 });
 
   const body = JSON.stringify(

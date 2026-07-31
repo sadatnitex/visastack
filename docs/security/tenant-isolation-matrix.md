@@ -59,15 +59,17 @@ comment for the full rationale.
 ## What this does NOT yet cover (tracked, not silently dropped)
 
 - **Step-up-gated actions** (`SHARE`, `EXPORT_PROFILE`, `DOWNLOAD_ORIGINAL`):
-  the policy engine correctly denies these without `stepUpSatisfied`, but no
-  real WorkOS step-up flow exists yet to ever produce that `true` honestly —
-  PR 5 scope. `bulkExport`'s platform capability stays gated `disabled` in
-  the interim (`apps/web/src/lib/capabilities.ts`).
+  the policy engine correctly denies these without `stepUpSatisfied`. PR 5
+  built a real WorkOS step-up flow and wired it into `EXPORT_PROFILE`
+  (`bulkExport`'s platform capability now reports `available`); `SHARE` and
+  `DOWNLOAD_ORIGINAL` remain ungated (no live UI trigger to wire yet) — see
+  `docs/security/identity-and-step-up-boundary.md` for the full map.
 - **Document trust boundary** (malware scanning, redacted renditions,
   third-party preview): PR 3 scope.
-- **Platform-admin/support access isolation**: the `support_admin` actor kind
-  exists in the policy engine but the platform-admin surface itself is PR 5
-  scope.
+- **Platform-admin/support access isolation**: PR 5 replaced the
+  `ADMIN_EMAILS` allowlist with a real, auditable, revocable platform-role
+  model; see `docs/security/identity-and-step-up-boundary.md`. The
+  `support_admin` policy-engine actor kind is not yet wired to it.
 
 ## Verification
 

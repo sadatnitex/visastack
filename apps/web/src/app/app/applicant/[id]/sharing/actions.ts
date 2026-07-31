@@ -2,6 +2,7 @@
 
 import { PERMISSION_ACTIONS, type PermissionAction } from '@visastack/core';
 import {
+  STEP_UP_ACTIONS,
   createGrant,
   getAccountByEmail,
   pauseGrant,
@@ -9,7 +10,9 @@ import {
   revokeGrant,
 } from '@visastack/services';
 import { revalidatePath } from 'next/cache';
+import { redirect } from 'next/navigation';
 import { withSession } from '../../../../../lib/session';
+import { establishStepUp } from '../../../../../lib/step-up';
 
 /** Result surfaced back to the client for inline feedback. */
 export interface ActionState {
@@ -49,6 +52,11 @@ export async function createGrantAction(
     expiryAt = new Date(Date.now() + days * 24 * 60 * 60 * 1000);
   }
 
+  // Handing out a STEP_UP_ACTIONS action (DOWNLOAD_ORIGINAL/EXPORT_PROFILE/
+  // SHARE) is itself the sensitive act (master directive §7 "PR 5") — an
+  // ordinary view/preview/comment-only grant never prompts for reauth.
+  const isSensitive = actions.some((action) => STEP_UP_ACTIONS.includes(action));
+
   const result = await withSession(async ({ db, accountId }) => {
     const recipient = await getAccountByEmail(db, recipientEmail);
     if (!recipient) {
@@ -60,12 +68,22 @@ export async function createGrantAction(
     if (recipient.id === accountId) {
       return { ok: false, message: 'You cannot share with yourself.' } satisfies ActionState;
     }
+    let stepUpSatisfied = false;
+    if (isSensitive) {
+      const stepUp = await establishStepUp(
+        { accountId, action: 'SHARE', resourceId: applicantId },
+        `/app/applicant/${applicantId}/sharing`,
+      );
+      if (!stepUp.satisfied) redirect(stepUp.reauthUrl);
+      stepUpSatisfied = true;
+    }
     const created = await createGrant(db, {
       actorAccountId: accountId,
       applicantId,
       recipientAccountId: recipient.id,
       actions,
       purpose,
+      stepUpSatisfied,
       ...(categories.length > 0 ? { categories } : {}),
       ...(documentIds.length > 0 ? { documentIds } : {}),
       ...(expiryAt ? { expiryAt } : {}),

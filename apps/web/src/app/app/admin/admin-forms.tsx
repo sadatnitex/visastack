@@ -1,9 +1,80 @@
 'use client';
 
 import { useActionState } from 'react';
-import { type ActionState, placeLegalHoldAction, setRetentionPolicyAction } from './actions';
+import {
+  type ActionState,
+  grantPlatformRoleAction,
+  placeLegalHoldAction,
+  setRetentionPolicyAction,
+} from './actions';
 
 const INITIAL: ActionState = { ok: true, message: '' };
+
+const PLATFORM_ROLE_OPTIONS = [
+  { value: 'PLATFORM_OWNER', label: 'Platform owner' },
+  { value: 'SECURITY_ADMIN', label: 'Security admin' },
+  { value: 'COMPLIANCE_ADMIN', label: 'Compliance admin' },
+  { value: 'SUPPORT_ADMIN', label: 'Support admin' },
+] as const;
+
+export function GrantRoleForm() {
+  const [state, formAction, pending] = useActionState(grantPlatformRoleAction, INITIAL);
+  return (
+    <form action={formAction} className="field-list">
+      <div className="field-row">
+        <label className="field-label" htmlFor="targetEmail">
+          Email
+        </label>
+        <input
+          id="targetEmail"
+          name="targetEmail"
+          type="email"
+          required
+          className="input"
+          placeholder="person@example.com"
+        />
+      </div>
+      <div className="field-row">
+        <label className="field-label" htmlFor="role">
+          Role
+        </label>
+        <select id="role" name="role" required className="input" defaultValue="">
+          <option value="" disabled>
+            Choose a role…
+          </option>
+          {PLATFORM_ROLE_OPTIONS.map((r) => (
+            <option key={r.value} value={r.value}>
+              {r.label}
+            </option>
+          ))}
+        </select>
+      </div>
+      <div className="field-row">
+        <label className="field-label" htmlFor="grantReason">
+          Reason
+        </label>
+        <input
+          id="grantReason"
+          name="reason"
+          type="text"
+          required
+          className="input"
+          placeholder="Why this role is being granted"
+        />
+      </div>
+      <div>
+        <button type="submit" className="btn btn-primary" disabled={pending}>
+          {pending ? 'Granting…' : 'Grant role'}
+        </button>
+        {state.message ? (
+          <p className={`field-msg ${state.ok ? 'field-msg-ok' : 'field-msg-err'}`}>
+            {state.message}
+          </p>
+        ) : null}
+      </div>
+    </form>
+  );
+}
 
 export function RetentionPolicyForm() {
   const [state, formAction, pending] = useActionState(setRetentionPolicyAction, INITIAL);

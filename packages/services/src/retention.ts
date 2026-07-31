@@ -122,11 +122,23 @@ export interface PurgeExpiredDocumentsResult {
  * directive §7 "PR 4": never report "deleted" before that verification).
  * Audited per document, inside the same transaction as its own recheck, so a
  * hold placed after `documentsPastRetention`'s read is never raced past.
+ * Step-up gated as "retention execution" (master directive §7 "PR 5"):
+ * `stepUpSatisfied` must be honestly derived from a genuine WorkOS
+ * reauthentication — see `apps/web/src/lib/step-up.ts`.
  */
 export async function purgeExpiredDocuments(
   db: Db,
-  input: { readonly actorAccountId: string; readonly now?: Date },
+  input: {
+    readonly actorAccountId: string;
+    readonly now?: Date;
+    readonly stepUpSatisfied: boolean;
+  },
 ): Promise<Result<PurgeExpiredDocumentsResult, ServiceError>> {
+  if (!input.stepUpSatisfied) {
+    return err(
+      serviceError('step_up_required', 'running retention purge requires reauthentication'),
+    );
+  }
   const expired = await documentsPastRetention(db, input.now ?? new Date());
   if (expired.length === 0) return ok({ queuedForErasure: 0, blockedByHold: 0 });
 
