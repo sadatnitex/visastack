@@ -128,7 +128,7 @@ describe('GET /api/health/ready — honest health (200 vs 503)', () => {
     expect(body.deploymentMode).toBe('development');
     expect(body.platform).toBeDefined();
     expect(body.platform.authentication).toBe('available');
-    expect(body.platform.agencyCollaboration).toBe('disabled');
+    expect(body.platform.agencyCollaboration).toBe('available');
     expect(body.platform.bulkExport).toBe('disabled');
   });
 

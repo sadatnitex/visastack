@@ -23,14 +23,19 @@ export interface ActionState {
 }
 
 /**
- * Server-side capability gate (master recovery directive §7 "PR 1"):
- * assignment, notes, evidence requests, and membership activation all sit
- * behind `agencyCollaboration`, which the Phase 0 audit found genuinely
- * defective (confirmed cross-tenant IDOR in `setMembershipActive`, missing
+ * Server-side capability gate (master recovery directive §7): assignment,
+ * notes, evidence requests, and membership activation all sit behind
+ * `agencyCollaboration`. The confirmed PR 1 defects behind these four
+ * functions (cross-tenant IDOR in `setMembershipActive`, missing
  * authorization in `addNote`, missing grant-relationship checks in
- * `assignMember`/`requestEvidence` — see
- * docs/audits/commercial-readiness-recovery-baseline.md §7). Gated here, not
- * merely hidden in the UI, so a direct POST cannot bypass it either. Member
+ * `assignMember`/`requestEvidence`) were repaired in PR 2 and are covered by
+ * the hostile-authorization suite — see
+ * docs/audits/commercial-readiness-recovery-baseline.md §7 and
+ * packages/services/src/agency.test.ts. This check now normally passes
+ * (`agencyCollaboration` reports `available`); it stays in place as a live
+ * kill-switch, not dead code — flipping the registry's
+ * `KNOWN_SECURITY_GAPS` set (apps/web/src/lib/capabilities.ts) re-engages it
+ * instantly, with no redeploy, should a future regression need it. Member
  * *addition* (`addMemberAction`) is deliberately NOT gated — it was
  * independently reviewed and has no confirmed defect.
  */

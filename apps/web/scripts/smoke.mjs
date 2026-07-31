@@ -81,8 +81,8 @@ async function main() {
     `deploymentMode=${readinessBody?.deploymentMode}`,
   );
   record(
-    '/api/health/ready reports the platform capability registry, with the two known-defective capabilities gated off',
-    readinessBody?.platform?.agencyCollaboration === 'disabled' &&
+    '/api/health/ready reports the platform capability registry — agencyCollaboration repaired (PR 2), bulkExport still gated pending real step-up (PR 5)',
+    readinessBody?.platform?.agencyCollaboration === 'available' &&
       readinessBody?.platform?.bulkExport === 'disabled',
     `agencyCollaboration=${readinessBody?.platform?.agencyCollaboration} bulkExport=${readinessBody?.platform?.bulkExport}`,
   );

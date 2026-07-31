@@ -1,3 +1,5 @@
+import type { ProfilePack } from '@visastack/core';
+
 /**
  * The canonical Master Profile field registry (Build Spec §4.1; master
  * directive §26 item 5 — Profile PR / Release F). Every manual edit
@@ -12,8 +14,12 @@
  * matching visa category. A pack is purely an organizational/UI grouping —
  * nothing prevents an applicant from filling in fields outside their primary
  * pack (e.g. a professional-visa applicant who also has business income).
+ *
+ * `ProfilePack` itself is canonical in `@visastack/core` (also the grant
+ * category vocabulary — packages/services/src/sharing.ts) — re-exported here
+ * so existing imports of `ProfilePack` from this module keep working.
  */
-export type ProfilePack = 'universal' | 'professional' | 'business' | 'medical';
+export type { ProfilePack };
 
 export interface ProfileFieldDef {
   readonly key: string;

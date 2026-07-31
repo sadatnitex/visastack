@@ -1,16 +1,19 @@
-import type {
-  AccountId,
-  AgencyId,
-  ApplicantId,
-  DocumentId,
-  MissionId,
-  PermissionAction,
+import {
+  type AccountId,
+  type AgencyId,
+  type ApplicantId,
+  type DocumentId,
+  type MissionId,
+  PERMISSION_ACTIONS,
+  PROFILE_PACKS,
+  type PermissionAction,
 } from '@visastack/core';
 import { type Result, err, ok } from '@visastack/core';
 import { type Actor as PolicyActor, type Grant as PolicyGrant, authorize } from '@visastack/policy';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 import { getApplicant } from './applicants';
 import { appendAuditEvent } from './audit';
+import { hasConsent } from './consent';
 import { type Db, first, required, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
 import { recordProductEvent } from './product-events';
@@ -74,7 +77,25 @@ export interface CreateGrantInput {
   readonly expiryAt?: Date;
 }
 
-/** Create a pending, purpose-bound grant (applicant owner only). */
+/** No grant may outlive its creation by more than this — a bound, not a default. */
+const GRANT_MAX_DURATION_DAYS = 365;
+
+/**
+ * Create a pending, purpose-bound grant (applicant owner only).
+ *
+ * Hardened per the master recovery directive §7 "PR 2": requires current
+ * SHARING consent; exactly one recipient type (not both, not neither); the
+ * recipient account/organization must exist (an organization must also be
+ * `ACTIVE`, i.e. independently verified — a `PENDING_VERIFICATION` or
+ * `SUSPENDED` org can never be granted access); a named mission/documents
+ * must actually belong to this applicant; categories must be canonical
+ * packs; actions must be canonical `PermissionAction`s; expiry, if given,
+ * must be in the future and within `GRANT_MAX_DURATION_DAYS`.
+ *
+ * NOT yet implemented here: "genuine step-up for sensitive grants" (master
+ * directive §7 "PR 2"). No real WorkOS step-up mechanism exists anywhere in
+ * the app yet — that is PR 5 scope. Tracked, not silently dropped.
+ */
 export async function createGrant(
   db: Db,
   input: CreateGrantInput,
@@ -82,13 +103,93 @@ export async function createGrant(
   if (!(await ownsApplicant(db, input.actorAccountId, input.applicantId))) {
     return err(serviceError('forbidden', 'only the applicant owner can grant access'));
   }
+  if (!(await hasConsent(db, input.actorAccountId, 'SHARING'))) {
+    return err(
+      serviceError('consent_required', 'SHARING consent is required before creating a grant'),
+    );
+  }
+  if (input.recipientAccountId && input.recipientOrganizationId) {
+    return err(serviceError('invalid', 'a grant must name exactly one recipient type, not both'));
+  }
   if (!input.recipientAccountId && !input.recipientOrganizationId) {
     return err(serviceError('invalid', 'a grant must name a recipient'));
   }
-  if (input.actions.length === 0)
+  if (input.actions.length === 0) {
     return err(serviceError('invalid', 'a grant needs at least one action'));
-  if (input.purpose.trim().length === 0)
+  }
+  const invalidAction = input.actions.find(
+    (action) => !(PERMISSION_ACTIONS as readonly string[]).includes(action),
+  );
+  if (invalidAction) return err(serviceError('invalid', `unknown action: ${invalidAction}`));
+  if (input.purpose.trim().length === 0) {
     return err(serviceError('invalid', 'a purpose is required'));
+  }
+  if (input.categories) {
+    const invalidCategory = input.categories.find(
+      (category) => !(PROFILE_PACKS as readonly string[]).includes(category),
+    );
+    if (invalidCategory)
+      return err(serviceError('invalid', `unknown category: ${invalidCategory}`));
+  }
+  if (input.expiryAt) {
+    const now = Date.now();
+    if (input.expiryAt.getTime() <= now) {
+      return err(serviceError('invalid', 'expiry must be in the future'));
+    }
+    if (input.expiryAt.getTime() > now + GRANT_MAX_DURATION_DAYS * 24 * 60 * 60 * 1000) {
+      return err(
+        serviceError('invalid', `expiry may be at most ${GRANT_MAX_DURATION_DAYS} days out`),
+      );
+    }
+  }
+
+  if (input.recipientAccountId) {
+    const recipient = first(
+      await db
+        .select({ id: schema.accounts.id })
+        .from(schema.accounts)
+        .where(eq(schema.accounts.id, input.recipientAccountId))
+        .limit(1),
+    );
+    if (!recipient) return err(serviceError('not_found', 'recipient account not found'));
+  }
+  if (input.recipientOrganizationId) {
+    const org = first(
+      await db
+        .select()
+        .from(schema.organizations)
+        .where(eq(schema.organizations.id, input.recipientOrganizationId))
+        .limit(1),
+    );
+    if (!org) return err(serviceError('not_found', 'recipient organization not found'));
+    if (org.status !== 'ACTIVE') {
+      return err(
+        serviceError('invalid', 'recipient organization is not an active, verified organization'),
+      );
+    }
+  }
+  if (input.missionId) {
+    const mission = first(
+      await db
+        .select()
+        .from(schema.missions)
+        .where(eq(schema.missions.id, input.missionId))
+        .limit(1),
+    );
+    if (!mission || mission.applicantId !== input.applicantId) {
+      return err(serviceError('invalid', 'mission does not belong to this applicant'));
+    }
+  }
+  if (input.documentIds && input.documentIds.length > 0) {
+    const uniqueIds = [...new Set(input.documentIds)];
+    const docs = await db
+      .select({ id: schema.documents.id, applicantId: schema.documents.applicantId })
+      .from(schema.documents)
+      .where(inArray(schema.documents.id, uniqueIds));
+    if (docs.length !== uniqueIds.length || docs.some((d) => d.applicantId !== input.applicantId)) {
+      return err(serviceError('invalid', 'one or more documents do not belong to this applicant'));
+    }
+  }
 
   const rateLimit = await checkRateLimit(
     db,
@@ -141,7 +242,17 @@ async function loadGrant(db: Db, grantId: string): Promise<Grant | undefined> {
   return first(await db.select().from(schema.grants).where(eq(schema.grants.id, grantId)).limit(1));
 }
 
-/** Accept a pending grant. The actor must be the named recipient. */
+/**
+ * Accept a pending grant.
+ *
+ * For an individual (account) grant: only the exact named account may
+ * accept. For an organization grant: only an active OWNER or ADMIN may
+ * accept on behalf of the organization — previously any active member of
+ * ANY role could (docs/audits/commercial-readiness-recovery-baseline.md
+ * §7). Transactionally conditional (compare-and-set on
+ * `status = PENDING_ACCEPTANCE`), so two concurrent accept attempts can
+ * never both succeed.
+ */
 export async function acceptGrant(
   db: Db,
   input: { readonly actorAccountId: string; readonly grantId: string },
@@ -153,7 +264,7 @@ export async function acceptGrant(
   }
 
   const isRecipientAccount = grant.recipientAccountId === input.actorAccountId;
-  let isRecipientOrgMember = false;
+  let isRecipientOrgOwnerOrAdmin = false;
   if (grant.recipientOrganizationId) {
     const m = first(
       await db
@@ -167,23 +278,29 @@ export async function acceptGrant(
         )
         .limit(1),
     );
-    isRecipientOrgMember = m?.active === true;
+    isRecipientOrgOwnerOrAdmin = m?.active === true && (m.role === 'OWNER' || m.role === 'ADMIN');
   }
-  if (!isRecipientAccount && !isRecipientOrgMember) {
-    return err(serviceError('forbidden', 'only the grant recipient can accept it'));
+  if (!isRecipientAccount && !isRecipientOrgOwnerOrAdmin) {
+    return err(
+      serviceError(
+        'forbidden',
+        'only the grant recipient, or an OWNER/ADMIN of the recipient organization, can accept it',
+      ),
+    );
   }
 
   return db.transaction(async (tx) => {
-    const updated = required(
-      first(
-        await tx
-          .update(schema.grants)
-          .set({ status: 'ACTIVE', acceptedAt: new Date(), updatedAt: new Date() })
-          .where(eq(schema.grants.id, input.grantId))
-          .returning(),
-      ),
-      'grant',
-    );
+    const rows = await tx
+      .update(schema.grants)
+      .set({ status: 'ACTIVE', acceptedAt: new Date(), updatedAt: new Date() })
+      .where(
+        and(eq(schema.grants.id, input.grantId), eq(schema.grants.status, 'PENDING_ACCEPTANCE')),
+      )
+      .returning();
+    const updated = first(rows);
+    if (!updated) {
+      return err(serviceError('invalid', 'grant is not pending acceptance'));
+    }
     await appendAuditEvent(tx, {
       eventType: 'GRANT_ACCEPTED',
       actorAccountId: input.actorAccountId,
@@ -198,10 +315,32 @@ export async function acceptGrant(
   });
 }
 
+/**
+ * The grant state machine (master recovery directive §7 "PR 2"):
+ *
+ * ```
+ * PENDING_ACCEPTANCE -> ACTIVE     (acceptGrant, above)
+ * PENDING_ACCEPTANCE -> REVOKED
+ * ACTIVE             -> PAUSED
+ * ACTIVE             -> REVOKED
+ * PAUSED             -> ACTIVE
+ * PAUSED             -> REVOKED
+ * REVOKED            -> terminal
+ * EXPIRED            -> terminal
+ * ```
+ *
+ * Each transition below is transactionally conditional: the `UPDATE`'s
+ * `WHERE` clause requires the row's CURRENT status to be one of
+ * `allowedFrom` at write time (compare-and-set), not merely at an earlier
+ * read — closing the gap where `resumeGrant` could previously reactivate an
+ * already-`REVOKED` grant (revocation was not actually terminal) and where
+ * two concurrent transitions on the same grant could race.
+ */
 async function ownerTransition(
   db: Db,
   actorAccountId: string,
   grantId: string,
+  allowedFrom: readonly Grant['status'][],
   to: Grant['status'],
   eventType: string,
 ): Promise<Result<Grant, ServiceError>> {
@@ -211,16 +350,17 @@ async function ownerTransition(
     return err(serviceError('forbidden', 'only the applicant owner can change this grant'));
   }
   return db.transaction(async (tx) => {
-    const updated = required(
-      first(
-        await tx
-          .update(schema.grants)
-          .set({ status: to, updatedAt: new Date() })
-          .where(eq(schema.grants.id, grantId))
-          .returning(),
-      ),
-      'grant',
-    );
+    const rows = await tx
+      .update(schema.grants)
+      .set({ status: to, updatedAt: new Date() })
+      .where(and(eq(schema.grants.id, grantId), inArray(schema.grants.status, allowedFrom)))
+      .returning();
+    const updated = first(rows);
+    if (!updated) {
+      return err(
+        serviceError('invalid', `grant cannot transition to ${to} from its current status`),
+      );
+    }
     await appendAuditEvent(tx, {
       eventType,
       actorAccountId,
@@ -235,28 +375,49 @@ async function ownerTransition(
   });
 }
 
-/** Revoke a grant (applicant owner). Access ends on the next request. */
+/** Revoke a grant (applicant owner). Terminal — a revoked grant can never resume. */
 export function revokeGrant(
   db: Db,
   input: { readonly actorAccountId: string; readonly grantId: string },
 ): Promise<Result<Grant, ServiceError>> {
-  return ownerTransition(db, input.actorAccountId, input.grantId, 'REVOKED', 'GRANT_REVOKED');
+  return ownerTransition(
+    db,
+    input.actorAccountId,
+    input.grantId,
+    ['PENDING_ACCEPTANCE', 'ACTIVE', 'PAUSED'],
+    'REVOKED',
+    'GRANT_REVOKED',
+  );
 }
 
-/** Pause a grant (applicant owner). */
+/** Pause an active grant (applicant owner). */
 export function pauseGrant(
   db: Db,
   input: { readonly actorAccountId: string; readonly grantId: string },
 ): Promise<Result<Grant, ServiceError>> {
-  return ownerTransition(db, input.actorAccountId, input.grantId, 'PAUSED', 'GRANT_PAUSED');
+  return ownerTransition(
+    db,
+    input.actorAccountId,
+    input.grantId,
+    ['ACTIVE'],
+    'PAUSED',
+    'GRANT_PAUSED',
+  );
 }
 
-/** Resume a paused grant (applicant owner). */
+/** Resume a paused grant (applicant owner). Only reachable from PAUSED — never from REVOKED. */
 export function resumeGrant(
   db: Db,
   input: { readonly actorAccountId: string; readonly grantId: string },
 ): Promise<Result<Grant, ServiceError>> {
-  return ownerTransition(db, input.actorAccountId, input.grantId, 'ACTIVE', 'GRANT_RESUMED');
+  return ownerTransition(
+    db,
+    input.actorAccountId,
+    input.grantId,
+    ['PAUSED'],
+    'ACTIVE',
+    'GRANT_RESUMED',
+  );
 }
 
 /** A grant directed at the current account, resolved with the subject's name. */
