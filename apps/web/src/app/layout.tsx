@@ -2,6 +2,8 @@ import { withAuth } from '@workos-inc/authkit-nextjs';
 import type { Metadata, Viewport } from 'next';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
+import { PilotBanner } from '../components/pilot-banner';
+import { getDeploymentMode } from '../lib/deployment-mode';
 import { getLocale } from '../lib/locale';
 import { setLocaleAction } from './actions';
 import './globals.css';
@@ -32,6 +34,7 @@ export default async function RootLayout({ children }: { readonly children: Reac
     signedIn = false;
   }
   const locale = await getLocale();
+  const deploymentMode = getDeploymentMode();
 
   return (
     <html lang={locale}>
@@ -39,6 +42,7 @@ export default async function RootLayout({ children }: { readonly children: Reac
         <a className="skip-link" href="#main">
           Skip to content
         </a>
+        <PilotBanner mode={deploymentMode} />
         <header className="nav">
           <Link className="brand" href="/">
             VisaStack

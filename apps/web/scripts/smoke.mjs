@@ -8,6 +8,15 @@
  *
  * Without SMOKE_BASE_URL set, this exits 0 immediately (skipped) rather than
  * failing CI runs that have nothing to point it at.
+ *
+ * A Vercel deployment occasionally fails before this script ever runs, with
+ * errorCode BUILD_FAILED / "Resource provisioning failed", zero build log
+ * events, and `ready` firing within ~1s of `buildingAt` — a transient
+ * platform-side provisioning hiccup, not a code defect (confirmed against
+ * this exact repo's history — see
+ * docs/audits/commercial-readiness-recovery-baseline.md §3). The fix is a
+ * fresh push to retrigger a real build attempt, matching this repo's
+ * existing precedent (commit b04d9ff).
  */
 
 function log(line) {
@@ -46,9 +55,11 @@ async function main() {
   }
 
   // 2. Readiness responds with valid JSON and an honest status code.
+  let readinessBody;
   try {
     const res = await fetch(`${baseUrl}/api/health/ready`);
     const body = await res.json();
+    readinessBody = body;
     const statusMatchesBody =
       (res.status === 200 && body.status === 'ready') ||
       (res.status === 503 && body.status === 'degraded');
@@ -61,7 +72,22 @@ async function main() {
     record('/api/health/ready is reachable and well-formed', false, String(error));
   }
 
-  // 3. Public landing page renders.
+  // 2a. Readiness truthfully reports the deployment mode and capability
+  // registry (master recovery directive §6/§7 "PR 1") — never a green build
+  // standing in for production verification.
+  record(
+    '/api/health/ready reports a real deploymentMode',
+    ['development', 'controlled_pilot', 'commercial'].includes(readinessBody?.deploymentMode),
+    `deploymentMode=${readinessBody?.deploymentMode}`,
+  );
+  record(
+    '/api/health/ready reports the platform capability registry, with the two known-defective capabilities gated off',
+    readinessBody?.platform?.agencyCollaboration === 'disabled' &&
+      readinessBody?.platform?.bulkExport === 'disabled',
+    `agencyCollaboration=${readinessBody?.platform?.agencyCollaboration} bulkExport=${readinessBody?.platform?.bulkExport}`,
+  );
+
+  // 3. Public landing page renders and shows the unmistakable pilot banner.
   try {
     const res = await fetch(`${baseUrl}/`);
     const html = await res.text();
@@ -69,6 +95,12 @@ async function main() {
       'Landing page renders (200, non-empty HTML)',
       res.status === 200 && html.includes('<html'),
       `status=${res.status} bytes=${html.length}`,
+    );
+    record(
+      'Landing page shows the controlled-pilot banner',
+      html.includes('pilot-banner') &&
+        (html.includes('Controlled Pilot') || html.includes('Development Preview')),
+      'looking for .pilot-banner + "Controlled Pilot"/"Development Preview"',
     );
   } catch (error) {
     record('Landing page renders', false, String(error));

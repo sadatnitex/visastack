@@ -6,18 +6,31 @@ through a governed, AI-assisted workflow — with an equivalent **no-AI manual
 path**. Applicants own their data; agencies get exactly the access they are
 granted, and every action is authorized, consent-gated, and audited.
 
-> **Status: Technical Preview — authenticated applicant core under active
-> validation.** WorkOS login and the authenticated workspace are
-> production-verified on Vercel + Neon. Much of the system below is implemented
-> at the **domain/service** layer with strong, tested guarantees, but is not yet
-> verified end-to-end through the real user interface — document intelligence
-> (real normalization/OCR/AI), generated redacted renditions, private production
-> storage, and real malware scanning are **not** complete. Stronger backends
-> (S3+KMS, a real scanner, an LLM) drop in behind stable ports with no domain
-> change. For the honest, capability-by-capability breakdown with evidence, see
-> [`docs/audits/current-product-baseline.md`](docs/audits/current-product-baseline.md).
-> The product contract is the 3-page PRD plus the Build Specification; a feature
-> is not "complete" until it is verified end-to-end, not merely built.
+> **Status: VisaStack Controlled Pilot — internal and synthetic-data testing
+> only.** Not a commercial launch. WorkOS login and the authenticated
+> workspace are verified on Vercel + Neon; document classification, automatic
+> naming, and an OpenAI-backed extraction adapter are implemented and wired
+> (off by default — see the capability registry below). Real malware
+> scanning, step-up authentication, and generated redacted renditions are
+> **not** complete, and agency collaboration and bulk export are currently
+> gated off pending an authorization hardening pass — see the deployment-mode
+> and capability-registry section below. Stronger backends (a real scanner,
+> step-up auth) drop in behind stable ports with no domain change. For the
+> honest, capability-by-capability breakdown with evidence, see
+> [`docs/audits/current-product-baseline.md`](docs/audits/current-product-baseline.md)
+> and
+> [`docs/audits/commercial-readiness-recovery-baseline.md`](docs/audits/commercial-readiness-recovery-baseline.md).
+> The product contract is the 3-page PRD plus the Build Specification; a
+> feature is not "complete" until it is verified end-to-end, not merely
+> built.
+>
+> **Status legend used throughout this README and the linked audits:**
+> **Implemented** (built, not yet independently verified) ·
+> **Pilot verified** (exercised against the real controlled-pilot
+> deployment) · **Provider-unconfigured** (built, waiting on a credential/
+> provider that isn't provisioned) · **Commercial blocker** (must be closed
+> before commercial mode can activate — see §22 of the governing directive) ·
+> **Commercially verified** (not yet true for anything in this repository).
 
 ## What's implemented
 
@@ -28,10 +41,10 @@ granted, and every action is authorized, consent-gated, and audited.
 | Area | Capability |
 | --- | --- |
 | **Applicant Core** | Accounts, separated consent (core / AI / sharing / marketing), applicant + family + guarded-minor records, and a Master Profile whose every value is an immutable, atomically-approved `FactVersion` (no silent mutation). Account export + deletion. |
-| **Document Vault** | Private storage keyed by opaque object IDs (never the filename); permission-aware access with step-up before original bytes are released. *Preview is owner-only clean-original until real redacted renditions ship; third-party preview is fail-closed. Storage today is reduced-control Neon-bytea, not the sensitive-document production design.* |
-| **Document Intelligence** | *Port + scaffold only.* Deterministic passport-MRZ (TD3) parsing exists; the quarantine → scan → normalize → extract pipeline advances state but does **not** yet perform real normalization/OCR, and no production AI adapter is wired. When enabled, the AI Gateway only **proposes** fields — a human approves, nothing is written silently. |
+| **Document Vault** | Private storage keyed by opaque object IDs (never the filename); permission-aware access with step-up before original bytes are released. `VercelPrivateBlobStorage` is the active production backend when `BLOB_READ_WRITE_TOKEN` is configured (it is, on the current deployment); `NeonBlobStorage` (bytea in Postgres, reduced-control) is the local dev/test/PR-preview fallback only — production now fails closed rather than silently degrading to it. *Preview is owner-only clean-original until real redacted renditions ship; third-party preview is fail-closed.* |
+| **Document Intelligence** | Deterministic passport-MRZ (TD3) parsing, embedded PDF/DOCX/TXT/MD text extraction, and rules-based document classification are implemented and wired into the upload pipeline. An `AiExtractionPort` adapter for the OpenAI Responses API is implemented and wired, gated behind `AI_ENABLED`/`OPENAI_API_KEY` (off on the current deployment — a deliberate "shipped but off" state, not a stub). Real OCR/image-text extraction is not yet implemented. When enabled, the AI Gateway only **proposes** fields — a human approves, nothing is written silently. |
 | **Missions & Packs** | Cited, versioned, checksummed requirement packs (Pack Studio); parallel mission workspaces; readiness as **completeness only** (never an approval probability); reviewer state machine; immutable, checksummed snapshots. |
-| **Agencies & Sharing** | Organization verification (no self-upgrade); scoped, accepted, time-limited, revocable grants; access transparency; assignments, notes, evidence requests; permissioned bulk export. |
+| **Agencies & Sharing** | Organization verification (no self-upgrade); scoped, accepted, time-limited, revocable grants; access transparency. *Agency case collaboration (assignments, notes, evidence requests, membership changes) and bulk export are currently gated `disabled` in the capability registry pending an authorization hardening pass — see [`docs/audits/commercial-readiness-recovery-baseline.md`](docs/audits/commercial-readiness-recovery-baseline.md)§7/§12. Direct individual-to-individual sharing is unaffected.* |
 | **Retention & legal hold** | Retention policies with eligibility-based purge; legal holds that **override deletion**. |
 | **Reliability** | Liveness + readiness probes; English/Bangla i18n; incident runbook + RPO/RTO/restore-drill docs. |
 
@@ -93,14 +106,30 @@ serving).
 
 Everything external is injected behind an interface, so upgrades are edge-only:
 
-| Port | Default (no external account) | Production swap-in |
-| --- | --- | --- |
-| `StoragePort` / `BlobStore` | `NeonBlobStorage` (bytea in Postgres, signed `/api/blob/[key]` serving) | S3 + KMS |
-| `ScannerPort` | `BasicSafetyScanner` (magic-byte allow-list + size limits) | ClamAV |
-| `AiExtractionPort` | *(manual path — no AI required)* | OpenAI / other model |
+| Port | Pilot default | Local dev/test/PR-preview fallback | Future/enterprise swap-in |
+| --- | --- | --- | --- |
+| `StoragePort` / `BlobStore` | `VercelPrivateBlobStorage` (real private access, signed `/api/blob/[key]` serving) — active when `BLOB_READ_WRITE_TOKEN` is set | `NeonBlobStorage` (bytea in Postgres) — reduced-control; a real deployment without the token fails closed instead of using this | An S3-compatible provider, for customer-managed keys/region requirements — not required by default |
+| `ScannerPort` | `BasicSafetyScanner` (magic-byte allow-list + size limits) — **structural validation only, not antivirus** | same | ClamAV or another real malware scanner (commercial-mode requirement) |
+| `AiExtractionPort` | `OpenAiExtractionAdapter` (OpenAI Responses API) — implemented, gated behind `AI_ENABLED`/`OPENAI_API_KEY` | *(manual path — no AI required; the app is fully usable without it)* | Another model provider, behind the same port |
 
 The built-in scanner is an **accepted, documented reduced control** — it is not
 antivirus; it is paired with the human-approval gate. See ADR-0011.
+
+## Deployment modes and the capability registry
+
+VisaStack runs from one codebase in three modes — `development`,
+`controlled_pilot`, `commercial` — never a separate codebase per mode. The
+current deployment is `controlled_pilot`. A server-authoritative capability
+registry (`packages/core/src/deployment-mode.ts`,
+`apps/web/src/lib/capabilities.ts`) reports the real, current state
+(`available` / `degraded` / `disabled` / `unconfigured`) of every
+user-facing capability — the client never decides this. `GET
+/api/health/ready` always includes the current `deploymentMode` and the full
+registry, so it's independently checkable, not merely a written claim. Full
+rationale and the exact controlled-pilot values:
+[`docs/audits/commercial-readiness-recovery-baseline.md`](docs/audits/commercial-readiness-recovery-baseline.md)§12
+· governing directive:
+[`docs/roadmap/commercial-recovery-completion-ux-directive.md`](docs/roadmap/commercial-recovery-completion-ux-directive.md).
 
 ## Environment variables
 
@@ -120,7 +149,7 @@ Migrations run automatically at build time on Vercel (`pnpm --filter
 
 ```bash
 pnpm install
-pnpm run check          # lint + typecheck + test (67 tests, in-memory PGlite — no DB needed)
+pnpm run check          # lint + typecheck + test (296 tests, in-memory PGlite — no DB needed)
 pnpm run build          # build the workspace
 ```
 
@@ -132,9 +161,11 @@ external dependencies.
 ## Web app
 
 - `/` — product landing (Apple-HIG design system: system font stack, light/dark,
-  accessible, responsive).
+  accessible, responsive), with a global controlled-pilot banner stating the
+  current deployment mode on every page.
 - `/status` — live system status, polling the real health probes.
-- `/api/health/live`, `/api/health/ready` — liveness / readiness.
+- `/api/health/live`, `/api/health/ready` — liveness / readiness; readiness
+  always reports the current deployment mode and full capability registry.
 - `/api/blob/[key]` — signed, expiring blob serving (returns `503` until
   `BLOB_SIGNING_SECRET` is set).
 

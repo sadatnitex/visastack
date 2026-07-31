@@ -10,12 +10,33 @@ import {
   setMembershipActive,
 } from '@visastack/services';
 import { revalidatePath } from 'next/cache';
+import {
+  capabilityUnavailableMessage,
+  getPlatformCapabilities,
+} from '../../../../lib/capabilities';
 import { withSession } from '../../../../lib/session';
 
 /** Result surfaced back to the client for inline feedback. */
 export interface ActionState {
   readonly ok: boolean;
   readonly message: string;
+}
+
+/**
+ * Server-side capability gate (master recovery directive §7 "PR 1"):
+ * assignment, notes, evidence requests, and membership activation all sit
+ * behind `agencyCollaboration`, which the Phase 0 audit found genuinely
+ * defective (confirmed cross-tenant IDOR in `setMembershipActive`, missing
+ * authorization in `addNote`, missing grant-relationship checks in
+ * `assignMember`/`requestEvidence` — see
+ * docs/audits/commercial-readiness-recovery-baseline.md §7). Gated here, not
+ * merely hidden in the UI, so a direct POST cannot bypass it either. Member
+ * *addition* (`addMemberAction`) is deliberately NOT gated — it was
+ * independently reviewed and has no confirmed defect.
+ */
+function requireAgencyCollaboration(): ActionState | null {
+  if (getPlatformCapabilities().agencyCollaboration === 'available') return null;
+  return { ok: false, message: capabilityUnavailableMessage('agencyCollaboration') };
 }
 
 const ROLES: readonly MembershipRole[] = ['ADMIN', 'CASE_MANAGER', 'REVIEWER'];
@@ -28,6 +49,9 @@ export async function requestEvidenceAction(
   _prev: ActionState,
   formData: FormData,
 ): Promise<ActionState> {
+  const gate = requireAgencyCollaboration();
+  if (gate) return gate;
+
   const organizationId = String(formData.get('organizationId') ?? '');
   const applicantId = String(formData.get('applicantId') ?? '').trim();
   const kind = String(formData.get('kind') ?? '') === 'DOCUMENT' ? 'DOCUMENT' : 'FIELD';
@@ -97,6 +121,9 @@ export async function assignMemberAction(
   _prev: ActionState,
   formData: FormData,
 ): Promise<ActionState> {
+  const gate = requireAgencyCollaboration();
+  if (gate) return gate;
+
   const organizationId = String(formData.get('organizationId') ?? '');
   const missionId = String(formData.get('missionId') ?? '');
   const memberAccountId = String(formData.get('memberAccountId') ?? '');
@@ -119,6 +146,9 @@ export async function assignMemberAction(
 
 /** Add a case note to a mission (org admin). */
 export async function addNoteAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  const gate = requireAgencyCollaboration();
+  if (gate) return gate;
+
   const organizationId = String(formData.get('organizationId') ?? '');
   const missionId = String(formData.get('missionId') ?? '');
   const body = String(formData.get('body') ?? '').trim();
@@ -138,6 +168,9 @@ export async function toggleMemberAction(
   _prev: ActionState,
   formData: FormData,
 ): Promise<ActionState> {
+  const gate = requireAgencyCollaboration();
+  if (gate) return gate;
+
   const organizationId = String(formData.get('organizationId') ?? '');
   const membershipId = String(formData.get('membershipId') ?? '');
   const active = String(formData.get('active') ?? '') === 'true';

@@ -1,6 +1,7 @@
 import 'server-only';
 import { NeonBlobStorage, VercelPrivateBlobStorage } from '@visastack/adapters';
 import type { BlobStore, Db, StoragePort } from '@visastack/services';
+import { isRealDeployment } from './deployment-mode';
 
 /** Variable-keyed env read (satisfies both TS index-signature and Biome rules). */
 function readEnv(name: string): string | undefined {
@@ -34,9 +35,10 @@ function resolveBaseUrl(): string {
  * dev and tests) — that path is REDUCED-CONTROL and NON-COMMERCIAL (bytes
  * live in the application database, not a purpose-built object store).
  *
- * FAIL CLOSED in production (`VERCEL_ENV === 'production'`): the controlled
- * pilot handling real evidence must never silently degrade to reduced-control
- * storage just because the token wasn't configured — that's a deployment
+ * FAIL CLOSED on any real deployment (`isRealDeployment()` — controlled
+ * pilot or commercial, per the deployment-mode registry): handling real
+ * evidence must never silently degrade to reduced-control storage just
+ * because the token wasn't configured — that's a deployment
  * misconfiguration, not something to paper over (§10/§21E: "fail closed when
  * only reduced-control mode available").
  */
@@ -50,9 +52,9 @@ export function createStorage(db: Db): StoragePort & BlobStore {
     return new VercelPrivateBlobStorage({ db, signingSecret, baseUrl, token: blobToken });
   }
 
-  if (readEnv('VERCEL_ENV') === 'production') {
+  if (isRealDeployment()) {
     throw new Error(
-      'BLOB_READ_WRITE_TOKEN is not configured in production — refusing to fall back to reduced-control Neon-bytea storage for real evidence',
+      'BLOB_READ_WRITE_TOKEN is not configured on this deployment — refusing to fall back to reduced-control Neon-bytea storage for real evidence',
     );
   }
   return new NeonBlobStorage({ db, signingSecret, baseUrl });
