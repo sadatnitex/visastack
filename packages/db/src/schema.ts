@@ -338,6 +338,28 @@ export const documentVersions = pgTable(
   ],
 );
 
+// One row per scanner invocation (append-only) — durable evidence of what
+// scanned a document version, when, with which scanner/version, and with
+// what result (master directive §7 "PR 3"). Distinct from
+// documentVersions.safetyStatus (the CURRENT state, derived from the latest
+// row here): this table is the full history, so a retried scan is visible
+// rather than overwriting the prior attempt.
+export const documentScanResults = pgTable(
+  'document_scan_results',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    documentVersionId: uuid('document_version_id')
+      .notNull()
+      .references(() => documentVersions.id, { onDelete: 'cascade' }),
+    scannerName: text('scanner_name').notNull(),
+    scannerVersion: text('scanner_version').notNull(),
+    safe: boolean('safe').notNull(),
+    detail: text('detail'),
+    scannedAt: timestamp('scanned_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index('document_scan_results_document_version_idx').on(table.documentVersionId)],
+);
+
 // --- Persisted document intelligence (Release C; master directive §11/§13) -
 // Deterministic extraction/classification/naming records. The AI-proposal
 // tables (FieldProposal, EvidenceLocation, Conflict, CorrectionFeedback)

@@ -1,4 +1,10 @@
-import type { ApplicantId, DocumentId, PermissionAction, Result } from '@visastack/core';
+import type {
+  ApplicantId,
+  DocumentId,
+  DocumentState,
+  PermissionAction,
+  Result,
+} from '@visastack/core';
 import { err, ok } from '@visastack/core';
 import { type Actor, authorize } from '@visastack/policy';
 import { desc, eq } from 'drizzle-orm';
@@ -287,6 +293,30 @@ export async function listDocumentsDetailed(
 
 // --- Permission-aware access -----------------------------------------------
 
+/**
+ * Processing states from which a version may be previewed/downloaded
+ * (master directive §7 "PR 3"). `AWAITING_REVIEW` is the pipeline's normal
+ * terminal-success state; `APPROVED` is a further human-review state the
+ * pipeline does not yet set but the schema already models — both are safe
+ * to serve once `safetyStatus === 'CLEAN'` (checked separately). Everything
+ * else (still in flight, quarantined, or a terminal failure/rejection) is
+ * excluded by construction.
+ */
+const SERVABLE_PROCESSING_STATES: ReadonlySet<DocumentState> = new Set([
+  'AWAITING_REVIEW',
+  'APPROVED',
+]);
+
+/**
+ * Exported so the UI can gate the preview/download affordance on exactly
+ * the same condition the service layer enforces (one canonical definition
+ * of "servable" — never two independently-maintained checks that could
+ * drift apart).
+ */
+export function isServableProcessingState(state: DocumentState): boolean {
+  return SERVABLE_PROCESSING_STATES.has(state);
+}
+
 /** Best-effort audit identity for an actor (owner carries no account id). */
 function actorAudit(actor: Actor): { actorAccountId: string | null; actorRole: string } {
   switch (actor.kind) {
@@ -396,6 +426,36 @@ async function accessDocument(
       .limit(1),
   );
   if (!version) return err(serviceError('not_found', 'document has no stored version'));
+
+  // Safety-state enforcement (master directive §7 "PR 3"): an authorized
+  // actor still may not preview/download a version that has not been
+  // confirmed CLEAN by the scanner, or that has not reached a servable
+  // point in the pipeline — a version sitting in UPLOADING/QUARANTINED/
+  // SCANNING (not yet scanned) or NEEDS_ATTENTION/FAILED/REJECTED
+  // (confirmed unsafe or otherwise stuck) must never be servable, no matter
+  // who is asking. A positive allow-list (not a deny-list) so an unknown
+  // future state fails closed by construction rather than needing to be
+  // remembered. Checked only after authorization succeeds, so an
+  // unauthorized actor learns nothing about the document's safety state.
+  if (version.safetyStatus !== 'CLEAN' || !isServableProcessingState(version.processingStatus)) {
+    await db.transaction(async (tx) => {
+      await appendAuditEvent(tx, {
+        eventType: 'DOCUMENT_ACCESS',
+        actorAccountId: audit.actorAccountId,
+        actorRole: audit.actorRole,
+        action,
+        result: 'DENIED',
+        method: 'API',
+        applicantId: document.applicantId,
+        resourceType: 'document',
+        resourceId: document.id,
+        reason: 'not_yet_safe_to_serve',
+        metadata: { variant: effectiveVariant, disposition, purpose: input.purpose },
+      });
+    });
+    return err(serviceError('forbidden', 'this document is not yet available'));
+  }
+
   const storageObject = first(
     await db
       .select()

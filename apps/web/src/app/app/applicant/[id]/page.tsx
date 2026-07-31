@@ -3,6 +3,7 @@ import {
   getApplicant,
   getApplicantEvidenceBytes,
   hasConsent,
+  isServableProcessingState,
   listApplicantProfile,
   listDocumentsDetailed,
   listPendingProposals,
@@ -187,7 +188,10 @@ export default async function ApplicantPage({
             <div className="rows" style={{ marginBottom: '1.5rem' }}>
               {data.documents.map((doc) => {
                 const badge = safetyBadge(doc.safetyStatus ?? 'PENDING', t);
-                const previewable = doc.safetyStatus === 'CLEAN';
+                const previewable =
+                  doc.safetyStatus === 'CLEAN' &&
+                  doc.processingStatus !== null &&
+                  isServableProcessingState(doc.processingStatus);
                 return (
                   <div
                     key={doc.id}

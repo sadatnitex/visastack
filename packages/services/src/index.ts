@@ -198,9 +198,11 @@ export {
 
 export {
   PIPELINE_VERSION,
+  type DocumentScanResult,
   type ScannerPort,
   type ScanResult,
   getLatestExtractedText,
+  listScanResults,
   nextIntakeState,
   processIntake,
 } from './intake';
@@ -293,6 +295,7 @@ export {
   type StorageObject,
   addDocumentVersion,
   downloadDocument,
+  isServableProcessingState,
   listDocuments,
   listDocumentsDetailed,
   previewDocument,

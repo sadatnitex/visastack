@@ -31,6 +31,9 @@ export interface ScanResult {
 }
 
 export interface ScannerPort {
+  /** Identifies which scanner produced a result — persisted on every scan (master directive §7 "PR 3"). */
+  readonly name: string;
+  readonly version: string;
   scan(input: {
     readonly bucket: 'QUARANTINE' | 'CLEAN';
     readonly objectKey: string;
@@ -291,6 +294,20 @@ export async function getLatestExtractedText(
   return row?.text ?? undefined;
 }
 
+export type DocumentScanResult = typeof schema.documentScanResults.$inferSelect;
+
+/** The full scan history for a document version, newest first (master directive §7 "PR 3"). */
+export async function listScanResults(
+  db: Db,
+  documentVersionId: string,
+): Promise<DocumentScanResult[]> {
+  const rows = await db
+    .select()
+    .from(schema.documentScanResults)
+    .where(eq(schema.documentScanResults.documentVersionId, documentVersionId));
+  return [...rows].sort((a, b) => b.scannedAt.getTime() - a.scannedAt.getTime());
+}
+
 /**
  * Drive a document version through the intake pipeline to a terminal state
  * (AWAITING_REVIEW on success, NEEDS_ATTENTION on an unsafe scan). Idempotent:
@@ -322,6 +339,18 @@ export async function processIntake(
       const result = await scanner.scan({
         bucket: storageObject.bucket,
         objectKey: storageObject.objectKey,
+      });
+      // Durable, append-only evidence of every scan attempt (master
+      // directive §7 "PR 3"): which scanner, which version, when, and the
+      // result — distinct from documentVersions.safetyStatus (the current
+      // state derived from the latest row here). A retried scan adds a new
+      // row rather than overwriting the last attempt.
+      await db.insert(schema.documentScanResults).values({
+        documentVersionId: version.id,
+        scannerName: scanner.name,
+        scannerVersion: scanner.version,
+        safe: result.safe,
+        detail: result.detail ?? null,
       });
       version = await commitTransition(db, version, {
         processingStatus: result.safe ? 'NORMALIZING' : 'NEEDS_ATTENTION',

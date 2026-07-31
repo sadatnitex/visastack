@@ -57,11 +57,15 @@ async function seedVersion(db: Db, email: string) {
 }
 
 const cleanScanner: ScannerPort = {
+  name: 'test-scanner',
+  version: '0.0.0',
   async scan() {
     return { safe: true };
   },
 };
 const infectedScanner: ScannerPort = {
+  name: 'test-scanner',
+  version: '0.0.0',
   async scan() {
     return { safe: false, detail: 'eicar' };
   },
@@ -138,6 +142,8 @@ describe('low-volume durable job queue — async intake', () => {
       .where(eq(schema.processingJobs.id, job.id));
 
     const brokenScanner: ScannerPort = {
+      name: 'test-scanner',
+      version: '0.0.0',
       async scan() {
         throw new Error('scanner unavailable');
       },
@@ -207,6 +213,8 @@ describe('low-volume durable job queue — async intake', () => {
       .where(eq(schema.processingJobs.id, job.id));
 
     const brokenScanner: ScannerPort = {
+      name: 'test-scanner',
+      version: '0.0.0',
       async scan() {
         throw new Error('scanner unavailable');
       },

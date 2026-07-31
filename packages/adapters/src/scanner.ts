@@ -1,4 +1,5 @@
 import type { BlobStore, ScanResult, ScannerPort } from '@visastack/services';
+import { validateDocxStructure } from './docx-validation';
 
 /**
  * Built-in structural safety scanner (ADR-0011).
@@ -6,21 +7,25 @@ import type { BlobStore, ScanResult, ScannerPort } from '@visastack/services';
  * A dependency-free `ScannerPort` for when no antivirus service is wired. It
  * reads the stored bytes and enforces a positive allow-list: the content must
  * either begin with the magic bytes of an expected binary document type
- * (PDF/PNG/JPEG/DOCX), or pass a plain-text heuristic (TXT/MD — these have no
- * magic bytes), and be within the size limit; executables and everything
- * unrecognized are rejected.
+ * (PDF/PNG/JPEG/DOCX — DOCX additionally passing real structural validation,
+ * PDF additionally screened for active-content markers; see below), or pass
+ * a plain-text heuristic (TXT/MD — these have no magic bytes), and be within
+ * the size limit; executables and everything unrecognized are rejected.
  *
- * IMPORTANT: this is NOT antivirus. It stops type-spoofing and obvious
- * executable/malware-shaped uploads, but not signature-based threats. It is
- * paired with the human-approval gate (documents never auto-promote to shared
- * without owner confirmation). Swap in a real ClamAV adapter behind this same
- * port to close the AV gate — no domain changes.
+ * IMPORTANT: this is NOT antivirus. It stops type-spoofing, structurally
+ * invalid/hostile-shaped documents, and obvious executable/malware-shaped
+ * uploads, but not signature-based threats. It is paired with the human-
+ * approval gate (documents never auto-promote to shared without owner
+ * confirmation). Swap in a real ClamAV adapter behind this same port to
+ * close the AV gate — no domain changes.
  *
- * DOCX shares its ZIP magic bytes with XLSX/PPTX/generic ZIP archives — a
- * structural scanner can't distinguish them without parsing the archive's
- * central directory, which is out of scope here. The deterministic text
- * extractor (`mammoth`) is the real second check: a mislabeled ZIP fails
- * there with `corrupt_file`/`parser_error` rather than silently succeeding.
+ * DOCX shares its ZIP magic bytes with XLSX/PPTX/generic ZIP archives, so a
+ * magic-byte match alone is never sufficient — `validateDocxStructure`
+ * (`docx-validation.ts`) reads the ZIP central directory to confirm the real
+ * OOXML Word-document shape (and reject macro-enabled/encrypted/oversized/
+ * zip-bomb-shaped/path-traversing archives) before this scanner calls a
+ * zip-shaped upload safe. `mammoth` (`text-extraction.ts`) remains a second,
+ * independent check at extraction time.
  *
  * SECURITY: the plain-text path is deliberately gated to the exact declared
  * content types the upload UI/extraction layer support (`text/plain`,
@@ -34,11 +39,17 @@ import type { BlobStore, ScanResult, ScannerPort } from '@visastack/services';
  * declaring `text/html` is rejected here regardless of its byte content.
  */
 
+const SCANNER_NAME = 'basic-structural-scanner';
+const SCANNER_VERSION = '2.0.0';
+
+const PDF_MAGIC: readonly number[] = [0x25, 0x50, 0x44, 0x46]; // %PDF
+const DOCX_ZIP_MAGIC: readonly number[] = [0x50, 0x4b, 0x03, 0x04]; // PK\x03\x04
+
+// PDF and DOCX get their own structural checks below (magic bytes alone are
+// not sufficient for either); everything else here is magic-byte-only.
 const MAGIC_ALLOW: ReadonlyArray<{ readonly label: string; readonly bytes: readonly number[] }> = [
-  { label: 'pdf', bytes: [0x25, 0x50, 0x44, 0x46] }, // %PDF
   { label: 'png', bytes: [0x89, 0x50, 0x4e, 0x47] },
   { label: 'jpeg', bytes: [0xff, 0xd8, 0xff] },
-  { label: 'docx (zip)', bytes: [0x50, 0x4b, 0x03, 0x04] }, // PK\x03\x04
 ];
 
 const MAGIC_DENY: ReadonlyArray<{ readonly label: string; readonly bytes: readonly number[] }> = [
@@ -47,6 +58,29 @@ const MAGIC_DENY: ReadonlyArray<{ readonly label: string; readonly bytes: readon
   { label: 'mach-o executable', bytes: [0xfe, 0xed, 0xfa, 0xce] },
   { label: 'shell script', bytes: [0x23, 0x21] }, // #!
 ];
+
+/**
+ * Object-dictionary keys a PDF uses to run embedded JavaScript, auto-launch
+ * an external action on open, or carry an embedded file. A byte-level
+ * substring heuristic, not a real PDF object parse — bounded, cheap, and
+ * deliberately conservative (a real applicant document essentially never
+ * contains these); paired with `unpdf`'s independent parse at extraction
+ * time. Full sanitization (CDR) is tracked, not implemented here.
+ */
+const ACTIVE_PDF_CONTENT_MARKERS: readonly string[] = [
+  '/JavaScript',
+  '/JS',
+  '/OpenAction',
+  '/Launch',
+  '/EmbeddedFile',
+];
+
+function containsActivePdfContent(bytes: Uint8Array): string | undefined {
+  // latin1 is byte-transparent (1 char <-> 1 byte) — exactly what a raw
+  // marker search over binary PDF bytes needs, with no UTF-8 decode risk.
+  const text = Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength).toString('latin1');
+  return ACTIVE_PDF_CONTENT_MARKERS.find((marker) => text.includes(marker));
+}
 
 /** Declared content types the plain-text path accepts — nothing else, regardless of byte shape. */
 const PLAIN_TEXT_CONTENT_TYPES: ReadonlySet<string> = new Set(['text/plain', 'text/markdown']);
@@ -92,6 +126,8 @@ export interface BasicSafetyScannerOptions {
 }
 
 export class BasicSafetyScanner implements ScannerPort {
+  readonly name = SCANNER_NAME;
+  readonly version = SCANNER_VERSION;
   private readonly blobStore: BlobStore;
   private readonly maxBytes: number;
 
@@ -113,6 +149,23 @@ export class BasicSafetyScanner implements ScannerPort {
         return { safe: false, detail: `rejected: ${deny.label}` };
       }
     }
+
+    if (startsWith(bytes, PDF_MAGIC)) {
+      const activeMarker = containsActivePdfContent(bytes);
+      if (activeMarker) {
+        return { safe: false, detail: `rejected: active PDF content (${activeMarker})` };
+      }
+      return { safe: true, detail: 'pdf' };
+    }
+
+    if (startsWith(bytes, DOCX_ZIP_MAGIC)) {
+      const structure = validateDocxStructure(bytes);
+      if (!structure.valid) {
+        return { safe: false, detail: `rejected: invalid docx structure (${structure.reason})` };
+      }
+      return { safe: true, detail: 'docx (zip)' };
+    }
+
     for (const allow of MAGIC_ALLOW) {
       if (startsWith(bytes, allow.bytes)) return { safe: true, detail: allow.label };
     }
