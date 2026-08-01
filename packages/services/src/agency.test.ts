@@ -15,16 +15,30 @@ import {
   listEvidenceRequestsForApplicant,
   listEvidenceRequestsForOrg,
   listEvidenceRequestsForOrgDetailed,
+  listMissionDecisions,
   listMissionsForOrganization,
   listNotes,
+  recordMissionDecision,
   requestEvidence,
   respondEvidence,
 } from './agency';
 import { createApplicant } from './applicants';
 import { setConsent } from './consent';
 import type { Db } from './db';
-import { createMission } from './missions';
-import { createOrganization, listMembershipsForAccount, reviewOrganization } from './organizations';
+import { attachPackVersion, createMission } from './missions';
+import {
+  addMembership,
+  createOrganization,
+  listMembershipsForAccount,
+  reviewOrganization,
+} from './organizations';
+import {
+  addPackVersion,
+  addRequirement,
+  approvePackVersion,
+  createPack,
+  publishPackVersion,
+} from './packs';
 import { editFact, registerFieldDefinition } from './profile';
 import { RATE_LIMITS } from './rate-limit';
 import { acceptGrant, createGrant } from './sharing';
@@ -489,5 +503,162 @@ describe('permissioned bulk export', () => {
     });
     expect(isErr(result)).toBe(true);
     if (isErr(result)) expect(result.error.code).toBe('forbidden');
+  });
+});
+
+describe('reviewer decisions (master directive §7 "PR 10")', () => {
+  let db: Db;
+  beforeEach(async () => {
+    db = await freshDb();
+  });
+
+  async function setUp(db: Db) {
+    const { account, applicantId } = await consentedApplicant(db, 'dec@example.com');
+    const mission = await createMission(db, {
+      actorAccountId: account.id,
+      applicantId,
+      title: 'M',
+    });
+    if (!isOk(mission)) throw new Error('mission');
+
+    const pack = await createPack(db, { actorAccountId: account.id, key: 'dec.pack', name: 'Dec' });
+    if (!isOk(pack)) throw new Error('pack');
+    const version = await addPackVersion(db, { actorAccountId: account.id, packId: pack.value.id });
+    if (!isOk(version)) throw new Error('version');
+    const requirement = await addRequirement(db, {
+      actorAccountId: account.id,
+      packVersionId: version.value.id,
+      kind: 'FIELD',
+      fieldKey: 'passport.number',
+      citation: 'rule',
+    });
+    if (!isOk(requirement)) throw new Error('requirement');
+    await approvePackVersion(db, { actorAccountId: account.id, packVersionId: version.value.id });
+    await publishPackVersion(db, { actorAccountId: account.id, packVersionId: version.value.id });
+    await attachPackVersion(db, {
+      actorAccountId: account.id,
+      missionId: mission.value.id,
+      packVersionId: version.value.id,
+    });
+
+    const agentAcc = await provisionAccount(db, { email: 'agent-dec@acme.com' });
+    if (!isOk(agentAcc)) throw new Error('provision');
+    const org = await createOrganization(db, { actorAccountId: agentAcc.value.id, name: 'Acme' });
+    if (!isOk(org)) throw new Error('org');
+    await activateOrg(db, org.value.id);
+    const grant = await createGrant(db, {
+      actorAccountId: account.id,
+      applicantId,
+      recipientOrganizationId: org.value.id,
+      missionId: mission.value.id,
+      actions: ['MANAGE', 'COMMENT'],
+      purpose: 'review',
+    });
+    if (!isOk(grant)) throw new Error('grant');
+    await acceptGrant(db, { actorAccountId: agentAcc.value.id, grantId: grant.value.id });
+    await assignMember(db, {
+      actorAccountId: agentAcc.value.id,
+      organizationId: org.value.id,
+      memberAccountId: agentAcc.value.id,
+      missionId: mission.value.id,
+    });
+
+    return {
+      account,
+      applicantId,
+      missionId: mission.value.id,
+      packRequirementId: requirement.value.id,
+      org,
+      agentAcc,
+    };
+  }
+
+  it('lets an assigned, granted reviewer record and read a decision', async () => {
+    const { missionId, packRequirementId, org, agentAcc } = await setUp(db);
+    const decided = await recordMissionDecision(db, {
+      actorAccountId: agentAcc.value.id,
+      organizationId: org.value.id,
+      missionId,
+      packRequirementId,
+      outcome: 'ACCEPTED',
+      reason: 'Matches the applicant record.',
+    });
+    expect(isOk(decided)).toBe(true);
+    if (!isOk(decided)) return;
+    expect(decided.value.outcome).toBe('ACCEPTED');
+
+    const list = await listMissionDecisions(db, agentAcc.value.id, missionId);
+    expect(isOk(list)).toBe(true);
+    if (isOk(list)) {
+      expect(list.value).toHaveLength(1);
+      expect(list.value[0]?.outcome).toBe('ACCEPTED');
+    }
+  });
+
+  it('refuses to let the mission owner record a decision on their own mission (not self-attestation)', async () => {
+    const { account, missionId, packRequirementId, org } = await setUp(db);
+    const decided = await recordMissionDecision(db, {
+      actorAccountId: account.id,
+      organizationId: org.value.id,
+      missionId,
+      packRequirementId,
+      outcome: 'ACCEPTED',
+    });
+    expect(isErr(decided)).toBe(true);
+    if (isErr(decided)) expect(decided.error.code).toBe('forbidden');
+  });
+
+  it('refuses a granted-but-unassigned org member', async () => {
+    const { missionId, packRequirementId, org, agentAcc } = await setUp(db);
+    const unassigned = await provisionAccount(db, { email: 'unassigned-dec@acme.com' });
+    if (!isOk(unassigned)) throw new Error('provision');
+    // A genuine, active member of the org — just never assigned to THIS mission.
+    const membership = await addMembership(db, {
+      actorAccountId: agentAcc.value.id,
+      organizationId: org.value.id,
+      accountId: unassigned.value.id,
+      role: 'CASE_MANAGER',
+    });
+    expect(isOk(membership)).toBe(true);
+    const decided = await recordMissionDecision(db, {
+      actorAccountId: unassigned.value.id,
+      organizationId: org.value.id,
+      missionId,
+      packRequirementId,
+      outcome: 'ACCEPTED',
+    });
+    expect(isErr(decided)).toBe(true);
+    if (isErr(decided)) expect(decided.error.code).toBe('forbidden');
+  });
+
+  it("refuses a stranger org's member entirely (no grant on this applicant)", async () => {
+    const { missionId, packRequirementId } = await setUp(db);
+    const strangerAgent = await provisionAccount(db, { email: 'stranger-agent-dec@other.com' });
+    if (!isOk(strangerAgent)) throw new Error('provision');
+    const strangerOrg = await createOrganization(db, {
+      actorAccountId: strangerAgent.value.id,
+      name: 'Other Agency',
+    });
+    if (!isOk(strangerOrg)) throw new Error('org');
+    await activateOrg(db, strangerOrg.value.id);
+
+    const decided = await recordMissionDecision(db, {
+      actorAccountId: strangerAgent.value.id,
+      organizationId: strangerOrg.value.id,
+      missionId,
+      packRequirementId,
+      outcome: 'REJECTED',
+    });
+    expect(isErr(decided)).toBe(true);
+    if (isErr(decided)) expect(decided.error.code).toBe('forbidden');
+  });
+
+  it('refuses to read decisions for an account with no standing on the mission', async () => {
+    const { missionId } = await setUp(db);
+    const stranger = await provisionAccount(db, { email: 'stranger-read-dec@example.com' });
+    if (!isOk(stranger)) throw new Error('provision');
+    const list = await listMissionDecisions(db, stranger.value.id, missionId);
+    expect(isErr(list)).toBe(true);
+    if (isErr(list)) expect(list.error.code).toBe('forbidden');
   });
 });

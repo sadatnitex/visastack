@@ -6,6 +6,7 @@ import {
   addNote,
   assignMember,
   getAccountByEmail,
+  recordMissionDecision,
   requestEvidence,
   setMembershipActive,
 } from '@visastack/services';
@@ -163,6 +164,37 @@ export async function addNoteAction(_prev: ActionState, formData: FormData): Pro
     const note = await addNote(db, { actorAccountId: accountId, missionId, body });
     if (!note.ok) return { ok: false, message: note.error.message } satisfies ActionState;
     return { ok: true, message: 'Note added.' } satisfies ActionState;
+  });
+  if (result.ok) revalidatePath(`/app/agency/${organizationId}`);
+  return result;
+}
+
+/** Record a reviewer decision on a specific requirement (assigned, granted member only). */
+export async function recordDecisionAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const gate = requireAgencyCollaboration();
+  if (gate) return gate;
+
+  const organizationId = String(formData.get('organizationId') ?? '');
+  const missionId = String(formData.get('missionId') ?? '');
+  const packRequirementId = String(formData.get('packRequirementId') ?? '');
+  const outcome = String(formData.get('outcome') ?? '') as 'ACCEPTED' | 'REJECTED';
+  const reason = String(formData.get('reason') ?? '').trim() || undefined;
+  if (packRequirementId.length === 0) return { ok: false, message: 'Choose a requirement.' };
+
+  const result = await withSession(async ({ db, accountId }) => {
+    const decision = await recordMissionDecision(db, {
+      actorAccountId: accountId,
+      organizationId,
+      missionId,
+      packRequirementId,
+      outcome,
+      ...(reason ? { reason } : {}),
+    });
+    if (!decision.ok) return { ok: false, message: decision.error.message } satisfies ActionState;
+    return { ok: true, message: `Decision recorded: ${outcome}.` } satisfies ActionState;
   });
   if (result.ok) revalidatePath(`/app/agency/${organizationId}`);
   return result;

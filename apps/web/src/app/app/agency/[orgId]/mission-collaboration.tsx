@@ -1,7 +1,12 @@
 'use client';
 
 import { useActionState } from 'react';
-import { type ActionState, addNoteAction, assignMemberAction } from './actions';
+import {
+  type ActionState,
+  addNoteAction,
+  assignMemberAction,
+  recordDecisionAction,
+} from './actions';
 
 const INITIAL: ActionState = { ok: true, message: '' };
 
@@ -23,6 +28,19 @@ interface NoteView {
   readonly createdAt: string;
 }
 
+interface RequirementOption {
+  readonly id: string;
+  readonly label: string;
+}
+
+interface DecisionView {
+  readonly id: string;
+  readonly packRequirementId: string;
+  readonly outcome: 'ACCEPTED' | 'REJECTED';
+  readonly reason: string | null;
+  readonly createdAt: string;
+}
+
 interface MissionCollaborationProps {
   readonly organizationId: string;
   readonly missionId: string;
@@ -31,6 +49,10 @@ interface MissionCollaborationProps {
   readonly members: readonly MemberOption[];
   readonly assignments: readonly AssignmentView[];
   readonly notes: readonly NoteView[];
+  readonly requirements: readonly RequirementOption[];
+  readonly decisions: readonly DecisionView[];
+  /** Only an assigned member can record a decision — self-attestation by the applicant is never allowed. */
+  readonly viewerAssigned: boolean;
 }
 
 export function MissionCollaboration({
@@ -41,9 +63,16 @@ export function MissionCollaboration({
   members,
   assignments,
   notes,
+  requirements,
+  decisions,
+  viewerAssigned,
 }: MissionCollaborationProps) {
   const [noteState, noteAction, notePending] = useActionState(addNoteAction, INITIAL);
   const [assignState, assignAction, assignPending] = useActionState(assignMemberAction, INITIAL);
+  const [decisionState, decisionAction, decisionPending] = useActionState(
+    recordDecisionAction,
+    INITIAL,
+  );
   const assignedAccountIds = new Set(assignments.map((a) => a.memberAccountId));
   const assignableMembers = members.filter((m) => !assignedAccountIds.has(m.accountId));
 
@@ -163,6 +192,90 @@ export function MissionCollaboration({
           </p>
         ) : null}
       </div>
+
+      {requirements.length > 0 ? (
+        <div style={{ marginTop: '0.85rem' }}>
+          <p className="muted" style={{ fontSize: '0.78rem', marginBottom: '0.35rem' }}>
+            Decisions
+          </p>
+          {decisions.length === 0 ? (
+            <p className="muted" style={{ fontSize: '0.85rem', marginBottom: '0.5rem' }}>
+              No decisions recorded yet.
+            </p>
+          ) : (
+            <div
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '0.4rem',
+                marginBottom: '0.5rem',
+              }}
+            >
+              {decisions.map((d) => (
+                <div key={d.id} style={{ fontSize: '0.85rem' }}>
+                  <span
+                    className={`badge ${d.outcome === 'ACCEPTED' ? 'badge-success' : 'badge-danger'}`}
+                  >
+                    {d.outcome}
+                  </span>{' '}
+                  <span className="muted" style={{ fontSize: '0.75rem' }}>
+                    {requirements.find((r) => r.id === d.packRequirementId)?.label ??
+                      d.packRequirementId}
+                    {d.reason ? ` — ${d.reason}` : ''}, {new Date(d.createdAt).toLocaleDateString()}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+          {viewerAssigned ? (
+            <form
+              action={decisionAction}
+              style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}
+            >
+              <input type="hidden" name="organizationId" value={organizationId} />
+              <input type="hidden" name="missionId" value={missionId} />
+              <select name="packRequirementId" className="input" required defaultValue="">
+                <option value="" disabled>
+                  Requirement…
+                </option>
+                {requirements.map((r) => (
+                  <option key={r.id} value={r.id}>
+                    {r.label}
+                  </option>
+                ))}
+              </select>
+              <select name="outcome" className="input" defaultValue="ACCEPTED">
+                <option value="ACCEPTED">Accept</option>
+                <option value="REJECTED">Reject</option>
+              </select>
+              <input
+                name="reason"
+                type="text"
+                className="input"
+                placeholder="Reason (optional)"
+                aria-label="Decision reason"
+              />
+              <button
+                type="submit"
+                className="btn btn-secondary"
+                style={{ padding: '0.3rem 0.85rem', fontSize: '0.8rem' }}
+                disabled={decisionPending}
+              >
+                {decisionPending ? 'Recording…' : 'Record'}
+              </button>
+            </form>
+          ) : (
+            <p className="muted" style={{ fontSize: '0.78rem' }}>
+              Only an assigned member can record a decision.
+            </p>
+          )}
+          {decisionState.message ? (
+            <p className={`field-msg ${decisionState.ok ? 'field-msg-ok' : 'field-msg-err'}`}>
+              {decisionState.message}
+            </p>
+          ) : null}
+        </div>
+      ) : null}
     </div>
   );
 }

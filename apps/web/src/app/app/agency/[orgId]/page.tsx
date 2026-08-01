@@ -4,6 +4,8 @@ import {
   listApplicantsForOrganization,
   listAssignmentsDetailed,
   listEvidenceRequestsForOrgDetailed,
+  listMissionDecisions,
+  listMissionRequirementsForOrg,
   listMissionsForOrganization,
   listNotes,
   listOrgMemberships,
@@ -69,9 +71,11 @@ export default async function OrgConsolePage({
     const membersResolved = members.ok ? members.value : [];
     const missions = await Promise.all(
       orgMissions.map(async (mission) => {
-        const [assignments, notes] = await Promise.all([
+        const [assignments, notes, requirements, decisions] = await Promise.all([
           listAssignmentsDetailed(db, mission.missionId),
           listNotes(db, mission.missionId),
+          listMissionRequirementsForOrg(db, orgId, mission.missionId),
+          listMissionDecisions(db, accountId, mission.missionId),
         ]);
         return {
           ...mission,
@@ -83,6 +87,25 @@ export default async function OrgConsolePage({
             authorEmail:
               membersResolved.find((m) => m.accountId === n.authorAccountId)?.email ?? 'Unknown',
           })),
+          requirements: requirements.ok
+            ? requirements.value.map((r) => ({
+                id: r.id,
+                label:
+                  r.kind === 'FIELD'
+                    ? (profileField(r.fieldKey ?? '')?.label ?? r.fieldKey ?? '')
+                    : (r.docType ?? ''),
+              }))
+            : [],
+          decisions: decisions.ok
+            ? decisions.value.map((d) => ({
+                id: d.id,
+                packRequirementId: d.packRequirementId,
+                outcome: d.outcome,
+                reason: d.reason,
+                createdAt: d.createdAt.toISOString(),
+              }))
+            : [],
+          viewerAssigned: assignments.some((a) => a.memberAccountId === accountId),
         };
       }),
     );
@@ -299,6 +322,9 @@ export default async function OrgConsolePage({
                     members={data.members.map((m) => ({ accountId: m.accountId, email: m.email }))}
                     assignments={mission.assignments}
                     notes={mission.notes}
+                    requirements={mission.requirements}
+                    decisions={mission.decisions}
+                    viewerAssigned={mission.viewerAssigned}
                   />
                 ))}
               </div>

@@ -2,6 +2,7 @@ import { fileURLToPath } from 'node:url';
 import { PGlite } from '@electric-sql/pglite';
 import { isErr, isOk } from '@visastack/core';
 import { schema } from '@visastack/db';
+import { eq } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/pglite';
 import { migrate } from 'drizzle-orm/pglite/migrator';
 import { beforeEach, describe, expect, it } from 'vitest';
@@ -14,13 +15,21 @@ import {
   attachPackVersion,
   computeReadiness,
   createMission,
+  createTask,
+  decideTask,
+  generateCoverLetter,
   getMissionForOwner,
   getMissionSnapshot,
+  listGeneratedOutputs,
   listMissionSnapshots,
   listMissions,
   listMissionsUsingField,
+  listSelectedEvidence,
+  listTasks,
+  selectEvidence,
   snapshotMission,
   transitionMission,
+  unselectEvidence,
 } from './missions';
 import {
   addPackVersion,
@@ -159,6 +168,8 @@ describe('missions — workspace, readiness, workflow, snapshot', () => {
       documentId: doc.value.id,
       bucket: 'CLEAN',
       objectKey: 'k',
+      safetyStatus: 'CLEAN',
+      processingStatus: 'AWAITING_REVIEW',
     });
 
     const after = await computeReadiness(db, mission.value.id);
@@ -300,6 +311,8 @@ describe('missions — workspace, readiness, workflow, snapshot', () => {
       documentId: doc.value.id,
       bucket: 'CLEAN',
       objectKey: 'k',
+      safetyStatus: 'CLEAN',
+      processingStatus: 'AWAITING_REVIEW',
     });
 
     const readiness = await computeReadiness(db, mission.value.id);
@@ -349,6 +362,8 @@ describe('missions — workspace, readiness, workflow, snapshot', () => {
       documentId: doc.value.id,
       bucket: 'CLEAN',
       objectKey: 'k',
+      safetyStatus: 'CLEAN',
+      processingStatus: 'AWAITING_REVIEW',
     });
 
     const snap = await snapshotMission(db, {
@@ -362,17 +377,25 @@ describe('missions — workspace, readiness, workflow, snapshot', () => {
         kind: string;
         key: string;
         satisfied: boolean;
-        value?: string | null;
-        documents?: ReadonlyArray<{ id: string; displayName: string }>;
+        facts?: ReadonlyArray<{ value: string | null; factVersionId: string | null }>;
+        documents?: ReadonlyArray<{
+          documentId: string;
+          documentVersionId: string;
+          displayName: string;
+        }>;
       }>;
     };
     expect(content.requirementMapping).toHaveLength(2);
     const field = content.requirementMapping.find((m) => m.kind === 'FIELD');
-    expect(field).toMatchObject({ key: 'passport.number', satisfied: true, value: 'A1' });
+    expect(field?.satisfied).toBe(true);
+    expect(field?.facts).toHaveLength(1);
+    expect(field?.facts?.[0]?.value).toBe('A1');
+    expect(field?.facts?.[0]?.factVersionId).toBeTruthy();
     const document = content.requirementMapping.find((m) => m.kind === 'DOCUMENT');
     expect(document?.satisfied).toBe(true);
     expect(document?.documents).toHaveLength(1);
     expect(document?.documents?.[0]?.displayName).toBe('bank.pdf');
+    expect(document?.documents?.[0]?.documentVersionId).toBeTruthy();
 
     // The stored snapshot is retrievable in full — not just its checksum.
     const fetched = await getMissionSnapshot(db, account.id, mission.value.id, snap.value.id);
@@ -453,5 +476,599 @@ describe('missions — workspace, readiness, workflow, snapshot', () => {
     const result = await listMissionsUsingField(db, other.value.id, applicantId, 'passport.number');
     expect(isErr(result)).toBe(true);
     if (isErr(result)) expect(result.error.code).toBe('forbidden');
+  });
+
+  it('never collides repeating-record instances in readiness or snapshots (master directive §7 "PR 10")', async () => {
+    const { account, applicantId } = await seed(db);
+    const packVersionId = await publishedPack(db, account.id);
+    const mission = await createMission(db, {
+      actorAccountId: account.id,
+      applicantId,
+      title: 'UK Visa',
+    });
+    if (!isOk(mission)) throw new Error('mission');
+    await attachPackVersion(db, {
+      actorAccountId: account.id,
+      missionId: mission.value.id,
+      packVersionId,
+    });
+
+    // passport.number is a REPEATING field (an applicant can have more than
+    // one passport on file) — two instances sharing the same field key, one
+    // CONFLICTED and one clean, distinguished only by repeatingRecordKey. A
+    // Map/Record keyed by field key alone would silently collide these.
+    await registerFieldDefinition(db, {
+      key: 'passport.number',
+      dataType: 'string',
+      repeating: true,
+    });
+    await editFact(db, {
+      actorAccountId: account.id,
+      applicantId,
+      fieldKey: 'passport.number',
+      value: 'OLD-CONFLICTED',
+      status: 'CONFLICTED',
+      repeatingRecordKey: 'expired-passport',
+    });
+    await editFact(db, {
+      actorAccountId: account.id,
+      applicantId,
+      fieldKey: 'passport.number',
+      value: 'NEW-CLEAN',
+      repeatingRecordKey: 'current-passport',
+    });
+    const doc = await registerDocument(db, {
+      actorAccountId: account.id,
+      applicantId,
+      originalName: 'bank.pdf',
+      docType: 'bank_statement',
+    });
+    if (!isOk(doc)) throw new Error('doc');
+    await addDocumentVersion(db, {
+      actorAccountId: account.id,
+      documentId: doc.value.id,
+      bucket: 'CLEAN',
+      objectKey: 'k',
+      safetyStatus: 'CLEAN',
+      processingStatus: 'AWAITING_REVIEW',
+    });
+
+    // Readiness: satisfied by the clean instance despite the conflicted one existing too.
+    const readiness = await computeReadiness(db, mission.value.id);
+    expect(isOk(readiness)).toBe(true);
+    if (!isOk(readiness)) return;
+    expect(readiness.value.ready).toBe(true);
+    expect(readiness.value.satisfiedRequired).toBe(2);
+    expect(readiness.value.missing).toHaveLength(0);
+
+    // Snapshot: BOTH instances are captured distinctly — neither overwrites the other.
+    const snap = await snapshotMission(db, {
+      actorAccountId: account.id,
+      missionId: mission.value.id,
+    });
+    expect(isOk(snap)).toBe(true);
+    if (!isOk(snap)) return;
+    const content = snap.value.content as {
+      facts: ReadonlyArray<{
+        fieldKey: string;
+        repeatingRecordKey: string | null;
+        value: string | null;
+        status: string;
+      }>;
+    };
+    const passportEntries = content.facts.filter((f) => f.fieldKey === 'passport.number');
+    expect(passportEntries).toHaveLength(2);
+    const byRepeatKey = new Map(passportEntries.map((f) => [f.repeatingRecordKey, f]));
+    expect(byRepeatKey.get('expired-passport')?.value).toBe('OLD-CONFLICTED');
+    expect(byRepeatKey.get('expired-passport')?.status).toBe('CONFLICTED');
+    expect(byRepeatKey.get('current-passport')?.value).toBe('NEW-CLEAN');
+  });
+
+  it('does not count an unsafe, still-processing, or expired document as satisfying a requirement (master directive §7 "PR 10")', async () => {
+    const { account, applicantId } = await seed(db);
+    const packVersionId = await publishedPack(db, account.id);
+    const mission = await createMission(db, {
+      actorAccountId: account.id,
+      applicantId,
+      title: 'UK Visa',
+    });
+    if (!isOk(mission)) throw new Error('mission');
+    await attachPackVersion(db, {
+      actorAccountId: account.id,
+      missionId: mission.value.id,
+      packVersionId,
+    });
+    await registerFieldDefinition(db, { key: 'passport.number', dataType: 'string' });
+    await editFact(db, {
+      actorAccountId: account.id,
+      applicantId,
+      fieldKey: 'passport.number',
+      value: 'A1',
+    });
+
+    // A quarantined (unsafe) document of the right type — must not count.
+    const unsafe = await registerDocument(db, {
+      actorAccountId: account.id,
+      applicantId,
+      originalName: 'unsafe.pdf',
+      docType: 'bank_statement',
+    });
+    if (!isOk(unsafe)) throw new Error('doc');
+    await addDocumentVersion(db, {
+      actorAccountId: account.id,
+      documentId: unsafe.value.id,
+      bucket: 'QUARANTINE',
+      objectKey: 'unsafe-k',
+      safetyStatus: 'QUARANTINED',
+      processingStatus: 'NEEDS_ATTENTION',
+    });
+
+    const withUnsafeOnly = await computeReadiness(db, mission.value.id);
+    expect(isOk(withUnsafeOnly)).toBe(true);
+    if (!isOk(withUnsafeOnly)) return;
+    expect(withUnsafeOnly.value.ready).toBe(false);
+    expect(withUnsafeOnly.value.missing.some((m) => m.kind === 'DOCUMENT')).toBe(true);
+
+    // An expired document of the right type, also clean/processed — still must not count.
+    const expired = await registerDocument(db, {
+      actorAccountId: account.id,
+      applicantId,
+      originalName: 'expired.pdf',
+      docType: 'bank_statement',
+    });
+    if (!isOk(expired)) throw new Error('doc');
+    await addDocumentVersion(db, {
+      actorAccountId: account.id,
+      documentId: expired.value.id,
+      bucket: 'CLEAN',
+      objectKey: 'expired-k',
+      safetyStatus: 'CLEAN',
+      processingStatus: 'AWAITING_REVIEW',
+    });
+    await db
+      .update(schema.documents)
+      .set({ expiresAt: new Date(Date.now() - 1000) })
+      .where(eq(schema.documents.id, expired.value.id));
+
+    const withExpiredToo = await computeReadiness(db, mission.value.id);
+    expect(isOk(withExpiredToo)).toBe(true);
+    if (!isOk(withExpiredToo)) return;
+    expect(withExpiredToo.value.ready).toBe(false);
+
+    // A genuinely clean, processed, unexpired document of the right type — now it counts.
+    const clean = await registerDocument(db, {
+      actorAccountId: account.id,
+      applicantId,
+      originalName: 'clean.pdf',
+      docType: 'bank_statement',
+    });
+    if (!isOk(clean)) throw new Error('doc');
+    await addDocumentVersion(db, {
+      actorAccountId: account.id,
+      documentId: clean.value.id,
+      bucket: 'CLEAN',
+      objectKey: 'clean-k',
+      safetyStatus: 'CLEAN',
+      processingStatus: 'AWAITING_REVIEW',
+    });
+
+    const final = await computeReadiness(db, mission.value.id);
+    expect(isOk(final)).toBe(true);
+    if (!isOk(final)) return;
+    expect(final.value.ready).toBe(true);
+  });
+
+  it('does not count an unconfirmed (EXTRACTED_PENDING) or STALE fact as satisfying a requirement (master directive §7 "PR 10")', async () => {
+    const { account, applicantId } = await seed(db);
+    const packVersionId = await publishedPack(db, account.id);
+    const mission = await createMission(db, {
+      actorAccountId: account.id,
+      applicantId,
+      title: 'UK Visa',
+    });
+    if (!isOk(mission)) throw new Error('mission');
+    await attachPackVersion(db, {
+      actorAccountId: account.id,
+      missionId: mission.value.id,
+      packVersionId,
+    });
+    await registerFieldDefinition(db, { key: 'passport.number', dataType: 'string' });
+    await editFact(db, {
+      actorAccountId: account.id,
+      applicantId,
+      fieldKey: 'passport.number',
+      value: 'A1',
+      status: 'STALE',
+    });
+    const doc = await registerDocument(db, {
+      actorAccountId: account.id,
+      applicantId,
+      originalName: 'bank.pdf',
+      docType: 'bank_statement',
+    });
+    if (!isOk(doc)) throw new Error('doc');
+    await addDocumentVersion(db, {
+      actorAccountId: account.id,
+      documentId: doc.value.id,
+      bucket: 'CLEAN',
+      objectKey: 'k',
+      safetyStatus: 'CLEAN',
+      processingStatus: 'AWAITING_REVIEW',
+    });
+
+    const readiness = await computeReadiness(db, mission.value.id);
+    expect(isOk(readiness)).toBe(true);
+    if (!isOk(readiness)) return;
+    expect(readiness.value.ready).toBe(false);
+    expect(
+      readiness.value.missing.some((m) => m.kind === 'FIELD' && m.key === 'passport.number'),
+    ).toBe(true);
+  });
+});
+
+describe('mission collaboration — evidence selection, tasks, grounded letters (master directive §7 "PR 10")', () => {
+  let db: Db;
+  beforeEach(async () => {
+    db = await freshDb();
+  });
+
+  async function setUp(db: Db) {
+    const { account, applicantId } = await seed(db);
+    const packVersionId = await publishedPack(db, account.id);
+    const mission = await createMission(db, {
+      actorAccountId: account.id,
+      applicantId,
+      title: 'UK Visa',
+    });
+    if (!isOk(mission)) throw new Error('mission');
+    await attachPackVersion(db, {
+      actorAccountId: account.id,
+      missionId: mission.value.id,
+      packVersionId,
+    });
+    await registerFieldDefinition(db, { key: 'passport.number', dataType: 'string' });
+    const fact = await editFact(db, {
+      actorAccountId: account.id,
+      applicantId,
+      fieldKey: 'passport.number',
+      value: 'A1',
+    });
+    if (!isOk(fact)) throw new Error('fact');
+    const doc = await registerDocument(db, {
+      actorAccountId: account.id,
+      applicantId,
+      originalName: 'bank.pdf',
+      docType: 'bank_statement',
+    });
+    if (!isOk(doc)) throw new Error('doc');
+    await addDocumentVersion(db, {
+      actorAccountId: account.id,
+      documentId: doc.value.id,
+      bucket: 'CLEAN',
+      objectKey: 'k',
+      safetyStatus: 'CLEAN',
+      processingStatus: 'AWAITING_REVIEW',
+    });
+
+    const requirements = await db
+      .select()
+      .from(schema.packRequirements)
+      .where(eq(schema.packRequirements.packVersionId, packVersionId));
+    const fieldRequirement = requirements.find((r) => r.kind === 'FIELD');
+    const documentRequirement = requirements.find((r) => r.kind === 'DOCUMENT');
+    if (!fieldRequirement || !documentRequirement) throw new Error('requirements');
+
+    return {
+      account,
+      applicantId,
+      missionId: mission.value.id,
+      factId: fact.value.fact.id,
+      documentId: doc.value.id,
+      fieldRequirementId: fieldRequirement.id,
+      documentRequirementId: documentRequirement.id,
+    };
+  }
+
+  it('selects evidence for a requirement, idempotently, and refuses cross-applicant evidence', async () => {
+    const { account, missionId, factId, fieldRequirementId } = await setUp(db);
+
+    const first = await selectEvidence(db, {
+      actorAccountId: account.id,
+      missionId,
+      packRequirementId: fieldRequirementId,
+      factId,
+    });
+    expect(isOk(first)).toBe(true);
+    if (!isOk(first)) return;
+
+    // Selecting the same instance again is a no-op, not an error.
+    const second = await selectEvidence(db, {
+      actorAccountId: account.id,
+      missionId,
+      packRequirementId: fieldRequirementId,
+      factId,
+    });
+    expect(isOk(second)).toBe(true);
+    if (isOk(second)) expect(second.value.id).toBe(first.value.id);
+
+    const list = await listSelectedEvidence(db, account.id, missionId);
+    expect(isOk(list)).toBe(true);
+    if (isOk(list)) expect(list.value).toHaveLength(1);
+
+    // A fact belonging to a different applicant cannot be selected here.
+    const other = await seed(db);
+    await registerFieldDefinition(db, { key: 'other.field', dataType: 'string' }).catch(() => {});
+    const otherFact = await editFact(db, {
+      actorAccountId: other.account.id,
+      applicantId: other.applicantId,
+      fieldKey: 'passport.number',
+      value: 'ZZ',
+    });
+    if (!isOk(otherFact)) throw new Error('other fact');
+    const crossTenant = await selectEvidence(db, {
+      actorAccountId: account.id,
+      missionId,
+      packRequirementId: fieldRequirementId,
+      factId: otherFact.value.fact.id,
+    });
+    expect(isErr(crossTenant)).toBe(true);
+    if (isErr(crossTenant)) expect(crossTenant.error.code).toBe('not_found');
+
+    const removed = await unselectEvidence(db, {
+      actorAccountId: account.id,
+      missionId,
+      selectionId: first.value.id,
+    });
+    expect(isOk(removed)).toBe(true);
+    const afterRemoval = await listSelectedEvidence(db, account.id, missionId);
+    expect(isOk(afterRemoval)).toBe(true);
+    if (isOk(afterRemoval)) expect(afterRemoval.value).toHaveLength(0);
+  });
+
+  it("refuses evidence selection on another owner's mission", async () => {
+    const { missionId, factId, fieldRequirementId } = await setUp(db);
+    const stranger = await provisionAccount(db, { email: 'stranger-select@example.com' });
+    if (!isOk(stranger)) throw new Error('provision');
+    const result = await selectEvidence(db, {
+      actorAccountId: stranger.value.id,
+      missionId,
+      packRequirementId: fieldRequirementId,
+      factId,
+    });
+    expect(isErr(result)).toBe(true);
+    if (isErr(result)) expect(result.error.code).toBe('forbidden');
+  });
+
+  it('creates, completes, and lists mission tasks, owner-scoped', async () => {
+    const { account, missionId, fieldRequirementId } = await setUp(db);
+    const task = await createTask(db, {
+      actorAccountId: account.id,
+      missionId,
+      description: 'Chase the applicant for an updated bank statement.',
+      packRequirementId: fieldRequirementId,
+    });
+    expect(isOk(task)).toBe(true);
+    if (!isOk(task)) return;
+    expect(task.value.status).toBe('OPEN');
+
+    const decided = await decideTask(db, {
+      actorAccountId: account.id,
+      missionId,
+      taskId: task.value.id,
+      status: 'DONE',
+    });
+    expect(isOk(decided)).toBe(true);
+    if (isOk(decided)) {
+      expect(decided.value.status).toBe('DONE');
+      expect(decided.value.completedAt).not.toBeNull();
+    }
+
+    // Cannot decide the same task twice.
+    const redecided = await decideTask(db, {
+      actorAccountId: account.id,
+      missionId,
+      taskId: task.value.id,
+      status: 'CANCELLED',
+    });
+    expect(isErr(redecided)).toBe(true);
+
+    const list = await listTasks(db, account.id, missionId);
+    expect(isOk(list)).toBe(true);
+    if (isOk(list)) expect(list.value).toHaveLength(1);
+
+    const stranger = await provisionAccount(db, { email: 'stranger-task@example.com' });
+    if (!isOk(stranger)) throw new Error('provision');
+    const denied = await createTask(db, {
+      actorAccountId: stranger.value.id,
+      missionId,
+      description: 'Should not be allowed.',
+    });
+    expect(isErr(denied)).toBe(true);
+    if (isErr(denied)) expect(denied.error.code).toBe('forbidden');
+  });
+
+  it('refuses to generate a letter with nothing grounded yet, then generates one citing exact evidence, versioned', async () => {
+    const { account, applicantId } = await seed(db);
+    const packVersionId = await publishedPack(db, account.id);
+    const mission = await createMission(db, {
+      actorAccountId: account.id,
+      applicantId,
+      title: 'UK Visa',
+    });
+    if (!isOk(mission)) throw new Error('mission');
+    await attachPackVersion(db, {
+      actorAccountId: account.id,
+      missionId: mission.value.id,
+      packVersionId,
+    });
+
+    const empty = await generateCoverLetter(db, {
+      actorAccountId: account.id,
+      missionId: mission.value.id,
+    });
+    expect(isErr(empty)).toBe(true);
+    if (isErr(empty)) expect(empty.error.code).toBe('invalid');
+
+    await registerFieldDefinition(db, { key: 'passport.number', dataType: 'string' });
+    const fact = await editFact(db, {
+      actorAccountId: account.id,
+      applicantId,
+      fieldKey: 'passport.number',
+      value: 'A1',
+    });
+    if (!isOk(fact)) throw new Error('fact');
+    const doc = await registerDocument(db, {
+      actorAccountId: account.id,
+      applicantId,
+      originalName: 'bank.pdf',
+      docType: 'bank_statement',
+    });
+    if (!isOk(doc)) throw new Error('doc');
+    await addDocumentVersion(db, {
+      actorAccountId: account.id,
+      documentId: doc.value.id,
+      bucket: 'CLEAN',
+      objectKey: 'k',
+      safetyStatus: 'CLEAN',
+      processingStatus: 'AWAITING_REVIEW',
+    });
+
+    const first = await generateCoverLetter(db, {
+      actorAccountId: account.id,
+      missionId: mission.value.id,
+    });
+    expect(isOk(first)).toBe(true);
+    if (!isOk(first)) return;
+    expect(first.value.version).toBe(1);
+    expect(first.value.content).toContain('A1');
+    const refs = first.value.groundedReferences as ReadonlyArray<{
+      kind: string;
+      key: string;
+      factVersionId?: string;
+      documentVersionId?: string;
+    }>;
+    expect(refs).toHaveLength(2);
+    expect(refs.some((r) => r.kind === 'FIELD' && r.factVersionId)).toBe(true);
+    expect(refs.some((r) => r.kind === 'DOCUMENT' && r.documentVersionId)).toBe(true);
+    // Every reference is a real, resolvable id — never invented.
+    const fieldRef = refs.find((r) => r.kind === 'FIELD');
+    expect(fieldRef?.factVersionId).toBe(fact.value.version.id);
+
+    const second = await generateCoverLetter(db, {
+      actorAccountId: account.id,
+      missionId: mission.value.id,
+    });
+    expect(isOk(second)).toBe(true);
+    if (isOk(second)) expect(second.value.version).toBe(2);
+
+    const outputs = await listGeneratedOutputs(db, account.id, mission.value.id);
+    expect(isOk(outputs)).toBe(true);
+    if (isOk(outputs)) {
+      expect(outputs.value).toHaveLength(2);
+      expect(outputs.value[0]?.version).toBe(2); // newest first
+    }
+  });
+
+  it('ignores an eligible-but-unselected instance once a selection narrows the requirement (master directive §7 "PR 10")', async () => {
+    const { account, applicantId } = await seed(db);
+    const packVersionId = await publishedPack(db, account.id);
+    const mission = await createMission(db, {
+      actorAccountId: account.id,
+      applicantId,
+      title: 'UK Visa',
+    });
+    if (!isOk(mission)) throw new Error('mission');
+    await attachPackVersion(db, {
+      actorAccountId: account.id,
+      missionId: mission.value.id,
+      packVersionId,
+    });
+    await registerFieldDefinition(db, {
+      key: 'passport.number',
+      dataType: 'string',
+      repeating: true,
+    });
+    // Two instances: one clean, one conflicted.
+    const good = await editFact(db, {
+      actorAccountId: account.id,
+      applicantId,
+      fieldKey: 'passport.number',
+      value: 'GOOD',
+      repeatingRecordKey: 'good',
+    });
+    if (!isOk(good)) throw new Error('good');
+    const bad = await editFact(db, {
+      actorAccountId: account.id,
+      applicantId,
+      fieldKey: 'passport.number',
+      value: 'BAD',
+      status: 'CONFLICTED',
+      repeatingRecordKey: 'bad',
+    });
+    if (!isOk(bad)) throw new Error('bad');
+    const doc = await registerDocument(db, {
+      actorAccountId: account.id,
+      applicantId,
+      originalName: 'bank.pdf',
+      docType: 'bank_statement',
+    });
+    if (!isOk(doc)) throw new Error('doc');
+    await addDocumentVersion(db, {
+      actorAccountId: account.id,
+      documentId: doc.value.id,
+      bucket: 'CLEAN',
+      objectKey: 'k',
+      safetyStatus: 'CLEAN',
+      processingStatus: 'AWAITING_REVIEW',
+    });
+
+    const requirements = await db
+      .select()
+      .from(schema.packRequirements)
+      .where(eq(schema.packRequirements.packVersionId, packVersionId));
+    const fieldRequirementId = requirements.find((r) => r.kind === 'FIELD')?.id as string;
+
+    // Before any selection: satisfied via the clean instance.
+    const before = await computeReadiness(db, mission.value.id);
+    expect(isOk(before)).toBe(true);
+    if (isOk(before)) expect(before.value.ready).toBe(true);
+
+    // Explicitly select ONLY the conflicted instance — the clean one, though
+    // still present, must now be ignored (it was never selected).
+    const selected = await selectEvidence(db, {
+      actorAccountId: account.id,
+      missionId: mission.value.id,
+      packRequirementId: fieldRequirementId,
+      factId: bad.value.fact.id,
+    });
+    expect(isOk(selected)).toBe(true);
+
+    const after = await computeReadiness(db, mission.value.id);
+    expect(isOk(after)).toBe(true);
+    if (!isOk(after)) return;
+    expect(after.value.ready).toBe(false);
+    expect(
+      after.value.missing.some((m) => m.kind === 'FIELD' && m.reason === 'unresolved_conflict'),
+    ).toBe(true);
+
+    // The snapshot's requirement mapping reflects the same narrowing — only
+    // the selected (conflicted) instance appears, not the unselected clean one.
+    const snap = await snapshotMission(db, {
+      actorAccountId: account.id,
+      missionId: mission.value.id,
+    });
+    expect(isOk(snap)).toBe(true);
+    if (!isOk(snap)) return;
+    const content = snap.value.content as {
+      requirementMapping: ReadonlyArray<{
+        kind: string;
+        satisfied: boolean;
+        facts?: ReadonlyArray<{ value: string | null }>;
+      }>;
+    };
+    const field = content.requirementMapping.find((m) => m.kind === 'FIELD');
+    expect(field?.satisfied).toBe(false);
+    expect(field?.facts).toHaveLength(1);
+    expect(field?.facts?.[0]?.value).toBe('BAD');
   });
 });
