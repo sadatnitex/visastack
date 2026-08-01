@@ -44,13 +44,16 @@ export const PACK_LABELS: Readonly<Record<ProfilePack, string>> = {
   professional: 'Professional / employment',
   business: 'Business / investment',
   medical: 'Medical treatment',
+  medical_attendant: 'Medical attendant',
 };
 
 export const PACK_DESCRIPTIONS: Readonly<Record<ProfilePack, string>> = {
   universal: 'Identity, contact, and travel history relevant to every visa type.',
   professional: 'Relevant for skilled-worker, employment, and professional visas.',
   business: 'Relevant for investor, entrepreneur, and business-visitor visas.',
-  medical: 'Relevant for medical-treatment visas.',
+  medical: 'Relevant for the traveller receiving medical treatment.',
+  medical_attendant:
+    "For a companion travelling with and caring for the patient — their own identity and relationship, not more of the patient's medical detail.",
 };
 
 /** Packs in the order the editor renders them; universal always comes first. */
@@ -59,6 +62,7 @@ export const PACK_ORDER: readonly ProfilePack[] = [
   'professional',
   'business',
   'medical',
+  'medical_attendant',
 ];
 
 export const PROFILE_FIELDS: readonly ProfileFieldDef[] = [
@@ -483,6 +487,49 @@ export const PROFILE_FIELDS: readonly ProfileFieldDef[] = [
     label: 'Treating facility',
     sensitivity: 'STANDARD',
     pack: 'medical',
+  },
+
+  // --- Medical attendant -------------------------------------------------
+  {
+    key: 'attendant_full_name',
+    label: 'Full name',
+    sensitivity: 'STANDARD',
+    pack: 'medical_attendant',
+    placeholder: 'As on passport',
+  },
+  {
+    key: 'attendant_relationship_to_patient',
+    label: 'Relationship to patient',
+    sensitivity: 'STANDARD',
+    pack: 'medical_attendant',
+    placeholder: 'e.g. Spouse, adult child, professional caregiver',
+  },
+  {
+    key: 'attendant_passport_number',
+    label: 'Passport number',
+    sensitivity: 'SENSITIVE',
+    pack: 'medical_attendant',
+  },
+  {
+    key: 'attendant_passport_expiry',
+    label: 'Passport expiry',
+    sensitivity: 'STANDARD',
+    pack: 'medical_attendant',
+    type: 'date',
+  },
+  {
+    key: 'attendant_role_description',
+    label: 'Role during treatment',
+    sensitivity: 'STANDARD',
+    pack: 'medical_attendant',
+    placeholder: 'e.g. Daily care, translation, medical decision support',
+  },
+  {
+    key: 'attendant_return_travel_plan',
+    label: 'Return travel plan',
+    sensitivity: 'STANDARD',
+    pack: 'medical_attendant',
+    placeholder: 'Whether they leave with or separately from the patient',
   },
 ] as const;
 

@@ -205,6 +205,7 @@ export {
   type Mission,
   type MissionSnapshot,
   type MissingRequirement,
+  type MissionUsingField,
   type Readiness,
   type RequirementMappingEntry,
   attachPackVersion,
@@ -215,6 +216,7 @@ export {
   legalTransitions,
   listMissionSnapshots,
   listMissions,
+  listMissionsUsingField,
   snapshotMission,
   transitionMission,
 } from './missions';

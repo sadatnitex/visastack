@@ -19,16 +19,21 @@ export default async function ApplicantProfilePage({
     return { profile, coreGranted };
   });
 
-  const values: Record<
-    string,
-    { value: string | null; status: string | null; updatedAt: string | null }
-  > = {};
-  const repeatingValues: Record<
-    string,
-    Record<string, { value: string | null; status: string | null; updatedAt: string | null }>
-  > = {};
+  interface EntryValue {
+    readonly value: string | null;
+    readonly status: string | null;
+    readonly updatedAt: string | null;
+    readonly effectiveFrom: string | null;
+  }
+  const values: Record<string, EntryValue> = {};
+  const repeatingValues: Record<string, Record<string, EntryValue>> = {};
   for (const entry of data.profile) {
-    const v = { value: entry.value, status: entry.status, updatedAt: entry.updatedAt };
+    const v = {
+      value: entry.value,
+      status: entry.status,
+      updatedAt: entry.updatedAt,
+      effectiveFrom: entry.effectiveFrom,
+    };
     if (entry.repeatingRecordKey === null) {
       values[entry.fieldKey] = v;
     } else {

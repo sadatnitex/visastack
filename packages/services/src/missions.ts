@@ -241,6 +241,54 @@ export interface Readiness {
   readonly ready: boolean;
 }
 
+export interface MissionUsingField {
+  readonly missionId: string;
+  readonly title: string;
+  readonly state: MissionState;
+}
+
+/**
+ * Which of an applicant's missions currently rely on a given field (master
+ * directive §7 "PR 8" — every fact must support "mission use"). "Rely on"
+ * means the mission's attached pack version has a FIELD requirement for this
+ * key — readiness always evaluates the CURRENT fact value, so this is a live
+ * relationship, not tied to a specific historical fact version.
+ */
+export async function listMissionsUsingField(
+  db: Db,
+  actorAccountId: string,
+  applicantId: string,
+  fieldKey: string,
+): Promise<Result<MissionUsingField[], ServiceError>> {
+  const applicant = await getApplicant(db, applicantId);
+  if (!applicant) return err(serviceError('not_found', 'applicant not found'));
+  if (applicant.ownerAccountId !== actorAccountId) {
+    return err(serviceError('forbidden', 'not authorized for this applicant'));
+  }
+
+  const rows = await db
+    .select({ id: schema.missions.id, title: schema.missions.title, state: schema.missions.state })
+    .from(schema.missions)
+    .innerJoin(
+      schema.packRequirements,
+      eq(schema.packRequirements.packVersionId, schema.missions.packVersionId),
+    )
+    .where(
+      and(
+        eq(schema.missions.applicantId, applicantId),
+        eq(schema.packRequirements.kind, 'FIELD'),
+        eq(schema.packRequirements.fieldKey, fieldKey),
+      ),
+    );
+  // A mission can have more than one requirement for the same field (e.g.
+  // cited under two different sections) — de-duplicate by mission.
+  const seen = new Map<string, MissionUsingField>();
+  for (const row of rows) {
+    seen.set(row.id, { missionId: row.id, title: row.title, state: row.state });
+  }
+  return ok([...seen.values()]);
+}
+
 /**
  * Load, per canonical field key, whether the applicant's current fact version
  * is CONFLICTED (an AI proposal disagreed with an already-trusted value and

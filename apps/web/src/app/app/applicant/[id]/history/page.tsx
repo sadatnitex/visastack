@@ -1,4 +1,11 @@
-import { getApplicant, listApplicantProfile, listFactHistory } from '@visastack/services';
+import {
+  type MissionUsingField,
+  getApplicant,
+  listApplicantProfile,
+  listFactHistory,
+  listMissionsUsingField,
+} from '@visastack/services';
+import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { profileField } from '../../../../../lib/profile-fields';
 import { withSession } from '../../../../../lib/session';
@@ -44,10 +51,21 @@ export default async function HistoryPage({
     const applicant = await getApplicant(db, id);
     if (!applicant || applicant.ownerAccountId !== accountId) return null;
     const entries = await listApplicantProfile(db, id);
+
+    const uniqueFieldKeys = [...new Set(entries.map((e) => e.fieldKey))];
+    const missionUseByFieldKey = new Map<string, MissionUsingField[]>();
+    await Promise.all(
+      uniqueFieldKeys.map(async (fieldKey) => {
+        const result = await listMissionsUsingField(db, accountId, id, fieldKey);
+        missionUseByFieldKey.set(fieldKey, result.ok ? result.value : []);
+      }),
+    );
+
     const withHistory = await Promise.all(
       entries.map(async (entry) => ({
         fieldKey: entry.fieldKey,
         repeatingRecordKey: entry.repeatingRecordKey,
+        missionUse: missionUseByFieldKey.get(entry.fieldKey) ?? [],
         versions: (await listFactHistory(db, entry.factId)).map((v) => ({
           id: v.id,
           value: v.value,
@@ -100,6 +118,17 @@ export default async function HistoryPage({
                   </span>
                 ) : null}
               </h2>
+              {fact.missionUse.length > 0 ? (
+                <p className="muted" style={{ fontSize: '0.8rem', marginBottom: '0.75rem' }}>
+                  Used by:{' '}
+                  {fact.missionUse.map((m, i) => (
+                    <span key={m.missionId}>
+                      {i > 0 ? ', ' : ''}
+                      <Link href={`/app/mission/${m.missionId}`}>{m.title}</Link>
+                    </span>
+                  ))}
+                </p>
+              ) : null}
               <div className="rows">
                 {fact.versions.map((v, i) => (
                   <div
