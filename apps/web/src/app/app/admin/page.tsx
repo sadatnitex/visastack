@@ -1,4 +1,5 @@
 import {
+  type AuditEventRow,
   type ProductEventType,
   documentsPastRetention,
   getPilotScorecard,
@@ -10,6 +11,7 @@ import {
   listAllOrganizations,
   listErasureJobsNeedingAttention,
   listFailedJobs,
+  listRecentAuditEvents,
   loadUploadQuotaConfig,
   reportUnboundAccounts,
 } from '@visastack/services';
@@ -70,6 +72,7 @@ export default async function AdminPage() {
       unboundAccounts,
       owner,
       platformEvidenceBytes,
+      auditEvents,
     ] = await Promise.all([
       getRetentionPolicies(db),
       listActiveLegalHolds(db),
@@ -83,6 +86,7 @@ export default async function AdminPage() {
       reportUnboundAccounts(db),
       isPlatformOwnerAccount(db, { accountId, email }),
       getPlatformEvidenceBytes(db),
+      listRecentAuditEvents(db, 50),
     ]);
     return {
       admin: true as const,
@@ -98,6 +102,7 @@ export default async function AdminPage() {
       unboundAccounts,
       owner,
       platformEvidenceBytes,
+      auditEvents,
       quota: loadUploadQuotaConfig(),
     };
   });
@@ -108,11 +113,6 @@ export default async function AdminPage() {
 
   return (
     <section className="section container">
-      <div style={{ marginBottom: '1.5rem' }}>
-        <Link href="/app" className="muted" style={{ fontSize: '0.9rem' }}>
-          ← Workspace
-        </Link>
-      </div>
       <div className="toolbar" style={{ marginBottom: '2rem' }}>
         <div>
           <span className="eyebrow">Admin</span>
@@ -139,6 +139,33 @@ export default async function AdminPage() {
         </article>
       ) : (
         <>
+          <nav aria-label="Admin sections" className="pill-list" style={{ marginBottom: '1.5rem' }}>
+            <a href="/status" className="pill">
+              Readiness
+            </a>
+            <a href="#admin-security" className="pill">
+              Security
+            </a>
+            <a href="#admin-organizations" className="pill">
+              Organizations
+            </a>
+            <a href="#admin-retention" className="pill">
+              Retention
+            </a>
+            <a href="#admin-deletion" className="pill">
+              Deletion
+            </a>
+            <a href="#admin-processing" className="pill">
+              Processing failures
+            </a>
+            <a href="#admin-usage" className="pill">
+              Usage
+            </a>
+            <a href="#admin-audit" className="pill">
+              Audit
+            </a>
+          </nav>
+
           <article className="card" style={{ marginBottom: '1.5rem' }}>
             <p className="card-kicker">Pilot measurement</p>
             <h2 className="card-title">Product scorecard</h2>
@@ -161,7 +188,7 @@ export default async function AdminPage() {
             </div>
           </article>
 
-          <article className="card" style={{ marginBottom: '1.5rem' }}>
+          <article className="card" style={{ marginBottom: '1.5rem' }} id="admin-security">
             <p className="card-kicker">Identity</p>
             <h2 className="card-title">Platform roles</h2>
             <p className="card-body" style={{ marginBottom: '1rem' }}>
@@ -243,7 +270,7 @@ export default async function AdminPage() {
             </article>
           ) : null}
 
-          <div className="grid">
+          <div className="grid" id="admin-retention">
             <article className="card">
               <p className="card-kicker">Retention</p>
               <h2 className="card-title">Document retention policies</h2>
@@ -307,7 +334,7 @@ export default async function AdminPage() {
             </article>
           </div>
 
-          <article className="card" style={{ marginTop: '1.5rem' }}>
+          <article className="card" style={{ marginTop: '1.5rem' }} id="admin-processing">
             <p className="card-kicker">Processing</p>
             <h2 className="card-title">Failed intake jobs</h2>
             {data.failedJobs.length === 0 ? (
@@ -357,7 +384,7 @@ export default async function AdminPage() {
             )}
           </article>
 
-          <article className="card" style={{ marginTop: '1.5rem' }}>
+          <article className="card" style={{ marginTop: '1.5rem' }} id="admin-deletion">
             <p className="card-kicker">Erasure</p>
             <h2 className="card-title">Erasure jobs needing attention</h2>
             {data.erasureJobs.length === 0 ? (
@@ -412,7 +439,7 @@ export default async function AdminPage() {
             )}
           </article>
 
-          <article className="card" style={{ marginTop: '1.5rem' }}>
+          <article className="card" style={{ marginTop: '1.5rem' }} id="admin-usage">
             <p className="card-kicker">Capacity</p>
             <h2 className="card-title">Platform storage</h2>
             <p className="card-body" style={{ marginBottom: '1.25rem' }}>
@@ -467,7 +494,7 @@ export default async function AdminPage() {
             )}
           </article>
 
-          <article className="card" style={{ marginTop: '1.5rem' }}>
+          <article className="card" style={{ marginTop: '1.5rem' }} id="admin-organizations">
             <p className="card-kicker">Verification</p>
             <h2 className="card-title">Organizations</h2>
             {data.orgs.length === 0 ? (
@@ -499,6 +526,48 @@ export default async function AdminPage() {
                     </div>
                   );
                 })}
+              </div>
+            )}
+          </article>
+
+          <article className="card" style={{ marginTop: '1.5rem' }} id="admin-audit">
+            <p className="card-kicker">Transparency</p>
+            <h2 className="card-title">Recent audit events</h2>
+            <p className="card-body" style={{ marginBottom: '1rem' }}>
+              The last {data.auditEvents.length} entries of the platform's append-only, hash-chained
+              audit trail — every sensitive action across every tenant, newest first.
+            </p>
+            {data.auditEvents.length === 0 ? (
+              <p className="card-body">No audit events recorded yet.</p>
+            ) : (
+              <div className="rows">
+                {data.auditEvents.map((event: AuditEventRow) => (
+                  <div
+                    className="row"
+                    key={event.seq}
+                    style={{ flexDirection: 'column', alignItems: 'stretch', gap: '0.2rem' }}
+                  >
+                    <div
+                      style={{ display: 'flex', justifyContent: 'space-between', gap: '0.75rem' }}
+                    >
+                      <span className="row-key mono" style={{ fontSize: '0.85rem' }}>
+                        {event.eventType}
+                      </span>
+                      {event.result ? (
+                        <span
+                          className={`badge ${event.result === 'DENIED' ? 'badge-danger' : 'badge-neutral'}`}
+                        >
+                          {event.result}
+                        </span>
+                      ) : null}
+                    </div>
+                    <span className="muted" style={{ fontSize: '0.78rem' }}>
+                      {event.occurredAt.toLocaleString()}
+                      {event.resourceType ? ` · ${event.resourceType}` : ''}
+                      {event.reason ? ` · ${event.reason}` : ''}
+                    </span>
+                  </div>
+                ))}
               </div>
             )}
           </article>

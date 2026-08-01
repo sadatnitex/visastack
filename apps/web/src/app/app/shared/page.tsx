@@ -23,11 +23,6 @@ export default async function SharedWithMePage() {
 
   return (
     <section className="section container">
-      <div style={{ marginBottom: '1.5rem' }}>
-        <Link href="/app" className="muted" style={{ fontSize: '0.9rem' }}>
-          ← Workspace
-        </Link>
-      </div>
       <div className="toolbar" style={{ marginBottom: '2rem' }}>
         <div>
           <span className="eyebrow">Shared with you</span>

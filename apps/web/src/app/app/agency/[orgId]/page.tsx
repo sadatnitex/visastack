@@ -50,7 +50,15 @@ export default async function OrgConsolePage({
     if (!org) return null;
     const admin = await isOrgAdmin(db, accountId, orgId);
     if (!admin) {
-      return { org, admin: false, requests: [], members: [], applicants: [], missions: [] };
+      return {
+        org,
+        admin: false,
+        requests: [],
+        members: [],
+        applicants: [],
+        missions: [],
+        viewerAccountId: accountId,
+      };
     }
     const [requests, members, applicants, orgMissions] = await Promise.all([
       listEvidenceRequestsForOrgDetailed(db, accountId, orgId),
@@ -85,6 +93,7 @@ export default async function OrgConsolePage({
       members: membersResolved,
       applicants,
       missions,
+      viewerAccountId: accountId,
     };
   });
 
@@ -126,6 +135,71 @@ export default async function OrgConsolePage({
               {capabilityUnavailableMessage('agencyCollaboration')}
             </div>
           ) : null}
+
+          <article className="card" style={{ marginBottom: '1.5rem' }}>
+            <p className="card-kicker">Case inbox</p>
+            <h2 className="card-title">What needs attention</h2>
+            {data.missions.length === 0 ? (
+              <p className="card-body">
+                No cases are reachable yet — an applicant must grant this organization access to a
+                specific mission.
+              </p>
+            ) : (
+              <div className="rows" style={{ marginTop: '0.5rem' }}>
+                {data.missions
+                  .map((mission) => {
+                    const openRequests = data.requests.filter(
+                      (r) => r.applicantId === mission.applicantId && r.status === 'OPEN',
+                    ).length;
+                    const assignedToMe = mission.assignments.some(
+                      (a) => a.memberAccountId === data.viewerAccountId,
+                    );
+                    return { mission, openRequests, assignedToMe };
+                  })
+                  // Cases needing action float to the top: unassigned or open
+                  // requests first, then everything else.
+                  .sort((a, b) => {
+                    const weight = (x: typeof a) =>
+                      (x.mission.assignments.length === 0 ? 2 : 0) + (x.openRequests > 0 ? 1 : 0);
+                    return weight(b) - weight(a);
+                  })
+                  .map(({ mission, openRequests, assignedToMe }) => (
+                    <div
+                      className="row"
+                      key={mission.missionId}
+                      style={{ flexDirection: 'column', alignItems: 'stretch', gap: '0.3rem' }}
+                    >
+                      <div
+                        style={{ display: 'flex', justifyContent: 'space-between', gap: '0.75rem' }}
+                      >
+                        <span className="row-key">
+                          {mission.applicantName} · {mission.title}
+                        </span>
+                        <span style={{ display: 'flex', gap: '0.4rem' }}>
+                          {assignedToMe ? (
+                            <span className="badge badge-neutral">Assigned to you</span>
+                          ) : null}
+                          {mission.assignments.length === 0 ? (
+                            <span className="badge badge-warning">Needs assignment</span>
+                          ) : null}
+                          {openRequests > 0 ? (
+                            <span className="badge badge-warning">
+                              {openRequests} open request{openRequests === 1 ? '' : 's'}
+                            </span>
+                          ) : null}
+                        </span>
+                      </div>
+                      <span className="muted" style={{ fontSize: '0.8rem' }}>
+                        {mission.assignments.length > 0
+                          ? `Assigned: ${mission.assignments.map((a) => a.memberEmail).join(', ')}`
+                          : 'Unassigned'}
+                        {mission.notes.length > 0 ? ` · ${mission.notes.length} note(s)` : ''}
+                      </span>
+                    </div>
+                  ))}
+              </div>
+            )}
+          </article>
 
           <div className="grid">
             <article className="card">

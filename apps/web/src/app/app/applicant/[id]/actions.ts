@@ -85,7 +85,7 @@ export async function saveFactAction(_prev: ActionState, formData: FormData): Pr
     return { ok: true, message: `${def.label} saved.` } satisfies ActionState;
   });
 
-  if (result.ok) revalidatePath(`/app/applicant/${applicantId}`);
+  if (result.ok) revalidatePath(`/app/applicant/${applicantId}`, 'layout');
   return result;
 }
 
@@ -249,7 +249,7 @@ export async function uploadDocumentAction(
     } satisfies ActionState;
   });
 
-  if (result.ok) revalidatePath(`/app/applicant/${applicantId}`);
+  if (result.ok) revalidatePath(`/app/applicant/${applicantId}`, 'layout');
   return result;
 }
 
@@ -297,7 +297,7 @@ export async function decideDocumentNameAction(
     } satisfies ActionState;
   });
 
-  if (result.ok) revalidatePath(`/app/applicant/${applicantId}`);
+  if (result.ok) revalidatePath(`/app/applicant/${applicantId}`, 'layout');
   return result;
 }
 
@@ -323,7 +323,7 @@ export async function previewDocumentAction(formData: FormData): Promise<void> {
   });
 
   if (url) redirect(url);
-  redirect(`/app/applicant/${applicantId}?preview_error=1`);
+  redirect(`/app/applicant/${applicantId}/documents?preview_error=1`);
 }
 
 /**
@@ -370,7 +370,7 @@ export async function runAiExtractionAction(
     } satisfies ActionState;
   });
 
-  if (result.ok) revalidatePath(`/app/applicant/${applicantId}`);
+  if (result.ok) revalidatePath(`/app/applicant/${applicantId}`, 'layout');
   return result;
 }
 
@@ -415,6 +415,6 @@ export async function decideProposalAction(
     } satisfies ActionState;
   });
 
-  if (result.ok) revalidatePath(`/app/applicant/${applicantId}`);
+  if (result.ok) revalidatePath(`/app/applicant/${applicantId}`, 'layout');
   return result;
 }

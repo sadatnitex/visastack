@@ -1,287 +1,190 @@
-import { type MessageKey, type Translator, createTranslator } from '@visastack/i18n';
 import {
-  getApplicant,
-  getApplicantEvidenceBytes,
   hasConsent,
-  isServableProcessingState,
+  listAccessForApplicant,
   listApplicantProfile,
   listDocumentsDetailed,
+  listEvidenceRequestsForApplicant,
+  listMissions,
   listPendingProposals,
-  loadUploadQuotaConfig,
 } from '@visastack/services';
 import Link from 'next/link';
-import { notFound } from 'next/navigation';
-import { createAiExtractor } from '../../../../lib/ai';
-import { getLocale } from '../../../../lib/locale';
+import { PROFILE_FIELDS } from '../../../../lib/profile-fields';
 import { withSession } from '../../../../lib/session';
-import { previewDocumentAction } from './actions';
-import { AiProposalReview, RunAiExtractionButton } from './ai-review';
-import { DocumentUploader } from './document-uploader';
-import { NameReview } from './name-review';
-import { ProfileEditor } from './profile-editor';
-import { UsageMeter } from './usage-meter';
 
 export const dynamic = 'force-dynamic';
 
-const RELATIONSHIP_LABELS: Record<string, string> = {
-  SELF: 'Myself',
-  FAMILY_MEMBER: 'Family member',
-  MINOR_GUARDIAN: 'Minor (guardian)',
-};
+const TERMINAL_MISSION_STATES = new Set(['CLOSED', 'CANCELLED']);
+const UNIVERSAL_CORE_FIELDS = PROFILE_FIELDS.filter((f) => f.pack === 'universal' && !f.group);
 
-const SAFETY_BADGE_KEYS: Record<string, { key: MessageKey; tone: string }> = {
-  CLEAN: { key: 'document.status.clean', tone: 'badge-success' },
-  QUARANTINED: { key: 'document.status.quarantined', tone: 'badge-danger' },
-  SCANNING: { key: 'document.status.scanning', tone: 'badge-neutral' },
-  PENDING: { key: 'document.status.pending', tone: 'badge-neutral' },
-};
-
-function safetyBadge(status: string, t: Translator): { label: string; tone: string } {
-  const entry = SAFETY_BADGE_KEYS[status] ?? {
-    key: 'document.status.pending' as const,
-    tone: 'badge-neutral',
-  };
-  return { label: t(entry.key), tone: entry.tone };
-}
-
-export default async function ApplicantPage({
+/**
+ * Applicant Overview (master directive §7 "PR 7"): synthesizes what used to
+ * require visiting five separate pages into one summary — identity,
+ * completeness, document health, missions, outstanding requests, current
+ * sharing, and a single next action.
+ */
+export default async function ApplicantOverviewPage({
   params,
-  searchParams,
 }: {
   readonly params: Promise<{ id: string }>;
-  readonly searchParams: Promise<{ readonly preview_error?: string }>;
 }) {
   const { id } = await params;
-  const { preview_error: previewError } = await searchParams;
-  const locale = await getLocale();
-  const t = createTranslator(locale);
 
   const data = await withSession(async ({ db, accountId }) => {
-    const applicant = await getApplicant(db, id);
-    if (!applicant || applicant.ownerAccountId !== accountId) return null;
-    const [profile, documents, coreGranted, aiGranted, evidenceBytes, pendingProposals] =
+    const [profile, documents, coreGranted, pendingProposals, missions, evidenceRequests, access] =
       await Promise.all([
         listApplicantProfile(db, id),
         listDocumentsDetailed(db, accountId, id),
         hasConsent(db, accountId, 'CORE_PROCESSING'),
-        hasConsent(db, accountId, 'AI_EXTRACTION'),
-        getApplicantEvidenceBytes(db, id),
         listPendingProposals(db, id),
+        listMissions(db, accountId, id),
+        listEvidenceRequestsForApplicant(db, accountId, id),
+        listAccessForApplicant(db, accountId, id),
       ]);
     return {
-      applicant,
       profile,
       documents: documents.ok ? documents.value : [],
       coreGranted,
-      aiGranted,
-      aiConfigured: Boolean(createAiExtractor()),
-      evidenceBytes,
       pendingProposals,
-      quota: loadUploadQuotaConfig(),
+      missions: missions.ok ? missions.value : [],
+      evidenceRequests: evidenceRequests.ok ? evidenceRequests.value : [],
+      activeGrants: access.ok ? access.value.filter((g) => g.status === 'ACTIVE').length : 0,
     };
   });
 
-  if (!data) notFound();
+  const filledUniversalKeys = new Set(
+    data.profile
+      .filter((entry) => entry.repeatingRecordKey === null && entry.value !== null)
+      .map((entry) => entry.fieldKey),
+  );
+  const completedCore = UNIVERSAL_CORE_FIELDS.filter((f) => filledUniversalKeys.has(f.key)).length;
+  const completenessPct =
+    UNIVERSAL_CORE_FIELDS.length > 0
+      ? Math.round((completedCore / UNIVERSAL_CORE_FIELDS.length) * 100)
+      : 0;
 
-  const values: Record<string, { value: string | null; status: string | null }> = {};
-  const repeatingValues: Record<
-    string,
-    Record<string, { value: string | null; status: string | null }>
-  > = {};
-  for (const entry of data.profile) {
-    if (entry.repeatingRecordKey === null) {
-      values[entry.fieldKey] = { value: entry.value, status: entry.status };
-    } else {
-      const byRecord = repeatingValues[entry.fieldKey] ?? {};
-      byRecord[entry.repeatingRecordKey] = { value: entry.value, status: entry.status };
-      repeatingValues[entry.fieldKey] = byRecord;
-    }
-  }
+  const activeMissions = data.missions.filter((m) => !TERMINAL_MISSION_STATES.has(m.state));
+  const openEvidenceRequests = data.evidenceRequests.filter((r) => r.status === 'OPEN');
+  const documentsNeedingAttention = data.documents.filter(
+    (d) => d.safetyStatus === 'QUARANTINED' || d.classification?.reviewRequired,
+  );
+
+  const nextAction = !data.coreGranted
+    ? { href: '/app', label: 'Grant consent from Home to get started' }
+    : openEvidenceRequests.length > 0
+      ? { href: `/app/applicant/${id}/evidence`, label: 'Respond to an evidence request' }
+      : data.pendingProposals.length > 0
+        ? { href: `/app/applicant/${id}/documents`, label: 'Review AI proposals' }
+        : documentsNeedingAttention.length > 0
+          ? { href: `/app/applicant/${id}/documents`, label: 'Review a flagged document' }
+          : completenessPct < 100
+            ? { href: `/app/applicant/${id}/profile`, label: 'Continue the Master Profile' }
+            : { href: `/app/applicant/${id}/missions`, label: 'Start or review a mission' };
 
   return (
-    <section className="section container">
-      <div style={{ marginBottom: '1.5rem' }}>
-        <Link href="/app" className="muted" style={{ fontSize: '0.9rem' }}>
-          ← Workspace
+    <>
+      <article className="card" style={{ marginBottom: '1.5rem' }}>
+        <p className="card-kicker">Next step</p>
+        <h2 className="card-title">{nextAction.label}</h2>
+        <Link href={nextAction.href} className="btn btn-primary" style={{ marginTop: '0.75rem' }}>
+          Go there
         </Link>
-      </div>
-      <div className="toolbar" style={{ marginBottom: '2rem' }}>
-        <div>
-          <span className="eyebrow">Applicant</span>
-          <h1 className="section-title" style={{ margin: '0.25rem 0 0' }}>
-            {data.applicant.displayName}
-          </h1>
-          <p className="muted" style={{ margin: '0.35rem 0 0' }}>
-            {RELATIONSHIP_LABELS[data.applicant.relationship] ?? data.applicant.relationship}
-          </p>
-        </div>
-        <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap' }}>
-          <Link href={`/app/applicant/${id}/missions`} className="btn btn-secondary">
-            Missions
-          </Link>
-          <Link href={`/app/applicant/${id}/history`} className="btn btn-secondary">
-            History
-          </Link>
-          <Link href={`/app/applicant/${id}/evidence`} className="btn btn-secondary">
-            Evidence
-          </Link>
-          <Link href={`/app/applicant/${id}/sharing`} className="btn btn-secondary">
-            Sharing
-          </Link>
-        </div>
-      </div>
-
-      {previewError ? (
-        <p className="notice notice-warn" role="alert" style={{ marginBottom: '1.5rem' }}>
-          Couldn't open that preview — the document may no longer be available. Please try again.
-        </p>
-      ) : null}
-
-      {!data.coreGranted ? (
-        <div className="card" style={{ marginBottom: '2rem' }}>
-          <p className="card-body">
-            Grant <strong>Core processing</strong> consent from your{' '}
-            <Link href="/app">workspace</Link> to edit this profile and upload documents.
-          </p>
-        </div>
-      ) : null}
-
-      {data.aiConfigured && data.coreGranted && !data.aiGranted ? (
-        <div className="card" style={{ marginBottom: '2rem' }}>
-          <p className="card-body">
-            Grant <strong>AI extraction</strong> consent from your{' '}
-            <Link href="/app">workspace</Link> to get automatic field suggestions from your
-            documents — every suggestion still requires your explicit approval before it changes
-            your profile.
-          </p>
-        </div>
-      ) : null}
+      </article>
 
       <div className="grid">
         <article className="card">
           <p className="card-kicker">Master Profile</p>
-          <h2 className="card-title">Structured facts</h2>
-          <p className="card-body" style={{ marginBottom: '1.25rem' }}>
-            Every save appends an immutable, provenance-tracked version — earlier values are never
-            overwritten.
-          </p>
-          {data.coreGranted ? (
-            <ProfileEditor applicantId={id} values={values} repeatingValues={repeatingValues} />
-          ) : (
-            <p className="muted">Consent required.</p>
-          )}
+          <h2 className="card-title">Completeness</h2>
+          <div style={{ marginBottom: '1rem' }}>
+            <div className="meter-label">
+              <span>Core identity fields</span>
+              <span>{completenessPct}%</span>
+            </div>
+            <div className="meter">
+              <div
+                className={`meter-fill ${completenessPct >= 100 ? 'meter-full' : ''}`.trim()}
+                style={{ width: `${completenessPct}%`, background: 'var(--accent)' }}
+              />
+            </div>
+          </div>
+          <Link href={`/app/applicant/${id}/profile`} className="muted">
+            Open Profile →
+          </Link>
         </article>
 
         <article className="card">
-          <p className="card-kicker">Document Vault</p>
-          <h2 className="card-title">Uploads &amp; safety</h2>
-          <p className="card-body" style={{ marginBottom: '1.25rem' }}>
-            Documents are stored privately and pass a structural safety scan before they can be
-            previewed.
-          </p>
+          <p className="card-kicker">Documents</p>
+          <h2 className="card-title">Document health</h2>
+          <div className="rows" style={{ marginBottom: '0.75rem' }}>
+            <div className="row">
+              <span className="row-key">Total uploaded</span>
+              <span className="row-val">{data.documents.length}</span>
+            </div>
+            <div className="row">
+              <span className="row-key">Needing attention</span>
+              <span
+                className={`badge ${documentsNeedingAttention.length > 0 ? 'badge-warning' : 'badge-neutral'}`}
+              >
+                {documentsNeedingAttention.length}
+              </span>
+            </div>
+            <div className="row">
+              <span className="row-key">AI proposals to review</span>
+              <span
+                className={`badge ${data.pendingProposals.length > 0 ? 'badge-warning' : 'badge-neutral'}`}
+              >
+                {data.pendingProposals.length}
+              </span>
+            </div>
+          </div>
+          <Link href={`/app/applicant/${id}/documents`} className="muted">
+            Open Documents →
+          </Link>
+        </article>
 
-          {data.documents.length === 0 ? (
-            <p className="muted" style={{ marginBottom: '1.25rem' }}>
-              No documents yet.
+        <article className="card">
+          <p className="card-kicker">Missions</p>
+          <h2 className="card-title">Active missions</h2>
+          {activeMissions.length === 0 ? (
+            <p className="card-body" style={{ marginBottom: '0.75rem' }}>
+              No active mission yet.
             </p>
           ) : (
-            <div className="rows" style={{ marginBottom: '1.5rem' }}>
-              {data.documents.map((doc) => {
-                const badge = safetyBadge(doc.safetyStatus ?? 'PENDING', t);
-                const previewable =
-                  doc.safetyStatus === 'CLEAN' &&
-                  doc.processingStatus !== null &&
-                  isServableProcessingState(doc.processingStatus);
-                return (
-                  <div
-                    key={doc.id}
-                    style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}
-                  >
-                    <div className="row">
-                      <span className="row-key" style={{ wordBreak: 'break-word' }}>
-                        {doc.approvedName ?? doc.originalName}
-                      </span>
-                      <span style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-                        <span className={`badge ${badge.tone}`}>{badge.label}</span>
-                        {previewable ? (
-                          <form action={previewDocumentAction}>
-                            <input type="hidden" name="applicantId" value={id} />
-                            <input type="hidden" name="documentId" value={doc.id} />
-                            <button
-                              type="submit"
-                              className="btn btn-secondary"
-                              style={{ padding: '0.3rem 0.9rem', fontSize: '0.8rem' }}
-                            >
-                              Preview
-                            </button>
-                          </form>
-                        ) : null}
-                      </span>
-                    </div>
-                    {doc.pendingNameVersion ? (
-                      <NameReview
-                        applicantId={id}
-                        nameVersionId={doc.pendingNameVersion.id}
-                        originalName={doc.originalName}
-                        proposedName={doc.pendingNameVersion.proposedName}
-                        classification={doc.classification}
-                      />
-                    ) : doc.classification?.reviewRequired ? (
-                      <p className="muted" style={{ fontSize: '0.75rem' }}>
-                        Automatic classification needs review — not confident enough to propose a
-                        name.
-                      </p>
-                    ) : null}
-                    {(() => {
-                      if (!data.aiConfigured || !data.aiGranted || !doc.classification) return null;
-                      const versionId = doc.latestVersionId;
-                      if (!versionId) return null;
-                      const proposalsForDoc = data.pendingProposals.filter(
-                        (p) => p.proposal.documentVersionId === versionId,
-                      );
-                      return (
-                        <>
-                          <RunAiExtractionButton applicantId={id} documentVersionId={versionId} />
-                          {proposalsForDoc.map(({ proposal, evidence }) => (
-                            <AiProposalReview
-                              key={proposal.id}
-                              applicantId={id}
-                              proposal={{
-                                id: proposal.id,
-                                type: proposal.type,
-                                fieldKey: proposal.fieldKey,
-                                value: proposal.value,
-                                confidence: proposal.confidence,
-                                rationale: proposal.rationale,
-                                evidenceSnippets: evidence.map((e) => e.snippet),
-                              }}
-                            />
-                          ))}
-                        </>
-                      );
-                    })()}
-                  </div>
-                );
-              })}
+            <div className="rows" style={{ marginBottom: '0.75rem' }}>
+              {activeMissions.slice(0, 4).map((m) => (
+                <div className="row" key={m.id}>
+                  <span className="row-key">{m.title}</span>
+                  <span className="badge badge-neutral">{m.state}</span>
+                </div>
+              ))}
             </div>
           )}
+          <Link href={`/app/applicant/${id}/missions`} className="muted">
+            Open Missions →
+          </Link>
+        </article>
 
-          {data.coreGranted ? (
-            <>
-              <div style={{ marginBottom: '1.25rem' }}>
-                <UsageMeter
-                  label="Evidence storage"
-                  usedBytes={data.evidenceBytes}
-                  limitBytes={data.quota.maxApplicantEvidenceBytes}
-                />
-              </div>
-              <DocumentUploader applicantId={id} />
-            </>
-          ) : (
-            <p className="muted">Consent required.</p>
-          )}
+        <article className="card">
+          <p className="card-kicker">Sharing &amp; requests</p>
+          <h2 className="card-title">Outstanding items</h2>
+          <div className="rows" style={{ marginBottom: '0.75rem' }}>
+            <div className="row">
+              <span className="row-key">Currently shared with</span>
+              <span className="row-val">{data.activeGrants}</span>
+            </div>
+            <div className="row">
+              <span className="row-key">Open evidence requests</span>
+              <span
+                className={`badge ${openEvidenceRequests.length > 0 ? 'badge-warning' : 'badge-neutral'}`}
+              >
+                {openEvidenceRequests.length}
+              </span>
+            </div>
+          </div>
+          <Link href={`/app/applicant/${id}/sharing`} className="muted">
+            Open Sharing →
+          </Link>
         </article>
       </div>
-    </section>
+    </>
   );
 }

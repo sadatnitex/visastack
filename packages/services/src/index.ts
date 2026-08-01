@@ -16,7 +16,12 @@ export { STEP_UP_ACTIONS } from '@visastack/policy';
 export type { Db, Schema } from './db';
 export { type ServiceError, type ServiceErrorCode, serviceError } from './errors';
 
-export { type AuditEventInput, type AuditEventRow, appendAuditEvent } from './audit';
+export {
+  type AuditEventInput,
+  type AuditEventRow,
+  appendAuditEvent,
+  listRecentAuditEvents,
+} from './audit';
 
 export {
   type Account,

@@ -35,7 +35,11 @@ export async function setConsentAction(
       message: granted ? 'Consent granted.' : 'Consent revoked.',
     } satisfies ActionState;
   });
-  if (result.ok) revalidatePath('/app');
+  if (result.ok) {
+    revalidatePath('/app');
+    revalidatePath('/app/applicants');
+    revalidatePath('/app/account');
+  }
   return result;
 }
 
@@ -62,6 +66,9 @@ export async function createApplicantAction(
     if (!created.ok) return { ok: false, message: created.error.message } satisfies ActionState;
     return { ok: true, message: `${displayName} added.` } satisfies ActionState;
   });
-  if (result.ok) revalidatePath('/app');
+  if (result.ok) {
+    revalidatePath('/app');
+    revalidatePath('/app/applicants');
+  }
   return result;
 }

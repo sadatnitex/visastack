@@ -28,8 +28,8 @@ export default function AppError({
         We hit a snag loading this page
       </h1>
       <p className="section-sub" style={{ margin: '0.75rem auto 1.5rem', maxWidth: '34rem' }}>
-        This is on our side, not yours. Try again in a moment — if it keeps happening, sign out and
-        back in.
+        This is on our side, not yours — nothing you had entered on this page was lost or corrupted.
+        Try again in a moment; if it keeps happening, sign out and back in.
       </p>
       <div className="cta-row" style={{ justifyContent: 'center' }}>
         <button type="button" className="btn btn-primary" onClick={() => reset()}>

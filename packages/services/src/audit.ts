@@ -117,3 +117,14 @@ export async function appendAuditEvent(tx: Db, input: AuditEventInput): Promise<
   );
   return row;
 }
+
+/**
+ * Most recent audit events, platform-wide (master directive §7 "PR 7" —
+ * platform admin nav's "Audit" destination). Read-only; callers are
+ * responsible for checking the caller is a platform admin before exposing
+ * this — the chain itself has no per-row access control since it spans every
+ * tenant by design.
+ */
+export async function listRecentAuditEvents(db: Db, limit = 100): Promise<AuditEventRow[]> {
+  return db.select().from(schema.auditEvents).orderBy(desc(schema.auditEvents.seq)).limit(limit);
+}

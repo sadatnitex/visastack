@@ -1,5 +1,4 @@
 import { getApplicant, listApplicantProfile, listFactHistory } from '@visastack/services';
-import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { profileField } from '../../../../../lib/profile-fields';
 import { withSession } from '../../../../../lib/session';
@@ -65,18 +64,13 @@ export default async function HistoryPage({
   if (!data) notFound();
 
   return (
-    <section className="section container">
-      <div style={{ marginBottom: '1.5rem' }}>
-        <Link href={`/app/applicant/${id}`} className="muted" style={{ fontSize: '0.9rem' }}>
-          ← {data.applicant.displayName}
-        </Link>
-      </div>
+    <>
       <div className="toolbar" style={{ marginBottom: '2rem' }}>
         <div>
           <span className="eyebrow">Provenance</span>
-          <h1 className="section-title" style={{ margin: '0.25rem 0 0' }}>
+          <h2 className="section-title" style={{ margin: '0.25rem 0 0' }}>
             Fact history
-          </h1>
+          </h2>
           <p className="muted" style={{ margin: '0.35rem 0 0' }}>
             Every value is an immutable version — nothing is ever overwritten. This is the full,
             ordered trail with its provenance.
@@ -142,6 +136,6 @@ export default async function HistoryPage({
           ))}
         </div>
       )}
-    </section>
+    </>
   );
 }

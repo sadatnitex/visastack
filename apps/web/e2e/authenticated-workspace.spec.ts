@@ -1,3 +1,4 @@
+import AxeBuilder from '@axe-core/playwright';
 import { expect, test } from '@playwright/test';
 
 /**
@@ -50,7 +51,8 @@ test.describe('authenticated workspace journey', () => {
 
   test('signs in and reaches the authenticated workspace', async ({ page }) => {
     await signIn(page);
-    await expect(page.getByText(/your workspace/i)).toBeVisible();
+    await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+    await expect(page.locator('.app-shell-nav')).toBeVisible();
   });
 
   test('creates an applicant, saves a fact, logs out, signs in again, and the fact persists', async ({
@@ -58,14 +60,19 @@ test.describe('authenticated workspace journey', () => {
   }) => {
     await signIn(page);
 
+    await page.getByRole('link', { name: 'Applicants' }).click();
+    await expect(page).toHaveURL(/\/app\/applicants$/);
+
     const applicantName = `E2E Synthetic ${Date.now()}`;
     await page.getByLabel(/display name|applicant name/i).fill(applicantName);
     await page.getByRole('button', { name: /create applicant|add applicant/i }).click();
     await expect(page.getByText(applicantName)).toBeVisible();
 
     await page.getByText(applicantName).click();
+    await page.getByRole('link', { name: 'Profile' }).click();
+    await expect(page).toHaveURL(/\/app\/applicant\/[^/]+\/profile$/);
     // The exact manual-profile field markup is not yet confirmed against a
-    // live run; this targets the first available text field on the applicant
+    // live run; this targets the first available text field on the profile
     // page as a best-effort persistence probe.
     const firstField = page.getByRole('textbox').first();
     const syntheticValue = `synthetic-${Date.now()}`;
@@ -77,6 +84,7 @@ test.describe('authenticated workspace journey', () => {
 
     await signIn(page);
     await page.getByText(applicantName).click();
+    await page.getByRole('link', { name: 'Profile' }).click();
     await expect(page.getByRole('textbox').first()).toHaveValue(syntheticValue);
   });
 
@@ -86,5 +94,37 @@ test.describe('authenticated workspace journey', () => {
     await context.clearCookies();
     await page.goto('/app/privacy');
     await expect(page).toHaveURL(/workos\.com|authkit\.app/);
+  });
+
+  test('an unrelated account cannot reach another applicant by guessing the URL', async ({
+    page,
+  }) => {
+    await signIn(page);
+    // A random UUID never matches a real, owned applicant — must 404, never
+    // leak a redirect-to-real-data or a raw database error.
+    const response = await page.goto('/app/applicant/00000000-0000-4000-8000-000000000000');
+    expect(response?.status()).toBe(404);
+  });
+
+  test('a display name with unicode characters renders correctly end to end', async ({ page }) => {
+    await signIn(page);
+    await page.getByRole('link', { name: 'Applicants' }).click();
+    const unicodeName = `উদাহরণ 例え 😀 ${Date.now()}`;
+    await page.getByLabel(/display name|applicant name/i).fill(unicodeName);
+    await page.getByRole('button', { name: /create applicant|add applicant/i }).click();
+    await expect(page.getByText(unicodeName)).toBeVisible();
+  });
+
+  test('the dashboard has no critical/serious automated accessibility violations', async ({
+    page,
+  }) => {
+    await signIn(page);
+    const results = await new AxeBuilder({ page })
+      .withTags(['wcag2a', 'wcag2aa', 'wcag22aa'])
+      .analyze();
+    const blocking = results.violations.filter(
+      (v) => v.impact === 'critical' || v.impact === 'serious',
+    );
+    expect(blocking, JSON.stringify(blocking, null, 2)).toEqual([]);
   });
 });
