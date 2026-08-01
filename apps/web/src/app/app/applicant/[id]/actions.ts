@@ -63,6 +63,14 @@ export async function saveFactAction(_prev: ActionState, formData: FormData): Pr
   if (!def) return { ok: false, message: 'Unknown field.' };
   if (value.length === 0) return { ok: false, message: 'Enter a value first.' };
 
+  const effectiveFromRaw = String(formData.get('effectiveFrom') ?? '').trim();
+  let effectiveFrom: Date | undefined;
+  if (effectiveFromRaw.length > 0) {
+    const parsed = new Date(effectiveFromRaw);
+    if (Number.isNaN(parsed.getTime())) return { ok: false, message: 'Invalid effective date.' };
+    effectiveFrom = parsed;
+  }
+
   const result = await withSession(async ({ db, accountId }) => {
     if (!(await assertOwned(db, accountId, applicantId))) {
       return { ok: false, message: 'Not authorized.' } satisfies ActionState;
@@ -80,6 +88,7 @@ export async function saveFactAction(_prev: ActionState, formData: FormData): Pr
       fieldKey: def.key,
       value,
       ...(repeatingRecordKey !== null ? { repeatingRecordKey } : {}),
+      ...(effectiveFrom ? { effectiveFrom } : {}),
     });
     if (!edit.ok) return { ok: false, message: edit.error.message } satisfies ActionState;
     return { ok: true, message: `${def.label} saved.` } satisfies ActionState;

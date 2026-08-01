@@ -18,6 +18,7 @@ import {
   getMissionSnapshot,
   listMissionSnapshots,
   listMissions,
+  listMissionsUsingField,
   snapshotMission,
   transitionMission,
 } from './missions';
@@ -394,6 +395,62 @@ describe('missions — workspace, readiness, workflow, snapshot', () => {
       missionId: mission.value.id,
       to: 'IN_PROGRESS',
     });
+    expect(isErr(result)).toBe(true);
+    if (isErr(result)) expect(result.error.code).toBe('forbidden');
+  });
+
+  it('reports mission use for a field, live off the attached pack — not a specific historical version (master directive §7 "PR 8")', async () => {
+    const { account, applicantId } = await seed(db);
+    const packVersionId = await publishedPack(db, account.id);
+    const mission = await createMission(db, {
+      actorAccountId: account.id,
+      applicantId,
+      title: 'Tourist visa',
+    });
+    if (!isOk(mission)) throw new Error('mission');
+    await attachPackVersion(db, {
+      actorAccountId: account.id,
+      missionId: mission.value.id,
+      packVersionId,
+    });
+
+    // Before any fact exists for the required field, the mission still
+    // "uses" it — use is about the requirement, not whether it's satisfied.
+    const beforeFact = await listMissionsUsingField(db, account.id, applicantId, 'passport.number');
+    expect(isOk(beforeFact)).toBe(true);
+    if (isOk(beforeFact)) {
+      expect(beforeFact.value.map((m) => m.missionId)).toEqual([mission.value.id]);
+    }
+
+    // An unrelated field the pack never cites: no mission uses it.
+    const unrelated = await listMissionsUsingField(db, account.id, applicantId, 'given_name');
+    expect(isOk(unrelated)).toBe(true);
+    if (isOk(unrelated)) expect(unrelated.value).toEqual([]);
+
+    // A second, unattached mission never shows up for this field.
+    const other = await createMission(db, {
+      actorAccountId: account.id,
+      applicantId,
+      title: 'Business visa (no pack attached)',
+    });
+    if (!isOk(other)) throw new Error('mission');
+    const afterSecond = await listMissionsUsingField(
+      db,
+      account.id,
+      applicantId,
+      'passport.number',
+    );
+    expect(isOk(afterSecond)).toBe(true);
+    if (isOk(afterSecond)) {
+      expect(afterSecond.value.map((m) => m.missionId)).toEqual([mission.value.id]);
+    }
+  });
+
+  it("refuses to report mission use for another owner's applicant", async () => {
+    const { applicantId } = await seed(db);
+    const other = await provisionAccount(db, { email: 'other-mu@example.com' });
+    if (!isOk(other)) throw new Error('provision');
+    const result = await listMissionsUsingField(db, other.value.id, applicantId, 'passport.number');
     expect(isErr(result)).toBe(true);
     if (isErr(result)) expect(result.error.code).toBe('forbidden');
   });

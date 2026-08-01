@@ -392,6 +392,9 @@ export async function approveProposal(
   if (proposal.type === 'UNMAPPED' || !proposal.fieldKey) {
     return err(serviceError('unknown_field', 'proposal has no canonical field to approve'));
   }
+  // A local const's narrowing (unlike a property access) survives into the
+  // nested transaction closure below.
+  const fieldKey: string = proposal.fieldKey;
 
   const applicant = await getApplicant(db, proposal.applicantId);
   if (!applicant) return err(serviceError('not_found', 'applicant not found'));
@@ -418,7 +421,7 @@ export async function approveProposal(
   const existingFactId = await findExistingFactId(
     db,
     proposal.applicantId,
-    proposal.fieldKey,
+    fieldKey,
     repeatingRecordKey,
   );
   let conflict: { factId: string; previousFactVersionId: string } | undefined;
@@ -433,23 +436,30 @@ export async function approveProposal(
     }
   }
 
-  const editResult = await editFact(db, {
-    actorAccountId: input.actorAccountId,
-    applicantId: proposal.applicantId,
-    fieldKey: proposal.fieldKey,
-    value: finalValue,
-    status: conflict ? 'CONFLICTED' : 'DOCUMENT_SUPPORTED',
-    method: 'DOCUMENT',
-    sourceDocumentVersionId: proposal.documentVersionId,
-    modelVersion: run.modelVersion,
-    promptVersion: run.promptVersion,
-    reason: 'ai_proposal_approved',
-    ...(repeatingRecordKey ? { repeatingRecordKey } : {}),
-  });
-  if (!isOk(editResult)) return editResult;
+  // Atomic approval (master directive §7 "PR 8"): the fact write and the
+  // proposal decision (status, correction feedback, conflict record) must
+  // commit or roll back together. editFact runs its own transaction — nested
+  // here as a savepoint within this one — so a failure writing the proposal
+  // decision AFTER the fact has already changed rolls back the fact change
+  // too, instead of leaving the proposal stuck PENDING forever against an
+  // already-mutated profile.
+  return db.transaction(async (tx) => {
+    const editResult = await editFact(tx, {
+      actorAccountId: input.actorAccountId,
+      applicantId: proposal.applicantId,
+      fieldKey,
+      value: finalValue,
+      status: conflict ? 'CONFLICTED' : 'DOCUMENT_SUPPORTED',
+      method: 'DOCUMENT',
+      sourceDocumentVersionId: proposal.documentVersionId,
+      modelVersion: run.modelVersion,
+      promptVersion: run.promptVersion,
+      reason: 'ai_proposal_approved',
+      ...(repeatingRecordKey ? { repeatingRecordKey } : {}),
+    });
+    if (!isOk(editResult)) return editResult;
 
-  const { version } = editResult.value;
-  await db.transaction(async (tx) => {
+    const { version } = editResult.value;
     await tx
       .update(schema.fieldProposals)
       .set({
@@ -477,9 +487,9 @@ export async function approveProposal(
         note: `AI proposed "${finalValue}" but the current confirmed value differs`,
       });
     }
-  });
 
-  return editResult;
+    return editResult;
+  });
 }
 
 export interface RejectProposalInput {

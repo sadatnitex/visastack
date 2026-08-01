@@ -90,6 +90,15 @@ export interface EditFactInput {
   readonly sourceDocumentVersionId?: string;
   readonly modelVersion?: string;
   readonly promptVersion?: string;
+  /**
+   * When this value became (or becomes) true — distinct from `createdAt`,
+   * which is when the version was recorded. Defaults to now: most edits
+   * describe the applicant's current reality, not a backdated or
+   * future-dated one. Master directive §7 "PR 8" — every fact must support
+   * an effective date; the schema column existed but nothing wrote to it
+   * before this.
+   */
+  readonly effectiveFrom?: Date;
 }
 
 export interface EditFactResult {
@@ -221,6 +230,7 @@ export async function editFact(
             sourceDocumentVersionId: input.sourceDocumentVersionId ?? null,
             modelVersion: input.modelVersion ?? null,
             promptVersion: input.promptVersion ?? null,
+            effectiveFrom: input.effectiveFrom ?? new Date(),
             approvedAt: new Date(),
           })
           .returning(),
@@ -292,6 +302,7 @@ export interface ProfileEntry {
   readonly status: FactStatus | null;
   readonly method: string | null;
   readonly updatedAt: string | null;
+  readonly effectiveFrom: string | null;
 }
 
 /**
@@ -309,6 +320,7 @@ export async function listApplicantProfile(db: Db, applicantId: string): Promise
       status: schema.factVersions.status,
       method: schema.factVersions.method,
       updatedAt: schema.factVersions.createdAt,
+      effectiveFrom: schema.factVersions.effectiveFrom,
     })
     .from(schema.facts)
     .innerJoin(
@@ -327,5 +339,6 @@ export async function listApplicantProfile(db: Db, applicantId: string): Promise
     status: row.status,
     method: row.method,
     updatedAt: row.updatedAt ? row.updatedAt.toISOString() : null,
+    effectiveFrom: row.effectiveFrom ? row.effectiveFrom.toISOString() : null,
   }));
 }

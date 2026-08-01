@@ -95,11 +95,21 @@ export type ConsentType = (typeof CONSENT_TYPES)[number];
 
 /**
  * Build Spec §4.1 — Master Profile packs. "universal" applies to every
- * applicant; "professional", "business", "medical" are target-group packs.
- * Also the canonical category vocabulary a grant's `categories` allow-list
- * scopes against (packages/services/src/sharing.ts) — one definition shared
- * by the profile registry (apps/web) and grant-scope validation
- * (packages/services), not two independently-maintained lists.
+ * applicant; "professional", "business", "medical", "medical_attendant" are
+ * target-group packs. "medical" covers the traveller/patient themselves;
+ * "medical_attendant" is separate (master directive §7 "PR 8") — a
+ * companion accompanying them has a distinct identity and relationship to
+ * track, not more fields on the patient's own record. Also the canonical
+ * category vocabulary a grant's `categories` allow-list scopes against
+ * (packages/services/src/sharing.ts) — one definition shared by the profile
+ * registry (apps/web) and grant-scope validation (packages/services), not
+ * two independently-maintained lists.
  */
-export const PROFILE_PACKS = ['universal', 'professional', 'business', 'medical'] as const;
+export const PROFILE_PACKS = [
+  'universal',
+  'professional',
+  'business',
+  'medical',
+  'medical_attendant',
+] as const;
 export type ProfilePack = (typeof PROFILE_PACKS)[number];

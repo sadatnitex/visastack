@@ -44,6 +44,12 @@ interface FieldRowProps {
   readonly currentValue: string | null;
   readonly status: string | null;
   readonly updatedAt?: string | null | undefined;
+  readonly effectiveFrom?: string | null | undefined;
+}
+
+/** Same UTC day — the common case where a value is effective the moment it's saved. */
+function sameDay(a: string, b: string): boolean {
+  return a.slice(0, 10) === b.slice(0, 10);
 }
 
 function FieldRow({
@@ -53,6 +59,7 @@ function FieldRow({
   currentValue,
   status,
   updatedAt,
+  effectiveFrom,
 }: FieldRowProps) {
   const [state, formAction, pending] = useActionState(saveFactAction, INITIAL);
   const inputId = repeatingRecordKey ? `f-${field.key}-${repeatingRecordKey}` : `f-${field.key}`;
@@ -96,6 +103,24 @@ function FieldRow({
           {pending ? 'Saving…' : 'Save'}
         </button>
       </div>
+      <details style={{ marginTop: '-0.25rem' }}>
+        <summary className="muted" style={{ fontSize: '0.75rem', cursor: 'pointer' }}>
+          Backdate this entry
+        </summary>
+        <div className="field-control" style={{ marginTop: '0.4rem' }}>
+          <input
+            type="date"
+            name="effectiveFrom"
+            className="input"
+            aria-label={`When ${field.label.toLowerCase()} became true, if not today`}
+          />
+        </div>
+      </details>
+      {effectiveFrom && updatedAt && !sameDay(effectiveFrom, updatedAt) ? (
+        <p className="muted" style={{ fontSize: '0.75rem', margin: 0 }}>
+          Effective as of {formatDate(effectiveFrom)}
+        </p>
+      ) : null}
       {updatedAt ? (
         <p className="muted" style={{ fontSize: '0.75rem', margin: 0 }}>
           Last confirmed {formatDate(updatedAt)}
@@ -114,6 +139,7 @@ interface RepeatingRecordValues {
   readonly value: string | null;
   readonly status: string | null;
   readonly updatedAt?: string | null;
+  readonly effectiveFrom?: string | null;
 }
 
 interface RepeatingGroupProps {
@@ -177,6 +203,7 @@ function RepeatingGroup({ applicantId, groupLabel, fields, records }: RepeatingG
                     currentValue={current?.value ?? null}
                     status={current?.status ?? null}
                     updatedAt={current?.updatedAt}
+                    effectiveFrom={current?.effectiveFrom}
                   />
                 );
               })}
@@ -192,6 +219,7 @@ export interface ProfileValue {
   readonly value: string | null;
   readonly status: string | null;
   readonly updatedAt?: string | null;
+  readonly effectiveFrom?: string | null;
 }
 
 interface ProfileEditorProps {
@@ -235,6 +263,7 @@ function PackSection({ applicantId, pack, values, repeatingValues, search }: Pac
               currentValue={current?.value ?? null}
               status={current?.status ?? null}
               updatedAt={current?.updatedAt}
+              effectiveFrom={current?.effectiveFrom}
             />
           );
         })}

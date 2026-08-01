@@ -70,4 +70,18 @@ describe('profile field registry (Release F)', () => {
   it('universal is the first pack (renders un-collapsed)', () => {
     expect(PACK_ORDER[0]).toBe('universal');
   });
+
+  it('has a distinct medical_attendant pack, separate from the patient\'s own medical pack (master directive §7 "PR 8")', () => {
+    expect(PACK_ORDER).toContain('medical_attendant');
+    const attendantFields = PROFILE_FIELDS.filter((f) => f.pack === 'medical_attendant');
+    expect(attendantFields.length).toBeGreaterThan(0);
+    // No overlap with the patient's own medical fields — an attendant's
+    // record is a distinct identity, not additional detail on the patient.
+    const medicalKeys = new Set(
+      PROFILE_FIELDS.filter((f) => f.pack === 'medical').map((f) => f.key),
+    );
+    for (const field of attendantFields) {
+      expect(medicalKeys.has(field.key)).toBe(false);
+    }
+  });
 });

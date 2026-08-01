@@ -367,6 +367,74 @@ describe('master profile — manual edit is versioned, atomic, authorized', () =
     expect(isErr(result)).toBe(true);
     if (isErr(result)) expect(result.error.code).toBe('invalid');
   });
+
+  it('defaults effectiveFrom to now, but honors an explicit backdated value (master directive §7 "PR 8")', async () => {
+    const { account, applicant } = await seedApplicant('p6@example.com');
+    await registerFieldDefinition(db, { key: 'address.line', dataType: 'string' });
+
+    const before = new Date();
+    const undated = await editFact(db, {
+      actorAccountId: account.id,
+      applicantId: applicant.id,
+      fieldKey: 'address.line',
+      value: 'Current address',
+    });
+    expect(isOk(undated)).toBe(true);
+    if (!isOk(undated)) return;
+    expect(undated.value.version.effectiveFrom?.getTime()).toBeGreaterThanOrEqual(before.getTime());
+
+    const backdated = new Date('2020-01-15T00:00:00Z');
+    const dated = await editFact(db, {
+      actorAccountId: account.id,
+      applicantId: applicant.id,
+      fieldKey: 'address.line',
+      value: 'Old address, recorded late',
+      effectiveFrom: backdated,
+    });
+    expect(isOk(dated)).toBe(true);
+    if (!isOk(dated)) return;
+    expect(dated.value.version.effectiveFrom?.toISOString()).toBe(backdated.toISOString());
+    // effectiveFrom is when it became true, not when it was recorded — the
+    // two are allowed to diverge.
+    expect(dated.value.version.createdAt.getTime()).toBeGreaterThan(backdated.getTime());
+  });
+
+  it('rolls back an already-committed nested edit when the caller\'s outer transaction later fails (master directive §7 "PR 8" — atomic proposal approval)', async () => {
+    const { account, applicant } = await seedApplicant('p7@example.com');
+    await registerFieldDefinition(db, { key: 'given_name', dataType: 'string' });
+
+    // Mirrors approveProposal's shape: editFact is called with an
+    // already-open outer transaction (a nested savepoint), and something
+    // AFTER it throws — exactly the failure mode that used to leave a fact
+    // changed with no record of why. A real Postgres/PGlite rollback, not a
+    // mocked one.
+    await expect(
+      db.transaction(async (tx) => {
+        const edit = await editFact(tx, {
+          actorAccountId: account.id,
+          applicantId: applicant.id,
+          fieldKey: 'given_name',
+          value: 'Ada',
+        });
+        expect(isOk(edit)).toBe(true);
+        throw new Error('simulated failure after the nested write, before the outer commit');
+      }),
+    ).rejects.toThrow('simulated failure');
+
+    // Nothing committed: no fact row at all (not even an unpointed one), no
+    // version, no audit event — the nested savepoint's work rolled back with
+    // the outer transaction.
+    const facts = await db
+      .select()
+      .from(schema.facts)
+      .where(eq(schema.facts.applicantId, applicant.id));
+    expect(facts).toHaveLength(0);
+    const approvals = await db
+      .select()
+      .from(schema.auditEvents)
+      .where(eq(schema.auditEvents.eventType, 'FACT_APPROVED'));
+    expect(approvals).toHaveLength(0);
+  });
 });
 
 describe('audit sink — hash chain across mixed events verifies', () => {
