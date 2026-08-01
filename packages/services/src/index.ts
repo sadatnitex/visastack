@@ -338,6 +338,7 @@ export {
   type DocumentVersion,
   type DownloadDocumentInput,
   type RegisterDocumentInput,
+  type RegisterDocumentWithVersionInput,
   type StorageObject,
   addDocumentVersion,
   downloadDocument,
@@ -346,19 +347,26 @@ export {
   listDocumentsDetailed,
   previewDocument,
   registerDocument,
+  registerDocumentWithVersion,
 } from './documents';
 
 export {
-  type CheckUploadQuotaInput,
   DEFAULT_UPLOAD_QUOTAS,
-  type QuotaDecision,
   type UploadQuotaConfig,
-  checkUploadQuota,
   getAccountEvidenceBytes,
   getApplicantEvidenceBytes,
   getPlatformEvidenceBytes,
   loadUploadQuotaConfig,
+  mbLabel,
 } from './quotas';
+
+export {
+  type ReserveUploadInput,
+  type UploadIntent,
+  failUpload,
+  finalizeUpload,
+  reserveUpload,
+} from './uploads';
 
 export {
   type CheckRateLimitInput,

@@ -13,10 +13,10 @@ function readUsdEnv(name: string, fallbackUsd: number): number {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallbackUsd;
 }
 
-function readPositiveIntEnv(name: string): number | undefined {
+function readPositiveIntEnv(name: string, fallback: number): number {
   const raw = readEnv(name);
   const parsed = raw ? Number(raw) : Number.NaN;
-  return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : undefined;
+  return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : fallback;
 }
 
 /**
@@ -65,6 +65,12 @@ function usdToUnits(usd: number): number {
 
 const DEFAULT_MONTHLY_BUDGET_USD = 20;
 const DEFAULT_PER_DOCUMENT_BUDGET_USD = 0.5;
+// Bounded-retry and document-length caps, like the budget caps above, are
+// conservative pilot defaults rather than an "unset = unlimited" escape
+// hatch — a blank AI_MAX_ATTEMPTS/AI_MAX_PAGES_PER_DOCUMENT in .env.example
+// must still fail closed, the same way a blank QUOTA_* var does.
+const DEFAULT_MAX_ATTEMPTS_PER_DOCUMENT = 3;
+const DEFAULT_MAX_PAGES_PER_DOCUMENT = 25;
 
 /** Platform-wide pilot budget cap, in cost units (env: AI_PILOT_MONTHLY_HARD_LIMIT_USD). */
 export function aiBudgetLimitUnits(): number {
@@ -76,12 +82,12 @@ export function aiPerDocumentBudgetLimitUnits(): number {
   return usdToUnits(readUsdEnv('AI_PER_DOCUMENT_LIMIT_USD', DEFAULT_PER_DOCUMENT_BUDGET_USD));
 }
 
-/** Max AI invocations per document (env: AI_MAX_ATTEMPTS). Unset = no cap. */
-export function aiMaxAttemptsPerDocument(): number | undefined {
-  return readPositiveIntEnv('AI_MAX_ATTEMPTS');
+/** Max AI invocations per document (env: AI_MAX_ATTEMPTS). */
+export function aiMaxAttemptsPerDocument(): number {
+  return readPositiveIntEnv('AI_MAX_ATTEMPTS', DEFAULT_MAX_ATTEMPTS_PER_DOCUMENT);
 }
 
-/** Refuse documents longer than this many pages (env: AI_MAX_PAGES_PER_DOCUMENT). Unset = no cap. */
-export function aiMaxPagesPerDocument(): number | undefined {
-  return readPositiveIntEnv('AI_MAX_PAGES_PER_DOCUMENT');
+/** Refuse documents longer than this many pages (env: AI_MAX_PAGES_PER_DOCUMENT). */
+export function aiMaxPagesPerDocument(): number {
+  return readPositiveIntEnv('AI_MAX_PAGES_PER_DOCUMENT', DEFAULT_MAX_PAGES_PER_DOCUMENT);
 }

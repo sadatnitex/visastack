@@ -143,6 +143,29 @@ export interface RunExtractionSummary {
  * WITHOUT mutating the profile. Consent-gated (AI_EXTRACTION) and
  * budget-guarded against the durable ledger; every invocation — success or
  * failure — is recorded and audited.
+ *
+ * Processing idempotency (master directive §7 "PR 6"): the whole call runs
+ * inside one transaction holding a Postgres advisory lock keyed on
+ * `documentVersionId`. Without it, two near-simultaneous requests for the
+ * same document (a double-click, a network retry) could both read the same
+ * attempts/budget counts, both pass, and both invoke the paid AI adapter —
+ * exceeding `maxAttemptsPerDocument`/the budget caps by more than the
+ * intended one-at-a-time margin. The lock serializes them: the second
+ * caller's checks only run after the first has fully recorded its run, so
+ * they see the true, up-to-date counts. This does not limit *deliberate*
+ * bounded retries (up to `maxAttemptsPerDocument`) — only concurrent ones.
+ *
+ * This specific guarantee is not exercised by a `Promise.all` race test the
+ * way other concurrency fixes in this codebase are: PGlite (the test
+ * driver) fully serializes `db.transaction()` calls — a second one's
+ * callback never starts until the first has committed — so two overlapping
+ * `runExtraction` calls can never actually interleave in-process, whether or
+ * not this lock exists. The lock's correctness instead rests on Postgres's
+ * own documented `pg_advisory_xact_lock` semantics (held until the current
+ * transaction ends; a concurrent session requesting the same key blocks
+ * until then), which is standard, well-established behavior, not something
+ * this codebase is inventing. See `ai.test.ts`'s note above the (deliberately
+ * absent) race test for how this was confirmed rather than assumed.
  */
 export async function runExtraction(
   db: Db,
@@ -158,43 +181,47 @@ export async function runExtraction(
     return err(serviceError('consent_required', 'AI_EXTRACTION consent is required'));
   }
 
-  const used = await totalAiCostUnits(db);
-  if (used >= input.budgetLimitUnits) {
-    return err(serviceError('invalid', 'AI budget exhausted'));
-  }
-  if (input.maxAttemptsPerDocument !== undefined) {
-    const attempts = await countAiExtractionAttempts(db, input.documentVersionId);
-    if (attempts >= input.maxAttemptsPerDocument) {
-      return err(serviceError('invalid', 'AI extraction attempt limit reached for this document'));
-    }
-  }
-  if (input.perDocumentBudgetLimitUnits !== undefined) {
-    const documentUsed = await documentAiCostUnits(db, input.documentVersionId);
-    if (documentUsed >= input.perDocumentBudgetLimitUnits) {
-      return err(serviceError('invalid', 'AI budget exhausted for this document'));
-    }
-  }
-  if (input.maxPagesPerDocument !== undefined) {
-    const pageCount = await latestPageCount(db, input.documentVersionId);
-    if (pageCount !== null && pageCount > input.maxPagesPerDocument) {
-      return err(
-        serviceError('invalid', 'document exceeds the configured page limit for AI extraction'),
-      );
-    }
-  }
+  return db.transaction(async (tx) => {
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${input.documentVersionId}))`);
 
-  const allowedFieldKeys = (
-    await db.select({ key: schema.fieldDefinitions.key }).from(schema.fieldDefinitions)
-  ).map((r) => r.key);
+    const used = await totalAiCostUnits(tx);
+    if (used >= input.budgetLimitUnits) {
+      return err(serviceError('invalid', 'AI budget exhausted'));
+    }
+    if (input.maxAttemptsPerDocument !== undefined) {
+      const attempts = await countAiExtractionAttempts(tx, input.documentVersionId);
+      if (attempts >= input.maxAttemptsPerDocument) {
+        return err(
+          serviceError('invalid', 'AI extraction attempt limit reached for this document'),
+        );
+      }
+    }
+    if (input.perDocumentBudgetLimitUnits !== undefined) {
+      const documentUsed = await documentAiCostUnits(tx, input.documentVersionId);
+      if (documentUsed >= input.perDocumentBudgetLimitUnits) {
+        return err(serviceError('invalid', 'AI budget exhausted for this document'));
+      }
+    }
+    if (input.maxPagesPerDocument !== undefined) {
+      const pageCount = await latestPageCount(tx, input.documentVersionId);
+      if (pageCount !== null && pageCount > input.maxPagesPerDocument) {
+        return err(
+          serviceError('invalid', 'document exceeds the configured page limit for AI extraction'),
+        );
+      }
+    }
 
-  const outcome = await ai.extract({
-    documentVersionId: input.documentVersionId,
-    text: input.text,
-    allowedFieldKeys,
-  });
+    const allowedFieldKeys = (
+      await tx.select({ key: schema.fieldDefinitions.key }).from(schema.fieldDefinitions)
+    ).map((r) => r.key);
 
-  if (!outcome.ok) {
-    await db.transaction(async (tx) => {
+    const outcome = await ai.extract({
+      documentVersionId: input.documentVersionId,
+      text: input.text,
+      allowedFieldKeys,
+    });
+
+    if (!outcome.ok) {
       const run = required(
         first(
           await tx
@@ -222,13 +249,11 @@ export async function runExtraction(
         resourceId: input.documentVersionId,
         metadata: { errorCode: outcome.code, aiExtractionRunId: run.id },
       });
-    });
-    return err(serviceError('upstream_error', outcome.message));
-  }
+      return err(serviceError('upstream_error', outcome.message));
+    }
 
-  const { proposals, usage } = outcome.result;
+    const { proposals, usage } = outcome.result;
 
-  const summary = await db.transaction(async (tx) => {
     const run = required(
       first(
         await tx
@@ -295,10 +320,8 @@ export async function runExtraction(
       accountId: input.actorAccountId,
     });
 
-    return { aiExtractionRunId: run.id, proposals: savedProposals };
+    return ok({ aiExtractionRunId: run.id, proposals: savedProposals });
   });
-
-  return ok(summary);
 }
 
 const TRUSTED_FACT_STATUSES: readonly FactStatus[] = [

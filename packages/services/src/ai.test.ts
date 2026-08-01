@@ -415,6 +415,21 @@ describe('AI Gateway — proposals never silently mutate', () => {
     if (isErr(second)) expect(second.error.code).toBe('invalid');
   });
 
+  // NOTE: a genuine concurrent-request race test (two Promise.all'd
+  // runExtraction calls for the same document, asserting the attempt cap is
+  // never bypassed) is deliberately not included here. PGlite fully
+  // serializes db.transaction() calls — a second transaction's callback
+  // never begins until the first's has completely committed — so two
+  // overlapping runExtraction calls can never actually interleave inside
+  // this test suite regardless of whether the advisory lock in ai.ts is
+  // present. Confirmed by direct experiment (temporarily removing the lock
+  // still passed such a test), so it was removed rather than kept as
+  // something that looks like coverage but cannot fail. The above sequential
+  // test covers the check logic itself; the lock's cross-connection
+  // serialization is a documented Postgres guarantee (see ai.ts's doc
+  // comment on runExtraction), not something PGlite can exercise — see
+  // docs/security/durable-jobs-and-upload-integrity.md's "not yet covered".
+
   it('refuses to run AI extraction on a document over the configured page limit', async () => {
     const { account, applicantId, versionId } = await seedVersion(db, 'ai-pages@example.com');
     await grantAiConsent(db, account.id);

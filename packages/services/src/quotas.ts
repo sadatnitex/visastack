@@ -78,7 +78,7 @@ export function loadUploadQuotaConfig(
   };
 }
 
-function mbLabel(bytes: number): string {
+export function mbLabel(bytes: number): string {
   return `${Math.round(bytes / BYTES_PER_MB)} MB`;
 }
 
@@ -117,56 +117,10 @@ export async function getPlatformEvidenceBytes(db: Db): Promise<number> {
   return Number(rows[0]?.total ?? 0);
 }
 
-export interface CheckUploadQuotaInput {
-  readonly applicantId: string;
-  readonly accountId: string;
-  readonly uploadSizeBytes: number;
-}
-
-export type QuotaDecision =
-  | { readonly allowed: true }
-  | { readonly allowed: false; readonly reason: string };
-
-/**
- * Fail-closed pre-upload quota check. Called BEFORE any bytes are written, so
- * a quota is never silently exceeded. Checks are cheapest-first (per-file size
- * needs no query) so a doomed upload never pays for the DB round-trips.
- */
-export async function checkUploadQuota(
-  db: Db,
-  input: CheckUploadQuotaInput,
-  config: UploadQuotaConfig = loadUploadQuotaConfig(),
-): Promise<QuotaDecision> {
-  if (input.uploadSizeBytes > config.maxUploadBytes) {
-    return {
-      allowed: false,
-      reason: `file exceeds the ${mbLabel(config.maxUploadBytes)} upload limit`,
-    };
-  }
-
-  const applicantBytes = await getApplicantEvidenceBytes(db, input.applicantId);
-  if (applicantBytes + input.uploadSizeBytes > config.maxApplicantEvidenceBytes) {
-    return {
-      allowed: false,
-      reason: `this applicant has reached its ${mbLabel(config.maxApplicantEvidenceBytes)} evidence limit`,
-    };
-  }
-
-  const accountBytes = await getAccountEvidenceBytes(db, input.accountId);
-  if (accountBytes + input.uploadSizeBytes > config.maxAccountEvidenceBytes) {
-    return {
-      allowed: false,
-      reason: `this account has reached its ${mbLabel(config.maxAccountEvidenceBytes)} evidence limit`,
-    };
-  }
-
-  const platformBytes = await getPlatformEvidenceBytes(db);
-  if (platformBytes + input.uploadSizeBytes > config.platformHardStopBytes) {
-    return {
-      allowed: false,
-      reason: 'platform storage capacity reached; new uploads are temporarily paused',
-    };
-  }
-
-  return { allowed: true };
-}
+// Note: there is deliberately no plain read-then-decide "checkUploadQuota"
+// here anymore. A pre-upload check with no reservation is a genuine TOCTOU
+// race under concurrent uploads (two callers can each individually pass a
+// stale check and jointly exceed a limit) — see `reserveUpload`
+// (uploads.ts), which atomically checks every tier against committed bytes
+// PLUS every other still-active reservation, then reserves this one, all
+// before any bytes are written (master directive §7 "PR 6").

@@ -356,6 +356,51 @@ export const documentVersions = pgTable(
   ],
 );
 
+// --- Upload consistency: server-created upload intent (master directive §7
+// "PR 6") ---------------------------------------------------------------
+// Closes a real TOCTOU gap: without a durable reservation, two concurrent
+// uploads for the same applicant/account could each individually pass a
+// read-only quota check and jointly exceed it. `reserveUpload`
+// (packages/services/src/uploads.ts) atomically checks every quota tier
+// against committed bytes (documentVersions.sizeBytes) PLUS every other
+// still-`RESERVED`, unexpired row here, then inserts one — before any bytes
+// are written. `expiresAt` bounds how long an abandoned upload (crashed
+// mid-flight, never finalized) can hold its reservation: quota sums exclude
+// an expired row automatically, with no separate cleanup sweep required.
+export const uploadIntentStatus = pgEnum('upload_intent_status', [
+  'RESERVED',
+  'COMPLETED',
+  'FAILED',
+]);
+
+export const uploadIntents = pgTable(
+  'upload_intents',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    accountId: uuid('account_id')
+      .notNull()
+      .references(() => accounts.id, { onDelete: 'cascade' }),
+    applicantId: uuid('applicant_id')
+      .notNull()
+      .references(() => applicants.id, { onDelete: 'cascade' }),
+    /** Minted here (not later) so a failure after the blob write always has a key to clean up by. */
+    objectKey: text('object_key').notNull().unique(),
+    reservedBytes: bigint('reserved_bytes', { mode: 'number' }).notNull(),
+    status: uploadIntentStatus('status').notNull().default('RESERVED'),
+    documentVersionId: uuid('document_version_id').references(() => documentVersions.id, {
+      onDelete: 'set null',
+    }),
+    failureReason: text('failure_reason'),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    ...timestamps,
+  },
+  (table) => [
+    index('upload_intents_applicant_status_idx').on(table.applicantId, table.status),
+    index('upload_intents_account_status_idx').on(table.accountId, table.status),
+    index('upload_intents_status_expires_idx').on(table.status, table.expiresAt),
+  ],
+);
+
 // One row per scanner invocation (append-only) — durable evidence of what
 // scanned a document version, when, with which scanner/version, and with
 // what result (master directive §7 "PR 3"). Distinct from
@@ -486,6 +531,22 @@ export const documentNameVersions = pgTable(
 // concurrent workers never double-process the same job. A failure retries
 // with exponential backoff up to maxAttempts, then parks at FAILED — visible
 // and inspectable, never silently dropped.
+//
+// Leases (master directive §7 "PR 6"): a claim is a time-bound lease, not a
+// permanent hand-off. `leaseOwner` identifies which worker invocation holds
+// it; `leaseExpiresAt` bounds how long it may hold it before the claim sweep
+// (packages/services/src/jobs.ts) reclaims the row automatically — a worker
+// that crashes mid-job no longer strands it at CLAIMED forever.
+// `heartbeatAt` is set at claim time (this pipeline runs one bounded,
+// sub-second-to-low-single-digit-second pass per document — there is no
+// long-running step that needs mid-job liveness proof; the column exists so
+// a future genuinely long-running job type can update it without a schema
+// change). `idempotencyKey` (unique) is the string form of
+// `documentVersionId:jobType:processingVersion` — enqueuing the same
+// processing unit twice returns the existing row rather than creating a
+// duplicate (job uniqueness).
+export const processingJobType = pgEnum('processing_job_type', ['INTAKE']);
+
 export const processingJobs = pgTable(
   'processing_jobs',
   {
@@ -493,18 +554,29 @@ export const processingJobs = pgTable(
     documentVersionId: uuid('document_version_id')
       .notNull()
       .references(() => documentVersions.id, { onDelete: 'cascade' }),
+    jobType: processingJobType('job_type').notNull().default('INTAKE'),
+    /** Bumped only when the processing pipeline itself changes meaningfully enough that old completed work should not block reprocessing under the new pipeline. */
+    processingVersion: integer('processing_version').notNull().default(1),
+    idempotencyKey: text('idempotency_key').notNull(),
     status: jobStatus('status').notNull().default('PENDING'),
     attempts: integer('attempts').notNull().default(0),
     maxAttempts: integer('max_attempts').notNull().default(5),
     availableAt: timestamp('available_at', { withTimezone: true }).notNull().defaultNow(),
+    leaseOwner: text('lease_owner'),
+    leaseExpiresAt: timestamp('lease_expires_at', { withTimezone: true }),
+    heartbeatAt: timestamp('heartbeat_at', { withTimezone: true }),
     claimedAt: timestamp('claimed_at', { withTimezone: true }),
     completedAt: timestamp('completed_at', { withTimezone: true }),
     lastError: text('last_error'),
+    /** Closed-set, safe-to-display category — never the raw internal error text. */
+    errorCode: text('error_code'),
     ...timestamps,
   },
   (table) => [
+    unique('processing_jobs_idempotency_key_unique').on(table.idempotencyKey),
     index('processing_jobs_status_available_idx').on(table.status, table.availableAt),
     index('processing_jobs_document_version_idx').on(table.documentVersionId),
+    index('processing_jobs_lease_expires_idx').on(table.status, table.leaseExpiresAt),
   ],
 );
 
