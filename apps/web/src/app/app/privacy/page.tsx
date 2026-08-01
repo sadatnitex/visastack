@@ -1,6 +1,5 @@
 import type { ConsentType } from '@visastack/core';
 import { getPendingDeletion, listConsentHistory } from '@visastack/services';
-import Link from 'next/link';
 import { withSession } from '../../../lib/session';
 import { DeletionPanel } from './deletion-panel';
 
@@ -41,11 +40,6 @@ export default async function PrivacyPage() {
 
   return (
     <section className="section container">
-      <div style={{ marginBottom: '1.5rem' }}>
-        <Link href="/app" className="muted" style={{ fontSize: '0.9rem' }}>
-          ← Workspace
-        </Link>
-      </div>
       <div className="toolbar" style={{ marginBottom: '2rem' }}>
         <div>
           <span className="eyebrow">Privacy</span>

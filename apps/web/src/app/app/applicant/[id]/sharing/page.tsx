@@ -4,7 +4,6 @@ import {
   listAccessForApplicantDetailed,
   listDocumentsDetailed,
 } from '@visastack/services';
-import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { grantStatusBadge } from '../../../../../lib/grant-status';
 import { getLocale } from '../../../../../lib/locale';
@@ -39,18 +38,13 @@ export default async function SharingPage({
   if (!data) notFound();
 
   return (
-    <section className="section container">
-      <div style={{ marginBottom: '1.5rem' }}>
-        <Link href={`/app/applicant/${id}`} className="muted" style={{ fontSize: '0.9rem' }}>
-          ← {data.applicant.displayName}
-        </Link>
-      </div>
+    <>
       <div className="toolbar" style={{ marginBottom: '2rem' }}>
         <div>
           <span className="eyebrow">Sharing</span>
-          <h1 className="section-title" style={{ margin: '0.25rem 0 0' }}>
+          <h2 className="section-title" style={{ margin: '0.25rem 0 0' }}>
             Access &amp; transparency
-          </h1>
+          </h2>
           <p className="muted" style={{ margin: '0.35rem 0 0' }}>
             You control every grant. Access is purpose-bound, takes effect only once accepted, and
             can be paused or revoked at any time.
@@ -78,6 +72,12 @@ export default async function SharingPage({
         <article className="card">
           <p className="card-kicker">Transparency</p>
           <h2 className="card-title">Who has access</h2>
+          {data.grants.length > 0 ? (
+            <p className="notice" style={{ marginBottom: '1rem' }}>
+              Pausing or revoking stops all <em>future</em> access immediately. It cannot remotely
+              erase copies the recipient already downloaded before that point.
+            </p>
+          ) : null}
           {data.grants.length === 0 ? (
             <p className="card-body">No access has been granted yet.</p>
           ) : (
@@ -116,6 +116,9 @@ export default async function SharingPage({
                       {grant.expiryAt
                         ? ` · expires ${new Date(grant.expiryAt).toLocaleDateString()}`
                         : ''}
+                      {grant.acceptedAt
+                        ? ` · accepted ${new Date(grant.acceptedAt).toLocaleDateString()}`
+                        : ''}
                     </p>
                     {canPause || canResume || canRevoke ? (
                       <GrantOpButtons
@@ -141,6 +144,6 @@ export default async function SharingPage({
           )}
         </article>
       </div>
-    </section>
+    </>
   );
 }

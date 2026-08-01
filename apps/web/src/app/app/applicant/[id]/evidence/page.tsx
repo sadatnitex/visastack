@@ -1,5 +1,4 @@
 import { getApplicant, listEvidenceRequestsForApplicant } from '@visastack/services';
-import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { withSession } from '../../../../../lib/session';
 import { RespondButtons } from './respond-buttons';
@@ -29,18 +28,13 @@ export default async function EvidencePage({
   if (!data) notFound();
 
   return (
-    <section className="section container">
-      <div style={{ marginBottom: '1.5rem' }}>
-        <Link href={`/app/applicant/${id}`} className="muted" style={{ fontSize: '0.9rem' }}>
-          ← {data.applicant.displayName}
-        </Link>
-      </div>
+    <>
       <div className="toolbar" style={{ marginBottom: '2rem' }}>
         <div>
           <span className="eyebrow">Evidence requests</span>
-          <h1 className="section-title" style={{ margin: '0.25rem 0 0' }}>
+          <h2 className="section-title" style={{ margin: '0.25rem 0 0' }}>
             Requests from agencies
-          </h1>
+          </h2>
           <p className="muted" style={{ margin: '0.35rem 0 0' }}>
             Organizations can ask you for a specific field or document. You decide whether to fulfil
             or decline each request.
@@ -94,6 +88,6 @@ export default async function EvidencePage({
           </div>
         )}
       </article>
-    </section>
+    </>
   );
 }

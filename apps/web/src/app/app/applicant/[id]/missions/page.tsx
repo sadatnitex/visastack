@@ -37,18 +37,13 @@ export default async function MissionsPage({
   if (!data) notFound();
 
   return (
-    <section className="section container">
-      <div style={{ marginBottom: '1.5rem' }}>
-        <Link href={`/app/applicant/${id}`} className="muted" style={{ fontSize: '0.9rem' }}>
-          ← {data.applicant.displayName}
-        </Link>
-      </div>
+    <>
       <div className="toolbar" style={{ marginBottom: '2rem' }}>
         <div>
           <span className="eyebrow">Missions</span>
-          <h1 className="section-title" style={{ margin: '0.25rem 0 0' }}>
+          <h2 className="section-title" style={{ margin: '0.25rem 0 0' }}>
             Visa missions
-          </h1>
+          </h2>
           <p className="muted" style={{ margin: '0.35rem 0 0' }}>
             A mission assembles this applicant's evidence against a published requirement pack.
           </p>
@@ -92,6 +87,6 @@ export default async function MissionsPage({
           )}
         </article>
       </div>
-    </section>
+    </>
   );
 }

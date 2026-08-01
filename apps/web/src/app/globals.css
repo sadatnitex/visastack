@@ -45,6 +45,21 @@
   --radius-lg: 22px;
   --radius-pill: 980px;
   --container: 1024px;
+  --container-wide: 1280px;
+
+  /* Spacing scale (docs/ux/visastack-product-experience.md's "Visual system"
+     table) — an 8px rhythm with a half-step at the bottom for tight
+     inline gaps. Prefer these over ad hoc rem values in new code; existing
+     clamp()-based fluid spacing (hero/section padding) is intentionally
+     left alone. */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.5rem;
+  --space-6: 2rem;
+  --space-7: 3rem;
+  --space-8: 4rem;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -503,6 +518,12 @@ main {
   outline: 2px solid var(--accent);
   outline-offset: 1px;
 }
+.input[aria-invalid="true"] {
+  border-color: var(--danger);
+}
+.input[aria-invalid="true"]:focus-visible {
+  outline-color: var(--danger);
+}
 
 /* Master Profile field editor */
 .field-list {
@@ -590,6 +611,124 @@ main {
   justify-content: space-between;
   gap: 1rem;
   flex-wrap: wrap;
+}
+
+/* App shell — persistent primary nav for the signed-in product (distinct from
+   the marketing header in .nav above, which only wraps the logged-out
+   landing/status pages). */
+.app-shell-nav {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  gap: clamp(1rem, 3vw, 2rem);
+  padding: 0 clamp(1rem, 4vw, 2.5rem);
+  height: 52px;
+  background: var(--nav-material);
+  backdrop-filter: saturate(180%) blur(20px);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  border-bottom: 1px solid var(--hairline-soft);
+  overflow-x: auto;
+}
+.app-shell-links {
+  display: flex;
+  gap: clamp(0.9rem, 2.5vw, 1.75rem);
+  align-items: center;
+  flex: 1;
+  min-width: 0;
+}
+.app-shell-links a {
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+  white-space: nowrap;
+  padding: 0.3rem 0;
+  border-bottom: 2px solid transparent;
+}
+.app-shell-links a:hover {
+  color: var(--text);
+  text-decoration: none;
+}
+.app-shell-links a[aria-current="page"] {
+  color: var(--text);
+  font-weight: 600;
+  border-bottom-color: var(--accent);
+}
+.app-shell-switch {
+  display: flex;
+  gap: 0.6rem;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+/* Contextual secondary nav (workspace/agency/admin section tabs) */
+.subnav {
+  display: flex;
+  gap: clamp(1rem, 3vw, 1.75rem);
+  overflow-x: auto;
+  border-bottom: 1px solid var(--hairline-soft);
+  margin-bottom: 1.75rem;
+}
+.subnav a {
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  white-space: nowrap;
+  padding: 0.75rem 0.1rem;
+  border-bottom: 2px solid transparent;
+}
+.subnav a:hover {
+  color: var(--text);
+  text-decoration: none;
+}
+.subnav a[aria-current="page"] {
+  color: var(--text);
+  font-weight: 600;
+  border-bottom-color: var(--accent);
+}
+
+/* Screen-reader-only text — present in the accessibility tree, invisible on
+   screen. Prefer this over aria-label when the same text is also useful to
+   sighted users navigating by browser "find" or translation tools. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Print (mission/pack export layouts — directive §7 "PR 7"): flatten to
+   plain black-on-white, drop chrome and interactive affordances that mean
+   nothing on paper. */
+@media print {
+  .app-shell-nav,
+  .subnav,
+  .nav,
+  .footer,
+  .pilot-banner,
+  .skip-link,
+  button,
+  .btn,
+  a[href].btn {
+    display: none !important;
+  }
+  body {
+    background: #fff;
+    color: #000;
+  }
+  .card {
+    box-shadow: none;
+    border: 1px solid #ccc;
+    break-inside: avoid;
+  }
+  a {
+    color: #000;
+    text-decoration: none;
+  }
 }
 
 /* Utilities */

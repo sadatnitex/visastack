@@ -1,6 +1,6 @@
 'use client';
 
-import { useActionState } from 'react';
+import { useActionState, useState } from 'react';
 import { PACK_LABELS, PACK_ORDER } from '../../../../../lib/profile-fields';
 import { type ActionState, createGrantAction } from './actions';
 
@@ -15,6 +15,10 @@ const SHAREABLE_ACTIONS: ReadonlyArray<{ value: string; label: string; defaultOn
   { value: 'PROPOSE_EDIT', label: 'Propose edits' },
 ];
 
+function toggled(current: readonly string[], value: string, on: boolean): string[] {
+  return on ? [...current, value] : current.filter((v) => v !== value);
+}
+
 export function GrantForm({
   applicantId,
   documents,
@@ -23,6 +27,32 @@ export function GrantForm({
   readonly documents: ReadonlyArray<{ readonly id: string; readonly displayName: string }>;
 }) {
   const [state, formAction, pending] = useActionState(createGrantAction, INITIAL);
+
+  // Mirrors the native form's own state purely to drive the live,
+  // human-readable summary below (master directive §7 "PR 7" — "before
+  // creating a grant, show a human-readable summary"). The inputs
+  // themselves stay uncontrolled/native for submission; this is a read-only
+  // shadow of what's checked, not the source of truth.
+  const [recipientEmail, setRecipientEmail] = useState('');
+  const [purpose, setPurpose] = useState('');
+  const [actions, setActions] = useState<readonly string[]>(
+    SHAREABLE_ACTIONS.filter((a) => a.defaultOn).map((a) => a.value),
+  );
+  const [categories, setCategories] = useState<readonly string[]>([]);
+  const [selectedDocCount, setSelectedDocCount] = useState(0);
+  const [expiryDays, setExpiryDays] = useState('');
+
+  const scopeLabel =
+    categories.length === 0
+      ? 'every profile category'
+      : categories.map((c) => PACK_LABELS[c as keyof typeof PACK_LABELS] ?? c).join(', ');
+  const docsLabel =
+    documents.length === 0
+      ? null
+      : selectedDocCount === 0
+        ? 'every document'
+        : `${selectedDocCount} selected document${selectedDocCount === 1 ? '' : 's'}`;
+  const canDownload = actions.includes('DOWNLOAD_REDACTED');
 
   return (
     <form action={formAction} className="field-list">
@@ -39,6 +69,7 @@ export function GrantForm({
           required
           className="input"
           placeholder="them@example.com"
+          onChange={(e) => setRecipientEmail(e.target.value)}
         />
       </div>
 
@@ -53,6 +84,7 @@ export function GrantForm({
           required
           className="input"
           placeholder="e.g. Review my UK student visa documents"
+          onChange={(e) => setPurpose(e.target.value)}
         />
       </div>
 
@@ -66,6 +98,9 @@ export function GrantForm({
                 name="action"
                 value={action.value}
                 defaultChecked={action.defaultOn ?? false}
+                onChange={(e) =>
+                  setActions((prev) => toggled(prev, action.value, e.target.checked))
+                }
               />
               <span>{action.label}</span>
             </label>
@@ -81,7 +116,12 @@ export function GrantForm({
         <div className="checks">
           {PACK_ORDER.map((pack) => (
             <label className="check" key={pack}>
-              <input type="checkbox" name="category" value={pack} />
+              <input
+                type="checkbox"
+                name="category"
+                value={pack}
+                onChange={(e) => setCategories((prev) => toggled(prev, pack, e.target.checked))}
+              />
               <span>{PACK_LABELS[pack]}</span>
             </label>
           ))}
@@ -97,7 +137,14 @@ export function GrantForm({
           <div className="checks">
             {documents.map((doc) => (
               <label className="check" key={doc.id}>
-                <input type="checkbox" name="documentId" value={doc.id} />
+                <input
+                  type="checkbox"
+                  name="documentId"
+                  value={doc.id}
+                  onChange={(e) =>
+                    setSelectedDocCount((prev) => prev + (e.target.checked ? 1 : -1))
+                  }
+                />
                 <span>{doc.displayName}</span>
               </label>
             ))}
@@ -116,7 +163,24 @@ export function GrantForm({
           min="1"
           className="input"
           placeholder="Leave blank for no expiry"
+          onChange={(e) => setExpiryDays(e.target.value)}
         />
+      </div>
+
+      <div className="notice" aria-live="polite">
+        <strong>{recipientEmail || 'This recipient'}</strong> will be able to{' '}
+        {actions.length === 0
+          ? 'do nothing yet — select at least one permission'
+          : actions
+              .map((a) => SHAREABLE_ACTIONS.find((s) => s.value === a)?.label.toLowerCase())
+              .filter(Boolean)
+              .join(', ')}
+        {purpose ? <> for “{purpose}”</> : null}, scoped to {scopeLabel}
+        {docsLabel ? <> ({docsLabel})</> : null}. {canDownload ? 'Downloading is allowed. ' : ''}
+        {expiryDays
+          ? `Access expires in ${expiryDays} day${expiryDays === '1' ? '' : 's'}. `
+          : 'Access never expires unless you revoke it. '}
+        They must accept before anything is visible to them.
       </div>
 
       <div>
