@@ -130,6 +130,10 @@ export const evidenceRequestStatus = pgEnum('evidence_request_status', [
   'FULFILLED',
   'DECLINED',
 ]);
+// --- Mission collaboration additions (master directive §7 "PR 10") ---------
+export const missionDecisionOutcome = pgEnum('mission_decision_outcome', ['ACCEPTED', 'REJECTED']);
+export const missionTaskStatus = pgEnum('mission_task_status', ['OPEN', 'DONE', 'CANCELLED']);
+export const generatedOutputKind = pgEnum('generated_output_kind', ['COVER_LETTER']);
 export const factStatus = pgEnum('fact_status', FACT_STATUSES);
 export const fieldSensitivity = pgEnum('field_sensitivity', [
   'STANDARD',
@@ -953,6 +957,121 @@ export const evidenceRequests = pgTable(
     ...timestamps,
   },
   (table) => [index('evidence_requests_applicant_idx').on(table.applicantId)],
+);
+
+// A mission owner's explicit choice of which fact/document instance
+// satisfies a given requirement (master directive §7 "PR 10" — "exact
+// selected evidence"; readiness/snapshots must ignore unselected evidence
+// once a mission has any selections at all). Exactly one of factId/
+// documentId is set, matching the requirement's kind.
+export const selectedEvidence = pgTable(
+  'selected_evidence',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    missionId: uuid('mission_id')
+      .notNull()
+      .references(() => missions.id, { onDelete: 'cascade' }),
+    packRequirementId: uuid('pack_requirement_id')
+      .notNull()
+      .references(() => packRequirements.id, { onDelete: 'cascade' }),
+    factId: uuid('fact_id').references(() => facts.id, { onDelete: 'cascade' }),
+    documentId: uuid('document_id').references(() => documents.id, { onDelete: 'cascade' }),
+    selectedByAccountId: uuid('selected_by_account_id'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    unique('selected_evidence_requirement_fact_unique').on(
+      table.missionId,
+      table.packRequirementId,
+      table.factId,
+    ),
+    unique('selected_evidence_requirement_document_unique').on(
+      table.missionId,
+      table.packRequirementId,
+      table.documentId,
+    ),
+    index('selected_evidence_mission_idx').on(table.missionId),
+  ],
+);
+
+// A reviewer's decision on a specific requirement's selected evidence.
+// Append-only like every other decision-history table in this schema (fact
+// versions, naming versions, correction feedback) — the current decision is
+// the latest row for a given (missionId, packRequirementId).
+export const missionDecisions = pgTable(
+  'mission_decisions',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    missionId: uuid('mission_id')
+      .notNull()
+      .references(() => missions.id, { onDelete: 'cascade' }),
+    packRequirementId: uuid('pack_requirement_id')
+      .notNull()
+      .references(() => packRequirements.id, { onDelete: 'cascade' }),
+    outcome: missionDecisionOutcome('outcome').notNull(),
+    reason: text('reason'),
+    decidedByAccountId: uuid('decided_by_account_id').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index('mission_decisions_mission_idx').on(table.missionId)],
+);
+
+// A lightweight, assignable checklist item scoped to a mission — distinct
+// from evidenceRequests (an applicant-facing ask) and assignments (a
+// blanket mission-level assignment): a task is a specific, completable unit
+// of work, optionally tied to one requirement.
+export const missionTasks = pgTable(
+  'mission_tasks',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    missionId: uuid('mission_id')
+      .notNull()
+      .references(() => missions.id, { onDelete: 'cascade' }),
+    packRequirementId: uuid('pack_requirement_id').references(() => packRequirements.id, {
+      onDelete: 'set null',
+    }),
+    description: text('description').notNull(),
+    assigneeAccountId: uuid('assignee_account_id'),
+    status: missionTaskStatus('status').notNull().default('OPEN'),
+    completedAt: timestamp('completed_at', { withTimezone: true }),
+    ...timestamps,
+  },
+  (table) => [index('mission_tasks_mission_idx').on(table.missionId)],
+);
+
+// A generated, grounded document (currently: cover letters only) —
+// versioned, never overwritten. `groundedReferences` cites the exact
+// FactVersion/DocumentVersion ids every claim in `content` traces back to
+// (master directive §7 "PR 10" — nothing may be invented). Translation
+// provenance plumbing only: `translatedFromOutputId` is a plain uuid (no FK,
+// matching the codebase's established self-reference pattern, e.g.
+// ai_extraction_runs.served_from_cache_run_id) so a future translation
+// feature has somewhere to record provenance without a schema change — no
+// translation is actually generated yet.
+export const generatedOutputs = pgTable(
+  'generated_outputs',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    missionId: uuid('mission_id')
+      .notNull()
+      .references(() => missions.id, { onDelete: 'cascade' }),
+    kind: generatedOutputKind('kind').notNull(),
+    version: integer('version').notNull(),
+    content: text('content').notNull(),
+    groundedReferences: jsonb('grounded_references').notNull(),
+    language: text('language').notNull().default('en'),
+    translatedFromOutputId: uuid('translated_from_output_id'),
+    createdByAccountId: uuid('created_by_account_id'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    unique('generated_outputs_mission_kind_version_unique').on(
+      table.missionId,
+      table.kind,
+      table.version,
+    ),
+    index('generated_outputs_mission_idx').on(table.missionId),
+  ],
 );
 
 // --- Retention & legal hold (Build Spec §13; PRD §5) -----------------------

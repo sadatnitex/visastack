@@ -12,6 +12,7 @@ import { appendAuditEvent } from './audit';
 import { type Db, first, required, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
 import { isOrgAdmin } from './organizations';
+import { type PackRequirement, listRequirements } from './packs';
 import { RATE_LIMITS, checkRateLimit } from './rate-limit';
 import { loadGrantsForPolicy } from './sharing';
 
@@ -778,4 +779,186 @@ export async function bulkExport(
     });
   });
   return ok(rows);
+}
+
+// --- Reviewer decisions (master directive §7 "PR 10") -----------------------
+//
+// A decision on a specific requirement is a genuine external-review action —
+// deliberately not something the applicant can record on their own mission,
+// or the concept collapses into self-attestation. Authorization mirrors
+// assignMember's exact shape: the acting individual must be an active
+// member of the organization AND currently assigned to this specific
+// mission, AND the organization must hold a live grant that would permit
+// MANAGE on this mission. Append-only, like every other decision-history
+// table in this schema — the latest row per requirement is "the" decision.
+
+export type MissionDecision = typeof schema.missionDecisions.$inferSelect;
+
+async function assignedToMission(
+  db: Db,
+  organizationId: string,
+  memberAccountId: string,
+  missionId: string,
+): Promise<boolean> {
+  const assignment = first(
+    await db
+      .select({ id: schema.assignments.id })
+      .from(schema.assignments)
+      .where(
+        and(
+          eq(schema.assignments.organizationId, organizationId),
+          eq(schema.assignments.memberAccountId, memberAccountId),
+          eq(schema.assignments.missionId, missionId),
+        ),
+      )
+      .limit(1),
+  );
+  return assignment !== undefined;
+}
+
+export async function recordMissionDecision(
+  db: Db,
+  input: {
+    readonly actorAccountId: string;
+    readonly organizationId: string;
+    readonly missionId: string;
+    readonly packRequirementId: string;
+    readonly outcome: 'ACCEPTED' | 'REJECTED';
+    readonly reason?: string;
+  },
+): Promise<Result<MissionDecision, ServiceError>> {
+  if (!(await isActiveMember(db, input.actorAccountId, input.organizationId))) {
+    return err(serviceError('forbidden', 'not an active member of this organization'));
+  }
+  if (!(await assignedToMission(db, input.organizationId, input.actorAccountId, input.missionId))) {
+    return err(serviceError('forbidden', 'not assigned to this mission'));
+  }
+  const mission = first(
+    await db.select().from(schema.missions).where(eq(schema.missions.id, input.missionId)).limit(1),
+  );
+  if (!mission) return err(serviceError('not_found', 'mission not found'));
+  if (
+    !(await orgGrantPermits(db, input.organizationId, mission.applicantId, 'MANAGE', mission.id))
+  ) {
+    return err(
+      serviceError('forbidden', 'this organization has no current grant covering that mission'),
+    );
+  }
+  const requirement = first(
+    await db
+      .select({ id: schema.packRequirements.id })
+      .from(schema.packRequirements)
+      .where(
+        and(
+          eq(schema.packRequirements.id, input.packRequirementId),
+          mission.packVersionId
+            ? eq(schema.packRequirements.packVersionId, mission.packVersionId)
+            : undefined,
+        ),
+      )
+      .limit(1),
+  );
+  if (!requirement) {
+    return err(serviceError('not_found', "requirement not found on this mission's attached pack"));
+  }
+
+  return db.transaction(async (tx) => {
+    const decision = required(
+      first(
+        await tx
+          .insert(schema.missionDecisions)
+          .values({
+            missionId: input.missionId,
+            packRequirementId: input.packRequirementId,
+            outcome: input.outcome,
+            reason: input.reason ?? null,
+            decidedByAccountId: input.actorAccountId,
+          })
+          .returning(),
+      ),
+      'mission decision',
+    );
+    await appendAuditEvent(tx, {
+      eventType: 'MISSION_DECISION_RECORDED',
+      actorAccountId: input.actorAccountId,
+      method: 'MANUAL',
+      result: 'ALLOWED',
+      missionId: input.missionId,
+      resourceType: 'mission_decision',
+      resourceId: decision.id,
+      metadata: { packRequirementId: input.packRequirementId, outcome: input.outcome },
+    });
+    return ok(decision);
+  });
+}
+
+/**
+ * Every decision recorded on a mission, newest first — visible to the
+ * mission owner or any org member currently assigned to it (read is
+ * intentionally more permissive than the write, matching this codebase's
+ * general pattern elsewhere).
+ */
+export async function listMissionDecisions(
+  db: Db,
+  actorAccountId: string,
+  missionId: string,
+): Promise<Result<MissionDecision[], ServiceError>> {
+  const mission = first(
+    await db.select().from(schema.missions).where(eq(schema.missions.id, missionId)).limit(1),
+  );
+  if (!mission) return err(serviceError('not_found', 'mission not found'));
+  const applicant = first(
+    await db
+      .select({ ownerAccountId: schema.applicants.ownerAccountId })
+      .from(schema.applicants)
+      .where(eq(schema.applicants.id, mission.applicantId))
+      .limit(1),
+  );
+  const isOwner = applicant?.ownerAccountId === actorAccountId;
+  if (!isOwner) {
+    const assignedAnywhere = first(
+      await db
+        .select({ id: schema.assignments.id })
+        .from(schema.assignments)
+        .where(
+          and(
+            eq(schema.assignments.memberAccountId, actorAccountId),
+            eq(schema.assignments.missionId, missionId),
+          ),
+        )
+        .limit(1),
+    );
+    if (!assignedAnywhere) {
+      return err(serviceError('forbidden', 'not authorized to view decisions on this mission'));
+    }
+  }
+  const rows = await db
+    .select()
+    .from(schema.missionDecisions)
+    .where(eq(schema.missionDecisions.missionId, missionId));
+  return ok([...rows].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()));
+}
+
+/**
+ * A mission's attached pack requirements, for an org that currently holds a
+ * grant covering it — lets the reviewer decision UI offer a real requirement
+ * picker without needing owner-level mission access. Empty (not an error)
+ * if no pack is attached yet.
+ */
+export async function listMissionRequirementsForOrg(
+  db: Db,
+  organizationId: string,
+  missionId: string,
+): Promise<Result<PackRequirement[], ServiceError>> {
+  const mission = first(
+    await db.select().from(schema.missions).where(eq(schema.missions.id, missionId)).limit(1),
+  );
+  if (!mission) return err(serviceError('not_found', 'mission not found'));
+  if (!(await orgGrantPermits(db, organizationId, mission.applicantId, 'MANAGE', mission.id))) {
+    return err(
+      serviceError('forbidden', 'this organization has no current grant covering that mission'),
+    );
+  }
+  if (!mission.packVersionId) return ok([]);
+  return ok(await listRequirements(db, mission.packVersionId));
 }

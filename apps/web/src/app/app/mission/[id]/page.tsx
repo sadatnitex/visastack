@@ -2,10 +2,15 @@ import { createTranslator } from '@visastack/i18n';
 import {
   computeReadiness,
   getApplicant,
+  getEvidenceCandidates,
   getMissionForOwner,
+  isFactStatusEligible,
   legalTransitions,
+  listGeneratedOutputs,
   listMissionSnapshots,
   listPublishedPackVersions,
+  listSelectedEvidence,
+  listTasks,
 } from '@visastack/services';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
@@ -13,6 +18,7 @@ import { getLocale } from '../../../../lib/locale';
 import { profileField } from '../../../../lib/profile-fields';
 import { withSession } from '../../../../lib/session';
 import { AttachPackForm, type PackOption } from './attach-pack-form';
+import { EvidenceSelectionPanel, LettersPanel, TasksPanel } from './collaboration-panels';
 import { SnapshotButton, TransitionButtons } from './mission-buttons';
 
 export const dynamic = 'force-dynamic';
@@ -47,17 +53,34 @@ export default async function MissionPage({
     if (!owned.ok) return null;
     const mission = owned.value;
     const applicant = await getApplicant(db, mission.applicantId);
-    const [readiness, snapshots, packs] = await Promise.all([
-      mission.packVersionId ? computeReadiness(db, mission.id) : Promise.resolve(null),
-      listMissionSnapshots(db, accountId, mission.id),
-      listPublishedPackVersions(db),
-    ]);
+    const [readiness, snapshots, packs, tasks, letters, selections, candidates] = await Promise.all(
+      [
+        mission.packVersionId ? computeReadiness(db, mission.id) : Promise.resolve(null),
+        listMissionSnapshots(db, accountId, mission.id),
+        listPublishedPackVersions(db),
+        listTasks(db, accountId, mission.id),
+        listGeneratedOutputs(db, accountId, mission.id),
+        listSelectedEvidence(db, accountId, mission.id),
+        getEvidenceCandidates(db, accountId, mission.id),
+      ],
+    );
+    const selectionIdsByCandidate: Record<string, string> = {};
+    if (selections.ok) {
+      for (const s of selections.value) {
+        if (s.factId) selectionIdsByCandidate[s.factId] = s.id;
+        if (s.documentId) selectionIdsByCandidate[s.documentId] = s.id;
+      }
+    }
     return {
       mission,
       applicantName: applicant?.displayName ?? 'Applicant',
       applicantId: mission.applicantId,
       readiness: readiness?.ok ? readiness.value : null,
       snapshots: snapshots.ok ? snapshots.value : [],
+      tasks: tasks.ok ? tasks.value : [],
+      letters: letters.ok ? letters.value : [],
+      candidates: candidates.ok ? candidates.value : [],
+      selectionIdsByCandidate,
       packOptions: packs.map(
         (p): PackOption => ({
           packVersionId: p.packVersionId,
@@ -225,6 +248,50 @@ export default async function MissionPage({
             </div>
           )}
         </article>
+      </div>
+
+      <div className="grid" style={{ marginTop: '1.5rem' }}>
+        <EvidenceSelectionPanel
+          missionId={mission.id}
+          candidates={data.candidates.map((c) => ({
+            packRequirementId: c.packRequirementId,
+            kind: c.kind,
+            label: c.kind === 'FIELD' ? (profileField(c.key)?.label ?? c.key) : c.key,
+            citation: c.citation,
+            factCandidates: c.factCandidates.map((f) => ({
+              factId: f.factId,
+              value: f.value,
+              repeatingRecordKey: f.repeatingRecordKey,
+              eligible: isFactStatusEligible(f.status),
+            })),
+            documentCandidates: c.documentCandidates.map((d) => ({
+              documentId: d.documentId,
+              displayName: d.displayName,
+              eligible: d.eligible,
+            })),
+            selectedFactIds: c.selectedFactIds,
+            selectedDocumentIds: c.selectedDocumentIds,
+            selectionIdsByCandidate: data.selectionIdsByCandidate,
+          }))}
+        />
+      </div>
+
+      <div className="grid" style={{ marginTop: '1.5rem' }}>
+        <TasksPanel missionId={mission.id} tasks={data.tasks} />
+        <LettersPanel
+          missionId={mission.id}
+          letters={data.letters.map((l) => ({
+            id: l.id,
+            version: l.version,
+            content: l.content,
+            createdAt: l.createdAt.toISOString(),
+          }))}
+          canGenerate={data.candidates.some(
+            (c) =>
+              c.factCandidates.some((f) => isFactStatusEligible(f.status)) ||
+              c.documentCandidates.some((d) => d.eligible),
+          )}
+        />
       </div>
     </section>
   );

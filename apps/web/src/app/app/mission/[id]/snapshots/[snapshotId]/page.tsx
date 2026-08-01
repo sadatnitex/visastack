@@ -9,27 +9,45 @@ export const dynamic = 'force-dynamic';
 /**
  * The shape `snapshotMission` (packages/services/src/missions.ts) actually
  * writes into the jsonb `content` column. Not schema-enforced — this mirrors
- * the current writer, not a contract the database checks.
+ * the current writer, not a contract the database checks. Every fact and
+ * document instance is captured by its exact id, in an array — never
+ * collapsed into a key->value slot, so a repeating field's multiple
+ * instances (master directive §7 "PR 10") are never overwritten.
  */
+interface SnapshotFactEntry {
+  readonly fieldKey: string;
+  readonly factId: string;
+  readonly factVersionId: string | null;
+  readonly repeatingRecordKey: string | null;
+  readonly value: string | null;
+  readonly status: string;
+  readonly evidenceLinkIds: readonly string[];
+}
+interface SnapshotDocumentEntry {
+  readonly documentId: string;
+  readonly documentVersionId: string;
+  readonly docType: string | null;
+  readonly displayName: string;
+  readonly sha256: string | null;
+  readonly eligible: boolean;
+}
 interface SnapshotContent {
   readonly missionId: string;
   readonly state: string;
-  readonly packVersionId: string | null;
-  readonly facts: Readonly<Record<string, string | null>>;
-  readonly documents: ReadonlyArray<{
-    readonly id: string;
-    readonly docType: string | null;
-    readonly originalName: string;
-    readonly approvedName: string | null;
-  }>;
+  readonly packVersion: { readonly id: string; readonly version: number } | null;
+  readonly facts: readonly SnapshotFactEntry[];
+  readonly documents: readonly SnapshotDocumentEntry[];
   readonly requirementMapping: ReadonlyArray<{
     readonly kind: 'FIELD' | 'DOCUMENT';
     readonly key: string;
     readonly citation: string;
     readonly optional: boolean;
     readonly satisfied: boolean;
-    readonly value?: string | null;
-    readonly documents?: ReadonlyArray<{ readonly id: string; readonly displayName: string }>;
+    readonly facts?: ReadonlyArray<{ readonly value: string | null; readonly eligible: boolean }>;
+    readonly documents?: ReadonlyArray<{
+      readonly displayName: string;
+      readonly eligible: boolean;
+    }>;
   }>;
   readonly readiness: { readonly ready: boolean } | null;
 }
@@ -112,12 +130,20 @@ export default async function MissionSnapshotPage({
                   <p className="muted" style={{ margin: 0, fontSize: '0.75rem' }}>
                     {m.citation}
                   </p>
-                  {m.kind === 'FIELD' && m.value ? (
-                    <p style={{ margin: 0, fontSize: '0.85rem' }}>{m.value}</p>
+                  {m.kind === 'FIELD' && m.facts && m.facts.length > 0 ? (
+                    <p style={{ margin: 0, fontSize: '0.85rem' }}>
+                      {m.facts
+                        .filter((f) => f.eligible)
+                        .map((f) => f.value)
+                        .join(', ') || '(no eligible value)'}
+                    </p>
                   ) : null}
                   {m.kind === 'DOCUMENT' && m.documents && m.documents.length > 0 ? (
                     <p style={{ margin: 0, fontSize: '0.85rem' }}>
-                      {m.documents.map((d) => d.displayName).join(', ')}
+                      {m.documents
+                        .filter((d) => d.eligible)
+                        .map((d) => d.displayName)
+                        .join(', ') || '(no eligible document)'}
                     </p>
                   ) : null}
                 </div>
@@ -131,14 +157,17 @@ export default async function MissionSnapshotPage({
         <article className="card">
           <p className="card-kicker">Profile</p>
           <h2 className="card-title">Facts at this snapshot</h2>
-          {Object.keys(content.facts).length === 0 ? (
+          {content.facts.length === 0 ? (
             <p className="card-body">No facts recorded.</p>
           ) : (
             <div className="rows" style={{ marginTop: '0.5rem' }}>
-              {Object.entries(content.facts).map(([key, value]) => (
-                <div className="row" key={key}>
-                  <span className="row-key">{profileField(key)?.label ?? key}</span>
-                  <span>{value}</span>
+              {content.facts.map((fact) => (
+                <div className="row" key={fact.factId}>
+                  <span className="row-key">
+                    {profileField(fact.fieldKey)?.label ?? fact.fieldKey}
+                    {fact.repeatingRecordKey ? ` · ${fact.repeatingRecordKey}` : ''}
+                  </span>
+                  <span>{fact.value}</span>
                 </div>
               ))}
             </div>
@@ -153,8 +182,8 @@ export default async function MissionSnapshotPage({
           ) : (
             <div className="rows" style={{ marginTop: '0.5rem' }}>
               {content.documents.map((doc) => (
-                <div className="row" key={doc.id}>
-                  <span className="row-key">{doc.approvedName ?? doc.originalName}</span>
+                <div className="row" key={doc.documentVersionId}>
+                  <span className="row-key">{doc.displayName}</span>
                   {doc.docType ? <span className="badge badge-neutral">{doc.docType}</span> : null}
                 </div>
               ))}

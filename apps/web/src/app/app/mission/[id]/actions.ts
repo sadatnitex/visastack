@@ -1,7 +1,16 @@
 'use server';
 
 import type { MissionState } from '@visastack/core';
-import { attachPackVersion, snapshotMission, transitionMission } from '@visastack/services';
+import {
+  attachPackVersion,
+  createTask,
+  decideTask,
+  generateCoverLetter,
+  selectEvidence,
+  snapshotMission,
+  transitionMission,
+  unselectEvidence,
+} from '@visastack/services';
 import { revalidatePath } from 'next/cache';
 import { withSession } from '../../../../lib/session';
 
@@ -79,6 +88,117 @@ export async function snapshotMissionAction(
     return {
       ok: true,
       message: `Snapshot version ${snapshot.value.version} captured.`,
+    } satisfies ActionState;
+  });
+  if (result.ok) revalidatePath(`/app/mission/${missionId}`);
+  return result;
+}
+
+/** Explicitly select which fact/document instance satisfies a requirement. */
+export async function selectEvidenceAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const missionId = String(formData.get('missionId') ?? '');
+  const packRequirementId = String(formData.get('packRequirementId') ?? '');
+  const factId = String(formData.get('factId') ?? '') || undefined;
+  const documentId = String(formData.get('documentId') ?? '') || undefined;
+  if (missionId.length === 0 || packRequirementId.length === 0 || (!factId && !documentId)) {
+    return { ok: false, message: 'Choose an instance to select.' };
+  }
+  const result = await withSession(async ({ db, accountId }) => {
+    const selected = await selectEvidence(db, {
+      actorAccountId: accountId,
+      missionId,
+      packRequirementId,
+      ...(factId ? { factId } : {}),
+      ...(documentId ? { documentId } : {}),
+    });
+    if (!selected.ok) return { ok: false, message: selected.error.message } satisfies ActionState;
+    return { ok: true, message: 'Evidence selected.' } satisfies ActionState;
+  });
+  if (result.ok) revalidatePath(`/app/mission/${missionId}`);
+  return result;
+}
+
+/** Remove an evidence selection — the requirement reverts to "any eligible instance". */
+export async function unselectEvidenceAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const missionId = String(formData.get('missionId') ?? '');
+  const selectionId = String(formData.get('selectionId') ?? '');
+  if (missionId.length === 0 || selectionId.length === 0) {
+    return { ok: false, message: 'Missing selection.' };
+  }
+  const result = await withSession(async ({ db, accountId }) => {
+    const removed = await unselectEvidence(db, {
+      actorAccountId: accountId,
+      missionId,
+      selectionId,
+    });
+    if (!removed.ok) return { ok: false, message: removed.error.message } satisfies ActionState;
+    return { ok: true, message: 'Selection removed.' } satisfies ActionState;
+  });
+  if (result.ok) revalidatePath(`/app/mission/${missionId}`);
+  return result;
+}
+
+/** Add a lightweight checklist item to the mission. */
+export async function createTaskAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const missionId = String(formData.get('missionId') ?? '');
+  const description = String(formData.get('description') ?? '').trim();
+  if (missionId.length === 0 || description.length === 0) {
+    return { ok: false, message: 'A description is required.' };
+  }
+  const result = await withSession(async ({ db, accountId }) => {
+    const task = await createTask(db, { actorAccountId: accountId, missionId, description });
+    if (!task.ok) return { ok: false, message: task.error.message } satisfies ActionState;
+    return { ok: true, message: 'Task added.' } satisfies ActionState;
+  });
+  if (result.ok) revalidatePath(`/app/mission/${missionId}`);
+  return result;
+}
+
+/** Mark a task DONE or CANCELLED. */
+export async function decideTaskAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const missionId = String(formData.get('missionId') ?? '');
+  const taskId = String(formData.get('taskId') ?? '');
+  const status = String(formData.get('status') ?? '') as 'DONE' | 'CANCELLED';
+  if (missionId.length === 0 || taskId.length === 0) {
+    return { ok: false, message: 'Missing task.' };
+  }
+  const result = await withSession(async ({ db, accountId }) => {
+    const decided = await decideTask(db, { actorAccountId: accountId, missionId, taskId, status });
+    if (!decided.ok) return { ok: false, message: decided.error.message } satisfies ActionState;
+    return {
+      ok: true,
+      message: status === 'DONE' ? 'Task completed.' : 'Task cancelled.',
+    } satisfies ActionState;
+  });
+  if (result.ok) revalidatePath(`/app/mission/${missionId}`);
+  return result;
+}
+
+/** Generate a new, versioned cover letter grounded in the mission's current satisfied evidence. */
+export async function generateLetterAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const missionId = String(formData.get('missionId') ?? '');
+  if (missionId.length === 0) return { ok: false, message: 'Missing mission.' };
+  const result = await withSession(async ({ db, accountId }) => {
+    const output = await generateCoverLetter(db, { actorAccountId: accountId, missionId });
+    if (!output.ok) return { ok: false, message: output.error.message } satisfies ActionState;
+    return {
+      ok: true,
+      message: `Letter version ${output.value.version} generated.`,
     } satisfies ActionState;
   });
   if (result.ok) revalidatePath(`/app/mission/${missionId}`);
