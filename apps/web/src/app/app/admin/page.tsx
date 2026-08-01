@@ -2,6 +2,7 @@ import {
   type ProductEventType,
   documentsPastRetention,
   getPilotScorecard,
+  getPlatformEvidenceBytes,
   getRetentionPolicies,
   listActiveLegalHolds,
   listActivePlatformRoles,
@@ -9,11 +10,13 @@ import {
   listAllOrganizations,
   listErasureJobsNeedingAttention,
   listFailedJobs,
+  loadUploadQuotaConfig,
   reportUnboundAccounts,
 } from '@visastack/services';
 import Link from 'next/link';
 import { isPlatformAdmin, isPlatformOwnerAccount } from '../../../lib/admin';
 import { withSession } from '../../../lib/session';
+import { UsageMeter } from '../applicant/[id]/usage-meter';
 import {
   OrgReviewButtons,
   ReleaseHoldButton,
@@ -66,6 +69,7 @@ export default async function AdminPage() {
       roles,
       unboundAccounts,
       owner,
+      platformEvidenceBytes,
     ] = await Promise.all([
       getRetentionPolicies(db),
       listActiveLegalHolds(db),
@@ -78,6 +82,7 @@ export default async function AdminPage() {
       listActivePlatformRoles(db),
       reportUnboundAccounts(db),
       isPlatformOwnerAccount(db, { accountId, email }),
+      getPlatformEvidenceBytes(db),
     ]);
     return {
       admin: true as const,
@@ -92,6 +97,8 @@ export default async function AdminPage() {
       roles,
       unboundAccounts,
       owner,
+      platformEvidenceBytes,
+      quota: loadUploadQuotaConfig(),
     };
   });
 
@@ -327,6 +334,9 @@ export default async function AdminPage() {
                         {job.documentName}
                       </span>
                       <span style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                        {job.errorCode ? (
+                          <span className="badge badge-neutral">{job.errorCode}</span>
+                        ) : null}
                         <span className="badge badge-danger">
                           {job.attempts}/{job.maxAttempts} attempts
                         </span>
@@ -400,6 +410,22 @@ export default async function AdminPage() {
                 ))}
               </div>
             )}
+          </article>
+
+          <article className="card" style={{ marginTop: '1.5rem' }}>
+            <p className="card-kicker">Capacity</p>
+            <h2 className="card-title">Platform storage</h2>
+            <p className="card-body" style={{ marginBottom: '1.25rem' }}>
+              Tracked evidence bytes across every account. New uploads are refused once the platform
+              hits its hard stop; the warning threshold below is purely informational — it is not
+              itself enforced anywhere.
+            </p>
+            <UsageMeter
+              label="Evidence storage (platform-wide)"
+              usedBytes={data.platformEvidenceBytes}
+              limitBytes={data.quota.platformHardStopBytes}
+              warnBytes={data.quota.platformWarningBytes}
+            />
           </article>
 
           <article className="card" style={{ marginTop: '1.5rem' }}>

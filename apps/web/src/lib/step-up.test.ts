@@ -45,13 +45,19 @@ afterEach(() => {
 const REQUEST = { accountId: 'acct-1', action: 'EXPORT_PROFILE', resourceId: 'org-1' };
 
 describe('establishStepUp — genuine WorkOS recency, never a browser boolean', () => {
+  // Module re-import (vi.resetModules in afterEach) plus the real HMAC
+  // mint/verify round trip is fast in isolation (~1s) but can approach the
+  // 5s default under full monorepo test-suite contention (7 packages'
+  // vitest processes running concurrently) — a generous explicit timeout
+  // avoids a spurious CI failure that has nothing to do with this test's
+  // own correctness.
   it('reports satisfied once a fresh WorkOS session mints and self-verifies a real assurance record', async () => {
     checkRecentAuth.mockResolvedValue({ authenticatedAt: new Date(), isStale: false });
     const { establishStepUp } = await import('./step-up');
     const result = await establishStepUp(REQUEST, 'https://app.example/return');
     expect(result).toEqual({ satisfied: true });
     expect(getSignInUrl).not.toHaveBeenCalled();
-  });
+  }, 15_000);
 
   it('never reports satisfied for a stale session — returns a genuine WorkOS reauth URL instead', async () => {
     checkRecentAuth.mockResolvedValue({ authenticatedAt: null, isStale: true });

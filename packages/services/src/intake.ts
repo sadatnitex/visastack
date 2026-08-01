@@ -70,6 +70,19 @@ async function loadVersion(db: Db, id: string): Promise<DocumentVersion | undefi
   );
 }
 
+/**
+ * Compare-and-set on `processingStatus`: only takes effect while the version
+ * is still in the exact state this caller last observed it in. Returns
+ * `undefined` (never throws) if another process already advanced it past
+ * that point — normally unreachable (job uniqueness + leasing, master
+ * directive §7 "PR 6", ensure at most one worker ever holds a document
+ * version's processing job at a time), but this is the backstop for the one
+ * scenario leasing alone cannot rule out: a lease that outlives its own
+ * expiry because the worker holding it is still genuinely, slowly running
+ * (not crashed) when a second worker reclaims and completes the same
+ * version. Without this check that second worker's already-correct outcome
+ * could be silently overwritten by the first worker's stale, blind write.
+ */
 async function commitTransition(
   db: Db,
   version: DocumentVersion,
@@ -77,18 +90,21 @@ async function commitTransition(
     processingStatus: DocumentState;
     safetyStatus: DocumentVersion['safetyStatus'];
   }>,
-): Promise<DocumentVersion> {
+): Promise<DocumentVersion | undefined> {
   return db.transaction(async (tx) => {
-    const updated = required(
-      first(
-        await tx
-          .update(schema.documentVersions)
-          .set({ ...patch, updatedAt: new Date() })
-          .where(eq(schema.documentVersions.id, version.id))
-          .returning(),
-      ),
-      'document version',
+    const updated = first(
+      await tx
+        .update(schema.documentVersions)
+        .set({ ...patch, updatedAt: new Date() })
+        .where(
+          and(
+            eq(schema.documentVersions.id, version.id),
+            eq(schema.documentVersions.processingStatus, version.processingStatus),
+          ),
+        )
+        .returning(),
     );
+    if (!updated) return undefined;
     await appendAuditEvent(tx, {
       eventType: 'DOCUMENT_STATE_CHANGE',
       method: 'SYSTEM',
@@ -352,10 +368,16 @@ export async function processIntake(
         safe: result.safe,
         detail: result.detail ?? null,
       });
-      version = await commitTransition(db, version, {
+      const scanned = await commitTransition(db, version, {
         processingStatus: result.safe ? 'NORMALIZING' : 'NEEDS_ATTENTION',
         safetyStatus: result.safe ? 'CLEAN' : 'QUARANTINED',
       });
+      // Lost the CAS race (see commitTransition's doc comment): another
+      // process already advanced this version past what we last observed.
+      // Its outcome is the correct, final one — stop here rather than
+      // overwrite it with our now-stale result.
+      if (!scanned) return ok((await loadVersion(db, input.documentVersionId)) ?? version);
+      version = scanned;
       continue;
     }
 
@@ -363,16 +385,22 @@ export async function processIntake(
       // If this throws, the version stays in EXTRACTING and is resumable —
       // same recoverability contract as the scanner step above.
       await runExtractionStep(db, extractor, version);
-      version = await commitTransition(db, version, { processingStatus: 'AWAITING_REVIEW' });
+      const extracted = await commitTransition(db, version, {
+        processingStatus: 'AWAITING_REVIEW',
+      });
+      if (!extracted) return ok((await loadVersion(db, input.documentVersionId)) ?? version);
+      version = extracted;
       continue;
     }
 
     const next = nextIntakeState(state);
     if (next === null) break; // terminal (incl. AWAITING_REVIEW / NEEDS_ATTENTION)
-    version = await commitTransition(db, version, {
+    const advanced = await commitTransition(db, version, {
       processingStatus: next,
       ...(next === 'SCANNING' ? { safetyStatus: 'SCANNING' as const } : {}),
     });
+    if (!advanced) return ok((await loadVersion(db, input.documentVersionId)) ?? version);
+    version = advanced;
   }
 
   return ok(version);

@@ -10,7 +10,6 @@ import { createApplicant } from './applicants';
 import { setConsent } from './consent';
 import type { Db } from './db';
 import {
-  checkUploadQuota,
   getAccountEvidenceBytes,
   getApplicantEvidenceBytes,
   getPlatformEvidenceBytes,
@@ -121,128 +120,7 @@ describe('upload quotas — usage rollups', () => {
   });
 });
 
-describe('upload quotas — fail-closed enforcement (never silently exceeded)', () => {
-  let db: Db;
-  beforeEach(async () => {
-    db = await freshDb();
-  });
-
-  const tightConfig = {
-    maxUploadBytes: 5 * 1024 * 1024,
-    maxApplicantEvidenceBytes: 10 * 1024 * 1024,
-    maxAccountEvidenceBytes: 20 * 1024 * 1024,
-    platformWarningBytes: 40 * 1024 * 1024,
-    platformHardStopBytes: 50 * 1024 * 1024,
-  };
-
-  it('allows an upload comfortably within every limit', async () => {
-    const { accountId, applicantId } = await seedApplicantWithEvidence(db, 'ok@example.com', []);
-    const decision = await checkUploadQuota(
-      db,
-      { applicantId, accountId, uploadSizeBytes: 1024 * 1024 },
-      tightConfig,
-    );
-    expect(decision.allowed).toBe(true);
-  });
-
-  it('refuses a single file larger than the per-file limit', async () => {
-    const { accountId, applicantId } = await seedApplicantWithEvidence(
-      db,
-      'big-file@example.com',
-      [],
-    );
-    const decision = await checkUploadQuota(
-      db,
-      { applicantId, accountId, uploadSizeBytes: 6 * 1024 * 1024 },
-      tightConfig,
-    );
-    expect(decision.allowed).toBe(false);
-    if (!decision.allowed) expect(decision.reason).toContain('upload limit');
-  });
-
-  it('refuses when the applicant total would be exceeded, even if the file itself is within the per-file limit', async () => {
-    const { accountId, applicantId } = await seedApplicantWithEvidence(
-      db,
-      'applicant-cap@example.com',
-      [9 * 1024 * 1024],
-    );
-    const decision = await checkUploadQuota(
-      db,
-      { applicantId, accountId, uploadSizeBytes: 2 * 1024 * 1024 },
-      tightConfig,
-    );
-    expect(decision.allowed).toBe(false);
-    if (!decision.allowed) expect(decision.reason).toContain('applicant');
-  });
-
-  it('refuses when the account total would be exceeded across multiple applicants, even for a third applicant with no evidence of its own', async () => {
-    const first = await seedApplicantWithEvidence(db, 'acct-cap-1@example.com', [8 * 1024 * 1024]);
-    // Second applicant owned by the SAME account (reuse accountId via a second createApplicant call).
-    const secondApplicant = (
-      await db
-        .insert(schema.applicants)
-        .values({ ownerAccountId: first.accountId, displayName: 'Second' })
-        .returning()
-    )[0];
-    if (!secondApplicant) throw new Error('applicant insert failed');
-    const doc = (
-      await db
-        .insert(schema.documents)
-        .values({ applicantId: secondApplicant.id, originalName: 'more.pdf' })
-        .returning()
-    )[0];
-    if (!doc) throw new Error('document insert failed');
-    const object = (
-      await db
-        .insert(schema.storageObjects)
-        .values({ bucket: 'CLEAN', objectKey: 'obj-second', sizeBytes: 8 * 1024 * 1024 })
-        .returning()
-    )[0];
-    if (!object) throw new Error('storage object insert failed');
-    await db.insert(schema.documentVersions).values({
-      documentId: doc.id,
-      versionNumber: 1,
-      storageObjectId: object.id,
-      sizeBytes: 8 * 1024 * 1024,
-    });
-
-    // A THIRD applicant, same account, with no evidence of its own — isolates the
-    // account-level check from the per-applicant check (which would otherwise
-    // trip first if the upload targeted an applicant that already holds bytes).
-    const thirdApplicant = (
-      await db
-        .insert(schema.applicants)
-        .values({ ownerAccountId: first.accountId, displayName: 'Third' })
-        .returning()
-    )[0];
-    if (!thirdApplicant) throw new Error('applicant insert failed');
-
-    // Account now has 16 MB across the first two applicants; a further 5 MB for
-    // the (empty) third applicant is well within its own 10 MB cap but would
-    // push the account to 21 MB, exceeding the 20 MB account cap.
-    const decision = await checkUploadQuota(
-      db,
-      {
-        applicantId: thirdApplicant.id,
-        accountId: first.accountId,
-        uploadSizeBytes: 5 * 1024 * 1024,
-      },
-      tightConfig,
-    );
-    expect(decision.allowed).toBe(false);
-    if (!decision.allowed) expect(decision.reason).toContain('account');
-  });
-
-  it('refuses when the platform-wide hard stop would be exceeded, even for a fresh applicant/account', async () => {
-    // Fill platform usage close to the hard stop via a different applicant.
-    await seedApplicantWithEvidence(db, 'platform-fill@example.com', [48 * 1024 * 1024]);
-    const { accountId, applicantId } = await seedApplicantWithEvidence(db, 'fresh@example.com', []);
-    const decision = await checkUploadQuota(
-      db,
-      { applicantId, accountId, uploadSizeBytes: 4 * 1024 * 1024 },
-      tightConfig,
-    );
-    expect(decision.allowed).toBe(false);
-    if (!decision.allowed) expect(decision.reason).toContain('platform');
-  });
-});
+// Fail-closed enforcement (never silently exceeded) is now covered by
+// uploads.test.ts's reserveUpload suite — see that file's header comment for
+// why the old plain read-then-decide check moved to an atomic reservation
+// (master directive §7 "PR 6").

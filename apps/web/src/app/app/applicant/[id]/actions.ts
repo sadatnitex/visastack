@@ -1,21 +1,25 @@
 'use server';
 
-import { createHash, randomUUID } from 'node:crypto';
+import { createHash } from 'node:crypto';
 import type { ApplicantId } from '@visastack/core';
 import type { Actor, Db } from '@visastack/services';
+import type { AddDocumentVersionResult } from '@visastack/services';
 import {
-  addDocumentVersion,
   approveProposal,
-  checkUploadQuota,
   decideDocumentName,
   editFact,
   enqueueIntakeJob,
+  failUpload,
+  finalizeUpload,
   getApplicant,
   getLatestExtractedText,
+  loadUploadQuotaConfig,
+  mbLabel,
   previewDocument,
-  registerDocument,
+  registerDocumentWithVersion,
   registerFieldDefinition,
   rejectProposal,
+  reserveUpload,
   runExtraction,
 } from '@visastack/services';
 import { revalidatePath } from 'next/cache';
@@ -85,7 +89,21 @@ export async function saveFactAction(_prev: ActionState, formData: FormData): Pr
   return result;
 }
 
-/** Upload a document: store bytes → register → version → queue intake processing. */
+/**
+ * Upload a document: reserve → store bytes → verify → register → version →
+ * queue intake processing → finalize the reservation.
+ *
+ * Upload consistency (master directive §7 "PR 6"): a server-created upload
+ * intent atomically reserves this upload's quota and mints its opaque
+ * object key BEFORE any bytes are written, closing a real TOCTOU race
+ * (two concurrent uploads for the same applicant/account could otherwise
+ * each individually pass a read-only quota check and jointly exceed it —
+ * see `reserveUpload`, packages/services/src/uploads.ts). On any failure
+ * after the reservation: `failUpload` releases it immediately (it stops
+ * counting toward every quota tier at once) and, if bytes were already
+ * written, the partial blob is deleted — never an invisible orphan (a
+ * document row nobody can complete, or bytes nobody's metadata points to).
+ */
 export async function uploadDocumentAction(
   _prev: ActionState,
   formData: FormData,
@@ -96,55 +114,124 @@ export async function uploadDocumentAction(
     return { ok: false, message: 'Choose a file to upload.' };
   }
 
-  const bytes = new Uint8Array(await file.arrayBuffer());
+  // Cheap, upfront rejection using the File's declared size — before reading
+  // any bytes. The app's own quota can be tighter than the framework-level
+  // body-size ceiling (next.config.mjs's experimental.serverActions.
+  // bodySizeLimit), and there is no reason to pay for hashing/DB work on a
+  // file already known to be oversized.
+  const quotaConfig = loadUploadQuotaConfig();
+  if (file.size > quotaConfig.maxUploadBytes) {
+    return {
+      ok: false,
+      message: `File exceeds the ${mbLabel(quotaConfig.maxUploadBytes)} upload limit.`,
+    };
+  }
+
   const contentType = file.type || 'application/octet-stream';
   const originalName = file.name || 'document';
-  const sha256 = createHash('sha256').update(bytes).digest('hex');
 
   const result = await withSession(async ({ db, accountId }) => {
     if (!(await assertOwned(db, accountId, applicantId))) {
       return { ok: false, message: 'Not authorized.' } satisfies ActionState;
     }
 
-    // Fail-closed, before any bytes are written (master directive §10): a
-    // quota is never silently exceeded.
-    const quota = await checkUploadQuota(db, {
-      applicantId,
-      accountId,
-      uploadSizeBytes: bytes.byteLength,
-    });
-    if (!quota.allowed) {
-      return { ok: false, message: quota.reason } satisfies ActionState;
+    const reservation = await reserveUpload(
+      db,
+      { accountId, applicantId, sizeBytes: file.size },
+      quotaConfig,
+    );
+    if (!reservation.ok) {
+      return { ok: false, message: reservation.error.message } satisfies ActionState;
     }
-
-    const registered = await registerDocument(db, {
-      actorAccountId: accountId,
-      applicantId,
-      originalName,
-      source: 'UPLOAD',
-    });
-    if (!registered.ok) {
-      return { ok: false, message: registered.error.message } satisfies ActionState;
-    }
-
+    const intent = reservation.value;
     // Opaque key only — never the applicant id, email, or filename (§10).
     // The bucket/applicant association lives solely in the domain tables
-    // (documents/document_versions/storage_objects), never in the object path.
-    const objectKey = randomUUID();
+    // (documents/document_versions/storage_objects), never in the object
+    // path. Minted by the reservation itself, not here, so a failure after
+    // this point always has a key to clean up by.
     const storage = createStorage(db);
-    await storage.putObject({ objectKey, bucket: 'QUARANTINE', contentType, bytes });
 
-    const versioned = await addDocumentVersion(db, {
-      actorAccountId: accountId,
-      documentId: registered.value.id,
-      bucket: 'QUARANTINE',
-      objectKey,
-      sizeBytes: bytes.byteLength,
-      sha256,
-    });
-    if (!versioned.ok) {
-      return { ok: false, message: versioned.error.message } satisfies ActionState;
-    }
+    // Everything from the first byte read through document registration is
+    // wrapped in one try/catch so a genuinely unexpected exception — not
+    // just a modeled failure each branch below already handles — still
+    // releases the reservation and best-effort deletes any bytes already
+    // written, rather than leaking the reservation for its full TTL and
+    // abandoning an orphaned blob. `registerDocumentWithVersion` itself
+    // creates the document and its first version atomically (a savepoint
+    // transaction), so a failure partway through never leaves a
+    // versionless document behind either. Deliberately scoped to end here:
+    // once this returns `ok`, the document version durably exists and
+    // references this object key, so a later failure enqueueing the intake
+    // job must never delete the blob out from under it.
+    const outcome = await (async (): Promise<
+      { ok: true; version: AddDocumentVersionResult } | { ok: false; message: string }
+    > => {
+      try {
+        const bytes = new Uint8Array(await file.arrayBuffer());
+        if (bytes.byteLength !== file.size) {
+          // The browser's declared size didn't match what was actually read —
+          // fail closed rather than trust a mismatched declaration.
+          await failUpload(
+            db,
+            intent.id,
+            `declared size ${file.size} did not match actual bytes read ${bytes.byteLength}`,
+          );
+          return { ok: false, message: 'Upload failed: the file changed while uploading.' };
+        }
+        const sha256 = createHash('sha256').update(bytes).digest('hex');
+
+        try {
+          await storage.putObject({
+            objectKey: intent.objectKey,
+            bucket: 'QUARANTINE',
+            contentType,
+            bytes,
+          });
+        } catch (error) {
+          await failUpload(db, intent.id, error instanceof Error ? error.message : String(error));
+          return { ok: false, message: 'Upload failed while storing the file. Please try again.' };
+        }
+
+        // Server-side verification: a fresh read confirms the bytes are
+        // actually there and the right size — never report success on the
+        // strength of "the write call didn't throw" alone (same round-trip
+        // discipline as the erasure worker's delete-then-verify, master
+        // directive §7 "PR 4").
+        const verification = await storage.getObject(intent.objectKey);
+        if (!verification || verification.bytes.byteLength !== bytes.byteLength) {
+          await storage.deleteObject('QUARANTINE', intent.objectKey).catch(() => undefined);
+          await failUpload(
+            db,
+            intent.id,
+            'stored object failed verification immediately after write',
+          );
+          return { ok: false, message: 'Upload failed verification. Please try again.' };
+        }
+
+        const created = await registerDocumentWithVersion(db, {
+          actorAccountId: accountId,
+          applicantId,
+          originalName,
+          source: 'UPLOAD',
+          bucket: 'QUARANTINE',
+          objectKey: intent.objectKey,
+          sizeBytes: bytes.byteLength,
+          sha256,
+        });
+        if (!created.ok) {
+          await storage.deleteObject('QUARANTINE', intent.objectKey).catch(() => undefined);
+          await failUpload(db, intent.id, created.error.message);
+          return { ok: false, message: created.error.message };
+        }
+        return { ok: true, version: created.value };
+      } catch (error) {
+        await storage.deleteObject('QUARANTINE', intent.objectKey).catch(() => undefined);
+        await failUpload(db, intent.id, error instanceof Error ? error.message : String(error));
+        return { ok: false, message: 'Upload failed unexpectedly. Please try again.' };
+      }
+    })();
+
+    if (!outcome.ok) return { ok: false, message: outcome.message } satisfies ActionState;
 
     // Processing runs off the request path (master directive §5 — DB-backed
     // low-volume jobs, not a synchronous in-request scan): the job row is the
@@ -152,7 +239,8 @@ export async function uploadDocumentAction(
     // fires the worker once the response has been sent for near-instant
     // processing in the common case; the periodic sweep at
     // /api/jobs/process-intake is the durability backstop if that doesn't run.
-    await enqueueIntakeJob(db, { documentVersionId: versioned.value.version.id });
+    await enqueueIntakeJob(db, { documentVersionId: outcome.version.version.id });
+    await finalizeUpload(db, intent.id, outcome.version.version.id);
     after(() => triggerIntakeWorker());
 
     return {
@@ -265,8 +353,6 @@ export async function runAiExtractionAction(
         message: 'No extracted text available yet for this document.',
       } satisfies ActionState;
     }
-    const maxAttempts = aiMaxAttemptsPerDocument();
-    const maxPages = aiMaxPagesPerDocument();
     const run = await runExtraction(db, ai, {
       actorAccountId: accountId,
       applicantId,
@@ -274,8 +360,8 @@ export async function runAiExtractionAction(
       text,
       budgetLimitUnits: aiBudgetLimitUnits(),
       perDocumentBudgetLimitUnits: aiPerDocumentBudgetLimitUnits(),
-      ...(maxAttempts !== undefined ? { maxAttemptsPerDocument: maxAttempts } : {}),
-      ...(maxPages !== undefined ? { maxPagesPerDocument: maxPages } : {}),
+      maxAttemptsPerDocument: aiMaxAttemptsPerDocument(),
+      maxPagesPerDocument: aiMaxPagesPerDocument(),
     });
     if (!run.ok) return { ok: false, message: run.error.message } satisfies ActionState;
     return {

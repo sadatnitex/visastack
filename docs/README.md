@@ -19,6 +19,7 @@ that changes behavior.
 | — Document trust boundary | [`security/document-trust-boundary.md`](security/document-trust-boundary.md) | Upload/scan/serve boundary → enforcement → test map (living). |
 | — Erasure & retention | [`security/erasure-and-retention-boundary.md`](security/erasure-and-retention-boundary.md) | Deletion outbox, legal hold, account export boundary → enforcement → test map (living). |
 | — Identity & step-up | [`security/identity-and-step-up-boundary.md`](security/identity-and-step-up-boundary.md) | WorkOS identity binding, platform-role administration, step-up/reauthentication → enforcement → test map (living). |
+| — Durable jobs & upload integrity | [`security/durable-jobs-and-upload-integrity-boundary.md`](security/durable-jobs-and-upload-integrity-boundary.md) | Job leases/uniqueness, processing idempotency, upload consistency, free-tier controls → enforcement → test map (living). |
 | Roadmap | [`roadmap/phase-plan.md`](roadmap/phase-plan.md) | Delivery sequence (Build Spec §20). |
 | — Acceptance | [`roadmap/acceptance-criteria.md`](roadmap/acceptance-criteria.md) | Release gates (Build Spec §19). |
 | Governance | [`governance/`](governance/) | Branch protection, delivery process, Vercel. |

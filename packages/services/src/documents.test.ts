@@ -17,6 +17,7 @@ import {
   listDocuments,
   previewDocument,
   registerDocument,
+  registerDocumentWithVersion,
 } from './documents';
 import type { AccessRef, IssueReadRefInput, StoragePort } from './storage';
 
@@ -82,6 +83,25 @@ async function seedOwnerWithDocument(db: Db, email: string) {
   return { account, applicant: applicant.value, document: doc.value };
 }
 
+async function seedOwner(db: Db, email: string) {
+  const provisioned = await provisionAccount(db, { email });
+  if (!isOk(provisioned)) throw new Error('provision failed');
+  const account = provisioned.value;
+  await setConsent(db, {
+    actorAccountId: account.id,
+    accountId: account.id,
+    type: 'CORE_PROCESSING',
+    granted: true,
+  });
+  const applicant = await createApplicant(db, {
+    actorAccountId: account.id,
+    ownerAccountId: account.id,
+    displayName: 'Owner',
+  });
+  if (!isOk(applicant)) throw new Error('applicant failed');
+  return { account, applicant: applicant.value };
+}
+
 describe('document vault — registration & versioning', () => {
   let db: Db;
   beforeEach(async () => {
@@ -118,6 +138,66 @@ describe('document vault — registration & versioning', () => {
     });
     expect(isErr(result)).toBe(true);
     if (isErr(result)) expect(result.error.code).toBe('forbidden');
+  });
+});
+
+describe('registerDocumentWithVersion — atomic first-version registration (master directive §7 "PR 6")', () => {
+  let db: Db;
+  beforeEach(async () => {
+    db = await freshDb();
+  });
+
+  it('registers a document and its first version together', async () => {
+    const { account, applicant } = await seedOwner(db, 'atomic-ok@example.com');
+
+    const result = await registerDocumentWithVersion(db, {
+      actorAccountId: account.id,
+      applicantId: applicant.id,
+      originalName: 'passport.pdf',
+      source: 'UPLOAD',
+      bucket: 'QUARANTINE',
+      objectKey: 'atomic-ok-key',
+      sizeBytes: 1024,
+      sha256: 'a'.repeat(64),
+    });
+    expect(isOk(result)).toBe(true);
+    if (!isOk(result)) return;
+    expect(result.value.version.versionNumber).toBe(1);
+    expect(result.value.version.documentId).toBeTruthy();
+
+    const docs = await listDocuments(db, account.id, applicant.id);
+    expect(isOk(docs)).toBe(true);
+    if (isOk(docs)) expect(docs.value).toHaveLength(1);
+  });
+
+  it('leaves no versionless orphan document behind when the version half of the write fails — ' +
+    'the exact partial-commit the two calls used to risk when made separately', async () => {
+    const { account, applicant } = await seedOwner(db, 'atomic-rollback@example.com');
+
+    // Pre-occupy the object key so the version insert's unique constraint
+    // collides — a real mid-transaction failure, not a modeled Result err,
+    // exercising the same db.transaction() rollback either way would use.
+    await db.insert(schema.storageObjects).values({
+      bucket: 'QUARANTINE',
+      objectKey: 'taken-key',
+    });
+
+    await expect(
+      registerDocumentWithVersion(db, {
+        actorAccountId: account.id,
+        applicantId: applicant.id,
+        originalName: 'passport.pdf',
+        source: 'UPLOAD',
+        bucket: 'QUARANTINE',
+        objectKey: 'taken-key',
+      }),
+    ).rejects.toThrow();
+
+    const docs = await db
+      .select()
+      .from(schema.documents)
+      .where(eq(schema.documents.applicantId, applicant.id));
+    expect(docs).toHaveLength(0);
   });
 });
 

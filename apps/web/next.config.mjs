@@ -27,6 +27,22 @@ const nextConfig = {
   // Keeping these external makes Node load the real packages at runtime, where
   // the pure-JS mask fallback works. (Next 15 stable key.)
   serverExternalPackages: ['@neondatabase/serverless', 'ws'],
+  experimental: {
+    serverActions: {
+      // Next's own default is 1 MB — silently below the pilot's own 10 MB
+      // upload quota (packages/services/src/quotas.ts), so every upload
+      // between 1-10 MB was being rejected with a 413 before reaching that
+      // quota check at all (master directive §7 "PR 6" — upload
+      // consistency). Next enforces this by tracking bytes as the request
+      // body streams in and rejecting once the running total crosses the
+      // limit — never fully buffering an oversize body — so this is also
+      // the first, framework-level line of defense against a deliberately
+      // huge upload exhausting memory. Set comfortably above the quota's
+      // maxUploadBytes default (10 MB) for multipart framing overhead; the
+      // quota itself remains the real, precise, runtime-configurable limit.
+      bodySizeLimit: '15mb',
+    },
+  },
   async headers() {
     return [{ source: '/:path*', headers: securityHeaders }];
   },

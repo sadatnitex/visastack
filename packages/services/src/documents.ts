@@ -188,6 +188,69 @@ export async function addDocumentVersion(
   });
 }
 
+export interface RegisterDocumentWithVersionInput {
+  readonly actorAccountId: string;
+  readonly applicantId: string;
+  readonly originalName: string;
+  readonly docType?: string;
+  readonly source?: string;
+  readonly bucket: StorageBucket;
+  readonly objectKey: string;
+  readonly sizeBytes?: number;
+  readonly sha256?: string;
+}
+
+/** Carries a `ServiceError` out through a transaction rollback (a returned `err()` does not itself abort the transaction — only a throw does). */
+class RegistrationAborted extends Error {
+  constructor(readonly serviceError: ServiceError) {
+    super(serviceError.message);
+  }
+}
+
+/**
+ * Register a brand-new document and attach its first version atomically
+ * (master directive §7 "PR 6" — upload consistency). `registerDocument` and
+ * `addDocumentVersion` each commit independently when called separately, so
+ * a failure in the second call after the first has already succeeded would
+ * otherwise leave a document row with zero versions behind — nobody can
+ * complete it, and nothing ever retries or cleans it up. Wrapping both in
+ * one transaction (a savepoint-backed nested transaction, since each still
+ * opens its own) makes that partial state impossible: either both rows
+ * exist, or neither does.
+ */
+export async function registerDocumentWithVersion(
+  db: Db,
+  input: RegisterDocumentWithVersionInput,
+): Promise<Result<AddDocumentVersionResult, ServiceError>> {
+  try {
+    return await db.transaction(async (tx) => {
+      const registered = await registerDocument(tx, {
+        actorAccountId: input.actorAccountId,
+        applicantId: input.applicantId,
+        originalName: input.originalName,
+        ...(input.docType !== undefined ? { docType: input.docType } : {}),
+        ...(input.source !== undefined ? { source: input.source } : {}),
+      });
+      if (!registered.ok) throw new RegistrationAborted(registered.error);
+
+      const versioned = await addDocumentVersion(tx, {
+        actorAccountId: input.actorAccountId,
+        documentId: registered.value.id,
+        bucket: input.bucket,
+        objectKey: input.objectKey,
+        ...(input.sizeBytes !== undefined ? { sizeBytes: input.sizeBytes } : {}),
+        ...(input.sha256 !== undefined ? { sha256: input.sha256 } : {}),
+      });
+      if (!versioned.ok) throw new RegistrationAborted(versioned.error);
+
+      return ok(versioned.value);
+    });
+  } catch (error) {
+    if (error instanceof RegistrationAborted) return err(error.serviceError);
+    throw error;
+  }
+}
+
 /** List an applicant's documents (owner-scoped). */
 export async function listDocuments(
   db: Db,
