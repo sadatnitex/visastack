@@ -6,7 +6,7 @@ import { classifyDocumentText } from './classification';
 import { type Db, first, required, schema } from './db';
 import { proposeDocumentName } from './document-naming';
 import { type ServiceError, serviceError } from './errors';
-import type { TextExtractionPort } from './extraction';
+import type { DocumentConverterPort } from './extraction';
 import { buildProposedName, extensionOf } from './naming';
 
 /**
@@ -30,7 +30,7 @@ export interface ScanResult {
   readonly detail?: string;
 }
 
-export interface ScannerPort {
+export interface MalwareScannerPort {
   /** Identifies which scanner produced a result — persisted on every scan (master directive §7 "PR 3"). */
   readonly name: string;
   readonly version: string;
@@ -131,7 +131,7 @@ async function commitTransition(
  */
 async function runExtractionStep(
   db: Db,
-  extractor: TextExtractionPort,
+  extractor: DocumentConverterPort,
   version: DocumentVersion,
 ): Promise<void> {
   const document = first(
@@ -331,8 +331,8 @@ export async function listScanResults(
  */
 export async function processIntake(
   db: Db,
-  scanner: ScannerPort,
-  extractor: TextExtractionPort,
+  scanner: MalwareScannerPort,
+  extractor: DocumentConverterPort,
   input: { readonly documentVersionId: string },
 ): Promise<Result<DocumentVersion, ServiceError>> {
   let version = await loadVersion(db, input.documentVersionId);

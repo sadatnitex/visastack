@@ -11,8 +11,8 @@ import { createApplicant } from './applicants';
 import { setConsent } from './consent';
 import type { Db } from './db';
 import { addDocumentVersion, registerDocument } from './documents';
-import type { TextExtractionPort } from './extraction';
-import type { ScannerPort } from './intake';
+import type { DocumentConverterPort } from './extraction';
+import type { MalwareScannerPort } from './intake';
 import { enqueueIntakeJob, listFailedJobs, retryFailedJob, runIntakeWorker } from './jobs';
 
 const migrationsFolder = fileURLToPath(new URL('../../db/migrations', import.meta.url));
@@ -56,21 +56,21 @@ async function seedVersion(db: Db, email: string) {
   return version.value.version.id;
 }
 
-const cleanScanner: ScannerPort = {
+const cleanScanner: MalwareScannerPort = {
   name: 'test-scanner',
   version: '0.0.0',
   async scan() {
     return { safe: true };
   },
 };
-const infectedScanner: ScannerPort = {
+const infectedScanner: MalwareScannerPort = {
   name: 'test-scanner',
   version: '0.0.0',
   async scan() {
     return { safe: false, detail: 'eicar' };
   },
 };
-const noOpExtractor: TextExtractionPort = {
+const noOpExtractor: DocumentConverterPort = {
   async extract() {
     return { ok: false, code: 'unsupported_format', message: 'test fixture: not exercised here' };
   },
@@ -141,7 +141,7 @@ describe('low-volume durable job queue — async intake', () => {
       .set({ maxAttempts: 2 })
       .where(eq(schema.processingJobs.id, job.id));
 
-    const brokenScanner: ScannerPort = {
+    const brokenScanner: MalwareScannerPort = {
       name: 'test-scanner',
       version: '0.0.0',
       async scan() {
@@ -212,7 +212,7 @@ describe('low-volume durable job queue — async intake', () => {
       .set({ maxAttempts: 1 })
       .where(eq(schema.processingJobs.id, job.id));
 
-    const brokenScanner: ScannerPort = {
+    const brokenScanner: MalwareScannerPort = {
       name: 'test-scanner',
       version: '0.0.0',
       async scan() {
@@ -285,7 +285,7 @@ describe('low-volume durable job queue — async intake', () => {
     const job = await enqueueIntakeJob(db, { documentVersionId: versionId });
 
     let releaseScan: (() => void) | undefined;
-    const pausedScanner: ScannerPort = {
+    const pausedScanner: MalwareScannerPort = {
       name: 'test-scanner',
       version: '0.0.0',
       async scan() {
@@ -348,7 +348,7 @@ describe('low-volume durable job queue — async intake', () => {
       .set({ maxAttempts: 1 })
       .where(eq(schema.processingJobs.id, job.id));
 
-    const brokenScanner: ScannerPort = {
+    const brokenScanner: MalwareScannerPort = {
       name: 'test-scanner',
       version: '0.0.0',
       async scan() {

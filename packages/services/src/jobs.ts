@@ -1,8 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import { and, asc, desc, eq, inArray, lt, lte, sql } from 'drizzle-orm';
 import { type Db, first, required, schema } from './db';
-import type { TextExtractionPort } from './extraction';
-import type { ScannerPort } from './intake';
+import type { DocumentConverterPort } from './extraction';
+import type { MalwareScannerPort } from './intake';
 import { processIntake } from './intake';
 
 /**
@@ -13,7 +13,7 @@ import { processIntake } from './intake';
  * same job, and a failure retries with exponential backoff up to
  * `maxAttempts` before parking at FAILED — visible and inspectable, never
  * silently dropped. This module is deliberately storage-agnostic: callers
- * inject the `ScannerPort`, exactly like `processIntake` itself.
+ * inject the `MalwareScannerPort`, exactly like `processIntake` itself.
  *
  * Leases (master directive §7 "PR 6"): a claim is a time-bound lease, not a
  * permanent hand-off. Each `claimJobs` call generates one `leaseOwner` token
@@ -310,8 +310,8 @@ export interface IntakeWorkerResult {
  */
 export async function runIntakeWorker(
   db: Db,
-  scanner: ScannerPort,
-  extractor: TextExtractionPort,
+  scanner: MalwareScannerPort,
+  extractor: DocumentConverterPort,
   options: { readonly limit?: number } = {},
 ): Promise<IntakeWorkerResult> {
   const jobs = await claimJobs(db, options.limit ?? DEFAULT_CLAIM_LIMIT);

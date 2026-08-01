@@ -4,24 +4,11 @@ import {
   PLATFORM_CAPABILITY_KEYS,
   type PlatformCapabilities,
 } from '@visastack/core';
+import { commercialConfigurationReady } from './commercial-readiness';
 import { getDeploymentMode } from './deployment-mode';
+import { isPresent, isWorkosConfigured, readEnv } from './env';
 
-/** Variable-keyed env read (satisfies both TS index-signature and Biome rules). */
-function readEnv(name: string): string | undefined {
-  return process.env[name];
-}
-
-export function isPresent(name: string): boolean {
-  const value = readEnv(name);
-  return typeof value === 'string' && value.length > 0;
-}
-
-const WORKOS_ENV_VARS = ['WORKOS_API_KEY', 'WORKOS_CLIENT_ID', 'WORKOS_COOKIE_PASSWORD'] as const;
-
-/** The one canonical definition of "is WorkOS configured to sign anyone in." */
-export function isWorkosConfigured(): boolean {
-  return WORKOS_ENV_VARS.every(isPresent) && isPresent('NEXT_PUBLIC_WORKOS_REDIRECT_URI');
-}
+export { isPresent, isWorkosConfigured } from './env';
 
 /**
  * Capabilities gated `disabled` in controlled pilot pending a specific,
@@ -91,7 +78,13 @@ export function getPlatformCapabilities(): PlatformCapabilities {
     // No redacted rendition pipeline exists yet — fail-closed by design,
     // not a new PR 1 restriction (see current-product-baseline.md).
     thirdPartyPreview: 'disabled',
-    // No step-up authentication flow exists anywhere in the app yet.
+    // A real step-up mechanism exists now (apps/web/src/lib/step-up.ts, PR
+    // 5) and the policy engine already requires it for DOWNLOAD_ORIGINAL
+    // (packages/policy/src/authorize.ts's STEP_UP_ACTIONS) — step-up is no
+    // longer why these are disabled. What's still missing is the UI/route
+    // itself: nothing in the app calls `downloadDocument` to request an
+    // original or redacted download (only preview — ownerPreview/
+    // thirdPartyPreview above — is wired up). Disabled for that reason.
     originalDownload: 'disabled',
     redactedDownload: 'disabled',
     sharing: gapAware('available', 'sharing'),
@@ -99,10 +92,15 @@ export function getPlatformCapabilities(): PlatformCapabilities {
     bulkExport: gapAware('available', 'bulkExport'),
     missionWorkspace: 'available',
     packGeneration: 'available',
-    publicSignup: isCommercial ? 'available' : 'disabled',
+    // The commercial readiness guard (master directive §7 "PR 11") gates
+    // these three, not deployment mode alone — DEPLOYMENT_MODE=commercial by
+    // itself must never be enough to serve real applicants or make public
+    // claims. See commercial-readiness.ts; `/api/health/ready` is the
+    // authoritative, live-checked enforcement point for this same guard.
+    publicSignup: isCommercial && commercialConfigurationReady() ? 'available' : 'disabled',
     payments: 'unconfigured',
-    realApplicantData: isCommercial ? 'available' : 'disabled',
-    commercialClaims: isCommercial ? 'available' : 'disabled',
+    realApplicantData: isCommercial && commercialConfigurationReady() ? 'available' : 'disabled',
+    commercialClaims: isCommercial && commercialConfigurationReady() ? 'available' : 'disabled',
   };
 }
 

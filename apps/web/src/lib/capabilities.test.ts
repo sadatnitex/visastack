@@ -138,6 +138,15 @@ describe('getPlatformCapabilities', () => {
     expect(capabilities.commercialClaims).toBe('disabled');
   });
 
+  it('keeps publicSignup/realApplicantData/commercialClaims disabled in commercial mode alone — DEPLOYMENT_MODE is not the commercial readiness guard (master directive §7 "PR 11")', async () => {
+    setEnv('DEPLOYMENT_MODE', 'commercial');
+    const { getPlatformCapabilities } = await import('./capabilities');
+    const capabilities = getPlatformCapabilities();
+    expect(capabilities.publicSignup).toBe('disabled');
+    expect(capabilities.realApplicantData).toBe('disabled');
+    expect(capabilities.commercialClaims).toBe('disabled');
+  });
+
   it('never reports payments as anything other than unconfigured — no provider exists', async () => {
     setEnv('DEPLOYMENT_MODE', 'commercial');
     const { getPlatformCapabilities } = await import('./capabilities');

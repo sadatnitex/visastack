@@ -23,3 +23,9 @@ export {
   OpenAiExtractionAdapter,
   type OpenAiExtractionAdapterOptions,
 } from './openai-extraction';
+
+export { NullEmailPort } from './email';
+
+export { NullPaymentPort } from './payment';
+
+export { ConsoleObservabilityPort } from './observability';

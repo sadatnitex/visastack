@@ -46,8 +46,29 @@ export function createStorage(db: Db): StoragePort & BlobStore {
   const signingSecret = readEnv('BLOB_SIGNING_SECRET');
   if (!signingSecret) throw new Error('BLOB_SIGNING_SECRET is not configured');
   const baseUrl = resolveBaseUrl();
-
   const blobToken = readEnv('BLOB_READ_WRITE_TOKEN');
+
+  // STORAGE_PROVIDER (master directive §7 "PR 11" env contract) is an
+  // optional, explicit cross-check on top of the token-presence selection
+  // below, not a second selection mechanism — an operator who sets it to a
+  // value inconsistent with the actual token configuration gets a loud
+  // misconfiguration error instead of silently landing on whichever backend
+  // the token happened to select.
+  const provider = readEnv('STORAGE_PROVIDER');
+  if (provider !== undefined && provider !== 'vercel_blob' && provider !== 'neon') {
+    throw new Error(
+      `unsupported STORAGE_PROVIDER=${JSON.stringify(provider)} — this deployment implements: vercel_blob, neon`,
+    );
+  }
+  if (provider === 'vercel_blob' && !blobToken) {
+    throw new Error('STORAGE_PROVIDER=vercel_blob requires BLOB_READ_WRITE_TOKEN to be configured');
+  }
+  if (provider === 'neon' && isRealDeployment()) {
+    throw new Error(
+      'STORAGE_PROVIDER=neon is reduced-control storage and is not permitted on a real deployment',
+    );
+  }
+
   if (blobToken) {
     return new VercelPrivateBlobStorage({ db, signingSecret, baseUrl, token: blobToken });
   }

@@ -10,7 +10,12 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
  * reduced-control storage.
  */
 
-const ENV_KEYS = ['BLOB_SIGNING_SECRET', 'BLOB_READ_WRITE_TOKEN', 'VERCEL_ENV'] as const;
+const ENV_KEYS = [
+  'BLOB_SIGNING_SECRET',
+  'BLOB_READ_WRITE_TOKEN',
+  'VERCEL_ENV',
+  'STORAGE_PROVIDER',
+] as const;
 const ORIGINAL: Record<string, string | undefined> = {};
 
 function setEnv(name: string, value: string): void {
@@ -66,5 +71,37 @@ describe('createStorage — backend selection', () => {
     setEnv('VERCEL_ENV', 'production');
     const { createStorage } = await import('./storage');
     expect(() => createStorage({} as never)).toThrow(/refusing to fall back/);
+  });
+
+  it('rejects an unrecognized STORAGE_PROVIDER (master directive §7 "PR 11" env contract)', async () => {
+    setEnv('STORAGE_PROVIDER', 's3');
+    const { createStorage } = await import('./storage');
+    expect(() => createStorage({} as never)).toThrow(/unsupported STORAGE_PROVIDER/);
+  });
+
+  it('accepts STORAGE_PROVIDER=vercel_blob when the token is actually configured', async () => {
+    setEnv('STORAGE_PROVIDER', 'vercel_blob');
+    setEnv('BLOB_READ_WRITE_TOKEN', 'vercel_blob_token');
+    const { createStorage } = await import('./storage');
+    expect(createStorage({} as never)).toBeInstanceOf(VercelPrivateBlobStorage);
+  });
+
+  it('rejects STORAGE_PROVIDER=vercel_blob when the token is missing, instead of silently falling back to Neon', async () => {
+    setEnv('STORAGE_PROVIDER', 'vercel_blob');
+    const { createStorage } = await import('./storage');
+    expect(() => createStorage({} as never)).toThrow(/requires BLOB_READ_WRITE_TOKEN/);
+  });
+
+  it('rejects STORAGE_PROVIDER=neon on a real deployment, even though the token-absent default would already refuse it', async () => {
+    setEnv('VERCEL_ENV', 'production');
+    setEnv('STORAGE_PROVIDER', 'neon');
+    const { createStorage } = await import('./storage');
+    expect(() => createStorage({} as never)).toThrow(/reduced-control storage/);
+  });
+
+  it('accepts STORAGE_PROVIDER=neon in local dev / test', async () => {
+    setEnv('STORAGE_PROVIDER', 'neon');
+    const { createStorage } = await import('./storage');
+    expect(createStorage({} as never)).toBeInstanceOf(NeonBlobStorage);
   });
 });
