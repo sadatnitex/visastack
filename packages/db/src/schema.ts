@@ -686,13 +686,27 @@ export const aiExtractionRuns = pgTable(
     status: aiExtractionRunStatus('status').notNull(),
     modelVersion: text('model_version').notNull(),
     promptVersion: text('prompt_version').notNull(),
+    // Version of the response JSON schema sent to the model — nullable
+    // because runs recorded before this column existed have none (master
+    // directive §7 "PR 9" cache-key components).
+    schemaVersion: text('schema_version'),
     costUnits: integer('cost_units').notNull().default(0),
     errorCode: text('error_code'),
+    // sha256(contentHash|taskVersion|parserVersion|model|promptVersion|
+    // schemaVersion|reasoningEffort) — set on every attempted run (even a
+    // cache hit gets its own row) so a later request with the identical
+    // combination can find and reuse a SUCCEEDED one instead of paying for
+    // the API call again.
+    cacheKey: text('cache_key'),
+    // Set only when this run reused a prior run's proposals instead of
+    // calling the model — the audit trail always shows real cost either way.
+    servedFromCacheRunId: uuid('served_from_cache_run_id'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
     index('ai_extraction_runs_document_version_idx').on(table.documentVersionId),
     index('ai_extraction_runs_applicant_idx').on(table.applicantId),
+    index('ai_extraction_runs_cache_key_idx').on(table.cacheKey),
   ],
 );
 

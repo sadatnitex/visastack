@@ -1,5 +1,6 @@
 import { PROPOSAL_TYPES, type ProposalType } from '@visastack/core';
 import type {
+  AiCacheKeyComponents,
   AiExtractionInput,
   AiExtractionOutcome,
   AiExtractionPort,
@@ -23,6 +24,9 @@ import type {
 
 const DEFAULT_MODEL = 'gpt-5.6-terra';
 const DEFAULT_PROMPT_VERSION = '2026-07-29-v1';
+/** Master directive §7 "PR 9": "initial reasoning effort low" — the pilot's required starting point, not just an operator-configurable option. */
+const DEFAULT_REASONING_EFFORT = 'low';
+const SCHEMA_VERSION = 'field_proposals_v1';
 const RESPONSES_URL = 'https://api.openai.com/v1/responses';
 
 const SYSTEM_PROMPT = `You extract structured field proposals from a single immigration-applicant document for a human to review and approve. You are NOT authorized to write anything directly — every proposal you make will be reviewed by a person before it can change any record.
@@ -89,7 +93,7 @@ export class OpenAiExtractionAdapter implements AiExtractionPort {
   private readonly model: string;
   private readonly promptVersion: string;
   private readonly projectId: string | undefined;
-  private readonly reasoningEffort: string | undefined;
+  private readonly reasoningEffort: string;
   private readonly storeResponses: boolean;
   private readonly fetchImpl: typeof fetch;
 
@@ -98,9 +102,18 @@ export class OpenAiExtractionAdapter implements AiExtractionPort {
     this.model = options.model ?? DEFAULT_MODEL;
     this.promptVersion = options.promptVersion ?? DEFAULT_PROMPT_VERSION;
     this.projectId = options.projectId;
-    this.reasoningEffort = options.reasoningEffort;
+    this.reasoningEffort = options.reasoningEffort ?? DEFAULT_REASONING_EFFORT;
     this.storeResponses = options.storeResponses ?? false;
     this.fetchImpl = options.fetchImpl ?? fetch;
+  }
+
+  cacheKeyComponents(): AiCacheKeyComponents {
+    return {
+      model: this.model,
+      promptVersion: this.promptVersion,
+      schemaVersion: SCHEMA_VERSION,
+      reasoningEffort: this.reasoningEffort,
+    };
   }
 
   async extract(input: AiExtractionInput): Promise<AiExtractionOutcome> {
@@ -123,7 +136,7 @@ export class OpenAiExtractionAdapter implements AiExtractionPort {
               content: `Allowed field keys (JSON array — use ONLY these, or UNMAPPED/UNCERTAIN): ${JSON.stringify(input.allowedFieldKeys)}\n\nDocument text:\n"""\n${input.text}\n"""`,
             },
           ],
-          ...(this.reasoningEffort ? { reasoning: { effort: this.reasoningEffort } } : {}),
+          reasoning: { effort: this.reasoningEffort },
           text: {
             format: {
               type: 'json_schema',
@@ -193,6 +206,7 @@ export class OpenAiExtractionAdapter implements AiExtractionPort {
           costUnits: parsed.totalTokens,
           modelVersion: this.model,
           promptVersion: this.promptVersion,
+          schemaVersion: SCHEMA_VERSION,
         },
       },
     };

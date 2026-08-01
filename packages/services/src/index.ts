@@ -304,6 +304,7 @@ export {
 } from './jobs';
 
 export {
+  type AiCacheKeyComponents,
   type AiExtractionErrorCode,
   type AiExtractionInput,
   type AiExtractionOutcome,

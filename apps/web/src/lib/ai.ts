@@ -63,7 +63,15 @@ function usdToUnits(usd: number): number {
   return Math.round((usd / APPROX_USD_PER_MILLION_TOKENS) * 1_000_000);
 }
 
+/** Inverse of usdToUnits — an approximate USD figure for admin display only, never a billing source of truth. */
+export function unitsToUsd(units: number): number {
+  return (units / 1_000_000) * APPROX_USD_PER_MILLION_TOKENS;
+}
+
 const DEFAULT_MONTHLY_BUDGET_USD = 20;
+// ~80% of the hard limit, matching the platform storage quota's
+// warning/hard-stop ratio (500MB warn / 700MB hard stop).
+const DEFAULT_MONTHLY_WARNING_USD = 16;
 const DEFAULT_PER_DOCUMENT_BUDGET_USD = 0.5;
 // Bounded-retry and document-length caps, like the budget caps above, are
 // conservative pilot defaults rather than an "unset = unlimited" escape
@@ -75,6 +83,16 @@ const DEFAULT_MAX_PAGES_PER_DOCUMENT = 25;
 /** Platform-wide pilot budget cap, in cost units (env: AI_PILOT_MONTHLY_HARD_LIMIT_USD). */
 export function aiBudgetLimitUnits(): number {
   return usdToUnits(readUsdEnv('AI_PILOT_MONTHLY_HARD_LIMIT_USD', DEFAULT_MONTHLY_BUDGET_USD));
+}
+
+/**
+ * Admin-warning threshold, in cost units (env: AI_PILOT_MONTHLY_WARNING_USD —
+ * master directive §7 "PR 9" cost controls: "admin warning" as a distinct
+ * signal from the hard stop). Below the hard limit's own default when unset,
+ * so a fresh install still gets an early warning rather than none.
+ */
+export function aiWarningLimitUnits(): number {
+  return usdToUnits(readUsdEnv('AI_PILOT_MONTHLY_WARNING_USD', DEFAULT_MONTHLY_WARNING_USD));
 }
 
 /** Per-document spend cap, in cost units (env: AI_PER_DOCUMENT_LIMIT_USD). */

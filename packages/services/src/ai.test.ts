@@ -92,10 +92,36 @@ function stubAi(
     async extract() {
       return result;
     },
+    cacheKeyComponents() {
+      return { model: 'gpt-5.6-terra', promptVersion: 'p1', schemaVersion: 's1' };
+    },
   };
 }
 
-const usage = { costUnits: 3, modelVersion: 'gpt-5.6-terra', promptVersion: 'p1' };
+/** Same shape as stubAi, but counts real adapter invocations — for asserting a cache hit never calls it again. */
+function countingStubAi(result: AiExtractionOutcome = { ok: true, result: { proposals, usage } }): {
+  ai: AiExtractionPort;
+  callCount: () => number;
+} {
+  let calls = 0;
+  const ai: AiExtractionPort = {
+    async extract() {
+      calls += 1;
+      return result;
+    },
+    cacheKeyComponents() {
+      return { model: 'gpt-5.6-terra', promptVersion: 'p1', schemaVersion: 's1' };
+    },
+  };
+  return { ai, callCount: () => calls };
+}
+
+const usage = {
+  costUnits: 3,
+  modelVersion: 'gpt-5.6-terra',
+  promptVersion: 'p1',
+  schemaVersion: 's1',
+};
 
 describe('AI Gateway — proposals never silently mutate', () => {
   let db: Db;
@@ -457,5 +483,155 @@ describe('AI Gateway — proposals never silently mutate', () => {
     });
     expect(isErr(result)).toBe(true);
     if (isErr(result)) expect(result.error.code).toBe('invalid');
+  });
+});
+
+describe('AI Gateway — caching and schema version (master directive §7 "PR 9")', () => {
+  let db: Db;
+  beforeEach(async () => {
+    db = await freshDb();
+  });
+
+  it('serves a second identical request from cache, at zero cost, without invoking the adapter again', async () => {
+    const { account, applicantId, versionId } = await seedVersion(db, 'ai-cache-hit@example.com');
+    await grantAiConsent(db, account.id);
+    const { ai, callCount } = countingStubAi();
+
+    const first = await runExtraction(db, ai, {
+      actorAccountId: account.id,
+      applicantId,
+      documentVersionId: versionId,
+      text: 'MRZ...',
+      budgetLimitUnits: 1000,
+    });
+    expect(isOk(first)).toBe(true);
+    if (!isOk(first)) return;
+    expect(callCount()).toBe(1);
+    expect(await totalAiCostUnits(db)).toBe(3);
+
+    const second = await runExtraction(db, ai, {
+      actorAccountId: account.id,
+      applicantId,
+      documentVersionId: versionId,
+      text: 'MRZ...',
+      budgetLimitUnits: 1000,
+    });
+    expect(isOk(second)).toBe(true);
+    if (!isOk(second)) return;
+    // The adapter was never invoked a second time — served entirely from cache.
+    expect(callCount()).toBe(1);
+    // A cache hit costs nothing — the ledger total is unchanged by the second call.
+    expect(await totalAiCostUnits(db)).toBe(3);
+    expect(second.value.proposals).toHaveLength(first.value.proposals.length);
+
+    const runs = await db
+      .select()
+      .from(schema.aiExtractionRuns)
+      .where(eq(schema.aiExtractionRuns.documentVersionId, versionId))
+      .orderBy(schema.aiExtractionRuns.createdAt);
+    expect(runs).toHaveLength(2);
+    expect(runs[0]?.costUnits).toBe(3);
+    expect(runs[1]?.costUnits).toBe(0);
+    expect(runs[1]?.servedFromCacheRunId).toBe(runs[0]?.id);
+    expect(runs[1]?.cacheKey).toBe(runs[0]?.cacheKey);
+    expect(runs[1]?.cacheKey).not.toBeNull();
+
+    const cacheHitEvents = await db
+      .select()
+      .from(schema.auditEvents)
+      .where(eq(schema.auditEvents.eventType, 'AI_EXTRACTION_CACHE_HIT'));
+    expect(cacheHitEvents).toHaveLength(1);
+  });
+
+  it('does not serve from cache when the document text changes (different content hash)', async () => {
+    const { account, applicantId, versionId } = await seedVersion(db, 'ai-cache-miss@example.com');
+    await grantAiConsent(db, account.id);
+    const { ai, callCount } = countingStubAi();
+
+    const first = await runExtraction(db, ai, {
+      actorAccountId: account.id,
+      applicantId,
+      documentVersionId: versionId,
+      text: 'MRZ content A',
+      budgetLimitUnits: 1000,
+    });
+    expect(isOk(first)).toBe(true);
+    expect(callCount()).toBe(1);
+
+    const second = await runExtraction(db, ai, {
+      actorAccountId: account.id,
+      applicantId,
+      documentVersionId: versionId,
+      text: 'MRZ content B — genuinely different',
+      budgetLimitUnits: 1000,
+    });
+    expect(isOk(second)).toBe(true);
+    // A different content hash produces a different cache key, so the adapter runs again.
+    expect(callCount()).toBe(2);
+    expect(await totalAiCostUnits(db)).toBe(6);
+
+    const runs = await db
+      .select()
+      .from(schema.aiExtractionRuns)
+      .where(eq(schema.aiExtractionRuns.documentVersionId, versionId));
+    expect(runs).toHaveLength(2);
+    expect(runs.every((r) => r.servedFromCacheRunId === null)).toBe(true);
+    expect(runs[0]?.cacheKey).not.toBe(runs[1]?.cacheKey);
+  });
+
+  it('persists the adapter-reported schema version on every successful (non-cached) run', async () => {
+    const { account, applicantId, versionId } = await seedVersion(
+      db,
+      'ai-schema-version@example.com',
+    );
+    await grantAiConsent(db, account.id);
+    const run = await runExtraction(db, stubAi(), {
+      actorAccountId: account.id,
+      applicantId,
+      documentVersionId: versionId,
+      text: 'MRZ...',
+      budgetLimitUnits: 1000,
+    });
+    expect(isOk(run)).toBe(true);
+
+    const rows = await db
+      .select()
+      .from(schema.aiExtractionRuns)
+      .where(eq(schema.aiExtractionRuns.documentVersionId, versionId));
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.schemaVersion).toBe('s1');
+  });
+
+  it('a cache hit still fails closed once the platform-wide budget is exhausted', async () => {
+    const { account, applicantId, versionId } = await seedVersion(
+      db,
+      'ai-cache-budget@example.com',
+    );
+    await grantAiConsent(db, account.id);
+    const { ai } = countingStubAi();
+
+    const first = await runExtraction(db, ai, {
+      actorAccountId: account.id,
+      applicantId,
+      documentVersionId: versionId,
+      text: 'MRZ...',
+      // Exactly enough budget for one real (non-cached) run costing 3 units.
+      budgetLimitUnits: 3,
+    });
+    expect(isOk(first)).toBe(true);
+
+    // The budget is now exhausted — even though the second call would be a
+    // cache hit (same document, same text), the budget check runs first and
+    // still refuses it. A deliberate, conservative ordering (see the comment
+    // at the cache-lookup call site in ai.ts).
+    const second = await runExtraction(db, ai, {
+      actorAccountId: account.id,
+      applicantId,
+      documentVersionId: versionId,
+      text: 'MRZ...',
+      budgetLimitUnits: 3,
+    });
+    expect(isErr(second)).toBe(true);
+    if (isErr(second)) expect(second.error.code).toBe('invalid');
   });
 });
