@@ -17,6 +17,7 @@ const ENV_KEYS = [
   'OPENAI_REASONING_EFFORT',
   'OPENAI_STORE_RESPONSES',
   'AI_PILOT_MONTHLY_HARD_LIMIT_USD',
+  'AI_PILOT_MONTHLY_WARNING_USD',
   'AI_PER_DOCUMENT_LIMIT_USD',
   'AI_MAX_ATTEMPTS',
   'AI_MAX_PAGES_PER_DOCUMENT',
@@ -122,5 +123,56 @@ describe('AI cost and volume caps — pilot defaults', () => {
     const { aiMaxAttemptsPerDocument, aiMaxPagesPerDocument } = await import('./ai');
     expect(aiMaxAttemptsPerDocument()).toBe(3);
     expect(aiMaxPagesPerDocument()).toBe(25);
+  });
+});
+
+describe('AI Gateway admin usage-warning threshold (master directive §7 "PR 9")', () => {
+  it('defaults the warning threshold to $16/month — below the $20 hard limit, so a fresh install still warns', async () => {
+    const { aiWarningLimitUnits, aiBudgetLimitUnits } = await import('./ai');
+    expect(aiWarningLimitUnits()).toBe(1_600_000);
+    expect(aiWarningLimitUnits()).toBeLessThan(aiBudgetLimitUnits());
+  });
+
+  it('lets an administrator override the warning threshold via env, independent of the hard limit', async () => {
+    setEnv('AI_PILOT_MONTHLY_WARNING_USD', '8');
+    setEnv('AI_PILOT_MONTHLY_HARD_LIMIT_USD', '25');
+    const { aiWarningLimitUnits, aiBudgetLimitUnits } = await import('./ai');
+    expect(aiWarningLimitUnits()).toBe(800_000);
+    expect(aiBudgetLimitUnits()).toBe(2_500_000);
+  });
+
+  it('ignores an invalid warning override and keeps the safe pilot default', async () => {
+    setEnv('AI_PILOT_MONTHLY_WARNING_USD', 'not-a-number');
+    const { aiWarningLimitUnits } = await import('./ai');
+    expect(aiWarningLimitUnits()).toBe(1_600_000);
+  });
+
+  it('a misconfigured warning threshold above the hard limit is not silently corrected', async () => {
+    // Documents actual behavior: readUsdEnv only validates "finite and positive",
+    // not "below the hard limit" — an admin who sets the warning higher than the
+    // hard limit gets exactly that, since a hard-stop always fires before a
+    // warning could anyway. Not a real-world useful config, but not unsafe either.
+    setEnv('AI_PILOT_MONTHLY_WARNING_USD', '50');
+    setEnv('AI_PILOT_MONTHLY_HARD_LIMIT_USD', '20');
+    const { aiWarningLimitUnits, aiBudgetLimitUnits } = await import('./ai');
+    expect(aiWarningLimitUnits()).toBe(5_000_000);
+    expect(aiBudgetLimitUnits()).toBe(2_000_000);
+  });
+});
+
+describe('unitsToUsd — inverse of the internal USD-to-cost-units conversion', () => {
+  it('round-trips the default monthly budget back to its configured USD figure', async () => {
+    const { aiBudgetLimitUnits, unitsToUsd } = await import('./ai');
+    expect(unitsToUsd(aiBudgetLimitUnits())).toBe(20);
+  });
+
+  it('round-trips the default warning threshold back to its configured USD figure', async () => {
+    const { aiWarningLimitUnits, unitsToUsd } = await import('./ai');
+    expect(unitsToUsd(aiWarningLimitUnits())).toBe(16);
+  });
+
+  it('reports zero spend as $0', async () => {
+    const { unitsToUsd } = await import('./ai');
+    expect(unitsToUsd(0)).toBe(0);
   });
 });

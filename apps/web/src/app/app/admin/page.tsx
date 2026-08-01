@@ -14,9 +14,11 @@ import {
   listRecentAuditEvents,
   loadUploadQuotaConfig,
   reportUnboundAccounts,
+  totalAiCostUnits,
 } from '@visastack/services';
 import Link from 'next/link';
 import { isPlatformAdmin, isPlatformOwnerAccount } from '../../../lib/admin';
+import { aiBudgetLimitUnits, aiWarningLimitUnits, unitsToUsd } from '../../../lib/ai';
 import { withSession } from '../../../lib/session';
 import { UsageMeter } from '../applicant/[id]/usage-meter';
 import {
@@ -73,6 +75,7 @@ export default async function AdminPage() {
       owner,
       platformEvidenceBytes,
       auditEvents,
+      aiCostUnits,
     ] = await Promise.all([
       getRetentionPolicies(db),
       listActiveLegalHolds(db),
@@ -87,6 +90,7 @@ export default async function AdminPage() {
       isPlatformOwnerAccount(db, { accountId, email }),
       getPlatformEvidenceBytes(db),
       listRecentAuditEvents(db, 50),
+      totalAiCostUnits(db),
     ]);
     return {
       admin: true as const,
@@ -103,6 +107,7 @@ export default async function AdminPage() {
       owner,
       platformEvidenceBytes,
       auditEvents,
+      aiCostUnits,
       quota: loadUploadQuotaConfig(),
     };
   });
@@ -453,6 +458,40 @@ export default async function AdminPage() {
               limitBytes={data.quota.platformHardStopBytes}
               warnBytes={data.quota.platformWarningBytes}
             />
+          </article>
+
+          <article className="card" style={{ marginTop: '1.5rem' }}>
+            <p className="card-kicker">Capacity</p>
+            <h2 className="card-title">AI Gateway spend</h2>
+            <p className="card-body" style={{ marginBottom: '1.25rem' }}>
+              Lifetime-to-date spend against the configured pilot cap (never resets automatically —
+              raising the limit is a deliberate operator action, not a monthly rollover). A cache
+              hit costs nothing and does not add to this total.
+            </p>
+            {(() => {
+              const usedUsd = unitsToUsd(data.aiCostUnits);
+              const limitUsd = unitsToUsd(aiBudgetLimitUnits());
+              const warnUsd = unitsToUsd(aiWarningLimitUnits());
+              const fraction = limitUsd > 0 ? Math.min(1, usedUsd / limitUsd) : 0;
+              const tone =
+                usedUsd >= limitUsd ? 'meter-full' : usedUsd >= warnUsd ? 'meter-warn' : '';
+              return (
+                <div>
+                  <div className="meter-label">
+                    <span>AI extraction spend (approximate)</span>
+                    <span>
+                      ${usedUsd.toFixed(2)} of ${limitUsd.toFixed(2)} used
+                    </span>
+                  </div>
+                  <div className="meter">
+                    <div
+                      className={`meter-fill ${tone}`.trim()}
+                      style={{ width: `${Math.round(fraction * 100)}%` }}
+                    />
+                  </div>
+                </div>
+              );
+            })()}
           </article>
 
           <article className="card" style={{ marginTop: '1.5rem' }}>

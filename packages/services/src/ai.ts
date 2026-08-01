@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import type { FactStatus, ProposalType } from '@visastack/core';
 import { type Result, err, isOk, ok } from '@visastack/core';
 import { and, desc, eq, isNull, sql } from 'drizzle-orm';
@@ -37,6 +38,7 @@ export interface AiUsage {
   readonly costUnits: number;
   readonly modelVersion: string;
   readonly promptVersion: string;
+  readonly schemaVersion: string;
 }
 
 export interface AiExtractionResult {
@@ -58,8 +60,24 @@ export type AiExtractionOutcome =
   | { readonly ok: true; readonly result: AiExtractionResult }
   | { readonly ok: false; readonly code: AiExtractionErrorCode; readonly message: string };
 
+export interface AiCacheKeyComponents {
+  readonly model: string;
+  readonly promptVersion: string;
+  readonly schemaVersion: string;
+  readonly reasoningEffort?: string;
+}
+
 export interface AiExtractionPort {
   extract(input: AiExtractionInput): Promise<AiExtractionOutcome>;
+  /**
+   * The configuration components of the cache key (master directive §7
+   * "PR 9": "content hash + task version + parser version + prompt version +
+   * schema version + model + reasoning configuration"), exposed so the
+   * caller can compute a full cache key and check for a reusable prior run
+   * BEFORE paying for a call — `extract`'s own return only reveals this
+   * after the fact.
+   */
+  cacheKeyComponents(): AiCacheKeyComponents;
 }
 
 function toPersistedConfidence(confidence: number): number {
@@ -97,6 +115,53 @@ export async function countAiExtractionAttempts(
     .from(schema.aiExtractionRuns)
     .where(eq(schema.aiExtractionRuns.documentVersionId, documentVersionId));
   return rows.length;
+}
+
+/** The deterministic parser version that produced this document's text (a cache-key component). */
+async function latestParserVersion(db: Db, documentVersionId: string): Promise<string | null> {
+  const row = first(
+    await db
+      .select({ parserVersion: schema.extractionRuns.parserVersion })
+      .from(schema.extractionRuns)
+      .where(
+        and(
+          eq(schema.extractionRuns.documentVersionId, documentVersionId),
+          eq(schema.extractionRuns.status, 'SUCCEEDED'),
+        ),
+      )
+      .orderBy(desc(schema.extractionRuns.createdAt))
+      .limit(1),
+  );
+  return row?.parserVersion ?? null;
+}
+
+/**
+ * Deterministic cache key (master directive §7 "PR 9"): content hash + task
+ * version + parser version + prompt version + schema version + model +
+ * reasoning configuration. Identical inputs under an identical configuration
+ * always produce the same key, so a later request can find and reuse a
+ * SUCCEEDED run instead of paying for the model call again — this is also
+ * the duplicate-prevention mechanism the directive asks for separately:
+ * re-running extraction on the very same document version under the same
+ * config is, by definition, the same cache key.
+ */
+const TASK_VERSION = 'field_extraction_v1';
+
+function computeCacheKey(
+  contentHash: string,
+  parserVersion: string,
+  cacheKeyComponents: AiCacheKeyComponents,
+): string {
+  const parts = [
+    contentHash,
+    TASK_VERSION,
+    parserVersion,
+    cacheKeyComponents.model,
+    cacheKeyComponents.promptVersion,
+    cacheKeyComponents.schemaVersion,
+    cacheKeyComponents.reasoningEffort ?? '',
+  ];
+  return createHash('sha256').update(parts.join('|')).digest('hex');
 }
 
 async function latestPageCount(db: Db, documentVersionId: string): Promise<number | null> {
@@ -215,6 +280,95 @@ export async function runExtraction(
       await tx.select({ key: schema.fieldDefinitions.key }).from(schema.fieldDefinitions)
     ).map((r) => r.key);
 
+    const contentHash = createHash('sha256').update(input.text).digest('hex');
+    const parserVersion = (await latestParserVersion(tx, input.documentVersionId)) ?? 'unknown';
+    const cacheKey = computeCacheKey(contentHash, parserVersion, ai.cacheKeyComponents());
+
+    const cached = first(
+      await tx
+        .select()
+        .from(schema.aiExtractionRuns)
+        .where(
+          and(
+            eq(schema.aiExtractionRuns.cacheKey, cacheKey),
+            eq(schema.aiExtractionRuns.status, 'SUCCEEDED'),
+          ),
+        )
+        .orderBy(desc(schema.aiExtractionRuns.createdAt))
+        .limit(1),
+    );
+
+    if (cached) {
+      const run = required(
+        first(
+          await tx
+            .insert(schema.aiExtractionRuns)
+            .values({
+              documentVersionId: input.documentVersionId,
+              applicantId: input.applicantId,
+              status: 'SUCCEEDED',
+              modelVersion: cached.modelVersion,
+              promptVersion: cached.promptVersion,
+              schemaVersion: cached.schemaVersion,
+              costUnits: 0,
+              cacheKey,
+              servedFromCacheRunId: cached.id,
+            })
+            .returning(),
+        ),
+        'ai extraction run',
+      );
+      const sourceProposals = await tx
+        .select()
+        .from(schema.fieldProposals)
+        .where(eq(schema.fieldProposals.aiExtractionRunId, cached.id));
+      const savedProposals: FieldProposalRow[] = [];
+      for (const source of sourceProposals) {
+        const saved = required(
+          first(
+            await tx
+              .insert(schema.fieldProposals)
+              .values({
+                aiExtractionRunId: run.id,
+                documentVersionId: input.documentVersionId,
+                applicantId: input.applicantId,
+                type: source.type,
+                fieldKey: source.fieldKey,
+                value: source.value,
+                confidence: source.confidence,
+                rationale: source.rationale,
+              })
+              .returning(),
+          ),
+          'field proposal',
+        );
+        const sourceEvidence = await tx
+          .select()
+          .from(schema.evidenceLocations)
+          .where(eq(schema.evidenceLocations.fieldProposalId, source.id));
+        for (const evidence of sourceEvidence) {
+          await tx.insert(schema.evidenceLocations).values({
+            fieldProposalId: saved.id,
+            snippet: evidence.snippet,
+            charStart: evidence.charStart,
+            charEnd: evidence.charEnd,
+          });
+        }
+        savedProposals.push(saved);
+      }
+      await appendAuditEvent(tx, {
+        eventType: 'AI_EXTRACTION_CACHE_HIT',
+        actorAccountId: input.actorAccountId,
+        method: 'DOCUMENT',
+        result: 'ALLOWED',
+        applicantId: input.applicantId,
+        resourceType: 'document_version',
+        resourceId: input.documentVersionId,
+        metadata: { aiExtractionRunId: run.id, servedFromCacheRunId: cached.id, cacheKey },
+      });
+      return ok({ aiExtractionRunId: run.id, proposals: savedProposals });
+    }
+
     const outcome = await ai.extract({
       documentVersionId: input.documentVersionId,
       text: input.text,
@@ -264,7 +418,9 @@ export async function runExtraction(
             status: 'SUCCEEDED',
             modelVersion: usage.modelVersion,
             promptVersion: usage.promptVersion,
+            schemaVersion: usage.schemaVersion,
             costUnits: usage.costUnits,
+            cacheKey,
           })
           .returning(),
       ),
