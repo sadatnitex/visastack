@@ -197,9 +197,6 @@ export async function grantPlatformRole(
   db: Db,
   input: GrantPlatformRoleInput,
 ): Promise<Result<PlatformRoleGrant, ServiceError>> {
-  if (!(await isPlatformOwner(db, input.actor))) {
-    return err(serviceError('forbidden', 'only a platform owner can grant platform roles'));
-  }
   if (!input.stepUpSatisfied) {
     return err(
       serviceError('step_up_required', 'granting a platform role requires reauthentication'),
@@ -227,6 +224,20 @@ export async function grantPlatformRole(
     // the ordinary same-(account,role) race fully impossible at the
     // application level, rather than merely recovered-from after the fact.
     await tx.execute(sql`select pg_advisory_xact_lock(${GRANT_LOCK_KEY})`);
+
+    // Authorization is re-checked HERE, inside the lock — not before the
+    // transaction — because a check made before acquiring the lock can be
+    // stale by the time this runs: two allowlisted bootstrap actors can both
+    // pass a pre-lock `isPlatformOwner` check while the table is still
+    // empty, but only the first to acquire the lock actually creates the
+    // real owner; bootstrap authority ends for everyone else the instant
+    // that grant commits. Without re-checking here, the second (loser)
+    // caller — never a real owner, and no longer bootstrap-eligible once
+    // the first caller's grant exists — would still slip its own requested
+    // role through on stale authorization (Codex review, PR #65).
+    if (!(await isPlatformOwner(tx, input.actor))) {
+      return err(serviceError('forbidden', 'only a platform owner can grant platform roles'));
+    }
 
     // The first grant this table ever receives establishes the platform's
     // owner, regardless of what role the (necessarily still-bootstrapping)
