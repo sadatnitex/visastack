@@ -54,13 +54,23 @@ export interface AiProposalViewModel {
 export function AiProposalReview({
   applicantId,
   proposal,
+  canApprove,
 }: {
   readonly applicantId: string;
   readonly proposal: AiProposalViewModel;
+  /**
+   * Approving writes to the Master Profile (`approveProposal` →
+   * `editFact`), which the service layer already refuses without CORE_PROCESSING
+   * consent — this prop keeps the UI honest about that rather than showing an
+   * editable value and an Approve button that would just error (Codex
+   * review, PR #65). Rejecting never mutates the profile, so it stays
+   * available regardless.
+   */
+  readonly canApprove: boolean;
 }) {
   const [state, formAction, pending] = useActionState(decideProposalAction, INITIAL);
   const [editedValue, setEditedValue] = useState(proposal.value ?? '');
-  const mappable = proposal.type !== 'UNMAPPED' && Boolean(proposal.fieldKey);
+  const mappable = canApprove && proposal.type !== 'UNMAPPED' && Boolean(proposal.fieldKey);
   const label = proposal.fieldKey
     ? (profileField(proposal.fieldKey)?.label ?? proposal.fieldKey)
     : 'Unmapped (no matching field)';

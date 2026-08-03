@@ -29,10 +29,11 @@ export {
   type PilotAccessDecision,
   type PilotInvitation,
   type RevokeInvitationInput,
+  attributeInvitation,
   checkPilotAccess,
+  claimInvitation,
   createInvitation,
   listInvitations,
-  markInvitationAccepted,
   revokeInvitation,
 } from './pilot-access';
 

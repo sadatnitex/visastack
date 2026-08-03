@@ -30,11 +30,22 @@ function normalizeEmail(email: string): string {
 export interface PilotAccessDecision {
   readonly allowed: boolean;
   /**
-   * Set only when access was granted via a matched, not-yet-consumed
-   * invitation — the caller marks it accepted (`markInvitationAccepted`)
-   * after `provisionAccount` actually succeeds, never before.
+   * Set whenever a matched invitation is in play — either as the actual
+   * reason access was granted, or (when an account already exists) a
+   * dangling row to best-effort clean up. See `mustClaimInvitation` for
+   * which case this is.
    */
   readonly invitationId: string | null;
+  /**
+   * True only when `invitationId` is the SOLE reason `allowed` is true (no
+   * account exists yet). The caller MUST call `claimInvitation` and deny
+   * access if the claim fails — an admin racing a revocation against this
+   * exact sign-in must always win (Codex review, PR #65). False when an
+   * account already exists independently: `invitationId`, if set, is a
+   * dangling row to best-effort clean up, never a gate — a failed claim
+   * there is harmless, since access never depended on it.
+   */
+  readonly mustClaimInvitation: boolean;
 }
 
 export interface CheckPilotAccessInput {
@@ -81,7 +92,7 @@ async function accountAlreadyExists(
 
 /**
  * An invitation is "active" only while both un-revoked AND not yet
- * consumed — once `markInvitationAccepted` sets `acceptedAt`, the row is
+ * consumed — once `claimInvitation` sets `acceptedAt`, the row is
  * historical, not a standing grant of access. Without the `acceptedAt`
  * check, a consumed invitation would remain matchable forever: if the
  * admitted account is later deleted (or its bound identity's email
@@ -118,7 +129,7 @@ export async function checkPilotAccess(
   db: Db,
   input: CheckPilotAccessInput,
 ): Promise<PilotAccessDecision> {
-  if (input.bypass) return { allowed: true, invitationId: null };
+  if (input.bypass) return { allowed: true, invitationId: null, mustClaimInvitation: false };
 
   const email = normalizeEmail(input.email);
   const workosUserId = input.workosUserId?.trim() || null;
@@ -127,44 +138,72 @@ export async function checkPilotAccess(
     // Recovery path, not the common case (Codex review, PR #65): a pending
     // invitation can still exist for an already-provisioned account only if
     // an earlier sign-in provisioned the account but crashed/failed before
-    // `markInvitationAccepted` ran — they are two separate statements, not
-    // one transaction. Consuming it here means such a row can never survive
-    // to be replayed after this account is later deleted. This is the ONLY
-    // way such a row can coexist with an existing account, now that
-    // `createInvitation` refuses to invite an already-admitted email.
+    // `claimInvitation`/`attributeInvitation` ran. Claiming it here means
+    // such a row can never survive to be replayed after this account is
+    // later deleted. This is the ONLY way such a row can coexist with an
+    // existing account, now that `createInvitation` refuses to invite an
+    // already-admitted email. `mustClaimInvitation: false` — access here
+    // never depended on the invitation, so a failed claim is harmless.
     const dangling = await findActiveInvitation(db, email);
-    return { allowed: true, invitationId: dangling?.id ?? null };
+    return { allowed: true, invitationId: dangling?.id ?? null, mustClaimInvitation: false };
   }
   if (input.allowlistEmails.includes(email)) {
-    return { allowed: true, invitationId: null };
+    return { allowed: true, invitationId: null, mustClaimInvitation: false };
   }
   const invitation = await findActiveInvitation(db, email);
-  if (invitation) return { allowed: true, invitationId: invitation.id };
+  if (invitation) {
+    return { allowed: true, invitationId: invitation.id, mustClaimInvitation: true };
+  }
 
-  return { allowed: false, invitationId: null };
+  return { allowed: false, invitationId: null, mustClaimInvitation: false };
 }
 
 /**
- * Marks an invitation as consumed once its provisioning actually succeeds.
- * Idempotent — only ever sets `acceptedAt` once, so replaying the same
- * invitation across repeated sign-in attempts before/after it's consumed
- * never double-counts or errors. Deliberately best-effort: a failure here
- * must never undo the account it just admitted, so callers must not roll
- * back provisioning if this fails.
+ * Atomically claims a still-active invitation, before the account is
+ * actually provisioned — the only thing standing between a concurrent
+ * revocation and a provisioning already in flight (Codex review, PR #65):
+ * without this, an admin revoking an invitation the instant after
+ * `checkPilotAccess` read it as active could not stop that sign-in from
+ * still provisioning an account. Conditioned on both `revokedAt` and
+ * `acceptedAt` still being null, so it's also safe against two concurrent
+ * callers racing to claim the same invitation — only one wins. Returns
+ * whether THIS call won the claim; a caller whose decision required this
+ * invitation (`mustClaimInvitation`) must deny access if it returns false.
  */
-export async function markInvitationAccepted(
+export async function claimInvitation(db: Db, invitationId: string): Promise<boolean> {
+  const claimed = first(
+    await db
+      .update(schema.pilotInvitations)
+      .set({ acceptedAt: new Date() })
+      .where(
+        and(
+          eq(schema.pilotInvitations.id, invitationId),
+          isNull(schema.pilotInvitations.revokedAt),
+          isNull(schema.pilotInvitations.acceptedAt),
+        ),
+      )
+      .returning({ id: schema.pilotInvitations.id }),
+  );
+  return claimed !== undefined;
+}
+
+/**
+ * Attributes a successfully claimed invitation to the account it actually
+ * provisioned. Called only after `claimInvitation` has already won the
+ * claim for this exact invitation — `acceptedAt` is already set, so no
+ * further conditional guard is needed here; this only fills in which
+ * account consumed it. Deliberately best-effort: a failure here must never
+ * undo the account it just admitted, so callers must not roll back
+ * provisioning if this fails.
+ */
+export async function attributeInvitation(
   db: Db,
   input: { readonly invitationId: string; readonly accountId: string },
 ): Promise<void> {
   await db
     .update(schema.pilotInvitations)
-    .set({ acceptedAt: new Date(), acceptedAccountId: input.accountId })
-    .where(
-      and(
-        eq(schema.pilotInvitations.id, input.invitationId),
-        isNull(schema.pilotInvitations.acceptedAt),
-      ),
-    );
+    .set({ acceptedAccountId: input.accountId })
+    .where(eq(schema.pilotInvitations.id, input.invitationId));
 }
 
 export interface CreateInvitationInput {

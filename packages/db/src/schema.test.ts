@@ -1,4 +1,7 @@
 import { randomUUID } from 'node:crypto';
+import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { PGlite } from '@electric-sql/pglite';
 import { eq, sql } from 'drizzle-orm';
@@ -379,6 +382,88 @@ describe('schema — Master Profile fact model', () => {
       db
         .insert(schema.evidenceLinks)
         .values({ factVersionId: version.id, documentVersionId: docVersion.id }),
+    ).rejects.toThrow();
+  });
+});
+
+describe('migration 0024 on an already-populated database (Codex review, PR #65)', () => {
+  it('deduplicates pre-existing duplicate active platform-role grants before enforcing the new unique index, instead of aborting the migration', async () => {
+    // Simulate an "upgraded" database: apply every migration EXCEPT 0024
+    // (the one adding `platform_roles_active_unique_idx`), insert data the
+    // pre-fix `grantPlatformRole` could actually produce — migration 0019
+    // had no such constraint, and the previous implementation never
+    // checked for an existing active grant before inserting — then apply
+    // 0024 and confirm it cleans up the duplicate instead of aborting
+    // deployment with a unique-violation error.
+    const journal = JSON.parse(readFileSync(join(migrationsFolder, 'meta/_journal.json'), 'utf8'));
+    const priorEntries = journal.entries.filter(
+      (e: { tag: string }) => e.tag !== '0024_strong_mother_askani',
+    );
+    const priorFolder = mkdtempSync(join(tmpdir(), 'visastack-migration-test-'));
+    mkdirSync(join(priorFolder, 'meta'), { recursive: true });
+    writeFileSync(
+      join(priorFolder, 'meta/_journal.json'),
+      JSON.stringify({ ...journal, entries: priorEntries }),
+    );
+    for (const entry of priorEntries as { tag: string }[]) {
+      copyFileSync(
+        join(migrationsFolder, `${entry.tag}.sql`),
+        join(priorFolder, `${entry.tag}.sql`),
+      );
+    }
+
+    const client = new PGlite();
+    const db = drizzle(client, { schema });
+    await migrate(db, { migrationsFolder: priorFolder });
+
+    const account = one(
+      await db.insert(schema.accounts).values({ email: 'dup-owner@example.com' }).returning(),
+    );
+    const [first, second] = await db
+      .insert(schema.platformRoles)
+      .values([
+        {
+          accountId: account.id,
+          role: 'PLATFORM_OWNER',
+          reason: 'first grant (pre-fix duplicate)',
+          assignedAt: new Date('2026-01-01T00:00:00Z'),
+        },
+        {
+          accountId: account.id,
+          role: 'PLATFORM_OWNER',
+          reason: 'second grant (pre-fix duplicate)',
+          assignedAt: new Date('2026-01-02T00:00:00Z'),
+        },
+      ])
+      .returning();
+
+    // Applying the rest of the migrations (including 0024) against this
+    // already-duplicated state must not throw — the exact failure mode
+    // Codex flagged (`CREATE UNIQUE INDEX` aborting on pre-existing
+    // violations, blocking deployment).
+    await migrate(db, { migrationsFolder });
+
+    const rows = await db
+      .select()
+      .from(schema.platformRoles)
+      .where(eq(schema.platformRoles.accountId, account.id));
+    const active = rows.filter((r) => r.revokedAt === null);
+    const revoked = rows.filter((r) => r.revokedAt !== null);
+    // Exactly one survivor stays active — the earliest grant — and the
+    // duplicate is properly revoked (never deleted), preserving history.
+    expect(active).toHaveLength(1);
+    expect(active[0]?.id).toBe(first?.id);
+    expect(revoked).toHaveLength(1);
+    expect(revoked[0]?.id).toBe(second?.id);
+    expect(revoked[0]?.revokedReason).toContain('deduplicated');
+
+    // The constraint now genuinely protects against a fresh duplicate.
+    await expect(
+      db.insert(schema.platformRoles).values({
+        accountId: account.id,
+        role: 'PLATFORM_OWNER',
+        reason: 'a fresh duplicate after the fix — must be rejected',
+      }),
     ).rejects.toThrow();
   });
 });

@@ -2,7 +2,12 @@ import 'server-only';
 import { createHash } from 'node:crypto';
 import { isOk } from '@visastack/core';
 import { createPooledDb, resolveDatabaseUrl } from '@visastack/db';
-import { type Db, markInvitationAccepted, provisionAccount } from '@visastack/services';
+import {
+  type Db,
+  attributeInvitation,
+  claimInvitation,
+  provisionAccount,
+} from '@visastack/services';
 import { withAuth } from '@workos-inc/authkit-nextjs';
 import { redirect } from 'next/navigation';
 import { checkPilotAccess } from './pilot-access';
@@ -83,6 +88,24 @@ export async function withSession<T>(
       redirect('/pilot-access-denied');
     }
 
+    // Claim the invitation BEFORE provisioning, not after (Codex review, PR
+    // #65): if an admin revokes it in the instant between `checkPilotAccess`
+    // reading it as active and this claim, the claim now fails and this
+    // sign-in must be denied — an admin's revoke must always win a race
+    // against a provisioning already in flight. When the invitation was only
+    // a best-effort dangling-row cleanup (an account already exists
+    // independently — `mustClaimInvitation: false`), a failed claim is
+    // harmless and never blocks access.
+    let claimedInvitationId: string | null = null;
+    if (access.invitationId) {
+      const claimed = await claimInvitation(handle, access.invitationId);
+      if (claimed) {
+        claimedInvitationId = access.invitationId;
+      } else if (access.mustClaimInvitation) {
+        redirect('/pilot-access-denied');
+      }
+    }
+
     // Bind the local account to the immutable WorkOS user id from the trusted
     // server session (never a client-supplied id); email is mutable contact data.
     const provisioned = await provisionAccount(handle, {
@@ -93,9 +116,9 @@ export async function withSession<T>(
     if (!isOk(provisioned)) {
       throw new Error(`account provisioning failed: ${provisioned.error.message}`);
     }
-    if (access.invitationId) {
-      await markInvitationAccepted(handle, {
-        invitationId: access.invitationId,
+    if (claimedInvitationId) {
+      await attributeInvitation(handle, {
+        invitationId: claimedInvitationId,
         accountId: provisioned.value.id,
       });
     }

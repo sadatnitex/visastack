@@ -9,10 +9,11 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { provisionAccount } from './accounts';
 import type { Db } from './db';
 import {
+  attributeInvitation,
   checkPilotAccess,
+  claimInvitation,
   createInvitation,
   listInvitations,
-  markInvitationAccepted,
   revokeInvitation,
 } from './pilot-access';
 
@@ -45,7 +46,7 @@ describe('checkPilotAccess', () => {
       allowlistEmails: [],
       bypass: false,
     });
-    expect(decision).toEqual({ allowed: false, invitationId: null });
+    expect(decision).toEqual({ allowed: false, invitationId: null, mustClaimInvitation: false });
   });
 
   it('allows an identity with an active invitation', async () => {
@@ -64,7 +65,11 @@ describe('checkPilotAccess', () => {
       allowlistEmails: [],
       bypass: false,
     });
-    expect(decision).toEqual({ allowed: true, invitationId: invited.value.id });
+    expect(decision).toEqual({
+      allowed: true,
+      invitationId: invited.value.id,
+      mustClaimInvitation: true,
+    });
   });
 
   it('allows the bootstrap/ops allowlist', async () => {
@@ -74,7 +79,7 @@ describe('checkPilotAccess', () => {
       allowlistEmails: ['ops@example.com'],
       bypass: false,
     });
-    expect(decision).toEqual({ allowed: true, invitationId: null });
+    expect(decision).toEqual({ allowed: true, invitationId: null, mustClaimInvitation: false });
   });
 
   it('always allows an identity already bound to an existing account, invitation or not', async () => {
@@ -90,7 +95,7 @@ describe('checkPilotAccess', () => {
       allowlistEmails: [],
       bypass: false,
     });
-    expect(decision).toEqual({ allowed: true, invitationId: null });
+    expect(decision).toEqual({ allowed: true, invitationId: null, mustClaimInvitation: false });
   });
 
   it('a changed email on an already-provisioned identity never re-triggers the invitation check (email is not immutable identity)', async () => {
@@ -108,7 +113,7 @@ describe('checkPilotAccess', () => {
       allowlistEmails: [],
       bypass: false,
     });
-    expect(decision).toEqual({ allowed: true, invitationId: null });
+    expect(decision).toEqual({ allowed: true, invitationId: null, mustClaimInvitation: false });
   });
 
   it('denies a revoked invitation that was never consumed', async () => {
@@ -132,7 +137,7 @@ describe('checkPilotAccess', () => {
       allowlistEmails: [],
       bypass: false,
     });
-    expect(decision).toEqual({ allowed: false, invitationId: null });
+    expect(decision).toEqual({ allowed: false, invitationId: null, mustClaimInvitation: false });
   });
 
   it('revoking an invitation never locks out an identity it already admitted (provisioning-time boundary, not continuous)', async () => {
@@ -158,7 +163,9 @@ describe('checkPilotAccess', () => {
     });
     if (!isOk(provisioned)) throw new Error('provision');
     if (firstDecision.invitationId) {
-      await markInvitationAccepted(db, {
+      const claimed = await claimInvitation(db, firstDecision.invitationId);
+      expect(claimed).toBe(true);
+      await attributeInvitation(db, {
         invitationId: firstDecision.invitationId,
         accountId: provisioned.value.id,
       });
@@ -179,7 +186,11 @@ describe('checkPilotAccess', () => {
       allowlistEmails: [],
       bypass: false,
     });
-    expect(secondDecision).toEqual({ allowed: true, invitationId: null });
+    expect(secondDecision).toEqual({
+      allowed: true,
+      invitationId: null,
+      mustClaimInvitation: false,
+    });
   });
 
   it('a cross-identity collision on the same invited email is refused by provisionAccount, not silently admitted twice', async () => {
@@ -206,7 +217,8 @@ describe('checkPilotAccess', () => {
     });
     if (!isOk(legitAccount)) throw new Error('provision');
     if (legitDecision.invitationId) {
-      await markInvitationAccepted(db, {
+      await claimInvitation(db, legitDecision.invitationId);
+      await attributeInvitation(db, {
         invitationId: legitDecision.invitationId,
         accountId: legitAccount.value.id,
       });
@@ -240,7 +252,7 @@ describe('checkPilotAccess', () => {
       allowlistEmails: [],
       bypass: true,
     });
-    expect(decision).toEqual({ allowed: true, invitationId: null });
+    expect(decision).toEqual({ allowed: true, invitationId: null, mustClaimInvitation: false });
   });
 
   it('a consumed invitation can never be replayed for a second identity, even after the original account is gone (Codex review, PR #65)', async () => {
@@ -265,7 +277,8 @@ describe('checkPilotAccess', () => {
       workosUserId: 'workos-legit-consumer',
     });
     if (!isOk(legitAccount)) throw new Error('provision');
-    await markInvitationAccepted(db, {
+    await claimInvitation(db, invited.value.id);
+    await attributeInvitation(db, {
       invitationId: invited.value.id,
       accountId: legitAccount.value.id,
     });
@@ -283,7 +296,11 @@ describe('checkPilotAccess', () => {
       allowlistEmails: [],
       bypass: false,
     });
-    expect(replayDecision).toEqual({ allowed: false, invitationId: null });
+    expect(replayDecision).toEqual({
+      allowed: false,
+      invitationId: null,
+      mustClaimInvitation: false,
+    });
   });
 
   it('a dangling pending invitation for an already-provisioned account is surfaced for consumption on the next check — the crash-before-consumption recovery path (Codex review, PR #65)', async () => {
@@ -297,9 +314,9 @@ describe('checkPilotAccess', () => {
 
     // Simulate the exact failure this finding describes: provisioning
     // succeeded, but the process crashed/errored before
-    // `markInvitationAccepted` ran (they are two separate statements, not
-    // one transaction) — so the invitation is left pending even though the
-    // account now exists.
+    // `claimInvitation`/`attributeInvitation` ran (they are separate
+    // statements, not one transaction) — so the invitation is left pending
+    // even though the account now exists.
     const account = await provisionAccount(db, {
       email: 'crash-before-consume@example.com',
       workosUserId: 'workos-crash-recovery',
@@ -310,19 +327,27 @@ describe('checkPilotAccess', () => {
     // consumption, even though it takes the "account already exists" path —
     // silently returning `invitationId: null` here would leave the row
     // permanently pending: a standing credential able to admit a different
-    // identity once this account is later deleted.
+    // identity once this account is later deleted. `mustClaimInvitation` is
+    // false here — access never depended on this invitation, it already
+    // exists independently via the account.
     const recovery = await checkPilotAccess(db, {
       email: 'crash-before-consume@example.com',
       workosUserId: 'workos-crash-recovery',
       allowlistEmails: [],
       bypass: false,
     });
-    expect(recovery).toEqual({ allowed: true, invitationId: invited.value.id });
+    expect(recovery).toEqual({
+      allowed: true,
+      invitationId: invited.value.id,
+      mustClaimInvitation: false,
+    });
 
     // The caller (`withSession`) now consumes it exactly as it would for a
     // fresh invitation.
     if (recovery.invitationId) {
-      await markInvitationAccepted(db, {
+      const claimed = await claimInvitation(db, recovery.invitationId);
+      expect(claimed).toBe(true);
+      await attributeInvitation(db, {
         invitationId: recovery.invitationId,
         accountId: account.value.id,
       });
@@ -337,7 +362,107 @@ describe('checkPilotAccess', () => {
       allowlistEmails: [],
       bypass: false,
     });
-    expect(replay).toEqual({ allowed: false, invitationId: null });
+    expect(replay).toEqual({ allowed: false, invitationId: null, mustClaimInvitation: false });
+  });
+
+  it('a concurrent revocation wins the race against a provisioning already in flight (Codex review, PR #65)', async () => {
+    const inviter = await provisionAccount(db, { email: 'inviter-race-revoke@example.com' });
+    if (!isOk(inviter)) throw new Error('provision');
+    const invited = await createInvitation(db, {
+      actorAccountId: inviter.value.id,
+      email: 'race-revoke-vs-provision@example.com',
+    });
+    if (!isOk(invited)) throw new Error('invite');
+
+    // `checkPilotAccess` reads the invitation as active and says this
+    // sign-in must claim it.
+    const decision = await checkPilotAccess(db, {
+      email: 'race-revoke-vs-provision@example.com',
+      workosUserId: 'workos-race-revoke',
+      allowlistEmails: [],
+      bypass: false,
+    });
+    expect(decision).toEqual({
+      allowed: true,
+      invitationId: invited.value.id,
+      mustClaimInvitation: true,
+    });
+
+    // An admin revokes it in the instant before the claim runs — simulating
+    // exactly the window between `checkPilotAccess` returning and
+    // `claimInvitation` executing in `withSession`.
+    const revoked = await revokeInvitation(db, {
+      actorAccountId: inviter.value.id,
+      invitationId: invited.value.id,
+      reason: 'realized this was the wrong email',
+    });
+    expect(isOk(revoked)).toBe(true);
+
+    // The claim must now fail — the admin's revoke wins, and since this
+    // decision's `mustClaimInvitation` was true, the caller (`withSession`)
+    // must deny the sign-in rather than provision an account anyway.
+    const claimed = await claimInvitation(db, invited.value.id);
+    expect(claimed).toBe(false);
+  });
+
+  it('serializes two concurrent claims of the same invitation — exactly one wins', async () => {
+    const inviter = await provisionAccount(db, { email: 'inviter-race-claim@example.com' });
+    if (!isOk(inviter)) throw new Error('provision');
+    const invited = await createInvitation(db, {
+      actorAccountId: inviter.value.id,
+      email: 'race-claim@example.com',
+    });
+    if (!isOk(invited)) throw new Error('invite');
+
+    const [a, b] = await Promise.all([
+      claimInvitation(db, invited.value.id),
+      claimInvitation(db, invited.value.id),
+    ]);
+    expect([a, b].filter(Boolean)).toHaveLength(1);
+  });
+
+  it('a failed claim on a merely-dangling (non-gating) invitation never blocks access', async () => {
+    const inviter = await provisionAccount(db, { email: 'inviter-dangling-race@example.com' });
+    if (!isOk(inviter)) throw new Error('provision');
+    const invited = await createInvitation(db, {
+      actorAccountId: inviter.value.id,
+      email: 'dangling-race@example.com',
+    });
+    if (!isOk(invited)) throw new Error('invite');
+
+    // Simulate the crash-before-consumption state again: the account exists,
+    // but the invitation was never claimed.
+    const account = await provisionAccount(db, {
+      email: 'dangling-race@example.com',
+      workosUserId: 'workos-dangling-race',
+    });
+    if (!isOk(account)) throw new Error('provision');
+
+    const recovery = await checkPilotAccess(db, {
+      email: 'dangling-race@example.com',
+      workosUserId: 'workos-dangling-race',
+      allowlistEmails: [],
+      bypass: false,
+    });
+    expect(recovery.mustClaimInvitation).toBe(false);
+
+    // An admin revokes the dangling invitation between the check and the
+    // claim attempt — same window as the gating race above, but here it
+    // must NOT matter: access was already granted by the existing account,
+    // independent of this invitation.
+    if (recovery.invitationId) {
+      await revokeInvitation(db, {
+        actorAccountId: inviter.value.id,
+        invitationId: recovery.invitationId,
+        reason: 'cleanup, irrelevant to already-granted access',
+      });
+      const claimed = await claimInvitation(db, recovery.invitationId);
+      expect(claimed).toBe(false);
+    }
+    // `withSession`'s actual logic: since `mustClaimInvitation` is false,
+    // a failed claim here is harmless — access remains granted via the
+    // existing account.
+    expect(recovery.allowed).toBe(true);
   });
 });
 
@@ -508,7 +633,7 @@ describe('invitation lifecycle', () => {
     expect(row?.email).toBe('history@example.com');
   });
 
-  it('marks an invitation accepted exactly once, surviving a repeated call', async () => {
+  it('claims an invitation exactly once, and attributes it to the provisioned account', async () => {
     const inviter = await provisionAccount(db, { email: 'accept-inviter@example.com' });
     if (!isOk(inviter)) throw new Error('provision');
     const invited = await createInvitation(db, {
@@ -522,7 +647,9 @@ describe('invitation lifecycle', () => {
     });
     if (!isOk(account)) throw new Error('provision');
 
-    await markInvitationAccepted(db, {
+    const firstClaim = await claimInvitation(db, invited.value.id);
+    expect(firstClaim).toBe(true);
+    await attributeInvitation(db, {
       invitationId: invited.value.id,
       accountId: account.value.id,
     });
@@ -531,11 +658,10 @@ describe('invitation lifecycle', () => {
     expect(firstAcceptedAt).not.toBeNull();
     expect(afterFirst?.acceptedAccountId).toBe(account.value.id);
 
-    // Calling again must not overwrite the original acceptance timestamp.
-    await markInvitationAccepted(db, {
-      invitationId: invited.value.id,
-      accountId: account.value.id,
-    });
+    // A repeated claim attempt must fail — it was already consumed by the
+    // first call — and must not overwrite the original acceptance timestamp.
+    const secondClaim = await claimInvitation(db, invited.value.id);
+    expect(secondClaim).toBe(false);
     const afterSecond = (await listInvitations(db)).find((i) => i.id === invited.value.id);
     expect(afterSecond?.acceptedAt?.getTime()).toBe(firstAcceptedAt?.getTime());
   });

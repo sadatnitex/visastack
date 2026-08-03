@@ -225,6 +225,7 @@ export default async function ApplicantDocumentsPage({
                           <AiProposalReview
                             key={proposal.id}
                             applicantId={id}
+                            canApprove={data.coreGranted}
                             proposal={{
                               id: proposal.id,
                               type: proposal.type,
