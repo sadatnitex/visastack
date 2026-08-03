@@ -158,16 +158,24 @@ describe('checkPilotAccess', () => {
       bypass: false,
     });
     expect(firstDecision.allowed).toBe(true);
+    // Claim BEFORE provisioning, matching withSession's real order (Codex
+    // review, PR #65, finding #45) — by the time createAccount runs, its
+    // own dangling-invitation consumption (finding #53) finds nothing left
+    // to do, since this call already claimed it.
+    let claimedInvitationId: string | null = null;
+    if (firstDecision.invitationId) {
+      const claimed = await claimInvitation(db, firstDecision.invitationId);
+      expect(claimed).toBe(true);
+      claimedInvitationId = firstDecision.invitationId;
+    }
     const provisioned = await provisionAccount(db, {
       email: 'already-admitted@example.com',
       workosUserId: 'workos-admitted',
     });
     if (!isOk(provisioned)) throw new Error('provision');
-    if (firstDecision.invitationId) {
-      const claimed = await claimInvitation(db, firstDecision.invitationId);
-      expect(claimed).toBe(true);
+    if (claimedInvitationId) {
       await attributeInvitation(db, {
-        invitationId: firstDecision.invitationId,
+        invitationId: claimedInvitationId,
         accountId: provisioned.value.id,
       });
     }
@@ -304,7 +312,7 @@ describe('checkPilotAccess', () => {
     });
   });
 
-  it('a dangling pending invitation for an already-provisioned account is surfaced for consumption on the next check — the crash-before-consumption recovery path (Codex review, PR #65)', async () => {
+  it("a dangling pending invitation for an already-provisioned account is surfaced for consumption on the next check — defense in depth beyond createAccount's own atomic consumption (Codex review, PR #65; see also finding #53)", async () => {
     const inviter = await provisionAccount(db, { email: 'inviter-dangling@example.com' });
     if (!isOk(inviter)) throw new Error('provision');
     const invited = await createInvitation(db, {
@@ -313,16 +321,22 @@ describe('checkPilotAccess', () => {
     });
     if (!isOk(invited)) throw new Error('invite');
 
-    // Simulate the exact failure this finding describes: provisioning
-    // succeeded, but the process crashed/errored before
-    // `claimInvitation`/`attributeInvitation` ran (they are separate
-    // statements, not one transaction) — so the invitation is left pending
-    // even though the account now exists.
-    const account = await provisionAccount(db, {
-      email: 'crash-before-consume@example.com',
-      workosUserId: 'workos-crash-recovery',
-    });
-    if (!isOk(account)) throw new Error('provision');
+    // Since finding #53, `createAccount` itself already consumes any
+    // invitation still active for its own email atomically, in the same
+    // transaction as the insert — so calling `provisionAccount` here can no
+    // longer reproduce a genuinely dangling row; that specific path is now
+    // closed at the source instead of merely recoverable afterward. This
+    // check remains defense-in-depth for any OTHER way an account might
+    // come to exist without going through that consumption — simulated
+    // here with a raw insert standing in for such a row (a legacy account,
+    // one created by a future/alternate code path, direct DB intervention),
+    // not a claim about how this specific case arises today.
+    const accountRows = await db
+      .insert(schema.accounts)
+      .values({ email: 'crash-before-consume@example.com', workosUserId: 'workos-crash-recovery' })
+      .returning();
+    const account = accountRows[0];
+    if (!account) throw new Error('account insert');
 
     // A later sign-in retry must surface the dangling invitation for
     // consumption, even though it takes the "account already exists" path —
@@ -350,13 +364,13 @@ describe('checkPilotAccess', () => {
       expect(claimed).toBe(true);
       await attributeInvitation(db, {
         invitationId: recovery.invitationId,
-        accountId: account.value.id,
+        accountId: account.id,
       });
     }
 
     // Once properly consumed, it can never be replayed — even after this
     // account is later deleted.
-    await db.delete(schema.accounts).where(eq(schema.accounts.id, account.value.id));
+    await db.delete(schema.accounts).where(eq(schema.accounts.id, account.id));
     const replay = await checkPilotAccess(db, {
       email: 'crash-before-consume@example.com',
       workosUserId: 'workos-a-different-identity',
@@ -658,22 +672,23 @@ describe('invitation lifecycle', () => {
 
     if (isOk(invited)) {
       // createInvitation won the lock entirely before provisioning even
-      // began — a legitimate dangling invitation, identical in shape to
-      // the crash-before-consumption case findings #42/#45 already
-      // recover from, NOT the broken state Codex flagged (which required
-      // the account to commit WHILE createInvitation's own transaction
-      // was still in flight — now impossible, since provisioning cannot
-      // even acquire the lock until createInvitation's transaction ends).
-      // Prove it's genuinely recoverable, not silently lost: the very next
-      // checkPilotAccess call for this now-provisioned identity must find
-      // and surface it for consumption.
-      const recovery = await checkPilotAccess(db, {
-        email,
-        workosUserId: 'workos-race-invite-vs-provision',
-        allowlistEmails: [],
-        bypass: false,
-      });
-      expect(recovery.invitationId).toBe(invited.value.id);
+      // began — but provisioning's own `createAccount` consumes any
+      // invitation still active for this email the instant after it
+      // acquires the lock (Codex review, PR #65, finding #53: the lock
+      // alone only serializes timing, it doesn't make createAccount aware
+      // of what createInvitation just committed — `consumeAnyActiveInvitation`
+      // closes that). So this is never left dangling for a later sign-in
+      // to clean up — it's consumed atomically, in the same transaction
+      // that created the account:
+      const rows = await db
+        .select()
+        .from(schema.pilotInvitations)
+        .where(eq(schema.pilotInvitations.id, invited.value.id));
+      expect(rows).toHaveLength(1);
+      const row = rows[0];
+      if (!row) throw new Error('invitation row');
+      expect(row.acceptedAt).not.toBeNull();
+      expect(row.acceptedAccountId).toBe(provisioned.value.id);
     } else {
       // Provisioning won the lock first (or createInvitation's authoritative
       // in-lock recheck otherwise saw the account) — createInvitation
@@ -684,6 +699,81 @@ describe('invitation lifecycle', () => {
         .where(eq(schema.pilotInvitations.email, email));
       expect(rows.filter((r) => r.revokedAt === null && r.acceptedAt === null)).toHaveLength(0);
     }
+  });
+
+  it('creating a fresh account consumes a dangling invitation instead of leaving it active alongside it (Codex review, PR #65, finding #53)', async () => {
+    const inviter = await provisionAccount(db, { email: 'inviter-consume-create@example.com' });
+    if (!isOk(inviter)) throw new Error('provision');
+    const email = 'consume-on-create@example.com';
+
+    // An invitation already exists for this email — e.g. an admin invited
+    // it, independent of (and unaware of) an allowlisted identity that is
+    // about to sign in on its own — by the time the account for that same
+    // email is created.
+    const invited = await createInvitation(db, { actorAccountId: inviter.value.id, email });
+    if (!isOk(invited)) throw new Error('invite');
+
+    const provisioned = await provisionAccount(db, {
+      email,
+      workosUserId: 'workos-consume-on-create',
+    });
+    expect(isOk(provisioned)).toBe(true);
+    if (!isOk(provisioned)) return;
+
+    const rows = await db
+      .select()
+      .from(schema.pilotInvitations)
+      .where(eq(schema.pilotInvitations.id, invited.value.id));
+    expect(rows).toHaveLength(1);
+    const row = rows[0];
+    if (!row) throw new Error('invitation row');
+    // Consumed atomically with account creation — never left active/dangling
+    // for a later sign-in to have to clean up.
+    expect(row.acceptedAt).not.toBeNull();
+    expect(row.acceptedAccountId).toBe(provisioned.value.id);
+  });
+
+  it("refreshing an existing account's email consumes a dangling invitation for the NEW email instead of leaving it active (Codex review, PR #65, finding #53)", async () => {
+    const inviter = await provisionAccount(db, { email: 'inviter-consume-refresh@example.com' });
+    if (!isOk(inviter)) throw new Error('provision');
+
+    // An existing WorkOS-bound account, about to have WorkOS report a new
+    // email for it on a later sign-in (provisionAccount's `refreshEmail` path).
+    const existing = await provisionAccount(db, {
+      email: 'old-email-consume-refresh@example.com',
+      workosUserId: 'workos-consume-refresh',
+    });
+    if (!isOk(existing)) throw new Error('provision existing');
+
+    const newEmail = 'new-email-consume-refresh@example.com';
+    const invited = await createInvitation(db, {
+      actorAccountId: inviter.value.id,
+      email: newEmail,
+    });
+    if (!isOk(invited)) throw new Error('invite');
+
+    // Same identity signs in again; WorkOS now reports the new email. This
+    // is the by-id → `refreshEmail` path, entirely unrelated to any
+    // invitation-claiming flow — `checkPilotAccess` isn't even in this call
+    // chain here, matching how `provisionAccount` is invoked directly
+    // elsewhere in this same file.
+    const refreshed = await provisionAccount(db, {
+      email: newEmail,
+      workosUserId: 'workos-consume-refresh',
+    });
+    expect(isOk(refreshed)).toBe(true);
+    if (!isOk(refreshed)) return;
+    expect(refreshed.value.email).toBe(newEmail);
+
+    const rows = await db
+      .select()
+      .from(schema.pilotInvitations)
+      .where(eq(schema.pilotInvitations.id, invited.value.id));
+    expect(rows).toHaveLength(1);
+    const row = rows[0];
+    if (!row) throw new Error('invitation row');
+    expect(row.acceptedAt).not.toBeNull();
+    expect(row.acceptedAccountId).toBe(refreshed.value.id);
   });
 
   it('refuses to revoke an already-revoked invitation, and requires a reason', async () => {
@@ -772,14 +862,21 @@ describe('invitation lifecycle', () => {
       email: 'accept-me@example.com',
     });
     if (!isOk(invited)) throw new Error('invite');
+
+    // Claim BEFORE provisioning, matching withSession's real order (Codex
+    // review, PR #65, finding #45) — so createAccount's own
+    // dangling-invitation consumption (finding #53) finds nothing left to
+    // do, and this test can exercise `claimInvitation`'s own exactly-once
+    // semantics directly, unaffected by that side effect.
+    const firstClaim = await claimInvitation(db, invited.value.id);
+    expect(firstClaim).toBe(true);
+
     const account = await provisionAccount(db, {
       email: 'accept-me@example.com',
       workosUserId: 'workos-accept-me',
     });
     if (!isOk(account)) throw new Error('provision');
 
-    const firstClaim = await claimInvitation(db, invited.value.id);
-    expect(firstClaim).toBe(true);
     await attributeInvitation(db, {
       invitationId: invited.value.id,
       accountId: account.value.id,

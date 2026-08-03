@@ -228,6 +228,39 @@ export async function releaseInvitationClaim(db: Db, invitationId: string): Prom
     );
 }
 
+/**
+ * Best-effort consumption of any still-active invitation for `email`,
+ * attributing it to `accountId` — called from `createAccount`'s and
+ * `refreshEmail`'s own locked transactions (`accounts.ts`), not from the
+ * main invitation-gated sign-in flow (which already claims its own gating
+ * invitation explicitly, before this could ever see it as still active).
+ *
+ * A shared per-email lock only serializes *timing* — it does not, by
+ * itself, make either side of a race aware of what the other committed
+ * (Codex review, PR #65, finding #53). Without this, a fresh account (or
+ * an existing account's email refresh) could complete successfully while a
+ * DIFFERENT, independently-created invitation for the exact same email is
+ * left dangling — active, unconsumed — beside it: not the crash-recovery
+ * case findings #42/#45 already accept (an exceptional failure mid-flow,
+ * recovered on a later sign-in), but two ordinary, fully-successful
+ * operations that simply never checked each other's outcome. Safe to call
+ * unconditionally: a no-op when no invitation is active, and
+ * `claimInvitation`'s own atomic conditional update makes it safe even if a
+ * different caller claims the same invitation in the meantime.
+ */
+export async function consumeAnyActiveInvitation(
+  tx: Db,
+  email: string,
+  accountId: string,
+): Promise<void> {
+  const invitation = await findActiveInvitation(tx, email);
+  if (!invitation) return;
+  const claimed = await claimInvitation(tx, invitation.id);
+  if (claimed) {
+    await attributeInvitation(tx, { invitationId: invitation.id, accountId });
+  }
+}
+
 export interface CreateInvitationInput {
   readonly actorAccountId: string;
   readonly email: string;

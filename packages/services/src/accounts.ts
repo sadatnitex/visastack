@@ -3,6 +3,7 @@ import { and, count, desc, eq, inArray, isNull } from 'drizzle-orm';
 import { appendAuditEvent } from './audit';
 import { type Db, first, isUniqueViolation, lockOnEmail, required, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
+import { consumeAnyActiveInvitation } from './pilot-access';
 import { recordProductEvent } from './product-events';
 
 /**
@@ -94,6 +95,16 @@ export async function getAccountByWorkosUserId(
  * exact window between an admin's concurrent `createInvitation` call
  * checking "no account yet" and that call's own commit, leaving a
  * replayable invitation for an email that already has an account.
+ *
+ * The lock alone only serializes *timing* — it does not make this call
+ * aware of what the other side did while this one was waiting for it
+ * (Codex review, PR #65, finding #53). If `createInvitation` wins the lock
+ * FIRST and commits a fresh invitation for this exact email, this call
+ * would otherwise insert the account right after with no idea the
+ * invitation now exists, leaving it dangling. `consumeAnyActiveInvitation`
+ * closes that: any invitation still active for this email is claimed and
+ * attributed to the new account atomically, in the same transaction, so
+ * the two can never coexist once this call returns.
  */
 async function createAccount(
   db: Db,
@@ -106,6 +117,7 @@ async function createAccount(
         first(await tx.insert(schema.accounts).values(values).returning()),
         'account',
       );
+      await consumeAnyActiveInvitation(tx, values.email, account.id);
       await appendAuditEvent(tx, {
         eventType: 'ACCOUNT_PROVISIONED',
         actorAccountId: account.id,
@@ -200,18 +212,35 @@ async function bindAccount(
   }
 }
 
-/** Refresh the (mutable) contact email on the id-bound account, best-effort. */
+/**
+ * Refresh the (mutable) contact email on the id-bound account, best-effort.
+ *
+ * Takes the same per-email advisory lock `createAccount`/`createInvitation`
+ * take, scoped to the NEW email being adopted, and consumes any invitation
+ * that wins the lock first for it (Codex review, PR #65, finding #53) —
+ * the same dangling-invitation gap `createAccount` closes, reachable here
+ * too: from the invitation system's point of view, an existing account
+ * adopting a new email is that email being newly claimed by an account,
+ * same as a fresh creation. The OLD email needs no lock — this account no
+ * longer holds it once the update below commits, so a fresh invitation for
+ * it afterward is a legitimate, unrelated grant.
+ */
 async function refreshEmail(db: Db, account: Account, email: string): Promise<Account> {
   if (account.email === email) return account;
   try {
-    const updated = first(
-      await db
-        .update(schema.accounts)
-        .set({ email, updatedAt: new Date() })
-        .where(eq(schema.accounts.id, account.id))
-        .returning(),
-    );
-    return updated ?? account;
+    return await db.transaction(async (tx) => {
+      await lockOnEmail(tx, email);
+      const updated = first(
+        await tx
+          .update(schema.accounts)
+          .set({ email, updatedAt: new Date() })
+          .where(eq(schema.accounts.id, account.id))
+          .returning(),
+      );
+      if (!updated) return account;
+      await consumeAnyActiveInvitation(tx, email, updated.id);
+      return updated;
+    });
   } catch (error) {
     // The new email is already taken by another account — keep the current one
     // rather than failing the sign-in.
