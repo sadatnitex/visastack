@@ -34,6 +34,7 @@ export {
   claimInvitation,
   createInvitation,
   listInvitations,
+  releaseInvitationClaim,
   revokeInvitation,
 } from './pilot-access';
 

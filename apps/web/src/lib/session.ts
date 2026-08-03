@@ -7,6 +7,7 @@ import {
   attributeInvitation,
   claimInvitation,
   provisionAccount,
+  releaseInvitationClaim,
 } from '@visastack/services';
 import { withAuth } from '@workos-inc/authkit-nextjs';
 import { redirect } from 'next/navigation';
@@ -37,6 +38,23 @@ function isNextRedirectSignal(error: unknown): boolean {
     typeof (error as { digest: unknown }).digest === 'string' &&
     (error as { digest: string }).digest.startsWith('NEXT_REDIRECT')
   );
+}
+
+/**
+ * Best-effort wrapper around `releaseInvitationClaim`: this only ever runs
+ * while already unwinding a provisioning failure, so a failure in the
+ * release itself must never replace or mask the original error the caller
+ * is about to throw/log.
+ */
+async function releaseClaimBestEffort(db: Db, invitationId: string): Promise<void> {
+  try {
+    await releaseInvitationClaim(db, invitationId);
+  } catch (error) {
+    console.error(
+      '[withSession] failed to release invitation claim after a failed provision',
+      error,
+    );
+  }
 }
 
 /**
@@ -108,12 +126,24 @@ export async function withSession<T>(
 
     // Bind the local account to the immutable WorkOS user id from the trusted
     // server session (never a client-supplied id); email is mutable contact data.
-    const provisioned = await provisionAccount(handle, {
-      email: user.email,
-      workosUserId: user.id,
-      emailVerified: user.emailVerified,
-    });
+    // If provisioning fails for ANY reason (an identity conflict, a transient
+    // database/audit error) after the claim above already committed, the
+    // claim must be released — otherwise the invitation is burned with no
+    // account ever created, locking out a legitimate retry until an admin
+    // issues another invitation (Codex review, PR #65).
+    let provisioned: Awaited<ReturnType<typeof provisionAccount>>;
+    try {
+      provisioned = await provisionAccount(handle, {
+        email: user.email,
+        workosUserId: user.id,
+        emailVerified: user.emailVerified,
+      });
+    } catch (error) {
+      if (claimedInvitationId) await releaseClaimBestEffort(handle, claimedInvitationId);
+      throw error;
+    }
     if (!isOk(provisioned)) {
+      if (claimedInvitationId) await releaseClaimBestEffort(handle, claimedInvitationId);
       throw new Error(`account provisioning failed: ${provisioned.error.message}`);
     }
     if (claimedInvitationId) {

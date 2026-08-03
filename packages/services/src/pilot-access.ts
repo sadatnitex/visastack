@@ -206,6 +206,28 @@ export async function attributeInvitation(
     .where(eq(schema.pilotInvitations.id, input.invitationId));
 }
 
+/**
+ * Releases a claim that was won but never consumed — provisioning failed
+ * (an identity conflict, a transient database/audit error) after
+ * `claimInvitation` already committed `acceptedAt`, so the invitation must
+ * become findable again rather than permanently locking out a legitimate
+ * retry until an admin re-invites them (Codex review, PR #65). Guarded on
+ * `acceptedAccountId IS NULL`: a claim that WAS successfully attributed to a
+ * real account (`attributeInvitation` already ran) can never be undone by a
+ * stray or late release call.
+ */
+export async function releaseInvitationClaim(db: Db, invitationId: string): Promise<void> {
+  await db
+    .update(schema.pilotInvitations)
+    .set({ acceptedAt: null })
+    .where(
+      and(
+        eq(schema.pilotInvitations.id, invitationId),
+        isNull(schema.pilotInvitations.acceptedAccountId),
+      ),
+    );
+}
+
 export interface CreateInvitationInput {
   readonly actorAccountId: string;
   readonly email: string;

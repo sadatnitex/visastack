@@ -14,6 +14,7 @@ import {
   claimInvitation,
   createInvitation,
   listInvitations,
+  releaseInvitationClaim,
   revokeInvitation,
 } from './pilot-access';
 
@@ -463,6 +464,74 @@ describe('checkPilotAccess', () => {
     // a failed claim here is harmless — access remains granted via the
     // existing account.
     expect(recovery.allowed).toBe(true);
+  });
+
+  it('releases a claim when provisioning then fails, so the invitation can still be retried (Codex review, PR #65)', async () => {
+    const inviter = await provisionAccount(db, { email: 'inviter-release@example.com' });
+    if (!isOk(inviter)) throw new Error('provision');
+    const invited = await createInvitation(db, {
+      actorAccountId: inviter.value.id,
+      email: 'release-on-failure@example.com',
+    });
+    if (!isOk(invited)) throw new Error('invite');
+
+    const decision = await checkPilotAccess(db, {
+      email: 'release-on-failure@example.com',
+      workosUserId: 'workos-release-on-failure',
+      allowlistEmails: [],
+      bypass: false,
+    });
+    expect(decision.mustClaimInvitation).toBe(true);
+    const claimed = await claimInvitation(db, invited.value.id);
+    expect(claimed).toBe(true);
+
+    // Simulate the exact failure this finding describes: `provisionAccount`
+    // fails (an identity conflict, a transient DB/audit error) AFTER the
+    // claim already committed `acceptedAt` — `withSession` releases the
+    // claim rather than leaving it permanently burned.
+    await releaseInvitationClaim(db, invited.value.id);
+
+    // The invitation is findable and claimable again — a legitimate retry
+    // is not locked out until an admin re-invites them.
+    const retry = await checkPilotAccess(db, {
+      email: 'release-on-failure@example.com',
+      workosUserId: 'workos-release-on-failure',
+      allowlistEmails: [],
+      bypass: false,
+    });
+    expect(retry).toEqual({
+      allowed: true,
+      invitationId: invited.value.id,
+      mustClaimInvitation: true,
+    });
+    const reclaimed = await claimInvitation(db, invited.value.id);
+    expect(reclaimed).toBe(true);
+  });
+
+  it('never releases a claim that was already attributed to a real account', async () => {
+    const inviter = await provisionAccount(db, { email: 'inviter-no-undo@example.com' });
+    if (!isOk(inviter)) throw new Error('provision');
+    const invited = await createInvitation(db, {
+      actorAccountId: inviter.value.id,
+      email: 'no-undo@example.com',
+    });
+    if (!isOk(invited)) throw new Error('invite');
+    const claimed = await claimInvitation(db, invited.value.id);
+    expect(claimed).toBe(true);
+    const account = await provisionAccount(db, {
+      email: 'no-undo@example.com',
+      workosUserId: 'workos-no-undo',
+    });
+    if (!isOk(account)) throw new Error('provision');
+    await attributeInvitation(db, { invitationId: invited.value.id, accountId: account.value.id });
+
+    // A stray/late release call (e.g. a bug, or a retry racing the success
+    // path) must never undo a genuinely completed acceptance.
+    await releaseInvitationClaim(db, invited.value.id);
+
+    const afterRelease = (await listInvitations(db)).find((i) => i.id === invited.value.id);
+    expect(afterRelease?.acceptedAt).not.toBeNull();
+    expect(afterRelease?.acceptedAccountId).toBe(account.value.id);
   });
 });
 
