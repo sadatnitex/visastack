@@ -4,7 +4,7 @@ import { cancelAccountDeletion, requestAccountDeletion } from '@visastack/servic
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { withSession } from '../../../lib/session';
-import { establishStepUp } from '../../../lib/step-up';
+import { STEP_UP_NOT_CONFIGURED_MESSAGE, tryEstablishStepUp } from '../../../lib/step-up';
 
 /** Result surfaced back to the client for inline feedback. */
 export interface ActionState {
@@ -26,11 +26,14 @@ export async function requestDeletionAction(
 ): Promise<ActionState> {
   const reason = String(formData.get('reason') ?? '').trim();
   const result = await withSession(async ({ db, accountId }) => {
-    const stepUp = await establishStepUp(
+    const stepUp = await tryEstablishStepUp(
       { accountId, action: 'ACCOUNT_DELETION_REQUEST', resourceId: accountId },
       '/app/privacy',
     );
-    if (!stepUp.satisfied) redirect(stepUp.reauthUrl);
+    if (stepUp.kind === 'not_configured') {
+      return { ok: false, message: STEP_UP_NOT_CONFIGURED_MESSAGE } satisfies ActionState;
+    }
+    if (stepUp.kind === 'reauth_required') redirect(stepUp.reauthUrl);
     const req = await requestAccountDeletion(db, {
       actorAccountId: accountId,
       accountId,

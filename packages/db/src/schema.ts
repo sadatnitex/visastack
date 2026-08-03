@@ -1182,9 +1182,14 @@ export const platformRoles = pgTable(
   'platform_roles',
   {
     id: uuid('id').primaryKey().defaultRandom(),
-    accountId: uuid('account_id')
-      .notNull()
-      .references(() => accounts.id, { onDelete: 'cascade' }),
+    // Nullable + `set null` (not `cascade`): deleting an account must not
+    // erase the append-only role-history invariant this table exists to
+    // preserve (docs/audits/post-programme-defect-register.md finding #17) —
+    // the same anonymize-don't-delete pattern already used for
+    // `missionNotes.authorAccountId` and every other actor/author reference
+    // in this schema. `workosUserId` below is the durable point-in-time
+    // identity snapshot that survives alongside the nulled account id.
+    accountId: uuid('account_id').references(() => accounts.id, { onDelete: 'set null' }),
     workosUserId: text('workos_user_id'),
     role: platformRole('role').notNull(),
     assignedByAccountId: uuid('assigned_by_account_id').references(() => accounts.id, {
@@ -1201,6 +1206,51 @@ export const platformRoles = pgTable(
   (table) => [
     index('platform_roles_account_idx').on(table.accountId),
     index('platform_roles_active_idx').on(table.accountId, table.revokedAt),
+  ],
+);
+
+// --- Pilot invitations (controlled-pilot access boundary) -------------------
+// Server-authoritative gate on NEW account provisioning while the deployment
+// runs in controlled-pilot mode (docs/audits/post-programme-defect-register.md
+// finding #2): an authenticated WorkOS identity is only ever materialized
+// into a local account (`@visastack/services`'s `checkPilotAccess`, called
+// from `withSession` before `provisionAccount`) if its email has an active
+// (non-revoked) invitation here, or an account already exists for it —
+// existing accounts are never retroactively locked out by a later
+// revocation, since this is a provisioning-time boundary, not a continuous
+// access gate. Append-only and audited like every other administrative grant
+// in this schema: revoking never deletes the row, so the full history of who
+// was invited, by whom, and why is always reconstructable.
+export const pilotInvitations = pgTable(
+  'pilot_invitations',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    // Always stored lowercased/trimmed by the service layer — matched
+    // case-insensitively against the WorkOS-reported email at provisioning
+    // time. Email is intentionally not treated as an immutable identity: it
+    // only ever gates the FIRST provisioning, never re-checked afterward.
+    email: text('email').notNull(),
+    invitedByAccountId: uuid('invited_by_account_id').references(() => accounts.id, {
+      onDelete: 'set null',
+    }),
+    invitedAt: timestamp('invited_at', { withTimezone: true }).notNull().defaultNow(),
+    reason: text('reason'),
+    revokedAt: timestamp('revoked_at', { withTimezone: true }),
+    revokedByAccountId: uuid('revoked_by_account_id').references(() => accounts.id, {
+      onDelete: 'set null',
+    }),
+    revokedReason: text('revoked_reason'),
+    // Set once this invitation is actually consumed by a successful
+    // provisioning — kept even after the invitation is later revoked, so the
+    // audit trail shows exactly which invitation admitted which account.
+    acceptedAt: timestamp('accepted_at', { withTimezone: true }),
+    acceptedAccountId: uuid('accepted_account_id').references(() => accounts.id, {
+      onDelete: 'set null',
+    }),
+  },
+  (table) => [
+    index('pilot_invitations_email_idx').on(table.email),
+    index('pilot_invitations_active_idx').on(table.email, table.revokedAt),
   ],
 );
 

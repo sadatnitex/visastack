@@ -24,6 +24,19 @@ export {
 } from './audit';
 
 export {
+  type CheckPilotAccessInput,
+  type CreateInvitationInput,
+  type PilotAccessDecision,
+  type PilotInvitation,
+  type RevokeInvitationInput,
+  checkPilotAccess,
+  createInvitation,
+  listInvitations,
+  markInvitationAccepted,
+  revokeInvitation,
+} from './pilot-access';
+
+export {
   type Account,
   type ProvisionAccountInput,
   type UnboundAccountSummary,
@@ -128,10 +141,12 @@ export {
 export {
   PLATFORM_ROLES,
   type GrantPlatformRoleInput,
+  type PlatformAction,
   type PlatformAuthInput,
   type PlatformRole,
   type PlatformRoleGrant,
   type RevokePlatformRoleInput,
+  canPerformPlatformAction,
   grantPlatformRole,
   hasAnyPlatformRole,
   isPlatformOwner,

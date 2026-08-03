@@ -88,17 +88,6 @@ export default async function ApplicantDocumentsPage({
     };
   });
 
-  if (!data.coreGranted) {
-    return (
-      <article className="card">
-        <p className="card-body">
-          Grant <strong>Core processing</strong> consent from <Link href="/app">Home</Link> to
-          upload documents.
-        </p>
-      </article>
-    );
-  }
-
   return (
     <>
       {previewError ? (
@@ -107,32 +96,50 @@ export default async function ApplicantDocumentsPage({
         </p>
       ) : null}
 
-      {data.aiConfigured && !data.aiGranted ? (
-        <div className="card" style={{ marginBottom: '1.5rem' }}>
+      {/*
+       * Only upload and new processing/extraction are gated on core
+       * processing consent — existing documents must remain viewable
+       * regardless (docs/audits/post-programme-defect-register.md finding
+       * #23): "view existing data" and "permit new processing" are
+       * deliberately distinct here.
+       */}
+      {!data.coreGranted ? (
+        <article className="card" style={{ marginBottom: '1.5rem' }}>
           <p className="card-body">
-            Grant <strong>AI extraction</strong> consent from <Link href="/app">Home</Link> to get
-            automatic field suggestions from your documents — every suggestion still requires your
-            explicit approval before it changes your profile.
+            Grant <strong>Core processing</strong> consent from <Link href="/app">Home</Link> to
+            upload new documents or run processing. Your existing documents remain visible below.
           </p>
-        </div>
-      ) : null}
+        </article>
+      ) : (
+        <>
+          {data.aiConfigured && !data.aiGranted ? (
+            <div className="card" style={{ marginBottom: '1.5rem' }}>
+              <p className="card-body">
+                Grant <strong>AI extraction</strong> consent from <Link href="/app">Home</Link> to
+                get automatic field suggestions from your documents — every suggestion still
+                requires your explicit approval before it changes your profile.
+              </p>
+            </div>
+          ) : null}
 
-      <article className="card" style={{ marginBottom: '1.5rem' }}>
-        <p className="card-kicker">Upload</p>
-        <h2 className="card-title">Add a document</h2>
-        <p className="card-body" style={{ marginBottom: '1.25rem' }}>
-          Documents are stored privately and pass a structural safety scan before they can be
-          previewed.
-        </p>
-        <div style={{ marginBottom: '1.25rem' }}>
-          <UsageMeter
-            label="Evidence storage"
-            usedBytes={data.evidenceBytes}
-            limitBytes={data.quota.maxApplicantEvidenceBytes}
-          />
-        </div>
-        <DocumentUploader applicantId={id} />
-      </article>
+          <article className="card" style={{ marginBottom: '1.5rem' }}>
+            <p className="card-kicker">Upload</p>
+            <h2 className="card-title">Add a document</h2>
+            <p className="card-body" style={{ marginBottom: '1.25rem' }}>
+              Documents are stored privately and pass a structural safety scan before they can be
+              previewed.
+            </p>
+            <div style={{ marginBottom: '1.25rem' }}>
+              <UsageMeter
+                label="Evidence storage"
+                usedBytes={data.evidenceBytes}
+                limitBytes={data.quota.maxApplicantEvidenceBytes}
+              />
+            </div>
+            <DocumentUploader applicantId={id} />
+          </article>
+        </>
+      )}
 
       <article className="card">
         <p className="card-kicker">Document Vault</p>
@@ -207,7 +214,13 @@ export default async function ApplicantDocumentsPage({
                     );
                     return (
                       <>
-                        <RunAiExtractionButton applicantId={id} documentVersionId={versionId} />
+                        {/* New AI extraction is new processing — blocked without core
+                            processing consent, even though existing proposals below
+                            (already-completed processing output) remain reviewable
+                            (finding #23). */}
+                        {data.coreGranted ? (
+                          <RunAiExtractionButton applicantId={id} documentVersionId={versionId} />
+                        ) : null}
                         {proposalsForDoc.map(({ proposal, evidence }) => (
                           <AiProposalReview
                             key={proposal.id}

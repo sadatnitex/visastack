@@ -84,6 +84,72 @@ export async function isPlatformOwner(db: Db, input: PlatformAuthInput): Promise
   return (await totalGrantCount(db)) === 0 && isBootstrapEligible(input);
 }
 
+/**
+ * Concern-scoped platform actions (docs/audits/post-programme-defect-register.md
+ * finding #15). `PLATFORM_OWNER` performs every action (role administration
+ * and ultimate platform governance — never listed below, so it is never
+ * confused with a fifth "super admin" layered on top); every other role is
+ * confined to exactly the one concern its name describes, with zero
+ * overlap between `SECURITY_ADMIN`, `COMPLIANCE_ADMIN`, and `SUPPORT_ADMIN`.
+ * `SUPPORT_ADMIN` deliberately has "no security, retention, or
+ * role-management authority" (master directive) — it is scoped to bounded
+ * operational actions only (retrying a stuck job, reconciling storage,
+ * managing requirement-pack content).
+ */
+export type PlatformAction =
+  | 'RETENTION_POLICY_SET'
+  | 'LEGAL_HOLD_PLACE'
+  | 'LEGAL_HOLD_RELEASE'
+  | 'RETENTION_PURGE'
+  | 'ERASURE_JOB_RETRY'
+  | 'ORGANIZATION_REVIEW'
+  | 'PROCESSING_JOB_RETRY'
+  | 'ORPHAN_RECONCILE'
+  | 'PACK_MANAGE';
+
+const ACTION_ROLES: Readonly<Record<PlatformAction, Exclude<PlatformRole, 'PLATFORM_OWNER'>>> = {
+  RETENTION_POLICY_SET: 'COMPLIANCE_ADMIN',
+  LEGAL_HOLD_PLACE: 'COMPLIANCE_ADMIN',
+  LEGAL_HOLD_RELEASE: 'COMPLIANCE_ADMIN',
+  RETENTION_PURGE: 'COMPLIANCE_ADMIN',
+  ERASURE_JOB_RETRY: 'COMPLIANCE_ADMIN',
+  ORGANIZATION_REVIEW: 'SECURITY_ADMIN',
+  PROCESSING_JOB_RETRY: 'SUPPORT_ADMIN',
+  ORPHAN_RECONCILE: 'SUPPORT_ADMIN',
+  PACK_MANAGE: 'SUPPORT_ADMIN',
+};
+
+/**
+ * True if the account can perform `action` — as `PLATFORM_OWNER` (or
+ * bootstrap), or as the one specific role `ACTION_ROLES` names for it.
+ * Replaces the previous universal "any active role" check
+ * (`hasAnyPlatformRole`), which made `SUPPORT_ADMIN` functionally identical
+ * to `SECURITY_ADMIN`/`COMPLIANCE_ADMIN` for every gated action (finding
+ * #15) — enforced here, in the service layer, so every call site gets the
+ * real concern-scoped answer rather than re-deriving it.
+ */
+export async function canPerformPlatformAction(
+  db: Db,
+  input: PlatformAuthInput,
+  action: PlatformAction,
+): Promise<boolean> {
+  if (await isPlatformOwner(db, input)) return true;
+  const requiredRole = ACTION_ROLES[action];
+  const active = first(
+    await db
+      .select({ n: count() })
+      .from(schema.platformRoles)
+      .where(
+        and(
+          eq(schema.platformRoles.accountId, input.accountId),
+          eq(schema.platformRoles.role, requiredRole),
+          isNull(schema.platformRoles.revokedAt),
+        ),
+      ),
+  );
+  return (active?.n ?? 0) > 0;
+}
+
 export interface GrantPlatformRoleInput {
   readonly actor: PlatformAuthInput;
   readonly targetAccountId: string;
@@ -121,6 +187,16 @@ export async function grantPlatformRole(
   );
   if (!target) return err(serviceError('not_found', 'account not found'));
 
+  // The first grant this table ever receives establishes the platform's
+  // owner, regardless of what role the (necessarily still-bootstrapping)
+  // caller requested — otherwise a bootstrap actor could grant themselves
+  // (or anyone) a non-owner role, permanently disable the bootstrap path
+  // (`totalGrantCount(db) !== 0`), and leave no PLATFORM_OWNER able to issue
+  // another grant, locking the installation out of role management
+  // (docs/audits/post-programme-defect-register.md finding #16).
+  const isBootstrapGrant = (await totalGrantCount(db)) === 0;
+  const role = isBootstrapGrant ? 'PLATFORM_OWNER' : input.role;
+
   return db.transaction(async (tx) => {
     const grant = required(
       first(
@@ -129,7 +205,7 @@ export async function grantPlatformRole(
           .values({
             accountId: input.targetAccountId,
             workosUserId: target.workosUserId,
-            role: input.role,
+            role,
             assignedByAccountId: input.actor.accountId,
             reason: input.reason.trim(),
           })
@@ -145,7 +221,11 @@ export async function grantPlatformRole(
       result: 'ALLOWED',
       resourceType: 'platform_role',
       resourceId: grant.id,
-      metadata: { targetAccountId: input.targetAccountId, role: input.role },
+      metadata: {
+        targetAccountId: input.targetAccountId,
+        role,
+        ...(isBootstrapGrant && role !== input.role ? { requestedRole: input.role } : {}),
+      },
     });
     return ok(grant);
   });
@@ -189,24 +269,26 @@ export async function revokePlatformRole(
   if (!grant) return err(serviceError('not_found', 'platform role grant not found'));
   if (grant.revokedAt) return err(serviceError('invalid', 'this grant is already revoked'));
 
-  if (grant.role === 'PLATFORM_OWNER') {
-    const otherActiveOwners = first(
-      await db
-        .select({ n: count() })
-        .from(schema.platformRoles)
-        .where(
-          and(
-            eq(schema.platformRoles.role, 'PLATFORM_OWNER'),
-            isNull(schema.platformRoles.revokedAt),
-          ),
-        ),
-    );
-    if ((otherActiveOwners?.n ?? 0) <= 1) {
-      return err(serviceError('invalid', 'cannot revoke the sole remaining platform owner'));
-    }
-  }
-
   return db.transaction(async (tx) => {
+    if (grant.role === 'PLATFORM_OWNER') {
+      // Lock every PLATFORM_OWNER row so a concurrent revocation of a
+      // DIFFERENT owner serializes against this one instead of both
+      // independently observing "another owner exists" and both succeeding,
+      // leaving zero active owners (docs/audits/post-programme-defect-register.md
+      // finding #18) — mirrors `setMembershipActive`'s existing
+      // last-active-owner lock in `organizations.ts`.
+      const owners = await tx
+        .select()
+        .from(schema.platformRoles)
+        .where(eq(schema.platformRoles.role, 'PLATFORM_OWNER'))
+        .for('update');
+      const otherActiveOwners = owners.filter(
+        (o) => o.revokedAt === null && o.id !== input.grantId,
+      );
+      if (otherActiveOwners.length === 0) {
+        return err(serviceError('invalid', 'cannot revoke the sole remaining platform owner'));
+      }
+    }
     const updated = required(
       first(
         await tx

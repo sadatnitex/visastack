@@ -72,8 +72,8 @@ export default async function OrgConsolePage({
     const missions = await Promise.all(
       orgMissions.map(async (mission) => {
         const [assignments, notes, requirements, decisions] = await Promise.all([
-          listAssignmentsDetailed(db, mission.missionId),
-          listNotes(db, mission.missionId),
+          listAssignmentsDetailed(db, orgId, mission.applicantId, mission.missionId),
+          listNotes(db, orgId, mission.applicantId, mission.missionId),
           listMissionRequirementsForOrg(db, orgId, mission.missionId),
           listMissionDecisions(db, accountId, mission.missionId),
         ]);

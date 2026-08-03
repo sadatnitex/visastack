@@ -31,6 +31,7 @@ import {
   createOrganization,
   listMembershipsForAccount,
   reviewOrganization,
+  setMembershipActive,
 } from './organizations';
 import {
   addPackVersion,
@@ -41,7 +42,7 @@ import {
 } from './packs';
 import { editFact, registerFieldDefinition } from './profile';
 import { RATE_LIMITS } from './rate-limit';
-import { acceptGrant, createGrant } from './sharing';
+import { acceptGrant, createGrant, pauseGrant, revokeGrant } from './sharing';
 
 const migrationsFolder = fileURLToPath(new URL('../../db/migrations', import.meta.url));
 
@@ -145,7 +146,7 @@ describe('agency collaboration — assignments, notes, evidence', () => {
       body: 'Please add a bank statement.',
     });
     expect(isOk(note)).toBe(true);
-    expect(await listNotes(db, mission.value.id)).toHaveLength(1);
+    expect(await listNotes(db, org.value.id, applicantId, mission.value.id)).toHaveLength(1);
 
     // A non-admin cannot assign.
     const stranger = await provisionAccount(db, { email: 'stranger-coll@example.com' });
@@ -359,7 +360,12 @@ describe('agency collaboration — assignments, notes, evidence', () => {
       missionId: mission.value.id,
     });
 
-    const assignments = await listAssignmentsDetailed(db, mission.value.id);
+    const assignments = await listAssignmentsDetailed(
+      db,
+      org.value.id,
+      applicantId,
+      mission.value.id,
+    );
     expect(assignments).toHaveLength(1);
     expect(assignments[0]?.memberEmail).toBe('agent-assign@acme.com');
   });
@@ -405,7 +411,7 @@ describe('agency collaboration — assignments, notes, evidence', () => {
     expect(missions[0]?.applicantName).toBe('Owner');
   });
 
-  it('lists only applicants who have granted this org something', async () => {
+  it('lists only applicants with a current (accepted, active) grant to this org (finding #3)', async () => {
     const a = await consentedApplicant(db, 'orgapp-a@example.com');
     const b = await consentedApplicant(db, 'orgapp-b@example.com');
     const agentAcc = await provisionAccount(db, { email: 'agent-orgapp@acme.com' });
@@ -414,15 +420,28 @@ describe('agency collaboration — assignments, notes, evidence', () => {
     if (!isOk(org)) throw new Error('org');
     await activateOrg(db, org.value.id);
 
-    // A has granted this org something; B has not.
-    await createGrant(db, {
+    // A has an ACCEPTED grant to this org; B has not (created but never
+    // accepted) — a pending, unaccepted grant must not surface the
+    // applicant's name at all (docs/audits/post-programme-defect-register.md
+    // finding #3), matching listMissionsForOrganization's own
+    // accepted-grant requirement.
+    const grantA = await createGrant(db, {
       actorAccountId: a.account.id,
       applicantId: a.applicantId,
       recipientOrganizationId: org.value.id,
       actions: ['PREVIEW'],
       purpose: 'review',
     });
-    void b;
+    if (!isOk(grantA)) throw new Error('grant');
+    await acceptGrant(db, { actorAccountId: agentAcc.value.id, grantId: grantA.value.id });
+
+    await createGrant(db, {
+      actorAccountId: b.account.id,
+      applicantId: b.applicantId,
+      recipientOrganizationId: org.value.id,
+      actions: ['PREVIEW'],
+      purpose: 'review',
+    });
 
     const applicants = await listApplicantsForOrganization(db, org.value.id);
     expect(applicants).toHaveLength(1);
@@ -660,5 +679,279 @@ describe('reviewer decisions (master directive §7 "PR 10")', () => {
     const list = await listMissionDecisions(db, stranger.value.id, missionId);
     expect(isErr(list)).toBe(true);
     if (isErr(list)) expect(list.error.code).toBe('forbidden');
+  });
+
+  it("revokes a former reviewer's access to decision history the instant their membership is deactivated (finding #32)", async () => {
+    const { missionId, packRequirementId, org, agentAcc } = await setUp(db);
+    await recordMissionDecision(db, {
+      actorAccountId: agentAcc.value.id,
+      organizationId: org.value.id,
+      missionId,
+      packRequirementId,
+      outcome: 'ACCEPTED',
+    });
+    // Still readable while active.
+    expect(isOk(await listMissionDecisions(db, agentAcc.value.id, missionId))).toBe(true);
+
+    // Deactivate the reviewer's membership (org OWNER acting on themselves via
+    // a second, disposable OWNER — setMembershipActive refuses to deactivate
+    // the sole remaining owner).
+    const secondOwner = await provisionAccount(db, { email: 'second-owner-dec@acme.com' });
+    if (!isOk(secondOwner)) throw new Error('provision');
+    await addMembership(db, {
+      actorAccountId: agentAcc.value.id,
+      organizationId: org.value.id,
+      accountId: secondOwner.value.id,
+      role: 'OWNER',
+    });
+    const membership = (await listMembershipsForAccount(db, agentAcc.value.id))[0];
+    if (!membership) throw new Error('membership');
+    const deactivated = await setMembershipActive(db, {
+      actorAccountId: secondOwner.value.id,
+      organizationId: org.value.id,
+      membershipId: membership.membershipId,
+      active: false,
+    });
+    expect(isOk(deactivated)).toBe(true);
+
+    // The assignment row still exists, but the former reviewer is no longer
+    // an active member — decision history must now be denied, not exposed
+    // indefinitely (docs/audits/post-programme-defect-register.md finding #32).
+    const list = await listMissionDecisions(db, agentAcc.value.id, missionId);
+    expect(isErr(list)).toBe(true);
+    if (isErr(list)) expect(list.error.code).toBe('forbidden');
+  });
+});
+
+describe('scope and read-authorization hardening (post-programme defect register findings #3–#7)', () => {
+  let db: Db;
+  beforeEach(async () => {
+    db = await freshDb();
+  });
+
+  it('excludes revoked, paused, and unaccepted grants from listApplicantsForOrganization (finding #3)', async () => {
+    const agentAcc = await provisionAccount(db, { email: 'agent-scope@acme.com' });
+    if (!isOk(agentAcc)) throw new Error('provision');
+    const org = await createOrganization(db, { actorAccountId: agentAcc.value.id, name: 'Acme' });
+    if (!isOk(org)) throw new Error('org');
+    await activateOrg(db, org.value.id);
+
+    const revoked = await consentedApplicant(db, 'revoked-scope@example.com');
+    const revokedGrant = await createGrant(db, {
+      actorAccountId: revoked.account.id,
+      applicantId: revoked.applicantId,
+      recipientOrganizationId: org.value.id,
+      actions: ['PREVIEW'],
+      purpose: 'review',
+    });
+    if (!isOk(revokedGrant)) throw new Error('grant');
+    await acceptGrant(db, { actorAccountId: agentAcc.value.id, grantId: revokedGrant.value.id });
+    await revokeGrant(db, { actorAccountId: revoked.account.id, grantId: revokedGrant.value.id });
+
+    const paused = await consentedApplicant(db, 'paused-scope@example.com');
+    const pausedGrant = await createGrant(db, {
+      actorAccountId: paused.account.id,
+      applicantId: paused.applicantId,
+      recipientOrganizationId: org.value.id,
+      actions: ['PREVIEW'],
+      purpose: 'review',
+    });
+    if (!isOk(pausedGrant)) throw new Error('grant');
+    await acceptGrant(db, { actorAccountId: agentAcc.value.id, grantId: pausedGrant.value.id });
+    await pauseGrant(db, { actorAccountId: paused.account.id, grantId: pausedGrant.value.id });
+
+    const unaccepted = await consentedApplicant(db, 'unaccepted-scope@example.com');
+    await createGrant(db, {
+      actorAccountId: unaccepted.account.id,
+      applicantId: unaccepted.applicantId,
+      recipientOrganizationId: org.value.id,
+      actions: ['PREVIEW'],
+      purpose: 'review',
+    });
+
+    const active = await consentedApplicant(db, 'active-scope@example.com');
+    const activeGrant = await createGrant(db, {
+      actorAccountId: active.account.id,
+      applicantId: active.applicantId,
+      recipientOrganizationId: org.value.id,
+      actions: ['PREVIEW'],
+      purpose: 'review',
+    });
+    if (!isOk(activeGrant)) throw new Error('grant');
+    await acceptGrant(db, { actorAccountId: agentAcc.value.id, grantId: activeGrant.value.id });
+
+    const applicants = await listApplicantsForOrganization(db, org.value.id);
+    expect(applicants).toHaveLength(1);
+    expect(applicants[0]?.applicantId).toBe(active.applicantId);
+  });
+
+  it('never lets a mission-scoped bulk export reach beyond its scope (finding #4)', async () => {
+    const agentAcc = await provisionAccount(db, { email: 'agent-bulkscope@acme.com' });
+    if (!isOk(agentAcc)) throw new Error('provision');
+    const org = await createOrganization(db, { actorAccountId: agentAcc.value.id, name: 'Acme' });
+    if (!isOk(org)) throw new Error('org');
+    await activateOrg(db, org.value.id);
+    const orgId = org.value.id;
+
+    const { account, applicantId } = await consentedApplicant(db, 'bulkscope@example.com');
+    const mission = await createMission(db, {
+      actorAccountId: account.id,
+      applicantId,
+      title: 'M',
+    });
+    if (!isOk(mission)) throw new Error('mission');
+
+    // A mission-scoped grant is the ONLY standing this org has for this
+    // applicant — it must never be evaluated as applicant-wide.
+    const grant = await createGrant(db, {
+      actorAccountId: account.id,
+      applicantId,
+      recipientOrganizationId: orgId,
+      missionId: mission.value.id,
+      actions: ['EXPORT_PROFILE'],
+      purpose: 'bulk',
+      stepUpSatisfied: true,
+    });
+    if (!isOk(grant)) throw new Error('grant');
+    await acceptGrant(db, { actorAccountId: agentAcc.value.id, grantId: grant.value.id });
+
+    const exported = await bulkExport(db, {
+      actorAccountId: agentAcc.value.id,
+      organizationId: orgId,
+      purpose: 'bulk',
+      stepUpSatisfied: true,
+    });
+    expect(isOk(exported)).toBe(true);
+    if (!isOk(exported)) return;
+    // EXPORT_PROFILE is a profile-wide action with no mission-scoped
+    // equivalent in the policy engine — a genuinely mission-scoped grant
+    // must never authorize it at all once scope is correctly preserved.
+    expect(exported.value).toHaveLength(0);
+  });
+
+  it('denies notes/assignments once the org grant does not permit COMMENT or MANAGE on that mission (finding #5)', async () => {
+    const { account, applicantId } = await consentedApplicant(db, 'readscope@example.com');
+    const mission = await createMission(db, {
+      actorAccountId: account.id,
+      applicantId,
+      title: 'M',
+    });
+    if (!isOk(mission)) throw new Error('mission');
+    const agentAcc = await provisionAccount(db, { email: 'agent-readscope@acme.com' });
+    if (!isOk(agentAcc)) throw new Error('provision');
+    const org = await createOrganization(db, { actorAccountId: agentAcc.value.id, name: 'Acme' });
+    if (!isOk(org)) throw new Error('org');
+    await activateOrg(db, org.value.id);
+
+    // Applicant-wide grant, but scoped only to PREVIEW — no COMMENT, no MANAGE.
+    const grant = await createGrant(db, {
+      actorAccountId: account.id,
+      applicantId,
+      recipientOrganizationId: org.value.id,
+      actions: ['PREVIEW'],
+      purpose: 'review',
+    });
+    if (!isOk(grant)) throw new Error('grant');
+    await acceptGrant(db, { actorAccountId: agentAcc.value.id, grantId: grant.value.id });
+
+    // The mission is visible via listMissionsForOrganization (a real, active,
+    // accepted grant exists)...
+    const missions = await listMissionsForOrganization(db, org.value.id);
+    expect(missions).toHaveLength(1);
+
+    // ...but notes/assignments must not be readable without COMMENT/MANAGE.
+    expect(await listNotes(db, org.value.id, applicantId, mission.value.id)).toHaveLength(0);
+    expect(
+      await listAssignmentsDetailed(db, org.value.id, applicantId, mission.value.id),
+    ).toHaveLength(0);
+  });
+
+  it('honors a mission-scoped MANAGE grant when requesting evidence (finding #6)', async () => {
+    const { account, applicantId } = await consentedApplicant(db, 'evscope@example.com');
+    const mission = await createMission(db, {
+      actorAccountId: account.id,
+      applicantId,
+      title: 'M',
+    });
+    if (!isOk(mission)) throw new Error('mission');
+    const agentAcc = await provisionAccount(db, { email: 'agent-evscope@acme.com' });
+    if (!isOk(agentAcc)) throw new Error('provision');
+    const org = await createOrganization(db, { actorAccountId: agentAcc.value.id, name: 'Acme' });
+    if (!isOk(org)) throw new Error('org');
+    await activateOrg(db, org.value.id);
+
+    // The ONLY grant is mission-scoped — no applicant-wide grant exists.
+    const grant = await createGrant(db, {
+      actorAccountId: account.id,
+      applicantId,
+      recipientOrganizationId: org.value.id,
+      missionId: mission.value.id,
+      actions: ['MANAGE'],
+      purpose: 'review',
+    });
+    if (!isOk(grant)) throw new Error('grant');
+    await acceptGrant(db, { actorAccountId: agentAcc.value.id, grantId: grant.value.id });
+
+    // Without the mission id, this must fail (scope_mismatch) — proving the
+    // regression this test guards against.
+    const withoutScope = await requestEvidence(db, {
+      actorAccountId: agentAcc.value.id,
+      organizationId: org.value.id,
+      applicantId,
+      kind: 'DOCUMENT',
+      docType: 'bank_statement',
+    });
+    expect(isErr(withoutScope)).toBe(true);
+
+    // Supplying the mission id lets the mission-scoped grant match.
+    const withScope = await requestEvidence(db, {
+      actorAccountId: agentAcc.value.id,
+      organizationId: org.value.id,
+      applicantId,
+      kind: 'DOCUMENT',
+      docType: 'bank_statement',
+      missionId: mission.value.id,
+    });
+    expect(isOk(withScope)).toBe(true);
+  });
+
+  it('deduplicates a mission reachable via both an applicant-wide and a mission-scoped grant (finding #7)', async () => {
+    const { account, applicantId } = await consentedApplicant(db, 'dedupe@example.com');
+    const mission = await createMission(db, {
+      actorAccountId: account.id,
+      applicantId,
+      title: 'M',
+    });
+    if (!isOk(mission)) throw new Error('mission');
+    const agentAcc = await provisionAccount(db, { email: 'agent-dedupe@acme.com' });
+    if (!isOk(agentAcc)) throw new Error('provision');
+    const org = await createOrganization(db, { actorAccountId: agentAcc.value.id, name: 'Acme' });
+    if (!isOk(org)) throw new Error('org');
+    await activateOrg(db, org.value.id);
+
+    const wideGrant = await createGrant(db, {
+      actorAccountId: account.id,
+      applicantId,
+      recipientOrganizationId: org.value.id,
+      actions: ['PREVIEW'],
+      purpose: 'review-wide',
+    });
+    if (!isOk(wideGrant)) throw new Error('grant');
+    await acceptGrant(db, { actorAccountId: agentAcc.value.id, grantId: wideGrant.value.id });
+
+    const scopedGrant = await createGrant(db, {
+      actorAccountId: account.id,
+      applicantId,
+      recipientOrganizationId: org.value.id,
+      missionId: mission.value.id,
+      actions: ['COMMENT'],
+      purpose: 'review-scoped',
+    });
+    if (!isOk(scopedGrant)) throw new Error('grant');
+    await acceptGrant(db, { actorAccountId: agentAcc.value.id, grantId: scopedGrant.value.id });
+
+    const missions = await listMissionsForOrganization(db, org.value.id);
+    expect(missions).toHaveLength(1);
+    expect(missions[0]?.missionId).toBe(mission.value.id);
   });
 });

@@ -1,6 +1,6 @@
 import { exportAccount } from '@visastack/services';
 import { withSession } from '../../../../lib/session';
-import { establishStepUp } from '../../../../lib/step-up';
+import { STEP_UP_NOT_CONFIGURED_MESSAGE, tryEstablishStepUp } from '../../../../lib/step-up';
 
 /**
  * Self-service data export (Build Spec §13; PRD §2 — data portability).
@@ -19,15 +19,22 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(request: Request): Promise<Response> {
   const outcome = await withSession(async ({ db, accountId }) => {
-    const stepUp = await establishStepUp(
+    const stepUp = await tryEstablishStepUp(
       { accountId, action: 'ACCOUNT_EXPORT', resourceId: accountId },
       request.url,
     );
-    if (!stepUp.satisfied) return { redirect: stepUp.reauthUrl } as const;
+    if (stepUp.kind === 'not_configured') return { notConfigured: true } as const;
+    if (stepUp.kind === 'reauth_required') return { redirect: stepUp.reauthUrl } as const;
     const result = await exportAccount(db, { actorAccountId: accountId, accountId });
     return { snapshot: result.ok ? result.value : null } as const;
   });
 
+  if ('notConfigured' in outcome) {
+    return new Response(STEP_UP_NOT_CONFIGURED_MESSAGE, {
+      status: 503,
+      headers: { 'Cache-Control': 'private, no-store' },
+    });
+  }
   if ('redirect' in outcome) return Response.redirect(outcome.redirect, 302);
   const snapshot = outcome.snapshot;
   if (!snapshot) return new Response('export failed', { status: 403 });

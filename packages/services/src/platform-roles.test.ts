@@ -9,6 +9,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { provisionAccount } from './accounts';
 import type { Db } from './db';
 import {
+  canPerformPlatformAction,
   grantPlatformRole,
   hasAnyPlatformRole,
   isPlatformOwner,
@@ -57,6 +58,29 @@ describe('platform roles — bootstrap', () => {
     };
     expect(await hasAnyPlatformRole(db, auth)).toBe(false);
     expect(await isPlatformOwner(db, auth)).toBe(false);
+  });
+
+  it('forces the very first grant to be PLATFORM_OWNER regardless of the requested role (finding #16)', async () => {
+    const owner = await seedAccount(db, 'bootstrap-owner@example.com');
+    const ownerAuth = {
+      accountId: owner.id,
+      email: 'bootstrap-owner@example.com',
+      bootstrapEmails: ['bootstrap-owner@example.com'],
+    };
+    // Ask for SUPPORT_ADMIN — the bootstrap path must silently upgrade this
+    // to PLATFORM_OWNER, otherwise the installation is permanently locked
+    // out of role management (docs/audits/post-programme-defect-register.md
+    // finding #16).
+    const granted = await grantPlatformRole(db, {
+      actor: ownerAuth,
+      targetAccountId: owner.id,
+      role: 'SUPPORT_ADMIN',
+      reason: 'attempted non-owner bootstrap grant',
+      stepUpSatisfied: true,
+    });
+    expect(isOk(granted)).toBe(true);
+    if (isOk(granted)) expect(granted.value.role).toBe('PLATFORM_OWNER');
+    expect(await isPlatformOwner(db, { ...ownerAuth, bootstrapEmails: [] })).toBe(true);
   });
 
   it('stops applying the moment a single real grant exists, even for the bootstrap email itself', async () => {
@@ -376,5 +400,175 @@ describe('platform roles — grant and revoke', () => {
     const active = await listActivePlatformRoles(db);
     expect(active.map((r) => r.id)).not.toContain(grantA.value.id);
     expect(active.map((r) => r.id)).toContain(grantB.value.id);
+  });
+
+  it('serializes concurrent revocations of two owners so at least one always survives (finding #18)', async () => {
+    const secondOwner = await seedAccount(db, 'race-owner@example.com');
+    const secondGrant = await grantPlatformRole(db, {
+      actor: ownerAuth,
+      targetAccountId: secondOwner.id,
+      role: 'PLATFORM_OWNER',
+      reason: 'co-owner for race test',
+      stepUpSatisfied: true,
+    });
+    if (!isOk(secondGrant)) throw new Error('grant');
+    const firstGrantId = (await listActivePlatformRoles(db)).find(
+      (r) => r.accountId === owner.id,
+    )?.id;
+    if (!firstGrantId) throw new Error('first grant');
+
+    // Two concurrent revocation attempts against exactly 2 active owners —
+    // without the transactional row lock, both could independently observe
+    // "another owner exists" and both succeed, stranding the platform at
+    // zero owners.
+    const [a, b] = await Promise.all([
+      revokePlatformRole(db, {
+        actor: ownerAuth,
+        grantId: firstGrantId,
+        reason: 'race A',
+        stepUpSatisfied: true,
+      }),
+      revokePlatformRole(db, {
+        actor: { ...ownerAuth, accountId: secondOwner.id, email: 'race-owner@example.com' },
+        grantId: secondGrant.value.id,
+        reason: 'race B',
+        stepUpSatisfied: true,
+      }),
+    ]);
+    // At least one of the two concurrent attempts must be refused.
+    const outcomes = [a, b];
+    expect(outcomes.some((o) => isErr(o))).toBe(true);
+
+    const remainingOwners = (await listActivePlatformRoles(db)).filter(
+      (r) => r.role === 'PLATFORM_OWNER',
+    );
+    expect(remainingOwners.length).toBeGreaterThanOrEqual(1);
+  });
+});
+
+describe('platform roles — concern-scoped action matrix (finding #15)', () => {
+  let db: Db;
+  let owner: Awaited<ReturnType<typeof seedAccount>>;
+  let ownerAuth: { accountId: string; email: string; bootstrapEmails: readonly string[] };
+  beforeEach(async () => {
+    db = await freshDb();
+    owner = await seedAccount(db, 'matrix-owner@example.com');
+    ownerAuth = {
+      accountId: owner.id,
+      email: 'matrix-owner@example.com',
+      bootstrapEmails: ['matrix-owner@example.com'],
+    };
+    await grantPlatformRole(db, {
+      actor: ownerAuth,
+      targetAccountId: owner.id,
+      role: 'PLATFORM_OWNER',
+      reason: 'seed',
+      stepUpSatisfied: true,
+    });
+    ownerAuth = { ...ownerAuth, bootstrapEmails: [] };
+  });
+
+  it('lets PLATFORM_OWNER perform every concern-scoped action', async () => {
+    for (const action of [
+      'RETENTION_POLICY_SET',
+      'LEGAL_HOLD_PLACE',
+      'ORGANIZATION_REVIEW',
+      'PROCESSING_JOB_RETRY',
+      'PACK_MANAGE',
+    ] as const) {
+      expect(await canPerformPlatformAction(db, ownerAuth, action)).toBe(true);
+    }
+  });
+
+  it('confines SUPPORT_ADMIN to bounded support actions only — never security, retention, or role-management concerns', async () => {
+    const support = await seedAccount(db, 'matrix-support@example.com');
+    await grantPlatformRole(db, {
+      actor: ownerAuth,
+      targetAccountId: support.id,
+      role: 'SUPPORT_ADMIN',
+      reason: 'support only',
+      stepUpSatisfied: true,
+    });
+    const supportAuth = {
+      accountId: support.id,
+      email: 'matrix-support@example.com',
+      bootstrapEmails: [],
+    };
+    expect(await canPerformPlatformAction(db, supportAuth, 'PROCESSING_JOB_RETRY')).toBe(true);
+    expect(await canPerformPlatformAction(db, supportAuth, 'ORPHAN_RECONCILE')).toBe(true);
+    expect(await canPerformPlatformAction(db, supportAuth, 'PACK_MANAGE')).toBe(true);
+    // Not security, retention, or organization-review — a SUPPORT_ADMIN is
+    // functionally identical to no role at all for these
+    // (docs/audits/post-programme-defect-register.md finding #15).
+    expect(await canPerformPlatformAction(db, supportAuth, 'RETENTION_POLICY_SET')).toBe(false);
+    expect(await canPerformPlatformAction(db, supportAuth, 'LEGAL_HOLD_PLACE')).toBe(false);
+    expect(await canPerformPlatformAction(db, supportAuth, 'LEGAL_HOLD_RELEASE')).toBe(false);
+    expect(await canPerformPlatformAction(db, supportAuth, 'RETENTION_PURGE')).toBe(false);
+    expect(await canPerformPlatformAction(db, supportAuth, 'ERASURE_JOB_RETRY')).toBe(false);
+    expect(await canPerformPlatformAction(db, supportAuth, 'ORGANIZATION_REVIEW')).toBe(false);
+  });
+
+  it('confines COMPLIANCE_ADMIN to retention/legal-hold/privacy actions only', async () => {
+    const compliance = await seedAccount(db, 'matrix-compliance@example.com');
+    await grantPlatformRole(db, {
+      actor: ownerAuth,
+      targetAccountId: compliance.id,
+      role: 'COMPLIANCE_ADMIN',
+      reason: 'compliance only',
+      stepUpSatisfied: true,
+    });
+    const complianceAuth = {
+      accountId: compliance.id,
+      email: 'matrix-compliance@example.com',
+      bootstrapEmails: [],
+    };
+    expect(await canPerformPlatformAction(db, complianceAuth, 'RETENTION_POLICY_SET')).toBe(true);
+    expect(await canPerformPlatformAction(db, complianceAuth, 'LEGAL_HOLD_PLACE')).toBe(true);
+    expect(await canPerformPlatformAction(db, complianceAuth, 'LEGAL_HOLD_RELEASE')).toBe(true);
+    expect(await canPerformPlatformAction(db, complianceAuth, 'RETENTION_PURGE')).toBe(true);
+    expect(await canPerformPlatformAction(db, complianceAuth, 'ERASURE_JOB_RETRY')).toBe(true);
+    // Not security or support concerns.
+    expect(await canPerformPlatformAction(db, complianceAuth, 'ORGANIZATION_REVIEW')).toBe(false);
+    expect(await canPerformPlatformAction(db, complianceAuth, 'PROCESSING_JOB_RETRY')).toBe(false);
+    expect(await canPerformPlatformAction(db, complianceAuth, 'PACK_MANAGE')).toBe(false);
+  });
+
+  it('confines SECURITY_ADMIN to security-specific actions only', async () => {
+    const security = await seedAccount(db, 'matrix-security@example.com');
+    await grantPlatformRole(db, {
+      actor: ownerAuth,
+      targetAccountId: security.id,
+      role: 'SECURITY_ADMIN',
+      reason: 'security only',
+      stepUpSatisfied: true,
+    });
+    const securityAuth = {
+      accountId: security.id,
+      email: 'matrix-security@example.com',
+      bootstrapEmails: [],
+    };
+    expect(await canPerformPlatformAction(db, securityAuth, 'ORGANIZATION_REVIEW')).toBe(true);
+    // Not compliance or support concerns.
+    expect(await canPerformPlatformAction(db, securityAuth, 'RETENTION_POLICY_SET')).toBe(false);
+    expect(await canPerformPlatformAction(db, securityAuth, 'LEGAL_HOLD_PLACE')).toBe(false);
+    expect(await canPerformPlatformAction(db, securityAuth, 'PROCESSING_JOB_RETRY')).toBe(false);
+  });
+
+  it('denies every concern-scoped action for an account with no platform role at all', async () => {
+    const nobody = await seedAccount(db, 'matrix-nobody@example.com');
+    const nobodyAuth = {
+      accountId: nobody.id,
+      email: 'matrix-nobody@example.com',
+      bootstrapEmails: [],
+    };
+    for (const action of [
+      'RETENTION_POLICY_SET',
+      'LEGAL_HOLD_PLACE',
+      'ORGANIZATION_REVIEW',
+      'PROCESSING_JOB_RETRY',
+      'PACK_MANAGE',
+    ] as const) {
+      expect(await canPerformPlatformAction(db, nobodyAuth, action)).toBe(false);
+    }
   });
 });

@@ -7,6 +7,7 @@ import {
   retryErasureJobAction,
   retryJobAction,
   reviewOrganizationAction,
+  revokeInvitationAction,
   revokePlatformRoleAction,
 } from './actions';
 
@@ -102,6 +103,41 @@ export function RevokeRoleButton({ grantId }: { readonly grantId: string }) {
       }}
     >
       <input type="hidden" name="grantId" value={grantId} />
+      <input type="hidden" name="reason" value="" />
+      <button
+        type="submit"
+        className="btn btn-secondary"
+        style={{ padding: '0.3rem 0.85rem', fontSize: '0.8rem' }}
+        disabled={pending}
+      >
+        {pending ? 'Revoking…' : 'Revoke'}
+      </button>
+      {state.message ? (
+        <p className={`field-msg ${state.ok ? 'field-msg-ok' : 'field-msg-err'}`}>
+          {state.message}
+        </p>
+      ) : null}
+    </form>
+  );
+}
+
+export function RevokeInvitationButton({ invitationId }: { readonly invitationId: string }) {
+  const [state, formAction, pending] = useActionState(revokeInvitationAction, INITIAL);
+  return (
+    <form
+      action={formAction}
+      style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}
+      onSubmit={(e) => {
+        const form = e.currentTarget;
+        const reason = window.prompt('Reason for revoking this invitation?');
+        if (!reason || reason.trim().length === 0) {
+          e.preventDefault();
+          return;
+        }
+        (form.elements.namedItem('reason') as HTMLInputElement).value = reason.trim();
+      }}
+    >
+      <input type="hidden" name="invitationId" value={invitationId} />
       <input type="hidden" name="reason" value="" />
       <button
         type="submit"

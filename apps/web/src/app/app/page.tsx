@@ -153,11 +153,10 @@ export default async function AppPage() {
         <article className="card" style={{ marginBottom: '1.5rem' }}>
           <p className="card-kicker">Get started</p>
           <h2 className="card-title">Grant core processing consent</h2>
-          <p className="card-body" style={{ marginBottom: '1.25rem' }}>
-            VisaStack can't create applicant or profile records until you grant this. You can revoke
-            it at any time from Privacy.
+          <p className="card-body">
+            VisaStack can't create applicant or profile records until you grant this below. You can
+            revoke it again at any time.
           </p>
-          <ConsentButton type="CORE_PROCESSING" granted={false} locale={locale} />
         </article>
       ) : (
         <>
@@ -215,29 +214,33 @@ export default async function AppPage() {
               )}
             </article>
           </div>
-
-          <article className="card">
-            <p className="card-kicker">Consent</p>
-            <h2 className="card-title">Permissions you control</h2>
-            <p className="card-body" style={{ marginBottom: '1rem' }}>
-              Each purpose is granted and revoked independently. Core processing is required before
-              any records can be created.
-            </p>
-            <div className="rows">
-              {CONSENT_TYPES.map((type) => (
-                <div className="row" key={type}>
-                  <span className="row-key">{t(CONSENT_MESSAGE_KEYS[type])}</span>
-                  <ConsentButton
-                    type={type}
-                    granted={Boolean(data.consents[type])}
-                    locale={locale}
-                  />
-                </div>
-              ))}
-            </div>
-          </article>
         </>
       )}
+
+      {/*
+       * Always rendered, independent of `coreGranted` — the sole place any
+       * consent type (including CORE_PROCESSING) is granted or revoked, so
+       * AI/sharing/marketing consent stay independently controllable even
+       * while core processing is absent or revoked
+       * (docs/audits/post-programme-defect-register.md finding #22).
+       */}
+      <article className="card">
+        <p className="card-kicker">Consent</p>
+        <h2 className="card-title">Permissions you control</h2>
+        <p className="card-body" style={{ marginBottom: '1rem' }}>
+          Each purpose is granted and revoked independently, at any time — revoking one never
+          requires regranting another. Core processing is required before any applicant or profile
+          records can be created; the others remain optional.
+        </p>
+        <div className="rows">
+          {CONSENT_TYPES.map((type) => (
+            <div className="row" key={type}>
+              <span className="row-key">{t(CONSENT_MESSAGE_KEYS[type])}</span>
+              <ConsentButton type={type} granted={Boolean(data.consents[type])} locale={locale} />
+            </div>
+          ))}
+        </div>
+      </article>
     </section>
   );
 }

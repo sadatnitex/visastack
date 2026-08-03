@@ -19,6 +19,7 @@ import {
 import { addDocumentVersion, registerDocument } from './documents';
 import { runErasureWorker } from './erasure';
 import { exportAccount } from './export';
+import { grantPlatformRole } from './platform-roles';
 import { editFact, registerFieldDefinition } from './profile';
 import type {
   BlobStore,
@@ -203,6 +204,45 @@ describe('account deletion workflow', () => {
     const tombstone = await db.select().from(schema.accountDeletionRequests);
     expect(tombstone[0]?.status).toBe('EXECUTED');
     expect(tombstone[0]?.accountId).toBeNull();
+  });
+
+  it('preserves platform-role grant history (anonymized) when the granted account is deleted (finding #17)', async () => {
+    const { account } = await seedFullAccount(db, 'del-role@example.com');
+    const bootstrapAuth = {
+      accountId: account.id,
+      email: 'del-role@example.com',
+      bootstrapEmails: ['del-role@example.com'],
+    };
+    const granted = await grantPlatformRole(db, {
+      actor: bootstrapAuth,
+      targetAccountId: account.id,
+      role: 'PLATFORM_OWNER',
+      reason: 'bootstrap',
+      stepUpSatisfied: true,
+    });
+    if (!isOk(granted)) throw new Error('grant');
+
+    const req = await requestAccountDeletion(db, {
+      actorAccountId: account.id,
+      accountId: account.id,
+      gracePeriodMs: 0,
+    });
+    expect(isOk(req)).toBe(true);
+    const executed = await executeAccountDeletion(db, { accountId: account.id });
+    expect(isOk(executed)).toBe(true);
+
+    // The account is gone, but the role-history row survives with its
+    // account reference nulled — never cascaded away — preserving the
+    // append-only role-history invariant
+    // (docs/audits/post-programme-defect-register.md finding #17).
+    const roleRows = await db
+      .select()
+      .from(schema.platformRoles)
+      .where(eq(schema.platformRoles.id, granted.value.id));
+    expect(roleRows).toHaveLength(1);
+    expect(roleRows[0]?.accountId).toBeNull();
+    expect(roleRows[0]?.role).toBe('PLATFORM_OWNER');
+    expect(roleRows[0]?.workosUserId).toBe(granted.value.workosUserId);
   });
 
   it('refuses a deletion request for another account', async () => {

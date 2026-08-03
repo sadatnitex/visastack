@@ -78,3 +78,46 @@ export async function establishStepUp(
   }
   return { satisfied: true };
 }
+
+const NOT_CONFIGURED_MESSAGE = 'STEP_UP_SIGNING_SECRET is not configured';
+
+export type StepUpOutcome =
+  | { readonly kind: 'satisfied' }
+  | { readonly kind: 'reauth_required'; readonly reauthUrl: string }
+  /** `STEP_UP_SIGNING_SECRET` is unset in this environment — an operational
+   * configuration gap, not a per-request failure. */
+  | { readonly kind: 'not_configured' };
+
+/**
+ * Same as `establishStepUp`, but never lets the one specific, operationally
+ * recoverable failure — `STEP_UP_SIGNING_SECRET` unset — surface as an
+ * unhandled exception (docs/audits/post-programme-defect-register.md
+ * finding D-RT1: this genuinely happened on the deployed pilot, as an
+ * opaque 500 on `/app/privacy/export`). Every step-up-gated call site
+ * should use this, not `establishStepUp` directly, so a missing secret
+ * renders a clean, actionable message instead of a server error.
+ * `establishStepUp` itself keeps failing loudly (and its test keeps
+ * asserting that) — this wrapper only translates that one known condition
+ * into a typed outcome, deliberately not weakening the underlying
+ * fail-closed behavior for any other cause.
+ */
+export async function tryEstablishStepUp(
+  request: StepUpRequest,
+  returnTo: string,
+): Promise<StepUpOutcome> {
+  try {
+    const result = await establishStepUp(request, returnTo);
+    return result.satisfied
+      ? { kind: 'satisfied' }
+      : { kind: 'reauth_required', reauthUrl: result.reauthUrl };
+  } catch (error) {
+    if (error instanceof Error && error.message === NOT_CONFIGURED_MESSAGE) {
+      return { kind: 'not_configured' };
+    }
+    throw error;
+  }
+}
+
+/** Safe, non-leaky message for a `not_configured` outcome — never exposes which env var or why. */
+export const STEP_UP_NOT_CONFIGURED_MESSAGE =
+  'This action requires step-up verification, which is not configured in this environment.';

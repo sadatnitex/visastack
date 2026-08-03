@@ -25,5 +25,10 @@ export default authkitMiddleware({
 });
 
 export const config = {
-  matcher: ['/', '/status', '/app', '/app/:path*', '/callback'],
+  // `/pilot-access-denied` is deliberately outside `/app` (so `app/layout.tsx`'s
+  // `withSession` call — which would re-run the pilot-access check and loop —
+  // never wraps it) but still included here so its own read-only `withAuth()`
+  // call gets the same middleware-refreshed token every other signed-in page
+  // gets (docs/audits/post-programme-defect-register.md finding #2).
+  matcher: ['/', '/status', '/app', '/app/:path*', '/callback', '/pilot-access-denied'],
 };

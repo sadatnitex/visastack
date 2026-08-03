@@ -2,9 +2,10 @@ import 'server-only';
 import { createHash } from 'node:crypto';
 import { isOk } from '@visastack/core';
 import { createPooledDb, resolveDatabaseUrl } from '@visastack/db';
-import { type Db, provisionAccount } from '@visastack/services';
+import { type Db, markInvitationAccepted, provisionAccount } from '@visastack/services';
 import { withAuth } from '@workos-inc/authkit-nextjs';
 import { redirect } from 'next/navigation';
+import { checkPilotAccess } from './pilot-access';
 
 /**
  * A short, privacy-preserving reference for a subject, safe to write to logs.
@@ -14,6 +15,23 @@ import { redirect } from 'next/navigation';
  */
 function subjectRef(email: string): string {
   return `acct:${createHash('sha256').update(email.trim().toLowerCase()).digest('hex').slice(0, 12)}`;
+}
+
+/**
+ * True for Next.js's internal `redirect()` control-flow signal (duck-typed
+ * on its documented `digest` shape — Next does not export a stable public
+ * detector). Lets the catch block below tell a genuine failure apart from
+ * the routine, expected "not invited" redirect, which would otherwise log a
+ * misleading `[withSession] failed` line for every denied sign-in attempt.
+ */
+function isNextRedirectSignal(error: unknown): boolean {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'digest' in error &&
+    typeof (error as { digest: unknown }).digest === 'string' &&
+    (error as { digest: string }).digest.startsWith('NEXT_REDIRECT')
+  );
 }
 
 /**
@@ -55,6 +73,16 @@ export async function withSession<T>(
   });
   const handle = db as unknown as Db;
   try {
+    // Server-authoritative controlled-pilot access boundary (docs/audits/
+    // post-programme-defect-register.md finding #2) — checked BEFORE
+    // provisioning, every time. An authenticated-but-uninvited identity must
+    // never receive a local account, regardless of how far WorkOS itself let
+    // them get through sign-in.
+    const access = await checkPilotAccess(handle, { email: user.email, workosUserId: user.id });
+    if (!access.allowed) {
+      redirect('/pilot-access-denied');
+    }
+
     // Bind the local account to the immutable WorkOS user id from the trusted
     // server session (never a client-supplied id); email is mutable contact data.
     const provisioned = await provisionAccount(handle, {
@@ -65,8 +93,18 @@ export async function withSession<T>(
     if (!isOk(provisioned)) {
       throw new Error(`account provisioning failed: ${provisioned.error.message}`);
     }
+    if (access.invitationId) {
+      await markInvitationAccepted(handle, {
+        invitationId: access.invitationId,
+        accountId: provisioned.value.id,
+      });
+    }
     return await fn({ db: handle, accountId: provisioned.value.id, email: user.email });
   } catch (error) {
+    // The routine "not invited" redirect above is expected control flow, not
+    // a failure — logging it as one would misleadingly flag every denied
+    // sign-in attempt as a server error.
+    if (isNextRedirectSignal(error)) throw error;
     // Surface the real cause in the server logs. Next.js masks render-time
     // exceptions behind an opaque digest in production, so without this the
     // actual message (DB connectivity, a failing query, a WorkOS refresh) is

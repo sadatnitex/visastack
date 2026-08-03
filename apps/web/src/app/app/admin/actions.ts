@@ -3,6 +3,7 @@
 import {
   type PlatformRole,
   type StorageBucket,
+  createInvitation,
   getAccountByEmail,
   grantPlatformRole,
   placeLegalHold,
@@ -12,16 +13,21 @@ import {
   retryErasureJob,
   retryFailedJob,
   reviewOrganization,
+  revokeInvitation,
   revokePlatformRole,
   setRetentionPolicy,
 } from '@visastack/services';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { after } from 'next/server';
-import { bootstrapAdminEmails, isPlatformAdmin, isPlatformOwnerAccount } from '../../../lib/admin';
+import {
+  bootstrapAdminEmails,
+  hasPlatformPermission,
+  isPlatformOwnerAccount,
+} from '../../../lib/admin';
 import { triggerErasureWorker } from '../../../lib/jobs';
 import { withSession } from '../../../lib/session';
-import { establishStepUp } from '../../../lib/step-up';
+import { STEP_UP_NOT_CONFIGURED_MESSAGE, tryEstablishStepUp } from '../../../lib/step-up';
 import { createStorage } from '../../../lib/storage';
 
 /** Result surfaced back to the client for inline feedback. */
@@ -45,7 +51,9 @@ export async function setRetentionPolicyAction(
   }
 
   const result = await withSession(async ({ db, accountId, email }) => {
-    if (!(await isPlatformAdmin(db, { accountId, email }))) return DENIED;
+    if (!(await hasPlatformPermission(db, { accountId, email }, 'RETENTION_POLICY_SET'))) {
+      return DENIED;
+    }
     const set = await setRetentionPolicy(db, { actorAccountId: accountId, docType, retentionDays });
     if (!set.ok) return { ok: false, message: set.error.message } satisfies ActionState;
     return { ok: true, message: `Retention for ${docType} set to ${retentionDays} days.` };
@@ -65,12 +73,15 @@ export async function placeLegalHoldAction(
   if (reason.length === 0) return { ok: false, message: 'A reason is required.' };
 
   const result = await withSession(async ({ db, accountId, email }) => {
-    if (!(await isPlatformAdmin(db, { accountId, email }))) return DENIED;
-    const stepUp = await establishStepUp(
+    if (!(await hasPlatformPermission(db, { accountId, email }, 'LEGAL_HOLD_PLACE'))) return DENIED;
+    const stepUp = await tryEstablishStepUp(
       { accountId, action: 'LEGAL_HOLD_PLACE', resourceId: applicantId },
       '/app/admin',
     );
-    if (!stepUp.satisfied) redirect(stepUp.reauthUrl);
+    if (stepUp.kind === 'not_configured') {
+      return { ok: false, message: STEP_UP_NOT_CONFIGURED_MESSAGE } satisfies ActionState;
+    }
+    if (stepUp.kind === 'reauth_required') redirect(stepUp.reauthUrl);
     const held = await placeLegalHold(db, {
       actorAccountId: accountId,
       applicantId,
@@ -92,12 +103,17 @@ export async function releaseLegalHoldAction(
   const holdId = String(formData.get('holdId') ?? '').trim();
   if (holdId.length === 0) return { ok: false, message: 'Missing hold id.' };
   const result = await withSession(async ({ db, accountId, email }) => {
-    if (!(await isPlatformAdmin(db, { accountId, email }))) return DENIED;
-    const stepUp = await establishStepUp(
+    if (!(await hasPlatformPermission(db, { accountId, email }, 'LEGAL_HOLD_RELEASE'))) {
+      return DENIED;
+    }
+    const stepUp = await tryEstablishStepUp(
       { accountId, action: 'LEGAL_HOLD_RELEASE', resourceId: holdId },
       '/app/admin',
     );
-    if (!stepUp.satisfied) redirect(stepUp.reauthUrl);
+    if (stepUp.kind === 'not_configured') {
+      return { ok: false, message: STEP_UP_NOT_CONFIGURED_MESSAGE } satisfies ActionState;
+    }
+    if (stepUp.kind === 'reauth_required') redirect(stepUp.reauthUrl);
     const released = await releaseLegalHold(db, {
       actorAccountId: accountId,
       holdId,
@@ -115,7 +131,9 @@ export async function retryJobAction(_prev: ActionState, formData: FormData): Pr
   const jobId = String(formData.get('jobId') ?? '').trim();
   if (jobId.length === 0) return { ok: false, message: 'Missing job id.' };
   const result = await withSession(async ({ db, accountId, email }) => {
-    if (!(await isPlatformAdmin(db, { accountId, email }))) return DENIED;
+    if (!(await hasPlatformPermission(db, { accountId, email }, 'PROCESSING_JOB_RETRY'))) {
+      return DENIED;
+    }
     const retried = await retryFailedJob(db, jobId);
     if (!retried) {
       return {
@@ -141,12 +159,15 @@ export async function purgeExpiredDocumentsAction(
   _formData: FormData,
 ): Promise<ActionState> {
   const result = await withSession(async ({ db, accountId, email }) => {
-    if (!(await isPlatformAdmin(db, { accountId, email }))) return DENIED;
-    const stepUp = await establishStepUp(
+    if (!(await hasPlatformPermission(db, { accountId, email }, 'RETENTION_PURGE'))) return DENIED;
+    const stepUp = await tryEstablishStepUp(
       { accountId, action: 'RETENTION_PURGE', resourceId: 'platform-wide' },
       '/app/admin',
     );
-    if (!stepUp.satisfied) redirect(stepUp.reauthUrl);
+    if (stepUp.kind === 'not_configured') {
+      return { ok: false, message: STEP_UP_NOT_CONFIGURED_MESSAGE } satisfies ActionState;
+    }
+    if (stepUp.kind === 'reauth_required') redirect(stepUp.reauthUrl);
     const purged = await purgeExpiredDocuments(db, {
       actorAccountId: accountId,
       stepUpSatisfied: true,
@@ -182,7 +203,9 @@ export async function retryErasureJobAction(
   const jobId = String(formData.get('jobId') ?? '').trim();
   if (jobId.length === 0) return { ok: false, message: 'Missing job id.' };
   const result = await withSession(async ({ db, accountId, email }) => {
-    if (!(await isPlatformAdmin(db, { accountId, email }))) return DENIED;
+    if (!(await hasPlatformPermission(db, { accountId, email }, 'ERASURE_JOB_RETRY'))) {
+      return DENIED;
+    }
     const retried = await retryErasureJob(db, jobId);
     if (!retried) {
       return {
@@ -215,7 +238,7 @@ export async function reconcileOrphansAction(
 ): Promise<ActionState> {
   const dryRun = String(formData.get('mode') ?? 'dry-run') !== 'mutate';
   const result = await withSession(async ({ db, accountId, email }) => {
-    if (!(await isPlatformAdmin(db, { accountId, email }))) return DENIED;
+    if (!(await hasPlatformPermission(db, { accountId, email }, 'ORPHAN_RECONCILE'))) return DENIED;
     const storage = createStorage(db);
     const buckets: readonly StorageBucket[] = ['CLEAN', 'QUARANTINE'];
     const reports = await Promise.all(
@@ -290,12 +313,17 @@ export async function reviewOrganizationAction(
   const decision = String(formData.get('decision') ?? '') === 'ACTIVE' ? 'ACTIVE' : 'REJECTED';
   if (organizationId.length === 0) return { ok: false, message: 'Missing organization id.' };
   const result = await withSession(async ({ db, accountId, email }) => {
-    if (!(await isPlatformAdmin(db, { accountId, email }))) return DENIED;
-    const stepUp = await establishStepUp(
+    if (!(await hasPlatformPermission(db, { accountId, email }, 'ORGANIZATION_REVIEW'))) {
+      return DENIED;
+    }
+    const stepUp = await tryEstablishStepUp(
       { accountId, action: 'ORGANIZATION_REVIEW', resourceId: organizationId },
       '/app/admin',
     );
-    if (!stepUp.satisfied) redirect(stepUp.reauthUrl);
+    if (stepUp.kind === 'not_configured') {
+      return { ok: false, message: STEP_UP_NOT_CONFIGURED_MESSAGE } satisfies ActionState;
+    }
+    if (stepUp.kind === 'reauth_required') redirect(stepUp.reauthUrl);
     const reviewed = await reviewOrganization(db, {
       reviewerAccountId: accountId,
       organizationId,
@@ -341,11 +369,14 @@ export async function grantPlatformRoleAction(
     const target = await getAccountByEmail(db, targetEmail);
     if (!target)
       return { ok: false, message: 'No account found for that email.' } satisfies ActionState;
-    const stepUp = await establishStepUp(
+    const stepUp = await tryEstablishStepUp(
       { accountId, action: 'PLATFORM_ROLE_GRANT', resourceId: target.id },
       '/app/admin',
     );
-    if (!stepUp.satisfied) redirect(stepUp.reauthUrl);
+    if (stepUp.kind === 'not_configured') {
+      return { ok: false, message: STEP_UP_NOT_CONFIGURED_MESSAGE } satisfies ActionState;
+    }
+    if (stepUp.kind === 'reauth_required') redirect(stepUp.reauthUrl);
     const granted = await grantPlatformRole(db, {
       actor: { accountId, email, bootstrapEmails: bootstrapAdminEmails() },
       targetAccountId: target.id,
@@ -376,11 +407,14 @@ export async function revokePlatformRoleAction(
 
   const result = await withSession(async ({ db, accountId, email }) => {
     if (!(await isPlatformOwnerAccount(db, { accountId, email }))) return DENIED;
-    const stepUp = await establishStepUp(
+    const stepUp = await tryEstablishStepUp(
       { accountId, action: 'PLATFORM_ROLE_REVOKE', resourceId: grantId },
       '/app/admin',
     );
-    if (!stepUp.satisfied) redirect(stepUp.reauthUrl);
+    if (stepUp.kind === 'not_configured') {
+      return { ok: false, message: STEP_UP_NOT_CONFIGURED_MESSAGE } satisfies ActionState;
+    }
+    if (stepUp.kind === 'reauth_required') redirect(stepUp.reauthUrl);
     const revoked = await revokePlatformRole(db, {
       actor: { accountId, email, bootstrapEmails: bootstrapAdminEmails() },
       grantId,
@@ -389,6 +423,62 @@ export async function revokePlatformRoleAction(
     });
     if (!revoked.ok) return { ok: false, message: revoked.error.message } satisfies ActionState;
     return { ok: true, message: 'Role revoked.' } satisfies ActionState;
+  });
+  if (result.ok) revalidatePath('/app/admin');
+  return result;
+}
+
+/**
+ * Invite an email address into the controlled pilot (docs/audits/
+ * post-programme-defect-register.md finding #2). Platform-owner only —
+ * pilot access is as foundational as role management. Idempotent:
+ * re-inviting an email with an existing active invitation is a no-op.
+ */
+export async function createInvitationAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const email = String(formData.get('email') ?? '').trim();
+  const reason = String(formData.get('reason') ?? '').trim();
+  if (email.length === 0) return { ok: false, message: 'Enter an email address.' };
+
+  const result = await withSession(async ({ db, accountId, email: actorEmail }) => {
+    if (!(await isPlatformOwnerAccount(db, { accountId, email: actorEmail }))) return DENIED;
+    const invited = await createInvitation(db, {
+      actorAccountId: accountId,
+      email,
+      ...(reason.length > 0 ? { reason } : {}),
+    });
+    if (!invited.ok) return { ok: false, message: invited.error.message } satisfies ActionState;
+    return { ok: true, message: `Invited ${email}.` } satisfies ActionState;
+  });
+  if (result.ok) revalidatePath('/app/admin');
+  return result;
+}
+
+/**
+ * Revoke a pilot invitation. Platform-owner only. Never deletes the row —
+ * marks it revoked. Only blocks a not-yet-provisioned future sign-in; an
+ * account already provisioned from this invitation is unaffected.
+ */
+export async function revokeInvitationAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const invitationId = String(formData.get('invitationId') ?? '').trim();
+  const reason = String(formData.get('reason') ?? '').trim();
+  if (invitationId.length === 0) return { ok: false, message: 'Missing invitation id.' };
+  if (reason.length === 0) return { ok: false, message: 'A reason is required.' };
+
+  const result = await withSession(async ({ db, accountId, email }) => {
+    if (!(await isPlatformOwnerAccount(db, { accountId, email }))) return DENIED;
+    const revoked = await revokeInvitation(db, {
+      actorAccountId: accountId,
+      invitationId,
+      reason,
+    });
+    if (!revoked.ok) return { ok: false, message: revoked.error.message } satisfies ActionState;
+    return { ok: true, message: 'Invitation revoked.' } satisfies ActionState;
   });
   if (result.ok) revalidatePath('/app/admin');
   return result;
