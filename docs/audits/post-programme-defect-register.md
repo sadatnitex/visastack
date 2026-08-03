@@ -333,14 +333,16 @@ Distinct from §4.1–§4.11 above: these are not pre-existing baseline defects
 re-verified from `main` — they are new defects Codex caught in code *this
 programme itself wrote* to close findings #2/#15/#16/#17, during PR-A's
 mandated per-PR review cycle (branch → implement → full CI → trigger Codex
-review → address every valid finding → re-run affected tests → merge). Four
+review → address every valid finding → re-run affected tests → merge). Five
 review rounds ran against PR #65: round 1 immediately after opening it,
-rounds 2–4 each after an explicit `@codex review` comment requested a fresh
+rounds 2–5 each after an explicit `@codex review` comment requested a fresh
 pass over the latest fix commit (a plain push does not auto-trigger Codex;
 only PR-open, draft→ready, or an explicit mention does) — round 4 caught the
-opposite failure mode of round 3's own fix, exactly the kind of adjacent
-edge case multi-round review exists to catch. Numbered continuing from the
-baseline 36 so every finding in the whole programme has one unambiguous id.
+opposite failure mode of round 3's own fix, and round 5 caught a
+pre-existing concurrency gap in the bootstrap path itself, exactly the kind
+of adjacent edge case multi-round review exists to catch. Numbered
+continuing from the baseline 36 so every finding in the whole programme has
+one unambiguous id.
 
 | # | Sev | File/function | Finding | Correction | Test | Disposition |
 |---|---|---|---|---|---|---|
@@ -355,6 +357,7 @@ baseline 36 so every finding in the whole programme has one unambiguous id.
 | 45 | P1 (round 3) | `apps/web/src/lib/session.ts` (`withSession`) + `packages/services/src/pilot-access.ts` | Finding #42's recovery path didn't close a narrower, more direct race: if an admin revoked an invitation in the instant between `checkPilotAccess` reading it as active and provisioning actually running, provisioning proceeded anyway (the decision was already computed), and the subsequent acceptance update didn't require `revokedAt` to still be null — so the admin's revoke silently failed to stop that admission. | Replaced the single-step `markInvitationAccepted` with a two-phase `claimInvitation` (atomic `UPDATE ... WHERE revoked_at IS NULL AND accepted_at IS NULL`, run BEFORE provisioning) + `attributeInvitation` (fills in the accountId afterward). `PilotAccessDecision` gained `mustClaimInvitation`: true only when the invitation is the sole reason access was granted (no account yet) — `withSession` denies access if the claim fails in that case, but a failed claim on a merely-dangling invitation (account already exists independently, finding #42's path) is harmless. | `pilot-access.test.ts`: "a concurrent revocation wins the race against a provisioning already in flight"; "serializes two concurrent claims of the same invitation — exactly one wins"; "a failed claim on a merely-dangling (non-gating) invitation never blocks access". | **FIXED — PR-A** |
 | 46 | P2 (round 3) | `apps/web/src/app/app/applicant/[id]/documents/page.tsx` + `ai-review.tsx` | Codex's stated security claim — that approving an AI proposal with core-processing consent revoked "permits new profile mutation" — is **factually incorrect**: `approveProposal` calls `editFact` (`profile.ts:165`), which already refuses with `consent_required` when `CORE_PROCESSING` consent is absent, proven by a new hostile test. The real (narrower) issue is UI honesty: the page still rendered a mutable "Approve" control that would just error. | No service-layer change needed (already correct). `AiProposalReview` gained a `canApprove` prop (`documents/page.tsx` passes `data.coreGranted`); when false it shows the value read-only instead of an editable input + Approve button, matching finding #23's established "gate new mutation, never gate existing read access" pattern. Reject (never a profile mutation) stays available regardless. | `packages/services/src/ai.test.ts`: "refuses to approve a proposal (writing to the Master Profile) once CORE_PROCESSING consent has been revoked, even though AI_EXTRACTION consent remains granted" — proves the pre-existing service-layer guarantee before touching any UI. | **PARTIALLY OBSOLETE (security claim disproven by test) — UI honesty gap FIXED — PR-A** |
 | 47 | P1 (round 4) | `apps/web/src/lib/session.ts` (`withSession`) + `packages/services/src/pilot-access.ts` | Finding #45's claim-before-provisioning fix introduced the opposite failure mode: if `provisionAccount` then fails (an identity conflict, or a thrown transient database/audit error) AFTER the claim already committed `acceptedAt`, the invitation is permanently burned with no account ever created — `findActiveInvitation` now excludes it, denying every future sign-in attempt until an admin issues a fresh invitation. | Added `releaseInvitationClaim` (clears `acceptedAt`, guarded on `acceptedAccountId IS NULL` so a genuinely-completed acceptance can never be undone); `withSession` now wraps `provisionAccount` so ANY failure path (thrown exception or a `Result` error) releases the claim before the error propagates, via a `releaseClaimBestEffort` wrapper that swallows/logs a release failure so it can never mask the original provisioning error. | `pilot-access.test.ts`: "releases a claim when provisioning then fails, so the invitation can still be retried" (proves the invitation becomes claimable again); "never releases a claim that was already attributed to a real account" (guard-rail against undoing a genuine acceptance). | **FIXED — PR-A** |
+| 48 | P1 (round 5) | `packages/services/src/platform-roles.ts` (`grantPlatformRole`'s bootstrap check) | A pre-existing gap, not introduced by rounds 2–4: `isBootstrapGrant = totalGrantCount(db) === 0` ran as a plain unlocked read. Two concurrent bootstrap-authorized grants for DIFFERENT target accounts, each requesting a different NON-owner role, could each independently observe an empty table and both get silently upgraded to `PLATFORM_OWNER` — finding #40's partial unique index doesn't help since it's scoped to the SAME `(account, role)` pair, and here the accounts differ. | The entire grant decision (bootstrap check, existing-active check, insert) now runs inside one transaction serialized by a fixed-key `pg_advisory_xact_lock` (mirroring `audit.ts`'s existing `AUDIT_CHAIN_LOCK_KEY` pattern), held for the transaction's duration — the second concurrent caller now correctly sees the first's committed grant before deciding its own role, making the previous try/catch-unique-violation recovery for finding #40 fully redundant (removed; the DB constraint remains as defense-in-depth). | `platform-roles.test.ts`: "serializes bootstrap-owner selection — two concurrent bootstrap grants for DIFFERENT accounts never both become PLATFORM_OWNER" — run 3x to confirm no flakiness; asserts exactly one becomes owner and the other keeps its own originally-requested role. | **FIXED — PR-A** |
 
 ---
 
@@ -367,8 +370,8 @@ baseline 36 so every finding in the whole programme has one unambiguous id.
   a review thread): D-T1 (flaky test timeouts), D-T2 (Turbo abort-on-failure
   masking sibling test summaries), D-RT1 (unhandled `STEP_UP_SIGNING_SECRET`
   exception on `/app/privacy/export`).
-- **11 further findings** (#37–#47, §4.12) surfaced by Codex reviewing PR-A's
-  own new code across four review rounds — all fixed or (finding #46's
+- **12 further findings** (#37–#48, §4.12) surfaced by Codex reviewing PR-A's
+  own new code across five review rounds — all fixed or (finding #46's
   security claim specifically) proven obsolete by a new test, tested, and
   threads resolved before PR-A merged.
 - **0 findings dismissed without code-level proof** — every "still present"

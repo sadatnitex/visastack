@@ -1,8 +1,15 @@
 import { type Result, err, ok } from '@visastack/core';
-import { and, count, desc, eq, isNull } from 'drizzle-orm';
+import { and, count, desc, eq, isNull, sql } from 'drizzle-orm';
 import { appendAuditEvent } from './audit';
-import { type Db, first, isUniqueViolation, required, schema } from './db';
+import { type Db, first, required, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
+
+/**
+ * Namespaced advisory-lock key serializing platform-role grant decisions
+ * (arbitrary, stable constant — distinct from `audit.ts`'s
+ * `AUDIT_CHAIN_LOCK_KEY`).
+ */
+const GRANT_LOCK_KEY = 9_000_001;
 
 /**
  * Platform administration (master directive §7 "PR 5").
@@ -208,68 +215,69 @@ export async function grantPlatformRole(
   );
   if (!target) return err(serviceError('not_found', 'account not found'));
 
-  // The first grant this table ever receives establishes the platform's
-  // owner, regardless of what role the (necessarily still-bootstrapping)
-  // caller requested — otherwise a bootstrap actor could grant themselves
-  // (or anyone) a non-owner role, permanently disable the bootstrap path
-  // (`totalGrantCount(db) !== 0`), and leave no PLATFORM_OWNER able to issue
-  // another grant, locking the installation out of role management
-  // (docs/audits/post-programme-defect-register.md finding #16).
-  const isBootstrapGrant = (await totalGrantCount(db)) === 0;
-  const role = isBootstrapGrant ? 'PLATFORM_OWNER' : input.role;
+  return db.transaction(async (tx) => {
+    // Serialize the whole grant decision — not just the insert — behind a
+    // fixed-key advisory lock, held for the rest of this transaction. Two
+    // concurrent bootstrap-authorized grants for DIFFERENT target accounts
+    // could otherwise each independently observe an empty table below and
+    // both become PLATFORM_OWNER, even if neither caller requested that
+    // role: the partial unique index (finding #40) only guards duplicate
+    // rows for the SAME (account, role) pair, and doesn't help when the
+    // accounts differ (Codex review, PR #65). Serializing here also makes
+    // the ordinary same-(account,role) race fully impossible at the
+    // application level, rather than merely recovered-from after the fact.
+    await tx.execute(sql`select pg_advisory_xact_lock(${GRANT_LOCK_KEY})`);
 
-  // Idempotent: a repeated submission, retry, or two concurrent owners
-  // granting the same (account, role) pair must never create a second
-  // active row — revoking one of two duplicates would report success while
-  // the other silently continues granting the same authority (Codex review,
-  // PR #65). The pre-check alone cannot close the race between two
-  // concurrent calls that both observe "no active grant yet" before either
-  // commits; the database-level partial unique index on `platformRoles`
-  // (schema.ts) is the real guard, so a violation here means a concurrent
-  // caller won the race, and its row is what this call returns.
-  const existingActive = await findActiveGrant(db, input.targetAccountId, role);
-  if (existingActive) return ok(existingActive);
+    // The first grant this table ever receives establishes the platform's
+    // owner, regardless of what role the (necessarily still-bootstrapping)
+    // caller requested — otherwise a bootstrap actor could grant themselves
+    // (or anyone) a non-owner role, permanently disable the bootstrap path
+    // (`totalGrantCount(tx) !== 0`), and leave no PLATFORM_OWNER able to
+    // issue another grant, locking the installation out of role management
+    // (docs/audits/post-programme-defect-register.md finding #16).
+    const isBootstrapGrant = (await totalGrantCount(tx)) === 0;
+    const role = isBootstrapGrant ? 'PLATFORM_OWNER' : input.role;
 
-  try {
-    return await db.transaction(async (tx) => {
-      const grant = required(
-        first(
-          await tx
-            .insert(schema.platformRoles)
-            .values({
-              accountId: input.targetAccountId,
-              workosUserId: target.workosUserId,
-              role,
-              assignedByAccountId: input.actor.accountId,
-              reason: input.reason.trim(),
-            })
-            .returning(),
-        ),
-        'platform role grant',
-      );
-      await appendAuditEvent(tx, {
-        eventType: 'PLATFORM_ROLE_GRANTED',
-        actorAccountId: input.actor.accountId,
-        action: 'MANAGE',
-        method: 'MANUAL',
-        result: 'ALLOWED',
-        resourceType: 'platform_role',
-        resourceId: grant.id,
-        metadata: {
-          targetAccountId: input.targetAccountId,
-          role,
-          ...(isBootstrapGrant && role !== input.role ? { requestedRole: input.role } : {}),
-        },
-      });
-      return ok(grant);
+    // Idempotent: a repeated submission or retry granting the same
+    // (account, role) pair must never create a second active row —
+    // revoking one of two duplicates would report success while the other
+    // silently continues granting the same authority (Codex review, PR
+    // #65). Race-free now that the lock above serializes every concurrent
+    // caller through this exact check.
+    const existingActive = await findActiveGrant(tx, input.targetAccountId, role);
+    if (existingActive) return ok(existingActive);
+
+    const grant = required(
+      first(
+        await tx
+          .insert(schema.platformRoles)
+          .values({
+            accountId: input.targetAccountId,
+            workosUserId: target.workosUserId,
+            role,
+            assignedByAccountId: input.actor.accountId,
+            reason: input.reason.trim(),
+          })
+          .returning(),
+      ),
+      'platform role grant',
+    );
+    await appendAuditEvent(tx, {
+      eventType: 'PLATFORM_ROLE_GRANTED',
+      actorAccountId: input.actor.accountId,
+      action: 'MANAGE',
+      method: 'MANUAL',
+      result: 'ALLOWED',
+      resourceType: 'platform_role',
+      resourceId: grant.id,
+      metadata: {
+        targetAccountId: input.targetAccountId,
+        role,
+        ...(isBootstrapGrant && role !== input.role ? { requestedRole: input.role } : {}),
+      },
     });
-  } catch (error) {
-    if (isUniqueViolation(error)) {
-      const concurrent = await findActiveGrant(db, input.targetAccountId, role);
-      if (concurrent) return ok(concurrent);
-    }
-    throw error;
-  }
+    return ok(grant);
+  });
 }
 
 export interface RevokePlatformRoleInput {

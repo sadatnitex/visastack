@@ -83,6 +83,66 @@ describe('platform roles — bootstrap', () => {
     expect(await isPlatformOwner(db, { ...ownerAuth, bootstrapEmails: [] })).toBe(true);
   });
 
+  it('serializes bootstrap-owner selection — two concurrent bootstrap grants for DIFFERENT accounts never both become PLATFORM_OWNER (Codex review, PR #65)', async () => {
+    const first = await seedAccount(db, 'bootstrap-race-1@example.com');
+    const second = await seedAccount(db, 'bootstrap-race-2@example.com');
+    const firstAuth = {
+      accountId: first.id,
+      email: 'bootstrap-race-1@example.com',
+      bootstrapEmails: ['bootstrap-race-1@example.com', 'bootstrap-race-2@example.com'],
+    };
+    const secondAuth = {
+      accountId: second.id,
+      email: 'bootstrap-race-2@example.com',
+      bootstrapEmails: ['bootstrap-race-1@example.com', 'bootstrap-race-2@example.com'],
+    };
+
+    // Two different bootstrap-authorized actors, targeting DIFFERENT
+    // accounts, each explicitly requesting a non-owner role. Against an
+    // empty table, both could independently observe "zero grants exist"
+    // and both get silently upgraded to PLATFORM_OWNER — the partial
+    // unique index from finding #40 does not help here since the target
+    // account IDs differ.
+    const [a, b] = await Promise.all([
+      grantPlatformRole(db, {
+        actor: firstAuth,
+        targetAccountId: first.id,
+        role: 'SUPPORT_ADMIN',
+        reason: 'race A',
+        stepUpSatisfied: true,
+      }),
+      grantPlatformRole(db, {
+        actor: secondAuth,
+        targetAccountId: second.id,
+        role: 'COMPLIANCE_ADMIN',
+        reason: 'race B',
+        stepUpSatisfied: true,
+      }),
+    ]);
+    expect(isOk(a)).toBe(true);
+    expect(isOk(b)).toBe(true);
+    if (!isOk(a) || !isOk(b)) return;
+
+    // Which of the two wins the race to be "the" bootstrap grant is
+    // legitimately non-deterministic — but exactly one must become
+    // PLATFORM_OWNER, and the other must be honored with its own
+    // originally-requested (non-owner) role, never silently forced.
+    const results = [
+      { requested: 'SUPPORT_ADMIN', granted: a.value.role },
+      { requested: 'COMPLIANCE_ADMIN', granted: b.value.role },
+    ];
+    const owners = results.filter((r) => r.granted === 'PLATFORM_OWNER');
+    const nonOwners = results.filter((r) => r.granted !== 'PLATFORM_OWNER');
+    expect(owners).toHaveLength(1);
+    expect(nonOwners).toHaveLength(1);
+    expect(nonOwners[0]?.granted).toBe(nonOwners[0]?.requested);
+
+    const activeOwners = (await listActivePlatformRoles(db)).filter(
+      (r) => r.role === 'PLATFORM_OWNER',
+    );
+    expect(activeOwners).toHaveLength(1);
+  });
+
   it('stops applying the moment a single real grant exists, even for the bootstrap email itself', async () => {
     const owner = await seedAccount(db, 'owner@example.com');
     const other = await seedAccount(db, 'other@example.com');
