@@ -1,7 +1,7 @@
 import { type Result, err, ok } from '@visastack/core';
 import { and, count, desc, eq, inArray, isNull } from 'drizzle-orm';
 import { appendAuditEvent } from './audit';
-import { type Db, first, isUniqueViolation, required, schema } from './db';
+import { type Db, first, isUniqueViolation, lockOnEmail, required, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
 import { recordProductEvent } from './product-events';
 
@@ -84,13 +84,24 @@ export async function getAccountByWorkosUserId(
   return id ? findByWorkosUserId(db, id) : undefined;
 }
 
-/** Create a fresh account (bound to `workosUserId` when present), audited. */
+/**
+ * Create a fresh account (bound to `workosUserId` when present), audited.
+ *
+ * Takes the same per-email advisory lock `createInvitation` takes before
+ * checking for an existing account (Codex review, PR #65) — this is the
+ * other side of that race: without both operations serializing on the same
+ * lock, a first-time sign-in's account creation here could commit in the
+ * exact window between an admin's concurrent `createInvitation` call
+ * checking "no account yet" and that call's own commit, leaving a
+ * replayable invitation for an email that already has an account.
+ */
 async function createAccount(
   db: Db,
   values: { email: string; workosUserId: string | null; emailVerifiedAt: Date | null },
 ): Promise<Result<Account, ServiceError>> {
   try {
     return await db.transaction(async (tx) => {
+      await lockOnEmail(tx, values.email);
       const account = required(
         first(await tx.insert(schema.accounts).values(values).returning()),
         'account',

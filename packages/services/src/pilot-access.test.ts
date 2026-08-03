@@ -624,42 +624,65 @@ describe('invitation lifecycle', () => {
     expect(rows).toHaveLength(0);
   });
 
-  it('never leaves a replayable active invitation if an account for the same email is committed while its transaction is in flight (Codex review, PR #65)', async () => {
+  it('never leaves a permanently-unrecoverable invitation when creation races account provisioning for the same email (Codex review, PR #65, rounds 7-8)', async () => {
     const inviter = await provisionAccount(db, { email: 'inviter-race-provision@example.com' });
     if (!isOk(inviter)) throw new Error('provision');
     const email = 'race-invite-vs-provision@example.com';
 
-    // Races createInvitation's transaction against the lightest-weight
-    // possible concurrent account insert for the same email — a raw,
-    // single-statement insert (not the full multi-step `provisionAccount`,
-    // which is slow enough to reliably lose this race in practice) — to
-    // land as close as possible to the exact narrow window Codex flagged:
-    // the account committing strictly between createInvitation's own
-    // insert and its in-transaction recheck, immediately before commit.
-    // The pre-check alone cannot close this (Codex review, PR #65).
-    const [invited] = await Promise.all([
+    // Races createInvitation against the REAL provisionAccount (not a raw
+    // insert) — both now take the same per-email advisory lock
+    // (`lockOnEmail`), so a plain read positioned "later" in a transaction
+    // can never see a concurrent transaction's not-yet-committed write —
+    // nothing short of a shared lock closes this cross-table race (Codex
+    // review, PR #65, round 8 — round 7's in-transaction recheck alone
+    // wasn't enough). True mutual exclusion makes exactly two outcomes
+    // possible, never a third "broken" one:
+    //
+    // Caveat (docs/audits/post-programme-defect-register.md D-T3): PGlite
+    // itself fully serializes concurrent transactions regardless of
+    // advisory-lock contention, so this test's PASS does not by itself
+    // distinguish "the lock enforces this" from "PGlite happened to run
+    // one transaction to completion before starting the other" — a
+    // regression that silently dropped `lockOnEmail` from `createAccount`
+    // would NOT reliably fail this test in this harness. The outcome
+    // asserted below (never a third, unrecoverable state) is still the
+    // right contract to test and holds unconditionally; the *mechanism*
+    // claim rests on code review of `db.ts`'s `lockOnEmail` and Postgres's
+    // documented advisory-lock semantics, not on this test.
+    const [invited, provisioned] = await Promise.all([
       createInvitation(db, { actorAccountId: inviter.value.id, email }),
-      db.insert(schema.accounts).values({ email, workosUserId: 'workos-race-invite-vs-provision' }),
+      provisionAccount(db, { email, workosUserId: 'workos-race-invite-vs-provision' }),
     ]);
+    expect(isOk(provisioned)).toBe(true);
+    if (!isOk(provisioned)) return;
 
-    // Whichever way the race resolved — the pre-check caught it, or the
-    // in-transaction recheck auto-revoked the just-inserted row — the
-    // invariant must hold: no row for this email is left both un-revoked
-    // and un-accepted, because this invitation was never actually used to
-    // admit the account that now exists for this address. A future
-    // identity controlling this email must never be able to redeem it.
-    const rows = await db
-      .select()
-      .from(schema.pilotInvitations)
-      .where(eq(schema.pilotInvitations.email, email));
-    const stillActive = rows.filter((r) => r.revokedAt === null && r.acceptedAt === null);
-    expect(stillActive).toHaveLength(0);
     if (isOk(invited)) {
-      // If createInvitation's OWN call somehow reported success, that row
-      // must not be one of the still-active ones checked above — this
-      // branch only exists to make the assertion's intent explicit, not
-      // because success is expected here.
-      expect(stillActive.map((r) => r.id)).not.toContain(invited.value.id);
+      // createInvitation won the lock entirely before provisioning even
+      // began — a legitimate dangling invitation, identical in shape to
+      // the crash-before-consumption case findings #42/#45 already
+      // recover from, NOT the broken state Codex flagged (which required
+      // the account to commit WHILE createInvitation's own transaction
+      // was still in flight — now impossible, since provisioning cannot
+      // even acquire the lock until createInvitation's transaction ends).
+      // Prove it's genuinely recoverable, not silently lost: the very next
+      // checkPilotAccess call for this now-provisioned identity must find
+      // and surface it for consumption.
+      const recovery = await checkPilotAccess(db, {
+        email,
+        workosUserId: 'workos-race-invite-vs-provision',
+        allowlistEmails: [],
+        bypass: false,
+      });
+      expect(recovery.invitationId).toBe(invited.value.id);
+    } else {
+      // Provisioning won the lock first (or createInvitation's authoritative
+      // in-lock recheck otherwise saw the account) — createInvitation
+      // correctly refused, leaving no row active at all.
+      const rows = await db
+        .select()
+        .from(schema.pilotInvitations)
+        .where(eq(schema.pilotInvitations.email, email));
+      expect(rows.filter((r) => r.revokedAt === null && r.acceptedAt === null)).toHaveLength(0);
     }
   });
 

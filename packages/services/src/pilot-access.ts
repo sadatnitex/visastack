@@ -1,7 +1,7 @@
 import { type Result, err, ok } from '@visastack/core';
 import { and, eq, isNull } from 'drizzle-orm';
 import { appendAuditEvent } from './audit';
-import { type Db, first, isUniqueViolation, required, schema } from './db';
+import { type Db, first, lockOnEmail, required, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
 
 /**
@@ -239,28 +239,27 @@ export interface CreateInvitationInput {
  * re-inviting an email that already has an active invitation returns the
  * existing row rather than creating a duplicate (a "replayed invitation"
  * must never multiply standing or create ambiguity about which row is
- * authoritative).
+ * authoritative). Refuses an email that already has a provisioned account
+ * (Codex review, PR #65): that sign-in never consumes a fresh invitation (it
+ * takes the `accountAlreadyExists` fast path in `checkPilotAccess`), so a
+ * re-invite would create a standing, never-consumed row — a latent
+ * credential able to admit a different identity if this account is later
+ * deleted.
  *
- * The pre-insert check alone cannot close a concurrent-request race (two
- * calls for the same email both observing "no active invitation yet"
- * before either commits) — the database-level partial unique index on
- * `pilot_invitations` (schema.ts) is the real guard; a violation here means
- * a concurrent caller won the race, and its row is what this call returns
- * (Codex review, PR #65).
- *
- * Refuses an email that already has a provisioned account (Codex review,
- * PR #65): that sign-in never consumes a fresh invitation (it takes the
- * `accountAlreadyExists` fast path in `checkPilotAccess`), so a re-invite
- * would create a standing, never-consumed row — a latent credential able to
- * admit a different identity if this account is later deleted.
- *
- * The pre-check above cannot close the race where this exact email's
- * first-ever sign-in provisions its account concurrently, between that
- * check and this transaction's own commit (Codex review, PR #65): rechecks
- * again, inside this transaction, immediately before returning, and
- * auto-revokes the just-inserted row rather than let it stand as a
- * replayable credential for a since-provisioned account it was never meant
- * to admit.
+ * The checks above run once outside any transaction as a fast path — the
+ * common case (an obviously already-provisioned or already-invited email)
+ * never pays for a lock. They are re-run, authoritatively, inside
+ * `lockOnEmail`'s critical section below, which is what actually closes
+ * both the same-email concurrent-invitation race (finding #38) and the
+ * invitation-vs-account-provisioning race (Codex review, PR #65, rounds 7
+ * and 8): earlier attempts at the latter used a plain re-check positioned
+ * ever-later in the transaction, but a read — no matter how late — can
+ * never see a concurrent transaction's not-yet-committed write. Only a lock
+ * BOTH sides acquire (`provisionAccount`'s first-time account creation
+ * takes the same one) closes it. Since both races are now fully serialized
+ * before any insert happens, the previous try/catch unique-violation
+ * recovery is unreachable in ordinary operation and has been removed; the
+ * database-level partial unique index remains as defense-in-depth.
  */
 export async function createInvitation(
   db: Db,
@@ -276,53 +275,41 @@ export async function createInvitation(
   const existingActive = await findActiveInvitation(db, email);
   if (existingActive) return ok(existingActive);
 
-  try {
-    return await db.transaction(async (tx) => {
-      const invitation = required(
-        first(
-          await tx
-            .insert(schema.pilotInvitations)
-            .values({
-              email,
-              invitedByAccountId: input.actorAccountId,
-              reason: input.reason?.trim() ? input.reason.trim() : null,
-            })
-            .returning(),
-        ),
-        'pilot invitation',
+  return db.transaction(async (tx) => {
+    await lockOnEmail(tx, email);
+
+    if (await accountAlreadyExists(tx, email, null)) {
+      return err(
+        serviceError('invalid', 'this email already has an account — no invitation needed'),
       );
-
-      if (await accountAlreadyExists(tx, email, null)) {
-        await tx
-          .update(schema.pilotInvitations)
-          .set({
-            revokedAt: new Date(),
-            revokedReason: 'superseded by a concurrently provisioned account',
-          })
-          .where(eq(schema.pilotInvitations.id, invitation.id));
-        return err(
-          serviceError('invalid', 'this email already has an account — no invitation needed'),
-        );
-      }
-
-      await appendAuditEvent(tx, {
-        eventType: 'PILOT_INVITATION_CREATED',
-        actorAccountId: input.actorAccountId,
-        method: 'MANUAL',
-        result: 'ALLOWED',
-        resourceType: 'pilot_invitation',
-        resourceId: invitation.id,
-        metadata: { email },
-      });
-      return ok(invitation);
-    });
-  } catch (error) {
-    if (isUniqueViolation(error)) {
-      const concurrent = await findActiveInvitation(db, email);
-      if (concurrent) return ok(concurrent);
     }
-    throw error;
-  }
+    const raced = await findActiveInvitation(tx, email);
+    if (raced) return ok(raced);
+
+    const invitation = required(
+      first(
+        await tx
+          .insert(schema.pilotInvitations)
+          .values({
+            email,
+            invitedByAccountId: input.actorAccountId,
+            reason: input.reason?.trim() ? input.reason.trim() : null,
+          })
+          .returning(),
+      ),
+      'pilot invitation',
+    );
+    await appendAuditEvent(tx, {
+      eventType: 'PILOT_INVITATION_CREATED',
+      actorAccountId: input.actorAccountId,
+      method: 'MANUAL',
+      result: 'ALLOWED',
+      resourceType: 'pilot_invitation',
+      resourceId: invitation.id,
+      metadata: { email },
+    });
+    return ok(invitation);
+  });
 }
 
 export interface RevokeInvitationInput {

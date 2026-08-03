@@ -111,6 +111,50 @@ so the Phase 6 CI PR considers `turbo run test --continue` (or per-package
 `fail-fast: false`) so a flake in one package never hides a genuine
 regression in another.
 
+**D-T3 — PGlite fully serializes concurrent transactions regardless of
+advisory-lock contention, limiting what a `Promise.all`-based "race" test
+can actually prove in this suite.** Discovered while verifying (per this
+programme's own non-vacuousness discipline: disable the fix, confirm the
+regression test fails; restore, confirm it passes) round 8's fix for finding
+#52 (PR-A, `packages/services/src/db.ts`'s `lockOnEmail` /
+`pg_advisory_xact_lock`). A deterministic test that held one transaction's
+lock for a fixed delay and asserted a second transaction genuinely blocked
+on it passed identically whether or not the second transaction's code
+actually took the lock. A temporary diagnostic (raced two transactions
+against two *unrelated*, non-contending advisory-lock keys — no shared
+resource at all) still showed full serialization: PGlite runs one
+transaction's statements to completion before starting the next one's,
+independent of any lock. This is a characteristic of PGlite's single-process,
+in-process WASM execution model, not a bug in the lock code or in test logic.
+**Implication:** a `Promise.all([opA(db), opB(db)])`-shaped test in this
+codebase's suite generally proves "whichever operation's transaction is
+dispatched first completes fully before the next one starts" — it does
+**not** prove genuine interleaved, lock-arbitrated concurrency the way the
+same code would behave against real concurrent Postgres connections (Neon
+serverless in production). The underlying fixes this programme has shipped —
+advisory locks (`AUDIT_CHAIN_LOCK_KEY`, `GRANT_LOCK_KEY`,
+`EMAIL_LOCK_NAMESPACE`), partial unique indexes, `FOR UPDATE` row locks —
+remain correct and necessary for production's real concurrent-connection
+Postgres; only this test harness's power to empirically *prove* the
+race-closure via true concurrent interleaving is limited. Where a test
+still races the two real, full operations against each other (rather than
+using artificial delays), its PASS remains meaningful evidence for the
+**outcome contract** (no unrecoverable/duplicated state ever results,
+whichever operation happens to run first) — just not, by itself, proof that
+a lock specifically is what enforces it in every environment. **Disposition:**
+not a defect in application code; documented so a future contributor doesn't
+mistake a passing PGlite-based "race" test for proof of lock participation,
+and doesn't spend time chasing a "flaky-looking" pass/fail pattern that is
+actually this fully-serial execution model. The one test in
+`pilot-access.test.ts` that relied solely on this false signal (a
+fixed-delay "genuinely participates in the lock" test) was removed rather
+than kept as misleading evidence; the surviving race test against the real
+operations plus direct code review of `lockOnEmail`'s Postgres semantics
+carry the correctness claim instead. No action needed for the Phase 6 CI PR
+beyond awareness — a real cross-connection concurrency proof would require
+pointing tests at a real Postgres instance, which is out of scope for the
+zero-paid-stack constraint this programme operates under.
+
 ### 1.3 Dependency audit detail
 
 `pnpm audit --dev --audit-level high` (soft gate in CI, `|| true`) reports:
@@ -333,18 +377,23 @@ Distinct from §4.1–§4.11 above: these are not pre-existing baseline defects
 re-verified from `main` — they are new defects Codex caught in code *this
 programme itself wrote* to close findings #2/#15/#16/#17, during PR-A's
 mandated per-PR review cycle (branch → implement → full CI → trigger Codex
-review → address every valid finding → re-run affected tests → merge). Seven
+review → address every valid finding → re-run affected tests → merge). Eight
 review rounds ran against PR #65: round 1 immediately after opening it,
-rounds 2–7 each after an explicit `@codex review` comment requested a fresh
+rounds 2–8 each after an explicit `@codex review` comment requested a fresh
 pass over the latest fix commit (a plain push does not auto-trigger Codex;
 only PR-open, draft→ready, or an explicit mention does) — round 4 caught the
 opposite failure mode of round 3's own fix, round 5 caught a pre-existing
 concurrency gap in the bootstrap path itself, round 6 caught that round 5's
 own fix left a stale-authorization gap (sharply enough that it also named
 exactly why the round-5 regression test's own expectation was wrong, §4.12
-note on finding #49), and round 7 caught one more instance of the
+note on finding #49), round 7 caught one more instance of the
 invitation-vs-provisioning race class (findings #37/#42/#45) plus an
-unrelated pre-existing correctness bug in mission-decision authorization.
+unrelated pre-existing correctness bug in mission-decision authorization,
+and round 8 caught that round 7's own fix — an in-transaction recheck
+positioned right before commit — only narrowed rather than closed that same
+race class, since a plain read can never see a concurrent transaction's
+not-yet-committed write (see finding #52; see also D-T3, §1.2, for a
+test-infrastructure limitation discovered while verifying that fix).
 Numbered continuing from the baseline 36 so every finding in the whole
 programme has one unambiguous id.
 
@@ -365,6 +414,7 @@ programme has one unambiguous id.
 | 49 | P1 (round 6) | `packages/services/src/platform-roles.ts` (`grantPlatformRole`) | Finding #48's fix moved the bootstrap-count check inside the lock but left the ORIGINAL `isPlatformOwner` authorization check before it, using plain `db`. Two allowlisted bootstrap actors could both pass that pre-lock check while the table was still empty; the first to acquire the lock became the real owner, but the second — never a real owner, and no longer bootstrap-eligible the instant the first's grant committed — proceeded anyway on its stale pre-lock authorization and successfully granted its own requested role. Codex additionally flagged that finding #48's own new regression test asserted this incorrect outcome as correct. | `isPlatformOwner` is now re-checked INSIDE the lock (against `tx`, not the outer `db`) before the bootstrap-count decision — a caller whose authority only ever came from the now-closed bootstrap window is rejected (`forbidden`) rather than silently downgraded to its own requested role. Corrected the finding-#48 test's expectations to match: exactly one concurrent call succeeds (forced to `PLATFORM_OWNER`), the other is rejected outright, and only one grant row exists afterward. | `platform-roles.test.ts`: rewritten "serializes bootstrap-owner selection..." test — run 5x to confirm no flakiness; asserts exactly one winner (forced `PLATFORM_OWNER`), one `forbidden` loser, and exactly one active grant row total. | **FIXED — PR-A** |
 | 50 | P1 (round 7) | `packages/services/src/pilot-access.ts` (`createInvitation`) | One more instance of the invitation-vs-provisioning race class (findings #37/#42/#45): if an email's first-ever sign-in (independent of any invitation, e.g. via the ops allowlist) provisions its account WHILE `createInvitation`'s own transaction for that same email is in flight, the pre-check (finding #41) — which ran BEFORE that transaction opened — cannot see the concurrently-committing account, so a pending, replayable invitation gets created for an email that already has one. If that account is later deleted before another sign-in's recovery path (findings #42/#45) cleans the row up, a different identity can redeem it. | `createInvitation`'s transaction now rechecks `accountAlreadyExists` (against `tx`) immediately before its own commit; if an account now exists, the just-inserted row is immediately auto-revoked (`revoked_reason: 'superseded by a concurrently provisioned account'`) and the call returns the same error as the sequential case, rather than let the row stand. | `pilot-access.test.ts`: "never leaves a replayable active invitation if an account for the same email is committed while its transaction is in flight" — races against the lightest-weight possible concurrent insert (not the full multi-step `provisionAccount`, which proved too slow to reliably land in the narrow window) to actually exercise the race; verified as a genuine (non-vacuous) regression test by confirming it fails reliably (3/3) with the fix disabled and passes reliably (5/5) with it restored. | **FIXED — PR-A** |
 | 51 | P2 (round 7) | `packages/services/src/agency.ts` (`listMissionDecisions`) | Unrelated to the invitation/role-grant races above — a plain correctness bug: when an account is assigned to the same mission through MULTIPLE organizations (the assignments table's uniqueness key includes `organizationId`, so this is a valid, expected state), an unordered `.limit(1)` could arbitrarily select an assignment row whose organization's membership or grant has since lapsed, even though a DIFFERENT matching assignment has an active membership and a covering `MANAGE` grant — incorrectly denying access depending only on which row Postgres happened to return. | Now fetches every matching assignment row and authorizes as soon as ANY one satisfies both the active-membership and covering-grant checks, instead of picking one arbitrary row. | `agency.test.ts`: "authorizes via ANY matching assignment across multiple organizations, not an arbitrary single row" — deactivates the first organization's membership while a second organization's assignment for the same account/mission remains fully valid, and asserts access still succeeds. | **FIXED — PR-A** |
+| 52 | P1 (round 8) | `packages/services/src/pilot-access.ts` (`createInvitation`) + `accounts.ts` (`createAccount`) | Round 7's fix (finding #50) added a recheck of `accountAlreadyExists` inside `createInvitation`'s own transaction, positioned right before its commit — but a plain `SELECT`, no matter how late it runs, can never see a *different*, concurrently-open transaction's not-yet-committed insert. Two transactions can each run their own "recheck sees nothing yet" the instant before the other commits, so round 7 only narrowed the race's window; it did not close it. | Added a genuine shared mutual-exclusion primitive: `lockOnEmail(tx, email)` (`db.ts`) takes a transaction-scoped Postgres advisory lock keyed on `pg_advisory_xact_lock(EMAIL_LOCK_NAMESPACE, hashtext(email))`. `createInvitation` now acquires it as the first statement inside its transaction, before any check; `createAccount` acquires the identical lock as the first statement inside its own transaction — the two operations now cannot both be mid-flight for the same email at once, closing the race rather than narrowing it. The now-unreachable `isUniqueViolation` try/catch recovery in `createInvitation` was removed (mirroring the same cleanup finding #49 made in `grantPlatformRole`); the database-level partial unique index (finding #38) remains as defense-in-depth. | `pilot-access.test.ts`: "never leaves a permanently-unrecoverable invitation when creation races account provisioning for the same email (rounds 7-8)" — races the REAL `createInvitation` against the REAL `provisionAccount`, and correctly asserts one of exactly two legitimate outcomes (a recoverable dangling invitation, or a clean refusal), never a third broken state. See D-T3 (§1.2) for why a separate, deterministic "proves the lock blocks" test was written, found to be misleading, and removed rather than kept. | **FIXED — PR-A** |
 
 ---
 
@@ -373,18 +423,26 @@ programme has one unambiguous id.
 - **36/36** GitHub review findings re-verified against current `main`.
 - **1 FIXED** (finding #1), **1 PARTIALLY FIXED** (finding #3 — one of two
   functions repaired), **34 STILL PRESENT**.
-- **3 additional defects** found independently during this baseline (not from
-  a review thread): D-T1 (flaky test timeouts), D-T2 (Turbo abort-on-failure
-  masking sibling test summaries), D-RT1 (unhandled `STEP_UP_SIGNING_SECRET`
-  exception on `/app/privacy/export`).
-- **15 further findings** (#37–#51, §4.12) surfaced by Codex reviewing PR-A's
-  own new code across seven review rounds — all fixed or (finding #46's
+- **4 additional defects** found independently during this baseline and
+  during PR-A's own work (not from a review thread): D-T1 (flaky test
+  timeouts), D-T2 (Turbo abort-on-failure masking sibling test summaries),
+  D-RT1 (unhandled `STEP_UP_SIGNING_SECRET` exception on
+  `/app/privacy/export`), D-T3 (PGlite fully serializes concurrent
+  transactions regardless of advisory-lock contention — discovered while
+  verifying finding #52's fix; limits what this suite's race-style tests can
+  empirically prove, though the underlying lock/index/row-lock fixes remain
+  correct for production Postgres).
+- **16 further findings** (#37–#52, §4.12) surfaced by Codex reviewing PR-A's
+  own new code across eight review rounds — all fixed or (finding #46's
   security claim specifically) proven obsolete by a new test, tested, and
   threads resolved before PR-A merged. Finding #49 additionally caught that
   finding #48's own regression test had encoded an incorrect expectation —
   corrected as part of the same fix, a concrete instance of the programme's
   "never resolve a thread without fixing it or proving it's obsolete"
-  discipline being tested by the reviewer, not just self-applied.
+  discipline being tested by the reviewer, not just self-applied. Finding #52
+  is the same discipline turned on the programme's own round-7 fix: what
+  looked closed after round 7 was in fact only narrowed, caught by the
+  reviewer rather than self-discovered.
 - **0 findings dismissed without code-level proof** — every "still present"
   verdict above cites the exact current file/line and quotes the operative
   code; the one "fixed" verdict cites the specific later commit/PR that
