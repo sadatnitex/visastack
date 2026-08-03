@@ -309,6 +309,27 @@ every `main` merge deployment for `#58`–`#64` reached `READY` normally.
 before assuming a code regression) rather than re-investigated from scratch
 each time.
 
+**Reconfirmed repeatedly on PR #65** (this programme's PR-A, merged as
+`45043dd`): the identical signature —
+`errorCode: "BUILD_FAILED"`, `errorMessage: "Resource provisioning failed"`,
+zero build-log lines, `buildingAt`→`ready` span ~1–2 seconds — recurred on
+essentially every one of PR-A's ten commits across its nine Codex review
+rounds (first directly confirmed via `get_deployment_build_logs` on commit
+`a9c85df55cfcfadc9b648fe1379309b2be6e024e`, `dpl_8VYgttz39guZAF3F7GfWsvdoQni3`;
+every subsequent occurrence matched that exact signature closely enough,
+including timing, that it was triaged by pattern-match against the confirmed
+instance rather than independently re-fetched from Vercel each time —
+consistent with the triage rule above, and never once correlated with an
+actual code regression: PR-A's own GitHub Actions "Lint · Build · Typecheck ·
+Test" run was green on every commit where this preview failure also
+appeared). **Disposition unchanged:** no code change required; the pattern is
+now established across two full PRs' worth of commits (#64 and #65) and
+should be triaged the same way — by pattern-match, not by re-investigation —
+for the remainder of this program's PRs unless the *signature itself*
+changes (a different error code, non-trivial build-log output, or a failure
+that also shows up on the GitHub Actions "Lint · Build · Typecheck · Test"
+check).
+
 ---
 
 ## 4. Defect register
