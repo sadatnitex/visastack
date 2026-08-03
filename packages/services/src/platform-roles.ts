@@ -1,7 +1,7 @@
 import { type Result, err, ok } from '@visastack/core';
 import { and, count, desc, eq, isNull } from 'drizzle-orm';
 import { appendAuditEvent } from './audit';
-import { type Db, first, required, schema } from './db';
+import { type Db, first, isUniqueViolation, required, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
 
 /**
@@ -150,6 +150,27 @@ export async function canPerformPlatformAction(
   return (active?.n ?? 0) > 0;
 }
 
+/** The account's current active grant of exactly this role, if any. */
+async function findActiveGrant(
+  db: Db,
+  accountId: string,
+  role: PlatformRole,
+): Promise<PlatformRoleGrant | undefined> {
+  return first(
+    await db
+      .select()
+      .from(schema.platformRoles)
+      .where(
+        and(
+          eq(schema.platformRoles.accountId, accountId),
+          eq(schema.platformRoles.role, role),
+          isNull(schema.platformRoles.revokedAt),
+        ),
+      )
+      .limit(1),
+  );
+}
+
 export interface GrantPlatformRoleInput {
   readonly actor: PlatformAuthInput;
   readonly targetAccountId: string;
@@ -197,38 +218,58 @@ export async function grantPlatformRole(
   const isBootstrapGrant = (await totalGrantCount(db)) === 0;
   const role = isBootstrapGrant ? 'PLATFORM_OWNER' : input.role;
 
-  return db.transaction(async (tx) => {
-    const grant = required(
-      first(
-        await tx
-          .insert(schema.platformRoles)
-          .values({
-            accountId: input.targetAccountId,
-            workosUserId: target.workosUserId,
-            role,
-            assignedByAccountId: input.actor.accountId,
-            reason: input.reason.trim(),
-          })
-          .returning(),
-      ),
-      'platform role grant',
-    );
-    await appendAuditEvent(tx, {
-      eventType: 'PLATFORM_ROLE_GRANTED',
-      actorAccountId: input.actor.accountId,
-      action: 'MANAGE',
-      method: 'MANUAL',
-      result: 'ALLOWED',
-      resourceType: 'platform_role',
-      resourceId: grant.id,
-      metadata: {
-        targetAccountId: input.targetAccountId,
-        role,
-        ...(isBootstrapGrant && role !== input.role ? { requestedRole: input.role } : {}),
-      },
+  // Idempotent: a repeated submission, retry, or two concurrent owners
+  // granting the same (account, role) pair must never create a second
+  // active row — revoking one of two duplicates would report success while
+  // the other silently continues granting the same authority (Codex review,
+  // PR #65). The pre-check alone cannot close the race between two
+  // concurrent calls that both observe "no active grant yet" before either
+  // commits; the database-level partial unique index on `platformRoles`
+  // (schema.ts) is the real guard, so a violation here means a concurrent
+  // caller won the race, and its row is what this call returns.
+  const existingActive = await findActiveGrant(db, input.targetAccountId, role);
+  if (existingActive) return ok(existingActive);
+
+  try {
+    return await db.transaction(async (tx) => {
+      const grant = required(
+        first(
+          await tx
+            .insert(schema.platformRoles)
+            .values({
+              accountId: input.targetAccountId,
+              workosUserId: target.workosUserId,
+              role,
+              assignedByAccountId: input.actor.accountId,
+              reason: input.reason.trim(),
+            })
+            .returning(),
+        ),
+        'platform role grant',
+      );
+      await appendAuditEvent(tx, {
+        eventType: 'PLATFORM_ROLE_GRANTED',
+        actorAccountId: input.actor.accountId,
+        action: 'MANAGE',
+        method: 'MANUAL',
+        result: 'ALLOWED',
+        resourceType: 'platform_role',
+        resourceId: grant.id,
+        metadata: {
+          targetAccountId: input.targetAccountId,
+          role,
+          ...(isBootstrapGrant && role !== input.role ? { requestedRole: input.role } : {}),
+        },
+      });
+      return ok(grant);
     });
-    return ok(grant);
-  });
+  } catch (error) {
+    if (isUniqueViolation(error)) {
+      const concurrent = await findActiveGrant(db, input.targetAccountId, role);
+      if (concurrent) return ok(concurrent);
+    }
+    throw error;
+  }
 }
 
 export interface RevokePlatformRoleInput {

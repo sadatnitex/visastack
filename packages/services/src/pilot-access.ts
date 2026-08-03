@@ -124,7 +124,16 @@ export async function checkPilotAccess(
   const workosUserId = input.workosUserId?.trim() || null;
 
   if (await accountAlreadyExists(db, email, workosUserId)) {
-    return { allowed: true, invitationId: null };
+    // Recovery path, not the common case (Codex review, PR #65): a pending
+    // invitation can still exist for an already-provisioned account only if
+    // an earlier sign-in provisioned the account but crashed/failed before
+    // `markInvitationAccepted` ran — they are two separate statements, not
+    // one transaction. Consuming it here means such a row can never survive
+    // to be replayed after this account is later deleted. This is the ONLY
+    // way such a row can coexist with an existing account, now that
+    // `createInvitation` refuses to invite an already-admitted email.
+    const dangling = await findActiveInvitation(db, email);
+    return { allowed: true, invitationId: dangling?.id ?? null };
   }
   if (input.allowlistEmails.includes(email)) {
     return { allowed: true, invitationId: null };
@@ -177,6 +186,12 @@ export interface CreateInvitationInput {
  * `pilot_invitations` (schema.ts) is the real guard; a violation here means
  * a concurrent caller won the race, and its row is what this call returns
  * (Codex review, PR #65).
+ *
+ * Refuses an email that already has a provisioned account (Codex review,
+ * PR #65): that sign-in never consumes a fresh invitation (it takes the
+ * `accountAlreadyExists` fast path in `checkPilotAccess`), so a re-invite
+ * would create a standing, never-consumed row — a latent credential able to
+ * admit a different identity if this account is later deleted.
  */
 export async function createInvitation(
   db: Db,
@@ -185,6 +200,9 @@ export async function createInvitation(
   const email = normalizeEmail(input.email);
   if (email.length === 0 || !email.includes('@')) {
     return err(serviceError('invalid', 'a valid email is required'));
+  }
+  if (await accountAlreadyExists(db, email, null)) {
+    return err(serviceError('invalid', 'this email already has an account — no invitation needed'));
   }
   const existingActive = await findActiveInvitation(db, email);
   if (existingActive) return ok(existingActive);

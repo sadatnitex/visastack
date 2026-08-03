@@ -327,6 +327,31 @@ Mission/snapshot/UX · **PR-E** Readiness/provider validation/disclosure ·
 
 ---
 
+### 4.12 PR #65 (PR-A) — Codex review findings on this programme's OWN new code
+
+Distinct from §4.1–§4.11 above: these are not pre-existing baseline defects
+re-verified from `main` — they are new defects Codex caught in code *this
+programme itself wrote* to close findings #2/#15/#16/#17, during PR-A's
+mandated per-PR review cycle (branch → implement → full CI → trigger Codex
+review → address every valid finding → re-run affected tests → merge). Two
+review rounds ran against PR #65: round 1 immediately after opening it,
+round 2 after an explicit `@codex review` comment requested a fresh pass over
+the fix commit (a plain push does not auto-trigger Codex; only PR-open,
+draft→ready, or an explicit mention does). Numbered continuing from the
+baseline 36 so every finding in the whole programme has one unambiguous id.
+
+| # | Sev | File/function | Finding | Correction | Test | Disposition |
+|---|---|---|---|---|---|---|
+| 37 | P1 (round 1) | `packages/services/src/pilot-access.ts` (`findActiveInvitation`) | Filtered only on `revokedAt`, not `acceptedAt` — a consumed invitation stayed matchable forever, replayable by a different identity once the admitted account was later deleted. | Require `acceptedAt IS NULL` in `findActiveInvitation`'s WHERE clause. | `pilot-access.test.ts`: "a consumed invitation can never be replayed for a second identity, even after the original account is gone." | **FIXED — PR-A** |
+| 38 | P1 (round 1) | `packages/db/migrations/0024_*.sql` + `pilot-access.ts` (`createInvitation`) | The pre-insert idempotency check alone cannot close a concurrent-request race — two calls for the same email could both observe "no active invitation yet" before either commits, leaving two active rows; revoking one would not actually block the email. | Database-level partial unique index `pilot_invitations_active_unique_idx` on `(email) WHERE revoked_at IS NULL AND accepted_at IS NULL`; `createInvitation` catches the unique violation and returns the concurrent winner's row. | `pilot-access.test.ts`: "serializes concurrent invitations of the same email so at most one active row ever exists." | **FIXED — PR-A** |
+| 39 | P2 (round 1) | `apps/web/src/app/app/agency/[orgId]/actions.ts` + `request-evidence-form.tsx` | The real evidence-request UI never read/supplied `missionId`, so an org whose only grant was mission-scoped always hit `scope_mismatch`, even though `listApplicantsForOrganization` surfaced them as requestable. | Added an optional mission `<select>` to the form (populated from a new `missions` prop derived from `listMissionsForOrganization`), threaded through `requestEvidenceAction` to `requestEvidence`. | No `.tsx`-level unit test exists in this codebase (UI is verified via Playwright E2E only) — verified by direct code review of the full data path from form submission to `requestEvidence`'s `missionId` parameter. | **FIXED — PR-A** |
+| 40 | P1 (round 2) | `packages/db/src/schema.ts` (`platform_roles_active_idx`) + `platform-roles.ts` (`grantPlatformRole`) | The existing index was ordinary, not unique; `grantPlatformRole` inserted without checking for an existing active grant. A repeated submission, retry, or two concurrent owners could create duplicate active rows for the same `(account, role)`; revoking one reported success while the other silently continued granting the same authority. | Partial unique index `platform_roles_active_unique_idx` on `(account_id, role) WHERE revoked_at IS NULL`; `grantPlatformRole` pre-checks for an existing active grant (returns it, idempotent) and catches the unique violation as the concurrent winner, mirroring the `pilot_invitations` pattern from finding #38. | `platform-roles.test.ts`: "is idempotent — repeating the same (account, role) grant returns the existing active row"; "closes the concurrent-grant race with a database-level constraint"; plus two guard-rail tests proving the fix isn't over-broad (an account may hold two *different* roles at once; re-granting after revocation still works). | **FIXED — PR-A** |
+| 41 | P1 (round 2) | `packages/services/src/pilot-access.ts` (`createInvitation`) | The idempotency check considered only pending invitations, never whether the email already belongs to an account. Re-inviting an already-admitted email created a fresh pending row that the normal sign-in flow never consumes (it takes the `accountAlreadyExists` fast path) — a standing, never-consumed credential able to admit a different identity if the original account was later deleted. | `createInvitation` now refuses (returns an error) when an account already exists for the normalized email. | `pilot-access.test.ts`: "refuses to invite an email that already has a provisioned account." | **FIXED — PR-A** |
+| 42 | P1 (round 2) | `apps/web/src/lib/session.ts` (`withSession`) | Provisioning and `markInvitationAccepted` are two separate statements, not one transaction — if the process failed between them, the account existed but the invitation stayed pending forever (every retry exits via `accountAlreadyExists` with `invitationId: null`, so consumption is never retried), reopening the same post-deletion replay findings #37/38 were meant to close. | Implemented the finding's own suggested "durable recovery path" alternative to forcing hard transactional atomicity across `provisionAccount`'s delicate internals: `checkPilotAccess`'s existing-account branch now also looks up and returns any still-dangling active invitation for that email, so the very next sign-in (via `withSession`'s existing `markInvitationAccepted` call) closes it out. Safe because, once finding #41 is fixed, this dangling state can only ever arise from the crash scenario itself. | `pilot-access.test.ts`: "a dangling pending invitation for an already-provisioned account is surfaced for consumption on the next check" — exercises the full lifecycle (invite → simulated crash → recovery → consumption → post-deletion replay attempt correctly denied). | **FIXED — PR-A** |
+| 43 | P1 (round 2) | `packages/db/src/schema.ts` (`platformRoles.accountId`, `onDelete: 'set null'`) + `packages/services/src/deletion.ts` (`executeAccountDeletion`) | This programme's OWN finding-#17 fix (nullable `accountId` + `set null`, to preserve role history instead of cascading it away) introduced a new lockout: deleting the sole active `PLATFORM_OWNER` nulled the grant's `accountId` while leaving it "active" — `isPlatformOwner` could no longer match it, yet `totalGrantCount()` still counted the historical row, permanently disabling the `ADMIN_EMAILS` bootstrap fallback; `revokePlatformRole`'s own last-owner safeguard never ran because deletion never calls it. | `executeAccountDeletion` now locks every `PLATFORM_OWNER` row `FOR UPDATE` (mirroring `revokePlatformRole`'s own lock) and refuses deletion if it would remove the platform's last active owner; when deletion does proceed, the deleted account's own active grants (any role) are explicitly revoked (`revokedReason: 'account deleted'`) in the same transaction, rather than left orphaned-but-"active". | `lifecycle.test.ts`: "blocks deleting the sole active platform owner" (fails closed, nothing touched); "revokes ... a deleted non-sole-owner account's platform-role grant" (finding #17's original scenario, now also asserting proper revocation); "revokes a deleted account's active non-owner platform-role grant too." | **FIXED — PR-A** |
+
+---
+
 ## 5. Summary
 
 - **36/36** GitHub review findings re-verified against current `main`.
@@ -336,6 +361,9 @@ Mission/snapshot/UX · **PR-E** Readiness/provider validation/disclosure ·
   a review thread): D-T1 (flaky test timeouts), D-T2 (Turbo abort-on-failure
   masking sibling test summaries), D-RT1 (unhandled `STEP_UP_SIGNING_SECRET`
   exception on `/app/privacy/export`).
+- **7 further findings** (#37–#43, §4.12) surfaced by Codex reviewing PR-A's
+  own new code across two review rounds — all fixed, tested, and threads
+  resolved before PR-A merged.
 - **0 findings dismissed without code-level proof** — every "still present"
   verdict above cites the exact current file/line and quotes the operative
   code; the one "fixed" verdict cites the specific later commit/PR that

@@ -2,7 +2,7 @@ import { fileURLToPath } from 'node:url';
 import { PGlite } from '@electric-sql/pglite';
 import { isErr, isOk } from '@visastack/core';
 import { schema } from '@visastack/db';
-import { eq } from 'drizzle-orm';
+import { and, eq, isNull } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/pglite';
 import { migrate } from 'drizzle-orm/pglite/migrator';
 import { beforeEach, describe, expect, it } from 'vitest';
@@ -443,6 +443,129 @@ describe('platform roles — grant and revoke', () => {
       (r) => r.role === 'PLATFORM_OWNER',
     );
     expect(remainingOwners.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('is idempotent — repeating the same (account, role) grant returns the existing active row, never a duplicate (Codex review, PR #65)', async () => {
+    const support = await seedAccount(db, 'idempotent-support@example.com');
+    const first = await grantPlatformRole(db, {
+      actor: ownerAuth,
+      targetAccountId: support.id,
+      role: 'SUPPORT_ADMIN',
+      reason: 'first',
+      stepUpSatisfied: true,
+    });
+    if (!isOk(first)) throw new Error('grant');
+    const second = await grantPlatformRole(db, {
+      actor: ownerAuth,
+      targetAccountId: support.id,
+      role: 'SUPPORT_ADMIN',
+      reason: 'repeat',
+      stepUpSatisfied: true,
+    });
+    expect(isOk(second)).toBe(true);
+    if (isOk(second)) expect(second.value.id).toBe(first.value.id);
+
+    const rows = await db
+      .select()
+      .from(schema.platformRoles)
+      .where(eq(schema.platformRoles.accountId, support.id));
+    expect(rows).toHaveLength(1);
+  });
+
+  it('closes the concurrent-grant race with a database-level constraint — never two active rows for the same (account, role) (Codex review, PR #65)', async () => {
+    const support = await seedAccount(db, 'race-support@example.com');
+    const [a, b] = await Promise.all([
+      grantPlatformRole(db, {
+        actor: ownerAuth,
+        targetAccountId: support.id,
+        role: 'SUPPORT_ADMIN',
+        reason: 'race A',
+        stepUpSatisfied: true,
+      }),
+      grantPlatformRole(db, {
+        actor: ownerAuth,
+        targetAccountId: support.id,
+        role: 'SUPPORT_ADMIN',
+        reason: 'race B',
+        stepUpSatisfied: true,
+      }),
+    ]);
+    expect(isOk(a)).toBe(true);
+    expect(isOk(b)).toBe(true);
+    if (!isOk(a) || !isOk(b)) return;
+    // Both calls resolve to the SAME row — the loser of the race recovers
+    // via the unique-violation catch path rather than erroring or leaving a
+    // second active row that a later revocation of "the other one" would
+    // silently leave granting the same authority.
+    expect(a.value.id).toBe(b.value.id);
+
+    const activeRows = await db
+      .select()
+      .from(schema.platformRoles)
+      .where(
+        and(eq(schema.platformRoles.accountId, support.id), isNull(schema.platformRoles.revokedAt)),
+      );
+    expect(activeRows).toHaveLength(1);
+  });
+
+  it('allows an account to hold two different concern-scoped roles at once — the invariant is per (account, role), not per account', async () => {
+    const dual = await seedAccount(db, 'dual-role@example.com');
+    const security = await grantPlatformRole(db, {
+      actor: ownerAuth,
+      targetAccountId: dual.id,
+      role: 'SECURITY_ADMIN',
+      reason: 'security',
+      stepUpSatisfied: true,
+    });
+    const compliance = await grantPlatformRole(db, {
+      actor: ownerAuth,
+      targetAccountId: dual.id,
+      role: 'COMPLIANCE_ADMIN',
+      reason: 'compliance',
+      stepUpSatisfied: true,
+    });
+    expect(isOk(security)).toBe(true);
+    expect(isOk(compliance)).toBe(true);
+    const rows = await db
+      .select()
+      .from(schema.platformRoles)
+      .where(eq(schema.platformRoles.accountId, dual.id));
+    expect(rows).toHaveLength(2);
+  });
+
+  it('allows re-granting the same role after the previous grant was revoked', async () => {
+    const support = await seedAccount(db, 're-grant-support@example.com');
+    const first = await grantPlatformRole(db, {
+      actor: ownerAuth,
+      targetAccountId: support.id,
+      role: 'SUPPORT_ADMIN',
+      reason: 'first',
+      stepUpSatisfied: true,
+    });
+    if (!isOk(first)) throw new Error('grant');
+    const revoked = await revokePlatformRole(db, {
+      actor: ownerAuth,
+      grantId: first.value.id,
+      reason: 'done for now',
+      stepUpSatisfied: true,
+    });
+    expect(isOk(revoked)).toBe(true);
+
+    const second = await grantPlatformRole(db, {
+      actor: ownerAuth,
+      targetAccountId: support.id,
+      role: 'SUPPORT_ADMIN',
+      reason: 're-grant',
+      stepUpSatisfied: true,
+    });
+    expect(isOk(second)).toBe(true);
+    if (isOk(second)) expect(second.value.id).not.toBe(first.value.id);
+
+    const rows = await db
+      .select()
+      .from(schema.platformRoles)
+      .where(eq(schema.platformRoles.accountId, support.id));
+    expect(rows).toHaveLength(2); // one revoked, one active
   });
 });
 

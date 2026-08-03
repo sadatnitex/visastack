@@ -1207,6 +1207,18 @@ export const platformRoles = pgTable(
   (table) => [
     index('platform_roles_account_idx').on(table.accountId),
     index('platform_roles_active_idx').on(table.accountId, table.revokedAt),
+    // Enforces "at most one active grant per (account, role)" at the database
+    // level — the application-layer idempotency check in `grantPlatformRole`
+    // alone cannot close the race where two concurrent grants both pass the
+    // pre-insert check before either commits. Without this, revoking one of
+    // two duplicate active rows reports success while the other continues
+    // granting the same authority (Codex review, PR #65). Scoped to
+    // `revokedAt IS NULL` only — once `deletion.ts` revokes a grant as part
+    // of account deletion, that historical row never conflicts with a fresh
+    // grant later issued to a different account.
+    uniqueIndex('platform_roles_active_unique_idx')
+      .on(table.accountId, table.role)
+      .where(sql`${table.revokedAt} is null`),
   ],
 );
 

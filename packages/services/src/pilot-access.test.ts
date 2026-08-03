@@ -285,6 +285,60 @@ describe('checkPilotAccess', () => {
     });
     expect(replayDecision).toEqual({ allowed: false, invitationId: null });
   });
+
+  it('a dangling pending invitation for an already-provisioned account is surfaced for consumption on the next check — the crash-before-consumption recovery path (Codex review, PR #65)', async () => {
+    const inviter = await provisionAccount(db, { email: 'inviter-dangling@example.com' });
+    if (!isOk(inviter)) throw new Error('provision');
+    const invited = await createInvitation(db, {
+      actorAccountId: inviter.value.id,
+      email: 'crash-before-consume@example.com',
+    });
+    if (!isOk(invited)) throw new Error('invite');
+
+    // Simulate the exact failure this finding describes: provisioning
+    // succeeded, but the process crashed/errored before
+    // `markInvitationAccepted` ran (they are two separate statements, not
+    // one transaction) — so the invitation is left pending even though the
+    // account now exists.
+    const account = await provisionAccount(db, {
+      email: 'crash-before-consume@example.com',
+      workosUserId: 'workos-crash-recovery',
+    });
+    if (!isOk(account)) throw new Error('provision');
+
+    // A later sign-in retry must surface the dangling invitation for
+    // consumption, even though it takes the "account already exists" path —
+    // silently returning `invitationId: null` here would leave the row
+    // permanently pending: a standing credential able to admit a different
+    // identity once this account is later deleted.
+    const recovery = await checkPilotAccess(db, {
+      email: 'crash-before-consume@example.com',
+      workosUserId: 'workos-crash-recovery',
+      allowlistEmails: [],
+      bypass: false,
+    });
+    expect(recovery).toEqual({ allowed: true, invitationId: invited.value.id });
+
+    // The caller (`withSession`) now consumes it exactly as it would for a
+    // fresh invitation.
+    if (recovery.invitationId) {
+      await markInvitationAccepted(db, {
+        invitationId: recovery.invitationId,
+        accountId: account.value.id,
+      });
+    }
+
+    // Once properly consumed, it can never be replayed — even after this
+    // account is later deleted.
+    await db.delete(schema.accounts).where(eq(schema.accounts.id, account.value.id));
+    const replay = await checkPilotAccess(db, {
+      email: 'crash-before-consume@example.com',
+      workosUserId: 'workos-a-different-identity',
+      allowlistEmails: [],
+      bypass: false,
+    });
+    expect(replay).toEqual({ allowed: false, invitationId: null });
+  });
 });
 
 describe('invitation lifecycle', () => {
@@ -356,6 +410,24 @@ describe('invitation lifecycle', () => {
       bypass: false,
     });
     expect(decision.allowed).toBe(false);
+  });
+
+  it('refuses to invite an email that already has a provisioned account (Codex review, PR #65)', async () => {
+    const inviter = await provisionAccount(db, { email: 'inviter-existing@example.com' });
+    if (!isOk(inviter)) throw new Error('provision');
+    await provisionAccount(db, { email: 'already-has-account@example.com' });
+
+    const attempt = await createInvitation(db, {
+      actorAccountId: inviter.value.id,
+      email: 'Already-Has-Account@Example.com', // mixed case — must normalize before checking
+    });
+    expect(isOk(attempt)).toBe(false);
+
+    const rows = await db
+      .select()
+      .from(schema.pilotInvitations)
+      .where(eq(schema.pilotInvitations.email, 'already-has-account@example.com'));
+    expect(rows).toHaveLength(0);
   });
 
   it('refuses to revoke an already-revoked invitation, and requires a reason', async () => {

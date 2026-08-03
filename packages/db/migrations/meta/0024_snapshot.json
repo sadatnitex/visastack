@@ -1,5 +1,5 @@
 {
-  "id": "7ea1d144-8b63-4a6e-8918-cb8ef861e284",
+  "id": "2f109fc6-32f2-46c2-8d11-18f63174dc11",
   "prevId": "97bcaeee-1b63-4b65-9213-b17609acd8c1",
   "version": "7",
   "dialect": "postgresql",
@@ -3942,6 +3942,28 @@
             }
           ],
           "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "platform_roles_active_unique_idx": {
+          "name": "platform_roles_active_unique_idx",
+          "columns": [
+            {
+              "expression": "account_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "role",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"platform_roles\".\"revoked_at\" is null",
           "concurrently": false,
           "method": "btree",
           "with": {}
