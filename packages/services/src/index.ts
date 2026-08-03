@@ -271,7 +271,7 @@ export {
 export {
   PIPELINE_VERSION,
   type DocumentScanResult,
-  type ScannerPort,
+  type MalwareScannerPort,
   type ScanResult,
   getLatestExtractedText,
   listScanResults,
@@ -284,7 +284,7 @@ export {
   type ExtractionErrorCode,
   type ExtractionOutcome,
   type TextExtractionInput,
-  type TextExtractionPort,
+  type DocumentConverterPort,
   MAX_EXTRACTED_TEXT_CHARS,
   capExtractedText,
 } from './extraction';
@@ -412,3 +412,16 @@ export {
   getPilotScorecard,
   recordProductEvent,
 } from './product-events';
+
+export type {
+  CheckoutSession,
+  EmailPort,
+  EnqueueJobInput,
+  IdentityPort,
+  JobQueuePort,
+  ObservabilityEvent,
+  ObservabilityPort,
+  PaymentPort,
+  ResolvedIdentity,
+  SendEmailInput,
+} from './ports';

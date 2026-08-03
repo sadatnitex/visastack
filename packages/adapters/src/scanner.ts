@@ -1,10 +1,10 @@
-import type { BlobStore, ScanResult, ScannerPort } from '@visastack/services';
+import type { BlobStore, MalwareScannerPort, ScanResult } from '@visastack/services';
 import { validateDocxStructure } from './docx-validation';
 
 /**
  * Built-in structural safety scanner (ADR-0011).
  *
- * A dependency-free `ScannerPort` for when no antivirus service is wired. It
+ * A dependency-free `MalwareScannerPort` for when no antivirus service is wired. It
  * reads the stored bytes and enforces a positive allow-list: the content must
  * either begin with the magic bytes of an expected binary document type
  * (PDF/PNG/JPEG/DOCX — DOCX additionally passing real structural validation,
@@ -125,7 +125,7 @@ export interface BasicSafetyScannerOptions {
   readonly maxBytes?: number;
 }
 
-export class BasicSafetyScanner implements ScannerPort {
+export class BasicSafetyScanner implements MalwareScannerPort {
   readonly name = SCANNER_NAME;
   readonly version = SCANNER_VERSION;
   private readonly blobStore: BlobStore;

@@ -15,6 +15,7 @@ const REQUIRED_ENV = [
   'NEXT_PUBLIC_WORKOS_REDIRECT_URI',
   'DATABASE_URL',
   'VERCEL_ENV',
+  'DEPLOYMENT_MODE',
 ] as const;
 
 const ORIGINAL_ENV: Record<string, string | undefined> = {};
@@ -142,5 +143,50 @@ describe('GET /api/health/ready — honest health (200 vs 503)', () => {
     expect(body.platform).toBeDefined();
     expect(body.env).toBeUndefined();
     expect(body.db).toBeUndefined();
+  });
+
+  describe('commercial mode — the commercial readiness guard (master directive §7 "PR 11")', () => {
+    it('returns 503 "degraded" in commercial mode even though the pilot-level core (DB + WorkOS) is fully ready', async () => {
+      setEnv('DEPLOYMENT_MODE', 'commercial');
+      mockDb({});
+      const { GET } = await import('./route');
+      const res = await GET();
+      expect(res.status).toBe(503);
+      const body = await res.json();
+      expect(body.status).toBe('degraded');
+      expect(body.commercialReadiness.ready).toBe(false);
+    });
+
+    it('force-disables publicSignup/realApplicantData/commercialClaims in its own response when the guard fails, regardless of the general registry', async () => {
+      setEnv('DEPLOYMENT_MODE', 'commercial');
+      mockDb({});
+      const { GET } = await import('./route');
+      const res = await GET();
+      const body = await res.json();
+      expect(body.platform.publicSignup).toBe('disabled');
+      expect(body.platform.realApplicantData).toBe('disabled');
+      expect(body.platform.commercialClaims).toBe('disabled');
+    });
+
+    it('never reports commercialReadiness at all outside commercial mode', async () => {
+      mockDb({});
+      const { GET } = await import('./route');
+      const res = await GET();
+      const body = await res.json();
+      expect(body.commercialReadiness).toBeUndefined();
+    });
+
+    it('names the specific unmet gates so an operator can act on the 503, never a bare failure', async () => {
+      setEnv('DEPLOYMENT_MODE', 'commercial');
+      mockDb({});
+      const { GET } = await import('./route');
+      const res = await GET();
+      const body = await res.json();
+      const failing = body.commercialReadiness.gates.filter(
+        (gate: { satisfied: boolean }) => !gate.satisfied,
+      );
+      expect(failing.length).toBeGreaterThan(0);
+      expect(failing.some((gate: { key: string }) => gate.key === 'realMalwareScanner')).toBe(true);
+    });
   });
 });

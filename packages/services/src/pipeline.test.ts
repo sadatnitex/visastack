@@ -12,8 +12,8 @@ import { setConsent } from './consent';
 import type { Db } from './db';
 import { getLatestNameVersion } from './document-naming';
 import { addDocumentVersion, registerDocument } from './documents';
-import type { ExtractionOutcome, TextExtractionPort } from './extraction';
-import { type ScannerPort, processIntake } from './intake';
+import type { DocumentConverterPort, ExtractionOutcome } from './extraction';
+import { type MalwareScannerPort, processIntake } from './intake';
 import { checkDigit, parseTd3 } from './mrz';
 
 const migrationsFolder = fileURLToPath(new URL('../../db/migrations', import.meta.url));
@@ -106,21 +106,21 @@ describe('document intake pipeline', () => {
     db = await freshDb();
   });
 
-  const cleanScanner: ScannerPort = {
+  const cleanScanner: MalwareScannerPort = {
     name: 'test-scanner',
     version: '0.0.0',
     async scan() {
       return { safe: true };
     },
   };
-  const infectedScanner: ScannerPort = {
+  const infectedScanner: MalwareScannerPort = {
     name: 'test-scanner',
     version: '0.0.0',
     async scan() {
       return { safe: false, detail: 'eicar' };
     },
   };
-  const noOpExtractor: TextExtractionPort = {
+  const noOpExtractor: DocumentConverterPort = {
     async extract(): Promise<ExtractionOutcome> {
       return { ok: false, code: 'unsupported_format', message: 'test fixture: not exercised here' };
     },
@@ -161,7 +161,7 @@ describe('document intake pipeline', () => {
   it('is resumable after a scanner failure', async () => {
     const { versionId } = await seedVersion(db, 'intake4@example.com');
     let calls = 0;
-    const flaky: ScannerPort = {
+    const flaky: MalwareScannerPort = {
       name: 'test-scanner',
       version: '0.0.0',
       async scan() {
@@ -196,7 +196,7 @@ describe('document intake pipeline', () => {
     if (!documentRow) throw new Error('document not found');
     const document = documentRow.documents;
 
-    const passportExtractor: TextExtractionPort = {
+    const passportExtractor: DocumentConverterPort = {
       async extract(): Promise<ExtractionOutcome> {
         return {
           ok: true,
@@ -255,7 +255,7 @@ describe('document intake pipeline', () => {
 
   it('advances to AWAITING_REVIEW even when extraction fails (unsupported format)', async () => {
     const { versionId } = await seedVersion(db, 'intake6@example.com');
-    const failingExtractor: TextExtractionPort = {
+    const failingExtractor: DocumentConverterPort = {
       async extract(): Promise<ExtractionOutcome> {
         return { ok: false, code: 'unsupported_format', message: 'image format, no OCR' };
       },

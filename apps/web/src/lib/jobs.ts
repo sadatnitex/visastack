@@ -1,5 +1,4 @@
 import 'server-only';
-import { BasicSafetyScanner, DeterministicTextExtractor } from '@visastack/adapters';
 import { isOk } from '@visastack/core';
 import { createPooledDb, resolveDatabaseUrl } from '@visastack/db';
 import {
@@ -10,7 +9,7 @@ import {
   runErasureWorker,
   runIntakeWorker,
 } from '@visastack/services';
-import { createStorage } from './storage';
+import { createDocumentConverter, createMalwareScanner, createStorage } from './providers';
 
 /**
  * Runs the low-volume durable intake worker on its own short-lived pooled
@@ -45,8 +44,8 @@ export async function triggerIntakeWorker(
   try {
     const handle = db as unknown as Parameters<typeof runIntakeWorker>[0];
     const storage = createStorage(handle);
-    const scanner = new BasicSafetyScanner({ blobStore: storage });
-    const extractor = new DeterministicTextExtractor({ blobStore: storage });
+    const scanner = createMalwareScanner(storage);
+    const extractor = createDocumentConverter(storage);
     return await runIntakeWorker(handle, scanner, extractor, options);
   } catch (error) {
     console.error('[triggerIntakeWorker] worker pass failed', error);

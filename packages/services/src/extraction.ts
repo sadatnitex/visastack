@@ -39,7 +39,7 @@ export interface TextExtractionInput {
   readonly originalName: string;
 }
 
-export interface TextExtractionPort {
+export interface DocumentConverterPort {
   extract(input: TextExtractionInput): Promise<ExtractionOutcome>;
 }
 

@@ -5,12 +5,10 @@ import {
   isSchemaApplied,
   resolveDatabaseUrl,
 } from '@visastack/db';
-import {
-  getPlatformCapabilities,
-  isPresent,
-  isWorkosConfigured,
-} from '../../../../lib/capabilities';
+import { getPlatformCapabilities } from '../../../../lib/capabilities';
+import { evaluateCommercialReadiness } from '../../../../lib/commercial-readiness';
 import { getDeploymentMode, isRealDeployment } from '../../../../lib/deployment-mode';
+import { isPresent, isWorkosConfigured } from '../../../../lib/env';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -65,7 +63,19 @@ export async function GET(): Promise<Response> {
   // present (Milestone 1 — honest readiness). Optional capabilities (AI,
   // signed blob storage) are reported separately and never gate the core.
   const coreReady = db.connected && db.schemaApplied && isWorkosConfigured();
-  const status = coreReady ? 'ready' : 'degraded';
+
+  // Commercial mode adds its own guard ON TOP of the pilot-level core bar,
+  // never in place of it (master directive §7 "PR 11": "No normal
+  // administrator may override this guard"). This is the one place the full
+  // guard runs — including live DB connectivity, which
+  // commercialConfigurationReady() (capabilities.ts) cannot check itself.
+  const commercial =
+    deploymentMode === 'commercial'
+      ? evaluateCommercialReadiness({ databaseReady: db.connected && db.schemaApplied })
+      : undefined;
+
+  const ready = coreReady && (commercial?.ready ?? true);
+  const status = ready ? 'ready' : 'degraded';
 
   // Optional-capability visibility (not a core gate): signed document access
   // and the periodic durable-job sweep (uploads still enqueue and process via
@@ -76,6 +86,21 @@ export async function GET(): Promise<Response> {
     asyncIntakeSweep: isPresent('CRON_SECRET'),
   };
 
+  const platform = getPlatformCapabilities();
+  // Force these three off whenever the full guard fails, even if the
+  // general-purpose (necessarily DB-blind) registry would otherwise report
+  // them available — "keep public capabilities disabled" (master directive
+  // §7 "PR 11"). This endpoint just verified live DB state, so it is final.
+  const effectivePlatform =
+    commercial && !commercial.ready
+      ? {
+          ...platform,
+          publicSignup: 'disabled' as const,
+          realApplicantData: 'disabled' as const,
+          commercialClaims: 'disabled' as const,
+        }
+      : platform;
+
   const body = verbose
     ? {
         status,
@@ -83,15 +108,21 @@ export async function GET(): Promise<Response> {
         env,
         db,
         capabilities: optionalCapabilities,
-        platform: getPlatformCapabilities(),
+        platform: effectivePlatform,
+        ...(commercial ? { commercialReadiness: commercial } : {}),
       }
-    : { status, deploymentMode, platform: getPlatformCapabilities() };
+    : {
+        status,
+        deploymentMode,
+        platform: effectivePlatform,
+        ...(commercial ? { commercialReadiness: commercial } : {}),
+      };
 
-  // HTTP status now carries the truth: 200 = core ready, 503 = a required core
-  // dependency is unavailable or unmigrated. Load balancers and the deploy
-  // smoke can gate on the status code alone.
+  // HTTP status now carries the truth: 200 = core (and, in commercial mode,
+  // every commercial gate) ready; 503 = something required is missing.
+  // Load balancers and the deploy smoke can gate on the status code alone.
   return new Response(JSON.stringify(body), {
-    status: coreReady ? 200 : 503,
+    status: ready ? 200 : 503,
     headers: { 'content-type': 'application/json', 'cache-control': 'no-store' },
   });
 }

@@ -1,4 +1,4 @@
-import type { BlobStore, ExtractionOutcome, TextExtractionPort } from '@visastack/services';
+import type { BlobStore, DocumentConverterPort, ExtractionOutcome } from '@visastack/services';
 import { capExtractedText } from '@visastack/services';
 
 /**
@@ -106,7 +106,7 @@ export interface DeterministicTextExtractorOptions {
   readonly blobStore: BlobStore;
 }
 
-export class DeterministicTextExtractor implements TextExtractionPort {
+export class DeterministicTextExtractor implements DocumentConverterPort {
   private readonly blobStore: BlobStore;
 
   constructor(options: DeterministicTextExtractorOptions) {
