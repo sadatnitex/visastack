@@ -72,12 +72,19 @@ afterEach(() => {
 });
 
 describe('evaluateCommercialReadiness', () => {
+  // The first dynamic import in this file pulls in ./ai -> @visastack/adapters'
+  // OpenAI SDK transform, which is fast in isolation (~1s) but can approach
+  // the 5s default under full monorepo test-suite contention (7 packages'
+  // vitest processes running concurrently) — the same documented cause as
+  // ai.test.ts's and step-up.test.ts's own first tests. A generous explicit
+  // timeout avoids a spurious CI failure that has nothing to do with this
+  // test's own correctness.
   it('is not ready when nothing is configured or attested', async () => {
     const { evaluateCommercialReadiness } = await import('./commercial-readiness');
     const result = evaluateCommercialReadiness({ databaseReady: false });
     expect(result.ready).toBe(false);
     expect(result.gates.find((g) => g.key === 'realMalwareScanner')?.satisfied).toBe(false);
-  });
+  }, 15_000);
 
   it('reports every gate the master directive names, none silently missing', async () => {
     const { evaluateCommercialReadiness } = await import('./commercial-readiness');

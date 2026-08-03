@@ -55,10 +55,15 @@ afterEach(() => {
 });
 
 describe('validateProviderEnv', () => {
+  // The first dynamic import in this file pulls in ./providers' re-exported
+  // createAiExtractor (./ai -> @visastack/adapters' OpenAI SDK transform),
+  // fast in isolation but able to approach the 5s default under full
+  // monorepo test-suite contention — same documented cause as ai.test.ts's,
+  // step-up.test.ts's, and commercial-readiness.test.ts's own first tests.
   it('passes when every *_PROVIDER var is left unset (the pilot default)', async () => {
     const { validateProviderEnv } = await import('./providers');
     expect(() => validateProviderEnv()).not.toThrow();
-  });
+  }, 15_000);
 
   it('passes when every var is explicitly set to its supported value', async () => {
     setEnv('IDENTITY_PROVIDER', 'workos');
