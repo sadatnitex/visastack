@@ -3,12 +3,56 @@
 import { useActionState } from 'react';
 import {
   type ActionState,
+  createInvitationAction,
   grantPlatformRoleAction,
   placeLegalHoldAction,
   setRetentionPolicyAction,
 } from './actions';
 
 const INITIAL: ActionState = { ok: true, message: '' };
+
+export function InviteForm() {
+  const [state, formAction, pending] = useActionState(createInvitationAction, INITIAL);
+  return (
+    <form action={formAction} className="field-list">
+      <div className="field-row">
+        <label className="field-label" htmlFor="inviteEmail">
+          Email
+        </label>
+        <input
+          id="inviteEmail"
+          name="email"
+          type="email"
+          required
+          className="input"
+          placeholder="person@example.com"
+        />
+      </div>
+      <div className="field-row">
+        <label className="field-label" htmlFor="inviteReason">
+          Reason (optional)
+        </label>
+        <input
+          id="inviteReason"
+          name="reason"
+          type="text"
+          className="input"
+          placeholder="e.g. internal tester, partner agency contact"
+        />
+      </div>
+      <div>
+        <button type="submit" className="btn btn-primary" disabled={pending}>
+          {pending ? 'Inviting…' : 'Invite'}
+        </button>
+        {state.message ? (
+          <p className={`field-msg ${state.ok ? 'field-msg-ok' : 'field-msg-err'}`}>
+            {state.message}
+          </p>
+        ) : null}
+      </div>
+    </form>
+  );
+}
 
 const PLATFORM_ROLE_OPTIONS = [
   { value: 'PLATFORM_OWNER', label: 'Platform owner' },

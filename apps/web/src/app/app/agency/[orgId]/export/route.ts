@@ -4,7 +4,7 @@ import {
   getPlatformCapabilities,
 } from '../../../../../lib/capabilities';
 import { withSession } from '../../../../../lib/session';
-import { establishStepUp } from '../../../../../lib/step-up';
+import { STEP_UP_NOT_CONFIGURED_MESSAGE, tryEstablishStepUp } from '../../../../../lib/step-up';
 
 /**
  * Permissioned bulk export for an organization (Build Spec §2; PRD §5).
@@ -38,11 +38,12 @@ export async function GET(
   }
 
   const outcome = await withSession(async ({ db, accountId }) => {
-    const stepUp = await establishStepUp(
+    const stepUp = await tryEstablishStepUp(
       { accountId, action: 'EXPORT_PROFILE', resourceId: orgId },
       request.url,
     );
-    if (!stepUp.satisfied) return { redirect: stepUp.reauthUrl } as const;
+    if (stepUp.kind === 'not_configured') return { notConfigured: true } as const;
+    if (stepUp.kind === 'reauth_required') return { redirect: stepUp.reauthUrl } as const;
     const result = await bulkExport(db, {
       actorAccountId: accountId,
       organizationId: orgId,
@@ -52,6 +53,12 @@ export async function GET(
     return { result } as const;
   });
 
+  if ('notConfigured' in outcome) {
+    return new Response(STEP_UP_NOT_CONFIGURED_MESSAGE, {
+      status: 503,
+      headers: { 'Cache-Control': 'private, no-store' },
+    });
+  }
   if ('redirect' in outcome) return Response.redirect(outcome.redirect, 302);
   const result = outcome.result;
   if (!result.ok) return new Response(`export failed: ${result.error.message}`, { status: 403 });

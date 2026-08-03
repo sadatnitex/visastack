@@ -1,5 +1,5 @@
 import { type Result, err, ok } from '@visastack/core';
-import { and, eq, inArray, lte } from 'drizzle-orm';
+import { and, eq, inArray, isNull, lte } from 'drizzle-orm';
 import { appendAuditEvent } from './audit';
 import { type Db, first, required, schema } from './db';
 import type { StorageObject } from './documents';
@@ -182,6 +182,61 @@ export async function executeAccountDeletion(
           .limit(1),
       );
       if (held) return err(serviceError('invalid', 'an active legal hold blocks deletion'));
+    }
+
+    // Deleting the sole active PLATFORM_OWNER would strand the platform
+    // permanently: `platform_roles.account_id` is nullable + `set null`
+    // (finding #17), so without this guard the FK would silently null it
+    // while leaving the row "active" — `isPlatformOwner` can no longer match
+    // it, yet the historical row keeps `totalGrantCount()` above zero,
+    // permanently disabling the bootstrap fallback, and this deletion path
+    // never calls `revokePlatformRole` so its own last-owner safeguard never
+    // runs (Codex review, PR #65). Locks every PLATFORM_OWNER row so a
+    // concurrent revoke/delete of a DIFFERENT owner serializes against this
+    // one, mirroring `revokePlatformRole`'s own lock.
+    const ownerGrants = await tx
+      .select()
+      .from(schema.platformRoles)
+      .where(eq(schema.platformRoles.role, 'PLATFORM_OWNER'))
+      .for('update');
+    const activeOwnerGrants = ownerGrants.filter((o) => o.revokedAt === null);
+    const otherActiveOwners = activeOwnerGrants.filter((o) => o.accountId !== input.accountId);
+    if (activeOwnerGrants.length > 0 && otherActiveOwners.length === 0) {
+      return err(
+        serviceError(
+          'invalid',
+          'cannot delete the sole platform owner — grant PLATFORM_OWNER to another account first',
+        ),
+      );
+    }
+
+    // Revoke (never silently orphan) this account's own active platform-role
+    // grants, of any role, as part of this same transaction — deletion is a
+    // legitimate revocation reason, and the historical row must say so
+    // rather than be left with `revoked_at` still null once the FK nulls
+    // `account_id` below.
+    const revokedGrants = await tx
+      .update(schema.platformRoles)
+      .set({ revokedAt: now, revokedReason: 'account deleted' })
+      .where(
+        and(
+          eq(schema.platformRoles.accountId, input.accountId),
+          isNull(schema.platformRoles.revokedAt),
+        ),
+      )
+      .returning();
+    for (const grant of revokedGrants) {
+      await appendAuditEvent(tx, {
+        eventType: 'PLATFORM_ROLE_REVOKED',
+        actorAccountId: input.accountId,
+        action: 'MANAGE',
+        method: 'SYSTEM',
+        result: 'ALLOWED',
+        resourceType: 'platform_role',
+        resourceId: grant.id,
+        reason: 'account deleted',
+        metadata: { targetAccountId: grant.accountId, role: grant.role },
+      });
     }
 
     // Collect the storage objects this account's documents reference, before

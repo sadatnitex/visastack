@@ -9,9 +9,19 @@ const INITIAL: ActionState = { ok: true, message: '' };
 interface RequestEvidenceFormProps {
   readonly organizationId: string;
   readonly applicants: readonly { readonly applicantId: string; readonly displayName: string }[];
+  /** Missions this org can currently reach — lets a mission-scoped-only grant still succeed (Codex review, PR #65). */
+  readonly missions?: readonly {
+    readonly missionId: string;
+    readonly title: string;
+    readonly applicantName: string;
+  }[];
 }
 
-export function RequestEvidenceForm({ organizationId, applicants }: RequestEvidenceFormProps) {
+export function RequestEvidenceForm({
+  organizationId,
+  applicants,
+  missions = [],
+}: RequestEvidenceFormProps) {
   const [state, formAction, pending] = useActionState(requestEvidenceAction, INITIAL);
 
   return (
@@ -38,6 +48,21 @@ export function RequestEvidenceForm({ organizationId, applicants }: RequestEvide
           </select>
         )}
       </div>
+      {missions.length > 0 ? (
+        <div className="field-row">
+          <label className="field-label" htmlFor="missionId">
+            Mission (only needed if this org's access is mission-scoped)
+          </label>
+          <select id="missionId" name="missionId" className="input" defaultValue="">
+            <option value="">Applicant-wide (default)</option>
+            {missions.map((m) => (
+              <option key={m.missionId} value={m.missionId}>
+                {m.applicantName} — {m.title}
+              </option>
+            ))}
+          </select>
+        </div>
+      ) : null}
       <div className="field-row">
         <label className="field-label" htmlFor="kind">
           Kind

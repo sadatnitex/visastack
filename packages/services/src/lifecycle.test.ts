@@ -19,6 +19,7 @@ import {
 import { addDocumentVersion, registerDocument } from './documents';
 import { runErasureWorker } from './erasure';
 import { exportAccount } from './export';
+import { grantPlatformRole } from './platform-roles';
 import { editFact, registerFieldDefinition } from './profile';
 import type {
   BlobStore,
@@ -203,6 +204,149 @@ describe('account deletion workflow', () => {
     const tombstone = await db.select().from(schema.accountDeletionRequests);
     expect(tombstone[0]?.status).toBe('EXECUTED');
     expect(tombstone[0]?.accountId).toBeNull();
+  });
+
+  it("revokes (not just orphans) a deleted non-sole-owner account's platform-role grant, preserving history anonymized (finding #17; Codex review, PR #65)", async () => {
+    const { account } = await seedFullAccount(db, 'del-role@example.com');
+    const secondOwner = await provisionAccount(db, { email: 'del-role-2@example.com' });
+    if (!isOk(secondOwner)) throw new Error('provision');
+    const bootstrapAuth = {
+      accountId: account.id,
+      email: 'del-role@example.com',
+      bootstrapEmails: ['del-role@example.com'],
+    };
+    const granted = await grantPlatformRole(db, {
+      actor: bootstrapAuth,
+      targetAccountId: account.id,
+      role: 'PLATFORM_OWNER',
+      reason: 'bootstrap',
+      stepUpSatisfied: true,
+    });
+    if (!isOk(granted)) throw new Error('grant');
+    // A second owner, so the account deleted below is not the sole owner —
+    // see the separate "blocks deleting the sole active platform owner"
+    // test for that scenario.
+    const secondGrant = await grantPlatformRole(db, {
+      actor: bootstrapAuth,
+      targetAccountId: secondOwner.value.id,
+      role: 'PLATFORM_OWNER',
+      reason: 'second owner',
+      stepUpSatisfied: true,
+    });
+    expect(isOk(secondGrant)).toBe(true);
+
+    const req = await requestAccountDeletion(db, {
+      actorAccountId: account.id,
+      accountId: account.id,
+      gracePeriodMs: 0,
+    });
+    expect(isOk(req)).toBe(true);
+    const executed = await executeAccountDeletion(db, { accountId: account.id });
+    expect(isOk(executed)).toBe(true);
+
+    // The account is gone, but the role-history row survives with its
+    // account reference nulled — never cascaded away — preserving the
+    // append-only role-history invariant
+    // (docs/audits/post-programme-defect-register.md finding #17). It is
+    // now properly revoked, not left dangling "active" with a null account
+    // (Codex review, PR #65).
+    const roleRows = await db
+      .select()
+      .from(schema.platformRoles)
+      .where(eq(schema.platformRoles.id, granted.value.id));
+    expect(roleRows).toHaveLength(1);
+    expect(roleRows[0]?.accountId).toBeNull();
+    expect(roleRows[0]?.role).toBe('PLATFORM_OWNER');
+    expect(roleRows[0]?.workosUserId).toBe(granted.value.workosUserId);
+    expect(roleRows[0]?.revokedAt).not.toBeNull();
+    expect(roleRows[0]?.revokedReason).toBe('account deleted');
+  });
+
+  it('blocks deleting the sole active platform owner (Codex review, PR #65)', async () => {
+    const { account } = await seedFullAccount(db, 'del-sole-owner@example.com');
+    const bootstrapAuth = {
+      accountId: account.id,
+      email: 'del-sole-owner@example.com',
+      bootstrapEmails: ['del-sole-owner@example.com'],
+    };
+    const granted = await grantPlatformRole(db, {
+      actor: bootstrapAuth,
+      targetAccountId: account.id,
+      role: 'PLATFORM_OWNER',
+      reason: 'bootstrap',
+      stepUpSatisfied: true,
+    });
+    if (!isOk(granted)) throw new Error('grant');
+
+    const req = await requestAccountDeletion(db, {
+      actorAccountId: account.id,
+      accountId: account.id,
+      gracePeriodMs: 0,
+    });
+    expect(isOk(req)).toBe(true);
+
+    const executed = await executeAccountDeletion(db, { accountId: account.id });
+    expect(isErr(executed)).toBe(true);
+    if (isErr(executed)) expect(executed.error.code).toBe('invalid');
+
+    // Nothing was touched: fails closed, not partially — the account, its
+    // grant, and the pending deletion request all remain exactly as they
+    // were, so ownership can still be transferred before retrying.
+    expect(
+      await db.select().from(schema.accounts).where(eq(schema.accounts.id, account.id)),
+    ).toHaveLength(1);
+    const roleRows = await db
+      .select()
+      .from(schema.platformRoles)
+      .where(eq(schema.platformRoles.id, granted.value.id));
+    expect(roleRows[0]?.accountId).toBe(account.id);
+    expect(roleRows[0]?.revokedAt).toBeNull();
+    const pending = await getPendingDeletion(db, account.id);
+    expect(pending?.status).toBe('PENDING');
+  });
+
+  it("revokes a deleted account's active non-owner platform-role grant too (Codex review, PR #65)", async () => {
+    const owner = await provisionAccount(db, { email: 'del-owner-actor@example.com' });
+    if (!isOk(owner)) throw new Error('provision');
+    const { account } = await seedFullAccount(db, 'del-support-admin@example.com');
+    const ownerAuth = {
+      accountId: owner.value.id,
+      email: 'del-owner-actor@example.com',
+      bootstrapEmails: ['del-owner-actor@example.com'],
+    };
+    const ownerGrant = await grantPlatformRole(db, {
+      actor: ownerAuth,
+      targetAccountId: owner.value.id,
+      role: 'PLATFORM_OWNER',
+      reason: 'bootstrap',
+      stepUpSatisfied: true,
+    });
+    expect(isOk(ownerGrant)).toBe(true);
+    const supportGrant = await grantPlatformRole(db, {
+      actor: ownerAuth,
+      targetAccountId: account.id,
+      role: 'SUPPORT_ADMIN',
+      reason: 'support',
+      stepUpSatisfied: true,
+    });
+    if (!isOk(supportGrant)) throw new Error('support grant');
+
+    const req = await requestAccountDeletion(db, {
+      actorAccountId: account.id,
+      accountId: account.id,
+      gracePeriodMs: 0,
+    });
+    expect(isOk(req)).toBe(true);
+    const executed = await executeAccountDeletion(db, { accountId: account.id });
+    expect(isOk(executed)).toBe(true);
+
+    const roleRows = await db
+      .select()
+      .from(schema.platformRoles)
+      .where(eq(schema.platformRoles.id, supportGrant.value.id));
+    expect(roleRows[0]?.accountId).toBeNull();
+    expect(roleRows[0]?.revokedAt).not.toBeNull();
+    expect(roleRows[0]?.revokedReason).toBe('account deleted');
   });
 
   it('refuses a deletion request for another account', async () => {

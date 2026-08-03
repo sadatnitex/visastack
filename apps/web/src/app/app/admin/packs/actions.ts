@@ -10,7 +10,7 @@ import {
 } from '@visastack/services';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
-import { isPlatformAdmin } from '../../../../lib/admin';
+import { hasPlatformPermission } from '../../../../lib/admin';
 import { withSession } from '../../../../lib/session';
 
 /** Result surfaced back to the client for inline feedback. */
@@ -34,7 +34,9 @@ export async function createPackAction(
   }
 
   const outcome = await withSession(async ({ db, accountId, email }) => {
-    if (!(await isPlatformAdmin(db, { accountId, email }))) return { state: DENIED, id: null };
+    if (!(await hasPlatformPermission(db, { accountId, email }, 'PACK_MANAGE'))) {
+      return { state: DENIED, id: null };
+    }
     const created = await createPack(db, {
       actorAccountId: accountId,
       key,
@@ -62,7 +64,7 @@ export async function openVersionAction(
   const packId = String(formData.get('packId') ?? '').trim();
   if (packId.length === 0) return { ok: false, message: 'Missing pack id.' };
   const result = await withSession(async ({ db, accountId, email }) => {
-    if (!(await isPlatformAdmin(db, { accountId, email }))) return DENIED;
+    if (!(await hasPlatformPermission(db, { accountId, email }, 'PACK_MANAGE'))) return DENIED;
     const opened = await addPackVersion(db, { actorAccountId: accountId, packId });
     if (!opened.ok) return { ok: false, message: opened.error.message } satisfies ActionState;
     return {
@@ -94,7 +96,7 @@ export async function addRequirementAction(
   if (citation.length === 0) return { ok: false, message: 'Every requirement needs a citation.' };
 
   const result = await withSession(async ({ db, accountId, email }) => {
-    if (!(await isPlatformAdmin(db, { accountId, email }))) return DENIED;
+    if (!(await hasPlatformPermission(db, { accountId, email }, 'PACK_MANAGE'))) return DENIED;
     const added = await addRequirement(db, {
       actorAccountId: accountId,
       packVersionId,
@@ -119,7 +121,7 @@ export async function approveVersionAction(
   const packVersionId = String(formData.get('packVersionId') ?? '').trim();
   if (packVersionId.length === 0) return { ok: false, message: 'Missing version id.' };
   const result = await withSession(async ({ db, accountId, email }) => {
-    if (!(await isPlatformAdmin(db, { accountId, email }))) return DENIED;
+    if (!(await hasPlatformPermission(db, { accountId, email }, 'PACK_MANAGE'))) return DENIED;
     const approved = await approvePackVersion(db, { actorAccountId: accountId, packVersionId });
     if (!approved.ok) return { ok: false, message: approved.error.message } satisfies ActionState;
     return { ok: true, message: 'Version approved and checksummed.' } satisfies ActionState;
@@ -137,7 +139,7 @@ export async function verifyChecksumAction(
   if (packVersionId.length === 0) return { ok: false, message: 'Missing version.' };
 
   return withSession(async ({ db, accountId, email }) => {
-    if (!(await isPlatformAdmin(db, { accountId, email }))) return DENIED;
+    if (!(await hasPlatformPermission(db, { accountId, email }, 'PACK_MANAGE'))) return DENIED;
     const valid = await verifyPackChecksum(db, packVersionId);
     return {
       ok: valid,
@@ -157,7 +159,7 @@ export async function publishVersionAction(
   const packVersionId = String(formData.get('packVersionId') ?? '').trim();
   if (packVersionId.length === 0) return { ok: false, message: 'Missing version id.' };
   const result = await withSession(async ({ db, accountId, email }) => {
-    if (!(await isPlatformAdmin(db, { accountId, email }))) return DENIED;
+    if (!(await hasPlatformPermission(db, { accountId, email }, 'PACK_MANAGE'))) return DENIED;
     const published = await publishPackVersion(db, { actorAccountId: accountId, packVersionId });
     if (!published.ok) {
       return { ok: false, message: published.error.message } satisfies ActionState;

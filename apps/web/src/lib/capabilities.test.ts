@@ -47,6 +47,13 @@ afterEach(() => {
 });
 
 describe('getPlatformCapabilities', () => {
+  // This file's first dynamic import transitively pulls in ./commercial-readiness
+  // -> ./ai -> the OpenAI SDK transform (same cost providers.test.ts/
+  // commercial-readiness.test.ts already flag) — fast in isolation but can
+  // exceed the 5s default under full monorepo test-suite contention
+  // (docs/audits/post-programme-defect-register.md finding D-T1). A generous
+  // explicit timeout avoids a spurious CI failure unrelated to this test's
+  // own correctness.
   it('reports every one of the 20 registry fields (no gap left undefined)', async () => {
     const { getPlatformCapabilities } = await import('./capabilities');
     const capabilities = getPlatformCapabilities();
@@ -54,7 +61,7 @@ describe('getPlatformCapabilities', () => {
       expect(capabilities[key]).toBeDefined();
     }
     expect(PLATFORM_CAPABILITY_KEYS.length).toBe(20);
-  });
+  }, 15_000);
 
   it('reports agencyCollaboration available once its PR 1 defects are repaired (PR 2) and everything else is configured', async () => {
     setEnv('VERCEL_ENV', 'production');

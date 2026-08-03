@@ -2,6 +2,7 @@ import type {
   AccountId,
   AgencyId,
   ApplicantId,
+  DocumentId,
   MissionId,
   PermissionAction,
 } from '@visastack/core';
@@ -194,11 +195,40 @@ export interface AssignmentView {
   readonly createdAt: string;
 }
 
-/** Same as `listAssignments`, but resolves each assignee's email. */
+/**
+ * True if the organization currently holds a grant permitting `COMMENT` or
+ * `MANAGE` on this specific mission — the bar `addNote`/`assignMember`
+ * already require to write. Read access to notes/assignee identities must
+ * never be broader than write access to the same mission
+ * (docs/audits/post-programme-defect-register.md finding #5): an
+ * applicant-wide grant scoped to, say, `PREVIEW` alone must not expose note
+ * bodies or assignee emails.
+ */
+async function canReadMissionCollaboration(
+  db: Db,
+  organizationId: string,
+  applicantId: string,
+  missionId: string,
+): Promise<boolean> {
+  return (
+    (await orgGrantPermits(db, organizationId, applicantId, 'COMMENT', missionId)) ||
+    (await orgGrantPermits(db, organizationId, applicantId, 'MANAGE', missionId))
+  );
+}
+
+/**
+ * Same as `listAssignments`, but resolves each assignee's email — gated on
+ * `canReadMissionCollaboration` (finding #5 above); returns empty rather
+ * than throwing so a caller iterating every reachable mission doesn't need
+ * a separate authorization branch per mission.
+ */
 export async function listAssignmentsDetailed(
   db: Db,
+  organizationId: string,
+  applicantId: string,
   missionId: string,
 ): Promise<AssignmentView[]> {
+  if (!(await canReadMissionCollaboration(db, organizationId, applicantId, missionId))) return [];
   const rows = await db
     .select({
       id: schema.assignments.id,
@@ -256,14 +286,19 @@ export async function listMissionsForOrganization(
   // A mission-scoped grant only reaches its own mission; the SQL join above
   // is applicant-wide (it must be, to also surface applicant-wide grants),
   // so the mission-scope narrowing happens here.
-  return rows
-    .filter((r) => r.grantMissionId === null || r.grantMissionId === r.missionId)
-    .map(({ missionId, title, applicantId, applicantName }) => ({
-      missionId,
-      title,
-      applicantId,
-      applicantName,
-    }));
+  const scoped = rows.filter((r) => r.grantMissionId === null || r.grantMissionId === r.missionId);
+  // An applicant-wide grant and a mission-scoped grant for the same
+  // applicant both survive the filter above as distinct rows for the
+  // mission the scoped grant names — dedupe by missionId so the console
+  // never renders (and never lets the user act on) the same mission twice
+  // (docs/audits/post-programme-defect-register.md finding #7).
+  const deduped = [...new Map(scoped.map((r) => [r.missionId, r])).values()];
+  return deduped.map(({ missionId, title, applicantId, applicantName }) => ({
+    missionId,
+    title,
+    applicantId,
+    applicantName,
+  }));
 }
 
 const NOTE_MAX_LENGTH = 2000;
@@ -390,7 +425,18 @@ export async function addNote(
   });
 }
 
-export async function listNotes(db: Db, missionId: string): Promise<MissionNote[]> {
+/**
+ * Notes on a mission — gated on `canReadMissionCollaboration` (finding #5):
+ * an org's grant must permit `COMMENT` or `MANAGE` on this specific mission
+ * before note bodies become readable, mirroring `addNote`'s own bar.
+ */
+export async function listNotes(
+  db: Db,
+  organizationId: string,
+  applicantId: string,
+  missionId: string,
+): Promise<MissionNote[]> {
+  if (!(await canReadMissionCollaboration(db, organizationId, applicantId, missionId))) return [];
   return db.select().from(schema.missionNotes).where(eq(schema.missionNotes.missionId, missionId));
 }
 
@@ -413,6 +459,15 @@ export async function requestEvidence(
     readonly fieldKey?: string;
     readonly docType?: string;
     readonly message?: string;
+    /**
+     * When the requesting organization's only standing for this applicant is
+     * a mission-scoped grant, the scope must be supplied so `orgGrantPermits`
+     * can match it — an unscoped check against a mission-scoped grant always
+     * fails `scope_mismatch` (docs/audits/post-programme-defect-register.md
+     * finding #6), silently rejecting evidence requests the org's real grant
+     * should permit.
+     */
+    readonly missionId?: string;
   },
 ): Promise<Result<EvidenceRequest, ServiceError>> {
   if (!(await isOrgAdmin(db, input.actorAccountId, input.organizationId))) {
@@ -427,7 +482,9 @@ export async function requestEvidence(
   if (input.message !== undefined && input.message.length > 1000) {
     return err(serviceError('invalid', 'message may be at most 1000 characters'));
   }
-  if (!(await orgGrantPermits(db, input.organizationId, input.applicantId, 'MANAGE'))) {
+  if (
+    !(await orgGrantPermits(db, input.organizationId, input.applicantId, 'MANAGE', input.missionId))
+  ) {
     return err(
       serviceError('forbidden', 'this organization has no current grant for that applicant'),
     );
@@ -540,11 +597,19 @@ export interface OrgApplicant {
   readonly displayName: string;
 }
 
-/** Applicants with any grant naming this org (candidate targets for evidence requests). */
+/**
+ * Applicants with a CURRENT grant naming this org — candidate targets for
+ * evidence requests. Matches `listMissionsForOrganization`'s ACTIVE/
+ * accepted/started/unexpired predicate: previously matched any grant row
+ * regardless of status, so a revoked, paused, expired, or never-accepted
+ * grant still surfaced the applicant's name in the evidence-request picker
+ * (docs/audits/post-programme-defect-register.md finding #3).
+ */
 export async function listApplicantsForOrganization(
   db: Db,
   organizationId: string,
 ): Promise<OrgApplicant[]> {
+  const now = new Date();
   const rows = await db
     .selectDistinct({
       applicantId: schema.grants.applicantId,
@@ -552,7 +617,15 @@ export async function listApplicantsForOrganization(
     })
     .from(schema.grants)
     .innerJoin(schema.applicants, eq(schema.applicants.id, schema.grants.applicantId))
-    .where(eq(schema.grants.recipientOrganizationId, organizationId));
+    .where(
+      and(
+        eq(schema.grants.recipientOrganizationId, organizationId),
+        eq(schema.grants.status, 'ACTIVE'),
+        isNotNull(schema.grants.acceptedAt),
+        lte(schema.grants.startAt, now),
+        or(isNull(schema.grants.expiryAt), gt(schema.grants.expiryAt, now)),
+      ),
+    );
   return rows;
 }
 
@@ -688,6 +761,13 @@ export async function bulkExport(
         ...(g.categories ? { categories: g.categories } : {}),
         ...(g.acceptedAt ? { acceptedAt: g.acceptedAt.toISOString() } : {}),
         ...(g.expiryAt ? { expiryAt: g.expiryAt.toISOString() } : {}),
+        // Preserve mission/document scope exactly as `loadGrantsForPolicy`
+        // does — omitting these let a mission- or document-scoped grant be
+        // evaluated as applicant-wide, exporting the full profile instead of
+        // the authorized subset (docs/audits/post-programme-defect-register.md
+        // finding #4).
+        ...(g.missionId ? { missionId: g.missionId as MissionId } : {}),
+        ...(g.documentIds ? { documentIds: g.documentIds as DocumentId[] } : {}),
       }));
 
     // Which of this applicant's grants actually allow EXPORT_PROFILE here,
@@ -894,9 +974,13 @@ export async function recordMissionDecision(
 
 /**
  * Every decision recorded on a mission, newest first — visible to the
- * mission owner or any org member currently assigned to it (read is
- * intentionally more permissive than the write, matching this codebase's
- * general pattern elsewhere).
+ * mission owner or any org member currently assigned to it. Previously only
+ * checked that an assignment ROW existed, so a reviewer deactivated,
+ * removed from the organization, or whose org's grant was later revoked
+ * kept indefinite read access to decision history/reasons; now re-checks
+ * active membership and a current covering grant, exactly like the write
+ * path (`recordMissionDecision`) already does
+ * (docs/audits/post-programme-defect-register.md finding #32).
  */
 export async function listMissionDecisions(
   db: Db,
@@ -916,19 +1000,42 @@ export async function listMissionDecisions(
   );
   const isOwner = applicant?.ownerAccountId === actorAccountId;
   if (!isOwner) {
-    const assignedAnywhere = first(
-      await db
-        .select({ id: schema.assignments.id })
-        .from(schema.assignments)
-        .where(
-          and(
-            eq(schema.assignments.memberAccountId, actorAccountId),
-            eq(schema.assignments.missionId, missionId),
-          ),
-        )
-        .limit(1),
-    );
-    if (!assignedAnywhere) {
+    // An account can be assigned to the same mission through MULTIPLE
+    // organizations — the assignments table's uniqueness key includes
+    // organizationId, so this is a valid, expected state, not a bug. An
+    // arbitrary single row (the previous `.limit(1)`) could select an
+    // organization whose membership or grant has since lapsed even though
+    // a DIFFERENT one of this account's assignments still has an active
+    // membership and a covering grant — incorrectly denying access
+    // depending only on which row Postgres happened to return (Codex
+    // review, PR #65). Authorize as soon as ANY matching assignment
+    // satisfies both checks.
+    const assignments = await db
+      .select({ organizationId: schema.assignments.organizationId })
+      .from(schema.assignments)
+      .where(
+        and(
+          eq(schema.assignments.memberAccountId, actorAccountId),
+          eq(schema.assignments.missionId, missionId),
+        ),
+      );
+    let authorized = false;
+    for (const assignment of assignments) {
+      if (
+        (await isActiveMember(db, actorAccountId, assignment.organizationId)) &&
+        (await orgGrantPermits(
+          db,
+          assignment.organizationId,
+          mission.applicantId,
+          'MANAGE',
+          missionId,
+        ))
+      ) {
+        authorized = true;
+        break;
+      }
+    }
+    if (!authorized) {
       return err(serviceError('forbidden', 'not authorized to view decisions on this mission'));
     }
   }

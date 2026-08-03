@@ -11,6 +11,7 @@ import {
   listAllOrganizations,
   listErasureJobsNeedingAttention,
   listFailedJobs,
+  listInvitations,
   listRecentAuditEvents,
   loadUploadQuotaConfig,
   reportUnboundAccounts,
@@ -26,9 +27,10 @@ import {
   ReleaseHoldButton,
   RetryErasureJobButton,
   RetryJobButton,
+  RevokeInvitationButton,
   RevokeRoleButton,
 } from './action-buttons';
-import { GrantRoleForm, LegalHoldForm, RetentionPolicyForm } from './admin-forms';
+import { GrantRoleForm, InviteForm, LegalHoldForm, RetentionPolicyForm } from './admin-forms';
 import { PurgeButton } from './purge-button';
 import { ReconcileButtons } from './reconcile-buttons';
 
@@ -76,6 +78,7 @@ export default async function AdminPage() {
       platformEvidenceBytes,
       auditEvents,
       aiCostUnits,
+      invitations,
     ] = await Promise.all([
       getRetentionPolicies(db),
       listActiveLegalHolds(db),
@@ -91,6 +94,7 @@ export default async function AdminPage() {
       getPlatformEvidenceBytes(db),
       listRecentAuditEvents(db, 50),
       totalAiCostUnits(db),
+      listInvitations(db),
     ]);
     return {
       admin: true as const,
@@ -108,6 +112,7 @@ export default async function AdminPage() {
       platformEvidenceBytes,
       auditEvents,
       aiCostUnits,
+      invitations,
       quota: loadUploadQuotaConfig(),
     };
   });
@@ -150,6 +155,9 @@ export default async function AdminPage() {
             </a>
             <a href="#admin-security" className="pill">
               Security
+            </a>
+            <a href="#admin-pilot-access" className="pill">
+              Pilot access
             </a>
             <a href="#admin-organizations" className="pill">
               Organizations
@@ -240,6 +248,70 @@ export default async function AdminPage() {
             ) : (
               <p className="muted" style={{ fontSize: '0.85rem' }}>
                 Only a platform owner can grant or revoke roles.
+              </p>
+            )}
+          </article>
+
+          <article className="card" style={{ marginBottom: '1.5rem' }} id="admin-pilot-access">
+            <p className="card-kicker">Controlled pilot</p>
+            <h2 className="card-title">Pilot access</h2>
+            <p className="card-body" style={{ marginBottom: '1rem' }}>
+              This is an invite-only controlled pilot: an authenticated identity that isn't invited
+              or allowlisted is denied a local account. An invitation is never deleted, only revoked
+              — the full history of who was invited, by whom, and why is always reconstructable.
+              Revoking only blocks a future, not-yet-provisioned sign-in; an account already
+              provisioned from this invitation keeps its access.
+            </p>
+            {data.invitations.length === 0 ? (
+              <p className="card-body" style={{ marginBottom: '1.25rem' }}>
+                No invitations yet.
+              </p>
+            ) : (
+              <div className="rows" style={{ marginBottom: '1.25rem' }}>
+                {data.invitations.map((inv) => {
+                  const status = inv.revokedAt
+                    ? { label: 'Revoked', tone: 'badge-danger' }
+                    : inv.acceptedAt
+                      ? { label: 'Accepted', tone: 'badge-success' }
+                      : { label: 'Pending', tone: 'badge-neutral' };
+                  return (
+                    <div
+                      className="row"
+                      key={inv.id}
+                      style={{ flexDirection: 'column', alignItems: 'stretch', gap: '0.4rem' }}
+                    >
+                      <div
+                        style={{
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          gap: '0.75rem',
+                        }}
+                      >
+                        <span className="row-key" style={{ wordBreak: 'break-word' }}>
+                          {inv.email}
+                        </span>
+                        <span style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                          <span className={`badge ${status.tone}`}>{status.label}</span>
+                          {data.owner && !inv.revokedAt ? (
+                            <RevokeInvitationButton invitationId={inv.id} />
+                          ) : null}
+                        </span>
+                      </div>
+                      <span className="muted" style={{ fontSize: '0.8rem' }}>
+                        {inv.reason ?? 'No reason given'} · invited{' '}
+                        {inv.invitedAt.toLocaleDateString()}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+            {data.owner ? (
+              <InviteForm />
+            ) : (
+              <p className="muted" style={{ fontSize: '0.85rem' }}>
+                Only a platform owner can invite or revoke pilot access.
               </p>
             )}
           </article>

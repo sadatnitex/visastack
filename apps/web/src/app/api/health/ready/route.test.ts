@@ -70,6 +70,14 @@ function mockDb(overrides: {
 }
 
 describe('GET /api/health/ready — honest health (200 vs 503)', () => {
+  // This file's first dynamic import transitively pulls in ./route ->
+  // ../../../../lib/commercial-readiness -> ./ai -> the OpenAI SDK transform
+  // (same cost capabilities.test.ts/providers.test.ts/commercial-readiness.test.ts
+  // already flag) — fast in isolation but can exceed the 5s default under
+  // full monorepo test-suite contention
+  // (docs/audits/post-programme-defect-register.md finding D-T1). A generous
+  // explicit timeout avoids a spurious CI failure unrelated to this test's
+  // own correctness.
   it('returns 200 "ready" when DB is connected+migrated and WorkOS config is present', async () => {
     mockDb({});
     const { GET } = await import('./route');
@@ -77,7 +85,7 @@ describe('GET /api/health/ready — honest health (200 vs 503)', () => {
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.status).toBe('ready');
-  });
+  }, 15_000);
 
   it('returns 503 "degraded" when the database connection fails', async () => {
     mockDb({

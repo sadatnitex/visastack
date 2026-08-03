@@ -169,6 +169,13 @@
       "when": 1785582904956,
       "tag": "0023_adorable_photon",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1785759697593,
+      "tag": "0024_strong_mother_askani",
+      "breakpoints": true
     }
   ]
 }

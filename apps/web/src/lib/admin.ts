@@ -1,5 +1,11 @@
 import 'server-only';
-import { type Db, hasAnyPlatformRole, isPlatformOwner } from '@visastack/services';
+import {
+  type Db,
+  type PlatformAction,
+  canPerformPlatformAction,
+  hasAnyPlatformRole,
+  isPlatformOwner,
+} from '@visastack/services';
 
 /** Variable-keyed env read (satisfies both TS index-signature and Biome rules). */
 function readEnv(name: string): string | undefined {
@@ -40,4 +46,20 @@ export async function isPlatformOwnerAccount(
   ctx: { readonly accountId: string; readonly email: string },
 ): Promise<boolean> {
   return isPlatformOwner(db, { ...ctx, bootstrapEmails: bootstrapAdminEmails() });
+}
+
+/**
+ * True if the signed-in account can perform this specific concern-scoped
+ * platform action — as PLATFORM_OWNER (or bootstrap) or as the one role the
+ * action requires (docs/audits/post-programme-defect-register.md finding
+ * #15). Use this instead of `isPlatformAdmin` for every action that has a
+ * genuine single-concern owner; reserve `isPlatformAdmin` only for read-only
+ * surfaces truly meant for any platform role (e.g. the admin overview page).
+ */
+export async function hasPlatformPermission(
+  db: Db,
+  ctx: { readonly accountId: string; readonly email: string },
+  action: PlatformAction,
+): Promise<boolean> {
+  return canPerformPlatformAction(db, { ...ctx, bootstrapEmails: bootstrapAdminEmails() }, action);
 }

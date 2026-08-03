@@ -2,9 +2,16 @@ import 'server-only';
 import { createHash } from 'node:crypto';
 import { isOk } from '@visastack/core';
 import { createPooledDb, resolveDatabaseUrl } from '@visastack/db';
-import { type Db, provisionAccount } from '@visastack/services';
+import {
+  type Db,
+  attributeInvitation,
+  claimInvitation,
+  provisionAccount,
+  releaseInvitationClaim,
+} from '@visastack/services';
 import { withAuth } from '@workos-inc/authkit-nextjs';
 import { redirect } from 'next/navigation';
+import { checkPilotAccess } from './pilot-access';
 
 /**
  * A short, privacy-preserving reference for a subject, safe to write to logs.
@@ -14,6 +21,40 @@ import { redirect } from 'next/navigation';
  */
 function subjectRef(email: string): string {
   return `acct:${createHash('sha256').update(email.trim().toLowerCase()).digest('hex').slice(0, 12)}`;
+}
+
+/**
+ * True for Next.js's internal `redirect()` control-flow signal (duck-typed
+ * on its documented `digest` shape — Next does not export a stable public
+ * detector). Lets the catch block below tell a genuine failure apart from
+ * the routine, expected "not invited" redirect, which would otherwise log a
+ * misleading `[withSession] failed` line for every denied sign-in attempt.
+ */
+function isNextRedirectSignal(error: unknown): boolean {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'digest' in error &&
+    typeof (error as { digest: unknown }).digest === 'string' &&
+    (error as { digest: string }).digest.startsWith('NEXT_REDIRECT')
+  );
+}
+
+/**
+ * Best-effort wrapper around `releaseInvitationClaim`: this only ever runs
+ * while already unwinding a provisioning failure, so a failure in the
+ * release itself must never replace or mask the original error the caller
+ * is about to throw/log.
+ */
+async function releaseClaimBestEffort(db: Db, invitationId: string): Promise<void> {
+  try {
+    await releaseInvitationClaim(db, invitationId);
+  } catch (error) {
+    console.error(
+      '[withSession] failed to release invitation claim after a failed provision',
+      error,
+    );
+  }
 }
 
 /**
@@ -55,18 +96,68 @@ export async function withSession<T>(
   });
   const handle = db as unknown as Db;
   try {
+    // Server-authoritative controlled-pilot access boundary (docs/audits/
+    // post-programme-defect-register.md finding #2) — checked BEFORE
+    // provisioning, every time. An authenticated-but-uninvited identity must
+    // never receive a local account, regardless of how far WorkOS itself let
+    // them get through sign-in.
+    const access = await checkPilotAccess(handle, { email: user.email, workosUserId: user.id });
+    if (!access.allowed) {
+      redirect('/pilot-access-denied');
+    }
+
+    // Claim the invitation BEFORE provisioning, not after (Codex review, PR
+    // #65): if an admin revokes it in the instant between `checkPilotAccess`
+    // reading it as active and this claim, the claim now fails and this
+    // sign-in must be denied — an admin's revoke must always win a race
+    // against a provisioning already in flight. When the invitation was only
+    // a best-effort dangling-row cleanup (an account already exists
+    // independently — `mustClaimInvitation: false`), a failed claim is
+    // harmless and never blocks access.
+    let claimedInvitationId: string | null = null;
+    if (access.invitationId) {
+      const claimed = await claimInvitation(handle, access.invitationId);
+      if (claimed) {
+        claimedInvitationId = access.invitationId;
+      } else if (access.mustClaimInvitation) {
+        redirect('/pilot-access-denied');
+      }
+    }
+
     // Bind the local account to the immutable WorkOS user id from the trusted
     // server session (never a client-supplied id); email is mutable contact data.
-    const provisioned = await provisionAccount(handle, {
-      email: user.email,
-      workosUserId: user.id,
-      emailVerified: user.emailVerified,
-    });
+    // If provisioning fails for ANY reason (an identity conflict, a transient
+    // database/audit error) after the claim above already committed, the
+    // claim must be released — otherwise the invitation is burned with no
+    // account ever created, locking out a legitimate retry until an admin
+    // issues another invitation (Codex review, PR #65).
+    let provisioned: Awaited<ReturnType<typeof provisionAccount>>;
+    try {
+      provisioned = await provisionAccount(handle, {
+        email: user.email,
+        workosUserId: user.id,
+        emailVerified: user.emailVerified,
+      });
+    } catch (error) {
+      if (claimedInvitationId) await releaseClaimBestEffort(handle, claimedInvitationId);
+      throw error;
+    }
     if (!isOk(provisioned)) {
+      if (claimedInvitationId) await releaseClaimBestEffort(handle, claimedInvitationId);
       throw new Error(`account provisioning failed: ${provisioned.error.message}`);
+    }
+    if (claimedInvitationId) {
+      await attributeInvitation(handle, {
+        invitationId: claimedInvitationId,
+        accountId: provisioned.value.id,
+      });
     }
     return await fn({ db: handle, accountId: provisioned.value.id, email: user.email });
   } catch (error) {
+    // The routine "not invited" redirect above is expected control flow, not
+    // a failure — logging it as one would misleadingly flag every denied
+    // sign-in attempt as a server error.
+    if (isNextRedirectSignal(error)) throw error;
     // Surface the real cause in the server logs. Next.js masks render-time
     // exceptions behind an opaque digest in production, so without this the
     // actual message (DB connectivity, a failing query, a WorkOS refresh) is

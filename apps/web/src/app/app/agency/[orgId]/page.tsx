@@ -72,8 +72,8 @@ export default async function OrgConsolePage({
     const missions = await Promise.all(
       orgMissions.map(async (mission) => {
         const [assignments, notes, requirements, decisions] = await Promise.all([
-          listAssignmentsDetailed(db, mission.missionId),
-          listNotes(db, mission.missionId),
+          listAssignmentsDetailed(db, orgId, mission.applicantId, mission.missionId),
+          listNotes(db, orgId, mission.applicantId, mission.missionId),
           listMissionRequirementsForOrg(db, orgId, mission.missionId),
           listMissionDecisions(db, accountId, mission.missionId),
         ]);
@@ -231,7 +231,15 @@ export default async function OrgConsolePage({
               <p className="card-body" style={{ marginBottom: '1.25rem' }}>
                 Ask an applicant for a specific field or document. They decide whether to fulfil it.
               </p>
-              <RequestEvidenceForm organizationId={orgId} applicants={data.applicants} />
+              <RequestEvidenceForm
+                organizationId={orgId}
+                applicants={data.applicants}
+                missions={data.missions.map((m) => ({
+                  missionId: m.missionId,
+                  title: m.title,
+                  applicantName: m.applicantName,
+                }))}
+              />
             </article>
 
             <article className="card">

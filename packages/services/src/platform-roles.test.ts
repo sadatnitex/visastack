@@ -2,13 +2,14 @@ import { fileURLToPath } from 'node:url';
 import { PGlite } from '@electric-sql/pglite';
 import { isErr, isOk } from '@visastack/core';
 import { schema } from '@visastack/db';
-import { eq } from 'drizzle-orm';
+import { and, eq, isNull } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/pglite';
 import { migrate } from 'drizzle-orm/pglite/migrator';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { provisionAccount } from './accounts';
 import type { Db } from './db';
 import {
+  canPerformPlatformAction,
   grantPlatformRole,
   hasAnyPlatformRole,
   isPlatformOwner,
@@ -57,6 +58,93 @@ describe('platform roles — bootstrap', () => {
     };
     expect(await hasAnyPlatformRole(db, auth)).toBe(false);
     expect(await isPlatformOwner(db, auth)).toBe(false);
+  });
+
+  it('forces the very first grant to be PLATFORM_OWNER regardless of the requested role (finding #16)', async () => {
+    const owner = await seedAccount(db, 'bootstrap-owner@example.com');
+    const ownerAuth = {
+      accountId: owner.id,
+      email: 'bootstrap-owner@example.com',
+      bootstrapEmails: ['bootstrap-owner@example.com'],
+    };
+    // Ask for SUPPORT_ADMIN — the bootstrap path must silently upgrade this
+    // to PLATFORM_OWNER, otherwise the installation is permanently locked
+    // out of role management (docs/audits/post-programme-defect-register.md
+    // finding #16).
+    const granted = await grantPlatformRole(db, {
+      actor: ownerAuth,
+      targetAccountId: owner.id,
+      role: 'SUPPORT_ADMIN',
+      reason: 'attempted non-owner bootstrap grant',
+      stepUpSatisfied: true,
+    });
+    expect(isOk(granted)).toBe(true);
+    if (isOk(granted)) expect(granted.value.role).toBe('PLATFORM_OWNER');
+    expect(await isPlatformOwner(db, { ...ownerAuth, bootstrapEmails: [] })).toBe(true);
+  });
+
+  it('serializes bootstrap-owner selection — two concurrent bootstrap grants for DIFFERENT accounts never both become PLATFORM_OWNER, and the loser is rejected, not silently downgraded (Codex review, PR #65)', async () => {
+    const first = await seedAccount(db, 'bootstrap-race-1@example.com');
+    const second = await seedAccount(db, 'bootstrap-race-2@example.com');
+    const firstAuth = {
+      accountId: first.id,
+      email: 'bootstrap-race-1@example.com',
+      bootstrapEmails: ['bootstrap-race-1@example.com', 'bootstrap-race-2@example.com'],
+    };
+    const secondAuth = {
+      accountId: second.id,
+      email: 'bootstrap-race-2@example.com',
+      bootstrapEmails: ['bootstrap-race-1@example.com', 'bootstrap-race-2@example.com'],
+    };
+
+    // Two different bootstrap-authorized actors, targeting DIFFERENT
+    // accounts, each explicitly requesting a non-owner role. Against an
+    // empty table, both could independently observe "zero grants exist"
+    // and both get silently upgraded to PLATFORM_OWNER — the partial
+    // unique index from finding #40 does not help here since the target
+    // account IDs differ. Whichever one loses the race was NEVER a real
+    // owner and had only ever passed authorization via the now-closed
+    // bootstrap window — it must be rejected outright, not silently
+    // granted its own lesser requested role on stale authorization (an
+    // earlier version of this test wrongly asserted that as the correct
+    // outcome; Codex review, PR #65, caught that the fix itself needed a
+    // re-check of authorization under the lock, not just the bootstrap
+    // count).
+    const [a, b] = await Promise.all([
+      grantPlatformRole(db, {
+        actor: firstAuth,
+        targetAccountId: first.id,
+        role: 'SUPPORT_ADMIN',
+        reason: 'race A',
+        stepUpSatisfied: true,
+      }),
+      grantPlatformRole(db, {
+        actor: secondAuth,
+        targetAccountId: second.id,
+        role: 'COMPLIANCE_ADMIN',
+        reason: 'race B',
+        stepUpSatisfied: true,
+      }),
+    ]);
+
+    // Which of the two wins the race to be "the" bootstrap grant is
+    // legitimately non-deterministic — but exactly one must succeed (and
+    // become PLATFORM_OWNER, forced regardless of what it requested), and
+    // the other must be refused outright.
+    const outcomes = [a, b];
+    const winners = outcomes.filter(isOk);
+    const losers = outcomes.filter(isErr);
+    expect(winners).toHaveLength(1);
+    expect(losers).toHaveLength(1);
+    expect(winners[0]?.value.role).toBe('PLATFORM_OWNER');
+    if (losers[0]) expect(losers[0].error.code).toBe('forbidden');
+
+    const activeOwners = (await listActivePlatformRoles(db)).filter(
+      (r) => r.role === 'PLATFORM_OWNER',
+    );
+    expect(activeOwners).toHaveLength(1);
+    // Only one grant total exists — the loser's rejection created nothing.
+    expect(await listActivePlatformRoles(db)).toHaveLength(1);
   });
 
   it('stops applying the moment a single real grant exists, even for the bootstrap email itself', async () => {
@@ -376,5 +464,298 @@ describe('platform roles — grant and revoke', () => {
     const active = await listActivePlatformRoles(db);
     expect(active.map((r) => r.id)).not.toContain(grantA.value.id);
     expect(active.map((r) => r.id)).toContain(grantB.value.id);
+  });
+
+  it('serializes concurrent revocations of two owners so at least one always survives (finding #18)', async () => {
+    const secondOwner = await seedAccount(db, 'race-owner@example.com');
+    const secondGrant = await grantPlatformRole(db, {
+      actor: ownerAuth,
+      targetAccountId: secondOwner.id,
+      role: 'PLATFORM_OWNER',
+      reason: 'co-owner for race test',
+      stepUpSatisfied: true,
+    });
+    if (!isOk(secondGrant)) throw new Error('grant');
+    const firstGrantId = (await listActivePlatformRoles(db)).find(
+      (r) => r.accountId === owner.id,
+    )?.id;
+    if (!firstGrantId) throw new Error('first grant');
+
+    // Two concurrent revocation attempts against exactly 2 active owners —
+    // without the transactional row lock, both could independently observe
+    // "another owner exists" and both succeed, stranding the platform at
+    // zero owners.
+    const [a, b] = await Promise.all([
+      revokePlatformRole(db, {
+        actor: ownerAuth,
+        grantId: firstGrantId,
+        reason: 'race A',
+        stepUpSatisfied: true,
+      }),
+      revokePlatformRole(db, {
+        actor: { ...ownerAuth, accountId: secondOwner.id, email: 'race-owner@example.com' },
+        grantId: secondGrant.value.id,
+        reason: 'race B',
+        stepUpSatisfied: true,
+      }),
+    ]);
+    // At least one of the two concurrent attempts must be refused.
+    const outcomes = [a, b];
+    expect(outcomes.some((o) => isErr(o))).toBe(true);
+
+    const remainingOwners = (await listActivePlatformRoles(db)).filter(
+      (r) => r.role === 'PLATFORM_OWNER',
+    );
+    expect(remainingOwners.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('is idempotent — repeating the same (account, role) grant returns the existing active row, never a duplicate (Codex review, PR #65)', async () => {
+    const support = await seedAccount(db, 'idempotent-support@example.com');
+    const first = await grantPlatformRole(db, {
+      actor: ownerAuth,
+      targetAccountId: support.id,
+      role: 'SUPPORT_ADMIN',
+      reason: 'first',
+      stepUpSatisfied: true,
+    });
+    if (!isOk(first)) throw new Error('grant');
+    const second = await grantPlatformRole(db, {
+      actor: ownerAuth,
+      targetAccountId: support.id,
+      role: 'SUPPORT_ADMIN',
+      reason: 'repeat',
+      stepUpSatisfied: true,
+    });
+    expect(isOk(second)).toBe(true);
+    if (isOk(second)) expect(second.value.id).toBe(first.value.id);
+
+    const rows = await db
+      .select()
+      .from(schema.platformRoles)
+      .where(eq(schema.platformRoles.accountId, support.id));
+    expect(rows).toHaveLength(1);
+  });
+
+  it('closes the concurrent-grant race with a database-level constraint — never two active rows for the same (account, role) (Codex review, PR #65)', async () => {
+    const support = await seedAccount(db, 'race-support@example.com');
+    const [a, b] = await Promise.all([
+      grantPlatformRole(db, {
+        actor: ownerAuth,
+        targetAccountId: support.id,
+        role: 'SUPPORT_ADMIN',
+        reason: 'race A',
+        stepUpSatisfied: true,
+      }),
+      grantPlatformRole(db, {
+        actor: ownerAuth,
+        targetAccountId: support.id,
+        role: 'SUPPORT_ADMIN',
+        reason: 'race B',
+        stepUpSatisfied: true,
+      }),
+    ]);
+    expect(isOk(a)).toBe(true);
+    expect(isOk(b)).toBe(true);
+    if (!isOk(a) || !isOk(b)) return;
+    // Both calls resolve to the SAME row — the loser of the race recovers
+    // via the unique-violation catch path rather than erroring or leaving a
+    // second active row that a later revocation of "the other one" would
+    // silently leave granting the same authority.
+    expect(a.value.id).toBe(b.value.id);
+
+    const activeRows = await db
+      .select()
+      .from(schema.platformRoles)
+      .where(
+        and(eq(schema.platformRoles.accountId, support.id), isNull(schema.platformRoles.revokedAt)),
+      );
+    expect(activeRows).toHaveLength(1);
+  });
+
+  it('allows an account to hold two different concern-scoped roles at once — the invariant is per (account, role), not per account', async () => {
+    const dual = await seedAccount(db, 'dual-role@example.com');
+    const security = await grantPlatformRole(db, {
+      actor: ownerAuth,
+      targetAccountId: dual.id,
+      role: 'SECURITY_ADMIN',
+      reason: 'security',
+      stepUpSatisfied: true,
+    });
+    const compliance = await grantPlatformRole(db, {
+      actor: ownerAuth,
+      targetAccountId: dual.id,
+      role: 'COMPLIANCE_ADMIN',
+      reason: 'compliance',
+      stepUpSatisfied: true,
+    });
+    expect(isOk(security)).toBe(true);
+    expect(isOk(compliance)).toBe(true);
+    const rows = await db
+      .select()
+      .from(schema.platformRoles)
+      .where(eq(schema.platformRoles.accountId, dual.id));
+    expect(rows).toHaveLength(2);
+  });
+
+  it('allows re-granting the same role after the previous grant was revoked', async () => {
+    const support = await seedAccount(db, 're-grant-support@example.com');
+    const first = await grantPlatformRole(db, {
+      actor: ownerAuth,
+      targetAccountId: support.id,
+      role: 'SUPPORT_ADMIN',
+      reason: 'first',
+      stepUpSatisfied: true,
+    });
+    if (!isOk(first)) throw new Error('grant');
+    const revoked = await revokePlatformRole(db, {
+      actor: ownerAuth,
+      grantId: first.value.id,
+      reason: 'done for now',
+      stepUpSatisfied: true,
+    });
+    expect(isOk(revoked)).toBe(true);
+
+    const second = await grantPlatformRole(db, {
+      actor: ownerAuth,
+      targetAccountId: support.id,
+      role: 'SUPPORT_ADMIN',
+      reason: 're-grant',
+      stepUpSatisfied: true,
+    });
+    expect(isOk(second)).toBe(true);
+    if (isOk(second)) expect(second.value.id).not.toBe(first.value.id);
+
+    const rows = await db
+      .select()
+      .from(schema.platformRoles)
+      .where(eq(schema.platformRoles.accountId, support.id));
+    expect(rows).toHaveLength(2); // one revoked, one active
+  });
+});
+
+describe('platform roles — concern-scoped action matrix (finding #15)', () => {
+  let db: Db;
+  let owner: Awaited<ReturnType<typeof seedAccount>>;
+  let ownerAuth: { accountId: string; email: string; bootstrapEmails: readonly string[] };
+  beforeEach(async () => {
+    db = await freshDb();
+    owner = await seedAccount(db, 'matrix-owner@example.com');
+    ownerAuth = {
+      accountId: owner.id,
+      email: 'matrix-owner@example.com',
+      bootstrapEmails: ['matrix-owner@example.com'],
+    };
+    await grantPlatformRole(db, {
+      actor: ownerAuth,
+      targetAccountId: owner.id,
+      role: 'PLATFORM_OWNER',
+      reason: 'seed',
+      stepUpSatisfied: true,
+    });
+    ownerAuth = { ...ownerAuth, bootstrapEmails: [] };
+  });
+
+  it('lets PLATFORM_OWNER perform every concern-scoped action', async () => {
+    for (const action of [
+      'RETENTION_POLICY_SET',
+      'LEGAL_HOLD_PLACE',
+      'ORGANIZATION_REVIEW',
+      'PROCESSING_JOB_RETRY',
+      'PACK_MANAGE',
+    ] as const) {
+      expect(await canPerformPlatformAction(db, ownerAuth, action)).toBe(true);
+    }
+  });
+
+  it('confines SUPPORT_ADMIN to bounded support actions only — never security, retention, or role-management concerns', async () => {
+    const support = await seedAccount(db, 'matrix-support@example.com');
+    await grantPlatformRole(db, {
+      actor: ownerAuth,
+      targetAccountId: support.id,
+      role: 'SUPPORT_ADMIN',
+      reason: 'support only',
+      stepUpSatisfied: true,
+    });
+    const supportAuth = {
+      accountId: support.id,
+      email: 'matrix-support@example.com',
+      bootstrapEmails: [],
+    };
+    expect(await canPerformPlatformAction(db, supportAuth, 'PROCESSING_JOB_RETRY')).toBe(true);
+    expect(await canPerformPlatformAction(db, supportAuth, 'ORPHAN_RECONCILE')).toBe(true);
+    expect(await canPerformPlatformAction(db, supportAuth, 'PACK_MANAGE')).toBe(true);
+    // Not security, retention, or organization-review — a SUPPORT_ADMIN is
+    // functionally identical to no role at all for these
+    // (docs/audits/post-programme-defect-register.md finding #15).
+    expect(await canPerformPlatformAction(db, supportAuth, 'RETENTION_POLICY_SET')).toBe(false);
+    expect(await canPerformPlatformAction(db, supportAuth, 'LEGAL_HOLD_PLACE')).toBe(false);
+    expect(await canPerformPlatformAction(db, supportAuth, 'LEGAL_HOLD_RELEASE')).toBe(false);
+    expect(await canPerformPlatformAction(db, supportAuth, 'RETENTION_PURGE')).toBe(false);
+    expect(await canPerformPlatformAction(db, supportAuth, 'ERASURE_JOB_RETRY')).toBe(false);
+    expect(await canPerformPlatformAction(db, supportAuth, 'ORGANIZATION_REVIEW')).toBe(false);
+  });
+
+  it('confines COMPLIANCE_ADMIN to retention/legal-hold/privacy actions only', async () => {
+    const compliance = await seedAccount(db, 'matrix-compliance@example.com');
+    await grantPlatformRole(db, {
+      actor: ownerAuth,
+      targetAccountId: compliance.id,
+      role: 'COMPLIANCE_ADMIN',
+      reason: 'compliance only',
+      stepUpSatisfied: true,
+    });
+    const complianceAuth = {
+      accountId: compliance.id,
+      email: 'matrix-compliance@example.com',
+      bootstrapEmails: [],
+    };
+    expect(await canPerformPlatformAction(db, complianceAuth, 'RETENTION_POLICY_SET')).toBe(true);
+    expect(await canPerformPlatformAction(db, complianceAuth, 'LEGAL_HOLD_PLACE')).toBe(true);
+    expect(await canPerformPlatformAction(db, complianceAuth, 'LEGAL_HOLD_RELEASE')).toBe(true);
+    expect(await canPerformPlatformAction(db, complianceAuth, 'RETENTION_PURGE')).toBe(true);
+    expect(await canPerformPlatformAction(db, complianceAuth, 'ERASURE_JOB_RETRY')).toBe(true);
+    // Not security or support concerns.
+    expect(await canPerformPlatformAction(db, complianceAuth, 'ORGANIZATION_REVIEW')).toBe(false);
+    expect(await canPerformPlatformAction(db, complianceAuth, 'PROCESSING_JOB_RETRY')).toBe(false);
+    expect(await canPerformPlatformAction(db, complianceAuth, 'PACK_MANAGE')).toBe(false);
+  });
+
+  it('confines SECURITY_ADMIN to security-specific actions only', async () => {
+    const security = await seedAccount(db, 'matrix-security@example.com');
+    await grantPlatformRole(db, {
+      actor: ownerAuth,
+      targetAccountId: security.id,
+      role: 'SECURITY_ADMIN',
+      reason: 'security only',
+      stepUpSatisfied: true,
+    });
+    const securityAuth = {
+      accountId: security.id,
+      email: 'matrix-security@example.com',
+      bootstrapEmails: [],
+    };
+    expect(await canPerformPlatformAction(db, securityAuth, 'ORGANIZATION_REVIEW')).toBe(true);
+    // Not compliance or support concerns.
+    expect(await canPerformPlatformAction(db, securityAuth, 'RETENTION_POLICY_SET')).toBe(false);
+    expect(await canPerformPlatformAction(db, securityAuth, 'LEGAL_HOLD_PLACE')).toBe(false);
+    expect(await canPerformPlatformAction(db, securityAuth, 'PROCESSING_JOB_RETRY')).toBe(false);
+  });
+
+  it('denies every concern-scoped action for an account with no platform role at all', async () => {
+    const nobody = await seedAccount(db, 'matrix-nobody@example.com');
+    const nobodyAuth = {
+      accountId: nobody.id,
+      email: 'matrix-nobody@example.com',
+      bootstrapEmails: [],
+    };
+    for (const action of [
+      'RETENTION_POLICY_SET',
+      'LEGAL_HOLD_PLACE',
+      'ORGANIZATION_REVIEW',
+      'PROCESSING_JOB_RETRY',
+      'PACK_MANAGE',
+    ] as const) {
+      expect(await canPerformPlatformAction(db, nobodyAuth, action)).toBe(false);
+    }
   });
 });

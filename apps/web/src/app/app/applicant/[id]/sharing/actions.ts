@@ -12,7 +12,7 @@ import {
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { withSession } from '../../../../../lib/session';
-import { establishStepUp } from '../../../../../lib/step-up';
+import { STEP_UP_NOT_CONFIGURED_MESSAGE, tryEstablishStepUp } from '../../../../../lib/step-up';
 
 /** Result surfaced back to the client for inline feedback. */
 export interface ActionState {
@@ -70,11 +70,14 @@ export async function createGrantAction(
     }
     let stepUpSatisfied = false;
     if (isSensitive) {
-      const stepUp = await establishStepUp(
+      const stepUp = await tryEstablishStepUp(
         { accountId, action: 'SHARE', resourceId: applicantId },
         `/app/applicant/${applicantId}/sharing`,
       );
-      if (!stepUp.satisfied) redirect(stepUp.reauthUrl);
+      if (stepUp.kind === 'not_configured') {
+        return { ok: false, message: STEP_UP_NOT_CONFIGURED_MESSAGE } satisfies ActionState;
+      }
+      if (stepUp.kind === 'reauth_required') redirect(stepUp.reauthUrl);
       stepUpSatisfied = true;
     }
     const created = await createGrant(db, {

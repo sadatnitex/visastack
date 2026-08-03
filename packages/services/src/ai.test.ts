@@ -192,6 +192,49 @@ describe('AI Gateway — proposals never silently mutate', () => {
     expect(remaining).toHaveLength(1);
   });
 
+  it('refuses to approve a proposal (writing to the Master Profile) once CORE_PROCESSING consent has been revoked, even though AI_EXTRACTION consent remains granted (Codex review, PR #65)', async () => {
+    const { account, applicantId, versionId } = await seedVersion(
+      db,
+      'ai-core-revoked@example.com',
+    );
+    await grantAiConsent(db, account.id);
+    await registerFieldDefinition(db, { key: 'passport.number', dataType: 'string' });
+    const run = await runExtraction(db, stubAi(), {
+      actorAccountId: account.id,
+      applicantId,
+      documentVersionId: versionId,
+      text: 'MRZ...',
+      budgetLimitUnits: 10,
+    });
+    if (!isOk(run)) throw new Error('run failed');
+    const mappedProposalId = run.value.proposals.find((p) => p.fieldKey === 'passport.number')
+      ?.id as string;
+
+    // Core processing consent is revoked — AI_EXTRACTION consent (checked
+    // only by `runExtraction`, above) stays granted, so existing proposals
+    // remain visible, but approving one writes to the Master Profile via
+    // `editFact`, which is gated on CORE_PROCESSING.
+    await setConsent(db, {
+      actorAccountId: account.id,
+      accountId: account.id,
+      type: 'CORE_PROCESSING',
+      granted: false,
+    });
+
+    const approved = await approveProposal(db, {
+      actorAccountId: account.id,
+      proposalId: mappedProposalId,
+    });
+    expect(isErr(approved)).toBe(true);
+    if (isErr(approved)) expect(approved.error.code).toBe('consent_required');
+
+    // Nothing was written, and the proposal is still pending — decidable
+    // again once core processing consent is restored.
+    expect(await db.select().from(schema.facts)).toHaveLength(0);
+    const stillPending = await listPendingProposals(db, applicantId);
+    expect(stillPending.some((p) => p.proposal.id === mappedProposalId)).toBe(true);
+  });
+
   it('refuses to re-approve an already-decided proposal', async () => {
     const { account, applicantId, versionId } = await seedVersion(db, 'ai-idempotent@example.com');
     await grantAiConsent(db, account.id);
