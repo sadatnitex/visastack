@@ -5,7 +5,7 @@ import { schema } from '@visastack/db';
 import { eq } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/pglite';
 import { migrate } from 'drizzle-orm/pglite/migrator';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { provisionAccount } from './accounts';
 import { createApplicant } from './applicants';
 import { setConsent } from './consent';
@@ -41,6 +41,18 @@ class FakeBlobStore implements BlobStore {
   readonly failDeleteFor = new Set<string>();
   readonly surviveDeleteFor = new Set<string>();
   readonly deleteCalls: string[] = [];
+  /**
+   * When set, the NEXT `deleteObject` call pauses until `release()` is
+   * called, then clears itself — used to deterministically simulate a
+   * worker that is still genuinely running (not crashed) while its lease
+   * expires out from under it, without relying on PGlite's true
+   * transaction concurrency (see docs/audits/post-programme-defect-register.md
+   * D-T3: PGlite fully serializes transactions regardless of lock
+   * contention, so a real Promise.all race here would not reliably prove
+   * anything about CAS/fencing — this pause-then-resume technique proves it
+   * deterministically instead, mirroring jobs.test.ts's own pattern).
+   */
+  pauseNextDelete: (() => Promise<void>) | undefined;
 
   async putObject(input: PutObjectInput): Promise<void> {
     this.objects.set(input.objectKey, { contentType: input.contentType, bytes: input.bytes });
@@ -50,6 +62,11 @@ class FakeBlobStore implements BlobStore {
   }
   async deleteObject(_bucket: StorageBucket, objectKey: string): Promise<void> {
     this.deleteCalls.push(objectKey);
+    if (this.pauseNextDelete) {
+      const pause = this.pauseNextDelete;
+      this.pauseNextDelete = undefined;
+      await pause();
+    }
     if (this.failDeleteFor.has(objectKey)) throw new Error('simulated delete failure');
     if (!this.surviveDeleteFor.has(objectKey)) this.objects.delete(objectKey);
   }
@@ -402,5 +419,193 @@ describe('erasure outbox', () => {
     expect(result).toEqual({ processed: 2, blocked: 0, failed: 0 });
     const statuses = (await db.select().from(schema.erasureJobs)).map((j) => j.status).sort();
     expect(statuses).toEqual(['PENDING', 'VERIFIED', 'VERIFIED']);
+  });
+
+  describe('leasing and recovery (Codex review, PR-B1, finding #12)', () => {
+    it('reclaims a stale lease stuck at CLAIMED (worker crashed right after claiming) and completes the job on the next call', async () => {
+      const object = await seedStorageObject(db, 'obj-stale-claimed');
+      await storage.putObject({
+        bucket: 'CLEAN',
+        objectKey: 'obj-stale-claimed',
+        contentType: 'application/pdf',
+        bytes: new Uint8Array([1]),
+      });
+      const job = await enqueueErasureJob(db, {
+        reason: 'ACCOUNT_DELETION',
+        bucket: 'CLEAN',
+        objectKey: 'obj-stale-claimed',
+        expectedHash: null,
+        storageObjectId: object.id,
+      });
+      // Simulate a worker that claimed this job, then crashed before ever
+      // calling deleteObject.
+      await db
+        .update(schema.erasureJobs)
+        .set({
+          status: 'CLAIMED',
+          leaseOwner: 'ghost-worker',
+          leaseExpiresAt: new Date(Date.now() - 1000),
+          claimedAt: new Date(Date.now() - 60_000),
+        })
+        .where(eq(schema.erasureJobs.id, job.id));
+
+      const result = await runErasureWorker(db, storage, { limit: 5 });
+      expect(result).toEqual({ processed: 1, blocked: 0, failed: 0 });
+      const row = (await db.select().from(schema.erasureJobs))[0];
+      expect(row?.status).toBe('VERIFIED');
+      expect(row?.leaseOwner).toBeNull();
+      expect(row?.leaseExpiresAt).toBeNull();
+    });
+
+    it('reclaims a stale lease stuck at DELETED (worker crashed after the external delete but before verifying) and completes the job on the next call', async () => {
+      const object = await seedStorageObject(db, 'obj-stale-deleted');
+      // The crashed worker's own delete call actually succeeded — the
+      // backing store genuinely has nothing at this key already.
+      const job = await enqueueErasureJob(db, {
+        reason: 'ACCOUNT_DELETION',
+        bucket: 'CLEAN',
+        objectKey: 'obj-stale-deleted',
+        expectedHash: null,
+        storageObjectId: object.id,
+      });
+      await db
+        .update(schema.erasureJobs)
+        .set({
+          status: 'DELETED',
+          leaseOwner: 'ghost-worker',
+          leaseExpiresAt: new Date(Date.now() - 1000),
+          claimedAt: new Date(Date.now() - 60_000),
+        })
+        .where(eq(schema.erasureJobs.id, job.id));
+
+      const result = await runErasureWorker(db, storage, { limit: 5 });
+      expect(result).toEqual({ processed: 1, blocked: 0, failed: 0 });
+      // Re-ran deleteObject on an already-absent key — safe only because
+      // BlobStore.deleteObject is documented idempotent.
+      expect(storage.deleteCalls).toEqual(['obj-stale-deleted']);
+      const row = (await db.select().from(schema.erasureJobs))[0];
+      expect(row?.status).toBe('VERIFIED');
+      expect(row?.leaseOwner).toBeNull();
+    });
+
+    it("a stale worker whose lease was reclaimed mid-flight can never overwrite the reclaiming worker's outcome", async () => {
+      const object = await seedStorageObject(db, 'obj-cas-race');
+      await storage.putObject({
+        bucket: 'CLEAN',
+        objectKey: 'obj-cas-race',
+        contentType: 'application/pdf',
+        bytes: new Uint8Array([1]),
+      });
+      await enqueueErasureJob(db, {
+        reason: 'ACCOUNT_DELETION',
+        bucket: 'CLEAN',
+        objectKey: 'obj-cas-race',
+        expectedHash: null,
+        storageObjectId: object.id,
+      });
+
+      let releaseDelete: (() => void) | undefined;
+      storage.pauseNextDelete = () =>
+        new Promise<void>((resolve) => {
+          releaseDelete = resolve;
+        });
+
+      // Invocation A claims the job and pauses mid-delete (a slow, still-
+      // alive worker — not a crash).
+      const invocationA = runErasureWorker(db, storage, { limit: 5 });
+      await vi.waitFor(() => {
+        if (!releaseDelete) throw new Error('invocation A has not reached deleteObject yet');
+      });
+
+      // Its lease expires anyway (a conservative lease duration, or the
+      // reclaim sweep firing while it is mid-flight) — the one scenario
+      // leasing alone cannot rule out; fencing is what closes it.
+      await db
+        .update(schema.erasureJobs)
+        .set({ leaseExpiresAt: new Date(0) })
+        .where(eq(schema.erasureJobs.objectKey, 'obj-cas-race'));
+
+      // Invocation B reclaims and fully processes the same job (its own
+      // deleteObject call does not pause — pauseNextDelete already fired
+      // once and cleared itself).
+      const resultB = await runErasureWorker(db, storage, { limit: 5 });
+      expect(resultB).toEqual({ processed: 1, blocked: 0, failed: 0 });
+      const afterB = (await db.select().from(schema.erasureJobs))[0];
+      expect(afterB?.status).toBe('VERIFIED');
+
+      // Invocation A finally resumes — its lease is long gone. Every write
+      // it attempts from here (marking DELETED, then finalizing) is
+      // compare-and-set on its own now-stale leaseOwner token, so all of
+      // them are rejected; it must never overwrite B's already-correct,
+      // already-completed outcome.
+      releaseDelete?.();
+      const resultA = await invocationA;
+      expect(resultA).toEqual({ processed: 0, blocked: 0, failed: 0 });
+
+      const afterA = (await db.select().from(schema.erasureJobs))[0];
+      expect(afterA?.status).toBe('VERIFIED'); // unchanged by A's late, rejected write
+      expect(
+        await db
+          .select()
+          .from(schema.storageObjects)
+          .where(eq(schema.storageObjects.id, object.id)),
+      ).toHaveLength(0); // B's cleanup stands, not duplicated or errored by A's late resumption
+    });
+
+    it('rejects a stale-lease write even when the row is coincidentally back at a status the stale worker would still match — the fencing TOKEN, not the status alone, is what protects', async () => {
+      // The end-to-end test above happens to also be protected by its own
+      // status check alone (by the time A resumes, status has moved past
+      // CLAIMED entirely) — it doesn't, by itself, prove the leaseOwner
+      // comparison specifically matters. This test isolates that: it puts
+      // the row back at CLAIMED (the one status A's own check would still
+      // match) under a DIFFERENT worker's lease, so only a genuine
+      // leaseOwner mismatch — not a status mismatch — can be what rejects
+      // A's stale write.
+      const object = await seedStorageObject(db, 'obj-fencing-only');
+      await storage.putObject({
+        bucket: 'CLEAN',
+        objectKey: 'obj-fencing-only',
+        contentType: 'application/pdf',
+        bytes: new Uint8Array([1]),
+      });
+      await enqueueErasureJob(db, {
+        reason: 'ACCOUNT_DELETION',
+        bucket: 'CLEAN',
+        objectKey: 'obj-fencing-only',
+        expectedHash: null,
+        storageObjectId: object.id,
+      });
+
+      let releaseDelete: (() => void) | undefined;
+      storage.pauseNextDelete = () =>
+        new Promise<void>((resolve) => {
+          releaseDelete = resolve;
+        });
+
+      const invocationA = runErasureWorker(db, storage, { limit: 5 });
+      await vi.waitFor(() => {
+        if (!releaseDelete) throw new Error('invocation A has not reached deleteObject yet');
+      });
+
+      // Simulate a different worker having since reclaimed this exact row:
+      // status is CLAIMED again, but under a completely different
+      // leaseOwner — never produced by this test's own code path, just the
+      // state a genuine reclaim-then-reclaim-again sequence would leave.
+      await db
+        .update(schema.erasureJobs)
+        .set({
+          leaseOwner: 'a-completely-different-worker',
+          leaseExpiresAt: new Date(Date.now() + 60_000),
+        })
+        .where(eq(schema.erasureJobs.objectKey, 'obj-fencing-only'));
+
+      releaseDelete?.();
+      const resultA = await invocationA;
+      expect(resultA).toEqual({ processed: 0, blocked: 0, failed: 0 });
+
+      const row = (await db.select().from(schema.erasureJobs))[0];
+      expect(row?.status).toBe('CLAIMED'); // untouched by A
+      expect(row?.leaseOwner).toBe('a-completely-different-worker'); // still belongs to the other worker
+    });
   });
 });

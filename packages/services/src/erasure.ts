@@ -1,4 +1,5 @@
-import { and, asc, desc, eq, inArray, lte, or, sql } from 'drizzle-orm';
+import { randomUUID } from 'node:crypto';
+import { and, asc, desc, eq, inArray, lt, lte, or, sql } from 'drizzle-orm';
 import { appendAuditEvent } from './audit';
 import { type Db, first, required, schema } from './db';
 import { hasActiveLegalHold } from './retention';
@@ -17,9 +18,24 @@ import type { BlobStore } from './storage';
  * then verify" are two separate, independently observable steps (DELETED,
  * then VERIFIED), never collapsed into one. Deliberately a narrower, purpose-
  * built queue rather than a generalization of `processingJobs` (that
- * generalization, if warranted, is PR 6's explicit scope) — same proven
- * `FOR UPDATE SKIP LOCKED` claim pattern as `jobs.ts`, applied to a distinct
- * concern.
+ * generalization, if warranted, is PR 6's explicit scope).
+ *
+ * Leasing (Codex review, PR-B1 — finding #12): a claim is a time-bound lease,
+ * not a permanent hand-off, mirroring `jobs.ts`'s proven pattern exactly.
+ * Each `claimErasureJobs` call generates one `leaseOwner` token for that
+ * invocation; every job it claims carries that token plus a
+ * `leaseExpiresAt`. Every write past the initial claim — the CLAIMED→DELETED
+ * transition, `finalizeVerifiedJob`, `failErasureJob`, `blockOnHold` — is
+ * compare-and-set: it only takes effect while the row still carries this
+ * exact `leaseOwner`, so an invocation that outlives its own lease (it hung,
+ * and a later claim already reclaimed the job) can never stomp whichever
+ * invocation claimed it next — its write simply matches zero rows.
+ * `claimErasureJobs` reclaims expired leases (rows stuck at CLAIMED or
+ * DELETED past their lease) as part of the same transaction that claims new
+ * work, so a crashed worker's job becomes claimable again automatically —
+ * no separate admin action or cron required. Reprocessing a reclaimed job
+ * from scratch (re-running delete then verify) is safe because
+ * `BlobStore.deleteObject`/`getObject` are both documented idempotent.
  */
 
 export type ErasureJob = typeof schema.erasureJobs.$inferSelect;
@@ -27,6 +43,16 @@ export type ErasureJobReason = ErasureJob['reason'];
 
 const DEFAULT_CLAIM_LIMIT = 5;
 const BACKOFF_BASE_SECONDS = 30;
+/**
+ * Generous relative to a single job's real work (one delete + one get
+ * against the blob store, typically sub-second): bounds how long a crashed
+ * or hung worker can strand a job before the next claim attempt reclaims it.
+ * No active heartbeat renewal — `processingJobs`' own lease (the pattern
+ * this mirrors) doesn't refresh one mid-processing either, and a single
+ * erasure job's work is far shorter than that pipeline's, so a fixed,
+ * generous duration is sufficient without the added complexity.
+ */
+const LEASE_DURATION_MS = 5 * 60 * 1000;
 
 export interface EnqueueErasureJobInput {
   readonly reason: ErasureJobReason;
@@ -71,8 +97,27 @@ function backoffSeconds(attemptsSoFar: number): number {
   return BACKOFF_BASE_SECONDS * 2 ** Math.max(0, attemptsSoFar - 1);
 }
 
+/**
+ * Claim up to `limit` due jobs in one transaction. First reclaims any
+ * CLAIMED/DELETED job whose lease has expired (same transaction that then
+ * claims new work — a reclaimed row is immediately eligible), then claims
+ * PENDING due jobs with `FOR UPDATE SKIP LOCKED` so a concurrent claimer
+ * skips rows this call already holds rather than blocking or double-claiming
+ * them. Every job claimed by this call shares one `leaseOwner` token.
+ */
 async function claimErasureJobs(db: Db, limit: number): Promise<ErasureJob[]> {
+  const leaseOwner = randomUUID();
   return db.transaction(async (tx) => {
+    await tx
+      .update(schema.erasureJobs)
+      .set({ status: 'PENDING', leaseOwner: null, leaseExpiresAt: null, updatedAt: new Date() })
+      .where(
+        and(
+          inArray(schema.erasureJobs.status, ['CLAIMED', 'DELETED']),
+          lt(schema.erasureJobs.leaseExpiresAt, sql`now()`),
+        ),
+      );
+
     const due = await tx
       .select({ id: schema.erasureJobs.id })
       .from(schema.erasureJobs)
@@ -88,13 +133,16 @@ async function claimErasureJobs(db: Db, limit: number): Promise<ErasureJob[]> {
 
     if (due.length === 0) return [];
 
+    const now = new Date();
     return tx
       .update(schema.erasureJobs)
       .set({
         status: 'CLAIMED',
-        claimedAt: new Date(),
+        claimedAt: now,
+        leaseOwner,
+        leaseExpiresAt: new Date(now.getTime() + LEASE_DURATION_MS),
         attempts: sql`${schema.erasureJobs.attempts} + 1`,
-        updatedAt: new Date(),
+        updatedAt: now,
       })
       .where(
         inArray(
@@ -106,31 +154,96 @@ async function claimErasureJobs(db: Db, limit: number): Promise<ErasureJob[]> {
   });
 }
 
-async function blockOnHold(db: Db, job: ErasureJob, note: string): Promise<void> {
-  await db
+/**
+ * Compare-and-set: only takes effect while this invocation still holds the
+ * lease on a row currently at `fromStatus`. Returns `false` (never throws)
+ * if the lease was already reclaimed — that invocation now owns the job's
+ * outcome, so this one has nothing further to do.
+ */
+async function blockOnHold(
+  db: Db,
+  job: ErasureJob,
+  leaseOwner: string,
+  fromStatus: 'CLAIMED' | 'DELETED',
+  note: string,
+): Promise<boolean> {
+  const updated = await db
     .update(schema.erasureJobs)
-    .set({ status: 'BLOCKED_BY_HOLD', lastError: note, updatedAt: new Date() })
-    .where(eq(schema.erasureJobs.id, job.id));
+    .set({
+      status: 'BLOCKED_BY_HOLD',
+      lastError: note,
+      leaseOwner: null,
+      leaseExpiresAt: null,
+      updatedAt: new Date(),
+    })
+    .where(
+      and(
+        eq(schema.erasureJobs.id, job.id),
+        eq(schema.erasureJobs.status, fromStatus),
+        eq(schema.erasureJobs.leaseOwner, leaseOwner),
+      ),
+    )
+    .returning({ id: schema.erasureJobs.id });
+  return updated.length > 0;
 }
 
-async function failErasureJob(db: Db, job: ErasureJob, errorMessage: string): Promise<void> {
+/** Compare-and-set like `blockOnHold` — a lost lease is a safe no-op, not an error. */
+async function failErasureJob(
+  db: Db,
+  job: ErasureJob,
+  leaseOwner: string,
+  errorMessage: string,
+): Promise<boolean> {
   const exhausted = job.attempts >= job.maxAttempts;
-  await db
+  const updated = await db
     .update(schema.erasureJobs)
     .set({
       status: exhausted ? 'FAILED' : 'PENDING',
       lastError: errorMessage.slice(0, 2000),
+      leaseOwner: null,
+      leaseExpiresAt: null,
       ...(exhausted
         ? {}
         : { availableAt: new Date(Date.now() + backoffSeconds(job.attempts) * 1000) }),
       updatedAt: new Date(),
     })
-    .where(eq(schema.erasureJobs.id, job.id));
+    .where(
+      and(
+        eq(schema.erasureJobs.id, job.id),
+        inArray(schema.erasureJobs.status, ['CLAIMED', 'DELETED']),
+        eq(schema.erasureJobs.leaseOwner, leaseOwner),
+      ),
+    )
+    .returning({ id: schema.erasureJobs.id });
+  return updated.length > 0;
 }
 
-/** Finalize a verified job: remove the now-provably-empty storage reference, audit, and (for a deferred purge) the document itself. */
-async function finalizeVerifiedJob(db: Db, job: ErasureJob): Promise<void> {
-  await db.transaction(async (tx) => {
+type FinalizeOutcome = 'verified' | 'blocked' | 'lost-lease';
+
+/**
+ * Finalize a verified job: remove the now-provably-empty storage reference,
+ * audit, and (for a deferred purge) the document itself — or, if a hold
+ * landed in the meantime, transition to BLOCKED_BY_HOLD instead. These are
+ * two DISTINCT successful outcomes, not one — collapsing them into a single
+ * boolean ("did this invocation's lease still hold") would hide which one
+ * actually happened from the caller, silently misreporting a hold as a
+ * completed verification.
+ *
+ * Claims whichever outcome applies FIRST, atomically, before any destructive
+ * delete — a stale worker whose lease was already reclaimed gets zero rows
+ * on that compare-and-set and returns `lost-lease` immediately, never
+ * touching `documents`/`storageObjects` at all. Ordinary Postgres row-level
+ * locking makes this race-safe against a concurrent reclaim with no extra
+ * locking primitive: whichever of this update or a concurrent reclaim's
+ * update commits first determines which one the other sees when it
+ * re-evaluates its own WHERE clause.
+ */
+async function finalizeVerifiedJob(
+  db: Db,
+  job: ErasureJob,
+  leaseOwner: string,
+): Promise<FinalizeOutcome> {
+  return db.transaction(async (tx) => {
     // Recheck the hold here too: the delete+verify round trip against the
     // external store can take long enough for a hold placed after the initial
     // check (processErasureJob) to land before this finalize step runs. The
@@ -139,17 +252,35 @@ async function finalizeVerifiedJob(db: Db, job: ErasureJob): Promise<void> {
     if (job.reason === 'RETENTION_PURGE' && job.applicantId) {
       const held = await hasActiveLegalHold(tx, job.applicantId);
       if (held) {
-        await tx
-          .update(schema.erasureJobs)
-          .set({
-            status: 'BLOCKED_BY_HOLD',
-            lastError: 'a legal hold was placed after bytes were deleted; logical record preserved',
-            updatedAt: new Date(),
-          })
-          .where(eq(schema.erasureJobs.id, job.id));
-        return;
+        const blocked = await blockOnHold(
+          tx,
+          job,
+          leaseOwner,
+          'DELETED',
+          'a legal hold was placed after bytes were deleted; logical record preserved',
+        );
+        return blocked ? 'blocked' : 'lost-lease';
       }
     }
+
+    const finalized = await tx
+      .update(schema.erasureJobs)
+      .set({
+        status: 'VERIFIED',
+        completedAt: new Date(),
+        leaseOwner: null,
+        leaseExpiresAt: null,
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(schema.erasureJobs.id, job.id),
+          eq(schema.erasureJobs.status, 'DELETED'),
+          eq(schema.erasureJobs.leaseOwner, leaseOwner),
+        ),
+      )
+      .returning({ id: schema.erasureJobs.id });
+    if (finalized.length === 0) return 'lost-lease';
 
     // Document first: documentVersions.storageObjectId is `onDelete: restrict`,
     // so the storage object can't go while a version still points at it. The
@@ -158,10 +289,6 @@ async function finalizeVerifiedJob(db: Db, job: ErasureJob): Promise<void> {
       await tx.delete(schema.documents).where(eq(schema.documents.id, job.documentId));
     }
     await tx.delete(schema.storageObjects).where(eq(schema.storageObjects.id, job.storageObjectId));
-    await tx
-      .update(schema.erasureJobs)
-      .set({ status: 'VERIFIED', completedAt: new Date(), updatedAt: new Date() })
-      .where(eq(schema.erasureJobs.id, job.id));
     await appendAuditEvent(tx, {
       eventType: 'ERASURE_VERIFIED',
       method: 'SYSTEM',
@@ -171,34 +298,67 @@ async function finalizeVerifiedJob(db: Db, job: ErasureJob): Promise<void> {
       resourceId: job.storageObjectId,
       metadata: { reason: job.reason, objectKey: job.objectKey },
     });
+    return 'verified';
   });
 }
 
-/** Claim, delete, and verify one job. Never throws — failures are recorded on the job row. */
-async function processErasureJob(db: Db, blobStore: BlobStore, job: ErasureJob): Promise<void> {
+type ProcessOutcome = 'verified' | 'blocked' | 'failed' | 'lost-lease';
+
+/**
+ * Claim, delete, and verify one job. Never throws — failures are recorded on
+ * the job row. Every write is compare-and-set on `leaseOwner`; `lost-lease`
+ * means a different invocation already reclaimed this job, so this call
+ * correctly contributes nothing to the caller's counts.
+ */
+async function processErasureJob(
+  db: Db,
+  blobStore: BlobStore,
+  job: ErasureJob,
+  leaseOwner: string,
+): Promise<ProcessOutcome> {
   try {
     if (job.reason === 'RETENTION_PURGE' && job.applicantId) {
       const held = await hasActiveLegalHold(db, job.applicantId);
       if (held) {
-        await blockOnHold(db, job, 'an active legal hold blocks this purge');
-        return;
+        const blocked = await blockOnHold(
+          db,
+          job,
+          leaseOwner,
+          'CLAIMED',
+          'an active legal hold blocks this purge',
+        );
+        return blocked ? 'blocked' : 'lost-lease';
       }
     }
 
     await blobStore.deleteObject(job.bucket, job.objectKey);
-    await db
+    const marked = await db
       .update(schema.erasureJobs)
       .set({ status: 'DELETED', updatedAt: new Date() })
-      .where(eq(schema.erasureJobs.id, job.id));
+      .where(
+        and(
+          eq(schema.erasureJobs.id, job.id),
+          eq(schema.erasureJobs.status, 'CLAIMED'),
+          eq(schema.erasureJobs.leaseOwner, leaseOwner),
+        ),
+      )
+      .returning({ id: schema.erasureJobs.id });
+    if (marked.length === 0) return 'lost-lease';
 
     const stillPresent = await blobStore.getObject(job.objectKey);
     if (stillPresent !== undefined) {
       throw new Error('object still present after deleteObject — deletion not verified');
     }
 
-    await finalizeVerifiedJob(db, job);
+    return await finalizeVerifiedJob(db, job, leaseOwner);
   } catch (error) {
-    await failErasureJob(db, job, error instanceof Error ? error.message : String(error));
+    const failed = await failErasureJob(
+      db,
+      job,
+      leaseOwner,
+      error instanceof Error ? error.message : String(error),
+    );
+    return failed ? 'failed' : 'lost-lease';
   }
 }
 
@@ -224,13 +384,14 @@ export async function runErasureWorker(
   let blocked = 0;
   let failed = 0;
   for (const job of jobs) {
-    await processErasureJob(db, blobStore, job);
-    const final = first(
-      await db.select().from(schema.erasureJobs).where(eq(schema.erasureJobs.id, job.id)),
-    );
-    if (final?.status === 'VERIFIED') processed++;
-    else if (final?.status === 'BLOCKED_BY_HOLD') blocked++;
-    else failed++;
+    const leaseOwner = job.leaseOwner;
+    if (!leaseOwner) continue; // claimErasureJobs always sets one; satisfies the type.
+    const outcome = await processErasureJob(db, blobStore, job, leaseOwner);
+    if (outcome === 'verified') processed++;
+    else if (outcome === 'blocked') blocked++;
+    else if (outcome === 'failed') failed++;
+    // 'lost-lease': a different invocation already reclaimed and owns this
+    // job's real outcome — correctly counted by that invocation, not this one.
   }
   return { processed, blocked, failed };
 }
@@ -275,7 +436,9 @@ export async function listErasureJobsNeedingAttention(
 /**
  * Re-queue a FAILED or BLOCKED_BY_HOLD job with a fresh retry budget. No-op
  * (returns false) if the job is already active — never resurrects a job
- * another path already moved.
+ * another path already moved. Clears any lease fields defensively even
+ * though a terminal (FAILED/BLOCKED_BY_HOLD) row should never carry a live
+ * one — cheap, and consistent with every other transition in this module.
  */
 export async function retryErasureJob(db: Db, jobId: string): Promise<boolean> {
   const updated = await db
@@ -284,6 +447,8 @@ export async function retryErasureJob(db: Db, jobId: string): Promise<boolean> {
       status: 'PENDING',
       attempts: 0,
       lastError: null,
+      leaseOwner: null,
+      leaseExpiresAt: null,
       availableAt: new Date(),
       updatedAt: new Date(),
     })

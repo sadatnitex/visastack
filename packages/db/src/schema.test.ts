@@ -28,6 +28,25 @@ function one<T>(rows: readonly T[]): T {
   return row;
 }
 
+/**
+ * Journal entries strictly BEFORE the named migration — i.e. the database
+ * shape as it genuinely existed right before that migration was ever
+ * written. Deliberately by position, not by excluding just the one matching
+ * tag: filtering out only `e.tag !== targetTag` would incorrectly keep any
+ * LATER migration that happens to exist in the current repo (as a fresh
+ * migration added after this test was written did, once, break exactly
+ * this way — a filter that excludes one tag says nothing about migrations
+ * added afterward).
+ */
+function journalEntriesBefore(
+  journal: { entries: readonly { tag: string }[] },
+  targetTag: string,
+): readonly { tag: string }[] {
+  const idx = journal.entries.findIndex((e) => e.tag === targetTag);
+  if (idx === -1) throw new Error(`migration ${targetTag} not found in journal`);
+  return journal.entries.slice(0, idx);
+}
+
 describe('schema — migrations & tenancy', () => {
   it('applies the migration and round-trips an account + applicant', async () => {
     const db = await freshDb();
@@ -396,9 +415,7 @@ describe('migration 0024 on an already-populated database (Codex review, PR #65)
     // 0024 and confirm it cleans up the duplicate instead of aborting
     // deployment with a unique-violation error.
     const journal = JSON.parse(readFileSync(join(migrationsFolder, 'meta/_journal.json'), 'utf8'));
-    const priorEntries = journal.entries.filter(
-      (e: { tag: string }) => e.tag !== '0024_strong_mother_askani',
-    );
+    const priorEntries = journalEntriesBefore(journal, '0024_strong_mother_askani');
     const priorFolder = mkdtempSync(join(tmpdir(), 'visastack-migration-test-'));
     mkdirSync(join(priorFolder, 'meta'), { recursive: true });
     writeFileSync(
@@ -465,5 +482,142 @@ describe('migration 0024 on an already-populated database (Codex review, PR #65)
         reason: 'a fresh duplicate after the fix — must be rejected',
       }),
     ).rejects.toThrow();
+  });
+});
+
+describe('migration 0025 on an already-populated database (Codex review, PR-B1, finding #12)', () => {
+  it('resets pre-existing CLAIMED and DELETED erasure jobs to PENDING instead of leaving them permanently stuck with no lease', async () => {
+    // Simulate an "upgraded" database: apply every migration EXCEPT 0025
+    // (the one adding lease_owner/lease_expires_at), insert erasure_jobs
+    // rows in the exact intermediate states the pre-fix code could leave
+    // behind (a worker crashed mid-CLAIMED, or mid-DELETED after the
+    // external delete succeeded but before verification/finalize ran) —
+    // states the OLD code could never reclaim (claimErasureJobs only ever
+    // matched status='PENDING') — then apply 0025 and confirm both rows
+    // become reclaimable again instead of staying stuck forever.
+    const journal = JSON.parse(readFileSync(join(migrationsFolder, 'meta/_journal.json'), 'utf8'));
+    const priorEntries = journalEntriesBefore(journal, '0025_erasure_job_leasing');
+    const priorFolder = mkdtempSync(join(tmpdir(), 'visastack-migration-test-'));
+    mkdirSync(join(priorFolder, 'meta'), { recursive: true });
+    writeFileSync(
+      join(priorFolder, 'meta/_journal.json'),
+      JSON.stringify({ ...journal, entries: priorEntries }),
+    );
+    for (const entry of priorEntries as { tag: string }[]) {
+      copyFileSync(
+        join(migrationsFolder, `${entry.tag}.sql`),
+        join(priorFolder, `${entry.tag}.sql`),
+      );
+    }
+
+    const client = new PGlite();
+    const db = drizzle(client, { schema });
+    await migrate(db, { migrationsFolder: priorFolder });
+
+    const storageObject = one(
+      await db
+        .insert(schema.storageObjects)
+        .values({ bucket: 'CLEAN', objectKey: 'stuck-claimed', contentHash: 'a', sizeBytes: 1 })
+        .returning(),
+    );
+    // Raw SQL, not `db.insert(schema.erasureJobs)`: the imported `schema`
+    // module already reflects the POST-0025 shape (it's the same schema.ts
+    // this test file's other describe blocks use), so a drizzle-generated
+    // insert would reference lease_owner/lease_expires_at — columns that
+    // genuinely do not exist yet in this pre-0025 database.
+    const stuckClaimedRows = await db.execute<{ id: string }>(sql`
+      insert into erasure_jobs (reason, status, bucket, object_key, storage_object_id, claimed_at)
+      values ('ACCOUNT_DELETION', 'CLAIMED', 'CLEAN', 'stuck-claimed', ${storageObject.id}, '2026-01-01T00:00:00Z')
+      returning id
+    `);
+    const stuckClaimedId = one(stuckClaimedRows.rows).id;
+
+    const storageObject2 = one(
+      await db
+        .insert(schema.storageObjects)
+        .values({ bucket: 'CLEAN', objectKey: 'stuck-deleted', contentHash: 'b', sizeBytes: 1 })
+        .returning(),
+    );
+    const stuckDeletedRows = await db.execute<{ id: string }>(sql`
+      insert into erasure_jobs (reason, status, bucket, object_key, storage_object_id, claimed_at)
+      values ('ACCOUNT_DELETION', 'DELETED', 'CLEAN', 'stuck-deleted', ${storageObject2.id}, '2026-01-01T00:00:00Z')
+      returning id
+    `);
+    const stuckDeletedId = one(stuckDeletedRows.rows).id;
+
+    // Applying the rest of the migrations (including 0025) against this
+    // pre-existing stuck state must not throw, and must not leave either
+    // row stranded.
+    await migrate(db, { migrationsFolder });
+
+    const rows = await db
+      .select()
+      .from(schema.erasureJobs)
+      .where(eq(schema.erasureJobs.id, stuckClaimedId));
+    expect(rows[0]?.status).toBe('PENDING');
+    expect(rows[0]?.leaseOwner).toBeNull();
+    expect(rows[0]?.leaseExpiresAt).toBeNull();
+
+    const rows2 = await db
+      .select()
+      .from(schema.erasureJobs)
+      .where(eq(schema.erasureJobs.id, stuckDeletedId));
+    expect(rows2[0]?.status).toBe('PENDING');
+    expect(rows2[0]?.leaseOwner).toBeNull();
+    expect(rows2[0]?.leaseExpiresAt).toBeNull();
+  });
+
+  it("the migration's backfill leaves PENDING, VERIFIED, FAILED, and BLOCKED_BY_HOLD erasure jobs untouched", async () => {
+    // Same upgrade pattern as the test above — seeded BEFORE 0025 runs, so
+    // this genuinely exercises the migration's UPDATE...WHERE scope, rather
+    // than merely confirming an ordinary insert is left alone.
+    const journal = JSON.parse(readFileSync(join(migrationsFolder, 'meta/_journal.json'), 'utf8'));
+    const priorEntries = journalEntriesBefore(journal, '0025_erasure_job_leasing');
+    const priorFolder = mkdtempSync(join(tmpdir(), 'visastack-migration-test-'));
+    mkdirSync(join(priorFolder, 'meta'), { recursive: true });
+    writeFileSync(
+      join(priorFolder, 'meta/_journal.json'),
+      JSON.stringify({ ...journal, entries: priorEntries }),
+    );
+    for (const entry of priorEntries as { tag: string }[]) {
+      copyFileSync(
+        join(migrationsFolder, `${entry.tag}.sql`),
+        join(priorFolder, `${entry.tag}.sql`),
+      );
+    }
+
+    const client = new PGlite();
+    const db = drizzle(client, { schema });
+    await migrate(db, { migrationsFolder: priorFolder });
+
+    const seeded: { readonly id: string; readonly status: string }[] = [];
+    for (const [i, status] of (
+      ['PENDING', 'VERIFIED', 'FAILED', 'BLOCKED_BY_HOLD'] as const
+    ).entries()) {
+      const storageObject = one(
+        await db
+          .insert(schema.storageObjects)
+          .values({ bucket: 'CLEAN', objectKey: `untouched-${i}`, contentHash: 'c', sizeBytes: 1 })
+          .returning(),
+      );
+      // Raw SQL for the same reason as the test above: this pre-0025
+      // database genuinely has no lease_owner/lease_expires_at columns yet.
+      const inserted = await db.execute<{ id: string }>(sql`
+        insert into erasure_jobs (reason, status, bucket, object_key, storage_object_id)
+        values ('ACCOUNT_DELETION', ${status}, 'CLEAN', ${`untouched-${i}`}, ${storageObject.id})
+        returning id
+      `);
+      seeded.push({ id: one(inserted.rows).id, status });
+    }
+
+    await migrate(db, { migrationsFolder });
+
+    for (const row of seeded) {
+      const [current] = await db
+        .select()
+        .from(schema.erasureJobs)
+        .where(eq(schema.erasureJobs.id, row.id));
+      expect(current?.status).toBe(row.status);
+    }
   });
 });
