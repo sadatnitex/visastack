@@ -488,6 +488,70 @@ describe('erasure outbox', () => {
       expect(row?.leaseOwner).toBeNull();
     });
 
+    it('reclaims a CLAIMED job with no lease at all once its claim is old enough — the rollout window where the OLD deployment (predating leasing) claimed it (Codex review, PR-B1)', async () => {
+      const object = await seedStorageObject(db, 'obj-rollout-old');
+      await storage.putObject({
+        bucket: 'CLEAN',
+        objectKey: 'obj-rollout-old',
+        contentType: 'application/pdf',
+        bytes: new Uint8Array([1]),
+      });
+      const job = await enqueueErasureJob(db, {
+        reason: 'ACCOUNT_DELETION',
+        bucket: 'CLEAN',
+        objectKey: 'obj-rollout-old',
+        expectedHash: null,
+        storageObjectId: object.id,
+      });
+      // The migration ran (columns exist), but the still-serving OLD
+      // deployment's code claimed this job without ever setting the new
+      // lease columns at all — not merely an expired lease, no lease.
+      await db
+        .update(schema.erasureJobs)
+        .set({
+          status: 'CLAIMED',
+          leaseOwner: null,
+          leaseExpiresAt: null,
+          claimedAt: new Date(Date.now() - 10 * 60 * 1000), // well past one lease duration
+        })
+        .where(eq(schema.erasureJobs.id, job.id));
+
+      const result = await runErasureWorker(db, storage, { limit: 5 });
+      expect(result).toEqual({ processed: 1, blocked: 0, failed: 0 });
+      const row = (await db.select().from(schema.erasureJobs))[0];
+      expect(row?.status).toBe('VERIFIED');
+    });
+
+    it('does NOT reclaim a lease-less CLAIMED job whose claim is still recent — the old deployment could genuinely still be mid-flight on it (Codex review, PR-B1)', async () => {
+      const object = await seedStorageObject(db, 'obj-rollout-recent');
+      const job = await enqueueErasureJob(db, {
+        reason: 'ACCOUNT_DELETION',
+        bucket: 'CLEAN',
+        objectKey: 'obj-rollout-recent',
+        expectedHash: null,
+        storageObjectId: object.id,
+      });
+      await db
+        .update(schema.erasureJobs)
+        .set({
+          status: 'CLAIMED',
+          leaseOwner: null,
+          leaseExpiresAt: null,
+          claimedAt: new Date(), // claimed just now — could still be genuinely in flight
+        })
+        .where(eq(schema.erasureJobs.id, job.id));
+
+      // Reclaiming this too eagerly would let a second worker start
+      // processing the SAME job the old deployment might still be
+      // mid-delete on — exactly the double-processing hazard leasing exists
+      // to prevent, just via a different (lease-less) route.
+      const result = await runErasureWorker(db, storage, { limit: 5 });
+      expect(result).toEqual({ processed: 0, blocked: 0, failed: 0 });
+      const row = (await db.select().from(schema.erasureJobs))[0];
+      expect(row?.status).toBe('CLAIMED');
+      expect(row?.leaseOwner).toBeNull();
+    });
+
     it("a stale worker whose lease was reclaimed mid-flight can never overwrite the reclaiming worker's outcome", async () => {
       const object = await seedStorageObject(db, 'obj-cas-race');
       await storage.putObject({

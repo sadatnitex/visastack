@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { and, asc, desc, eq, inArray, lt, lte, or, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNull, lt, lte, or, sql } from 'drizzle-orm';
 import { appendAuditEvent } from './audit';
 import { type Db, first, required, schema } from './db';
 import { hasActiveLegalHold } from './retention';
@@ -104,9 +104,28 @@ function backoffSeconds(attemptsSoFar: number): number {
  * PENDING due jobs with `FOR UPDATE SKIP LOCKED` so a concurrent claimer
  * skips rows this call already holds rather than blocking or double-claiming
  * them. Every job claimed by this call shares one `leaseOwner` token.
+ *
+ * Also reclaims lease-LESS CLAIMED/DELETED rows — `lease_expires_at IS NULL`
+ * — once `claimedAt` is older than a full lease duration (Codex review,
+ * PR-B1): this repo's build command runs the migration before `next build`
+ * (`apps/web/vercel.json`), so the OLD, still-serving deployment can claim a
+ * job (setting `claimedAt` but leaving the new lease columns unset, since
+ * that code predates them) in the narrow window after migration 0025's
+ * one-time backfill has already run but before the new deployment takes
+ * over. `lease_expires_at < now()` alone would never match such a row — SQL
+ * comparison against NULL is neither true nor false — permanently
+ * stranding it exactly like the bug this module exists to close. A plain
+ * `IS NULL` check alone would be too eager: it could reclaim (and let a new
+ * worker immediately re-claim and start processing) a job the old
+ * deployment is still genuinely, actively mid-flight on, recreating the
+ * double-processing hazard leasing exists to prevent. Gating on `claimedAt`
+ * age instead makes both code versions' worth of work fit safely inside one
+ * lease duration, mirroring the same generosity assumption `LEASE_DURATION_MS`
+ * itself already rests on.
  */
 async function claimErasureJobs(db: Db, limit: number): Promise<ErasureJob[]> {
   const leaseOwner = randomUUID();
+  const rolloutGraceExpiry = new Date(Date.now() - LEASE_DURATION_MS);
   return db.transaction(async (tx) => {
     await tx
       .update(schema.erasureJobs)
@@ -114,7 +133,13 @@ async function claimErasureJobs(db: Db, limit: number): Promise<ErasureJob[]> {
       .where(
         and(
           inArray(schema.erasureJobs.status, ['CLAIMED', 'DELETED']),
-          lt(schema.erasureJobs.leaseExpiresAt, sql`now()`),
+          or(
+            lt(schema.erasureJobs.leaseExpiresAt, sql`now()`),
+            and(
+              isNull(schema.erasureJobs.leaseExpiresAt),
+              lt(schema.erasureJobs.claimedAt, rolloutGraceExpiry),
+            ),
+          ),
         ),
       );
 
