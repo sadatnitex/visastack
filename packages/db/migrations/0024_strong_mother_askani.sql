@@ -18,5 +18,5 @@ ALTER TABLE "pilot_invitations" ADD CONSTRAINT "pilot_invitations_invited_by_acc
 ALTER TABLE "pilot_invitations" ADD CONSTRAINT "pilot_invitations_revoked_by_account_id_accounts_id_fk" FOREIGN KEY ("revoked_by_account_id") REFERENCES "public"."accounts"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "pilot_invitations" ADD CONSTRAINT "pilot_invitations_accepted_account_id_accounts_id_fk" FOREIGN KEY ("accepted_account_id") REFERENCES "public"."accounts"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 CREATE INDEX "pilot_invitations_email_idx" ON "pilot_invitations" USING btree ("email");--> statement-breakpoint
-CREATE INDEX "pilot_invitations_active_idx" ON "pilot_invitations" USING btree ("email","revoked_at");--> statement-breakpoint
+CREATE UNIQUE INDEX "pilot_invitations_active_unique_idx" ON "pilot_invitations" USING btree ("email") WHERE "pilot_invitations"."revoked_at" is null and "pilot_invitations"."accepted_at" is null;--> statement-breakpoint
 ALTER TABLE "platform_roles" ADD CONSTRAINT "platform_roles_account_id_accounts_id_fk" FOREIGN KEY ("account_id") REFERENCES "public"."accounts"("id") ON DELETE set null ON UPDATE no action;

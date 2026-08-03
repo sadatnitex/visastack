@@ -1,5 +1,5 @@
 {
-  "id": "f6c45d24-e397-420e-8879-43622f8c324b",
+  "id": "7ea1d144-8b63-4a6e-8918-cb8ef861e284",
   "prevId": "97bcaeee-1b63-4b65-9213-b17609acd8c1",
   "version": "7",
   "dialect": "postgresql",
@@ -3789,23 +3789,18 @@
           "method": "btree",
           "with": {}
         },
-        "pilot_invitations_active_idx": {
-          "name": "pilot_invitations_active_idx",
+        "pilot_invitations_active_unique_idx": {
+          "name": "pilot_invitations_active_unique_idx",
           "columns": [
             {
               "expression": "email",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
-            },
-            {
-              "expression": "revoked_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
             }
           ],
-          "isUnique": false,
+          "isUnique": true,
+          "where": "\"pilot_invitations\".\"revoked_at\" is null and \"pilot_invitations\".\"accepted_at\" is null",
           "concurrently": false,
           "method": "btree",
           "with": {}

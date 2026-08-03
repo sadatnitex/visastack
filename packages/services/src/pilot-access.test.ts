@@ -242,6 +242,49 @@ describe('checkPilotAccess', () => {
     });
     expect(decision).toEqual({ allowed: true, invitationId: null });
   });
+
+  it('a consumed invitation can never be replayed for a second identity, even after the original account is gone (Codex review, PR #65)', async () => {
+    const inviter = await provisionAccount(db, { email: 'inviter-consumed@example.com' });
+    if (!isOk(inviter)) throw new Error('provision');
+    const invited = await createInvitation(db, {
+      actorAccountId: inviter.value.id,
+      email: 'consume-then-replay@example.com',
+    });
+    if (!isOk(invited)) throw new Error('invite');
+
+    // The legitimate invitee is admitted and consumes the invitation.
+    const legitDecision = await checkPilotAccess(db, {
+      email: 'consume-then-replay@example.com',
+      workosUserId: 'workos-legit-consumer',
+      allowlistEmails: [],
+      bypass: false,
+    });
+    expect(legitDecision.invitationId).toBe(invited.value.id);
+    const legitAccount = await provisionAccount(db, {
+      email: 'consume-then-replay@example.com',
+      workosUserId: 'workos-legit-consumer',
+    });
+    if (!isOk(legitAccount)) throw new Error('provision');
+    await markInvitationAccepted(db, {
+      invitationId: invited.value.id,
+      accountId: legitAccount.value.id,
+    });
+
+    // The account is later deleted entirely (simulated directly — deletion
+    // workflow itself is covered elsewhere) — no account now exists for
+    // this email.
+    await db.delete(schema.accounts).where(eq(schema.accounts.id, legitAccount.value.id));
+
+    // A different identity now controlling the same email address must NOT
+    // be able to reuse the already-consumed invitation.
+    const replayDecision = await checkPilotAccess(db, {
+      email: 'consume-then-replay@example.com',
+      workosUserId: 'workos-a-different-person-entirely',
+      allowlistEmails: [],
+      bypass: false,
+    });
+    expect(replayDecision).toEqual({ allowed: false, invitationId: null });
+  });
 });
 
 describe('invitation lifecycle', () => {
@@ -264,6 +307,55 @@ describe('invitation lifecycle', () => {
     expect(isOk(first)).toBe(true);
     expect(isOk(second)).toBe(true);
     if (isOk(first) && isOk(second)) expect(second.value.id).toBe(first.value.id);
+  });
+
+  it('serializes concurrent invitations of the same email so at most one active row ever exists (Codex review, PR #65)', async () => {
+    const inviter = await provisionAccount(db, { email: 'race-inviter@example.com' });
+    if (!isOk(inviter)) throw new Error('provision');
+
+    // Two concurrent requests for the SAME email — without the database-
+    // level partial unique constraint, both could pass the pre-insert
+    // check before either transaction commits, leaving two active rows
+    // (so revoking one would not actually block the email).
+    const [a, b] = await Promise.all([
+      createInvitation(db, {
+        actorAccountId: inviter.value.id,
+        email: 'race-invitee@example.com',
+        reason: 'first caller',
+      }),
+      createInvitation(db, {
+        actorAccountId: inviter.value.id,
+        email: 'race-invitee@example.com',
+        reason: 'second caller',
+      }),
+    ]);
+    expect(isOk(a)).toBe(true);
+    expect(isOk(b)).toBe(true);
+    if (!isOk(a) || !isOk(b)) return;
+    // Both calls resolve to the SAME row — one call's insert won, the
+    // other's unique-violation was recovered by re-reading the winner.
+    expect(a.value.id).toBe(b.value.id);
+
+    const allRows = await db
+      .select()
+      .from(schema.pilotInvitations)
+      .where(eq(schema.pilotInvitations.email, 'race-invitee@example.com'));
+    expect(allRows).toHaveLength(1);
+
+    // Revoking the single active row now genuinely blocks the email — the
+    // real property this constraint protects.
+    await revokeInvitation(db, {
+      actorAccountId: inviter.value.id,
+      invitationId: a.value.id,
+      reason: 'done',
+    });
+    const decision = await checkPilotAccess(db, {
+      email: 'race-invitee@example.com',
+      workosUserId: 'workos-race-invitee',
+      allowlistEmails: [],
+      bypass: false,
+    });
+    expect(decision.allowed).toBe(false);
   });
 
   it('refuses to revoke an already-revoked invitation, and requires a reason', async () => {

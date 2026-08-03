@@ -90,9 +90,12 @@ files with the identical shape**:
   exactly as the diagnosing commit's message predicted for `providers.test.ts`
   before it was fixed).
 
-Not a security defect; a test-infrastructure gap. **Disposition:** fix in the
-PR that already touches each file — `capabilities.test.ts` in the Phase 1 PR,
-`health/ready/route.test.ts` in the Phase 5 PR — by giving each file's first
+Not a security defect; a test-infrastructure gap. **Disposition:** both fixed
+in PR-A (`docs/audits/post-programme-defect-register.md` retroactively
+updated) — `health/ready/route.test.ts` reproduced this same flake in PR-A's
+own `--force` full-suite verification pass after the Codex-feedback commit,
+so it was fixed immediately alongside `capabilities.test.ts` rather than
+deferred to the Phase 5 PR that also touches that file — by giving each file's first
 test a generous explicit timeout, matching the existing fix's pattern.
 
 **D-T2 — `turbo run test` aborts sibling packages on first failure.**

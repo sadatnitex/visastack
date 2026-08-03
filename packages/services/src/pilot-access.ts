@@ -1,7 +1,7 @@
 import { type Result, err, ok } from '@visastack/core';
 import { and, eq, isNull } from 'drizzle-orm';
 import { appendAuditEvent } from './audit';
-import { type Db, first, required, schema } from './db';
+import { type Db, first, isUniqueViolation, required, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
 
 /**
@@ -79,13 +79,29 @@ async function accountAlreadyExists(
   return byEmail !== undefined;
 }
 
+/**
+ * An invitation is "active" only while both un-revoked AND not yet
+ * consumed — once `markInvitationAccepted` sets `acceptedAt`, the row is
+ * historical, not a standing grant of access. Without the `acceptedAt`
+ * check, a consumed invitation would remain matchable forever: if the
+ * admitted account is later deleted (or its bound identity's email
+ * changes), a different identity later controlling the same address could
+ * reuse the already-spent invitation to provision a second account — the
+ * exact replay this boundary exists to prevent (Codex review, PR #65).
+ * Matches the partial unique index on `pilot_invitations` (schema.ts),
+ * which enforces this same "active" definition at the database level.
+ */
 async function findActiveInvitation(db: Db, email: string): Promise<PilotInvitation | undefined> {
   return first(
     await db
       .select()
       .from(schema.pilotInvitations)
       .where(
-        and(eq(schema.pilotInvitations.email, email), isNull(schema.pilotInvitations.revokedAt)),
+        and(
+          eq(schema.pilotInvitations.email, email),
+          isNull(schema.pilotInvitations.revokedAt),
+          isNull(schema.pilotInvitations.acceptedAt),
+        ),
       )
       .limit(1),
   );
@@ -154,6 +170,13 @@ export interface CreateInvitationInput {
  * existing row rather than creating a duplicate (a "replayed invitation"
  * must never multiply standing or create ambiguity about which row is
  * authoritative).
+ *
+ * The pre-insert check alone cannot close a concurrent-request race (two
+ * calls for the same email both observing "no active invitation yet"
+ * before either commits) — the database-level partial unique index on
+ * `pilot_invitations` (schema.ts) is the real guard; a violation here means
+ * a concurrent caller won the race, and its row is what this call returns
+ * (Codex review, PR #65).
  */
 export async function createInvitation(
   db: Db,
@@ -166,31 +189,39 @@ export async function createInvitation(
   const existingActive = await findActiveInvitation(db, email);
   if (existingActive) return ok(existingActive);
 
-  return db.transaction(async (tx) => {
-    const invitation = required(
-      first(
-        await tx
-          .insert(schema.pilotInvitations)
-          .values({
-            email,
-            invitedByAccountId: input.actorAccountId,
-            reason: input.reason?.trim() ? input.reason.trim() : null,
-          })
-          .returning(),
-      ),
-      'pilot invitation',
-    );
-    await appendAuditEvent(tx, {
-      eventType: 'PILOT_INVITATION_CREATED',
-      actorAccountId: input.actorAccountId,
-      method: 'MANUAL',
-      result: 'ALLOWED',
-      resourceType: 'pilot_invitation',
-      resourceId: invitation.id,
-      metadata: { email },
+  try {
+    return await db.transaction(async (tx) => {
+      const invitation = required(
+        first(
+          await tx
+            .insert(schema.pilotInvitations)
+            .values({
+              email,
+              invitedByAccountId: input.actorAccountId,
+              reason: input.reason?.trim() ? input.reason.trim() : null,
+            })
+            .returning(),
+        ),
+        'pilot invitation',
+      );
+      await appendAuditEvent(tx, {
+        eventType: 'PILOT_INVITATION_CREATED',
+        actorAccountId: input.actorAccountId,
+        method: 'MANUAL',
+        result: 'ALLOWED',
+        resourceType: 'pilot_invitation',
+        resourceId: invitation.id,
+        metadata: { email },
+      });
+      return ok(invitation);
     });
-    return ok(invitation);
-  });
+  } catch (error) {
+    if (isUniqueViolation(error)) {
+      const concurrent = await findActiveInvitation(db, email);
+      if (concurrent) return ok(concurrent);
+    }
+    throw error;
+  }
 }
 
 export interface RevokeInvitationInput {

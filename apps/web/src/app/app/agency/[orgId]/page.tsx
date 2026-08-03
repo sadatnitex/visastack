@@ -231,7 +231,15 @@ export default async function OrgConsolePage({
               <p className="card-body" style={{ marginBottom: '1.25rem' }}>
                 Ask an applicant for a specific field or document. They decide whether to fulfil it.
               </p>
-              <RequestEvidenceForm organizationId={orgId} applicants={data.applicants} />
+              <RequestEvidenceForm
+                organizationId={orgId}
+                applicants={data.applicants}
+                missions={data.missions.map((m) => ({
+                  missionId: m.missionId,
+                  title: m.title,
+                  applicantName: m.applicantName,
+                }))}
+              />
             </article>
 
             <article className="card">

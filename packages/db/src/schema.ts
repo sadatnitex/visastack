@@ -23,6 +23,7 @@ import {
   text,
   timestamp,
   unique,
+  uniqueIndex,
   uuid,
 } from 'drizzle-orm/pg-core';
 
@@ -1250,7 +1251,18 @@ export const pilotInvitations = pgTable(
   },
   (table) => [
     index('pilot_invitations_email_idx').on(table.email),
-    index('pilot_invitations_active_idx').on(table.email, table.revokedAt),
+    // Enforces "at most one still-pending invitation per email" at the
+    // database level — the application-layer idempotency check in
+    // `createInvitation` alone cannot close the race where two concurrent
+    // calls both pass the pre-insert check before either commits (Codex
+    // review, PR #65). "Active" here matches `findActiveInvitation`'s own
+    // definition: not revoked AND not yet accepted — an already-consumed
+    // invitation is historical, not a live duplicate to guard against, so a
+    // genuine re-invite after that account is gone can still insert a fresh
+    // row.
+    uniqueIndex('pilot_invitations_active_unique_idx')
+      .on(table.email)
+      .where(sql`${table.revokedAt} is null and ${table.acceptedAt} is null`),
   ],
 );
 

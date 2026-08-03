@@ -60,6 +60,7 @@ export async function requestEvidenceAction(
 
   const organizationId = String(formData.get('organizationId') ?? '');
   const applicantId = String(formData.get('applicantId') ?? '').trim();
+  const missionId = String(formData.get('missionId') ?? '').trim();
   const kind = String(formData.get('kind') ?? '') === 'DOCUMENT' ? 'DOCUMENT' : 'FIELD';
   const key = String(formData.get('key') ?? '').trim();
   const message = String(formData.get('message') ?? '').trim();
@@ -80,6 +81,12 @@ export async function requestEvidenceAction(
       kind,
       ...(kind === 'FIELD' ? { fieldKey: key } : { docType: key }),
       ...(message.length > 0 ? { message } : {}),
+      // Threads the mission scope through when the requester picked one —
+      // an organization whose only standing for this applicant is a
+      // mission-scoped grant would otherwise always hit `scope_mismatch`
+      // even though `listApplicantsForOrganization` correctly surfaces the
+      // applicant (Codex review, PR #65).
+      ...(missionId.length > 0 ? { missionId } : {}),
     });
     if (!requested.ok) return { ok: false, message: requested.error.message } satisfies ActionState;
     return { ok: true, message: 'Evidence request sent.' } satisfies ActionState;
