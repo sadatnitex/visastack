@@ -253,6 +253,14 @@ export interface CreateInvitationInput {
  * `accountAlreadyExists` fast path in `checkPilotAccess`), so a re-invite
  * would create a standing, never-consumed row — a latent credential able to
  * admit a different identity if this account is later deleted.
+ *
+ * The pre-check above cannot close the race where this exact email's
+ * first-ever sign-in provisions its account concurrently, between that
+ * check and this transaction's own commit (Codex review, PR #65): rechecks
+ * again, inside this transaction, immediately before returning, and
+ * auto-revokes the just-inserted row rather than let it stand as a
+ * replayable credential for a since-provisioned account it was never meant
+ * to admit.
  */
 export async function createInvitation(
   db: Db,
@@ -283,6 +291,20 @@ export async function createInvitation(
         ),
         'pilot invitation',
       );
+
+      if (await accountAlreadyExists(tx, email, null)) {
+        await tx
+          .update(schema.pilotInvitations)
+          .set({
+            revokedAt: new Date(),
+            revokedReason: 'superseded by a concurrently provisioned account',
+          })
+          .where(eq(schema.pilotInvitations.id, invitation.id));
+        return err(
+          serviceError('invalid', 'this email already has an account — no invitation needed'),
+        );
+      }
+
       await appendAuditEvent(tx, {
         eventType: 'PILOT_INVITATION_CREATED',
         actorAccountId: input.actorAccountId,

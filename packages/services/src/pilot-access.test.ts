@@ -624,6 +624,45 @@ describe('invitation lifecycle', () => {
     expect(rows).toHaveLength(0);
   });
 
+  it('never leaves a replayable active invitation if an account for the same email is committed while its transaction is in flight (Codex review, PR #65)', async () => {
+    const inviter = await provisionAccount(db, { email: 'inviter-race-provision@example.com' });
+    if (!isOk(inviter)) throw new Error('provision');
+    const email = 'race-invite-vs-provision@example.com';
+
+    // Races createInvitation's transaction against the lightest-weight
+    // possible concurrent account insert for the same email — a raw,
+    // single-statement insert (not the full multi-step `provisionAccount`,
+    // which is slow enough to reliably lose this race in practice) — to
+    // land as close as possible to the exact narrow window Codex flagged:
+    // the account committing strictly between createInvitation's own
+    // insert and its in-transaction recheck, immediately before commit.
+    // The pre-check alone cannot close this (Codex review, PR #65).
+    const [invited] = await Promise.all([
+      createInvitation(db, { actorAccountId: inviter.value.id, email }),
+      db.insert(schema.accounts).values({ email, workosUserId: 'workos-race-invite-vs-provision' }),
+    ]);
+
+    // Whichever way the race resolved — the pre-check caught it, or the
+    // in-transaction recheck auto-revoked the just-inserted row — the
+    // invariant must hold: no row for this email is left both un-revoked
+    // and un-accepted, because this invitation was never actually used to
+    // admit the account that now exists for this address. A future
+    // identity controlling this email must never be able to redeem it.
+    const rows = await db
+      .select()
+      .from(schema.pilotInvitations)
+      .where(eq(schema.pilotInvitations.email, email));
+    const stillActive = rows.filter((r) => r.revokedAt === null && r.acceptedAt === null);
+    expect(stillActive).toHaveLength(0);
+    if (isOk(invited)) {
+      // If createInvitation's OWN call somehow reported success, that row
+      // must not be one of the still-active ones checked above — this
+      // branch only exists to make the assertion's intent explicit, not
+      // because success is expected here.
+      expect(stillActive.map((r) => r.id)).not.toContain(invited.value.id);
+    }
+  });
+
   it('refuses to revoke an already-revoked invitation, and requires a reason', async () => {
     const inviter = await provisionAccount(db, { email: 'revoke-inviter@example.com' });
     if (!isOk(inviter)) throw new Error('provision');

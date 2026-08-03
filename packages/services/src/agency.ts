@@ -1000,28 +1000,41 @@ export async function listMissionDecisions(
   );
   const isOwner = applicant?.ownerAccountId === actorAccountId;
   if (!isOwner) {
-    const assignment = first(
-      await db
-        .select({ organizationId: schema.assignments.organizationId })
-        .from(schema.assignments)
-        .where(
-          and(
-            eq(schema.assignments.memberAccountId, actorAccountId),
-            eq(schema.assignments.missionId, missionId),
-          ),
-        )
-        .limit(1),
-    );
-    const authorized =
-      assignment !== undefined &&
-      (await isActiveMember(db, actorAccountId, assignment.organizationId)) &&
-      (await orgGrantPermits(
-        db,
-        assignment.organizationId,
-        mission.applicantId,
-        'MANAGE',
-        missionId,
-      ));
+    // An account can be assigned to the same mission through MULTIPLE
+    // organizations — the assignments table's uniqueness key includes
+    // organizationId, so this is a valid, expected state, not a bug. An
+    // arbitrary single row (the previous `.limit(1)`) could select an
+    // organization whose membership or grant has since lapsed even though
+    // a DIFFERENT one of this account's assignments still has an active
+    // membership and a covering grant — incorrectly denying access
+    // depending only on which row Postgres happened to return (Codex
+    // review, PR #65). Authorize as soon as ANY matching assignment
+    // satisfies both checks.
+    const assignments = await db
+      .select({ organizationId: schema.assignments.organizationId })
+      .from(schema.assignments)
+      .where(
+        and(
+          eq(schema.assignments.memberAccountId, actorAccountId),
+          eq(schema.assignments.missionId, missionId),
+        ),
+      );
+    let authorized = false;
+    for (const assignment of assignments) {
+      if (
+        (await isActiveMember(db, actorAccountId, assignment.organizationId)) &&
+        (await orgGrantPermits(
+          db,
+          assignment.organizationId,
+          mission.applicantId,
+          'MANAGE',
+          missionId,
+        ))
+      ) {
+        authorized = true;
+        break;
+      }
+    }
     if (!authorized) {
       return err(serviceError('forbidden', 'not authorized to view decisions on this mission'));
     }

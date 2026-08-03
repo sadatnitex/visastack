@@ -721,6 +721,70 @@ describe('reviewer decisions (master directive §7 "PR 10")', () => {
     expect(isErr(list)).toBe(true);
     if (isErr(list)) expect(list.error.code).toBe('forbidden');
   });
+
+  it('authorizes via ANY matching assignment across multiple organizations, not an arbitrary single row (Codex review, PR #65)', async () => {
+    const { missionId, applicantId, account, org, agentAcc } = await setUp(db);
+
+    // A second organization, ALSO with the same reviewer assigned to the
+    // same mission, via a fully valid active membership and covering grant.
+    // The assignments table's uniqueness key includes organizationId, so an
+    // account being assigned to one mission through two different
+    // organizations is a valid, expected state.
+    const secondOrg = await createOrganization(db, {
+      actorAccountId: agentAcc.value.id,
+      name: 'Second Agency',
+    });
+    if (!isOk(secondOrg)) throw new Error('org');
+    await activateOrg(db, secondOrg.value.id);
+    const secondGrant = await createGrant(db, {
+      actorAccountId: account.id,
+      applicantId,
+      recipientOrganizationId: secondOrg.value.id,
+      missionId,
+      actions: ['MANAGE', 'COMMENT'],
+      purpose: 'review',
+    });
+    if (!isOk(secondGrant)) throw new Error('grant');
+    await acceptGrant(db, { actorAccountId: agentAcc.value.id, grantId: secondGrant.value.id });
+    await assignMember(db, {
+      actorAccountId: agentAcc.value.id,
+      organizationId: secondOrg.value.id,
+      memberAccountId: agentAcc.value.id,
+      missionId,
+    });
+
+    // Now deactivate the reviewer's membership in the FIRST org only — that
+    // assignment row is no longer backed by an active membership, but the
+    // SECOND org's assignment still is. The account has an assignment row
+    // for BOTH organizations; an arbitrary single-row check could pick
+    // either one.
+    const secondOwnerFirstOrg = await provisionAccount(db, {
+      email: 'second-owner-first-org@example.com',
+    });
+    if (!isOk(secondOwnerFirstOrg)) throw new Error('provision');
+    await addMembership(db, {
+      actorAccountId: agentAcc.value.id,
+      organizationId: org.value.id,
+      accountId: secondOwnerFirstOrg.value.id,
+      role: 'OWNER',
+    });
+    const membershipFirstOrg = (await listMembershipsForAccount(db, agentAcc.value.id)).find(
+      (m) => m.organization.id === org.value.id,
+    );
+    if (!membershipFirstOrg) throw new Error('membership');
+    const deactivated = await setMembershipActive(db, {
+      actorAccountId: secondOwnerFirstOrg.value.id,
+      organizationId: org.value.id,
+      membershipId: membershipFirstOrg.membershipId,
+      active: false,
+    });
+    expect(isOk(deactivated)).toBe(true);
+
+    // Must succeed via the second organization's still-valid assignment,
+    // regardless of which row an unordered query happens to return first.
+    const list = await listMissionDecisions(db, agentAcc.value.id, missionId);
+    expect(isOk(list)).toBe(true);
+  });
 });
 
 describe('scope and read-authorization hardening (post-programme defect register findings #3–#7)', () => {
