@@ -277,6 +277,41 @@ describe('document vault — permission-aware access', () => {
     expect(events[0]?.reason).toBe('not_yet_safe_to_serve');
   });
 
+  it('records exactly one DOCUMENT_ACCESS event for an authorized request against a document that has no stored version at all (Codex review, PR-B3, round 3)', async () => {
+    // registerDocument alone (no addDocumentVersion call) — the exact shape
+    // Codex flagged: an owner can create a document row before any version
+    // exists. Before this fix, the authorization decision was correctly
+    // evaluated as allowed, but the subsequent `!version` early return fired
+    // before the deferred audit append ever ran, leaving this authorized
+    // request completely invisible to the audit trail.
+    const { account, applicant } = await seedOwner(db, 'a11@example.com');
+    const doc = await registerDocument(db, {
+      actorAccountId: account.id,
+      applicantId: applicant.id,
+      originalName: 'passport.pdf',
+      docType: 'passport',
+    });
+    expect(isOk(doc)).toBe(true);
+    if (!isOk(doc)) return;
+
+    const actor = { kind: 'applicant_owner', applicantId: applicant.id as never } as const;
+    const preview = await previewDocument(db, storage, {
+      actor,
+      documentId: doc.value.id,
+      purpose: 'self_review',
+    });
+    expect(isErr(preview)).toBe(true);
+    if (isErr(preview)) expect(preview.error.code).toBe('not_found');
+
+    const events = await db
+      .select()
+      .from(schema.auditEvents)
+      .where(eq(schema.auditEvents.eventType, 'DOCUMENT_ACCESS'));
+    expect(events).toHaveLength(1);
+    expect(events[0]?.result).toBe('DENIED');
+    expect(events[0]?.reason).toBe('no_stored_version');
+  });
+
   it('requires step-up for the original bytes (denied without it)', async () => {
     const { document } = await seedOwnerWithDocument(db, 'a2@example.com');
     const actor = { kind: 'applicant_owner', applicantId: document.applicantId as never } as const;

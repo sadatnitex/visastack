@@ -170,9 +170,82 @@ const STREAM_KEYWORD_PATTERN = /stream(?:\r\n|\r|\n)/;
  * fix scoped to the mechanism Codex actually found broken (a filter
  * declaration that mentions FlateDecode but isn't only FlateDecode)
  * without turning routine scanned-document uploads into false positives.
+ *
+ * **Codex review, PR-B3, round 3, caught three more issues — a 5th, 6th
+ * and 7th distinct finding on this one mechanism across 3 rounds, deep
+ * past the structural-escalation threshold.** Rather than three more
+ * patches, this is the third ground-up pass at the same invariant, and
+ * this time it goes to the actual root cause common to all three: the
+ * previous two drafts searched a whole inter-stream *window* of text for
+ * a `/Filter` declaration instead of first identifying the *exact*
+ * dictionary that structurally governs this specific stream.
+ * `findGoverningDictionary` now does that precisely — depth-tracked
+ * bracket matching finds the top-level `<<...>>` pair ending immediately
+ * before `stream` (only whitespace between), nested sub-dictionaries
+ * (`/DecodeParms << ... >>`) correctly treated as part of it rather than
+ * as boundary noise, and any *earlier*, unrelated object's dictionary
+ * sitting in the same inter-stream window (however its own `/Filter`
+ * mention was spelled) is structurally excluded rather than merely
+ * hoped not to collide with a regex. Three direct consequences:
+ * - (round 3, finding 1) The filter declaration is now read from the one
+ *   dictionary that actually owns this stream, not the first `/Filter`
+ *   token anywhere between here and the previous `endstream`.
+ * - (round 3, finding 2) `classifyFilterDeclaration` decodes `#XX` name
+ *   escapes across the governing dictionary before matching — the same
+ *   escape scheme `findActiveMarkerIn` already unescapes applies to
+ *   every PDF name token, not just active-content markers, so `/Filter`
+ *   itself (or `/FlateDecode`) could be partially escaped and slip past
+ *   a plain-text match.
+ * - (round 3, finding 3) `hasNontrivialPredictor` rejects a sole-Flate
+ *   stream whose dictionary declares `/DecodeParms` with a `/Predictor`
+ *   other than 1 (PNG predictors 10-15, TIFF predictor 2) as undecodable
+ *   — `inflateSync` alone only reverses the Flate layer; a predictor is a
+ *   SECOND, row-differencing encoding on top of it, and treating the raw
+ *   inflate output as final content would search still-differenced bytes
+ *   for a marker that predictor differencing can conceal. Implementing
+ *   predictor reversal is deliberately out of scope (same reasoning as
+ *   round 2's chained-filter decision): predictors are a pixel/row
+ *   technique essentially never used for the compressed *object* streams
+ *   this scanner actually cares about, only for image/xref streams, so
+ *   failing closed here costs nothing on the real attack surface.
  */
-function classifyFilterDeclaration(dictWindow: string): 'sole-flate' | 'flate-in-chain' | 'other' {
-  const match = /\/Filter\s*(\/[A-Za-z0-9]+|\[[^\]]*\])/.exec(dictWindow);
+function findGoverningDictionary(
+  text: string,
+  searchFrom: number,
+  streamKeywordStart: number,
+): string | undefined {
+  let end = streamKeywordStart;
+  while (end > searchFrom && /\s/.test(text.charAt(end - 1))) end--;
+
+  const window = text.slice(searchFrom, end);
+  const tokens = /<<|>>/g;
+  let depth = 0;
+  let topLevelStart = -1;
+  let lastTopLevelStart = -1;
+  let lastTopLevelEnd = -1;
+  let match: RegExpExecArray | null;
+  // biome-ignore lint/suspicious/noAssignInExpressions: standard exec-loop idiom
+  while ((match = tokens.exec(window))) {
+    if (match[0] === '<<') {
+      if (depth === 0) topLevelStart = match.index;
+      depth++;
+    } else {
+      depth--;
+      if (depth < 0) return undefined; // stray '>>' with no matching '<<'
+      if (depth === 0) {
+        lastTopLevelStart = topLevelStart;
+        lastTopLevelEnd = match.index + 2;
+      }
+    }
+  }
+  if (depth !== 0) return undefined; // a '<<' that never closed
+  if (lastTopLevelEnd !== window.length) return undefined; // doesn't end right at `stream`
+  return window.slice(lastTopLevelStart, lastTopLevelEnd);
+}
+
+function classifyFilterDeclaration(dictText: string): 'sole-flate' | 'flate-in-chain' | 'other' {
+  const unescaped = decodePdfNameEscapes(dictText);
+  const match = /\/Filter\s*(\/[A-Za-z0-9]+|\[[^\]]*\])/.exec(unescaped);
   const value = match?.[1];
   if (!value) return 'other';
   if (value === '/FlateDecode') return 'sole-flate';
@@ -180,6 +253,15 @@ function classifyFilterDeclaration(dictWindow: string): 'sole-flate' | 'flate-in
   const names: string[] = value.match(/\/[A-Za-z0-9]+/g) ?? [];
   if (!names.includes('/FlateDecode')) return 'other';
   return names.length === 1 ? 'sole-flate' : 'flate-in-chain';
+}
+
+function hasNontrivialPredictor(dictText: string): boolean {
+  const unescaped = decodePdfNameEscapes(dictText);
+  const match = /\/DecodeParms\s*(<<[^>]*>>|\[[^\]]*\])/.exec(unescaped);
+  if (!match?.[1]) return false;
+  const predictorMatch = /\/Predictor\s+(\d+)/.exec(match[1]);
+  if (!predictorMatch?.[1]) return false;
+  return predictorMatch[1] !== '1';
 }
 
 function extractFlateStreams(text: string): {
@@ -203,27 +285,37 @@ function extractFlateStreams(text: string): {
       break;
     }
 
-    const dictWindow = text.slice(dictionaryStart, streamKeywordStart);
-    const filterClass = classifyFilterDeclaration(dictWindow);
-    if (filterClass === 'flate-in-chain') {
-      // A chained filter leaves real content still encoded after a single
-      // inflate — decoding only the Flate layer and calling the result
-      // final would silently miss a marker hidden behind whatever comes
-      // next in the chain. Not attempting the rest of the chain (this
-      // stays a bounded, dependency-free scanner, not a full PDF filter
-      // pipeline): undecidable, never silently "decoded".
+    const governingDict = findGoverningDictionary(text, dictionaryStart, streamKeywordStart);
+    if (governingDict === undefined) {
+      // Can't positively identify which dictionary governs this stream —
+      // per the governing invariant, unclear is undecidable, never "no filter".
       undecodable = true;
-    } else if (filterClass === 'sole-flate') {
-      // A trailing EOL before "endstream" is formatting, not stream data —
-      // same three PDF-legal conventions as STREAM_KEYWORD_PATTERN.
-      const raw = text.slice(dataStart, endIndex).replace(/(?:\r\n|\r|\n)$/, '');
-      try {
-        const inflated = inflateSync(Buffer.from(raw, 'latin1'), {
-          maxOutputLength: MAX_STREAM_INFLATED_BYTES,
-        });
-        decoded.push(inflated.toString('latin1'));
-      } catch {
+    } else {
+      const filterClass = classifyFilterDeclaration(governingDict);
+      if (filterClass === 'flate-in-chain') {
+        // A chained filter leaves real content still encoded after a single
+        // inflate — decoding only the Flate layer and calling the result
+        // final would silently miss a marker hidden behind whatever comes
+        // next in the chain. Not attempting the rest of the chain (this
+        // stays a bounded, dependency-free scanner, not a full PDF filter
+        // pipeline): undecidable, never silently "decoded".
         undecodable = true;
+      } else if (filterClass === 'sole-flate') {
+        if (hasNontrivialPredictor(governingDict)) {
+          undecodable = true;
+        } else {
+          // A trailing EOL before "endstream" is formatting, not stream
+          // data — same three PDF-legal conventions as STREAM_KEYWORD_PATTERN.
+          const raw = text.slice(dataStart, endIndex).replace(/(?:\r\n|\r|\n)$/, '');
+          try {
+            const inflated = inflateSync(Buffer.from(raw, 'latin1'), {
+              maxOutputLength: MAX_STREAM_INFLATED_BYTES,
+            });
+            decoded.push(inflated.toString('latin1'));
+          } catch {
+            undecodable = true;
+          }
+        }
       }
     }
     cursor = endIndex + 'endstream'.length;

@@ -404,6 +404,88 @@ describe('BasicSafetyScanner', () => {
     expect(result.detail).toContain('could not be verified clean');
   });
 
+  it('detects a marker inside a FlateDecode stream even when an earlier, unrelated object in the same file declares its own /Filter (Codex review, PR-B3, round 3)', async () => {
+    // Object 1 is a decoy: its own dictionary mentions /Filter (naming a
+    // non-Flate filter) purely to bait an unanchored "first /Filter in the
+    // window" search into picking IT instead of object 2's real, governing
+    // dictionary -- object 2's stream is the one that actually needs to be
+    // inflated to find the marker.
+    const compressed = deflateSync(
+      Buffer.from('<< /S /JavaScript /JS (app.alert(1)) >>', 'latin1'),
+    );
+    const pdf = Buffer.concat([
+      Buffer.from(
+        `%PDF-1.7\n1 0 obj\n<< /Type /Catalog /Filter /DCTDecode >>\nendobj\n2 0 obj\n<< /Filter /FlateDecode /Length ${compressed.length} >>\nstream\n`,
+        'latin1',
+      ),
+      compressed,
+      Buffer.from('\nendstream\nendobj\n%%EOF', 'latin1'),
+    ]);
+    await storage.putObject({
+      bucket: 'QUARANTINE',
+      objectKey: 'decoy-filter-pdf',
+      contentType: 'application/pdf',
+      bytes: new Uint8Array(pdf),
+    });
+    const result = await scanner.scan({ bucket: 'QUARANTINE', objectKey: 'decoy-filter-pdf' });
+    expect(result.safe).toBe(false);
+    expect(result.detail).toContain('active PDF content');
+  });
+
+  it('recognizes /Filter /FlateDecode even when a byte in the key or value is PDF #XX-escaped (Codex review, PR-B3, round 3)', async () => {
+    // "/F#69lter" decodes to "/Filter" (#69 = 'i'). The declaration must be
+    // unescaped before it's recognized as governing this stream, otherwise
+    // the stream is wrongly classified "other" and never inflated at all.
+    const compressed = deflateSync(
+      Buffer.from('<< /S /JavaScript /JS (app.alert(1)) >>', 'latin1'),
+    );
+    const pdf = Buffer.concat([
+      Buffer.from(
+        `%PDF-1.7\n3 0 obj\n<< /F#69lter /FlateDecode /Length ${compressed.length} >>\nstream\n`,
+        'latin1',
+      ),
+      compressed,
+      Buffer.from('\nendstream\nendobj\n%%EOF', 'latin1'),
+    ]);
+    await storage.putObject({
+      bucket: 'QUARANTINE',
+      objectKey: 'escaped-filter-key-pdf',
+      contentType: 'application/pdf',
+      bytes: new Uint8Array(pdf),
+    });
+    const result = await scanner.scan({
+      bucket: 'QUARANTINE',
+      objectKey: 'escaped-filter-key-pdf',
+    });
+    expect(result.safe).toBe(false);
+    expect(result.detail).toContain('active PDF content');
+  });
+
+  it('rejects a sole-FlateDecode stream that also declares a nontrivial predictor as undecidable, rather than searching the still-differenced inflate output (Codex review, PR-B3, round 3)', async () => {
+    // Content is genuinely benign (no marker at all) -- the point is that
+    // declaring a real predictor must force undecidable regardless of what
+    // a naive single-inflate would have found, since inflateSync alone
+    // never reverses predictor differencing.
+    const compressed = deflateSync(Buffer.from('ordinary benign object stream content', 'latin1'));
+    const pdf = Buffer.concat([
+      Buffer.from(
+        `%PDF-1.7\n3 0 obj\n<< /Filter /FlateDecode /DecodeParms << /Predictor 12 /Columns 5 /Colors 1 /BitsPerComponent 8 >> /Length ${compressed.length} >>\nstream\n`,
+        'latin1',
+      ),
+      compressed,
+      Buffer.from('\nendstream\nendobj\n%%EOF', 'latin1'),
+    ]);
+    await storage.putObject({
+      bucket: 'QUARANTINE',
+      objectKey: 'predictor-pdf',
+      contentType: 'application/pdf',
+      bytes: new Uint8Array(pdf),
+    });
+    const result = await scanner.scan({ bucket: 'QUARANTINE', objectKey: 'predictor-pdf' });
+    expect(result.safe).toBe(false);
+    expect(result.detail).toContain('could not be verified clean');
+  });
+
   it('rejects a shebang script even though it is otherwise plain text', async () => {
     await storage.putObject({
       bucket: 'QUARANTINE',

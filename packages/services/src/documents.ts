@@ -555,8 +555,6 @@ async function accessDocument(
       .orderBy(desc(schema.documentVersions.versionNumber))
       .limit(1),
   );
-  if (!version) return err(serviceError('not_found', 'document has no stored version'));
-
   // Safety-state enforcement (master directive §7 "PR 3"): an authorized
   // actor still may not preview/download a version that has not been
   // confirmed CLEAN by the scanner, or that has not reached a servable
@@ -583,12 +581,22 @@ async function accessDocument(
   // first, then a second DENIED event below for the same request: the
   // append-only audit trail recorded an access that never actually
   // happened, and double-counted the request.
-  const erased = await hasActiveOrVerifiedErasureJob(db, version.storageObjectId);
-  const servable = isDocumentVersionUsable({
-    safetyStatus: version.safetyStatus,
-    processingStatus: version.processingStatus,
-    erased,
-  });
+  //
+  // "No stored version at all" is folded into this same combined decision
+  // (Codex review, PR-B3, round 3) rather than returning early above it: an
+  // owner can create a document via `registerDocument` before any version
+  // is added, and an authorized access attempt against it was reaching a
+  // `not_found` return before this deferred audit append ever ran —
+  // producing zero DOCUMENT_ACCESS events for an authorized request,
+  // exactly the invisibility finding #11 closed for the safety-gate case.
+  const erased = version ? await hasActiveOrVerifiedErasureJob(db, version.storageObjectId) : false;
+  const servable =
+    version !== undefined &&
+    isDocumentVersionUsable({
+      safetyStatus: version.safetyStatus,
+      processingStatus: version.processingStatus,
+      erased,
+    });
   await db.transaction(async (tx) => {
     await appendAuditEvent(tx, {
       eventType: 'DOCUMENT_ACCESS',
@@ -600,10 +608,19 @@ async function accessDocument(
       applicantId: document.applicantId,
       resourceType: 'document',
       resourceId: document.id,
-      reason: servable ? null : erased ? 'bytes_already_erased' : 'not_yet_safe_to_serve',
+      reason: servable
+        ? null
+        : !version
+          ? 'no_stored_version'
+          : erased
+            ? 'bytes_already_erased'
+            : 'not_yet_safe_to_serve',
       metadata: { variant: effectiveVariant, disposition, purpose: input.purpose },
     });
   });
+  if (!version) {
+    return err(serviceError('not_found', 'document has no stored version'));
+  }
   if (!servable) {
     return err(serviceError('forbidden', 'this document is not yet available'));
   }
