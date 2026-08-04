@@ -1,3 +1,4 @@
+import { inflateSync } from 'node:zlib';
 import type { BlobStore, MalwareScannerPort, ScanResult } from '@visastack/services';
 import { validateDocxStructure } from './docx-validation';
 
@@ -61,25 +62,126 @@ const MAGIC_DENY: ReadonlyArray<{ readonly label: string; readonly bytes: readon
 
 /**
  * Object-dictionary keys a PDF uses to run embedded JavaScript, auto-launch
- * an external action on open, or carry an embedded file. A byte-level
+ * an external action on open/close, or carry an embedded file. A byte-level
  * substring heuristic, not a real PDF object parse — bounded, cheap, and
  * deliberately conservative (a real applicant document essentially never
  * contains these); paired with `unpdf`'s independent parse at extraction
  * time. Full sanitization (CDR) is tracked, not implemented here.
+ * `/AA` (Additional Actions) added alongside `/OpenAction` (Codex review,
+ * PR-B3, finding #9) — the same risk category, triggered by other document
+ * events (page open/close, focus, etc.) rather than just document-open.
  */
 const ACTIVE_PDF_CONTENT_MARKERS: readonly string[] = [
   '/JavaScript',
   '/JS',
   '/OpenAction',
+  '/AA',
   '/Launch',
   '/EmbeddedFile',
 ];
 
-function containsActivePdfContent(bytes: Uint8Array): string | undefined {
+/**
+ * PDF "name object" syntax lets any byte be written as `#XX` (2 hex
+ * digits) instead of literally — a legitimate escape for names containing
+ * special characters, but also a trivial way to spell `/Open#41ction`
+ * instead of `/OpenAction` and slip past a plain substring search entirely
+ * (Codex review, PR-B3, finding #9). Decoding every `#XX` occurrence before
+ * matching closes this — unescaping can only ever reveal a marker that a
+ * plain search would otherwise miss, never hide one that's already there in
+ * plain text.
+ */
+function decodePdfNameEscapes(text: string): string {
+  return text.replace(/#([0-9a-fA-F]{2})/g, (_, hex: string) =>
+    String.fromCharCode(Number.parseInt(hex, 16)),
+  );
+}
+
+function findActiveMarkerIn(text: string): string | undefined {
+  const unescaped = decodePdfNameEscapes(text);
+  return ACTIVE_PDF_CONTENT_MARKERS.find((marker) => unescaped.includes(marker));
+}
+
+const MAX_STREAMS_SCANNED = 200;
+/** Generous for any legitimate compressed object/content stream, tight enough to bound a decompression-bomb attempt. */
+const MAX_STREAM_INFLATED_BYTES = 10 * 1024 * 1024;
+/** How far back from `stream` to look for its dictionary's `/Filter` entry — generous for a real per-object dictionary. */
+const FILTER_LOOKBACK_BYTES = 2000;
+
+/**
+ * Best-effort extraction of `FlateDecode` stream bodies for the same bounded,
+ * dependency-free scan (Codex review, PR-B3, finding #9) — a PDF can hide an
+ * entire compressed *object stream* (`/Type /ObjStm`) whose decompressed
+ * content is itself PDF syntax (indirect objects, name-keyed dictionaries,
+ * possibly `/OpenAction` etc.), which never appears as a matchable literal
+ * substring anywhere in the raw file bytes.
+ *
+ * Not a real PDF parser: locates `stream`/`endstream` keyword pairs
+ * directly rather than resolving `/Length` (which is frequently an
+ * indirect object reference a bounded scanner can't safely chase), and
+ * looks for `/Filter ... FlateDecode` in a bounded window immediately
+ * before `stream` rather than fully parsing the dictionary. Deliberately
+ * conservative in the other direction too: a stream that declares
+ * FlateDecode but fails to actually inflate is reported as undecodable,
+ * never silently treated as "not compressed, therefore nothing to find."
+ */
+function extractFlateStreams(text: string): {
+  readonly decoded: readonly string[];
+  readonly undecodable: boolean;
+} {
+  const decoded: string[] = [];
+  let undecodable = false;
+  let cursor = 0;
+  for (let scanned = 0; scanned < MAX_STREAMS_SCANNED; scanned++) {
+    const relativeMatch = /stream\r?\n/.exec(text.slice(cursor));
+    if (!relativeMatch) break;
+    const streamKeywordStart = cursor + relativeMatch.index;
+    const dataStart = streamKeywordStart + relativeMatch[0].length;
+    const endIndex = text.indexOf('endstream', dataStart);
+    if (endIndex === -1) break;
+
+    const dictWindow = text.slice(
+      Math.max(0, streamKeywordStart - FILTER_LOOKBACK_BYTES),
+      streamKeywordStart,
+    );
+    const declaresFlate = /\/Filter\s*(\/FlateDecode\b|\[[^\]]*\/FlateDecode\b[^\]]*\])/.test(
+      dictWindow,
+    );
+    if (declaresFlate) {
+      // A trailing EOL before "endstream" is formatting, not stream data.
+      const raw = text.slice(dataStart, endIndex).replace(/\r?\n$/, '');
+      try {
+        const inflated = inflateSync(Buffer.from(raw, 'latin1'), {
+          maxOutputLength: MAX_STREAM_INFLATED_BYTES,
+        });
+        decoded.push(inflated.toString('latin1'));
+      } catch {
+        undecodable = true;
+      }
+    }
+    cursor = endIndex + 'endstream'.length;
+  }
+  return { decoded, undecodable };
+}
+
+type PdfContentCheck =
+  | { readonly kind: 'clean' }
+  | { readonly kind: 'active-marker'; readonly marker: string }
+  | { readonly kind: 'undecidable' };
+
+function checkPdfContent(bytes: Uint8Array): PdfContentCheck {
   // latin1 is byte-transparent (1 char <-> 1 byte) — exactly what a raw
   // marker search over binary PDF bytes needs, with no UTF-8 decode risk.
   const text = Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength).toString('latin1');
-  return ACTIVE_PDF_CONTENT_MARKERS.find((marker) => text.includes(marker));
+  const directMarker = findActiveMarkerIn(text);
+  if (directMarker) return { kind: 'active-marker', marker: directMarker };
+
+  const { decoded, undecodable } = extractFlateStreams(text);
+  for (const streamText of decoded) {
+    const marker = findActiveMarkerIn(streamText);
+    if (marker) return { kind: 'active-marker', marker };
+  }
+  if (undecodable) return { kind: 'undecidable' };
+  return { kind: 'clean' };
 }
 
 /** Declared content types the plain-text path accepts — nothing else, regardless of byte shape. */
@@ -151,9 +253,15 @@ export class BasicSafetyScanner implements MalwareScannerPort {
     }
 
     if (startsWith(bytes, PDF_MAGIC)) {
-      const activeMarker = containsActivePdfContent(bytes);
-      if (activeMarker) {
-        return { safe: false, detail: `rejected: active PDF content (${activeMarker})` };
+      const check = checkPdfContent(bytes);
+      if (check.kind === 'active-marker') {
+        return { safe: false, detail: `rejected: active PDF content (${check.marker})` };
+      }
+      if (check.kind === 'undecidable') {
+        return {
+          safe: false,
+          detail: 'rejected: pdf contains an encoded stream that could not be verified clean',
+        };
       }
       return { safe: true, detail: 'pdf' };
     }

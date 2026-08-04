@@ -1,4 +1,5 @@
 import { fileURLToPath } from 'node:url';
+import { deflateSync } from 'node:zlib';
 import { PGlite } from '@electric-sql/pglite';
 import { isOk } from '@visastack/core';
 import { schema } from '@visastack/db';
@@ -205,6 +206,85 @@ describe('BasicSafetyScanner', () => {
     const result = await scanner.scan({ bucket: 'QUARANTINE', objectKey: 'active-pdf' });
     expect(result.safe).toBe(false);
     expect(result.detail).toContain('active PDF content');
+  });
+
+  it('rejects a PDF whose active-content markers are hex-escaped (#XX name-object syntax) to dodge a plain substring search (Codex review, PR-B3, finding #9)', async () => {
+    // Every marker below decodes to the real name once #XX is unescaped —
+    // #41 = 'A', #53 = 'S' — none of them appear as a literal, matchable
+    // substring anywhere in the raw bytes.
+    const pdfWithEscapedMarkers = new TextEncoder().encode(
+      '%PDF-1.7\n' +
+        '1 0 obj\n<< /Open#41ction 2 0 R >>\nendobj\n' +
+        '2 0 obj\n<< /S /Java#53cript /J#53 (app.alert(1)) /#41A << /O 3 0 R >> >>\nendobj\n' +
+        '%%EOF',
+    );
+    await storage.putObject({
+      bucket: 'QUARANTINE',
+      objectKey: 'escaped-pdf',
+      contentType: 'application/pdf',
+      bytes: pdfWithEscapedMarkers,
+    });
+    const result = await scanner.scan({ bucket: 'QUARANTINE', objectKey: 'escaped-pdf' });
+    expect(result.safe).toBe(false);
+    expect(result.detail).toContain('active PDF content');
+  });
+
+  it('rejects a PDF whose active-content marker only exists inside a FlateDecode-compressed stream (a compressed object stream hiding the real dictionary) (Codex review, PR-B3, finding #9)', async () => {
+    const hiddenObjectStream = deflateSync(
+      Buffer.from('6 0 obj\n<< /S /JavaScript /JS (app.alert(1)) >>\nendobj\n', 'latin1'),
+    );
+    const compressedBytes = hiddenObjectStream.toString('latin1');
+    const pdfWithCompressedMarker = Buffer.from(
+      `%PDF-1.7\n3 0 obj\n<< /Type /ObjStm /N 1 /Filter /FlateDecode /Length ${hiddenObjectStream.length} >>\nstream\n${compressedBytes}\nendstream\nendobj\n%%EOF`,
+      'latin1',
+    );
+    await storage.putObject({
+      bucket: 'QUARANTINE',
+      objectKey: 'compressed-marker-pdf',
+      contentType: 'application/pdf',
+      bytes: new Uint8Array(pdfWithCompressedMarker),
+    });
+    const result = await scanner.scan({
+      bucket: 'QUARANTINE',
+      objectKey: 'compressed-marker-pdf',
+    });
+    expect(result.safe).toBe(false);
+    expect(result.detail).toContain('active PDF content');
+  });
+
+  it('accepts a PDF with a genuine FlateDecode content stream that decompresses cleanly with no active-content markers inside', async () => {
+    const compressedContent = deflateSync(
+      Buffer.from('BT /F1 24 Tf 100 100 Td (Hello) Tj ET', 'latin1'),
+    );
+    const contentBytes = compressedContent.toString('latin1');
+    const pdfWithBenignStream = Buffer.from(
+      `%PDF-1.7\n5 0 obj\n<< /Filter /FlateDecode /Length ${compressedContent.length} >>\nstream\n${contentBytes}\nendstream\nendobj\n%%EOF`,
+      'latin1',
+    );
+    await storage.putObject({
+      bucket: 'QUARANTINE',
+      objectKey: 'benign-compressed-pdf',
+      contentType: 'application/pdf',
+      bytes: new Uint8Array(pdfWithBenignStream),
+    });
+    const result = await scanner.scan({ bucket: 'QUARANTINE', objectKey: 'benign-compressed-pdf' });
+    expect(result.safe).toBe(true);
+  });
+
+  it('rejects a PDF whose stream declares FlateDecode but is not actually valid compressed data — undecidable, not silently treated as clean (Codex review, PR-B3, finding #9)', async () => {
+    const garbage = 'this is not zlib-compressed data at all, just plain garbage bytes';
+    const pdfWithBrokenStream = new TextEncoder().encode(
+      `%PDF-1.7\n7 0 obj\n<< /Filter /FlateDecode /Length ${garbage.length} >>\nstream\n${garbage}\nendstream\nendobj\n%%EOF`,
+    );
+    await storage.putObject({
+      bucket: 'QUARANTINE',
+      objectKey: 'broken-stream-pdf',
+      contentType: 'application/pdf',
+      bytes: pdfWithBrokenStream,
+    });
+    const result = await scanner.scan({ bucket: 'QUARANTINE', objectKey: 'broken-stream-pdf' });
+    expect(result.safe).toBe(false);
+    expect(result.detail).toContain('could not be verified clean');
   });
 
   it('rejects a shebang script even though it is otherwise plain text', async () => {

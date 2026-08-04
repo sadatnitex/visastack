@@ -526,23 +526,23 @@ async function accessDocument(
   });
 
   const audit = actorAudit(input.actor);
-  await db.transaction(async (tx) => {
-    await appendAuditEvent(tx, {
-      eventType: 'DOCUMENT_ACCESS',
-      actorAccountId: audit.actorAccountId,
-      actorRole: audit.actorRole,
-      action,
-      result: decision.allowed ? 'ALLOWED' : 'DENIED',
-      method: 'API',
-      applicantId: document.applicantId,
-      resourceType: 'document',
-      resourceId: document.id,
-      reason: decision.allowed ? null : decision.reason,
-      metadata: { variant: effectiveVariant, disposition, purpose: input.purpose },
-    });
-  });
 
   if (!decision.allowed) {
+    await db.transaction(async (tx) => {
+      await appendAuditEvent(tx, {
+        eventType: 'DOCUMENT_ACCESS',
+        actorAccountId: audit.actorAccountId,
+        actorRole: audit.actorRole,
+        action,
+        result: 'DENIED',
+        method: 'API',
+        applicantId: document.applicantId,
+        resourceType: 'document',
+        resourceId: document.id,
+        reason: decision.reason,
+        metadata: { variant: effectiveVariant, disposition, purpose: input.purpose },
+      });
+    });
     return err(serviceError('forbidden', `access denied (${decision.reason})`));
   }
 
@@ -575,29 +575,36 @@ async function accessDocument(
   // is mid-flight). Neither `safetyStatus` nor `processingStatus` reflects
   // that; without this check the read path would issue a working-looking
   // reference to bytes that are already gone or about to be.
+  //
+  // Authorization and servability are audited as ONE combined decision, in
+  // a single DOCUMENT_ACCESS event written only after BOTH gates have been
+  // evaluated (Codex review, PR-B3, finding #11) — previously, an
+  // authorized-but-not-yet-safe-to-serve request appended ALLOWED here
+  // first, then a second DENIED event below for the same request: the
+  // append-only audit trail recorded an access that never actually
+  // happened, and double-counted the request.
   const erased = await hasActiveOrVerifiedErasureJob(db, version.storageObjectId);
-  if (
-    !isDocumentVersionUsable({
-      safetyStatus: version.safetyStatus,
-      processingStatus: version.processingStatus,
-      erased,
-    })
-  ) {
-    await db.transaction(async (tx) => {
-      await appendAuditEvent(tx, {
-        eventType: 'DOCUMENT_ACCESS',
-        actorAccountId: audit.actorAccountId,
-        actorRole: audit.actorRole,
-        action,
-        result: 'DENIED',
-        method: 'API',
-        applicantId: document.applicantId,
-        resourceType: 'document',
-        resourceId: document.id,
-        reason: erased ? 'bytes_already_erased' : 'not_yet_safe_to_serve',
-        metadata: { variant: effectiveVariant, disposition, purpose: input.purpose },
-      });
+  const servable = isDocumentVersionUsable({
+    safetyStatus: version.safetyStatus,
+    processingStatus: version.processingStatus,
+    erased,
+  });
+  await db.transaction(async (tx) => {
+    await appendAuditEvent(tx, {
+      eventType: 'DOCUMENT_ACCESS',
+      actorAccountId: audit.actorAccountId,
+      actorRole: audit.actorRole,
+      action,
+      result: servable ? 'ALLOWED' : 'DENIED',
+      method: 'API',
+      applicantId: document.applicantId,
+      resourceType: 'document',
+      resourceId: document.id,
+      reason: servable ? null : erased ? 'bytes_already_erased' : 'not_yet_safe_to_serve',
+      metadata: { variant: effectiveVariant, disposition, purpose: input.purpose },
     });
+  });
+  if (!servable) {
     return err(serviceError('forbidden', 'this document is not yet available'));
   }
 

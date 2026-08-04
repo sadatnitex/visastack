@@ -242,6 +242,41 @@ describe('document vault — permission-aware access', () => {
     void account;
   });
 
+  it('records exactly one DOCUMENT_ACCESS event for an authorized-but-not-yet-safe-to-serve request, not an ALLOWED followed by a DENIED (Codex review, PR-B3, finding #11)', async () => {
+    const { account, document } = await seedOwnerWithDocument(db, 'a10@example.com');
+    const actor = { kind: 'applicant_owner', applicantId: document.applicantId as never } as const;
+
+    // A second, later version still mid-pipeline — the owner IS authorized
+    // to access this document, but the latest version isn't servable yet.
+    // Before this fix, the authorization-decision block unconditionally
+    // appended ALLOWED first, then the safety-state check below appended a
+    // second, contradictory DENIED event for the same request.
+    await addDocumentVersion(db, {
+      actorAccountId: account.id,
+      documentId: document.id,
+      bucket: 'CLEAN',
+      objectKey: 'a10-v2-scanning',
+      safetyStatus: 'PENDING',
+      processingStatus: 'SCANNING',
+    });
+
+    const preview = await previewDocument(db, storage, {
+      actor,
+      documentId: document.id,
+      purpose: 'self_review',
+    });
+    expect(isErr(preview)).toBe(true);
+    if (isErr(preview)) expect(preview.error.code).toBe('forbidden');
+
+    const events = await db
+      .select()
+      .from(schema.auditEvents)
+      .where(eq(schema.auditEvents.eventType, 'DOCUMENT_ACCESS'));
+    expect(events).toHaveLength(1);
+    expect(events[0]?.result).toBe('DENIED');
+    expect(events[0]?.reason).toBe('not_yet_safe_to_serve');
+  });
+
   it('requires step-up for the original bytes (denied without it)', async () => {
     const { document } = await seedOwnerWithDocument(db, 'a2@example.com');
     const actor = { kind: 'applicant_owner', applicantId: document.applicantId as never } as const;
