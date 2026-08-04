@@ -1,6 +1,6 @@
 import { fileURLToPath } from 'node:url';
 import { PGlite } from '@electric-sql/pglite';
-import { isOk } from '@visastack/core';
+import { isErr, isOk } from '@visastack/core';
 import { schema } from '@visastack/db';
 import { eq, inArray } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/pglite';
@@ -859,6 +859,52 @@ describe('erasure outbox', () => {
           .select()
           .from(schema.storageObjects)
           .where(inArray(schema.storageObjects.objectKey, objectKeys)),
+      ).toHaveLength(0);
+    });
+
+    it('refuses to attach a new version to a document with an in-progress retention purge (Codex review, PR-B2, round 1)', async () => {
+      const { account, applicantId } = await seedApplicant(db, 'late-version@example.com');
+      const objectKeys = ['obj-lv-1', 'obj-lv-2'];
+      const { documentId } = await seedMultiVersionDocument(
+        db,
+        storage,
+        applicantId,
+        account.id,
+        objectKeys,
+      );
+
+      // Without this refusal, a version attached here would have no erasure
+      // job of its own — it would be silently cascaded away, bytes
+      // unreachable forever, once the two ALREADY-queued siblings both
+      // verify (exactly what the fully-processed run below proves).
+      const attempt = await addDocumentVersion(db, {
+        actorAccountId: account.id,
+        documentId,
+        bucket: 'CLEAN',
+        objectKey: 'obj-lv-late',
+      });
+      expect(isErr(attempt)).toBe(true);
+      if (isErr(attempt)) expect(attempt.error.code).toBe('invalid');
+
+      // No orphaned storage object or version was created by the refused attempt.
+      expect(
+        await db
+          .select()
+          .from(schema.storageObjects)
+          .where(eq(schema.storageObjects.objectKey, 'obj-lv-late')),
+      ).toHaveLength(0);
+      const versions = await db
+        .select()
+        .from(schema.documentVersions)
+        .where(eq(schema.documentVersions.documentId, documentId));
+      expect(versions).toHaveLength(2);
+
+      // The original two siblings still verify and correctly delete the
+      // document once both are done — the refusal didn't wedge anything.
+      const result = await runErasureWorker(db, storage, { limit: 5 });
+      expect(result).toEqual({ processed: 2, blocked: 0, failed: 0 });
+      expect(
+        await db.select().from(schema.documents).where(eq(schema.documents.id, documentId)),
       ).toHaveLength(0);
     });
   });

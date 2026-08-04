@@ -7,7 +7,7 @@ import type {
 } from '@visastack/core';
 import { err, ok } from '@visastack/core';
 import { type Actor, authorize } from '@visastack/policy';
-import { desc, eq } from 'drizzle-orm';
+import { and, desc, eq, ne } from 'drizzle-orm';
 import { getApplicant } from './applicants';
 import { appendAuditEvent } from './audit';
 import { hasConsent } from './consent';
@@ -127,6 +127,41 @@ export async function addDocumentVersion(
   }
 
   return db.transaction(async (tx) => {
+    // Lock the document row (Codex review, PR-B2, round 1): `purgeExpiredDocuments`
+    // and `finalizeVerifiedJob` take the identical lock on the identical row
+    // before, respectively, enqueueing erasure jobs for the document's
+    // current versions and deciding whether every one of them has verified.
+    // Without this lock (and the refusal below), a version attached in the
+    // gap after a purge is queued would have no erasure job of its own — the
+    // document would eventually be deleted once its ORIGINAL siblings all
+    // verify, cascading this late version away with its bytes permanently
+    // unreachable (no job, no document_versions row, no way to rediscover it).
+    await tx
+      .select({ id: schema.documents.id })
+      .from(schema.documents)
+      .where(eq(schema.documents.id, input.documentId))
+      .for('update');
+    const activePurgeJob = first(
+      await tx
+        .select({ id: schema.erasureJobs.id })
+        .from(schema.erasureJobs)
+        .where(
+          and(
+            eq(schema.erasureJobs.documentId, input.documentId),
+            ne(schema.erasureJobs.status, 'VERIFIED'),
+          ),
+        )
+        .limit(1),
+    );
+    if (activePurgeJob) {
+      return err(
+        serviceError(
+          'invalid',
+          'this document has a retention purge in progress and cannot be modified until it completes',
+        ),
+      );
+    }
+
     const storageObject = required(
       first(
         await tx

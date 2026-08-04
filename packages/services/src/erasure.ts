@@ -279,16 +279,19 @@ type FinalizeOutcome = 'verified' | 'blocked' | 'lost-lease';
  *
  * Finding #13: a multi-version document has one erasure job per storage
  * object, all sharing one `documentId` — the `documents` row must survive
- * until every sibling job is VERIFIED, not just this one. The sibling lock
- * below is acquired for the WHOLE sibling set (this job's own row included)
- * BEFORE this job's own CAS-to-VERIFIED update, not after: if each sibling
- * instead locked only its own row first (via its CAS update) and then tried
- * to lock the rest, two siblings finalizing concurrently would deadlock (A
- * holds A, wants B; B holds B, wants A). Acquiring the whole set atomically
- * up front means whichever invocation gets there first locks all of it and
- * the other blocks entirely, never partially — `.orderBy(id)` makes the
- * acquisition order identical across invocations regardless of query-plan
- * details, the standard defense against this class of lock-ordering deadlock.
+ * until every sibling job is VERIFIED, not just this one. Before deciding,
+ * this locks the `documents` row itself (not the erasure-job rows): a single
+ * shared lock target that every sibling's finalize call contends for is
+ * inherently deadlock-free (first-come-first-served on one resource, never
+ * a partial-lock-then-request-more pattern), and — Codex review, PR-B2,
+ * round 1 — the identical lock, on the identical row, is what
+ * `addDocumentVersion` and `purgeExpiredDocuments` also take before their
+ * own document-mutating decisions (see their own comments). That shared
+ * lock is what makes the plain `siblings.every(VERIFIED)` check below
+ * actually correct: `addDocumentVersion` refuses to attach a new version
+ * once any non-`VERIFIED` job exists for a document, so the sibling set is
+ * closed the moment the first job is enqueued — no version can appear here
+ * that this check didn't already account for.
  */
 async function finalizeVerifiedJob(
   db: Db,
@@ -323,10 +326,9 @@ async function finalizeVerifiedJob(
 
     if (job.reason === 'RETENTION_PURGE' && job.documentId) {
       await tx
-        .select({ id: schema.erasureJobs.id })
-        .from(schema.erasureJobs)
-        .where(eq(schema.erasureJobs.documentId, job.documentId))
-        .orderBy(schema.erasureJobs.id)
+        .select({ id: schema.documents.id })
+        .from(schema.documents)
+        .where(eq(schema.documents.id, job.documentId))
         .for('update');
     }
 
