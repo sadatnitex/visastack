@@ -63,6 +63,14 @@ function readUInt16LE(view: DataView, offset: number): number {
   return view.getUint16(offset, true);
 }
 
+function bytesEqual(a: Uint8Array, b: Uint8Array): boolean {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    if (a[i] !== b[i]) return false;
+  }
+  return true;
+}
+
 /**
  * Search backward for the End Of Central Directory record. The comment
  * field (0-65535 bytes) is the only variable-length data after it, so the
@@ -151,13 +159,25 @@ function findEndOfCentralDirectory(
  * crc32/compressedSize/uncompressedSize exactly, and folded into the
  * returned `dataEnd` so the overlap and central-directory-boundary checks
  * in the caller cover its bytes too.
+ *
+ * **Codex review, PR-B3R, post-final-verification**: the name check above
+ * compared *decoded* strings — but decoding used a non-fatal UTF-8 decoder
+ * on both sides, which silently replaces invalid byte sequences with U+FFFD
+ * rather than failing. Two different invalid byte sequences (attacker-
+ * controlled on both the local and central side) can decode to the exact
+ * same replacement-character string and pass this check as "equal" even
+ * though the real bytes disagree — defeating the very cross-check this
+ * function exists to perform. Comparing the raw name bytes directly (never
+ * decoding either side for this comparison) removes the lossy step
+ * entirely, so no two genuinely different byte sequences can be confused
+ * for a match regardless of what they'd decode to.
  */
 function validateLocalFileHeader(
   bytes: Uint8Array,
   view: DataView,
   offset: number,
   expected: {
-    readonly name: string;
+    readonly nameBytes: Uint8Array;
     readonly compressionMethod: number;
     readonly crc32: number;
     readonly compressedSize: number;
@@ -186,10 +206,10 @@ function validateLocalFileHeader(
   const localNameStart = offset + LOCAL_HEADER_FIXED_SIZE;
   const localNameEnd = localNameStart + localNameLength;
   if (localNameEnd > bytes.length) return err('local header name runs past the end of the file');
-  const localName = new TextDecoder('utf-8', { fatal: false }).decode(
-    bytes.subarray(localNameStart, localNameEnd),
-  );
-  if (localName !== expected.name) {
+  // Compared as raw bytes, never decoded -- a non-fatal UTF-8 decode on
+  // both sides could otherwise map two different invalid byte sequences to
+  // the same U+FFFD-replacement string and pass this as a "match".
+  if (!bytesEqual(bytes.subarray(localNameStart, localNameEnd), expected.nameBytes)) {
     return err('local header name does not match the central directory entry');
   }
   // CRC/sizes are only meaningful in the local header when the streamed-write
@@ -299,10 +319,15 @@ export function parseZipCentralDirectory(
     const nameStart = cursor + CENTRAL_HEADER_FIXED_SIZE;
     const nameEnd = nameStart + nameLength;
     if (nameEnd > bytes.length) return err(`central directory entry ${i} name runs out of bounds`);
-    const name = decoder.decode(bytes.subarray(nameStart, nameEnd));
+    const nameBytes = bytes.subarray(nameStart, nameEnd);
+    // Decoded only for display/return purposes (ZipEntry.name, error
+    // messages) -- the local/central cross-check below compares nameBytes
+    // directly, never this lossy decode (Codex review, PR-B3R,
+    // post-final-verification).
+    const name = decoder.decode(nameBytes);
 
     const localHeader = validateLocalFileHeader(bytes, view, localHeaderOffset, {
-      name,
+      nameBytes,
       compressionMethod,
       crc32,
       compressedSize,

@@ -52,6 +52,14 @@ interface EntrySpec {
         readonly compressedSize?: number;
         readonly uncompressedSize?: number;
       };
+  /**
+   * Raw bytes for the LOCAL header's name field, overriding the UTF-8
+   * encoding of `localName`/`name` entirely — lets a test write genuinely
+   * invalid UTF-8 that a string-based `localName` override cannot express.
+   */
+  readonly localNameBytesOverride?: readonly number[];
+  /** Raw bytes for the CENTRAL directory's name field, overriding the UTF-8 encoding of `name`. */
+  readonly centralNameBytesOverride?: readonly number[];
 }
 
 interface BuildOptions {
@@ -95,7 +103,7 @@ function buildZip(entries: readonly EntrySpec[], options: BuildOptions = {}): Ui
     const localCompressedSize = entry.localCompressedSize ?? compressedSize;
     const localUncompressedSize = entry.localUncompressedSize ?? entry.uncompressedSize ?? 10;
     const actualDataSize = entry.actualDataSize ?? compressedSize;
-    const localName = nameBytes(entry.localName ?? entry.name);
+    const localName = entry.localNameBytesOverride ?? nameBytes(entry.localName ?? entry.name);
     const flag = entry.generalPurposeFlag ?? (entry.encrypted ? 0x1 : 0x0);
     const localFlag = entry.localGeneralPurposeFlagOverride ?? flag;
     const localCompressionMethod = entry.localCompressionMethodOverride ?? 8;
@@ -136,7 +144,7 @@ function buildZip(entries: readonly EntrySpec[], options: BuildOptions = {}): Ui
 
   const centralChunks: number[][] = [];
   entries.forEach((entry, i) => {
-    const name = nameBytes(entry.name);
+    const name = entry.centralNameBytesOverride ?? nameBytes(entry.name);
     const flag = entry.generalPurposeFlag ?? (entry.encrypted ? 0x1 : 0x0);
     const localHeaderOffset = entry.localHeaderOffsetOverride ?? localOffsets[i] ?? 0;
     centralChunks.push([
@@ -277,6 +285,27 @@ describe('parseZipCentralDirectory — bounded structural read (no decompression
 
     it('rejects a local header whose name does not match the central directory entry', () => {
       const zip = buildZip([{ name: 'word/document.xml', localName: 'word/something-else.xml' }]);
+      const result = parseZipCentralDirectory(zip, { maxEntries: 10 });
+      expect(result.ok).toBe(false);
+      if (result.ok) return;
+      expect(result.error).toContain('name does not match');
+    });
+
+    it('rejects a local header name whose raw bytes differ from the central directory entry even though both non-fatally decode to the identical replacement-character string (Codex review, PR-B3R, post-final-verification)', () => {
+      // 0x80 and 0x81 are each an invalid standalone UTF-8 lead byte -- a
+      // non-fatal decoder maps EITHER, alone, to exactly one U+FFFD, so
+      // these two genuinely different two-byte names ([0x80, 0x41] and
+      // [0x81, 0x41]) both decode to the identical string "�A". A
+      // string-equality check performed AFTER decoding would wrongly treat
+      // this as a match; only comparing the raw bytes (as the fix does)
+      // catches that they actually disagree.
+      const zip = buildZip([
+        {
+          name: 'word/document.xml', // overridden below; irrelevant once *BytesOverride is set
+          centralNameBytesOverride: [0x80, 0x41],
+          localNameBytesOverride: [0x81, 0x41],
+        },
+      ]);
       const result = parseZipCentralDirectory(zip, { maxEntries: 10 });
       expect(result.ok).toBe(false);
       if (result.ok) return;
