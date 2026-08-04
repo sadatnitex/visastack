@@ -33,6 +33,25 @@ interface EntrySpec {
   readonly omitLocalHeader?: boolean;
   /** Force the central directory's declared "relative offset of local header" to something else. */
   readonly localHeaderOffsetOverride?: number;
+  /**
+   * Trailing data descriptor, written immediately after the entry's actual
+   * data (only meaningful when the data-descriptor general-purpose bit is
+   * set). Defaults to `'omit'` -- no descriptor bytes written at all, the
+   * hostile shape a data-descriptor-flagged entry must now be rejected for.
+   * `crc32`/`compressedSize`/`uncompressedSize` each default to the
+   * central directory's own declared values (a genuinely matching
+   * descriptor); override one to simulate a descriptor that disagrees with
+   * the central directory. `withSignature` defaults to `true` (writes the
+   * optional leading `PK\x07\x08`); set `false` for the bare 12-byte form.
+   */
+  readonly dataDescriptor?:
+    | 'omit'
+    | {
+        readonly withSignature?: boolean;
+        readonly crc32?: number;
+        readonly compressedSize?: number;
+        readonly uncompressedSize?: number;
+      };
 }
 
 interface BuildOptions {
@@ -82,6 +101,16 @@ function buildZip(entries: readonly EntrySpec[], options: BuildOptions = {}): Ui
     const localCompressionMethod = entry.localCompressionMethodOverride ?? 8;
     const localCrc32 = entry.localCrc32Override ?? 0;
     const data = new Array(actualDataSize).fill(0);
+    const descriptor = entry.dataDescriptor;
+    const descriptorBytes =
+      descriptor && descriptor !== 'omit'
+        ? [
+            ...(descriptor.withSignature === false ? [] : u32(0x08074b50)),
+            ...u32(descriptor.crc32 ?? 0),
+            ...u32(descriptor.compressedSize ?? compressedSize),
+            ...u32(descriptor.uncompressedSize ?? entry.uncompressedSize ?? 10),
+          ]
+        : [];
     const chunk = [
       ...u32(0x04034b50), // local file header signature
       ...u16(0), // version needed
@@ -96,6 +125,7 @@ function buildZip(entries: readonly EntrySpec[], options: BuildOptions = {}): Ui
       ...u16(0), // extra length
       ...localName,
       ...data,
+      ...descriptorBytes,
     ];
     localChunks.push(chunk);
     localOffsets.push(offset);
@@ -291,13 +321,58 @@ describe('parseZipCentralDirectory — bounded structural read (no decompression
       expect(result.error).toContain('CRC/size fields do not match');
     });
 
-    it('accepts a mismatched-looking local size when the data-descriptor flag is set (legitimate streamed-write convention)', () => {
+    it('accepts a mismatched-looking local size when the data-descriptor flag is set and a genuine, matching data descriptor follows (legitimate streamed-write convention)', () => {
       // Bit 3 set: compliant writers leave local-header sizes at 0 and store
       // the real values in a data descriptor after the entry's data instead —
       // must not be misread as tampering. actualDataSize still writes the
       // real 500 bytes of data (a genuine writer using this convention
-      // still writes real data, it just doesn't record the size up front),
-      // so the "runs past the end of the file" check correctly finds it.
+      // still writes real data, it just doesn't record the size up front).
+      // dataDescriptor (defaults: signature included, values matching the
+      // central directory's 0/500/500) writes the genuine trailing
+      // descriptor a compliant writer would -- proving the convention is
+      // still accepted once it's actually followed, not merely waived
+      // (Codex review, PR-B3R, round 2: previously this test accepted the
+      // same shape with NO descriptor at all, which the round-2 fix below
+      // now correctly rejects).
+      const zip = buildZip([
+        {
+          name: 'word/document.xml',
+          compressedSize: 500,
+          uncompressedSize: 500,
+          generalPurposeFlag: 0x0008,
+          localCompressedSize: 0,
+          localUncompressedSize: 0,
+          actualDataSize: 500,
+          dataDescriptor: {},
+        },
+      ]);
+      const result = parseZipCentralDirectory(zip, { maxEntries: 10 });
+      expect(result.ok).toBe(true);
+    });
+
+    it('accepts a data-descriptor-flagged entry whose descriptor omits the optional leading signature (bare 12-byte form, Codex review, PR-B3R, round 2)', () => {
+      const zip = buildZip([
+        {
+          name: 'word/document.xml',
+          compressedSize: 500,
+          uncompressedSize: 500,
+          generalPurposeFlag: 0x0008,
+          localCompressedSize: 0,
+          localUncompressedSize: 0,
+          actualDataSize: 500,
+          dataDescriptor: { withSignature: false },
+        },
+      ]);
+      const result = parseZipCentralDirectory(zip, { maxEntries: 10 });
+      expect(result.ok).toBe(true);
+    });
+
+    it('rejects a data-descriptor-flagged entry with no data descriptor at all (Codex review, PR-B3R, round 2, final verification)', () => {
+      // The exact gap the round-1 fix left open: bit 3 correctly waives the
+      // now-meaningless local-header CRC/size fields, but round 1 never
+      // looked for the data descriptor that convention requires in its
+      // place -- an entry that simply omits it (dataDescriptor left at its
+      // 'omit' default here) previously still passed as structurally valid.
       const zip = buildZip([
         {
           name: 'word/document.xml',
@@ -310,7 +385,33 @@ describe('parseZipCentralDirectory — bounded structural read (no decompression
         },
       ]);
       const result = parseZipCentralDirectory(zip, { maxEntries: 10 });
-      expect(result.ok).toBe(true);
+      expect(result.ok).toBe(false);
+      if (result.ok) return;
+      expect(result.error).toContain('data descriptor');
+    });
+
+    it('rejects a data-descriptor-flagged entry whose data descriptor disagrees with the central directory (Codex review, PR-B3R, round 2, final verification)', () => {
+      // A streaming reader that never consults the central directory at all
+      // -- the entire point of this convention -- would extract this entry
+      // using ITS descriptor's compressedSize (499), not the central
+      // directory's (500): a genuine parser-differential gap if left
+      // unvalidated.
+      const zip = buildZip([
+        {
+          name: 'word/document.xml',
+          compressedSize: 500,
+          uncompressedSize: 500,
+          generalPurposeFlag: 0x0008,
+          localCompressedSize: 0,
+          localUncompressedSize: 0,
+          actualDataSize: 500,
+          dataDescriptor: { compressedSize: 499 },
+        },
+      ]);
+      const result = parseZipCentralDirectory(zip, { maxEntries: 10 });
+      expect(result.ok).toBe(false);
+      if (result.ok) return;
+      expect(result.error).toContain('data descriptor does not match');
     });
 
     it('rejects a declared compressed size that does not fit in the file (data would run past EOF)', () => {

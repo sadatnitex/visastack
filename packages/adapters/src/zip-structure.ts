@@ -45,6 +45,16 @@ const MAX_COMMENT_LENGTH = 0xffff;
  * all data and descriptors, when every true value is already known.
  */
 const DATA_DESCRIPTOR_FLAG = 0x0008;
+/**
+ * The data descriptor's leading signature (`PK\x07\x08`) is itself OPTIONAL
+ * per spec — not every writer includes it — so its presence is detected,
+ * never required, the same way a real streaming unzip implementation would:
+ * try the signature-prefixed 16-byte form first, fall back to the bare
+ * 12-byte form otherwise.
+ */
+const DATA_DESCRIPTOR_SIGNATURE = 0x08074b50;
+/** crc32(4) + compressedSize(4) + uncompressedSize(4), no signature. */
+const DATA_DESCRIPTOR_FIXED_SIZE = 12;
 
 function readUInt32LE(view: DataView, offset: number): number {
   return view.getUint32(offset, true);
@@ -122,6 +132,25 @@ function findEndOfCentralDirectory(
  * size/CRC); CRC-32 is checked under the same data-descriptor-flag
  * condition already governing the size fields, since it is deferred
  * alongside them under that convention.
+ *
+ * **Codex review, PR-B3R, round 2 (final verification)**: when the
+ * data-descriptor flag is set, the round-1 fix above correctly skips the
+ * now-meaningless local-header CRC/size fields — but nothing filled the
+ * gap that leaves: the entry's data span was bounded using the central
+ * directory's compressedSize alone, without ever reading the trailing
+ * data descriptor that convention requires. A streaming unzip
+ * implementation that doesn't consult the central directory at all (the
+ * entire point of the streamed-write convention) determines the entry's
+ * true crc/sizes from THAT descriptor, not from the central directory copy
+ * this module treats as authoritative elsewhere — so a descriptor-less
+ * entry, or one whose descriptor disagrees with the central directory,
+ * previously passed here while a real streaming reader could extract
+ * something else entirely. The descriptor (12 bytes, or 16 with its
+ * optional leading signature) is now located immediately after the
+ * declared compressed payload, required to match the central directory's
+ * crc32/compressedSize/uncompressedSize exactly, and folded into the
+ * returned `dataEnd` so the overlap and central-directory-boundary checks
+ * in the caller cover its bytes too.
  */
 function validateLocalFileHeader(
   bytes: Uint8Array,
@@ -178,9 +207,31 @@ function validateLocalFileHeader(
     }
   }
   const dataStart = localNameEnd + localExtraLength;
-  const dataEnd = dataStart + expected.compressedSize;
-  if (dataEnd > bytes.length) {
+  const compressedDataEnd = dataStart + expected.compressedSize;
+  if (compressedDataEnd > bytes.length) {
     return err('declared entry data runs past the end of the file');
+  }
+  let dataEnd = compressedDataEnd;
+  if ((expected.generalPurposeFlag & DATA_DESCRIPTOR_FLAG) !== 0) {
+    const hasSignature =
+      compressedDataEnd + 4 + DATA_DESCRIPTOR_FIXED_SIZE <= bytes.length &&
+      readUInt32LE(view, compressedDataEnd) === DATA_DESCRIPTOR_SIGNATURE;
+    const descriptorStart = compressedDataEnd + (hasSignature ? 4 : 0);
+    const descriptorEnd = descriptorStart + DATA_DESCRIPTOR_FIXED_SIZE;
+    if (descriptorEnd > bytes.length) {
+      return err('data descriptor runs past the end of the file');
+    }
+    const descriptorCrc32 = readUInt32LE(view, descriptorStart);
+    const descriptorCompressedSize = readUInt32LE(view, descriptorStart + 4);
+    const descriptorUncompressedSize = readUInt32LE(view, descriptorStart + 8);
+    if (
+      descriptorCrc32 !== expected.crc32 ||
+      descriptorCompressedSize !== expected.compressedSize ||
+      descriptorUncompressedSize !== expected.uncompressedSize
+    ) {
+      return err('data descriptor does not match the central directory entry');
+    }
+    dataEnd = descriptorEnd;
   }
   return ok({ dataEnd });
 }
