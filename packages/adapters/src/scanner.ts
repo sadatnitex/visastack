@@ -146,7 +146,42 @@ const STREAM_KEYWORD_PATTERN = /stream(?:\r\n|\r|\n)/;
  *   remains further on, both now mark the WHOLE result undecodable rather
  *   than silently stopping and reporting only what was found so far as if
  *   it were the complete picture.
+ *
+ * **Codex review, PR-B3, round 2, caught a fourth issue on this same
+ * mechanism** — a stream declared with a *chained* filter array (e.g.
+ * `/Filter [/FlateDecode /ASCIIHexDecode]`) was still detected as
+ * "declares Flate", inflated once, and the single-inflate result treated
+ * as the final decoded content — silently ignoring that a real decoder
+ * would need to apply the *rest* of the chain too, leaving a marker
+ * hidden in whatever the remaining filter(s) encode undetected by either
+ * the raw scan or the post-inflate scan. `classifyFilterDeclaration` now
+ * only ever treats a stream as positively decodable when its filter is
+ * *exactly* a lone `FlateDecode` (bare, or a single-element array) — a
+ * chain that merely *mentions* FlateDecode alongside another filter is
+ * `flate-in-chain`, marked undecodable rather than partially decoded.
+ * Deliberately NOT extended to flag every multi-filter chain, or every
+ * single non-Flate filter, as undecodable: real-world PDFs routinely
+ * carry ordinary image streams (`/DCTDecode` for JPEG, `/CCITTFaxDecode`
+ * for fax-compressed scans) that this scanner was never chasing markers
+ * inside before this fix and has no reason to start rejecting now — an
+ * image codec's output isn't parsed as further PDF object syntax by any
+ * viewer, so it can't smuggle an executable marker the way a chained
+ * *text*-oriented filter over an object stream could. This keeps the
+ * fix scoped to the mechanism Codex actually found broken (a filter
+ * declaration that mentions FlateDecode but isn't only FlateDecode)
+ * without turning routine scanned-document uploads into false positives.
  */
+function classifyFilterDeclaration(dictWindow: string): 'sole-flate' | 'flate-in-chain' | 'other' {
+  const match = /\/Filter\s*(\/[A-Za-z0-9]+|\[[^\]]*\])/.exec(dictWindow);
+  const value = match?.[1];
+  if (!value) return 'other';
+  if (value === '/FlateDecode') return 'sole-flate';
+  if (!value.startsWith('[')) return 'other';
+  const names: string[] = value.match(/\/[A-Za-z0-9]+/g) ?? [];
+  if (!names.includes('/FlateDecode')) return 'other';
+  return names.length === 1 ? 'sole-flate' : 'flate-in-chain';
+}
+
 function extractFlateStreams(text: string): {
   readonly decoded: readonly string[];
   readonly undecodable: boolean;
@@ -169,10 +204,16 @@ function extractFlateStreams(text: string): {
     }
 
     const dictWindow = text.slice(dictionaryStart, streamKeywordStart);
-    const declaresFlate = /\/Filter\s*(\/FlateDecode\b|\[[^\]]*\/FlateDecode\b[^\]]*\])/.test(
-      dictWindow,
-    );
-    if (declaresFlate) {
+    const filterClass = classifyFilterDeclaration(dictWindow);
+    if (filterClass === 'flate-in-chain') {
+      // A chained filter leaves real content still encoded after a single
+      // inflate — decoding only the Flate layer and calling the result
+      // final would silently miss a marker hidden behind whatever comes
+      // next in the chain. Not attempting the rest of the chain (this
+      // stays a bounded, dependency-free scanner, not a full PDF filter
+      // pipeline): undecidable, never silently "decoded".
+      undecodable = true;
+    } else if (filterClass === 'sole-flate') {
       // A trailing EOL before "endstream" is formatting, not stream data —
       // same three PDF-legal conventions as STREAM_KEYWORD_PATTERN.
       const raw = text.slice(dataStart, endIndex).replace(/(?:\r\n|\r|\n)$/, '');

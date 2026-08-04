@@ -9,6 +9,8 @@ interface EntrySpec {
   readonly encrypted?: boolean;
   /** Raw general-purpose flag override — takes precedence over `encrypted` when set. */
   readonly generalPurposeFlag?: number;
+  /** Defaults to the same value as the central directory's flag — set differently to simulate a forged local/central flag mismatch. */
+  readonly localGeneralPurposeFlagOverride?: number;
   /** Defaults to `name` — set differently to simulate a local/central header mismatch. */
   readonly localName?: string;
   /** Defaults to `compressedSize`/`uncompressedSize` — set to simulate a local/central size mismatch. */
@@ -72,11 +74,12 @@ function buildZip(entries: readonly EntrySpec[], options: BuildOptions = {}): Ui
     const actualDataSize = entry.actualDataSize ?? compressedSize;
     const localName = nameBytes(entry.localName ?? entry.name);
     const flag = entry.generalPurposeFlag ?? (entry.encrypted ? 0x1 : 0x0);
+    const localFlag = entry.localGeneralPurposeFlagOverride ?? flag;
     const data = new Array(actualDataSize).fill(0);
     const chunk = [
       ...u32(0x04034b50), // local file header signature
       ...u16(0), // version needed
-      ...u16(flag), // general purpose flag
+      ...u16(localFlag), // general purpose flag
       ...u16(8), // compression method (deflate)
       ...u16(0), // mod time
       ...u16(0), // mod date
@@ -322,6 +325,23 @@ describe('parseZipCentralDirectory — bounded structural read (no decompression
       expect(result.ok).toBe(false);
       if (result.ok) return;
       expect(result.error).toContain('extends into the central directory');
+    });
+
+    it('rejects an entry whose local header general-purpose flag disagrees with the central directory entry (Codex review, PR-B3, round 2)', () => {
+      // The central directory declares the data-descriptor bit clear (sizes
+      // are authoritative) with a size that matches — but the local header's
+      // OWN flag (independently overridden here) sets the data-descriptor
+      // bit, meaning that header's real convention is "sizes are 0/ignored,
+      // trust the data descriptor instead." Without cross-checking the two
+      // copies, the size match above would be accepted as-is even though it
+      // is not the local header's own claim about what its fields mean.
+      const zip = buildZip([
+        { name: 'a.xml', generalPurposeFlag: 0x0, localGeneralPurposeFlagOverride: 0x0008 },
+      ]);
+      const result = parseZipCentralDirectory(zip, { maxEntries: 10 });
+      expect(result.ok).toBe(false);
+      if (result.ok) return;
+      expect(result.error).toContain('general-purpose flags do not match');
     });
   });
 

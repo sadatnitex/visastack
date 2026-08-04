@@ -372,6 +372,38 @@ describe('BasicSafetyScanner', () => {
     expect(result.detail).toContain('active PDF content');
   });
 
+  it('rejects a PDF stream declared with a chained filter (FlateDecode plus a further encoding) as undecidable, rather than treating a single inflate as the final content (Codex review, PR-B3, round 2)', async () => {
+    // The marker is hex-encoded before compression, simulating the *next*
+    // filter in the chain (/ASCIIHexDecode) still standing between a single
+    // inflate and the real content. A single-inflate-and-search approach
+    // would decompress this to hex digits, find no literal marker, and
+    // report the PDF clean -- exactly the evasion Codex found: declaring
+    // FlateDecode as part of a chain must not be trusted as "fully decoded
+    // by inflating once."
+    const hiddenMarkerHex = Buffer.from(
+      '<< /S /JavaScript /JS (app.alert(1)) >>',
+      'latin1',
+    ).toString('hex');
+    const compressed = deflateSync(Buffer.from(hiddenMarkerHex, 'latin1'));
+    const pdf = Buffer.concat([
+      Buffer.from(
+        `%PDF-1.7\n3 0 obj\n<< /Filter [/FlateDecode /ASCIIHexDecode] /Length ${compressed.length} >>\nstream\n`,
+        'latin1',
+      ),
+      compressed,
+      Buffer.from('\nendstream\nendobj\n%%EOF', 'latin1'),
+    ]);
+    await storage.putObject({
+      bucket: 'QUARANTINE',
+      objectKey: 'chained-filter-pdf',
+      contentType: 'application/pdf',
+      bytes: new Uint8Array(pdf),
+    });
+    const result = await scanner.scan({ bucket: 'QUARANTINE', objectKey: 'chained-filter-pdf' });
+    expect(result.safe).toBe(false);
+    expect(result.detail).toContain('could not be verified clean');
+  });
+
   it('rejects a shebang script even though it is otherwise plain text', async () => {
     await storage.putObject({
       bucket: 'QUARANTINE',

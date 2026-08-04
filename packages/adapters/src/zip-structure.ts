@@ -96,6 +96,20 @@ function findEndOfCentralDirectory(
  * shape while the file's real bytes (which `validateDocxStructure` never
  * otherwise inspects) are anything at all, defeating the structural
  * scanner entirely.
+ *
+ * **Codex review, PR-B3, round 2**: the local header's OWN general-purpose
+ * flag field (offset +6) was never read or compared — every decision that
+ * depends on the flag (whether local size fields are meaningful, whether
+ * the entry is `encrypted`) used only the central directory's copy. A
+ * forged entry could set the data-descriptor bit centrally to skip the
+ * local size cross-check above even though the local header's own flag
+ * says its sizes ARE authoritative and could be lying, or clear the
+ * encryption bit centrally while the local header's own flag marks the
+ * entry encrypted — `parseZipCentralDirectory` would then report
+ * `encrypted: false` for genuinely encrypted content. Requiring the two
+ * copies to match closes both: once they're proven equal, every
+ * flag-dependent decision downstream (here and in the caller) is
+ * authoritative regardless of which copy it nominally reads.
  */
 function validateLocalFileHeader(
   bytes: Uint8Array,
@@ -113,6 +127,10 @@ function validateLocalFileHeader(
   }
   if (readUInt32LE(view, offset) !== LOCAL_FILE_HEADER_SIGNATURE) {
     return err('local header offset does not point to a genuine local file header');
+  }
+  const localGeneralPurposeFlag = readUInt16LE(view, offset + 6);
+  if (localGeneralPurposeFlag !== expected.generalPurposeFlag) {
+    return err('local header general-purpose flags do not match the central directory entry');
   }
   const localNameLength = readUInt16LE(view, offset + 26);
   const localExtraLength = readUInt16LE(view, offset + 28);
