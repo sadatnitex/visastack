@@ -6,7 +6,8 @@ import { getApplicant } from './applicants';
 import { appendAuditEvent } from './audit';
 import { hasConsent } from './consent';
 import { type Db, first, required, schema } from './db';
-import { isServableProcessingState } from './documents';
+import { isDocumentVersionUsable } from './documents';
+import { activeOrVerifiedErasureStorageObjectIds } from './erasure';
 import { type ServiceError, serviceError } from './errors';
 import { type PackRequirement, listRequirements } from './packs';
 import { recordProductEvent } from './product-events';
@@ -406,9 +407,13 @@ export interface DocumentInstance {
  * latest version of each document is considered — an older, superseded
  * version can never satisfy a requirement. `eligible` folds together every
  * document-side readiness exclusion the directive requires: unsafe
- * (safetyStatus !== CLEAN), still-processing or rejected (the same
- * isServableProcessingState gate documents.ts uses for preview/download —
- * one canonical definition, never a second one that could drift), and
+ * (safetyStatus !== CLEAN), still-processing or rejected, erased or being
+ * erased (`isDocumentVersionUsable` — the same one canonical definition
+ * `documents.ts` uses for preview/download, never a second one that could
+ * drift; Codex review, PR-B2, round 4 — this eligibility check used to
+ * carry its own partial copy of that logic with no erasure awareness at
+ * all, so a version whose bytes were already gone or actively being erased
+ * could still satisfy a requirement and be captured into a snapshot), and
  * expired (documents.expiresAt, if ever populated by a future feature — no
  * current path sets it, but readiness honors it defensively regardless).
  */
@@ -428,6 +433,7 @@ async function loadDocumentInstancesByType(
       sha256: schema.documentVersions.sha256,
       safetyStatus: schema.documentVersions.safetyStatus,
       processingStatus: schema.documentVersions.processingStatus,
+      storageObjectId: schema.documentVersions.storageObjectId,
     })
     .from(schema.documents)
     .innerJoin(schema.documentVersions, eq(schema.documentVersions.documentId, schema.documents.id))
@@ -441,13 +447,25 @@ async function loadDocumentInstancesByType(
     }
   }
 
+  // One bulk query for every latest version's erasure state, not one per
+  // document (Codex review, PR-B2, round 4) — avoids an N+1 while still
+  // sharing the exact same predicate `accessDocument` uses for a single
+  // version.
+  const erasedStorageObjectIds = await activeOrVerifiedErasureStorageObjectIds(
+    db,
+    [...latestByDocument.values()].map((row) => row.storageObjectId),
+  );
+
   const now = Date.now();
   const map = new Map<string, DocumentInstance[]>();
   for (const row of latestByDocument.values()) {
     if (!row.docType) continue;
     const eligible =
-      row.safetyStatus === 'CLEAN' &&
-      isServableProcessingState(row.processingStatus) &&
+      isDocumentVersionUsable({
+        safetyStatus: row.safetyStatus,
+        processingStatus: row.processingStatus,
+        erased: erasedStorageObjectIds.has(row.storageObjectId),
+      }) &&
       (row.expiresAt === null || row.expiresAt.getTime() > now);
     const list = map.get(row.docType) ?? [];
     list.push({

@@ -125,6 +125,36 @@ describe('legal hold overrides deletion', () => {
     ).toHaveLength(0);
   });
 
+  it('refuses to place a legal hold on an applicant that no longer exists, rather than throwing an FK-violation (post-programme defect register, finding #14)', async () => {
+    const { account, applicantId } = await consentedApplicant(db, 'gone-before-hold@example.com');
+    const officer = await operator(db, 'officer-gone@example.com');
+    await requestAccountDeletion(db, {
+      actorAccountId: account.id,
+      accountId: account.id,
+      gracePeriodMs: 0,
+    });
+    const executed = await executeAccountDeletion(db, { accountId: account.id });
+    expect(isOk(executed)).toBe(true);
+    expect(
+      await db.select().from(schema.applicants).where(eq(schema.applicants.id, applicantId)),
+    ).toHaveLength(0);
+
+    // Finding #14's fix moves this existence check inside the same locked
+    // transaction as the insert (previously a separate, unlocked pre-check)
+    // — this asserts that restructuring still resolves cleanly to
+    // `not_found` for the ordinary "target is already gone" case, rather
+    // than a thrown foreign-key-violation exception.
+    const result = await placeLegalHold(db, {
+      actorAccountId: officer,
+      applicantId,
+      reason: 'too late — applicant already deleted',
+      stepUpSatisfied: true,
+    });
+    expect(isErr(result)).toBe(true);
+    if (isErr(result)) expect(result.error.code).toBe('not_found');
+    expect(await db.select().from(schema.legalHolds)).toHaveLength(0);
+  });
+
   it('lists only active legal holds via listActiveLegalHolds', async () => {
     const { applicantId } = await consentedApplicant(db, 'active-hold@example.com');
     const officer = await operator(db, 'officer-active@example.com');

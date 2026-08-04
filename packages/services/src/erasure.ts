@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { and, asc, desc, eq, inArray, isNull, lt, lte, or, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNotNull, isNull, lt, lte, or, sql } from 'drizzle-orm';
 import { appendAuditEvent } from './audit';
 import { type Db, first, required, schema } from './db';
 import { hasActiveLegalHold } from './retention';
@@ -268,6 +268,32 @@ type FinalizeOutcome = 'verified' | 'blocked' | 'lost-lease';
  * locking primitive: whichever of this update or a concurrent reclaim's
  * update commits first determines which one the other sees when it
  * re-evaluates its own WHERE clause.
+ *
+ * Finding #14 (post-programme defect register): the hold recheck below locks
+ * the applicant row (`SELECT ... FOR UPDATE`) before reading `legalHolds`.
+ * `placeLegalHold` and `executeAccountDeletion` take the identical lock on
+ * the identical key before their own hold-sensitive work, so a hold that
+ * commits anywhere in that window can never be invisible to this recheck —
+ * without it, a plain unlocked read here could miss a hold that is
+ * concurrently, genuinely being placed.
+ *
+ * Finding #13: a multi-version document has one erasure job per storage
+ * object, all sharing one `documentId` — the `documents` row must survive
+ * until every sibling job is VERIFIED, not just this one. Before deciding,
+ * this locks the `documents` row itself (not the erasure-job rows): a single
+ * shared lock target that every sibling's finalize call contends for is
+ * inherently deadlock-free (first-come-first-served on one resource, never
+ * a partial-lock-then-request-more pattern), and — Codex review, PR-B2,
+ * round 1 — the identical lock, on the identical row, is what
+ * `addDocumentVersion` and `purgeExpiredDocuments` also take before their
+ * own document-mutating decisions (see their own comments). That shared
+ * lock is what makes the completion check below actually correct:
+ * `addDocumentVersion` refuses to attach a new version once any
+ * non-`VERIFIED` job exists for a document, so the set of storage objects
+ * requiring a verified deletion is closed the moment the first job is
+ * enqueued — no version can appear here that this check didn't already
+ * account for. The check itself is per DISTINCT storage object, not per job
+ * row (Codex review, PR-B2, round 5) — see its own comment below for why.
  */
 async function finalizeVerifiedJob(
   db: Db,
@@ -281,6 +307,12 @@ async function finalizeVerifiedJob(
     // bytes are already gone by this point (unrecoverable), but the logical
     // record itself — the thing a hold actually protects — is preserved.
     if (job.reason === 'RETENTION_PURGE' && job.applicantId) {
+      await tx
+        .select({ id: schema.applicants.id })
+        .from(schema.applicants)
+        .where(eq(schema.applicants.id, job.applicantId))
+        .for('update');
+
       const held = await hasActiveLegalHold(tx, job.applicantId);
       if (held) {
         const blocked = await blockOnHold(
@@ -292,6 +324,14 @@ async function finalizeVerifiedJob(
         );
         return blocked ? 'blocked' : 'lost-lease';
       }
+    }
+
+    if (job.reason === 'RETENTION_PURGE' && job.documentId) {
+      await tx
+        .select({ id: schema.documents.id })
+        .from(schema.documents)
+        .where(eq(schema.documents.id, job.documentId))
+        .for('update');
     }
 
     const finalized = await tx
@@ -314,12 +354,65 @@ async function finalizeVerifiedJob(
     if (finalized.length === 0) return 'lost-lease';
 
     // Document first: documentVersions.storageObjectId is `onDelete: restrict`,
-    // so the storage object can't go while a version still points at it. The
-    // document's own cascade removes that version as part of this delete.
+    // so a storage object can't go while any version still points at it —
+    // and for RETENTION_PURGE that stops being true only once the WHOLE
+    // document is deleted, cascading every sibling's document_versions row
+    // at once. A multi-version document must not lose its logical record
+    // (or the metadata of versions not yet erased) while any sibling's
+    // storage object still awaits verified deletion — so until every
+    // DISTINCT storage object this document ever referenced has a VERIFIED
+    // job, NEITHER the document NOR any sibling's storage object (including
+    // this job's own) can be removed yet. This isn't just this function's
+    // own bookkeeping: the restrict FK enforces it structurally — a first
+    // draft of this fix deleted this job's own storage object
+    // unconditionally here and hit exactly that FK violation, since this
+    // job's document_versions row survives for as long as the deliberately
+    // still-alive document does.
+    //
+    // Completion is evaluated per DISTINCT storageObjectId, not per job row
+    // (Codex review, PR-B2, round 5): `purgeExpiredDocuments` locks the
+    // `documents` row before enqueueing, but that only serializes concurrent
+    // purge attempts against each other — it does not stop a LATER,
+    // sequential purge run (the document is still "past retention" for as
+    // long as any sibling hasn't verified) from enqueueing a second,
+    // redundant job for a storage object that already has one. A row-count
+    // check (`siblings.every(status === 'VERIFIED')`) would then let one
+    // redundant job's own retry exhaustion (FAILED) block the document
+    // forever, even though the actual storage object it targets is already
+    // provably gone via the OTHER job. Grouping by storageObjectId instead
+    // makes finalization robust to duplicate rows by construction — however
+    // they arose — without needing to prevent duplicate enqueueing (D-A1,
+    // §1.2, records that as a separate, deferred efficiency concern for
+    // PR-C1: avoiding the wasted redundant work, not a correctness gap,
+    // since this check no longer depends on it).
     if (job.reason === 'RETENTION_PURGE' && job.documentId) {
-      await tx.delete(schema.documents).where(eq(schema.documents.id, job.documentId));
+      const siblings = await tx
+        .select({
+          status: schema.erasureJobs.status,
+          storageObjectId: schema.erasureJobs.storageObjectId,
+        })
+        .from(schema.erasureJobs)
+        .where(eq(schema.erasureJobs.documentId, job.documentId));
+      const requiredStorageObjectIds = new Set(siblings.map((sibling) => sibling.storageObjectId));
+      const verifiedStorageObjectIds = new Set(
+        siblings
+          .filter((sibling) => sibling.status === 'VERIFIED')
+          .map((sibling) => sibling.storageObjectId),
+      );
+      const documentFullyErased = [...requiredStorageObjectIds].every((id) =>
+        verifiedStorageObjectIds.has(id),
+      );
+      if (documentFullyErased) {
+        await tx.delete(schema.documents).where(eq(schema.documents.id, job.documentId));
+        await tx
+          .delete(schema.storageObjects)
+          .where(inArray(schema.storageObjects.id, [...requiredStorageObjectIds]));
+      }
+    } else {
+      await tx
+        .delete(schema.storageObjects)
+        .where(eq(schema.storageObjects.id, job.storageObjectId));
     }
-    await tx.delete(schema.storageObjects).where(eq(schema.storageObjects.id, job.storageObjectId));
     await appendAuditEvent(tx, {
       eventType: 'ERASURE_VERIFIED',
       method: 'SYSTEM',
@@ -361,6 +454,33 @@ async function processErasureJob(
         return blocked ? 'blocked' : 'lost-lease';
       }
     }
+
+    // deletionAttemptedAt is written here, BEFORE the external call, in its
+    // own committed statement — deliberately, not after deleteObject returns
+    // (Codex review, PR-B2, round 5). If deleteObject succeeds but the CAS
+    // below then throws (an infra failure — a dropped connection, a timeout
+    // — not a domain one), failErasureJob can still send this job back to
+    // PENDING/FAILED; with the marker already durable, that transition
+    // doesn't erase the fact that a delete was attempted. We can never
+    // safely tell "deleteObject wasn't reached" apart from "it was reached
+    // and either the response or this follow-up write was lost" from inside
+    // the catch block alone, so the marker has to be written first. A lost
+    // lease here (a concurrent invocation already reclaimed this job) means
+    // we no longer own it — return immediately, before ever calling
+    // deleteObject, rather than attempting a delete on a job we might not
+    // finish accounting for.
+    const attempted = await db
+      .update(schema.erasureJobs)
+      .set({ deletionAttemptedAt: new Date(), updatedAt: new Date() })
+      .where(
+        and(
+          eq(schema.erasureJobs.id, job.id),
+          eq(schema.erasureJobs.status, 'CLAIMED'),
+          eq(schema.erasureJobs.leaseOwner, leaseOwner),
+        ),
+      )
+      .returning({ id: schema.erasureJobs.id });
+    if (attempted.length === 0) return 'lost-lease';
 
     await blobStore.deleteObject(job.bucket, job.objectKey);
     const marked = await db
@@ -462,6 +582,121 @@ export async function listErasureJobsNeedingAttention(
     lastError: row.lastError,
     updatedAt: row.updatedAt.toISOString(),
   }));
+}
+
+/**
+ * The WHERE-clause predicate shared by every "is this storage object's data
+ * still safe to treat as present" check in this module: true for a row
+ * whose `status` is `CLAIMED`, `DELETED`, or `VERIFIED`, OR that has ever
+ * had `deletionAttemptedAt` set.
+ *
+ * Two conditions, not one, covering two different gaps (Codex review,
+ * PR-B2, rounds 4-5):
+ *
+ * - The legacy `status IN (...)` check alone can't answer "were the bytes
+ *   ever actually deleted" once a job has been retried past `DELETED` — a
+ *   lying-delete retry (verification correctly found bytes still present,
+ *   `status` back to `PENDING`/`FAILED`) and a plain verification hiccup
+ *   (bytes genuinely gone, `status` at the same `PENDING`/`FAILED`) are
+ *   indistinguishable from `status` alone (round 4's original finding).
+ *   `deletionAttemptedAt` closes that: never cleared once set (not by
+ *   `failErasureJob`, not even by the admin-facing `retryErasureJob`), so
+ *   it survives every one of those transitions.
+ * - `deletionAttemptedAt` alone can't cover a row written by code that
+ *   predates this column — a job that reached `DELETED`/`VERIFIED` during
+ *   the deploy window before this migration ran (the same rollout hazard
+ *   `claimErasureJobs`' own lease-less-row handling documents) has the
+ *   marker permanently NULL, real bytes or not (round 5's finding: the
+ *   round-4 predicate had *replaced* the status check with the marker
+ *   check, silently losing coverage for exactly these rows). Keeping the
+ *   legacy `status IN ('CLAIMED', 'DELETED', 'VERIFIED')` check alongside
+ *   the marker — augmenting, not replacing — covers both eras of row
+ *   uniformly, with no backfill migration required (a backfill can't
+ *   reliably distinguish a genuinely-orphaned row from one a still-live
+ *   old-code worker is legitimately mid-flight on, the same reasoning
+ *   `claimErasureJobs`' own rollout-grace window already rests on).
+ *
+ * One known, narrow, accepted residual: a *legacy* `DELETED` row that gets
+ * reclaimed (lease expired) but not immediately re-claimed within the same
+ * transaction commits at bare `PENDING` with no marker — a read in that
+ * exact window would see it as servable again. This requires a crash
+ * during the one historical deploy window this migration ever rolls out
+ * in, compounded with an unlucky claim-batch boundary; closing it
+ * completely would need a backfill this module deliberately avoids for the
+ * reasons above, so it is accepted and documented rather than engineered
+ * around, consistent with this PR's other honestly-scoped residual windows.
+ */
+function erasureInProgressOrBytesGone() {
+  return or(
+    inArray(schema.erasureJobs.status, ['CLAIMED', 'DELETED', 'VERIFIED']),
+    isNotNull(schema.erasureJobs.deletionAttemptedAt),
+  );
+}
+
+/**
+ * True if this storage object's bytes are gone, or the worker has started
+ * making them gone. Used by the document read path (`documents.ts`'s
+ * `accessDocument`) to refuse to serve a version whose bytes are already
+ * erased or actively being erased.
+ *
+ * Finding #13's design deliberately lets a multi-version document's row —
+ * and every version's row, including one whose OWN job has already
+ * verified — survive for as long as any sibling job hasn't (Codex review,
+ * PR-B2, round 2): without this check, that already-erased version would
+ * still look completely ordinary to the read path, which never otherwise
+ * consults `erasureJobs` at all, and `accessDocument` would issue a working-
+ * looking read reference for bytes that provably no longer exist.
+ *
+ * This remains a plain point-in-time read, not something serialized against
+ * the erasure worker's own external `BlobStore.deleteObject` call (Codex
+ * review, PR-B2, round 3) — no in-process lock can serialize against a
+ * network call to an external store without blocking every other
+ * reader/writer for its duration, an unacceptable trade for a hot read
+ * path. `erasureInProgressOrBytesGone`'s two conditions shrink the
+ * exploitable window down to a single, narrow `PENDING`→`CLAIMED`
+ * transition, mirroring the same accepted, documented bytes-vs-record
+ * tradeoff `finalizeVerifiedJob`'s own hold recheck already makes.
+ */
+export async function hasActiveOrVerifiedErasureJob(
+  db: Db,
+  storageObjectId: string,
+): Promise<boolean> {
+  const row = first(
+    await db
+      .select({ id: schema.erasureJobs.id })
+      .from(schema.erasureJobs)
+      .where(
+        and(
+          eq(schema.erasureJobs.storageObjectId, storageObjectId),
+          erasureInProgressOrBytesGone(),
+        ),
+      )
+      .limit(1),
+  );
+  return row !== undefined;
+}
+
+/**
+ * Bulk counterpart to `hasActiveOrVerifiedErasureJob`, for callers deciding
+ * servability for many storage objects at once (Codex review, PR-B2, round
+ * 4 — `missions.ts`'s document-eligibility scan): one query instead of N,
+ * same predicate.
+ */
+export async function activeOrVerifiedErasureStorageObjectIds(
+  db: Db,
+  storageObjectIds: readonly string[],
+): Promise<ReadonlySet<string>> {
+  if (storageObjectIds.length === 0) return new Set();
+  const rows = await db
+    .select({ storageObjectId: schema.erasureJobs.storageObjectId })
+    .from(schema.erasureJobs)
+    .where(
+      and(
+        inArray(schema.erasureJobs.storageObjectId, storageObjectIds),
+        erasureInProgressOrBytesGone(),
+      ),
+    );
+  return new Set(rows.map((row) => row.storageObjectId));
 }
 
 /**

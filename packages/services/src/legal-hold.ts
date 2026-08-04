@@ -37,6 +37,16 @@ export async function hasActiveLegalHold(db: Db, applicantId: string): Promise<b
  * Step-up gated (master directive §7 "PR 5"): `stepUpSatisfied` must be
  * honestly derived from a genuine WorkOS reauthentication — see
  * `apps/web/src/lib/step-up.ts`.
+ *
+ * Locks the applicant row (finding #14, post-programme defect register)
+ * before inserting — `executeAccountDeletion` and `finalizeVerifiedJob`'s own
+ * hold recheck take the identical lock on the identical key before their own
+ * hold-sensitive work, so this placement and a concurrent destructive
+ * operation on the same applicant can never interleave un-serialized. The
+ * existence check now lives inside the same transaction as the lock (moved
+ * from a separate, unlocked pre-check): checking outside the lock would
+ * leave the exact gap this fix closes — the applicant could be deleted
+ * between an outside check and this insert.
  */
 export async function placeLegalHold(
   db: Db,
@@ -51,16 +61,18 @@ export async function placeLegalHold(
     return err(serviceError('step_up_required', 'placing a legal hold requires reauthentication'));
   }
   if (input.reason.trim().length === 0) return err(serviceError('invalid', 'a reason is required'));
-  const applicant = first(
-    await db
-      .select()
-      .from(schema.applicants)
-      .where(eq(schema.applicants.id, input.applicantId))
-      .limit(1),
-  );
-  if (!applicant) return err(serviceError('not_found', 'applicant not found'));
 
   return db.transaction(async (tx) => {
+    const applicant = first(
+      await tx
+        .select()
+        .from(schema.applicants)
+        .where(eq(schema.applicants.id, input.applicantId))
+        .limit(1)
+        .for('update'),
+    );
+    if (!applicant) return err(serviceError('not_found', 'applicant not found'));
+
     const hold = required(
       first(
         await tx

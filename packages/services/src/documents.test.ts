@@ -19,6 +19,7 @@ import {
   registerDocument,
   registerDocumentWithVersion,
 } from './documents';
+import { enqueueErasureJob } from './erasure';
 import type { AccessRef, IssueReadRefInput, StoragePort } from './storage';
 
 const migrationsFolder = fileURLToPath(new URL('../../db/migrations', import.meta.url));
@@ -334,6 +335,244 @@ describe('document vault — permission-aware access', () => {
     });
     expect(isErr(wrongPurpose)).toBe(true);
     void account;
+  });
+
+  it('refuses to serve the latest version once its bytes are verified erased, even though the document row survives a stuck sibling (Codex review, PR-B2, round 2)', async () => {
+    const { account, document } = await seedOwnerWithDocument(db, 'a5@example.com');
+    const actor = { kind: 'applicant_owner', applicantId: document.applicantId as never } as const;
+
+    // A second, later version — otherwise perfectly servable (CLEAN/APPROVED)
+    // — whose OWN erasure job has already verified. Finding #13's design
+    // deliberately keeps the document (and every version's row) alive as
+    // long as ANY sibling job hasn't verified — simulated here directly
+    // (not via a stuck sibling) since only this one version's post-erasure
+    // servability is under test.
+    const v2 = await addDocumentVersion(db, {
+      actorAccountId: account.id,
+      documentId: document.id,
+      bucket: 'CLEAN',
+      objectKey: 'a5-v2-erased',
+      safetyStatus: 'CLEAN',
+      processingStatus: 'APPROVED',
+    });
+    if (!isOk(v2)) throw new Error('version failed');
+    const job = await enqueueErasureJob(db, {
+      reason: 'RETENTION_PURGE',
+      bucket: 'CLEAN',
+      objectKey: 'a5-v2-erased',
+      expectedHash: null,
+      storageObjectId: v2.value.storageObject.id,
+      documentId: document.id,
+      applicantId: document.applicantId,
+    });
+    await db
+      .update(schema.erasureJobs)
+      .set({ status: 'VERIFIED', completedAt: new Date() })
+      .where(eq(schema.erasureJobs.id, job.id));
+
+    const preview = await previewDocument(db, storage, {
+      actor,
+      documentId: document.id,
+      purpose: 'self_review',
+    });
+    expect(isErr(preview)).toBe(true);
+    if (isErr(preview)) expect(preview.error.code).toBe('forbidden');
+    expect(storage.calls).toHaveLength(0); // no read reference was ever minted for erased bytes
+
+    const denials = await db
+      .select()
+      .from(schema.auditEvents)
+      .where(eq(schema.auditEvents.eventType, 'DOCUMENT_ACCESS'));
+    const last = denials[denials.length - 1];
+    expect(last?.result).toBe('DENIED');
+    expect(last?.reason).toBe('bytes_already_erased');
+  });
+
+  it('refuses to serve a version whose erasure job is CLAIMED — bytes may already be deleted even though the job is not yet VERIFIED (Codex review, PR-B2, round 3)', async () => {
+    const { account, document } = await seedOwnerWithDocument(db, 'a6@example.com');
+    const actor = { kind: 'applicant_owner', applicantId: document.applicantId as never } as const;
+
+    // A second, later version whose erasure job has only reached CLAIMED —
+    // the real bytes are deleted at the CLAIMED->DELETED transition inside
+    // processErasureJob, well before a job ever reaches VERIFIED. A check
+    // scoped to VERIFIED alone would read `false` here even though the
+    // worker could be mid-deleteObject() this very instant.
+    const v2 = await addDocumentVersion(db, {
+      actorAccountId: account.id,
+      documentId: document.id,
+      bucket: 'CLEAN',
+      objectKey: 'a6-v2-claimed',
+      safetyStatus: 'CLEAN',
+      processingStatus: 'APPROVED',
+    });
+    if (!isOk(v2)) throw new Error('version failed');
+    const job = await enqueueErasureJob(db, {
+      reason: 'RETENTION_PURGE',
+      bucket: 'CLEAN',
+      objectKey: 'a6-v2-claimed',
+      expectedHash: null,
+      storageObjectId: v2.value.storageObject.id,
+      documentId: document.id,
+      applicantId: document.applicantId,
+    });
+    await db
+      .update(schema.erasureJobs)
+      .set({ status: 'CLAIMED', claimedAt: new Date(), leaseOwner: 'test-worker' })
+      .where(eq(schema.erasureJobs.id, job.id));
+
+    const download = await downloadDocument(db, storage, {
+      actor,
+      documentId: document.id,
+      purpose: 'self_review',
+      variant: 'redacted',
+    });
+    expect(isErr(download)).toBe(true);
+    if (isErr(download)) expect(download.error.code).toBe('forbidden');
+    expect(storage.calls).toHaveLength(0);
+  });
+
+  it('refuses to serve a version whose erasure job reverted to PENDING after a successful delete — deletionAttemptedAt survives the retry even though status alone looks untouched (Codex review, PR-B2, rounds 4-5)', async () => {
+    const { account, document } = await seedOwnerWithDocument(db, 'a7@example.com');
+    const actor = { kind: 'applicant_owner', applicantId: document.applicantId as never } as const;
+
+    // processErasureJob sets deletionAttemptedAt before ever calling
+    // blobStore.deleteObject(). If the delete succeeds but the subsequent
+    // getObject verification throws (store lied about the delete, or a
+    // transient read error) — or even if the CAS-to-DELETED write itself
+    // fails, so `status` never reaches DELETED at all (round 5) —
+    // failErasureJob can send the job back to PENDING for another attempt.
+    // A check keyed on `status` alone would see plain PENDING and treat the
+    // bytes as untouched; deletionAttemptedAt is the signal that actually
+    // survives this round-trip, set BEFORE any of those failures could
+    // happen. This job is constructed already at PENDING with the marker
+    // set and never passes through DELETED at all, which is exactly the
+    // state such an infra failure would leave behind.
+    const v2 = await addDocumentVersion(db, {
+      actorAccountId: account.id,
+      documentId: document.id,
+      bucket: 'CLEAN',
+      objectKey: 'a7-v2-pending-retry',
+      safetyStatus: 'CLEAN',
+      processingStatus: 'APPROVED',
+    });
+    if (!isOk(v2)) throw new Error('version failed');
+    const job = await enqueueErasureJob(db, {
+      reason: 'RETENTION_PURGE',
+      bucket: 'CLEAN',
+      objectKey: 'a7-v2-pending-retry',
+      expectedHash: null,
+      storageObjectId: v2.value.storageObject.id,
+      documentId: document.id,
+      applicantId: document.applicantId,
+    });
+    await db
+      .update(schema.erasureJobs)
+      .set({
+        status: 'PENDING',
+        deletionAttemptedAt: new Date(),
+        claimedAt: null,
+        leaseOwner: null,
+      })
+      .where(eq(schema.erasureJobs.id, job.id));
+
+    const preview = await previewDocument(db, storage, {
+      actor,
+      documentId: document.id,
+      purpose: 'self_review',
+    });
+    expect(isErr(preview)).toBe(true);
+    if (isErr(preview)) expect(preview.error.code).toBe('forbidden');
+    expect(storage.calls).toHaveLength(0);
+  });
+
+  it('refuses to serve a version whose erasure job exhausted its retries and parked at FAILED after a successful delete (Codex review, PR-B2, rounds 4-5)', async () => {
+    const { account, document } = await seedOwnerWithDocument(db, 'a8@example.com');
+    const actor = { kind: 'applicant_owner', applicantId: document.applicantId as never } as const;
+
+    // Same signal, opposite terminal state: FAILED means the worker gave up
+    // retrying (attempts >= maxAttempts), not that the bytes are safe. Any
+    // consumer trusting "FAILED == nothing happened, safe to serve" would be
+    // exactly as wrong as one trusting PENDING above.
+    const v2 = await addDocumentVersion(db, {
+      actorAccountId: account.id,
+      documentId: document.id,
+      bucket: 'CLEAN',
+      objectKey: 'a8-v2-failed-after-delete',
+      safetyStatus: 'CLEAN',
+      processingStatus: 'APPROVED',
+    });
+    if (!isOk(v2)) throw new Error('version failed');
+    const job = await enqueueErasureJob(db, {
+      reason: 'RETENTION_PURGE',
+      bucket: 'CLEAN',
+      objectKey: 'a8-v2-failed-after-delete',
+      expectedHash: null,
+      storageObjectId: v2.value.storageObject.id,
+      documentId: document.id,
+      applicantId: document.applicantId,
+    });
+    await db
+      .update(schema.erasureJobs)
+      .set({
+        status: 'FAILED',
+        deletionAttemptedAt: new Date(),
+        lastError: 'verification exhausted retries',
+      })
+      .where(eq(schema.erasureJobs.id, job.id));
+
+    const download = await downloadDocument(db, storage, {
+      actor,
+      documentId: document.id,
+      purpose: 'self_review',
+      variant: 'redacted',
+    });
+    expect(isErr(download)).toBe(true);
+    if (isErr(download)) expect(download.error.code).toBe('forbidden');
+    expect(storage.calls).toHaveLength(0);
+  });
+
+  it('refuses to serve a version whose erasure job reached DELETED with no deletionAttemptedAt marker at all — the legacy-row fallback for jobs written before this column existed (Codex review, PR-B2, round 5)', async () => {
+    const { account, document } = await seedOwnerWithDocument(db, 'a9@example.com');
+    const actor = { kind: 'applicant_owner', applicantId: document.applicantId as never } as const;
+
+    // Simulates a row written by code that predates deletionAttemptedAt —
+    // the exact rollout window erasureInProgressOrBytesGone()'s own comment
+    // documents (a migration adding a new nullable column while an old
+    // deployment, unaware of it, is still live and processing jobs). Such a
+    // row will never carry the marker; the restored, augmented status check
+    // (`status IN ('CLAIMED','DELETED','VERIFIED')`, not just the marker)
+    // is what keeps it correctly unservable regardless.
+    const v2 = await addDocumentVersion(db, {
+      actorAccountId: account.id,
+      documentId: document.id,
+      bucket: 'CLEAN',
+      objectKey: 'a9-v2-legacy-deleted',
+      safetyStatus: 'CLEAN',
+      processingStatus: 'APPROVED',
+    });
+    if (!isOk(v2)) throw new Error('version failed');
+    const job = await enqueueErasureJob(db, {
+      reason: 'RETENTION_PURGE',
+      bucket: 'CLEAN',
+      objectKey: 'a9-v2-legacy-deleted',
+      expectedHash: null,
+      storageObjectId: v2.value.storageObject.id,
+      documentId: document.id,
+      applicantId: document.applicantId,
+    });
+    await db
+      .update(schema.erasureJobs)
+      .set({ status: 'DELETED', claimedAt: new Date(), leaseOwner: null })
+      .where(eq(schema.erasureJobs.id, job.id));
+
+    const preview = await previewDocument(db, storage, {
+      actor,
+      documentId: document.id,
+      purpose: 'self_review',
+    });
+    expect(isErr(preview)).toBe(true);
+    if (isErr(preview)) expect(preview.error.code).toBe('forbidden');
+    expect(storage.calls).toHaveLength(0);
   });
 });
 

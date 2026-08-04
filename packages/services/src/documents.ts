@@ -7,11 +7,12 @@ import type {
 } from '@visastack/core';
 import { err, ok } from '@visastack/core';
 import { type Actor, authorize } from '@visastack/policy';
-import { desc, eq } from 'drizzle-orm';
+import { and, desc, eq, ne } from 'drizzle-orm';
 import { getApplicant } from './applicants';
 import { appendAuditEvent } from './audit';
 import { hasConsent } from './consent';
 import { type Db, first, required, schema } from './db';
+import { hasActiveOrVerifiedErasureJob } from './erasure';
 import { type ServiceError, serviceError } from './errors';
 import { recordProductEvent } from './product-events';
 import { loadGrantsForPolicy } from './sharing';
@@ -127,6 +128,41 @@ export async function addDocumentVersion(
   }
 
   return db.transaction(async (tx) => {
+    // Lock the document row (Codex review, PR-B2, round 1): `purgeExpiredDocuments`
+    // and `finalizeVerifiedJob` take the identical lock on the identical row
+    // before, respectively, enqueueing erasure jobs for the document's
+    // current versions and deciding whether every one of them has verified.
+    // Without this lock (and the refusal below), a version attached in the
+    // gap after a purge is queued would have no erasure job of its own — the
+    // document would eventually be deleted once its ORIGINAL siblings all
+    // verify, cascading this late version away with its bytes permanently
+    // unreachable (no job, no document_versions row, no way to rediscover it).
+    await tx
+      .select({ id: schema.documents.id })
+      .from(schema.documents)
+      .where(eq(schema.documents.id, input.documentId))
+      .for('update');
+    const activePurgeJob = first(
+      await tx
+        .select({ id: schema.erasureJobs.id })
+        .from(schema.erasureJobs)
+        .where(
+          and(
+            eq(schema.erasureJobs.documentId, input.documentId),
+            ne(schema.erasureJobs.status, 'VERIFIED'),
+          ),
+        )
+        .limit(1),
+    );
+    if (activePurgeJob) {
+      return err(
+        serviceError(
+          'invalid',
+          'this document has a retention purge in progress and cannot be modified until it completes',
+        ),
+      );
+    }
+
     const storageObject = required(
       first(
         await tx
@@ -380,6 +416,37 @@ export function isServableProcessingState(state: DocumentState): boolean {
   return SERVABLE_PROCESSING_STATES.has(state);
 }
 
+/**
+ * The one canonical "is this document version's content still real"
+ * predicate — every consumer that treats a version as usable evidence
+ * (`accessDocument`'s preview/download gate, `missions.ts`'s document
+ * eligibility for readiness and snapshots) must call this, not maintain its
+ * own partial copy.
+ *
+ * Added `erased` (Codex review, PR-B2, round 4): `accessDocument` gained an
+ * erasure-awareness check in round 2/3, but `missions.ts`'s OWN, separate
+ * eligibility computation still only checked `safetyStatus`/
+ * `processingStatus` — a version whose bytes were already gone (or being
+ * actively erased) could still satisfy a mission requirement and be
+ * captured as evidence in a snapshot. `erased` is passed in already-resolved
+ * (from `hasActiveOrVerifiedErasureJob`/`activeOrVerifiedErasureStorageObjectIds`
+ * in `erasure.ts`) rather than looked up here, so this function stays a
+ * plain, synchronous predicate usable identically from a single-version
+ * check (one query) and a bulk scan (one query for every candidate,
+ * avoiding an N+1).
+ */
+export function isDocumentVersionUsable(input: {
+  readonly safetyStatus: DocumentVersion['safetyStatus'];
+  readonly processingStatus: DocumentState;
+  readonly erased: boolean;
+}): boolean {
+  return (
+    input.safetyStatus === 'CLEAN' &&
+    isServableProcessingState(input.processingStatus) &&
+    !input.erased
+  );
+}
+
 /** Best-effort audit identity for an actor (owner carries no account id). */
 function actorAudit(actor: Actor): { actorAccountId: string | null; actorRole: string } {
   switch (actor.kind) {
@@ -500,7 +567,22 @@ async function accessDocument(
   // future state fails closed by construction rather than needing to be
   // remembered. Checked only after authorization succeeds, so an
   // unauthorized actor learns nothing about the document's safety state.
-  if (version.safetyStatus !== 'CLEAN' || !isServableProcessingState(version.processingStatus)) {
+  //
+  // Also excludes a version whose bytes are already erased, or being erased
+  // right now (Codex review, PR-B2, rounds 2-3): a multi-version document's
+  // row survives — by finding #13's design — for as long as ANY sibling
+  // erasure job hasn't verified, even once THIS version's own job has (or
+  // is mid-flight). Neither `safetyStatus` nor `processingStatus` reflects
+  // that; without this check the read path would issue a working-looking
+  // reference to bytes that are already gone or about to be.
+  const erased = await hasActiveOrVerifiedErasureJob(db, version.storageObjectId);
+  if (
+    !isDocumentVersionUsable({
+      safetyStatus: version.safetyStatus,
+      processingStatus: version.processingStatus,
+      erased,
+    })
+  ) {
     await db.transaction(async (tx) => {
       await appendAuditEvent(tx, {
         eventType: 'DOCUMENT_ACCESS',
@@ -512,7 +594,7 @@ async function accessDocument(
         applicantId: document.applicantId,
         resourceType: 'document',
         resourceId: document.id,
-        reason: 'not_yet_safe_to_serve',
+        reason: erased ? 'bytes_already_erased' : 'not_yet_safe_to_serve',
         metadata: { variant: effectiveVariant, disposition, purpose: input.purpose },
       });
     });

@@ -1,8 +1,8 @@
 import { fileURLToPath } from 'node:url';
 import { PGlite } from '@electric-sql/pglite';
-import { isOk } from '@visastack/core';
+import { isErr, isOk } from '@visastack/core';
 import { schema } from '@visastack/db';
-import { eq } from 'drizzle-orm';
+import { eq, inArray } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/pglite';
 import { migrate } from 'drizzle-orm/pglite/migrator';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -144,6 +144,41 @@ describe('erasure outbox', () => {
       .from(schema.auditEvents)
       .where(eq(schema.auditEvents.eventType, 'ERASURE_VERIFIED'));
     expect(auditRows).toHaveLength(1);
+  });
+
+  it('records deletionAttemptedAt before calling deleteObject, so a failure between the call and the CAS-to-DELETED write still leaves the job unservable (Codex review, PR-B2, round 5)', async () => {
+    const object = await seedStorageObject(db, 'obj-attempt-order');
+    await storage.putObject({
+      bucket: 'CLEAN',
+      objectKey: 'obj-attempt-order',
+      contentType: 'application/pdf',
+      bytes: new Uint8Array([1]),
+    });
+    const job = await enqueueErasureJob(db, {
+      reason: 'ACCOUNT_DELETION',
+      bucket: 'CLEAN',
+      objectKey: 'obj-attempt-order',
+      expectedHash: null,
+      storageObjectId: object.id,
+    });
+
+    // Snapshot the row's deletionAttemptedAt from INSIDE the deleteObject
+    // call itself — proving the marker is durably committed before the
+    // external call happens, not merely before this function returns.
+    let markerAtCallTime: Date | null | undefined;
+    const originalDeleteObject = storage.deleteObject.bind(storage);
+    storage.deleteObject = async (bucket, objectKey) => {
+      const [row] = await db
+        .select()
+        .from(schema.erasureJobs)
+        .where(eq(schema.erasureJobs.id, job.id));
+      markerAtCallTime = row?.deletionAttemptedAt ?? null;
+      return originalDeleteObject(bucket, objectKey);
+    };
+
+    const result = await runErasureWorker(db, storage, { limit: 5 });
+    expect(result).toEqual({ processed: 1, blocked: 0, failed: 0 });
+    expect(markerAtCallTime).not.toBeNull();
   });
 
   it('also deletes the deferred document once verified, for RETENTION_PURGE jobs', async () => {
@@ -670,6 +705,294 @@ describe('erasure outbox', () => {
       const row = (await db.select().from(schema.erasureJobs))[0];
       expect(row?.status).toBe('CLAIMED'); // untouched by A
       expect(row?.leaseOwner).toBe('a-completely-different-worker'); // still belongs to the other worker
+    });
+  });
+
+  describe('multi-version erasure (post-programme defect register, PR-B2, finding #13)', () => {
+    /** A document with one version per object key, each with real bytes and its own RETENTION_PURGE job. */
+    async function seedMultiVersionDocument(
+      db: Db,
+      storage: FakeBlobStore,
+      applicantId: string,
+      accountId: string,
+      objectKeys: readonly string[],
+    ) {
+      const doc = await registerDocument(db, {
+        actorAccountId: accountId,
+        applicantId,
+        originalName: 'multi-version.pdf',
+      });
+      if (!isOk(doc)) throw new Error('doc');
+      for (const objectKey of objectKeys) {
+        await addDocumentVersion(db, {
+          actorAccountId: accountId,
+          documentId: doc.value.id,
+          bucket: 'CLEAN',
+          objectKey,
+        });
+        await storage.putObject({
+          bucket: 'CLEAN',
+          objectKey,
+          contentType: 'application/pdf',
+          bytes: new Uint8Array([1]),
+        });
+      }
+      const storageObjects = await db
+        .select()
+        .from(schema.storageObjects)
+        .where(inArray(schema.storageObjects.objectKey, objectKeys));
+      for (const object of storageObjects) {
+        await enqueueErasureJob(db, {
+          reason: 'RETENTION_PURGE',
+          bucket: 'CLEAN',
+          objectKey: object.objectKey,
+          expectedHash: null,
+          storageObjectId: object.id,
+          documentId: doc.value.id,
+          applicantId,
+        });
+      }
+      return { documentId: doc.value.id, storageObjects };
+    }
+
+    it('does not delete the document until every sibling storage-object job has verified — not on the first of several versions', async () => {
+      const { account, applicantId } = await seedApplicant(db, 'multi-version@example.com');
+      const objectKeys = ['obj-mv-1', 'obj-mv-2', 'obj-mv-3'];
+      const { documentId } = await seedMultiVersionDocument(
+        db,
+        storage,
+        applicantId,
+        account.id,
+        objectKeys,
+      );
+
+      // Process strictly one job at a time so the in-between state (some
+      // siblings verified, some not) is directly observable — with the old,
+      // unconditional delete, the document would already be gone after the
+      // very first of these three calls.
+      await runErasureWorker(db, storage, { limit: 1 });
+      expect(
+        await db.select().from(schema.documents).where(eq(schema.documents.id, documentId)),
+      ).toHaveLength(1);
+
+      await runErasureWorker(db, storage, { limit: 1 });
+      expect(
+        await db.select().from(schema.documents).where(eq(schema.documents.id, documentId)),
+      ).toHaveLength(1);
+
+      await runErasureWorker(db, storage, { limit: 1 });
+      expect(
+        await db.select().from(schema.documents).where(eq(schema.documents.id, documentId)),
+      ).toHaveLength(0);
+
+      const jobs = await db.select().from(schema.erasureJobs);
+      expect(jobs.every((j) => j.status === 'VERIFIED')).toBe(true);
+      expect(
+        await db
+          .select()
+          .from(schema.storageObjects)
+          .where(inArray(schema.storageObjects.objectKey, objectKeys)),
+      ).toHaveLength(0);
+    });
+
+    it('never deletes the document while a sibling job is permanently FAILED, even after every other sibling verifies', async () => {
+      const { account, applicantId } = await seedApplicant(db, 'multi-version-fail@example.com');
+      const objectKeys = ['obj-mv-ok', 'obj-mv-fail'];
+      const { documentId } = await seedMultiVersionDocument(
+        db,
+        storage,
+        applicantId,
+        account.id,
+        objectKeys,
+      );
+      storage.failDeleteFor.add('obj-mv-fail');
+      await db
+        .update(schema.erasureJobs)
+        .set({ maxAttempts: 1 })
+        .where(eq(schema.erasureJobs.objectKey, 'obj-mv-fail'));
+
+      const result = await runErasureWorker(db, storage, { limit: 5 });
+      expect(result).toEqual({ processed: 1, blocked: 0, failed: 1 });
+
+      // The permanently-failed sibling blocks the document forever, until an
+      // admin retries it — the logical record (and the metadata of the
+      // sibling version whose bytes are NOT yet verified gone) must survive.
+      expect(
+        await db.select().from(schema.documents).where(eq(schema.documents.id, documentId)),
+      ).toHaveLength(1);
+      // The succeeding sibling's storage object ROW also survives — not
+      // because its bytes weren't deleted (they were: obj-mv-ok's bytes are
+      // gone from the blob store, verified), but because
+      // documentVersions.storageObjectId is `onDelete: restrict` and this
+      // job's document_versions row survives for as long as the document
+      // does. The row can only go once the whole document (and every
+      // sibling's document_versions row with it) is cascaded away.
+      expect(await storage.getObject('obj-mv-ok')).toBeUndefined();
+      const survivingObjects = await db
+        .select()
+        .from(schema.storageObjects)
+        .where(inArray(schema.storageObjects.objectKey, objectKeys));
+      expect(survivingObjects.map((o) => o.objectKey).sort()).toEqual(objectKeys.slice().sort());
+    });
+
+    it('two siblings finalizing at different times delete the document exactly once, never on the first alone', async () => {
+      const { account, applicantId } = await seedApplicant(db, 'concurrent-finalize@example.com');
+      const objectKeys = ['obj-cf-a', 'obj-cf-b'];
+      const { documentId } = await seedMultiVersionDocument(
+        db,
+        storage,
+        applicantId,
+        account.id,
+        objectKeys,
+      );
+
+      // Pause the first job's verification step (getObject, called right
+      // before finalizeVerifiedJob), simulating one sibling genuinely still
+      // in flight — e.g. slow external verification — while a second,
+      // fully independent invocation claims and completely finishes the
+      // OTHER sibling job in the meantime.
+      let releasePause: (() => void) | undefined;
+      const originalGetObject = storage.getObject.bind(storage);
+      let paused = false;
+      storage.getObject = async (objectKey: string) => {
+        const result = await originalGetObject(objectKey);
+        if (!paused) {
+          paused = true;
+          await new Promise<void>((resolve) => {
+            releasePause = resolve;
+          });
+        }
+        return result;
+      };
+
+      const invocationA = runErasureWorker(db, storage, { limit: 1 });
+      await vi.waitFor(() => {
+        if (!releasePause) throw new Error('invocation A has not reached getObject yet');
+      });
+
+      const resultB = await runErasureWorker(db, storage, { limit: 5 });
+      expect(resultB).toEqual({ processed: 1, blocked: 0, failed: 0 });
+      // Only one of the two siblings has verified so far — the document
+      // must still survive (this is what the old, unconditional-delete code
+      // would get wrong: it would already be gone at this point).
+      expect(
+        await db.select().from(schema.documents).where(eq(schema.documents.id, documentId)),
+      ).toHaveLength(1);
+
+      releasePause?.();
+      const resultA = await invocationA;
+      expect(resultA).toEqual({ processed: 1, blocked: 0, failed: 0 });
+
+      // Now that both have verified, whichever finalized last (A, here)
+      // deletes the document — exactly once, no error from B's earlier,
+      // correctly-skipped attempt.
+      expect(
+        await db.select().from(schema.documents).where(eq(schema.documents.id, documentId)),
+      ).toHaveLength(0);
+      expect(
+        await db
+          .select()
+          .from(schema.storageObjects)
+          .where(inArray(schema.storageObjects.objectKey, objectKeys)),
+      ).toHaveLength(0);
+    });
+
+    it('refuses to attach a new version to a document with an in-progress retention purge (Codex review, PR-B2, round 1)', async () => {
+      const { account, applicantId } = await seedApplicant(db, 'late-version@example.com');
+      const objectKeys = ['obj-lv-1', 'obj-lv-2'];
+      const { documentId } = await seedMultiVersionDocument(
+        db,
+        storage,
+        applicantId,
+        account.id,
+        objectKeys,
+      );
+
+      // Without this refusal, a version attached here would have no erasure
+      // job of its own — it would be silently cascaded away, bytes
+      // unreachable forever, once the two ALREADY-queued siblings both
+      // verify (exactly what the fully-processed run below proves).
+      const attempt = await addDocumentVersion(db, {
+        actorAccountId: account.id,
+        documentId,
+        bucket: 'CLEAN',
+        objectKey: 'obj-lv-late',
+      });
+      expect(isErr(attempt)).toBe(true);
+      if (isErr(attempt)) expect(attempt.error.code).toBe('invalid');
+
+      // No orphaned storage object or version was created by the refused attempt.
+      expect(
+        await db
+          .select()
+          .from(schema.storageObjects)
+          .where(eq(schema.storageObjects.objectKey, 'obj-lv-late')),
+      ).toHaveLength(0);
+      const versions = await db
+        .select()
+        .from(schema.documentVersions)
+        .where(eq(schema.documentVersions.documentId, documentId));
+      expect(versions).toHaveLength(2);
+
+      // The original two siblings still verify and correctly delete the
+      // document once both are done — the refusal didn't wedge anything.
+      const result = await runErasureWorker(db, storage, { limit: 5 });
+      expect(result).toEqual({ processed: 2, blocked: 0, failed: 0 });
+      expect(
+        await db.select().from(schema.documents).where(eq(schema.documents.id, documentId)),
+      ).toHaveLength(0);
+    });
+
+    it('finalizes a document once every DISTINCT storage object has a verified job, even if a redundant duplicate job for the same object is separately FAILED (Codex review, PR-B2, round 5)', async () => {
+      const { account, applicantId } = await seedApplicant(db, 'duplicate-job@example.com');
+      const objectKeys = ['obj-dup-only'];
+      const { documentId, storageObjects } = await seedMultiVersionDocument(
+        db,
+        storage,
+        applicantId,
+        account.id,
+        objectKeys,
+      );
+      const storageObject = storageObjects[0];
+      if (!storageObject) throw new Error('storage object');
+
+      // A second, REDUNDANT job for the exact same storage object —
+      // simulating purgeExpiredDocuments enqueueing again before the first
+      // batch finished (D-A1, §1.2, still deferred to PR-C1 as an
+      // efficiency concern; this test proves finalization is no longer
+      // WRONG when it happens, only wasteful). Driven straight to FAILED
+      // without ever running it through the worker — never claimed, so
+      // runErasureWorker below only ever picks up the original.
+      const duplicateJob = await enqueueErasureJob(db, {
+        reason: 'RETENTION_PURGE',
+        bucket: 'CLEAN',
+        objectKey: objectKeys[0] as string,
+        expectedHash: null,
+        storageObjectId: storageObject.id,
+        documentId,
+        applicantId,
+      });
+      await db
+        .update(schema.erasureJobs)
+        .set({ status: 'FAILED', lastError: 'simulated redundant-job failure' })
+        .where(eq(schema.erasureJobs.id, duplicateJob.id));
+
+      const result = await runErasureWorker(db, storage, { limit: 5 });
+      expect(result).toEqual({ processed: 1, blocked: 0, failed: 0 });
+
+      // A row-count check (every job VERIFIED) would see the duplicate's
+      // FAILED status and block the document forever. Per-unique-storage-
+      // object completion correctly sees the one real object is already
+      // verified gone and finalizes anyway.
+      expect(
+        await db.select().from(schema.documents).where(eq(schema.documents.id, documentId)),
+      ).toHaveLength(0);
+      expect(
+        await db
+          .select()
+          .from(schema.storageObjects)
+          .where(eq(schema.storageObjects.id, storageObject.id)),
+      ).toHaveLength(0);
     });
   });
 });

@@ -151,6 +151,20 @@ export async function purgeExpiredDocuments(
         blockedByHold++;
         return;
       }
+      // Lock the document row (Codex review, PR-B2, round 1): `addDocumentVersion`
+      // and `finalizeVerifiedJob` take the identical lock on the identical
+      // row before, respectively, refusing new versions on a document with
+      // an in-progress purge and deciding whether every version has
+      // verified. Without it, a version attached in the gap between this
+      // read and the enqueue loop below would silently miss this batch,
+      // reach `finalizeVerifiedJob` with no erasure job of its own, and be
+      // cascaded away with its bytes permanently unreachable once the
+      // versions that WERE enqueued here all verify.
+      await tx
+        .select({ id: schema.documents.id })
+        .from(schema.documents)
+        .where(eq(schema.documents.id, document.id))
+        .for('update');
       const versions = await tx
         .select({ storageObjectId: schema.documentVersions.storageObjectId })
         .from(schema.documentVersions)
