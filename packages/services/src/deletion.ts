@@ -157,10 +157,24 @@ export async function executeAccountDeletion(
   }
 
   return db.transaction(async (tx) => {
+    // `.for('update')` locks every one of this account's applicant rows for
+    // the rest of this transaction (finding #14, post-programme defect
+    // register). `placeLegalHold` and `finalizeVerifiedJob`'s own hold
+    // recheck take the identical lock on the identical key before their own
+    // hold-sensitive work — so a hold that commits anywhere in this window
+    // can never be invisible to the read below, and a hold placement that
+    // starts after this transaction has already locked an applicant row
+    // correctly waits and then (once unblocked) finds that applicant gone.
+    // Without this lock, a plain unlocked read here could miss a hold
+    // committed in the gap, let deletion proceed, and (via
+    // `legal_holds.applicant_id`'s cascade) destroy the very hold record
+    // that should have stopped it.
     const applicantRows = await tx
       .select({ id: schema.applicants.id })
       .from(schema.applicants)
-      .where(eq(schema.applicants.ownerAccountId, input.accountId));
+      .where(eq(schema.applicants.ownerAccountId, input.accountId))
+      .orderBy(schema.applicants.id)
+      .for('update');
     const applicantIds = applicantRows.map((a) => a.id);
 
     // Legal hold overrides deletion (Build Spec §13): an active hold on ANY of

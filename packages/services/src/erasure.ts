@@ -268,6 +268,27 @@ type FinalizeOutcome = 'verified' | 'blocked' | 'lost-lease';
  * locking primitive: whichever of this update or a concurrent reclaim's
  * update commits first determines which one the other sees when it
  * re-evaluates its own WHERE clause.
+ *
+ * Finding #14 (post-programme defect register): the hold recheck below locks
+ * the applicant row (`SELECT ... FOR UPDATE`) before reading `legalHolds`.
+ * `placeLegalHold` and `executeAccountDeletion` take the identical lock on
+ * the identical key before their own hold-sensitive work, so a hold that
+ * commits anywhere in that window can never be invisible to this recheck —
+ * without it, a plain unlocked read here could miss a hold that is
+ * concurrently, genuinely being placed.
+ *
+ * Finding #13: a multi-version document has one erasure job per storage
+ * object, all sharing one `documentId` — the `documents` row must survive
+ * until every sibling job is VERIFIED, not just this one. The sibling lock
+ * below is acquired for the WHOLE sibling set (this job's own row included)
+ * BEFORE this job's own CAS-to-VERIFIED update, not after: if each sibling
+ * instead locked only its own row first (via its CAS update) and then tried
+ * to lock the rest, two siblings finalizing concurrently would deadlock (A
+ * holds A, wants B; B holds B, wants A). Acquiring the whole set atomically
+ * up front means whichever invocation gets there first locks all of it and
+ * the other blocks entirely, never partially — `.orderBy(id)` makes the
+ * acquisition order identical across invocations regardless of query-plan
+ * details, the standard defense against this class of lock-ordering deadlock.
  */
 async function finalizeVerifiedJob(
   db: Db,
@@ -281,6 +302,12 @@ async function finalizeVerifiedJob(
     // bytes are already gone by this point (unrecoverable), but the logical
     // record itself — the thing a hold actually protects — is preserved.
     if (job.reason === 'RETENTION_PURGE' && job.applicantId) {
+      await tx
+        .select({ id: schema.applicants.id })
+        .from(schema.applicants)
+        .where(eq(schema.applicants.id, job.applicantId))
+        .for('update');
+
       const held = await hasActiveLegalHold(tx, job.applicantId);
       if (held) {
         const blocked = await blockOnHold(
@@ -292,6 +319,15 @@ async function finalizeVerifiedJob(
         );
         return blocked ? 'blocked' : 'lost-lease';
       }
+    }
+
+    if (job.reason === 'RETENTION_PURGE' && job.documentId) {
+      await tx
+        .select({ id: schema.erasureJobs.id })
+        .from(schema.erasureJobs)
+        .where(eq(schema.erasureJobs.documentId, job.documentId))
+        .orderBy(schema.erasureJobs.id)
+        .for('update');
     }
 
     const finalized = await tx
@@ -314,12 +350,42 @@ async function finalizeVerifiedJob(
     if (finalized.length === 0) return 'lost-lease';
 
     // Document first: documentVersions.storageObjectId is `onDelete: restrict`,
-    // so the storage object can't go while a version still points at it. The
-    // document's own cascade removes that version as part of this delete.
+    // so a storage object can't go while any version still points at it —
+    // and for RETENTION_PURGE that stops being true only once the WHOLE
+    // document is deleted, cascading every sibling's document_versions row
+    // at once. A multi-version document must not lose its logical record
+    // (or the metadata of versions not yet erased) while any sibling's
+    // storage object still awaits verified deletion — so until every
+    // sibling job for this documentId has reached VERIFIED, NEITHER the
+    // document NOR any sibling's storage object (including this job's own)
+    // can be removed yet. This isn't just this function's own bookkeeping:
+    // the restrict FK enforces it structurally — a first draft of this fix
+    // deleted this job's own storage object unconditionally here and hit
+    // exactly that FK violation, since this job's document_versions row
+    // survives for as long as the (deliberately still-alive) document does.
     if (job.reason === 'RETENTION_PURGE' && job.documentId) {
-      await tx.delete(schema.documents).where(eq(schema.documents.id, job.documentId));
+      const siblings = await tx
+        .select({
+          status: schema.erasureJobs.status,
+          storageObjectId: schema.erasureJobs.storageObjectId,
+        })
+        .from(schema.erasureJobs)
+        .where(eq(schema.erasureJobs.documentId, job.documentId));
+      const documentFullyErased = siblings.every((sibling) => sibling.status === 'VERIFIED');
+      if (documentFullyErased) {
+        await tx.delete(schema.documents).where(eq(schema.documents.id, job.documentId));
+        await tx.delete(schema.storageObjects).where(
+          inArray(
+            schema.storageObjects.id,
+            siblings.map((sibling) => sibling.storageObjectId),
+          ),
+        );
+      }
+    } else {
+      await tx
+        .delete(schema.storageObjects)
+        .where(eq(schema.storageObjects.id, job.storageObjectId));
     }
-    await tx.delete(schema.storageObjects).where(eq(schema.storageObjects.id, job.storageObjectId));
     await appendAuditEvent(tx, {
       eventType: 'ERASURE_VERIFIED',
       method: 'SYSTEM',
