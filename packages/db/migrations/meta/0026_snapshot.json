@@ -1,5 +1,5 @@
 {
-  "id": "d575bec8-4c2d-48f9-9768-a9b0b8ce1a70",
+  "id": "3103efba-ea59-446f-abfb-e17a907329c7",
   "prevId": "12148f1f-d0f5-4423-92f9-64bc6d4ebba8",
   "version": "7",
   "dialect": "postgresql",
@@ -1523,8 +1523,8 @@
           "primaryKey": false,
           "notNull": false
         },
-        "bytes_deleted_at": {
-          "name": "bytes_deleted_at",
+        "deletion_attempted_at": {
+          "name": "deletion_attempted_at",
           "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": false

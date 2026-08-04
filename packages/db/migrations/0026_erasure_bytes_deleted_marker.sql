@@ -1,1 +1,0 @@
-ALTER TABLE "erasure_jobs" ADD COLUMN "bytes_deleted_at" timestamp with time zone;

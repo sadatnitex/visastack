@@ -287,11 +287,13 @@ type FinalizeOutcome = 'verified' | 'blocked' | 'lost-lease';
  * round 1 — the identical lock, on the identical row, is what
  * `addDocumentVersion` and `purgeExpiredDocuments` also take before their
  * own document-mutating decisions (see their own comments). That shared
- * lock is what makes the plain `siblings.every(VERIFIED)` check below
- * actually correct: `addDocumentVersion` refuses to attach a new version
- * once any non-`VERIFIED` job exists for a document, so the sibling set is
- * closed the moment the first job is enqueued — no version can appear here
- * that this check didn't already account for.
+ * lock is what makes the completion check below actually correct:
+ * `addDocumentVersion` refuses to attach a new version once any
+ * non-`VERIFIED` job exists for a document, so the set of storage objects
+ * requiring a verified deletion is closed the moment the first job is
+ * enqueued — no version can appear here that this check didn't already
+ * account for. The check itself is per DISTINCT storage object, not per job
+ * row (Codex review, PR-B2, round 5) — see its own comment below for why.
  */
 async function finalizeVerifiedJob(
   db: Db,
@@ -358,13 +360,31 @@ async function finalizeVerifiedJob(
     // at once. A multi-version document must not lose its logical record
     // (or the metadata of versions not yet erased) while any sibling's
     // storage object still awaits verified deletion — so until every
-    // sibling job for this documentId has reached VERIFIED, NEITHER the
-    // document NOR any sibling's storage object (including this job's own)
-    // can be removed yet. This isn't just this function's own bookkeeping:
-    // the restrict FK enforces it structurally — a first draft of this fix
-    // deleted this job's own storage object unconditionally here and hit
-    // exactly that FK violation, since this job's document_versions row
-    // survives for as long as the (deliberately still-alive) document does.
+    // DISTINCT storage object this document ever referenced has a VERIFIED
+    // job, NEITHER the document NOR any sibling's storage object (including
+    // this job's own) can be removed yet. This isn't just this function's
+    // own bookkeeping: the restrict FK enforces it structurally — a first
+    // draft of this fix deleted this job's own storage object
+    // unconditionally here and hit exactly that FK violation, since this
+    // job's document_versions row survives for as long as the deliberately
+    // still-alive document does.
+    //
+    // Completion is evaluated per DISTINCT storageObjectId, not per job row
+    // (Codex review, PR-B2, round 5): `purgeExpiredDocuments` locks the
+    // `documents` row before enqueueing, but that only serializes concurrent
+    // purge attempts against each other — it does not stop a LATER,
+    // sequential purge run (the document is still "past retention" for as
+    // long as any sibling hasn't verified) from enqueueing a second,
+    // redundant job for a storage object that already has one. A row-count
+    // check (`siblings.every(status === 'VERIFIED')`) would then let one
+    // redundant job's own retry exhaustion (FAILED) block the document
+    // forever, even though the actual storage object it targets is already
+    // provably gone via the OTHER job. Grouping by storageObjectId instead
+    // makes finalization robust to duplicate rows by construction — however
+    // they arose — without needing to prevent duplicate enqueueing (D-A1,
+    // §1.2, records that as a separate, deferred efficiency concern for
+    // PR-C1: avoiding the wasted redundant work, not a correctness gap,
+    // since this check no longer depends on it).
     if (job.reason === 'RETENTION_PURGE' && job.documentId) {
       const siblings = await tx
         .select({
@@ -373,15 +393,20 @@ async function finalizeVerifiedJob(
         })
         .from(schema.erasureJobs)
         .where(eq(schema.erasureJobs.documentId, job.documentId));
-      const documentFullyErased = siblings.every((sibling) => sibling.status === 'VERIFIED');
+      const requiredStorageObjectIds = new Set(siblings.map((sibling) => sibling.storageObjectId));
+      const verifiedStorageObjectIds = new Set(
+        siblings
+          .filter((sibling) => sibling.status === 'VERIFIED')
+          .map((sibling) => sibling.storageObjectId),
+      );
+      const documentFullyErased = [...requiredStorageObjectIds].every((id) =>
+        verifiedStorageObjectIds.has(id),
+      );
       if (documentFullyErased) {
         await tx.delete(schema.documents).where(eq(schema.documents.id, job.documentId));
-        await tx.delete(schema.storageObjects).where(
-          inArray(
-            schema.storageObjects.id,
-            siblings.map((sibling) => sibling.storageObjectId),
-          ),
-        );
+        await tx
+          .delete(schema.storageObjects)
+          .where(inArray(schema.storageObjects.id, [...requiredStorageObjectIds]));
       }
     } else {
       await tx
@@ -430,20 +455,37 @@ async function processErasureJob(
       }
     }
 
+    // deletionAttemptedAt is written here, BEFORE the external call, in its
+    // own committed statement — deliberately, not after deleteObject returns
+    // (Codex review, PR-B2, round 5). If deleteObject succeeds but the CAS
+    // below then throws (an infra failure — a dropped connection, a timeout
+    // — not a domain one), failErasureJob can still send this job back to
+    // PENDING/FAILED; with the marker already durable, that transition
+    // doesn't erase the fact that a delete was attempted. We can never
+    // safely tell "deleteObject wasn't reached" apart from "it was reached
+    // and either the response or this follow-up write was lost" from inside
+    // the catch block alone, so the marker has to be written first. A lost
+    // lease here (a concurrent invocation already reclaimed this job) means
+    // we no longer own it — return immediately, before ever calling
+    // deleteObject, rather than attempting a delete on a job we might not
+    // finish accounting for.
+    const attempted = await db
+      .update(schema.erasureJobs)
+      .set({ deletionAttemptedAt: new Date(), updatedAt: new Date() })
+      .where(
+        and(
+          eq(schema.erasureJobs.id, job.id),
+          eq(schema.erasureJobs.status, 'CLAIMED'),
+          eq(schema.erasureJobs.leaseOwner, leaseOwner),
+        ),
+      )
+      .returning({ id: schema.erasureJobs.id });
+    if (attempted.length === 0) return 'lost-lease';
+
     await blobStore.deleteObject(job.bucket, job.objectKey);
-    // bytesDeletedAt is set here, once, and never cleared again — including
-    // by a later failErasureJob retry/exhaustion (Codex review, PR-B2,
-    // round 4). `status` alone can't answer "were the real bytes ever
-    // actually deleted" once a job has been sent back to PENDING/FAILED: a
-    // subsequent verification failure (this job's own "still present" throw
-    // below, or an unrelated getObject error) lands at the same status
-    // either way, with no way to tell "delete didn't really work" apart
-    // from "delete worked, verification just couldn't confirm it this
-    // attempt." This column is the unambiguous, permanent signal the read
-    // path's servability check keys off instead.
     const marked = await db
       .update(schema.erasureJobs)
-      .set({ status: 'DELETED', bytesDeletedAt: new Date(), updatedAt: new Date() })
+      .set({ status: 'DELETED', updatedAt: new Date() })
       .where(
         and(
           eq(schema.erasureJobs.id, job.id),
@@ -545,22 +587,50 @@ export async function listErasureJobsNeedingAttention(
 /**
  * The WHERE-clause predicate shared by every "is this storage object's data
  * still safe to treat as present" check in this module: true for a row
- * that's `CLAIMED` (a worker is about to delete it) or that has ever had
- * `bytesDeletedAt` set (the real bytes were, at some point, successfully
- * deleted — Codex review, PR-B2, round 4). Deliberately keyed off
- * `bytesDeletedAt` rather than `status IN ('DELETED', 'VERIFIED')`: `status`
- * alone can't answer "were the bytes ever actually deleted" once a job has
- * been retried past `DELETED` — a lying-delete retry (verification
- * correctly found bytes still present, `status` back to `PENDING`/`FAILED`)
- * and a plain verification hiccup (bytes genuinely gone, `status` at the
- * same `PENDING`/`FAILED`) are indistinguishable from `status` alone, and
- * the conservative, correct assumption once `deleteObject` has succeeded
- * even once is that the bytes are gone. `bytesDeletedAt` is never cleared
- * once set (not by `failErasureJob`, not even by the admin-facing
- * `retryErasureJob`), so it survives every one of those transitions.
+ * whose `status` is `CLAIMED`, `DELETED`, or `VERIFIED`, OR that has ever
+ * had `deletionAttemptedAt` set.
+ *
+ * Two conditions, not one, covering two different gaps (Codex review,
+ * PR-B2, rounds 4-5):
+ *
+ * - The legacy `status IN (...)` check alone can't answer "were the bytes
+ *   ever actually deleted" once a job has been retried past `DELETED` — a
+ *   lying-delete retry (verification correctly found bytes still present,
+ *   `status` back to `PENDING`/`FAILED`) and a plain verification hiccup
+ *   (bytes genuinely gone, `status` at the same `PENDING`/`FAILED`) are
+ *   indistinguishable from `status` alone (round 4's original finding).
+ *   `deletionAttemptedAt` closes that: never cleared once set (not by
+ *   `failErasureJob`, not even by the admin-facing `retryErasureJob`), so
+ *   it survives every one of those transitions.
+ * - `deletionAttemptedAt` alone can't cover a row written by code that
+ *   predates this column — a job that reached `DELETED`/`VERIFIED` during
+ *   the deploy window before this migration ran (the same rollout hazard
+ *   `claimErasureJobs`' own lease-less-row handling documents) has the
+ *   marker permanently NULL, real bytes or not (round 5's finding: the
+ *   round-4 predicate had *replaced* the status check with the marker
+ *   check, silently losing coverage for exactly these rows). Keeping the
+ *   legacy `status IN ('CLAIMED', 'DELETED', 'VERIFIED')` check alongside
+ *   the marker — augmenting, not replacing — covers both eras of row
+ *   uniformly, with no backfill migration required (a backfill can't
+ *   reliably distinguish a genuinely-orphaned row from one a still-live
+ *   old-code worker is legitimately mid-flight on, the same reasoning
+ *   `claimErasureJobs`' own rollout-grace window already rests on).
+ *
+ * One known, narrow, accepted residual: a *legacy* `DELETED` row that gets
+ * reclaimed (lease expired) but not immediately re-claimed within the same
+ * transaction commits at bare `PENDING` with no marker — a read in that
+ * exact window would see it as servable again. This requires a crash
+ * during the one historical deploy window this migration ever rolls out
+ * in, compounded with an unlucky claim-batch boundary; closing it
+ * completely would need a backfill this module deliberately avoids for the
+ * reasons above, so it is accepted and documented rather than engineered
+ * around, consistent with this PR's other honestly-scoped residual windows.
  */
 function erasureInProgressOrBytesGone() {
-  return or(eq(schema.erasureJobs.status, 'CLAIMED'), isNotNull(schema.erasureJobs.bytesDeletedAt));
+  return or(
+    inArray(schema.erasureJobs.status, ['CLAIMED', 'DELETED', 'VERIFIED']),
+    isNotNull(schema.erasureJobs.deletionAttemptedAt),
+  );
 }
 
 /**

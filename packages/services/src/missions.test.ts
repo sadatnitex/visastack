@@ -713,7 +713,7 @@ describe('missions — workspace, readiness, workflow, snapshot', () => {
     });
     await db
       .update(schema.erasureJobs)
-      .set({ status: 'VERIFIED', bytesDeletedAt: new Date(), completedAt: new Date() })
+      .set({ status: 'VERIFIED', deletionAttemptedAt: new Date(), completedAt: new Date() })
       .where(eq(schema.erasureJobs.id, job.id));
 
     const withErasedOnly = await computeReadiness(db, mission.value.id);

@@ -1,0 +1,1 @@
+ALTER TABLE "erasure_jobs" ADD COLUMN "deletion_attempted_at" timestamp with time zone;

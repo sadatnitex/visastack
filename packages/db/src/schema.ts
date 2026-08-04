@@ -1168,16 +1168,27 @@ export const erasureJobs = pgTable(
     leaseOwner: text('lease_owner'),
     leaseExpiresAt: timestamp('lease_expires_at', { withTimezone: true }),
     claimedAt: timestamp('claimed_at', { withTimezone: true }),
-    // Set once, the moment BlobStore.deleteObject() succeeds — and never
-    // cleared afterward, even if a later verification failure sends `status`
-    // back to PENDING or forward to FAILED (Codex review, PR-B2, round 4).
-    // `status` alone can't answer "were the real bytes ever actually
-    // deleted" once a job has been retried past DELETED: a lying-delete
-    // retry and a plain verification hiccup both land back at the same
-    // PENDING/FAILED status with no way to tell them apart. This column is
-    // the unambiguous, permanent signal instead — read path servability
-    // checks key off it directly, never off `status`.
-    bytesDeletedAt: timestamp('bytes_deleted_at', { withTimezone: true }),
+    // Set once, immediately BEFORE the BlobStore.deleteObject() call is made
+    // — deliberately before, not after it returns — and never cleared
+    // afterward (Codex review, PR-B2, round 4 and round 5). `status` alone
+    // can't answer "was a delete for this object ever attempted" once a job
+    // has been retried past DELETED: a lying-delete retry and a plain
+    // verification hiccup both land back at the same PENDING/FAILED status
+    // with no way to tell them apart (round 4). Setting the marker only
+    // AFTER a confirmed-successful deleteObject call (round 4's original
+    // design) left a second, narrower gap of its own (round 5): if the
+    // call succeeds but the CAS-to-DELETED write that would have recorded
+    // it then throws (an infra failure, not a domain one), the job can be
+    // sent back to PENDING/FAILED with no durable record a delete was ever
+    // attempted. Writing this marker first, in its own committed statement,
+    // closes that window — we can never safely distinguish "deleteObject
+    // wasn't reached" from "it was reached and either the response or the
+    // follow-up write was lost," so the conservative, correct assumption is
+    // the same one that already governs the CLAIMED half of
+    // erasureInProgressOrBytesGone(): once an attempt starts, treat the
+    // bytes as gone, permanently, even if the attempt or the bookkeeping
+    // that would confirm it fails.
+    deletionAttemptedAt: timestamp('deletion_attempted_at', { withTimezone: true }),
     completedAt: timestamp('completed_at', { withTimezone: true }),
     lastError: text('last_error'),
     ...timestamps,

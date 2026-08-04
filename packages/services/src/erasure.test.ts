@@ -146,6 +146,41 @@ describe('erasure outbox', () => {
     expect(auditRows).toHaveLength(1);
   });
 
+  it('records deletionAttemptedAt before calling deleteObject, so a failure between the call and the CAS-to-DELETED write still leaves the job unservable (Codex review, PR-B2, round 5)', async () => {
+    const object = await seedStorageObject(db, 'obj-attempt-order');
+    await storage.putObject({
+      bucket: 'CLEAN',
+      objectKey: 'obj-attempt-order',
+      contentType: 'application/pdf',
+      bytes: new Uint8Array([1]),
+    });
+    const job = await enqueueErasureJob(db, {
+      reason: 'ACCOUNT_DELETION',
+      bucket: 'CLEAN',
+      objectKey: 'obj-attempt-order',
+      expectedHash: null,
+      storageObjectId: object.id,
+    });
+
+    // Snapshot the row's deletionAttemptedAt from INSIDE the deleteObject
+    // call itself — proving the marker is durably committed before the
+    // external call happens, not merely before this function returns.
+    let markerAtCallTime: Date | null | undefined;
+    const originalDeleteObject = storage.deleteObject.bind(storage);
+    storage.deleteObject = async (bucket, objectKey) => {
+      const [row] = await db
+        .select()
+        .from(schema.erasureJobs)
+        .where(eq(schema.erasureJobs.id, job.id));
+      markerAtCallTime = row?.deletionAttemptedAt ?? null;
+      return originalDeleteObject(bucket, objectKey);
+    };
+
+    const result = await runErasureWorker(db, storage, { limit: 5 });
+    expect(result).toEqual({ processed: 1, blocked: 0, failed: 0 });
+    expect(markerAtCallTime).not.toBeNull();
+  });
+
   it('also deletes the deferred document once verified, for RETENTION_PURGE jobs', async () => {
     const { account, applicantId } = await seedApplicant(db, 'purge-doc@example.com');
     const doc = await registerDocument(db, {
@@ -905,6 +940,58 @@ describe('erasure outbox', () => {
       expect(result).toEqual({ processed: 2, blocked: 0, failed: 0 });
       expect(
         await db.select().from(schema.documents).where(eq(schema.documents.id, documentId)),
+      ).toHaveLength(0);
+    });
+
+    it('finalizes a document once every DISTINCT storage object has a verified job, even if a redundant duplicate job for the same object is separately FAILED (Codex review, PR-B2, round 5)', async () => {
+      const { account, applicantId } = await seedApplicant(db, 'duplicate-job@example.com');
+      const objectKeys = ['obj-dup-only'];
+      const { documentId, storageObjects } = await seedMultiVersionDocument(
+        db,
+        storage,
+        applicantId,
+        account.id,
+        objectKeys,
+      );
+      const storageObject = storageObjects[0];
+      if (!storageObject) throw new Error('storage object');
+
+      // A second, REDUNDANT job for the exact same storage object —
+      // simulating purgeExpiredDocuments enqueueing again before the first
+      // batch finished (D-A1, §1.2, still deferred to PR-C1 as an
+      // efficiency concern; this test proves finalization is no longer
+      // WRONG when it happens, only wasteful). Driven straight to FAILED
+      // without ever running it through the worker — never claimed, so
+      // runErasureWorker below only ever picks up the original.
+      const duplicateJob = await enqueueErasureJob(db, {
+        reason: 'RETENTION_PURGE',
+        bucket: 'CLEAN',
+        objectKey: objectKeys[0] as string,
+        expectedHash: null,
+        storageObjectId: storageObject.id,
+        documentId,
+        applicantId,
+      });
+      await db
+        .update(schema.erasureJobs)
+        .set({ status: 'FAILED', lastError: 'simulated redundant-job failure' })
+        .where(eq(schema.erasureJobs.id, duplicateJob.id));
+
+      const result = await runErasureWorker(db, storage, { limit: 5 });
+      expect(result).toEqual({ processed: 1, blocked: 0, failed: 0 });
+
+      // A row-count check (every job VERIFIED) would see the duplicate's
+      // FAILED status and block the document forever. Per-unique-storage-
+      // object completion correctly sees the one real object is already
+      // verified gone and finalizes anyway.
+      expect(
+        await db.select().from(schema.documents).where(eq(schema.documents.id, documentId)),
+      ).toHaveLength(0);
+      expect(
+        await db
+          .select()
+          .from(schema.storageObjects)
+          .where(eq(schema.storageObjects.id, storageObject.id)),
       ).toHaveLength(0);
     });
   });
