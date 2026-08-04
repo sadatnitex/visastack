@@ -563,6 +563,92 @@ describe('BasicSafetyScanner', () => {
     expect(result.detail).toContain('could not be verified clean');
   });
 
+  it('rejects an object stream declaring an image-only filter (e.g. CCITTFaxDecode) as undecidable, since /Type /ObjStm content is never actually image data (Codex review, PR-B3, round 5)', async () => {
+    // A real image codec is, in principle, just as invertible as Flate --
+    // attacker-authored compressed bytes could be built to decode to any
+    // chosen output. The image-only exemption only holds when the decoded
+    // bytes are never re-parsed as PDF syntax, which is false for /Type
+    // /ObjStm regardless of which filter is declared. Content doesn't need
+    // to be real CCITT data: the point is the /Type/filter combination
+    // alone must force undecidable, not what's actually inside.
+    const pdf = Buffer.concat([
+      Buffer.from(
+        '%PDF-1.7\n3 0 obj\n<< /Type /ObjStm /Filter /CCITTFaxDecode /Length 10 >>\nstream\n',
+        'latin1',
+      ),
+      Buffer.from([0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09]),
+      Buffer.from('\nendstream\nendobj\n%%EOF', 'latin1'),
+    ]);
+    await storage.putObject({
+      bucket: 'QUARANTINE',
+      objectKey: 'objstm-image-filter-pdf',
+      contentType: 'application/pdf',
+      bytes: new Uint8Array(pdf),
+    });
+    const result = await scanner.scan({
+      bucket: 'QUARANTINE',
+      objectKey: 'objstm-image-filter-pdf',
+    });
+    expect(result.safe).toBe(false);
+    expect(result.detail).toContain('could not be verified clean');
+  });
+
+  it('recognizes a signed PDF integer ("+12") as the same nontrivial predictor as "12" (Codex review, PR-B3, round 5)', async () => {
+    // A PDF integer token may carry an optional leading sign -- comparing
+    // the raw captured digit string against "1" would wrongly treat "+12"
+    // as unrecognized (not matching \d+ at all) and fall through to "no
+    // predictor found," rather than parsing its actual numeric value.
+    const compressed = deflateSync(Buffer.from('ordinary benign object stream content', 'latin1'));
+    const pdf = Buffer.concat([
+      Buffer.from(
+        `%PDF-1.7\n3 0 obj\n<< /Filter /FlateDecode /DecodeParms << /Predictor +12 >> /Length ${compressed.length} >>\nstream\n`,
+        'latin1',
+      ),
+      compressed,
+      Buffer.from('\nendstream\nendobj\n%%EOF', 'latin1'),
+    ]);
+    await storage.putObject({
+      bucket: 'QUARANTINE',
+      objectKey: 'signed-predictor-pdf',
+      contentType: 'application/pdf',
+      bytes: new Uint8Array(pdf),
+    });
+    const result = await scanner.scan({ bucket: 'QUARANTINE', objectKey: 'signed-predictor-pdf' });
+    expect(result.safe).toBe(false);
+    expect(result.detail).toContain('could not be verified clean');
+  });
+
+  it('bounds the aggregate inflation budget across every stream in one PDF, not just each stream independently (Codex review, PR-B3, round 5)', async () => {
+    // Each of these 7 streams is within the existing 10 MiB per-stream cap
+    // on its own, but 7 x 10 MiB = 70 MiB together exceeds the 64 MiB
+    // aggregate budget -- proving the cap applies across the whole PDF.
+    // Highly repetitive content compresses to a tiny fixture on disk while
+    // still genuinely inflating to ~10 MiB each at scan time.
+    const chunk = deflateSync(Buffer.alloc(10 * 1024 * 1024, 0x41));
+    const parts: Buffer[] = [Buffer.from('%PDF-1.7\n', 'latin1')];
+    for (let i = 0; i < 7; i++) {
+      parts.push(
+        Buffer.from(
+          `${i + 1} 0 obj\n<< /Filter /FlateDecode /Length ${chunk.length} >>\nstream\n`,
+          'latin1',
+        ),
+        chunk,
+        Buffer.from('\nendstream\nendobj\n', 'latin1'),
+      );
+    }
+    parts.push(Buffer.from('%%EOF', 'latin1'));
+    const pdf = Buffer.concat(parts);
+    await storage.putObject({
+      bucket: 'QUARANTINE',
+      objectKey: 'aggregate-budget-pdf',
+      contentType: 'application/pdf',
+      bytes: new Uint8Array(pdf),
+    });
+    const result = await scanner.scan({ bucket: 'QUARANTINE', objectKey: 'aggregate-budget-pdf' });
+    expect(result.safe).toBe(false);
+    expect(result.detail).toContain('could not be verified clean');
+  });
+
   it('rejects a shebang script even though it is otherwise plain text', async () => {
     await storage.putObject({
       bucket: 'QUARANTINE',

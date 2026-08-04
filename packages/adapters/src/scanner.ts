@@ -297,11 +297,21 @@ function classifyFilterDeclaration(
   const value = match?.[1];
   if (!value) return 'undecidable'; // /Filter key present but its value isn't a recognizable name/array (e.g. an indirect reference)
   if (value === '/FlateDecode') return 'sole-flate';
+  // An object stream's decoded content is always further PDF object syntax
+  // by definition (Codex review, PR-B3, round 5) -- the image-only
+  // exemption below only holds when the decoded bytes are genuinely never
+  // re-parsed as PDF syntax, which is false for /Type /ObjStm regardless
+  // of which filter happens to be declared (a real image codec can, in
+  // principle, be driven by attacker-authored compressed bytes to decode
+  // to any chosen output, the same way Flate can).
+  const isObjectStream = /\/Type\s*\/ObjStm\b/.test(unescaped);
   if (!value.startsWith('[')) {
-    return IMAGE_ONLY_FILTERS.has(value) ? 'skip' : 'undecidable';
+    return !isObjectStream && IMAGE_ONLY_FILTERS.has(value) ? 'skip' : 'undecidable';
   }
   const names: string[] = value.match(/\/[A-Za-z0-9]+/g) ?? [];
-  if (names.length > 0 && names.every((name) => IMAGE_ONLY_FILTERS.has(name))) return 'skip';
+  if (!isObjectStream && names.length > 0 && names.every((name) => IMAGE_ONLY_FILTERS.has(name))) {
+    return 'skip';
+  }
   if (!names.includes('/FlateDecode')) return 'undecidable';
   return names.length === 1 ? 'sole-flate' : 'flate-in-chain';
 }
@@ -311,20 +321,35 @@ function hasNontrivialPredictor(dictText: string): boolean {
   if (!/\/DecodeParms\b/.test(unescaped)) return false;
   const match = /\/DecodeParms\s*(<<[^>]*>>|\[[^\]]*\])/.exec(unescaped);
   if (!match?.[1]) return true; // /DecodeParms present but unresolved (e.g. an indirect reference) -- can't confirm it's trivial
-  const predictorMatch = /\/Predictor\s+(\d+)/.exec(match[1]);
+  // PDF integers may carry an optional leading sign (Codex review, PR-B3,
+  // round 5) -- comparing the parsed numeric value, not the raw digit
+  // string, so "+1" is still recognized as trivial and "+12"/"-2" as not.
+  const predictorMatch = /\/Predictor\s+([+-]?\d+)/.exec(match[1]);
   if (!predictorMatch?.[1]) return false;
-  return predictorMatch[1] !== '1';
+  return Number.parseInt(predictorMatch[1], 10) !== 1;
 }
 
+/**
+ * Aggregate cap across every stream in one PDF (Codex review, PR-B3,
+ * round 5) -- `MAX_STREAM_INFLATED_BYTES` alone only bounds a SINGLE
+ * stream; up to `MAX_STREAMS_SCANNED` of them each inflating to just
+ * under that limit could otherwise retain far more decompressed data in
+ * memory at once than the PDF's own (much smaller) input size would
+ * suggest. Each stream's decoded text is also scanned for a marker and
+ * discarded immediately rather than accumulated in an array, so peak
+ * memory stays bounded by one stream at a time, not the whole PDF's worth.
+ */
+const MAX_TOTAL_INFLATED_BYTES = 64 * 1024 * 1024;
+
 function extractFlateStreams(text: string): {
-  readonly decoded: readonly string[];
+  readonly marker: string | undefined;
   readonly undecodable: boolean;
 } {
-  const decoded: string[] = [];
   let undecodable = false;
   let cursor = 0;
   let dictionaryStart = 0;
   let scanned = 0;
+  let totalInflatedBytes = 0;
   for (; scanned < MAX_STREAMS_SCANNED; scanned++) {
     const relativeMatch = STREAM_KEYWORD_PATTERN.exec(text.slice(cursor));
     if (!relativeMatch) break;
@@ -354,6 +379,13 @@ function extractFlateStreams(text: string): {
         // silently "decoded" or silently "nothing to find here".
         undecodable = true;
       } else if (filterClass === 'sole-flate') {
+        const remainingBudget = MAX_TOTAL_INFLATED_BYTES - totalInflatedBytes;
+        if (remainingBudget <= 0) {
+          // Already spent the whole aggregate inflation budget on earlier
+          // streams in this same PDF -- can't positively confirm this one.
+          undecodable = true;
+          break;
+        }
         if (hasNontrivialPredictor(governingDict)) {
           undecodable = true;
         } else {
@@ -362,9 +394,11 @@ function extractFlateStreams(text: string): {
           const raw = text.slice(dataStart, endIndex).replace(/(?:\r\n|\r|\n)$/, '');
           try {
             const inflated = inflateSync(Buffer.from(raw, 'latin1'), {
-              maxOutputLength: MAX_STREAM_INFLATED_BYTES,
+              maxOutputLength: Math.min(MAX_STREAM_INFLATED_BYTES, remainingBudget),
             });
-            decoded.push(inflated.toString('latin1'));
+            totalInflatedBytes += inflated.length;
+            const marker = findActiveMarkerIn(inflated.toString('latin1'));
+            if (marker) return { marker, undecodable: false };
           } catch {
             undecodable = true;
           }
@@ -377,7 +411,7 @@ function extractFlateStreams(text: string): {
   if (scanned === MAX_STREAMS_SCANNED && STREAM_KEYWORD_PATTERN.test(text.slice(cursor))) {
     undecodable = true;
   }
-  return { decoded, undecodable };
+  return { marker: undefined, undecodable };
 }
 
 type PdfContentCheck =
@@ -392,11 +426,8 @@ function checkPdfContent(bytes: Uint8Array): PdfContentCheck {
   const directMarker = findActiveMarkerIn(text);
   if (directMarker) return { kind: 'active-marker', marker: directMarker };
 
-  const { decoded, undecodable } = extractFlateStreams(text);
-  for (const streamText of decoded) {
-    const marker = findActiveMarkerIn(streamText);
-    if (marker) return { kind: 'active-marker', marker };
-  }
+  const { marker, undecodable } = extractFlateStreams(text);
+  if (marker) return { kind: 'active-marker', marker };
   if (undecodable) return { kind: 'undecidable' };
   return { kind: 'clean' };
 }
