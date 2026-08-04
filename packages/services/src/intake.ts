@@ -366,10 +366,17 @@ export async function processIntake(
           objectKey: storageObject.objectKey,
         });
       } catch (error) {
+        // scanErrored: true marks this as an indeterminate/error outcome,
+        // not a genuine unsafe verdict (Codex review, PR-B3R, round 1) --
+        // `safe: false` alone is indistinguishable from a real "the scanner
+        // examined this and found it unsafe" result, so a later, successful
+        // retry would otherwise leave a false unsafe entry sitting in
+        // listScanResults()/exported scan history forever.
         await db.insert(schema.documentScanResults).values({
           documentVersionId: version.id,
           scannerName: scanner.name,
           scannerVersion: scanner.version,
+          scanErrored: true,
           safe: false,
           detail: `scan threw: ${error instanceof Error ? error.message : String(error)}`.slice(
             0,

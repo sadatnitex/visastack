@@ -421,6 +421,16 @@ export const documentScanResults = pgTable(
       .references(() => documentVersions.id, { onDelete: 'cascade' }),
     scannerName: text('scanner_name').notNull(),
     scannerVersion: text('scanner_version').notNull(),
+    // `safe` alone cannot represent "the scanner never actually rendered a
+    // verdict" (it threw/timed out/was unavailable) without being conflated
+    // with a genuine unsafe verdict -- indistinguishable to any consumer of
+    // listScanResults()/exported scan history, which would otherwise see a
+    // false "the scanner found this unsafe" after a later, successful retry
+    // (Codex review, PR-B3R, round 1). `safe: false` is still recorded as
+    // the conservative placeholder value (a NOT NULL column needs *some*
+    // value, and safety genuinely cannot be affirmed), but `scanErrored`
+    // marks it as an indeterminate/error outcome, never a real verdict.
+    scanErrored: boolean('scan_errored').notNull().default(false),
     safe: boolean('safe').notNull(),
     detail: text('detail'),
     scannedAt: timestamp('scanned_at', { withTimezone: true }).notNull().defaultNow(),

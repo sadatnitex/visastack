@@ -110,6 +110,18 @@ function findEndOfCentralDirectory(
  * copies to match closes both: once they're proven equal, every
  * flag-dependent decision downstream (here and in the caller) is
  * authoritative regardless of which copy it nominally reads.
+ *
+ * **Codex review, PR-B3R, round 1**: name/size/flag agreement alone still
+ * left the compression method and CRC-32 duplicated-but-uncompared — a
+ * crafted archive could declare one compression method (or CRC) centrally
+ * and a different one locally. Since this module and whatever eventually
+ * extracts the entry's real content can each read a different copy of
+ * these fields, that's a parser-differential gap, not merely a cosmetic
+ * one. Compression method is checked unconditionally (it is fixed at
+ * write time and never deferred to a trailing data descriptor, unlike
+ * size/CRC); CRC-32 is checked under the same data-descriptor-flag
+ * condition already governing the size fields, since it is deferred
+ * alongside them under that convention.
  */
 function validateLocalFileHeader(
   bytes: Uint8Array,
@@ -117,6 +129,8 @@ function validateLocalFileHeader(
   offset: number,
   expected: {
     readonly name: string;
+    readonly compressionMethod: number;
+    readonly crc32: number;
     readonly compressedSize: number;
     readonly uncompressedSize: number;
     readonly generalPurposeFlag: number;
@@ -132,6 +146,12 @@ function validateLocalFileHeader(
   if (localGeneralPurposeFlag !== expected.generalPurposeFlag) {
     return err('local header general-purpose flags do not match the central directory entry');
   }
+  // The compression method is fixed at write time, never deferred to a
+  // data descriptor — always meaningful, regardless of the flag above.
+  const localCompressionMethod = readUInt16LE(view, offset + 8);
+  if (localCompressionMethod !== expected.compressionMethod) {
+    return err('local header compression method does not match the central directory entry');
+  }
   const localNameLength = readUInt16LE(view, offset + 26);
   const localExtraLength = readUInt16LE(view, offset + 28);
   const localNameStart = offset + LOCAL_HEADER_FIXED_SIZE;
@@ -143,16 +163,18 @@ function validateLocalFileHeader(
   if (localName !== expected.name) {
     return err('local header name does not match the central directory entry');
   }
-  // Sizes are only meaningful in the local header when the streamed-write
+  // CRC/sizes are only meaningful in the local header when the streamed-write
   // (data-descriptor) convention isn't in play — see DATA_DESCRIPTOR_FLAG.
   if ((expected.generalPurposeFlag & DATA_DESCRIPTOR_FLAG) === 0) {
+    const localCrc32 = readUInt32LE(view, offset + 14);
     const localCompressedSize = readUInt32LE(view, offset + 18);
     const localUncompressedSize = readUInt32LE(view, offset + 22);
     if (
+      localCrc32 !== expected.crc32 ||
       localCompressedSize !== expected.compressedSize ||
       localUncompressedSize !== expected.uncompressedSize
     ) {
-      return err('local header size fields do not match the central directory entry');
+      return err('local header CRC/size fields do not match the central directory entry');
     }
   }
   const dataStart = localNameEnd + localExtraLength;
@@ -214,6 +236,8 @@ export function parseZipCentralDirectory(
       return err(`central directory entry ${i} has an invalid signature`);
     }
     const generalPurposeFlag = readUInt16LE(view, cursor + 8);
+    const compressionMethod = readUInt16LE(view, cursor + 10);
+    const crc32 = readUInt32LE(view, cursor + 16);
     const compressedSize = readUInt32LE(view, cursor + 20);
     const uncompressedSize = readUInt32LE(view, cursor + 24);
     const nameLength = readUInt16LE(view, cursor + 28);
@@ -228,6 +252,8 @@ export function parseZipCentralDirectory(
 
     const localHeader = validateLocalFileHeader(bytes, view, localHeaderOffset, {
       name,
+      compressionMethod,
+      crc32,
       compressedSize,
       uncompressedSize,
       generalPurposeFlag,

@@ -11,6 +11,10 @@ interface EntrySpec {
   readonly generalPurposeFlag?: number;
   /** Defaults to the same value as the central directory's flag — set differently to simulate a forged local/central flag mismatch. */
   readonly localGeneralPurposeFlagOverride?: number;
+  /** Defaults to matching the central directory's compression method (8, deflate) — set differently to simulate a forged local/central compression-method mismatch. */
+  readonly localCompressionMethodOverride?: number;
+  /** Defaults to matching the central directory's CRC-32 (0) — set differently to simulate a forged local/central CRC mismatch. */
+  readonly localCrc32Override?: number;
   /** Defaults to `name` — set differently to simulate a local/central header mismatch. */
   readonly localName?: string;
   /** Defaults to `compressedSize`/`uncompressedSize` — set to simulate a local/central size mismatch. */
@@ -75,15 +79,17 @@ function buildZip(entries: readonly EntrySpec[], options: BuildOptions = {}): Ui
     const localName = nameBytes(entry.localName ?? entry.name);
     const flag = entry.generalPurposeFlag ?? (entry.encrypted ? 0x1 : 0x0);
     const localFlag = entry.localGeneralPurposeFlagOverride ?? flag;
+    const localCompressionMethod = entry.localCompressionMethodOverride ?? 8;
+    const localCrc32 = entry.localCrc32Override ?? 0;
     const data = new Array(actualDataSize).fill(0);
     const chunk = [
       ...u32(0x04034b50), // local file header signature
       ...u16(0), // version needed
       ...u16(localFlag), // general purpose flag
-      ...u16(8), // compression method (deflate)
+      ...u16(localCompressionMethod),
       ...u16(0), // mod time
       ...u16(0), // mod date
-      ...u32(0), // crc32
+      ...u32(localCrc32),
       ...u32(localCompressedSize),
       ...u32(localUncompressedSize),
       ...u16(localName.length),
@@ -255,6 +261,34 @@ describe('parseZipCentralDirectory — bounded structural read (no decompression
       expect(result.ok).toBe(false);
       if (result.ok) return;
       expect(result.error).toContain('size fields do not match');
+    });
+
+    it('rejects a local header whose compression method disagrees with the central directory entry, even when the data-descriptor flag is set (Codex review, PR-B3R, round 1)', () => {
+      // Unconditional check -- compression method is fixed at write time,
+      // never deferred to a data descriptor, so this must be caught
+      // regardless of the data-descriptor flag (unlike size/CRC below).
+      const zip = buildZip([
+        {
+          name: 'word/document.xml',
+          generalPurposeFlag: 0x0008,
+          localCompressedSize: 0,
+          localUncompressedSize: 0,
+          actualDataSize: 10,
+          localCompressionMethodOverride: 0, // central says 8 (deflate), local claims 0 (store)
+        },
+      ]);
+      const result = parseZipCentralDirectory(zip, { maxEntries: 10 });
+      expect(result.ok).toBe(false);
+      if (result.ok) return;
+      expect(result.error).toContain('compression method does not match');
+    });
+
+    it('rejects a local header whose CRC-32 disagrees with the central directory entry', () => {
+      const zip = buildZip([{ name: 'word/document.xml', localCrc32Override: 0xdeadbeef }]);
+      const result = parseZipCentralDirectory(zip, { maxEntries: 10 });
+      expect(result.ok).toBe(false);
+      if (result.ok) return;
+      expect(result.error).toContain('CRC/size fields do not match');
     });
 
     it('accepts a mismatched-looking local size when the data-descriptor flag is set (legitimate streamed-write convention)', () => {

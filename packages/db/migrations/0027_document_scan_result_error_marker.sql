@@ -1,0 +1,1 @@
+ALTER TABLE "document_scan_results" ADD COLUMN "scan_errored" boolean DEFAULT false NOT NULL;

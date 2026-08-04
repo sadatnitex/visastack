@@ -178,9 +178,14 @@ describe('document intake pipeline', () => {
     // before this fix, a throw skipped the documentScanResults insert
     // entirely, so listScanResults() couldn't distinguish "never scanned"
     // from "repeatedly failed to scan" (Codex review, PR-B3, finding #10).
+    // scanErrored: true (Codex review, PR-B3R, round 1) marks it as an
+    // indeterminate/error outcome, not a genuine unsafe verdict -- `safe:
+    // false` alone would be indistinguishable from a real "found unsafe"
+    // result once the retry below succeeds.
     const afterFailure = await listScanResults(db, versionId);
     expect(afterFailure).toHaveLength(1);
     expect(afterFailure[0]?.safe).toBe(false);
+    expect(afterFailure[0]?.scanErrored).toBe(true);
     expect(afterFailure[0]?.detail).toContain('scanner down');
 
     // State is parked at SCANNING and resumes cleanly on retry.
@@ -191,11 +196,14 @@ describe('document intake pipeline', () => {
     if (isOk(resumed)) expect(resumed.value.processingStatus).toBe('AWAITING_REVIEW');
 
     // The retry's success adds a SECOND row rather than overwriting the
-    // failure — the full attempt history stays intact and durable.
+    // failure — the full attempt history stays intact and durable. The
+    // successful row is a genuine verdict, never marked errored.
     const afterRetry = await listScanResults(db, versionId);
     expect(afterRetry).toHaveLength(2);
-    expect(afterRetry.some((r) => r.safe === true)).toBe(true);
-    expect(afterRetry.some((r) => r.safe === false)).toBe(true);
+    const successRow = afterRetry.find((r) => r.safe === true);
+    const errorRow = afterRetry.find((r) => r.safe === false);
+    expect(successRow?.scanErrored).toBe(false);
+    expect(errorRow?.scanErrored).toBe(true);
   });
 
   it('classifies a passport from its embedded MRZ text and proposes a filename', async () => {
