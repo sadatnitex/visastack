@@ -242,6 +242,144 @@ describe('document vault — permission-aware access', () => {
     void account;
   });
 
+  it('records exactly one DOCUMENT_ACCESS event for an authorized-but-not-yet-safe-to-serve request, not an ALLOWED followed by a DENIED (Codex review, PR-B3, finding #11)', async () => {
+    const { account, document } = await seedOwnerWithDocument(db, 'a10@example.com');
+    const actor = { kind: 'applicant_owner', applicantId: document.applicantId as never } as const;
+
+    // A second, later version still mid-pipeline — the owner IS authorized
+    // to access this document, but the latest version isn't servable yet.
+    // Before this fix, the authorization-decision block unconditionally
+    // appended ALLOWED first, then the safety-state check below appended a
+    // second, contradictory DENIED event for the same request.
+    await addDocumentVersion(db, {
+      actorAccountId: account.id,
+      documentId: document.id,
+      bucket: 'CLEAN',
+      objectKey: 'a10-v2-scanning',
+      safetyStatus: 'PENDING',
+      processingStatus: 'SCANNING',
+    });
+
+    const preview = await previewDocument(db, storage, {
+      actor,
+      documentId: document.id,
+      purpose: 'self_review',
+    });
+    expect(isErr(preview)).toBe(true);
+    if (isErr(preview)) expect(preview.error.code).toBe('forbidden');
+
+    const events = await db
+      .select()
+      .from(schema.auditEvents)
+      .where(eq(schema.auditEvents.eventType, 'DOCUMENT_ACCESS'));
+    expect(events).toHaveLength(1);
+    expect(events[0]?.result).toBe('DENIED');
+    expect(events[0]?.reason).toBe('not_yet_safe_to_serve');
+  });
+
+  it('records exactly one DOCUMENT_ACCESS event for an authorized request against a document that has no stored version at all (Codex review, PR-B3, round 3)', async () => {
+    // registerDocument alone (no addDocumentVersion call) — the exact shape
+    // Codex flagged: an owner can create a document row before any version
+    // exists. Before this fix, the authorization decision was correctly
+    // evaluated as allowed, but the subsequent `!version` early return fired
+    // before the deferred audit append ever ran, leaving this authorized
+    // request completely invisible to the audit trail.
+    const { account, applicant } = await seedOwner(db, 'a11@example.com');
+    const doc = await registerDocument(db, {
+      actorAccountId: account.id,
+      applicantId: applicant.id,
+      originalName: 'passport.pdf',
+      docType: 'passport',
+    });
+    expect(isOk(doc)).toBe(true);
+    if (!isOk(doc)) return;
+
+    const actor = { kind: 'applicant_owner', applicantId: applicant.id as never } as const;
+    const preview = await previewDocument(db, storage, {
+      actor,
+      documentId: doc.value.id,
+      purpose: 'self_review',
+    });
+    expect(isErr(preview)).toBe(true);
+    if (isErr(preview)) expect(preview.error.code).toBe('not_found');
+
+    const events = await db
+      .select()
+      .from(schema.auditEvents)
+      .where(eq(schema.auditEvents.eventType, 'DOCUMENT_ACCESS'));
+    expect(events).toHaveLength(1);
+    expect(events[0]?.result).toBe('DENIED');
+    expect(events[0]?.reason).toBe('no_stored_version');
+  });
+
+  it('denies an agency (organization member) and a direct recipient preview of a document quarantined by the safety scanner, even with an accepted, purpose-matching grant (PR-B3R)', async () => {
+    const { account, applicant, document } = await seedOwnerWithDocument(db, 'a12@example.com');
+
+    // Simulates exactly what a real arbitrary-PDF upload produces through
+    // BasicSafetyScanner + processIntake: QUARANTINED/NEEDS_ATTENTION,
+    // never CLEAN — this is the latest version, so it governs servability.
+    const quarantined = await addDocumentVersion(db, {
+      actorAccountId: account.id,
+      documentId: document.id,
+      bucket: 'QUARANTINE',
+      objectKey: 'a12-quarantined-pdf',
+      safetyStatus: 'QUARANTINED',
+      processingStatus: 'NEEDS_ATTENTION',
+    });
+    expect(isOk(quarantined)).toBe(true);
+
+    const org = await db
+      .insert(schema.organizations)
+      .values({ name: 'Acme Travel', status: 'ACTIVE' })
+      .returning();
+    const orgId = org[0]?.id;
+    if (!orgId) throw new Error('org failed');
+    const orgMember = await provisionAccount(db, { email: 'agent-a12@acme.com' });
+    if (!isOk(orgMember)) throw new Error('provision failed');
+    const recipient = await provisionAccount(db, { email: 'recipient-a12@example.com' });
+    if (!isOk(recipient)) throw new Error('provision failed');
+
+    // Both an agency (org) grant AND a direct-recipient grant, accepted and
+    // purpose-bound — exactly the shape that lets a CLEAN document through
+    // in the happy-path grant tests elsewhere in this file. The only
+    // difference here is the document's safety status.
+    await db.insert(schema.grants).values({
+      applicantId: applicant.id,
+      recipientOrganizationId: orgId,
+      actions: ['PREVIEW'],
+      purpose: 'visa_application',
+      status: 'ACTIVE',
+      acceptedAt: new Date(),
+    });
+    await db.insert(schema.grants).values({
+      applicantId: applicant.id,
+      recipientAccountId: recipient.value.id,
+      actions: ['PREVIEW'],
+      purpose: 'visa_application',
+      status: 'ACTIVE',
+      acceptedAt: new Date(),
+    });
+
+    const membership: Membership = {
+      organizationId: orgId as never,
+      role: 'CASE_MANAGER',
+      active: true,
+    };
+    const agencyAttempt = await previewDocument(db, storage, {
+      actor: { kind: 'organization_member', accountId: orgMember.value.id as never, membership },
+      documentId: document.id,
+      purpose: 'visa_application',
+    });
+    expect(isErr(agencyAttempt)).toBe(true);
+
+    const recipientAttempt = await previewDocument(db, storage, {
+      actor: { kind: 'individual_recipient', accountId: recipient.value.id as never },
+      documentId: document.id,
+      purpose: 'visa_application',
+    });
+    expect(isErr(recipientAttempt)).toBe(true);
+  });
+
   it('requires step-up for the original bytes (denied without it)', async () => {
     const { document } = await seedOwnerWithDocument(db, 'a2@example.com');
     const actor = { kind: 'applicant_owner', applicantId: document.applicantId as never } as const;

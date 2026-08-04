@@ -35,8 +35,17 @@ async function buildMacroEnabledDocx(): Promise<Uint8Array> {
   return zip.generateAsync({ type: 'uint8array' });
 }
 
-/** A raw, hand-assembled central-directory-only zip — see zip-structure.test.ts for the technique. */
-function buildCentralDirectoryOnlyZip(
+/**
+ * A genuine, fully-formed ZIP: real local file headers + data, followed by a
+ * central directory whose "relative offset of local header" fields
+ * correctly point at them (zip-structure.ts's local-header cross-validation
+ * — finding #8, post-programme defect register — now rejects a central
+ * directory with no matching local headers before any of this module's own
+ * checks ever run, so a genuinely well-formed shape is required to exercise
+ * THIS module's checks specifically). See zip-structure.test.ts for the
+ * same technique, with the hostile-shape override knobs this file doesn't need.
+ */
+function buildZip(
   entries: ReadonlyArray<{
     readonly name: string;
     readonly compressedSize?: number;
@@ -44,15 +53,41 @@ function buildCentralDirectoryOnlyZip(
     readonly encrypted?: boolean;
   }>,
 ): Uint8Array {
-  const chunks: number[][] = [];
-  const push = (bytes: number[]) => chunks.push(bytes);
   const u16 = (n: number) => [n & 0xff, (n >> 8) & 0xff];
   const u32 = (n: number) => [n & 0xff, (n >> 8) & 0xff, (n >> 16) & 0xff, (n >>> 24) & 0xff];
   const nameBytes = (name: string) => Array.from(new TextEncoder().encode(name));
 
+  const localChunks: number[][] = [];
+  const localOffsets: number[] = [];
+  let localCursor = 0;
   for (const entry of entries) {
+    const compressedSize = entry.compressedSize ?? 10;
     const name = nameBytes(entry.name);
-    push([
+    const chunk = [
+      ...u32(0x04034b50), // local file header signature
+      ...u16(0),
+      ...u16(entry.encrypted ? 0x1 : 0x0),
+      ...u16(8),
+      ...u16(0),
+      ...u16(0),
+      ...u32(0),
+      ...u32(compressedSize),
+      ...u32(entry.uncompressedSize ?? 10),
+      ...u16(name.length),
+      ...u16(0),
+      ...name,
+      ...new Array(compressedSize).fill(0),
+    ];
+    localOffsets.push(localCursor);
+    localChunks.push(chunk);
+    localCursor += chunk.length;
+  }
+
+  const centralDirectoryOffset = localCursor;
+  const centralChunks: number[][] = [];
+  entries.forEach((entry, i) => {
+    const name = nameBytes(entry.name);
+    centralChunks.push([
       ...u32(0x02014b50),
       ...u16(0),
       ...u16(0),
@@ -69,22 +104,22 @@ function buildCentralDirectoryOnlyZip(
       ...u16(0),
       ...u16(0),
       ...u32(0),
-      ...u32(0),
+      ...u32(localOffsets[i] ?? 0),
       ...name,
     ]);
-  }
-  const centralDirectorySize = chunks.reduce((sum, c) => sum + c.length, 0);
-  push([
+  });
+  const centralDirectorySize = centralChunks.reduce((sum, c) => sum + c.length, 0);
+  const eocd = [
     ...u32(0x06054b50),
     ...u16(0),
     ...u16(0),
     ...u16(entries.length),
     ...u16(entries.length),
     ...u32(centralDirectorySize),
-    ...u32(0),
+    ...u32(centralDirectoryOffset),
     ...u16(0),
-  ]);
-  return new Uint8Array(chunks.flat());
+  ];
+  return new Uint8Array([...localChunks.flat(), ...centralChunks.flat(), ...eocd]);
 }
 
 describe('validateDocxStructure — real OOXML shape, not just a ZIP magic-byte match', () => {
@@ -114,7 +149,7 @@ describe('validateDocxStructure — real OOXML shape, not just a ZIP magic-byte 
   });
 
   it('rejects an encrypted entry', () => {
-    const zip = buildCentralDirectoryOnlyZip([
+    const zip = buildZip([
       { name: '[Content_Types].xml' },
       { name: 'word/document.xml', encrypted: true },
     ]);
@@ -124,7 +159,7 @@ describe('validateDocxStructure — real OOXML shape, not just a ZIP magic-byte 
   });
 
   it('rejects path traversal in an entry name', () => {
-    const zip = buildCentralDirectoryOnlyZip([
+    const zip = buildZip([
       { name: '[Content_Types].xml' },
       { name: 'word/document.xml' },
       { name: '../../etc/passwd' },
@@ -135,7 +170,7 @@ describe('validateDocxStructure — real OOXML shape, not just a ZIP magic-byte 
   });
 
   it('rejects an entry whose declared compression ratio is a zip-bomb shape', () => {
-    const zip = buildCentralDirectoryOnlyZip([
+    const zip = buildZip([
       { name: '[Content_Types].xml' },
       { name: 'word/document.xml' },
       { name: 'word/media/image1.bin', compressedSize: 100, uncompressedSize: 100_000_000 },
@@ -146,12 +181,15 @@ describe('validateDocxStructure — real OOXML shape, not just a ZIP magic-byte 
   });
 
   it('rejects an entry beyond the per-entry uncompressed-size limit', () => {
-    const zip = buildCentralDirectoryOnlyZip([
+    // compressedSize stays small and realistic — declaring 90M compressed
+    // bytes here would mean physically writing 90M bytes of fixture data,
+    // and isn't what this test is exercising (that's the ratio test above);
+    // the uncompressedSize limit check runs before the ratio check either way.
+    const zip = buildZip([
       { name: '[Content_Types].xml' },
       { name: 'word/document.xml' },
       {
         name: 'word/media/image1.bin',
-        compressedSize: 90_000_000,
         uncompressedSize: 200_000_000,
       },
     ]);
@@ -162,7 +200,7 @@ describe('validateDocxStructure — real OOXML shape, not just a ZIP magic-byte 
 
   it('rejects an entry count beyond the bound (denial-of-service shape)', () => {
     const entries = Array.from({ length: 600 }, (_, i) => ({ name: `f${i}.xml` }));
-    const result = validateDocxStructure(buildCentralDirectoryOnlyZip(entries));
+    const result = validateDocxStructure(buildZip(entries));
     expect(result.valid).toBe(false);
   });
 

@@ -30,7 +30,8 @@ async function freshDb(): Promise<Db> {
   return db as unknown as Db;
 }
 
-const PDF = new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d, 0x31, 0x2e, 0x37]); // %PDF-1.7
+const PDF = new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d, 0x31, 0x2e, 0x37]); // %PDF-1.7 -- always rejected, see scanner.ts
+const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]); // real PNG signature
 const EXE = new Uint8Array([0x4d, 0x5a, 0x90, 0x00]); // MZ...
 
 /** A genuinely valid minimal DOCX — the scanner now validates real OOXML structure, not just ZIP magic bytes. */
@@ -121,8 +122,8 @@ describe('BasicSafetyScanner', () => {
     await storage.putObject({
       bucket: 'QUARANTINE',
       objectKey: 'ok',
-      contentType: 'application/pdf',
-      bytes: PDF,
+      contentType: 'image/png',
+      bytes: PNG,
     });
     await storage.putObject({
       bucket: 'QUARANTINE',
@@ -192,19 +193,43 @@ describe('BasicSafetyScanner', () => {
     expect(result.detail).toContain('invalid docx structure');
   });
 
-  it('rejects a PDF containing an active-content marker (embedded JavaScript)', async () => {
-    const pdfWithJs = new TextEncoder().encode(
+  it('rejects every PDF unconditionally, regardless of content -- magic-byte recognition never establishes safety', async () => {
+    // A hand-rolled PDF content parser (active-content marker detection,
+    // stream decoding, filter/predictor classification) was built, then
+    // abandoned after accumulating 20 distinct correctness findings across
+    // 8 review rounds without converging (see the post-programme defect
+    // register). PDF content is no longer parsed at all: a plain, benign
+    // PDF and one shaped to look actively malicious must both be rejected
+    // identically, with a detail message that makes no claim about having
+    // inspected content.
+    const benignPdf = new TextEncoder().encode(
+      '%PDF-1.7\n1 0 obj\n<< /Type /Catalog >>\nendobj\n%%EOF',
+    );
+    const activeLookingPdf = new TextEncoder().encode(
       '%PDF-1.7\n1 0 obj\n<< /OpenAction 2 0 R >>\nendobj\n2 0 obj\n<< /S /JavaScript /JS (app.alert(1)) >>\nendobj\n%%EOF',
     );
     await storage.putObject({
       bucket: 'QUARANTINE',
-      objectKey: 'active-pdf',
+      objectKey: 'benign-pdf',
       contentType: 'application/pdf',
-      bytes: pdfWithJs,
+      bytes: benignPdf,
     });
-    const result = await scanner.scan({ bucket: 'QUARANTINE', objectKey: 'active-pdf' });
-    expect(result.safe).toBe(false);
-    expect(result.detail).toContain('active PDF content');
+    await storage.putObject({
+      bucket: 'QUARANTINE',
+      objectKey: 'active-looking-pdf',
+      contentType: 'application/pdf',
+      bytes: activeLookingPdf,
+    });
+    const benignResult = await scanner.scan({ bucket: 'QUARANTINE', objectKey: 'benign-pdf' });
+    const activeLookingResult = await scanner.scan({
+      bucket: 'QUARANTINE',
+      objectKey: 'active-looking-pdf',
+    });
+    expect(benignResult.safe).toBe(false);
+    expect(activeLookingResult.safe).toBe(false);
+    expect(benignResult.detail).toBe(activeLookingResult.detail);
+    expect(benignResult.detail).not.toContain('active');
+    expect(benignResult.detail).toContain('cannot be established');
   });
 
   it('rejects a shebang script even though it is otherwise plain text', async () => {
@@ -324,22 +349,48 @@ describe('end-to-end: real bytes through the intake pipeline (no S3, no ClamAV)'
     return version.value.version.id;
   }
 
-  it('drives a real PDF to AWAITING_REVIEW and an EXE to NEEDS_ATTENTION', async () => {
-    const good = await upload('good@example.com', PDF);
-    const bad = await upload('bad@example.com', EXE);
+  it('drives a real (benign-looking) PDF to NEEDS_ATTENTION through the real pipeline, exactly like an EXE -- never AWAITING_REVIEW/CLEAN', async () => {
+    const pdfUpload = await upload('pdf@example.com', PDF);
+    const exeUpload = await upload('exe@example.com', EXE);
 
-    const okResult = await processIntake(db, scanner, extractor, { documentVersionId: good });
-    expect(isOk(okResult)).toBe(true);
-    if (isOk(okResult)) {
-      expect(okResult.value.processingStatus).toBe('AWAITING_REVIEW');
-      expect(okResult.value.safetyStatus).toBe('CLEAN');
+    const pdfResult = await processIntake(db, scanner, extractor, { documentVersionId: pdfUpload });
+    expect(isOk(pdfResult)).toBe(true);
+    if (isOk(pdfResult)) {
+      expect(pdfResult.value.processingStatus).toBe('NEEDS_ATTENTION');
+      expect(pdfResult.value.safetyStatus).toBe('QUARANTINED');
     }
 
-    const badResult = await processIntake(db, scanner, extractor, { documentVersionId: bad });
-    expect(isOk(badResult)).toBe(true);
-    if (isOk(badResult)) {
-      expect(badResult.value.processingStatus).toBe('NEEDS_ATTENTION');
-      expect(badResult.value.safetyStatus).toBe('QUARANTINED');
+    const exeResult = await processIntake(db, scanner, extractor, { documentVersionId: exeUpload });
+    expect(isOk(exeResult)).toBe(true);
+    if (isOk(exeResult)) {
+      expect(exeResult.value.processingStatus).toBe('NEEDS_ATTENTION');
+      expect(exeResult.value.safetyStatus).toBe('QUARANTINED');
     }
+  });
+
+  it('never reaches the extraction step (never sent to OpenAI or any other extractor) for a rejected PDF -- NEEDS_ATTENTION is terminal', async () => {
+    // A spy extractor: if the pipeline ever advances a rejected PDF's
+    // version into EXTRACTING, this counts it. Whatever backs extraction in
+    // production (local unpdf/mammoth, or an AI_ENABLED OpenAI-backed
+    // extractor) is irrelevant here -- the claim under test is that
+    // extraction is never REACHED at all for a document the scanner
+    // quarantined, which is exactly what makes "sent to OpenAI" impossible
+    // regardless of which extractor implementation is wired in.
+    let extractCalls = 0;
+    const spyExtractor = {
+      async extract() {
+        extractCalls++;
+        return {
+          ok: false as const,
+          code: 'unsupported_format' as const,
+          message: 'should not run',
+        };
+      },
+    };
+    const pdfUpload = await upload('spy-pdf@example.com', PDF);
+    const result = await processIntake(db, scanner, spyExtractor, { documentVersionId: pdfUpload });
+    expect(isOk(result)).toBe(true);
+    if (isOk(result)) expect(result.value.processingStatus).toBe('NEEDS_ATTENTION');
+    expect(extractCalls).toBe(0);
   });
 });

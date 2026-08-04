@@ -13,7 +13,7 @@ import type { Db } from './db';
 import { getLatestNameVersion } from './document-naming';
 import { addDocumentVersion, registerDocument } from './documents';
 import type { DocumentConverterPort, ExtractionOutcome } from './extraction';
-import { type MalwareScannerPort, processIntake } from './intake';
+import { type MalwareScannerPort, listScanResults, processIntake } from './intake';
 import { checkDigit, parseTd3 } from './mrz';
 
 const migrationsFolder = fileURLToPath(new URL('../../db/migrations', import.meta.url));
@@ -173,12 +173,29 @@ describe('document intake pipeline', () => {
     await expect(
       processIntake(db, flaky, noOpExtractor, { documentVersionId: versionId }),
     ).rejects.toThrow();
+
+    // The throwing attempt still produces a durable scan-attempt row —
+    // before this fix, a throw skipped the documentScanResults insert
+    // entirely, so listScanResults() couldn't distinguish "never scanned"
+    // from "repeatedly failed to scan" (Codex review, PR-B3, finding #10).
+    const afterFailure = await listScanResults(db, versionId);
+    expect(afterFailure).toHaveLength(1);
+    expect(afterFailure[0]?.safe).toBe(false);
+    expect(afterFailure[0]?.detail).toContain('scanner down');
+
     // State is parked at SCANNING and resumes cleanly on retry.
     const resumed = await processIntake(db, flaky, noOpExtractor, {
       documentVersionId: versionId,
     });
     expect(isOk(resumed)).toBe(true);
     if (isOk(resumed)) expect(resumed.value.processingStatus).toBe('AWAITING_REVIEW');
+
+    // The retry's success adds a SECOND row rather than overwriting the
+    // failure — the full attempt history stays intact and durable.
+    const afterRetry = await listScanResults(db, versionId);
+    expect(afterRetry).toHaveLength(2);
+    expect(afterRetry.some((r) => r.safe === true)).toBe(true);
+    expect(afterRetry.some((r) => r.safe === false)).toBe(true);
   });
 
   it('classifies a passport from its embedded MRZ text and proposes a filename', async () => {

@@ -28,10 +28,23 @@ export interface ZipParseLimits {
 
 const EOCD_SIGNATURE = 0x06054b50;
 const CENTRAL_DIRECTORY_SIGNATURE = 0x02014b50;
+const LOCAL_FILE_HEADER_SIGNATURE = 0x04034b50;
 const EOCD_FIXED_SIZE = 22;
 const CENTRAL_HEADER_FIXED_SIZE = 46;
+const LOCAL_HEADER_FIXED_SIZE = 30;
 /** ZIP comment length is a 16-bit field — this is the true maximum possible EOCD search window. */
 const MAX_COMMENT_LENGTH = 0xffff;
+/**
+ * General-purpose bit 3: when set, a compliant writer leaves the local
+ * header's CRC/size fields as 0 and stores the real values in a "data
+ * descriptor" immediately after the entry's data instead (the standard
+ * streamed-write convention — common enough in real-world zip writers that
+ * treating it as a mismatch would reject legitimate archives, not just
+ * forged ones). The central directory's copy of these fields is always
+ * authoritative regardless of this flag, since it is written last, after
+ * all data and descriptors, when every true value is already known.
+ */
+const DATA_DESCRIPTOR_FLAG = 0x0008;
 
 function readUInt32LE(view: DataView, offset: number): number {
   return view.getUint32(offset, true);
@@ -50,7 +63,14 @@ function readUInt16LE(view: DataView, offset: number): number {
 function findEndOfCentralDirectory(
   bytes: Uint8Array,
   view: DataView,
-): { readonly totalEntries: number; readonly centralDirectoryOffset: number } | undefined {
+):
+  | {
+      readonly totalEntries: number;
+      readonly centralDirectoryOffset: number;
+      readonly centralDirectorySize: number;
+      readonly eocdOffset: number;
+    }
+  | undefined {
   const searchStart = Math.max(0, bytes.length - EOCD_FIXED_SIZE - MAX_COMMENT_LENGTH);
   for (let i = bytes.length - EOCD_FIXED_SIZE; i >= searchStart; i--) {
     if (readUInt32LE(view, i) !== EOCD_SIGNATURE) continue;
@@ -60,10 +80,87 @@ function findEndOfCentralDirectory(
     if (i + EOCD_FIXED_SIZE + commentLength !== bytes.length) continue;
     return {
       totalEntries: readUInt16LE(view, i + 10),
+      centralDirectorySize: readUInt32LE(view, i + 12),
       centralDirectoryOffset: readUInt32LE(view, i + 16),
+      eocdOffset: i,
     };
   }
   return undefined;
+}
+
+/**
+ * Validate that a central directory entry's declared "relative offset of
+ * local header" actually points to a genuine local file header describing
+ * the SAME entry (finding #8, post-programme defect register) — without
+ * this, a forged central directory can describe an innocuous-looking DOCX
+ * shape while the file's real bytes (which `validateDocxStructure` never
+ * otherwise inspects) are anything at all, defeating the structural
+ * scanner entirely.
+ *
+ * **Codex review, PR-B3, round 2**: the local header's OWN general-purpose
+ * flag field (offset +6) was never read or compared — every decision that
+ * depends on the flag (whether local size fields are meaningful, whether
+ * the entry is `encrypted`) used only the central directory's copy. A
+ * forged entry could set the data-descriptor bit centrally to skip the
+ * local size cross-check above even though the local header's own flag
+ * says its sizes ARE authoritative and could be lying, or clear the
+ * encryption bit centrally while the local header's own flag marks the
+ * entry encrypted — `parseZipCentralDirectory` would then report
+ * `encrypted: false` for genuinely encrypted content. Requiring the two
+ * copies to match closes both: once they're proven equal, every
+ * flag-dependent decision downstream (here and in the caller) is
+ * authoritative regardless of which copy it nominally reads.
+ */
+function validateLocalFileHeader(
+  bytes: Uint8Array,
+  view: DataView,
+  offset: number,
+  expected: {
+    readonly name: string;
+    readonly compressedSize: number;
+    readonly uncompressedSize: number;
+    readonly generalPurposeFlag: number;
+  },
+): Result<{ readonly dataEnd: number }, string> {
+  if (offset + LOCAL_HEADER_FIXED_SIZE > bytes.length) {
+    return err('local header offset is out of bounds');
+  }
+  if (readUInt32LE(view, offset) !== LOCAL_FILE_HEADER_SIGNATURE) {
+    return err('local header offset does not point to a genuine local file header');
+  }
+  const localGeneralPurposeFlag = readUInt16LE(view, offset + 6);
+  if (localGeneralPurposeFlag !== expected.generalPurposeFlag) {
+    return err('local header general-purpose flags do not match the central directory entry');
+  }
+  const localNameLength = readUInt16LE(view, offset + 26);
+  const localExtraLength = readUInt16LE(view, offset + 28);
+  const localNameStart = offset + LOCAL_HEADER_FIXED_SIZE;
+  const localNameEnd = localNameStart + localNameLength;
+  if (localNameEnd > bytes.length) return err('local header name runs past the end of the file');
+  const localName = new TextDecoder('utf-8', { fatal: false }).decode(
+    bytes.subarray(localNameStart, localNameEnd),
+  );
+  if (localName !== expected.name) {
+    return err('local header name does not match the central directory entry');
+  }
+  // Sizes are only meaningful in the local header when the streamed-write
+  // (data-descriptor) convention isn't in play — see DATA_DESCRIPTOR_FLAG.
+  if ((expected.generalPurposeFlag & DATA_DESCRIPTOR_FLAG) === 0) {
+    const localCompressedSize = readUInt32LE(view, offset + 18);
+    const localUncompressedSize = readUInt32LE(view, offset + 22);
+    if (
+      localCompressedSize !== expected.compressedSize ||
+      localUncompressedSize !== expected.uncompressedSize
+    ) {
+      return err('local header size fields do not match the central directory entry');
+    }
+  }
+  const dataStart = localNameEnd + localExtraLength;
+  const dataEnd = dataStart + expected.compressedSize;
+  if (dataEnd > bytes.length) {
+    return err('declared entry data runs past the end of the file');
+  }
+  return ok({ dataEnd });
 }
 
 /**
@@ -87,8 +184,25 @@ export function parseZipCentralDirectory(
   if (eocd.centralDirectoryOffset > bytes.length) {
     return err('central directory offset is out of bounds');
   }
+  // The central directory's declared span must exactly reach the EOCD
+  // record that follows it — otherwise the "size" field is either lying
+  // about the directory's true extent or bytes have been inserted/removed
+  // between the directory and the EOCD record.
+  if (eocd.centralDirectoryOffset + eocd.centralDirectorySize !== eocd.eocdOffset) {
+    return err('central directory size does not match its actual extent');
+  }
 
   const entries: ZipEntry[] = [];
+  // Every entry's [localHeaderOffset, dataEnd) span, collected so overlap
+  // between entries can be checked once every span is known (Codex review,
+  // PR-B3, round 1, finding on packages/adapters/src/zip-structure.ts):
+  // bounding an entry's declared data only against the end of the FILE
+  // (the original finding #8 fix) still let a forged entry claim a
+  // compressed-data interval that extends through a later local header —
+  // each header individually still validated, even though the underlying
+  // byte ranges overlapped, which is exactly the "overlapping entries"
+  // hostile shape this boundary was always supposed to reject.
+  const localSpans: Array<{ readonly start: number; readonly end: number }> = [];
   let cursor = eocd.centralDirectoryOffset;
   const decoder = new TextDecoder('utf-8', { fatal: false });
 
@@ -105,11 +219,30 @@ export function parseZipCentralDirectory(
     const nameLength = readUInt16LE(view, cursor + 28);
     const extraLength = readUInt16LE(view, cursor + 30);
     const commentLength = readUInt16LE(view, cursor + 32);
+    const localHeaderOffset = readUInt32LE(view, cursor + 42);
 
     const nameStart = cursor + CENTRAL_HEADER_FIXED_SIZE;
     const nameEnd = nameStart + nameLength;
     if (nameEnd > bytes.length) return err(`central directory entry ${i} name runs out of bounds`);
     const name = decoder.decode(bytes.subarray(nameStart, nameEnd));
+
+    const localHeader = validateLocalFileHeader(bytes, view, localHeaderOffset, {
+      name,
+      compressedSize,
+      uncompressedSize,
+      generalPurposeFlag,
+    });
+    if (!localHeader.ok) return err(`central directory entry ${i} (${name}): ${localHeader.error}`);
+    // Bounding against EOF alone (validateLocalFileHeader's own check)
+    // isn't the only boundary that matters: an entry's data must also end
+    // no later than where the local-header section itself is declared to
+    // end — anything past that is the central directory's own territory.
+    if (localHeader.value.dataEnd > eocd.centralDirectoryOffset) {
+      return err(
+        `central directory entry ${i} (${name}): entry data extends into the central directory`,
+      );
+    }
+    localSpans.push({ start: localHeaderOffset, end: localHeader.value.dataEnd });
 
     entries.push({
       name,
@@ -119,6 +252,25 @@ export function parseZipCentralDirectory(
     });
 
     cursor = nameEnd + extraLength + commentLength;
+  }
+  if (cursor !== eocd.eocdOffset) {
+    return err('central directory entries do not exactly fill the declared central directory size');
+  }
+
+  // Sorted by start, a set of intervals has an overlap somewhere if and
+  // only if some ADJACENT pair (in that sort order) overlaps — if entry k
+  // doesn't overlap its immediate successor (successor.start >= k.end),
+  // no later entry (whose start is >= the successor's, by the sort) can
+  // overlap entry k either. One linear pass after an O(n log n) sort is
+  // enough to catch any overlapping local-header/data interval, wherever
+  // in the file the two entries involved happen to sit.
+  localSpans.sort((a, b) => a.start - b.start);
+  for (let i = 1; i < localSpans.length; i++) {
+    const previous = localSpans[i - 1];
+    const current = localSpans[i];
+    if (previous && current && current.start < previous.end) {
+      return err('local file header/data intervals overlap between entries');
+    }
   }
 
   return ok(entries);
