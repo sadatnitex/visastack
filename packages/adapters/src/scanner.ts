@@ -104,8 +104,6 @@ function findActiveMarkerIn(text: string): string | undefined {
 const MAX_STREAMS_SCANNED = 200;
 /** Generous for any legitimate compressed object/content stream, tight enough to bound a decompression-bomb attempt. */
 const MAX_STREAM_INFLATED_BYTES = 10 * 1024 * 1024;
-/** All three PDF-legal end-of-line conventions after the `stream` keyword: CRLF, lone LF, lone CR. */
-const STREAM_KEYWORD_PATTERN = /stream(?:\r\n|\r|\n)/;
 
 /**
  * Best-effort extraction of `FlateDecode` stream bodies for the same bounded,
@@ -242,27 +240,124 @@ const STREAM_KEYWORD_PATTERN = /stream(?:\r\n|\r|\n)/;
  *   and apply it. An unresolved reference is now treated the same as a
  *   confirmed-nontrivial predictor: undecidable rather than assumed clear.
  *
+ * **Codex review, PR-B3, round 5, caught three more issues — an 11th,
+ * 12th and 13th distinct finding on this mechanism across 5 rounds.**
+ * - (round 5, finding 1) round 4's `IMAGE_ONLY_FILTERS` allowlist trusted
+ *   the filter NAME alone as proof the decoded bytes are never re-parsed
+ *   as PDF syntax, but a stream whose dictionary ALSO declares
+ *   `/Type /ObjStm` is, by definition, meant to decode to further object
+ *   syntax regardless of which filter is used — a real image codec is
+ *   just as invertible as Flate, so attacker-authored compressed bytes
+ *   could in principle be built to decode to any chosen output, the same
+ *   way Flate can. `classifyFilterDeclaration` now also checks the
+ *   governing dictionary for `/Type /ObjStm`; when present, the
+ *   image-only exemption is suppressed and even a nominally-safe image
+ *   codec becomes `undecidable`.
+ * - (round 5, finding 2) the `/Predictor` regex only matched a bare digit
+ *   string, missing PDF's legal optional leading sign, so
+ *   `/Predictor +12` fell through to "no predictor found" instead of
+ *   being parsed as the nontrivial value 12. The regex now captures an
+ *   optional leading sign and compares the *parsed* numeric value, not
+ *   the raw digit string.
+ * - (round 5, finding 3) `MAX_STREAM_INFLATED_BYTES` was enforced
+ *   independently per stream with no aggregate cap, so up to
+ *   `MAX_STREAMS_SCANNED` streams each inflating to just under that limit
+ *   could retain roughly 2 GiB of decompressed data simultaneously — a
+ *   genuine resource-exhaustion concern, not a false-negative evasion.
+ *   `MAX_TOTAL_INFLATED_BYTES` now tracks a budget across the whole PDF,
+ *   shrinking each stream's own `maxOutputLength` to whatever remains;
+ *   once exhausted, remaining streams are undecidable. `extractFlateStreams`
+ *   was also restructured to scan each stream's decoded text for a marker
+ *   and discard it immediately rather than accumulating every stream's
+ *   decoded text in an array, bounding peak memory to roughly one stream
+ *   at a time regardless of how many streams a PDF contains.
+ *
  * **Codex review, PR-B3, round 6, caught a 14th distinct finding on this
  * mechanism across 6 rounds**: a PDF literal string `(...)` may legally
  * contain unescaped `<`, `>`, or `%` as ordinary content bytes (e.g.
  * `/Foo (>> <<)`, or `/Note (50%)`), with balanced, unescaped parentheses
  * even allowed to nest inside it. Neither the bracket-depth matcher below
- * nor `stripPdfComments` had any awareness of string syntax, so a
+ * nor comment-stripping had any awareness of string syntax, so a
  * dictionary value's own bytes could be mistaken for a dictionary
- * delimiter or a comment start. `maskPdfStrings` blanks out (space-fills,
+ * delimiter or a comment start. Masking blanked out (space-filled,
  * length- and position-preserving) the content of every literal string
  * and hex string `<...>` before either comment-stripping or bracket
- * matching ever runs — applied once, up front, so both mechanisms (and,
+ * matching ran — applied once, up front, so both mechanisms (and,
  * since the masked text is what's returned and handed on to
  * `classifyFilterDeclaration`/`hasNontrivialPredictor`, their own keyword
- * regexes too) can never mistake a string's bytes for real syntax, closing
- * the reported `<<`/`>>` case and the same-root-cause `%`-inside-a-string
- * and decoy-`/Filter`-inside-a-string cases together.
+ * regexes too) could never mistake a string's bytes for real syntax,
+ * closing the reported `<<`/`>>` case and the same-root-cause
+ * `%`-inside-a-string and decoy-`/Filter`-inside-a-string cases together.
+ *
+ * **Codex review, PR-B3, round 7, caught two more issues — a 15th and
+ * 16th distinct finding on this mechanism across 7 rounds.**
+ * - (round 7, finding 1) `hasNontrivialPredictor`'s `/DecodeParms` value
+ *   was captured with a flat regex (`<<[^>]*>>`) that stops at the FIRST
+ *   `>>`, so a value containing its own nested sub-dictionary (e.g.
+ *   `/DecodeParms << /Foo << /Bar 1 >> /Predictor 12 >>`) was captured
+ *   only through the inner `>>`, excluding the real `/Predictor` key —
+ *   the exact "a regex assumes no nesting" mistake round 3 already fixed
+ *   for the OUTER stream dictionary, just never applied to this INNER
+ *   value. `extractBalanced` below factors that same depth-tracking
+ *   technique out into a small, generic matcher for either `<<...>>` or
+ *   `[...]`, reused here instead of a second, unbalanced regex for the
+ *   same class of syntax. This one is a clean, purely additive fix: it
+ *   only ever widens what a value's true extent is found to be, and only
+ *   affects a dictionary already positively identified as governing a
+ *   real stream, so it carries none of the risk described below.
+ * - (round 7, finding 2) the OUTER `stream`/`endstream` keyword search in
+ *   `extractFlateStreams` scanned the raw, unmasked file text directly —
+ *   a comment literally containing the text `stream\n` (legal PDF) is
+ *   indistinguishable from a real stream keyword to a plain regex, has no
+ *   governing dictionary of its own, and was marking the WHOLE PDF
+ *   undecidable (a false-positive rejection of a benign upload, not a
+ *   missed marker, but the same root cause nonetheless: a raw regex scan
+ *   with no awareness that comments and strings can contain arbitrary
+ *   bytes that merely *look* like structural syntax).
+ *
+ * Finding 2's first fix attempt made a serious mistake worth recording:
+ * it masked the ENTIRE file ONCE, up front, and threaded that single
+ * masked view through both the keyword locator and
+ * `findGoverningDictionary`. That is unsound. Masking rules are only ever
+ * valid for genuine PDF *syntax* — comments and strings are a syntax-level
+ * concept — but roughly half of every PDF containing streams is *not*
+ * syntax at all: it's the streams' own opaque, high-entropy compressed
+ * bytes. Interpreted as text, those bytes routinely contain a `(` or `<`
+ * or `%` with no matching closer anywhere nearby (compressed data looks
+ * like noise), so masking logic applied across a whole file can "open" an
+ * unterminated string or comment inside one stream's body and never
+ * cleanly close it again -- silently blanking everything from that point
+ * to the end of the file, including every subsequent real `endstream`,
+ * dictionary, and `stream` keyword. In local testing this reliably broke
+ * every existing test that depended on finding a marker inside a
+ * genuinely compressed stream (caught before ever reaching Codex, by this
+ * PR's own non-vacuousness discipline -- every new redesign is run
+ * against the full existing suite before being considered done). The
+ * fix that survived: masking state must never be allowed to persist
+ * *across* a stream body boundary. `findGoverningDictionary` keeps doing
+ * exactly what round 6 already had it do -- masking only its own small,
+ * local window (`dictionaryStart` up to the stream keyword it's already
+ * been told about), never anything past it. The keyword locator itself
+ * gets a purpose-built scanner, `findNextStreamKeyword`, that walks
+ * forward tracking string/comment state *inline* and returns the instant
+ * it finds a real, unmasked `stream` keyword -- it never continues
+ * scanning into (or past) the body that follows, so a stream's own noise
+ * can never be reached, let alone corrupt anything. The `endstream`
+ * search stays a plain, unmasked `indexOf`: it always runs *inside* a
+ * stream's own opaque body, where "comment" and "string" are not PDF
+ * concepts at all, so masking never applied there in the first place.
  */
-function maskPdfStrings(text: string): string {
+function maskPdfNoise(text: string): string {
   const chars = Array.from(text);
   let i = 0;
   while (i < chars.length) {
+    if (chars[i] === '%') {
+      while (i < chars.length && chars[i] !== '\r' && chars[i] !== '\n') {
+        chars[i] = ' ';
+        i++;
+      }
+      continue;
+    }
     if (chars[i] === '(') {
       let depth = 1;
       chars[i] = ' ';
@@ -303,8 +398,118 @@ function maskPdfStrings(text: string): string {
   return chars.join('');
 }
 
-function stripPdfComments(text: string): string {
-  return text.replace(/%[^\r\n]*/g, '');
+/**
+ * Generic depth-tracked matcher: given a position where a balanced
+ * `open`/`close` construct is expected to start, returns its full extent
+ * once depth returns to zero, or `undefined` if `open` isn't there at all
+ * or it never balances. Used for any PDF value that can legally nest a
+ * construct of its own kind (`<<...>>` dictionaries nesting sub-
+ * dictionaries; `[...]` arrays nesting sub-arrays) — the same technique
+ * `findGoverningDictionary` already used inline for the outer stream
+ * dictionary, factored out so `hasNontrivialPredictor` can reuse it for a
+ * `/DecodeParms` value too (Codex review, PR-B3, round 7).
+ */
+function extractBalanced(
+  text: string,
+  start: number,
+  open: string,
+  close: string,
+): string | undefined {
+  if (!text.startsWith(open, start)) return undefined;
+  let depth = 0;
+  let i = start;
+  while (i < text.length) {
+    if (text.startsWith(open, i)) {
+      depth++;
+      i += open.length;
+      continue;
+    }
+    if (text.startsWith(close, i)) {
+      depth--;
+      i += close.length;
+      if (depth === 0) return text.slice(start, i);
+      continue;
+    }
+    i++;
+  }
+  return undefined; // never closed
+}
+
+/**
+ * Sticky (`y`): tested only at an EXACT position via `lastIndex`, never
+ * searched forward -- `findNextStreamKeyword` below relies on this to
+ * check "does a real stream keyword start right here" one position at a
+ * time, without ever slicing/re-scanning from scratch.
+ */
+const STREAM_KEYWORD_PATTERN = /stream(?:\r\n|\r|\n)/y;
+
+type StreamKeywordSearchResult =
+  | { readonly kind: 'found'; readonly streamKeywordStart: number; readonly dataStart: number }
+  | { readonly kind: 'not-found' }
+  | { readonly kind: 'unterminated' };
+
+/**
+ * Scans forward from `from` for the next real `stream` keyword, skipping
+ * over every literal string, hex string, and `%` comment along the way --
+ * comment/string-aware, but critically, it STOPS the instant it finds a
+ * real match rather than continuing to scan (Codex review, PR-B3, round
+ * 7, finding 2: a comment literally containing the text `stream\n` was
+ * previously indistinguishable from a real stream keyword to a plain,
+ * unmasked regex search). This is NOT the same as "mask the whole file,
+ * then regex-search it" -- an earlier draft of this fix did exactly that
+ * and it was unsound (see the long comment above `maskPdfNoise`): masking
+ * state must never be carried across a stream's own opaque, high-entropy
+ * body, which this function guarantees simply by never scanning into one
+ * -- it returns as soon as a real keyword is found, before the body that
+ * follows it is ever examined.
+ *
+ * Distinguishes 'not-found' (genuinely confirmed no real keyword exists
+ * from `from` to the true end of the file) from 'unterminated' (a literal
+ * or hex string opened but never closed before end of file -- per the
+ * governing invariant, this is NOT the same as confirming nothing
+ * follows it; it's unclear, so the caller must treat it as undecodable
+ * rather than silently concluding "no more streams").
+ */
+function findNextStreamKeyword(text: string, from: number): StreamKeywordSearchResult {
+  let i = from;
+  while (i < text.length) {
+    const ch = text[i];
+    if (ch === '%') {
+      while (i < text.length && text[i] !== '\r' && text[i] !== '\n') i++;
+      continue; // a comment running to genuine EOF is unambiguous, not unterminated
+    }
+    if (ch === '(') {
+      let depth = 1;
+      i++;
+      while (i < text.length && depth > 0) {
+        if (text[i] === '\\' && i + 1 < text.length) {
+          i += 2;
+          continue;
+        }
+        if (text[i] === '(') depth++;
+        else if (text[i] === ')') depth--;
+        i++;
+      }
+      if (depth > 0) return { kind: 'unterminated' };
+      continue;
+    }
+    if (ch === '<') {
+      if (text[i + 1] === '<') {
+        i += 2;
+        continue;
+      }
+      i++;
+      while (i < text.length && text[i] !== '>') i++;
+      if (i >= text.length) return { kind: 'unterminated' };
+      i++;
+      continue;
+    }
+    STREAM_KEYWORD_PATTERN.lastIndex = i;
+    const match = STREAM_KEYWORD_PATTERN.exec(text);
+    if (match) return { kind: 'found', streamKeywordStart: i, dataStart: i + match[0].length };
+    i++;
+  }
+  return { kind: 'not-found' };
 }
 
 function findGoverningDictionary(
@@ -315,7 +520,7 @@ function findGoverningDictionary(
   let end = streamKeywordStart;
   while (end > searchFrom && /\s/.test(text.charAt(end - 1))) end--;
 
-  const window = stripPdfComments(maskPdfStrings(text.slice(searchFrom, end)));
+  const window = maskPdfNoise(text.slice(searchFrom, end));
   const tokens = /<<|>>/g;
   let depth = 0;
   let topLevelStart = -1;
@@ -379,13 +584,22 @@ function classifyFilterDeclaration(
 
 function hasNontrivialPredictor(dictText: string): boolean {
   const unescaped = decodePdfNameEscapes(dictText);
-  if (!/\/DecodeParms\b/.test(unescaped)) return false;
-  const match = /\/DecodeParms\s*(<<[^>]*>>|\[[^\]]*\])/.exec(unescaped);
-  if (!match?.[1]) return true; // /DecodeParms present but unresolved (e.g. an indirect reference) -- can't confirm it's trivial
+  const keyMatch = /\/DecodeParms\b\s*/.exec(unescaped);
+  if (!keyMatch) return false; // no /DecodeParms key at all
+  const valueStart = keyMatch.index + keyMatch[0].length;
+  // A flat "<<[^>]*>>" regex stops at the FIRST '>>', truncating a value
+  // that nests its own sub-dictionary before the real /Predictor key
+  // (Codex review, PR-B3, round 7) -- extractBalanced finds the value's
+  // true extent instead, the same depth-tracked technique
+  // findGoverningDictionary already uses for the outer stream dictionary.
+  const value =
+    extractBalanced(unescaped, valueStart, '<<', '>>') ??
+    extractBalanced(unescaped, valueStart, '[', ']');
+  if (value === undefined) return true; // unresolved/unbalanced (e.g. an indirect reference) -- can't confirm it's trivial
   // PDF integers may carry an optional leading sign (Codex review, PR-B3,
   // round 5) -- comparing the parsed numeric value, not the raw digit
   // string, so "+1" is still recognized as trivial and "+12"/"-2" as not.
-  const predictorMatch = /\/Predictor\s+([+-]?\d+)/.exec(match[1]);
+  const predictorMatch = /\/Predictor\s+([+-]?\d+)/.exec(value);
   if (!predictorMatch?.[1]) return false;
   return Number.parseInt(predictorMatch[1], 10) !== 1;
 }
@@ -412,10 +626,20 @@ function extractFlateStreams(text: string): {
   let scanned = 0;
   let totalInflatedBytes = 0;
   for (; scanned < MAX_STREAMS_SCANNED; scanned++) {
-    const relativeMatch = STREAM_KEYWORD_PATTERN.exec(text.slice(cursor));
-    if (!relativeMatch) break;
-    const streamKeywordStart = cursor + relativeMatch.index;
-    const dataStart = streamKeywordStart + relativeMatch[0].length;
+    const found = findNextStreamKeyword(text, cursor);
+    if (found.kind === 'not-found') break;
+    if (found.kind === 'unterminated') {
+      // An unclosed string/comment before any further real stream keyword
+      // -- per the governing invariant, can't positively confirm nothing
+      // more follows it.
+      undecodable = true;
+      break;
+    }
+    const { streamKeywordStart, dataStart } = found;
+    // `endstream` is searched for in the RAW, unmasked text -- this search
+    // always runs INSIDE a stream's own opaque compressed body, where
+    // "comment" and "string" aren't PDF concepts at all, so masking never
+    // applies here (see the long comment above `maskPdfNoise`).
     const endIndex = text.indexOf('endstream', dataStart);
     if (endIndex === -1) {
       // Malformed/truncated — whatever follows this point is unexamined.
@@ -469,7 +693,10 @@ function extractFlateStreams(text: string): {
     cursor = endIndex + 'endstream'.length;
     dictionaryStart = cursor;
   }
-  if (scanned === MAX_STREAMS_SCANNED && STREAM_KEYWORD_PATTERN.test(text.slice(cursor))) {
+  if (scanned === MAX_STREAMS_SCANNED && findNextStreamKeyword(text, cursor).kind !== 'not-found') {
+    // Either a real stream keyword genuinely remains unscanned, or an
+    // unclosed string/comment makes it impossible to positively confirm
+    // one doesn't -- both are undecidable, never silently "done".
     undecodable = true;
   }
   return { marker: undefined, undecodable };

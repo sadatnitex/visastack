@@ -681,6 +681,59 @@ describe('BasicSafetyScanner', () => {
     expect(result.detail).toContain('active PDF content');
   });
 
+  it('rejects a sole-FlateDecode stream whose /DecodeParms value nests its own sub-dictionary before the real /Predictor key (Codex review, PR-B3, round 7)', async () => {
+    // A flat "<<[^>]*>>" capture of the /DecodeParms value stops at the
+    // FIRST ">>", which here is the inner /Foo sub-dictionary's own close
+    // -- excluding the real /Predictor 12 that follows it. Content is
+    // genuinely benign (no marker at all); the point is that the nested
+    // predictor declaration must still force undecidable.
+    const compressed = deflateSync(Buffer.from('ordinary benign object stream content', 'latin1'));
+    const pdf = Buffer.concat([
+      Buffer.from(
+        `%PDF-1.7\n3 0 obj\n<< /Filter /FlateDecode /DecodeParms << /Foo << /Bar 1 >> /Predictor 12 /Columns 5 /Colors 1 /BitsPerComponent 8 >> /Length ${compressed.length} >>\nstream\n`,
+        'latin1',
+      ),
+      compressed,
+      Buffer.from('\nendstream\nendobj\n%%EOF', 'latin1'),
+    ]);
+    await storage.putObject({
+      bucket: 'QUARANTINE',
+      objectKey: 'nested-decodeparms-pdf',
+      contentType: 'application/pdf',
+      bytes: new Uint8Array(pdf),
+    });
+    const result = await scanner.scan({
+      bucket: 'QUARANTINE',
+      objectKey: 'nested-decodeparms-pdf',
+    });
+    expect(result.safe).toBe(false);
+    expect(result.detail).toContain('could not be verified clean');
+  });
+
+  it('accepts a PDF whose only stream/endstream-shaped text is inside a comment, rather than misreading it as a real stream keyword (Codex review, PR-B3, round 7)', async () => {
+    // "% decoy stream\n" is a comment whose own last word, immediately
+    // before the comment's line-ending, happens to be the literal text
+    // "stream" -- byte-for-byte indistinguishable from a real stream
+    // keyword to a plain, unmasked regex search. There is no actual
+    // stream/endstream pair anywhere in this PDF and no active-content
+    // marker, so a correct scan must accept it.
+    const pdf = Buffer.from(
+      '%PDF-1.7\n1 0 obj\n<< /Type /Catalog >>\nendobj\n% decoy stream\n%%EOF',
+      'latin1',
+    );
+    await storage.putObject({
+      bucket: 'QUARANTINE',
+      objectKey: 'decoy-comment-stream-keyword-pdf',
+      contentType: 'application/pdf',
+      bytes: new Uint8Array(pdf),
+    });
+    const result = await scanner.scan({
+      bucket: 'QUARANTINE',
+      objectKey: 'decoy-comment-stream-keyword-pdf',
+    });
+    expect(result.safe).toBe(true);
+  });
+
   it('rejects a shebang script even though it is otherwise plain text', async () => {
     await storage.putObject({
       bucket: 'QUARANTINE',
