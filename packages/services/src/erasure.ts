@@ -107,21 +107,27 @@ function backoffSeconds(attemptsSoFar: number): number {
  *
  * Also reclaims lease-LESS CLAIMED/DELETED rows — `lease_expires_at IS NULL`
  * — once `claimedAt` is older than a full lease duration (Codex review,
- * PR-B1): this repo's build command runs the migration before `next build`
- * (`apps/web/vercel.json`), so the OLD, still-serving deployment can claim a
- * job (setting `claimedAt` but leaving the new lease columns unset, since
- * that code predates them) in the narrow window after migration 0025's
- * one-time backfill has already run but before the new deployment takes
- * over. `lease_expires_at < now()` alone would never match such a row — SQL
- * comparison against NULL is neither true nor false — permanently
- * stranding it exactly like the bug this module exists to close. A plain
- * `IS NULL` check alone would be too eager: it could reclaim (and let a new
- * worker immediately re-claim and start processing) a job the old
- * deployment is still genuinely, actively mid-flight on, recreating the
- * double-processing hazard leasing exists to prevent. Gating on `claimedAt`
- * age instead makes both code versions' worth of work fit safely inside one
- * lease duration, mirroring the same generosity assumption `LEASE_DURATION_MS`
- * itself already rests on.
+ * PR-B1). Two distinct sources produce such a row, and this one predicate
+ * covers both uniformly: (1) migration 0025 deliberately does NOT backfill
+ * any pre-existing CLAIMED/DELETED row — this repo's build command runs
+ * the migration before `next build` (`apps/web/vercel.json`), so the OLD
+ * deployment is still live and serving when it runs, and a row at that
+ * exact moment could belong to a genuinely still-running old-code worker,
+ * not an orphan; and (2) that same still-live old deployment can itself
+ * claim a *new* job after the migration has already added the lease
+ * columns, setting `claimedAt` but leaving them unset since that code
+ * predates them. `lease_expires_at < now()` alone would never match either
+ * case — SQL comparison against NULL is neither true nor false —
+ * permanently stranding the row exactly like the bug this module exists to
+ * close. A plain `IS NULL` check alone would be too eager: it could
+ * reclaim (and let a new worker immediately re-claim and start processing)
+ * a job an old-code worker is still genuinely, actively mid-flight on,
+ * recreating the double-processing hazard leasing exists to prevent — the
+ * old code's own writes are gated only by row id, with no status/lease
+ * check at all. Gating on `claimedAt` age instead makes both code
+ * versions' worth of work fit safely inside one lease duration, mirroring
+ * the same generosity assumption `LEASE_DURATION_MS` itself already rests
+ * on.
  */
 async function claimErasureJobs(db: Db, limit: number): Promise<ErasureJob[]> {
   const leaseOwner = randomUUID();
