@@ -486,6 +486,83 @@ describe('BasicSafetyScanner', () => {
     expect(result.detail).toContain('could not be verified clean');
   });
 
+  it('rejects an object stream declaring a non-Flate, non-image filter (e.g. ASCIIHexDecode alone) as undecidable, rather than silently skipping it (Codex review, PR-B3, round 4)', async () => {
+    // Hex-encoded (no Flate at all) -- the marker exists only as hex
+    // digits in the raw bytes, so the top-level raw scan can't see it
+    // either. Round 2's "leave non-Flate filters alone" reasoning assumed
+    // a non-Flate filter meant an image stream; ASCIIHexDecode alone is
+    // neither Flate nor a genuine image codec, and must not be treated
+    // the same as one.
+    const markerHex = Buffer.from('<< /S /JavaScript /JS (app.alert(1)) >>', 'latin1').toString(
+      'hex',
+    );
+    const pdf = Buffer.concat([
+      Buffer.from('%PDF-1.7\n3 0 obj\n<< /Filter /ASCIIHexDecode /Length 4 >>\nstream\n', 'latin1'),
+      Buffer.from(markerHex, 'latin1'),
+      Buffer.from('\nendstream\nendobj\n%%EOF', 'latin1'),
+    ]);
+    await storage.putObject({
+      bucket: 'QUARANTINE',
+      objectKey: 'ascii-hex-only-pdf',
+      contentType: 'application/pdf',
+      bytes: new Uint8Array(pdf),
+    });
+    const result = await scanner.scan({ bucket: 'QUARANTINE', objectKey: 'ascii-hex-only-pdf' });
+    expect(result.safe).toBe(false);
+    expect(result.detail).toContain('could not be verified clean');
+  });
+
+  it('still finds a marker inside a FlateDecode stream when the governing dictionary contains a decoy /Filter mention inside a PDF comment (Codex review, PR-B3, round 4)', async () => {
+    const compressed = deflateSync(
+      Buffer.from('<< /S /JavaScript /JS (app.alert(1)) >>', 'latin1'),
+    );
+    const pdf = Buffer.concat([
+      Buffer.from(
+        `%PDF-1.7\n3 0 obj\n<< % /Filter /DCTDecode\n/Filter /FlateDecode /Length ${compressed.length} >>\nstream\n`,
+        'latin1',
+      ),
+      compressed,
+      Buffer.from('\nendstream\nendobj\n%%EOF', 'latin1'),
+    ]);
+    await storage.putObject({
+      bucket: 'QUARANTINE',
+      objectKey: 'commented-filter-pdf',
+      contentType: 'application/pdf',
+      bytes: new Uint8Array(pdf),
+    });
+    const result = await scanner.scan({ bucket: 'QUARANTINE', objectKey: 'commented-filter-pdf' });
+    expect(result.safe).toBe(false);
+    expect(result.detail).toContain('active PDF content');
+  });
+
+  it('rejects a sole-FlateDecode stream whose /DecodeParms is an unresolved indirect reference as undecidable (Codex review, PR-B3, round 4)', async () => {
+    // "7 0 R" points at another object this bounded scanner can't chase --
+    // the same reasoning that already applies to /Length elsewhere in this
+    // file. Content is genuinely benign; the point is that an unresolved
+    // reference must not be assumed to mean "no predictor."
+    const compressed = deflateSync(Buffer.from('ordinary benign object stream content', 'latin1'));
+    const pdf = Buffer.concat([
+      Buffer.from(
+        `%PDF-1.7\n3 0 obj\n<< /Filter /FlateDecode /DecodeParms 7 0 R /Length ${compressed.length} >>\nstream\n`,
+        'latin1',
+      ),
+      compressed,
+      Buffer.from('\nendstream\nendobj\n%%EOF', 'latin1'),
+    ]);
+    await storage.putObject({
+      bucket: 'QUARANTINE',
+      objectKey: 'indirect-decodeparms-pdf',
+      contentType: 'application/pdf',
+      bytes: new Uint8Array(pdf),
+    });
+    const result = await scanner.scan({
+      bucket: 'QUARANTINE',
+      objectKey: 'indirect-decodeparms-pdf',
+    });
+    expect(result.safe).toBe(false);
+    expect(result.detail).toContain('could not be verified clean');
+  });
+
   it('rejects a shebang script even though it is otherwise plain text', async () => {
     await storage.putObject({
       bucket: 'QUARANTINE',

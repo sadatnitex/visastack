@@ -208,7 +208,44 @@ const STREAM_KEYWORD_PATTERN = /stream(?:\r\n|\r|\n)/;
  *   technique essentially never used for the compressed *object* streams
  *   this scanner actually cares about, only for image/xref streams, so
  *   failing closed here costs nothing on the real attack surface.
+ *
+ * **Codex review, PR-B3, round 4, caught three more issues — an 8th, 9th
+ * and 10th distinct finding on this mechanism across 4 rounds.** All
+ * three, like round 3's, trace back to gaps the *previous* redesign's own
+ * simplifications left open, so this restates the invariant once more
+ * rather than adding three narrow patches:
+ * - (round 4, finding 1) round 2's "leave every non-Flate filter alone"
+ *   decision assumed a non-Flate filter meant an image stream, but that's
+ *   only true in practice, never structurally — `/ASCIIHexDecode` or
+ *   `/ASCII85Decode` alone (no Flate at all) can just as easily wrap a
+ *   compressed *object* stream as a hex/base85-encoded PDF-syntax payload,
+ *   and `classifyFilterDeclaration` was treating that identically to a
+ *   genuine `/DCTDecode` image. The classifier now positively enumerates
+ *   the handful of filters that are true pixel/binary codecs whose output
+ *   is never further PDF syntax (`IMAGE_ONLY_FILTERS`) as the only case
+ *   safe to leave alone; every other filter this scanner doesn't decode
+ *   itself — including an indirect `/Filter N G R` reference it can't
+ *   resolve — is now `undecidable`, not silently skipped.
+ * - (round 4, finding 2) a PDF `%`-comment inside the governing dictionary
+ *   (legal syntax) containing its own, decoy `/Filter` mention could be
+ *   matched by the classifier's plain-text regex ahead of the real,
+ *   active key. `findGoverningDictionary` now strips comments from the
+ *   window before any bracket-matching or filter-classification runs
+ *   against it, so a commented-out token can no longer masquerade as
+ *   active syntax (and can no longer desynchronize the bracket depth
+ *   count either, if a comment happened to contain a literal `<<`/`>>`).
+ * - (round 4, finding 3) `hasNontrivialPredictor`'s regex only recognized
+ *   an inline `<<...>>`/`[...]` `/DecodeParms` value — an indirect
+ *   reference (`/DecodeParms 7 0 R`, pointing at another object this
+ *   bounded scanner has no way to resolve) matched nothing and returned
+ *   "no predictor," even though a conforming reader would still resolve
+ *   and apply it. An unresolved reference is now treated the same as a
+ *   confirmed-nontrivial predictor: undecidable rather than assumed clear.
  */
+function stripPdfComments(text: string): string {
+  return text.replace(/%[^\r\n]*/g, '');
+}
+
 function findGoverningDictionary(
   text: string,
   searchFrom: number,
@@ -217,7 +254,7 @@ function findGoverningDictionary(
   let end = streamKeywordStart;
   while (end > searchFrom && /\s/.test(text.charAt(end - 1))) end--;
 
-  const window = text.slice(searchFrom, end);
+  const window = stripPdfComments(text.slice(searchFrom, end));
   const tokens = /<<|>>/g;
   let depth = 0;
   let topLevelStart = -1;
@@ -243,22 +280,37 @@ function findGoverningDictionary(
   return window.slice(lastTopLevelStart, lastTopLevelEnd);
 }
 
-function classifyFilterDeclaration(dictText: string): 'sole-flate' | 'flate-in-chain' | 'other' {
+/** True pixel/binary codecs: their output is raw image data, never further PDF object syntax, so no viewer ever parses it as such. */
+const IMAGE_ONLY_FILTERS: ReadonlySet<string> = new Set([
+  '/DCTDecode',
+  '/CCITTFaxDecode',
+  '/JPXDecode',
+  '/JBIG2Decode',
+]);
+
+function classifyFilterDeclaration(
+  dictText: string,
+): 'sole-flate' | 'flate-in-chain' | 'skip' | 'undecidable' {
   const unescaped = decodePdfNameEscapes(dictText);
+  if (!/\/Filter\b/.test(unescaped)) return 'skip'; // no /Filter key at all -- plain content, already covered by the raw scan
   const match = /\/Filter\s*(\/[A-Za-z0-9]+|\[[^\]]*\])/.exec(unescaped);
   const value = match?.[1];
-  if (!value) return 'other';
+  if (!value) return 'undecidable'; // /Filter key present but its value isn't a recognizable name/array (e.g. an indirect reference)
   if (value === '/FlateDecode') return 'sole-flate';
-  if (!value.startsWith('[')) return 'other';
+  if (!value.startsWith('[')) {
+    return IMAGE_ONLY_FILTERS.has(value) ? 'skip' : 'undecidable';
+  }
   const names: string[] = value.match(/\/[A-Za-z0-9]+/g) ?? [];
-  if (!names.includes('/FlateDecode')) return 'other';
+  if (names.length > 0 && names.every((name) => IMAGE_ONLY_FILTERS.has(name))) return 'skip';
+  if (!names.includes('/FlateDecode')) return 'undecidable';
   return names.length === 1 ? 'sole-flate' : 'flate-in-chain';
 }
 
 function hasNontrivialPredictor(dictText: string): boolean {
   const unescaped = decodePdfNameEscapes(dictText);
+  if (!/\/DecodeParms\b/.test(unescaped)) return false;
   const match = /\/DecodeParms\s*(<<[^>]*>>|\[[^\]]*\])/.exec(unescaped);
-  if (!match?.[1]) return false;
+  if (!match?.[1]) return true; // /DecodeParms present but unresolved (e.g. an indirect reference) -- can't confirm it's trivial
   const predictorMatch = /\/Predictor\s+(\d+)/.exec(match[1]);
   if (!predictorMatch?.[1]) return false;
   return predictorMatch[1] !== '1';
@@ -292,13 +344,14 @@ function extractFlateStreams(text: string): {
       undecodable = true;
     } else {
       const filterClass = classifyFilterDeclaration(governingDict);
-      if (filterClass === 'flate-in-chain') {
+      if (filterClass === 'flate-in-chain' || filterClass === 'undecidable') {
         // A chained filter leaves real content still encoded after a single
-        // inflate — decoding only the Flate layer and calling the result
-        // final would silently miss a marker hidden behind whatever comes
-        // next in the chain. Not attempting the rest of the chain (this
-        // stays a bounded, dependency-free scanner, not a full PDF filter
-        // pipeline): undecidable, never silently "decoded".
+        // inflate; an unrecognized filter (including one this scanner
+        // can't decode itself, or an unresolved indirect reference) can't
+        // be positively confirmed either way. Not attempting the rest of a
+        // chain, or a filter this stays a bounded, dependency-free scanner
+        // rather than a full PDF filter pipeline: undecidable, never
+        // silently "decoded" or silently "nothing to find here".
         undecodable = true;
       } else if (filterClass === 'sole-flate') {
         if (hasNontrivialPredictor(governingDict)) {
