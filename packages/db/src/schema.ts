@@ -1168,6 +1168,16 @@ export const erasureJobs = pgTable(
     leaseOwner: text('lease_owner'),
     leaseExpiresAt: timestamp('lease_expires_at', { withTimezone: true }),
     claimedAt: timestamp('claimed_at', { withTimezone: true }),
+    // Set once, the moment BlobStore.deleteObject() succeeds — and never
+    // cleared afterward, even if a later verification failure sends `status`
+    // back to PENDING or forward to FAILED (Codex review, PR-B2, round 4).
+    // `status` alone can't answer "were the real bytes ever actually
+    // deleted" once a job has been retried past DELETED: a lying-delete
+    // retry and a plain verification hiccup both land back at the same
+    // PENDING/FAILED status with no way to tell them apart. This column is
+    // the unambiguous, permanent signal instead — read path servability
+    // checks key off it directly, never off `status`.
+    bytesDeletedAt: timestamp('bytes_deleted_at', { withTimezone: true }),
     completedAt: timestamp('completed_at', { withTimezone: true }),
     lastError: text('last_error'),
     ...timestamps,

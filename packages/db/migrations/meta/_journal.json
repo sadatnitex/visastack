@@ -183,6 +183,13 @@
       "when": 1785778091733,
       "tag": "0025_erasure_job_leasing",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1785818499985,
+      "tag": "0026_erasure_bytes_deleted_marker",
+      "breakpoints": true
     }
   ]
 }

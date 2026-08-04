@@ -11,6 +11,7 @@ import { createApplicant } from './applicants';
 import { setConsent } from './consent';
 import type { Db } from './db';
 import { addDocumentVersion, registerDocument } from './documents';
+import { enqueueErasureJob } from './erasure';
 import {
   attachPackVersion,
   computeReadiness,
@@ -656,6 +657,95 @@ describe('missions — workspace, readiness, workflow, snapshot', () => {
     expect(isOk(final)).toBe(true);
     if (!isOk(final)) return;
     expect(final.value.ready).toBe(true);
+  });
+
+  it('does not count a document whose bytes are already erased as satisfying a requirement, and excludes it from a snapshot (Codex review, PR-B2, round 4)', async () => {
+    const { account, applicantId } = await seed(db);
+    const packVersionId = await publishedPack(db, account.id);
+    const mission = await createMission(db, {
+      actorAccountId: account.id,
+      applicantId,
+      title: 'UK Visa',
+    });
+    if (!isOk(mission)) throw new Error('mission');
+    await attachPackVersion(db, {
+      actorAccountId: account.id,
+      missionId: mission.value.id,
+      packVersionId,
+    });
+    await registerFieldDefinition(db, { key: 'passport.number', dataType: 'string' });
+    await editFact(db, {
+      actorAccountId: account.id,
+      applicantId,
+      fieldKey: 'passport.number',
+      value: 'A1',
+    });
+
+    // Otherwise perfectly eligible (CLEAN/AWAITING_REVIEW, unexpired) — but
+    // its own erasure job has already verified. Before this fix,
+    // loadDocumentInstancesByType never consulted erasureJobs at all, so
+    // this would satisfy the requirement and be captured into a snapshot
+    // even though the underlying bytes provably no longer exist.
+    const erased = await registerDocument(db, {
+      actorAccountId: account.id,
+      applicantId,
+      originalName: 'erased.pdf',
+      docType: 'bank_statement',
+    });
+    if (!isOk(erased)) throw new Error('doc');
+    const version = await addDocumentVersion(db, {
+      actorAccountId: account.id,
+      documentId: erased.value.id,
+      bucket: 'CLEAN',
+      objectKey: 'erased-k',
+      safetyStatus: 'CLEAN',
+      processingStatus: 'AWAITING_REVIEW',
+    });
+    if (!isOk(version)) throw new Error('version');
+    const job = await enqueueErasureJob(db, {
+      reason: 'RETENTION_PURGE',
+      bucket: 'CLEAN',
+      objectKey: 'erased-k',
+      expectedHash: null,
+      storageObjectId: version.value.storageObject.id,
+      documentId: erased.value.id,
+      applicantId,
+    });
+    await db
+      .update(schema.erasureJobs)
+      .set({ status: 'VERIFIED', bytesDeletedAt: new Date(), completedAt: new Date() })
+      .where(eq(schema.erasureJobs.id, job.id));
+
+    const withErasedOnly = await computeReadiness(db, mission.value.id);
+    expect(isOk(withErasedOnly)).toBe(true);
+    if (!isOk(withErasedOnly)) return;
+    expect(withErasedOnly.value.ready).toBe(false);
+    expect(withErasedOnly.value.missing.some((m) => m.kind === 'DOCUMENT')).toBe(true);
+
+    const snap = await snapshotMission(db, {
+      actorAccountId: account.id,
+      missionId: mission.value.id,
+    });
+    expect(isOk(snap)).toBe(true);
+    if (!isOk(snap)) return;
+    const content = snap.value.content as {
+      requirementMapping: ReadonlyArray<{
+        kind: string;
+        satisfied: boolean;
+        documents?: ReadonlyArray<{ documentId: string; eligible: boolean }>;
+      }>;
+    };
+    const documentRequirement = content.requirementMapping.find((m) => m.kind === 'DOCUMENT');
+    // Not satisfied overall — the requirement has no eligible candidate.
+    expect(documentRequirement?.satisfied).toBe(false);
+    // The erased document is still recorded as a considered candidate (a
+    // snapshot should show what was weighed, not silently omit it), but
+    // marked ineligible — never something a reviewer or downstream export
+    // could mistake for satisfying evidence.
+    const erasedEntry = documentRequirement?.documents?.find(
+      (d) => d.documentId === erased.value.id,
+    );
+    expect(erasedEntry?.eligible).toBe(false);
   });
 
   it('does not count an unconfirmed (EXTRACTED_PENDING) or STALE fact as satisfying a requirement (master directive §7 "PR 10")', async () => {

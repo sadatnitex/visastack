@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { and, asc, desc, eq, inArray, isNull, lt, lte, or, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNotNull, isNull, lt, lte, or, sql } from 'drizzle-orm';
 import { appendAuditEvent } from './audit';
 import { type Db, first, required, schema } from './db';
 import { hasActiveLegalHold } from './retention';
@@ -431,9 +431,19 @@ async function processErasureJob(
     }
 
     await blobStore.deleteObject(job.bucket, job.objectKey);
+    // bytesDeletedAt is set here, once, and never cleared again — including
+    // by a later failErasureJob retry/exhaustion (Codex review, PR-B2,
+    // round 4). `status` alone can't answer "were the real bytes ever
+    // actually deleted" once a job has been sent back to PENDING/FAILED: a
+    // subsequent verification failure (this job's own "still present" throw
+    // below, or an unrelated getObject error) lands at the same status
+    // either way, with no way to tell "delete didn't really work" apart
+    // from "delete worked, verification just couldn't confirm it this
+    // attempt." This column is the unambiguous, permanent signal the read
+    // path's servability check keys off instead.
     const marked = await db
       .update(schema.erasureJobs)
-      .set({ status: 'DELETED', updatedAt: new Date() })
+      .set({ status: 'DELETED', bytesDeletedAt: new Date(), updatedAt: new Date() })
       .where(
         and(
           eq(schema.erasureJobs.id, job.id),
@@ -533,9 +543,29 @@ export async function listErasureJobsNeedingAttention(
 }
 
 /**
+ * The WHERE-clause predicate shared by every "is this storage object's data
+ * still safe to treat as present" check in this module: true for a row
+ * that's `CLAIMED` (a worker is about to delete it) or that has ever had
+ * `bytesDeletedAt` set (the real bytes were, at some point, successfully
+ * deleted — Codex review, PR-B2, round 4). Deliberately keyed off
+ * `bytesDeletedAt` rather than `status IN ('DELETED', 'VERIFIED')`: `status`
+ * alone can't answer "were the bytes ever actually deleted" once a job has
+ * been retried past `DELETED` — a lying-delete retry (verification
+ * correctly found bytes still present, `status` back to `PENDING`/`FAILED`)
+ * and a plain verification hiccup (bytes genuinely gone, `status` at the
+ * same `PENDING`/`FAILED`) are indistinguishable from `status` alone, and
+ * the conservative, correct assumption once `deleteObject` has succeeded
+ * even once is that the bytes are gone. `bytesDeletedAt` is never cleared
+ * once set (not by `failErasureJob`, not even by the admin-facing
+ * `retryErasureJob`), so it survives every one of those transitions.
+ */
+function erasureInProgressOrBytesGone() {
+  return or(eq(schema.erasureJobs.status, 'CLAIMED'), isNotNull(schema.erasureJobs.bytesDeletedAt));
+}
+
+/**
  * True if this storage object's bytes are gone, or the worker has started
- * making them gone — i.e. some erasure job for it has reached `CLAIMED`,
- * `DELETED`, or `VERIFIED`. Used by the document read path (`documents.ts`'s
+ * making them gone. Used by the document read path (`documents.ts`'s
  * `accessDocument`) to refuse to serve a version whose bytes are already
  * erased or actively being erased.
  *
@@ -547,24 +577,15 @@ export async function listErasureJobsNeedingAttention(
  * consults `erasureJobs` at all, and `accessDocument` would issue a working-
  * looking read reference for bytes that provably no longer exist.
  *
- * Deliberately not scoped to `VERIFIED` alone (Codex review, PR-B2, round 3):
- * `processErasureJob` deletes the real bytes at the CLAIMED→DELETED
- * transition, well before a job reaches `VERIFIED` — a plain, unlocked check
- * against `VERIFIED` only could read `false` a moment before a concurrent
- * claim/delete/verify sequence completes, letting `issueReadRef` mint a
- * reference in the gap. `CLAIMED` is included too: once a worker has claimed
- * a job it is expected to delete the bytes imminently, so treating a claim
- * as "no longer safely servable" is the conservative, correct call — not
- * because this closes every conceivable race (it can't: this remains a
- * plain point-in-time read, not something serialized against the erasure
- * worker's own external `BlobStore.deleteObject` call — no in-process lock
- * can serialize against a network call to an external store without
- * blocking every other reader/writer for its duration, an unacceptable
- * trade for a hot read path), but because it shrinks the exploitable window
- * from "any point before VERIFIED" down to the few statuses that
- * PENDING→CLAIMED transition covers, mirroring the same accepted,
- * documented bytes-vs-record tradeoff `finalizeVerifiedJob`'s own hold
- * recheck already makes.
+ * This remains a plain point-in-time read, not something serialized against
+ * the erasure worker's own external `BlobStore.deleteObject` call (Codex
+ * review, PR-B2, round 3) — no in-process lock can serialize against a
+ * network call to an external store without blocking every other
+ * reader/writer for its duration, an unacceptable trade for a hot read
+ * path. `erasureInProgressOrBytesGone`'s two conditions shrink the
+ * exploitable window down to a single, narrow `PENDING`→`CLAIMED`
+ * transition, mirroring the same accepted, documented bytes-vs-record
+ * tradeoff `finalizeVerifiedJob`'s own hold recheck already makes.
  */
 export async function hasActiveOrVerifiedErasureJob(
   db: Db,
@@ -577,12 +598,35 @@ export async function hasActiveOrVerifiedErasureJob(
       .where(
         and(
           eq(schema.erasureJobs.storageObjectId, storageObjectId),
-          inArray(schema.erasureJobs.status, ['CLAIMED', 'DELETED', 'VERIFIED']),
+          erasureInProgressOrBytesGone(),
         ),
       )
       .limit(1),
   );
   return row !== undefined;
+}
+
+/**
+ * Bulk counterpart to `hasActiveOrVerifiedErasureJob`, for callers deciding
+ * servability for many storage objects at once (Codex review, PR-B2, round
+ * 4 — `missions.ts`'s document-eligibility scan): one query instead of N,
+ * same predicate.
+ */
+export async function activeOrVerifiedErasureStorageObjectIds(
+  db: Db,
+  storageObjectIds: readonly string[],
+): Promise<ReadonlySet<string>> {
+  if (storageObjectIds.length === 0) return new Set();
+  const rows = await db
+    .select({ storageObjectId: schema.erasureJobs.storageObjectId })
+    .from(schema.erasureJobs)
+    .where(
+      and(
+        inArray(schema.erasureJobs.storageObjectId, storageObjectIds),
+        erasureInProgressOrBytesGone(),
+      ),
+    );
+  return new Set(rows.map((row) => row.storageObjectId));
 }
 
 /**

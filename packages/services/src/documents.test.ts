@@ -367,7 +367,7 @@ describe('document vault — permission-aware access', () => {
     });
     await db
       .update(schema.erasureJobs)
-      .set({ status: 'VERIFIED', completedAt: new Date() })
+      .set({ status: 'VERIFIED', bytesDeletedAt: new Date(), completedAt: new Date() })
       .where(eq(schema.erasureJobs.id, job.id));
 
     const preview = await previewDocument(db, storage, {
@@ -418,6 +418,96 @@ describe('document vault — permission-aware access', () => {
     await db
       .update(schema.erasureJobs)
       .set({ status: 'CLAIMED', claimedAt: new Date(), leaseOwner: 'test-worker' })
+      .where(eq(schema.erasureJobs.id, job.id));
+
+    const download = await downloadDocument(db, storage, {
+      actor,
+      documentId: document.id,
+      purpose: 'self_review',
+      variant: 'redacted',
+    });
+    expect(isErr(download)).toBe(true);
+    if (isErr(download)) expect(download.error.code).toBe('forbidden');
+    expect(storage.calls).toHaveLength(0);
+  });
+
+  it('refuses to serve a version whose erasure job reverted to PENDING after a successful delete — bytesDeletedAt survives the retry even though status alone looks untouched (Codex review, PR-B2, round 4)', async () => {
+    const { account, document } = await seedOwnerWithDocument(db, 'a7@example.com');
+    const actor = { kind: 'applicant_owner', applicantId: document.applicantId as never } as const;
+
+    // processErasureJob sets bytesDeletedAt the instant blobStore.deleteObject()
+    // succeeds, then attempts a getObject verification. If that verification
+    // throws (store lied about the delete, or a transient read error),
+    // failErasureJob sends the job back to PENDING for another attempt — but
+    // the delete already happened. A check keyed on `status` alone would see
+    // plain PENDING and treat the bytes as untouched; bytesDeletedAt is the
+    // signal that actually survives this round-trip.
+    const v2 = await addDocumentVersion(db, {
+      actorAccountId: account.id,
+      documentId: document.id,
+      bucket: 'CLEAN',
+      objectKey: 'a7-v2-pending-retry',
+      safetyStatus: 'CLEAN',
+      processingStatus: 'APPROVED',
+    });
+    if (!isOk(v2)) throw new Error('version failed');
+    const job = await enqueueErasureJob(db, {
+      reason: 'RETENTION_PURGE',
+      bucket: 'CLEAN',
+      objectKey: 'a7-v2-pending-retry',
+      expectedHash: null,
+      storageObjectId: v2.value.storageObject.id,
+      documentId: document.id,
+      applicantId: document.applicantId,
+    });
+    await db
+      .update(schema.erasureJobs)
+      .set({ status: 'PENDING', bytesDeletedAt: new Date(), claimedAt: null, leaseOwner: null })
+      .where(eq(schema.erasureJobs.id, job.id));
+
+    const preview = await previewDocument(db, storage, {
+      actor,
+      documentId: document.id,
+      purpose: 'self_review',
+    });
+    expect(isErr(preview)).toBe(true);
+    if (isErr(preview)) expect(preview.error.code).toBe('forbidden');
+    expect(storage.calls).toHaveLength(0);
+  });
+
+  it('refuses to serve a version whose erasure job exhausted its retries and parked at FAILED after a successful delete (Codex review, PR-B2, round 4)', async () => {
+    const { account, document } = await seedOwnerWithDocument(db, 'a8@example.com');
+    const actor = { kind: 'applicant_owner', applicantId: document.applicantId as never } as const;
+
+    // Same signal, opposite terminal state: FAILED means the worker gave up
+    // retrying (attempts >= maxAttempts), not that the bytes are safe. Any
+    // consumer trusting "FAILED == nothing happened, safe to serve" would be
+    // exactly as wrong as one trusting PENDING above.
+    const v2 = await addDocumentVersion(db, {
+      actorAccountId: account.id,
+      documentId: document.id,
+      bucket: 'CLEAN',
+      objectKey: 'a8-v2-failed-after-delete',
+      safetyStatus: 'CLEAN',
+      processingStatus: 'APPROVED',
+    });
+    if (!isOk(v2)) throw new Error('version failed');
+    const job = await enqueueErasureJob(db, {
+      reason: 'RETENTION_PURGE',
+      bucket: 'CLEAN',
+      objectKey: 'a8-v2-failed-after-delete',
+      expectedHash: null,
+      storageObjectId: v2.value.storageObject.id,
+      documentId: document.id,
+      applicantId: document.applicantId,
+    });
+    await db
+      .update(schema.erasureJobs)
+      .set({
+        status: 'FAILED',
+        bytesDeletedAt: new Date(),
+        lastError: 'verification exhausted retries',
+      })
       .where(eq(schema.erasureJobs.id, job.id));
 
     const download = await downloadDocument(db, storage, {

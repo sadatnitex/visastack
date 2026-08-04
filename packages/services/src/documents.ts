@@ -416,6 +416,37 @@ export function isServableProcessingState(state: DocumentState): boolean {
   return SERVABLE_PROCESSING_STATES.has(state);
 }
 
+/**
+ * The one canonical "is this document version's content still real"
+ * predicate — every consumer that treats a version as usable evidence
+ * (`accessDocument`'s preview/download gate, `missions.ts`'s document
+ * eligibility for readiness and snapshots) must call this, not maintain its
+ * own partial copy.
+ *
+ * Added `erased` (Codex review, PR-B2, round 4): `accessDocument` gained an
+ * erasure-awareness check in round 2/3, but `missions.ts`'s OWN, separate
+ * eligibility computation still only checked `safetyStatus`/
+ * `processingStatus` — a version whose bytes were already gone (or being
+ * actively erased) could still satisfy a mission requirement and be
+ * captured as evidence in a snapshot. `erased` is passed in already-resolved
+ * (from `hasActiveOrVerifiedErasureJob`/`activeOrVerifiedErasureStorageObjectIds`
+ * in `erasure.ts`) rather than looked up here, so this function stays a
+ * plain, synchronous predicate usable identically from a single-version
+ * check (one query) and a bulk scan (one query for every candidate,
+ * avoiding an N+1).
+ */
+export function isDocumentVersionUsable(input: {
+  readonly safetyStatus: DocumentVersion['safetyStatus'];
+  readonly processingStatus: DocumentState;
+  readonly erased: boolean;
+}): boolean {
+  return (
+    input.safetyStatus === 'CLEAN' &&
+    isServableProcessingState(input.processingStatus) &&
+    !input.erased
+  );
+}
+
 /** Best-effort audit identity for an actor (owner carries no account id). */
 function actorAudit(actor: Actor): { actorAccountId: string | null; actorRole: string } {
   switch (actor.kind) {
@@ -546,9 +577,11 @@ async function accessDocument(
   // reference to bytes that are already gone or about to be.
   const erased = await hasActiveOrVerifiedErasureJob(db, version.storageObjectId);
   if (
-    version.safetyStatus !== 'CLEAN' ||
-    !isServableProcessingState(version.processingStatus) ||
-    erased
+    !isDocumentVersionUsable({
+      safetyStatus: version.safetyStatus,
+      processingStatus: version.processingStatus,
+      erased,
+    })
   ) {
     await db.transaction(async (tx) => {
       await appendAuditEvent(tx, {
