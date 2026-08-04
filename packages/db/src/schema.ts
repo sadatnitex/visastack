@@ -1159,6 +1159,14 @@ export const erasureJobs = pgTable(
     attempts: integer('attempts').notNull().default(0),
     maxAttempts: integer('max_attempts').notNull().default(5),
     availableAt: timestamp('available_at', { withTimezone: true }).notNull().defaultNow(),
+    // Leasing (Codex review, PR-B1; mirrors processingJobs' proven pattern):
+    // non-null exactly while a worker holds this job (status CLAIMED or
+    // DELETED). leaseOwner is a per-claim-invocation fencing token — every
+    // write past the initial claim is compare-and-set on (id, status,
+    // lease_owner), so a worker that outlives its own lease can never
+    // stomp whichever invocation reclaimed the job next.
+    leaseOwner: text('lease_owner'),
+    leaseExpiresAt: timestamp('lease_expires_at', { withTimezone: true }),
     claimedAt: timestamp('claimed_at', { withTimezone: true }),
     completedAt: timestamp('completed_at', { withTimezone: true }),
     lastError: text('last_error'),
@@ -1167,6 +1175,7 @@ export const erasureJobs = pgTable(
   (table) => [
     index('erasure_jobs_status_available_idx').on(table.status, table.availableAt),
     index('erasure_jobs_storage_object_idx').on(table.storageObjectId),
+    index('erasure_jobs_lease_expires_idx').on(table.status, table.leaseExpiresAt),
   ],
 );
 
