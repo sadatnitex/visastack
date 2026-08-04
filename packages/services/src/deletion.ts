@@ -177,6 +177,32 @@ export async function executeAccountDeletion(
       .for('update');
     const applicantIds = applicantRows.map((a) => a.id);
 
+    // Lock every one of these applicants' document rows too, EARLY — before
+    // any `appendAuditEvent` call below (Codex review, PR-B2, round 2, P2):
+    // `appendAuditEvent` takes a single global `pg_advisory_xact_lock`
+    // (`AUDIT_CHAIN_LOCK_KEY`, audit.ts) for the rest of the transaction.
+    // `purgeExpiredDocuments`, `finalizeVerifiedJob`, and `addDocumentVersion`
+    // (finding #13's fix) each lock a `documents` row and only later call
+    // `appendAuditEvent` — documents-lock-then-audit-lock. Before this fix,
+    // this function's own order was the OPPOSITE: audit-lock (role
+    // revocation, below) then, only much later, an implicit documents lock
+    // via the applicant cascade — audit-lock-then-documents-lock. Two
+    // transactions acquiring the same two resources in opposite orders is
+    // exactly what deadlocks: this function could hold the audit lock
+    // wanting a document another transaction holds while that transaction
+    // holds the document wanting the audit lock, and Postgres would abort
+    // one of them. Acquiring documents here, before any audit call, makes
+    // every lock-taking path in this codebase agree on one order —
+    // applicants, then documents, then audit — so no cycle is possible.
+    if (applicantIds.length > 0) {
+      await tx
+        .select({ id: schema.documents.id })
+        .from(schema.documents)
+        .where(inArray(schema.documents.applicantId, applicantIds))
+        .orderBy(schema.documents.id)
+        .for('update');
+    }
+
     // Legal hold overrides deletion (Build Spec §13): an active hold on ANY of
     // the account's applicants blocks erasure until the hold is released.
     // Rechecked here, inside the transaction that would otherwise cascade the

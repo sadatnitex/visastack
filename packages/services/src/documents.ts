@@ -12,6 +12,7 @@ import { getApplicant } from './applicants';
 import { appendAuditEvent } from './audit';
 import { hasConsent } from './consent';
 import { type Db, first, required, schema } from './db';
+import { hasVerifiedErasureJob } from './erasure';
 import { type ServiceError, serviceError } from './errors';
 import { recordProductEvent } from './product-events';
 import { loadGrantsForPolicy } from './sharing';
@@ -535,7 +536,20 @@ async function accessDocument(
   // future state fails closed by construction rather than needing to be
   // remembered. Checked only after authorization succeeds, so an
   // unauthorized actor learns nothing about the document's safety state.
-  if (version.safetyStatus !== 'CLEAN' || !isServableProcessingState(version.processingStatus)) {
+  //
+  // Also excludes a version whose bytes are already verified erased (Codex
+  // review, PR-B2, round 2): a multi-version document's row survives — by
+  // finding #13's design — for as long as ANY sibling erasure job hasn't
+  // verified, even once THIS version's own job has. Neither `safetyStatus`
+  // nor `processingStatus` reflects that; without this check the read path
+  // would issue a working-looking reference to bytes that provably no
+  // longer exist.
+  const erased = await hasVerifiedErasureJob(db, version.storageObjectId);
+  if (
+    version.safetyStatus !== 'CLEAN' ||
+    !isServableProcessingState(version.processingStatus) ||
+    erased
+  ) {
     await db.transaction(async (tx) => {
       await appendAuditEvent(tx, {
         eventType: 'DOCUMENT_ACCESS',
@@ -547,7 +561,7 @@ async function accessDocument(
         applicantId: document.applicantId,
         resourceType: 'document',
         resourceId: document.id,
-        reason: 'not_yet_safe_to_serve',
+        reason: erased ? 'bytes_already_erased' : 'not_yet_safe_to_serve',
         metadata: { variant: effectiveVariant, disposition, purpose: input.purpose },
       });
     });

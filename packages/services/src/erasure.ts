@@ -533,6 +533,36 @@ export async function listErasureJobsNeedingAttention(
 }
 
 /**
+ * True if this storage object's bytes have been verified erased (some
+ * erasure job for it reached `VERIFIED`). Used by the document read path
+ * (`documents.ts`'s `accessDocument`) to refuse to serve a version whose
+ * bytes are already gone.
+ *
+ * Finding #13's design deliberately lets a multi-version document's row —
+ * and every version's row, including one whose OWN job has already
+ * verified — survive for as long as any sibling job hasn't (Codex review,
+ * PR-B2, round 2): without this check, that already-erased version would
+ * still look completely ordinary to the read path, which never otherwise
+ * consults `erasureJobs` at all, and `accessDocument` would issue a working-
+ * looking read reference for bytes that provably no longer exist.
+ */
+export async function hasVerifiedErasureJob(db: Db, storageObjectId: string): Promise<boolean> {
+  const row = first(
+    await db
+      .select({ id: schema.erasureJobs.id })
+      .from(schema.erasureJobs)
+      .where(
+        and(
+          eq(schema.erasureJobs.storageObjectId, storageObjectId),
+          eq(schema.erasureJobs.status, 'VERIFIED'),
+        ),
+      )
+      .limit(1),
+  );
+  return row !== undefined;
+}
+
+/**
  * Re-queue a FAILED or BLOCKED_BY_HOLD job with a fresh retry budget. No-op
  * (returns false) if the job is already active — never resurrects a job
  * another path already moved. Clears any lease fields defensively even

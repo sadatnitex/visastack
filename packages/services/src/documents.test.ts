@@ -19,6 +19,7 @@ import {
   registerDocument,
   registerDocumentWithVersion,
 } from './documents';
+import { enqueueErasureJob } from './erasure';
 import type { AccessRef, IssueReadRefInput, StoragePort } from './storage';
 
 const migrationsFolder = fileURLToPath(new URL('../../db/migrations', import.meta.url));
@@ -334,6 +335,57 @@ describe('document vault — permission-aware access', () => {
     });
     expect(isErr(wrongPurpose)).toBe(true);
     void account;
+  });
+
+  it('refuses to serve the latest version once its bytes are verified erased, even though the document row survives a stuck sibling (Codex review, PR-B2, round 2)', async () => {
+    const { account, document } = await seedOwnerWithDocument(db, 'a5@example.com');
+    const actor = { kind: 'applicant_owner', applicantId: document.applicantId as never } as const;
+
+    // A second, later version — otherwise perfectly servable (CLEAN/APPROVED)
+    // — whose OWN erasure job has already verified. Finding #13's design
+    // deliberately keeps the document (and every version's row) alive as
+    // long as ANY sibling job hasn't verified — simulated here directly
+    // (not via a stuck sibling) since only this one version's post-erasure
+    // servability is under test.
+    const v2 = await addDocumentVersion(db, {
+      actorAccountId: account.id,
+      documentId: document.id,
+      bucket: 'CLEAN',
+      objectKey: 'a5-v2-erased',
+      safetyStatus: 'CLEAN',
+      processingStatus: 'APPROVED',
+    });
+    if (!isOk(v2)) throw new Error('version failed');
+    const job = await enqueueErasureJob(db, {
+      reason: 'RETENTION_PURGE',
+      bucket: 'CLEAN',
+      objectKey: 'a5-v2-erased',
+      expectedHash: null,
+      storageObjectId: v2.value.storageObject.id,
+      documentId: document.id,
+      applicantId: document.applicantId,
+    });
+    await db
+      .update(schema.erasureJobs)
+      .set({ status: 'VERIFIED', completedAt: new Date() })
+      .where(eq(schema.erasureJobs.id, job.id));
+
+    const preview = await previewDocument(db, storage, {
+      actor,
+      documentId: document.id,
+      purpose: 'self_review',
+    });
+    expect(isErr(preview)).toBe(true);
+    if (isErr(preview)) expect(preview.error.code).toBe('forbidden');
+    expect(storage.calls).toHaveLength(0); // no read reference was ever minted for erased bytes
+
+    const denials = await db
+      .select()
+      .from(schema.auditEvents)
+      .where(eq(schema.auditEvents.eventType, 'DOCUMENT_ACCESS'));
+    const last = denials[denials.length - 1];
+    expect(last?.result).toBe('DENIED');
+    expect(last?.reason).toBe('bytes_already_erased');
   });
 });
 
