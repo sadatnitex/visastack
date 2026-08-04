@@ -387,6 +387,49 @@ describe('document vault — permission-aware access', () => {
     expect(last?.result).toBe('DENIED');
     expect(last?.reason).toBe('bytes_already_erased');
   });
+
+  it('refuses to serve a version whose erasure job is CLAIMED — bytes may already be deleted even though the job is not yet VERIFIED (Codex review, PR-B2, round 3)', async () => {
+    const { account, document } = await seedOwnerWithDocument(db, 'a6@example.com');
+    const actor = { kind: 'applicant_owner', applicantId: document.applicantId as never } as const;
+
+    // A second, later version whose erasure job has only reached CLAIMED —
+    // the real bytes are deleted at the CLAIMED->DELETED transition inside
+    // processErasureJob, well before a job ever reaches VERIFIED. A check
+    // scoped to VERIFIED alone would read `false` here even though the
+    // worker could be mid-deleteObject() this very instant.
+    const v2 = await addDocumentVersion(db, {
+      actorAccountId: account.id,
+      documentId: document.id,
+      bucket: 'CLEAN',
+      objectKey: 'a6-v2-claimed',
+      safetyStatus: 'CLEAN',
+      processingStatus: 'APPROVED',
+    });
+    if (!isOk(v2)) throw new Error('version failed');
+    const job = await enqueueErasureJob(db, {
+      reason: 'RETENTION_PURGE',
+      bucket: 'CLEAN',
+      objectKey: 'a6-v2-claimed',
+      expectedHash: null,
+      storageObjectId: v2.value.storageObject.id,
+      documentId: document.id,
+      applicantId: document.applicantId,
+    });
+    await db
+      .update(schema.erasureJobs)
+      .set({ status: 'CLAIMED', claimedAt: new Date(), leaseOwner: 'test-worker' })
+      .where(eq(schema.erasureJobs.id, job.id));
+
+    const download = await downloadDocument(db, storage, {
+      actor,
+      documentId: document.id,
+      purpose: 'self_review',
+      variant: 'redacted',
+    });
+    expect(isErr(download)).toBe(true);
+    if (isErr(download)) expect(download.error.code).toBe('forbidden');
+    expect(storage.calls).toHaveLength(0);
+  });
 });
 
 describe('document vault — preview never leaks originals to third parties (Milestone 2 / P0)', () => {

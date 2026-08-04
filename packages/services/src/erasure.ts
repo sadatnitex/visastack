@@ -533,10 +533,11 @@ export async function listErasureJobsNeedingAttention(
 }
 
 /**
- * True if this storage object's bytes have been verified erased (some
- * erasure job for it reached `VERIFIED`). Used by the document read path
- * (`documents.ts`'s `accessDocument`) to refuse to serve a version whose
- * bytes are already gone.
+ * True if this storage object's bytes are gone, or the worker has started
+ * making them gone — i.e. some erasure job for it has reached `CLAIMED`,
+ * `DELETED`, or `VERIFIED`. Used by the document read path (`documents.ts`'s
+ * `accessDocument`) to refuse to serve a version whose bytes are already
+ * erased or actively being erased.
  *
  * Finding #13's design deliberately lets a multi-version document's row —
  * and every version's row, including one whose OWN job has already
@@ -545,8 +546,30 @@ export async function listErasureJobsNeedingAttention(
  * still look completely ordinary to the read path, which never otherwise
  * consults `erasureJobs` at all, and `accessDocument` would issue a working-
  * looking read reference for bytes that provably no longer exist.
+ *
+ * Deliberately not scoped to `VERIFIED` alone (Codex review, PR-B2, round 3):
+ * `processErasureJob` deletes the real bytes at the CLAIMED→DELETED
+ * transition, well before a job reaches `VERIFIED` — a plain, unlocked check
+ * against `VERIFIED` only could read `false` a moment before a concurrent
+ * claim/delete/verify sequence completes, letting `issueReadRef` mint a
+ * reference in the gap. `CLAIMED` is included too: once a worker has claimed
+ * a job it is expected to delete the bytes imminently, so treating a claim
+ * as "no longer safely servable" is the conservative, correct call — not
+ * because this closes every conceivable race (it can't: this remains a
+ * plain point-in-time read, not something serialized against the erasure
+ * worker's own external `BlobStore.deleteObject` call — no in-process lock
+ * can serialize against a network call to an external store without
+ * blocking every other reader/writer for its duration, an unacceptable
+ * trade for a hot read path), but because it shrinks the exploitable window
+ * from "any point before VERIFIED" down to the few statuses that
+ * PENDING→CLAIMED transition covers, mirroring the same accepted,
+ * documented bytes-vs-record tradeoff `finalizeVerifiedJob`'s own hold
+ * recheck already makes.
  */
-export async function hasVerifiedErasureJob(db: Db, storageObjectId: string): Promise<boolean> {
+export async function hasActiveOrVerifiedErasureJob(
+  db: Db,
+  storageObjectId: string,
+): Promise<boolean> {
   const row = first(
     await db
       .select({ id: schema.erasureJobs.id })
@@ -554,7 +577,7 @@ export async function hasVerifiedErasureJob(db: Db, storageObjectId: string): Pr
       .where(
         and(
           eq(schema.erasureJobs.storageObjectId, storageObjectId),
-          eq(schema.erasureJobs.status, 'VERIFIED'),
+          inArray(schema.erasureJobs.status, ['CLAIMED', 'DELETED', 'VERIFIED']),
         ),
       )
       .limit(1),

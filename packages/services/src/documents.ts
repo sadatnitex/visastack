@@ -12,7 +12,7 @@ import { getApplicant } from './applicants';
 import { appendAuditEvent } from './audit';
 import { hasConsent } from './consent';
 import { type Db, first, required, schema } from './db';
-import { hasVerifiedErasureJob } from './erasure';
+import { hasActiveOrVerifiedErasureJob } from './erasure';
 import { type ServiceError, serviceError } from './errors';
 import { recordProductEvent } from './product-events';
 import { loadGrantsForPolicy } from './sharing';
@@ -537,14 +537,14 @@ async function accessDocument(
   // remembered. Checked only after authorization succeeds, so an
   // unauthorized actor learns nothing about the document's safety state.
   //
-  // Also excludes a version whose bytes are already verified erased (Codex
-  // review, PR-B2, round 2): a multi-version document's row survives — by
-  // finding #13's design — for as long as ANY sibling erasure job hasn't
-  // verified, even once THIS version's own job has. Neither `safetyStatus`
-  // nor `processingStatus` reflects that; without this check the read path
-  // would issue a working-looking reference to bytes that provably no
-  // longer exist.
-  const erased = await hasVerifiedErasureJob(db, version.storageObjectId);
+  // Also excludes a version whose bytes are already erased, or being erased
+  // right now (Codex review, PR-B2, rounds 2-3): a multi-version document's
+  // row survives — by finding #13's design — for as long as ANY sibling
+  // erasure job hasn't verified, even once THIS version's own job has (or
+  // is mid-flight). Neither `safetyStatus` nor `processingStatus` reflects
+  // that; without this check the read path would issue a working-looking
+  // reference to bytes that are already gone or about to be.
+  const erased = await hasActiveOrVerifiedErasureJob(db, version.storageObjectId);
   if (
     version.safetyStatus !== 'CLEAN' ||
     !isServableProcessingState(version.processingStatus) ||
