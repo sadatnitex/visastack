@@ -241,7 +241,68 @@ const STREAM_KEYWORD_PATTERN = /stream(?:\r\n|\r|\n)/;
  *   "no predictor," even though a conforming reader would still resolve
  *   and apply it. An unresolved reference is now treated the same as a
  *   confirmed-nontrivial predictor: undecidable rather than assumed clear.
+ *
+ * **Codex review, PR-B3, round 6, caught a 14th distinct finding on this
+ * mechanism across 6 rounds**: a PDF literal string `(...)` may legally
+ * contain unescaped `<`, `>`, or `%` as ordinary content bytes (e.g.
+ * `/Foo (>> <<)`, or `/Note (50%)`), with balanced, unescaped parentheses
+ * even allowed to nest inside it. Neither the bracket-depth matcher below
+ * nor `stripPdfComments` had any awareness of string syntax, so a
+ * dictionary value's own bytes could be mistaken for a dictionary
+ * delimiter or a comment start. `maskPdfStrings` blanks out (space-fills,
+ * length- and position-preserving) the content of every literal string
+ * and hex string `<...>` before either comment-stripping or bracket
+ * matching ever runs — applied once, up front, so both mechanisms (and,
+ * since the masked text is what's returned and handed on to
+ * `classifyFilterDeclaration`/`hasNontrivialPredictor`, their own keyword
+ * regexes too) can never mistake a string's bytes for real syntax, closing
+ * the reported `<<`/`>>` case and the same-root-cause `%`-inside-a-string
+ * and decoy-`/Filter`-inside-a-string cases together.
  */
+function maskPdfStrings(text: string): string {
+  const chars = Array.from(text);
+  let i = 0;
+  while (i < chars.length) {
+    if (chars[i] === '(') {
+      let depth = 1;
+      chars[i] = ' ';
+      i++;
+      while (i < chars.length && depth > 0) {
+        if (chars[i] === '\\' && i + 1 < chars.length) {
+          chars[i] = ' ';
+          chars[i + 1] = ' ';
+          i += 2;
+          continue;
+        }
+        if (chars[i] === '(') depth++;
+        else if (chars[i] === ')') depth--;
+        chars[i] = ' ';
+        i++;
+      }
+      continue;
+    }
+    if (chars[i] === '<') {
+      if (chars[i + 1] === '<') {
+        i += 2; // a genuine '<<' dictionary delimiter -- leave untouched
+        continue;
+      }
+      chars[i] = ' ';
+      i++;
+      while (i < chars.length && chars[i] !== '>') {
+        chars[i] = ' ';
+        i++;
+      }
+      if (i < chars.length) {
+        chars[i] = ' ';
+        i++;
+      }
+      continue;
+    }
+    i++;
+  }
+  return chars.join('');
+}
+
 function stripPdfComments(text: string): string {
   return text.replace(/%[^\r\n]*/g, '');
 }
@@ -254,7 +315,7 @@ function findGoverningDictionary(
   let end = streamKeywordStart;
   while (end > searchFrom && /\s/.test(text.charAt(end - 1))) end--;
 
-  const window = stripPdfComments(text.slice(searchFrom, end));
+  const window = stripPdfComments(maskPdfStrings(text.slice(searchFrom, end)));
   const tokens = /<<|>>/g;
   let depth = 0;
   let topLevelStart = -1;

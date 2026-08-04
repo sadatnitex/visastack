@@ -649,6 +649,38 @@ describe('BasicSafetyScanner', () => {
     expect(result.detail).toContain('could not be verified clean');
   });
 
+  it('still finds a marker inside a FlateDecode stream when the governing dictionary contains a literal string whose own bytes look like dictionary delimiters (Codex review, PR-B3, round 6)', async () => {
+    // A PDF literal string may legally contain unescaped "<"/">" as
+    // ordinary content bytes -- "(>> <<)" here, placed right after the
+    // real /Filter key. Without string-awareness, the bracket-depth
+    // matcher would treat the ">>" inside the string as closing the
+    // dictionary and the "<<" as opening a new one, producing a wrong
+    // span that excludes /Filter entirely.
+    const compressed = deflateSync(
+      Buffer.from('<< /S /JavaScript /JS (app.alert(1)) >>', 'latin1'),
+    );
+    const pdf = Buffer.concat([
+      Buffer.from(
+        `%PDF-1.7\n3 0 obj\n<< /Filter /FlateDecode /Foo (>> <<) /Length ${compressed.length} >>\nstream\n`,
+        'latin1',
+      ),
+      compressed,
+      Buffer.from('\nendstream\nendobj\n%%EOF', 'latin1'),
+    ]);
+    await storage.putObject({
+      bucket: 'QUARANTINE',
+      objectKey: 'string-delimiter-confusion-pdf',
+      contentType: 'application/pdf',
+      bytes: new Uint8Array(pdf),
+    });
+    const result = await scanner.scan({
+      bucket: 'QUARANTINE',
+      objectKey: 'string-delimiter-confusion-pdf',
+    });
+    expect(result.safe).toBe(false);
+    expect(result.detail).toContain('active PDF content');
+  });
+
   it('rejects a shebang script even though it is otherwise plain text', async () => {
     await storage.putObject({
       bucket: 'QUARANTINE',
