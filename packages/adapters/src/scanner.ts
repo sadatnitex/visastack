@@ -104,8 +104,8 @@ function findActiveMarkerIn(text: string): string | undefined {
 const MAX_STREAMS_SCANNED = 200;
 /** Generous for any legitimate compressed object/content stream, tight enough to bound a decompression-bomb attempt. */
 const MAX_STREAM_INFLATED_BYTES = 10 * 1024 * 1024;
-/** How far back from `stream` to look for its dictionary's `/Filter` entry — generous for a real per-object dictionary. */
-const FILTER_LOOKBACK_BYTES = 2000;
+/** All three PDF-legal end-of-line conventions after the `stream` keyword: CRLF, lone LF, lone CR. */
+const STREAM_KEYWORD_PATTERN = /stream(?:\r\n|\r|\n)/;
 
 /**
  * Best-effort extraction of `FlateDecode` stream bodies for the same bounded,
@@ -116,13 +116,36 @@ const FILTER_LOOKBACK_BYTES = 2000;
  * substring anywhere in the raw file bytes.
  *
  * Not a real PDF parser: locates `stream`/`endstream` keyword pairs
- * directly rather than resolving `/Length` (which is frequently an
- * indirect object reference a bounded scanner can't safely chase), and
- * looks for `/Filter ... FlateDecode` in a bounded window immediately
- * before `stream` rather than fully parsing the dictionary. Deliberately
- * conservative in the other direction too: a stream that declares
- * FlateDecode but fails to actually inflate is reported as undecodable,
- * never silently treated as "not compressed, therefore nothing to find."
+ * directly rather than resolving `/Length` (frequently an indirect object
+ * reference a bounded scanner can't safely chase).
+ *
+ * **Governing invariant** (restated after round 1 caught three distinct
+ * ways a first draft broke it): a byte range is only ever reported
+ * "nothing found here" once its compression status AND content have been
+ * POSITIVELY confirmed. Anything this heuristic cannot positively confirm
+ * is `undecodable` — never silently treated as absent, plain, or
+ * irrelevant. Three consequences of restating it that way, not three
+ * independent patches:
+ *
+ * - The stream-keyword delimiter matches all three PDF-legal end-of-line
+ *   conventions (CRLF, lone LF, lone CR) via `STREAM_KEYWORD_PATTERN` —
+ *   matching only CRLF/LF silently failed to even recognize a
+ *   lone-CR-delimited stream as a stream at all, so nothing about it
+ *   (compressed or not) was ever examined.
+ * - The `/Filter` lookback runs from the END of the PREVIOUS stream (or
+ *   start of file) up to THIS stream's keyword — unbounded by a fixed byte
+ *   count, bounded instead by the file's own structure, since a stream's
+ *   governing dictionary can never extend past the previous stream's own
+ *   `endstream`. A fixed-size window can be out-run by an unusually large
+ *   dictionary and silently miss a genuine `/Filter /FlateDecode`
+ *   declaration; this can't be out-run the same way, and no later stream's
+ *   search window can ever see an earlier stream's own dictionary (each
+ *   window starts strictly after the previous stream's close).
+ * - A stream with no matching `endstream` anywhere in the rest of the
+ *   file, or hitting `MAX_STREAMS_SCANNED` while a stream keyword still
+ *   remains further on, both now mark the WHOLE result undecodable rather
+ *   than silently stopping and reporting only what was found so far as if
+ *   it were the complete picture.
  */
 function extractFlateStreams(text: string): {
   readonly decoded: readonly string[];
@@ -131,24 +154,28 @@ function extractFlateStreams(text: string): {
   const decoded: string[] = [];
   let undecodable = false;
   let cursor = 0;
-  for (let scanned = 0; scanned < MAX_STREAMS_SCANNED; scanned++) {
-    const relativeMatch = /stream\r?\n/.exec(text.slice(cursor));
+  let dictionaryStart = 0;
+  let scanned = 0;
+  for (; scanned < MAX_STREAMS_SCANNED; scanned++) {
+    const relativeMatch = STREAM_KEYWORD_PATTERN.exec(text.slice(cursor));
     if (!relativeMatch) break;
     const streamKeywordStart = cursor + relativeMatch.index;
     const dataStart = streamKeywordStart + relativeMatch[0].length;
     const endIndex = text.indexOf('endstream', dataStart);
-    if (endIndex === -1) break;
+    if (endIndex === -1) {
+      // Malformed/truncated — whatever follows this point is unexamined.
+      undecodable = true;
+      break;
+    }
 
-    const dictWindow = text.slice(
-      Math.max(0, streamKeywordStart - FILTER_LOOKBACK_BYTES),
-      streamKeywordStart,
-    );
+    const dictWindow = text.slice(dictionaryStart, streamKeywordStart);
     const declaresFlate = /\/Filter\s*(\/FlateDecode\b|\[[^\]]*\/FlateDecode\b[^\]]*\])/.test(
       dictWindow,
     );
     if (declaresFlate) {
-      // A trailing EOL before "endstream" is formatting, not stream data.
-      const raw = text.slice(dataStart, endIndex).replace(/\r?\n$/, '');
+      // A trailing EOL before "endstream" is formatting, not stream data —
+      // same three PDF-legal conventions as STREAM_KEYWORD_PATTERN.
+      const raw = text.slice(dataStart, endIndex).replace(/(?:\r\n|\r|\n)$/, '');
       try {
         const inflated = inflateSync(Buffer.from(raw, 'latin1'), {
           maxOutputLength: MAX_STREAM_INFLATED_BYTES,
@@ -159,6 +186,10 @@ function extractFlateStreams(text: string): {
       }
     }
     cursor = endIndex + 'endstream'.length;
+    dictionaryStart = cursor;
+  }
+  if (scanned === MAX_STREAMS_SCANNED && STREAM_KEYWORD_PATTERN.test(text.slice(cursor))) {
+    undecodable = true;
   }
   return { decoded, undecodable };
 }

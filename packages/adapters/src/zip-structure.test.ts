@@ -293,6 +293,36 @@ describe('parseZipCentralDirectory — bounded structural read (no decompression
       if (result.ok) return;
       expect(result.error).toContain('runs past the end of the file');
     });
+
+    it('rejects an entry whose declared data overlaps a later entry local-header/data interval, even though it fits before EOF and before the central directory (Codex review, PR-B3, round 1)', () => {
+      // a.xml physically occupies only 5 bytes of data (actualDataSize) but
+      // DECLARES 50 — its declared span [35, 85) overlaps b.xml's real span
+      // [40, 85), even though 85 <= centralDirectoryOffset (130), so
+      // neither the EOF check nor the "extends into the central directory"
+      // check catches this on their own — only a genuine overlap check does.
+      const zip = buildZip([
+        { name: 'a.xml', compressedSize: 50, actualDataSize: 5 },
+        { name: 'b.xml' },
+        { name: 'c.xml' },
+      ]);
+      const result = parseZipCentralDirectory(zip, { maxEntries: 10 });
+      expect(result.ok).toBe(false);
+      if (result.ok) return;
+      expect(result.error).toContain('overlap');
+    });
+
+    it('rejects an entry whose declared data extends into the central directory itself', () => {
+      // dataEnd (35 + 60 = 95) must land strictly between centralDirectoryOffset
+      // (40, the local chunk's real size) and the whole file's length (113,
+      // local + central + EOCD) — comfortably inside the file overall (so the
+      // plain EOF check doesn't fire first) but past where local data is
+      // supposed to end.
+      const zip = buildZip([{ name: 'a.xml', compressedSize: 60, actualDataSize: 5 }]);
+      const result = parseZipCentralDirectory(zip, { maxEntries: 10 });
+      expect(result.ok).toBe(false);
+      if (result.ok) return;
+      expect(result.error).toContain('extends into the central directory');
+    });
   });
 
   describe('EOCD central-directory-size validation (Codex review, PR-B, finding #8)', () => {

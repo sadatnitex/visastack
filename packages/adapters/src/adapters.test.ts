@@ -287,6 +287,91 @@ describe('BasicSafetyScanner', () => {
     expect(result.detail).toContain('could not be verified clean');
   });
 
+  it('treats hitting the PDF stream-scan cap while more streams remain as undecidable, not silently clean (Codex review, PR-B3, round 1)', async () => {
+    // 200 tiny, uncompressed, genuinely benign streams (exhausting the scan
+    // cap), followed by a 201st, FlateDecode-compressed stream whose only
+    // content is an active-content marker. The direct byte search can't see
+    // it (it's compressed); the stream-scan loop never reaches it either
+    // (the cap is hit first) — the result must be undecidable, not "clean
+    // because nothing was found in what we did look at."
+    const chunks: Buffer[] = [Buffer.from('%PDF-1.7\n', 'latin1')];
+    for (let i = 0; i < 200; i++) {
+      chunks.push(
+        Buffer.from(`${i} 0 obj\n<< /Length 1 >>\nstream\nX\nendstream\nendobj\n`, 'latin1'),
+      );
+    }
+    const compressed = deflateSync(
+      Buffer.from('<< /S /JavaScript /JS (app.alert(1)) >>', 'latin1'),
+    );
+    chunks.push(
+      Buffer.from(
+        `201 0 obj\n<< /Filter /FlateDecode /Length ${compressed.length} >>\nstream\n`,
+        'latin1',
+      ),
+      compressed,
+      Buffer.from('\nendstream\nendobj\n%%EOF', 'latin1'),
+    );
+    await storage.putObject({
+      bucket: 'QUARANTINE',
+      objectKey: 'many-streams-pdf',
+      contentType: 'application/pdf',
+      bytes: new Uint8Array(Buffer.concat(chunks)),
+    });
+    const result = await scanner.scan({ bucket: 'QUARANTINE', objectKey: 'many-streams-pdf' });
+    expect(result.safe).toBe(false);
+    expect(result.detail).toContain('could not be verified clean');
+  });
+
+  it('detects an active-content marker inside a FlateDecode stream delimited by a lone CR, not CRLF or LF (Codex review, PR-B3, round 1)', async () => {
+    const compressed = deflateSync(
+      Buffer.from('<< /S /JavaScript /JS (app.alert(1)) >>', 'latin1'),
+    );
+    const pdf = Buffer.concat([
+      Buffer.from(
+        `%PDF-1.7\n3 0 obj\n<< /Filter /FlateDecode /Length ${compressed.length} >>\nstream\r`,
+        'latin1',
+      ),
+      compressed,
+      Buffer.from('\rendstream\nendobj\n%%EOF', 'latin1'),
+    ]);
+    await storage.putObject({
+      bucket: 'QUARANTINE',
+      objectKey: 'lone-cr-pdf',
+      contentType: 'application/pdf',
+      bytes: new Uint8Array(pdf),
+    });
+    const result = await scanner.scan({ bucket: 'QUARANTINE', objectKey: 'lone-cr-pdf' });
+    expect(result.safe).toBe(false);
+    expect(result.detail).toContain('active PDF content');
+  });
+
+  it('detects a FlateDecode declaration even when it sits behind a stream dictionary larger than any fixed lookback window (Codex review, PR-B3, round 1)', async () => {
+    const compressed = deflateSync(
+      Buffer.from('<< /S /JavaScript /JS (app.alert(1)) >>', 'latin1'),
+    );
+    // A 2500-byte PDF comment between /Filter and stream — well past the
+    // old fixed 2000-byte lookback, which would have missed /Filter
+    // entirely and treated this stream as plain, uncompressed content.
+    const padding = `%${'x'.repeat(2500)}\n`;
+    const pdf = Buffer.concat([
+      Buffer.from(
+        `%PDF-1.7\n3 0 obj\n<< /Filter /FlateDecode\n${padding}/Length ${compressed.length} >>\nstream\n`,
+        'latin1',
+      ),
+      compressed,
+      Buffer.from('\nendstream\nendobj\n%%EOF', 'latin1'),
+    ]);
+    await storage.putObject({
+      bucket: 'QUARANTINE',
+      objectKey: 'far-filter-pdf',
+      contentType: 'application/pdf',
+      bytes: new Uint8Array(pdf),
+    });
+    const result = await scanner.scan({ bucket: 'QUARANTINE', objectKey: 'far-filter-pdf' });
+    expect(result.safe).toBe(false);
+    expect(result.detail).toContain('active PDF content');
+  });
+
   it('rejects a shebang script even though it is otherwise plain text', async () => {
     await storage.putObject({
       bucket: 'QUARANTINE',

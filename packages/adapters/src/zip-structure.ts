@@ -107,7 +107,7 @@ function validateLocalFileHeader(
     readonly uncompressedSize: number;
     readonly generalPurposeFlag: number;
   },
-): Result<void, string> {
+): Result<{ readonly dataEnd: number }, string> {
   if (offset + LOCAL_HEADER_FIXED_SIZE > bytes.length) {
     return err('local header offset is out of bounds');
   }
@@ -138,10 +138,11 @@ function validateLocalFileHeader(
     }
   }
   const dataStart = localNameEnd + localExtraLength;
-  if (dataStart + expected.compressedSize > bytes.length) {
+  const dataEnd = dataStart + expected.compressedSize;
+  if (dataEnd > bytes.length) {
     return err('declared entry data runs past the end of the file');
   }
-  return ok(undefined);
+  return ok({ dataEnd });
 }
 
 /**
@@ -174,6 +175,16 @@ export function parseZipCentralDirectory(
   }
 
   const entries: ZipEntry[] = [];
+  // Every entry's [localHeaderOffset, dataEnd) span, collected so overlap
+  // between entries can be checked once every span is known (Codex review,
+  // PR-B3, round 1, finding on packages/adapters/src/zip-structure.ts):
+  // bounding an entry's declared data only against the end of the FILE
+  // (the original finding #8 fix) still let a forged entry claim a
+  // compressed-data interval that extends through a later local header —
+  // each header individually still validated, even though the underlying
+  // byte ranges overlapped, which is exactly the "overlapping entries"
+  // hostile shape this boundary was always supposed to reject.
+  const localSpans: Array<{ readonly start: number; readonly end: number }> = [];
   let cursor = eocd.centralDirectoryOffset;
   const decoder = new TextDecoder('utf-8', { fatal: false });
 
@@ -204,6 +215,16 @@ export function parseZipCentralDirectory(
       generalPurposeFlag,
     });
     if (!localHeader.ok) return err(`central directory entry ${i} (${name}): ${localHeader.error}`);
+    // Bounding against EOF alone (validateLocalFileHeader's own check)
+    // isn't the only boundary that matters: an entry's data must also end
+    // no later than where the local-header section itself is declared to
+    // end — anything past that is the central directory's own territory.
+    if (localHeader.value.dataEnd > eocd.centralDirectoryOffset) {
+      return err(
+        `central directory entry ${i} (${name}): entry data extends into the central directory`,
+      );
+    }
+    localSpans.push({ start: localHeaderOffset, end: localHeader.value.dataEnd });
 
     entries.push({
       name,
@@ -216,6 +237,22 @@ export function parseZipCentralDirectory(
   }
   if (cursor !== eocd.eocdOffset) {
     return err('central directory entries do not exactly fill the declared central directory size');
+  }
+
+  // Sorted by start, a set of intervals has an overlap somewhere if and
+  // only if some ADJACENT pair (in that sort order) overlaps — if entry k
+  // doesn't overlap its immediate successor (successor.start >= k.end),
+  // no later entry (whose start is >= the successor's, by the sort) can
+  // overlap entry k either. One linear pass after an O(n log n) sort is
+  // enough to catch any overlapping local-header/data interval, wherever
+  // in the file the two entries involved happen to sit.
+  localSpans.sort((a, b) => a.start - b.start);
+  for (let i = 1; i < localSpans.length; i++) {
+    const previous = localSpans[i - 1];
+    const current = localSpans[i];
+    if (previous && current && current.start < previous.end) {
+      return err('local file header/data intervals overlap between entries');
+    }
   }
 
   return ok(entries);
