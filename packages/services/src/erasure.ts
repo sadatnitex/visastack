@@ -66,14 +66,69 @@ export interface EnqueueErasureJobInput {
 }
 
 /**
+ * Statuses that count as "there is already a job working toward VERIFIED
+ * for this storage object" — everything except `VERIFIED` itself (whose
+ * bytes are already provably gone, so a redundant enqueue against it is
+ * harmless, not merely wasteful) and there is no such status to skip. Used
+ * only for the duplicate-enqueue check below (D-A1, post-programme defect
+ * register) — has no bearing on `erasureInProgressOrBytesGone`'s own,
+ * separate servability predicate.
+ */
+const ACTIVE_ERASURE_JOB_STATUSES: readonly ErasureJob['status'][] = [
+  'PENDING',
+  'CLAIMED',
+  'DELETED',
+  'FAILED',
+  'BLOCKED_BY_HOLD',
+];
+
+/**
  * Queue one external object for deletion. Callers pass their own transaction
  * handle so this composes into the caller's atomic "mark pending deletion"
  * step rather than opening a transaction of its own.
+ *
+ * Genuinely idempotent per storage object (D-A1, post-programme defect
+ * register): if a job already exists for this `storageObjectId` in any
+ * non-`VERIFIED` status, that existing row is returned unchanged rather
+ * than inserting a duplicate. `purgeExpiredDocuments` can be invoked
+ * repeatedly (a manual admin action) against the same still-not-fully-
+ * erased document indefinitely — by design, a document deliberately
+ * survives until every sibling storage object's job reaches `VERIFIED`
+ * (finding #13) — so a document with one stuck `FAILED` or
+ * `BLOCKED_BY_HOLD` sibling is exactly the shape a repeated purge run would
+ * otherwise keep re-enqueueing redundant jobs against. This closes a pure
+ * efficiency/hygiene gap (wasted worker attempts, unbounded row growth),
+ * never a correctness one: `finalizeVerifiedJob`'s own completion check
+ * already groups by distinct `storageObjectId`, so it was already correct
+ * regardless of how or why a duplicate row arose, before this fix existed.
+ * A `FAILED`/`BLOCKED_BY_HOLD` job stuck here still has its own dedicated,
+ * deliberate resume path (`retryErasureJob`, admin-triggered) rather than
+ * silently acquiring a second, parallel attempt from an unrelated purge
+ * run. Race-safety for the one caller with a genuine repeated-invocation
+ * risk (`purgeExpiredDocuments`) comes from the `documents` row lock it
+ * already takes before calling this function — this existence check does
+ * not add a locking primitive of its own, so under a true concurrent call
+ * with no matching external lock a duplicate remains theoretically
+ * possible; that is strictly no worse than the total absence of any check
+ * this replaces, never a regression.
  */
 export async function enqueueErasureJob(
   db: Db,
   input: EnqueueErasureJobInput,
 ): Promise<ErasureJob> {
+  const existing = first(
+    await db
+      .select()
+      .from(schema.erasureJobs)
+      .where(
+        and(
+          eq(schema.erasureJobs.storageObjectId, input.storageObjectId),
+          inArray(schema.erasureJobs.status, ACTIVE_ERASURE_JOB_STATUSES),
+        ),
+      )
+      .limit(1),
+  );
+  if (existing) return existing;
   return required(
     first(
       await db
@@ -381,10 +436,11 @@ async function finalizeVerifiedJob(
     // forever, even though the actual storage object it targets is already
     // provably gone via the OTHER job. Grouping by storageObjectId instead
     // makes finalization robust to duplicate rows by construction — however
-    // they arose — without needing to prevent duplicate enqueueing (D-A1,
-    // §1.2, records that as a separate, deferred efficiency concern for
-    // PR-C1: avoiding the wasted redundant work, not a correctness gap,
-    // since this check no longer depends on it).
+    // they arose — without needing to prevent duplicate enqueueing. D-A1
+    // (§1.2) separately closes that as a pure efficiency/hygiene concern
+    // (PR-C1: `enqueueErasureJob`'s own existence check, above) — avoiding
+    // the wasted redundant work, not a correctness gap, since this
+    // completion check never depended on it in the first place.
     if (job.reason === 'RETENTION_PURGE' && job.documentId) {
       const siblings = await tx
         .select({

@@ -306,6 +306,65 @@ describe('retention purge', () => {
     expect(finalJob?.status).toBe('VERIFIED');
   });
 
+  it('does not enqueue a duplicate erasure job when purgeExpiredDocuments runs again against the same still-eligible document (D-A1, post-programme defect register, PR-C1)', async () => {
+    const { account, applicantId } = await consentedApplicant(db, 'ret-dup@example.com');
+    const officer = await operator(db, 'officer-dup@example.com');
+    await setRetentionPolicy(db, {
+      actorAccountId: account.id,
+      docType: 'receipt',
+      retentionDays: 30,
+    });
+    const doc = await registerDocument(db, {
+      actorAccountId: account.id,
+      applicantId,
+      originalName: 'r.pdf',
+      docType: 'receipt',
+    });
+    if (!isOk(doc)) throw new Error('doc');
+    await addDocumentVersion(db, {
+      actorAccountId: account.id,
+      documentId: doc.value.id,
+      bucket: 'CLEAN',
+      objectKey: 'obj-ret-dup',
+    });
+    await db.execute(
+      sql`update documents set created_at = now() - interval '60 days' where id = ${doc.value.id}`,
+    );
+    expect(await documentsPastRetention(db)).toHaveLength(1);
+
+    // First run: queues the one erasure job, exactly like the happy-path
+    // test above.
+    const first = await purgeExpiredDocuments(db, {
+      actorAccountId: officer,
+      stepUpSatisfied: true,
+    });
+    expect(isOk(first)).toBe(true);
+    if (isOk(first)) expect(first.value.queuedForErasure).toBe(1);
+    expect(await db.select().from(schema.erasureJobs)).toHaveLength(1);
+
+    // The document is still "past retention" (nothing has erased it yet —
+    // the worker hasn't run). Before PR-C1, a second admin-triggered purge
+    // run here (or an accidental double-click) would enqueue a SECOND,
+    // fully redundant job for the identical storage object — wasted worker
+    // attempts and unbounded row growth for a document with, in the worst
+    // case, one permanently-stuck sibling that keeps it purge-eligible-
+    // looking indefinitely (D-A1's own scenario). purgeExpiredDocuments
+    // still reports the document as processed (queuedForErasure: 1) —
+    // that count reflects "this document was found and handled," not "a
+    // new row was created" — but the underlying enqueue is now a genuine
+    // no-op against the existing PENDING row.
+    const second = await purgeExpiredDocuments(db, {
+      actorAccountId: officer,
+      stepUpSatisfied: true,
+    });
+    expect(isOk(second)).toBe(true);
+    if (isOk(second)) expect(second.value.queuedForErasure).toBe(1);
+
+    const jobs = await db.select().from(schema.erasureJobs);
+    expect(jobs).toHaveLength(1);
+    expect(jobs[0]?.status).toBe('PENDING');
+  });
+
   it('blocks the erasure worker (not the queue step) when a hold appears after queuing', async () => {
     const { account, applicantId } = await consentedApplicant(db, 'ret-race@example.com');
     const officer = await operator(db, 'officer-race@example.com');

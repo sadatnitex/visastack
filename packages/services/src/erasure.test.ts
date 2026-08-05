@@ -456,6 +456,86 @@ describe('erasure outbox', () => {
     expect(statuses).toEqual(['PENDING', 'VERIFIED', 'VERIFIED']);
   });
 
+  describe('enqueue-time deduplication (D-A1, post-programme defect register, PR-C1)', () => {
+    it('is genuinely idempotent per storage object — enqueuing the same object twice while a job is still active returns the same row, never a duplicate', async () => {
+      const object = await seedStorageObject(db, 'obj-dedup-active');
+      const input = {
+        reason: 'ACCOUNT_DELETION' as const,
+        bucket: 'CLEAN' as const,
+        objectKey: 'obj-dedup-active',
+        expectedHash: null,
+        storageObjectId: object.id,
+      };
+      const first = await enqueueErasureJob(db, input);
+      const second = await enqueueErasureJob(db, input);
+      expect(second.id).toBe(first.id);
+
+      const rows = await db
+        .select()
+        .from(schema.erasureJobs)
+        .where(eq(schema.erasureJobs.storageObjectId, object.id));
+      expect(rows).toHaveLength(1);
+    });
+
+    it('also treats a FAILED (retries exhausted) job as active — a stuck job has its own dedicated retryErasureJob resume path, not a silent parallel re-enqueue', async () => {
+      const object = await seedStorageObject(db, 'obj-dedup-failed');
+      const input = {
+        reason: 'ACCOUNT_DELETION' as const,
+        bucket: 'CLEAN' as const,
+        objectKey: 'obj-dedup-failed',
+        expectedHash: null,
+        storageObjectId: object.id,
+      };
+      const job = await enqueueErasureJob(db, input);
+      await db
+        .update(schema.erasureJobs)
+        .set({ status: 'FAILED', lastError: 'exhausted' })
+        .where(eq(schema.erasureJobs.id, job.id));
+
+      const again = await enqueueErasureJob(db, input);
+      expect(again.id).toBe(job.id);
+      expect(again.status).toBe('FAILED');
+      const rows = await db
+        .select()
+        .from(schema.erasureJobs)
+        .where(eq(schema.erasureJobs.storageObjectId, object.id));
+      expect(rows).toHaveLength(1);
+    });
+
+    it('does NOT treat a VERIFIED job as active — its bytes are already provably gone, so a fresh enqueue is harmless and allowed, not blocked', async () => {
+      const object = await seedStorageObject(db, 'obj-dedup-verified');
+      await storage.putObject({
+        bucket: 'CLEAN',
+        objectKey: 'obj-dedup-verified',
+        contentType: 'application/pdf',
+        bytes: new Uint8Array([1]),
+      });
+      const input = {
+        reason: 'ACCOUNT_DELETION' as const,
+        bucket: 'CLEAN' as const,
+        objectKey: 'obj-dedup-verified',
+        expectedHash: null,
+        storageObjectId: object.id,
+      };
+      const job = await enqueueErasureJob(db, input);
+      const result = await runErasureWorker(db, storage, { limit: 5 });
+      expect(result).toEqual({ processed: 1, blocked: 0, failed: 0 });
+      const [verified] = await db
+        .select()
+        .from(schema.erasureJobs)
+        .where(eq(schema.erasureJobs.id, job.id));
+      expect(verified?.status).toBe('VERIFIED');
+
+      const again = await enqueueErasureJob(db, input);
+      expect(again.id).not.toBe(job.id);
+      const rows = await db
+        .select()
+        .from(schema.erasureJobs)
+        .where(eq(schema.erasureJobs.storageObjectId, object.id));
+      expect(rows).toHaveLength(2);
+    });
+  });
+
   describe('leasing and recovery (Codex review, PR-B1, finding #12)', () => {
     it('reclaims a stale lease stuck at CLAIMED (worker crashed right after claiming) and completes the job on the next call', async () => {
       const object = await seedStorageObject(db, 'obj-stale-claimed');
@@ -956,22 +1036,30 @@ describe('erasure outbox', () => {
       const storageObject = storageObjects[0];
       if (!storageObject) throw new Error('storage object');
 
-      // A second, REDUNDANT job for the exact same storage object —
-      // simulating purgeExpiredDocuments enqueueing again before the first
-      // batch finished (D-A1, §1.2, still deferred to PR-C1 as an
-      // efficiency concern; this test proves finalization is no longer
-      // WRONG when it happens, only wasteful). Driven straight to FAILED
+      // A second, REDUNDANT job for the exact same storage object. Inserted
+      // directly (not via enqueueErasureJob, which is now itself dedup-aware
+      // per D-A1's fix, §1.2, PR-C1 — see the dedicated dedup test below;
+      // calling it a second time here would just return the SAME row, not
+      // construct the hostile shape this test needs). This proves
+      // finalization stays correct even if a duplicate DOES exist by some
+      // other means (a legacy row predating this fix, or any other
+      // should-never-happen path) — a defense-in-depth property distinct
+      // from D-A1's own enqueue-time prevention. Driven straight to FAILED
       // without ever running it through the worker — never claimed, so
       // runErasureWorker below only ever picks up the original.
-      const duplicateJob = await enqueueErasureJob(db, {
-        reason: 'RETENTION_PURGE',
-        bucket: 'CLEAN',
-        objectKey: objectKeys[0] as string,
-        expectedHash: null,
-        storageObjectId: storageObject.id,
-        documentId,
-        applicantId,
-      });
+      const [duplicateJob] = await db
+        .insert(schema.erasureJobs)
+        .values({
+          reason: 'RETENTION_PURGE',
+          bucket: 'CLEAN',
+          objectKey: objectKeys[0] as string,
+          expectedHash: null,
+          storageObjectId: storageObject.id,
+          documentId,
+          applicantId,
+        })
+        .returning();
+      if (!duplicateJob) throw new Error('duplicate job');
       await db
         .update(schema.erasureJobs)
         .set({ status: 'FAILED', lastError: 'simulated redundant-job failure' })

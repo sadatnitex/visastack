@@ -1,6 +1,6 @@
 import type { DocumentState } from '@visastack/core';
 import { type Result, err, ok } from '@visastack/core';
-import { and, desc, eq } from 'drizzle-orm';
+import { and, desc, eq, sql } from 'drizzle-orm';
 import { appendAuditEvent } from './audit';
 import { classifyDocumentText } from './classification';
 import { type Db, first, required, schema } from './db';
@@ -70,6 +70,70 @@ async function loadVersion(db: Db, id: string): Promise<DocumentVersion | undefi
   );
 }
 
+/** Identifies the processing job/lease a `processIntake` run is fenced against — see `stillHoldsLease`. */
+export interface IntakeFencing {
+  readonly jobId: string;
+  readonly leaseOwner: string;
+}
+
+/** Re-loads the current DB row, falling back to a caller-supplied stale copy only if the row is somehow gone. */
+async function currentOrStale(
+  db: Db,
+  documentVersionId: string,
+  stale: DocumentVersion,
+): Promise<DocumentVersion> {
+  return (await loadVersion(db, documentVersionId)) ?? stale;
+}
+
+/**
+ * True if `fencing`'s job is still genuinely `CLAIMED` by `leaseOwner` at
+ * this exact moment (finding #19, post-programme defect register).
+ *
+ * `jobs.ts`'s own lease fencing (`completeJob`/`failJob`'s compare-and-set)
+ * only protects the processing JOB row itself; `commitTransition`'s CAS on
+ * `processingStatus` only protects that one field. Neither one gates the
+ * DOCUMENT-VERSION-LEVEL side-effect writes a pipeline step performs before
+ * its own `commitTransition` call — a scan-result row, an extraction/
+ * classification/naming-proposal row set — against a lease that was
+ * reclaimed WHILE this invocation was paused inside a slow external call
+ * (`scanner.scan()`, `extractor.extract()`). A worker in exactly that
+ * position can still win the race to insert those rows even after a new
+ * lease-holder has already started (or finished) its own, genuinely
+ * authoritative pass over the same document version — duplicate or stale
+ * scan-history entries, extraction runs, classifications, or name
+ * proposals, none of which `commitTransition`'s later CAS can retroactively
+ * un-write. Calling this immediately before each such write (never far in
+ * advance of it, since a `SELECT`-only check would leave the same TOCTOU
+ * gap this exists to close) and skipping the write entirely on a lost lease
+ * closes that gap, mirroring the identical fencing discipline
+ * `erasure.ts`'s `processErasureJob` already applies around its own slow
+ * external call (`blobStore.deleteObject`) via a CAS write immediately
+ * before it.
+ *
+ * Implemented as a CAS no-op UPDATE (matching on `id`/`status`/`leaseOwner`)
+ * rather than a plain `SELECT`, so the check and the guarantee it provides
+ * are themselves atomic with respect to a concurrent reclaim.
+ *
+ * `fencing` is optional so every existing direct call to `processIntake`
+ * (this module's own tests, and any caller outside the job queue) keeps
+ * working unchanged — fencing only applies when a caller actually has a
+ * lease to fence against.
+ */
+async function stillHoldsLease(db: Db, fencing: IntakeFencing): Promise<boolean> {
+  const touched = await db
+    .update(schema.processingJobs)
+    .set({ updatedAt: sql`${schema.processingJobs.updatedAt}` })
+    .where(
+      and(
+        eq(schema.processingJobs.id, fencing.jobId),
+        eq(schema.processingJobs.status, 'CLAIMED'),
+        eq(schema.processingJobs.leaseOwner, fencing.leaseOwner),
+      ),
+    )
+    .returning({ id: schema.processingJobs.id });
+  return touched.length > 0;
+}
+
 /**
  * Compare-and-set on `processingStatus`: only takes effect while the version
  * is still in the exact state this caller last observed it in. Returns
@@ -128,12 +192,20 @@ async function commitTransition(
  * the ProcessingRun/ExtractionRun rows and the pipeline still advances, so a
  * document the deterministic extractor can't handle still reaches
  * AWAITING_REVIEW for manual classification/naming.
+ *
+ * Returns `'lost-lease'` instead of persisting anything past the initial
+ * `processingRuns` row if `fencing` is supplied and no longer holds its
+ * lease by the time `extractor.extract()` returns (finding #19, post-
+ * programme defect register — see `stillHoldsLease`'s own doc comment for
+ * why this check has to sit exactly here, immediately after the one slow
+ * external call in this function, rather than only at entry).
  */
 async function runExtractionStep(
   db: Db,
   extractor: DocumentConverterPort,
   version: DocumentVersion,
-): Promise<void> {
+  fencing?: IntakeFencing,
+): Promise<'ok' | 'lost-lease'> {
   const document = first(
     await db
       .select({
@@ -149,7 +221,7 @@ async function runExtractionStep(
       .where(eq(schema.documentVersions.id, version.id))
       .limit(1),
   );
-  if (!document) return; // orphaned version; nothing to extract against
+  if (!document) return 'ok'; // orphaned version; nothing to extract against
 
   const storageObject = first(
     await db
@@ -158,7 +230,7 @@ async function runExtractionStep(
       .where(eq(schema.storageObjects.id, version.storageObjectId))
       .limit(1),
   );
-  if (!storageObject) return;
+  if (!storageObject) return 'ok';
 
   const applicant = first(
     await db
@@ -184,6 +256,15 @@ async function runExtractionStep(
     originalName: document.originalName,
   });
 
+  // Fresh check right after the slow external call returns (finding #19):
+  // extraction can take long enough to span a lease reclaim. A lost lease
+  // here means another worker now owns this job's outcome -- stop before
+  // persisting anything past the already-committed processingRuns row
+  // (left PENDING/uncompleted; harmless and self-explanatory if ever
+  // inspected, and no different from any other resumable-mid-step state
+  // this pipeline already leaves behind on a genuine crash).
+  if (fencing && !(await stillHoldsLease(db, fencing))) return 'lost-lease';
+
   if (!outcome.ok) {
     await db.transaction(async (tx) => {
       await tx.insert(schema.extractionRuns).values({
@@ -208,7 +289,7 @@ async function runExtractionStep(
         metadata: { status: 'FAILED', code: outcome.code },
       });
     });
-    return;
+    return 'ok';
   }
 
   const { result } = outcome;
@@ -282,6 +363,7 @@ async function runExtractionStep(
       proposedName,
     });
   }
+  return 'ok';
 }
 
 /**
@@ -333,13 +415,25 @@ export async function processIntake(
   db: Db,
   scanner: MalwareScannerPort,
   extractor: DocumentConverterPort,
-  input: { readonly documentVersionId: string },
+  input: {
+    readonly documentVersionId: string;
+    /** Fences this run's side-effect writes against a mid-pipeline lease loss — see `stillHoldsLease`. Omit for a direct (non-job-queue) call. */
+    readonly fencing?: IntakeFencing;
+  },
 ): Promise<Result<DocumentVersion, ServiceError>> {
   let version = await loadVersion(db, input.documentVersionId);
   if (!version) return err(serviceError('not_found', 'document version not found'));
 
   // Bounded loop: at most one pass through the linear pipeline.
   for (let guard = 0; guard < 8; guard++) {
+    // Cheap early exit: catches a lease already lost before this iteration
+    // even begins. The two slow external calls below (scanner.scan,
+    // extractor.extract) get their own fresh check immediately after they
+    // resolve, since real time — and a possible reclaim — can only actually
+    // elapse there, not around the plain, near-instantaneous transitions.
+    if (input.fencing && !(await stillHoldsLease(db, input.fencing))) {
+      return ok(await currentOrStale(db, input.documentVersionId, version));
+    }
     const state = version.processingStatus;
 
     if (state === 'SCANNING') {
@@ -366,6 +460,17 @@ export async function processIntake(
           objectKey: storageObject.objectKey,
         });
       } catch (error) {
+        // Fresh check right after the slow external call returns (finding
+        // #19, post-programme defect register): the scan can take long
+        // enough to span a lease reclaim, and a lost lease means another
+        // worker now owns this job's outcome -- don't record a now-moot
+        // failure attempt, and don't rethrow (that would reach
+        // runIntakeWorker's catch block and call failJob, whose own CAS
+        // would harmlessly no-op anyway, but throwing here would also
+        // misreport this as a domain failure rather than a benign handoff).
+        if (input.fencing && !(await stillHoldsLease(db, input.fencing))) {
+          return ok(await currentOrStale(db, input.documentVersionId, version));
+        }
         // scanErrored: true marks this as an indeterminate/error outcome,
         // not a genuine unsafe verdict (Codex review, PR-B3R, round 1) --
         // `safe: false` alone is indistinguishable from a real "the scanner
@@ -384,6 +489,12 @@ export async function processIntake(
           ),
         });
         throw error;
+      }
+      // Same fresh post-call check on the success path (finding #19): a
+      // lease reclaimed while scanner.scan() was in flight means whatever
+      // this call returns is no longer this worker's to record.
+      if (input.fencing && !(await stillHoldsLease(db, input.fencing))) {
+        return ok(await currentOrStale(db, input.documentVersionId, version));
       }
       // Durable, append-only evidence of every scan attempt (master
       // directive §7 "PR 3"): which scanner, which version, when, and the
@@ -405,7 +516,7 @@ export async function processIntake(
       // process already advanced this version past what we last observed.
       // Its outcome is the correct, final one — stop here rather than
       // overwrite it with our now-stale result.
-      if (!scanned) return ok((await loadVersion(db, input.documentVersionId)) ?? version);
+      if (!scanned) return ok(await currentOrStale(db, input.documentVersionId, version));
       version = scanned;
       continue;
     }
@@ -413,11 +524,17 @@ export async function processIntake(
     if (state === 'EXTRACTING') {
       // If this throws, the version stays in EXTRACTING and is resumable —
       // same recoverability contract as the scanner step above.
-      await runExtractionStep(db, extractor, version);
+      const extractionStep = await runExtractionStep(db, extractor, version, input.fencing);
+      // Lease lost partway through extraction (finding #19) -- its own
+      // side-effect writes were already skipped inside runExtractionStep;
+      // stop here too, rather than also attempting the transition below.
+      if (extractionStep === 'lost-lease') {
+        return ok(await currentOrStale(db, input.documentVersionId, version));
+      }
       const extracted = await commitTransition(db, version, {
         processingStatus: 'AWAITING_REVIEW',
       });
-      if (!extracted) return ok((await loadVersion(db, input.documentVersionId)) ?? version);
+      if (!extracted) return ok(await currentOrStale(db, input.documentVersionId, version));
       version = extracted;
       continue;
     }
@@ -428,7 +545,7 @@ export async function processIntake(
       processingStatus: next,
       ...(next === 'SCANNING' ? { safetyStatus: 'SCANNING' as const } : {}),
     });
-    if (!advanced) return ok((await loadVersion(db, input.documentVersionId)) ?? version);
+    if (!advanced) return ok(await currentOrStale(db, input.documentVersionId, version));
     version = advanced;
   }
 

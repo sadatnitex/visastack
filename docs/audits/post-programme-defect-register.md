@@ -194,15 +194,41 @@ unique object (not every row) to have at least one `VERIFIED` job —
 correctness gap (a document can no longer be blocked forever by a
 redundant row's failure) by construction, regardless of how or why a
 duplicate row arose — without needing to prevent duplicates from being
-created at all. **Still deferred to PR-C1:** preventing the duplicate
-*enqueueing* itself (an existence check against already-active jobs for
-the same `storageObjectId` before inserting, or a partial unique index) —
-now a pure efficiency/hygiene concern (avoiding wasted worker attempts and
-extra rows), not a correctness one, since finalization no longer depends
-on avoiding duplicates. Still a distinct piece of work from PR-B2's own
-invariants and still scope creep on this PR; candidate for PR-C1
-(processing job fencing and idempotency), which is already about exactly
-this class of gap for the other job queue in this codebase.
+created at all.
+
+**Fully closed in PR-C1:** `enqueueErasureJob` (`erasure.ts`) now performs
+an existence check before inserting — if a job already exists for the
+target `storageObjectId` in any status except `VERIFIED` (`PENDING`,
+`CLAIMED`, `DELETED`, `FAILED`, `BLOCKED_BY_HOLD` all count as "already
+active"), that existing row is returned unchanged rather than inserting a
+duplicate; only `VERIFIED` (bytes already provably gone — a redundant
+enqueue against it is harmless, not merely wasteful) is excluded. A
+`FAILED`/`BLOCKED_BY_HOLD` job still has its own dedicated
+`retryErasureJob` resume path rather than silently acquiring a second,
+parallel attempt from an unrelated purge run. This is still a pure
+efficiency/hygiene fix, never a correctness one — `finalizeVerifiedJob`'s
+round-5 fix above was already correct regardless of how or why a duplicate
+row arose. Race-safety for the one caller with a genuine
+repeated-invocation risk (`purgeExpiredDocuments`) comes from the
+`documents` row lock it already takes before calling this function; this
+existence check adds no locking primitive of its own, so a duplicate
+under a true concurrent call with no matching external lock remains
+theoretically possible — strictly no worse than the total absence of any
+check this replaces. Verified: `erasure.test.ts` gained a new "enqueue-time
+deduplication" describe block (enqueuing the same storage object twice
+while a job is active returns the same row; a `FAILED` job is still
+treated as active; a `VERIFIED` job is correctly NOT treated as active,
+allowing a fresh enqueue); `retention.test.ts` gained an end-to-end test
+proving `purgeExpiredDocuments` run twice in a row against the same
+still-eligible document creates exactly one erasure job, not two — the
+exact repeated-admin-action scenario this finding describes. The
+pre-existing `finalizeVerifiedJob` test that constructed a duplicate via
+two `enqueueErasureJob` calls was adapted to construct it via a direct
+`db.insert` instead (that test's own purpose — proving finalization stays
+correct if a duplicate exists via ANY means — is now distinct from, and a
+defense-in-depth complement to, this enqueue-time prevention). All new
+assertions verified non-vacuous: temporarily disabling the existence check
+made exactly the three dedup-specific tests fail, confirmed, then restored.
 
 ### 1.3 Dependency audit detail
 
@@ -374,9 +400,9 @@ Mission/snapshot/UX · **PR-E** Readiness/provider validation/disclosure ·
 
 | # | Sev | File/function | Verification | Impact | Correction | Test | Disposition |
 |---|---|---|---|---|---|---|---|
-| 19 | P1 | `packages/services/src/intake.ts` (document-processing transitions) + `jobs.ts` | **STILL PRESENT.** Job-table lease fencing (`leaseOwner`/`leaseExpiresAt`) is correctly enforced for `completeJob`/`failJob`, but `processIntake`'s own state-transition CAS checks only `processingStatus` — the lease owner never threads into the document-version pipeline (scan-result writes, extraction-result writes, proposal writes). | A worker whose lease was reclaimed can still win the race to persist scan/extraction side effects and advance the document, corrupting state the new lease-holder is simultaneously writing. | Thread the claimed job's lease owner (or a monotonic fencing token) through every document-processing state transition and side-effect write in the pipeline. | Worker-crash/lease-reclaim simulation: a reclaimed worker's stale writes must be rejected once a new worker holds the lease. | **PR-C** |
+| 19 | P1 | `packages/services/src/intake.ts` (document-processing transitions) + `jobs.ts` | **FIXED — PR-C1.** `processIntake` now accepts an optional `fencing: {jobId, leaseOwner}` (threaded from `runIntakeWorker`'s own claim). A new `stillHoldsLease` helper — a CAS no-op `UPDATE` on `processingJobs` matching `id`/`status='CLAIMED'`/`leaseOwner`, not a plain `SELECT`, so the check itself is atomic with respect to a concurrent reclaim — is called at the top of every pipeline-loop iteration (cheap, catches a lease already lost before the iteration begins) and, more importantly, immediately after each of the two slow external calls that can span a reclaim (`scanner.scan()`, `extractor.extract()`), before any of that step's side-effect writes. A lost lease at any of these points stops the pipeline immediately (`return ok(currentOrStale(...))`, a new small helper DRYing up the existing "reload and stop" idiom used at every CAS-loss point) without ever performing the write — closing the gap where a reclaimed-but-still-running worker could still insert its own `documentScanResults`/`extractionRuns`/`documentClassifications`/name-proposal rows alongside the new lease-holder's genuinely authoritative ones. `runExtractionStep`'s signature changed from `Promise<void>` to `Promise<'ok' \| 'lost-lease'>` so its caller can also skip the subsequent `commitTransition` call on a lost lease. Mirrors `erasure.ts`'s already-proven identical fencing discipline around its own slow external call (`blobStore.deleteObject`). `fencing` is optional, so every existing direct call to `processIntake` (this module's own tests, any caller outside the job queue) is unaffected. | A worker whose lease was reclaimed can still win the race to persist scan/extraction side effects and advance the document, corrupting state the new lease-holder is simultaneously writing. | Thread the claimed job's lease owner (or a monotonic fencing token) through every document-processing state transition and side-effect write in the pipeline. | `jobs.test.ts`: extends the existing paused-scanner CAS test with an assertion that exactly one `documentScanResults` row exists after the race resolves (previously unchecked — the stale worker's late write was silently accepted); a new, parallel test uses a paused (confident-classification) extractor to prove the same for `extractionRuns`/`documentClassifications`/the name-proposal row set specifically — the stale worker's own uncompleted `processingRuns` row is explicitly NOT asserted away, since a second append-only "an attempt was started" row is expected and correct, exactly like what a genuine mid-extraction crash would leave. Both new/extended assertions verified non-vacuous: temporarily forcing `stillHoldsLease` to always return `true` made exactly these two assertions fail (2 rows instead of 1), confirmed, then restored. | **FIXED — PR-C1** |
 | 20 | P1 | `packages/services/src/ai.ts` (platform-wide AI budget check) | **STILL PRESENT.** The advisory lock (`pg_advisory_xact_lock(hashtext(documentVersionId))`) is per-document by design (its own docstring says so); no second, fixed-key lock serializes the platform-wide total check across different documents. | Enough concurrent different-document requests can overshoot the platform-wide AI budget by multiple calls. | Add a second, fixed-key advisory lock around the platform-wide budget check itself. | Concurrency test: N concurrent different-document extraction requests near the platform cap never collectively exceed it. | **PR-C** |
-| 21 | P1 | `packages/db/migrations/0020_wide_doctor_doom.sql` + `jobs.ts` (reclaim query) | **STILL PRESENT.** Migration adds nullable `lease_expires_at` with no backfill; reclaim query is `status='CLAIMED' AND lease_expires_at < now()`, which never matches `NULL`. | A `CLAIMED` job that existed before this migration is permanently stuck — never reclaimable. | Add `OR lease_expires_at IS NULL` to the reclaim predicate, or a follow-up migration backfilling a bounded expiry for pre-existing `CLAIMED` rows. | Pre-existing-schema regression test: seed a `CLAIMED` row with `lease_expires_at = NULL` (simulating a pre-migration row), confirm it becomes reclaimable. | **PR-C** |
+| 21 | P1 | `packages/db/migrations/0020_wide_doctor_doom.sql` + `jobs.ts` (reclaim query) | **FIXED — PR-C1.** `claimJobs`' reclaim predicate now mirrors `erasure.ts`'s already-proven identical fix (Codex review, PR-B1) exactly: `OR (lease_expires_at IS NULL AND claimed_at < now() - LEASE_DURATION_MS)`, gated on `claimedAt` age rather than a bare `IS NULL` check, so a job whose OWN (pre-migration) worker might still be genuinely mid-flight on it isn't reclaimed prematurely — only once a full lease duration has passed with no lease ever set. | A `CLAIMED` job that existed before this migration is permanently stuck — never reclaimable. | Add `OR lease_expires_at IS NULL` to the reclaim predicate, or a follow-up migration backfilling a bounded expiry for pre-existing `CLAIMED` rows. | `jobs.test.ts`: two new tests, mirroring `erasure.test.ts`'s existing identical pair exactly — a lease-less `CLAIMED` row old enough to be past one lease duration is reclaimed and processed; a lease-less `CLAIMED` row claimed just now is left alone. Verified non-vacuous: reverting the predicate to the pre-fix version made only the first (reclaim) test fail — the second (leave-alone) test coincidentally still passes either way, since "don't reclaim" is what BOTH the old (uniformly broken) and new code do for a recent claim — confirmed, then restored. | **FIXED — PR-C1** |
 
 ### 4.7 PR #60 findings (3)
 
