@@ -7,17 +7,36 @@ import { validateDocxStructure } from './docx-validation';
  * A dependency-free `MalwareScannerPort` for when no antivirus service is wired. It
  * reads the stored bytes and enforces a positive allow-list: the content must
  * either begin with the magic bytes of an expected binary document type
- * (PDF/PNG/JPEG/DOCX — DOCX additionally passing real structural validation,
- * PDF additionally screened for active-content markers; see below), or pass
- * a plain-text heuristic (TXT/MD — these have no magic bytes), and be within
- * the size limit; executables and everything unrecognized are rejected.
+ * (PNG/JPEG/DOCX — DOCX additionally passing real structural validation; see
+ * below), or pass a plain-text heuristic (TXT/MD — these have no magic
+ * bytes), and be within the size limit; everything else, including PDF, is
+ * rejected.
  *
- * IMPORTANT: this is NOT antivirus. It stops type-spoofing, structurally
- * invalid/hostile-shaped documents, and obvious executable/malware-shaped
- * uploads, but not signature-based threats. It is paired with the human-
- * approval gate (documents never auto-promote to shared without owner
- * confirmation). Swap in a real ClamAV adapter behind this same port to
- * close the AV gate — no domain changes.
+ * IMPORTANT: this is NOT antivirus, and it deliberately does not attempt to
+ * be one. It stops type-spoofing and obvious executable/malware-shaped
+ * uploads, but nothing here inspects file *content* for safety beyond a
+ * magic-byte/structural shape check — there is no scanning for embedded
+ * scripts, macros, or other active content of any kind. Swap in a real
+ * ClamAV (or equivalent) adapter behind this same port to close the AV gate
+ * — no domain changes.
+ *
+ * PDF is a deliberate, permanent exception to the allow-list, not a gap to
+ * eventually close with a better heuristic: PDF's grammar (comments,
+ * strings, nested dictionaries, filter chains, compressed object streams)
+ * is expressive enough that a hand-rolled, dependency-free parser cannot
+ * soundly establish whether a given PDF's content is safe — an earlier
+ * attempt at exactly that (a from-scratch stream/dictionary/filter/
+ * predictor parser hunting for active-content markers) accumulated 20
+ * distinct correctness findings across 8 independent review rounds without
+ * converging, and was abandoned rather than further patched (see the
+ * post-programme defect register). Every PDF is therefore treated
+ * identically regardless of its content: recognized by magic bytes for a
+ * clear, honest rejection reason, then always rejected. `commercial-
+ * readiness.ts`'s hardcoded `realMalwareScanner: false` gate reflects the
+ * same fact at the product level — a real scanner adapter (which can
+ * safely use a mature, battle-tested PDF-parsing dependency instead of
+ * hand-rolled parsing) is a genuine future PR, not a heuristic to refine
+ * here.
  *
  * DOCX shares its ZIP magic bytes with XLSX/PPTX/generic ZIP archives, so a
  * magic-byte match alone is never sufficient — `validateDocxStructure`
@@ -40,13 +59,15 @@ import { validateDocxStructure } from './docx-validation';
  */
 
 const SCANNER_NAME = 'basic-structural-scanner';
-const SCANNER_VERSION = '2.0.0';
+const SCANNER_VERSION = '3.0.0';
 
 const PDF_MAGIC: readonly number[] = [0x25, 0x50, 0x44, 0x46]; // %PDF
 const DOCX_ZIP_MAGIC: readonly number[] = [0x50, 0x4b, 0x03, 0x04]; // PK\x03\x04
 
-// PDF and DOCX get their own structural checks below (magic bytes alone are
-// not sufficient for either); everything else here is magic-byte-only.
+// DOCX gets its own structural check below (magic bytes alone are not
+// sufficient); everything else here is magic-byte-only. PDF is recognized
+// by magic bytes too, but ONLY to produce a clear rejection reason — see
+// the module doc comment above for why it is never treated as safe.
 const MAGIC_ALLOW: ReadonlyArray<{ readonly label: string; readonly bytes: readonly number[] }> = [
   { label: 'png', bytes: [0x89, 0x50, 0x4e, 0x47] },
   { label: 'jpeg', bytes: [0xff, 0xd8, 0xff] },
@@ -58,29 +79,6 @@ const MAGIC_DENY: ReadonlyArray<{ readonly label: string; readonly bytes: readon
   { label: 'mach-o executable', bytes: [0xfe, 0xed, 0xfa, 0xce] },
   { label: 'shell script', bytes: [0x23, 0x21] }, // #!
 ];
-
-/**
- * Object-dictionary keys a PDF uses to run embedded JavaScript, auto-launch
- * an external action on open, or carry an embedded file. A byte-level
- * substring heuristic, not a real PDF object parse — bounded, cheap, and
- * deliberately conservative (a real applicant document essentially never
- * contains these); paired with `unpdf`'s independent parse at extraction
- * time. Full sanitization (CDR) is tracked, not implemented here.
- */
-const ACTIVE_PDF_CONTENT_MARKERS: readonly string[] = [
-  '/JavaScript',
-  '/JS',
-  '/OpenAction',
-  '/Launch',
-  '/EmbeddedFile',
-];
-
-function containsActivePdfContent(bytes: Uint8Array): string | undefined {
-  // latin1 is byte-transparent (1 char <-> 1 byte) — exactly what a raw
-  // marker search over binary PDF bytes needs, with no UTF-8 decode risk.
-  const text = Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength).toString('latin1');
-  return ACTIVE_PDF_CONTENT_MARKERS.find((marker) => text.includes(marker));
-}
 
 /** Declared content types the plain-text path accepts — nothing else, regardless of byte shape. */
 const PLAIN_TEXT_CONTENT_TYPES: ReadonlySet<string> = new Set(['text/plain', 'text/markdown']);
@@ -150,12 +148,14 @@ export class BasicSafetyScanner implements MalwareScannerPort {
       }
     }
 
+    // Recognized by magic bytes for a clear, honest reason — never treated
+    // as safe. See the module doc comment for why PDF content is never
+    // parsed or content-inspected here.
     if (startsWith(bytes, PDF_MAGIC)) {
-      const activeMarker = containsActivePdfContent(bytes);
-      if (activeMarker) {
-        return { safe: false, detail: `rejected: active PDF content (${activeMarker})` };
-      }
-      return { safe: true, detail: 'pdf' };
+      return {
+        safe: false,
+        detail: 'rejected: pdf content safety cannot be established without a real malware scanner',
+      };
     }
 
     if (startsWith(bytes, DOCX_ZIP_MAGIC)) {

@@ -748,6 +748,78 @@ describe('missions — workspace, readiness, workflow, snapshot', () => {
     expect(erasedEntry?.eligible).toBe(false);
   });
 
+  it('does not count a document quarantined by the safety scanner as satisfying a requirement, and excludes it from a snapshot (PR-B3R)', async () => {
+    const { account, applicantId } = await seed(db);
+    const packVersionId = await publishedPack(db, account.id);
+    const mission = await createMission(db, {
+      actorAccountId: account.id,
+      applicantId,
+      title: 'UK Visa',
+    });
+    if (!isOk(mission)) throw new Error('mission');
+    await attachPackVersion(db, {
+      actorAccountId: account.id,
+      missionId: mission.value.id,
+      packVersionId,
+    });
+    await registerFieldDefinition(db, { key: 'passport.number', dataType: 'string' });
+    await editFact(db, {
+      actorAccountId: account.id,
+      applicantId,
+      fieldKey: 'passport.number',
+      value: 'A1',
+    });
+
+    // Simulates exactly what a real arbitrary-PDF upload produces through
+    // BasicSafetyScanner + processIntake: QUARANTINED/NEEDS_ATTENTION, never
+    // CLEAN. isDocumentVersionUsable's safetyStatus === 'CLEAN' check is the
+    // one canonical definition mission eligibility shares with preview/
+    // download (documents.ts) — no separate mission-specific gate exists or
+    // is needed.
+    const quarantined = await registerDocument(db, {
+      actorAccountId: account.id,
+      applicantId,
+      originalName: 'quarantined.pdf',
+      docType: 'bank_statement',
+    });
+    if (!isOk(quarantined)) throw new Error('doc');
+    const version = await addDocumentVersion(db, {
+      actorAccountId: account.id,
+      documentId: quarantined.value.id,
+      bucket: 'QUARANTINE',
+      objectKey: 'quarantined-pdf-k',
+      safetyStatus: 'QUARANTINED',
+      processingStatus: 'NEEDS_ATTENTION',
+    });
+    if (!isOk(version)) throw new Error('version');
+
+    const withQuarantinedOnly = await computeReadiness(db, mission.value.id);
+    expect(isOk(withQuarantinedOnly)).toBe(true);
+    if (!isOk(withQuarantinedOnly)) return;
+    expect(withQuarantinedOnly.value.ready).toBe(false);
+    expect(withQuarantinedOnly.value.missing.some((m) => m.kind === 'DOCUMENT')).toBe(true);
+
+    const snap = await snapshotMission(db, {
+      actorAccountId: account.id,
+      missionId: mission.value.id,
+    });
+    expect(isOk(snap)).toBe(true);
+    if (!isOk(snap)) return;
+    const content = snap.value.content as {
+      requirementMapping: ReadonlyArray<{
+        kind: string;
+        satisfied: boolean;
+        documents?: ReadonlyArray<{ documentId: string; eligible: boolean }>;
+      }>;
+    };
+    const documentRequirement = content.requirementMapping.find((m) => m.kind === 'DOCUMENT');
+    expect(documentRequirement?.satisfied).toBe(false);
+    const quarantinedEntry = documentRequirement?.documents?.find(
+      (d) => d.documentId === quarantined.value.id,
+    );
+    expect(quarantinedEntry?.eligible).toBe(false);
+  });
+
   it('does not count an unconfirmed (EXTRACTED_PENDING) or STALE fact as satisfying a requirement (master directive §7 "PR 10")', async () => {
     const { account, applicantId } = await seed(db);
     const packVersionId = await publishedPack(db, account.id);

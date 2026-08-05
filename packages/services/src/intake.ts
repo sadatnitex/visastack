@@ -351,11 +351,40 @@ export async function processIntake(
           .limit(1),
       );
       if (!storageObject) return err(serviceError('not_found', 'stored object missing'));
-      // If the scanner throws, the version stays in SCANNING and is resumable.
-      const result = await scanner.scan({
-        bucket: storageObject.bucket,
-        objectKey: storageObject.objectKey,
-      });
+      // If the scanner throws, the version stays in SCANNING and is
+      // resumable — but a throw used to skip the documentScanResults insert
+      // entirely, leaving no durable trace an attempt was ever made (Codex
+      // review, PR-B3, finding #10): listScanResults() couldn't distinguish
+      // "never scanned" from "repeatedly failed to scan." A failure row is
+      // now recorded before the error propagates, then the SAME error is
+      // rethrown unchanged — this doesn't change the resumability contract,
+      // only makes the failed attempt visible.
+      let result: ScanResult;
+      try {
+        result = await scanner.scan({
+          bucket: storageObject.bucket,
+          objectKey: storageObject.objectKey,
+        });
+      } catch (error) {
+        // scanErrored: true marks this as an indeterminate/error outcome,
+        // not a genuine unsafe verdict (Codex review, PR-B3R, round 1) --
+        // `safe: false` alone is indistinguishable from a real "the scanner
+        // examined this and found it unsafe" result, so a later, successful
+        // retry would otherwise leave a false unsafe entry sitting in
+        // listScanResults()/exported scan history forever.
+        await db.insert(schema.documentScanResults).values({
+          documentVersionId: version.id,
+          scannerName: scanner.name,
+          scannerVersion: scanner.version,
+          scanErrored: true,
+          safe: false,
+          detail: `scan threw: ${error instanceof Error ? error.message : String(error)}`.slice(
+            0,
+            2000,
+          ),
+        });
+        throw error;
+      }
       // Durable, append-only evidence of every scan attempt (master
       // directive §7 "PR 3"): which scanner, which version, when, and the
       // result — distinct from documentVersions.safetyStatus (the current

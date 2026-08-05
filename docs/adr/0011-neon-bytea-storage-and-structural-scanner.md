@@ -24,8 +24,12 @@ already in place (Vercel + Neon).
   `downloadDocument`. The serving route re-verifies signature + expiry.
 - **Scanner = built-in structural validator (`BasicSafetyScanner`).** Reads the
   stored bytes and enforces a positive allow-list of document magic bytes
-  (PDF/PNG/JPEG) plus size limits, rejecting executables and unrecognized
-  content. It runs in-process, no daemon, no signatures DB.
+  (PNG/JPEG, plus DOCX with real structural validation) plus size limits,
+  rejecting executables and unrecognized content. It runs in-process, no
+  daemon, no signatures DB. **PDF is deliberately not part of this
+  allow-list** — see ADR-0012, which amends this decision after a hand-rolled
+  PDF content parser (added in a later PR) proved unable to soundly
+  establish PDF safety; every PDF is now rejected unconditionally.
 - Both satisfy the existing ports, so the domain, its guarantees, and all tests
   are unchanged. Swapping to S3+KMS / ClamAV later is an adapter change only.
 
@@ -33,8 +37,10 @@ already in place (Vercel + Neon).
 
 - **Positive:** the full upload → scan → store → permissioned-serve flow works
   end-to-end on Vercel + Neon alone, with no external accounts or keys. Proven
-  by an integration test that drives real PDF bytes to `AWAITING_REVIEW` and an
-  executable to `NEEDS_ATTENTION`.
+  by an integration test that drives real bytes of an allow-listed type to
+  `AWAITING_REVIEW` and both a PDF and an executable to `NEEDS_ATTENTION`
+  (PDF's own rejection is a deliberate policy, not a scanner limitation to
+  fix — see ADR-0012).
 - **Accepted risks / trade-offs (explicit, not hand-waved):**
   1. **The structural scanner is NOT antivirus.** It stops type-spoofing and
      obvious executable/malware-shaped uploads, not signature-based threats. It

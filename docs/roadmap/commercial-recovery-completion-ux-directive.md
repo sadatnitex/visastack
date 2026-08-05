@@ -520,6 +520,23 @@ until a production malware scanner is configured and verified.
 text length, archive entries, compression ratio, parse time, memory,
 recursion, password protection, embedded active content.
 
+> **Amendment (ADR-0012, 2026-08-04):** for PDF specifically, "embedded
+> active content" detection is no longer implemented as a hand-rolled
+> parser. A first attempt (PR #68) accumulated 20 distinct correctness
+> findings across 8 review rounds without converging on a sound
+> implementation and was abandoned. PDF content is now never parsed at
+> all — every PDF fails closed to `NEEDS_ATTENTION`/`QUARANTINED`
+> unconditionally, regardless of content, until a real malware-scanner
+> adapter (free to depend on a mature, vetted PDF-parsing library) is
+> built. See ADR-0012 for the full rationale, and for the approved (but
+> not yet implemented) synthetic demo-fixture registry architecture,
+> deferred to the UX/external-shareability and deployed-E2E phases —
+> fixtures never enter the ordinary document safety model and are never
+> represented as scanned or malware-free through it. Every other control
+> in this list (bytes, pages, pixels, archive entries, compression ratio,
+> etc.) is unaffected by this amendment and still applies where relevant
+> (e.g. DOCX's own bounded ZIP inspection above).
+
 ### PR 4 — External erasure, privacy and retention integrity
 
 Implement a durable external-object deletion system.
