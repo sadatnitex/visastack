@@ -1,6 +1,6 @@
 import type { DocumentState } from '@visastack/core';
 import { type Result, err, ok } from '@visastack/core';
-import { and, desc, eq, sql } from 'drizzle-orm';
+import { and, desc, eq, gt, sql } from 'drizzle-orm';
 import { appendAuditEvent } from './audit';
 import { classifyDocumentText } from './classification';
 import { type Db, first, required, schema } from './db';
@@ -114,6 +114,30 @@ async function currentOrStale(
  * rather than a plain `SELECT`, so the check and the guarantee it provides
  * are themselves atomic with respect to a concurrent reclaim.
  *
+ * **Codex review, PR-C1, round 1**: matching on `id`/`status`/`leaseOwner`
+ * alone answers "does the row still nominally say I'm the holder" — it does
+ * NOT answer "is my lease still genuinely unexpired." If this invocation's
+ * `leaseExpiresAt` has already passed but no OTHER worker has actually
+ * called `claimJobs` to reclaim the row yet, the row still shows this
+ * invocation's own `leaseOwner`, so the CAS above would still match and
+ * return `true` — right up until the moment a reclaim finally happens,
+ * which could land in the narrow window between this check returning and
+ * the write it was meant to gate. Requiring `leaseExpiresAt` to still be in
+ * the future closes that: once a lease's own clock has run out, this
+ * invocation stops treating itself as authoritative immediately, rather
+ * than gambling on finishing before some other invocation's `claimJobs`
+ * call happens to notice. This is the correct, conservative reading of what
+ * a time-bound lease means, not an overly strict addition — the whole
+ * point of `leaseExpiresAt` is "you only own this until this time," and any
+ * invocation (including this one) should honor that the instant it passes,
+ * whether or not a reclaim has physically occurred yet. `leaseExpiresAt` is
+ * never `NULL` for a job `fencing` ever refers to: `fencing.leaseOwner`
+ * only ever comes from a token `claimJobs` itself just generated, and
+ * `claimJobs` always sets a real `leaseExpiresAt` when it claims a job (the
+ * lease-less-row case finding #21 fixes only ever arises from CODE THAT
+ * PREDATES the lease columns entirely, which never threads `fencing`
+ * through at all).
+ *
  * `fencing` is optional so every existing direct call to `processIntake`
  * (this module's own tests, and any caller outside the job queue) keeps
  * working unchanged — fencing only applies when a caller actually has a
@@ -128,6 +152,7 @@ async function stillHoldsLease(db: Db, fencing: IntakeFencing): Promise<boolean>
         eq(schema.processingJobs.id, fencing.jobId),
         eq(schema.processingJobs.status, 'CLAIMED'),
         eq(schema.processingJobs.leaseOwner, fencing.leaseOwner),
+        gt(schema.processingJobs.leaseExpiresAt, sql`now()`),
       ),
     )
     .returning({ id: schema.processingJobs.id });

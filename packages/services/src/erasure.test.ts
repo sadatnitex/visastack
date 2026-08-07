@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { PGlite } from '@electric-sql/pglite';
 import { isErr, isOk } from '@visastack/core';
@@ -477,7 +478,7 @@ describe('erasure outbox', () => {
       expect(rows).toHaveLength(1);
     });
 
-    it('also treats a FAILED (retries exhausted) job as active — a stuck job has its own dedicated retryErasureJob resume path, not a silent parallel re-enqueue', async () => {
+    it('requeues a FAILED (retries exhausted) job under the same reason/context when the request repeats (D-A1) — reset to PENDING with a fresh attempt budget, not silently left stuck', async () => {
       const object = await seedStorageObject(db, 'obj-dedup-failed');
       const input = {
         reason: 'ACCOUNT_DELETION' as const,
@@ -489,17 +490,84 @@ describe('erasure outbox', () => {
       const job = await enqueueErasureJob(db, input);
       await db
         .update(schema.erasureJobs)
-        .set({ status: 'FAILED', lastError: 'exhausted' })
+        .set({ status: 'FAILED', lastError: 'exhausted', attempts: 5 })
         .where(eq(schema.erasureJobs.id, job.id));
 
       const again = await enqueueErasureJob(db, input);
       expect(again.id).toBe(job.id);
-      expect(again.status).toBe('FAILED');
+      expect(again.status).toBe('PENDING');
+      expect(again.attempts).toBe(0);
+      expect(again.lastError).toBeNull();
       const rows = await db
         .select()
         .from(schema.erasureJobs)
         .where(eq(schema.erasureJobs.storageObjectId, object.id));
       expect(rows).toHaveLength(1);
+    });
+
+    it('requeues a parked job under a NEW reason/context when a different kind of deletion request arrives, and it actually reaches VERIFIED afterward (Codex review, PR-C1, round 1)', async () => {
+      // Reproduces the exact gap Codex found: an earlier RETENTION_PURGE
+      // attempt parked FAILED with documentId/applicantId set. A LATER,
+      // unrelated ACCOUNT_DELETION request for the SAME storage object
+      // (executeAccountDeletion deletes the applicant/document rows FIRST,
+      // then enqueues -- documentId/applicantId are unset by design) must
+      // not just inherit that stale row inertly: the account's logical rows
+      // would be gone while these bytes sat undeleted forever, since a
+      // FAILED job is never picked up by runErasureWorker again on its own.
+      const applicant = await seedApplicant(db, 'requeue-takeover@example.com');
+      const object = await seedStorageObject(db, 'obj-requeue-takeover');
+      await storage.putObject({
+        bucket: 'CLEAN',
+        objectKey: 'obj-requeue-takeover',
+        contentType: 'application/pdf',
+        bytes: new Uint8Array([1]),
+      });
+      const staleDocumentId = randomUUID();
+      const parkedJob = await enqueueErasureJob(db, {
+        reason: 'RETENTION_PURGE',
+        bucket: 'CLEAN',
+        objectKey: 'obj-requeue-takeover',
+        expectedHash: null,
+        storageObjectId: object.id,
+        documentId: staleDocumentId,
+        applicantId: applicant.applicantId,
+      });
+      await db
+        .update(schema.erasureJobs)
+        .set({ status: 'FAILED', lastError: 'exhausted' })
+        .where(eq(schema.erasureJobs.id, parkedJob.id));
+
+      // The account-deletion path's own call shape: no documentId/applicantId.
+      const requeued = await enqueueErasureJob(db, {
+        reason: 'ACCOUNT_DELETION',
+        bucket: 'CLEAN',
+        objectKey: 'obj-requeue-takeover',
+        expectedHash: null,
+        storageObjectId: object.id,
+      });
+      expect(requeued.id).toBe(parkedJob.id);
+      expect(requeued.status).toBe('PENDING');
+      expect(requeued.reason).toBe('ACCOUNT_DELETION');
+      expect(requeued.documentId).toBeNull();
+      expect(requeued.applicantId).toBeNull();
+
+      // Not just cosmetically requeued -- the worker genuinely picks it up
+      // and drives it all the way to VERIFIED, taking the simple
+      // ACCOUNT_DELETION branch (no stale hold-recheck/document-cascade
+      // logic against the now-nonexistent staleDocumentId).
+      const result = await runErasureWorker(db, storage, { limit: 5 });
+      expect(result).toEqual({ processed: 1, blocked: 0, failed: 0 });
+      const [final] = await db
+        .select()
+        .from(schema.erasureJobs)
+        .where(eq(schema.erasureJobs.id, parkedJob.id));
+      expect(final?.status).toBe('VERIFIED');
+      expect(
+        await db
+          .select()
+          .from(schema.storageObjects)
+          .where(eq(schema.storageObjects.id, object.id)),
+      ).toHaveLength(0);
     });
 
     it('does NOT treat a VERIFIED job as active — its bytes are already provably gone, so a fresh enqueue is harmless and allowed, not blocked', async () => {

@@ -338,6 +338,74 @@ describe('low-volume durable job queue — async intake', () => {
     expect(row?.leaseOwner).toBeNull();
   });
 
+  it('treats its own expired-but-not-yet-reclaimed lease as lost before writing side effects or marking the job DONE (Codex review, PR-C1, round 1)', async () => {
+    const versionId = await seedVersion(db, 'j-expired-not-reclaimed@example.com');
+    const job = await enqueueIntakeJob(db, { documentVersionId: versionId });
+
+    let releaseScan: (() => void) | undefined;
+    const pausedScanner: MalwareScannerPort = {
+      name: 'test-scanner',
+      version: '0.0.0',
+      async scan() {
+        await new Promise<void>((resolve) => {
+          releaseScan = resolve;
+        });
+        return { safe: true };
+      },
+    };
+
+    const invocation = runIntakeWorker(db, pausedScanner, noOpExtractor);
+    await vi.waitFor(() => {
+      if (!releaseScan) throw new Error('has not reached the scan yet');
+    });
+
+    // The lease expires by wall-clock time, but nobody has actually
+    // reclaimed it -- leaseOwner is untouched, still this same invocation's
+    // own token. A leaseOwner-only check (the pre-fix design) would still
+    // see this as "I'm still the holder"; only checking leaseExpiresAt too
+    // catches it.
+    await db
+      .update(schema.processingJobs)
+      .set({ leaseExpiresAt: new Date(0) })
+      .where(eq(schema.processingJobs.id, job.id));
+
+    releaseScan?.();
+    const result = await invocation;
+    expect(result).toEqual({ processed: 0, failed: 0 });
+
+    // Nothing was written -- no scan-result row from a worker whose own
+    // lease clock had already run out, even though it never lost the
+    // "who's holding it" race to any other invocation.
+    const scanResults = await db
+      .select()
+      .from(schema.documentScanResults)
+      .where(eq(schema.documentScanResults.documentVersionId, versionId));
+    expect(scanResults).toHaveLength(0);
+
+    // Just as important: the job itself was NOT marked DONE either
+    // (completeJob's own CAS now requires the identical unexpired-lease
+    // condition, kept consistent with stillHoldsLease) -- if it had been,
+    // this document version would be stuck at SCANNING forever with no job
+    // left to ever retry it. It stays CLAIMED with its expired lease,
+    // exactly the shape a crashed worker leaves, genuinely reclaimable by
+    // the next ordinary claimJobs sweep.
+    const [row] = await db
+      .select()
+      .from(schema.processingJobs)
+      .where(eq(schema.processingJobs.id, job.id));
+    expect(row?.status).toBe('CLAIMED');
+    const [version] = await db
+      .select()
+      .from(schema.documentVersions)
+      .where(eq(schema.documentVersions.id, versionId));
+    expect(version?.processingStatus).toBe('SCANNING');
+
+    // Confirm it is genuinely, normally reclaimable -- not stuck by some
+    // OTHER accident this test's setup introduced.
+    const reclaimed = await runIntakeWorker(db, cleanScanner, noOpExtractor);
+    expect(reclaimed).toEqual({ processed: 1, failed: 0 });
+  });
+
   it('a lease reclaimed while the original claimer is still genuinely running protects against a double-completion (CAS)', async () => {
     const versionId = await seedVersion(db, 'j-cas@example.com');
     const job = await enqueueIntakeJob(db, { documentVersionId: versionId });

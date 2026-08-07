@@ -65,22 +65,17 @@ export interface EnqueueErasureJobInput {
   readonly applicantId?: string;
 }
 
-/**
- * Statuses that count as "there is already a job working toward VERIFIED
- * for this storage object" — everything except `VERIFIED` itself (whose
- * bytes are already provably gone, so a redundant enqueue against it is
- * harmless, not merely wasteful) and there is no such status to skip. Used
- * only for the duplicate-enqueue check below (D-A1, post-programme defect
- * register) — has no bearing on `erasureInProgressOrBytesGone`'s own,
- * separate servability predicate.
- */
-const ACTIVE_ERASURE_JOB_STATUSES: readonly ErasureJob['status'][] = [
+/** Genuinely still progressing toward `VERIFIED` on its own — nothing further to do for a fresh enqueue request against the same storage object. */
+const IN_FLIGHT_ERASURE_JOB_STATUSES: readonly ErasureJob['status'][] = [
   'PENDING',
   'CLAIMED',
   'DELETED',
-  'FAILED',
-  'BLOCKED_BY_HOLD',
 ];
+/**
+ * Parked — will never resume on its own; only an explicit action (an admin's
+ * `retryErasureJob`, or a fresh enqueue request, see below) moves it again.
+ */
+const PARKED_ERASURE_JOB_STATUSES: readonly ErasureJob['status'][] = ['FAILED', 'BLOCKED_BY_HOLD'];
 
 /**
  * Queue one external object for deletion. Callers pass their own transaction
@@ -88,29 +83,51 @@ const ACTIVE_ERASURE_JOB_STATUSES: readonly ErasureJob['status'][] = [
  * step rather than opening a transaction of its own.
  *
  * Genuinely idempotent per storage object (D-A1, post-programme defect
- * register): if a job already exists for this `storageObjectId` in any
- * non-`VERIFIED` status, that existing row is returned unchanged rather
- * than inserting a duplicate. `purgeExpiredDocuments` can be invoked
- * repeatedly (a manual admin action) against the same still-not-fully-
- * erased document indefinitely — by design, a document deliberately
- * survives until every sibling storage object's job reaches `VERIFIED`
- * (finding #13) — so a document with one stuck `FAILED` or
- * `BLOCKED_BY_HOLD` sibling is exactly the shape a repeated purge run would
- * otherwise keep re-enqueueing redundant jobs against. This closes a pure
- * efficiency/hygiene gap (wasted worker attempts, unbounded row growth),
- * never a correctness one: `finalizeVerifiedJob`'s own completion check
- * already groups by distinct `storageObjectId`, so it was already correct
- * regardless of how or why a duplicate row arose, before this fix existed.
- * A `FAILED`/`BLOCKED_BY_HOLD` job stuck here still has its own dedicated,
- * deliberate resume path (`retryErasureJob`, admin-triggered) rather than
- * silently acquiring a second, parallel attempt from an unrelated purge
- * run. Race-safety for the one caller with a genuine repeated-invocation
- * risk (`purgeExpiredDocuments`) comes from the `documents` row lock it
- * already takes before calling this function — this existence check does
- * not add a locking primitive of its own, so under a true concurrent call
- * with no matching external lock a duplicate remains theoretically
- * possible; that is strictly no worse than the total absence of any check
- * this replaces, never a regression.
+ * register): a job already `PENDING`/`CLAIMED`/`DELETED` for this
+ * `storageObjectId` is already progressing toward `VERIFIED` on its own and
+ * is returned unchanged. `purgeExpiredDocuments` can be invoked repeatedly
+ * (a manual admin action) against the same still-not-fully-erased document
+ * indefinitely — by design, a document deliberately survives until every
+ * sibling storage object's job reaches `VERIFIED` (finding #13) — so a
+ * document with one stuck `FAILED`/`BLOCKED_BY_HOLD` sibling is exactly the
+ * shape a repeated purge run would otherwise keep re-enqueueing redundant
+ * jobs against. This closes a pure efficiency/hygiene gap (wasted worker
+ * attempts, unbounded row growth), never a correctness one:
+ * `finalizeVerifiedJob`'s own completion check already groups by distinct
+ * `storageObjectId`, so it was already correct regardless of how or why a
+ * duplicate row arose, before this fix existed.
+ *
+ * A job already `FAILED`/`BLOCKED_BY_HOLD` is **requeued** — reset to
+ * `PENDING` with a fresh attempt budget, and its `reason`/`documentId`/
+ * `applicantId` overwritten to match THIS call's own input — rather than
+ * returned inertly (Codex review, PR-C1, round 1). A parked job left
+ * untouched here would never resume on its own: `executeAccountDeletion`
+ * deletes the applicant/document rows and THEN enqueues an `ACCOUNT_DELETION`
+ * job for each storage object (no `documentId`/`applicantId` — the rows are
+ * already gone by then); if that storage object already had an unrelated
+ * `RETENTION_PURGE` job parked here from an earlier attempt, the original
+ * inert-return design would hand back that stale, going-nowhere row — the
+ * account's logical rows would be gone while its external bytes sat
+ * undeleted indefinitely, with no automatic path to erasure. Overwriting
+ * `reason`/`documentId`/`applicantId` (not merely `status`) matters: a
+ * requeued job that kept a stale `RETENTION_PURGE` reason/`documentId`
+ * pointing at an already-deleted document would take
+ * `finalizeVerifiedJob`'s RETENTION_PURGE branch (hold recheck, document-
+ * row lock, sibling-completion cascade) against rows that no longer exist,
+ * instead of the simple, already-correct `ACCOUNT_DELETION` branch the
+ * fresh request actually calls for. Safe in the reverse direction too — a
+ * `RETENTION_PURGE` call finding its OWN earlier parked attempt just
+ * overwrites `reason`/`documentId`/`applicantId` with the same values they
+ * already held. `bucket`/`objectKey`/`expectedHash` are never overwritten:
+ * they describe the underlying object itself, not why erasure is needed,
+ * and are already guaranteed identical for the same `storageObjectId`.
+ *
+ * Race-safety for the one caller with a genuine repeated-invocation risk
+ * (`purgeExpiredDocuments`) comes from the `documents` row lock it already
+ * takes before calling this function; this existence check adds no locking
+ * primitive of its own, so a duplicate under a true concurrent call with no
+ * matching external lock remains theoretically possible — strictly no worse
+ * than the total absence of any check this replaces, never a regression.
  */
 export async function enqueueErasureJob(
   db: Db,
@@ -123,12 +140,40 @@ export async function enqueueErasureJob(
       .where(
         and(
           eq(schema.erasureJobs.storageObjectId, input.storageObjectId),
-          inArray(schema.erasureJobs.status, ACTIVE_ERASURE_JOB_STATUSES),
+          inArray(schema.erasureJobs.status, [
+            ...IN_FLIGHT_ERASURE_JOB_STATUSES,
+            ...PARKED_ERASURE_JOB_STATUSES,
+          ]),
         ),
       )
       .limit(1),
   );
-  if (existing) return existing;
+  if (existing) {
+    if ((IN_FLIGHT_ERASURE_JOB_STATUSES as readonly string[]).includes(existing.status)) {
+      return existing;
+    }
+    // PARKED: give it a fresh attempt budget under THIS call's own reason/
+    // context rather than leaving it stranded.
+    const requeued = first(
+      await db
+        .update(schema.erasureJobs)
+        .set({
+          reason: input.reason,
+          documentId: input.documentId ?? null,
+          applicantId: input.applicantId ?? null,
+          status: 'PENDING',
+          attempts: 0,
+          lastError: null,
+          leaseOwner: null,
+          leaseExpiresAt: null,
+          availableAt: new Date(),
+          updatedAt: new Date(),
+        })
+        .where(eq(schema.erasureJobs.id, existing.id))
+        .returning(),
+    );
+    if (requeued) return requeued;
+  }
   return required(
     first(
       await db
