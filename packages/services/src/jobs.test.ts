@@ -17,6 +17,12 @@ import { enqueueIntakeJob, listFailedJobs, retryFailedJob, runIntakeWorker } fro
 
 const migrationsFolder = fileURLToPath(new URL('../../db/migrations', import.meta.url));
 
+// A valid ICAO TD3 specimen (check digits computed to validate) -- confident
+// PASSPORT classification, reviewRequired: false, so a naming proposal is
+// actually generated (pipeline.test.ts uses the identical fixture).
+const MRZ_L1 = 'P<UTOERIKSSON<<ANNA<MARIA<<<<<<<<<<<<<<<<<<<';
+const MRZ_L2 = 'L898902C36UTO7408122F1204159ZE184226B<<<<<10';
+
 async function freshDb(): Promise<Db> {
   const client = new PGlite();
   const db = drizzle(client, { schema });
@@ -280,6 +286,126 @@ describe('low-volume durable job queue — async intake', () => {
     expect(row?.leaseOwner).toBeNull();
   });
 
+  it("reclaims a CLAIMED job with no lease at all once its claim is old enough — the rollout window where the OLD deployment (predating leasing) claimed it (finding #21, post-programme defect register, mirrors erasure.ts's identical Codex-review-PR-B1 fix)", async () => {
+    const versionId = await seedVersion(db, 'j-rollout-old@example.com');
+    const job = await enqueueIntakeJob(db, { documentVersionId: versionId });
+    // The migration ran (columns exist), but the still-serving OLD
+    // deployment's code claimed this job without ever setting the new
+    // lease columns at all — not merely an expired lease, no lease.
+    await db
+      .update(schema.processingJobs)
+      .set({
+        status: 'CLAIMED',
+        leaseOwner: null,
+        leaseExpiresAt: null,
+        claimedAt: new Date(Date.now() - 10 * 60 * 1000), // well past one lease duration
+      })
+      .where(eq(schema.processingJobs.id, job.id));
+
+    const result = await runIntakeWorker(db, cleanScanner, noOpExtractor);
+    expect(result).toEqual({ processed: 1, failed: 0 });
+    const [row] = await db
+      .select()
+      .from(schema.processingJobs)
+      .where(eq(schema.processingJobs.id, job.id));
+    expect(row?.status).toBe('DONE');
+  });
+
+  it('does NOT reclaim a lease-less CLAIMED job whose claim is still recent — the old deployment could genuinely still be mid-flight on it (finding #21, post-programme defect register)', async () => {
+    const versionId = await seedVersion(db, 'j-rollout-recent@example.com');
+    const job = await enqueueIntakeJob(db, { documentVersionId: versionId });
+    await db
+      .update(schema.processingJobs)
+      .set({
+        status: 'CLAIMED',
+        leaseOwner: null,
+        leaseExpiresAt: null,
+        claimedAt: new Date(), // claimed just now — could still be genuinely in flight
+      })
+      .where(eq(schema.processingJobs.id, job.id));
+
+    // Reclaiming this too eagerly would let a second worker start
+    // processing the SAME job the old deployment might still be mid-flight
+    // on — exactly the double-processing hazard leasing exists to prevent,
+    // just via a different (lease-less) route.
+    const result = await runIntakeWorker(db, cleanScanner, noOpExtractor);
+    expect(result).toEqual({ processed: 0, failed: 0 });
+    const [row] = await db
+      .select()
+      .from(schema.processingJobs)
+      .where(eq(schema.processingJobs.id, job.id));
+    expect(row?.status).toBe('CLAIMED');
+    expect(row?.leaseOwner).toBeNull();
+  });
+
+  it('treats its own expired-but-not-yet-reclaimed lease as lost before writing side effects or marking the job DONE (Codex review, PR-C1, round 1)', async () => {
+    const versionId = await seedVersion(db, 'j-expired-not-reclaimed@example.com');
+    const job = await enqueueIntakeJob(db, { documentVersionId: versionId });
+
+    let releaseScan: (() => void) | undefined;
+    const pausedScanner: MalwareScannerPort = {
+      name: 'test-scanner',
+      version: '0.0.0',
+      async scan() {
+        await new Promise<void>((resolve) => {
+          releaseScan = resolve;
+        });
+        return { safe: true };
+      },
+    };
+
+    const invocation = runIntakeWorker(db, pausedScanner, noOpExtractor);
+    await vi.waitFor(() => {
+      if (!releaseScan) throw new Error('has not reached the scan yet');
+    });
+
+    // The lease expires by wall-clock time, but nobody has actually
+    // reclaimed it -- leaseOwner is untouched, still this same invocation's
+    // own token. A leaseOwner-only check (the pre-fix design) would still
+    // see this as "I'm still the holder"; only checking leaseExpiresAt too
+    // catches it.
+    await db
+      .update(schema.processingJobs)
+      .set({ leaseExpiresAt: new Date(0) })
+      .where(eq(schema.processingJobs.id, job.id));
+
+    releaseScan?.();
+    const result = await invocation;
+    expect(result).toEqual({ processed: 0, failed: 0 });
+
+    // Nothing was written -- no scan-result row from a worker whose own
+    // lease clock had already run out, even though it never lost the
+    // "who's holding it" race to any other invocation.
+    const scanResults = await db
+      .select()
+      .from(schema.documentScanResults)
+      .where(eq(schema.documentScanResults.documentVersionId, versionId));
+    expect(scanResults).toHaveLength(0);
+
+    // Just as important: the job itself was NOT marked DONE either
+    // (completeJob's own CAS now requires the identical unexpired-lease
+    // condition, kept consistent with stillHoldsLease) -- if it had been,
+    // this document version would be stuck at SCANNING forever with no job
+    // left to ever retry it. It stays CLAIMED with its expired lease,
+    // exactly the shape a crashed worker leaves, genuinely reclaimable by
+    // the next ordinary claimJobs sweep.
+    const [row] = await db
+      .select()
+      .from(schema.processingJobs)
+      .where(eq(schema.processingJobs.id, job.id));
+    expect(row?.status).toBe('CLAIMED');
+    const [version] = await db
+      .select()
+      .from(schema.documentVersions)
+      .where(eq(schema.documentVersions.id, versionId));
+    expect(version?.processingStatus).toBe('SCANNING');
+
+    // Confirm it is genuinely, normally reclaimable -- not stuck by some
+    // OTHER accident this test's setup introduced.
+    const reclaimed = await runIntakeWorker(db, cleanScanner, noOpExtractor);
+    expect(reclaimed).toEqual({ processed: 1, failed: 0 });
+  });
+
   it('a lease reclaimed while the original claimer is still genuinely running protects against a double-completion (CAS)', async () => {
     const versionId = await seedVersion(db, 'j-cas@example.com');
     const job = await enqueueIntakeJob(db, { documentVersionId: versionId });
@@ -333,6 +459,125 @@ describe('low-volume durable job queue — async intake', () => {
       .from(schema.processingJobs)
       .where(eq(schema.processingJobs.id, job.id));
     expect(afterA?.status).toBe('DONE'); // unchanged by A's late, rejected write
+    const [version] = await db
+      .select()
+      .from(schema.documentVersions)
+      .where(eq(schema.documentVersions.id, versionId));
+    expect(version?.processingStatus).toBe('AWAITING_REVIEW'); // B's outcome stands
+
+    // Finding #19 (post-programme defect register): before fencing was
+    // threaded into processIntake's own side-effect writes, A's late,
+    // ultimately-rejected scan would still have inserted its OWN
+    // documentScanResults row before ever reaching commitTransition's CAS
+    // — a stale, duplicate scan-history entry surviving despite losing the
+    // race. A's fencing check (right after its paused scanner.scan()
+    // finally resolves, before any write) now catches the lost lease first
+    // and skips that insert entirely: exactly one row, B's.
+    const scanResults = await db
+      .select()
+      .from(schema.documentScanResults)
+      .where(eq(schema.documentScanResults.documentVersionId, versionId));
+    expect(scanResults).toHaveLength(1);
+  });
+
+  it('does not let a worker whose lease was reclaimed mid-extraction persist its own extraction/classification/naming-proposal side effects (finding #19, post-programme defect register)', async () => {
+    const versionId = await seedVersion(db, 'j-cas-extract@example.com');
+    const job = await enqueueIntakeJob(db, { documentVersionId: versionId });
+
+    // An array, not a single shared variable: both invocations call
+    // extract() through the SAME mock, so a single closure variable would
+    // have invocation B's resolver silently overwrite invocation A's before
+    // the test ever gets a chance to release A specifically.
+    const releaseFns: Array<() => void> = [];
+    const passportExtractor: DocumentConverterPort = {
+      async extract() {
+        await new Promise<void>((resolve) => {
+          releaseFns.push(resolve);
+        });
+        return {
+          ok: true,
+          result: {
+            text: `PASSPORT\n${MRZ_L1}\n${MRZ_L2}\n`,
+            truncated: false,
+            pageCount: 1,
+            warnings: [],
+            parserName: 'test-fixture',
+            parserVersion: '1.0.0',
+          },
+        };
+      },
+    };
+
+    // Invocation A claims the job, clears SCANNING/NORMALIZING (both
+    // instant with cleanScanner/no side effects to race on), then pauses
+    // mid-extraction — simulating a slow, still-alive worker, not a crash.
+    const invocationA = runIntakeWorker(db, cleanScanner, passportExtractor);
+    await vi.waitFor(() => {
+      if (releaseFns.length < 1) throw new Error('invocation A has not reached extraction yet');
+    });
+
+    // Its lease expires anyway, exactly like the scan-step CAS test above.
+    await db
+      .update(schema.processingJobs)
+      .set({ leaseExpiresAt: new Date(0) })
+      .where(eq(schema.processingJobs.id, job.id));
+
+    // Invocation B reclaims and fully processes the same job, using the
+    // same extractor port (so B ALSO pauses mid-extraction).
+    const invocationB = runIntakeWorker(db, cleanScanner, passportExtractor);
+    await vi.waitFor(() => {
+      if (releaseFns.length < 2) throw new Error('invocation B has not reached extraction yet');
+    });
+
+    // Release B's own call (the second resolver) so B finishes
+    // deterministically before A ever resumes.
+    releaseFns[1]?.();
+    const resultB = await invocationB;
+    expect(resultB).toEqual({ processed: 1, failed: 0 });
+    const [afterB] = await db
+      .select()
+      .from(schema.processingJobs)
+      .where(eq(schema.processingJobs.id, job.id));
+    expect(afterB?.status).toBe('DONE');
+
+    // Invocation A finally resumes — its lease is gone. Its fencing check
+    // (right after its own paused extractor.extract() resolves) must catch
+    // the lost lease and skip persisting anything past that point: no
+    // second extractionRuns/documentClassifications/name-proposal row set
+    // from a worker that no longer owns this document version. (A's own
+    // processingRuns row from BEFORE the pause still exists, uncompleted —
+    // that append-only "an attempt was started" row is expected and
+    // harmless, exactly like what a genuine mid-extraction crash would
+    // leave behind; two rows there is correct, not a duplicate-side-effect
+    // bug. What must NOT duplicate is A's own account of ITS attempt's
+    // outcome, since B already recorded the real one.)
+    releaseFns[0]?.();
+    const resultA = await invocationA;
+    expect(resultA).toEqual({ processed: 0, failed: 0 });
+
+    const extractionRuns = await db
+      .select()
+      .from(schema.extractionRuns)
+      .where(eq(schema.extractionRuns.documentVersionId, versionId));
+    expect(extractionRuns).toHaveLength(1);
+    const classifications = await db
+      .select()
+      .from(schema.documentClassifications)
+      .where(eq(schema.documentClassifications.documentVersionId, versionId));
+    expect(classifications).toHaveLength(1);
+
+    const [documentRow] = await db
+      .select({ documentId: schema.documentVersions.documentId })
+      .from(schema.documentVersions)
+      .where(eq(schema.documentVersions.id, versionId));
+    const proposals = documentRow
+      ? await db
+          .select()
+          .from(schema.documentNameVersions)
+          .where(eq(schema.documentNameVersions.documentId, documentRow.documentId))
+      : [];
+    expect(proposals).toHaveLength(1);
+
     const [version] = await db
       .select()
       .from(schema.documentVersions)

@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { and, asc, desc, eq, inArray, lt, lte, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gt, inArray, isNull, lt, lte, or, sql } from 'drizzle-orm';
 import { type Db, first, required, schema } from './db';
 import type { DocumentConverterPort } from './extraction';
 import type { MalwareScannerPort } from './intake';
@@ -92,9 +92,28 @@ function backoffSeconds(attemptsSoFar: number): number {
  * `PENDING` due jobs with `FOR UPDATE SKIP LOCKED` so a concurrent claimer
  * skips rows this call already holds rather than blocking or double-claiming
  * them. Every job claimed by this call shares one `leaseOwner` token.
+ *
+ * Also reclaims lease-LESS `CLAIMED` rows — `lease_expires_at IS NULL` —
+ * once `claimedAt` is older than a full lease duration (finding #21, post-
+ * programme defect register; mirrors `erasure.ts`'s already-proven identical
+ * fix, Codex review PR-B1). Migration `0020_wide_doctor_doom.sql` added
+ * `lease_expires_at` as nullable with no backfill, so any row that reached
+ * `CLAIMED` before that migration ran keeps a permanently-`NULL` value;
+ * `lease_expires_at < now()` alone never matches `NULL` under SQL's
+ * three-valued logic, permanently stranding such a row — exactly the bug
+ * leasing exists to prevent. A plain `IS NULL` check alone would be too
+ * eager: it could reclaim (and let a new worker immediately re-claim and
+ * start processing) a job whose OWN worker is still genuinely, actively
+ * mid-flight on it under code that predates the lease columns entirely
+ * (no lease-aware CAS at all), recreating the double-processing hazard
+ * leasing exists to prevent. Gating on `claimedAt` age instead makes that
+ * legacy code's own worth of work fit safely inside one lease duration,
+ * mirroring the same generosity assumption `LEASE_DURATION_MS` itself
+ * already rests on.
  */
 async function claimJobs(db: Db, limit: number): Promise<ProcessingJob[]> {
   const leaseOwner = randomUUID();
+  const rolloutGraceExpiry = new Date(Date.now() - LEASE_DURATION_MS);
   return db.transaction(async (tx) => {
     await tx
       .update(schema.processingJobs)
@@ -102,7 +121,13 @@ async function claimJobs(db: Db, limit: number): Promise<ProcessingJob[]> {
       .where(
         and(
           eq(schema.processingJobs.status, 'CLAIMED'),
-          lt(schema.processingJobs.leaseExpiresAt, sql`now()`),
+          or(
+            lt(schema.processingJobs.leaseExpiresAt, sql`now()`),
+            and(
+              isNull(schema.processingJobs.leaseExpiresAt),
+              lt(schema.processingJobs.claimedAt, rolloutGraceExpiry),
+            ),
+          ),
         ),
       );
 
@@ -148,6 +173,22 @@ async function claimJobs(db: Db, limit: number): Promise<ProcessingJob[]> {
  * holds the lease. Returns `false` (never throws) if the lease was already
  * reclaimed and re-claimed by another invocation — that invocation now owns
  * the job's outcome, so this one has nothing further to do.
+ *
+ * Also requires `leaseExpiresAt` to still be in the future (Codex review,
+ * PR-C1, round 1 — the same fix `intake.ts`'s `stillHoldsLease` needed, for
+ * the same reason, kept consistent with it here): matching only on
+ * `status`/`leaseOwner` answers "does this row still nominally say I'm the
+ * holder," not "is my lease still genuinely unexpired." Without this, an
+ * invocation whose lease expired by wall-clock time but was never actually
+ * reclaimed by anyone (e.g. `stillHoldsLease` correctly stopped it from
+ * writing any document-processing side effects, but nothing else has run
+ * `claimJobs` yet) would still mark this job `DONE` here — even though the
+ * document version it was supposed to advance was never actually touched.
+ * Requiring the same unexpired-lease condition here means such an
+ * invocation contributes nothing at all: the job stays `CLAIMED` with its
+ * expired lease, exactly the shape a crashed worker leaves, and the next
+ * ordinary `claimJobs` call reclaims and reprocesses it from scratch —
+ * never silently marked complete with unfinished work.
  */
 async function completeJob(db: Db, job: ProcessingJob, leaseOwner: string): Promise<boolean> {
   const updated = await db
@@ -164,6 +205,7 @@ async function completeJob(db: Db, job: ProcessingJob, leaseOwner: string): Prom
         eq(schema.processingJobs.id, job.id),
         eq(schema.processingJobs.status, 'CLAIMED'),
         eq(schema.processingJobs.leaseOwner, leaseOwner),
+        gt(schema.processingJobs.leaseExpiresAt, sql`now()`),
       ),
     )
     .returning({ id: schema.processingJobs.id });
@@ -196,7 +238,8 @@ async function classifyFailure(db: Db, documentVersionId: string): Promise<JobEr
 /**
  * On failure: retry with backoff until maxAttempts, then park at FAILED.
  * Compare-and-set like `completeJob` — a lost lease is a safe no-op, not an
- * error.
+ * error. Also requires an unexpired lease, for the identical reason and
+ * consistency `completeJob` documents (Codex review, PR-C1, round 1).
  */
 async function failJob(
   db: Db,
@@ -224,6 +267,7 @@ async function failJob(
         eq(schema.processingJobs.id, job.id),
         eq(schema.processingJobs.status, 'CLAIMED'),
         eq(schema.processingJobs.leaseOwner, leaseOwner),
+        gt(schema.processingJobs.leaseExpiresAt, sql`now()`),
       ),
     )
     .returning({ id: schema.processingJobs.id });
@@ -321,8 +365,15 @@ export async function runIntakeWorker(
     const leaseOwner = job.leaseOwner;
     if (!leaseOwner) continue; // claimJobs always sets one; satisfies the type.
     try {
+      // Threading {jobId, leaseOwner} lets processIntake fence its own
+      // side-effect writes (scan-result rows, extraction-run rows,
+      // classification/naming-proposal rows) against a mid-pipeline lease
+      // loss, not just the final processingStatus transition (finding #19,
+      // post-programme defect register) -- see intake.ts's own doc comments
+      // on stillHoldsLease for the precise gap this closes.
       const result = await processIntake(db, scanner, extractor, {
         documentVersionId: job.documentVersionId,
+        fencing: { jobId: job.id, leaseOwner },
       });
       if (!result.ok) throw new Error(result.error.message);
       if (await completeJob(db, job, leaseOwner)) processed++;
