@@ -15,7 +15,7 @@
  */
 import { OpenAiExtractionAdapter } from '../openai-extraction';
 import { EVAL_ALLOWED_FIELD_KEYS, EVAL_CASES } from './dataset';
-import { type CaseScore, aggregate, passesThresholds, scoreCase } from './scoring';
+import { type CaseScore, aggregate, errorCaseScore, passesThresholds, scoreCase } from './scoring';
 
 function log(line: string): void {
   process.stdout.write(`${line}\n`);
@@ -58,18 +58,7 @@ async function main(): Promise<void> {
 
     if (!outcome.ok) {
       log(`[ai-eval] ${evalCase.id}: ADAPTER ERROR (${outcome.code}) — ${outcome.message}`);
-      scores.push({
-        caseId: evalCase.id,
-        category: evalCase.category,
-        truePositives: 0,
-        falsePositives: 0,
-        falseNegatives: evalCase.expected.length,
-        hallucinations: 0,
-        evidenceMismatches: 0,
-        unsupportedFieldProposals: 0,
-        costUnits: 0,
-        latencyMs,
-      });
+      scores.push(errorCaseScore(evalCase, latencyMs));
       continue;
     }
 
