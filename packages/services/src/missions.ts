@@ -404,18 +404,33 @@ export interface DocumentInstance {
 
 /**
  * Groups an unclassified document (`docType: null`) in `loadDocumentInstancesByType`'s
- * returned map (finding #30, post-programme defect register). Deliberately
- * unnatural — `classifyDocumentText` (classification.ts) only ever produces
- * free-text ALL_CAPS_WITH_UNDERSCORES type names or `null`, so this key can
- * never collide with a real one, present or future. `buildRequirementMapping`
- * only ever looks up a requirement's own (always non-null, per `packs.ts`'s
- * own validation) `docType`/`fieldKey`, so grouping under this sentinel
- * (rather than skipping the document outright) can never make it wrongly
- * satisfy a specific-type requirement — it only ensures the document still
- * appears in `snapshotMission`'s flattened `content.documents`, instead of
- * silently vanishing from the immutable evidentiary record.
+ * returned map (finding #30, post-programme defect register). A `symbol`,
+ * not a string: `docType` is completely free text on BOTH write sites —
+ * `packs.ts`'s `addRequirement` (a DOCUMENT requirement only requires
+ * *non-empty*, not membership in `classifyDocumentText`'s output
+ * vocabulary) and `documents.ts`'s `registerDocument` (owner-supplied at
+ * registration, no validation at all). A string sentinel like
+ * `'__unclassified__'` is therefore reachable as a genuine `docType` on
+ * either side — an admin could author a requirement with exactly that
+ * `docType`, or an applicant could register a document with it — and
+ * `buildRequirementMapping`'s lookup (`documentsByType.get(req.docType)`)
+ * would then match every genuinely-unclassified document against it,
+ * wrongly satisfying the requirement (Codex review, PR-D1, round 1). A
+ * `symbol` closes this structurally rather than by convention: `req.docType`
+ * is always a plain `string`, and a `string` key can never `===` a
+ * `symbol` key in a `Map`, so this group is unreachable from any real
+ * requirement's lookup no matter what free-text value `docType` takes on
+ * either write site, now or in the future — no validation needs to be
+ * added to (or kept in sync across) `packs.ts` and `documents.ts` at all.
  */
-const UNCLASSIFIED_DOCUMENT_GROUP = '__unclassified__';
+const UNCLASSIFIED_DOCUMENT_GROUP = Symbol('unclassified-document-group');
+
+/**
+ * A document group key is either a real `docType` string or the
+ * unclassified sentinel above — never confusable with each other, since a
+ * `string` and a `symbol` can never be `===`.
+ */
+type DocumentGroupKey = string | typeof UNCLASSIFIED_DOCUMENT_GROUP;
 
 /**
  * Load the latest version of every document, grouped by docType. Only the
@@ -443,7 +458,7 @@ const UNCLASSIFIED_DOCUMENT_GROUP = '__unclassified__';
 async function loadDocumentInstancesByType(
   db: Db,
   applicantId: string,
-): Promise<Map<string, DocumentInstance[]>> {
+): Promise<Map<DocumentGroupKey, DocumentInstance[]>> {
   const rows = await db
     .select({
       documentId: schema.documents.id,
@@ -480,7 +495,7 @@ async function loadDocumentInstancesByType(
   );
 
   const now = Date.now();
-  const map = new Map<string, DocumentInstance[]>();
+  const map = new Map<DocumentGroupKey, DocumentInstance[]>();
   for (const row of latestByDocument.values()) {
     const groupKey = row.docType ?? UNCLASSIFIED_DOCUMENT_GROUP;
     const eligible =
@@ -735,7 +750,7 @@ export interface RequirementMappingEntry {
 function buildRequirementMapping(
   requirements: readonly PackRequirement[],
   factsByKey: ReadonlyMap<string, readonly FactInstance[]>,
-  documentsByType: ReadonlyMap<string, readonly DocumentInstance[]>,
+  documentsByType: ReadonlyMap<DocumentGroupKey, readonly DocumentInstance[]>,
   selections: SelectionSets,
 ): RequirementMappingEntry[] {
   return requirements.map((req): RequirementMappingEntry => {

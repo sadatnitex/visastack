@@ -464,6 +464,89 @@ describe('missions — workspace, readiness, workflow, snapshot', () => {
     expect(documentReq?.documents ?? []).toHaveLength(0);
   });
 
+  it('does not let a requirement whose own docType literally equals the unclassified-group sentinel string match unclassified documents (Codex review, PR-D1, round 1)', async () => {
+    const { account, applicantId } = await seed(db);
+
+    // docType is free text on both write sites (addRequirement only
+    // requires non-empty; registerDocument validates nothing at all), so
+    // an admin can genuinely author a requirement using the exact string
+    // the sentinel grouping used to use, '__unclassified__'.
+    const pack = await createPack(db, {
+      actorAccountId: account.id,
+      key: 'weird.pack',
+      name: 'Weird',
+    });
+    if (!isOk(pack)) throw new Error('pack');
+    const version = await addPackVersion(db, { actorAccountId: account.id, packId: pack.value.id });
+    if (!isOk(version)) throw new Error('version');
+    await addRequirement(db, {
+      actorAccountId: account.id,
+      packVersionId: version.value.id,
+      kind: 'DOCUMENT',
+      docType: '__unclassified__',
+      citation: 'rule 1',
+    });
+    await approvePackVersion(db, { actorAccountId: account.id, packVersionId: version.value.id });
+    await publishPackVersion(db, { actorAccountId: account.id, packVersionId: version.value.id });
+
+    const mission = await createMission(db, {
+      actorAccountId: account.id,
+      applicantId,
+      title: 'UK Visa',
+    });
+    if (!isOk(mission)) throw new Error('mission');
+    await attachPackVersion(db, {
+      actorAccountId: account.id,
+      missionId: mission.value.id,
+      packVersionId: version.value.id,
+    });
+
+    // Genuinely unclassified — docType null, not the literal sentinel
+    // string. Otherwise identical to the finding #30 test above.
+    const doc = await registerDocument(db, {
+      actorAccountId: account.id,
+      applicantId,
+      originalName: 'mystery.pdf',
+    });
+    if (!isOk(doc)) throw new Error('doc');
+    await addDocumentVersion(db, {
+      actorAccountId: account.id,
+      documentId: doc.value.id,
+      bucket: 'CLEAN',
+      objectKey: 'k',
+      safetyStatus: 'CLEAN',
+      processingStatus: 'AWAITING_REVIEW',
+    });
+
+    const snap = await snapshotMission(db, {
+      actorAccountId: account.id,
+      missionId: mission.value.id,
+    });
+    expect(isOk(snap)).toBe(true);
+    if (!isOk(snap)) return;
+    const content = snap.value.content as {
+      documents: ReadonlyArray<{ documentId: string; docType: string | null }>;
+      requirementMapping: ReadonlyArray<{
+        kind: string;
+        key: string;
+        satisfied: boolean;
+        documents?: ReadonlyArray<{ documentId: string }>;
+      }>;
+    };
+
+    // Still present in the immutable record (finding #30's own guarantee,
+    // unaffected by this fix).
+    expect(content.documents).toHaveLength(1);
+    expect(content.documents[0]?.docType).toBeNull();
+
+    // But the '__unclassified__'-typed requirement is NOT satisfied by it —
+    // a string docType can never match the symbol-keyed sentinel group.
+    const documentReq = content.requirementMapping.find((m) => m.kind === 'DOCUMENT');
+    expect(documentReq?.key).toBe('__unclassified__');
+    expect(documentReq?.satisfied).toBe(false);
+    expect(documentReq?.documents ?? []).toHaveLength(0);
+  });
+
   it("refuses actions on another owner's mission", async () => {
     const { account, applicantId } = await seed(db);
     const mission = await createMission(db, {

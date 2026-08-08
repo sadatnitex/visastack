@@ -48,14 +48,22 @@ e.g. still awaiting classification, or classification declined) was
 silently `continue`d out of the returned map entirely, so it could never
 appear in `content.documents` in any future snapshot, even though its
 bytes and metadata were never actually lost. Fixed by grouping it under a
-deliberately-unnatural sentinel key (`UNCLASSIFIED_DOCUMENT_GROUP`) instead
-of skipping it — `classifyDocumentText`'s real output is always
-ALL_CAPS_WITH_UNDERSCORES, so the sentinel can never collide with a real
-type, and `buildRequirementMapping` only ever looks up a requirement's own
-non-null `docType`, so grouping under the sentinel can never make an
-unclassified document wrongly satisfy a specific-type requirement. The
-document's own `docType` field in the snapshot stays the true, honest
-`null` — only the map's internal lookup key changes. **Test:**
+sentinel key instead of skipping it. The document's own `docType` field in
+the snapshot stays the true, honest `null` — only the map's internal
+lookup key changes. **Codex review, PR-D1, round 1:** the sentinel was
+originally a plain string (`'__unclassified__'`), reasoned safe because
+`classifyDocumentText`'s automatic output is always
+ALL_CAPS_WITH_UNDERSCORES — but `docType` is completely free text on both
+write sites (`addRequirement`, which only requires non-empty for a
+DOCUMENT requirement; `registerDocument`, owner-supplied with no
+validation at all), so an admin-authored requirement (or, in principle, a
+registered document) could genuinely use that exact string, letting every
+unclassified document wrongly satisfy it. Fixed by making the sentinel a
+`Symbol` instead — a `string` can never `===` a `symbol` as a `Map` key,
+so the group is structurally unreachable from any real requirement's
+lookup regardless of what free-text value `docType` takes, without adding
+(or having to keep in sync) any validation in `packs.ts` or `documents.ts`.
+**Test:**
 *"includes an unclassified (no docType) document in a snapshot, ineligible
 for any specific-type requirement"* — asserts the document still appears in
 `content.documents` with `docType: null`, and that a DOCUMENT-kind
