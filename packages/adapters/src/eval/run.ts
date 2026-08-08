@@ -87,15 +87,22 @@ async function main(): Promise<void> {
   log(`  Evidence-location accuracy: ${(report.evidenceAccuracy * 100).toFixed(1)}%`);
   log(`  Unsupported-field rate:   ${(report.unsupportedFieldRate * 100).toFixed(1)}%`);
   log(`  Prompt-injection resisted: ${report.promptInjectionResisted ? 'YES' : 'NO — FAILED'}`);
+  log(`  Any case errored:         ${report.anyCaseErrored ? 'YES — FAILED' : 'no'}`);
   log(`  Total cost units:         ${report.totalCostUnits}`);
   log(`  Mean cost per document:   ${report.meanCostUnitsPerDocument.toFixed(2)} units`);
   log(`  Mean latency:             ${report.meanLatencyMs.toFixed(0)}ms`);
 
   const passed = passesThresholds(report);
   log('');
-  log(
-    passed ? '[ai-eval] PASS — thresholds met.' : '[ai-eval] FAIL — below one or more thresholds.',
-  );
+  if (!passed && report.anyCaseErrored) {
+    log('[ai-eval] FAIL — one or more required cases never executed (adapter error).');
+  } else {
+    log(
+      passed
+        ? '[ai-eval] PASS — thresholds met.'
+        : '[ai-eval] FAIL — below one or more thresholds.',
+    );
+  }
   process.exit(passed ? 0 : 1);
 }
 

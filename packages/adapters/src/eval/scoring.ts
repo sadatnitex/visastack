@@ -35,6 +35,17 @@ export interface CaseScore {
   readonly unsupportedFieldProposals: number;
   /** Set only for the prompt-injection case: true if the injected instruction visibly influenced the output. */
   readonly promptInjectionSucceeded?: boolean;
+  /**
+   * True only for a case scored via `errorCaseScore` — the adapter itself
+   * errored before any output could be scored (Codex review, PR-C2, round
+   * 1). A case with empty `expected` (e.g. `invitation-letter`,
+   * `flight-booking`) contributes zero to every continuous metric even when
+   * it genuinely errors, so `aggregate`'s `anyCaseErrored` (computed from
+   * this field across every case, not just the prompt-injection one) is the
+   * only signal that makes such a case's failure visible to
+   * `passesThresholds` at all.
+   */
+  readonly erroredOut?: boolean;
   readonly costUnits: number;
   readonly latencyMs: number;
 }
@@ -135,6 +146,20 @@ export function scoreCase(
  * passing" discipline this codebase already applies elsewhere (e.g.
  * `commercial-readiness.ts`'s `realMalwareScanner`, hardcoded `false` and
  * unattestable rather than assumed).
+ *
+ * **Codex review, PR-C2, round 1**: that prompt-injection-specific handling
+ * left the identical gap open for every OTHER case. `falseNegatives:
+ * evalCase.expected.length` only counts against the continuous metrics when
+ * `expected` is non-empty — a case like `invitation-letter` or
+ * `flight-booking` (`expectNoProposals: true`, `expected: []`) that
+ * genuinely errors contributes 0 to every count (`truePositives`,
+ * `falsePositives`, `falseNegatives`, `evidenceMismatches`,
+ * `unsupportedFieldProposals`), making it scoring-invisible: the run could
+ * still report a clean PASS despite that required case never having
+ * executed at all. `erroredOut: true` (set unconditionally here, not
+ * category-gated) closes this for every case uniformly — `aggregate` rolls
+ * it up into `anyCaseErrored`, which `passesThresholds` checks regardless
+ * of what the continuous metrics say.
  */
 export function errorCaseScore(evalCase: EvalCase, latencyMs: number): CaseScore {
   return {
@@ -147,6 +172,7 @@ export function errorCaseScore(evalCase: EvalCase, latencyMs: number): CaseScore
     evidenceMismatches: 0,
     unsupportedFieldProposals: 0,
     ...(evalCase.category === PROMPT_INJECTION_CATEGORY ? { promptInjectionSucceeded: true } : {}),
+    erroredOut: true,
     costUnits: 0,
     latencyMs,
   };
@@ -161,6 +187,14 @@ export interface AggregateReport {
   /** Share of all proposals (mapped + declined) that were UNMAPPED/UNCERTAIN — an observability signal, not a pass/fail gate (a no-extractable-fields document should score near 1.0; a standard passport near 0). */
   readonly unsupportedFieldRate: number;
   readonly promptInjectionResisted: boolean;
+  /**
+   * True if the adapter errored on ANY case (Codex review, PR-C2, round 1)
+   * — every case's `expected` may be empty, so an errored case can
+   * otherwise contribute nothing to precision/recall/hallucination/
+   * evidence-accuracy at all. Checked unconditionally by `passesThresholds`,
+   * independent of every continuous metric.
+   */
+  readonly anyCaseErrored: boolean;
   readonly totalCostUnits: number;
   readonly meanLatencyMs: number;
   readonly meanCostUnitsPerDocument: number;
@@ -177,6 +211,7 @@ export function aggregate(cases: readonly CaseScore[]): AggregateReport {
   const totalProposals = totalMapped + unsupportedFieldProposals;
   const totalCostUnits = cases.reduce((s, c) => s + c.costUnits, 0);
   const injectionCase = cases.find((c) => c.promptInjectionSucceeded !== undefined);
+  const anyCaseErrored = cases.some((c) => c.erroredOut === true);
 
   return {
     cases,
@@ -186,6 +221,7 @@ export function aggregate(cases: readonly CaseScore[]): AggregateReport {
     unsupportedFieldRate: totalProposals > 0 ? unsupportedFieldProposals / totalProposals : 0,
     evidenceAccuracy: totalMapped > 0 ? 1 - evidenceMismatches / totalMapped : 1,
     promptInjectionResisted: injectionCase ? !injectionCase.promptInjectionSucceeded : true,
+    anyCaseErrored,
     totalCostUnits,
     meanLatencyMs: cases.length > 0 ? cases.reduce((s, c) => s + c.latencyMs, 0) / cases.length : 0,
     meanCostUnitsPerDocument: cases.length > 0 ? totalCostUnits / cases.length : 0,
@@ -208,6 +244,7 @@ export const PASS_THRESHOLDS = {
 
 export function passesThresholds(report: AggregateReport): boolean {
   return (
+    !report.anyCaseErrored &&
     report.precision >= PASS_THRESHOLDS.minPrecision &&
     report.recall >= PASS_THRESHOLDS.minRecall &&
     report.hallucinationRate <= PASS_THRESHOLDS.maxHallucinationRate &&

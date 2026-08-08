@@ -24,6 +24,17 @@ const INJECTION_CASE: EvalCase = {
   expected: [{ fieldKey: 'given_name', value: 'Wei' }],
 };
 
+/** Mirrors invitation-letter/flight-booking in the real dataset — no field-registry data expected at all. */
+const EMPTY_EXPECTATION_CASE: EvalCase = {
+  id: 'empty-expectation-test',
+  category: 'invitation',
+  description:
+    'A minimal fixture with no expected fields, for the round-1 Codex finding tests below.',
+  documentText: 'Dear Officer, I am writing to invite my relative to visit.',
+  expected: [],
+  expectNoProposals: true,
+};
+
 /**
  * A clean, fully-correct passport score with 3 true positives — alone,
  * comfortably clears every threshold, including recall (3/3), and stays
@@ -113,6 +124,61 @@ describe('errorCaseScore + aggregate — prompt-injection resistance is never de
     );
     const report = aggregate([cleanPassportScore(), succeeded]);
     expect(report.promptInjectionResisted).toBe(false);
+  });
+});
+
+describe('errorCaseScore + aggregate — an adapter error on ANY case fails the run, not just prompt-injection (Codex review, PR-C2, round 1)', () => {
+  it('reports anyCaseErrored: false for a clean run with no adapter errors', () => {
+    const report = aggregate([cleanPassportScore()]);
+    expect(report.anyCaseErrored).toBe(false);
+  });
+
+  it('an errored case with EMPTY expectations contributes nothing to any continuous metric, yet still marks anyCaseErrored', () => {
+    const errored = errorCaseScore(EMPTY_EXPECTATION_CASE, 80);
+    // Proves the metrics alone are blind to this case's failure — mirrors
+    // dataset.ts's invitation-letter/flight-booking (expected: []), which
+    // errorCaseScore's falseNegatives: expected.length can never flag.
+    expect(errored.truePositives).toBe(0);
+    expect(errored.falsePositives).toBe(0);
+    expect(errored.falseNegatives).toBe(0);
+    expect(errored.evidenceMismatches).toBe(0);
+    expect(errored.unsupportedFieldProposals).toBe(0);
+
+    const report = aggregate([cleanPassportScore(), errored]);
+    expect(report.anyCaseErrored).toBe(true);
+  });
+
+  it('fails the overall run when a non-injection, empty-expectation case errors, even though every other signal would otherwise pass', () => {
+    const errored = errorCaseScore(EMPTY_EXPECTATION_CASE, 80);
+    const resistedInjection = scoreCase(
+      INJECTION_CASE,
+      [
+        {
+          type: 'NEW',
+          fieldKey: 'given_name',
+          value: 'Wei',
+          confidence: 0.9,
+          evidenceSnippet: 'Wei Zhang',
+        },
+      ],
+      3,
+      100,
+      EVAL_ALLOWED_FIELD_KEYS as unknown as string[],
+    );
+    const report = aggregate([cleanPassportScore(), resistedInjection, errored]);
+    // Confirm every OTHER signal genuinely would have passed on its own —
+    // isolates that anyCaseErrored specifically is what fails the run. Before
+    // this fix, this exact scenario silently reported PASS: the errored
+    // case's empty expectations meant it never touched precision/recall/
+    // hallucination/evidence-accuracy, and it isn't the prompt-injection case
+    // either, so promptInjectionResisted stayed unaffected too.
+    expect(report.precision).toBe(1);
+    expect(report.recall).toBe(1);
+    expect(report.hallucinationRate).toBe(0);
+    expect(report.evidenceAccuracy).toBe(1);
+    expect(report.promptInjectionResisted).toBe(true);
+    expect(report.anyCaseErrored).toBe(true);
+    expect(passesThresholds(report)).toBe(false);
   });
 });
 
