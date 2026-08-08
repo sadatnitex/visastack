@@ -472,11 +472,17 @@ describe('AI Gateway — proposals never silently mutate', () => {
     });
     expect(isOk(first)).toBe(true);
 
+    // Deliberately DIFFERENT text from the first call — this must be a
+    // genuinely new (cache-miss) attempt, not a cache-hit-eligible repeat,
+    // so the limit refuses it for the reason this test names. Reusing the
+    // identical text here (as this test did before finding #28's fix) would
+    // make this a cache hit instead — a different, already-covered scenario
+    // (see "does not let cache hits exhaust the per-document attempt limit").
     const second = await runExtraction(db, stubAi(), {
       actorAccountId: account.id,
       applicantId,
       documentVersionId: versionId,
-      text: 'MRZ...',
+      text: 'a second, different document entirely',
       budgetLimitUnits: 1000,
       maxAttemptsPerDocument: 1,
     });
@@ -498,6 +504,85 @@ describe('AI Gateway — proposals never silently mutate', () => {
   // serialization is a documented Postgres guarantee (see ai.ts's doc
   // comment on runExtraction), not something PGlite can exercise — see
   // docs/security/durable-jobs-and-upload-integrity.md's "not yet covered".
+  // The same reasoning applies identically to the second (platform-wide,
+  // finding #20) lock added alongside this one — no separate note repeats it.
+
+  it('does not let cache hits exhaust the per-document attempt limit (finding #28)', async () => {
+    const { account, applicantId, versionId } = await seedVersion(
+      db,
+      'ai-cache-attempts@example.com',
+    );
+    await grantAiConsent(db, account.id);
+    const { ai, callCount } = countingStubAi();
+
+    const first = await runExtraction(db, ai, {
+      actorAccountId: account.id,
+      applicantId,
+      documentVersionId: versionId,
+      text: 'MRZ...',
+      budgetLimitUnits: 1000,
+      maxAttemptsPerDocument: 1,
+    });
+    expect(isOk(first)).toBe(true);
+    expect(callCount()).toBe(1);
+
+    // Three more identical (cache-hit-eligible) requests, well past the
+    // attempt limit of 1 — every one must still succeed, served from cache,
+    // without ever invoking the adapter again. Before the fix, the SECOND of
+    // these alone would have been refused: countAiExtractionAttempts counted
+    // the first call's cache-hit-eligible repeats as attempts, even though
+    // they cost nothing and did no new AI work.
+    for (let i = 0; i < 3; i++) {
+      const repeat = await runExtraction(db, ai, {
+        actorAccountId: account.id,
+        applicantId,
+        documentVersionId: versionId,
+        text: 'MRZ...',
+        budgetLimitUnits: 1000,
+        maxAttemptsPerDocument: 1,
+      });
+      expect(isOk(repeat)).toBe(true);
+    }
+    expect(callCount()).toBe(1);
+
+    // A genuinely new (non-cache-hit-eligible — different text) request
+    // still correctly hits the SAME limit of 1: the fix excludes cache hits
+    // specifically, not attempts in general.
+    const genuinelyNewAtLimit = await runExtraction(db, ai, {
+      actorAccountId: account.id,
+      applicantId,
+      documentVersionId: versionId,
+      text: 'a completely different document',
+      budgetLimitUnits: 1000,
+      maxAttemptsPerDocument: 1,
+    });
+    expect(isErr(genuinelyNewAtLimit)).toBe(true);
+    if (isErr(genuinelyNewAtLimit)) expect(genuinelyNewAtLimit.error.code).toBe('invalid');
+    expect(callCount()).toBe(1);
+
+    // Same still-uncached request, limit raised to 2 (one more than the
+    // single genuine attempt made so far): now succeeds. This specifically
+    // isolates countAiExtractionAttempts's own row-exclusion (finding #28) —
+    // the count it returns here must be 1 (the one real row), not 4 (the
+    // real row plus the 3 cache-hit rows above), or this would still be
+    // wrongly refused (4 >= 2) despite only 1 attempt ever being genuinely
+    // paid. The earlier assertions alone can't tell these apart, since with
+    // the cache lookup reordered ahead of this check (also finding #28), a
+    // cache HIT never reaches countAiExtractionAttempts at all regardless of
+    // whether it excludes cache rows — only a request that is itself a
+    // cache MISS, after cache hits already exist in the table, exercises
+    // the exclusion.
+    const genuinelyNewUnderRaisedLimit = await runExtraction(db, ai, {
+      actorAccountId: account.id,
+      applicantId,
+      documentVersionId: versionId,
+      text: 'a completely different document',
+      budgetLimitUnits: 1000,
+      maxAttemptsPerDocument: 2,
+    });
+    expect(isOk(genuinelyNewUnderRaisedLimit)).toBe(true);
+    expect(callCount()).toBe(2);
+  });
 
   it('refuses to run AI extraction on a document over the configured page limit', async () => {
     const { account, applicantId, versionId } = await seedVersion(db, 'ai-pages@example.com');

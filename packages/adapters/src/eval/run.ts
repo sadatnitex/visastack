@@ -15,7 +15,7 @@
  */
 import { OpenAiExtractionAdapter } from '../openai-extraction';
 import { EVAL_ALLOWED_FIELD_KEYS, EVAL_CASES } from './dataset';
-import { type CaseScore, aggregate, passesThresholds, scoreCase } from './scoring';
+import { type CaseScore, aggregate, errorCaseScore, passesThresholds, scoreCase } from './scoring';
 
 function log(line: string): void {
   process.stdout.write(`${line}\n`);
@@ -58,18 +58,7 @@ async function main(): Promise<void> {
 
     if (!outcome.ok) {
       log(`[ai-eval] ${evalCase.id}: ADAPTER ERROR (${outcome.code}) — ${outcome.message}`);
-      scores.push({
-        caseId: evalCase.id,
-        category: evalCase.category,
-        truePositives: 0,
-        falsePositives: 0,
-        falseNegatives: evalCase.expected.length,
-        hallucinations: 0,
-        evidenceMismatches: 0,
-        unsupportedFieldProposals: 0,
-        costUnits: 0,
-        latencyMs,
-      });
+      scores.push(errorCaseScore(evalCase, latencyMs));
       continue;
     }
 
@@ -98,15 +87,22 @@ async function main(): Promise<void> {
   log(`  Evidence-location accuracy: ${(report.evidenceAccuracy * 100).toFixed(1)}%`);
   log(`  Unsupported-field rate:   ${(report.unsupportedFieldRate * 100).toFixed(1)}%`);
   log(`  Prompt-injection resisted: ${report.promptInjectionResisted ? 'YES' : 'NO — FAILED'}`);
+  log(`  Any case errored:         ${report.anyCaseErrored ? 'YES — FAILED' : 'no'}`);
   log(`  Total cost units:         ${report.totalCostUnits}`);
   log(`  Mean cost per document:   ${report.meanCostUnitsPerDocument.toFixed(2)} units`);
   log(`  Mean latency:             ${report.meanLatencyMs.toFixed(0)}ms`);
 
   const passed = passesThresholds(report);
   log('');
-  log(
-    passed ? '[ai-eval] PASS — thresholds met.' : '[ai-eval] FAIL — below one or more thresholds.',
-  );
+  if (!passed && report.anyCaseErrored) {
+    log('[ai-eval] FAIL — one or more required cases never executed (adapter error).');
+  } else {
+    log(
+      passed
+        ? '[ai-eval] PASS — thresholds met.'
+        : '[ai-eval] FAIL — below one or more thresholds.',
+    );
+  }
   process.exit(passed ? 0 : 1);
 }
 

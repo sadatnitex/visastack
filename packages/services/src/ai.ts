@@ -105,7 +105,20 @@ export async function documentAiCostUnits(db: Db, documentVersionId: string): Pr
   return Number(row?.total ?? 0);
 }
 
-/** How many times AI extraction has already been invoked for one document (any outcome). */
+/**
+ * How many times AI extraction has genuinely been invoked (paid or failed)
+ * for one document — a cache hit is excluded (finding #28, post-programme
+ * defect register). A cache hit still inserts its own `aiExtractionRuns` row
+ * (`servedFromCacheRunId` set, `costUnits: 0`) so its cost is correctly
+ * free, but before this fix that row was ALSO counted here, which ran
+ * before the cache lookup ever had a chance to short-circuit the request —
+ * with the default limit of 3, one paid call followed by 2 cache hits
+ * permanently blocked a 4th, still-cache-hit-eligible identical request,
+ * even though it would have cost nothing and done no new AI work. Excluding
+ * `servedFromCacheRunId`-set rows makes repeat cache hits free in both
+ * senses — cost and attempt budget — leaving the limit to gate only
+ * genuinely new (uncached) invocations, which is what it exists to bound.
+ */
 export async function countAiExtractionAttempts(
   db: Db,
   documentVersionId: string,
@@ -113,7 +126,12 @@ export async function countAiExtractionAttempts(
   const rows = await db
     .select({ id: schema.aiExtractionRuns.id })
     .from(schema.aiExtractionRuns)
-    .where(eq(schema.aiExtractionRuns.documentVersionId, documentVersionId));
+    .where(
+      and(
+        eq(schema.aiExtractionRuns.documentVersionId, documentVersionId),
+        isNull(schema.aiExtractionRuns.servedFromCacheRunId),
+      ),
+    );
   return rows.length;
 }
 
@@ -220,17 +238,34 @@ export interface RunExtractionSummary {
  * they see the true, up-to-date counts. This does not limit *deliberate*
  * bounded retries (up to `maxAttemptsPerDocument`) — only concurrent ones.
  *
- * This specific guarantee is not exercised by a `Promise.all` race test the
- * way other concurrency fixes in this codebase are: PGlite (the test
+ * That per-document lock is deliberately scoped to `documentVersionId` (its
+ * own docstring said so), so it does nothing for the PLATFORM-wide budget
+ * check specifically: two concurrent requests for two DIFFERENT documents
+ * never contend for the same per-document key, so both could read the same
+ * `totalAiCostUnits`, both pass, and both invoke the paid adapter — enough
+ * concurrent different-document requests near the platform cap could
+ * collectively overshoot it (finding #20, post-programme defect register).
+ * A second, fixed (not document-derived) advisory lock closes this: every
+ * call also takes `pg_advisory_xact_lock(hashtext('visastack:ai-platform-
+ * budget'))` before reading `totalAiCostUnits`, serializing ALL extraction
+ * calls platform-wide — not just same-document ones — against each other's
+ * eventual cost commit, not merely against each other's check. Mirrors
+ * `uploads.ts`'s `reserveUpload`, the same fixed-key-lock-for-the-whole-
+ * transaction pattern already proven there for an identical
+ * platform-wide-hard-cap-under-concurrency guarantee.
+ *
+ * Neither of these two guarantees is exercised by a `Promise.all` race test
+ * the way other concurrency fixes in this codebase are: PGlite (the test
  * driver) fully serializes `db.transaction()` calls — a second one's
  * callback never starts until the first has committed — so two overlapping
  * `runExtraction` calls can never actually interleave in-process, whether or
- * not this lock exists. The lock's correctness instead rests on Postgres's
- * own documented `pg_advisory_xact_lock` semantics (held until the current
- * transaction ends; a concurrent session requesting the same key blocks
- * until then), which is standard, well-established behavior, not something
- * this codebase is inventing. See `ai.test.ts`'s note above the (deliberately
- * absent) race test for how this was confirmed rather than assumed.
+ * not either lock exists. Both locks' correctness instead rests on
+ * Postgres's own documented `pg_advisory_xact_lock` semantics (held until
+ * the current transaction ends; a concurrent session requesting the same
+ * key blocks until then), which is standard, well-established behavior, not
+ * something this codebase is inventing. See `ai.test.ts`'s note above the
+ * (deliberately absent) race test for how this was confirmed rather than
+ * assumed.
  */
 export async function runExtraction(
   db: Db,
@@ -247,19 +282,16 @@ export async function runExtraction(
   }
 
   return db.transaction(async (tx) => {
+    // Fixed key, acquired first (and held for the whole transaction, same as
+    // the per-document lock below): serializes the platform-wide budget
+    // check against every OTHER concurrent extraction call too, not only
+    // same-document ones (finding #20, post-programme defect register).
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext('visastack:ai-platform-budget'))`);
     await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${input.documentVersionId}))`);
 
     const used = await totalAiCostUnits(tx);
     if (used >= input.budgetLimitUnits) {
       return err(serviceError('invalid', 'AI budget exhausted'));
-    }
-    if (input.maxAttemptsPerDocument !== undefined) {
-      const attempts = await countAiExtractionAttempts(tx, input.documentVersionId);
-      if (attempts >= input.maxAttemptsPerDocument) {
-        return err(
-          serviceError('invalid', 'AI extraction attempt limit reached for this document'),
-        );
-      }
     }
     if (input.perDocumentBudgetLimitUnits !== undefined) {
       const documentUsed = await documentAiCostUnits(tx, input.documentVersionId);
@@ -367,6 +399,34 @@ export async function runExtraction(
         metadata: { aiExtractionRunId: run.id, servedFromCacheRunId: cached.id, cacheKey },
       });
       return ok({ aiExtractionRunId: run.id, proposals: savedProposals });
+    }
+
+    // Only reached on a genuine cache MISS — from here on, proceeding
+    // actually costs a real invocation. The attempt-limit gate belongs HERE,
+    // not earlier alongside the budget checks (finding #28, post-programme
+    // defect register): `countAiExtractionAttempts` already excludes cache
+    // rows from its count, but that alone isn't sufficient once the count
+    // reaches the limit exactly — a gate evaluated before the cache lookup
+    // would still refuse a cache-hit-eligible request purely because it
+    // hadn't yet been given the chance to discover it would cost nothing.
+    // Moving the gate here means it is only ever consulted for a request
+    // that is actually about to consume a genuine attempt, matching "only
+    // genuine paid invocations count against it" exactly. The budget checks
+    // above deliberately keep their original position, before the cache
+    // lookup — an exhausted budget is a hard stop regardless of whether this
+    // specific request would have been free (see the platform-budget test
+    // "a cache hit still fails closed once the platform-wide budget is
+    // exhausted"); attempts and budget are different knobs with different
+    // intended semantics. `maxPagesPerDocument` is deliberately left in its
+    // original position too — out of finding #28's scope, which names only
+    // the attempt count.
+    if (input.maxAttemptsPerDocument !== undefined) {
+      const attempts = await countAiExtractionAttempts(tx, input.documentVersionId);
+      if (attempts >= input.maxAttemptsPerDocument) {
+        return err(
+          serviceError('invalid', 'AI extraction attempt limit reached for this document'),
+        );
+      }
     }
 
     const outcome = await ai.extract({
