@@ -41,6 +41,26 @@ in readiness or snapshots"* — two instances (one CONFLICTED, one clean)
 under the same field key; asserts readiness is satisfied via the clean one
 and the snapshot captures **both** instances distinctly.
 
+**Fixed in PR-D1** (finding #30, post-programme defect register):
+`loadDocumentInstancesByType`'s per-key grouping above had a second, later
+regression — a document that had never been classified (`docType: null`,
+e.g. still awaiting classification, or classification declined) was
+silently `continue`d out of the returned map entirely, so it could never
+appear in `content.documents` in any future snapshot, even though its
+bytes and metadata were never actually lost. Fixed by grouping it under a
+deliberately-unnatural sentinel key (`UNCLASSIFIED_DOCUMENT_GROUP`) instead
+of skipping it — `classifyDocumentText`'s real output is always
+ALL_CAPS_WITH_UNDERSCORES, so the sentinel can never collide with a real
+type, and `buildRequirementMapping` only ever looks up a requirement's own
+non-null `docType`, so grouping under the sentinel can never make an
+unclassified document wrongly satisfy a specific-type requirement. The
+document's own `docType` field in the snapshot stays the true, honest
+`null` — only the map's internal lookup key changes. **Test:**
+*"includes an unclassified (no docType) document in a snapshot, ineligible
+for any specific-type requirement"* — asserts the document still appears in
+`content.documents` with `docType: null`, and that a DOCUMENT-kind
+requirement mapping entry correctly shows it as unsatisfied.
+
 ## 2. Snapshot freeze-field completeness
 
 Directive requirement: mission snapshots must freeze *"FactVersion IDs,
@@ -59,6 +79,24 @@ generated-output versions."*
 | Readiness result | ✓ (already present) | ✓ (unchanged) |
 | Reviewer decisions | Concept didn't exist | Recorded via `mission_decisions` (§4) — **not yet folded into snapshot content itself**, see §7 |
 | Generated-output versions | Concept didn't exist | Recorded via `generated_outputs` (§6) — **not yet folded into snapshot content itself**, see §7 |
+
+**Fixed in PR-D1** (finding #29, post-programme defect register): the shape
+change above — `content.facts` moving from a plain `Record<fieldKey,
+value>` object (pre-PR-10) to the array-of-instances shape this section
+describes — was never backfilled onto historical snapshot rows, correctly,
+since a snapshot is an immutable point-in-time capture that must never be
+rewritten after the fact. But the snapshot *read* path (the mission
+snapshot detail page in `apps/web`) assumed the new array shape
+unconditionally and crashed on any snapshot taken before PR 10 shipped.
+Fixed by extracting the read-side normalization into its own pure module
+(`snapshot-facts.ts`, zero Next.js/service imports) that detects both
+shapes and synthesizes honestly-labeled placeholder values (`status: 'not
+recorded (pre-PR-10 snapshot)'`) for fields the legacy shape never
+recorded — never fabricating values that could be mistaken for genuine
+provenance. Scoped deliberately narrow: only `content.facts`'s literal
+object-vs-array crash is fixed here; `content.documents`'s smaller legacy
+field set and `requirementMapping`'s legacy quirks degrade display only,
+never throw, and are left untouched.
 
 ## 3. Readiness exclusion rules
 
@@ -128,9 +166,43 @@ conflicted); selecting *only* the conflicted one flips readiness from ready
 to not-ready even though the clean, unselected instance still exists on
 file. Directly proves the exclusion, not just the schema.
 
+**Fixed in PR-D1** (finding #34, post-programme defect register):
+`selectEvidence` validated only that the fact/document belonged to the
+mission's own applicant — never that its *own* field key/docType actually
+matched the *requirement* being satisfied. A crafted or stale request could
+therefore attach any of the applicant's own facts/documents to any
+unrelated requirement, corrupting `buildRequirementMapping`'s per-requirement
+narrowing above, which strictly keys by field key/docType and was never
+built to expect a mismatched row. Fixed by joining `facts`→`fieldDefinitions`
+(the same join pattern `loadFactInstancesByKey` already uses) and selecting
+`docType` from `schema.documents` directly, comparing both against the
+requirement's own `fieldKey`/`docType` and refusing the selection
+(`serviceError('invalid', ...)`) on a mismatch — safe per `packs.ts`'s own
+construction-time guarantee that a FIELD requirement always has a non-null
+`fieldKey` and a DOCUMENT requirement always has a non-null `docType`.
+**Test:** *"refuses a selection whose fact/document doesn't match the
+requirement's own field key/docType, even for the applicant's own data"* —
+a mismatched fact and a mismatched document (both genuinely owned by the
+applicant) are each refused with `code: 'invalid'`, while the original
+correctly-matching selections still succeed (positive control).
+
 UI: a "Select evidence" card on the mission workspace page, shown only when
 a requirement actually has more than one candidate (the common
 single-candidate case stays uncluttered).
+
+**Fixed in PR-D1** (finding #33, post-programme defect register): the
+mission workspace UI's own `selectionIdsByCandidate` lookup (`page.tsx`
+building it, `collaboration-panels.tsx` reading it to know which selection
+a "remove" click deletes) was keyed by bare fact/document id alone. The
+same fact or document can legitimately be an eligible candidate for *more
+than one* requirement (e.g. two requirements both accepting the same
+document type) — keying by id alone meant the second requirement's
+selection row silently overwrote the first's entry, so clicking "remove" on
+one requirement's row could delete a *different* requirement's selection.
+Fixed with a composite key (`packRequirementId:candidateId`) extracted into
+one shared pure function (`composeSelectionCandidateKey`, zero Next.js/
+service imports) imported identically by the write site and both read
+sites, so the two sides can never independently drift apart in format.
 
 ## 6. Grounded letters and translation provenance
 

@@ -19,6 +19,7 @@ import { profileField } from '../../../../lib/profile-fields';
 import { withSession } from '../../../../lib/session';
 import { AttachPackForm, type PackOption } from './attach-pack-form';
 import { EvidenceSelectionPanel, LettersPanel, TasksPanel } from './collaboration-panels';
+import { composeSelectionCandidateKey } from './evidence-selection-key';
 import { SnapshotButton, TransitionButtons } from './mission-buttons';
 
 export const dynamic = 'force-dynamic';
@@ -64,11 +65,19 @@ export default async function MissionPage({
         getEvidenceCandidates(db, accountId, mission.id),
       ],
     );
+    // Composite key (finding #33, post-programme defect register) — see
+    // evidence-selection-key.ts's own doc comment.
     const selectionIdsByCandidate: Record<string, string> = {};
     if (selections.ok) {
       for (const s of selections.value) {
-        if (s.factId) selectionIdsByCandidate[s.factId] = s.id;
-        if (s.documentId) selectionIdsByCandidate[s.documentId] = s.id;
+        if (s.factId) {
+          selectionIdsByCandidate[composeSelectionCandidateKey(s.packRequirementId, s.factId)] =
+            s.id;
+        }
+        if (s.documentId) {
+          selectionIdsByCandidate[composeSelectionCandidateKey(s.packRequirementId, s.documentId)] =
+            s.id;
+        }
       }
     }
     return {

@@ -3,6 +3,11 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { profileField } from '../../../../../../lib/profile-fields';
 import { withSession } from '../../../../../../lib/session';
+import {
+  type LegacyFactsShape,
+  type SnapshotFactEntry,
+  normalizeSnapshotFacts,
+} from './snapshot-facts';
 
 export const dynamic = 'force-dynamic';
 
@@ -13,16 +18,9 @@ export const dynamic = 'force-dynamic';
  * document instance is captured by its exact id, in an array — never
  * collapsed into a key->value slot, so a repeating field's multiple
  * instances (master directive §7 "PR 10") are never overwritten.
+ * `SnapshotFactEntry`/`LegacyFactsShape` live in `./snapshot-facts` (see
+ * that module's own doc comment for why).
  */
-interface SnapshotFactEntry {
-  readonly fieldKey: string;
-  readonly factId: string;
-  readonly factVersionId: string | null;
-  readonly repeatingRecordKey: string | null;
-  readonly value: string | null;
-  readonly status: string;
-  readonly evidenceLinkIds: readonly string[];
-}
 interface SnapshotDocumentEntry {
   readonly documentId: string;
   readonly documentVersionId: string;
@@ -31,11 +29,12 @@ interface SnapshotDocumentEntry {
   readonly sha256: string | null;
   readonly eligible: boolean;
 }
+
 interface SnapshotContent {
   readonly missionId: string;
   readonly state: string;
   readonly packVersion: { readonly id: string; readonly version: number } | null;
-  readonly facts: readonly SnapshotFactEntry[];
+  readonly facts: readonly SnapshotFactEntry[] | LegacyFactsShape;
   readonly documents: readonly SnapshotDocumentEntry[];
   readonly requirementMapping: ReadonlyArray<{
     readonly kind: 'FIELD' | 'DOCUMENT';
@@ -76,6 +75,7 @@ export default async function MissionSnapshotPage({
   const { mission, snapshot } = data;
   const content = snapshot.content as SnapshotContent;
   const isPacket = PACKET_STATES.has(content.state);
+  const facts = normalizeSnapshotFacts(content.facts);
 
   return (
     <section className="section container">
@@ -157,11 +157,11 @@ export default async function MissionSnapshotPage({
         <article className="card">
           <p className="card-kicker">Profile</p>
           <h2 className="card-title">Facts at this snapshot</h2>
-          {content.facts.length === 0 ? (
+          {facts.length === 0 ? (
             <p className="card-body">No facts recorded.</p>
           ) : (
             <div className="rows" style={{ marginTop: '0.5rem' }}>
-              {content.facts.map((fact) => (
+              {facts.map((fact) => (
                 <div className="row" key={fact.factId}>
                   <span className="row-key">
                     {profileField(fact.fieldKey)?.label ?? fact.fieldKey}

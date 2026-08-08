@@ -403,6 +403,21 @@ export interface DocumentInstance {
 }
 
 /**
+ * Groups an unclassified document (`docType: null`) in `loadDocumentInstancesByType`'s
+ * returned map (finding #30, post-programme defect register). Deliberately
+ * unnatural — `classifyDocumentText` (classification.ts) only ever produces
+ * free-text ALL_CAPS_WITH_UNDERSCORES type names or `null`, so this key can
+ * never collide with a real one, present or future. `buildRequirementMapping`
+ * only ever looks up a requirement's own (always non-null, per `packs.ts`'s
+ * own validation) `docType`/`fieldKey`, so grouping under this sentinel
+ * (rather than skipping the document outright) can never make it wrongly
+ * satisfy a specific-type requirement — it only ensures the document still
+ * appears in `snapshotMission`'s flattened `content.documents`, instead of
+ * silently vanishing from the immutable evidentiary record.
+ */
+const UNCLASSIFIED_DOCUMENT_GROUP = '__unclassified__';
+
+/**
  * Load the latest version of every document, grouped by docType. Only the
  * latest version of each document is considered — an older, superseded
  * version can never satisfy a requirement. `eligible` folds together every
@@ -416,6 +431,14 @@ export interface DocumentInstance {
  * could still satisfy a requirement and be captured into a snapshot), and
  * expired (documents.expiresAt, if ever populated by a future feature — no
  * current path sets it, but readiness honors it defensively regardless).
+ *
+ * An unclassified document (`docType: null` — awaiting or never receiving a
+ * confident `classifyDocumentText` result) is grouped under
+ * `UNCLASSIFIED_DOCUMENT_GROUP` rather than skipped (finding #30): a document
+ * with a current, otherwise-eligible version used to be silently dropped
+ * from this map entirely — and therefore from `content.documents` in every
+ * future snapshot, permanently absent from the immutable evidentiary record
+ * even though its bytes and metadata were never actually lost.
  */
 async function loadDocumentInstancesByType(
   db: Db,
@@ -459,7 +482,7 @@ async function loadDocumentInstancesByType(
   const now = Date.now();
   const map = new Map<string, DocumentInstance[]>();
   for (const row of latestByDocument.values()) {
-    if (!row.docType) continue;
+    const groupKey = row.docType ?? UNCLASSIFIED_DOCUMENT_GROUP;
     const eligible =
       isDocumentVersionUsable({
         safetyStatus: row.safetyStatus,
@@ -467,7 +490,7 @@ async function loadDocumentInstancesByType(
         erased: erasedStorageObjectIds.has(row.storageObjectId),
       }) &&
       (row.expiresAt === null || row.expiresAt.getTime() > now);
-    const list = map.get(row.docType) ?? [];
+    const list = map.get(groupKey) ?? [];
     list.push({
       documentId: row.documentId,
       documentVersionId: row.documentVersionId,
@@ -478,7 +501,7 @@ async function loadDocumentInstancesByType(
       processingStatus: row.processingStatus,
       eligible,
     });
-    map.set(row.docType, list);
+    map.set(groupKey, list);
   }
   return map;
 }
@@ -909,7 +932,14 @@ async function loadOwnedRequirement(
  * requirement. Idempotent — selecting the same instance twice is a no-op,
  * not an error (the unique constraints on selected_evidence enforce this at
  * the database level). Refuses an instance that doesn't belong to the
- * mission's own applicant (cross-applicant selection).
+ * mission's own applicant (cross-applicant selection), AND refuses one that
+ * doesn't actually match the requirement's own field key / document type
+ * (finding #34, post-programme defect register) — ownership alone used to
+ * be the only check, so a selection request could attach any of the
+ * applicant's facts/documents to any requirement regardless of relevance,
+ * corrupting `buildRequirementMapping`'s per-requirement candidate lists
+ * (which key strictly by field key / doc type) with a `selected_evidence`
+ * row those lists were never built to expect.
  */
 export async function selectEvidence(
   db: Db,
@@ -936,13 +966,23 @@ export async function selectEvidence(
     }
     const fact = first(
       await db
-        .select({ applicantId: schema.facts.applicantId })
+        .select({
+          applicantId: schema.facts.applicantId,
+          fieldKey: schema.fieldDefinitions.key,
+        })
         .from(schema.facts)
+        .innerJoin(
+          schema.fieldDefinitions,
+          eq(schema.fieldDefinitions.id, schema.facts.fieldDefinitionId),
+        )
         .where(eq(schema.facts.id, input.factId))
         .limit(1),
     );
     if (!fact || fact.applicantId !== mission.applicantId) {
       return err(serviceError('not_found', 'fact not found for this mission'));
+    }
+    if (fact.fieldKey !== requirement.fieldKey) {
+      return err(serviceError('invalid', "this fact does not match the requirement's field"));
     }
   } else {
     if (!input.documentId || input.factId) {
@@ -952,13 +992,18 @@ export async function selectEvidence(
     }
     const document = first(
       await db
-        .select({ applicantId: schema.documents.applicantId })
+        .select({ applicantId: schema.documents.applicantId, docType: schema.documents.docType })
         .from(schema.documents)
         .where(eq(schema.documents.id, input.documentId))
         .limit(1),
     );
     if (!document || document.applicantId !== mission.applicantId) {
       return err(serviceError('not_found', 'document not found for this mission'));
+    }
+    if (document.docType !== requirement.docType) {
+      return err(
+        serviceError('invalid', "this document does not match the requirement's document type"),
+      );
     }
   }
 
