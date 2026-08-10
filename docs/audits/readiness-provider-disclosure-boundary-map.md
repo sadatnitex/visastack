@@ -136,6 +136,29 @@ the exact issue `providers.test.ts` already documents and works around.
 `vi.mock('@workos-inc/authkit-nextjs', () => ({ withAuth: vi.fn() }))`
 for the same reason.
 
+**Codex review, PR-E1, round 1 (P1): blank optional `*_PROVIDER` values
+broke the standard local-dev setup.** `checkKnownProvider` treated any
+value other than `undefined` as "configured," including `''`. Every
+optional `*_PROVIDER` line in `.env.example` is declared present but blank
+(`IDENTITY_PROVIDER=`, etc. — confirmed directly), so the standard
+`cp .env.example .env.local` workflow sets each one to `''`, not
+`undefined`, in `process.env`. Before `validateProviderEnv()` gained a real
+caller this distinction was inert — nothing called it, so it never actually
+rejected anything at runtime; wiring it into the readiness route (this PR's
+own fix, above) made it live, and every freshly-copied local environment
+would have reported readiness `degraded` on the very first optional
+provider var, even with DB and WorkOS both genuinely configured. Fixed by
+treating a blank string the same as unset in `checkKnownProvider` itself —
+the one function every `create*Port()` factory and `validateProviderEnv()`
+already funnel through, so the fix applies uniformly rather than needing a
+per-caller patch. New tests: `providers.test.ts` (`validateProviderEnv`
+doesn't throw when every var is set to `''`) and `route.test.ts` (the
+route reports `ready`/200 with `providers: { valid: true }` under the same
+condition). Verified non-vacuous: temporarily narrowing the guard back to
+`value === undefined` made exactly these two new tests fail (`IDENTITY_PROVIDER`
+rejected as unsupported; the route degraded to 503), confirmed, then
+restored — no other test in either file was affected either time.
+
 ## 4. What this PR does not cover
 
 - **`DATABASE_PROVIDER`/`JOB_PROVIDER` still construct nothing** —

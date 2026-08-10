@@ -91,6 +91,12 @@ describe('validateProviderEnv', () => {
     const { validateProviderEnv } = await import('./providers');
     expect(() => validateProviderEnv()).toThrow(/DATABASE_PROVIDER/);
   });
+
+  it('treats every *_PROVIDER var set to a blank string as unset, matching the standard cp .env.example .env.local workflow (Codex review, PR-E1)', async () => {
+    for (const key of ENV_KEYS) setEnv(key, '');
+    const { validateProviderEnv } = await import('./providers');
+    expect(() => validateProviderEnv()).not.toThrow();
+  });
 });
 
 describe('createIdentityPort', () => {

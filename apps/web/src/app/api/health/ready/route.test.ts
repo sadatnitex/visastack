@@ -26,7 +26,16 @@ const REQUIRED_ENV = [
   'DATABASE_URL',
   'VERCEL_ENV',
   'DEPLOYMENT_MODE',
+  'IDENTITY_PROVIDER',
+  'STORAGE_PROVIDER',
+  'DATABASE_PROVIDER',
   'MALWARE_SCANNER_PROVIDER',
+  'DOCUMENT_CONVERTER_PROVIDER',
+  'AI_PROVIDER',
+  'JOB_PROVIDER',
+  'EMAIL_PROVIDER',
+  'OBSERVABILITY_PROVIDER',
+  'PAYMENT_PROVIDER',
 ] as const;
 
 const ORIGINAL_ENV: Record<string, string | undefined> = {};
@@ -158,6 +167,30 @@ describe('GET /api/health/ready — honest health (200 vs 503)', () => {
     const realBody = await realRes.json();
     expect(realBody.status).toBe('degraded');
     expect(realBody.providers).toBeUndefined();
+  });
+
+  it('reports ready, not degraded, when every optional *_PROVIDER var is blank — the standard cp .env.example .env.local workflow (Codex review, PR-E1)', async () => {
+    for (const key of [
+      'IDENTITY_PROVIDER',
+      'STORAGE_PROVIDER',
+      'DATABASE_PROVIDER',
+      'MALWARE_SCANNER_PROVIDER',
+      'DOCUMENT_CONVERTER_PROVIDER',
+      'AI_PROVIDER',
+      'JOB_PROVIDER',
+      'EMAIL_PROVIDER',
+      'OBSERVABILITY_PROVIDER',
+      'PAYMENT_PROVIDER',
+    ] as const) {
+      setEnv(key, '');
+    }
+    mockDb({});
+    const { GET } = await import('./route');
+    const res = await GET();
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.status).toBe('ready');
+    expect(body.providers).toEqual({ valid: true });
   });
 
   it('never includes secret values in the body, even in the non-production breakdown', async () => {
