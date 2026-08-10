@@ -159,8 +159,62 @@ condition). Verified non-vacuous: temporarily narrowing the guard back to
 rejected as unsupported; the route degraded to 503), confirmed, then
 restored — no other test in either file was affected either time.
 
+**Codex review, PR-E1, round 2 (two P2s).** The round-1 fix itself
+introduced/exposed two further gaps, both caught in the very next review
+pass:
+
+1. **Redact invalid provider values from the public response.**
+   `checkKnownProvider`'s thrown message included the raw offending value
+   via `JSON.stringify(value)` — and `route.ts` copies that message
+   verbatim into `providers.error` in the (verbose-only, but still
+   unauthenticated) response body. `*_PROVIDER` vars hold free-form
+   operator input; nothing stops an accidentally pasted credential or
+   internal identifier from ending up there and being echoed back through
+   `/api/health/ready` and `/status`. Fixed by dropping the value from the
+   thrown message entirely — it now names only the var and the supported
+   list, both static and never secret. New test in `providers.test.ts`
+   (setting `MALWARE_SCANNER_PROVIDER` to a credential-shaped string,
+   asserting the thrown message contains the var name but not the value)
+   and `route.test.ts` (same assertion against the actual HTTP response
+   text). Verified non-vacuous: temporarily restoring the `JSON.stringify`
+   interpolation made exactly these two tests fail (the planted string
+   reappeared in both the thrown message and the response body), confirmed,
+   then restored.
+2. **Normalize blank storage values in the factory.** `createStorage()`
+   (`storage.ts`) has its own **independent** `STORAGE_PROVIDER` check —
+   it does not call `checkKnownProvider` at all (there is no
+   `StoragePort`-constructing factory in `providers.ts` to route through;
+   `createStorage` is only re-exported from there). Round 1's blank-string
+   fix to `checkKnownProvider` didn't touch this second implementation, so
+   `/api/health/ready` would report `ready` (via the now-fixed
+   `validateProviderEnv()`) while the very first upload still threw inside
+   `createStorage()` on the identical `cp .env.example .env.local` setup —
+   readiness lying about a genuinely broken deployment, the exact failure
+   mode this whole route exists to prevent. Fixed with the same
+   blank-is-unset normalization, applied independently since the two checks
+   don't share code. New test in `storage.test.ts`
+   (`STORAGE_PROVIDER=''` still selects `NeonBlobStorage`, matching the
+   existing no-`STORAGE_PROVIDER`-set case). Verified non-vacuous:
+   temporarily removing the normalization reproduced the exact thrown
+   error the finding described (`unsupported STORAGE_PROVIDER=""`),
+   confirmed, then restored; no other test in the file was affected.
+
+Two independent, unrelated-in-cause `STORAGE_PROVIDER` checks (one here,
+one in `providers.ts`) is a design smell this PR doesn't resolve — see §4.
+
 ## 4. What this PR does not cover
 
+- **`STORAGE_PROVIDER` is still checked in two independent places** —
+  `providers.ts`'s `checkKnownProvider` (which every other `*_PROVIDER` var
+  funnels through) and `storage.ts`'s own inline check inside
+  `createStorage()` (§3, round 2). Round 2 fixed the blank-value gap in
+  both, but did not merge them into one shared check — `createStorage()`
+  needs its own `BLOB_READ_WRITE_TOKEN`-cross-check logic immediately after
+  (§ its own doc comment), so a genuine consolidation would mean either
+  exporting `checkKnownProvider` for `storage.ts` to call, or moving the
+  cross-check into `providers.ts` itself. Left as a follow-up rather than
+  done here, to keep this round's fix minimal and precisely scoped to the
+  two findings raised.
 - **`DATABASE_PROVIDER`/`JOB_PROVIDER` still construct nothing** —
   `validateProviderEnv()` only proves the *value* is one this deployment
   recognizes; there is still no `create*` factory for either (see §3),

@@ -79,6 +79,12 @@ describe('createStorage — backend selection', () => {
     expect(() => createStorage({} as never)).toThrow(/unsupported STORAGE_PROVIDER/);
   });
 
+  it('treats STORAGE_PROVIDER="" as unset, matching the standard cp .env.example .env.local workflow (Codex review, PR-E1, round 2)', async () => {
+    setEnv('STORAGE_PROVIDER', '');
+    const { createStorage } = await import('./storage');
+    expect(createStorage({} as never)).toBeInstanceOf(NeonBlobStorage);
+  });
+
   it('accepts STORAGE_PROVIDER=vercel_blob when the token is actually configured', async () => {
     setEnv('STORAGE_PROVIDER', 'vercel_blob');
     setEnv('BLOB_READ_WRITE_TOKEN', 'vercel_blob_token');

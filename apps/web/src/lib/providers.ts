@@ -75,6 +75,13 @@ type KnownProviderVar = keyof typeof KNOWN_PROVIDERS;
  * every freshly-copied local environment reports readiness `degraded` on the
  * very first optional provider var, even with DB and WorkOS both genuinely
  * configured.
+ *
+ * The thrown message never echoes the offending value itself (Codex review,
+ * PR-E1, round 2): `/api/health/ready` copies this message into its
+ * (verbose-only, but still unauthenticated) response body, and `*_PROVIDER`
+ * vars hold free-form operator input — nothing stops an accidentally pasted
+ * credential or internal identifier from landing there. Naming the var and
+ * the supported values is enough to act on; both are static, never secret.
  */
 function checkKnownProvider(envVar: KnownProviderVar): void {
   const value = readEnv(envVar);
@@ -82,7 +89,7 @@ function checkKnownProvider(envVar: KnownProviderVar): void {
   const supported = KNOWN_PROVIDERS[envVar];
   if (!(supported as readonly string[]).includes(value)) {
     throw new Error(
-      `unsupported ${envVar}=${JSON.stringify(value)} — this deployment implements: ${supported.join(', ')}`,
+      `unsupported ${envVar} value — this deployment implements: ${supported.join(', ')}`,
     );
   }
 }

@@ -97,6 +97,22 @@ describe('validateProviderEnv', () => {
     const { validateProviderEnv } = await import('./providers');
     expect(() => validateProviderEnv()).not.toThrow();
   });
+
+  it('never echoes the offending value itself, only the var name and supported list (Codex review, PR-E1, round 2)', async () => {
+    setEnv('MALWARE_SCANNER_PROVIDER', 'sk_live_accidentally_pasted_secret');
+    const { validateProviderEnv } = await import('./providers');
+    let thrown: unknown;
+    try {
+      validateProviderEnv();
+    } catch (error) {
+      thrown = error;
+    }
+    expect(thrown).toBeInstanceOf(Error);
+    const message = (thrown as Error).message;
+    expect(message).toContain('MALWARE_SCANNER_PROVIDER');
+    expect(message).toContain('builtin');
+    expect(message).not.toContain('sk_live_accidentally_pasted_secret');
+  });
 });
 
 describe('createIdentityPort', () => {

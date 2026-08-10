@@ -169,6 +169,16 @@ describe('GET /api/health/ready — honest health (200 vs 503)', () => {
     expect(realBody.providers).toBeUndefined();
   });
 
+  it('never echoes the offending *_PROVIDER value into the response body, even in the verbose breakdown (Codex review, PR-E1, round 2)', async () => {
+    setEnv('MALWARE_SCANNER_PROVIDER', 'sk_live_accidentally_pasted_secret');
+    mockDb({});
+    const { GET } = await import('./route');
+    const res = await GET();
+    const text = await res.text();
+    expect(text).toContain('MALWARE_SCANNER_PROVIDER');
+    expect(text).not.toContain('sk_live_accidentally_pasted_secret');
+  });
+
   it('reports ready, not degraded, when every optional *_PROVIDER var is blank — the standard cp .env.example .env.local workflow (Codex review, PR-E1)', async () => {
     for (const key of [
       'IDENTITY_PROVIDER',
