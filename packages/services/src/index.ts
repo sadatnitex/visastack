@@ -171,6 +171,7 @@ export {
   bulkExport,
   isActiveMember,
   listApplicantsForOrganization,
+  listAssignedMissionIds,
   listAssignments,
   listAssignmentsDetailed,
   listEvidenceRequestsForApplicant,

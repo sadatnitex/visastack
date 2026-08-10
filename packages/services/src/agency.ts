@@ -198,6 +198,33 @@ export async function listAssignments(db: Db, missionId: string): Promise<Assign
   return db.select().from(schema.assignments).where(eq(schema.assignments.missionId, missionId));
 }
 
+/**
+ * Every mission (within one organization) an account is currently
+ * assigned to. The non-admin visibility boundary the org console page
+ * enforces (Codex review, PR-D2, finding #31): "Agency staff / reviewer
+ * ... Sees only assigned applicants and missions covered by an effective
+ * grant" (Build Spec §2, `docs/product/build-spec-v1.1.md:61-63`) — an org
+ * OWNER/ADMIN is exempt from this filter entirely (they see every mission
+ * the organization holds a grant for); this exists specifically for the
+ * narrower non-admin path.
+ */
+export async function listAssignedMissionIds(
+  db: Db,
+  organizationId: string,
+  memberAccountId: string,
+): Promise<ReadonlySet<string>> {
+  const rows = await db
+    .select({ missionId: schema.assignments.missionId })
+    .from(schema.assignments)
+    .where(
+      and(
+        eq(schema.assignments.organizationId, organizationId),
+        eq(schema.assignments.memberAccountId, memberAccountId),
+      ),
+    );
+  return new Set(rows.map((r) => r.missionId));
+}
+
 /** An assignment resolved with the member's email, for the org console. */
 export interface AssignmentView {
   readonly id: string;

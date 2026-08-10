@@ -11,6 +11,7 @@ import {
   assignMember,
   bulkExport,
   listApplicantsForOrganization,
+  listAssignedMissionIds,
   listAssignmentsDetailed,
   listEvidenceRequestsForApplicant,
   listEvidenceRequestsForOrg,
@@ -158,6 +159,84 @@ describe('agency collaboration — assignments, notes, evidence', () => {
       missionId: mission.value.id,
     });
     expect(isErr(denied)).toBe(true);
+  });
+
+  it('listAssignedMissionIds returns only the missions a member is personally assigned to, not every mission the org can reach (Codex review, PR-D2, round 1, finding #31)', async () => {
+    const { account, applicantId } = await consentedApplicant(db, 'scope@example.com');
+    const missionA = await createMission(db, {
+      actorAccountId: account.id,
+      applicantId,
+      title: 'A',
+    });
+    const missionB = await createMission(db, {
+      actorAccountId: account.id,
+      applicantId,
+      title: 'B',
+    });
+    if (!isOk(missionA) || !isOk(missionB)) throw new Error('mission');
+
+    const agentAcc = await provisionAccount(db, { email: 'agent-scope@acme.com' });
+    if (!isOk(agentAcc)) throw new Error('provision');
+    const org = await createOrganization(db, { actorAccountId: agentAcc.value.id, name: 'Acme' });
+    if (!isOk(org)) throw new Error('org');
+    await activateOrg(db, org.value.id);
+
+    // One org-wide grant covering BOTH missions — the org itself can reach
+    // both; the point is that a non-admin member's own assignment is a
+    // narrower boundary than the org's.
+    const grant = await createGrant(db, {
+      actorAccountId: account.id,
+      applicantId,
+      recipientOrganizationId: org.value.id,
+      actions: ['MANAGE', 'COMMENT'],
+      purpose: 'collaboration',
+    });
+    if (!isOk(grant)) throw new Error('grant');
+    await acceptGrant(db, { actorAccountId: agentAcc.value.id, grantId: grant.value.id });
+
+    const reviewer = await provisionAccount(db, { email: 'reviewer-scope@acme.com' });
+    if (!isOk(reviewer)) throw new Error('provision');
+    await addMembership(db, {
+      actorAccountId: agentAcc.value.id,
+      organizationId: org.value.id,
+      accountId: reviewer.value.id,
+      role: 'REVIEWER',
+    });
+    // Assigned to mission A only — never assigned to mission B, even
+    // though the org's own grant covers both.
+    const assigned = await assignMember(db, {
+      actorAccountId: agentAcc.value.id,
+      organizationId: org.value.id,
+      memberAccountId: reviewer.value.id,
+      missionId: missionA.value.id,
+    });
+    expect(isOk(assigned)).toBe(true);
+
+    // A DIFFERENT member assigned to mission B — this is what makes the
+    // test genuinely discriminating: an unscoped (organization-wide-only)
+    // query would return BOTH missions, since assignment rows for both
+    // exist somewhere in this org; only a caller-scoped query correctly
+    // excludes mission B from the reviewer's own result.
+    const otherReviewer = await provisionAccount(db, { email: 'other-reviewer-scope@acme.com' });
+    if (!isOk(otherReviewer)) throw new Error('provision');
+    await addMembership(db, {
+      actorAccountId: agentAcc.value.id,
+      organizationId: org.value.id,
+      accountId: otherReviewer.value.id,
+      role: 'CASE_MANAGER',
+    });
+    const otherAssigned = await assignMember(db, {
+      actorAccountId: agentAcc.value.id,
+      organizationId: org.value.id,
+      memberAccountId: otherReviewer.value.id,
+      missionId: missionB.value.id,
+    });
+    expect(isOk(otherAssigned)).toBe(true);
+
+    const assignedIds = await listAssignedMissionIds(db, org.value.id, reviewer.value.id);
+    expect(assignedIds.has(missionA.value.id)).toBe(true);
+    expect(assignedIds.has(missionB.value.id)).toBe(false);
+    expect(assignedIds.size).toBe(1);
   });
 
   it('runs the evidence-request lifecycle', async () => {

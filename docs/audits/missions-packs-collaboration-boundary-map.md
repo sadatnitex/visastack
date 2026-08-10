@@ -167,6 +167,19 @@ evidence-request inbox, full membership roster, and admin actions
 the page computes `member = admin || isActiveMember(...)` and renders the
 "Missions" card for any member, reserving "Case inbox," "Request evidence,"
 "Bulk export," "Members," and "Evidence requests" for `admin` specifically.
+**Codex review, PR-D2, round 1:** that fix still let any active non-admin
+member see EVERY mission the ORGANIZATION could reach, not just missions
+they were personally assigned to — directly contradicting Build Spec §2's
+"Agency staff / reviewer ... Sees only assigned applicants and missions"
+(`docs/product/build-spec-v1.1.md:61-63`), since none of the underlying
+read functions check the individual caller's own assignment, only the
+org's grant. Fixed with a new `listAssignedMissionIds(db, organizationId,
+memberAccountId)` — every mission an account is assigned to within one
+org — filtering `orgMissions` down to that set for non-admin members
+*before* the expensive per-mission detail fetch runs at all, rather than
+fetching every org mission and hiding some at render time. An org
+OWNER/ADMIN is exempt from this filter, matching the spec's own
+admin/reviewer distinction.
 
 ## 5. Explicit evidence selection
 

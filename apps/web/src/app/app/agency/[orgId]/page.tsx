@@ -3,6 +3,7 @@ import {
   isActiveMember,
   isOrgAdmin,
   listApplicantsForOrganization,
+  listAssignedMissionIds,
   listAssignmentsDetailed,
   listEvidenceRequestsForOrgDetailed,
   listMissionDecisions,
@@ -78,15 +79,28 @@ export default async function OrgConsolePage({
     // gated by isOrgAdmin at the service layer already (listOrgMemberships,
     // listEvidenceRequestsForOrgDetailed), or only ever consumed by an
     // admin-only section of this page (applicants).
-    const [requests, members, applicants, orgMissions] = await Promise.all([
+    const [requests, members, applicants, orgMissions, assignedMissionIds] = await Promise.all([
       admin ? listEvidenceRequestsForOrgDetailed(db, accountId, orgId) : Promise.resolve(null),
       admin ? listOrgMemberships(db, accountId, orgId) : Promise.resolve(null),
       admin ? listApplicantsForOrganization(db, orgId) : Promise.resolve([]),
       listMissionsForOrganization(db, orgId),
+      admin ? Promise.resolve(null) : listAssignedMissionIds(db, orgId, accountId),
     ]);
     const membersResolved = members?.ok ? members.value : [];
+    // Codex review, PR-D2, round 1: listAssignmentsDetailed/listNotes/
+    // listMissionRequirementsForOrg below only check the ORGANIZATION's
+    // grant, never the individual caller's own assignment — correct for
+    // an admin (who legitimately sees every mission the org can reach),
+    // but a non-admin member must see only THEIR OWN assigned missions
+    // (Build Spec §2: "Agency staff / reviewer ... Sees only assigned
+    // applicants and missions"). Without this filter, any active member
+    // could see every other member's assignments, note bodies, and
+    // applicant names for missions they have no personal standing on.
+    const visibleOrgMissions = admin
+      ? orgMissions
+      : orgMissions.filter((m) => assignedMissionIds?.has(m.missionId) ?? false);
     const missions = await Promise.all(
-      orgMissions.map(async (mission) => {
+      visibleOrgMissions.map(async (mission) => {
         const [assignments, notes, requirements, decisions] = await Promise.all([
           listAssignmentsDetailed(db, orgId, mission.applicantId, mission.missionId),
           listNotes(db, orgId, mission.applicantId, mission.missionId),
@@ -359,13 +373,15 @@ export default async function OrgConsolePage({
             <p className="card-kicker">Collaborate</p>
             <h2 className="card-title">Missions</h2>
             <p className="card-body" style={{ marginBottom: '1.25rem' }}>
-              Assign a team member and leave case notes on any mission this organization has a grant
-              for.
+              {data.admin
+                ? 'Assign a team member and leave case notes on any mission this organization has a grant for.'
+                : "Leave case notes and record decisions on missions you're assigned to."}
             </p>
             {data.missions.length === 0 ? (
               <p className="card-body">
-                No missions are reachable yet — an applicant must grant this organization access to
-                a specific mission.
+                {data.admin
+                  ? 'No missions are reachable yet — an applicant must grant this organization access to a specific mission.'
+                  : "You aren't assigned to any missions yet — ask an admin to assign you to a case."}
               </p>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
