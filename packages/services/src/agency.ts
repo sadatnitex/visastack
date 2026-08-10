@@ -79,8 +79,19 @@ async function orgGrantPermits(
   );
 }
 
-/** True if the account is an active member (any role) of the organization. */
-async function isActiveMember(db: Db, accountId: string, organizationId: string): Promise<boolean> {
+/**
+ * True if the account is an active member (any role) of the organization.
+ * Exported for `apps/web`'s org console page (finding #31, post-programme
+ * defect register): the page used to gate its ENTIRE mission-collaboration
+ * UI behind `isOrgAdmin`, making the reviewer-decision workflow this
+ * function itself authorizes (below) unreachable for the non-admin
+ * `REVIEWER`/`CASE_MANAGER` members it's actually meant for.
+ */
+export async function isActiveMember(
+  db: Db,
+  accountId: string,
+  organizationId: string,
+): Promise<boolean> {
   const m = first(
     await db
       .select()
@@ -187,6 +198,33 @@ export async function listAssignments(db: Db, missionId: string): Promise<Assign
   return db.select().from(schema.assignments).where(eq(schema.assignments.missionId, missionId));
 }
 
+/**
+ * Every mission (within one organization) an account is currently
+ * assigned to. The non-admin visibility boundary the org console page
+ * enforces (Codex review, PR-D2, finding #31): "Agency staff / reviewer
+ * ... Sees only assigned applicants and missions covered by an effective
+ * grant" (Build Spec §2, `docs/product/build-spec-v1.1.md:61-63`) — an org
+ * OWNER/ADMIN is exempt from this filter entirely (they see every mission
+ * the organization holds a grant for); this exists specifically for the
+ * narrower non-admin path.
+ */
+export async function listAssignedMissionIds(
+  db: Db,
+  organizationId: string,
+  memberAccountId: string,
+): Promise<ReadonlySet<string>> {
+  const rows = await db
+    .select({ missionId: schema.assignments.missionId })
+    .from(schema.assignments)
+    .where(
+      and(
+        eq(schema.assignments.organizationId, organizationId),
+        eq(schema.assignments.memberAccountId, memberAccountId),
+      ),
+    );
+  return new Set(rows.map((r) => r.missionId));
+}
+
 /** An assignment resolved with the member's email, for the org console. */
 export interface AssignmentView {
   readonly id: string;
@@ -221,6 +259,15 @@ async function canReadMissionCollaboration(
  * `canReadMissionCollaboration` (finding #5 above); returns empty rather
  * than throwing so a caller iterating every reachable mission doesn't need
  * a separate authorization branch per mission.
+ *
+ * Scoped to THIS organization's own assignment rows (Codex review, PR-D2,
+ * round 2): a mission can be granted to more than one organization at once
+ * (each org assigns its own members independently via `assignMember`,
+ * which stamps every row with its own `organizationId`), so a query
+ * filtered only by `missionId` returned every organization's assignee
+ * emails to whichever org happened to read this mission first — a
+ * cross-tenant identity leak, and pre-existing (`5a62bc0`) though PR-D2's
+ * new non-admin path makes it reachable by more callers than before.
  */
 export async function listAssignmentsDetailed(
   db: Db,
@@ -238,7 +285,12 @@ export async function listAssignmentsDetailed(
     })
     .from(schema.assignments)
     .innerJoin(schema.accounts, eq(schema.accounts.id, schema.assignments.memberAccountId))
-    .where(eq(schema.assignments.missionId, missionId));
+    .where(
+      and(
+        eq(schema.assignments.organizationId, organizationId),
+        eq(schema.assignments.missionId, missionId),
+      ),
+    );
   return rows.map((row) => ({ ...row, createdAt: row.createdAt.toISOString() }));
 }
 

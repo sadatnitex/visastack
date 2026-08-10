@@ -149,6 +149,48 @@ compact requirement picker + accept/reject form, visible to any org member
 with access to the mission's collaboration card, but only submittable by an
 assigned member.
 
+**Fixed in PR-D2** (finding #31, post-programme defect register): "visible
+to any org member" above described `MissionCollaboration`'s own intended
+design — it was already correctly gated on its own `viewerAssigned` prop —
+but the PARENT page, `apps/web/src/app/app/agency/[orgId]/page.tsx`, wrapped
+its ENTIRE mission-collaboration section (and every other section) inside
+an `isOrgAdmin` check, so a non-admin `REVIEWER`/`CASE_MANAGER` — the exact
+audience `recordMissionDecision`'s own authorization targets — could never
+reach the card at all, seeing only a static "not an administrator" message.
+None of `listAssignmentsDetailed`/`listNotes`/`listMissionRequirementsForOrg`
+(gated on `canReadMissionCollaboration`'s COMMENT-or-MANAGE org grant) or
+`listMissionDecisions`/`recordMissionDecision` (gated on active membership +
+assignment + grant, above) ever required `isOrgAdmin` — only the org-wide
+evidence-request inbox, full membership roster, and admin actions
+(assign/request-evidence/bulk-export/member-management) genuinely do.
+`isActiveMember` (this file, previously module-private) is now exported;
+the page computes `member = admin || isActiveMember(...)` and renders the
+"Missions" card for any member, reserving "Case inbox," "Request evidence,"
+"Bulk export," "Members," and "Evidence requests" for `admin` specifically.
+**Codex review, PR-D2, round 1:** that fix still let any active non-admin
+member see EVERY mission the ORGANIZATION could reach, not just missions
+they were personally assigned to — directly contradicting Build Spec §2's
+"Agency staff / reviewer ... Sees only assigned applicants and missions"
+(`docs/product/build-spec-v1.1.md:61-63`), since none of the underlying
+read functions check the individual caller's own assignment, only the
+org's grant. Fixed with a new `listAssignedMissionIds(db, organizationId,
+memberAccountId)` — every mission an account is assigned to within one
+org — filtering `orgMissions` down to that set for non-admin members
+*before* the expensive per-mission detail fetch runs at all, rather than
+fetching every org mission and hiding some at render time. An org
+OWNER/ADMIN is exempt from this filter, matching the spec's own
+admin/reviewer distinction.
+
+**Codex review, PR-D2, round 2:** `listAssignmentsDetailed`'s own query
+filtered only by `missionId`, never by the `organizationId` parameter it
+already receives (and already uses to gate `canReadMissionCollaboration`)
+— so a mission granted to and assigned within more than one organization
+at once leaked every OTHER organization's assignee emails into each org's
+own read. Pre-existing since `5a62bc0`, made reachable by more callers by
+this PR's non-admin path. Fixed by scoping the query's `where` to both
+`organizationId` and `missionId`, matching `assignMember`'s own existing-row
+check.
+
 ## 5. Explicit evidence selection
 
 New `selected_evidence` table plus `selectEvidence`/`unselectEvidence`/
