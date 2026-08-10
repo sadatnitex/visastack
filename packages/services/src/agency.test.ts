@@ -239,6 +239,93 @@ describe('agency collaboration — assignments, notes, evidence', () => {
     expect(assignedIds.size).toBe(1);
   });
 
+  it('scopes listAssignmentsDetailed to the querying organization, not every organization sharing the mission (Codex review, PR-D2, round 2)', async () => {
+    const { account, applicantId } = await consentedApplicant(db, 'crossorg@example.com');
+    const mission = await createMission(db, {
+      actorAccountId: account.id,
+      applicantId,
+      title: 'Shared mission',
+    });
+    if (!isOk(mission)) throw new Error('mission');
+
+    // Two SEPARATE organizations, both independently granted MANAGE on the
+    // SAME mission -- e.g. the applicant is working with two agencies at
+    // once. Each org assigns its own member; an unscoped (missionId-only)
+    // query would let orgA's read surface orgB's assignee email too.
+    const agentAccA = await provisionAccount(db, { email: 'agent-crossorg-a@acme.com' });
+    if (!isOk(agentAccA)) throw new Error('provision');
+    const orgA = await createOrganization(db, {
+      actorAccountId: agentAccA.value.id,
+      name: 'Acme A',
+    });
+    if (!isOk(orgA)) throw new Error('org');
+    await activateOrg(db, orgA.value.id);
+
+    const agentAccB = await provisionAccount(db, { email: 'agent-crossorg-b@rival.com' });
+    if (!isOk(agentAccB)) throw new Error('provision');
+    const orgB = await createOrganization(db, {
+      actorAccountId: agentAccB.value.id,
+      name: 'Rival B',
+    });
+    if (!isOk(orgB)) throw new Error('org');
+    await activateOrg(db, orgB.value.id);
+
+    const grantA = await createGrant(db, {
+      actorAccountId: account.id,
+      applicantId,
+      recipientOrganizationId: orgA.value.id,
+      missionId: mission.value.id,
+      actions: ['MANAGE'],
+      purpose: 'collaboration',
+    });
+    if (!isOk(grantA)) throw new Error('grant');
+    await acceptGrant(db, { actorAccountId: agentAccA.value.id, grantId: grantA.value.id });
+
+    const grantB = await createGrant(db, {
+      actorAccountId: account.id,
+      applicantId,
+      recipientOrganizationId: orgB.value.id,
+      missionId: mission.value.id,
+      actions: ['MANAGE'],
+      purpose: 'second opinion',
+    });
+    if (!isOk(grantB)) throw new Error('grant');
+    await acceptGrant(db, { actorAccountId: agentAccB.value.id, grantId: grantB.value.id });
+
+    const assignedA = await assignMember(db, {
+      actorAccountId: agentAccA.value.id,
+      organizationId: orgA.value.id,
+      memberAccountId: agentAccA.value.id,
+      missionId: mission.value.id,
+    });
+    expect(isOk(assignedA)).toBe(true);
+    const assignedB = await assignMember(db, {
+      actorAccountId: agentAccB.value.id,
+      organizationId: orgB.value.id,
+      memberAccountId: agentAccB.value.id,
+      missionId: mission.value.id,
+    });
+    expect(isOk(assignedB)).toBe(true);
+
+    const fromOrgA = await listAssignmentsDetailed(
+      db,
+      orgA.value.id,
+      applicantId,
+      mission.value.id,
+    );
+    expect(fromOrgA).toHaveLength(1);
+    expect(fromOrgA[0]?.memberEmail).toBe('agent-crossorg-a@acme.com');
+
+    const fromOrgB = await listAssignmentsDetailed(
+      db,
+      orgB.value.id,
+      applicantId,
+      mission.value.id,
+    );
+    expect(fromOrgB).toHaveLength(1);
+    expect(fromOrgB[0]?.memberEmail).toBe('agent-crossorg-b@rival.com');
+  });
+
   it('runs the evidence-request lifecycle', async () => {
     const { account, applicantId } = await consentedApplicant(db, 'ev@example.com');
     const agentAcc = await provisionAccount(db, { email: 'agent-ev@acme.com' });

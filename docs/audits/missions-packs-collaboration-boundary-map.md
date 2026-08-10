@@ -181,6 +181,16 @@ fetching every org mission and hiding some at render time. An org
 OWNER/ADMIN is exempt from this filter, matching the spec's own
 admin/reviewer distinction.
 
+**Codex review, PR-D2, round 2:** `listAssignmentsDetailed`'s own query
+filtered only by `missionId`, never by the `organizationId` parameter it
+already receives (and already uses to gate `canReadMissionCollaboration`)
+— so a mission granted to and assigned within more than one organization
+at once leaked every OTHER organization's assignee emails into each org's
+own read. Pre-existing since `5a62bc0`, made reachable by more callers by
+this PR's non-admin path. Fixed by scoping the query's `where` to both
+`organizationId` and `missionId`, matching `assignMember`'s own existing-row
+check.
+
 ## 5. Explicit evidence selection
 
 New `selected_evidence` table plus `selectEvidence`/`unselectEvidence`/

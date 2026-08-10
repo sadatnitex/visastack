@@ -259,6 +259,15 @@ async function canReadMissionCollaboration(
  * `canReadMissionCollaboration` (finding #5 above); returns empty rather
  * than throwing so a caller iterating every reachable mission doesn't need
  * a separate authorization branch per mission.
+ *
+ * Scoped to THIS organization's own assignment rows (Codex review, PR-D2,
+ * round 2): a mission can be granted to more than one organization at once
+ * (each org assigns its own members independently via `assignMember`,
+ * which stamps every row with its own `organizationId`), so a query
+ * filtered only by `missionId` returned every organization's assignee
+ * emails to whichever org happened to read this mission first — a
+ * cross-tenant identity leak, and pre-existing (`5a62bc0`) though PR-D2's
+ * new non-admin path makes it reachable by more callers than before.
  */
 export async function listAssignmentsDetailed(
   db: Db,
@@ -276,7 +285,12 @@ export async function listAssignmentsDetailed(
     })
     .from(schema.assignments)
     .innerJoin(schema.accounts, eq(schema.accounts.id, schema.assignments.memberAccountId))
-    .where(eq(schema.assignments.missionId, missionId));
+    .where(
+      and(
+        eq(schema.assignments.organizationId, organizationId),
+        eq(schema.assignments.missionId, missionId),
+      ),
+    );
   return rows.map((row) => ({ ...row, createdAt: row.createdAt.toISOString() }));
 }
 
