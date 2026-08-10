@@ -9,6 +9,7 @@ import { getPlatformCapabilities } from '../../../../lib/capabilities';
 import { evaluateCommercialReadiness } from '../../../../lib/commercial-readiness';
 import { getDeploymentMode, isRealDeployment } from '../../../../lib/deployment-mode';
 import { isPresent, isWorkosConfigured } from '../../../../lib/env';
+import { validateProviderEnv } from '../../../../lib/providers';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -25,6 +26,23 @@ export const dynamic = 'force-dynamic';
  * generic code so a connection string can never leak into the body. The
  * deployment mode and capability registry are NOT sensitive — surfacing
  * them honestly, always, is the entire point of this PR.
+ *
+ * Finding #35 (post-programme defect register): a real deployment's
+ * unauthenticated response used to include the FULL commercial-readiness
+ * gate breakdown (pentest status, backup-restore attestation, incident
+ * owner, etc.) — detailed operational/security posture, not a presence
+ * boolean, and reachable by anyone via the public `/status` page. On a real
+ * deployment (`!verbose`) only the aggregate `ready` boolean is included
+ * now; the full per-gate breakdown is available to platform admins only,
+ * on the authenticated `/app/admin` page (which independently re-evaluates
+ * the same guard).
+ *
+ * Finding #36 (post-programme defect register): `validateProviderEnv()`
+ * (`../../../../lib/providers`) previously had zero callers anywhere in the
+ * app, so an unsupported `*_PROVIDER` value (e.g. a typo, or a provider
+ * planned but not yet built) was silently ignored at runtime instead of
+ * failing loudly. It now gates `coreReady` here — the one guaranteed
+ * startup/readiness path — same as DB connectivity and WorkOS config.
  */
 const WORKOS_ENV_VARS = ['WORKOS_API_KEY', 'WORKOS_CLIENT_ID', 'WORKOS_COOKIE_PASSWORD'] as const;
 
@@ -58,11 +76,29 @@ export async function GET(): Promise<Response> {
     }
   }
 
+  // Finding #36: fail loudly, as part of readiness, the moment any
+  // *_PROVIDER var names a value this deployment doesn't implement — rather
+  // than silently ignoring it, as happened when validateProviderEnv() had no
+  // caller at all. The message only ever names a *_PROVIDER key and the
+  // provider-name values it supports (never a secret) but is still withheld
+  // on a real deployment's response body, same as every other diagnostic
+  // detail here — only its effect on `coreReady`/`status` is always public.
+  let providers: { valid: boolean; error?: string } = { valid: true };
+  try {
+    validateProviderEnv();
+  } catch (error) {
+    providers = {
+      valid: false,
+      error: error instanceof Error ? error.message : 'invalid_provider_configuration',
+    };
+  }
+
   // The authenticated MANUAL core is ready only when the database is reachable
   // AND migrated AND the WorkOS auth configuration required to sign in is
-  // present (Milestone 1 — honest readiness). Optional capabilities (AI,
+  // present AND every configured provider is one this deployment actually
+  // implements (Milestone 1 — honest readiness). Optional capabilities (AI,
   // signed blob storage) are reported separately and never gate the core.
-  const coreReady = db.connected && db.schemaApplied && isWorkosConfigured();
+  const coreReady = db.connected && db.schemaApplied && isWorkosConfigured() && providers.valid;
 
   // Commercial mode adds its own guard ON TOP of the pilot-level core bar,
   // never in place of it (master directive §7 "PR 11": "No normal
@@ -107,6 +143,7 @@ export async function GET(): Promise<Response> {
         deploymentMode,
         env,
         db,
+        providers,
         capabilities: optionalCapabilities,
         platform: effectivePlatform,
         ...(commercial ? { commercialReadiness: commercial } : {}),
@@ -115,7 +152,11 @@ export async function GET(): Promise<Response> {
         status,
         deploymentMode,
         platform: effectivePlatform,
-        ...(commercial ? { commercialReadiness: commercial } : {}),
+        // Finding #35: a real deployment's response is public (reachable
+        // unauthenticated via /status) — expose only the aggregate boolean.
+        // The full per-gate breakdown (pentest, backups, incident owner,
+        // etc.) is available to platform admins only, on /app/admin.
+        ...(commercial ? { commercialReadiness: { ready: commercial.ready } } : {}),
       };
 
   // HTTP status now carries the truth: 200 = core (and, in commercial mode,

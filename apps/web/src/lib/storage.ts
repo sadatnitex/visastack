@@ -53,8 +53,19 @@ export function createStorage(db: Db): StoragePort & BlobStore {
   // below, not a second selection mechanism — an operator who sets it to a
   // value inconsistent with the actual token configuration gets a loud
   // misconfiguration error instead of silently landing on whichever backend
-  // the token happened to select.
-  const provider = readEnv('STORAGE_PROVIDER');
+  // the token happened to select. A blank string is treated the same as
+  // unset (Codex review, PR-E1, round 2): the documented
+  // `cp .env.example .env.local` workflow sets `STORAGE_PROVIDER=''`, not
+  // undefined — `./providers`'s `checkKnownProvider` normalizes the same
+  // case for its own `*_PROVIDER` vars, but this is an independent check
+  // (there is no `StoragePort`-constructing factory in `providers.ts` to
+  // route through), so it needs the identical fix on its own. Without this,
+  // `/api/health/ready` reports `ready` (via `validateProviderEnv()`, fixed
+  // above) while the very first upload still throws here — readiness
+  // lying about a genuinely broken deployment is exactly what this whole
+  // route exists to prevent.
+  const rawProvider = readEnv('STORAGE_PROVIDER');
+  const provider = rawProvider === '' ? undefined : rawProvider;
   if (provider !== undefined && provider !== 'vercel_blob' && provider !== 'neon') {
     throw new Error(
       `unsupported STORAGE_PROVIDER=${JSON.stringify(provider)} — this deployment implements: vercel_blob, neon`,

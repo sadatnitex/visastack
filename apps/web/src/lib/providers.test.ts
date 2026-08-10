@@ -91,6 +91,28 @@ describe('validateProviderEnv', () => {
     const { validateProviderEnv } = await import('./providers');
     expect(() => validateProviderEnv()).toThrow(/DATABASE_PROVIDER/);
   });
+
+  it('treats every *_PROVIDER var set to a blank string as unset, matching the standard cp .env.example .env.local workflow (Codex review, PR-E1)', async () => {
+    for (const key of ENV_KEYS) setEnv(key, '');
+    const { validateProviderEnv } = await import('./providers');
+    expect(() => validateProviderEnv()).not.toThrow();
+  });
+
+  it('never echoes the offending value itself, only the var name and supported list (Codex review, PR-E1, round 2)', async () => {
+    setEnv('MALWARE_SCANNER_PROVIDER', 'sk_live_accidentally_pasted_secret');
+    const { validateProviderEnv } = await import('./providers');
+    let thrown: unknown;
+    try {
+      validateProviderEnv();
+    } catch (error) {
+      thrown = error;
+    }
+    expect(thrown).toBeInstanceOf(Error);
+    const message = (thrown as Error).message;
+    expect(message).toContain('MALWARE_SCANNER_PROVIDER');
+    expect(message).toContain('builtin');
+    expect(message).not.toContain('sk_live_accidentally_pasted_secret');
+  });
 });
 
 describe('createIdentityPort', () => {

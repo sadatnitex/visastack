@@ -65,13 +65,31 @@ type KnownProviderVar = keyof typeof KNOWN_PROVIDERS;
  * leave it unset and get the pilot default below); this only catches a
  * recognized-but-wrong value, e.g. a typo or a provider planned but not yet
  * built.
+ *
+ * A blank string is treated the same as unset (Codex review, PR-E1): every
+ * optional `*_PROVIDER` line in `.env.example` is declared present but empty
+ * (`IDENTITY_PROVIDER=`, etc.), so the standard `cp .env.example .env.local`
+ * workflow sets each one to `''`, not `undefined`, in `process.env`. Before
+ * `validateProviderEnv()` gained a real caller (finding #36) that distinction
+ * was inert; wiring it into the readiness route made it live — without this,
+ * every freshly-copied local environment reports readiness `degraded` on the
+ * very first optional provider var, even with DB and WorkOS both genuinely
+ * configured.
+ *
+ * The thrown message never echoes the offending value itself (Codex review,
+ * PR-E1, round 2): `/api/health/ready` copies this message into its
+ * (verbose-only, but still unauthenticated) response body, and `*_PROVIDER`
+ * vars hold free-form operator input — nothing stops an accidentally pasted
+ * credential or internal identifier from landing there. Naming the var and
+ * the supported values is enough to act on; both are static, never secret.
  */
 function checkKnownProvider(envVar: KnownProviderVar): void {
   const value = readEnv(envVar);
+  if (value === undefined || value === '') return;
   const supported = KNOWN_PROVIDERS[envVar];
-  if (value !== undefined && !(supported as readonly string[]).includes(value)) {
+  if (!(supported as readonly string[]).includes(value)) {
     throw new Error(
-      `unsupported ${envVar}=${JSON.stringify(value)} — this deployment implements: ${supported.join(', ')}`,
+      `unsupported ${envVar} value — this deployment implements: ${supported.join(', ')}`,
     );
   }
 }
