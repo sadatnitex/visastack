@@ -6,7 +6,17 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
  * dependency (DB reachability/migration, or WorkOS auth config) is missing.
  * This is a route-level unit test — no network, no real database — so it runs
  * in ordinary CI with no secrets.
+ *
+ * Finding #36 (post-programme defect register) wired `./route` to
+ * `../../../../lib/providers`'s `validateProviderEnv`, which — same as
+ * `providers.test.ts` itself already documents — transitively imports
+ * `./identity-provider` -> `@workos-inc/authkit-nextjs`. That package's
+ * `next/cache` import doesn't resolve outside a real Next.js runtime, so it
+ * is mocked here purely to let `./route` import cleanly under plain
+ * Vitest/Node ESM resolution; its real `withAuth` behavior is exercised
+ * separately in identity-provider.test.ts, never called by anything here.
  */
+vi.mock('@workos-inc/authkit-nextjs', () => ({ withAuth: vi.fn() }));
 
 const REQUIRED_ENV = [
   'WORKOS_API_KEY',
@@ -16,6 +26,7 @@ const REQUIRED_ENV = [
   'DATABASE_URL',
   'VERCEL_ENV',
   'DEPLOYMENT_MODE',
+  'MALWARE_SCANNER_PROVIDER',
 ] as const;
 
 const ORIGINAL_ENV: Record<string, string | undefined> = {};
@@ -120,6 +131,35 @@ describe('GET /api/health/ready — honest health (200 vs 503)', () => {
     expect(body.status).toBe('degraded');
   });
 
+  it('returns 503 "degraded" when an unsupported *_PROVIDER value is configured, even with DB+WorkOS both ready (finding #36)', async () => {
+    setEnv('MALWARE_SCANNER_PROVIDER', 'clamav');
+    mockDb({});
+    const { GET } = await import('./route');
+    const res = await GET();
+    expect(res.status).toBe(503);
+    const body = await res.json();
+    expect(body.status).toBe('degraded');
+  });
+
+  it('names the offending *_PROVIDER var in the verbose body, but withholds that detail on a real deployment (finding #36)', async () => {
+    setEnv('MALWARE_SCANNER_PROVIDER', 'clamav');
+    mockDb({});
+    const { GET: getVerbose } = await import('./route');
+    const verboseRes = await getVerbose();
+    const verboseBody = await verboseRes.json();
+    expect(verboseBody.providers.valid).toBe(false);
+    expect(verboseBody.providers.error).toMatch(/MALWARE_SCANNER_PROVIDER/);
+
+    vi.resetModules();
+    setEnv('VERCEL_ENV', 'production');
+    mockDb({});
+    const { GET: getReal } = await import('./route');
+    const realRes = await getReal();
+    const realBody = await realRes.json();
+    expect(realBody.status).toBe('degraded');
+    expect(realBody.providers).toBeUndefined();
+  });
+
   it('never includes secret values in the body, even in the non-production breakdown', async () => {
     mockDb({});
     const { GET } = await import('./route');
@@ -184,17 +224,34 @@ describe('GET /api/health/ready — honest health (200 vs 503)', () => {
       expect(body.commercialReadiness).toBeUndefined();
     });
 
-    it('names the specific unmet gates so an operator can act on the 503, never a bare failure', async () => {
+    // `getDeploymentMode()` treats an explicit DEPLOYMENT_MODE=commercial
+    // override as authoritative regardless of VERCEL_ENV, and
+    // `isRealDeployment()` treats any non-"development" mode as real — so
+    // commercial mode is, by construction, ALWAYS a "real deployment" as far
+    // as this route's own verbose/non-verbose split is concerned. This
+    // formerly asserted the OLD, insecure behavior (the public response
+    // named every unmet gate, "so an operator can act on the 503") — exactly
+    // the disclosure finding #35 exists to close. The specific gates
+    // (including that `realMalwareScanner` can never be attested past) are
+    // already covered at the pure-function level by
+    // `commercial-readiness.test.ts`; what this route must now prove is that
+    // NONE of that detail reaches the wire, ever, while the 503/ready=false
+    // signal an operator needs still does.
+    it('exposes only the aggregate ready boolean on a real deployment, never the per-gate breakdown (finding #35)', async () => {
       setEnv('DEPLOYMENT_MODE', 'commercial');
+      setEnv('VERCEL_ENV', 'production');
       mockDb({});
       const { GET } = await import('./route');
       const res = await GET();
       const body = await res.json();
-      const failing = body.commercialReadiness.gates.filter(
-        (gate: { satisfied: boolean }) => !gate.satisfied,
-      );
-      expect(failing.length).toBeGreaterThan(0);
-      expect(failing.some((gate: { key: string }) => gate.key === 'realMalwareScanner')).toBe(true);
+      expect(body.commercialReadiness).toEqual({ ready: false });
+      expect(body.commercialReadiness.gates).toBeUndefined();
+      // Every gate label/key is genuinely absent from the wire body, not just
+      // from the parsed `gates` array — guards against a future refactor
+      // smuggling the detail into some other field on a real deployment.
+      const text = JSON.stringify(body);
+      expect(text).not.toContain('realMalwareScanner');
+      expect(text).not.toContain('externalPenetrationTest');
     });
   });
 });

@@ -20,6 +20,8 @@ import {
 import Link from 'next/link';
 import { isPlatformAdmin, isPlatformOwnerAccount } from '../../../lib/admin';
 import { aiBudgetLimitUnits, aiWarningLimitUnits, unitsToUsd } from '../../../lib/ai';
+import { evaluateCommercialReadiness } from '../../../lib/commercial-readiness';
+import { getDeploymentMode } from '../../../lib/deployment-mode';
 import { withSession } from '../../../lib/session';
 import { UsageMeter } from '../applicant/[id]/usage-meter';
 import {
@@ -96,6 +98,19 @@ export default async function AdminPage() {
       totalAiCostUnits(db),
       listInvitations(db),
     ]);
+    const deploymentMode = getDeploymentMode();
+    // Finding #35 (post-programme defect register): the full commercial-
+    // readiness gate breakdown (pentest, backup-restore attestation,
+    // incident owner, etc.) must never be public — /api/health/ready now
+    // reports only the aggregate `ready` boolean on a real deployment. This
+    // authenticated, platform-admin-only page is where the full breakdown
+    // lives instead. `databaseReady: true` is sound here, not assumed: every
+    // query in the Promise.all above already succeeded against this same
+    // `db` handle by the time this line runs, in this same request.
+    const commercial =
+      deploymentMode === 'commercial'
+        ? evaluateCommercialReadiness({ databaseReady: true })
+        : undefined;
     return {
       admin: true as const,
       policies,
@@ -113,6 +128,8 @@ export default async function AdminPage() {
       auditEvents,
       aiCostUnits,
       invitations,
+      deploymentMode,
+      commercial,
       quota: loadUploadQuotaConfig(),
     };
   });
@@ -155,6 +172,9 @@ export default async function AdminPage() {
             </a>
             <a href="#admin-security" className="pill">
               Security
+            </a>
+            <a href="#admin-readiness" className="pill">
+              Commercial readiness
             </a>
             <a href="#admin-pilot-access" className="pill">
               Pilot access
@@ -249,6 +269,48 @@ export default async function AdminPage() {
               <p className="muted" style={{ fontSize: '0.85rem' }}>
                 Only a platform owner can grant or revoke roles.
               </p>
+            )}
+          </article>
+
+          <article className="card" style={{ marginBottom: '1.5rem' }} id="admin-readiness">
+            <p className="card-kicker">Operational posture</p>
+            <h2 className="card-title">Commercial readiness</h2>
+            <p className="card-body" style={{ marginBottom: '1rem' }}>
+              The full per-gate breakdown behind commercial mode's guard — deliberately{' '}
+              <strong>not</strong> public. An unauthenticated caller (including the public{' '}
+              <code>/status</code> page) only ever sees the aggregate ready/not-ready boolean.
+            </p>
+            {!data.commercial ? (
+              <p className="card-body" style={{ marginBottom: 0 }}>
+                Deployment mode is <strong>{data.deploymentMode}</strong>, not{' '}
+                <code>commercial</code> — this guard does not apply yet.
+              </p>
+            ) : (
+              <>
+                <div className="toolbar" style={{ marginBottom: '1rem' }}>
+                  <span className="muted" style={{ fontSize: '0.85rem' }}>
+                    {data.commercial.gates.filter((g) => g.satisfied).length} of{' '}
+                    {data.commercial.gates.length} gates satisfied
+                  </span>
+                  <span
+                    className={data.commercial.ready ? 'badge badge-success' : 'badge badge-danger'}
+                  >
+                    {data.commercial.ready ? 'ready' : 'not ready'}
+                  </span>
+                </div>
+                <div className="rows">
+                  {data.commercial.gates.map((gate) => (
+                    <div className="row" key={gate.key}>
+                      <span className="row-key">{gate.label}</span>
+                      <span
+                        className={gate.satisfied ? 'badge badge-success' : 'badge badge-danger'}
+                      >
+                        {gate.satisfied ? 'satisfied' : 'unmet'}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </>
             )}
           </article>
 
