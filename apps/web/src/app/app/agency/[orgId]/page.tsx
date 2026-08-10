@@ -1,5 +1,6 @@
 import {
   getOrganization,
+  isActiveMember,
   isOrgAdmin,
   listApplicantsForOrganization,
   listAssignmentsDetailed,
@@ -51,10 +52,19 @@ export default async function OrgConsolePage({
     const org = await getOrganization(db, orgId);
     if (!org) return null;
     const admin = await isOrgAdmin(db, accountId, orgId);
-    if (!admin) {
+    // Finding #31 (post-programme defect register): mission collaboration —
+    // assignments, notes, requirements, and the reviewer decision workflow
+    // recordMissionDecision itself authorizes — is NOT an admin-only
+    // capability at the service layer (canReadMissionCollaboration checks
+    // a COMMENT-or-MANAGE org grant; recordMissionDecision checks active
+    // membership + assignment + grant, never isOrgAdmin). Any active
+    // member, not just an OWNER/ADMIN, has standing to reach it.
+    const member = admin || (await isActiveMember(db, accountId, orgId));
+    if (!member) {
       return {
         org,
         admin: false,
+        member: false,
         requests: [],
         members: [],
         applicants: [],
@@ -62,13 +72,19 @@ export default async function OrgConsolePage({
         viewerAccountId: accountId,
       };
     }
+
+    // Admin-only data: full membership roster, org-wide evidence requests,
+    // and the applicant list the "Request evidence" form targets — each
+    // gated by isOrgAdmin at the service layer already (listOrgMemberships,
+    // listEvidenceRequestsForOrgDetailed), or only ever consumed by an
+    // admin-only section of this page (applicants).
     const [requests, members, applicants, orgMissions] = await Promise.all([
-      listEvidenceRequestsForOrgDetailed(db, accountId, orgId),
-      listOrgMemberships(db, accountId, orgId),
-      listApplicantsForOrganization(db, orgId),
+      admin ? listEvidenceRequestsForOrgDetailed(db, accountId, orgId) : Promise.resolve(null),
+      admin ? listOrgMemberships(db, accountId, orgId) : Promise.resolve(null),
+      admin ? listApplicantsForOrganization(db, orgId) : Promise.resolve([]),
       listMissionsForOrganization(db, orgId),
     ]);
-    const membersResolved = members.ok ? members.value : [];
+    const membersResolved = members?.ok ? members.value : [];
     const missions = await Promise.all(
       orgMissions.map(async (mission) => {
         const [assignments, notes, requirements, decisions] = await Promise.all([
@@ -84,6 +100,11 @@ export default async function OrgConsolePage({
             id: n.id,
             body: n.body,
             createdAt: n.createdAt.toISOString(),
+            // Author email resolution needs the full membership roster,
+            // admin-only data (above) — a non-admin viewer correctly sees
+            // "Unknown" here rather than gaining roster access through a
+            // side door; the note body/date/requirement content itself is
+            // unaffected.
             authorEmail:
               membersResolved.find((m) => m.accountId === n.authorAccountId)?.email ?? 'Unknown',
           })),
@@ -96,6 +117,9 @@ export default async function OrgConsolePage({
                     : (r.docType ?? ''),
               }))
             : [],
+          // A non-admin, non-assigned-to-THIS-mission member correctly
+          // gets [] here (listMissionDecisions refuses per-mission, not
+          // per-org) — they still see every mission they ARE assigned to.
           decisions: decisions.ok
             ? decisions.value.map((d) => ({
                 id: d.id,
@@ -111,8 +135,9 @@ export default async function OrgConsolePage({
     );
     return {
       org,
-      admin: true,
-      requests: requests.ok ? requests.value : [],
+      admin,
+      member: true,
+      requests: requests?.ok ? requests.value : [],
       members: membersResolved,
       applicants,
       missions,
@@ -144,11 +169,11 @@ export default async function OrgConsolePage({
         <span className={`badge ${badge.tone}`}>{badge.label}</span>
       </div>
 
-      {!data.admin ? (
+      {!data.member ? (
         <article className="card">
           <p className="card-body">
-            You are a member of this organization but not an administrator. Only owners and admins
-            can request evidence or export data.
+            You don't have a role in this organization. Ask an owner or admin to add you as a
+            member.
           </p>
         </article>
       ) : (
@@ -159,152 +184,176 @@ export default async function OrgConsolePage({
             </div>
           ) : null}
 
-          <article className="card" style={{ marginBottom: '1.5rem' }}>
-            <p className="card-kicker">Case inbox</p>
-            <h2 className="card-title">What needs attention</h2>
-            {data.missions.length === 0 ? (
+          {!data.admin ? (
+            <article className="card" style={{ marginBottom: '1.5rem' }}>
               <p className="card-body">
-                No cases are reachable yet — an applicant must grant this organization access to a
-                specific mission.
+                You're a member of this organization but not an administrator. Requesting evidence,
+                bulk export, and member management are admin-only — you can still collaborate on
+                missions you're assigned to below.
               </p>
-            ) : (
-              <div className="rows" style={{ marginTop: '0.5rem' }}>
-                {data.missions
-                  .map((mission) => {
-                    const openRequests = data.requests.filter(
-                      (r) => r.applicantId === mission.applicantId && r.status === 'OPEN',
-                    ).length;
-                    const assignedToMe = mission.assignments.some(
-                      (a) => a.memberAccountId === data.viewerAccountId,
-                    );
-                    return { mission, openRequests, assignedToMe };
-                  })
-                  // Cases needing action float to the top: unassigned or open
-                  // requests first, then everything else.
-                  .sort((a, b) => {
-                    const weight = (x: typeof a) =>
-                      (x.mission.assignments.length === 0 ? 2 : 0) + (x.openRequests > 0 ? 1 : 0);
-                    return weight(b) - weight(a);
-                  })
-                  .map(({ mission, openRequests, assignedToMe }) => (
-                    <div
-                      className="row"
-                      key={mission.missionId}
-                      style={{ flexDirection: 'column', alignItems: 'stretch', gap: '0.3rem' }}
-                    >
+            </article>
+          ) : null}
+
+          {data.admin ? (
+            <article className="card" style={{ marginBottom: '1.5rem' }}>
+              <p className="card-kicker">Case inbox</p>
+              <h2 className="card-title">What needs attention</h2>
+              {data.missions.length === 0 ? (
+                <p className="card-body">
+                  No cases are reachable yet — an applicant must grant this organization access to a
+                  specific mission.
+                </p>
+              ) : (
+                <div className="rows" style={{ marginTop: '0.5rem' }}>
+                  {data.missions
+                    .map((mission) => {
+                      const openRequests = data.requests.filter(
+                        (r) => r.applicantId === mission.applicantId && r.status === 'OPEN',
+                      ).length;
+                      const assignedToMe = mission.assignments.some(
+                        (a) => a.memberAccountId === data.viewerAccountId,
+                      );
+                      return { mission, openRequests, assignedToMe };
+                    })
+                    // Cases needing action float to the top: unassigned or open
+                    // requests first, then everything else.
+                    .sort((a, b) => {
+                      const weight = (x: typeof a) =>
+                        (x.mission.assignments.length === 0 ? 2 : 0) + (x.openRequests > 0 ? 1 : 0);
+                      return weight(b) - weight(a);
+                    })
+                    .map(({ mission, openRequests, assignedToMe }) => (
                       <div
-                        style={{ display: 'flex', justifyContent: 'space-between', gap: '0.75rem' }}
+                        className="row"
+                        key={mission.missionId}
+                        style={{ flexDirection: 'column', alignItems: 'stretch', gap: '0.3rem' }}
                       >
-                        <span className="row-key">
-                          {mission.applicantName} · {mission.title}
-                        </span>
-                        <span style={{ display: 'flex', gap: '0.4rem' }}>
-                          {assignedToMe ? (
-                            <span className="badge badge-neutral">Assigned to you</span>
-                          ) : null}
-                          {mission.assignments.length === 0 ? (
-                            <span className="badge badge-warning">Needs assignment</span>
-                          ) : null}
-                          {openRequests > 0 ? (
-                            <span className="badge badge-warning">
-                              {openRequests} open request{openRequests === 1 ? '' : 's'}
-                            </span>
-                          ) : null}
+                        <div
+                          style={{
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            gap: '0.75rem',
+                          }}
+                        >
+                          <span className="row-key">
+                            {mission.applicantName} · {mission.title}
+                          </span>
+                          <span style={{ display: 'flex', gap: '0.4rem' }}>
+                            {assignedToMe ? (
+                              <span className="badge badge-neutral">Assigned to you</span>
+                            ) : null}
+                            {mission.assignments.length === 0 ? (
+                              <span className="badge badge-warning">Needs assignment</span>
+                            ) : null}
+                            {openRequests > 0 ? (
+                              <span className="badge badge-warning">
+                                {openRequests} open request{openRequests === 1 ? '' : 's'}
+                              </span>
+                            ) : null}
+                          </span>
+                        </div>
+                        <span className="muted" style={{ fontSize: '0.8rem' }}>
+                          {mission.assignments.length > 0
+                            ? `Assigned: ${mission.assignments.map((a) => a.memberEmail).join(', ')}`
+                            : 'Unassigned'}
+                          {mission.notes.length > 0 ? ` · ${mission.notes.length} note(s)` : ''}
                         </span>
                       </div>
-                      <span className="muted" style={{ fontSize: '0.8rem' }}>
-                        {mission.assignments.length > 0
-                          ? `Assigned: ${mission.assignments.map((a) => a.memberEmail).join(', ')}`
-                          : 'Unassigned'}
-                        {mission.notes.length > 0 ? ` · ${mission.notes.length} note(s)` : ''}
+                    ))}
+                </div>
+              )}
+            </article>
+          ) : null}
+
+          {data.admin ? (
+            <div className="grid">
+              <article className="card">
+                <p className="card-kicker">Collect</p>
+                <h2 className="card-title">Request evidence</h2>
+                <p className="card-body" style={{ marginBottom: '1.25rem' }}>
+                  Ask an applicant for a specific field or document. They decide whether to fulfil
+                  it.
+                </p>
+                <RequestEvidenceForm
+                  organizationId={orgId}
+                  applicants={data.applicants}
+                  missions={data.missions.map((m) => ({
+                    missionId: m.missionId,
+                    title: m.title,
+                    applicantName: m.applicantName,
+                  }))}
+                />
+              </article>
+
+              <article className="card">
+                <p className="card-kicker">Export</p>
+                <h2 className="card-title">Bulk export</h2>
+                <p className="card-body" style={{ marginBottom: '1.25rem' }}>
+                  Download the profiles of every applicant who granted this organization an accepted
+                  export grant. Each applicant is re-checked by the policy engine at export time.
+                </p>
+                {capabilities.bulkExport === 'available' ? (
+                  <a
+                    href={`/app/agency/${orgId}/export?purpose=agency_review`}
+                    className="btn btn-primary"
+                    download
+                  >
+                    Download bulk export
+                  </a>
+                ) : (
+                  <>
+                    <button type="button" className="btn btn-primary" disabled>
+                      Download bulk export
+                    </button>
+                    <p className="muted" style={{ fontSize: '0.85rem', marginTop: '0.6rem' }}>
+                      {capabilityUnavailableMessage('bulkExport')}
+                    </p>
+                  </>
+                )}
+              </article>
+            </div>
+          ) : null}
+
+          {data.admin ? (
+            <article className="card" style={{ marginTop: '1.5rem' }}>
+              <p className="card-kicker">Team</p>
+              <h2 className="card-title">Members</h2>
+              <p className="card-body" style={{ marginBottom: '1.25rem' }}>
+                Membership is organizational bookkeeping — it never grants access to an applicant's
+                records on its own. Access is always an accepted grant.
+              </p>
+              {data.members.length > 0 ? (
+                <div className="rows" style={{ marginBottom: '1.5rem' }}>
+                  {data.members.map((m) => (
+                    <div className="row" key={m.membershipId}>
+                      <span className="row-key">
+                        {m.email}
+                        <span
+                          className="muted"
+                          style={{ fontSize: '0.8rem', marginLeft: '0.5rem' }}
+                        >
+                          {m.role}
+                        </span>
+                      </span>
+                      <span style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                        <span className={`badge ${m.active ? 'badge-success' : 'badge-neutral'}`}>
+                          {m.active ? 'Active' : 'Inactive'}
+                        </span>
+                        {m.role !== 'OWNER' ? (
+                          <MemberToggleButton
+                            organizationId={orgId}
+                            membershipId={m.membershipId}
+                            active={m.active}
+                          />
+                        ) : null}
                       </span>
                     </div>
                   ))}
-              </div>
-            )}
-          </article>
-
-          <div className="grid">
-            <article className="card">
-              <p className="card-kicker">Collect</p>
-              <h2 className="card-title">Request evidence</h2>
-              <p className="card-body" style={{ marginBottom: '1.25rem' }}>
-                Ask an applicant for a specific field or document. They decide whether to fulfil it.
-              </p>
-              <RequestEvidenceForm
-                organizationId={orgId}
-                applicants={data.applicants}
-                missions={data.missions.map((m) => ({
-                  missionId: m.missionId,
-                  title: m.title,
-                  applicantName: m.applicantName,
-                }))}
-              />
+                </div>
+              ) : null}
+              <AddMemberForm organizationId={orgId} />
             </article>
-
-            <article className="card">
-              <p className="card-kicker">Export</p>
-              <h2 className="card-title">Bulk export</h2>
-              <p className="card-body" style={{ marginBottom: '1.25rem' }}>
-                Download the profiles of every applicant who granted this organization an accepted
-                export grant. Each applicant is re-checked by the policy engine at export time.
-              </p>
-              {capabilities.bulkExport === 'available' ? (
-                <a
-                  href={`/app/agency/${orgId}/export?purpose=agency_review`}
-                  className="btn btn-primary"
-                  download
-                >
-                  Download bulk export
-                </a>
-              ) : (
-                <>
-                  <button type="button" className="btn btn-primary" disabled>
-                    Download bulk export
-                  </button>
-                  <p className="muted" style={{ fontSize: '0.85rem', marginTop: '0.6rem' }}>
-                    {capabilityUnavailableMessage('bulkExport')}
-                  </p>
-                </>
-              )}
-            </article>
-          </div>
-
-          <article className="card" style={{ marginTop: '1.5rem' }}>
-            <p className="card-kicker">Team</p>
-            <h2 className="card-title">Members</h2>
-            <p className="card-body" style={{ marginBottom: '1.25rem' }}>
-              Membership is organizational bookkeeping — it never grants access to an applicant's
-              records on its own. Access is always an accepted grant.
-            </p>
-            {data.members.length > 0 ? (
-              <div className="rows" style={{ marginBottom: '1.5rem' }}>
-                {data.members.map((m) => (
-                  <div className="row" key={m.membershipId}>
-                    <span className="row-key">
-                      {m.email}
-                      <span className="muted" style={{ fontSize: '0.8rem', marginLeft: '0.5rem' }}>
-                        {m.role}
-                      </span>
-                    </span>
-                    <span style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-                      <span className={`badge ${m.active ? 'badge-success' : 'badge-neutral'}`}>
-                        {m.active ? 'Active' : 'Inactive'}
-                      </span>
-                      {m.role !== 'OWNER' ? (
-                        <MemberToggleButton
-                          organizationId={orgId}
-                          membershipId={m.membershipId}
-                          active={m.active}
-                        />
-                      ) : null}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            ) : null}
-            <AddMemberForm organizationId={orgId} />
-          </article>
+          ) : null}
 
           <article className="card" style={{ marginTop: '1.5rem' }}>
             <p className="card-kicker">Collaborate</p>
@@ -339,43 +388,53 @@ export default async function OrgConsolePage({
             )}
           </article>
 
-          <article className="card" style={{ marginTop: '1.5rem' }}>
-            <p className="card-kicker">Activity</p>
-            <h2 className="card-title">Evidence requests</h2>
-            {data.requests.length === 0 ? (
-              <p className="card-body">No evidence requests raised yet.</p>
-            ) : (
-              <div className="rows" style={{ marginTop: '0.5rem' }}>
-                {data.requests.map((req) => {
-                  const rb = REQ_STATUS[req.status] ?? { label: req.status, tone: 'badge-neutral' };
-                  const target =
-                    req.kind === 'FIELD'
-                      ? ((req.fieldKey ? profileField(req.fieldKey)?.label : undefined) ??
-                        req.fieldKey)
-                      : req.docType;
-                  return (
-                    <div
-                      className="row"
-                      key={req.id}
-                      style={{ flexDirection: 'column', alignItems: 'stretch', gap: '0.2rem' }}
-                    >
+          {data.admin ? (
+            <article className="card" style={{ marginTop: '1.5rem' }}>
+              <p className="card-kicker">Activity</p>
+              <h2 className="card-title">Evidence requests</h2>
+              {data.requests.length === 0 ? (
+                <p className="card-body">No evidence requests raised yet.</p>
+              ) : (
+                <div className="rows" style={{ marginTop: '0.5rem' }}>
+                  {data.requests.map((req) => {
+                    const rb = REQ_STATUS[req.status] ?? {
+                      label: req.status,
+                      tone: 'badge-neutral',
+                    };
+                    const target =
+                      req.kind === 'FIELD'
+                        ? ((req.fieldKey ? profileField(req.fieldKey)?.label : undefined) ??
+                          req.fieldKey)
+                        : req.docType;
+                    return (
                       <div
-                        style={{ display: 'flex', justifyContent: 'space-between', gap: '0.75rem' }}
+                        className="row"
+                        key={req.id}
+                        style={{ flexDirection: 'column', alignItems: 'stretch', gap: '0.2rem' }}
                       >
-                        <span className="row-key">
-                          {req.kind === 'FIELD' ? 'Field' : 'Document'}: {target ?? '(unspecified)'}
+                        <div
+                          style={{
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            gap: '0.75rem',
+                          }}
+                        >
+                          <span className="row-key">
+                            {req.kind === 'FIELD' ? 'Field' : 'Document'}:{' '}
+                            {target ?? '(unspecified)'}
+                          </span>
+                          <span className={`badge ${rb.tone}`}>{rb.label}</span>
+                        </div>
+                        <span className="muted" style={{ fontSize: '0.8rem' }}>
+                          {req.applicantName}
                         </span>
-                        <span className={`badge ${rb.tone}`}>{rb.label}</span>
                       </div>
-                      <span className="muted" style={{ fontSize: '0.8rem' }}>
-                        {req.applicantName}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </article>
+                    );
+                  })}
+                </div>
+              )}
+            </article>
+          ) : null}
         </>
       )}
     </section>

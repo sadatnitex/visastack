@@ -79,8 +79,19 @@ async function orgGrantPermits(
   );
 }
 
-/** True if the account is an active member (any role) of the organization. */
-async function isActiveMember(db: Db, accountId: string, organizationId: string): Promise<boolean> {
+/**
+ * True if the account is an active member (any role) of the organization.
+ * Exported for `apps/web`'s org console page (finding #31, post-programme
+ * defect register): the page used to gate its ENTIRE mission-collaboration
+ * UI behind `isOrgAdmin`, making the reviewer-decision workflow this
+ * function itself authorizes (below) unreachable for the non-admin
+ * `REVIEWER`/`CASE_MANAGER` members it's actually meant for.
+ */
+export async function isActiveMember(
+  db: Db,
+  accountId: string,
+  organizationId: string,
+): Promise<boolean> {
   const m = first(
     await db
       .select()

@@ -149,6 +149,25 @@ compact requirement picker + accept/reject form, visible to any org member
 with access to the mission's collaboration card, but only submittable by an
 assigned member.
 
+**Fixed in PR-D2** (finding #31, post-programme defect register): "visible
+to any org member" above described `MissionCollaboration`'s own intended
+design — it was already correctly gated on its own `viewerAssigned` prop —
+but the PARENT page, `apps/web/src/app/app/agency/[orgId]/page.tsx`, wrapped
+its ENTIRE mission-collaboration section (and every other section) inside
+an `isOrgAdmin` check, so a non-admin `REVIEWER`/`CASE_MANAGER` — the exact
+audience `recordMissionDecision`'s own authorization targets — could never
+reach the card at all, seeing only a static "not an administrator" message.
+None of `listAssignmentsDetailed`/`listNotes`/`listMissionRequirementsForOrg`
+(gated on `canReadMissionCollaboration`'s COMMENT-or-MANAGE org grant) or
+`listMissionDecisions`/`recordMissionDecision` (gated on active membership +
+assignment + grant, above) ever required `isOrgAdmin` — only the org-wide
+evidence-request inbox, full membership roster, and admin actions
+(assign/request-evidence/bulk-export/member-management) genuinely do.
+`isActiveMember` (this file, previously module-private) is now exported;
+the page computes `member = admin || isActiveMember(...)` and renders the
+"Missions" card for any member, reserving "Case inbox," "Request evidence,"
+"Bulk export," "Members," and "Evidence requests" for `admin` specifically.
+
 ## 5. Explicit evidence selection
 
 New `selected_evidence` table plus `selectEvidence`/`unselectEvidence`/

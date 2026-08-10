@@ -614,6 +614,52 @@ describe('reviewer decisions (master directive §7 "PR 10")', () => {
     }
   });
 
+  it('lets a non-admin, active, assigned member (not OWNER/ADMIN) record and read a decision — the exact authorization the org console page now correctly exposes (finding #31, post-programme defect register)', async () => {
+    const { missionId, packRequirementId, org, agentAcc } = await setUp(db);
+    // agentAcc (the org creator) is OWNER — every other test above/below
+    // that exercises `recordMissionDecision`'s success path uses it, so
+    // none of them actually prove a genuinely non-admin role can reach
+    // this workflow. A REVIEWER, added and assigned separately, is what
+    // finding #31's page-level fix needs proven: recordMissionDecision/
+    // listMissionDecisions were never gated on org role, only active
+    // membership + assignment + a covering grant — the org console page
+    // just never let a non-admin member reach them at all.
+    const reviewer = await provisionAccount(db, { email: 'reviewer-dec@acme.com' });
+    if (!isOk(reviewer)) throw new Error('provision');
+    const membership = await addMembership(db, {
+      actorAccountId: agentAcc.value.id,
+      organizationId: org.value.id,
+      accountId: reviewer.value.id,
+      role: 'REVIEWER',
+    });
+    expect(isOk(membership)).toBe(true);
+    const assigned = await assignMember(db, {
+      actorAccountId: agentAcc.value.id,
+      organizationId: org.value.id,
+      memberAccountId: reviewer.value.id,
+      missionId,
+    });
+    expect(isOk(assigned)).toBe(true);
+
+    const decided = await recordMissionDecision(db, {
+      actorAccountId: reviewer.value.id,
+      organizationId: org.value.id,
+      missionId,
+      packRequirementId,
+      outcome: 'ACCEPTED',
+      reason: 'Confirmed against the source document.',
+    });
+    expect(isOk(decided)).toBe(true);
+    if (isOk(decided)) expect(decided.value.outcome).toBe('ACCEPTED');
+
+    const list = await listMissionDecisions(db, reviewer.value.id, missionId);
+    expect(isOk(list)).toBe(true);
+    if (isOk(list)) {
+      expect(list.value).toHaveLength(1);
+      expect(list.value[0]?.outcome).toBe('ACCEPTED');
+    }
+  });
+
   it('refuses to let the mission owner record a decision on their own mission (not self-attestation)', async () => {
     const { account, missionId, packRequirementId, org } = await setUp(db);
     const decided = await recordMissionDecision(db, {

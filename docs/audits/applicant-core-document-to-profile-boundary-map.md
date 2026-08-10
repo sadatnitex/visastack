@@ -117,3 +117,16 @@ use it, linking to each one.
 - No migration was needed — `effective_from`/`valid_until` and the
   `medical_attendant` pack value are additive; no existing schema or data
   changed shape.
+
+**Fixed in PR-D2** (finding #25, post-programme defect register): the
+"Backdate this entry" `effectiveFrom` value above is written correctly
+(`new Date('YYYY-MM-DD')` parses as UTC midnight for that calendar date,
+per the ECMAScript spec) but was DISPLAYED via `toLocaleDateString()` with
+no explicit `timeZone` — silently re-interpreting that UTC instant in the
+*viewer's* own local timezone, so a date entered as `2020-01-15` rendered
+as `Jan 14, 2020` for any viewer west of UTC. `apps/web/src/lib/format-date.ts`'s
+new `formatDateOnly` closes this by passing `timeZone: 'UTC'` explicitly —
+the write→store→read pipeline described above already preserves the
+UTC-midnight instant losslessly, so only the display step needed fixing.
+Applied only to `effectiveFrom`; `updatedAt` ("Last confirmed") is a
+genuine timestamp and correctly keeps local-time rendering unchanged.

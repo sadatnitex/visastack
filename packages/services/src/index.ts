@@ -169,6 +169,7 @@ export {
   addNote,
   assignMember,
   bulkExport,
+  isActiveMember,
   listApplicantsForOrganization,
   listAssignments,
   listAssignmentsDetailed,

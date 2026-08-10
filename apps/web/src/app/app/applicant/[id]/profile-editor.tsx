@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useActionState } from 'react';
+import { formatDateOnly } from '../../../../lib/format-date';
 import {
   PACK_DESCRIPTIONS,
   PACK_LABELS,
@@ -29,6 +30,12 @@ const SENSITIVITY_LABELS: Record<string, string> = {
   RESTRICTED: 'Restricted',
 };
 
+/**
+ * For genuine timestamps only (e.g. `updatedAt` — when a fact was last
+ * confirmed) — local-time rendering is correct here, unlike the date-only
+ * `effectiveFrom` value below (finding #25, post-programme defect
+ * register), which uses the timezone-stable `formatDateOnly` instead.
+ */
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString(undefined, {
     year: 'numeric',
@@ -118,7 +125,7 @@ function FieldRow({
       </details>
       {effectiveFrom && updatedAt && !sameDay(effectiveFrom, updatedAt) ? (
         <p className="muted" style={{ fontSize: '0.75rem', margin: 0 }}>
-          Effective as of {formatDate(effectiveFrom)}
+          Effective as of {formatDateOnly(effectiveFrom)}
         </p>
       ) : null}
       {updatedAt ? (
