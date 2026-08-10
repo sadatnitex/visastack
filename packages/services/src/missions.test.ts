@@ -404,6 +404,149 @@ describe('missions — workspace, readiness, workflow, snapshot', () => {
     if (isOk(fetched)) expect(fetched.value.checksum).toBe(snap.value.checksum);
   });
 
+  it('includes an unclassified (no docType) document in a snapshot, ineligible for any specific-type requirement (finding #30, post-programme defect register)', async () => {
+    const { account, applicantId } = await seed(db);
+    const packVersionId = await publishedPack(db, account.id);
+    const mission = await createMission(db, {
+      actorAccountId: account.id,
+      applicantId,
+      title: 'UK Visa',
+    });
+    if (!isOk(mission)) throw new Error('mission');
+    await attachPackVersion(db, {
+      actorAccountId: account.id,
+      missionId: mission.value.id,
+      packVersionId,
+    });
+
+    // Deliberately no docType — classification never reached this document
+    // (below CONFIDENCE_THRESHOLD, or never attempted).
+    const doc = await registerDocument(db, {
+      actorAccountId: account.id,
+      applicantId,
+      originalName: 'mystery.pdf',
+    });
+    if (!isOk(doc)) throw new Error('doc');
+    await addDocumentVersion(db, {
+      actorAccountId: account.id,
+      documentId: doc.value.id,
+      bucket: 'CLEAN',
+      objectKey: 'k',
+      safetyStatus: 'CLEAN',
+      processingStatus: 'AWAITING_REVIEW',
+    });
+
+    const snap = await snapshotMission(db, {
+      actorAccountId: account.id,
+      missionId: mission.value.id,
+    });
+    expect(isOk(snap)).toBe(true);
+    if (!isOk(snap)) return;
+    const content = snap.value.content as {
+      documents: ReadonlyArray<{ documentId: string; docType: string | null; displayName: string }>;
+      requirementMapping: ReadonlyArray<{
+        kind: string;
+        satisfied: boolean;
+        documents?: ReadonlyArray<{ documentId: string }>;
+      }>;
+    };
+
+    // Present in the immutable record — not silently dropped.
+    expect(content.documents).toHaveLength(1);
+    expect(content.documents[0]?.documentId).toBe(doc.value.id);
+    expect(content.documents[0]?.docType).toBeNull();
+    expect(content.documents[0]?.displayName).toBe('mystery.pdf');
+
+    // But it never satisfies the DOCUMENT requirement (bank_statement) —
+    // grouping under a sentinel key never lets it match a real docType.
+    const documentReq = content.requirementMapping.find((m) => m.kind === 'DOCUMENT');
+    expect(documentReq?.satisfied).toBe(false);
+    expect(documentReq?.documents ?? []).toHaveLength(0);
+  });
+
+  it('does not let a requirement whose own docType literally equals the unclassified-group sentinel string match unclassified documents (Codex review, PR-D1, round 1)', async () => {
+    const { account, applicantId } = await seed(db);
+
+    // docType is free text on both write sites (addRequirement only
+    // requires non-empty; registerDocument validates nothing at all), so
+    // an admin can genuinely author a requirement using the exact string
+    // the sentinel grouping used to use, '__unclassified__'.
+    const pack = await createPack(db, {
+      actorAccountId: account.id,
+      key: 'weird.pack',
+      name: 'Weird',
+    });
+    if (!isOk(pack)) throw new Error('pack');
+    const version = await addPackVersion(db, { actorAccountId: account.id, packId: pack.value.id });
+    if (!isOk(version)) throw new Error('version');
+    await addRequirement(db, {
+      actorAccountId: account.id,
+      packVersionId: version.value.id,
+      kind: 'DOCUMENT',
+      docType: '__unclassified__',
+      citation: 'rule 1',
+    });
+    await approvePackVersion(db, { actorAccountId: account.id, packVersionId: version.value.id });
+    await publishPackVersion(db, { actorAccountId: account.id, packVersionId: version.value.id });
+
+    const mission = await createMission(db, {
+      actorAccountId: account.id,
+      applicantId,
+      title: 'UK Visa',
+    });
+    if (!isOk(mission)) throw new Error('mission');
+    await attachPackVersion(db, {
+      actorAccountId: account.id,
+      missionId: mission.value.id,
+      packVersionId: version.value.id,
+    });
+
+    // Genuinely unclassified — docType null, not the literal sentinel
+    // string. Otherwise identical to the finding #30 test above.
+    const doc = await registerDocument(db, {
+      actorAccountId: account.id,
+      applicantId,
+      originalName: 'mystery.pdf',
+    });
+    if (!isOk(doc)) throw new Error('doc');
+    await addDocumentVersion(db, {
+      actorAccountId: account.id,
+      documentId: doc.value.id,
+      bucket: 'CLEAN',
+      objectKey: 'k',
+      safetyStatus: 'CLEAN',
+      processingStatus: 'AWAITING_REVIEW',
+    });
+
+    const snap = await snapshotMission(db, {
+      actorAccountId: account.id,
+      missionId: mission.value.id,
+    });
+    expect(isOk(snap)).toBe(true);
+    if (!isOk(snap)) return;
+    const content = snap.value.content as {
+      documents: ReadonlyArray<{ documentId: string; docType: string | null }>;
+      requirementMapping: ReadonlyArray<{
+        kind: string;
+        key: string;
+        satisfied: boolean;
+        documents?: ReadonlyArray<{ documentId: string }>;
+      }>;
+    };
+
+    // Still present in the immutable record (finding #30's own guarantee,
+    // unaffected by this fix).
+    expect(content.documents).toHaveLength(1);
+    expect(content.documents[0]?.docType).toBeNull();
+
+    // But the '__unclassified__'-typed requirement is NOT satisfied by it —
+    // a string docType can never match the symbol-keyed sentinel group.
+    const documentReq = content.requirementMapping.find((m) => m.kind === 'DOCUMENT');
+    expect(documentReq?.key).toBe('__unclassified__');
+    expect(documentReq?.satisfied).toBe(false);
+    expect(documentReq?.documents ?? []).toHaveLength(0);
+  });
+
   it("refuses actions on another owner's mission", async () => {
     const { account, applicantId } = await seed(db);
     const mission = await createMission(db, {
@@ -985,6 +1128,85 @@ describe('mission collaboration — evidence selection, tasks, grounded letters 
     const afterRemoval = await listSelectedEvidence(db, account.id, missionId);
     expect(isOk(afterRemoval)).toBe(true);
     if (isOk(afterRemoval)) expect(afterRemoval.value).toHaveLength(0);
+  });
+
+  it("refuses a selection whose fact/document doesn't match the requirement's own field key/docType, even for the applicant's own data (finding #34, post-programme defect register)", async () => {
+    const {
+      account,
+      applicantId,
+      missionId,
+      factId,
+      documentId,
+      fieldRequirementId,
+      documentRequirementId,
+    } = await setUp(db);
+
+    // A genuine fact, owned by the SAME applicant, but for a DIFFERENT field
+    // than fieldRequirementId (passport.number) actually requires.
+    await registerFieldDefinition(db, { key: 'other.field', dataType: 'string' });
+    const mismatchedFact = await editFact(db, {
+      actorAccountId: account.id,
+      applicantId,
+      fieldKey: 'other.field',
+      value: 'irrelevant',
+    });
+    if (!isOk(mismatchedFact)) throw new Error('mismatched fact');
+    const factMismatch = await selectEvidence(db, {
+      actorAccountId: account.id,
+      missionId,
+      packRequirementId: fieldRequirementId,
+      factId: mismatchedFact.value.fact.id,
+    });
+    expect(isErr(factMismatch)).toBe(true);
+    if (isErr(factMismatch)) expect(factMismatch.error.code).toBe('invalid');
+
+    // A genuine document, owned by the SAME applicant, but with a DIFFERENT
+    // docType than documentRequirementId (bank_statement) actually requires.
+    const mismatchedDoc = await registerDocument(db, {
+      actorAccountId: account.id,
+      applicantId,
+      originalName: 'passport.pdf',
+      docType: 'passport',
+    });
+    if (!isOk(mismatchedDoc)) throw new Error('mismatched document');
+    await addDocumentVersion(db, {
+      actorAccountId: account.id,
+      documentId: mismatchedDoc.value.id,
+      bucket: 'CLEAN',
+      objectKey: 'k2',
+      safetyStatus: 'CLEAN',
+      processingStatus: 'AWAITING_REVIEW',
+    });
+    const docMismatch = await selectEvidence(db, {
+      actorAccountId: account.id,
+      missionId,
+      packRequirementId: documentRequirementId,
+      documentId: mismatchedDoc.value.id,
+    });
+    expect(isErr(docMismatch)).toBe(true);
+    if (isErr(docMismatch)) expect(docMismatch.error.code).toBe('invalid');
+
+    // Neither mismatched attempt actually inserted a row.
+    const afterMismatches = await listSelectedEvidence(db, account.id, missionId);
+    expect(isOk(afterMismatches)).toBe(true);
+    if (isOk(afterMismatches)) expect(afterMismatches.value).toHaveLength(0);
+
+    // Sanity: the genuinely-matching fact/document from setUp still work —
+    // this isn't overly strict, just correctly scoped.
+    const validFact = await selectEvidence(db, {
+      actorAccountId: account.id,
+      missionId,
+      packRequirementId: fieldRequirementId,
+      factId,
+    });
+    expect(isOk(validFact)).toBe(true);
+    const validDoc = await selectEvidence(db, {
+      actorAccountId: account.id,
+      missionId,
+      packRequirementId: documentRequirementId,
+      documentId,
+    });
+    expect(isOk(validDoc)).toBe(true);
   });
 
   it("refuses evidence selection on another owner's mission", async () => {

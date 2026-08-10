@@ -9,6 +9,7 @@ import {
   selectEvidenceAction,
   unselectEvidenceAction,
 } from './actions';
+import { composeSelectionCandidateKey } from './evidence-selection-key';
 
 const INITIAL: ActionState = { ok: true, message: '' };
 
@@ -209,6 +210,7 @@ interface CandidateView {
   }>;
   readonly selectedFactIds: readonly string[];
   readonly selectedDocumentIds: readonly string[];
+  /** Keyed by `composeSelectionCandidateKey` (evidence-selection-key.ts) — finding #33. */
   readonly selectionIdsByCandidate: Readonly<Record<string, string>>;
 }
 
@@ -248,7 +250,10 @@ export function EvidenceSelectionPanel({
             {c.kind === 'FIELD'
               ? c.factCandidates.map((fact) => {
                   const selected = c.selectedFactIds.includes(fact.factId);
-                  const selectionId = c.selectionIdsByCandidate[fact.factId];
+                  const selectionId =
+                    c.selectionIdsByCandidate[
+                      composeSelectionCandidateKey(c.packRequirementId, fact.factId)
+                    ];
                   return (
                     <div
                       key={fact.factId}
@@ -300,7 +305,10 @@ export function EvidenceSelectionPanel({
                 })
               : c.documentCandidates.map((doc) => {
                   const selected = c.selectedDocumentIds.includes(doc.documentId);
-                  const selectionId = c.selectionIdsByCandidate[doc.documentId];
+                  const selectionId =
+                    c.selectionIdsByCandidate[
+                      composeSelectionCandidateKey(c.packRequirementId, doc.documentId)
+                    ];
                   return (
                     <div
                       key={doc.documentId}
