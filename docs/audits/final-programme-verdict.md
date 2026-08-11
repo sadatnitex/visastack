@@ -86,12 +86,18 @@ programme; PR-F1 rewrites it in full.
   [`remaining-commercial-blockers.md`](../roadmap/remaining-commercial-blockers.md)
   §1. None of these gates were ever in this engagement's scope; none of
   this register's 58 findings depended on them being closed.
-- **Not full deployed-E2E verification.** `authenticated-workspace.spec.ts`'s
-  55 tests are implemented and structurally proven (they list, run, and
-  skip correctly without credentials), but no session across this entire
-  engagement has had `WORKOS_STAGING_TEST_EMAIL`/`_PASSWORD` to run them
-  against a live environment even once. This exact caveat has been carried,
-  disclosed, unchanged, since before this programme started. See
+- **Not full deployed-E2E verification.** `authenticated-workspace.spec.ts`
+  declares 21 tests: 13 with real journey implementations, structurally
+  proven (they list and run correctly without credentials), and 8 that are
+  unconditional stubs (`test.skip(true, reason)`, no journey steps inside)
+  pending a second synthetic identity. No session across this entire
+  engagement has had `WORKOS_STAGING_TEST_EMAIL`/`_PASSWORD` to run even
+  the 13 implemented ones against a live environment once. (Corrected here
+  in PR-F1 — Codex review caught this document, and
+  `remaining-commercial-blockers.md`, both wrongly reporting 55, which was
+  this session's own monorepo-wide vitest file count bleeding into a
+  sentence about a single Playwright spec.) This caveat has been carried,
+  disclosed, since before this programme started. See
   `remaining-commercial-blockers.md` §3.
 - **Not a resolved Vercel preview-deployment failure.** Investigated with
   real evidence (not dismissed) in PR-E2; root cause hypothesized with

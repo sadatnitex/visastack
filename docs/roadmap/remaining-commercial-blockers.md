@@ -91,12 +91,16 @@ anything this register tracks.
 
 ## 3. Deployed E2E coverage gaps (implemented, not yet run against real WorkOS staging)
 
-`apps/web/e2e/authenticated-workspace.spec.ts` (55 tests across 3 describe
-blocks, built out across PR-A through PR-E2) requires
+`apps/web/e2e/authenticated-workspace.spec.ts` (21 tests across 3 describe
+blocks, built out across PR-A through PR-E2 — **not** 55; an earlier draft
+of this document wrongly reported 55 here, this session's own monorepo-wide
+vitest file count leaking into a sentence about a single Playwright spec,
+caught by Codex review and corrected in PR-F1) requires
 `WORKOS_STAGING_TEST_EMAIL`/`WORKOS_STAGING_TEST_PASSWORD` repository
 secrets to run at all. **No session in this entire engagement has had these
-secrets available**, so the spec's correctness rests on direct code review
-plus `npx playwright test --list`/a full `--project=chromium` run confirming
+secrets available**, so the 13 tests with real journey implementations'
+correctness rests on direct code review plus `npx playwright test
+--list`/a full `--project=chromium` run confirming
 every test reports `skipped` (not `failed`) without credentials — never on
 an actual pass against live WorkOS staging. This is the same "implemented,
 not yet verified" gap `docs/audits/current-product-baseline.md` disclosed
