@@ -72,6 +72,31 @@ import { expect, test } from '@playwright/test';
  *   - "review AI/deterministic proposals" is best-effort/conditional, not a
  *     hard assertion — AI_ENABLED + a real OpenAI project may or may not be
  *     configured in whatever environment this eventually runs against.
+ *
+ * Codex review, PR-E2, round 2 (three P1s, one P2), all caught before this
+ * spec had ever actually run against a live environment:
+ *   - **Wrong label everywhere.** `createApplicant` and the two original
+ *     tests that create an applicant inline all matched
+ *     `/display name|applicant name/i`, but the real form's accessible
+ *     label is "Full name" (`add-applicant-form.tsx`) — every applicant-
+ *     creating test, old and new, would have failed at its very first step.
+ *   - **Processing-status success/failure were conflated.** The round-1 fix
+ *     still treated "needs attention"/"failed"/"rejected" as an acceptable
+ *     terminal state alongside "ready"/"needs review" — a genuinely broken
+ *     intake worker would make the E2E check pass. Now `waitFor
+ *     SuccessfulProcessingStatus` fails the test outright on a failure
+ *     terminal state.
+ *   - **Test timeout too short for the polling budget.** The upload test's
+ *     helper polls for up to 60s, but `playwright.config.ts`'s global test
+ *     timeout is 30s — sign-in/consent/upload alone could exhaust it before
+ *     polling ever got a fair chance. That test now calls
+ *     `test.setTimeout(120_000)`.
+ *   - **The deletion test could permanently strand the shared identity.**
+ *     A failure between "request" and "cancel" would leave real deletion
+ *     scheduled, with no guarantee a retry (or a future run) would ever
+ *     reach the cancel step. Now self-heals from any already-pending
+ *     deletion at the start, and cancels in a `finally` block that runs
+ *     unconditionally.
  */
 
 /** Variable-keyed env read — avoids the index-signature lint/type rule. */
@@ -105,14 +130,21 @@ async function ensureConsent(page: import('@playwright/test').Page, title: strin
   }
 }
 
-/** Creates a fresh applicant from /app/applicants and returns its detail-page URL. */
+/**
+ * Creates a fresh applicant from /app/applicants and returns its detail-page
+ * URL. The visible label is "Full name" (Codex review, PR-E2, round 2 —
+ * `apps/web/src/app/app/add-applicant-form.tsx:16-25`; confirmed by reading
+ * the component directly), not "display name"/"applicant name" as every
+ * pre-existing test in this file (including two the original, unedited
+ * describe block below) had assumed.
+ */
 async function createApplicant(
   page: import('@playwright/test').Page,
   namePrefix: string,
 ): Promise<string> {
   await page.goto('/app/applicants');
   const applicantName = `${namePrefix} ${Date.now()}`;
-  await page.getByLabel(/display name|applicant name/i).fill(applicantName);
+  await page.getByLabel(/full name/i).fill(applicantName);
   await page.getByRole('button', { name: /create applicant|add applicant/i }).click();
   await expect(page.getByText(applicantName)).toBeVisible();
   await page.getByText(applicantName).click();
@@ -120,12 +152,19 @@ async function createApplicant(
   return page.url();
 }
 
-/** Every terminal document-processing status label (packages/i18n's messages.ts) — never faked progress. */
-const TERMINAL_PROCESSING_STATUS = /ready|needs review|needs attention|failed|rejected/i;
+/** The two SUCCESSFUL terminal document-processing status labels (packages/i18n's messages.ts). */
+const SUCCESS_PROCESSING_STATUS = /ready|needs review/i;
+/** The three FAILURE terminal status labels — a real pipeline bug, never a pass (Codex review, PR-E2, round 2). */
+const FAILURE_PROCESSING_STATUS = /needs attention|failed|rejected/i;
 
 /**
  * Polls the documents page for a document row to reach a terminal
- * processing status, via real page reloads (Codex review, PR-E2, round 1).
+ * processing status, via real page reloads (Codex review, PR-E2, round 1),
+ * and FAILS the test if that status is a failure state rather than treating
+ * "reached some terminal state" as good enough (Codex review, PR-E2, round
+ * 2): the first version of this helper let a genuinely broken intake worker
+ * ("needs attention"/"failed"/"rejected" on a synthetic upload that should
+ * always follow the healthy path) still report the E2E check as passing.
  *
  * documents/page.tsx is a `dynamic = 'force-dynamic'` Server Component with
  * no client-side polling of its own -- the processing status is rendered
@@ -135,7 +174,7 @@ const TERMINAL_PROCESSING_STATUS = /ready|needs review|needs attention|failed|re
  * this page would just keep re-checking the same stale, initial render
  * forever, regardless of what actually changed in the database.
  */
-async function waitForTerminalProcessingStatus(
+async function waitForSuccessfulProcessingStatus(
   page: import('@playwright/test').Page,
   documentsUrl: string,
   documentNamePattern: RegExp,
@@ -148,7 +187,12 @@ async function waitForTerminalProcessingStatus(
     const documentRow = page.locator('.row', { hasText: documentNamePattern });
     if (await documentRow.isVisible().catch(() => false)) {
       const rowText = (await documentRow.textContent().catch(() => null)) ?? '';
-      if (TERMINAL_PROCESSING_STATUS.test(rowText)) return rowText;
+      if (FAILURE_PROCESSING_STATUS.test(rowText)) {
+        throw new Error(
+          `Document matching ${documentNamePattern} reached a FAILURE processing status: ${rowText.trim()}`,
+        );
+      }
+      if (SUCCESS_PROCESSING_STATUS.test(rowText)) return rowText;
     }
     if (Date.now() + pollIntervalMs > deadline) break;
     await page.waitForTimeout(pollIntervalMs);
@@ -176,7 +220,9 @@ test.describe('authenticated workspace journey', () => {
     await expect(page).toHaveURL(/\/app\/applicants$/);
 
     const applicantName = `E2E Synthetic ${Date.now()}`;
-    await page.getByLabel(/display name|applicant name/i).fill(applicantName);
+    // "Full name" is the form's real accessible label (Codex review,
+    // PR-E2, round 2 — apps/web/src/app/app/add-applicant-form.tsx:16-25).
+    await page.getByLabel(/full name/i).fill(applicantName);
     await page.getByRole('button', { name: /create applicant|add applicant/i }).click();
     await expect(page.getByText(applicantName)).toBeVisible();
 
@@ -222,7 +268,7 @@ test.describe('authenticated workspace journey', () => {
     await signIn(page);
     await page.getByRole('link', { name: 'Applicants' }).click();
     const unicodeName = `উদাহরণ 例え 😀 ${Date.now()}`;
-    await page.getByLabel(/display name|applicant name/i).fill(unicodeName);
+    await page.getByLabel(/full name/i).fill(unicodeName);
     await page.getByRole('button', { name: /create applicant|add applicant/i }).click();
     await expect(page.getByText(unicodeName)).toBeVisible();
   });
@@ -284,6 +330,13 @@ test.describe
     test('uploads a document, observes real processing, and reviews the proposed filename if one is offered', async ({
       page,
     }) => {
+      // Extended beyond playwright.config.ts's 30s default (Codex review,
+      // PR-E2, round 2): sign-in + consent + applicant creation + upload
+      // already consume part of that budget, leaving little to none of the
+      // helper's own 60s polling window -- a healthy but slower-than-30s
+      // asynchronous worker would otherwise be killed by the TEST's own
+      // timeout before ever reaching its real (successful) terminal state.
+      test.setTimeout(120_000);
       await signIn(page);
       await ensureConsent(page, 'Core processing consent');
       const applicantUrl = await createApplicant(page, 'E2E Evidence');
@@ -315,13 +368,14 @@ test.describe
 
       // Real processing (scan -> normalize -> classify), never faked progress
       // (master directive §7 "PR 7") -- polls via real page reloads (see
-      // waitForTerminalProcessingStatus's own doc comment) for a terminal
-      // status, and treats AWAITING_REVIEW ("Needs review") as a genuine
-      // success terminal state, not a timeout (Codex review, PR-E2, round 1):
-      // for a normal, safe, non-auto-approved upload, AWAITING_REVIEW is
-      // exactly where processIntake is SUPPOSED to stop, pending the human
-      // review this test performs immediately below.
-      await waitForTerminalProcessingStatus(page, documentsUrl, new RegExp(documentFileName));
+      // waitForSuccessfulProcessingStatus's own doc comment) for a terminal
+      // status, treating AWAITING_REVIEW ("Needs review") as a genuine
+      // success terminal state (Codex review, PR-E2, round 1: for a normal,
+      // safe, non-auto-approved upload, AWAITING_REVIEW is exactly where
+      // processIntake is SUPPOSED to stop, pending the human review this
+      // test performs immediately below) while FAILING outright on a real
+      // failure terminal state (Codex review, PR-E2, round 2).
+      await waitForSuccessfulProcessingStatus(page, documentsUrl, new RegExp(documentFileName));
 
       // Filename review is CONDITIONAL: only present when classification
       // confidence cleared the review-required bar (packages/adapters'
@@ -404,19 +458,49 @@ test.describe
     test('requests account deletion, sees the pending grace-window state, then cancels it', async ({
       page,
     }) => {
+      // SAFETY (Codex review, PR-E2, round 2): this is a real, destructive
+      // action against the ONE shared synthetic identity every test in this
+      // file reuses across every run, forever. If anything between the
+      // request and the cancel below fails -- a flaky assertion, a browser
+      // crash, a network blip -- an unguarded version of this test leaves
+      // the account genuinely scheduled for deletion; a CI retry would then
+      // find "Cancel deletion" instead of "Request account deletion" and
+      // never reach cancellation either, and after enough such failures the
+      // 7-day grace window could elapse for real, permanently deleting the
+      // only configured test account and disabling every future
+      // credentialed E2E run. Two guarantees close that gap: (1) self-heals
+      // from a PRIOR failed run by cancelling any already-pending deletion
+      // before testing the request/cancel cycle fresh; (2) the cancel step
+      // runs in `finally`, unconditionally, regardless of what the
+      // assertions above it do.
       await signIn(page);
       await page.goto('/app/privacy');
+      if (
+        await page
+          .getByRole('button', { name: 'Cancel deletion' })
+          .isVisible()
+          .catch(() => false)
+      ) {
+        await page.getByRole('button', { name: 'Cancel deletion' }).click();
+        await expect(page.getByText(/deletion pending/i)).toBeHidden({ timeout: 10_000 });
+      }
 
-      // SAFETY: this is a real, if reversible-within-the-test, destructive
-      // action against the one shared synthetic identity every test in this
-      // file reuses. It is scheduled and immediately cancelled within the
-      // same test, never left pending -- never remove the cancel half of this
-      // test without also removing the request half.
-      page.once('dialog', (dialog) => dialog.accept());
-      await page.getByRole('button', { name: 'Request account deletion' }).click();
-      await expect(page.getByText(/deletion pending/i)).toBeVisible({ timeout: 10_000 });
+      try {
+        page.once('dialog', (dialog) => dialog.accept());
+        await page.getByRole('button', { name: 'Request account deletion' }).click();
+        await expect(page.getByText(/deletion pending/i)).toBeVisible({ timeout: 10_000 });
+      } finally {
+        // Unconditional: runs whether the assertions above passed, failed,
+        // or threw. isVisible().catch(() => false) rather than a bare
+        // await, so a page already mid-navigation/closed can't turn this
+        // cleanup step itself into an unhandled rejection that skips the
+        // cancel click.
+        const cancelButton = page.getByRole('button', { name: 'Cancel deletion' });
+        if (await cancelButton.isVisible().catch(() => false)) {
+          await cancelButton.click();
+        }
+      }
 
-      await page.getByRole('button', { name: 'Cancel deletion' }).click();
       await expect(page.getByText(/deletion pending/i)).toBeHidden({ timeout: 10_000 });
       await expect(page.getByRole('button', { name: 'Request account deletion' })).toBeVisible();
     });

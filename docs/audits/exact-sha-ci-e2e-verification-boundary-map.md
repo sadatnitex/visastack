@@ -198,8 +198,57 @@ the skip logic itself is correct. **This spec still cannot be run against
 real WorkOS staging in this session** (no credentials available) — it
 carries forward the pre-existing "implemented, not yet verified" caveat
 from the file's own header, now explicitly scoped to the 13
-credential-gated tests; the 7 boundary tests are unconditionally skipped
+credential-gated tests; the 8 boundary tests are unconditionally skipped
 regardless of credentials until a second identity exists.
+
+**Codex review, PR-E2, round 2 (three P1s, one P2) — all caught before
+this spec had ever actually run against a live environment, none of them
+in the CI-workflow changes:**
+
+1. **P1 — wrong accessible label everywhere.** `createApplicant` (and, it
+   turned out, both original, pre-existing tests that create an applicant
+   inline) matched `/display name|applicant name/i` — the real form's
+   label, confirmed by reading `add-applicant-form.tsx:16-25` directly, is
+   "Full name". Every applicant-creating test in the file, old and new,
+   would have failed at its very first step. This was a **pre-existing**
+   bug in the file's original 6 tests, not something PR-E2 introduced —
+   caught only now because PR-E2's own new tests multiplied how many
+   places exercised the same broken selector. Fixed everywhere in the
+   file, not just the new helper.
+2. **P1 — processing-status success and failure were conflated.** Round
+   1's fix still treated `needs attention`/`failed`/`rejected` as
+   acceptable terminal states alongside `ready`/`needs review` — a
+   genuinely broken intake worker on the synthetic upload (which is
+   supposed to always follow the healthy path) would still make the E2E
+   check report success. `waitForTerminalProcessingStatus` was replaced
+   with `waitForSuccessfulProcessingStatus`, which throws immediately on a
+   failure terminal state instead of accepting it.
+3. **P2 — the polling budget didn't fit inside the test timeout.**
+   `playwright.config.ts`'s global test timeout is 30s; the polling helper
+   alone budgets up to 60s, and sign-in/consent/applicant-creation/upload
+   consume part of the same 30s before polling even starts. Fixed with an
+   explicit `test.setTimeout(120_000)` on that one test.
+4. **P1 — the deletion test could permanently strand the one shared test
+   identity.** If anything failed between "request" and "cancel", the
+   account would be left genuinely scheduled for deletion, with no
+   guarantee a CI retry (which would find "Cancel deletion" rendered
+   instead of "Request account deletion") would ever reach the cancel
+   step — repeated failures could let the 7-day grace window elapse for
+   real. Fixed with two guarantees: the test now self-heals from any
+   already-pending deletion at its own start, and the cancel click runs
+   inside a `finally` block, unconditionally, regardless of what the
+   request/assert steps above it do.
+
+**Verification (round 2).** `pnpm exec tsc --noEmit` — clean. Playwright
+lists and runs all 21 tests correctly, all still reporting `skipped`
+without credentials. Same as round 1, this class of fix (test-authoring
+correctness caught by review) has no separate non-vacuousness check of its
+own — each fix's "proof" is that it now matches source-verified real
+application behavior (`add-applicant-form.tsx`'s real label;
+`messages.ts`'s real terminal-status labels split correctly into
+success/failure; `playwright.config.ts`'s real global timeout;
+`deletion-panel.tsx`'s real cancel-button availability), each re-confirmed
+by reading the relevant source directly.
 
 ## 5. The Vercel preview-failure pattern — investigated
 
