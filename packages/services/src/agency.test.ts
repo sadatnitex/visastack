@@ -1119,23 +1119,71 @@ describe('scope and read-authorization hardening (post-programme defect register
     if (!isOk(org)) throw new Error('org');
     await activateOrg(db, org.value.id);
 
-    // Applicant-wide grant, but scoped only to PREVIEW — no COMMENT, no MANAGE.
-    const grant = await createGrant(db, {
+    // Seed REAL note/assignment rows for this exact org/mission while a
+    // MANAGE grant is active — a prior version of this test asserted
+    // emptiness with no data ever seeded, which would also pass on a
+    // reverted (unguarded) implementation simply because nothing existed to
+    // leak (Codex-equivalent gap caught during PR-F1's own re-verification
+    // pass). Seeding, then narrowing the SAME org's grant to PREVIEW-only,
+    // proves the action check itself — not absence of data — is what
+    // suppresses access.
+    const manageGrant = await createGrant(db, {
+      actorAccountId: account.id,
+      applicantId,
+      recipientOrganizationId: org.value.id,
+      // COMMENT (addNote's own bar) and MANAGE (assignMember's own bar) —
+      // both are needed to seed one row of each kind below.
+      actions: ['COMMENT', 'MANAGE'],
+      purpose: 'onboarding',
+    });
+    if (!isOk(manageGrant)) throw new Error('manage grant');
+    await acceptGrant(db, { actorAccountId: agentAcc.value.id, grantId: manageGrant.value.id });
+    const noteResult = await addNote(db, {
+      actorAccountId: agentAcc.value.id,
+      missionId: mission.value.id,
+      body: 'A note only a sufficiently-permitted reader should see.',
+    });
+    expect(isOk(noteResult)).toBe(true);
+    const assignResult = await assignMember(db, {
+      actorAccountId: agentAcc.value.id,
+      organizationId: org.value.id,
+      memberAccountId: agentAcc.value.id,
+      missionId: mission.value.id,
+    });
+    expect(isOk(assignResult)).toBe(true);
+    // Confirm the seeded rows are genuinely readable while MANAGE is active
+    // (rules out a fixture mistake before we assert the negative below).
+    expect(await listNotes(db, org.value.id, applicantId, mission.value.id)).toHaveLength(1);
+    expect(
+      await listAssignmentsDetailed(db, org.value.id, applicantId, mission.value.id),
+    ).toHaveLength(1);
+
+    // Revoke MANAGE and replace it with a PREVIEW-only grant for the SAME
+    // org — the note/assignment rows above still exist, still belong to
+    // this exact org, but this org's current standing no longer covers
+    // COMMENT or MANAGE.
+    const revoked = await revokeGrant(db, {
+      actorAccountId: account.id,
+      grantId: manageGrant.value.id,
+    });
+    expect(isOk(revoked)).toBe(true);
+    const previewGrant = await createGrant(db, {
       actorAccountId: account.id,
       applicantId,
       recipientOrganizationId: org.value.id,
       actions: ['PREVIEW'],
       purpose: 'review',
     });
-    if (!isOk(grant)) throw new Error('grant');
-    await acceptGrant(db, { actorAccountId: agentAcc.value.id, grantId: grant.value.id });
+    if (!isOk(previewGrant)) throw new Error('preview grant');
+    await acceptGrant(db, { actorAccountId: agentAcc.value.id, grantId: previewGrant.value.id });
 
-    // The mission is visible via listMissionsForOrganization (a real, active,
-    // accepted grant exists)...
+    // The mission is still visible via listMissionsForOrganization (a real,
+    // active, accepted grant exists)...
     const missions = await listMissionsForOrganization(db, org.value.id);
     expect(missions).toHaveLength(1);
 
-    // ...but notes/assignments must not be readable without COMMENT/MANAGE.
+    // ...but the previously-seeded, still-existing notes/assignments must
+    // no longer be readable without COMMENT/MANAGE.
     expect(await listNotes(db, org.value.id, applicantId, mission.value.id)).toHaveLength(0);
     expect(
       await listAssignmentsDetailed(db, org.value.id, applicantId, mission.value.id),

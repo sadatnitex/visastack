@@ -1,5 +1,15 @@
 # VisaStack — current product baseline (truthful audit)
 
+> **⚠ Superseded — point-in-time snapshot, not current state.** This audit
+> describes `main` as of 2026-07-30, PRs up to `#52`. Two full programmes
+> have shipped since (the 11-PR commercial-recovery programme, `#54`–`#64`,
+> then the 7-PR post-programme defect-closure engagement, PR-A→PR-F1) —
+> most module-by-module claims and known-defect entries below are no longer
+> current. Kept verbatim as the historical record it always was, not
+> updated in place. For the current, truthful state, see
+> [`final-programme-verdict.md`](./final-programme-verdict.md) and
+> [`post-programme-defect-register.md`](./post-programme-defect-register.md).
+
 **Audit date:** 2026-07-30
 **Branch:** `claude/visastack-pilot-hardening`
 **Base commit (`main`):** `6a715f7` (UI Correctness pass, #52 — merged), on top of #51's `ee8010f` (Mission PR — Release H), #50's `d1face6` (Collaboration — Release G), #49's `c6179b9` (Master Profile field registry — Release F), #48's `56a682b` (AI Gateway), #47's `eb56c36`, #46's `b7c8234`, #45's `7b91125` (Processing PR / Release C), #44's `5a62bc0`, #43's `b5256e7`, #42's `7077fc2`, #41's `4e76ba6`, and #40's `87e8eeb`.

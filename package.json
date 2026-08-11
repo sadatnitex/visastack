@@ -26,7 +26,9 @@
   "pnpm": {
     "overrides": {
       "sharp": ">=0.35.0",
-      "postcss": ">=8.5.18"
+      "postcss": ">=8.5.23",
+      "nanoid": ">=3.3.17",
+      "undici": ">=6.28.0"
     }
   }
 }
