@@ -20,8 +20,19 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
+      # Explicit ref (master directive §8: "A deployment test may not check
+      # out tests from another revision"). Without this, actions/checkout on
+      # a pull_request event defaults to GitHub's synthetic
+      # refs/pull/N/merge commit -- an ephemeral preview of the PR merged
+      # onto whatever main currently is, NOT the PR's actual head SHA (the
+      # exact commit Vercel builds as the preview deployment, and the exact
+      # commit that becomes the merge parent). On push (post-merge), github.sha
+      # already IS the exact commit deployed to production, so the fallback
+      # below is a no-op there -- this only changes pull_request behavior.
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Install pnpm
         uses: pnpm/action-setup@v4

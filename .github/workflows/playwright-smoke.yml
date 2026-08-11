@@ -17,8 +17,14 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
+      # Explicit ref (master directive §8: "A deployment test may not check
+      # out tests from another revision") -- same reasoning as
+      # deploy-smoke.yml: pin to the exact commit deployment_status names,
+      # not github.sha's default resolution for this event type.
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.deployment.sha }}
 
       - name: Install pnpm
         uses: pnpm/action-setup@v4

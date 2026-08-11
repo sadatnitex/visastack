@@ -19,8 +19,16 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
+      # Explicit ref (master directive §8: "A deployment test may not check
+      # out tests from another revision"). deployment_status carries the
+      # exact commit that was actually deployed in its own event payload --
+      # pin to it explicitly rather than relying on github.sha's default
+      # resolution for this event type, so scripts/smoke.mjs always runs at
+      # the same revision as the deployment it's checking.
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.deployment.sha }}
 
       - name: Install pnpm
         uses: pnpm/action-setup@v4
