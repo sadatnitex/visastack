@@ -37,24 +37,33 @@ import { expect, test } from '@playwright/test';
  *  1. The original 6 tests (unchanged) — sign-in, applicant creation + fact
  *     persistence, session termination, cross-tenant 404, unicode names, a11y.
  *  2. `applicant journey — consent, evidence, missions, sharing, privacy`
- *     (new): consent granting, document upload + real processing, filename
- *     review, best-effort AI proposal review, mission creation, sharing
- *     (grant creation + revoke-while-pending), history, data export, and a
- *     safe, fully-reversible account-deletion request/cancel round trip.
+ *     (new, `.serial` — every test shares and mutates the same account's
+ *     consent/deletion state, so they run in order, never overlapping):
+ *     consent granting, document upload + real processing (polled via page
+ *     reload, accepting AWAITING_REVIEW/"Needs review" as a genuine success
+ *     terminal state — Codex review round 1), filename review, best-effort
+ *     AI proposal review, mission creation, a sharing SAFETY check (sharing
+ *     to an address with no VisaStack account fails with a clear error and
+ *     creates no grant row — real grant creation needs a genuine second
+ *     account, see block 3 below), history, data export, and a safe,
+ *     fully-reversible account-deletion request/cancel round trip.
  *  3. `cross-account boundary journeys — NOT YET COVERED` (new, all
  *     `test.skip`): every directive §8 step that can only be MEANINGFULLY
- *     verified with a second, independent identity — "recipient sees only
- *     allowed content", pause/resume a grant (both require the recipient to
- *     have actually accepted it), and the entire Agency journey (org admin,
- *     member assignment, scoped visibility, unauthorized-access denial,
- *     scoped export). A single self-dealing identity granting access to
- *     itself would exercise the code paths but prove nothing about tenant
- *     isolation — worse than not testing it, since a green check would imply
- *     a guarantee it doesn't establish. These are explicitly skipped with a
- *     reason rather than silently absent, so the gap stays visible in test
- *     output. Closing them needs a second synthetic WorkOS-staging identity
- *     (e.g. `WORKOS_STAGING_TEST_EMAIL_2`/`WORKOS_STAGING_TEST_PASSWORD_2`),
- *     not yet provisioned.
+ *     verified with a second, independent identity — creating a real grant
+ *     at all (`createGrantAction` requires the recipient to already be a
+ *     provisioned account — Codex review round 1) and everything downstream
+ *     of that (recipient sees only allowed content, pause/resume, which
+ *     both also require the recipient to have accepted), plus the entire
+ *     Agency journey (org admin, member assignment, scoped visibility,
+ *     unauthorized-access denial, scoped export). A single self-dealing
+ *     identity granting access to itself would exercise the code paths but
+ *     prove nothing about tenant isolation — worse than not testing it,
+ *     since a green check would imply a guarantee it doesn't establish.
+ *     These are explicitly skipped with a reason rather than silently
+ *     absent, so the gap stays visible in test output. Closing them needs a
+ *     second synthetic WorkOS-staging identity (e.g.
+ *     `WORKOS_STAGING_TEST_EMAIL_2`/`WORKOS_STAGING_TEST_PASSWORD_2`), not
+ *     yet provisioned.
  *
  * Also explicitly out of scope, for reasons documented inline at each site:
  *   - "map evidence" against a published requirement pack (needs either a
@@ -109,6 +118,44 @@ async function createApplicant(
   await page.getByText(applicantName).click();
   await expect(page).toHaveURL(/\/app\/applicant\/[^/]+$/);
   return page.url();
+}
+
+/** Every terminal document-processing status label (packages/i18n's messages.ts) — never faked progress. */
+const TERMINAL_PROCESSING_STATUS = /ready|needs review|needs attention|failed|rejected/i;
+
+/**
+ * Polls the documents page for a document row to reach a terminal
+ * processing status, via real page reloads (Codex review, PR-E2, round 1).
+ *
+ * documents/page.tsx is a `dynamic = 'force-dynamic'` Server Component with
+ * no client-side polling of its own -- the processing status is rendered
+ * once, server-side, at request time. Playwright's web-first assertions
+ * auto-retry against the ALREADY-LOADED DOM; they never re-fetch the page on
+ * their own. Without an explicit reload loop, a wait for a status change on
+ * this page would just keep re-checking the same stale, initial render
+ * forever, regardless of what actually changed in the database.
+ */
+async function waitForTerminalProcessingStatus(
+  page: import('@playwright/test').Page,
+  documentsUrl: string,
+  documentNamePattern: RegExp,
+  timeoutMs = 60_000,
+): Promise<string> {
+  const pollIntervalMs = 3_000;
+  const deadline = Date.now() + timeoutMs;
+  for (;;) {
+    await page.goto(documentsUrl);
+    const documentRow = page.locator('.row', { hasText: documentNamePattern });
+    if (await documentRow.isVisible().catch(() => false)) {
+      const rowText = (await documentRow.textContent().catch(() => null)) ?? '';
+      if (TERMINAL_PROCESSING_STATUS.test(rowText)) return rowText;
+    }
+    if (Date.now() + pollIntervalMs > deadline) break;
+    await page.waitForTimeout(pollIntervalMs);
+  }
+  throw new Error(
+    `Document matching ${documentNamePattern} did not reach a terminal processing status within ${timeoutMs}ms`,
+  );
 }
 
 test.describe('authenticated workspace journey', () => {
@@ -194,170 +241,186 @@ test.describe('authenticated workspace journey', () => {
   });
 });
 
-test.describe('applicant journey — consent, evidence, missions, sharing, privacy (master directive §8)', () => {
-  test.skip(!hasCredentials, 'WORKOS_STAGING_TEST_EMAIL / WORKOS_STAGING_TEST_PASSWORD not set');
+// .serial (Codex review, PR-E2, round 1): every test below shares and
+// mutates the SAME single account's state (consent, deletion-pending) --
+// playwright.config.ts's fullyParallel: true would otherwise let a mid-test
+// consent revoke in one test race a concurrently-running test's own
+// consent-gated action in another. Isolated per-applicant state (documents,
+// missions) doesn't need this, but the account-level state does, and
+// there's no cheap way to split "the tests that mutate shared state" from
+// "the tests that don't" without the same risk creeping back in on a future
+// edit -- serializing the whole block is the robust choice.
+test.describe
+  .serial('applicant journey — consent, evidence, missions, sharing, privacy (master directive §8)', () => {
+    test.skip(!hasCredentials, 'WORKOS_STAGING_TEST_EMAIL / WORKOS_STAGING_TEST_PASSWORD not set');
 
-  test('grants and revokes core-processing and sharing consent independently', async ({ page }) => {
-    await signIn(page);
-    await ensureConsent(page, 'Core processing consent');
-    await ensureConsent(page, 'Sharing consent');
+    test('grants and revokes core-processing and sharing consent independently', async ({
+      page,
+    }) => {
+      await signIn(page);
+      await ensureConsent(page, 'Core processing consent');
+      await ensureConsent(page, 'Sharing consent');
 
-    // Revoking one must never require re-granting the other (finding #22,
-    // post-programme defect register) -- verified directly here, not just
-    // at the unit level.
-    await page.goto('/app');
-    const sharingRow = page.locator('.row', { hasText: 'Sharing consent' });
-    await sharingRow.getByRole('button', { name: 'Revoke' }).click();
-    await expect(sharingRow.getByRole('button', { name: 'Grant' })).toBeVisible({
-      timeout: 10_000,
-    });
-    const coreRow = page.locator('.row', { hasText: 'Core processing consent' });
-    await expect(coreRow.getByRole('button', { name: 'Revoke' })).toBeVisible();
+      // Revoking one must never require re-granting the other (finding #22,
+      // post-programme defect register) -- verified directly here, not just
+      // at the unit level.
+      await page.goto('/app');
+      const sharingRow = page.locator('.row', { hasText: 'Sharing consent' });
+      await sharingRow.getByRole('button', { name: 'Revoke' }).click();
+      await expect(sharingRow.getByRole('button', { name: 'Grant' })).toBeVisible({
+        timeout: 10_000,
+      });
+      const coreRow = page.locator('.row', { hasText: 'Core processing consent' });
+      await expect(coreRow.getByRole('button', { name: 'Revoke' })).toBeVisible();
 
-    // Re-grant sharing so later tests in this file that depend on it
-    // (grant creation below) aren't left broken by this test's own cleanup.
-    await sharingRow.getByRole('button', { name: 'Grant' }).click();
-    await expect(sharingRow.getByRole('button', { name: 'Revoke' })).toBeVisible({
-      timeout: 10_000,
-    });
-  });
-
-  test('uploads a document, observes real processing, and reviews the proposed filename if one is offered', async ({
-    page,
-  }) => {
-    await signIn(page);
-    await ensureConsent(page, 'Core processing consent');
-    const applicantUrl = await createApplicant(page, 'E2E Evidence');
-
-    await page.goto(`${applicantUrl}/documents`);
-    // Passport-shaped synthetic content, to give the deterministic
-    // classifier (packages/adapters/src/document-naming or similar) a
-    // realistic chance of proposing a rename -- never asserted as
-    // guaranteed, since classification confidence is genuinely data- and
-    // environment-dependent (see this file's own header comment).
-    const syntheticContent = [
-      'PASSPORT',
-      'Type: P',
-      'Country Code: SYN',
-      'Passport No: E2E0000000',
-      'Surname: SYNTHETIC',
-      'Given Names: E2E TEST',
-      'Nationality: SYNTHETIC',
-      `Date of Issue: ${new Date().toISOString().slice(0, 10)}`,
-    ].join('\n');
-    await page.locator('input[aria-label="Document file"]').setInputFiles({
-      name: `e2e-synthetic-passport-${Date.now()}.txt`,
-      mimeType: 'text/plain',
-      buffer: Buffer.from(syntheticContent, 'utf-8'),
-    });
-    await page.getByRole('button', { name: 'Upload document' }).click();
-
-    // Real processing (scan -> normalize -> classify), never faked progress
-    // (master directive §7 "PR 7") -- poll for a terminal processing-status
-    // badge rather than asserting a fixed delay. Generous timeout: the full
-    // pipeline runs as a real background job, not synchronously with the
-    // upload request.
-    const documentRow = page.locator('.row', { hasText: /e2e-synthetic-passport/ });
-    await expect(documentRow).toBeVisible({ timeout: 15_000 });
-    await expect(documentRow.getByText(/ready|needs attention|failed|rejected/i)).toBeVisible({
-      timeout: 60_000,
+      // Re-grant sharing so later tests in this file that depend on it
+      // (grant creation below) aren't left broken by this test's own cleanup.
+      await sharingRow.getByRole('button', { name: 'Grant' }).click();
+      await expect(sharingRow.getByRole('button', { name: 'Revoke' })).toBeVisible({
+        timeout: 10_000,
+      });
     });
 
-    // Filename review is CONDITIONAL: only present when classification
-    // confidence cleared the review-required bar (packages/adapters'
-    // classifier decides this, not the E2E environment). Best-effort, not a
-    // hard requirement -- asserting it unconditionally would make this test
-    // fail on legitimate, correct low-confidence classifications.
-    const approveButton = page.getByRole('button', { name: 'Approve' });
-    if (await approveButton.isVisible({ timeout: 5_000 }).catch(() => false)) {
-      await approveButton.click();
-      await expect(approveButton).toBeHidden({ timeout: 10_000 });
-    }
+    test('uploads a document, observes real processing, and reviews the proposed filename if one is offered', async ({
+      page,
+    }) => {
+      await signIn(page);
+      await ensureConsent(page, 'Core processing consent');
+      const applicantUrl = await createApplicant(page, 'E2E Evidence');
+
+      await page.goto(`${applicantUrl}/documents`);
+      // Passport-shaped synthetic content, to give the deterministic
+      // classifier (packages/adapters/src/document-naming or similar) a
+      // realistic chance of proposing a rename -- never asserted as
+      // guaranteed, since classification confidence is genuinely data- and
+      // environment-dependent (see this file's own header comment).
+      const syntheticContent = [
+        'PASSPORT',
+        'Type: P',
+        'Country Code: SYN',
+        'Passport No: E2E0000000',
+        'Surname: SYNTHETIC',
+        'Given Names: E2E TEST',
+        'Nationality: SYNTHETIC',
+        `Date of Issue: ${new Date().toISOString().slice(0, 10)}`,
+      ].join('\n');
+      const documentFileName = `e2e-synthetic-passport-${Date.now()}.txt`;
+      await page.locator('input[aria-label="Document file"]').setInputFiles({
+        name: documentFileName,
+        mimeType: 'text/plain',
+        buffer: Buffer.from(syntheticContent, 'utf-8'),
+      });
+      await page.getByRole('button', { name: 'Upload document' }).click();
+      const documentsUrl = page.url();
+
+      // Real processing (scan -> normalize -> classify), never faked progress
+      // (master directive §7 "PR 7") -- polls via real page reloads (see
+      // waitForTerminalProcessingStatus's own doc comment) for a terminal
+      // status, and treats AWAITING_REVIEW ("Needs review") as a genuine
+      // success terminal state, not a timeout (Codex review, PR-E2, round 1):
+      // for a normal, safe, non-auto-approved upload, AWAITING_REVIEW is
+      // exactly where processIntake is SUPPOSED to stop, pending the human
+      // review this test performs immediately below.
+      await waitForTerminalProcessingStatus(page, documentsUrl, new RegExp(documentFileName));
+
+      // Filename review is CONDITIONAL: only present when classification
+      // confidence cleared the review-required bar (packages/adapters'
+      // classifier decides this, not the E2E environment). Best-effort, not a
+      // hard requirement -- asserting it unconditionally would make this test
+      // fail on legitimate, correct low-confidence classifications.
+      const approveButton = page.getByRole('button', { name: 'Approve' });
+      if (await approveButton.isVisible({ timeout: 5_000 }).catch(() => false)) {
+        await approveButton.click();
+        await expect(approveButton).toBeHidden({ timeout: 10_000 });
+      }
+    });
+
+    test('creates a mission', async ({ page }) => {
+      await signIn(page);
+      await ensureConsent(page, 'Core processing consent');
+      const applicantUrl = await createApplicant(page, 'E2E Mission');
+
+      await page.goto(`${applicantUrl}/missions`);
+      const missionTitle = `E2E Mission ${Date.now()}`;
+      await page.getByLabel('Title').fill(missionTitle);
+      await page.getByRole('button', { name: 'Create mission' }).click();
+      await expect(page.getByText(missionTitle)).toBeVisible({ timeout: 10_000 });
+    });
+
+    test('sharing to an email with no VisaStack account fails safely, with a clear error, rather than creating a broken grant', async ({
+      page,
+    }) => {
+      // Codex review, PR-E2, round 1 (P1): the original version of this test
+      // asserted the OPPOSITE of what createGrantAction actually does --
+      // apps/web/src/app/app/applicant/[id]/sharing/actions.ts:61-66 looks the
+      // recipient up with getAccountByEmail and returns an error, creating NO
+      // grant row at all, when the address belongs to no real account. A
+      // syntactically valid but unowned address can never be used to exercise
+      // grant creation (the recipient must already be a real, provisioned
+      // VisaStack account) -- so "share narrow access, then revoke it" is
+      // cross-account-only, same as pause/resume/accept (moved to the
+      // cross-account boundary describe block below). What single-identity
+      // testing over this same, real safety guard, checking the app never
+      // silently no-ops or half-creates a grant for an address nobody owns.
+      await signIn(page);
+      await ensureConsent(page, 'Core processing consent');
+      await ensureConsent(page, 'Sharing consent');
+      const applicantUrl = await createApplicant(page, 'E2E Sharing Safety');
+
+      await page.goto(`${applicantUrl}/sharing`);
+      const unownedEmail = `e2e-unowned-${Date.now()}@example.invalid`;
+      await page.getByLabel('Recipient email').fill(unownedEmail);
+      await page.getByLabel('Purpose').fill('E2E unowned-recipient safety check');
+      await page.getByRole('button', { name: 'Share access' }).click();
+
+      await expect(page.getByText(/no visastack account found/i)).toBeVisible({ timeout: 10_000 });
+      // No grant row for this address -- the failed attempt left no trace to
+      // later "accept", "pause", or leak access through.
+      await expect(page.locator('.row', { hasText: unownedEmail })).toHaveCount(0);
+    });
+
+    test('views fact history for an applicant', async ({ page }) => {
+      await signIn(page);
+      await ensureConsent(page, 'Core processing consent');
+      const applicantUrl = await createApplicant(page, 'E2E History');
+
+      await page.goto(`${applicantUrl}/history`);
+      await expect(page).toHaveURL(/\/history$/);
+      await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+    });
+
+    test('exports account data as a downloadable JSON snapshot', async ({ page }) => {
+      await signIn(page);
+      await page.goto('/app/privacy');
+      const [download] = await Promise.all([
+        page.waitForEvent('download'),
+        page.getByRole('link', { name: 'Download export' }).click(),
+      ]);
+      expect(download.suggestedFilename()).toMatch(/\.json$/i);
+      const path = await download.path();
+      expect(path).toBeTruthy();
+    });
+
+    test('requests account deletion, sees the pending grace-window state, then cancels it', async ({
+      page,
+    }) => {
+      await signIn(page);
+      await page.goto('/app/privacy');
+
+      // SAFETY: this is a real, if reversible-within-the-test, destructive
+      // action against the one shared synthetic identity every test in this
+      // file reuses. It is scheduled and immediately cancelled within the
+      // same test, never left pending -- never remove the cancel half of this
+      // test without also removing the request half.
+      page.once('dialog', (dialog) => dialog.accept());
+      await page.getByRole('button', { name: 'Request account deletion' }).click();
+      await expect(page.getByText(/deletion pending/i)).toBeVisible({ timeout: 10_000 });
+
+      await page.getByRole('button', { name: 'Cancel deletion' }).click();
+      await expect(page.getByText(/deletion pending/i)).toBeHidden({ timeout: 10_000 });
+      await expect(page.getByRole('button', { name: 'Request account deletion' })).toBeVisible();
+    });
   });
-
-  test('creates a mission', async ({ page }) => {
-    await signIn(page);
-    await ensureConsent(page, 'Core processing consent');
-    const applicantUrl = await createApplicant(page, 'E2E Mission');
-
-    await page.goto(`${applicantUrl}/missions`);
-    const missionTitle = `E2E Mission ${Date.now()}`;
-    await page.getByLabel('Title').fill(missionTitle);
-    await page.getByRole('button', { name: 'Create mission' }).click();
-    await expect(page.getByText(missionTitle)).toBeVisible({ timeout: 10_000 });
-  });
-
-  test('shares narrow access and can revoke it before the recipient ever accepts', async ({
-    page,
-  }) => {
-    await signIn(page);
-    await ensureConsent(page, 'Core processing consent');
-    await ensureConsent(page, 'Sharing consent');
-    const applicantUrl = await createApplicant(page, 'E2E Sharing');
-
-    await page.goto(`${applicantUrl}/sharing`);
-    // A syntactically valid but unowned recipient address -- this test only
-    // verifies the SHARER's own side (grant creation + pre-acceptance
-    // revoke); it does not and cannot verify what the recipient sees (see
-    // this file's cross-account-boundary describe block below).
-    const recipientEmail = `e2e-recipient-${Date.now()}@example.invalid`;
-    await page.getByLabel('Recipient email').fill(recipientEmail);
-    await page.getByLabel('Purpose').fill('E2E narrow-permission grant');
-    await page.getByRole('button', { name: 'Share access' }).click();
-
-    const grantRow = page.locator('.row', { hasText: recipientEmail });
-    await expect(grantRow).toBeVisible({ timeout: 10_000 });
-
-    // A grant is revocable even before acceptance (sharing/page.tsx's own
-    // canRevoke includes PENDING_ACCEPTANCE) -- genuinely verifiable with a
-    // single identity, unlike pause/resume which require an accepted grant.
-    page.once('dialog', (dialog) => dialog.accept());
-    await grantRow.getByRole('button', { name: 'Revoke' }).click();
-    await expect(grantRow.getByText(/revoked/i)).toBeVisible({ timeout: 10_000 });
-  });
-
-  test('views fact history for an applicant', async ({ page }) => {
-    await signIn(page);
-    await ensureConsent(page, 'Core processing consent');
-    const applicantUrl = await createApplicant(page, 'E2E History');
-
-    await page.goto(`${applicantUrl}/history`);
-    await expect(page).toHaveURL(/\/history$/);
-    await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
-  });
-
-  test('exports account data as a downloadable JSON snapshot', async ({ page }) => {
-    await signIn(page);
-    await page.goto('/app/privacy');
-    const [download] = await Promise.all([
-      page.waitForEvent('download'),
-      page.getByRole('link', { name: 'Download export' }).click(),
-    ]);
-    expect(download.suggestedFilename()).toMatch(/\.json$/i);
-    const path = await download.path();
-    expect(path).toBeTruthy();
-  });
-
-  test('requests account deletion, sees the pending grace-window state, then cancels it', async ({
-    page,
-  }) => {
-    await signIn(page);
-    await page.goto('/app/privacy');
-
-    // SAFETY: this is a real, if reversible-within-the-test, destructive
-    // action against the one shared synthetic identity every test in this
-    // file reuses. It is scheduled and immediately cancelled within the
-    // same test, never left pending -- never remove the cancel half of this
-    // test without also removing the request half.
-    page.once('dialog', (dialog) => dialog.accept());
-    await page.getByRole('button', { name: 'Request account deletion' }).click();
-    await expect(page.getByText(/deletion pending/i)).toBeVisible({ timeout: 10_000 });
-
-    await page.getByRole('button', { name: 'Cancel deletion' }).click();
-    await expect(page.getByText(/deletion pending/i)).toBeHidden({ timeout: 10_000 });
-    await expect(page.getByRole('button', { name: 'Request account deletion' })).toBeVisible();
-  });
-});
 
 test.describe('cross-account boundary journeys — NOT YET COVERED (master directive §8)', () => {
   // These steps are only MEANINGFUL with a second, independent identity: a
@@ -373,6 +436,19 @@ test.describe('cross-account boundary journeys — NOT YET COVERED (master direc
   // not yet provisioned as a repository secret.
   const reason =
     'requires a second synthetic WorkOS-staging identity (WORKOS_STAGING_TEST_EMAIL_2 / _PASSWORD_2), not yet provisioned';
+
+  // Codex review, PR-E2, round 1 (P1): moved here from the single-identity
+  // describe block above. createGrantAction (apps/web/src/app/app/applicant/
+  // [id]/sharing/actions.ts) looks the recipient up with getAccountByEmail
+  // and creates no grant row at all for an address that isn't a real,
+  // provisioned account -- so even "create a grant, then revoke it before
+  // acceptance" needs a genuine second account to get past the very first
+  // step. The single-identity-feasible half of this scenario (the app
+  // correctly refuses to create a grant for an unowned address) is covered
+  // above by "sharing to an email with no VisaStack account fails safely".
+  test('creates a narrow-permission grant to a real second account and can revoke it before acceptance', () => {
+    test.skip(true, reason);
+  });
 
   test('a share recipient sees only the narrow permission subset they were granted', () => {
     test.skip(true, reason);

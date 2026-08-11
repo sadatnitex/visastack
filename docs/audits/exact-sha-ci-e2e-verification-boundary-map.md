@@ -84,33 +84,92 @@ export, deletion, and the entire Agency journey.
 
 ## 4. Deployed E2E verification — the fix
 
-`authenticated-workspace.spec.ts` now has 20 tests across three
+`authenticated-workspace.spec.ts` now has 21 tests across three
 `describe` blocks:
 
 1. **`authenticated workspace journey`** — the original 6 tests, unchanged.
 2. **`applicant journey — consent, evidence, missions, sharing, privacy`**
-   (7 new tests, single-identity-feasible): grants and independently
-   revokes core-processing and sharing consent; uploads a document with
-   passport-shaped synthetic content and polls for a terminal processing
-   status (never a fixed delay — "real processing, never faked progress,"
-   directive §7 "PR 7"), then conditionally reviews a filename proposal if
-   the deterministic classifier offered one; creates a mission; creates a
-   narrow-permission grant and revokes it before the recipient accepts (the
-   one grant-lifecycle transition genuinely provable with a single
-   identity — `sharing/page.tsx`'s own `canRevoke` includes
-   `PENDING_ACCEPTANCE`); views fact history; exports account data and
-   confirms a downloadable `.json`; and requests account deletion, confirms
-   the pending grace-window state, then cancels it within the same test.
-3. **`cross-account boundary journeys — NOT YET COVERED`** (7 new tests,
+   (7 new tests, single-identity-feasible, run `.serial` — see round 1
+   below): grants and independently revokes core-processing and sharing
+   consent; uploads a document with passport-shaped synthetic content and
+   polls for a terminal processing status via real page reloads (never a
+   fixed delay — "real processing, never faked progress," directive §7
+   "PR 7"), then conditionally reviews a filename proposal if the
+   deterministic classifier offered one; creates a mission; verifies
+   sharing to an address with no VisaStack account fails safely with a
+   clear error and creates no grant row; views fact history; exports
+   account data and confirms a downloadable `.json`; and requests account
+   deletion, confirms the pending grace-window state, then cancels it
+   within the same test.
+3. **`cross-account boundary journeys — NOT YET COVERED`** (8 new tests,
    all self-skipping): every directive §8 step that can only be
-   *meaningfully* verified with a second, independent identity.
+   *meaningfully* verified with a second, independent identity — including,
+   after round 1, real grant creation itself (see below).
+
+**Codex review, PR-E2, round 1 (two P1s, one P2) — all in this new spec,
+none in the CI-workflow changes.**
+
+1. **P1 — the sharing test asserted the opposite of what the app actually
+   does.** The first draft's "shares narrow access and can revoke it before
+   the recipient ever accepts" test shared to a fabricated
+   `@example.invalid` address and asserted a grant row appeared.
+   `createGrantAction` (`apps/web/src/app/app/applicant/[id]/sharing/
+   actions.ts:61-66`) looks the recipient up with `getAccountByEmail` and
+   returns an error — creating **no** grant row — when the address belongs
+   to no real account. The test would always time out waiting for a row
+   that could never exist; real grant creation needs a genuine second,
+   provisioned account, not just a syntactically valid email. Fixed by:
+   replacing the test with one that asserts the *correct* behavior single-
+   identity testing can actually prove — that the app fails safely with a
+   clear "No VisaStack account found" message and creates no grant row for
+   an unowned address — and moving the real "create a grant, then revoke it
+   before acceptance" scenario into the cross-account boundary block (block
+   3), since it now requires a second account to get past its very first
+   step.
+2. **P1 — the processing-status wait could never observe a real, healthy
+   upload succeeding.** Two compounding bugs: (a) the regex
+   (`/ready|needs attention|failed|rejected/i`) omitted `AWAITING_REVIEW`'s
+   actual UI label, "Needs review" (`packages/i18n/src/messages.ts`) — the
+   correct terminal state for a normal, safe, non-auto-approved upload, so
+   healthy processing was treated as a timeout; (b) `documents/page.tsx` is
+   a `dynamic = 'force-dynamic'` Server Component with no client-side
+   polling — the status renders once, server-side, at request time.
+   Playwright's web-first assertions auto-retry against the
+   *already-loaded* DOM; they never re-fetch the page on their own, so
+   waiting on a locator here would just keep re-checking the same stale
+   initial render forever, regardless of what changed in the database.
+   Fixed with a new `waitForTerminalProcessingStatus` helper that polls via
+   real `page.goto()` reloads on a bounded interval, and a `TERMINAL_
+   PROCESSING_STATUS` regex that includes "needs review".
+3. **P2 — shared-account tests needed serial execution.** `playwright.
+   config.ts` has `fullyParallel: true`; every test in block 2 mutates the
+   same single account's consent/deletion state, so a mid-test consent
+   revoke in one test could race a concurrently-running test's own
+   consent-gated action in another (e.g. the consent test's revoke
+   overlapping the sharing test's `ensureConsent` + submit). Fixed by
+   converting block 2 to `test.describe.serial(...)` — isolated
+   per-applicant state (documents, missions) doesn't need this, but the
+   account-level state does, and serializing the whole block is more
+   robust than trying to cherry-pick which specific tests race.
+
+**Verification (round 1).** `pnpm exec tsc --noEmit` (apps/web) — clean.
+Playwright lists and runs all 21 tests correctly
+(`npx playwright test --list` / `npx playwright test`), all reporting
+`skipped` without credentials. This class of fix (test-authoring
+correctness caught by review, not a fix to already-tested application
+logic) has no separate non-vacuousness check of its own — the "proof" is
+that the corrected assertions now match the actual, source-verified
+application behavior (`getAccountByEmail`'s real return value; `messages.ts`'s
+real label strings; `documents/page.tsx`'s real render model), each
+re-confirmed by reading the relevant source directly, not re-derived from
+memory.
 
 **Why the boundary tests are skipped rather than faked.** A single account
 sharing access to itself, or assigning itself as an org's only member, would
 exercise the code paths without proving the thing the directive actually
 asks for: that a *different* account is denied. A green check on a
 self-dealing test would be worse than no test — it would imply tenant
-isolation was verified when it wasn't. Each of the 7 skipped tests calls
+isolation was verified when it wasn't. Each of the 8 skipped tests calls
 `test.skip(true, reason)` with an explicit, printed reason
 (`requires a second synthetic WorkOS-staging identity
 (WORKOS_STAGING_TEST_EMAIL_2 / _PASSWORD_2), not yet provisioned`) rather
@@ -130,10 +189,10 @@ the spec file:
   the test on a legitimate "AI isn't configured here" state, not a defect.
 
 **Verification.** `pnpm exec tsc --noEmit` (apps/web) — clean. Playwright
-itself parses and lists all 20 tests correctly
+itself parses and lists all 21 tests correctly
 (`npx playwright test --list e2e/authenticated-workspace.spec.ts`) and,
-run without credentials (this session has none), reports all 20 as
-`skipped` — 13 via the existing `!hasCredentials` guard, 7 via their own
+run without credentials (this session has none), reports all 21 as
+`skipped` — 13 via the existing `!hasCredentials` guard, 8 via their own
 explicit `test.skip(true, reason)` regardless of credentials — confirming
 the skip logic itself is correct. **This spec still cannot be run against
 real WorkOS staging in this session** (no credentials available) — it
@@ -193,7 +252,7 @@ unexamined "known pattern" for an eighth consecutive PR.
 - The Vercel preview-failure root cause is investigated and documented, not
   fixed (§5) — fixing it needs dashboard-level access outside this
   session's tool surface.
-- The 7 cross-account boundary E2E tests remain skipped (§4) — need a
+- The 8 cross-account boundary E2E tests remain skipped (§4) — need a
   second synthetic WorkOS-staging identity, not yet provisioned as a
   repository secret.
 - "Map evidence" and AI-proposal review remain unverified/best-effort in
