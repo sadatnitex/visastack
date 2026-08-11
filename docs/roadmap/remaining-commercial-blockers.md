@@ -110,9 +110,33 @@ cross-account/cross-tenant boundary meaningfully — a self-dealing
 single-identity test would exercise the code path without proving isolation,
 which this programme's own discipline treats as worse than no test at all
 (see the register's own "honest disclosure" principle, applied consistently
-from PR-A onward). Provisioning `WORKOS_STAGING_TEST_EMAIL_2`/
-`WORKOS_STAGING_TEST_PASSWORD_2` as repository secrets closes this — no code
-change is needed, the tests are already written and waiting.
+from PR-A onward).
+
+**Closing this needs code work, not just secrets (Codex review, PR-F1,
+round 2 — a genuine correction to this document's own first draft, which
+claimed the opposite).** All 8 tests are literally empty bodies containing
+only `test.skip(true, reason)` — no journey steps exist to run once
+credentials appear. The `_2` variable names appear solely inside comments
+and the `reason` string itself; nothing in the spec file ever reads
+`process.env`/`readEnv` for them, and `workos-staging-e2e.yml` only wires
+`WORKOS_STAGING_TEST_EMAIL`/`WORKOS_STAGING_TEST_PASSWORD` (the single-
+identity pair) into the job — it has no `_2` counterpart at all.
+Provisioning `WORKOS_STAGING_TEST_EMAIL_2`/`WORKOS_STAGING_TEST_PASSWORD_2`
+as repository secrets alone would change nothing observable: the 8 tests
+would still report `skipped`, unconditionally, exactly as before. Closing
+this gap requires, in order: (1) writing the actual 8 journey
+implementations against a real second identity — deliberately not rushed
+into this PR, since every one of them needs to be exercised against live
+WorkOS staging with real second-identity credentials to have any confidence
+in correctness (this exact class of mistake — a plausible-looking but
+never-run test carrying a genuine bug, e.g. a wrong accessible-label
+selector — is precisely what PR-E2 found and fixed in this same file's
+*other*, credentialed tests; writing 8 more untested journeys under this
+PR's own time pressure would risk repeating that, not avoiding it); (2)
+wiring `WORKOS_STAGING_TEST_EMAIL_2`/`_PASSWORD_2` through
+`workos-staging-e2e.yml` alongside the existing pair once the tests that
+would consume them exist. Both remain open, tracked here explicitly rather
+than implied-closed by a secrets-only checklist.
 
 ## 4. Dependency-audit residue (dev-only, non-blocking, deliberately deferred)
 
