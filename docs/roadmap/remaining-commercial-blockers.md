@@ -24,14 +24,25 @@ work — PR-A through PR-F1 — claimed any of these; they were never in scope
 for a defect-closure engagement operating on Vercel Hobby / WorkOS staging
 under the master directive's "not approved now" infra list (§5).
 
+Every one of the 19 gates `buildGates` declares appears exactly once below
+(grouped by kind — live/hardcoded first, then the attestation-only
+majority — not in the function's own declaration order), so this is
+genuinely the complete list, not an edited subset (Codex review, PR-F1:
+the first draft of this table omitted the live `hosting` gate entirely,
+which would have let an operator satisfy every *listed* item and still
+receive an unexplained 503):
+
 | Gate | Kind | What closes it |
 |---|---|---|
-| `realMalwareScanner` | Hardcoded `false` | Build and wire a real malware-scanning adapter (e.g. ClamAV) behind `MalwareScannerPort` — a genuine future PR, not a config change. `BasicSafetyScanner` (the pilot default) is structural/magic-byte validation only, by design (ADR-0011). |
+| `hosting` | Live | Already satisfied by `VERCEL_ENV === 'production'` — true on this project's production deployments today, false on preview/local. No outstanding work by itself; listed for completeness so this table is never mistaken for a subset. |
 | `workosProduction` | Live + attestation | Provision a real WorkOS *production* project (staging is what the pilot uses today) and set `COMMERCIAL_READINESS_ATTEST_WORKOS_PRODUCTION=true`. |
 | `productionDatabase` | Live | Already satisfied whenever the DB is reachable and migrated — no outstanding work, just needs to be true on whatever deployment activates commercial mode. |
 | `privateProductionStorage` | Live | Already satisfied by `BLOB_READ_WRITE_TOKEN` being set — true today on the pilot deployment. |
+| `realMalwareScanner` | Hardcoded `false` | Build and wire a real malware-scanning adapter (e.g. ClamAV) behind `MalwareScannerPort` — a genuine future PR, not a config change. `BasicSafetyScanner` (the pilot default) is structural/magic-byte validation only, by design (ADR-0011). |
+| `safeConversion` | Hardcoded `true` | Already satisfied — PR 3's bounded, hostile-tested document conversion is genuinely complete, not aspirational. Listed for completeness only. |
 | `stepUp` | Live | Already satisfied by `STEP_UP_SIGNING_SECRET` being set. |
 | `productionOpenAiProject` | Live | Only applies when `AI_ENABLED=true` (currently off). A separate production OpenAI project + `OPENAI_PROJECT_ID` would be needed before enabling AI commercially. |
+| `retentionDeletionWorkflow` | Hardcoded `true` | Already satisfied — PR 4's retention/erasure workflow is genuinely complete. Listed for completeness only. |
 | `externalObjectDeletionVerification`, `tenantIsolationSuite`, `permissionMatrix`, `privacyConsentConfiguration`, `backupRestoreVerification`, `authenticatedProductionE2e`, `incidentOwner`, `termsAndPrivacyNotice`, `noCriticalHighFindings`, `externalPenetrationTest` | Attestation-only | Each requires a human to actually perform and verify the named activity (an external pen-test happens; a named person owns incidents; a restore drill is actually rehearsed; `tenant-isolation.test.ts`/the permission matrix are run against production data shapes, not just PGlite) and then set the matching `COMMERCIAL_READINESS_ATTEST_*=true` var. No server-side check can verify these itself, by design — that is the entire reason they're attestation-gated rather than live-checked. **None are attested on the current deployment**, so commercial mode stays `ready: false` regardless of every code-level fix in this register. |
 
 The design is deliberate: an operator cannot accidentally flip commercial
