@@ -52,8 +52,16 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
+      # Explicit ref (master directive §8: "A deployment test may not check
+      # out tests from another revision") -- same reasoning as
+      # deploy-smoke.yml. Falls back to github.sha for the manual
+      # workflow_dispatch trigger, where github.event.deployment doesn't
+      # exist and github.sha already correctly resolves to whatever ref the
+      # operator selected when dispatching.
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.deployment.sha || github.sha }}
 
       - name: Install pnpm
         uses: pnpm/action-setup@v4
