@@ -12,14 +12,21 @@ granted, and every action is authorized, consent-gated, and audited.
 > naming, and an OpenAI-backed extraction adapter are implemented and wired
 > (off by default — see the capability registry below). Real malware
 > scanning, step-up authentication, and generated redacted renditions are
-> **not** complete, and agency collaboration and bulk export are currently
-> gated off pending an authorization hardening pass — see the deployment-mode
-> and capability-registry section below. Stronger backends (a real scanner,
-> step-up auth) drop in behind stable ports with no domain change. For the
-> honest, capability-by-capability breakdown with evidence, see
+> **not** complete. Agency collaboration and bulk export are wired and
+> `available` — see the deployment-mode and capability-registry section
+> below. Stronger backends (a real scanner, step-up auth) drop in behind
+> stable ports with no domain change. For the current, honest,
+> capability-by-capability breakdown with evidence, see
+> [`docs/audits/final-programme-verdict.md`](docs/audits/final-programme-verdict.md)
+> and
+> [`docs/audits/post-programme-defect-register.md`](docs/audits/post-programme-defect-register.md);
+> for the still-open, non-defect gaps between here and a commercial launch,
+> see [`docs/roadmap/remaining-commercial-blockers.md`](docs/roadmap/remaining-commercial-blockers.md).
 > [`docs/audits/current-product-baseline.md`](docs/audits/current-product-baseline.md)
 > and
-> [`docs/audits/commercial-readiness-recovery-baseline.md`](docs/audits/commercial-readiness-recovery-baseline.md).
+> [`docs/audits/commercial-readiness-recovery-baseline.md`](docs/audits/commercial-readiness-recovery-baseline.md)
+> remain as the point-in-time audit snapshots each was written from — see
+> the superseded notice at the top of each.
 > The product contract is the 3-page PRD plus the Build Specification; a
 > feature is not "complete" until it is verified end-to-end, not merely
 > built.
@@ -44,7 +51,7 @@ granted, and every action is authorized, consent-gated, and audited.
 | **Document Vault** | Private storage keyed by opaque object IDs (never the filename); permission-aware access with step-up before original bytes are released. `VercelPrivateBlobStorage` is the active production backend when `BLOB_READ_WRITE_TOKEN` is configured (it is, on the current deployment); `NeonBlobStorage` (bytea in Postgres, reduced-control) is the local dev/test/PR-preview fallback only — production now fails closed rather than silently degrading to it. *Preview is owner-only clean-original until real redacted renditions ship; third-party preview is fail-closed.* |
 | **Document Intelligence** | Deterministic passport-MRZ (TD3) parsing, embedded PDF/DOCX/TXT/MD text extraction, and rules-based document classification are implemented and wired into the upload pipeline. An `AiExtractionPort` adapter for the OpenAI Responses API is implemented and wired, gated behind `AI_ENABLED`/`OPENAI_API_KEY` (off on the current deployment — a deliberate "shipped but off" state, not a stub). Real OCR/image-text extraction is not yet implemented. When enabled, the AI Gateway only **proposes** fields — a human approves, nothing is written silently. |
 | **Missions & Packs** | Cited, versioned, checksummed requirement packs (Pack Studio); parallel mission workspaces; readiness as **completeness only** (never an approval probability); reviewer state machine; immutable, checksummed snapshots. |
-| **Agencies & Sharing** | Organization verification (no self-upgrade); scoped, accepted, time-limited, revocable grants; access transparency. *Agency case collaboration (assignments, notes, evidence requests, membership changes) and bulk export are currently gated `disabled` in the capability registry pending an authorization hardening pass — see [`docs/audits/commercial-readiness-recovery-baseline.md`](docs/audits/commercial-readiness-recovery-baseline.md)§7/§12. Direct individual-to-individual sharing is unaffected.* |
+| **Agencies & Sharing** | Organization verification (no self-upgrade); scoped, accepted, time-limited, revocable grants; access transparency. Agency case collaboration (assignments, notes, evidence requests) and bulk export are `available` in the capability registry — the authorization hardening pass this used to be gated on (scope/action checks on every collaboration entry point, a non-admin visibility fix so `REVIEWER`/`CASE_MANAGER` members can actually reach their own assigned missions) is complete; see [`docs/audits/post-programme-defect-register.md`](docs/audits/post-programme-defect-register.md) findings `#3`–`#7`, `#31`, `#32`. |
 | **Retention & legal hold** | Retention policies with eligibility-based purge; legal holds that **override deletion**. |
 | **Reliability** | Liveness + readiness probes; English/Bangla i18n; incident runbook + RPO/RTO/restore-drill docs. |
 
@@ -149,7 +156,7 @@ Migrations run automatically at build time on Vercel (`pnpm --filter
 
 ```bash
 pnpm install
-pnpm run check          # lint + typecheck + test (296 tests, in-memory PGlite — no DB needed)
+pnpm run check          # lint + typecheck + test (617 tests, in-memory PGlite — no DB needed)
 pnpm run build          # build the workspace
 ```
 

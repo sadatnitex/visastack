@@ -1,5 +1,16 @@
 # VisaStack — commercial-readiness recovery baseline (Phase 0)
 
+> **⚠ Superseded — point-in-time snapshot, not current state.** This audit
+> describes `main` as of 2026-07-31, PR 1 of the 11-PR commercial-recovery
+> programme (`#54`–`#64`) about to start. The full post-programme
+> defect-closure engagement (PR-A→PR-F1) shipped since, closing every
+> numbered finding from that programme's own review — the capability-status
+> and agency-access sections below in particular no longer reflect current
+> gating. Kept verbatim as the historical record it always was, not updated
+> in place. For the current, truthful state, see
+> [`final-programme-verdict.md`](./final-programme-verdict.md) and
+> [`post-programme-defect-register.md`](./post-programme-defect-register.md).
+
 **Audit date:** 2026-07-31
 **Performed under:** [`docs/roadmap/commercial-recovery-completion-ux-directive.md`](../roadmap/commercial-recovery-completion-ux-directive.md) §6 (Phase 0 — read-only forensic baseline)
 **Scope:** read-only. No code was changed to produce this document.
