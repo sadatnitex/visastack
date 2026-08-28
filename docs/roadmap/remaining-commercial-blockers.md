@@ -105,7 +105,11 @@ actual pass against live WorkOS staging.
 via the WorkOS MCP connector, at the user's explicit request and approval):
 `visastack-e2e-primary@nitex.com` (for the 13-test primary credential pair)
 and `visastack-e2e-secondary@nitex.com` (for the 8 cross-account tests).
-Three steps remain, none of them code:
+Three steps remain: two are pure operations (no code — steps 1 and 2),
+one is real engineering work that also needs a live environment to verify
+against (step 3, Codex review, PR-F1's own follow-up — the original draft
+of this section claimed "none of them code," directly contradicted by its
+own step 3):
 
 1. **Add the 4 GitHub repository secrets** — `WORKOS_STAGING_TEST_EMAIL`,
    `WORKOS_STAGING_TEST_PASSWORD`, `WORKOS_STAGING_TEST_EMAIL_2`,
