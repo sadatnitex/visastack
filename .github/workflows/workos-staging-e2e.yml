@@ -12,9 +12,21 @@ name: WorkOS Staging E2E (authenticated)
 #   E2E_BASE_URL (optional)       — target URL; defaults to the triggering
 #                                   deployment's URL, or the production URL
 #
-# To enable: add the two required secrets under
-# Settings → Secrets and variables → Actions. Leave them unset to keep this
-# workflow a no-op.
+# Optional, for the 8 cross-account-boundary tests in
+# authenticated-workspace.spec.ts (a second independent identity is the only
+# way to meaningfully prove a tenant-isolation boundary — see that file's own
+# header comment). Each of those tests currently self-skips unconditionally
+# regardless of these being set, until its journey is actually implemented;
+# passing them through now means nothing further is needed here once that
+# code lands:
+#   WORKOS_STAGING_TEST_EMAIL_2     — a second synthetic WorkOS-staging test
+#                                      user email, distinct from the one above
+#   WORKOS_STAGING_TEST_PASSWORD_2  — that user's password
+#
+# To enable: add the required secrets under Settings → Secrets and variables
+# → Actions. Leave WORKOS_STAGING_TEST_EMAIL/_PASSWORD unset to keep this
+# workflow a no-op entirely; the _2 pair can be added independently at any
+# time.
 on:
   deployment_status:
   workflow_dispatch: {}
@@ -85,6 +97,14 @@ jobs:
           PLAYWRIGHT_BASE_URL: ${{ vars.E2E_BASE_URL || github.event.deployment_status.environment_url || github.event.deployment_status.target_url }}
           WORKOS_STAGING_TEST_EMAIL: ${{ secrets.WORKOS_STAGING_TEST_EMAIL }}
           WORKOS_STAGING_TEST_PASSWORD: ${{ secrets.WORKOS_STAGING_TEST_PASSWORD }}
+          # Optional second identity for the cross-account-boundary tests
+          # (docs/roadmap/remaining-commercial-blockers.md §3). Passed
+          # through unconditionally, whether or not these secrets are set —
+          # each consuming test currently self-skips regardless (see the
+          # header comment above), so an unset value here is inert, not an
+          # error.
+          WORKOS_STAGING_TEST_EMAIL_2: ${{ secrets.WORKOS_STAGING_TEST_EMAIL_2 }}
+          WORKOS_STAGING_TEST_PASSWORD_2: ${{ secrets.WORKOS_STAGING_TEST_PASSWORD_2 }}
         run: npx playwright test authenticated-workspace.spec.ts
 
       - name: Upload Playwright report

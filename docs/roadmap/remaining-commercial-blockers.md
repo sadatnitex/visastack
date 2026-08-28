@@ -89,58 +89,59 @@ reviewers don't get a live preview URL to click through during review —
 real, but a review-convenience gap, not a correctness or security gap in
 anything this register tracks.
 
-## 3. Deployed E2E coverage gaps (implemented, not yet run against real WorkOS staging)
+## 3. Deployed E2E coverage gaps (identities now provisioned; secrets and one env var still need a human to set them)
 
 `apps/web/e2e/authenticated-workspace.spec.ts` (21 tests across 3 describe
-blocks, built out across PR-A through PR-E2 — **not** 55; an earlier draft
-of this document wrongly reported 55 here, this session's own monorepo-wide
-vitest file count leaking into a sentence about a single Playwright spec,
-caught by Codex review and corrected in PR-F1) requires
+blocks, built out across PR-A through PR-E2) requires
 `WORKOS_STAGING_TEST_EMAIL`/`WORKOS_STAGING_TEST_PASSWORD` repository
-secrets to run at all. **No session in this entire engagement has had these
-secrets available**, so the 13 tests with real journey implementations'
-correctness rests on direct code review plus `npx playwright test
---list`/a full `--project=chromium` run confirming
-every test reports `skipped` (not `failed`) without credentials — never on
-an actual pass against live WorkOS staging. This is the same "implemented,
-not yet verified" gap `docs/audits/current-product-baseline.md` disclosed
-for the authenticated Playwright spec back at the very start of this
-product's audit history, and it remains true today for the same reason.
+secrets to run at all. **No session in this entire engagement had these
+secrets available until now**, so the 13 tests with real journey
+implementations' correctness has rested on direct code review plus `npx
+playwright test --list`/a full `--project=chromium` run confirming every
+test reports `skipped` (not `failed`) without credentials — never on an
+actual pass against live WorkOS staging.
 
-A further 8 tests inside that same file are **unconditionally** self-skipped
-(via `test.skip(true, reason)`, independent of the credential guard above)
-because they need a *second*, independent synthetic identity to prove a
-cross-account/cross-tenant boundary meaningfully — a self-dealing
-single-identity test would exercise the code path without proving isolation,
-which this programme's own discipline treats as worse than no test at all
-(see the register's own "honest disclosure" principle, applied consistently
-from PR-A onward).
+**Both synthetic identities now exist in WorkOS Staging** (created directly
+via the WorkOS MCP connector, at the user's explicit request and approval):
+`visastack-e2e-primary@nitex.com` (for the 13-test primary credential pair)
+and `visastack-e2e-secondary@nitex.com` (for the 8 cross-account tests).
+Three steps remain, none of them code:
 
-**Closing this needs code work, not just secrets (Codex review, PR-F1,
-round 2 — a genuine correction to this document's own first draft, which
-claimed the opposite).** All 8 tests are literally empty bodies containing
-only `test.skip(true, reason)` — no journey steps exist to run once
-credentials appear. The `_2` variable names appear solely inside comments
-and the `reason` string itself; nothing in the spec file ever reads
-`process.env`/`readEnv` for them, and `workos-staging-e2e.yml` only wires
-`WORKOS_STAGING_TEST_EMAIL`/`WORKOS_STAGING_TEST_PASSWORD` (the single-
-identity pair) into the job — it has no `_2` counterpart at all.
-Provisioning `WORKOS_STAGING_TEST_EMAIL_2`/`WORKOS_STAGING_TEST_PASSWORD_2`
-as repository secrets alone would change nothing observable: the 8 tests
-would still report `skipped`, unconditionally, exactly as before. Closing
-this gap requires, in order: (1) writing the actual 8 journey
-implementations against a real second identity — deliberately not rushed
-into this PR, since every one of them needs to be exercised against live
-WorkOS staging with real second-identity credentials to have any confidence
-in correctness (this exact class of mistake — a plausible-looking but
-never-run test carrying a genuine bug, e.g. a wrong accessible-label
-selector — is precisely what PR-E2 found and fixed in this same file's
-*other*, credentialed tests; writing 8 more untested journeys under this
-PR's own time pressure would risk repeating that, not avoiding it); (2)
-wiring `WORKOS_STAGING_TEST_EMAIL_2`/`_PASSWORD_2` through
-`workos-staging-e2e.yml` alongside the existing pair once the tests that
-would consume them exist. Both remain open, tracked here explicitly rather
-than implied-closed by a secrets-only checklist.
+1. **Add the 4 GitHub repository secrets** — `WORKOS_STAGING_TEST_EMAIL`,
+   `WORKOS_STAGING_TEST_PASSWORD`, `WORKOS_STAGING_TEST_EMAIL_2`,
+   `WORKOS_STAGING_TEST_PASSWORD_2` — under Settings → Secrets and
+   variables → Actions. No tool available to any session so far can write
+   a GitHub Actions secret; this is unavoidably a human action. The exact
+   values were handed to the user directly in chat when the identities
+   were created, not committed anywhere.
+2. **Add both emails to `PILOT_ALLOWLIST_EMAILS`** on the real deployment
+   (Vercel Project Settings → Environment Variables) — found while
+   provisioning the identities above: `withSession` (`session.ts`) gates
+   *new* account provisioning through `checkPilotAccess` (finding `#2`,
+   PR-A) before either identity's first sign-in can ever reach the app.
+   Neither is on an existing invitation or already bound to an account, so
+   without this, both would be denied at the pilot-access gate — turning
+   "skipped, no credentials" into "failed, access denied" once the GitHub
+   secrets alone are set, which is a worse CI signal, not a better one. No
+   tool available to any session so far can write a Vercel environment
+   variable either.
+3. **Write the 8 cross-account journey implementations.** Unrelated to (1)
+   and (2) — the identities and secrets only unblock the 13 tests that
+   already have real bodies. The 8 cross-account tests are still literal
+   `test.skip(true, reason)` stubs with no journey steps inside (Codex
+   review, PR-F1, round 2, corrected an earlier draft of this document that
+   wrongly claimed secrets alone would close this). `workos-staging-e2e.yml`
+   now passes `WORKOS_STAGING_TEST_EMAIL_2`/`_PASSWORD_2` through to the
+   test process unconditionally (wired in the same change that provisioned
+   the identities above) — so once (1) and (2) are done and the 8 journeys
+   are actually written, nothing further is needed in CI to run them.
+   Deliberately still not written here: every one of them needs to be
+   exercised against live WorkOS staging to have any real confidence in
+   correctness (the exact class of mistake — a plausible-looking but
+   never-run test carrying a genuine bug, e.g. a wrong accessible-label
+   selector — is precisely what PR-E2 found and fixed in this same file's
+   *other*, credentialed tests), and no session so far has had (1) and (2)
+   done yet to actually run one against.
 
 ## 4. Dependency-audit residue (dev-only, non-blocking, deliberately deferred)
 
