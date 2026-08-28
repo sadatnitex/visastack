@@ -4,7 +4,9 @@ name: WorkOS Staging E2E (authenticated)
 # §8C). Runs only when the required repository secrets exist; clearly skipped
 # otherwise. Never touches production credentials, never logs credentials or
 # session tokens, uses a synthetic WorkOS-staging test identity, and creates
-# no real applicant data.
+# no real applicant data. Restricted to the production deployment or a
+# manual dispatch, never a PR-branch preview -- see the authenticated-e2e
+# job's own if: condition for why (Codex review).
 #
 # Required repository secrets (names only — no values are ever committed):
 #   WORKOS_STAGING_TEST_EMAIL     — a synthetic WorkOS-staging test user email
@@ -60,7 +62,23 @@ jobs:
   authenticated-e2e:
     name: Authenticated workspace journey (WorkOS staging)
     needs: check-configured
-    if: needs.check-configured.outputs.configured == 'true' && (github.event_name == 'workflow_dispatch' || github.event.deployment_status.state == 'success')
+    # Restricted to the production deployment (ref == 'main') or a manual
+    # dispatch -- never a PR-branch preview (Codex review, this PR, P1).
+    # deployment_status fires for EVERY Vercel deployment, preview included
+    # (deploy-smoke.yml's own header comment says so), and this job checks
+    # out and executes github.event.deployment.sha's own
+    # authenticated-workspace.spec.ts with real WorkOS-staging credentials
+    # in its environment. Without this restriction, any branch's preview
+    # build reaching success would run that branch's own (possibly
+    # modified) test code with real secrets available to it -- a PR could
+    # trivially exfiltrate them. Every deployment this session has ever
+    # confirmed target: "production" for also had githubCommitRef: "main"
+    # (Vercel only marks a build "production" when it's built from the
+    # repo's designated production branch), so ref == 'main' reliably
+    # distinguishes "this is the production deployment" from "this is a
+    # preview" without guessing at Vercel's own environment-name string
+    # convention.
+    if: needs.check-configured.outputs.configured == 'true' && (github.event_name == 'workflow_dispatch' || (github.event.deployment_status.state == 'success' && github.event.deployment.ref == 'main'))
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -69,7 +87,10 @@ jobs:
       # deploy-smoke.yml. Falls back to github.sha for the manual
       # workflow_dispatch trigger, where github.event.deployment doesn't
       # exist and github.sha already correctly resolves to whatever ref the
-      # operator selected when dispatching.
+      # operator selected when dispatching. Safe here specifically because
+      # the if: above already guarantees this only runs for the production
+      # deployment (or an operator's own explicit manual dispatch) -- never
+      # an untrusted PR branch's preview.
       - name: Checkout
         uses: actions/checkout@v4
         with:
