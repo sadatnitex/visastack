@@ -24,6 +24,16 @@ export {
 } from './audit';
 
 export {
+  type AuditCheckpoint,
+  createAuditCheckpoint,
+  eventsInCheckpointRange,
+  getLatestAuditCheckpoint,
+  listAuditCheckpoints,
+  verifyCheckpointAgainstChain,
+  verifyCheckpointSignature,
+} from './audit-checkpoints';
+
+export {
   type CheckPilotAccessInput,
   type CreateInvitationInput,
   type PilotAccessDecision,

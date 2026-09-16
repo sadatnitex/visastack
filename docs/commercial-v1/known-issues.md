@@ -119,6 +119,26 @@ item gets its own requirements-ledger row once classified against the new direct
     is Part 5/9 admin-workspace scope (ADM-01), tracked there rather than built prematurely
     in Part 2. Full design: `architecture-decisions.md` AD-02.
 
+16. (Part 2) `packages/services/src/organizations.ts` — real, security-critical logic (last
+    active owner protection against concurrent deactivation, cross-tenant IDOR prevention on
+    membership IDs, independent step-up-gated organisation review with no self-verification)
+    — had zero test coverage before this session, confirmed by absence of an
+    `organizations.test.ts` file. Closed this Part 2 chunk with 17 new tests, including a
+    genuine concurrency test (`Promise.all` racing two owners deactivating each other) rather
+    than a single-threaded approximation. See `requirements-ledger.md` IAM-02.
+17. (Part 2) The SEC-04 periodic signed checkpoint capability's own tamper-detection test
+    initially passed for the wrong reason: it issued a raw `UPDATE audit_events SET hash = ...`
+    expecting the row to actually change, but `audit_events`' pre-existing append-only RULE
+    (`audit_events_no_update`, migration 0000) silently absorbs a plain UPDATE
+    (`DO INSTEAD NOTHING`) exactly as designed — so the first version of the test was validating
+    nothing. Caught by this session before committing (not by a later report): the fix makes the
+    test explicitly `ALTER TABLE audit_events DISABLE RULE audit_events_no_update` before
+    tampering and re-enable it after, actually reproducing "a party who bypassed the append-only
+    protection," which is the exact scenario a checkpoint exists to detect. General lesson for
+    this programme, same shape as item 11: a test against an append-only-by-RULE table must
+    explicitly defeat the RULE to simulate the threat it claims to test, or it silently tests
+    nothing.
+
 Items 1 through 4, 5 through 9, and 14/15 above are carried forward or upgraded to
 independently confirmed findings; the missing PRD file is tracked as Blocker 1 in
 `assumptions-and-blockers.md` (now resolved) rather than here, since it blocked the

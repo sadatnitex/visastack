@@ -246,6 +246,42 @@ export const auditEvents = pgTable(
   ],
 );
 
+// --- Audit checkpoints (Commercial V1 SEC-04) -------------------------------
+// A periodic, externally-signed anchor over a range of the audit_events
+// chain. The append-only RULEs on audit_events (migration 0000) stop the
+// application's own runtime credential from editing or deleting history, but
+// they do not stop a party with full database DDL access, who could drop the
+// rule, edit rows, and recreate it with nobody the wiser from inside the
+// database alone. A checkpoint closes that gap by construction, not by
+// promise: `signature` is an HMAC over (fromSeq, toSeq, chainHeadHash) keyed
+// by a secret the database itself never holds (an environment variable in
+// practice, the same posture as STEP_UP_SIGNING_SECRET) — a party who can
+// only read/write/alter this database, however completely, cannot forge a
+// new valid signature for a tampered chain, and cannot make an EXISTING
+// checkpoint agree with a chain it no longer matches. Detecting tampering
+// still requires comparing a checkpoint against the chain from a vantage
+// point outside the compromised database (an export, a second read replica,
+// or ultimately a real external anchor service) — this table alone does not
+// make that comparison happen automatically; see
+// packages/services/src/audit-checkpoints.ts for what is and is not
+// implemented yet.
+export const auditCheckpoints = pgTable(
+  'audit_checkpoints',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    fromSeq: bigint('from_seq', { mode: 'number' }).notNull(),
+    toSeq: bigint('to_seq', { mode: 'number' }).notNull(),
+    chainHeadHash: text('chain_head_hash').notNull(),
+    signature: text('signature').notNull(),
+    signingKeyVersion: text('signing_key_version').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('audit_checkpoints_to_seq_idx').on(table.toSeq),
+    check('audit_checkpoints_range_valid', sql`${table.toSeq} >= ${table.fromSeq}`),
+  ],
+);
+
 // --- Missions (parallel destination/purpose workspaces; Build Spec §4.3) ----
 export const missions = pgTable('missions', {
   id: uuid('id').primaryKey().defaultRandom(),

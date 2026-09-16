@@ -204,6 +204,13 @@
       "when": 1789559030028,
       "tag": "0028_unknown_sandman",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1789560274444,
+      "tag": "0029_wide_colossus",
+      "breakpoints": true
     }
   ]
 }
