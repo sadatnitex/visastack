@@ -149,15 +149,19 @@ item gets its own requirements-ledger row once classified against the new direct
     signed token and `recheckDocumentAccess`. 11 new tests prove a grant revoked, a membership
     deactivated, or a document version erased between mint and redemption each correctly kill
     an otherwise-still-valid token. Full design: `architecture-decisions.md` AD-05.
-19. (Part 3) Safe preview (EVI-02/EVI-06: "safe rendered previews with active content
-    removed") does not exist. `previewDocument`/`accessDocument`
-    (`packages/services/src/documents.ts`) compute an `effectiveVariant` of `'original'` or
-    `'redacted'`, but `/api/blob/[key]/route.ts` only implements `'original'` (raw bytes,
-    content-disposition changed only), and `'redacted'` is hardcoded to return `501`. An owner
-    "previewing" their own document today receives the actual original bytes inline, not a
-    safe derivative; a non-owner with a valid grant cannot preview at all (always 501, missing
-    rather than merely insecure). Confirmed this session via Explore agent inventory, not yet
-    fixed. Second-priority item for the next Part 3 chunk, after the delivery-token fix.
+19. ~~Safe preview (EVI-02/EVI-06: "safe rendered previews with active content removed") does
+    not exist. `'redacted'` is hardcoded to return `501`. An owner "previewing" their own
+    document today receives the actual original bytes inline, not a safe derivative; a
+    non-owner with a valid grant cannot preview at all.~~ **RESOLVED (Part 3).**
+    `PreviewRendererPort`/`BuiltinPreviewRenderer` renders a genuine active-content-stripped
+    derivative per content type (PDF rasterized to PNG, images decoded/redrawn, DOCX extracted
+    to text, text normalized), wired into `/api/blob/[key]/route.ts` in place of the `501`.
+    The owner-gets-raw-original shortcut was also removed, not just the third-party `501`:
+    preview is now always the `redacted` derivative, for owner and non-owner alike, matching
+    the PRD's explicit "originals are explicit downloads, never an untrusted inline PDF
+    shortcut" over an earlier build's narrower reading. Full design, including the honest gap
+    against the PRD's "in an isolated worker" phrasing (this renders on demand, in-process, not
+    precomputed at ingest): `architecture-decisions.md` AD-06.
 20. (Part 3) `DEFAULT_UPLOAD_QUOTAS.maxUploadBytes` (`packages/services/src/quotas.ts`) was
     10 MB, a prior-engagement pilot default, against EVI-01's explicit "20 MiB per original."
     Corrected to 20 MiB this chunk, per this program's standing instruction to follow the
@@ -207,6 +211,51 @@ item gets its own requirements-ledger row once classified against the new direct
     point is missing. Not fixed this chunk (out of scope for the delivery-token fix); tracked
     for the admin-workspace/support-access UI work in Part 5/9 (ADM-01), where a real caller
     constructing a `support_admin` actor for document access would first need this gap closed.
+
+24. (Part 3) Two more genuine bugs caught by this session's own review before committing, not
+    left in: (a) `next.config.mjs`'s `bodySizeLimit` was still `15mb`, a margin computed
+    against the *old* 10 MiB upload quota, silently re-introducing the exact "uploads rejected
+    before reaching the real quota check" bug already fixed once in item 20, this time for any
+    upload between 15 and 20 MiB. Caught by reading this file while adding `@napi-rs/canvas` to
+    `serverExternalPackages` for the preview renderer, not by a report; fixed by raising it to
+    `25mb`, the same proportional margin over the current 20 MiB quota. (b) the first draft of
+    `/api/blob/[key]/route.ts`'s new redacted-serving branch constructed its `Response` from
+    `rendered.bytes.buffer` directly, missing the exact defensive copy the adjacent
+    `original`-variant branch already used (and documents why: a `Uint8Array` can be a view
+    over a larger, possibly pooled backing buffer, so serving `.buffer` as-is risks sending
+    bytes beyond the intended slice). Caught by re-reading the route for correctness, not by a
+    test failure, since the bug would not reliably reproduce against small fixtures; fixed by
+    factoring the existing copy into one `freshArrayBuffer` helper used by both branches, and
+    by making `BuiltinPreviewRenderer`'s own plain-text passthrough return an independently
+    owned copy as a postcondition of the port itself.
+25. (Part 3) `/api/blob/[key]/route.ts`'s own wiring (token parsing, the variant branch, the
+    call into `recheckDocumentAccess` and the preview renderer) has no direct route-handler
+    test, matching `headers.test.ts`'s own stated rationale for this exact route ("simple early
+    returns with no independent logic worth mocking a database for") and this codebase's
+    established pattern of testing `apps/web` routes without a real/PGlite database. This was
+    already true of the `501` this chunk's safe-preview work replaces (item 19), so it is a
+    pre-existing gap in this one route's own test coverage, not a new one introduced this
+    chunk; recorded honestly rather than implied to be newly covered. The service-layer
+    functions the route calls (`previewDocument`/`downloadDocument`/`recheckDocumentAccess`)
+    and the renderer itself (`BuiltinPreviewRenderer`) are both directly, thoroughly tested.
+26. (Part 3) A genuine `pnpm run build` failure caught and fixed before committing, not left
+    in: adding `@napi-rs/canvas` as a plain dependency of `packages/adapters` was not enough
+    for `apps/web`'s production build to succeed. Even with `@napi-rs/canvas` (and every
+    platform-specific sibling package) listed in `next.config.mjs`'s `serverExternalPackages`,
+    the documented mechanism for excluding a native-binary dependency from webpack's bundle,
+    the build still failed: `Module parse failed: Unexpected character` on the platform
+    package's own `.node` binary, reached transitively through `@visastack/adapters` (a pnpm
+    workspace package) via both a Server Action (`applicant/[id]/actions.ts`) and a plain Route
+    Handler (`/api/blob/[key]/route.ts`). `serverExternalPackages` alone did not stop webpack
+    walking into `@napi-rs/canvas`'s own internal `require` of the platform binary in this
+    pnpm-workspace-transitive-import shape; caught only by actually running the real production
+    build and reading the failure, not by assuming the documented option would work. Fixed with
+    an explicit `webpack()` config override (a function-based `externals` matcher on the
+    `@napi-rs/canvas` request prefix, applied only for the server compiler), which does work,
+    confirmed by a subsequent clean `pnpm run build` producing the full route manifest
+    including `/api/blob/[key]`. `serverExternalPackages` is left in place alongside it, since
+    it is still the right signal for Vercel's own deployed-function file tracing to include the
+    native binary, a separate concern from webpack's bundling step this override fixes.
 
 Items 1 through 4, 5 through 9, and 14/15 above are carried forward or upgraded to
 independently confirmed findings; the missing PRD file is tracked as Blocker 1 in

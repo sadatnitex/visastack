@@ -26,21 +26,71 @@ const nextConfig = {
   // connection ("Connection terminated unexpectedly") and 500s every DB page.
   // Keeping these external makes Node load the real packages at runtime, where
   // the pure-JS mask fallback works. (Next 15 stable key.)
-  serverExternalPackages: ['@neondatabase/serverless', 'ws'],
+  //
+  // `@napi-rs/canvas` (Commercial V1 Part 3, safe preview rendering) ships a
+  // native per-platform binary, the same category as the `sharp` example in
+  // Next's own docs for this option: it must be traced/copied into the
+  // deployed function as-is, never bundled by webpack, or the native addon
+  // is missing at runtime on Vercel. Listed here too (`serverExternalPackages`
+  // is the documented mechanism), but in this pnpm workspace it alone did
+  // NOT stop webpack walking into `@napi-rs/canvas`'s own internal require of
+  // the platform-specific `.node` binary when reached transitively through
+  // `@visastack/adapters` (confirmed by actually running `pnpm run build` and
+  // reading the failure, not assumed): the `webpack()` override below is
+  // the mechanism that actually works, kept alongside this list rather than
+  // replacing it since `serverExternalPackages` is still the right signal
+  // for Vercel's own output file tracing to include the native binary.
+  serverExternalPackages: [
+    '@neondatabase/serverless',
+    'ws',
+    '@napi-rs/canvas',
+    '@napi-rs/canvas-linux-x64-gnu',
+    '@napi-rs/canvas-linux-x64-musl',
+    '@napi-rs/canvas-linux-arm64-gnu',
+    '@napi-rs/canvas-linux-arm64-musl',
+    '@napi-rs/canvas-darwin-x64',
+    '@napi-rs/canvas-darwin-arm64',
+    '@napi-rs/canvas-win32-x64-msvc',
+  ],
+  webpack: (config, { isServer }) => {
+    if (isServer) {
+      const existing = Array.isArray(config.externals)
+        ? config.externals
+        : config.externals
+          ? [config.externals]
+          : [];
+      config.externals = [
+        ...existing,
+        ({ request }, callback) => {
+          if (request && /^@napi-rs\/canvas/.test(request)) {
+            return callback(null, `commonjs ${request}`);
+          }
+          callback();
+        },
+      ];
+    }
+    return config;
+  },
   experimental: {
     serverActions: {
-      // Next's own default is 1 MB — silently below the pilot's own 10 MB
-      // upload quota (packages/services/src/quotas.ts), so every upload
-      // between 1-10 MB was being rejected with a 413 before reaching that
-      // quota check at all (master directive §7 "PR 6" — upload
-      // consistency). Next enforces this by tracking bytes as the request
-      // body streams in and rejecting once the running total crosses the
-      // limit — never fully buffering an oversize body — so this is also
-      // the first, framework-level line of defense against a deliberately
-      // huge upload exhausting memory. Set comfortably above the quota's
-      // maxUploadBytes default (10 MB) for multipart framing overhead; the
-      // quota itself remains the real, precise, runtime-configurable limit.
-      bodySizeLimit: '15mb',
+      // Next's own default is 1 MB, silently below the pilot's own upload
+      // quota (packages/services/src/quotas.ts), so every upload above 1 MB
+      // was being rejected with a 413 before reaching that quota check at
+      // all (master directive §7 "PR 6", upload consistency). Next
+      // enforces this by tracking bytes as the request body streams in and
+      // rejecting once the running total crosses the limit, never fully
+      // buffering an oversize body, so this is also the first,
+      // framework-level line of defense against a deliberately huge upload
+      // exhausting memory. Set comfortably above the quota's
+      // maxUploadBytes (20 MiB, corrected from a stale 10 MiB pilot default
+      // this same Part 3 chunk, see quotas.ts) for multipart framing
+      // overhead; the quota itself remains the real, precise,
+      // runtime-configurable limit. This was left at the OLD quota's margin
+      // (15 MB) when maxUploadBytes was bumped to 20 MiB, silently
+      // re-introducing the exact bug this comment describes for any upload
+      // between 15-20 MiB, caught by re-reading this file while wiring in
+      // the preview-render path, not by a report.
+      bodySizeLimit: '25mb',
     },
   },
   async headers() {

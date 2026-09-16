@@ -32,6 +32,8 @@ export {
   type DeterministicTextExtractorOptions,
 } from './text-extraction';
 
+export { BuiltinPreviewRenderer } from './preview-renderer';
+
 export {
   OpenAiExtractionAdapter,
   type OpenAiExtractionAdapterOptions,

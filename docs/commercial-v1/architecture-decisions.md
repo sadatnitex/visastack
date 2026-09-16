@@ -277,3 +277,123 @@ Step-up re-verification at redemption is carried forward from the mint-time valu
 the token rather than independently re-derived from a live session, since the serving route has
 no session/cookie context today; this is a narrower, honestly-scoped gap than the grant/
 membership/servability recheck this change actually delivers.
+
+## AD-06: Safe rendered previews, replacing the `redacted` 501 (EVI-02/EVI-06)
+
+**Decision.** The PRD is explicit: "Use safe rendered previews with active content removed;
+originals are explicit downloads, never an untrusted inline PDF shortcut" (§5). Before this
+chunk, `/api/blob/[key]/route.ts` honoured only the `original` variant; any `redacted` request,
+which was every non-owner preview, was a hardcoded `501`, and `documents.ts`'s `accessDocument`
+gave the applicant owner the raw `original` variant for their own preview as a Milestone 2
+shortcut. Both are closed this chunk: a new `PreviewRendererPort` (`packages/services/src/
+preview-rendering.ts`), implemented by `BuiltinPreviewRenderer` (`packages/adapters/src/
+preview-renderer.ts`), renders a genuinely inert derivative per content type, and
+`accessDocument`'s preview branch now always requests `redacted`, for the owner and any third
+party alike; only `downloadDocument`'s separate `DOWNLOAD_ORIGINAL` action (its own policy check
+plus step-up) ever reaches the stored original.
+
+**Correcting the owner-gets-original shortcut.** An earlier build's read of Milestone 2 gave the
+applicant owner the clean original inline on preview, reasoning that the owner is already
+authorized to see their own document. The newer PRD text is explicit that this is wrong: preview
+is never a path to original bytes, for anyone, regardless of ownership; only an explicit download
+is. Per this programme's standing instruction to follow the newer PRD's direction over an older
+build's where they conflict, `accessDocument`'s owner-scoped branch (and its now-dead
+`isApplicantOwner` helper) was removed rather than kept as a special case.
+
+**Rendering strategy per content type**, chosen to avoid repeating this codebase's own PDF
+post-mortem (a hand-rolled PDF parser hunting for active-content markers was abandoned after 20
+correctness findings across 8 review rounds; see `scanner.ts`'s module doc comment and AD-04):
+
+- PDF: rasterize page 1 to a PNG via `unpdf`'s `renderPageAsImage` (pdfjs, the same renderer
+  Firefox ships) plus `@napi-rs/canvas`. A raster image cannot carry a PDF's JS actions, launch
+  actions, embedded files, or form fields regardless of what the source PDF actually contained;
+  this is the strongest available "active content removed" guarantee, and, deliberately, not a
+  parser of any kind. Page 1 only: a preview thumbnail, not a full-document viewer.
+- PNG/JPEG: decode, then redraw onto a fresh canvas, re-encoded as PNG. This strips EXIF/ICC
+  metadata and any bytes past the real decoded pixels, closing the polyglot-file class of attack
+  (an image with HTML/script bytes appended past its real image data cannot survive a
+  decode-and-redraw); proven by a dedicated test that appends a `<script>` tag past a real PNG's
+  bytes and asserts it is absent from the rendered output.
+- DOCX: `mammoth.extractRawText`, the same parser `text-extraction.ts` already uses and this
+  codebase already trusts, served as plain text. Strips macros, OLE objects, external template
+  references, and tracked-changes/comment metadata; only the visible text survives.
+- `text/plain`/`text/markdown`: passthrough, normalized to `text/plain`. Already inert (no
+  execution model); the markdown-to-`text/plain` normalization is defense in depth so redacted
+  text output is never later reinterpreted as markup by some future consumer.
+- Anything else: `{ rendered: false }`, honestly, surfaced by the route as its own `501` detail
+  string rather than silently guessing or falling through to raw bytes.
+
+**Why `unpdf` was upgraded from 1.6.2 to 1.8.1.** `renderPageAsImage` needs `@napi-rs/canvas` as
+its Node canvas implementation (there is no default on Node; `loadImage`/`createCanvas` are
+required), and `unpdf@1.6.2` only declared a peer range of `^0.1.69`, an old major version of
+`@napi-rs/canvas` with a different, less-maintained API. `unpdf@1.8.1` widened that peer range to
+`^0.1.69 || ^1.0.0`, letting the adapter use the current `@napi-rs/canvas@1.0.x` cleanly. Verified
+safe for the already-shipped text-extraction feature (which also depends on `unpdf`) by rerunning
+its full existing test suite after the upgrade, 22/22 still green, not by reading a changelog and
+assuming.
+
+**Why on demand, with no persistent cache, for this chunk.** Both storage backends were read
+before choosing: `NeonBlobStorage` addresses bytes purely by `objectKey` with no dependent DB
+row, but `VercelPrivateBlobStorage.getObject` looks up `storage_objects` by `objectKey` first to
+learn the bucket, so caching a derived rendition under a synthetic key would need a new
+`storage_objects` row per cached rendition on that backend, not a free byte-store write. A
+persisted cache is a real, worthwhile future optimization once preview volume is measured to
+justify it (the natural shape: a background job writes one derived object per document version,
+looked up instead of re-rendered), but building it speculatively now, before any evidence it is
+needed, would be exactly the kind of premature complexity this programme's own engineering
+principles argue against. Rendering is bounded enough per call (single PDF page, single image
+redraw, one DOCX text extraction, all against already size-capped originals) that generating on
+every request is a reasonable, honestly-documented starting posture, not a hidden shortcut.
+
+**Defensive bounds added, and why.** This chunk is the first place this codebase decodes
+image/PDF bytes server-side into memory rather than only passing them through or magic-byte
+sniffing them, so it is squarely this chunk's responsibility to bound that, not a pre-existing gap
+deferred elsewhere:
+
+- A pixel-count cap (40 megapixels) is enforced by reading PNG IHDR / JPEG SOF header bytes
+  directly, before ever calling the decoder, so a small, highly-compressible file with an absurd
+  declared pixel count (for example a solid-colour 60000x60000 PNG comfortably under the 20 MiB
+  upload cap) is rejected without the multi-gigabyte allocation a full decode would otherwise
+  attempt. Proven by a test that hand-crafts a PNG header claiming such dimensions with no real
+  pixel data behind it, and confirms it is rejected without ever reaching the decoder.
+- Every render is wrapped in a 10-second wall-clock timeout (`Promise.race` against a timer),
+  since PDF parsing in particular has no other bound available short of hand-rolling a parser,
+  which this codebase has already tried and abandoned once. This mechanism is not independently
+  exercised by a test (doing so would mean mocking `unpdf`/`@napi-rs/canvas` module internals for
+  one defensive edge case); it is a standard, well-understood `Promise.race` pattern, verifiable
+  by inspection, and this is stated here plainly rather than claimed as tested.
+
+**A buffer-slicing bug caught, and fixed, before it shipped.** The `original`-variant serving path
+already copied bytes into a fresh, exactly-sized `ArrayBuffer` before constructing a `Response`,
+with a comment explaining why: a `Uint8Array` can be a view over a larger, possibly pooled backing
+buffer, and serving `.buffer` directly risks sending bytes beyond the intended slice. The first
+draft of the new redacted-serving branch used `rendered.bytes.buffer` directly, missing that same
+guard. Caught by re-reading the route once more for correctness rather than by a test failure
+(the bug would not reliably reproduce against small fixtures), and fixed by factoring the existing
+copy into one `freshArrayBuffer` helper used by both branches, and by making
+`BuiltinPreviewRenderer`'s own plain-text passthrough return an independently-owned copy as a
+postcondition of the port itself, not something every future caller must remember to add.
+
+**A second, unrelated bug found and fixed while in this file.** `next.config.mjs`'s
+`bodySizeLimit` was still `15mb`, a margin computed against the *old* 10 MiB upload quota (fixed
+to 20 MiB earlier in Part 3; see `known-issues.md` item 20), silently re-introducing the exact
+"uploads rejected before reaching the real quota check" bug that comment itself describes, for any
+upload between 15 and 20 MiB. Corrected to `25mb`, the same proportional margin over the current
+20 MiB quota. Caught by reading this file while adding `@napi-rs/canvas` to
+`serverExternalPackages`, not reported separately.
+
+**What this proves, and what it does not.** `BuiltinPreviewRenderer` is proven against real
+bytes, not fakes: a real hand-built PDF rasterized and checked for PNG magic bytes; a real
+canvas-generated PNG/JPEG decoded, redrawn, and checked that appended polyglot bytes do not
+survive; a real hand-built DOCX extracted and checked for its actual text; the pixel-cap and
+unsupported-type paths exercised directly (12 tests, `preview-renderer.test.ts`). The
+`previewFilename` helper is unit tested directly (5 tests). `documents.ts`'s corrected
+owner-always-redacted behaviour is proven against real PGlite Postgres (`documents.test.ts`,
+48 tests across that file and `sharing.test.ts`, all green after this change). What this does not
+cover: `/api/blob/[key]/route.ts`'s own wiring (token parsing, the variant branch, the call into
+the renderer) has no direct route-handler test, matching `headers.test.ts`'s own stated rationale
+for this exact route ("simple early returns with no independent logic worth mocking a database
+for") and this codebase's established pattern of testing `apps/web` routes without a real/PGlite
+database; this was true of the `501` this chunk replaces too, so it is a pre-existing gap in this
+one route's own test coverage, not a new one introduced here. The render-timeout wrapper's actual
+firing is likewise not independently exercised, as noted above.

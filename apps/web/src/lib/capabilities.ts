@@ -82,10 +82,15 @@ export function getPlatformCapabilities(): PlatformCapabilities {
     // sufficient alone), 'available' only once MALWARE_SCANNER_PROVIDER
     // and its connection env vars are genuinely configured, never assumed.
     malwareScanning: clamAvConfigured ? 'available' : 'unconfigured',
+    // Real safe-preview rendering now exists (EVI-02/EVI-06:
+    // `BuiltinPreviewRenderer`, wired into `/api/blob/[key]`); every
+    // preview, owner or third party, is the rendered `redacted` derivative;
+    // neither ever reaches the stored original (`documents.ts`'s
+    // `accessDocument`). Both gate on the same blob-storage-configured
+    // condition; the policy engine, not this registry, decides WHO may
+    // preview a given document.
     ownerPreview: gapAware(blobConfigured ? 'available' : 'unconfigured', 'ownerPreview'),
-    // No redacted rendition pipeline exists yet — fail-closed by design,
-    // not a new PR 1 restriction (see current-product-baseline.md).
-    thirdPartyPreview: 'disabled',
+    thirdPartyPreview: gapAware(blobConfigured ? 'available' : 'unconfigured', 'thirdPartyPreview'),
     // A real step-up mechanism exists now (apps/web/src/lib/step-up.ts, PR
     // 5) and the policy engine already requires it for DOWNLOAD_ORIGINAL
     // (packages/policy/src/authorize.ts's STEP_UP_ACTIONS) — step-up is no

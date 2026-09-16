@@ -133,6 +133,12 @@ export type {
   StoredBytes,
 } from './storage';
 
+export type {
+  PreviewRenderResult,
+  PreviewRendererPort,
+  RenderedPreview,
+} from './preview-rendering';
+
 export { type AccountExport, exportAccount } from './export';
 
 export {

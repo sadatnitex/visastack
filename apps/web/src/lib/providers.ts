@@ -1,6 +1,7 @@
 import 'server-only';
 import {
   BasicSafetyScanner,
+  BuiltinPreviewRenderer,
   ClamAvScanner,
   ConsoleObservabilityPort,
   DeterministicTextExtractor,
@@ -15,6 +16,7 @@ import type {
   MalwareScannerPort,
   ObservabilityPort,
   PaymentPort,
+  PreviewRendererPort,
 } from '@visastack/services';
 import { WorkosIdentityPort } from './identity-provider';
 
@@ -50,6 +52,7 @@ const KNOWN_PROVIDERS = {
   DATABASE_PROVIDER: ['neon'],
   MALWARE_SCANNER_PROVIDER: ['builtin', 'clamav'],
   DOCUMENT_CONVERTER_PROVIDER: ['builtin'],
+  PREVIEW_RENDERER_PROVIDER: ['builtin'],
   AI_PROVIDER: ['openai'],
   JOB_PROVIDER: ['neon'],
   EMAIL_PROVIDER: ['none'],
@@ -157,6 +160,16 @@ export function createMalwareScanner(blobStore: BlobStore): MalwareScannerPort {
 export function createDocumentConverter(blobStore: BlobStore): DocumentConverterPort {
   checkKnownProvider('DOCUMENT_CONVERTER_PROVIDER');
   return new DeterministicTextExtractor({ blobStore });
+}
+
+/**
+ * The safe preview renderer (EVI-02/EVI-06), the only `PreviewRendererPort`
+ * implementation today, matching `createDocumentConverter`'s "builtin,
+ * always active" shape: no external account, no configuration branch.
+ */
+export function createPreviewRenderer(): PreviewRendererPort {
+  checkKnownProvider('PREVIEW_RENDERER_PROVIDER');
+  return new BuiltinPreviewRenderer();
 }
 
 /** No email provider is configured for the pilot (master directive §7 "PR 11": matches Payment's explicit "no payment provider"). */

@@ -154,3 +154,35 @@ new second-token verification and live recheck.
 Full detail: `docs/commercial-v1/architecture-decisions.md` AD-05; open items:
 `docs/commercial-v1/known-issues.md` item 19 (safe preview rendering, now the single
 highest-priority remaining Part 3 item) and item 23 (support_admin document access wiring).
+
+## Part 3, chunk 3: safe rendered previews, replacing the `redacted` 501 (EVI-02/EVI-06)
+
+Commit: working tree on top of `152e0ec` (Part 3 chunk 2), with the new
+`packages/services/src/preview-rendering.ts` (port), `packages/adapters/src/preview-renderer.ts`
+(+ test, `BuiltinPreviewRenderer`), `apps/web/src/app/api/blob/[key]/preview-filename.ts`
+(+ test), `apps/web/src/lib/providers.ts`'s new `createPreviewRenderer`, `documents.ts`'s
+owner-always-redacted correction, and `next.config.mjs`'s native-binary/upload-size fixes.
+CI GitHub Actions confirmation for chunk 2 (commit `152e0ec`) was completed at the start of
+this chunk: real `freshclam`-fetched official signatures and 413/413 services tests, 731/731
+total, all genuinely green on the actual runner, not just this sandbox.
+
+| # | Command | Exit | Result | Detail |
+|---|---|---|---|---|
+| 1 | `pnpm run lint` | 0 | PASS | Biome, 308 files checked, no fixes applied. Caught and fixed a real violation of the user's own no-em-dash preference across every newly-authored line this chunk (new files and new/rewritten comments/test titles in modified files) before this run; pre-existing em-dashes in unmodified code the edits happened to sit near were left alone, not rewritten. |
+| 2 | `pnpm run typecheck` | 0 | PASS | All 7 packages, no errors. |
+| 3 | `pnpm run test` | 0 | PASS | 748 tests total across all 7 packages (i18n 6, core 2, policy 29, db 26 + 1 skipped, adapters 128 + 2 skipped, web 141, services 413). `preview-renderer.test.ts`: 12 new tests against real bytes, not fakes: a hand-built PDF actually rasterized to a PNG (magic bytes checked, never the source PDF's own bytes); a corrupt PDF fails closed with a detail string, never throwing; a real canvas-generated PNG with `<script>evil()</script>` appended past its real image data is decoded/redrawn and the appended bytes confirmed absent from the output (the polyglot-file guard, proven, not assumed); a real JPEG re-encoded to PNG; a hand-crafted PNG header claiming 60000x60000 pixels rejected by the pixel-cap pre-check without ever reaching the decoder; a real hand-built DOCX extracted to its actual text, and a corrupt DOCX failing closed; plain text and markdown passthrough (markdown normalized to `text/plain`); a passthrough result proven to own an independent buffer, not a view over the caller's array; an unsupported content type honestly reported, not guessed. `preview-filename.test.ts`: 5 new tests for the display-name helper. `documents.test.ts`: the existing owner-preview test rewritten and re-verified to assert `redacted`, not `original` (the corrected behaviour), plus the full existing 48-test `documents.test.ts`/`sharing.test.ts` suite re-run green after the `accessDocument` change. `text-extraction.test.ts`/`adapters.test.ts` (22 tests) re-run green after the `unpdf` 1.6.2 to 1.8.1 upgrade, confirming the already-shipped extraction feature was not broken by the version bump this chunk needed for `@napi-rs/canvas` peer compatibility. |
+| 4 | `pnpm run build` | 0 | PASS, after one real fix | Full monorepo build including `apps/web`, producing the complete route manifest (`/api/blob/[key]` included). First attempt genuinely failed: `serverExternalPackages` alone (the documented Next.js mechanism, and every `@napi-rs/canvas-*` platform package was also listed) did not stop webpack parsing the native `.node` binary as JavaScript when reached transitively through the `@visastack/adapters` pnpm workspace package, both via a Server Action and via the plain `/api/blob/[key]/route.ts` Route Handler. Fixed with an explicit `webpack()` config override (a function-based server-only `externals` matcher on the `@napi-rs/canvas` request prefix); re-run confirmed clean. Same pre-existing `unpdf`/`import.meta` warning as prior chunks (now also reached via the new preview-renderer import path, not a new warning). Full detail: `known-issues.md` item 26. |
+| 5 | `pnpm audit --prod` | 0 | PASS | "No known vulnerabilities found", run after adding `@napi-rs/canvas` and upgrading `unpdf`. |
+
+A real, security-relevant correction beyond the 501 fix itself: the PRD's own text ("originals
+are explicit downloads, never an untrusted inline PDF shortcut") was checked against
+`documents.ts`'s actual behaviour, not assumed consistent with it, and found to conflict: an
+earlier build served the applicant owner the raw original inline on preview. Per this
+programme's standing instruction to follow the newer PRD's direction over an older build's
+where they conflict, this was corrected (owner preview is now always the rendered `redacted`
+derivative too), not left as a special case alongside the new renderer.
+
+Full detail: `docs/commercial-v1/architecture-decisions.md` AD-06; open items:
+`docs/commercial-v1/known-issues.md` item 23 (support_admin document access wiring, now the
+single highest-priority remaining Part 3 item) and item 25 (this route's own wiring has no
+direct route-handler test, a pre-existing gap this chunk did not introduce and did not close).

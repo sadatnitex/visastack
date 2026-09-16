@@ -516,16 +516,6 @@ function actorAccessContext(actor: Actor): {
   }
 }
 
-/**
- * Whether this actor is the applicant's owner. The owner actor is minted by the
- * caller only after it has verified `applicant.ownerAccountId === session
- * account` (see the preview server action), so an owner actor for this
- * document's applicant is authoritative.
- */
-function isApplicantOwner(actor: Actor, applicantId: string): boolean {
-  return actor.kind === 'applicant_owner' && actor.applicantId === applicantId;
-}
-
 async function accessDocument(
   db: Db,
   storage: StoragePort,
@@ -543,17 +533,15 @@ async function accessDocument(
   );
   if (!document) return err(serviceError('not_found', 'document not found'));
 
-  // Preview variant is owner-scoped (Milestone 2): the applicant's owner may
-  // preview their own clean ORIGINAL; any third party gets a `redacted` variant,
-  // which the serving route fails closed on until real renditions exist — it can
-  // never expose the original bytes as a "preview". Downloads keep the requested
-  // variant (original still requires DOWNLOAD_ORIGINAL + step-up).
-  const effectiveVariant: AccessVariant =
-    disposition === 'preview'
-      ? isApplicantOwner(input.actor, document.applicantId)
-        ? 'original'
-        : 'redacted'
-      : variant;
+  // Preview is ALWAYS the rendered `redacted` derivative, for the owner and
+  // any third party alike (PRD §5: "Use safe rendered previews with active
+  // content removed; originals are explicit downloads, never an untrusted
+  // inline PDF shortcut", corrected this chunk; an earlier build gave the
+  // owner the raw original here, which the newer PRD text explicitly rules
+  // out). `/api/blob/[key]` renders it via `PreviewRendererPort`; it never
+  // falls through to original bytes. Downloads keep the requested variant
+  // (original still requires DOWNLOAD_ORIGINAL + step-up).
+  const effectiveVariant: AccessVariant = disposition === 'preview' ? 'redacted' : variant;
 
   const now = input.now ?? new Date();
   const grants = await loadGrantsForPolicy(db, document.applicantId);
@@ -819,10 +807,11 @@ export async function recheckDocumentAccess(
 }
 
 /**
- * Permission-checked preview. The owner previews their own clean original; any
- * third party is issued a `redacted` variant, which the serving route fails
- * closed on until real generated renditions exist (Milestone 2) — preview never
- * exposes original bytes to a non-owner.
+ * Permission-checked preview. Always issues a `redacted` variant, a
+ * rendered, active-content-stripped derivative, for the owner and any
+ * third party alike; preview never exposes original bytes to anyone (PRD
+ * §5). The original is reachable only via `downloadDocument`'s explicit
+ * `DOWNLOAD_ORIGINAL` action (step-up required).
  */
 export async function previewDocument(
   db: Db,

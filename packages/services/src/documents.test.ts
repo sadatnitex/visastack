@@ -742,7 +742,7 @@ describe('document vault — preview never leaks originals to third parties (Mil
     storage = new FakeStorage();
   });
 
-  it('mints an ORIGINAL variant for the applicant owner previewing their own clean document', async () => {
+  it('mints a REDACTED variant for the applicant owner previewing their own clean document, preview never exposes original bytes, even to the owner (PRD §5)', async () => {
     const { document } = await seedOwnerWithDocument(db, 'p1@example.com');
 
     const preview = await previewDocument(db, storage, {
@@ -753,10 +753,12 @@ describe('document vault — preview never leaks originals to third parties (Mil
     });
 
     expect(isOk(preview)).toBe(true);
-    // The owner sees the clean original; the serving route only releases bytes
-    // for an `original` variant token.
-    if (isOk(preview)) expect(preview.value.variant).toBe('original');
-    expect(storage.calls.at(-1)?.variant).toBe('original');
+    // Preview is always the rendered redacted derivative; only
+    // `downloadDocument`'s explicit `original` variant (its own
+    // DOWNLOAD_ORIGINAL check + step-up) ever reaches the serving route
+    // with an `original` token.
+    if (isOk(preview)) expect(preview.value.variant).toBe('redacted');
+    expect(storage.calls.at(-1)?.variant).toBe('redacted');
     // The display filename (original name, since nothing has been approved
     // yet) flows into the reference — never the opaque storage key.
     expect(storage.calls.at(-1)?.filename).toBe('passport.pdf');
