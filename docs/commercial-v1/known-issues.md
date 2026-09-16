@@ -84,6 +84,22 @@ item gets its own requirements-ledger row once classified against the new direct
     is not safe by itself, even for a "patch-level" security fix; it must be paired with an
     upper bound and a green test run before being trusted.
 
+12. (Part 2) Staff/reviewer/support/platform-admin MFA is enforced nowhere, confirmed both
+    in application code (`apps/web/src/lib/session.ts`'s `withSession`, the single entry
+    point nearly every server action uses, does nothing authentication-strength-related
+    beyond calling WorkOS's `withAuth()`) and live against VisaStack's actual production
+    WorkOS environment (`mfaEnabled: "Off"`, queried via the connected WorkOS MCP connector
+    this session). Full analysis in `threat-model.md`; the architectural tension (the only
+    reliable mechanism found is environment-wide, but the PRD wants staff-only) is recorded
+    as a decision required in `assumptions-and-blockers.md`, not resolved unilaterally.
+13. (Part 2) No scoped, time-limited support-access-grant object exists (SEC-06 requires
+    actor, subject/resource scope, reason, approver, start, expiry, max 60 minutes,
+    revocation, audit trail). `packages/policy/src/authorize.ts` already has a real
+    `support_admin` actor case that evaluates against a grant the same way any other
+    recipient's grant is evaluated, but nothing today actually issues, time-bounds, or
+    audits such a grant as a first-class object for that code path to consume. Confirmed by
+    reading `schema.ts` in full; no matching table exists.
+
 Items 1 through 4 and 5 through 9 above are carried forward or upgraded to independently
 confirmed findings; the missing PRD file is tracked as Blocker 1 in
 `assumptions-and-blockers.md` (now resolved) rather than here, since it blocked the

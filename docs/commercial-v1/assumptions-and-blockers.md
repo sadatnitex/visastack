@@ -28,6 +28,45 @@ authority order (Section 1): explicit user instruction, then this PRD, then
 approved implementation decisions, then retained architecture/security
 invariants, then older PRDs as historical context only.
 
+## Decision required: staff MFA enforcement mechanism (OPEN)
+
+Confirmed this session, live against VisaStack's actual production WorkOS environment
+(`authkitSettings` query via the connected WorkOS MCP connector): `mfaEnabled` is currently
+`"Off"`. No staff/reviewer/support/platform-admin MFA is enforced anywhere, in code or at the
+identity provider. Full technical detail in `threat-model.md` under "Staff MFA bypass."
+
+The only mechanism this session found for provably-enforced MFA (not just "encouraged")
+is WorkOS's environment-level `mfaEnabled: "Required"` AuthKit setting. It is environment-wide:
+turning it on would require MFA for every user in that environment, including travellers,
+which the PRD (IAM-01, §4) explicitly says not to require for V1 ("Traveller MFA: supported
+and encouraged; not required by V1"). No organization- or role-scoped override was found in
+the WorkOS operations surfaced to this session, and confirming whether one exists needs either
+further live WorkOS API exploration this session hasn't done, WorkOS support, or docs access
+(`workos.com` is blocked by this environment's network egress proxy, so this could not be
+checked directly).
+
+This session did not flip the live setting. That is a production identity-provider policy
+change with a real blast radius (could lock out any user without MFA already enrolled,
+including the product owner's own account) — squarely the kind of hard-to-reverse,
+production-affecting action that needs explicit authorization, not an autonomous tool call,
+regardless of how strong the technical case for it is.
+
+Options for the product owner:
+
+1. Accept universal MFA for V1 (travellers included) and authorize turning on
+   `mfaEnabled: "Required"` on the production (and staging) WorkOS environment. Simplest,
+   most robust, deviates from the PRD's stated traveller-optional design (a stronger security
+   posture than asked for, not a weaker one — flagging the deviation per Part 1's own rule
+   that any deviation must be named explicitly, even a strictly-more-conservative one).
+2. Keep MFA optional for travellers and find or build a role-scoped enforcement path (needs
+   more WorkOS investigation, e.g. organization-level policies, or an application-level
+   gate built on whatever session signal WorkOS can actually provide once identified).
+3. Authorize this session (or a future one) to continue investigating WorkOS's API for an
+   org/role-scoped option before deciding between 1 and 2.
+
+Until resolved, IAM-01/SEC-01's MFA requirement is REPAIR/NOT_STARTED in the ledger, and A01
+cannot pass.
+
 ## Decision: how "push to production" is being interpreted
 
 The instruction to commit, push, and reach production within three minutes of
