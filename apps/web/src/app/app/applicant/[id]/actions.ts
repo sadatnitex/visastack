@@ -43,6 +43,11 @@ export interface ActionState {
   readonly message: string;
 }
 
+/** Variable-keyed env read (satisfies both TS index-signature and Biome rules). */
+function readEnv(name: string): string | undefined {
+  return process.env[name];
+}
+
 /** Guard: the applicant must be owned by the signed-in account. */
 async function assertOwned(db: Db, accountId: string, applicantId: string): Promise<boolean> {
   const applicant = await getApplicant(db, applicantId);
@@ -315,7 +320,9 @@ export async function previewDocumentAction(formData: FormData): Promise<void> {
   const applicantId = String(formData.get('applicantId') ?? '');
   const documentId = String(formData.get('documentId') ?? '');
 
+  const accessTokenSecret = readEnv('BLOB_SIGNING_SECRET');
   const url = await withSession(async ({ db, accountId }) => {
+    if (!accessTokenSecret) return null;
     const applicant = await getApplicant(db, applicantId);
     if (!applicant || applicant.ownerAccountId !== accountId) return null;
     const actor: Actor = {
@@ -327,6 +334,7 @@ export async function previewDocumentAction(formData: FormData): Promise<void> {
       actor,
       documentId,
       purpose: 'owner_preview',
+      accessTokenSecret,
     });
     return ref.ok ? ref.value.url : null;
   });

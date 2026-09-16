@@ -36,6 +36,8 @@ import type { AccessRef, IssueReadRefInput, StoragePort } from './storage';
 
 const migrationsFolder = fileURLToPath(new URL('../../db/migrations', import.meta.url));
 
+const TEST_ACCESS_TOKEN_SECRET = 'test-access-token-secret';
+
 class FakeStorage implements StoragePort {
   async issueReadRef(input: IssueReadRefInput): Promise<AccessRef> {
     return {
@@ -241,6 +243,7 @@ describe('sharing — grant lifecycle end-to-end with the policy engine', () => 
         actor: { kind: 'organization_member', accountId: agentAcc.value.id as never, membership },
         documentId,
         purpose: 'visa_application',
+        accessTokenSecret: TEST_ACCESS_TOKEN_SECRET,
       });
 
     // Before acceptance: denied (grant not accepted).

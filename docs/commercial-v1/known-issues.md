@@ -143,14 +143,12 @@ item gets its own requirements-ledger row once classified against the new direct
     explicitly defeat the RULE to simulate the threat it claims to test, or it silently tests
     nothing.
 
-18. (Part 3) The binary-delivery token (EVI-06/SEC-05) runs a 300-second TTL
-    (`DEFAULT_ACCESS_TTL_SECONDS`, `packages/services/src/documents.ts`) against the PRD's
-    explicit 60-second maximum, and redemption (`apps/web/src/app/api/blob/[key]/route.ts`)
-    checks only the token's HMAC signature and expiry, never live grant status: a grant
-    revoked mid-token-life does not invalidate an already-issued token. This directly
-    contradicts the directive's own explicit adversarial test (A08: "revoked grant kills
-    token") and EVI-06's "redemption must recheck access." Confirmed this session via Explore
-    agent inventory, not yet fixed. Highest-priority item for the next Part 3 chunk.
+18. ~~The binary-delivery token runs a 300-second TTL... redemption checks only signature+
+    expiry, never live grant status.~~ **RESOLVED (Part 3).** TTL corrected to 60 seconds;
+    redemption now replays the full authorization decision against live state via a second
+    signed token and `recheckDocumentAccess`. 11 new tests prove a grant revoked, a membership
+    deactivated, or a document version erased between mint and redemption each correctly kill
+    an otherwise-still-valid token. Full design: `architecture-decisions.md` AD-05.
 19. (Part 3) Safe preview (EVI-02/EVI-06: "safe rendered previews with active content
     removed") does not exist. `previewDocument`/`accessDocument`
     (`packages/services/src/documents.ts`) compute an `effectiveVariant` of `'original'` or
@@ -193,6 +191,22 @@ item gets its own requirements-ledger row once classified against the new direct
     coincidentally passing and was fixed at the same time once the pattern was recognized.
     Fixed by declaring the fixture as `text/plain`, matching how a real EICAR.com upload
     (which is plain ASCII by design) would actually be typed.
+
+23. (Part 3) `support_admin` document access is structurally unreachable today regardless of
+    any support grant that exists. `accessDocument` (`packages/services/src/documents.ts`,
+    both at mint time and now at `recheckDocumentAccess`'s redemption-time recheck) only ever
+    loads ordinary grants via `loadGrantsForPolicy`, never `support_grants` via
+    `loadSupportGrantsForPolicy` (`packages/services/src/support-access.ts`, built and fully
+    tested in Part 2). `authorize()`'s `support_admin` case (`packages/policy/src/
+    authorize.ts`) filters candidate grants by `recipientAccountId`, but since the candidate
+    list passed in never includes support grants, no support-admin actor can pass this
+    specific authorization path, confirmed by a direct test in this chunk
+    (`documents.test.ts`'s `recheckDocumentAccess` suite). This is distinct from, and does not
+    reflect badly on, SEC-06's own support-grant issuance/approval/revocation machinery, which
+    is correctly implemented and tested; only its wiring into the document-access decision
+    point is missing. Not fixed this chunk (out of scope for the delivery-token fix); tracked
+    for the admin-workspace/support-access UI work in Part 5/9 (ADM-01), where a real caller
+    constructing a `support_admin` actor for document access would first need this gap closed.
 
 Items 1 through 4, 5 through 9, and 14/15 above are carried forward or upgraded to
 independently confirmed findings; the missing PRD file is tracked as Blocker 1 in

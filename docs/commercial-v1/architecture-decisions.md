@@ -210,3 +210,70 @@ topology, but the topology itself is not stood up anywhere. (3) SEC-05's decompr
 page-count/pixel/memory/CPU/time guards, ZIP-export safe-naming, and export-artifact lifetime
 are not yet audited or built this chunk. All three tracked in `known-issues.md`, not silently
 dropped.
+
+## AD-05: Redemption-time access recheck via a second signed token (EVI-06/SEC-05)
+
+**Decision.** `blob-token.ts` (`packages/adapters`) is a stateless HMAC capability token proving
+"this object key and disposition were authorized, and this has not expired." It deliberately
+carries no actor or grant information (it is storage-generic, reused by every backend), which
+means it has nothing left to revoke once signed: a grant revoked one second after mint would
+still redeem successfully for the token's whole remaining lifetime. The directive is explicit
+that this is not acceptable ("redemption must recheck access", "revoking a grant before
+redemption must make an already issued token fail", adversarial test A08).
+
+The fix is a second, independent signed token, `document-access-token.ts`
+(`packages/services`), minted by `accessDocument` alongside the existing blob token and
+transmitted as its own set of query parameters (`adid`/`aak`/`aaid`/`aoid`/`aact`/`apur`/`asu`/
+`aexp`/`asig`) on the same delivery URL. It carries the minimum needed to reconstruct the
+original authorization context: which document, which kind of actor, which account (where
+applicable), which organization (for a member), which action, purpose, and whether step-up was
+satisfied at mint time. At redemption, `/api/blob/[key]/route.ts` verifies this token's own
+signature and expiry (same as the blob token), then calls `recheckDocumentAccess`
+(`packages/services/src/documents.ts`), which:
+
+1. Re-fetches the document fresh; gone means denied.
+2. Reconstructs the `Actor` fresh: for `organization_member`, this means a live
+   `listMembershipsForAccount` query, never trusting whatever `active`/`role` the actor
+   claimed at mint time (the mint-time `Actor` object is never replayed as-is; only the
+   identifying account/org IDs are carried forward, and the mutable membership fact is
+   re-derived).
+3. Loads grants fresh via the existing `loadGrantsForPolicy` (already a live query, not
+   cached), so a grant revoked, expired, or paused since mint is reflected automatically.
+4. Calls the same `authorize()` the mint-time decision used, with this fresh actor and these
+   fresh grants, against the same resource/action/purpose.
+5. Re-runs the servability check (`isDocumentVersionUsable`/`hasActiveOrVerifiedErasureJob`)
+   mint time already ran, so a version erased or otherwise made unusable between mint and
+   redemption cannot still be served either, closing the directive's "exact version" clause,
+   not just the grant-revocation one.
+
+**Why a second token instead of extending the blob token or `StoragePort`.** `StoragePort` is
+explicitly documented as "the seam between the domain and object storage": Actor/Grant are
+domain concepts that do not belong leaking into a generic port also meant to support S3 later.
+Keeping the two tokens separate means `NeonBlobStorage`/`VercelPrivateBlobStorage` and
+`blob-token.ts` needed zero changes; the whole addition is new files plus one field added to
+`DocumentAccessInput` (`accessTokenSecret`, reusing `BLOB_SIGNING_SECRET`, so no new secret to
+provision) and a few lines at the point `accessDocument` already builds the response URL.
+
+**Why per-field query parameters instead of one packed token string.** The first version of
+this design packed every field into one dot-delimited, doubly-`encodeURIComponent`'d string. A
+purpose value containing any character `encodeURIComponent` treats specially (a space, `&`,
+non-ASCII text) came back corrupted on decode because the encoding was applied twice on the way
+out and only undone once on the way back in, silently breaking signature verification for any
+such purpose, caught by this session's own round-trip test before it ever reached a real
+purpose string with special characters, not by a later report. Rebuilt to match `blob-token.ts`'s
+own already-correct, already-tested convention exactly: one query parameter per field, each
+read back via `URLSearchParams`, which decodes exactly once, correctly, by construction. Proven
+by a dedicated round-trip test using a purpose containing `&`, `=`, a space, and CJK characters.
+
+**What this proves, and what it does not.** Proven by 11 new integration tests (real PGlite,
+not mocked): a grant revoked between mint and redemption denies redemption even though the
+token has not expired; a membership deactivated between mint and redemption denies redemption
+even though the grant itself is untouched; a document version erased between mint and
+redemption denies redemption even for the document's own owner. What this does not cover:
+`support_admin` document access, which is structurally unreachable today for a reason unrelated
+to this change (`accessDocument` never loads `support_grants`, only ordinary `grants`), recorded
+as a new, separate finding in `known-issues.md` item 23 rather than silently left unmentioned.
+Step-up re-verification at redemption is carried forward from the mint-time value embedded in
+the token rather than independently re-derived from a live session, since the serving route has
+no session/cookie context today; this is a narrower, honestly-scoped gap than the grant/
+membership/servability recheck this change actually delivers.

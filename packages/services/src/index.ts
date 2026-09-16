@@ -419,6 +419,7 @@ export {
   type DocumentSummary,
   type DocumentVersion,
   type DownloadDocumentInput,
+  type RecheckDocumentAccessResult,
   type RegisterDocumentInput,
   type RegisterDocumentWithVersionInput,
   type StorageObject,
@@ -428,9 +429,19 @@ export {
   listDocuments,
   listDocumentsDetailed,
   previewDocument,
+  recheckDocumentAccess,
   registerDocument,
   registerDocumentWithVersion,
 } from './documents';
+
+export {
+  type DocumentAccessActorKind,
+  type DocumentAccessTokenFields,
+  appendDocumentAccessToken,
+  readDocumentAccessToken,
+  signDocumentAccessToken,
+  verifyDocumentAccessToken,
+} from './document-access-token';
 
 export {
   DEFAULT_UPLOAD_QUOTAS,

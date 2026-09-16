@@ -1,4 +1,6 @@
 import type {
+  AccountId,
+  AgencyId,
   ApplicantId,
   DocumentId,
   DocumentState,
@@ -12,8 +14,15 @@ import { getApplicant } from './applicants';
 import { appendAuditEvent } from './audit';
 import { hasConsent } from './consent';
 import { type Db, first, required, schema } from './db';
+import {
+  type DocumentAccessActorKind,
+  type DocumentAccessTokenFields,
+  appendDocumentAccessToken,
+  signDocumentAccessToken,
+} from './document-access-token';
 import { hasActiveOrVerifiedErasureJob } from './erasure';
 import { type ServiceError, serviceError } from './errors';
+import { listMembershipsForAccount } from './organizations';
 import { recordProductEvent } from './product-events';
 import { loadGrantsForPolicy } from './sharing';
 import type { AccessRef, AccessVariant, StorageBucket, StoragePort } from './storage';
@@ -34,7 +43,15 @@ export type Document = typeof schema.documents.$inferSelect;
 export type DocumentVersion = typeof schema.documentVersions.$inferSelect;
 export type StorageObject = typeof schema.storageObjects.$inferSelect;
 
-const DEFAULT_ACCESS_TTL_SECONDS = 300;
+/**
+ * EVI-06's explicit maximum ("maximum 60-second lifetime, rechecked at
+ * redemption"). Was 300 (5 minutes) before Commercial V1 Part 3; a 60-second
+ * window alone would still leave a mid-life grant revocation able to redeem
+ * successfully, which is why redemption also replays the original
+ * authorization decision against live state (see `recheckDocumentAccess`),
+ * not just the shorter window on its own.
+ */
+const DEFAULT_ACCESS_TTL_SECONDS = 60;
 
 // --- Registration (owner-authorized, consent-gated) ------------------------
 
@@ -467,6 +484,36 @@ export interface DocumentAccessInput {
   readonly purpose: string;
   readonly stepUpSatisfied?: boolean;
   readonly now?: Date;
+  /**
+   * Signs the redemption-time access-context token (EVI-06/SEC-05). The
+   * same secret the storage backend uses to sign its own blob token
+   * (`BLOB_SIGNING_SECRET`); a distinct namespace prefix inside the signed
+   * payload (`document-access-token.ts`'s `DAT1`) keeps the two token
+   * kinds from ever being confused, so reusing the secret needs no new
+   * secret-provisioning step.
+   */
+  readonly accessTokenSecret: string;
+}
+
+/** Reduces an `Actor` to the fields `document-access-token.ts` needs to reconstruct it fresh at redemption. */
+function actorAccessContext(actor: Actor): {
+  readonly actorKind: DocumentAccessActorKind;
+  readonly actorAccountId?: string;
+  readonly organizationId?: string;
+} {
+  switch (actor.kind) {
+    case 'applicant_owner':
+      return { actorKind: actor.kind };
+    case 'organization_member':
+      return {
+        actorKind: actor.kind,
+        actorAccountId: actor.accountId,
+        organizationId: actor.membership.organizationId,
+      };
+    case 'individual_recipient':
+    case 'support_admin':
+      return { actorKind: actor.kind, actorAccountId: actor.accountId };
+  }
 }
 
 /**
@@ -640,11 +687,135 @@ async function accessDocument(
     disposition,
     variant: effectiveVariant,
     expiresInSeconds: DEFAULT_ACCESS_TTL_SECONDS,
-    // The current approved name if one exists, else the preserved original —
+    // The current approved name if one exists, else the preserved original,
     // never the opaque storage key (master directive §10/§18/§21E).
     filename: document.approvedName ?? document.originalName,
   });
-  return ok(ref);
+
+  // A second, separate signed token (EVI-06/SEC-05) riding alongside the
+  // storage-generic blob token on the same URL, carrying just enough for
+  // the serving route to replay this exact authorization decision against
+  // LIVE state at redemption. See document-access-token.ts's module doc
+  // comment for why this is not folded into the blob token itself.
+  const accessTokenFields: Omit<DocumentAccessTokenFields, 'sig'> = {
+    documentId: document.id,
+    ...actorAccessContext(input.actor),
+    action,
+    purpose: input.purpose,
+    stepUpSatisfied: input.stepUpSatisfied ?? false,
+    exp: Math.floor(now.getTime() / 1000) + DEFAULT_ACCESS_TTL_SECONDS,
+  };
+  const signedAccessTokenFields: DocumentAccessTokenFields = {
+    ...accessTokenFields,
+    sig: signDocumentAccessToken(input.accessTokenSecret, accessTokenFields),
+  };
+  return ok({ ...ref, url: appendDocumentAccessToken(ref.url, signedAccessTokenFields) });
+}
+
+export type RecheckDocumentAccessResult =
+  | { readonly allowed: true }
+  | { readonly allowed: false; readonly reason: string };
+
+/**
+ * Replays the original authorization decision against LIVE state, called by
+ * the serving route at redemption (EVI-06/SEC-05: "redemption must recheck
+ * access", "revoking a grant before redemption must make an already issued
+ * token fail"). Never trusts anything the token itself claims about CURRENT
+ * state beyond its own signature/expiry (already verified by the caller):
+ * membership, grants, and document servability are all re-read fresh from
+ * the database here, not replayed from a mint-time snapshot.
+ *
+ * Deliberately returns a reason string rather than throwing or returning a
+ * bare boolean: the serving route logs which check actually failed, without
+ * that reason ever reaching the unauthenticated caller in the HTTP response.
+ */
+export async function recheckDocumentAccess(
+  db: Db,
+  fields: Omit<DocumentAccessTokenFields, 'sig' | 'exp'>,
+  now: Date = new Date(),
+): Promise<RecheckDocumentAccessResult> {
+  const document = first(
+    await db
+      .select()
+      .from(schema.documents)
+      .where(eq(schema.documents.id, fields.documentId))
+      .limit(1),
+  );
+  if (!document) return { allowed: false, reason: 'document_not_found' };
+
+  let actor: Actor;
+  switch (fields.actorKind) {
+    case 'applicant_owner':
+      actor = { kind: 'applicant_owner', applicantId: document.applicantId as ApplicantId };
+      break;
+    case 'organization_member': {
+      if (!fields.actorAccountId || !fields.organizationId) {
+        return { allowed: false, reason: 'missing_organization_member_context' };
+      }
+      // Fetched fresh, never trusted from the token: a membership
+      // deactivated after mint must be reflected here, not the mint-time
+      // snapshot the actor originally presented.
+      const memberships = await listMembershipsForAccount(db, fields.actorAccountId);
+      const membership = memberships.find((m) => m.organization.id === fields.organizationId);
+      if (!membership) return { allowed: false, reason: 'membership_not_found' };
+      actor = {
+        kind: 'organization_member',
+        accountId: fields.actorAccountId as AccountId,
+        membership: {
+          organizationId: fields.organizationId as AgencyId,
+          role: membership.role,
+          active: membership.active,
+        },
+      };
+      break;
+    }
+    case 'individual_recipient':
+      if (!fields.actorAccountId) return { allowed: false, reason: 'missing_actor_account_id' };
+      actor = { kind: 'individual_recipient', accountId: fields.actorAccountId as AccountId };
+      break;
+    case 'support_admin':
+      if (!fields.actorAccountId) return { allowed: false, reason: 'missing_actor_account_id' };
+      actor = { kind: 'support_admin', accountId: fields.actorAccountId as AccountId };
+      break;
+  }
+
+  // Grants are already loaded live (loadGrantsForPolicy queries the
+  // database directly, never a cache), so a grant revoked after mint is
+  // simply absent/inactive here.
+  const grants = await loadGrantsForPolicy(db, document.applicantId);
+  const decision = authorize({
+    actor,
+    action: fields.action,
+    resource: {
+      applicantId: document.applicantId as ApplicantId,
+      documentId: document.id as DocumentId,
+    },
+    context: { now, purpose: fields.purpose, stepUpSatisfied: fields.stepUpSatisfied, grants },
+  });
+  if (!decision.allowed) return { allowed: false, reason: decision.reason };
+
+  // "Exact version" (directive §10): the servability check `accessDocument`
+  // already ran at mint time is re-run here too, not assumed to still
+  // hold, so a version erased or otherwise made unusable between mint and
+  // redemption cannot still be served.
+  const version = first(
+    await db
+      .select()
+      .from(schema.documentVersions)
+      .where(eq(schema.documentVersions.documentId, document.id))
+      .orderBy(desc(schema.documentVersions.versionNumber))
+      .limit(1),
+  );
+  if (!version) return { allowed: false, reason: 'no_stored_version' };
+  const erased = await hasActiveOrVerifiedErasureJob(db, version.storageObjectId);
+  const servable = isDocumentVersionUsable({
+    safetyStatus: version.safetyStatus,
+    processingStatus: version.processingStatus,
+    erased,
+  });
+  if (!servable) return { allowed: false, reason: 'not_yet_safe_to_serve' };
+
+  return { allowed: true };
 }
 
 /**
