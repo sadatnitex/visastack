@@ -95,12 +95,12 @@ sequencing (ADM-01), tracked in the requirements ledger rather than built premat
 
 **Decision.** `audit_events`' append-only RULEs (migration 0000) stop the application's own
 runtime credential from editing or deleting history, but not a party with full database DDL
-access, who could drop or disable the RULE, edit rows, and recreate it — nothing inside the
+access, who could drop or disable the RULE, edit rows, and recreate it: nothing inside the
 database alone would show that happened. `packages/services/src/audit-checkpoints.ts` adds a
 periodic checkpoint: `createAuditCheckpoint(db, signingSecret, signingKeyVersion)` records
 `(fromSeq, toSeq, chainHeadHash)` for every event since the last checkpoint, signed with
 HMAC-SHA256 over a secret passed as an explicit parameter and never read from the environment
-inside the service function itself — mirroring `step-up.ts`'s existing split between a pure
+inside the service function itself, mirroring `step-up.ts`'s existing split between a pure
 service function and its env-resolving caller in `apps/web`. A party who can only read/write/
 alter the database cannot forge a new valid signature for a tampered range, and cannot make an
 existing checkpoint's stored signature agree with a hash it no longer matches, because the
@@ -109,7 +109,7 @@ secret that produced it is not stored alongside it.
 **Schema.** New `audit_checkpoints` table (`from_seq`, `to_seq`, `chain_head_hash`,
 `signature`, `signing_key_version`), migration `0029_wide_colossus.sql`, append-only at the
 database level via the identical RULE pattern already used for `audit_events`
-(`audit_checkpoints_no_update` / `_no_delete`, both `DO INSTEAD NOTHING`) — the checkpoint
+(`audit_checkpoints_no_update` / `_no_delete`, both `DO INSTEAD NOTHING`): the checkpoint
 ledger gets the same tamper-resistance property it is itself providing for `audit_events`.
 A check constraint (`audit_checkpoints_range_valid`) enforces `to_seq >= from_seq`.
 
@@ -120,8 +120,8 @@ one byte at a time via timing). `verifyCheckpointAgainstChain` proves the `audit
 actually at `checkpoint.toSeq`, read fresh right now, still has the hash the checkpoint
 recorded. Neither alone is sufficient: a tampered chain with an untouched checkpoint row passes
 signature verification but fails chain verification, which is exactly the attack this exists to
-catch. Proven in `audit-checkpoints.test.ts`'s tamper-detection test, which — to actually
-reproduce that attack rather than a no-op — explicitly issues
+catch. Proven in `audit-checkpoints.test.ts`'s tamper-detection test, which, to actually
+reproduce that attack rather than a no-op, explicitly issues
 `ALTER TABLE audit_events DISABLE RULE audit_events_no_update` before writing a tampered hash
 directly, then re-enables it; seeing this the first time as a false-passing test (the RULE
 silently absorbed a plain `UPDATE`) is recorded in `known-issues.md` item 17.
@@ -129,7 +129,7 @@ silently absorbed a plain `UPDATE`) is recorded in `known-issues.md` item 17.
 **What this genuinely proves, and what it does not yet.** A checkpoint that passes both checks
 means the `audit_events` rows it covers are exactly what they were when the checkpoint was
 created, provided the verifier trusts the copy of `signingSecret` being checked against. It does
-NOT yet provide a true external anchor a compromised database operator cannot also reach — the
+NOT yet provide a true external anchor a compromised database operator cannot also reach: the
 checkpoint row lives in the same database, protected only by its own append-only RULEs, the same
 caveat `audit_events` itself has. Real external anchoring (exporting checkpoints to a separate
 system, or a timestamping/transparency-log service) is not built here; no such service is

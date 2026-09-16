@@ -119,10 +119,10 @@ item gets its own requirements-ledger row once classified against the new direct
     is Part 5/9 admin-workspace scope (ADM-01), tracked there rather than built prematurely
     in Part 2. Full design: `architecture-decisions.md` AD-02.
 
-16. (Part 2) `packages/services/src/organizations.ts` — real, security-critical logic (last
+16. (Part 2) `packages/services/src/organizations.ts` has real, security-critical logic (last
     active owner protection against concurrent deactivation, cross-tenant IDOR prevention on
     membership IDs, independent step-up-gated organisation review with no self-verification)
-    — had zero test coverage before this session, confirmed by absence of an
+    that had zero test coverage before this session, confirmed by absence of an
     `organizations.test.ts` file. Closed this Part 2 chunk with 17 new tests, including a
     genuine concurrency test (`Promise.all` racing two owners deactivating each other) rather
     than a single-threaded approximation. See `requirements-ledger.md` IAM-02.
@@ -130,7 +130,7 @@ item gets its own requirements-ledger row once classified against the new direct
     initially passed for the wrong reason: it issued a raw `UPDATE audit_events SET hash = ...`
     expecting the row to actually change, but `audit_events`' pre-existing append-only RULE
     (`audit_events_no_update`, migration 0000) silently absorbs a plain UPDATE
-    (`DO INSTEAD NOTHING`) exactly as designed — so the first version of the test was validating
+    (`DO INSTEAD NOTHING`) exactly as designed, so the first version of the test was validating
     nothing. Caught by this session before committing (not by a later report): the fix makes the
     test explicitly `ALTER TABLE audit_events DISABLE RULE audit_events_no_update` before
     tampering and re-enable it after, actually reproducing "a party who bypassed the append-only

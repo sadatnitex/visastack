@@ -69,12 +69,12 @@ describe('audit checkpoints — externally-signed anchors over the audit chain (
 
     // Simulate a party with full DB DDL access editing the event this
     // checkpoint anchors. audit_events' append-only RULE (migration 0000)
-    // makes a plain UPDATE a silent no-op — DO INSTEAD NOTHING — so a raw
+    // makes a plain UPDATE a silent no-op (DO INSTEAD NOTHING), so a raw
     // UPDATE alone would not actually change the row (proven next test
     // down, which relies on that exact no-op for audit_checkpoints). The
     // whole point of a checkpoint is to detect the case where the RULE
     // itself was bypassed (e.g. a superuser dropping or disabling it), so
-    // this test reproduces that: disable the RULE, write, restore it —
+    // this test reproduces that: disable the RULE, write, restore it,
     // the same sequence that level of access actually requires.
     await db.execute(sql`ALTER TABLE audit_events DISABLE RULE audit_events_no_update`);
     await db.execute(
