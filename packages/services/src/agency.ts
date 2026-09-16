@@ -355,17 +355,37 @@ export async function listMissionsForOrganization(
 
 const NOTE_MAX_LENGTH = 2000;
 
+export type MissionNoteVisibility = 'AGENCY_INTERNAL' | 'TRAVELLER_SHARED';
+
+export interface AddNoteInput {
+  readonly actorAccountId: string;
+  readonly missionId: string;
+  readonly body: string;
+  readonly visibility: MissionNoteVisibility;
+}
+
 /**
  * Add a note to a mission (append-only). Authorized if the actor is: the
  * applicant owner; an individual (non-organization) grant recipient whose
  * grant permits `COMMENT` on this mission; or an active member of an
  * organization that holds a current grant permitting `COMMENT` on this
- * mission. Previously had no authorization check at all — see
+ * mission. Previously had no authorization check at all: see
  * docs/audits/commercial-readiness-recovery-baseline.md §7.
+ *
+ * Commercial V1 Part 4 §12: every note now requires an explicit
+ * `visibility`, no default. `AGENCY_INTERNAL` requires the actor to be
+ * authorized via an organization's own grant (never the applicant owner or
+ * a direct individual recipient, neither is "an agency" an internal note
+ * could belong to), and records exactly which organization it belongs to
+ * (`authorOrganizationId`), so a second collaborating organization's own
+ * `listNotes` call can tell its own internal notes apart from another
+ * org's (AD-09). Rejected explicitly rather than silently downgraded to
+ * TRAVELLER_SHARED: this codebase never silently mutates a caller's
+ * request into something they did not ask for.
  */
 export async function addNote(
   db: Db,
-  input: { readonly actorAccountId: string; readonly missionId: string; readonly body: string },
+  input: AddNoteInput,
 ): Promise<Result<MissionNote, ServiceError>> {
   const body = input.body.trim();
   if (body.length === 0) return err(serviceError('invalid', 'a note body is required'));
@@ -388,6 +408,10 @@ export async function addNote(
   const isOwner = applicant?.ownerAccountId === input.actorAccountId;
 
   let authorized = isOwner;
+  // Set only when an organization's own grant is what authorized this
+  // write, never for the owner or an individual_recipient path, even if
+  // one of those also happens to succeed first.
+  let authorizingOrganizationId: string | undefined;
 
   if (!authorized) {
     const grants = await loadGrantsForPolicy(db, mission.applicantId);
@@ -428,6 +452,7 @@ export async function addNote(
         )
       ) {
         authorized = true;
+        authorizingOrganizationId = membership.organizationId;
         break;
       }
     }
@@ -449,6 +474,15 @@ export async function addNote(
     return err(serviceError('forbidden', 'not authorized to comment on this mission'));
   }
 
+  if (input.visibility === 'AGENCY_INTERNAL' && !authorizingOrganizationId) {
+    return err(
+      serviceError(
+        'invalid',
+        'AGENCY_INTERNAL notes require organization authorship: the applicant owner and a direct individual recipient are never "an agency"',
+      ),
+    );
+  }
+
   return db.transaction(async (tx) => {
     const note = required(
       first(
@@ -457,6 +491,8 @@ export async function addNote(
           .values({
             missionId: input.missionId,
             authorAccountId: input.actorAccountId,
+            authorOrganizationId: authorizingOrganizationId ?? null,
+            visibility: input.visibility,
             body,
           })
           .returning(),
@@ -472,15 +508,23 @@ export async function addNote(
       missionId: input.missionId,
       resourceType: 'mission_note',
       resourceId: note.id,
+      metadata: { visibility: input.visibility },
     });
     return ok(note);
   });
 }
 
 /**
- * Notes on a mission — gated on `canReadMissionCollaboration` (finding #5):
- * an org's grant must permit `COMMENT` or `MANAGE` on this specific mission
- * before note bodies become readable, mirroring `addNote`'s own bar.
+ * Notes on a mission, visible to ONE organization, gated on
+ * `canReadMissionCollaboration` (finding #5): an org's grant must permit
+ * `COMMENT` or `MANAGE` on this specific mission before ANY note becomes
+ * readable, mirroring `addNote`'s own bar. Beyond that gate, RESULTS are
+ * filtered per row (Commercial V1 Part 4 §12, AD-09): every
+ * `TRAVELLER_SHARED` note (from any author) plus this organization's OWN
+ * `AGENCY_INTERNAL` notes, never another organization's internal notes,
+ * even when both organizations hold a valid, active, covering grant on the
+ * same shared mission. Previously returned every note on the mission
+ * unfiltered, a live cross-tenant leak this closes.
  */
 export async function listNotes(
   db: Db,
@@ -489,7 +533,54 @@ export async function listNotes(
   missionId: string,
 ): Promise<MissionNote[]> {
   if (!(await canReadMissionCollaboration(db, organizationId, applicantId, missionId))) return [];
-  return db.select().from(schema.missionNotes).where(eq(schema.missionNotes.missionId, missionId));
+  return db
+    .select()
+    .from(schema.missionNotes)
+    .where(
+      and(
+        eq(schema.missionNotes.missionId, missionId),
+        or(
+          eq(schema.missionNotes.visibility, 'TRAVELLER_SHARED'),
+          eq(schema.missionNotes.authorOrganizationId, organizationId),
+        ),
+      ),
+    );
+}
+
+/**
+ * Notes on a mission, visible to the applicant OWNER. Only `TRAVELLER_SHARED`
+ * notes, from any author: an AGENCY_INTERNAL note is never visible to the
+ * traveller regardless of which organization wrote it (Commercial V1 Part 4
+ * §12: "traveller cannot read internal"). No owner-facing read path existed
+ * for mission notes at all before this (`listNotes` above is inherently
+ * organization-scoped); this is the new one.
+ */
+export async function listNotesForOwner(
+  db: Db,
+  actorAccountId: string,
+  missionId: string,
+): Promise<MissionNote[]> {
+  const mission = first(
+    await db.select().from(schema.missions).where(eq(schema.missions.id, missionId)).limit(1),
+  );
+  if (!mission) return [];
+  const applicant = first(
+    await db
+      .select()
+      .from(schema.applicants)
+      .where(eq(schema.applicants.id, mission.applicantId))
+      .limit(1),
+  );
+  if (!applicant || applicant.ownerAccountId !== actorAccountId) return [];
+  return db
+    .select()
+    .from(schema.missionNotes)
+    .where(
+      and(
+        eq(schema.missionNotes.missionId, missionId),
+        eq(schema.missionNotes.visibility, 'TRAVELLER_SHARED'),
+      ),
+    );
 }
 
 /**

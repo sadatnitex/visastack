@@ -14,6 +14,8 @@ import {
   bulkExport,
   listApplicantsForOrganization,
   listMissionsForOrganization,
+  listNotes,
+  listNotesForOwner,
   requestEvidence,
 } from './agency';
 import { createApplicant } from './applicants';
@@ -150,6 +152,7 @@ describe('cross-tenant isolation — two organizations, one applicant', () => {
       actorAccountId: orgB.account.id,
       missionId: mission.value.id,
       body: 'trying to comment from org B',
+      visibility: 'TRAVELLER_SHARED',
     });
     expect(isErr(noteDenied)).toBe(true);
 
@@ -324,6 +327,7 @@ describe('grant scope cannot be escaped', () => {
       actorAccountId: org.account.id,
       missionId: missionB.value.id,
       body: 'should not be allowed',
+      visibility: 'TRAVELLER_SHARED',
     });
     expect(isErr(noteOnOtherMission)).toBe(true);
   });
@@ -604,5 +608,167 @@ describe('organization ownership safety', () => {
       .from(schema.memberships)
       .where(eq(schema.memberships.organizationId, org.organizationId));
     expect(activeOwners.filter((m) => m.active && m.role === 'OWNER')).toHaveLength(1);
+  });
+});
+
+describe('mission note visibility: AGENCY_INTERNAL vs TRAVELLER_SHARED (Commercial V1 Part 4 §12, AD-09)', () => {
+  let db: Db;
+  beforeEach(async () => {
+    db = await freshDb();
+  });
+
+  it("two organizations sharing one mission each see their own internal notes, never the other org's, and both see every shared note", async () => {
+    const { account, applicantId } = await consentedOwner(db, 'notes-owner@example.com');
+    const mission = await createMission(db, {
+      actorAccountId: account.id,
+      applicantId,
+      title: 'M',
+    });
+    if (!isOk(mission)) throw new Error('mission');
+    const orgA = await ownerOrg(db, 'notes-a@acme.com', 'Org A');
+    const orgB = await ownerOrg(db, 'notes-b@acme.com', 'Org B');
+
+    for (const org of [orgA, orgB]) {
+      const grant = await createGrant(db, {
+        actorAccountId: account.id,
+        applicantId,
+        recipientOrganizationId: org.organizationId,
+        actions: ['COMMENT'],
+        purpose: 'collaboration',
+      });
+      if (!isOk(grant)) throw new Error('grant');
+      await acceptGrant(db, { actorAccountId: org.account.id, grantId: grant.value.id });
+    }
+
+    const internalA = await addNote(db, {
+      actorAccountId: orgA.account.id,
+      missionId: mission.value.id,
+      body: 'Org A internal: client seems unreliable.',
+      visibility: 'AGENCY_INTERNAL',
+    });
+    expect(isOk(internalA)).toBe(true);
+    const sharedA = await addNote(db, {
+      actorAccountId: orgA.account.id,
+      missionId: mission.value.id,
+      body: 'Org A shared: please upload your bank statement.',
+      visibility: 'TRAVELLER_SHARED',
+    });
+    expect(isOk(sharedA)).toBe(true);
+    const internalB = await addNote(db, {
+      actorAccountId: orgB.account.id,
+      missionId: mission.value.id,
+      body: 'Org B internal: this case is co-managed with Org A, keep them out of our margin notes.',
+      visibility: 'AGENCY_INTERNAL',
+    });
+    expect(isOk(internalB)).toBe(true);
+
+    const seenByA = await listNotes(db, orgA.organizationId, applicantId, mission.value.id);
+    const seenByB = await listNotes(db, orgB.organizationId, applicantId, mission.value.id);
+
+    // Org A: its own internal note + the shared note. Never Org B's internal note.
+    expect(seenByA.map((n) => n.body).sort()).toEqual(
+      [
+        'Org A internal: client seems unreliable.',
+        'Org A shared: please upload your bank statement.',
+      ].sort(),
+    );
+    // Org B: its own internal note + the shared note. Never Org A's internal note:
+    // the exact leak this fix closes (previously, both orgs held a valid COMMENT
+    // grant on the same mission and listNotes returned every row unfiltered).
+    expect(seenByB.map((n) => n.body).sort()).toEqual(
+      [
+        'Org B internal: this case is co-managed with Org A, keep them out of our margin notes.',
+        'Org A shared: please upload your bank statement.',
+      ].sort(),
+    );
+    expect(seenByA.some((n) => n.body.startsWith('Org B internal'))).toBe(false);
+    expect(seenByB.some((n) => n.body.startsWith('Org A internal'))).toBe(false);
+
+    // The traveller: only the shared note, from either org's internal notes.
+    const seenByOwner = await listNotesForOwner(db, account.id, mission.value.id);
+    expect(seenByOwner.map((n) => n.body)).toEqual([
+      'Org A shared: please upload your bank statement.',
+    ]);
+  });
+
+  it('rejects an AGENCY_INTERNAL note from the applicant owner: the owner is never "an agency"', async () => {
+    const { account, applicantId } = await consentedOwner(db, 'notes-owner2@example.com');
+    const mission = await createMission(db, {
+      actorAccountId: account.id,
+      applicantId,
+      title: 'M',
+    });
+    if (!isOk(mission)) throw new Error('mission');
+
+    const attempt = await addNote(db, {
+      actorAccountId: account.id,
+      missionId: mission.value.id,
+      body: 'trying to mark my own note internal',
+      visibility: 'AGENCY_INTERNAL',
+    });
+    expect(isErr(attempt)).toBe(true);
+    if (isErr(attempt)) expect(attempt.error.code).toBe('invalid');
+
+    // TRAVELLER_SHARED still works for the owner.
+    const shared = await addNote(db, {
+      actorAccountId: account.id,
+      missionId: mission.value.id,
+      body: 'a normal owner note',
+      visibility: 'TRAVELLER_SHARED',
+    });
+    expect(isOk(shared)).toBe(true);
+  });
+
+  it('rejects an AGENCY_INTERNAL note from a direct individual grant recipient: only an organizational actor can author one', async () => {
+    const { account, applicantId } = await consentedOwner(db, 'notes-owner3@example.com');
+    const mission = await createMission(db, {
+      actorAccountId: account.id,
+      applicantId,
+      title: 'M',
+    });
+    if (!isOk(mission)) throw new Error('mission');
+    const individual = await provisionAccount(db, { email: 'notes-individual@example.com' });
+    if (!isOk(individual)) throw new Error('provision');
+    const grant = await createGrant(db, {
+      actorAccountId: account.id,
+      applicantId,
+      recipientAccountId: individual.value.id,
+      actions: ['COMMENT'],
+      purpose: 'p',
+    });
+    if (!isOk(grant)) throw new Error('grant');
+    await acceptGrant(db, { actorAccountId: individual.value.id, grantId: grant.value.id });
+
+    const attempt = await addNote(db, {
+      actorAccountId: individual.value.id,
+      missionId: mission.value.id,
+      body: 'trying to mark an internal note with no organization',
+      visibility: 'AGENCY_INTERNAL',
+    });
+    expect(isErr(attempt)).toBe(true);
+    if (isErr(attempt)) expect(attempt.error.code).toBe('invalid');
+  });
+
+  it('a legacy pre-migration note (no author organization, backfilled AGENCY_INTERNAL) stays restricted from the traveller, never silently exposed', async () => {
+    const { account, applicantId } = await consentedOwner(db, 'notes-legacy@example.com');
+    const mission = await createMission(db, {
+      actorAccountId: account.id,
+      applicantId,
+      title: 'M',
+    });
+    if (!isOk(mission)) throw new Error('mission');
+
+    // Simulates a row written before this migration existed: no visibility
+    // was ever chosen, so the DB backfill default (AGENCY_INTERNAL) is what
+    // this row actually has, bypassing addNote entirely, the same way a
+    // genuinely pre-existing row would never have gone through it either.
+    await db.insert(schema.missionNotes).values({
+      missionId: mission.value.id,
+      authorAccountId: null,
+      body: 'a note from before visibility existed',
+    });
+
+    const seenByOwner = await listNotesForOwner(db, account.id, mission.value.id);
+    expect(seenByOwner).toHaveLength(0);
   });
 });

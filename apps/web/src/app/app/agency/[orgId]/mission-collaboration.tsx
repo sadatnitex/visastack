@@ -26,6 +26,7 @@ interface NoteView {
   readonly body: string;
   readonly authorEmail: string;
   readonly createdAt: string;
+  readonly visibility: 'AGENCY_INTERNAL' | 'TRAVELLER_SHARED';
 }
 
 interface RequirementOption {
@@ -158,6 +159,12 @@ export function MissionCollaboration({
           >
             {notes.map((n) => (
               <div key={n.id} style={{ fontSize: '0.85rem' }}>
+                <span
+                  className={`badge ${n.visibility === 'AGENCY_INTERNAL' ? 'badge-warning' : 'badge-success'}`}
+                  style={{ fontSize: '0.65rem', marginRight: '0.35rem' }}
+                >
+                  {n.visibility === 'AGENCY_INTERNAL' ? 'Internal' : 'Shared with traveller'}
+                </span>
                 <span>{n.body}</span>{' '}
                 <span className="muted" style={{ fontSize: '0.75rem' }}>
                   — {n.authorEmail}, {new Date(n.createdAt).toLocaleDateString()}
@@ -177,6 +184,20 @@ export function MissionCollaboration({
             aria-label="Case note"
             required
           />
+          <select
+            name="visibility"
+            className="input"
+            required
+            defaultValue=""
+            aria-label="Note visibility"
+            style={{ maxWidth: '11rem' }}
+          >
+            <option value="" disabled>
+              Visibility…
+            </option>
+            <option value="AGENCY_INTERNAL">Internal (this org only)</option>
+            <option value="TRAVELLER_SHARED">Shared with traveller</option>
+          </select>
           <button
             type="submit"
             className="btn btn-secondary"

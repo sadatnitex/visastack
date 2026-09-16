@@ -520,3 +520,68 @@ dedicated test, matching the pre-existing, already-accepted precedent for the id
 `/password|encrypted/i` pattern in `text-extraction.ts`'s own `extractPdf` (hand-rolling real
 PDF encryption bytes for a test fixture was rejected for the same reason hand-rolling a PDF
 parser already was); batch-count enforcement does not exist at all (`known-issues.md` item 27).
+
+## AD-09: Mission note visibility (`AGENCY_INTERNAL` / `TRAVELLER_SHARED`), closing a live cross-tenant leak (CAS-05, known-issues.md item 7)
+
+**Decision.** `missionNotes` gains a required, non-defaulted `visibility` enum
+(`mission_note_visibility`: `AGENCY_INTERNAL` | `TRAVELLER_SHARED`) and a nullable
+`authorOrganizationId` (FK to `organizations`, cascade delete). `addNote`'s input now requires
+an explicit `visibility` on every call; there is no default, matching this codebase's standing
+"never silently mutate a caller's request" rule (a caller that does not say which one it means
+gets a compile error, not a guess). `listNotes` (the organization-facing read, gated on
+`canReadMissionCollaboration` exactly as before) now filters its result set per row: every
+`TRAVELLER_SHARED` note regardless of author, plus only the calling organization's own
+`AGENCY_INTERNAL` notes, never another organization's. A new `listNotesForOwner` gives the
+applicant owner a read path for the first time (none existed before): `TRAVELLER_SHARED` notes
+only, from any author, since an `AGENCY_INTERNAL` note is never visible to the traveller by
+definition. Migration `0030_safe_mentor.sql`, additive only.
+
+**Why this was Phase A's first fix, ahead of everything else in Part 4.** This was not a gap in
+PRD coverage found by reading requirements; it was found by auditing the actual running
+behavior of a currently-shipped feature. Two organizations that both hold a real, active,
+accepted grant permitting `COMMENT` or `MANAGE` on the same shared mission (an ordinary,
+expected shape once a case is co-managed, e.g. a sponsor's agency and a visa consultancy both
+collaborating on one applicant) could each read every note the other had written, including
+notes explicitly meant to stay internal to one agency, because `listNotes` had no concept of
+"whose note is this" at all: it returned every row on the mission to any org that passed the
+mission-level read gate. A currently-exploitable cross-tenant confidentiality leak on live
+collaboration data outranks any not-yet-built PRD feature, so it was fixed first, verified, and
+shipped ahead of the rest of the Part 4 plan rather than queued behind it.
+
+**Why `AGENCY_INTERNAL` requires organization authorship, rejected rather than silently
+downgraded.** `addNote` tracks `authorizingOrganizationId`, set only when an organization's own
+grant (via `orgGrantPermits` against one of the actor's active memberships) is what authorized
+the write, never on the applicant-owner or individual-grant-recipient paths, even when one of
+those also happens to succeed first for the same call. If a caller asks for `AGENCY_INTERNAL`
+without that provenance, `addNote` returns a typed `invalid` error naming exactly why, rather
+than silently writing the note as `TRAVELLER_SHARED` (or as `AGENCY_INTERNAL` with a null
+author, which would make it permanently unreadable by any organization's own-notes filter). The
+applicant owner and a direct individual grant recipient are never "an agency"; there is no
+sensible organization to attribute an internal note to on those paths, so the request is refused
+outright rather than coerced into something the caller did not ask for.
+
+**Why the backfill default for existing rows is `AGENCY_INTERNAL`, the more restrictive value,
+not `TRAVELLER_SHARED`.** Every note written before this migration predates the visibility
+concept entirely; nobody who wrote one chose either value, and nobody who wrote one could have
+known it might later become readable by the applicant it is about. Defaulting new NOT NULL
+columns toward the safer, more restrictive interpretation of unlabeled legacy data (never wider
+exposure than before) matches this codebase's general default-deny posture, so a legacy row's
+`authorOrganizationId` also backfills `null`. A `null`-author `AGENCY_INTERNAL` row is therefore
+unreadable by any organization's own-notes filter (`authorOrganizationId` equality can never
+match `null` for a real organization) and, correctly, still excluded from the owner's
+`TRAVELLER_SHARED`-only view; a dedicated test proves a legacy row stays restricted from the
+traveller rather than silently exposed by the migration itself.
+
+**What this proves, and what remains deliberately out of this fix's scope.**
+`tenant-isolation.test.ts` gained 4 new tests: the actual leak scenario (two organizations, each
+with its own internal note plus a shared note on the same mission; each org sees only its own
+internal note, both see the shared note, the traveller sees only the shared note); the applicant
+owner's `AGENCY_INTERNAL` attempt rejected while their `TRAVELLER_SHARED` note still succeeds;
+a direct individual grant recipient's `AGENCY_INTERNAL` attempt rejected the same way; and the
+legacy-row backfill case above. Two known, unclosed gaps are recorded rather than left implicit:
+no page in `apps/web` yet calls the new `listNotesForOwner` (the service function is complete
+and tested, but the applicant-facing mission view has no notes section at all today, so there is
+no UI regression, only a still-missing feature, tracked in `known-issues.md`); and
+`individual_recipient` actors have no notes-read path anywhere in this codebase, a pre-existing
+gap this fix did not introduce, worsen, or close (they can `addNote` via `COMMENT`, but nothing
+lets one list notes back), also tracked in `known-issues.md`.

@@ -234,3 +234,35 @@ post-mortem).
 Full detail: `docs/commercial-v1/architecture-decisions.md` AD-08; open items:
 `docs/commercial-v1/known-issues.md` item 27 (batch-count limit, deliberately not implemented
 without a clearer spec for what a "batch" is server-side).
+
+## Part 4, chunk 1: mission note visibility (CAS-05), closing a live cross-tenant leak
+
+Commit: working tree on top of `49dcbf6` (Part 3 chunk 5, EVI-01 intake limits, already pushed
+and PR #78 updated). This is the first chunk of Part 4, and was prioritized ahead of the rest of
+that part's plan because it closes a currently-exploitable cross-tenant confidentiality leak in
+already-shipped collaboration code, found by an audit of every `missionNotes` read path before
+any new Part 4 feature work began. New `mission_note_visibility` enum and
+`authorOrganizationId`/`visibility` columns on `missionNotes` (migration `0030_safe_mentor.sql`,
+additive only), a full rewrite of `addNote`/`listNotes`, and a new `listNotesForOwner` in
+`packages/services/src/agency.ts`.
+
+| # | Command | Exit | Result | Detail |
+|---|---|---|---|---|
+| 1 | `pnpm run lint` | 0 | PASS | Biome, 313 files checked, no fixes applied. Every newly-authored doc comment, inline comment, and test title this chunk was individually checked against the user's no-em-dash preference and corrected (comma/colon/period in place of the dash); pre-existing em-dashes in code this chunk did not author, including in `schema.ts`, `page.tsx`, and the bulk of `agency.ts`/`agency.test.ts`/`tenant-isolation.test.ts`, were confirmed present before this chunk and deliberately left untouched. |
+| 2 | `pnpm run typecheck` | 0 | PASS | All 7 packages, no errors. |
+| 3 | `pnpm run test` | 0 | PASS | 776 tests total across all 7 packages (i18n 6, core 2, policy 29, db 26 + 1 skipped, adapters 147 + 2 skipped, web 141, services 422). `tenant-isolation.test.ts` gained 4 new tests, all against real PGlite Postgres, not mocked: two organizations each holding a genuine, accepted `COMMENT` grant on the same shared mission each see only their own `AGENCY_INTERNAL` note plus every `TRAVELLER_SHARED` note, never the other organization's internal note (the exact leak this chunk closes, reproduced and proven fixed, not just asserted fixed by reading the diff); the applicant owner's `AGENCY_INTERNAL` attempt is rejected (`invalid`) while their `TRAVELLER_SHARED` note still succeeds in the same test; a direct `individual_recipient` grant holder's `AGENCY_INTERNAL` attempt is rejected the same way; and a note inserted directly at the schema level with no `authorOrganizationId` (simulating a pre-migration row hitting the backfill default) stays invisible to `listNotesForOwner`, proving the restrictive backfill choice actually holds at read time, not just at the migration's default clause. `agency.test.ts`'s 2 pre-existing `addNote` calls were updated to pass the now-required `visibility` field and re-verified green. |
+| 4 | `pnpm run build` | 0 | PASS | Full monorepo build including `apps/web`, full route manifest produced (`/app/agency/[orgId]` included, the page whose note composer/list this chunk changed). |
+| 5 | `pnpm audit --prod` | 0 | PASS | "No known vulnerabilities found", no new dependencies added (this chunk is pure application/schema code). |
+
+A real defect this chunk fixed that was not itself the tracked leak: prior to this chunk, there
+was no owner-facing read path for mission notes at all (`listNotes` is inherently
+organization-scoped, gated on `canReadMissionCollaboration`), so the new `listNotesForOwner` is
+additive functionality, not a narrowing of anything that worked before. Two gaps found while
+auditing every note read path are recorded rather than left implicit, neither introduced by this
+chunk: no `apps/web` page yet calls `listNotesForOwner` (`known-issues.md` item 28a); and
+`individual_recipient` actors have no notes-read path anywhere in this codebase, pre-existing
+and unchanged by this fix (`known-issues.md` item 28b).
+
+Full detail: `docs/commercial-v1/architecture-decisions.md` AD-09; `docs/commercial-v1/known-issues.md`
+item 7 (resolved) and item 28 (the two gaps above); `docs/commercial-v1/requirements-ledger.md`
+CAS-05.

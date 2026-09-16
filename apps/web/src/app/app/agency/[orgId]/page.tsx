@@ -114,6 +114,7 @@ export default async function OrgConsolePage({
             id: n.id,
             body: n.body,
             createdAt: n.createdAt.toISOString(),
+            visibility: n.visibility,
             // Author email resolution needs the full membership roster,
             // admin-only data (above) — a non-admin viewer correctly sees
             // "Unknown" here rather than gaining roster access through a

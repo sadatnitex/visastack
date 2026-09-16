@@ -157,7 +157,7 @@ export async function assignMemberAction(
   return result;
 }
 
-/** Add a case note to a mission (org admin). */
+/** Add a case note to a mission (org admin). Visibility is required, explicit, never defaulted: see agency.ts's addNote doc comment. */
 export async function addNoteAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
   const gate = requireAgencyCollaboration();
   if (gate) return gate;
@@ -166,9 +166,21 @@ export async function addNoteAction(_prev: ActionState, formData: FormData): Pro
   const missionId = String(formData.get('missionId') ?? '');
   const body = String(formData.get('body') ?? '').trim();
   if (body.length === 0) return { ok: false, message: 'Enter a note.' };
+  const visibilityRaw = String(formData.get('visibility') ?? '');
+  if (visibilityRaw !== 'AGENCY_INTERNAL' && visibilityRaw !== 'TRAVELLER_SHARED') {
+    return {
+      ok: false,
+      message: 'Select whether this note is internal or shared with the traveller.',
+    };
+  }
 
   const result = await withSession(async ({ db, accountId }) => {
-    const note = await addNote(db, { actorAccountId: accountId, missionId, body });
+    const note = await addNote(db, {
+      actorAccountId: accountId,
+      missionId,
+      body,
+      visibility: visibilityRaw,
+    });
     if (!note.ok) return { ok: false, message: note.error.message } satisfies ActionState;
     return { ok: true, message: 'Note added.' } satisfies ActionState;
   });

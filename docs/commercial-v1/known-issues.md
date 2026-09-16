@@ -47,12 +47,15 @@ item gets its own requirements-ledger row once classified against the new direct
    entity, table, or service function was found in `packages/services/src/missions.ts`; the
    mission state machine's terminal pre-close states are `READY_TO_EXPORT` and `LOCKED`,
    with no acknowledgement step between review and lock.
-7. Mission notes (`packages/services/src/agency.ts`, `addNote`/`listNotes`) are confirmed
-   this session to carry no visibility classification and no author-organisation ID at all;
-   read access is gated only by whether the reading organisation currently holds a grant
-   permitting `COMMENT` or `MANAGE` on the mission. There is no AGENCY_INTERNAL /
-   TRAVELLER_SHARED distinction yet, and no way to keep one agency's notes from a second
-   agency that later acquires its own grant on the same mission.
+7. ~~Mission notes carry no visibility classification and no author-organisation ID.~~
+   **RESOLVED (Part 4).** This was a live, currently-exploitable cross-tenant leak, not just a
+   missing feature: two organizations both holding a valid grant on the same shared mission
+   could each read the other's internal notes, since `listNotes` returned every row on the
+   mission unfiltered. `missionNotes` now has a required `visibility`
+   (`AGENCY_INTERNAL`/`TRAVELLER_SHARED`, no default) and `authorOrganizationId`; `listNotes`
+   filters per row to `TRAVELLER_SHARED` notes plus only the calling organization's own
+   `AGENCY_INTERNAL` notes. Proven by a real two-organization integration test, not assumed.
+   Full detail: `architecture-decisions.md` AD-09, `requirements-ledger.md` CAS-05.
 8. The mission state machine (`packages/services/src/missions.ts`) is confirmed to use the
    legacy states the PRD names for additive migration: `DRAFT`, `IN_PROGRESS`,
    `READY_FOR_REVIEW`, `UNDER_REVIEW`, `READY_TO_EXPORT`, `LOCKED`, `CLOSED`, `CANCELLED`.
@@ -271,6 +274,17 @@ item gets its own requirements-ledger row once classified against the new direct
     id? per calendar day?) is a real product decision this session is not positioned to make
     unilaterally, unlike the page-count/megapixel numbers, which the PRD states as exact,
     unambiguous figures. Tracked here rather than silently left off the ledger.
+28. (Part 4) Two gaps found and deliberately left open while closing item 7's cross-tenant
+    leak, recorded rather than silently left implied to be covered by that fix: (a) the new
+    `listNotesForOwner` (`packages/services/src/agency.ts`) has no caller anywhere in
+    `apps/web`; the applicant-facing mission view has no notes section at all today, so this is
+    a still-missing feature (an owner-facing read surface for shared notes), not a regression,
+    and not yet built this chunk. (b) `individual_recipient` actors (a direct, personal grant
+    recipient who is not part of an organization) have no notes-read path anywhere in this
+    codebase: they can call `addNote` when their grant permits `COMMENT`, but nothing lets one
+    list notes back. This is a pre-existing gap, confirmed to predate this chunk's changes, not
+    worsened or introduced by the visibility fix; tracked here since it was noticed while
+    auditing every `missionNotes` read path, not because this chunk caused it.
 
 Items 1 through 4, 5 through 9, and 14/15 above are carried forward or upgraded to
 independently confirmed findings; the missing PRD file is tracked as Blocker 1 in

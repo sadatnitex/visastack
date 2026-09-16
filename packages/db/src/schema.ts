@@ -134,6 +134,15 @@ export const evidenceRequestStatus = pgEnum('evidence_request_status', [
 // --- Mission collaboration additions (master directive §7 "PR 10") ---------
 export const missionDecisionOutcome = pgEnum('mission_decision_outcome', ['ACCEPTED', 'REJECTED']);
 export const missionTaskStatus = pgEnum('mission_task_status', ['OPEN', 'DONE', 'CANCELLED']);
+// Commercial V1 Part 4 §12: every note must declare a visibility explicitly.
+// AGENCY_INTERNAL is the safe default for the pre-existing-row backfill
+// (directive: "legacy unclassified notes: default restricted; do not expose
+// until ownership/visibility resolved") -- the service layer never omits it
+// on a new insert, so the DB default only ever fires for that backfill.
+export const missionNoteVisibility = pgEnum('mission_note_visibility', [
+  'AGENCY_INTERNAL',
+  'TRAVELLER_SHARED',
+]);
 export const generatedOutputKind = pgEnum('generated_output_kind', ['COVER_LETTER']);
 export const factStatus = pgEnum('fact_status', FACT_STATUSES);
 export const fieldSensitivity = pgEnum('field_sensitivity', [
@@ -1083,6 +1092,16 @@ export const missionNotes = pgTable(
       .notNull()
       .references(() => missions.id, { onDelete: 'cascade' }),
     authorAccountId: uuid('author_account_id'),
+    // Set only when the author wrote this note while acting as a member of
+    // this organization (never for an applicant-owner-authored note). Lets
+    // an AGENCY_INTERNAL note be attributed to exactly one organization, so
+    // a second collaborating org's own internal notes stay distinguishable
+    // from this one (Commercial V1 Part 4 §12: "AGENCY_INTERNAL must
+    // include author organisation ID").
+    authorOrganizationId: uuid('author_organization_id').references(() => organizations.id, {
+      onDelete: 'cascade',
+    }),
+    visibility: missionNoteVisibility('visibility').notNull().default('AGENCY_INTERNAL'),
     body: text('body').notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },

@@ -145,6 +145,7 @@ describe('agency collaboration — assignments, notes, evidence', () => {
       actorAccountId: agentAcc.value.id,
       missionId: mission.value.id,
       body: 'Please add a bank statement.',
+      visibility: 'AGENCY_INTERNAL',
     });
     expect(isOk(note)).toBe(true);
     expect(await listNotes(db, org.value.id, applicantId, mission.value.id)).toHaveLength(1);
@@ -1142,6 +1143,7 @@ describe('scope and read-authorization hardening (post-programme defect register
       actorAccountId: agentAcc.value.id,
       missionId: mission.value.id,
       body: 'A note only a sufficiently-permitted reader should see.',
+      visibility: 'AGENCY_INTERNAL',
     });
     expect(isOk(noteResult)).toBe(true);
     const assignResult = await assignMember(db, {
