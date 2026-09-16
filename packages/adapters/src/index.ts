@@ -29,3 +29,8 @@ export { NullEmailPort } from './email';
 export { NullPaymentPort } from './payment';
 
 export { ConsoleObservabilityPort } from './observability';
+
+export {
+  LocalEnvelopeKeyProvider,
+  type LocalEnvelopeKeyProviderOptions,
+} from './key-management';

@@ -82,7 +82,32 @@ export {
   listApplicantProfile,
   listFactHistory,
   registerFieldDefinition,
+  revealFactVersionValue,
 } from './profile';
+
+export {
+  type FieldSensitivity,
+  type ProtectedValue,
+  type RevealValueInput,
+  buildFactVersionAad,
+  protectValue,
+  requiresProtection,
+  resetProtectedFieldKeyCacheForTests,
+  revealValue,
+} from './protected-fields';
+
+export {
+  SUPPORT_ACCESS_PURPOSE,
+  SUPPORT_GRANT_MAX_DURATION_MINUTES,
+  type CreateSupportGrantInput,
+  type RevokeSupportGrantInput,
+  type SupportGrant,
+  createSupportGrant,
+  listActiveSupportGrantsForApplicant,
+  listSupportGrantsForApplicant,
+  loadSupportGrantsForPolicy,
+  revokeSupportGrant,
+} from './support-access';
 
 export type {
   AccessDisposition,
@@ -436,8 +461,10 @@ export type {
   CheckoutSession,
   EmailPort,
   EnqueueJobInput,
+  GeneratedDataKey,
   IdentityPort,
   JobQueuePort,
+  KeyManagementPort,
   ObservabilityEvent,
   ObservabilityPort,
   PaymentPort,

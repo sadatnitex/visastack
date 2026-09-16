@@ -67,3 +67,21 @@ Commit: same working tree, with the bounded override in place.
 Resolved versions confirmed in `pnpm-lock.yaml`: `next@15.5.25` (patched range `>=15.5.24`),
 `sharp@0.35.4` (patched range `>=0.35.4`), `@xmldom/xmldom@0.8.15` (patched, last `0.8.x`
 release). Part 1's baseline verification is complete and green as of this commit.
+
+## Part 2, chunk 2: protected-field encryption (SEC-03) + support-access grants (SEC-06)
+
+Commit: working tree on top of the Part 2 chunk 1 commit, with migration `0028_unknown_sandman.sql`
+(additive: `fact_versions` protected-field columns + check constraint, `data_keys`,
+`support_grants`), the new `KeyManagementPort` port, `LocalEnvelopeKeyProvider` adapter,
+`protected-fields.ts`, `support-access.ts`, and their wiring into `profile.ts`.
+
+| # | Command | Exit | Result | Detail |
+|---|---|---|---|---|
+| 1 | `pnpm run lint` | 0 | PASS | Biome, including the 4 new/changed source files and the auto-generated migration snapshot. |
+| 2 | `pnpm run typecheck` | 0 | PASS | All 7 packages, including the new `Uint8Array \| null` → `Uint8Array \| undefined` narrowing fixes needed for the new nullable bytea columns. |
+| 3 | `pnpm run test` | 0 | PASS | 367 tests total (338 pre-existing, unmodified and still green, confirming the new migration and `EditFactInput.encryption` being optional broke nothing; plus 22 new in `protected-fields.test.ts`, 11 new in `support-access.test.ts`, 7 new in `packages/adapters/src/key-management.test.ts`). New coverage includes: encrypt/decrypt round-trip, fresh-nonce-per-write, GCM auth-tag tamper rejection, AAD-mismatch rejection (wrong applicant/record/field/version all independently tested), fail-closed with no port supplied, cross-port isolation (a port that never held the right master key cannot unwrap another port's data key), the `support_grants` max-60-minute and no-self-approval check constraints holding even when a test inserts directly and bypasses the service layer, and the support-admin actor path through the real `authorize()` policy engine (granted actions allowed, ungranted actions denied, expired grants denied, revoked grants immediately excluded). One test bug caught and fixed during this session's own verification, not left in: an in-process key cache made an early version of the cross-port-isolation test pass for the wrong reason (stale same-process cache, not real cross-port rejection); fixed by resetting the cache to simulate a fresh process before that specific assertion. |
+| 4 | `pnpm run build` | 0 | PASS | Full monorepo build including `apps/web`. One pre-existing build warning (`unpdf`'s `import.meta` usage, unrelated to this session's changes — traced to `packages/adapters/src/text-extraction.ts`, untouched by this chunk) did not fail the build, as before. |
+| 5 | `pnpm audit --prod` | 0 | PASS | "No known vulnerabilities found" — still clean after this chunk's changes (no new dependencies were added; Node's built-in `crypto` module is used for all encryption, not a new package). |
+
+Full detail on what this chunk does and does not cover: `docs/commercial-v1/architecture-decisions.md`
+AD-01/AD-02; open items: `docs/commercial-v1/known-issues.md` items 14/15.

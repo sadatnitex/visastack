@@ -639,7 +639,23 @@ export const factVersions = pgTable(
     factId: uuid('fact_id')
       .notNull()
       .references(() => facts.id, { onDelete: 'cascade' }),
+    // Plaintext value for STANDARD-sensitivity fields, and for any row written
+    // before protected-field encryption existed (Commercial V1 SEC-03). When
+    // `protectedKeyVersion` is set, this is null and the real value lives
+    // encrypted in `valueCiphertext`/`valueNonce` instead — never both at
+    // once, enforced by the check constraint below.
     value: text('value'),
+    // AES-256-GCM ciphertext (includes the auth tag) for a SENSITIVE/RESTRICTED
+    // field, encrypted by packages/services/src/protected-fields.ts. Never the
+    // plaintext value.
+    valueCiphertext: bytea('value_ciphertext'),
+    // Random 96-bit nonce used for this specific encryption. Never reused
+    // across rows (a fresh nonce is generated on every write).
+    valueNonce: bytea('value_nonce'),
+    // Which envelope key version's data key encrypted this value (opaque
+    // label the KeyManagementPort adapter interprets — never the key
+    // material itself). Null means unprotected/plaintext.
+    protectedKeyVersion: text('protected_key_version'),
     normalizedValue: text('normalized_value'),
     status: factStatus('status').notNull().default('DECLARED'),
     method: auditMethod('method').notNull().default('MANUAL'),
@@ -660,7 +676,96 @@ export const factVersions = pgTable(
     approvedAt: timestamp('approved_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
-  (table) => [index('fact_versions_fact_idx').on(table.factId)],
+  (table) => [
+    index('fact_versions_fact_idx').on(table.factId),
+    // A row is never simultaneously plaintext AND protected, and the three
+    // protected columns are always set together or not at all — deliberately
+    // permissive about a row having neither (no value recorded at all;
+    // reserved/placeholder rows are not this constraint's concern, only
+    // "never half-protected" and "never both" are). Enforced at the database
+    // level so an application bug can't silently store a corrupt row.
+    check(
+      'fact_versions_protection_exclusive',
+      sql`(
+        ${table.value} is null or ${table.valueCiphertext} is null
+      ) and (
+        (${table.valueCiphertext} is null) = (${table.valueNonce} is null)
+        and (${table.valueCiphertext} is null) = (${table.protectedKeyVersion} is null)
+      )`,
+    ),
+  ],
+);
+
+// --- Envelope key registry (Commercial V1 SEC-03) ---------------------------
+// Tracks only the KMS-WRAPPED (encrypted) data key per version — never
+// plaintext key material. Worthless without the KeyManagementPort adapter's
+// KMS to unwrap it, so a full database dump or backup never carries enough
+// to decrypt protected fields on its own (SEC-03's explicit requirement).
+// One row per key version; a version is retired (new writes stop using it)
+// without deleting it, since old ciphertext encrypted under it must remain
+// decryptable until a deliberate re-encryption pass rotates it away.
+export const dataKeys = pgTable('data_keys', {
+  keyVersion: text('key_version').primaryKey(),
+  wrappedDataKey: bytea('wrapped_data_key').notNull(),
+  algorithm: text('algorithm').notNull().default('AES-256-GCM'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  retiredAt: timestamp('retired_at', { withTimezone: true }),
+});
+
+// --- Support access grants (Commercial V1 SEC-06) ---------------------------
+// A scoped, time-limited, reasoned, approved grant of read access to one
+// applicant's protected content for a support operator. Distinct from the
+// ordinary `grants` table (which an applicant creates for themselves); this
+// is created by a platform operator ABOUT an applicant who never consented
+// to it, so it carries mandatory reason/approver fields ordinary sharing
+// grants don't need, and a database-enforced maximum duration and
+// no-self-approval rule — neither is optional configuration.
+// `loadSupportGrantsForPolicy` (packages/services/src/support-access.ts)
+// converts an active row here into the same `Grant` shape the policy engine
+// already evaluates for `support_admin` actors, reusing its tested
+// status/expiry/purpose logic rather than duplicating it.
+export const supportGrants = pgTable(
+  'support_grants',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    actorAccountId: uuid('actor_account_id')
+      .notNull()
+      .references(() => accounts.id, { onDelete: 'restrict' }),
+    applicantId: uuid('applicant_id')
+      .notNull()
+      .references(() => applicants.id, { onDelete: 'cascade' }),
+    actions: permissionAction('actions').array().notNull(),
+    reason: text('reason').notNull(),
+    approvedByAccountId: uuid('approved_by_account_id')
+      .notNull()
+      .references(() => accounts.id, { onDelete: 'restrict' }),
+    startAt: timestamp('start_at', { withTimezone: true }).notNull().defaultNow(),
+    expiryAt: timestamp('expiry_at', { withTimezone: true }).notNull(),
+    revokedAt: timestamp('revoked_at', { withTimezone: true }),
+    revokedByAccountId: uuid('revoked_by_account_id').references(() => accounts.id, {
+      onDelete: 'set null',
+    }),
+    revokedReason: text('revoked_reason'),
+    ...timestamps,
+  },
+  (table) => [
+    index('support_grants_applicant_idx').on(table.applicantId),
+    index('support_grants_actor_idx').on(table.actorAccountId),
+    // A support grant is never self-approved — the approver must be a
+    // different account from the operator receiving access, structurally,
+    // not just by service-layer convention.
+    check(
+      'support_grants_approver_not_actor',
+      sql`${table.approvedByAccountId} <> ${table.actorAccountId}`,
+    ),
+    // Maximum 60 minutes (SEC-06), enforced at the database level so an
+    // application bug can never issue a longer-lived grant.
+    check(
+      'support_grants_max_duration',
+      sql`extract(epoch from (${table.expiryAt} - ${table.startAt})) <= 3600`,
+    ),
+    check('support_grants_expiry_after_start', sql`${table.expiryAt} > ${table.startAt}`),
+  ],
 );
 
 // Links a document version (page/region) to a fact version as supporting

@@ -100,7 +100,26 @@ item gets its own requirements-ledger row once classified against the new direct
     audits such a grant as a first-class object for that code path to consume. Confirmed by
     reading `schema.ts` in full; no matching table exists.
 
-Items 1 through 4 and 5 through 9 above are carried forward or upgraded to independently
-confirmed findings; the missing PRD file is tracked as Blocker 1 in
+14. (Part 2) Protected-field encryption (SEC-03) is implemented and tested for
+    `packages/services/src/profile.ts`'s fact read/write path only. AI proposals/snippets,
+    OCR text, corrections, snapshots, exports, and cache — all named in SEC-03's full scope
+    — are not yet protected; each belongs to the part that actually builds that surface
+    (AI: Part 8; snapshots/exports: Part 7). No backfill of historical plaintext
+    `fact_versions` rows was performed (this repo holds only synthetic/pilot data per its own
+    README status banner, which lowers urgency but does not remove the obligation before a
+    real commercial launch). Live KMS adapter/verification remains BLOCKED: no AWS KMS/GCP
+    KMS/other vendor account exists for this session; `LocalEnvelopeKeyProvider`
+    (`packages/adapters/src/key-management.ts`) is an explicitly non-commercial dev/test
+    adapter, gated to refuse construction when `DEPLOYMENT_MODE=commercial`. Full design:
+    `architecture-decisions.md` AD-01.
+15. (Part 2) Support access grants (SEC-06) are implemented and tested at the
+    service/schema/policy layer (`packages/services/src/support-access.ts`), but no caller in
+    `apps/web` invokes `createSupportGrant`/`revokeSupportGrant` yet — there is no admin UI
+    for a support operator to actually request, or a security admin to approve, access. That
+    is Part 5/9 admin-workspace scope (ADM-01), tracked there rather than built prematurely
+    in Part 2. Full design: `architecture-decisions.md` AD-02.
+
+Items 1 through 4, 5 through 9, and 14/15 above are carried forward or upgraded to
+independently confirmed findings; the missing PRD file is tracked as Blocker 1 in
 `assumptions-and-blockers.md` (now resolved) rather than here, since it blocked the
 programme rather than being a product defect.
