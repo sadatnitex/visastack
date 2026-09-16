@@ -1,6 +1,7 @@
 import 'server-only';
 import {
   BasicSafetyScanner,
+  BuiltinContentLimitsChecker,
   BuiltinPreviewRenderer,
   ClamAvScanner,
   ConsoleObservabilityPort,
@@ -8,15 +9,17 @@ import {
   NullEmailPort,
   NullPaymentPort,
 } from '@visastack/adapters';
-import type {
-  BlobStore,
-  DocumentConverterPort,
-  EmailPort,
-  IdentityPort,
-  MalwareScannerPort,
-  ObservabilityPort,
-  PaymentPort,
-  PreviewRendererPort,
+import {
+  type BlobStore,
+  type ContentLimitsPort,
+  type DocumentConverterPort,
+  type EmailPort,
+  type IdentityPort,
+  type MalwareScannerPort,
+  type ObservabilityPort,
+  type PaymentPort,
+  type PreviewRendererPort,
+  loadUploadQuotaConfig,
 } from '@visastack/services';
 import { WorkosIdentityPort } from './identity-provider';
 
@@ -53,6 +56,7 @@ const KNOWN_PROVIDERS = {
   MALWARE_SCANNER_PROVIDER: ['builtin', 'clamav'],
   DOCUMENT_CONVERTER_PROVIDER: ['builtin'],
   PREVIEW_RENDERER_PROVIDER: ['builtin'],
+  CONTENT_LIMITS_PROVIDER: ['builtin'],
   AI_PROVIDER: ['openai'],
   JOB_PROVIDER: ['neon'],
   EMAIL_PROVIDER: ['none'],
@@ -170,6 +174,24 @@ export function createDocumentConverter(blobStore: BlobStore): DocumentConverter
 export function createPreviewRenderer(): PreviewRendererPort {
   checkKnownProvider('PREVIEW_RENDERER_PROVIDER');
   return new BuiltinPreviewRenderer();
+}
+
+/**
+ * The content-limits checker (EVI-01's "50 PDF pages, 40 megapixels per
+ * image"), the only `ContentLimitsPort` implementation today, same
+ * "builtin, always active" shape as `createPreviewRenderer`. Reads its
+ * limits from the same `loadUploadQuotaConfig()` the upload-size checks
+ * use, so an operator overriding `QUOTA_MAX_PDF_PAGES`/
+ * `QUOTA_MAX_IMAGE_MEGAPIXELS` changes both what `quotas.ts` reports and
+ * what this checker enforces from the one place.
+ */
+export function createContentLimitsChecker(blobStore: BlobStore): ContentLimitsPort {
+  checkKnownProvider('CONTENT_LIMITS_PROVIDER');
+  const { maxPdfPages, maxImageMegapixels } = loadUploadQuotaConfig();
+  return new BuiltinContentLimitsChecker({
+    blobStore,
+    config: { maxPdfPages, maxImageMegapixels },
+  });
 }
 
 /** No email provider is configured for the pilot (master directive §7 "PR 11": matches Payment's explicit "no payment provider"). */

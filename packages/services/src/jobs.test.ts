@@ -12,7 +12,7 @@ import { setConsent } from './consent';
 import type { Db } from './db';
 import { addDocumentVersion, registerDocument } from './documents';
 import type { DocumentConverterPort } from './extraction';
-import type { MalwareScannerPort } from './intake';
+import type { ContentLimitsPort, MalwareScannerPort } from './intake';
 import { enqueueIntakeJob, listFailedJobs, retryFailedJob, runIntakeWorker } from './jobs';
 
 const migrationsFolder = fileURLToPath(new URL('../../db/migrations', import.meta.url));
@@ -81,6 +81,13 @@ const noOpExtractor: DocumentConverterPort = {
     return { ok: false, code: 'unsupported_format', message: 'test fixture: not exercised here' };
   },
 };
+const passingContentLimits: ContentLimitsPort = {
+  name: 'test-content-limits',
+  version: '0.0.0',
+  async check() {
+    return { withinLimits: true };
+  },
+};
 
 describe('low-volume durable job queue — async intake', () => {
   let db: Db;
@@ -100,7 +107,7 @@ describe('low-volume durable job queue — async intake', () => {
     const versionId = await seedVersion(db, 'j2@example.com');
     const job = await enqueueIntakeJob(db, { documentVersionId: versionId });
 
-    const result = await runIntakeWorker(db, cleanScanner, noOpExtractor);
+    const result = await runIntakeWorker(db, cleanScanner, noOpExtractor, passingContentLimits);
     expect(result).toEqual({ processed: 1, failed: 0 });
 
     const [version] = await db
@@ -122,7 +129,7 @@ describe('low-volume durable job queue — async intake', () => {
     const versionId = await seedVersion(db, 'j3@example.com');
     await enqueueIntakeJob(db, { documentVersionId: versionId });
 
-    const result = await runIntakeWorker(db, infectedScanner, noOpExtractor);
+    const result = await runIntakeWorker(db, infectedScanner, noOpExtractor, passingContentLimits);
     expect(result).toEqual({ processed: 1, failed: 0 });
 
     const [version] = await db
@@ -134,7 +141,7 @@ describe('low-volume durable job queue — async intake', () => {
   });
 
   it('is a fast no-op when nothing is due', async () => {
-    const result = await runIntakeWorker(db, cleanScanner, noOpExtractor);
+    const result = await runIntakeWorker(db, cleanScanner, noOpExtractor, passingContentLimits);
     expect(result).toEqual({ processed: 0, failed: 0 });
   });
 
@@ -156,7 +163,7 @@ describe('low-volume durable job queue — async intake', () => {
     };
 
     // Attempt 1: fails, retried with backoff (availableAt pushed into the future).
-    const first = await runIntakeWorker(db, brokenScanner, noOpExtractor);
+    const first = await runIntakeWorker(db, brokenScanner, noOpExtractor, passingContentLimits);
     expect(first).toEqual({ processed: 0, failed: 1 });
     const afterFirst = (
       await db.select().from(schema.processingJobs).where(eq(schema.processingJobs.id, job.id))
@@ -167,7 +174,7 @@ describe('low-volume durable job queue — async intake', () => {
     expect(afterFirst?.availableAt.getTime()).toBeGreaterThan(Date.now());
 
     // Not due yet — a worker pass right now finds nothing to claim.
-    const notYetDue = await runIntakeWorker(db, brokenScanner, noOpExtractor);
+    const notYetDue = await runIntakeWorker(db, brokenScanner, noOpExtractor, passingContentLimits);
     expect(notYetDue).toEqual({ processed: 0, failed: 0 });
 
     // Simulate the backoff having elapsed.
@@ -177,7 +184,7 @@ describe('low-volume durable job queue — async intake', () => {
       .where(eq(schema.processingJobs.id, job.id));
 
     // Attempt 2 (the last one, maxAttempts: 2): fails again, exhausted -> FAILED.
-    const second = await runIntakeWorker(db, brokenScanner, noOpExtractor);
+    const second = await runIntakeWorker(db, brokenScanner, noOpExtractor, passingContentLimits);
     expect(second).toEqual({ processed: 0, failed: 1 });
     const afterSecond = (
       await db.select().from(schema.processingJobs).where(eq(schema.processingJobs.id, job.id))
@@ -190,7 +197,12 @@ describe('low-volume durable job queue — async intake', () => {
       .update(schema.processingJobs)
       .set({ availableAt: new Date(0) })
       .where(eq(schema.processingJobs.id, job.id));
-    const afterExhausted = await runIntakeWorker(db, brokenScanner, noOpExtractor);
+    const afterExhausted = await runIntakeWorker(
+      db,
+      brokenScanner,
+      noOpExtractor,
+      passingContentLimits,
+    );
     expect(afterExhausted).toEqual({ processed: 0, failed: 0 });
   });
 
@@ -200,13 +212,19 @@ describe('low-volume durable job queue — async intake', () => {
     await enqueueIntakeJob(db, { documentVersionId: v1 });
     await enqueueIntakeJob(db, { documentVersionId: v2 });
 
-    const first = await runIntakeWorker(db, cleanScanner, noOpExtractor, { limit: 1 });
+    const first = await runIntakeWorker(db, cleanScanner, noOpExtractor, passingContentLimits, {
+      limit: 1,
+    });
     expect(first).toEqual({ processed: 1, failed: 0 });
 
-    const second = await runIntakeWorker(db, cleanScanner, noOpExtractor, { limit: 1 });
+    const second = await runIntakeWorker(db, cleanScanner, noOpExtractor, passingContentLimits, {
+      limit: 1,
+    });
     expect(second).toEqual({ processed: 1, failed: 0 });
 
-    const third = await runIntakeWorker(db, cleanScanner, noOpExtractor, { limit: 1 });
+    const third = await runIntakeWorker(db, cleanScanner, noOpExtractor, passingContentLimits, {
+      limit: 1,
+    });
     expect(third).toEqual({ processed: 0, failed: 0 });
   });
 
@@ -225,7 +243,7 @@ describe('low-volume durable job queue — async intake', () => {
         throw new Error('scanner unavailable');
       },
     };
-    await runIntakeWorker(db, brokenScanner, noOpExtractor);
+    await runIntakeWorker(db, brokenScanner, noOpExtractor, passingContentLimits);
 
     const failed = await listFailedJobs(db);
     expect(failed).toHaveLength(1);
@@ -275,7 +293,7 @@ describe('low-volume durable job queue — async intake', () => {
       })
       .where(eq(schema.processingJobs.id, job.id));
 
-    const result = await runIntakeWorker(db, cleanScanner, noOpExtractor);
+    const result = await runIntakeWorker(db, cleanScanner, noOpExtractor, passingContentLimits);
     expect(result).toEqual({ processed: 1, failed: 0 });
 
     const [row] = await db
@@ -302,7 +320,7 @@ describe('low-volume durable job queue — async intake', () => {
       })
       .where(eq(schema.processingJobs.id, job.id));
 
-    const result = await runIntakeWorker(db, cleanScanner, noOpExtractor);
+    const result = await runIntakeWorker(db, cleanScanner, noOpExtractor, passingContentLimits);
     expect(result).toEqual({ processed: 1, failed: 0 });
     const [row] = await db
       .select()
@@ -328,7 +346,7 @@ describe('low-volume durable job queue — async intake', () => {
     // processing the SAME job the old deployment might still be mid-flight
     // on — exactly the double-processing hazard leasing exists to prevent,
     // just via a different (lease-less) route.
-    const result = await runIntakeWorker(db, cleanScanner, noOpExtractor);
+    const result = await runIntakeWorker(db, cleanScanner, noOpExtractor, passingContentLimits);
     expect(result).toEqual({ processed: 0, failed: 0 });
     const [row] = await db
       .select()
@@ -354,7 +372,7 @@ describe('low-volume durable job queue — async intake', () => {
       },
     };
 
-    const invocation = runIntakeWorker(db, pausedScanner, noOpExtractor);
+    const invocation = runIntakeWorker(db, pausedScanner, noOpExtractor, passingContentLimits);
     await vi.waitFor(() => {
       if (!releaseScan) throw new Error('has not reached the scan yet');
     });
@@ -402,7 +420,7 @@ describe('low-volume durable job queue — async intake', () => {
 
     // Confirm it is genuinely, normally reclaimable -- not stuck by some
     // OTHER accident this test's setup introduced.
-    const reclaimed = await runIntakeWorker(db, cleanScanner, noOpExtractor);
+    const reclaimed = await runIntakeWorker(db, cleanScanner, noOpExtractor, passingContentLimits);
     expect(reclaimed).toEqual({ processed: 1, failed: 0 });
   });
 
@@ -424,7 +442,7 @@ describe('low-volume durable job queue — async intake', () => {
 
     // Invocation A claims the job and pauses mid-scan (simulating a slow,
     // still-alive worker — not a crash).
-    const invocationA = runIntakeWorker(db, pausedScanner, noOpExtractor);
+    const invocationA = runIntakeWorker(db, pausedScanner, noOpExtractor, passingContentLimits);
     await vi.waitFor(() => {
       if (!releaseScan) throw new Error('invocation A has not reached the scan yet');
     });
@@ -438,7 +456,7 @@ describe('low-volume durable job queue — async intake', () => {
       .where(eq(schema.processingJobs.id, job.id));
 
     // Invocation B reclaims and fully processes the same job.
-    const resultB = await runIntakeWorker(db, cleanScanner, noOpExtractor);
+    const resultB = await runIntakeWorker(db, cleanScanner, noOpExtractor, passingContentLimits);
     expect(resultB).toEqual({ processed: 1, failed: 0 });
     const [afterB] = await db
       .select()
@@ -472,12 +490,18 @@ describe('low-volume durable job queue — async intake', () => {
     // — a stale, duplicate scan-history entry surviving despite losing the
     // race. A's fencing check (right after its paused scanner.scan()
     // finally resolves, before any write) now catches the lost lease first
-    // and skips that insert entirely: exactly one row, B's.
+    // and skips that insert entirely: exactly one row, B's. Filtered by
+    // scannerName (not just "every row for this version"): B's single,
+    // fully-successful run also advances into NORMALIZING, which records
+    // its own passingContentLimits row in this same, reused table (AD-08),
+    // which the "exactly one row, B's" claim is about the SCAN step, not
+    // the pipeline's whole evidence history.
     const scanResults = await db
       .select()
       .from(schema.documentScanResults)
       .where(eq(schema.documentScanResults.documentVersionId, versionId));
-    expect(scanResults).toHaveLength(1);
+    const scannerRows = scanResults.filter((r) => r.scannerName === 'test-scanner');
+    expect(scannerRows).toHaveLength(1);
   });
 
   it('does not let a worker whose lease was reclaimed mid-extraction persist its own extraction/classification/naming-proposal side effects (finding #19, post-programme defect register)', async () => {
@@ -511,7 +535,7 @@ describe('low-volume durable job queue — async intake', () => {
     // Invocation A claims the job, clears SCANNING/NORMALIZING (both
     // instant with cleanScanner/no side effects to race on), then pauses
     // mid-extraction — simulating a slow, still-alive worker, not a crash.
-    const invocationA = runIntakeWorker(db, cleanScanner, passportExtractor);
+    const invocationA = runIntakeWorker(db, cleanScanner, passportExtractor, passingContentLimits);
     await vi.waitFor(() => {
       if (releaseFns.length < 1) throw new Error('invocation A has not reached extraction yet');
     });
@@ -524,7 +548,7 @@ describe('low-volume durable job queue — async intake', () => {
 
     // Invocation B reclaims and fully processes the same job, using the
     // same extractor port (so B ALSO pauses mid-extraction).
-    const invocationB = runIntakeWorker(db, cleanScanner, passportExtractor);
+    const invocationB = runIntakeWorker(db, cleanScanner, passportExtractor, passingContentLimits);
     await vi.waitFor(() => {
       if (releaseFns.length < 2) throw new Error('invocation B has not reached extraction yet');
     });
@@ -600,7 +624,7 @@ describe('low-volume durable job queue — async intake', () => {
         throw new Error('scanner unavailable: connection refused at 10.0.4.12:9000');
       },
     };
-    await runIntakeWorker(db, brokenScanner, noOpExtractor);
+    await runIntakeWorker(db, brokenScanner, noOpExtractor, passingContentLimits);
 
     const [row] = await db
       .select()

@@ -208,3 +208,29 @@ priority remaining" from the prior two chunks; remaining open Part 3 scope is li
 session's own running task list (SEC-05's decompression/pixel/memory/CPU/time guards, ZIP-export
 safe-naming, worker/job-lease generalization, document metadata population, duplicate detection,
 EVI-04's document-level wallet/expiry concept, upload page-count/megapixel/batch-count limits).
+
+## Part 3, chunk 5: EVI-01 page-count/megapixel/password-protected intake limits
+
+Commit: working tree on top of `f7b9579` (Part 3 chunk 4, support_grants wiring, already
+pushed and PR #78 updated). New `ContentLimitsPort` (`intake.ts`), `BuiltinContentLimitsChecker`
+(`content-limits.ts`), shared `image-dimensions.ts` (extracted from `preview-renderer.ts`), a
+new NORMALIZING branch in `processIntake`, and `UploadQuotaConfig`'s two new fields.
+
+| # | Command | Exit | Result | Detail |
+|---|---|---|---|---|
+| 1 | `pnpm run lint` | 0 | PASS | Biome, 312 files checked, no fixes applied (one import-sort/formatting auto-fix applied and re-verified before this run). |
+| 2 | `pnpm run typecheck` | 0 | PASS | All 7 packages. Threading the new `ContentLimitsPort` parameter through `processIntake`/`runIntakeWorker` surfaced every call site the compiler could reach that needed updating (29 across `jobs.test.ts`, `pipeline.test.ts`, `adapters.test.ts`, `apps/web/src/lib/jobs.ts`), fixed by scripted substitution then re-verified, not by hand-editing each one individually with the risk of missing some. |
+| 3 | `pnpm run test` | 0 | PASS | 772 tests total across all 7 packages (i18n 6, core 2, policy 29, db 26 + 1 skipped, adapters 147 + 2 skipped, web 141, services 418). `content-limits.test.ts`: 10 new tests against real bytes, including a genuinely valid multi-page PDF (hand-built, extending `text-extraction.test.ts`'s single-page fixture pattern to N pages) correctly counted at an exact page-limit boundary, a real megapixel count read from a hand-crafted PNG header, DOCX/text passthrough, and a missing-object fail-closed case. `image-dimensions.test.ts`: 9 new tests for the shared header-reading module, both against real canvas-generated PNG/JPEG bytes and hand-crafted header-only fixtures. `pipeline.test.ts`: 2 new integration tests against real PGlite Postgres proving the full NORMALIZING-stage behavior: a clean-scanned document exceeding a content limit reaches NEEDS_ATTENTION (never EXTRACTING) with `safetyStatus` correctly staying `CLEAN`; a thrown content-limits check leaves the version resumable with a durable error row, exactly mirroring the SCANNING stage's own established resumability contract. Two pre-existing tests (`pipeline.test.ts`, `jobs.test.ts`) broke and were fixed: both asserted an exact `documentScanResults` row count assuming only the malware scanner ever wrote to that table, which a fully successful pipeline run now genuinely violates (NORMALIZING's content-limits check writes its own row there too, by design, see AD-08); fixed by filtering on `scannerName` first rather than counting every row for the version, a more precise and more correct assertion, not a weakened one. |
+| 4 | `pnpm run build` | 0 | PASS | Full monorepo build including `apps/web`, full route manifest produced. |
+| 5 | `pnpm audit --prod` | 0 | PASS | "No known vulnerabilities found", no new dependencies added (this chunk is pure application code plus the already-added `unpdf`/`@napi-rs/canvas` from the prior preview-rendering chunk). |
+
+A known limitation stated plainly, not left implicit: the password-protected-PDF rejection
+path's exact trigger (real encrypted-PDF bytes) has no dedicated test, matching this codebase's
+own pre-existing, already-accepted precedent for the identical detection pattern in
+`text-extraction.ts`. Hand-rolling real PDF encryption bytes for a test fixture was rejected for
+the same reason this codebase already rejected hand-rolling a PDF parser once (AD-04's own
+post-mortem).
+
+Full detail: `docs/commercial-v1/architecture-decisions.md` AD-08; open items:
+`docs/commercial-v1/known-issues.md` item 27 (batch-count limit, deliberately not implemented
+without a clearer spec for what a "batch" is server-side).

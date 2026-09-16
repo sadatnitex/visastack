@@ -35,6 +35,19 @@ export {
 export { BuiltinPreviewRenderer } from './preview-renderer';
 
 export {
+  BuiltinContentLimitsChecker,
+  type BuiltinContentLimitsCheckerOptions,
+  type ContentLimitsConfig,
+} from './content-limits';
+
+export {
+  type ImageDimensions,
+  imageDimensions,
+  jpegDimensions,
+  pngDimensions,
+} from './image-dimensions';
+
+export {
   OpenAiExtractionAdapter,
   type OpenAiExtractionAdapterOptions,
 } from './openai-extraction';

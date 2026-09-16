@@ -9,7 +9,12 @@ import {
   runErasureWorker,
   runIntakeWorker,
 } from '@visastack/services';
-import { createDocumentConverter, createMalwareScanner, createStorage } from './providers';
+import {
+  createContentLimitsChecker,
+  createDocumentConverter,
+  createMalwareScanner,
+  createStorage,
+} from './providers';
 
 /**
  * Runs the low-volume durable intake worker on its own short-lived pooled
@@ -46,7 +51,8 @@ export async function triggerIntakeWorker(
     const storage = createStorage(handle);
     const scanner = createMalwareScanner(storage);
     const extractor = createDocumentConverter(storage);
-    return await runIntakeWorker(handle, scanner, extractor, options);
+    const contentLimits = createContentLimitsChecker(storage);
+    return await runIntakeWorker(handle, scanner, extractor, contentLimits, options);
   } catch (error) {
     console.error('[triggerIntakeWorker] worker pass failed', error);
     return { processed: 0, failed: 0 };

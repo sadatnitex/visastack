@@ -436,3 +436,87 @@ support_admin actor once any grant exists. What this does not cover: no real cal
 `apps/web` constructs a `support_admin` actor yet (the admin-workspace/support-access UI is Part
 5/9 scope, ADM-01); this change makes the authorization path correct and reachable once such a
 caller exists, not a claim that one exists today.
+
+## AD-08: A new NORMALIZING pipeline stage for EVI-01's page/pixel limits, reusing `documentScanResults`
+
+**Decision.** EVI-01 states exact, initial configurable limits a malware scan has no reason to
+enforce: "50 PDF pages, 40 megapixels per image," alongside encrypted-PDF rejection with "a
+clear request for an unlocked copy." None of these existed anywhere in the codebase before this
+chunk. `intake.ts`'s own module doc comment already documented `NORMALIZING` as a reserved,
+currently-empty pass-through step between SCANNING and EXTRACTING ("no real normalization work
+exists yet, and this is stated here rather than implied"), which is exactly the right place for
+a bounded-parsing gate that must run after a file is confirmed CLEAN but before its text is
+extracted: a new `ContentLimitsPort`/`BuiltinContentLimitsChecker` pair (mirroring
+`MalwareScannerPort`/`ClamAvScanner`'s exact shape) now does this real work there, threaded
+through `processIntake` and `runIntakeWorker` as a fourth constructor-injected port, exactly
+like the scanner and extractor already are.
+
+**Why after the scan, not before or instead of it.** A genuinely clean, genuinely well-formed
+PDF or image can still exceed these limits; conversely, checking page count or pixel dimensions
+on a file that has not yet been confirmed safe would mean parsing untrusted bytes before they
+are known safe, spending the same "trust the bytes enough to parse them" risk budget SEC-05's
+"bounded parsing" language is already about, a second time, for no benefit; the scan gate stays
+the single point that decides whether a file's bytes are worth parsing at all.
+
+**Why `unpdf` for page count, never a hand-rolled parser.** Identical reasoning to AD-04's real
+malware scanner and AD-06's preview renderer: this codebase already tried, and abandoned, a
+hand-rolled PDF parser once (20 correctness findings across 8 review rounds; see `scanner.ts`'s
+module doc comment). `unpdf` (pdfjs) is already a trusted dependency for exactly this kind of
+parsing (`text-extraction.ts`, `preview-renderer.ts`), so page-counting through it, rather than
+inventing a third from-scratch PDF reader in this codebase, was never seriously considered as an
+alternative.
+
+**Why the image-dimension header readers were extracted into their own shared module.** This
+chunk needed the exact same "read PNG/JPEG pixel dimensions from a few header bytes, never a
+full decode" logic `preview-renderer.ts` (AD-06, the previous chunk) had already built to bound
+its own decode step. Copying it a second time was rejected outright: two independently
+maintained copies of the same header-parsing logic is exactly the kind of drift this
+codebase's own `structuralCheck` extraction (AD-04) was already built to prevent for the
+scanner adapters. `pngDimensions`/`jpegDimensions`/`imageDimensions` moved to a new
+`image-dimensions.ts`, imported by both `preview-renderer.ts` and `content-limits.ts`, with
+its own dedicated unit tests (9 tests) now that it is a genuinely shared, independently
+reusable unit rather than one file's private implementation detail.
+
+**Why a new pipeline stage reuses `documentScanResults` rather than a new table.** The
+alternative, a parallel `document_content_limit_checks` table mirroring `documentScanResults`
+column for column, was considered and rejected: `documentScanResults`'s columns
+(`scannerName`, `scannerVersion`, `safe`, `scanErrored`, `detail`) are not intrinsically about
+malware specifically, and a content-limits check's outcome ("did this attempt find the file
+acceptable, or not, and why") is the identical shape. Reusing it, distinguished only by
+`scannerName` (`'builtin-content-limits'` vs. the real malware scanner's own name), meant zero
+new migration, and `listScanResults()` already queries and returns every relevant attempt for a
+version with no changes needed. The real cost, found empirically: three pre-existing tests
+(`pipeline.test.ts`, `jobs.test.ts`) asserted an exact row count for `documentScanResults`
+assuming only the malware scanner ever wrote to it; a fully successful pipeline run now writes
+TWO rows (one per stage), not one, which broke those counts until each was fixed to filter by
+`scannerName` first. This is recorded as a real, non-obvious consequence of the reuse decision,
+not swept under a passing test; a future reader adding a third pipeline stage that also wants
+durable evidence should expect the same.
+
+**Why the two new limits are folded into `UploadQuotaConfig` rather than a separate config
+type.** EVI-01 itself groups "20 MiB per original," "50 PDF pages," and "40 megapixels per
+image" as one sentence of "initial configurable limits." `quotas.ts` already owns exactly this
+concept (env-overridable, conservative pilot defaults, one `loadUploadQuotaConfig()` call).
+Extending it with `maxPdfPages`/`maxImageMegapixels` (env vars `QUOTA_MAX_PDF_PAGES`/
+`QUOTA_MAX_IMAGE_MEGAPIXELS`) keeps every EVI-01 number in one place with one loading function,
+rather than a second, independently-evolving config module for two fields.
+
+**What this proves, and what it does not.** `content-limits.test.ts` (10 tests) proves real
+behavior against real bytes: a genuinely valid multi-page PDF (hand-built the same way
+`text-extraction.test.ts`'s single-page fixture already is, extended to N pages) correctly
+counted and accepted or rejected at an exact boundary; a real megapixel count read from a
+hand-crafted PNG header and correctly rejected; DOCX/text passed through unconditionally,
+matching EVI-01's own silence on a numeric limit for either. `pipeline.test.ts` proves the full
+pipeline integration against real PGlite Postgres: a clean-scanned document that exceeds a
+content limit still reaches NEEDS_ATTENTION (never EXTRACTING), with `safetyStatus` correctly
+left `CLEAN` (the file itself was never unsafe, only oversized: `processingStatus` alone, via
+`isServableProcessingState`, is what blocks servability, so no second, inaccurate "unsafe"
+signal is invented for what is really a clean-but-oversized file); the same
+fail-durable-then-resume contract SCANNING already had is proven for NORMALIZING too, including
+the durable error row surviving a thrown check and a successful retry adding a second, non-error
+row rather than overwriting it. What this does not cover, stated plainly rather than implied:
+the password-protected-PDF rejection path's exact trigger (real encrypted-PDF bytes) has no
+dedicated test, matching the pre-existing, already-accepted precedent for the identical
+`/password|encrypted/i` pattern in `text-extraction.ts`'s own `extractPdf` (hand-rolling real
+PDF encryption bytes for a test fixture was rejected for the same reason hand-rolling a PDF
+parser already was); batch-count enforcement does not exist at all (`known-issues.md` item 27).

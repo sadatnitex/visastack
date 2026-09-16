@@ -77,13 +77,15 @@ async function seedApplicantWithEvidence(
 }
 
 describe('upload quotas — configuration', () => {
-  it('uses the pilot defaults (20/50/100/500/700 MB) with no env overrides', () => {
+  it('uses the pilot defaults (20/50/100/500/700 MB, 50 pages, 40 MP) with no env overrides', () => {
     const config = loadUploadQuotaConfig({});
     expect(config.maxUploadBytes).toBe(20 * 1024 * 1024);
     expect(config.maxApplicantEvidenceBytes).toBe(50 * 1024 * 1024);
     expect(config.maxAccountEvidenceBytes).toBe(100 * 1024 * 1024);
     expect(config.platformWarningBytes).toBe(500 * 1024 * 1024);
     expect(config.platformHardStopBytes).toBe(700 * 1024 * 1024);
+    expect(config.maxPdfPages).toBe(50);
+    expect(config.maxImageMegapixels).toBe(40);
   });
 
   it('lets an administrator lower a limit via env override, never silently raising it above what is set', () => {
@@ -94,6 +96,24 @@ describe('upload quotas — configuration', () => {
   it('ignores an invalid override and keeps the safe default', () => {
     const config = loadUploadQuotaConfig({ QUOTA_MAX_UPLOAD_MB: 'not-a-number' });
     expect(config.maxUploadBytes).toBe(20 * 1024 * 1024);
+  });
+
+  it('lets an administrator override the PDF page and image megapixel limits (EVI-01: "initial configurable limits")', () => {
+    const config = loadUploadQuotaConfig({
+      QUOTA_MAX_PDF_PAGES: '10',
+      QUOTA_MAX_IMAGE_MEGAPIXELS: '5',
+    });
+    expect(config.maxPdfPages).toBe(10);
+    expect(config.maxImageMegapixels).toBe(5);
+  });
+
+  it('ignores an invalid page/megapixel override and keeps the safe default', () => {
+    const config = loadUploadQuotaConfig({
+      QUOTA_MAX_PDF_PAGES: 'not-a-number',
+      QUOTA_MAX_IMAGE_MEGAPIXELS: '-5',
+    });
+    expect(config.maxPdfPages).toBe(50);
+    expect(config.maxImageMegapixels).toBe(40);
   });
 });
 

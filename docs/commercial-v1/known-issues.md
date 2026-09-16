@@ -261,6 +261,16 @@ item gets its own requirements-ledger row once classified against the new direct
     including `/api/blob/[key]`. `serverExternalPackages` is left in place alongside it, since
     it is still the right signal for Vercel's own deployed-function file tracing to include the
     native binary, a separate concern from webpack's bundling step this override fixes.
+27. (Part 3) EVI-01's "initial configurable limits" (page count, megapixels, batch count) were
+    entirely unenforced beyond upload byte size. Page count (50 PDF pages) and image resolution
+    (40 megapixels) are now real: `ContentLimitsPort`/`BuiltinContentLimitsChecker` runs in the
+    intake pipeline's NORMALIZING step. Batch count ("10 files per user batch") remains
+    deliberately unimplemented: no server-side concept of an upload "batch" exists anywhere in
+    this codebase today (uploads are reserved and processed one at a time, `uploadIntents` has
+    no grouping column), and inventing one (a time window? an explicit client-generated batch
+    id? per calendar day?) is a real product decision this session is not positioned to make
+    unilaterally, unlike the page-count/megapixel numbers, which the PRD states as exact,
+    unambiguous figures. Tracked here rather than silently left off the ledger.
 
 Items 1 through 4, 5 through 9, and 14/15 above are carried forward or upgraded to
 independently confirmed findings; the missing PRD file is tracked as Blocker 1 in

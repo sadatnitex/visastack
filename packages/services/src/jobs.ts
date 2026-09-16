@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { and, asc, desc, eq, gt, inArray, isNull, lt, lte, or, sql } from 'drizzle-orm';
 import { type Db, first, required, schema } from './db';
 import type { DocumentConverterPort } from './extraction';
-import type { MalwareScannerPort } from './intake';
+import type { ContentLimitsPort, MalwareScannerPort } from './intake';
 import { processIntake } from './intake';
 
 /**
@@ -13,7 +13,8 @@ import { processIntake } from './intake';
  * same job, and a failure retries with exponential backoff up to
  * `maxAttempts` before parking at FAILED — visible and inspectable, never
  * silently dropped. This module is deliberately storage-agnostic: callers
- * inject the `MalwareScannerPort`, exactly like `processIntake` itself.
+ * inject the `MalwareScannerPort`/`ContentLimitsPort`, exactly like
+ * `processIntake` itself.
  *
  * Leases (master directive §7 "PR 6"): a claim is a time-bound lease, not a
  * permanent hand-off. Each `claimJobs` call generates one `leaseOwner` token
@@ -356,6 +357,7 @@ export async function runIntakeWorker(
   db: Db,
   scanner: MalwareScannerPort,
   extractor: DocumentConverterPort,
+  contentLimits: ContentLimitsPort,
   options: { readonly limit?: number } = {},
 ): Promise<IntakeWorkerResult> {
   const jobs = await claimJobs(db, options.limit ?? DEFAULT_CLAIM_LIMIT);
@@ -371,7 +373,7 @@ export async function runIntakeWorker(
       // loss, not just the final processingStatus transition (finding #19,
       // post-programme defect register) -- see intake.ts's own doc comments
       // on stillHoldsLease for the precise gap this closes.
-      const result = await processIntake(db, scanner, extractor, {
+      const result = await processIntake(db, scanner, extractor, contentLimits, {
         documentVersionId: job.documentVersionId,
         fencing: { jobId: job.id, leaseOwner },
       });

@@ -330,6 +330,8 @@ export {
 
 export {
   PIPELINE_VERSION,
+  type ContentLimitsPort,
+  type ContentLimitsResult,
   type DocumentScanResult,
   type MalwareScannerPort,
   type ScanResult,
