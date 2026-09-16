@@ -102,3 +102,36 @@ Commit: working tree on top of `888e344` (Part 2 chunk 2), with migration
 
 Full detail on the checkpoint design: `docs/commercial-v1/architecture-decisions.md` AD-03;
 open items: `docs/commercial-v1/known-issues.md` items 16/17.
+
+## Part 3, chunk 1: real malware scanning via ClamAV (SEC-05/EVI-02), upload limit correction (EVI-01)
+
+Commit: working tree on top of `21e3041` (Part 2 complete), with the new
+`packages/adapters/src/clamav-scanner.ts` (+ test), the `structuralCheck` extraction from
+`scanner.ts`, provider/commercial-readiness/capabilities wiring, the `quotas.ts` 20 MiB
+correction, and the CI ClamAV setup step. A real ClamAV 1.5.3 daemon was installed and run in
+this session's own sandbox for genuine live verification (not simulated), using a minimal
+hand-authored EICAR-only signature since this sandbox's outbound network policy blocks
+`database.clamav.net` (confirmed via the agent proxy's own status endpoint).
+
+| # | Command | Exit | Result | Detail |
+|---|---|---|---|---|
+| 1 | `pnpm run lint` | 0 | PASS | Biome, 301 files checked, no fixes applied. |
+| 2 | `pnpm run typecheck` | 0 | PASS | All 7 packages. Caught and fixed 3 real type errors before this run: a possibly-undefined regex capture group in `parseClamdResponse`, an `exactOptionalPropertyTypes` mismatch in `providers.ts`'s `ClamAvScanner` construction (fixed via conditional spread, matching `ai.ts`'s existing pattern), and an index-signature access rule conflict on `process.env.CLAMAV_TEST_SOCKET_PATH` (fixed via a local `readEnv` helper, matching the established codebase pattern). |
+| 3 | `pnpm run test` | 0 | PASS | 704 tests total across all 7 packages (i18n 6, core 2, policy 29, db 26 + 1 skipped, adapters 118, web 136, services 386), run with `CLAMAV_TEST_SOCKET_PATH` set to the real local daemon. `clamav-scanner.test.ts`: 23 tests, 0 skipped in this run (2 live-only tests genuinely executed against the real daemon: authentic EICAR detection and clean-file pass-through, plus a raw `node:net` PING/PONG sanity check confirming the socket is genuinely clamd). The rest of that file exercises a fake wire-protocol-compatible server covering detection, threat naming, PDF now reaching the real-scanner path (ADR-0012 follow-up), structural-gate short-circuiting for executables, fail-closed behavior on an unrecognized response/connection reset/timeout/unreachable socket, `probeClamdVersion` (real reply when enabled, `undefined` not a guess when disabled or unreachable), and `checkSignatureFreshness` against a real filesystem (fresh `.cvd`, stale `.cld`, missing directory, no-official-database-present). `route.test.ts`, `providers.test.ts`, `capabilities.test.ts`, `commercial-readiness.test.ts` updated: `MALWARE_SCANNER_PROVIDER=clamav` is now a supported value everywhere it was previously used as the "unsupported provider" example, with new tests covering the genuinely-supported path instead. `quotas.test.ts` updated for the 20 MiB default. Two real bugs caught by this session's own testing before committing, not left in: (a) two tests declaring the EICAR fixture as `application/octet-stream` were rejected by the structural gate before ever reaching the scanner, passing for the wrong reason; (b) Turborepo silently dropped `CLAMAV_TEST_SOCKET_PATH` when run via `pnpm run test` (`turbo run test`) because it was not declared in `turbo.json`, which would have made the live tests skip forever in CI without ever surfacing as a failure. Both detailed in `known-issues.md` items 21/22. |
+| 4 | `pnpm run build` | 0 | PASS | Full monorepo build including `apps/web`. Same pre-existing `unpdf`/`import.meta` warning as prior chunks, unrelated to this one. |
+| 5 | `pnpm audit --prod` | 0 | PASS | "No known vulnerabilities found", no new dependencies added (Node's built-in `net`/`fs` modules only, no new package for the ClamAV client). |
+
+CI verification: the exact `.github/workflows/ci.yml` ClamAV setup script was extracted and
+run end-to-end in this sandbox (not just read for plausibility) before committing, including
+deliberately reproducing the real conditions CI will face differently (this sandbox's
+network-blocked `freshclam`, exercising the EICAR-fallback branch; GitHub-hosted runners are
+expected to reach `database.clamav.net` successfully, which this session cannot itself
+confirm). Caught and fixed a real bug in that script this way (item 21(a) above) that reading
+the script alone would not have surfaced, since `apt-get update`'s partial failure on this
+sandbox's unrelated pre-installed third-party APT sources is not an obviously-wrong line of
+YAML on inspection.
+
+Full detail: `docs/commercial-v1/architecture-decisions.md` AD-04; open items:
+`docs/commercial-v1/known-issues.md` items 18-22 (the 60-second delivery-token/live-
+revocation-recheck gap and the missing safe-preview rendering are the two highest-priority
+items carried into the next Part 3 chunk).

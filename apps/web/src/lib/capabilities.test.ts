@@ -23,6 +23,10 @@ const ENV_KEYS = [
   'BLOB_READ_WRITE_TOKEN',
   'AI_ENABLED',
   'OPENAI_API_KEY',
+  'MALWARE_SCANNER_PROVIDER',
+  'CLAMAV_SOCKET_PATH',
+  'CLAMAV_HOST',
+  'CLAMAV_PORT',
 ] as const;
 const ORIGINAL: Record<string, string | undefined> = {};
 
@@ -117,10 +121,23 @@ describe('getPlatformCapabilities', () => {
     expect(getPlatformCapabilities().documentUpload).toBe('available');
   });
 
-  it('never reports malwareScanning as available — structural validation is not antivirus', async () => {
+  it('reports malwareScanning unconfigured by default, structural validation alone is not antivirus', async () => {
     setEnv('VERCEL_ENV', 'production');
     const { getPlatformCapabilities } = await import('./capabilities');
-    expect(getPlatformCapabilities().malwareScanning).not.toBe('available');
+    expect(getPlatformCapabilities().malwareScanning).toBe('unconfigured');
+  });
+
+  it('reports malwareScanning available once a real ClamAV adapter is genuinely configured (SEC-05)', async () => {
+    setEnv('MALWARE_SCANNER_PROVIDER', 'clamav');
+    setEnv('CLAMAV_SOCKET_PATH', '/var/run/clamav/clamd.ctl');
+    const { getPlatformCapabilities } = await import('./capabilities');
+    expect(getPlatformCapabilities().malwareScanning).toBe('available');
+  });
+
+  it('reports malwareScanning unconfigured when clamav is selected but no connection is given', async () => {
+    setEnv('MALWARE_SCANNER_PROVIDER', 'clamav');
+    const { getPlatformCapabilities } = await import('./capabilities');
+    expect(getPlatformCapabilities().malwareScanning).toBe('unconfigured');
   });
 
   it('reports aiExtraction unconfigured when AI_ENABLED is not exactly "true"', async () => {

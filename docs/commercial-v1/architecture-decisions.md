@@ -137,3 +137,76 @@ available to integrate against this session. Scheduling `createAuditCheckpoint` 
 periodically (a worker/cron on an interval) is operational wiring for a later part; this commit
 delivers the capability, not its schedule. Both gaps are tracked in `known-issues.md` rather
 than assumed complete.
+
+## AD-04: Real malware scanning via ClamAV (SEC-05/EVI-02)
+
+**Decision.** `ClamAvScanner` (`packages/adapters/src/clamav-scanner.ts`) is a real
+`MalwareScannerPort` implementation backed by an actual ClamAV daemon (`clamd`), speaking its
+native `INSTREAM` protocol directly over a Unix socket or TCP, never a file path, so clamd
+never needs OS-level read access to wherever the object store keeps bytes, matching the
+directive's "isolated worker" boundary. Selected via the existing provider-registry pattern
+(`apps/web/src/lib/providers.ts`'s `createMalwareScanner`, `MALWARE_SCANNER_PROVIDER=clamav`
+plus `CLAMAV_SOCKET_PATH` or `CLAMAV_HOST`/`CLAMAV_PORT`), defaulting to the existing
+`BasicSafetyScanner` when not configured, the same fail-toward-the-conservative-
+existing-behavior posture `LocalEnvelopeKeyProvider` and `NullEmailPort` already use elsewhere
+in this codebase, not a new pattern.
+
+**Why ClamAV, and why this closes ADR-0012's own named follow-up.** ADR-0012 permanently
+banned hand-rolled PDF content parsing in this codebase after 8 review rounds and 20
+correctness findings on an abandoned custom parser, and named its own remedy explicitly: "a
+real malware-scanner adapter for PDF... free to safely depend on a mature, battle-tested
+PDF-parsing library rather than hand-rolled parsing." ClamAV's own PDF scanning (`ScanPDF`,
+enabled by default) is that library. Nothing in `clamav-scanner.ts` parses PDF structure
+itself; it only decides whether structural pre-checks pass, then streams bytes to clamd and
+relays its verdict.
+
+**Structural checks are reused, not duplicated, with one deliberate difference.**
+`packages/adapters/src/scanner.ts`'s magic-byte deny-list, DOCX structural validation, and
+plain-text heuristic were extracted into a shared `structuralCheck(bytes, contentType,
+{maxBytes, allowPdf})` function. `BasicSafetyScanner` calls it with `allowPdf: false`
+(unchanged behavior, refactor verified behavior-preserving against its existing test suite
+before any new code was added). `ClamAvScanner` calls it with `allowPdf: true`: a
+structurally well-formed PDF passes this layer and reaches the real engine, which is the only
+thing in this codebase now permitted to make a PDF safety determination. Every file type,
+not only PDF, still reaches clamd once structural pre-checks pass: a real engine can catch
+content-level threats structural checks were never designed to.
+
+**Fail-closed on every failure mode.** An unreachable daemon, a connection reset, a scan
+timeout, or an unrecognized protocol response all return `safe: false` with a
+`"scanner unavailable"`/`"unrecognized response"` detail, never fail open. Signature
+freshness (`checkSignatureFreshness`, a real filesystem check against `.cvd`/`.cld` mtimes,
+never a hand-authored test database) is enforced by default; a stale or absent official
+database also denies release, matching the directive's 24-hour maximum age and "operational
+degraded status" language. `enforceSignatureFreshness: false` exists only for test/dev
+fixtures with no official database (e.g. this session's own sandbox, network-blocked from
+`database.clamav.net`) and refuses to construct when `DEPLOYMENT_MODE=commercial`, mirroring
+`LocalEnvelopeKeyProvider`'s `assertNotCommercialMode` guard exactly.
+
+**Genuinely live-verified, not simulated, in this session.** A real ClamAV 1.5.3 daemon was
+installed and run inside this session's own sandbox (`apt-get install clamav-daemon`); since
+this environment's outbound network policy blocks `database.clamav.net` (confirmed via the
+agent proxy's own status endpoint, not assumed), a minimal hand-authored `.hdb` signature
+containing only the standard, publicly-documented EICAR test signature was loaded so the
+engine itself could still be exercised for real. Against that real daemon, `ClamAvScanner`
+genuinely detected the EICAR test string and passed clean content, proven via
+`clamav-scanner.test.ts`'s live-only `describe.skipIf` block, which skips (not fakes) when no
+reachable daemon is configured. CI (`.github/workflows/ci.yml`) installs and starts a real
+`clamd` before the test step on every run, attempting a genuine `freshclam` signature fetch
+(GitHub-hosted runners have full internet access this sandbox does not) with the same
+EICAR-only fallback if that fetch fails, so the live path runs in CI too, not only locally.
+The bulk of the adapter's own logic (protocol framing, error handling, the structural gate,
+freshness checks) is additionally covered by a fast, deterministic fake-clamd test double
+implementing the real wire protocol, so correctness does not depend solely on a live daemon
+being available.
+
+**What remains open, not assumed complete.** (1) Live signature-freshness enforcement against
+a real, officially-signed `daily.cvd` has never been exercised in this sandbox specifically
+(network-blocked here); CI's `freshclam` attempt is the first place this can genuinely happen,
+and is not yet confirmed to have succeeded there as of this commit. (2) "Isolated worker
+deployment," a separately-hosted or sidecar `clamd` process reachable from a real production
+worker, as opposed to this dev container, is a hosting/infrastructure decision this session
+has no tooling to provision; the adapter's TCP-mode support exists for exactly that future
+topology, but the topology itself is not stood up anywhere. (3) SEC-05's decompression/
+page-count/pixel/memory/CPU/time guards, ZIP-export safe-naming, and export-artifact lifetime
+are not yet audited or built this chunk. All three tracked in `known-issues.md`, not silently
+dropped.

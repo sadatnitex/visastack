@@ -6,10 +6,14 @@ item gets its own requirements-ledger row once classified against the new direct
 
 ## Carried forward, still open
 
-1. Real malware scanner not implemented. `commercial-readiness.ts` gate `realMalwareScanner`
-   is hardcoded `false`. The current scanner (`BasicSafetyScanner`) is structural/magic-byte
-   validation only, by design (ADR-0011), not antivirus. Directive Part 3 requires a real
-   scanning engine (isolated ClamAV worker or an approved private scanning service).
+1. ~~Real malware scanner not implemented.~~ **RESOLVED (Part 3).** `ClamAvScanner`
+   (`packages/adapters/src/clamav-scanner.ts`) is a real `MalwareScannerPort` backed by an
+   actual ClamAV daemon; `commercial-readiness.ts`'s `realMalwareScanner` gate is now a live
+   configuration check, not a hardcoded `false`. `BasicSafetyScanner` (structural/magic-byte
+   only, ADR-0011) remains the DEFAULT when `MALWARE_SCANNER_PROVIDER=clamav` is not
+   explicitly configured, which is intentional (fail toward the conservative existing
+   behavior, never silently assume a scanner is present), not a residual gap. Full detail:
+   `architecture-decisions.md` AD-04.
 2. 8 cross-account E2E tests in `apps/web/e2e/authenticated-workspace.spec.ts` are
    unconditionally `test.skip(true, reason)` with empty bodies. They need real journey
    implementations against a second synthetic WorkOS identity. Directive Part 10 Section 2
@@ -138,6 +142,57 @@ item gets its own requirements-ledger row once classified against the new direct
     this programme, same shape as item 11: a test against an append-only-by-RULE table must
     explicitly defeat the RULE to simulate the threat it claims to test, or it silently tests
     nothing.
+
+18. (Part 3) The binary-delivery token (EVI-06/SEC-05) runs a 300-second TTL
+    (`DEFAULT_ACCESS_TTL_SECONDS`, `packages/services/src/documents.ts`) against the PRD's
+    explicit 60-second maximum, and redemption (`apps/web/src/app/api/blob/[key]/route.ts`)
+    checks only the token's HMAC signature and expiry, never live grant status: a grant
+    revoked mid-token-life does not invalidate an already-issued token. This directly
+    contradicts the directive's own explicit adversarial test (A08: "revoked grant kills
+    token") and EVI-06's "redemption must recheck access." Confirmed this session via Explore
+    agent inventory, not yet fixed. Highest-priority item for the next Part 3 chunk.
+19. (Part 3) Safe preview (EVI-02/EVI-06: "safe rendered previews with active content
+    removed") does not exist. `previewDocument`/`accessDocument`
+    (`packages/services/src/documents.ts`) compute an `effectiveVariant` of `'original'` or
+    `'redacted'`, but `/api/blob/[key]/route.ts` only implements `'original'` (raw bytes,
+    content-disposition changed only), and `'redacted'` is hardcoded to return `501`. An owner
+    "previewing" their own document today receives the actual original bytes inline, not a
+    safe derivative; a non-owner with a valid grant cannot preview at all (always 501, missing
+    rather than merely insecure). Confirmed this session via Explore agent inventory, not yet
+    fixed. Second-priority item for the next Part 3 chunk, after the delivery-token fix.
+20. (Part 3) `DEFAULT_UPLOAD_QUOTAS.maxUploadBytes` (`packages/services/src/quotas.ts`) was
+    10 MB, a prior-engagement pilot default, against EVI-01's explicit "20 MiB per original."
+    Corrected to 20 MiB this chunk, per this program's standing instruction to follow the
+    newer PRD's numbers over an older build's where they conflict.
+21. (Part 3) Two genuine bugs caught by this session's own testing before committing, not left
+    in: (a) the CI ClamAV-setup script originally chained `apt-get update && apt-get install`,
+    so an unrelated third-party APT source failing (a stale PPA signing key, nothing to do
+    with ClamAV) made `apt-get update` exit non-zero and short-circuit the whole install via
+    `&&`, even though the actual packages needed were still fetchable from the primary Ubuntu
+    archives, caught by literally running the extracted script end-to-end in this sandbox,
+    not by reasoning about it, and fixed by gating only on the install command's own exit
+    code. (b) Turborepo 2.10.5 does not pass an env var through to a task's child process
+    unless it is declared in `turbo.json`'s `globalEnv` or the task's own `env` list (this
+    repo's `turbo.json` had neither `globalEnv` nor any task `env` before this chunk), so the
+    live-ClamAV test's `CLAMAV_TEST_SOCKET_PATH` was silently dropped when run via
+    `pnpm run test` (which invokes `turbo run test`), even though it was correctly exported in
+    the shell and worked when vitest was invoked directly, meaning the CI wiring would have
+    silently skipped live verification forever without ever showing as a failure. Caught the
+    same way (empirically running the actual command CI runs, not assuming turbo passes
+    through the whole environment), fixed by adding `"env": ["CLAMAV_TEST_SOCKET_PATH"]` to
+    the `test` task in `turbo.json`.
+22. (Part 3) A test-design bug in `clamav-scanner.test.ts`, caught by this session's own live
+    verification (not left in): two tests declared the EICAR fixture bytes under
+    `contentType: 'application/octet-stream'`, which `structuralCheck`'s plain-text path does
+    not recognize (only `text/plain`/`text/markdown` are accepted as text), so the object was
+    rejected as "unrecognized file type" by the structural gate before ever reaching the
+    scanner, so the tests were passing (`safe: false`) for the wrong reason and never actually
+    exercised real/fake-server EICAR detection. Caught when the LIVE version of this test
+    failed with the honest detail string ("unrecognized file type" instead of an
+    EICAR-mentioning one); the fake-server version of the same bug had been silently
+    coincidentally passing and was fixed at the same time once the pattern was recognized.
+    Fixed by declaring the fixture as `text/plain`, matching how a real EICAR.com upload
+    (which is plain ASCII by design) would actually be typed.
 
 Items 1 through 4, 5 through 9, and 14/15 above are carried forward or upgraded to
 independently confirmed findings; the missing PRD file is tracked as Blocker 1 in

@@ -12,7 +12,20 @@ export { NeonBlobStorage, type NeonBlobStorageOptions } from './neon-blob';
 
 export { VercelPrivateBlobStorage, type VercelPrivateBlobStorageOptions } from './vercel-blob';
 
-export { BasicSafetyScanner, type BasicSafetyScannerOptions } from './scanner';
+export {
+  BasicSafetyScanner,
+  type BasicSafetyScannerOptions,
+  type StructuralCheckOptions,
+  type StructuralCheckResult,
+  structuralCheck,
+} from './scanner';
+
+export {
+  ClamAvScanner,
+  type ClamAvScannerOptions,
+  checkSignatureFreshness,
+  probeClamdVersion,
+} from './clamav-scanner';
 
 export {
   DeterministicTextExtractor,

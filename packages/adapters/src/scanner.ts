@@ -117,6 +117,75 @@ function looksLikePlainText(bytes: Uint8Array): boolean {
   return true;
 }
 
+export interface StructuralCheckOptions {
+  readonly maxBytes: number;
+  /**
+   * When false (the default posture, used by `BasicSafetyScanner`), a PDF is
+   * always rejected here (see the module doc comment for why: no parser in
+   * this file may ever be trusted to establish PDF content safety). When
+   * true, a structurally well-formed PDF is accepted at THIS layer only,
+   * meaning "not a magic-byte mismatch, not oversized": the caller (a real
+   * malware-engine adapter, never this file) is responsible for actually
+   * establishing PDF content safety before treating the file as usable.
+   */
+  readonly allowPdf: boolean;
+}
+
+export interface StructuralCheckResult {
+  readonly accepted: boolean;
+  readonly detail: string;
+}
+
+/**
+ * The shared magic-byte/structural allow-list both `BasicSafetyScanner` and
+ * any real-malware-engine adapter build on. Factored out so the deny-list,
+ * DOCX structural validation, and plain-text heuristic exist in exactly one
+ * place: a second, independently-maintained copy is how the two adapters'
+ * accept lists silently drift apart.
+ */
+export function structuralCheck(
+  bytes: Uint8Array,
+  contentType: string,
+  options: StructuralCheckOptions,
+): StructuralCheckResult {
+  if (bytes.byteLength === 0) return { accepted: false, detail: 'empty file' };
+  if (bytes.byteLength > options.maxBytes) {
+    return { accepted: false, detail: 'file exceeds size limit' };
+  }
+
+  for (const deny of MAGIC_DENY) {
+    if (startsWith(bytes, deny.bytes)) {
+      return { accepted: false, detail: `rejected: ${deny.label}` };
+    }
+  }
+
+  if (startsWith(bytes, PDF_MAGIC)) {
+    if (!options.allowPdf) {
+      return {
+        accepted: false,
+        detail: 'rejected: pdf content safety cannot be established without a real malware scanner',
+      };
+    }
+    return { accepted: true, detail: 'pdf (structural check only; content unverified)' };
+  }
+
+  if (startsWith(bytes, DOCX_ZIP_MAGIC)) {
+    const structure = validateDocxStructure(bytes);
+    if (!structure.valid) {
+      return { accepted: false, detail: `rejected: invalid docx structure (${structure.reason})` };
+    }
+    return { accepted: true, detail: 'docx (zip)' };
+  }
+
+  for (const allow of MAGIC_ALLOW) {
+    if (startsWith(bytes, allow.bytes)) return { accepted: true, detail: allow.label };
+  }
+  if (PLAIN_TEXT_CONTENT_TYPES.has(contentType) && looksLikePlainText(bytes)) {
+    return { accepted: true, detail: 'text' };
+  }
+  return { accepted: false, detail: 'unrecognized file type' };
+}
+
 export interface BasicSafetyScannerOptions {
   readonly blobStore: BlobStore;
   /** Reject anything larger than this many bytes (default 25 MiB). */
@@ -137,41 +206,11 @@ export class BasicSafetyScanner implements MalwareScannerPort {
   async scan(input: { bucket: 'QUARANTINE' | 'CLEAN'; objectKey: string }): Promise<ScanResult> {
     const object = await this.blobStore.getObject(input.objectKey);
     if (!object) return { safe: false, detail: 'object bytes not found' };
-    const { bytes } = object;
 
-    if (bytes.byteLength === 0) return { safe: false, detail: 'empty file' };
-    if (bytes.byteLength > this.maxBytes) return { safe: false, detail: 'file exceeds size limit' };
-
-    for (const deny of MAGIC_DENY) {
-      if (startsWith(bytes, deny.bytes)) {
-        return { safe: false, detail: `rejected: ${deny.label}` };
-      }
-    }
-
-    // Recognized by magic bytes for a clear, honest reason — never treated
-    // as safe. See the module doc comment for why PDF content is never
-    // parsed or content-inspected here.
-    if (startsWith(bytes, PDF_MAGIC)) {
-      return {
-        safe: false,
-        detail: 'rejected: pdf content safety cannot be established without a real malware scanner',
-      };
-    }
-
-    if (startsWith(bytes, DOCX_ZIP_MAGIC)) {
-      const structure = validateDocxStructure(bytes);
-      if (!structure.valid) {
-        return { safe: false, detail: `rejected: invalid docx structure (${structure.reason})` };
-      }
-      return { safe: true, detail: 'docx (zip)' };
-    }
-
-    for (const allow of MAGIC_ALLOW) {
-      if (startsWith(bytes, allow.bytes)) return { safe: true, detail: allow.label };
-    }
-    if (PLAIN_TEXT_CONTENT_TYPES.has(object.contentType) && looksLikePlainText(bytes)) {
-      return { safe: true, detail: 'text' };
-    }
-    return { safe: false, detail: 'unrecognized file type' };
+    const result = structuralCheck(object.bytes, object.contentType, {
+      maxBytes: this.maxBytes,
+      allowPdf: false,
+    });
+    return { safe: result.accepted, detail: result.detail };
   }
 }

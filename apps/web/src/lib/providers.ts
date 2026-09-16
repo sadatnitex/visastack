@@ -1,6 +1,7 @@
 import 'server-only';
 import {
   BasicSafetyScanner,
+  ClamAvScanner,
   ConsoleObservabilityPort,
   DeterministicTextExtractor,
   NullEmailPort,
@@ -47,7 +48,7 @@ const KNOWN_PROVIDERS = {
   IDENTITY_PROVIDER: ['workos'],
   STORAGE_PROVIDER: ['vercel_blob', 'neon'],
   DATABASE_PROVIDER: ['neon'],
-  MALWARE_SCANNER_PROVIDER: ['builtin'],
+  MALWARE_SCANNER_PROVIDER: ['builtin', 'clamav'],
   DOCUMENT_CONVERTER_PROVIDER: ['builtin'],
   AI_PROVIDER: ['openai'],
   JOB_PROVIDER: ['neon'],
@@ -118,9 +119,37 @@ export function createIdentityPort(): IdentityPort {
   return new WorkosIdentityPort();
 }
 
-/** The built-in structural safety scanner (ADR-0011) — the only `MalwareScannerPort` implementation today. */
+/**
+ * The structural-only safety scanner (ADR-0011) by default, or a real
+ * ClamAV engine (SEC-05/EVI-02) when `MALWARE_SCANNER_PROVIDER=clamav` is
+ * explicitly set. `commercial-readiness.ts`'s `realMalwareScanner` gate
+ * checks the same env var this function reads, so the two can never
+ * disagree about whether a real scanner is actually configured.
+ */
 export function createMalwareScanner(blobStore: BlobStore): MalwareScannerPort {
   checkKnownProvider('MALWARE_SCANNER_PROVIDER');
+  if (readEnv('MALWARE_SCANNER_PROVIDER') === 'clamav') {
+    const socketPath = readEnv('CLAMAV_SOCKET_PATH');
+    const host = readEnv('CLAMAV_HOST');
+    const portRaw = readEnv('CLAMAV_PORT');
+    if (!socketPath && !(host && portRaw)) {
+      throw new Error(
+        'MALWARE_SCANNER_PROVIDER=clamav requires CLAMAV_SOCKET_PATH, or both CLAMAV_HOST and CLAMAV_PORT',
+      );
+    }
+    const maxAgeHoursRaw = readEnv('CLAMAV_MAX_SIGNATURE_AGE_HOURS');
+    const engineVersion = readEnv('CLAMAV_ENGINE_VERSION');
+    const databaseDirectory = readEnv('CLAMAV_DATABASE_DIRECTORY');
+    return new ClamAvScanner({
+      blobStore,
+      ...(socketPath ? { socketPath } : {}),
+      ...(host ? { host } : {}),
+      ...(portRaw ? { port: Number(portRaw) } : {}),
+      ...(engineVersion ? { engineVersion } : {}),
+      ...(databaseDirectory ? { databaseDirectory } : {}),
+      ...(maxAgeHoursRaw ? { maxSignatureAgeMs: Number(maxAgeHoursRaw) * 60 * 60 * 1000 } : {}),
+    });
+  }
   return new BasicSafetyScanner({ blobStore });
 }
 

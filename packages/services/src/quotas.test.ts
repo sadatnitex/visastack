@@ -77,9 +77,9 @@ async function seedApplicantWithEvidence(
 }
 
 describe('upload quotas — configuration', () => {
-  it('uses the pilot defaults (10/50/100/500/700 MB) with no env overrides', () => {
+  it('uses the pilot defaults (20/50/100/500/700 MB) with no env overrides', () => {
     const config = loadUploadQuotaConfig({});
-    expect(config.maxUploadBytes).toBe(10 * 1024 * 1024);
+    expect(config.maxUploadBytes).toBe(20 * 1024 * 1024);
     expect(config.maxApplicantEvidenceBytes).toBe(50 * 1024 * 1024);
     expect(config.maxAccountEvidenceBytes).toBe(100 * 1024 * 1024);
     expect(config.platformWarningBytes).toBe(500 * 1024 * 1024);
@@ -93,7 +93,7 @@ describe('upload quotas — configuration', () => {
 
   it('ignores an invalid override and keeps the safe default', () => {
     const config = loadUploadQuotaConfig({ QUOTA_MAX_UPLOAD_MB: 'not-a-number' });
-    expect(config.maxUploadBytes).toBe(10 * 1024 * 1024);
+    expect(config.maxUploadBytes).toBe(20 * 1024 * 1024);
   });
 });
 

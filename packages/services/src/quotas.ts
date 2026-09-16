@@ -26,9 +26,17 @@ export interface UploadQuotaConfig {
   readonly platformHardStopBytes: number;
 }
 
-/** Pilot defaults per the master directive: 10 MB / 50 MB / 100 MB / 500 MB / 700 MB. */
+/**
+ * Pilot defaults: 20 MiB / 50 MB / 100 MB / 500 MB / 700 MB.
+ * `maxUploadBytes` is Commercial V1 PRD EVI-01's explicit "20 MiB per
+ * original" initial configurable limit (superseding the prior engagement's
+ * own 10 MB pilot default, per this programme's standing instruction to
+ * follow the newer PRD's stated numbers rather than an older build's,
+ * where they conflict); the other four are unchanged pilot defaults not
+ * named by EVI-01.
+ */
 export const DEFAULT_UPLOAD_QUOTAS: UploadQuotaConfig = {
-  maxUploadBytes: 10 * BYTES_PER_MB,
+  maxUploadBytes: 20 * BYTES_PER_MB,
   maxApplicantEvidenceBytes: 50 * BYTES_PER_MB,
   maxAccountEvidenceBytes: 100 * BYTES_PER_MB,
   platformWarningBytes: 500 * BYTES_PER_MB,

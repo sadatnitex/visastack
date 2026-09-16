@@ -20,13 +20,18 @@ import { isPresent, isWorkosConfigured, readEnv } from './env';
  *    inert by default (unset = not attested = gate fails), so commercial
  *    mode can never silently inherit readiness nobody actually confirmed.
  *
- * `realMalwareScanner` is neither: it is hardcoded `false` and cannot be
- * attested past. `packages/adapters/src/scanner.ts`'s `BasicSafetyScanner`
- * is a structural/magic-byte validator, not antivirus (ADR-0011,
- * capabilities.ts's own `malwareScanning: 'disabled'` says the same) — this
- * gate becomes true only once a real scanner adapter is built and wired in,
- * which is a genuine future PR, not a configuration change.
- * `safeConversion` and `retentionDeletionWorkflow` are the inverse: hardcoded
+ * `realMalwareScanner` is a LIVE gate (Commercial V1 SEC-05/EVI-02): it
+ * checks the exact same `MALWARE_SCANNER_PROVIDER`/`CLAMAV_*` env vars
+ * `./providers.ts`'s `createMalwareScanner` reads, so this gate and the
+ * scanner actually constructed at runtime can never disagree. Before a real
+ * scanner adapter existed, this was hardcoded `false`. `BasicSafetyScanner`
+ * (`packages/adapters/src/scanner.ts`) is a structural/magic-byte validator,
+ * not antivirus (ADR-0011), and remains the default when no real scanner is
+ * configured. Like `privateProductionStorage` above, this checks
+ * configuration presence, not live connectivity to clamd on every call;
+ * an unreachable daemon fails individual scans (fail closed, see
+ * `clamav-scanner.ts`), not this readiness gate.
+ * `safeConversion` and `retentionDeletionWorkflow` are hardcoded
  * `true` because the underlying work (PR 3's bounded, hostile-tested
  * document conversion; PR 4's retention/erasure workflow) is genuinely
  * complete, not aspirational.
@@ -92,7 +97,9 @@ function buildGates(input: CommercialReadinessInput): readonly ReadinessGate[] {
     {
       key: 'realMalwareScanner',
       label: 'real malware scanner',
-      satisfied: false,
+      satisfied:
+        readEnv('MALWARE_SCANNER_PROVIDER') === 'clamav' &&
+        (isPresent('CLAMAV_SOCKET_PATH') || (isPresent('CLAMAV_HOST') && isPresent('CLAMAV_PORT'))),
     },
     {
       key: 'safeConversion',

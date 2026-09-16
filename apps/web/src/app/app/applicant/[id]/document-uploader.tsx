@@ -28,7 +28,7 @@ export function DocumentUploader({ applicantId }: { readonly applicantId: string
         </p>
       ) : null}
       <p className="muted" style={{ fontSize: '0.8rem', margin: 0 }}>
-        PDF, PNG, JPEG, DOCX, TXT or MD · up to 15 MB · scanned for safety on upload.
+        PNG, JPEG, DOCX, TXT or MD · up to 20 MB · scanned for safety on upload.
       </p>
     </form>
   );

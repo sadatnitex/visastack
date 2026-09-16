@@ -12,7 +12,8 @@
     },
     "test": {
       "dependsOn": ["^build"],
-      "outputs": ["coverage/**"]
+      "outputs": ["coverage/**"],
+      "env": ["CLAMAV_TEST_SOCKET_PATH"]
     },
     "dev": {
       "cache": false,
