@@ -397,3 +397,42 @@ for") and this codebase's established pattern of testing `apps/web` routes witho
 database; this was true of the `501` this chunk replaces too, so it is a pre-existing gap in this
 one route's own test coverage, not a new one introduced here. The render-timeout wrapper's actual
 firing is likewise not independently exercised, as noted above.
+
+## AD-07: Wiring `support_grants` into document access (EVI-06, closing known-issues.md item 23)
+
+**Decision.** AD-05 named this gap explicitly rather than leaving it implicit: `accessDocument`
+and `recheckDocumentAccess` (`packages/services/src/documents.ts`) only ever called
+`loadGrantsForPolicy`, which reads the ordinary `grants` table, never `loadSupportGrantsForPolicy`
+(`packages/services/src/support-access.ts`), which reads `support_grants`. `authorize()`'s
+`support_admin` case (`packages/policy/src/authorize.ts`) was never the problem: it already
+filtered candidate grants by `g.recipientAccountId === actor.accountId`, exactly the shape
+`loadSupportGrantsForPolicy` already converts a support grant row into. The grants list handed to
+it was simply always missing support grants, so no support_admin actor could pass regardless of
+having a perfectly valid, active, approved support grant.
+
+The fix is a single new helper, `loadGrantsForActor(db, applicantId, actor)`, called at both
+decision points in place of the bare `loadGrantsForPolicy` call: it always loads ordinary grants,
+and additionally loads and merges in the actor's active support grants only when
+`actor.kind === 'support_admin'`. No change to `authorize()`, `loadSupportGrantsForPolicy`, or
+either table's schema was needed; the fix is entirely in which rows get handed to an
+already-correct evaluation.
+
+**Why gated on actor kind rather than always merging.** A support grant that does not match the
+current actor is harmless noise to `authorize()` (it is simply filtered out by the
+`recipientAccountId` predicate like any other non-matching grant), so unconditionally merging
+would still be *correct*. It would also mean an extra database query on every ordinary
+owner/organization-member/individual-recipient preview or download, the overwhelming majority of
+calls, to fetch rows that can never apply to that actor. Gating on `actor.kind` avoids the wasted
+query for the common case while changing nothing about the `support_admin` case's own result.
+
+**What this proves, and what it does not.** Two new tests in `documents.test.ts`: a support_admin
+actor with no support grant at all remains denied at both mint and redemption, unchanged
+default-deny behaviour; a support_admin actor with a real support grant, created through the
+actual `createSupportGrant` service function with a genuine distinct approver (never a hand-built
+row bypassing that function's own validation), now succeeds at both mint and redemption, and is
+still correctly refused for `DOWNLOAD_ORIGINAL` when the grant's `actions` only cover `PREVIEW`,
+proving the fix is exactly as scoped as an ordinary grant would be, not a blanket bypass for any
+support_admin actor once any grant exists. What this does not cover: no real caller anywhere in
+`apps/web` constructs a `support_admin` actor yet (the admin-workspace/support-access UI is Part
+5/9 scope, ADM-01); this change makes the authorization path correct and reachable once such a
+caller exists, not a claim that one exists today.

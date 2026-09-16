@@ -186,3 +186,25 @@ Full detail: `docs/commercial-v1/architecture-decisions.md` AD-06; open items:
 `docs/commercial-v1/known-issues.md` item 23 (support_admin document access wiring, now the
 single highest-priority remaining Part 3 item) and item 25 (this route's own wiring has no
 direct route-handler test, a pre-existing gap this chunk did not introduce and did not close).
+
+## Part 3, chunk 4: wiring `support_grants` into document access (EVI-06, known-issues.md item 23)
+
+Commit: working tree on top of `e7233a4` (Part 3 chunk 3, safe preview rendering, already pushed
+and PR #78 updated). New `loadGrantsForActor` helper in `documents.ts`, used at both
+`accessDocument` (mint) and `recheckDocumentAccess` (redemption) in place of the bare
+`loadGrantsForPolicy` call.
+
+| # | Command | Exit | Result | Detail |
+|---|---|---|---|---|
+| 1 | `pnpm run lint` | 0 | PASS | Biome, 308 files checked, no fixes applied (one import-sort auto-fix applied and re-verified before this run). |
+| 2 | `pnpm run typecheck` | 0 | PASS | All 7 packages, no errors. |
+| 3 | `pnpm run test` | 0 | PASS | 749 tests total across all 7 packages (i18n 6, core 2, policy 29, db 26 + 1 skipped, adapters 128 + 2 skipped, web 141, services 414). The existing "support_admin is denied" test was renamed to make clear it covers the no-grant-at-all case (still correctly denied, unchanged behaviour), and a new test proves the actual fix: a support_admin actor with a real support grant, created through the real `createSupportGrant` service function with a genuine distinct approver, succeeds at both mint (`previewDocument`, asserting the `redacted` variant) and redemption (`recheckDocumentAccess`), and is still correctly refused `downloadDocument`'s `DOWNLOAD_ORIGINAL` when the grant's `actions` only cover `PREVIEW`, proving the fix is exactly as scoped as an ordinary grant would be. Full existing `documents.test.ts`/`sharing.test.ts`/`support-access.test.ts` suites (60 tests) re-run green after the change. |
+| 4 | `pnpm run build` | 0 | PASS | Full monorepo build including `apps/web`, full route manifest produced. |
+| 5 | `pnpm audit --prod` | 0 | PASS | "No known vulnerabilities found", no new dependencies added. |
+
+Full detail: `docs/commercial-v1/architecture-decisions.md` AD-07; open items: none new this
+chunk. This closes known-issues.md item 23, the last item explicitly tracked as "highest
+priority remaining" from the prior two chunks; remaining open Part 3 scope is listed in this
+session's own running task list (SEC-05's decompression/pixel/memory/CPU/time guards, ZIP-export
+safe-naming, worker/job-lease generalization, document metadata population, duplicate detection,
+EVI-04's document-level wallet/expiry concept, upload page-count/megapixel/batch-count limits).

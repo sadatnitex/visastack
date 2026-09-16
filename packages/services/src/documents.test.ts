@@ -23,6 +23,7 @@ import {
 } from './documents';
 import { enqueueErasureJob } from './erasure';
 import type { AccessRef, IssueReadRefInput, StoragePort } from './storage';
+import { SUPPORT_ACCESS_PURPOSE, createSupportGrant } from './support-access';
 
 const migrationsFolder = fileURLToPath(new URL('../../db/migrations', import.meta.url));
 
@@ -1050,7 +1051,7 @@ describe('recheckDocumentAccess, redemption-time replay against LIVE state (EVI-
     if (!result.allowed) expect(result.reason).toBe('grant_revoked');
   });
 
-  it('a support_admin actor is denied at redemption exactly as it is at mint (documented pre-existing gap: accessDocument only ever loads ordinary grants, never support_grants, so support-admin document access cannot pass either check today)', async () => {
+  it('a support_admin actor with no support grant at all is denied at both mint and redemption (default-deny)', async () => {
     const { document } = await seedOwnerWithDocument(db, 'support@example.com');
     const supportAccount = await provisionAccount(db, { email: 'support-op@example.com' });
     if (!isOk(supportAccount)) throw new Error('provision failed');
@@ -1077,6 +1078,50 @@ describe('recheckDocumentAccess, redemption-time replay against LIVE state (EVI-
       stepUpSatisfied: false,
     });
     expect(result.allowed).toBe(false);
+  });
+
+  it('a support_admin actor WITH an active, action-matching support grant succeeds at both mint and redemption (known-issues.md item 23, now closed)', async () => {
+    const { document } = await seedOwnerWithDocument(db, 'support2@example.com');
+    const supportAccount = await provisionAccount(db, { email: 'support-op2@example.com' });
+    if (!isOk(supportAccount)) throw new Error('provision failed');
+    const approver = await provisionAccount(db, { email: 'support-approver@example.com' });
+    if (!isOk(approver)) throw new Error('provision failed');
+
+    const grant = await createSupportGrant(db, {
+      actorAccountId: supportAccount.value.id,
+      applicantId: document.applicantId,
+      actions: ['PREVIEW'],
+      reason: 'Investigating ticket #1234, applicant reports a stuck upload',
+      approvedByAccountId: approver.value.id,
+      durationMinutes: 30,
+    });
+    expect(isOk(grant)).toBe(true);
+
+    const actor = { kind: 'support_admin', accountId: supportAccount.value.id as never } as const;
+    const preview = await previewDocument(db, storage, {
+      actor,
+      documentId: document.id,
+      purpose: SUPPORT_ACCESS_PURPOSE,
+      accessTokenSecret: TEST_ACCESS_TOKEN_SECRET,
+    });
+    expect(isOk(preview)).toBe(true);
+    if (isOk(preview)) expect(preview.value.variant).toBe('redacted');
+
+    const fields = tokenFieldsFrom(isOk(preview) ? preview.value.url : '');
+    const recheck = await recheckDocumentAccess(db, fields);
+    expect(recheck.allowed).toBe(true);
+
+    // An action the grant does NOT cover is still refused, proving this
+    // isn't a blanket bypass once any support grant exists.
+    const downloadAttempt = await downloadDocument(db, storage, {
+      actor,
+      documentId: document.id,
+      purpose: SUPPORT_ACCESS_PURPOSE,
+      accessTokenSecret: TEST_ACCESS_TOKEN_SECRET,
+      variant: 'original',
+      stepUpSatisfied: true,
+    });
+    expect(isErr(downloadAttempt)).toBe(true);
   });
 
   it('denies redemption for an unknown documentId', async () => {

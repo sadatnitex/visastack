@@ -196,21 +196,26 @@ item gets its own requirements-ledger row once classified against the new direct
     Fixed by declaring the fixture as `text/plain`, matching how a real EICAR.com upload
     (which is plain ASCII by design) would actually be typed.
 
-23. (Part 3) `support_admin` document access is structurally unreachable today regardless of
-    any support grant that exists. `accessDocument` (`packages/services/src/documents.ts`,
-    both at mint time and now at `recheckDocumentAccess`'s redemption-time recheck) only ever
-    loads ordinary grants via `loadGrantsForPolicy`, never `support_grants` via
-    `loadSupportGrantsForPolicy` (`packages/services/src/support-access.ts`, built and fully
-    tested in Part 2). `authorize()`'s `support_admin` case (`packages/policy/src/
-    authorize.ts`) filters candidate grants by `recipientAccountId`, but since the candidate
-    list passed in never includes support grants, no support-admin actor can pass this
-    specific authorization path, confirmed by a direct test in this chunk
-    (`documents.test.ts`'s `recheckDocumentAccess` suite). This is distinct from, and does not
-    reflect badly on, SEC-06's own support-grant issuance/approval/revocation machinery, which
-    is correctly implemented and tested; only its wiring into the document-access decision
-    point is missing. Not fixed this chunk (out of scope for the delivery-token fix); tracked
-    for the admin-workspace/support-access UI work in Part 5/9 (ADM-01), where a real caller
-    constructing a `support_admin` actor for document access would first need this gap closed.
+23. ~~`support_admin` document access is structurally unreachable today regardless of any
+    support grant that exists. `accessDocument`/`recheckDocumentAccess` only ever load
+    ordinary grants via `loadGrantsForPolicy`, never `support_grants` via
+    `loadSupportGrantsForPolicy`.~~ **RESOLVED (Part 3).** A new `loadGrantsForActor` helper
+    (`packages/services/src/documents.ts`) merges in the actor's active support grants,
+    converted via the already-correct, already-tested `loadSupportGrantsForPolicy`, whenever
+    the actor is `support_admin`, at both mint (`accessDocument`) and redemption
+    (`recheckDocumentAccess`). No change to `authorize()` itself was needed: its `support_admin`
+    case already filtered candidate grants by `recipientAccountId` correctly, matching the
+    shape `loadSupportGrantsForPolicy` already produced; the grants list handed to it was
+    simply incomplete. Proven by two new tests: a support_admin actor with no grant remains
+    denied (default-deny, unchanged); a support_admin actor with a real, approved,
+    action-matching support grant now succeeds at both mint and redemption, and correctly
+    remains refused for an action (`DOWNLOAD_ORIGINAL`) the grant does not cover, proving this
+    is a scoped fix, not a blanket bypass. This does not, and never did, reflect badly on
+    SEC-06's own support-grant issuance/approval/revocation machinery, which was already
+    correctly implemented and tested; only this wiring into the document-access decision point
+    was missing. The admin-workspace/support-access UI itself (a real caller constructing a
+    `support_admin` actor) remains Part 5/9 scope (ADM-01); this item was specifically about
+    the authorization path being reachable at all once such a caller exists, which it now is.
 
 24. (Part 3) Two more genuine bugs caught by this session's own review before committing, not
     left in: (a) `next.config.mjs`'s `bodySizeLimit` was still `15mb`, a margin computed

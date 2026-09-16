@@ -8,7 +8,7 @@ import type {
   Result,
 } from '@visastack/core';
 import { err, ok } from '@visastack/core';
-import { type Actor, authorize } from '@visastack/policy';
+import { type Actor, type Grant as PolicyGrant, authorize } from '@visastack/policy';
 import { and, desc, eq, ne } from 'drizzle-orm';
 import { getApplicant } from './applicants';
 import { appendAuditEvent } from './audit';
@@ -26,6 +26,7 @@ import { listMembershipsForAccount } from './organizations';
 import { recordProductEvent } from './product-events';
 import { loadGrantsForPolicy } from './sharing';
 import type { AccessRef, AccessVariant, StorageBucket, StoragePort } from './storage';
+import { loadSupportGrantsForPolicy } from './support-access';
 
 /**
  * Document Vault (Build Spec §4.2, §7, §11; PRD §2).
@@ -516,6 +517,31 @@ function actorAccessContext(actor: Actor): {
   }
 }
 
+/**
+ * Ordinary grants for this applicant, plus this actor's own active support
+ * grants merged in when the actor is `support_admin`. `authorize()`'s
+ * `support_admin` case (`packages/policy/src/authorize.ts`) filters
+ * candidate grants by `recipientAccountId`, the same shape
+ * `loadSupportGrantsForPolicy` already converts a support grant row into,
+ * so merging it into the same list is sufficient; no separate authorization
+ * path is needed. Previously always omitted here, which made support_admin
+ * document access structurally unreachable regardless of any support grant
+ * that existed (known-issues.md item 23) even though SEC-06's own
+ * support-grant issuance/approval/revocation machinery was itself correct.
+ * Skipped for every other actor kind to avoid an unneeded query on the
+ * ordinary preview/download path.
+ */
+async function loadGrantsForActor(
+  db: Db,
+  applicantId: string,
+  actor: Actor,
+): Promise<PolicyGrant[]> {
+  const grants = await loadGrantsForPolicy(db, applicantId);
+  if (actor.kind !== 'support_admin') return grants;
+  const supportGrants = await loadSupportGrantsForPolicy(db, applicantId);
+  return [...grants, ...supportGrants];
+}
+
 async function accessDocument(
   db: Db,
   storage: StoragePort,
@@ -544,7 +570,7 @@ async function accessDocument(
   const effectiveVariant: AccessVariant = disposition === 'preview' ? 'redacted' : variant;
 
   const now = input.now ?? new Date();
-  const grants = await loadGrantsForPolicy(db, document.applicantId);
+  const grants = await loadGrantsForActor(db, document.applicantId, input.actor);
   const decision = authorize({
     actor: input.actor,
     action,
@@ -767,10 +793,12 @@ export async function recheckDocumentAccess(
       break;
   }
 
-  // Grants are already loaded live (loadGrantsForPolicy queries the
+  // Grants are already loaded live (loadGrantsForActor queries the
   // database directly, never a cache), so a grant revoked after mint is
-  // simply absent/inactive here.
-  const grants = await loadGrantsForPolicy(db, document.applicantId);
+  // simply absent/inactive here. Support grants are included for a
+  // support_admin actor, matching accessDocument's own mint-time behaviour
+  // (known-issues.md item 23).
+  const grants = await loadGrantsForActor(db, document.applicantId, actor);
   const decision = authorize({
     actor,
     action: fields.action,
