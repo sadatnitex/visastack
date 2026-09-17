@@ -12,6 +12,7 @@ import {
 import { withAuth } from '@workos-inc/authkit-nextjs';
 import { redirect } from 'next/navigation';
 import { checkPilotAccess } from './pilot-access';
+import { enforceSessionAgeLimit, isStaffContext } from './session-age';
 
 /**
  * A short, privacy-preserving reference for a subject, safe to write to logs.
@@ -152,6 +153,18 @@ export async function withSession<T>(
         accountId: provisioned.value.id,
       });
     }
+
+    // Absolute session-age cap (SEC-01; directive Part 2 §5): a stale
+    // session must be denied on the very next authorized request, not
+    // merely at the next sensitive action. See session-age.ts for the
+    // staff/traveller threshold and per-account scoping rationale.
+    const staffContext = await isStaffContext(handle, {
+      accountId: provisioned.value.id,
+      email: user.email,
+    });
+    const sessionAge = await enforceSessionAgeLimit(staffContext, '/app');
+    if (!sessionAge.satisfied) redirect(sessionAge.reauthUrl);
+
     return await fn({ db: handle, accountId: provisioned.value.id, email: user.email });
   } catch (error) {
     // The routine "not invited" redirect above is expected control flow, not
