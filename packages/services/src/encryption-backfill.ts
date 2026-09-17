@@ -5,11 +5,11 @@ import type { KeyManagementPort } from './ports';
 import { type FieldSensitivity, buildFactVersionAad, protectValue } from './protected-fields';
 
 /**
- * Retroactive protected-field encryption (Commercial V1 SEC-03) — an
+ * Retroactive protected-field encryption (Commercial V1 SEC-03): an
  * admin/script-triggered sweep that finds `fact_versions` still holding a
  * plaintext `value` for a field now classified SENSITIVE/RESTRICTED (rows
  * written before protected-field encryption existed, or before a
- * KeyManagementPort was actually wired into the real save paths — see
+ * KeyManagementPort was actually wired into the real save paths, see
  * AD-01/the requirements ledger's SEC-03 correction) and re-encrypts them in
  * place. `editFact` itself has always refused to WRITE a new plaintext
  * SENSITIVE/RESTRICTED value (fails closed with `encryption_unavailable`);
@@ -17,8 +17,8 @@ import { type FieldSensitivity, buildFactVersionAad, protectValue } from './prot
  *
  * Same shape as `reconciliation.ts`'s orphan sweep: bounded per call
  * (`limit`), a `dryRun` mode that only reports, one transaction per row so a
- * single bad row can't abort the batch, and safe to re-run repeatedly — a
- * row already encrypted no longer matches the plaintext scan, so calling
+ * single bad row can't abort the batch, and safe to re-run repeatedly, since
+ * a row already encrypted no longer matches the plaintext scan, so calling
  * `backfillProtectedFields` again picks up wherever the last call left off
  * without any separate cursor/lease state.
  */
@@ -35,7 +35,13 @@ export interface EncryptionBackfillReport {
   readonly dryRun: boolean;
   /** Rows already protected, for context alongside the plaintext backlog below. */
   readonly alreadyProtectedCount: number;
-  /** This batch's plaintext findings (bounded by `limit`) — the reconciliation evidence. */
+  /**
+   * The TRUE total plaintext backlog across the whole table, not bounded by
+   * `limit`: the reconciliation count a dry-run caller actually wants ("how
+   * much work is there"), distinct from `plaintextFound` below.
+   */
+  readonly plaintextBacklogCount: number;
+  /** This batch's plaintext findings (bounded by `limit`): the rows this call would act on (or did, outside dry run). */
   readonly plaintextFound: readonly PlaintextProtectedField[];
   /** Actually re-encrypted this call. Always 0 in dry run. */
   readonly encrypted: number;
@@ -92,14 +98,29 @@ export async function backfillProtectedFields(
 ): Promise<EncryptionBackfillReport> {
   const limit = Math.min(input.limit ?? DEFAULT_LIMIT, MAX_LIMIT);
 
-  const [alreadyProtected, plaintextFound] = await Promise.all([
+  const [alreadyProtected, plaintextBacklog, plaintextFound] = await Promise.all([
     db
       .select({ n: count() })
       .from(schema.factVersions)
       .where(isNotNull(schema.factVersions.protectedKeyVersion)),
+    db
+      .select({ n: count() })
+      .from(schema.factVersions)
+      .innerJoin(schema.facts, eq(schema.facts.id, schema.factVersions.factId))
+      .innerJoin(
+        schema.fieldDefinitions,
+        eq(schema.fieldDefinitions.id, schema.facts.fieldDefinitionId),
+      )
+      .where(
+        and(
+          isNotNull(schema.factVersions.value),
+          inArray(schema.fieldDefinitions.sensitivity, PROTECTED_SENSITIVITIES),
+        ),
+      ),
     findPlaintextProtectedFieldVersions(db, limit),
   ]);
   const alreadyProtectedCount = alreadyProtected[0]?.n ?? 0;
+  const plaintextBacklogCount = plaintextBacklog[0]?.n ?? 0;
 
   let encrypted = 0;
   const errors: { factVersionId: string; message: string }[] = [];
@@ -157,5 +178,12 @@ export async function backfillProtectedFields(
     }
   }
 
-  return { dryRun: input.dryRun, alreadyProtectedCount, plaintextFound, encrypted, errors };
+  return {
+    dryRun: input.dryRun,
+    alreadyProtectedCount,
+    plaintextBacklogCount,
+    plaintextFound,
+    encrypted,
+    errors,
+  };
 }

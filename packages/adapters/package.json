@@ -12,7 +12,8 @@
   "scripts": {
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "vitest run",
-    "eval": "tsx src/eval/run.ts"
+    "eval": "tsx src/eval/run.ts",
+    "backfill:protected-fields": "tsx src/backfill-protected-fields.ts"
   },
   "dependencies": {
     "@napi-rs/canvas": "^1.0.9",

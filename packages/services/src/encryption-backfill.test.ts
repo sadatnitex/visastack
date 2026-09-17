@@ -113,6 +113,7 @@ describe('backfillProtectedFields', () => {
       dryRun: true,
     });
     expect(report.dryRun).toBe(true);
+    expect(report.plaintextBacklogCount).toBe(1);
     expect(report.plaintextFound).toHaveLength(1);
     expect(report.plaintextFound[0]?.factVersionId).toBe(factVersionId);
     expect(report.plaintextFound[0]?.fieldKey).toBe('passport_number');
@@ -209,6 +210,9 @@ describe('backfillProtectedFields', () => {
       limit: 2,
     });
     expect(first_.encrypted).toBe(2);
+    // The backlog total is unbounded by `limit` -- it reflects all 3 rows as
+    // they stood when this call started, not just the page it acted on.
+    expect(first_.plaintextBacklogCount).toBe(3);
 
     const second = await backfillProtectedFields(db, fakeKeyManagementPort(), {
       actorAccountId: accountId,
