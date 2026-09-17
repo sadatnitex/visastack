@@ -206,6 +206,50 @@ describe('low-volume durable job queue — async intake', () => {
     expect(afterExhausted).toEqual({ processed: 0, failed: 0 });
   });
 
+  it('records a job_failure observability event on every failed attempt (directive Part 3 §13), at warning severity while retries remain and error severity once exhausted', async () => {
+    const versionId = await seedVersion(db, 'j4b@example.com');
+    const job = await enqueueIntakeJob(db, { documentVersionId: versionId });
+    await db
+      .update(schema.processingJobs)
+      .set({ maxAttempts: 2 })
+      .where(eq(schema.processingJobs.id, job.id));
+
+    const brokenScanner: MalwareScannerPort = {
+      name: 'test-scanner',
+      version: '0.0.0',
+      async scan() {
+        throw new Error('scanner unavailable');
+      },
+    };
+    const events: Array<{ name: string; severity: string; metadata?: Record<string, unknown> }> =
+      [];
+    const observability = { record: (event: (typeof events)[number]) => events.push(event) };
+
+    await runIntakeWorker(db, brokenScanner, noOpExtractor, passingContentLimits, {
+      observability,
+    });
+    expect(events).toHaveLength(1);
+    expect(events[0]?.name).toBe('job_failure');
+    expect(events[0]?.severity).toBe('warning');
+    expect(events[0]?.metadata).toMatchObject({
+      jobType: 'INTAKE',
+      documentVersionId: versionId,
+      errorCode: 'SCAN_FAILED',
+      exhausted: false,
+    });
+
+    await db
+      .update(schema.processingJobs)
+      .set({ availableAt: new Date(0) })
+      .where(eq(schema.processingJobs.id, job.id));
+    await runIntakeWorker(db, brokenScanner, noOpExtractor, passingContentLimits, {
+      observability,
+    });
+    expect(events).toHaveLength(2);
+    expect(events[1]?.severity).toBe('error');
+    expect(events[1]?.metadata).toMatchObject({ errorCode: 'SCAN_FAILED', exhausted: true });
+  });
+
   it('respects the limit, leaving extra due jobs for the next call', async () => {
     const v1 = await seedVersion(db, 'j5a@example.com');
     const v2 = await seedVersion(db, 'j5b@example.com');

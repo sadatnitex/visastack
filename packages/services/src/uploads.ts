@@ -3,6 +3,7 @@ import { type Result, err, ok } from '@visastack/core';
 import { and, eq, gt, lt, sql } from 'drizzle-orm';
 import { type Db, first, required, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
+import type { ObservabilityPort } from './ports';
 import {
   type UploadQuotaConfig,
   getAccountEvidenceBytes,
@@ -221,11 +222,17 @@ export interface AbandonedUploadSweepResult {
  * from "bytes with no metadata row" across the whole bucket) and is safe to
  * run unattended on a schedule, deleting bytes automatically rather than
  * only reporting them.
+ *
+ * `observability`, when provided, records one `abandoned_upload_cleaned`
+ * event per sweep call that actually cleaned anything (directive Part 3
+ * §13's "abandoned uploads" monitoring signal): a summary count, not one
+ * event per row, so a large backlog does not itself flood the log.
  */
 export async function sweepAbandonedUploads(
   db: Db,
   blobStore: BlobStore,
   limit = DEFAULT_ABANDONED_SWEEP_LIMIT,
+  observability?: ObservabilityPort,
 ): Promise<AbandonedUploadSweepResult> {
   const cutoff = new Date(Date.now() - ABANDONED_CLEANUP_AGE_MS);
   const stale = await db
@@ -251,6 +258,13 @@ export async function sweepAbandonedUploads(
       )
       .returning({ id: schema.uploadIntents.id });
     if (updated.length > 0) cleaned++;
+  }
+  if (cleaned > 0) {
+    observability?.record({
+      name: 'abandoned_upload_cleaned',
+      severity: 'warning',
+      metadata: { checked: stale.length, cleaned },
+    });
   }
   return { checked: stale.length, cleaned };
 }

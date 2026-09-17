@@ -421,6 +421,17 @@ item gets its own requirements-ledger row once classified against the new direct
     `sweepAbandonedUploads` runs on its own scheduled cron (`/api/jobs/process-abandoned-uploads`),
     deletes bytes under the abandoned intent's own known object key, and marks the intent
     `FAILED`. Full detail: `requirements-ledger.md` EVI-01.
+40. (Part 3) Directive Section 13's monitoring signals ("queue age; job failures; scanner
+    availability; signature age; render failures; object-storage errors; abandoned uploads")
+    were confirmed completely unwired: `ObservabilityPort`/`ConsoleObservabilityPort` existed
+    with zero call sites anywhere in the codebase. Two of the seven signals are now wired
+    (`job_failure` on every failed intake job attempt; `abandoned_upload_cleaned` per sweep that
+    cleans something), chosen as the clearest hooks into already-existing code rather than new
+    instrumentation surfaces. Five remain genuinely open: queue age, a dedicated continuous
+    scanner-availability/signature-age signal (today only inferable from a `SCAN_FAILED`
+    job-failure spike, not observed independently), render failures, and object-storage errors.
+    Not silently dropped: tracked here and in `requirements-ledger.md` OPS-03, likely revisited
+    alongside Part 9's own monitoring/performance scope rather than gold-plated in this chunk.
 independently confirmed findings; the missing PRD file is tracked as Blocker 1 in
 `assumptions-and-blockers.md` (now resolved) rather than here, since it blocked the
 programme rather than being a product defect.

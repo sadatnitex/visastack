@@ -491,4 +491,37 @@ describe('sweepAbandonedUploads - 24h cleanup of abandoned reservations (directi
       .where(eq(schema.uploadIntents.id, reserved.value.id));
     expect(row?.status).toBe('COMPLETED');
   });
+
+  it('records one summary abandoned_upload_cleaned observability event per sweep that actually cleaned something (directive Part 3 §13), and none when nothing was cleaned', async () => {
+    const { accountId, applicantId } = await seedApplicantWithEvidence(
+      db,
+      'observed@example.com',
+      [],
+    );
+    const reserved = await reserveUpload(
+      db,
+      { accountId, applicantId, sizeBytes: MB },
+      tightConfig,
+    );
+    if (!isOk(reserved)) throw new Error('reserve failed');
+    await db
+      .update(schema.uploadIntents)
+      .set({ expiresAt: new Date(Date.now() - 25 * 60 * 60 * 1000) })
+      .where(eq(schema.uploadIntents.id, reserved.value.id));
+
+    const events: Array<{ name: string; severity: string; metadata?: Record<string, unknown> }> =
+      [];
+    const observability = { record: (event: (typeof events)[number]) => events.push(event) };
+    const blobStore = fakeBlobStore(new Set([reserved.value.objectKey]));
+
+    await sweepAbandonedUploads(db, blobStore, undefined, observability);
+    expect(events).toHaveLength(1);
+    expect(events[0]?.name).toBe('abandoned_upload_cleaned');
+    expect(events[0]?.severity).toBe('warning');
+    expect(events[0]?.metadata).toEqual({ checked: 1, cleaned: 1 });
+
+    // A second, immediate sweep finds nothing left to clean -- no further event.
+    await sweepAbandonedUploads(db, blobStore, undefined, observability);
+    expect(events).toHaveLength(1);
+  });
 });

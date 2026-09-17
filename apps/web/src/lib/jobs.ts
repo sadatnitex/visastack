@@ -15,6 +15,7 @@ import {
   createContentLimitsChecker,
   createDocumentConverter,
   createMalwareScanner,
+  createObservabilityPort,
   createStorage,
 } from './providers';
 
@@ -54,7 +55,10 @@ export async function triggerIntakeWorker(
     const scanner = createMalwareScanner(storage);
     const extractor = createDocumentConverter(storage);
     const contentLimits = createContentLimitsChecker(storage);
-    return await runIntakeWorker(handle, scanner, extractor, contentLimits, options);
+    return await runIntakeWorker(handle, scanner, extractor, contentLimits, {
+      ...options,
+      observability: createObservabilityPort(),
+    });
   } catch (error) {
     console.error('[triggerIntakeWorker] worker pass failed', error);
     return { processed: 0, failed: 0 };
@@ -151,7 +155,7 @@ export async function triggerAbandonedUploadSweep(
   try {
     const handle = db as unknown as Parameters<typeof sweepAbandonedUploads>[0];
     const storage = createStorage(handle);
-    return await sweepAbandonedUploads(handle, storage, options.limit);
+    return await sweepAbandonedUploads(handle, storage, options.limit, createObservabilityPort());
   } catch (error) {
     console.error('[triggerAbandonedUploadSweep] sweep failed', error);
     return { checked: 0, cleaned: 0 };
