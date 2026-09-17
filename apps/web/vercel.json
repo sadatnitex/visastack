@@ -1,7 +1,7 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": "nextjs",
-  "buildCommand": "pnpm --filter @visastack/db db:migrate && next build",
+  "buildCommand": "next build",
   "crons": [
     {
       "path": "/api/jobs/process-intake",

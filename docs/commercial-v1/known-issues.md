@@ -18,13 +18,21 @@ item gets its own requirements-ledger row once classified against the new direct
    unconditionally `test.skip(true, reason)` with empty bodies. They need real journey
    implementations against a second synthetic WorkOS identity. Directive Part 10 Section 2
    closes this; PR #77 provisioned the identity and the CI wiring but not the test bodies.
-3. Preview-deployment builds fail (`BUILD_FAILED`, terminal in under 2 seconds, no build
+3. ~~Preview-deployment builds fail (`BUILD_FAILED`, terminal in under 2 seconds, no build
    logs) while production deployments of the same commit succeed. Root cause hypothesized
    (likely `DATABASE_URL` not scoped to the Preview environment in Vercel, or a Hobby-tier
    build-concurrency ceiling) but not confirmed; no session so far has had Vercel dashboard
    access to confirm. Does not block this programme's own verification (which runs locally
    and against production post-merge) but does block reviewers from getting live PR preview
-   URLs.
+   URLs.~~ **RESOLVED (Part 4, infra recovery checkpoint).** Root cause confirmed via direct
+   Vercel API inspection, not the hypothesis above: the Neon marketplace integration's
+   `free_v3` plan has a 10-branch limit, and the project had accumulated exactly 10 (`main`
+   plus 9 archived Vercel-created preview branches), so every new preview deployment failed
+   at Vercel's own resource-provisioning step (before the build container ever started,
+   hence zero build logs) trying to provision an 11th. Confirmed by the product owner
+   deleting the 9 archived branches externally, then a redeploy of the same commit that had
+   just failed getting past provisioning cleanly (install completed, buildCommand started).
+   See item 36 for the second, distinct issue that redeploy then surfaced.
 4. `pnpm audit --dev` reports 6 findings (1 critical, 1 high, 4 moderate), all rooted in
    `vitest@2.1.9` / `vite@6.4.x` / `esbuild`, none shipped in the production bundle.
    `pnpm audit --prod` is reported clean by the prior engagement; this session re-runs its own
@@ -346,6 +354,30 @@ item gets its own requirements-ledger row once classified against the new direct
     limitation AD-05/AD-13 already note for other surfaces), so the assurance view
     (`getFactAssurance`/`listApplicantAssurance`) remains owner-only with no agency-facing read
     path, even though `recordIssuerVerification` itself is agency-facing.
+36. ~~`apps/web/vercel.json`'s `buildCommand` ran `pnpm --filter @visastack/db db:migrate &&
+    next build`, applying migrations automatically on every single Vercel build (preview and
+    production alike). Once item 3's Neon branch-limit blocker was cleared, the very next
+    redeploy got past provisioning and reached this step, then failed:
+    `CREATE TABLE "support_grants"` (migration 0028 of 34) against a database that already had
+    it, `ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL`. The connection/auth itself succeeded (a real query
+    ran and failed on its own terms), ruling out a credential mismatch from the product owner's
+    manual secret rotation as the cause.~~ **RESOLVED (Part 4, infra recovery checkpoint).**
+    This directly contradicted the codebase's own stated design: `packages/db/src/migrate.ts`'s
+    own header comment says migrations should run "deliberately (not on every deploy)... an
+    intentional, reviewed operation", and a separate, human-gated
+    `.github/workflows/db-migrate.yml` (`workflow_dispatch`, requires typing "migrate" to
+    confirm) already exists for exactly that. `buildCommand` changed to plain `next build`
+    (confirmed safe: every route is server-rendered on demand per the build's own route
+    manifest, none are statically generated against the database at build time; this exact
+    command was already being run and passing via `apps/web/package.json`'s own `build`
+    script, both locally and in the "Lint · Build · Typecheck · Test" GitHub Actions check,
+    throughout this session). Left open, deliberately not done here: nothing in this fix
+    applies migrations 29-34 (everything since Part 4 chunk 3) to whatever database Preview
+    now points at; the preview app can still runtime-error on pages touching those tables
+    until the product owner deliberately runs `db-migrate.yml` (a live-database write, so left
+    to that existing human-gated workflow rather than triggered autonomously here). Whether
+    Preview deployments get their own fresh Neon branch per deployment or share one persistent
+    database also remains unconfirmed; this fix does not depend on the answer either way.
 independently confirmed findings; the missing PRD file is tracked as Blocker 1 in
 `assumptions-and-blockers.md` (now resolved) rather than here, since it blocked the
 programme rather than being a product defect.
