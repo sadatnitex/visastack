@@ -14,7 +14,8 @@
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "vitest run",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "tsx src/migrate.ts"
+    "db:migrate": "tsx src/migrate.ts",
+    "db:repair-migration-tracking": "tsx src/repair-migration-tracking.ts"
   },
   "dependencies": {
     "@neondatabase/serverless": "^0.10.4",

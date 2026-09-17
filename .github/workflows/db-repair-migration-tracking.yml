@@ -1,0 +1,53 @@
+name: DB Repair Migration Tracking (one-time, manual)
+
+# ONE-TIME REPAIR: see packages/db/src/repair-migration-tracking.ts for the
+# full explanation. Fixes drizzle.__drizzle_migrations being behind the
+# actual schema after an interrupted deployment. This file and the script it
+# runs are deleted once the repair has been applied. Same secret and
+# confirmation contract as db-migrate.yml. Same concurrency group as
+# db-migrate.yml so the two can never run against the database at once.
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type "repair" to confirm reconciling migration tracking on Neon'
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: db-migrate
+  cancel-in-progress: false
+
+jobs:
+  repair:
+    if: ${{ github.event.inputs.confirm == 'repair' }}
+    name: Repair migration tracking on Neon
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Repair migration tracking
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          POSTGRES_URL: ${{ secrets.POSTGRES_URL }}
+          DATABASE_URL_UNPOOLED: ${{ secrets.DATABASE_URL_UNPOOLED }}
+          POSTGRES_URL_NON_POOLING: ${{ secrets.POSTGRES_URL_NON_POOLING }}
+          POSTGRES_PRISMA_URL: ${{ secrets.POSTGRES_PRISMA_URL }}
+        run: pnpm --filter @visastack/db db:repair-migration-tracking
