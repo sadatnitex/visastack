@@ -1118,6 +1118,85 @@ describe('recheckDocumentAccess, redemption-time replay against LIVE state (EVI-
     if (!result.allowed) expect(result.reason).toBe('not_yet_safe_to_serve');
   });
 
+  it('rechecks the SPECIFIC version resolved at mint time, never "whatever is latest now" -- a newer sibling being unsafe must not paper over the minted version having become unsafe', async () => {
+    const { document, account } = await seedOwnerWithDocument(db, 'version-pin-1@example.com');
+    const actor = { kind: 'applicant_owner', applicantId: document.applicantId as never } as const;
+    const ref = await previewDocument(db, storage, {
+      actor,
+      documentId: document.id,
+      purpose: 'owner_preview',
+      accessTokenSecret: TEST_ACCESS_TOKEN_SECRET,
+    });
+    expect(isOk(ref)).toBe(true);
+    if (!isOk(ref)) return;
+    const fields = tokenFieldsFrom(ref.value.url);
+
+    // A NEWER version appears after mint (e.g. the owner re-uploads a
+    // corrected copy) and is itself fully servable. A recheck that
+    // re-derived "latest version" instead of checking the pinned one would
+    // see THIS clean row and wrongly allow redemption.
+    const newerVersion = await addDocumentVersion(db, {
+      actorAccountId: account.id,
+      documentId: document.id,
+      bucket: 'CLEAN',
+      objectKey: 'obj-version-pin-1-newer',
+      sizeBytes: 2048,
+      safetyStatus: 'CLEAN',
+      processingStatus: 'APPROVED',
+    });
+    expect(isOk(newerVersion)).toBe(true);
+
+    // The MINTED version specifically is made unsafe (a later re-scan, or
+    // an erasure job for that exact object) -- the newer sibling is
+    // untouched and still clean.
+    await db
+      .update(schema.documentVersions)
+      .set({ safetyStatus: 'QUARANTINED' })
+      .where(eq(schema.documentVersions.id, fields.documentVersionId));
+
+    const result = await recheckDocumentAccess(db, fields);
+    expect(result.allowed).toBe(false);
+    if (!result.allowed) expect(result.reason).toBe('not_yet_safe_to_serve');
+  });
+
+  it('...and the reverse: a newer sibling version being unsafe must not block redemption of the still-servable minted version', async () => {
+    const { document, account } = await seedOwnerWithDocument(db, 'version-pin-2@example.com');
+    const actor = { kind: 'applicant_owner', applicantId: document.applicantId as never } as const;
+    const ref = await previewDocument(db, storage, {
+      actor,
+      documentId: document.id,
+      purpose: 'owner_preview',
+      accessTokenSecret: TEST_ACCESS_TOKEN_SECRET,
+    });
+    expect(isOk(ref)).toBe(true);
+    if (!isOk(ref)) return;
+    const fields = tokenFieldsFrom(ref.value.url);
+
+    // A NEWER version appears after mint and turns out to be unsafe (e.g. a
+    // re-upload that fails scanning). The MINTED version is completely
+    // untouched. A recheck that re-derived "latest version" would see THIS
+    // unsafe row and wrongly deny redemption of the still-perfectly-safe
+    // version that was actually minted.
+    const newerVersion = await addDocumentVersion(db, {
+      actorAccountId: account.id,
+      documentId: document.id,
+      bucket: 'CLEAN',
+      objectKey: 'obj-version-pin-2-newer',
+      sizeBytes: 2048,
+      safetyStatus: 'CLEAN',
+      processingStatus: 'APPROVED',
+    });
+    expect(isOk(newerVersion)).toBe(true);
+    if (!isOk(newerVersion)) return;
+    await db
+      .update(schema.documentVersions)
+      .set({ safetyStatus: 'QUARANTINED', processingStatus: 'NEEDS_ATTENTION' })
+      .where(eq(schema.documentVersions.id, newerVersion.value.version.id));
+
+    const result = await recheckDocumentAccess(db, fields);
+    expect(result.allowed).toBe(true);
+  });
+
   it('denies redemption once the document itself no longer exists', async () => {
     const { document } = await seedOwnerWithDocument(db, 'owner-gone@example.com');
     const actor = { kind: 'applicant_owner', applicantId: document.applicantId as never } as const;
@@ -1312,6 +1391,7 @@ describe('recheckDocumentAccess, redemption-time replay against LIVE state (EVI-
     // least as strict as mint, not a weaker fallback path.
     const result = await recheckDocumentAccess(db, {
       documentId: document.id,
+      documentVersionId: '00000000-0000-0000-0000-000000000000',
       actorKind: 'support_admin',
       actorAccountId: supportAccount.value.id,
       action: 'PREVIEW',
@@ -1368,6 +1448,7 @@ describe('recheckDocumentAccess, redemption-time replay against LIVE state (EVI-
   it('denies redemption for an unknown documentId', async () => {
     const result = await recheckDocumentAccess(db, {
       documentId: '00000000-0000-0000-0000-000000000000',
+      documentVersionId: '00000000-0000-0000-0000-000000000000',
       actorKind: 'applicant_owner',
       action: 'PREVIEW',
       purpose: 'owner_preview',
@@ -1380,6 +1461,7 @@ describe('recheckDocumentAccess, redemption-time replay against LIVE state (EVI-
   it('denies an organization_member recheck with no organizationId in context (malformed/incomplete context)', async () => {
     const result = await recheckDocumentAccess(db, {
       documentId: '00000000-0000-0000-0000-000000000000',
+      documentVersionId: '00000000-0000-0000-0000-000000000000',
       actorKind: 'organization_member',
       actorAccountId: 'acc-1',
       action: 'PREVIEW',

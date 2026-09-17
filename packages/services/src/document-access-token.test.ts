@@ -12,6 +12,7 @@ const SECRET = 'test-document-access-secret';
 function baseFields(overrides: Partial<Omit<DocumentAccessTokenFields, 'sig'>> = {}) {
   return {
     documentId: 'doc-1',
+    documentVersionId: 'ver-1',
     actorKind: 'applicant_owner' as const,
     action: 'PREVIEW' as const,
     purpose: 'owner_preview',
@@ -149,6 +150,7 @@ describe('document-access-token, append/read round trip', () => {
   it('readDocumentAccessToken returns undefined for an unrecognized actorKind (fails closed, not a permissive default)', () => {
     const params = new URLSearchParams({
       adid: 'doc-1',
+      advi: 'ver-1',
       aak: 'super_admin_backdoor',
       aact: 'PREVIEW',
       apur: 'x',
@@ -161,6 +163,7 @@ describe('document-access-token, append/read round trip', () => {
   it('readDocumentAccessToken returns undefined for a non-numeric exp', () => {
     const params = new URLSearchParams({
       adid: 'doc-1',
+      advi: 'ver-1',
       aak: 'applicant_owner',
       aact: 'PREVIEW',
       apur: 'x',

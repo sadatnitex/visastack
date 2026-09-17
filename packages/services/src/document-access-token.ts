@@ -43,6 +43,19 @@ export type DocumentAccessActorKind =
 
 export interface DocumentAccessTokenFields {
   readonly documentId: string;
+  /**
+   * The specific version `accessDocument` resolved as "latest" at mint
+   * time, and whose storage object the accompanying blob token's own
+   * objectKey is bound to. Redemption re-verifies THIS version's
+   * servability, never "whatever document_versions reports as latest
+   * right now", a version added between mint and redemption must not
+   * change which version's safety state is actually checked, and a
+   * version that becomes unservable (erased, superseded) between mint
+   * and redemption must still fail redemption even if a newer sibling
+   * version happens to be servable (directive Part 3 §10: "exact
+   * version" is one of the properties redemption must re-evaluate).
+   */
+  readonly documentVersionId: string;
   readonly actorKind: DocumentAccessActorKind;
   /** Absent only for `applicant_owner`, which carries no account id of its own in `Actor`. */
   readonly actorAccountId?: string;
@@ -66,6 +79,7 @@ function signingPayload(fields: Omit<DocumentAccessTokenFields, 'sig'>): string 
   return [
     PAYLOAD_PREFIX,
     fields.documentId,
+    fields.documentVersionId,
     fields.actorKind,
     fields.actorAccountId ?? '',
     fields.organizationId ?? '',
@@ -99,6 +113,7 @@ export function verifyDocumentAccessToken(
 /** Query-parameter names `accessDocument`/the serving route use for this token's fields. */
 export const DOCUMENT_ACCESS_TOKEN_PARAMS = {
   documentId: 'adid',
+  documentVersionId: 'advi',
   actorKind: 'aak',
   actorAccountId: 'aaid',
   organizationId: 'aoid',
@@ -119,6 +134,7 @@ export function appendDocumentAccessToken(url: string, fields: DocumentAccessTok
   const p = DOCUMENT_ACCESS_TOKEN_PARAMS;
   const pairs: Array<[string, string]> = [
     [p.documentId, fields.documentId],
+    [p.documentVersionId, fields.documentVersionId],
     [p.actorKind, fields.actorKind],
     [p.action, fields.action],
     [p.purpose, fields.purpose],
@@ -144,12 +160,15 @@ export function readDocumentAccessToken(
 ): DocumentAccessTokenFields | undefined {
   const p = DOCUMENT_ACCESS_TOKEN_PARAMS;
   const documentId = searchParams.get(p.documentId);
+  const documentVersionId = searchParams.get(p.documentVersionId);
   const actorKind = searchParams.get(p.actorKind);
   const action = searchParams.get(p.action);
   const purpose = searchParams.get(p.purpose);
   const expRaw = searchParams.get(p.exp);
   const sig = searchParams.get(p.sig);
-  if (!documentId || !actorKind || !action || !purpose || !expRaw || !sig) return undefined;
+  if (!documentId || !documentVersionId || !actorKind || !action || !purpose || !expRaw || !sig) {
+    return undefined;
+  }
   const exp = Number(expRaw);
   if (!Number.isFinite(exp)) return undefined;
   if (
@@ -164,6 +183,7 @@ export function readDocumentAccessToken(
   const organizationId = searchParams.get(p.organizationId);
   return {
     documentId,
+    documentVersionId,
     actorKind,
     ...(actorAccountId ? { actorAccountId } : {}),
     ...(organizationId ? { organizationId } : {}),
