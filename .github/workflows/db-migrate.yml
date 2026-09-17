@@ -4,29 +4,13 @@ name: DB Migrate (manual)
 # machine is needed. Requires a repository secret `DATABASE_URL` (the Neon
 # connection string). Trigger manually from the Actions tab and type
 # "migrate" to confirm.
-#
-# `mode: repair` and `mode: diagnose` are temporary additions (2026-09-17):
-# repair runs the one-time drizzle.__drizzle_migrations tracking repair
-# (packages/db/src/repair-migration-tracking.ts); diagnose runs read-only
-# catalog/row-count queries (packages/db/src/diagnose-db.ts) to establish
-# what this connection actually points at. Both modes and both scripts are
-# removed once the incident behind them is resolved.
 
 on:
   workflow_dispatch:
     inputs:
       confirm:
-        description: 'Type "migrate" to confirm running this workflow against Neon (applies to all modes below)'
+        description: 'Type "migrate" to confirm applying migrations to Neon'
         required: true
-      mode:
-        description: 'migrate: apply pending migrations. repair: fix migration tracking only. diagnose: read-only report (all temporary except migrate)'
-        required: false
-        default: 'migrate'
-        type: choice
-        options:
-          - migrate
-          - repair
-          - diagnose
 
 permissions:
   contents: read
@@ -58,9 +42,8 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       # Accept any of the standard Neon/Vercel connection-string secret names;
-      # all three scripts resolve the first one present.
+      # the migrate script resolves the first one present.
       - name: Apply migrations
-        if: ${{ github.event.inputs.mode != 'repair' && github.event.inputs.mode != 'diagnose' }}
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           POSTGRES_URL: ${{ secrets.POSTGRES_URL }}
@@ -68,23 +51,3 @@ jobs:
           POSTGRES_URL_NON_POOLING: ${{ secrets.POSTGRES_URL_NON_POOLING }}
           POSTGRES_PRISMA_URL: ${{ secrets.POSTGRES_PRISMA_URL }}
         run: pnpm --filter @visastack/db db:migrate
-
-      - name: Repair migration tracking
-        if: ${{ github.event.inputs.mode == 'repair' }}
-        env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          POSTGRES_URL: ${{ secrets.POSTGRES_URL }}
-          DATABASE_URL_UNPOOLED: ${{ secrets.DATABASE_URL_UNPOOLED }}
-          POSTGRES_URL_NON_POOLING: ${{ secrets.POSTGRES_URL_NON_POOLING }}
-          POSTGRES_PRISMA_URL: ${{ secrets.POSTGRES_PRISMA_URL }}
-        run: pnpm --filter @visastack/db db:repair-migration-tracking
-
-      - name: Diagnose (read-only)
-        if: ${{ github.event.inputs.mode == 'diagnose' }}
-        env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          POSTGRES_URL: ${{ secrets.POSTGRES_URL }}
-          DATABASE_URL_UNPOOLED: ${{ secrets.DATABASE_URL_UNPOOLED }}
-          POSTGRES_URL_NON_POOLING: ${{ secrets.POSTGRES_URL_NON_POOLING }}
-          POSTGRES_PRISMA_URL: ${{ secrets.POSTGRES_PRISMA_URL }}
-        run: pnpm --filter @visastack/db db:diagnose
