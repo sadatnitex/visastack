@@ -157,6 +157,28 @@ describe('reserveUpload — atomic quota reservation (master directive §7 "PR 6
     if (isErr(second)) expect(second.error.message).toContain('applicant');
   });
 
+  it('under real concurrency, two simultaneous uploads racing for the same remaining quota never both succeed (Part 3 §11: proven, not sequentially simulated)', async () => {
+    const { accountId, applicantId } = await seedApplicantWithEvidence(db, 'race@example.com', []);
+    // 6 + 6 = 12 MB > the 10 MB applicant cap: at most one of these two
+    // genuinely concurrent reservations may succeed. A broken advisory lock
+    // would let both pass their own pre-lock read before either commits.
+    const [a, b] = await Promise.all([
+      reserveUpload(db, { accountId, applicantId, sizeBytes: 6 * MB }, tightConfig),
+      reserveUpload(db, { accountId, applicantId, sizeBytes: 6 * MB }, tightConfig),
+    ]);
+    const results = [a, b];
+    expect(results.filter(isOk)).toHaveLength(1);
+    expect(results.filter(isErr)).toHaveLength(1);
+
+    const reservedTotal = await db
+      .select()
+      .from(schema.uploadIntents)
+      .where(eq(schema.uploadIntents.applicantId, applicantId));
+    const activeReservations = reservedTotal.filter((r) => r.status === 'RESERVED');
+    expect(activeReservations).toHaveLength(1);
+    expect(activeReservations[0]?.reservedBytes).toBe(6 * MB);
+  });
+
   it('an expired reservation no longer counts toward any limit — an abandoned upload cannot hold quota hostage', async () => {
     const { accountId, applicantId } = await seedApplicantWithEvidence(
       db,

@@ -70,7 +70,7 @@ describe('BuiltinContentLimitsChecker: EVI-01 initial configurable limits (50 PD
     expect(checker.version).toBeTruthy();
   });
 
-  it('accepts a real PDF within the page limit', async () => {
+  it('accepts a real PDF within the page limit and reports its exact page count', async () => {
     const pdfBytes = buildMultiPagePdf(3);
     const checker = new BuiltinContentLimitsChecker({
       blobStore: fakeBlobStore({ k1: { contentType: 'application/pdf', bytes: pdfBytes } }),
@@ -78,9 +78,14 @@ describe('BuiltinContentLimitsChecker: EVI-01 initial configurable limits (50 PD
     });
     const result = await checker.check({ bucket: 'CLEAN', objectKey: 'k1' });
     expect(result.withinLimits).toBe(true);
+    // documentVersions.pages persistence (Part 3 §7) relies on this: a
+    // scanned PDF passes this check but fails text extraction entirely
+    // (no text layer), so this is the only point in the pipeline that ever
+    // has a page count for it.
+    expect(result.pageCount).toBe(3);
   });
 
-  it('rejects a real PDF that exceeds the page limit, naming the actual page count', async () => {
+  it('rejects a real PDF that exceeds the page limit, naming and reporting the actual page count', async () => {
     const pdfBytes = buildMultiPagePdf(6);
     const checker = new BuiltinContentLimitsChecker({
       blobStore: fakeBlobStore({ k2: { contentType: 'application/pdf', bytes: pdfBytes } }),
@@ -90,6 +95,7 @@ describe('BuiltinContentLimitsChecker: EVI-01 initial configurable limits (50 PD
     expect(result.withinLimits).toBe(false);
     expect(result.detail).toContain('6 pages');
     expect(result.detail).toContain('5-page limit');
+    expect(result.pageCount).toBe(6);
   });
 
   it('fails closed (never invents a page count) on a corrupt PDF', async () => {
@@ -100,6 +106,7 @@ describe('BuiltinContentLimitsChecker: EVI-01 initial configurable limits (50 PD
     });
     const result = await checker.check({ bucket: 'CLEAN', objectKey: 'k3' });
     expect(result.withinLimits).toBe(false);
+    expect(result.pageCount).toBeUndefined();
   });
 
   it('accepts a real image within the megapixel limit', async () => {

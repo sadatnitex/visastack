@@ -75,9 +75,10 @@ export class BuiltinContentLimitsChecker implements ContentLimitsPort {
         return {
           withinLimits: false,
           detail: `PDF has ${pdf.numPages} pages, exceeding the ${this.config.maxPdfPages}-page limit`,
+          pageCount: pdf.numPages,
         };
       }
-      return { withinLimits: true };
+      return { withinLimits: true, pageCount: pdf.numPages };
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       if (/password|encrypted/i.test(message)) {
