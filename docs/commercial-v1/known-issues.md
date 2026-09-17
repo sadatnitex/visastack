@@ -285,20 +285,31 @@ item gets its own requirements-ledger row once classified against the new direct
     list notes back. This is a pre-existing gap, confirmed to predate this chunk's changes, not
     worsened or introduced by the visibility fix; tracked here since it was noticed while
     auditing every `missionNotes` read path, not because this chunk caused it.
-29. (Part 4) SHR-01's "categories do not automatically include future documents by default;
-    expanding scope requires a displayed confirmation" is confirmed, while fixing this row's
-    duration bounds (AD-10), to be unimplemented: `getRecipientWorkspace`
-    (`packages/services/src/sharing.ts`) and `bulkExport` (`packages/services/src/agency.ts`)
-    both re-evaluate `authorize()` against every document currently on the applicant on each
-    read, live, with no notion of which documents existed when the grant's `categories` were
-    set. A document uploaded the day after a category-scoped grant was accepted, if it matches
-    that category, becomes visible to the recipient immediately, with no owner action and no
-    displayed confirmation of any kind, exactly what this PRD line prohibits by default. Not
-    fixed this chunk: closing it correctly needs a real design decision (at minimum, a snapshot
-    of which documents a category grant actually covers, taken at accept time, plus a genuine
-    owner-facing "expand scope" action with its own confirmation step) that is larger than a
-    duration-bound correction and deserves its own dedicated chunk, tracked here rather than
-    folded silently into AD-10's smaller fix.
+29. ~~SHR-01's "categories do not automatically include future documents by default; expanding
+    scope requires a displayed confirmation" is unimplemented.~~ **RESOLVED (Part 4, AD-11).**
+    `getRecipientWorkspace` (`packages/services/src/sharing.ts`) re-evaluated `authorize()`
+    against every document currently on the applicant on each read, live, with no notion of
+    which documents existed when the grant's `categories` were set; a document uploaded after a
+    category-scoped grant existed, if it matched that category, became visible immediately, with
+    no owner action and no confirmation. `createGrant` now snapshots the matching document set at
+    creation (`grants.documentScopeSnapshot`); the policy engine enforces it for document
+    resources; `previewScopeExpansion`/`expandGrantScope` give the owner a real, explicit,
+    displayed-confirmation path to widen it later. Correction to this item's own prior text: it
+    previously also named `bulkExport` (`packages/services/src/agency.ts`) as affected; that was
+    wrong (`bulkExport` exports facts only, never documents) and is corrected here rather than
+    silently dropped. Full detail: `architecture-decisions.md` AD-11.
+30. (Part 4) Found while confirming AD-11's own reach, not fixed there: `documents.ts`'s
+    `accessDocument`/`recheckDocumentAccess`, the real byte-serving preview/download path behind
+    `/api/blob/[key]`, never populate `resource.category` when calling `authorize()`. Combined
+    with the policy engine's own pre-existing rule that a `categories`-scoped grant denies
+    outright when `resource.category` is absent, a grant restricted to `categories` with no
+    explicit `documentIds` can never actually pass real document preview/download through that
+    route today. This is a distinct, over-restrictive bug (denies access that should work), not a
+    leak, and not something AD-11 introduced or was asked to fix (AD-11 closes
+    under-restriction, `getRecipientWorkspace`'s live visibility list, which never calls
+    `accessDocument`). Tracked here so it is not lost, since finding it required reading every
+    document-resource `authorize()` call site in the codebase, work not likely to be repeated
+    incidentally.
 
 Items 1 through 4, 5 through 9, and 14/15 above are carried forward or upgraded to
 independently confirmed findings; the missing PRD file is tracked as Blocker 1 in

@@ -292,3 +292,42 @@ into this smaller, purely mechanical duration correction.
 
 Full detail: `docs/commercial-v1/architecture-decisions.md` AD-10; `docs/commercial-v1/known-issues.md`
 item 29 (the still-open scope-absorption gap); `docs/commercial-v1/requirements-ledger.md` SHR-01.
+
+## Part 4, chunk 3: category scope snapshotting and explicit expansion (SHR-01, closing known-issues.md item 29)
+
+Commit: working tree on top of `cecc998` (Part 4 chunk 2, grant duration bounds, already pushed
+and PR #78 updated). New `grants.documentScopeSnapshot` column (migration
+`0031_giant_ted_forrester.sql`, additive only), `Grant.categoryScopeDocumentIds` in
+`packages/policy/src/types.ts`, an `evaluateGrant` scope check in `authorize.ts`, snapshot
+computation in `createGrant`, and two new owner-only functions
+(`previewScopeExpansion`/`expandGrantScope`) plus a real confirmation UI on the sharing page
+(`ScopeExpansionForm`).
+
+| # | Command | Exit | Result | Detail |
+|---|---|---|---|---|
+| 1 | `pnpm run lint` | 0 | PASS | Biome, 315 files checked. Two formatting-only violations (long lines in `page.tsx` and `actions.ts`) fixed with `biome check --write` before this run, then re-verified clean. Every newly-authored comment/doc-comment/test-title checked against the no-em-dash preference and corrected where mine; pre-existing em-dashes in `getRecipientWorkspace`'s own prior doc comment, sitting immediately next to the new functions appended after it, were confirmed pre-existing and left untouched. |
+| 2 | `pnpm run typecheck` | 0 | PASS | All 7 packages, no errors, including `apps/web` against the new `Grant`/policy type additions. |
+| 3 | `pnpm run test` | 0 | PASS | 788 tests total across all 7 packages (i18n 6, core 2, policy 31, db 26 + 1 skipped, adapters 147 + 2 skipped, web 141, services 432). `authorize.test.ts` gained 2 new unit tests proving the core rule in isolation: a category-matching document outside `categoryScopeDocumentIds` is denied, one inside it is allowed; a grant with no snapshot at all (a fact resource, or a category grant that predates this chunk) is unaffected, proving the restriction is scoped to documents exactly as the PRD states. `sharing.test.ts` gained 6 new integration tests against real PGlite Postgres: a fresh category grant's snapshot exactly matches the applicant's document set at creation time; a document registered AFTER the grant exists stays invisible through `getRecipientWorkspace`, the platform's real recipient-facing feature (`apps/web/src/app/app/shared/[grantId]/page.tsx`), not a mocked check; `previewScopeExpansion` lists exactly the new, not-yet-included document and nothing already covered; `expandGrantScope` adds a confirmed document and it becomes visible on the very next workspace read; a request to expand with a document that does not actually match the grant's own categories is refused (`invalid`), not silently ignored; and both new functions correctly deny a stranger, including the grant's own recipient, proving they are owner-gated like every other grant-management function in this file. One real test-authoring mistake caught and fixed before this run, not left in: the first draft of the new `ownerWithPassport` test helper granted only `SHARING` consent, omitting the `CORE_PROCESSING` consent `createApplicant` actually requires, which failed all 6 new tests with an unrelated-looking `Error: applicant`; fixed by matching the existing `ownerWithDoc` helper's consent sequence exactly, then re-verified green. A second mistake in the same draft, a missing import of the two new functions in the test file itself, was caught and fixed the same way. |
+| 4 | `pnpm run build` | 0 | PASS | Full monorepo build including `apps/web`, full route manifest produced, including the changed `/app/applicant/[id]/sharing` route. |
+| 5 | `pnpm audit --prod` | 0 | PASS | "No known vulnerabilities found", no new dependencies added (pure application/schema code and UI). |
+
+A real, distinct bug found while confirming this fix's actual reach, deliberately not fixed here
+since it is over-restriction, not the under-restriction leak this chunk closes: `documents.ts`'s
+`accessDocument`/`recheckDocumentAccess` never populate `resource.category`, so a `categories`-only
+grant (no explicit `documentIds`) may never be able to pass real document preview/download through
+that route at all, regardless of this chunk. Recorded as `known-issues.md` item 30, found by
+reading every document-resource `authorize()` call site in the codebase to confirm no other path
+needed the same snapshot fix.
+
+Also corrected here, not silently carried forward: Part 4 chunk 2's own documentation named
+`bulkExport` as affected by the "future documents" gap alongside `getRecipientWorkspace`. Re-reading
+`bulkExport` while building this fix found that wrong: it exports facts only (`BulkExportRow` has
+no document field at all), so it was never in scope for a documents-only PRD requirement. Both
+`architecture-decisions.md` AD-11 and `requirements-ledger.md` SHR-01 state this correction
+explicitly rather than quietly fixing the claim with no record that it was ever wrong.
+
+Full detail: `docs/commercial-v1/architecture-decisions.md` AD-11; `docs/commercial-v1/known-issues.md`
+item 29 (resolved) and item 30 (the new, separate over-restriction bug);
+`docs/commercial-v1/requirements-ledger.md` SHR-01. This closes SHR-01's two remaining tracked
+gaps from chunk 2 (duration bounds, category scope), leaving only "renewal is an explicit action"
+open on this row.

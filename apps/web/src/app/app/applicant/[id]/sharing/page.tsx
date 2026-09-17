@@ -3,6 +3,7 @@ import {
   getApplicant,
   listAccessForApplicantDetailed,
   listDocumentsDetailed,
+  previewScopeExpansion,
 } from '@visastack/services';
 import { notFound } from 'next/navigation';
 import { grantStatusBadge } from '../../../../../lib/grant-status';
@@ -10,6 +11,7 @@ import { getLocale } from '../../../../../lib/locale';
 import { withSession } from '../../../../../lib/session';
 import { GrantForm } from './grant-form';
 import { GrantOpButtons } from './grant-op-buttons';
+import { ScopeExpansionForm } from './scope-expansion-form';
 
 export const dynamic = 'force-dynamic';
 
@@ -28,10 +30,31 @@ export default async function SharingPage({
       listAccessForApplicantDetailed(db, accountId, id),
       listDocumentsDetailed(db, accountId, id),
     ]);
+    const grants = access.ok ? access.value : [];
+
+    // PRD SHR-01: for every still-live category grant, find whatever now
+    // matches its categories but isn't in scope yet, so the page can show
+    // the "displayed confirmation" before any of it becomes visible.
+    const expandable = grants.filter(
+      (g) =>
+        g.categories && g.categories.length > 0 && g.status !== 'REVOKED' && g.status !== 'EXPIRED',
+    );
+    const scopeExpansionEntries = await Promise.all(
+      expandable.map(async (g) => {
+        const candidates = await previewScopeExpansion(db, {
+          actorAccountId: accountId,
+          grantId: g.id,
+        });
+        return [g.id, candidates.ok ? candidates.value : []] as const;
+      }),
+    );
+    const scopeExpansions = new Map(scopeExpansionEntries);
+
     return {
       applicant,
-      grants: access.ok ? access.value : [],
+      grants,
       documents: documents.ok ? documents.value : [],
+      scopeExpansions,
     };
   });
 
@@ -137,6 +160,16 @@ export default async function SharingPage({
                         ]}
                       />
                     ) : null}
+                    {(() => {
+                      const candidates = data.scopeExpansions.get(grant.id);
+                      return candidates && candidates.length > 0 ? (
+                        <ScopeExpansionForm
+                          applicantId={id}
+                          grantId={grant.id}
+                          candidates={candidates}
+                        />
+                      ) : null;
+                    })()}
                   </div>
                 );
               })}

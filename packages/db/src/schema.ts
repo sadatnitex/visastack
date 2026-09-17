@@ -330,6 +330,15 @@ export const grants = pgTable(
     // and persistence; previously modeled in the policy layer but never
     // actually storable.
     documentIds: uuid('document_ids').array(),
+    // Set only when `categories` is non-empty: the exact document ids that
+    // matched those categories at creation time (PRD SHR-01, Commercial V1
+    // Part 4 AD-11). A category grant authorizes documents in this snapshot
+    // only, never every document matching the category live, so a document
+    // uploaded after the grant is never silently absorbed; growing it is an
+    // explicit owner action (`expandGrantScope`), never automatic. Null when
+    // `categories` is unset (an unrestricted or explicit-documentIds-only
+    // grant has no category snapshot to speak of).
+    documentScopeSnapshot: uuid('document_scope_snapshot').array(),
     purpose: text('purpose').notNull(),
     status: grantStatus('status').notNull().default('PENDING_ACCEPTANCE'),
     acceptedAt: timestamp('accepted_at', { withTimezone: true }),

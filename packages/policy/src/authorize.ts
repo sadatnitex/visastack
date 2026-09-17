@@ -87,6 +87,17 @@ function evaluateGrant(
     if (resource.category === undefined || !grant.categories.includes(resource.category)) {
       return deny('scope_mismatch');
     }
+    // PRD SHR-01: a category grant covers only the documents it was
+    // actually snapshotted against, never every document that happens to
+    // match the category today. Facts carry no documentId and are
+    // unaffected: the PRD names this restriction for documents only.
+    if (
+      grant.categoryScopeDocumentIds !== undefined &&
+      resource.documentId !== undefined &&
+      !grant.categoryScopeDocumentIds.includes(resource.documentId)
+    ) {
+      return deny('scope_mismatch');
+    }
   }
 
   return ALLOW;

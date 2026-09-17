@@ -218,6 +218,13 @@
       "when": 1789592737895,
       "tag": "0030_safe_mentor",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1789611637467,
+      "tag": "0031_giant_ted_forrester",
+      "breakpoints": true
     }
   ]
 }

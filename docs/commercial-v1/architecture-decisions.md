@@ -634,3 +634,71 @@ tracked rather than silently assumed covered by this fix: SHR-01's own further c
 ("renewal is an explicit action"; "categories do not automatically include future documents by
 default; expanding scope requires a displayed confirmation") are separate, larger pieces of the
 same requirement row, not yet built: see `known-issues.md` and `requirements-ledger.md` SHR-01.
+
+## AD-11: Category-scope snapshotting and explicit expansion (SHR-01)
+
+**Decision.** `grants` gains `documentScopeSnapshot`, a nullable document-id array populated only
+when `categories` is set. `createGrant` computes it once, at creation, against the applicant's
+CURRENT documents (`documentIdsMatchingCategories`, `packages/services/src/sharing.ts`); the
+policy engine (`Grant.categoryScopeDocumentIds`, `packages/policy/src/types.ts`) then requires a
+DOCUMENT resource under a `categories`-scoped grant to also appear in that snapshot, not merely
+match the category live. A document uploaded after the grant exists, however well it matches the
+category, is invisible until the owner explicitly says otherwise. Two new functions are the only
+way the snapshot ever grows: `previewScopeExpansion` (what a confirmation dialog should show) and
+`expandGrantScope` (the owner's actual confirmation, re-verified against the grant's own
+categories at that moment, never trusted from an earlier preview call). A new section on the
+sharing page (`ScopeExpansionForm`) is the real "displayed confirmation" PRD SHR-01 requires:
+named documents, checkboxes defaulted on, one explicit submit.
+
+**Why documents only, never facts.** SHR-01's own sentence is specific: "categories do not
+automatically include future *documents*." `evaluateGrant`'s new check is gated on
+`resource.documentId !== undefined`, so a fact resource (`VIEW_METADATA`, no `documentId`) is
+completely unaffected by the snapshot and continues to match `categories` live, exactly as
+before. Extending the same restriction to facts was considered and rejected as inventing a
+requirement the PRD does not state: facts are versioned differently (an edit creates a new
+version of an EXISTING fact under an existing field key; a genuinely new field key appearing
+inside an already-granted category is a much rarer event than a new document upload), and this
+programme's standing rule is to implement what the PRD says, not what might rhyme with it.
+
+**Why the correction to Part 4 chunk 2's own documentation.** That chunk's test-evidence and
+requirements-ledger entries stated `bulkExport` (`packages/services/src/agency.ts`) was, like
+`getRecipientWorkspace`, part of this gap. Re-reading `bulkExport` while building this fix found
+that claim wrong: `BulkExportRow` is `{applicantId, displayName, facts}`, facts only; `bulkExport`
+never touches documents at all, so it was never affected by "future documents" regardless of this
+fix. Recorded here as an explicit, named correction rather than silently amended, per this
+programme's own standing precision requirement; `requirements-ledger.md` SHR-01 is corrected in
+this same commit.
+
+**Why creation time, not acceptance time, for the snapshot.** The owner's actual decision, the
+moment they look at their document list and choose categories, happens at `createGrant`, not
+whenever the recipient later gets around to accepting. Snapshotting at acceptance would let an
+unrelated delay between creation and acceptance silently change what the owner is understood to
+have agreed to, for better or worse, neither of which the owner actually chose at the moment they
+acted. Creation time is also simply where the owner-facing form already runs, so the snapshot
+reflects exactly the document list state that could have informed their choice.
+
+**A separate, real gap found while building this, deliberately not fixed here.** Auditing every
+document-resource `authorize()` call site to confirm this fix's reach found that
+`documents.ts`'s `accessDocument`/`recheckDocumentAccess` (the real byte-serving preview/download
+path behind `/api/blob/[key]`) never populates `resource.category` at all. Combined with
+`evaluateGrant`'s existing (pre-dating this session) rule that a `categories`-scoped grant denies
+outright when `resource.category` is absent, this means a grant restricted to `categories` with
+no explicit `documentIds` can never actually pass real document preview/download through that
+route today, regardless of this fix. This is a distinct, over-restrictive bug, not a leak, and
+not something this chunk's own scope (closing under-restriction, not over-restriction) covers;
+`getRecipientWorkspace`'s own visibility list (the actual live feature this fix protects, per
+`apps/web/src/app/app/shared/[grantId]/page.tsx`) is unaffected since it never calls
+`accessDocument`. Tracked honestly as its own item rather than folded into this fix or left
+undiscovered: `known-issues.md` item 30.
+
+**What this proves.** Two new policy-layer unit tests (`authorize.test.ts`) prove the core rule
+in isolation: a category-matching document outside the snapshot is denied, one inside it is
+allowed, and a grant with no snapshot at all (facts, or a category grant that predates this
+chunk) is unaffected. Six new integration tests (`sharing.test.ts`) prove it end to end against
+real PGlite Postgres: the snapshot captures exactly the pre-existing document at creation; a
+document uploaded afterward stays invisible through `getRecipientWorkspace`, the platform's real
+recipient-facing feature, not just a mocked check; `previewScopeExpansion` lists exactly the new,
+not-yet-included document; `expandGrantScope` adds a confirmed one, and it becomes visible on the
+very next workspace read; a request to expand with a document that does not actually match the
+grant's categories is refused, not silently ignored; and both functions are owner-gated, denying
+a stranger, including the grant's own recipient.

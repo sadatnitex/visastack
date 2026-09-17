@@ -26,10 +26,12 @@ import { RATE_LIMITS } from './rate-limit';
 import {
   acceptGrant,
   createGrant,
+  expandGrantScope,
   getRecipientWorkspace,
   listAccessForApplicant,
   listAccessForApplicantDetailed,
   listGrantsForRecipientAccount,
+  previewScopeExpansion,
   revokeGrant,
 } from './sharing';
 import type { AccessRef, IssueReadRefInput, StoragePort } from './storage';
@@ -833,5 +835,270 @@ describe('getRecipientWorkspace — the actual permission-filtered read path (Re
     });
     expect(isErr(after)).toBe(true);
     if (isErr(after)) expect(after.error.code).toBe('forbidden');
+  });
+});
+
+describe('category scope snapshotting and explicit expansion (PRD SHR-01, AD-11)', () => {
+  let db: Db;
+  beforeEach(async () => {
+    db = await freshDb();
+  });
+
+  /** Owner with one PASSPORT document (category "universal") already uploaded. */
+  async function ownerWithPassport(db: Db, email: string) {
+    const p = await provisionAccount(db, { email });
+    if (!isOk(p)) throw new Error('provision');
+    const account = p.value;
+    await setConsent(db, {
+      actorAccountId: account.id,
+      accountId: account.id,
+      type: 'CORE_PROCESSING',
+      granted: true,
+    });
+    await setConsent(db, {
+      actorAccountId: account.id,
+      accountId: account.id,
+      type: 'SHARING',
+      granted: true,
+    });
+    const applicant = await createApplicant(db, {
+      actorAccountId: account.id,
+      ownerAccountId: account.id,
+      displayName: 'Owner',
+    });
+    if (!isOk(applicant)) throw new Error('applicant');
+    const doc = await registerDocument(db, {
+      actorAccountId: account.id,
+      applicantId: applicant.value.id,
+      originalName: 'passport.pdf',
+      docType: 'PASSPORT',
+    });
+    if (!isOk(doc)) throw new Error('doc');
+    return { account, applicantId: applicant.value.id, existingDocumentId: doc.value.id };
+  }
+
+  it('snapshots the current matching documents at creation; a document uploaded afterward is never silently included', async () => {
+    const { account, applicantId, existingDocumentId } = await ownerWithPassport(
+      db,
+      'scope-owner@example.com',
+    );
+    const recipient = await provisionAccount(db, { email: 'scope-recipient@example.com' });
+    if (!isOk(recipient)) throw new Error('provision');
+
+    const grant = await createGrant(db, {
+      actorAccountId: account.id,
+      applicantId,
+      recipientAccountId: recipient.value.id,
+      actions: ['VIEW_METADATA', 'PREVIEW'],
+      purpose: 'p',
+      categories: ['universal'],
+    });
+    if (!isOk(grant)) throw new Error('grant');
+    expect(grant.value.documentScopeSnapshot).toEqual([existingDocumentId]);
+    await acceptGrant(db, { actorAccountId: recipient.value.id, grantId: grant.value.id });
+
+    const before = await getRecipientWorkspace(db, {
+      actorAccountId: recipient.value.id,
+      grantId: grant.value.id,
+    });
+    expect(isOk(before)).toBe(true);
+    if (isOk(before)) expect(before.value.documents.map((d) => d.id)).toEqual([existingDocumentId]);
+
+    // A second PASSPORT document, uploaded AFTER the grant already exists:
+    // matches the same category live, but must not appear automatically.
+    const laterDoc = await registerDocument(db, {
+      actorAccountId: account.id,
+      applicantId,
+      originalName: 'passport-renewed.pdf',
+      docType: 'PASSPORT',
+    });
+    if (!isOk(laterDoc)) throw new Error('doc');
+
+    const after = await getRecipientWorkspace(db, {
+      actorAccountId: recipient.value.id,
+      grantId: grant.value.id,
+    });
+    expect(isOk(after)).toBe(true);
+    if (isOk(after)) {
+      expect(after.value.documents.map((d) => d.id)).toEqual([existingDocumentId]);
+      expect(after.value.documents.some((d) => d.id === laterDoc.value.id)).toBe(false);
+    }
+  });
+
+  it('previewScopeExpansion lists only the newly matching, not-yet-included document', async () => {
+    const { account, applicantId } = await ownerWithPassport(db, 'preview-owner@example.com');
+    const recipient = await provisionAccount(db, { email: 'preview-recipient@example.com' });
+    if (!isOk(recipient)) throw new Error('provision');
+    const grant = await createGrant(db, {
+      actorAccountId: account.id,
+      applicantId,
+      recipientAccountId: recipient.value.id,
+      actions: ['VIEW_METADATA'],
+      purpose: 'p',
+      categories: ['universal'],
+    });
+    if (!isOk(grant)) throw new Error('grant');
+
+    // Nothing new yet: the only matching document is already in the snapshot.
+    const nothingYet = await previewScopeExpansion(db, {
+      actorAccountId: account.id,
+      grantId: grant.value.id,
+    });
+    expect(isOk(nothingYet)).toBe(true);
+    if (isOk(nothingYet)) expect(nothingYet.value).toEqual([]);
+
+    const laterDoc = await registerDocument(db, {
+      actorAccountId: account.id,
+      applicantId,
+      originalName: 'passport-renewed.pdf',
+      docType: 'PASSPORT',
+    });
+    if (!isOk(laterDoc)) throw new Error('doc');
+
+    const candidates = await previewScopeExpansion(db, {
+      actorAccountId: account.id,
+      grantId: grant.value.id,
+    });
+    expect(isOk(candidates)).toBe(true);
+    if (isOk(candidates)) {
+      expect(candidates.value.map((c) => c.id)).toEqual([laterDoc.value.id]);
+      expect(candidates.value[0]?.displayName).toBe('passport-renewed.pdf');
+    }
+  });
+
+  it('expandGrantScope adds a confirmed candidate, which then becomes visible to the recipient', async () => {
+    const { account, applicantId } = await ownerWithPassport(db, 'expand-owner@example.com');
+    const recipient = await provisionAccount(db, { email: 'expand-recipient@example.com' });
+    if (!isOk(recipient)) throw new Error('provision');
+    const grant = await createGrant(db, {
+      actorAccountId: account.id,
+      applicantId,
+      recipientAccountId: recipient.value.id,
+      actions: ['VIEW_METADATA', 'PREVIEW'],
+      purpose: 'p',
+      categories: ['universal'],
+    });
+    if (!isOk(grant)) throw new Error('grant');
+    await acceptGrant(db, { actorAccountId: recipient.value.id, grantId: grant.value.id });
+
+    const laterDoc = await registerDocument(db, {
+      actorAccountId: account.id,
+      applicantId,
+      originalName: 'passport-renewed.pdf',
+      docType: 'PASSPORT',
+    });
+    if (!isOk(laterDoc)) throw new Error('doc');
+
+    const expanded = await expandGrantScope(db, {
+      actorAccountId: account.id,
+      grantId: grant.value.id,
+      documentIds: [laterDoc.value.id],
+    });
+    expect(isOk(expanded)).toBe(true);
+    if (isOk(expanded)) {
+      expect(expanded.value.documentScopeSnapshot).toContain(laterDoc.value.id);
+    }
+
+    const workspace = await getRecipientWorkspace(db, {
+      actorAccountId: recipient.value.id,
+      grantId: grant.value.id,
+    });
+    expect(isOk(workspace)).toBe(true);
+    if (isOk(workspace)) {
+      expect(workspace.value.documents.some((d) => d.id === laterDoc.value.id)).toBe(true);
+      expect(workspace.value.documents).toHaveLength(2);
+    }
+  });
+
+  it("refuses to expand with a document that does not match the grant's own categories", async () => {
+    const { account, applicantId } = await ownerWithPassport(db, 'mismatch-owner@example.com');
+    const recipient = await provisionAccount(db, { email: 'mismatch-recipient@example.com' });
+    if (!isOk(recipient)) throw new Error('provision');
+    const grant = await createGrant(db, {
+      actorAccountId: account.id,
+      applicantId,
+      recipientAccountId: recipient.value.id,
+      actions: ['VIEW_METADATA'],
+      purpose: 'p',
+      categories: ['universal'],
+    });
+    if (!isOk(grant)) throw new Error('grant');
+
+    // A professional-category document: never matches this grant's "universal" allow-list.
+    const otherDoc = await registerDocument(db, {
+      actorAccountId: account.id,
+      applicantId,
+      originalName: 'employment.pdf',
+      docType: 'EMPLOYMENT_CERTIFICATE',
+    });
+    if (!isOk(otherDoc)) throw new Error('doc');
+
+    const denied = await expandGrantScope(db, {
+      actorAccountId: account.id,
+      grantId: grant.value.id,
+      documentIds: [otherDoc.value.id],
+    });
+    expect(isErr(denied)).toBe(true);
+    if (isErr(denied)) expect(denied.error.code).toBe('invalid');
+  });
+
+  it('refuses to preview or expand scope for anyone other than the applicant owner', async () => {
+    const { account, applicantId } = await ownerWithPassport(db, 'stranger-owner@example.com');
+    const stranger = await provisionAccount(db, { email: 'scope-stranger@example.com' });
+    if (!isOk(stranger)) throw new Error('provision');
+    const grant = await createGrant(db, {
+      actorAccountId: account.id,
+      applicantId,
+      recipientAccountId: stranger.value.id,
+      actions: ['VIEW_METADATA'],
+      purpose: 'p',
+      categories: ['universal'],
+    });
+    if (!isOk(grant)) throw new Error('grant');
+
+    const previewDenied = await previewScopeExpansion(db, {
+      actorAccountId: stranger.value.id,
+      grantId: grant.value.id,
+    });
+    expect(isErr(previewDenied)).toBe(true);
+    if (isErr(previewDenied)) expect(previewDenied.error.code).toBe('forbidden');
+
+    const expandDenied = await expandGrantScope(db, {
+      actorAccountId: stranger.value.id,
+      grantId: grant.value.id,
+      documentIds: ['00000000-0000-0000-0000-000000000000'],
+    });
+    expect(isErr(expandDenied)).toBe(true);
+    if (isErr(expandDenied)) expect(expandDenied.error.code).toBe('forbidden');
+  });
+
+  it('a grant with no categories has nothing to expand', async () => {
+    const { account, applicantId } = await ownerWithPassport(db, 'no-category-owner@example.com');
+    const recipient = await provisionAccount(db, { email: 'no-category-recipient@example.com' });
+    if (!isOk(recipient)) throw new Error('provision');
+    const grant = await createGrant(db, {
+      actorAccountId: account.id,
+      applicantId,
+      recipientAccountId: recipient.value.id,
+      actions: ['VIEW_METADATA'],
+      purpose: 'p',
+    });
+    if (!isOk(grant)) throw new Error('grant');
+    expect(grant.value.documentScopeSnapshot).toBeNull();
+
+    const candidates = await previewScopeExpansion(db, {
+      actorAccountId: account.id,
+      grantId: grant.value.id,
+    });
+    expect(isOk(candidates)).toBe(true);
+    if (isOk(candidates)) expect(candidates.value).toEqual([]);
+
+    const denied = await expandGrantScope(db, {
+      actorAccountId: account.id,
+      grantId: grant.value.id,
+      documentIds: ['00000000-0000-0000-0000-000000000000'],
+    });
+    expect(isErr(denied)).toBe(true);
+    if (isErr(denied)) expect(denied.error.code).toBe('invalid');
   });
 });

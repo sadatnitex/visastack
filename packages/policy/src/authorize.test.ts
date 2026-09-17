@@ -268,6 +268,55 @@ describe('authorize — scope (law 5)', () => {
     ).toEqual({ allowed: true });
   });
 
+  it('a category grant with a document snapshot excludes a matching-category document outside it (PRD SHR-01)', () => {
+    const g = grant({ categories: ['financial'], categoryScopeDocumentIds: [docA] });
+    // docB has the matching category but was never in the snapshot (e.g.
+    // uploaded after the grant was created), denied, not silently absorbed.
+    expect(
+      authorize({
+        actor: member,
+        action: 'PREVIEW',
+        resource: res({ category: 'financial', documentId: docB }),
+        context: ctx({ grants: [g] }),
+      }),
+    ).toEqual({ allowed: false, reason: 'scope_mismatch' });
+    // docA matches the category AND is in the snapshot: allowed.
+    expect(
+      authorize({
+        actor: member,
+        action: 'PREVIEW',
+        resource: res({ category: 'financial', documentId: docA }),
+        context: ctx({ grants: [g] }),
+      }),
+    ).toEqual({ allowed: true });
+  });
+
+  it('a category grant with no document snapshot is unaffected by it (facts, or a grant never snapshotted)', () => {
+    const g = grant({ categories: ['financial'] });
+    // A fact resource carries no documentId at all: the snapshot check
+    // never applies to it, matching the PRD's "documents" scoping exactly.
+    expect(
+      authorize({
+        actor: member,
+        action: 'VIEW_METADATA',
+        resource: res({ category: 'financial' }),
+        context: ctx({
+          grants: [grant({ categories: ['financial'], actions: ['VIEW_METADATA'] })],
+        }),
+      }),
+    ).toEqual({ allowed: true });
+    // A document resource, with no snapshot at all on the grant, still only
+    // needs the category to match (unrestricted-by-snapshot).
+    expect(
+      authorize({
+        actor: member,
+        action: 'PREVIEW',
+        resource: res({ category: 'financial', documentId: docB }),
+        context: ctx({ grants: [g] }),
+      }),
+    ).toEqual({ allowed: true });
+  });
+
   it('enforces document allow-lists', () => {
     const g = grant({ documentIds: [docA] });
     expect(

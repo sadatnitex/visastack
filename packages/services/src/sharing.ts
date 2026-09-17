@@ -55,6 +55,9 @@ export async function loadGrantsForPolicy(db: Db, applicantId: string): Promise<
     ...(row.missionId ? { missionId: row.missionId as MissionId } : {}),
     ...(row.categories ? { categories: row.categories } : {}),
     ...(row.documentIds ? { documentIds: row.documentIds as DocumentId[] } : {}),
+    ...(row.documentScopeSnapshot
+      ? { categoryScopeDocumentIds: row.documentScopeSnapshot as DocumentId[] }
+      : {}),
     ...(row.acceptedAt ? { acceptedAt: row.acceptedAt.toISOString() } : {}),
     ...(row.expiryAt ? { expiryAt: row.expiryAt.toISOString() } : {}),
   }));
@@ -114,6 +117,13 @@ const GRANT_DEFAULT_DURATION_DAYS = 30;
  * `GRANT_MAX_DURATION_DAYS` either way. Renewal beyond that bound is the
  * owner's own explicit, separate action (accepting a fresh grant), never an
  * initial duration this function will hand out itself.
+ *
+ * PRD SHR-01 (Commercial V1 Part 4, AD-11): a `categories`-scoped grant is
+ * also snapshotted against the applicant's CURRENT documents right here,
+ * at creation. That snapshot, not a live category match, is what the
+ * policy engine actually checks from now on, so a document uploaded after
+ * this call never becomes visible under it automatically; growing it is
+ * `expandGrantScope`'s job, an explicit, separately-confirmed owner action.
  *
  * Step-up: creating a grant that hands out a `STEP_UP_ACTIONS` action
  * (`DOWNLOAD_ORIGINAL`, `EXPORT_PROFILE`, `SHARE`) is itself the sensitive
@@ -235,6 +245,13 @@ export async function createGrant(
   );
   if (!rateLimit.allowed) return err(serviceError('rate_limited', rateLimit.reason));
 
+  // PRD SHR-01: a category grant covers only what actually matches those
+  // categories right now, snapshotted here, never every document that
+  // matches later (AD-11). No categories, nothing to snapshot.
+  const documentScopeSnapshot = input.categories
+    ? await documentIdsMatchingCategories(db, input.applicantId, input.categories)
+    : null;
+
   return db.transaction(async (tx) => {
     const grant = required(
       first(
@@ -248,6 +265,7 @@ export async function createGrant(
             actions: [...input.actions],
             categories: input.categories ? [...input.categories] : null,
             documentIds: input.documentIds ? [...input.documentIds] : null,
+            documentScopeSnapshot,
             purpose: input.purpose.trim(),
             expiryAt: resolvedExpiryAt,
           })
@@ -565,6 +583,31 @@ const DOC_TYPE_TO_PACK: Readonly<Record<string, string>> = {
   EMPLOYMENT_CERTIFICATE: 'professional',
 };
 
+/**
+ * Document ids belonging to `applicantId` whose classified category is in
+ * `categories`, evaluated against the CURRENT document set at call time.
+ * Used both to snapshot a fresh category grant's scope at creation and to
+ * find candidates for an explicit `expandGrantScope` later (PRD SHR-01,
+ * AD-11), never to decide live visibility itself, which is what the
+ * snapshot exists to avoid.
+ */
+async function documentIdsMatchingCategories(
+  db: Db,
+  applicantId: string,
+  categories: readonly string[],
+): Promise<string[]> {
+  const rows = await db
+    .select({ id: schema.documents.id, docType: schema.documents.docType })
+    .from(schema.documents)
+    .where(eq(schema.documents.applicantId, applicantId));
+  return rows
+    .filter((d) => {
+      const category = d.docType ? DOC_TYPE_TO_PACK[d.docType] : undefined;
+      return category !== undefined && categories.includes(category);
+    })
+    .map((d) => d.id);
+}
+
 export interface RecipientFieldView {
   readonly fieldKey: string;
   readonly value: string | null;
@@ -724,5 +767,139 @@ export async function getRecipientWorkspace(
     fields,
     documents,
     missionScopeUnavailable: grant.missionId !== null,
+  });
+}
+
+// --- Explicit category scope expansion (PRD SHR-01, AD-11) ------------------
+//
+// A `categories`-scoped grant is frozen to `documentScopeSnapshot` at
+// creation (see `createGrant` above). These two functions are the ONLY way
+// that snapshot ever grows: `previewScopeExpansion` computes what a
+// "displayed confirmation" would show; `expandGrantScope` is the owner's
+// explicit act of actually confirming it. Neither ever widens `categories`
+// itself, and neither is reachable by the recipient.
+
+export interface ScopeExpansionCandidate {
+  readonly id: string;
+  readonly displayName: string;
+  readonly docType: string | null;
+}
+
+/**
+ * Documents that now match a category grant's own `categories` but are not
+ * yet in its `documentScopeSnapshot`: exactly the list a confirmation
+ * dialog needs to show before the owner decides whether to include them.
+ * Returns an empty list, never an error, for a grant with no categories (an
+ * unrestricted or `documentIds`-only grant has nothing to expand) or once
+ * every matching document is already included.
+ */
+export async function previewScopeExpansion(
+  db: Db,
+  input: { readonly actorAccountId: string; readonly grantId: string },
+): Promise<Result<readonly ScopeExpansionCandidate[], ServiceError>> {
+  const grant = await loadGrant(db, input.grantId);
+  if (!grant) return err(serviceError('not_found', 'grant not found'));
+  if (!(await ownsApplicant(db, input.actorAccountId, grant.applicantId))) {
+    return err(serviceError('forbidden', 'only the applicant owner can view this grant'));
+  }
+  if (!grant.categories || grant.categories.length === 0) return ok([]);
+
+  const alreadyIncluded = new Set(grant.documentScopeSnapshot ?? []);
+  const matchingIds = new Set(
+    await documentIdsMatchingCategories(db, grant.applicantId, grant.categories),
+  );
+  const candidateIds = [...matchingIds].filter((id) => !alreadyIncluded.has(id));
+  if (candidateIds.length === 0) return ok([]);
+
+  const rows = await db
+    .select({
+      id: schema.documents.id,
+      originalName: schema.documents.originalName,
+      approvedName: schema.documents.approvedName,
+      docType: schema.documents.docType,
+    })
+    .from(schema.documents)
+    .where(inArray(schema.documents.id, candidateIds));
+  return ok(
+    rows.map((d) => ({
+      id: d.id,
+      displayName: d.approvedName ?? d.originalName,
+      docType: d.docType,
+    })),
+  );
+}
+
+/**
+ * The owner's explicit act of widening a category grant's scope to include
+ * specific, named documents that now match its categories (PRD SHR-01:
+ * "expanding scope requires a displayed confirmation": `documentIds` here
+ * is exactly what that confirmation showed, never re-derived silently).
+ * Each id is re-verified against the grant's own categories at this moment,
+ * not trusted from an earlier `previewScopeExpansion` call that may be
+ * stale; a caller naming a document that does not actually match is refused
+ * rather than silently dropped, since that would mean the confirmation
+ * shown did not match what actually happened.
+ */
+export async function expandGrantScope(
+  db: Db,
+  input: {
+    readonly actorAccountId: string;
+    readonly grantId: string;
+    readonly documentIds: readonly string[];
+  },
+): Promise<Result<Grant, ServiceError>> {
+  const grant = await loadGrant(db, input.grantId);
+  if (!grant) return err(serviceError('not_found', 'grant not found'));
+  if (!(await ownsApplicant(db, input.actorAccountId, grant.applicantId))) {
+    return err(serviceError('forbidden', 'only the applicant owner can change this grant'));
+  }
+  if (!grant.categories || grant.categories.length === 0) {
+    return err(serviceError('invalid', 'this grant has no category scope to expand'));
+  }
+  const requestedIds = [...new Set(input.documentIds)];
+  if (requestedIds.length === 0) {
+    return err(serviceError('invalid', 'name at least one document to include'));
+  }
+
+  const matchingIds = new Set(
+    await documentIdsMatchingCategories(db, grant.applicantId, grant.categories),
+  );
+  const invalidId = requestedIds.find((id) => !matchingIds.has(id));
+  if (invalidId) {
+    return err(
+      serviceError(
+        'invalid',
+        `document ${invalidId} does not belong to this applicant or does not match this grant's categories`,
+      ),
+    );
+  }
+
+  const alreadyIncluded = new Set(grant.documentScopeSnapshot ?? []);
+  const newlyAdded = requestedIds.filter((id) => !alreadyIncluded.has(id));
+  const nextSnapshot = [...alreadyIncluded, ...newlyAdded];
+
+  return db.transaction(async (tx) => {
+    const updated = required(
+      first(
+        await tx
+          .update(schema.grants)
+          .set({ documentScopeSnapshot: nextSnapshot, updatedAt: new Date() })
+          .where(eq(schema.grants.id, input.grantId))
+          .returning(),
+      ),
+      'grant',
+    );
+    await appendAuditEvent(tx, {
+      eventType: 'GRANT_SCOPE_EXPANDED',
+      actorAccountId: input.actorAccountId,
+      method: 'MANUAL',
+      result: 'ALLOWED',
+      applicantId: grant.applicantId,
+      grantId: grant.id,
+      resourceType: 'grant',
+      resourceId: grant.id,
+      metadata: { addedDocumentIds: newlyAdded, addedCount: newlyAdded.length },
+    });
+    return ok(updated);
   });
 }
