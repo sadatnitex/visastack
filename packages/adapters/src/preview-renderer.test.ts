@@ -36,6 +36,56 @@ function buildMinimalPdf(text: string): Uint8Array {
   return new Uint8Array(Buffer.concat(parts));
 }
 
+/** Build a minimal, genuinely valid N-page PDF with empty content streams (mirrors buildMinimalPdf's construction, extended to multiple /Page objects). */
+function buildMultiPagePdf(pageCount: number): Uint8Array {
+  const parts: Buffer[] = [];
+  const offsets: number[] = [];
+  let pos = 0;
+  const push = (s: string) => {
+    const buf = Buffer.from(s, 'latin1');
+    parts.push(buf);
+    pos += buf.length;
+  };
+  push('%PDF-1.4\n');
+  const pageObjNums = Array.from({ length: pageCount }, (_, i) => 3 + i);
+  const totalObjs = 2 + pageCount * 2;
+
+  offsets[1] = pos;
+  push('1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n');
+
+  offsets[2] = pos;
+  push(
+    `2 0 obj\n<< /Type /Pages /Kids [${pageObjNums.map((n) => `${n} 0 R`).join(' ')}] /Count ${pageCount} >>\nendobj\n`,
+  );
+
+  for (let i = 0; i < pageCount; i++) {
+    const pageNum = 3 + i;
+    const contentNum = 3 + pageCount + i;
+    offsets[pageNum] = pos;
+    push(
+      `${pageNum} 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 144] /Contents ${contentNum} 0 R >>\nendobj\n`,
+    );
+  }
+
+  for (let i = 0; i < pageCount; i++) {
+    const contentNum = 3 + pageCount + i;
+    const stream = 'BT ET';
+    offsets[contentNum] = pos;
+    push(
+      `${contentNum} 0 obj\n<< /Length ${stream.length} >>\nstream\n${stream}\nendstream\nendobj\n`,
+    );
+  }
+
+  const xrefStart = pos;
+  let xref = `xref\n0 ${totalObjs + 1}\n0000000000 65535 f \n`;
+  for (let i = 1; i <= totalObjs; i++) {
+    xref += `${String(offsets[i]).padStart(10, '0')} 00000 n \n`;
+  }
+  push(xref);
+  push(`trailer\n<< /Size ${totalObjs + 1} /Root 1 0 R >>\nstartxref\n${xrefStart}\n%%EOF`);
+  return new Uint8Array(Buffer.concat(parts));
+}
+
 /** Build a minimal, genuinely valid DOCX (mirrors text-extraction.test.ts). */
 async function buildMinimalDocx(text: string): Promise<Uint8Array> {
   const zip = new JSZip();
@@ -109,6 +159,25 @@ describe('BuiltinPreviewRenderer: safe rendered previews with active content rem
     expect(result.rendered).toBe(false);
     if (result.rendered) return;
     expect(result.detail).toContain('pdf preview render failed');
+  });
+
+  it('re-checks the page-count limit at render time, rejecting a PDF over the configured maximum even though it already passed the same check once at intake (directive Part 3 §5: a render happens later, on demand, not just once at intake)', async () => {
+    const pdfBytes = buildMultiPagePdf(2);
+    const renderer = new BuiltinPreviewRenderer({ maxPdfPages: 1 });
+    const result = await renderer.render({ bytes: pdfBytes, contentType: 'application/pdf' });
+    expect(result.rendered).toBe(false);
+    if (result.rendered) return;
+    expect(result.detail).toContain('2 pages');
+    expect(result.detail).toContain('1-page preview limit');
+  });
+
+  it('renders normally when a multi-page PDF is within the configured page limit', async () => {
+    const pdfBytes = buildMultiPagePdf(2);
+    const renderer = new BuiltinPreviewRenderer({ maxPdfPages: 5 });
+    const result = await renderer.render({ bytes: pdfBytes, contentType: 'application/pdf' });
+    expect(result.rendered).toBe(true);
+    if (!result.rendered) return;
+    expect(startsWithPngMagic(result.bytes)).toBe(true);
   });
 
   it('re-encodes a PNG through decode-and-redraw (strips any trailing/polyglot bytes past the real image data)', async () => {

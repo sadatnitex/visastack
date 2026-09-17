@@ -1,6 +1,7 @@
 import type { BlobStore, StoredBytes } from '@visastack/services';
 import { describe, expect, it } from 'vitest';
 import { BuiltinContentLimitsChecker } from './content-limits';
+import { BuiltinPreviewRenderer } from './preview-renderer';
 
 /** Build a minimal, genuinely valid multi-page PDF (mirrors text-extraction.test.ts's single-page helper). */
 function buildMultiPagePdf(pageCount: number): Uint8Array {
@@ -183,5 +184,24 @@ describe('BuiltinContentLimitsChecker: EVI-01 initial configurable limits (50 PD
     const result = await checker.check({ bucket: 'CLEAN', objectKey: 'missing' });
     expect(result.withinLimits).toBe(false);
     expect(result.detail).toContain('not found');
+  });
+
+  it("does not leave an undestroyed PDF proxy behind that breaks a LATER, unrelated document's preview render in the same process (regression: checkPdf previously never called pdf.loadingTask.destroy(), which corrupted pdfjs's in-process worker transport for a subsequent, completely separate render -- reproduced and confirmed against the real library before this fix landed)", async () => {
+    const checkedPdf = buildMultiPagePdf(2);
+    const checker = new BuiltinContentLimitsChecker({
+      blobStore: fakeBlobStore({ checked: { contentType: 'application/pdf', bytes: checkedPdf } }),
+      config: { maxPdfPages: 50, maxImageMegapixels: 40 },
+    });
+    const checkResult = await checker.check({ bucket: 'CLEAN', objectKey: 'checked' });
+    expect(checkResult.withinLimits).toBe(true);
+
+    // A later, entirely unrelated document goes through the (separate)
+    // preview renderer in the same process -- this is the real production
+    // sequence: checkPdf runs once at intake, render runs later at serve
+    // time, potentially in the same warm container.
+    const laterPdf = buildMultiPagePdf(1);
+    const renderer = new BuiltinPreviewRenderer();
+    const renderResult = await renderer.render({ bytes: laterPdf, contentType: 'application/pdf' });
+    expect(renderResult.rendered).toBe(true);
   });
 });

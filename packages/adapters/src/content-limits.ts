@@ -1,5 +1,6 @@
 import type { BlobStore, ContentLimitsPort, ContentLimitsResult } from '@visastack/services';
 import { imageDimensions } from './image-dimensions';
+import { withTimeout } from './timeout';
 
 /**
  * Built-in content-limits checker (Commercial V1 Part 3, EVI-01: "Initial
@@ -29,6 +30,9 @@ import { imageDimensions } from './image-dimensions';
 
 const CHECKER_NAME = 'builtin-content-limits';
 const CHECKER_VERSION = '1.0.0';
+
+/** Wall-clock bound on the PDF structural parse (Commercial V1 Part 3 §5, "bounded CPU/memory/time"): matches `preview-renderer.ts`'s own `RENDER_TIMEOUT_MS`, the only other place this codebase parses untrusted PDF structure this way. */
+const PDF_PARSE_TIMEOUT_MS = 10_000;
 
 export interface ContentLimitsConfig {
   readonly maxPdfPages: number;
@@ -68,9 +72,19 @@ export class BuiltinContentLimitsChecker implements ContentLimitsPort {
   }
 
   private async checkPdf(bytes: Uint8Array): Promise<ContentLimitsResult> {
+    const { getDocumentProxy } = await import('unpdf');
+    let pdf: Awaited<ReturnType<typeof getDocumentProxy>> | undefined;
     try {
-      const { getDocumentProxy } = await import('unpdf');
-      const pdf = await getDocumentProxy(bytes);
+      // Must be destroyed below: an undestroyed `PDFDocumentProxy` left open
+      // in a warm, reused process (e.g. a Vercel container serving several
+      // intake jobs in turn) corrupts pdfjs's in-process fake-worker
+      // transport for a LATER, completely unrelated document's own
+      // `getDocumentProxy`/`renderPageAsImage` call ("Cannot transfer object
+      // of unsupported type", thrown deep inside unpdf/pdfjs's LoopbackPort)
+      // -- confirmed by an isolated repro against this exact library version,
+      // not theoretical; the same fix this session applied to
+      // `preview-renderer.ts`'s `renderPdf`.
+      pdf = await withTimeout(getDocumentProxy(bytes), PDF_PARSE_TIMEOUT_MS, 'PDF structure parse');
       if (pdf.numPages > this.config.maxPdfPages) {
         return {
           withinLimits: false,
@@ -88,6 +102,8 @@ export class BuiltinContentLimitsChecker implements ContentLimitsPort {
         };
       }
       return { withinLimits: false, detail: `PDF could not be parsed: ${message}` };
+    } finally {
+      await pdf?.loadingTask.destroy();
     }
   }
 

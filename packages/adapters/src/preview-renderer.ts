@@ -1,5 +1,6 @@
 import type { PreviewRenderResult, PreviewRendererPort } from '@visastack/services';
 import { imageDimensions } from './image-dimensions';
+import { withTimeout } from './timeout';
 
 /**
  * Built-in safe preview renderer (Commercial V1 EVI-02/EVI-06). The only
@@ -44,6 +45,20 @@ import { imageDimensions } from './image-dimensions';
  * cap, so an attacker-supplied highly-compressible image with an absurd
  * declared pixel count (e.g. a solid-colour 60000x60000 PNG well under the
  * 20 MiB upload cap) would otherwise allocate tens of gigabytes decoding.
+ *
+ * PDF rendering re-checks the same page-count limit `content-limits.ts`
+ * already enforced at intake, rather than trusting that earlier verdict
+ * blindly: a render happens later, on demand, every time a preview is
+ * served, not once at intake, so a limit that only ever ran once at intake
+ * would not protect a version whose stored bytes changed identity between
+ * the two (this mirrors the exact "recheck against current state, not a
+ * stale mint-time decision" reasoning `documents.ts`'s `recheckDocumentAccess`
+ * already uses for authorization). `maxPdfPages` is threaded in from the
+ * same operator-configurable source `content-limits.ts` uses, so the two
+ * checks cannot silently drift apart the way the independent
+ * `MAX_IMAGE_PIXELS` constant below already can if an operator overrides
+ * `QUOTA_MAX_IMAGE_MEGAPIXELS` (a pre-existing, narrower gap, not fixed
+ * here).
  */
 
 const RENDERER_NAME = 'builtin-preview-renderer';
@@ -60,17 +75,8 @@ const PDF_PREVIEW_WIDTH = 1600;
 
 const DOCX_CONTENT_TYPE = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
 
-async function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  const timeout = new Promise<never>((_, reject) => {
-    timer = setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms);
-  });
-  try {
-    return await Promise.race([promise, timeout]);
-  } finally {
-    if (timer) clearTimeout(timer);
-  }
-}
+/** Matches `DEFAULT_UPLOAD_QUOTAS.maxPdfPages` (`packages/services/src/quotas.ts`); real deployments pass the operator-configured value explicitly via `createPreviewRenderer`. */
+const DEFAULT_MAX_PDF_PAGES = 50;
 
 function exceedsPixelCap(contentType: string, bytes: Uint8Array): boolean {
   const dims = imageDimensions(contentType, bytes);
@@ -78,11 +84,30 @@ function exceedsPixelCap(contentType: string, bytes: Uint8Array): boolean {
   return dims.width * dims.height > MAX_IMAGE_PIXELS;
 }
 
-async function renderPdf(bytes: Uint8Array): Promise<PreviewRenderResult> {
+async function renderPdf(bytes: Uint8Array, maxPdfPages: number): Promise<PreviewRenderResult> {
+  const { getDocumentProxy, renderPageAsImage } = await import('unpdf');
+  let pdf: Awaited<ReturnType<typeof getDocumentProxy>> | undefined;
   try {
-    const { renderPageAsImage } = await import('unpdf');
+    // Resolved once and reused below for both the page-count check and the
+    // render itself, never re-resolved from the same raw bytes a second
+    // time: two independently-resolved PDFDocumentProxy instances open
+    // concurrently in this process corrupt pdfjs's in-process fake-worker
+    // transport ("Cannot transfer object of unsupported type", thrown deep
+    // inside unpdf/pdfjs's LoopbackPort) -- confirmed by an isolated repro
+    // against this exact library version before landing this fix, not
+    // theoretical. Passing the resolved proxy itself into `renderPageAsImage`
+    // (rather than raw bytes) makes it reuse this same document instead of
+    // resolving its own second one (`unpdf`'s own `withDocument` helper
+    // explicitly supports either).
+    pdf = await withTimeout(getDocumentProxy(bytes), RENDER_TIMEOUT_MS, 'PDF structure parse');
+    if (pdf.numPages > maxPdfPages) {
+      return {
+        rendered: false,
+        detail: `PDF has ${pdf.numPages} pages, exceeding the ${maxPdfPages}-page preview limit`,
+      };
+    }
     const buffer = await withTimeout(
-      renderPageAsImage(bytes, 1, {
+      renderPageAsImage(pdf, 1, {
         canvasImport: () => import('@napi-rs/canvas'),
         width: PDF_PREVIEW_WIDTH,
         toDataURL: false,
@@ -94,6 +119,12 @@ async function renderPdf(bytes: Uint8Array): Promise<PreviewRenderResult> {
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     return { rendered: false, detail: `pdf preview render failed: ${message}` };
+  } finally {
+    // A proxy resolved here is ours to destroy: unpdf's own `withDocument`
+    // convention is that a caller-supplied proxy "keeps its lifecycle with
+    // the caller," and `renderPageAsImage` above was handed the proxy
+    // itself, not raw bytes, so it never destroys it on our behalf.
+    await pdf?.loadingTask.destroy();
   }
 }
 
@@ -143,16 +174,26 @@ function renderPlainText(bytes: Uint8Array): PreviewRenderResult {
   return { rendered: true, contentType: 'text/plain', bytes: Uint8Array.from(bytes) };
 }
 
+export interface BuiltinPreviewRendererOptions {
+  /** Reject a PDF preview render past this page count (default matches `DEFAULT_UPLOAD_QUOTAS.maxPdfPages`; real deployments should pass the same configured value `createContentLimitsChecker` uses). */
+  readonly maxPdfPages?: number;
+}
+
 export class BuiltinPreviewRenderer implements PreviewRendererPort {
   readonly name = RENDERER_NAME;
   readonly version = RENDERER_VERSION;
+  private readonly maxPdfPages: number;
+
+  constructor(options: BuiltinPreviewRendererOptions = {}) {
+    this.maxPdfPages = options.maxPdfPages ?? DEFAULT_MAX_PDF_PAGES;
+  }
 
   async render(input: {
     readonly bytes: Uint8Array;
     readonly contentType: string;
   }): Promise<PreviewRenderResult> {
     const { bytes, contentType } = input;
-    if (contentType === 'application/pdf') return renderPdf(bytes);
+    if (contentType === 'application/pdf') return renderPdf(bytes, this.maxPdfPages);
     if (contentType === 'image/png' || contentType === 'image/jpeg') {
       return renderImage(bytes, contentType);
     }

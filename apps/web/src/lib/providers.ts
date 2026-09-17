@@ -173,10 +173,16 @@ export function createDocumentConverter(blobStore: BlobStore): DocumentConverter
  * The safe preview renderer (EVI-02/EVI-06), the only `PreviewRendererPort`
  * implementation today, matching `createDocumentConverter`'s "builtin,
  * always active" shape: no external account, no configuration branch.
+ * Shares `maxPdfPages` with `createContentLimitsChecker` below (same
+ * `loadUploadQuotaConfig()` source) so a render at serve time re-checks the
+ * same page-count limit intake already enforced, using the same number an
+ * operator override would change for both, never a second independently
+ * drifting constant.
  */
 export function createPreviewRenderer(): PreviewRendererPort {
   checkKnownProvider('PREVIEW_RENDERER_PROVIDER');
-  return new BuiltinPreviewRenderer();
+  const { maxPdfPages } = loadUploadQuotaConfig();
+  return new BuiltinPreviewRenderer({ maxPdfPages });
 }
 
 /**
