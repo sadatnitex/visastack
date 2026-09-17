@@ -4,13 +4,27 @@ name: DB Migrate (manual)
 # machine is needed. Requires a repository secret `DATABASE_URL` (the Neon
 # connection string). Trigger manually from the Actions tab and type
 # "migrate" to confirm.
+#
+# `mode: repair` is a temporary addition (2026-09-17) that runs the
+# one-time drizzle.__drizzle_migrations tracking repair instead of the
+# normal migrator; see packages/db/src/repair-migration-tracking.ts for
+# why it exists. Both this mode and that script are removed once the
+# repair has been applied and verified.
 
 on:
   workflow_dispatch:
     inputs:
       confirm:
-        description: 'Type "migrate" to confirm applying migrations to Neon'
+        description: 'Type "migrate" to confirm running this workflow against Neon (applies to both modes below)'
         required: true
+      mode:
+        description: 'migrate: apply pending migrations. repair: fix migration tracking only (temporary)'
+        required: false
+        default: 'migrate'
+        type: choice
+        options:
+          - migrate
+          - repair
 
 permissions:
   contents: read
@@ -42,8 +56,9 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       # Accept any of the standard Neon/Vercel connection-string secret names;
-      # the migrate script resolves the first one present.
+      # both scripts resolve the first one present.
       - name: Apply migrations
+        if: ${{ github.event.inputs.mode != 'repair' }}
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           POSTGRES_URL: ${{ secrets.POSTGRES_URL }}
@@ -51,3 +66,13 @@ jobs:
           POSTGRES_URL_NON_POOLING: ${{ secrets.POSTGRES_URL_NON_POOLING }}
           POSTGRES_PRISMA_URL: ${{ secrets.POSTGRES_PRISMA_URL }}
         run: pnpm --filter @visastack/db db:migrate
+
+      - name: Repair migration tracking
+        if: ${{ github.event.inputs.mode == 'repair' }}
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          POSTGRES_URL: ${{ secrets.POSTGRES_URL }}
+          DATABASE_URL_UNPOOLED: ${{ secrets.DATABASE_URL_UNPOOLED }}
+          POSTGRES_URL_NON_POOLING: ${{ secrets.POSTGRES_URL_NON_POOLING }}
+          POSTGRES_PRISMA_URL: ${{ secrets.POSTGRES_PRISMA_URL }}
+        run: pnpm --filter @visastack/db db:repair-migration-tracking
