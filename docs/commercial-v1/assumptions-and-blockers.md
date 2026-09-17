@@ -88,6 +88,19 @@ settings, MFA -> Required); this session cannot perform it.
 Once flipped, IAM-01/SEC-01 can move from BLOCKED and A01 can be attempted. Nothing else in
 Part 2 depends on this specific change landing first.
 
+## Deferred: least-privilege application DB role (SEC-01)
+
+Confirmed this session: the running app and migrations both use the same `neondb_owner`
+role, the only one that exists so far, violating SEC-01's explicit "migration/admin
+credential must be separate from application runtime credential" requirement. The fix
+needs a new restricted role created in Neon's console first (this session cannot create
+Postgres roles with usable credentials without either handling a raw password itself, which
+it should not do casually, or the product owner creating it through Neon's own role-creation
+flow, which hands back a ready-to-use connection string the same way `visastackdev` itself
+was set up). Offered to walk through this now; the product owner deferred it. Not silently
+dropped: revisit before Part 2 is called complete, since SEC-01's own checkpoint criteria
+name it explicitly ("Ensure runtime DB role is least privilege").
+
 ## Decision: how "push to production" is being interpreted
 
 The instruction to commit, push, and reach production within three minutes of
