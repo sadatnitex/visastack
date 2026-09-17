@@ -278,6 +278,19 @@ the token rather than independently re-derived from a live session, since the se
 no session/cookie context today; this is a narrower, honestly-scoped gap than the grant/
 membership/servability recheck this change actually delivers.
 
+**Update: pinning the exact minted version (2026-09-17).** Step 5 above, as first built, actually
+re-derived "the latest version by version number" fresh at redemption, independent of which
+version the accompanying blob token's storage object was bound to at mint. A version added
+between mint and redemption could then make the recheck evaluate the wrong row: a clean newer
+sibling could mask an unsafe minted version, or an unsafe newer sibling could block redemption of
+a still-safe minted version. This broke the directive's own "exact version" clause even though
+step 5 was written to satisfy it. Fixed by adding `documentVersionId` to
+`DocumentAccessTokenFields`, pinned at mint time in `accessDocument` and signed like every other
+field, so `recheckDocumentAccess` now loads that exact version by ID rather than re-deriving
+"latest." Proven by two new tests exercising both directions of the exploit, both confirmed to
+fail without the fix. Recorded as a distinct finding in `known-issues.md` item 37, since it was a
+real gap in already-shipped code, not a new requirement.
+
 ## AD-06: Safe rendered previews, replacing the `redacted` 501 (EVI-02/EVI-06)
 
 **Decision.** The PRD is explicit: "Use safe rendered previews with active content removed;

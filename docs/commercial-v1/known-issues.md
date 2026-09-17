@@ -378,6 +378,22 @@ item gets its own requirements-ledger row once classified against the new direct
     to that existing human-gated workflow rather than triggered autonomously here). Whether
     Preview deployments get their own fresh Neon branch per deployment or share one persistent
     database also remains unconfirmed; this fix does not depend on the answer either way.
+37. (Part 3) A genuine, previously-untracked security bug found and fixed this chunk while
+    auditing A07's "exact storage version" acceptance scenario:
+    `recheckDocumentAccess` (`packages/services/src/documents.ts`) re-derived "the latest
+    document version by version number" fresh at redemption time, entirely independent of
+    which version the blob token's storage object was actually bound to at mint time
+    (`accessDocument`). A version added between mint and redemption could make the recheck
+    verify safety of the wrong row: either wrongly allowing redemption of a now-unsafe minted
+    version (a clean newer sibling masking it), or wrongly denying redemption of a still-safe
+    minted version (an unsafe newer sibling blocking it). This directly violated directive
+    Part 3 Section 10's explicit requirement that redemption re-evaluate the exact version.
+    Fixed by adding `documentVersionId` to `DocumentAccessTokenFields`, signed and pinned at
+    mint time exactly like every other field, and looked up by exact ID (never "latest") at
+    redemption. Proven by two new tests in `documents.test.ts` exercising both directions of
+    the exploit, both confirmed to fail without the fix. Full design:
+    `architecture-decisions.md` AD-05 (extends the redemption-recheck work already recorded
+    there); ledger detail: `requirements-ledger.md` EVI-06.
 independently confirmed findings; the missing PRD file is tracked as Blocker 1 in
 `assumptions-and-blockers.md` (now resolved) rather than here, since it blocked the
 programme rather than being a product defect.
