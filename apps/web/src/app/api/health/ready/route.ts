@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import {
   DATABASE_URL_ENV_CANDIDATES,
   checkConnection,
@@ -60,7 +61,13 @@ export async function GET(): Promise<Response> {
     redirectUri: isPresent('NEXT_PUBLIC_WORKOS_REDIRECT_URI'),
   };
 
-  let db: { connected: boolean; schemaApplied: boolean; error?: string; dbNameDebug?: string } = {
+  let db: {
+    connected: boolean;
+    schemaApplied: boolean;
+    error?: string;
+    dbNameDebug?: string;
+    connStringHashDebug?: string;
+  } = {
     connected: false,
     schemaApplied: false,
   };
@@ -84,6 +91,10 @@ export async function GET(): Promise<Response> {
       } catch {
         db.dbNameDebug = 'unparseable';
       }
+      db.connStringHashDebug = createHash('sha256')
+        .update(connectionString)
+        .digest('hex')
+        .slice(0, 12);
     }
   }
 
