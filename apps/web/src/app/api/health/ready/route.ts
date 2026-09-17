@@ -5,11 +5,12 @@ import {
   isSchemaApplied,
   resolveDatabaseUrl,
 } from '@visastack/db';
+import { buildFactVersionAad, protectValue, revealValue } from '@visastack/services';
 import { getPlatformCapabilities } from '../../../../lib/capabilities';
 import { evaluateCommercialReadiness } from '../../../../lib/commercial-readiness';
 import { getDeploymentMode, isRealDeployment } from '../../../../lib/deployment-mode';
 import { isPresent, isWorkosConfigured } from '../../../../lib/env';
-import { validateProviderEnv } from '../../../../lib/providers';
+import { createKeyManagementPort, validateProviderEnv } from '../../../../lib/providers';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -93,6 +94,42 @@ export async function GET(): Promise<Response> {
     };
   }
 
+  // TEMPORARY (Commercial V1 SEC-03, remove once the deployed
+  // KMS_LOCAL_MASTER_KEY_BASE64 is confirmed working): proves the key
+  // actually decrypts what it encrypts, not just that it's present -- a
+  // copy-paste truncation or stray whitespace would pass a presence check
+  // but fail this round trip. Touches only fixed, fake IDs, never real
+  // applicant data; never returns the key material or plaintext, only
+  // booleans and a generic error message if something goes wrong.
+  let kms: { configured: boolean; roundTripOk?: boolean; error?: string } = { configured: false };
+  if (connectionString) {
+    try {
+      const encryption = createKeyManagementPort();
+      if (encryption) {
+        const client = createNeonDb(connectionString);
+        const aad = buildFactVersionAad({
+          applicantId: 'kms-verify',
+          factId: 'kms-verify',
+          fieldKey: 'kms-verify',
+          factVersionId: 'kms-verify',
+        });
+        const protectedValue = await protectValue(client, encryption, 'kms-verify-probe', aad);
+        const revealed = await revealValue(client, encryption, {
+          ciphertext: protectedValue.ciphertext,
+          nonce: protectedValue.nonce,
+          keyVersion: protectedValue.keyVersion,
+          aad,
+        });
+        kms = { configured: true, roundTripOk: revealed === 'kms-verify-probe' };
+      }
+    } catch (error) {
+      kms = {
+        configured: true,
+        error: error instanceof Error ? error.message : 'kms_check_failed',
+      };
+    }
+  }
+
   // The authenticated MANUAL core is ready only when the database is reachable
   // AND migrated AND the WorkOS auth configuration required to sign in is
   // present AND every configured provider is one this deployment actually
@@ -144,6 +181,7 @@ export async function GET(): Promise<Response> {
         env,
         db,
         providers,
+        kms,
         capabilities: optionalCapabilities,
         platform: effectivePlatform,
         ...(commercial ? { commercialReadiness: commercial } : {}),
