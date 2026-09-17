@@ -81,8 +81,9 @@ export async function GET(): Promise<Response> {
     } catch {
       db = { connected: false, schemaApplied: false, error: 'connection_failed' };
     }
-    // TEMPORARY (2026-09-17): surfaces which database name this deployment
-    // actually resolved, to debug a schemaApplied mismatch. Not a secret
+    // TEMPORARY (2026-09-17, re-verifying after deleting the wrongly-named
+    // source database on the Neon side): surfaces which database name this
+    // deployment actually resolved, to debug a schemaApplied mismatch. Not a secret
     // (no credentials), gated by `verbose` same as everything else here.
     // Removed once the mismatch is diagnosed.
     if (verbose) {
