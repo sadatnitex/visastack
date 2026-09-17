@@ -15,7 +15,8 @@
     "test": "vitest run",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx src/migrate.ts",
-    "db:repair-migration-tracking": "tsx src/repair-migration-tracking.ts"
+    "db:repair-migration-tracking": "tsx src/repair-migration-tracking.ts",
+    "db:diagnose": "tsx src/diagnose-db.ts"
   },
   "dependencies": {
     "@neondatabase/serverless": "^0.10.4",
