@@ -18,8 +18,16 @@ import * as schema from './schema';
  * Candidate environment variable names for the Neon connection string, in
  * priority order. Vercel's Neon/Postgres integrations use different names
  * depending on how the store was connected, so we resolve across all of them.
+ *
+ * `DIRECT_DATABASE_URL` is checked first and is never written by that
+ * integration (2026-09-17 incident: the integration's own managed
+ * DATABASE_URL/POSTGRES_URL/etc. kept resolving to a stale value no matter
+ * what was pasted into those same-named fields in Vercel, because the
+ * integration re-syncs them on every deploy). Set it manually when the
+ * integration-managed names cannot be trusted.
  */
 export const DATABASE_URL_ENV_CANDIDATES = [
+  'DIRECT_DATABASE_URL',
   'DATABASE_URL',
   'POSTGRES_URL',
   'DATABASE_URL_UNPOOLED',
