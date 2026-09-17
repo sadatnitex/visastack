@@ -112,23 +112,26 @@ migration adds is covered automatically without a repeat grant. No CREATE/ALTER/
 granted; `neondb_owner` (via the existing `db-migrate.yml` GitHub Actions secret, untouched by
 this change) remains the only role that can modify schema.
 
-Two steps remain, both needing the role's password, which only the product owner has (this
-session never handled it and should not):
+Step 1 is done: with the product owner's explicit go-ahead, this session triggered
+`db-migrate.yml` (run 19, `workflow_dispatch` with `confirm: migrate`, ref
+`claude/lucid-lamport-70jivu`) against production Neon; it completed successfully
+(conclusion `success`). `visastack_app` now genuinely holds SELECT/INSERT/UPDATE/DELETE on
+every table and USAGE/SELECT on every sequence in `public`, nothing more. This did not change
+what the app connects as; `neondb_owner` is still what it uses today.
 
-1. Run migration 0035 against Neon (`db-migrate.yml`, type "migrate" to confirm), safe to run
-   any time, before or independent of step 2, since it only grants a privilege, it does not
-   revoke `neondb_owner`'s access or change what the app currently connects as.
-2. Switch the app's own connection string (`DIRECT_DATABASE_URL` in Vercel, Production and
-   Preview) from `neondb_owner`'s to `visastack_app`'s. This is the step that actually stops
-   the running app from using the powerful role day to day. `DIRECT_DATABASE_URL` is never read
-   by `db-migrate.yml` (confirmed: that workflow's `env:` block only lists
-   `DATABASE_URL`/`POSTGRES_URL`/`DATABASE_URL_UNPOOLED`/`POSTGRES_URL_NON_POOLING`/
-   `POSTGRES_PRISMA_URL` as GitHub Actions secrets), so this and the migration secret are
-   already two separate credential stores; switching one does not touch the other.
+One step remains, needing the role's password, which only the product owner has (this session
+never handled it and should not): switch the app's own connection string
+(`DIRECT_DATABASE_URL` in Vercel, Production and Preview) from `neondb_owner`'s to
+`visastack_app`'s. This is the step that actually stops the running app from using the
+powerful role day to day. `DIRECT_DATABASE_URL` is never read by `db-migrate.yml` (confirmed:
+that workflow's `env:` block only lists
+`DATABASE_URL`/`POSTGRES_URL`/`DATABASE_URL_UNPOOLED`/`POSTGRES_URL_NON_POOLING`/
+`POSTGRES_PRISMA_URL` as GitHub Actions secrets), so this and the migration secret are already
+two separate credential stores; switching this one does not touch the other.
 
-Until both land, SEC-01's least-privilege requirement stays IMPLEMENTED_UNVERIFIED, not
-VERIFIED: the grant exists in committed, reviewed SQL, but has not yet been applied, and the
-app has not yet been proven to run correctly under the restricted role.
+Until it lands, SEC-01's least-privilege requirement stays IMPLEMENTED_UNVERIFIED, not
+VERIFIED: the grant is live in Neon, but the app has not yet been proven to run correctly
+under the restricted role, since it isn't using it yet.
 
 ## Decision: how "push to production" is being interpreted
 
