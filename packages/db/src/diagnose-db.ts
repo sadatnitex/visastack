@@ -44,6 +44,16 @@ interface TrackingRow {
   readonly created_at: string | number;
 }
 
+interface AllTableRow {
+  readonly table_name: string;
+}
+
+interface ColumnRow {
+  readonly column_name: string;
+  readonly data_type: string;
+  readonly is_nullable: string;
+}
+
 async function main(): Promise<void> {
   const connectionString = resolveDatabaseUrl(process.env);
   if (!connectionString) {
@@ -98,25 +108,51 @@ async function main(): Promise<void> {
     process.stdout.write(`missing entirely: ${missing.join(', ')}\n`);
   }
 
-  if (foundNames.has('accounts')) {
+  for (const name of ['accounts', 'applicants', 'documents', 'organizations']) {
+    if (!foundNames.has(name)) continue;
     const counts = (await sql(
-      'select count(*)::int as n from accounts',
+      `select count(*)::int as n from ${name}`,
     )) as unknown as ReadonlyArray<CountRow>;
-    process.stdout.write(`\naccounts row count: ${counts[0]?.n}\n`);
-  }
-  if (foundNames.has('applicants')) {
-    const counts = (await sql(
-      'select count(*)::int as n from applicants',
-    )) as unknown as ReadonlyArray<CountRow>;
-    process.stdout.write(`applicants row count: ${counts[0]?.n}\n`);
+    process.stdout.write(`${name} row count: ${counts[0]?.n}\n`);
   }
 
-  const tracking = (await sql(
-    'select id, hash, created_at from drizzle.__drizzle_migrations order by created_at asc',
-  )) as unknown as ReadonlyArray<TrackingRow>;
-  process.stdout.write(`\ndrizzle.__drizzle_migrations rows (${tracking.length}):\n`);
-  for (const row of tracking) {
-    process.stdout.write(`  id=${row.id} created_at=${row.created_at} hash=${row.hash}\n`);
+  const allTables = (await sql(
+    `select table_name from information_schema.tables
+     where table_schema = 'public' and table_type = 'BASE TABLE'
+     order by table_name`,
+  )) as unknown as ReadonlyArray<AllTableRow>;
+  process.stdout.write(`\nALL tables actually in public schema (${allTables.length}):\n`);
+  for (const row of allTables) process.stdout.write(`  ${row.table_name}\n`);
+
+  for (const name of ['accounts', 'documents', 'organizations']) {
+    if (!foundNames.has(name)) continue;
+    const columns = (await sql(
+      `select column_name, data_type, is_nullable
+       from information_schema.columns
+       where table_schema = 'public' and table_name = $1
+       order by ordinal_position`,
+      [name],
+    )) as unknown as ReadonlyArray<ColumnRow>;
+    process.stdout.write(`\n${name} columns (${columns.length}):\n`);
+    for (const row of columns) {
+      process.stdout.write(
+        `  ${row.column_name} ${row.data_type} ${row.is_nullable === 'YES' ? 'NULL' : 'NOT NULL'}\n`,
+      );
+    }
+  }
+
+  try {
+    const tracking = (await sql(
+      'select id, hash, created_at from drizzle.__drizzle_migrations order by created_at asc',
+    )) as unknown as ReadonlyArray<TrackingRow>;
+    process.stdout.write(`\ndrizzle.__drizzle_migrations rows (${tracking.length}):\n`);
+    for (const row of tracking) {
+      process.stdout.write(`  id=${row.id} created_at=${row.created_at} hash=${row.hash}\n`);
+    }
+  } catch (error) {
+    process.stdout.write(
+      `\ndrizzle.__drizzle_migrations: not present (${(error as Error).message})\n`,
+    );
   }
 
   process.stdout.write('\ndiagnostics complete\n');
