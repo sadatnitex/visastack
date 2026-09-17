@@ -801,3 +801,55 @@ survives multiple reviews, with `getCurrentDocumentReview` correctly returning o
 Left open, tracked rather than assumed covered: no UI surface anywhere calls
 `recordDocumentReview` yet (neither an owner-facing nor an agency-facing one exists), and the
 notification half of "replacement" above.
+
+## AD-14: The Document Wallet (EVI-04)
+
+**Decision.** A new `packages/services/src/wallet.ts` implements EVI-04's own three parts.
+`documentLifecycleStatus` is a pure function computing CURRENT/EXPIRING/EXPIRED/SUPERSEDED from a
+document's `expiresAt` (real for passports since AD-12) and new `supersededByDocumentId` column
+(plain uuid, no FK, matching this codebase's own established self-reference convention, e.g.
+`ai_extraction_runs.served_from_cache_run_id`, since a same-table FK has no sensible `ON DELETE`
+behavior here). `getWalletView` is the owner's read: every document with its status, which
+missions use it as selected evidence (`selectedEvidence`), and which accounts/organizations
+currently hold real access to it (`authorize()` evaluated per grant, reusing the canonical policy
+engine rather than re-deriving scope rules a third time). `supersedeDocument` is "passport
+renewal": links the old document forward, never mutating or deleting it, and creates a real,
+visible `missionTask` on every mission using it as evidence, the "flags cases using it" EVI-04
+requires.
+
+**Why 30 days for "expiring."** Unlike SHR-01's exact grant-duration numbers, EVI-04 names no
+specific "expiring soon" window. 30 days is a provisional, explicitly-documented default; Part
+5's Expiry Centre (NTF-01, "intrinsic vs staleness distinction") is this number's eventual real
+owner and may formalize or override it. Recorded as a judgment call, not invented silently.
+
+**Why "an agency cannot browse unselected wallet contents" needed no new code.** `getWalletView`
+is owner-only, and no agency-facing caller of it exists anywhere in `apps/web`; an agency's own
+visibility into an applicant's documents already flows entirely through the separately-scoped
+`getRecipientWorkspace`/evidence-request paths, neither of which lets an org enumerate an
+applicant's full document list. This constraint is satisfied structurally by what does not exist,
+confirmed by reading every caller, not assumed.
+
+**Why `missionTask`, not a new "flag" concept.** EVI-04's "flags cases using it" needs a real,
+visible, in-app signal, not (yet) an external notification, which Part 5 alone can provide
+(`NullEmailPort` only `console.warn`s today). `missionTasks` already exists as exactly "an
+assignable checklist item scoped to a mission"; creating one is a real, actionable signal already
+displayed in the mission UI (`listTasks`), reusing established infrastructure instead of
+inventing a parallel one for a single new caller.
+
+**Why `agency.ts`'s `orgGrantPermits`/`sharing.ts`'s `DOC_TYPE_TO_PACK` pattern repeats here.**
+`getWalletView`'s access computation needed the identical document-to-category mapping
+`getRecipientWorkspace` already has; `documentCategory` is now exported from `sharing.ts`
+wrapping the same private table, rather than a third copy. Same reasoning as AD-08/AD-13.
+
+**What this proves, and what remains deliberately out of scope.** 12 new tests: 5 pure unit
+tests for `documentLifecycleStatus` covering all four states, including that supersession
+overrides expiry; `getWalletView` proven against real PGlite Postgres for owner access, a real
+mission-usage link via `selectEvidence`, and a real organization access entry via an accepted
+grant; `supersedeDocument` proven to link correctly without mutating the old row, to flag exactly
+the missions using the old document (a real `missionTask` row, not a mocked call), to refuse a
+cross-applicant pair, and to refuse both a non-owner and a second supersession of an
+already-superseded document. Left open, tracked rather than silently folded in: no UI action lets
+an owner actually call `supersedeDocument` yet (the read side, lifecycle badges plus usage/access
+summary, is wired into the existing documents page; the write side needs a two-document picker
+UI, a larger, separate piece of work); `documentDate`/`subject` remain the only EVI-03 metadata
+fields with no derivation signal (AD-12, unchanged by this chunk).

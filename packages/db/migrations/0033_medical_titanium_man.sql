@@ -1,0 +1,1 @@
+ALTER TABLE "documents" ADD COLUMN "superseded_by_document_id" uuid;

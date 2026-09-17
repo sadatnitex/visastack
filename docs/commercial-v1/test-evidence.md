@@ -374,3 +374,25 @@ item 31 (resolved) and item 32 (the still-missing review UI and the Part-5-depen
 half of "replacement"); `docs/commercial-v1/requirements-ledger.md` EVI-03. This closes EVI-03's
 tracked gaps down to `documentDate`/`subject` metadata (AD-12, no existing signal to derive them
 from) and the UI/notification items in known-issues.md item 32.
+
+## Part 4, chunk 6: the Document Wallet (EVI-04)
+
+Commit: working tree on top of `e9c66ea` (Part 4 chunk 5, duplicate detection and document
+review, already pushed and PR #78 updated). New `packages/services/src/wallet.ts`
+(`documentLifecycleStatus`/`getWalletView`/`supersedeDocument`), new
+`documents.supersededByDocumentId` column (migration `0033_medical_titanium_man.sql`, additive
+only), `sharing.ts`'s previously-private `DOC_TYPE_TO_PACK` now reachable via a new exported
+`documentCategory` wrapper, and the existing documents page wired to show lifecycle status plus
+mission-usage/access summaries per document.
+
+| # | Command | Exit | Result | Detail |
+|---|---|---|---|---|
+| 1 | `pnpm run lint` | 0 | PASS | Biome, 319 files checked, no fixes applied (import-order and long-line formatting auto-fixes applied and re-verified before this run). No em-dashes in any newly-authored line; the one match inside the touched documents page file is pre-existing copy this chunk did not write. |
+| 2 | `pnpm run typecheck` | 0 | PASS | All 7 packages, no errors. An initial draft had `wallet.test.ts` importing pack-authoring functions (`createPack`/`addPackVersion`/`addRequirement`/`approvePackVersion`/`publishPackVersion`) from `./missions` instead of their real home, `./packs`; caught by the compiler immediately, fixed by matching `missions.test.ts`'s own existing import split exactly, not guessed at a second time. |
+| 3 | `pnpm run test` | 0 | PASS | 802 tests total across all 7 packages (i18n 6, core 2, policy 31, db 26 + 1 skipped, adapters 147 + 2 skipped, web 141, services 454). New `wallet.test.ts` (12 tests): 5 pure unit tests for `documentLifecycleStatus` covering all four states and confirming supersession overrides expiry regardless of how far off it is; `getWalletView` proven against real PGlite Postgres for owner-only access (a stranger denied), a real mission-usage link built through the actual `selectEvidence` flow (pack, requirement, attach, select, not a direct table insert), and a real organization access entry resolved through an actual accepted grant; `supersedeDocument` proven to link the old document forward without mutating its own fields, to flag exactly the one mission using the superseded document as evidence with a real, readable `missionTask` row (not just a count), to refuse a cross-applicant document pair, to refuse a non-owner, and to refuse a second supersession attempt on an already-superseded document. |
+| 4 | `pnpm run build` | 0 | PASS | Full monorepo build including `apps/web`, full route manifest produced, including the changed `/app/applicant/[id]/documents` route. |
+| 5 | `pnpm audit --prod` | 0 | PASS | "No known vulnerabilities found", no new dependencies (pure application/schema code and UI). |
+
+Full detail: `docs/commercial-v1/architecture-decisions.md` AD-14; `docs/commercial-v1/known-issues.md`
+item 33 (the still-missing supersede UI and the provisional 30-day expiring-soon threshold);
+`docs/commercial-v1/requirements-ledger.md` EVI-04.

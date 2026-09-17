@@ -260,6 +260,7 @@ export {
   type ScopeExpansionCandidate,
   acceptGrant,
   createGrant,
+  documentCategory,
   expandGrantScope,
   getRecipientWorkspace,
   listAccessForApplicant,
@@ -513,3 +514,13 @@ export type {
   ResolvedIdentity,
   SendEmailInput,
 } from './ports';
+
+export {
+  type DocumentLifecycleStatus,
+  type WalletAccessEntry,
+  type WalletDocumentView,
+  type WalletMissionUsage,
+  documentLifecycleStatus,
+  getWalletView,
+  supersedeDocument,
+} from './wallet';

@@ -583,6 +583,11 @@ const DOC_TYPE_TO_PACK: Readonly<Record<string, string>> = {
   EMPLOYMENT_CERTIFICATE: 'professional',
 };
 
+/** Exported wrapper around `DOC_TYPE_TO_PACK` for callers outside this file (e.g. `wallet.ts`'s own category-scoped access computation) that need the identical mapping, never a second copy of it. */
+export function documentCategory(docType: string | null): string | undefined {
+  return docType ? DOC_TYPE_TO_PACK[docType] : undefined;
+}
+
 /**
  * Document ids belonging to `applicantId` whose classified category is in
  * `categories`, evaluated against the CURRENT document set at call time.

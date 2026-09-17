@@ -386,6 +386,14 @@ export const documents = pgTable('documents', {
     onDelete: 'set null',
   }),
   expiresAt: timestamp('expires_at', { withTimezone: true }),
+  // EVI-04 ("passport renewal updates the wallet, preserves the old passport
+  // and flags cases using it; it does not mutate historical snapshots"): set
+  // only via `supersedeDocument`, never mutates or deletes the old row, just
+  // links forward to its replacement. Plain uuid, no FK, matching the
+  // codebase's established self-reference pattern (e.g.
+  // ai_extraction_runs.served_from_cache_run_id) since a same-table FK
+  // reference has no sensible ON DELETE behavior here anyway.
+  supersededByDocumentId: uuid('superseded_by_document_id'),
   ...timestamps,
 });
 

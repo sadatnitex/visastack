@@ -321,6 +321,13 @@ item gets its own requirements-ledger row once classified against the new direct
     affected open cases" needs a real notification system, which does not exist anywhere in this
     codebase yet (Part 5 scope, `NullEmailPort` only `console.warn`s); tracked as a Part 5
     dependency, not silently dropped.
+33. (Part 4) AD-14's own remaining scope: no UI action lets an owner actually call
+    `supersedeDocument` yet. The read side of EVI-04 (lifecycle status badges, mission usage,
+    and access summary) is real and wired into the existing documents page; a "mark this as
+    superseded by that" two-document-picker UI is a larger, separate piece of work, not built
+    this chunk. Also open: the 30-day "expiring soon" threshold in `documentLifecycleStatus` is
+    a documented provisional default, not a PRD-given number, pending Part 5's Expiry Centre
+    (NTF-01).
 independently confirmed findings; the missing PRD file is tracked as Blocker 1 in
 `assumptions-and-blockers.md` (now resolved) rather than here, since it blocked the
 programme rather than being a product defect.

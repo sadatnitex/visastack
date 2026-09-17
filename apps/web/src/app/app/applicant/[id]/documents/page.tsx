@@ -1,6 +1,8 @@
 import { type MessageKey, type Translator, createTranslator } from '@visastack/i18n';
 import {
+  type DocumentLifecycleStatus,
   getApplicantEvidenceBytes,
+  getWalletView,
   hasConsent,
   isServableProcessingState,
   listDocumentsDetailed,
@@ -57,6 +59,14 @@ function processingTone(status: string | null): string {
   return 'badge-neutral';
 }
 
+/** EVI-04 wallet lifecycle: current/expiring/expired/superseded, distinct from pipeline/safety status above. */
+const LIFECYCLE_BADGES: Record<DocumentLifecycleStatus, { label: string; tone: string }> = {
+  CURRENT: { label: 'Current', tone: 'badge-success' },
+  EXPIRING: { label: 'Expiring soon', tone: 'badge-warning' },
+  EXPIRED: { label: 'Expired', tone: 'badge-danger' },
+  SUPERSEDED: { label: 'Superseded', tone: 'badge-neutral' },
+};
+
 export default async function ApplicantDocumentsPage({
   params,
   searchParams,
@@ -70,13 +80,15 @@ export default async function ApplicantDocumentsPage({
   const t = createTranslator(locale);
 
   const data = await withSession(async ({ db, accountId }) => {
-    const [documents, coreGranted, aiGranted, evidenceBytes, pendingProposals] = await Promise.all([
-      listDocumentsDetailed(db, accountId, id),
-      hasConsent(db, accountId, 'CORE_PROCESSING'),
-      hasConsent(db, accountId, 'AI_EXTRACTION'),
-      getApplicantEvidenceBytes(db, id),
-      listPendingProposals(db, id),
-    ]);
+    const [documents, coreGranted, aiGranted, evidenceBytes, pendingProposals, wallet] =
+      await Promise.all([
+        listDocumentsDetailed(db, accountId, id),
+        hasConsent(db, accountId, 'CORE_PROCESSING'),
+        hasConsent(db, accountId, 'AI_EXTRACTION'),
+        getApplicantEvidenceBytes(db, id),
+        listPendingProposals(db, id),
+        getWalletView(db, { actorAccountId: accountId, applicantId: id }),
+      ]);
     return {
       documents: documents.ok ? documents.value : [],
       coreGranted,
@@ -85,6 +97,7 @@ export default async function ApplicantDocumentsPage({
       evidenceBytes,
       pendingProposals,
       quota: loadUploadQuotaConfig(),
+      wallet: new Map((wallet.ok ? wallet.value : []).map((w) => [w.document.id, w])),
     };
   });
 
@@ -168,6 +181,16 @@ export default async function ApplicantDocumentsPage({
                     </span>
                     <span style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
                       <span className={`badge ${badge.tone}`}>{badge.label}</span>
+                      {(() => {
+                        const lifecycle = data.wallet.get(doc.id);
+                        if (!lifecycle) return null;
+                        const lifecycleBadge = LIFECYCLE_BADGES[lifecycle.status];
+                        return (
+                          <span className={`badge ${lifecycleBadge.tone}`}>
+                            {lifecycleBadge.label}
+                          </span>
+                        );
+                      })()}
                       {processingKey ? (
                         <span
                           className={`badge ${processingTone(doc.processingStatus)}`}
@@ -191,6 +214,28 @@ export default async function ApplicantDocumentsPage({
                       ) : null}
                     </span>
                   </div>
+                  {(() => {
+                    const wallet = data.wallet.get(doc.id);
+                    if (
+                      !wallet ||
+                      (wallet.usedInMissions.length === 0 && wallet.accessibleTo.length === 0)
+                    ) {
+                      return null;
+                    }
+                    return (
+                      <p className="muted" style={{ fontSize: '0.75rem', margin: 0 }}>
+                        {wallet.usedInMissions.length > 0
+                          ? `Used in ${wallet.usedInMissions.map((m) => m.missionTitle).join(', ')}`
+                          : null}
+                        {wallet.usedInMissions.length > 0 && wallet.accessibleTo.length > 0
+                          ? ' · '
+                          : null}
+                        {wallet.accessibleTo.length > 0
+                          ? `Shared with ${wallet.accessibleTo.map((a) => a.label).join(', ')}`
+                          : null}
+                      </p>
+                    );
+                  })()}
                   {doc.pendingNameVersion ? (
                     <NameReview
                       applicantId={id}
