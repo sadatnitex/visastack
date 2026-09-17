@@ -1,4 +1,3 @@
-import { createHash } from 'node:crypto';
 import {
   DATABASE_URL_ENV_CANDIDATES,
   checkConnection,
@@ -61,13 +60,7 @@ export async function GET(): Promise<Response> {
     redirectUri: isPresent('NEXT_PUBLIC_WORKOS_REDIRECT_URI'),
   };
 
-  let db: {
-    connected: boolean;
-    schemaApplied: boolean;
-    error?: string;
-    dbNameDebug?: string;
-    connStringHashDebug?: string;
-  } = {
+  let db: { connected: boolean; schemaApplied: boolean; error?: string } = {
     connected: false,
     schemaApplied: false,
   };
@@ -80,22 +73,6 @@ export async function GET(): Promise<Response> {
       db = { connected: true, schemaApplied: await isSchemaApplied(client) };
     } catch {
       db = { connected: false, schemaApplied: false, error: 'connection_failed' };
-    }
-    // TEMPORARY (2026-09-17, re-verifying now that DIRECT_DATABASE_URL is set
-    // as a manual override the integration cannot touch): surfaces which
-    // database name this deployment actually resolved. Not a secret
-    // (no credentials), gated by `verbose` same as everything else here.
-    // Removed once the mismatch is diagnosed.
-    if (verbose) {
-      try {
-        db.dbNameDebug = new URL(connectionString).pathname.replace(/^\//, '');
-      } catch {
-        db.dbNameDebug = 'unparseable';
-      }
-      db.connStringHashDebug = createHash('sha256')
-        .update(connectionString)
-        .digest('hex')
-        .slice(0, 12);
     }
   }
 
