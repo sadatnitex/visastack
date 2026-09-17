@@ -295,6 +295,9 @@ async function runExtractionStep(
         id: schema.documents.id,
         applicantId: schema.documents.applicantId,
         originalName: schema.documents.originalName,
+        docType: schema.documents.docType,
+        issuer: schema.documents.issuer,
+        expiresAt: schema.documents.expiresAt,
       })
       .from(schema.documents)
       .innerJoin(
@@ -422,6 +425,42 @@ async function runExtractionStep(
       rationale: classification.rationale,
     });
 
+    if (result.pageCount !== null) {
+      await tx
+        .update(schema.documentVersions)
+        .set({ pages: result.pageCount })
+        .where(eq(schema.documentVersions.id, version.id));
+    }
+
+    // EVI-03 ("store type/category ... issuer, issue/expiry date"): the same
+    // deterministic classification that already gates a naming proposal
+    // below is confident enough (classifiedType set, reviewRequired false)
+    // to also populate the document's own metadata columns, which otherwise
+    // stay null forever (no other write path ever sets them). Only fills a
+    // currently-null column, never overwrites one a later, possibly-worse
+    // re-extraction (or a future manual correction, once one exists) already
+    // set: this mirrors createGrant's own "never silently mutate" posture,
+    // just applied to a value this system derived rather than one a caller
+    // supplied. MRZ-sourced issuer/expiry are used only for PASSPORT, the
+    // only classification with real structured fields to draw from; the
+    // keyword-matched types (BANK_STATEMENT, EMPLOYMENT_CERTIFICATE) have no
+    // such fields, so only classifiedType itself is ever set for them.
+    const metadataUpdate: Partial<typeof schema.documents.$inferInsert> = {};
+    if (classification.classifiedType && !classification.reviewRequired) {
+      if (!document.docType) metadataUpdate.docType = classification.classifiedType;
+      if (classification.mrz) {
+        if (!document.issuer) metadataUpdate.issuer = classification.mrz.issuingCountry;
+        if (!document.expiresAt) metadataUpdate.expiresAt = new Date(classification.mrz.expiryDate);
+      }
+    }
+    const populatedFields = Object.keys(metadataUpdate);
+    if (populatedFields.length > 0) {
+      await tx
+        .update(schema.documents)
+        .set(metadataUpdate)
+        .where(eq(schema.documents.id, document.id));
+    }
+
     await tx
       .update(schema.processingRuns)
       .set({ status: 'COMPLETED', completedAt: new Date() })
@@ -438,6 +477,7 @@ async function runExtractionStep(
         status: 'SUCCEEDED',
         classifiedType: classification.classifiedType,
         confidence: classification.confidence,
+        populatedFields,
       },
     });
 

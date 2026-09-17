@@ -310,8 +310,13 @@ item gets its own requirements-ledger row once classified against the new direct
     `accessDocument`). Tracked here so it is not lost, since finding it required reading every
     document-resource `authorize()` call site in the codebase, work not likely to be repeated
     incidentally.
-
-Items 1 through 4, 5 through 9, and 14/15 above are carried forward or upgraded to
+31. (Part 4) EVI-03's remaining scope after AD-12: duplicate detection (`sha256` is computed and
+    stored on every `documentVersions` row, but no query anywhere compares it against an
+    applicant's other documents) and the PENDING/ACCEPTED/REPLACEMENT_REQUIRED/IRRELEVANT/DISPUTED
+    document review-state enum (no such column or state machine exists; `documents`/
+    `documentVersions` only carry `processingStatus`/`safetyStatus`, which are pipeline states, not
+    a human reviewer's decision on the document's content). Both are real, separate pieces of work
+    from the metadata-population fix in AD-12, tracked here rather than assumed covered by it.
 independently confirmed findings; the missing PRD file is tracked as Blocker 1 in
 `assumptions-and-blockers.md` (now resolved) rather than here, since it blocked the
 programme rather than being a product defect.

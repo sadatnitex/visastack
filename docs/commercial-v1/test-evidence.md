@@ -331,3 +331,24 @@ item 29 (resolved) and item 30 (the new, separate over-restriction bug);
 `docs/commercial-v1/requirements-ledger.md` SHR-01. This closes SHR-01's two remaining tracked
 gaps from chunk 2 (duration bounds, category scope), leaving only "renewal is an explicit action"
 open on this row.
+
+## Part 4, chunk 4: wiring existing classification output into document metadata (EVI-03)
+
+Commit: working tree on top of `9a96f51` (Part 4 chunk 3, category scope, already pushed and PR
+#78 updated). `runExtractionStep` (`packages/services/src/intake.ts`) now persists
+`result.pageCount` onto `documentVersions.pages` and, on a confident classification, copies
+`classifiedType` into `documents.docType` and (PASSPORT only) the verified MRZ's
+`issuingCountry`/`expiryDate` into `documents.issuer`/`expiresAt`, all guarded on the column
+currently being null.
+
+| # | Command | Exit | Result | Detail |
+|---|---|---|---|---|
+| 1 | `pnpm run lint` | 0 | PASS | Biome, 315 files checked. Two formatting-only violations (long update-statement chain-calls in `intake.ts` and `pipeline.test.ts`) fixed with `biome check --write`, then re-verified clean. One em-dash caught in a newly-written comment and fixed before this run. |
+| 2 | `pnpm run typecheck` | 0 | PASS | All 7 packages, no errors. |
+| 3 | `pnpm run test` | 0 | PASS | 790 tests total across all 7 packages (i18n 6, core 2, policy 31, db 26 + 1 skipped, adapters 147 + 2 skipped, web 141, services 434). The existing passport-classification integration test in `pipeline.test.ts` gained new assertions: `documents.issuer`/`expiresAt` match exactly what `parseTd3` itself computes for the same MRZ fixture (called directly in the test, never hand-typed, so the assertion cannot silently drift from the real parser), and `documentVersions.pages` is `1`. Two new tests: a keyword-classified BANK_STATEMENT sets `docType` alone, confirming `issuer`/`expiresAt` stay null when there is no MRZ to draw from; and a document with `docType` already set to `EMPLOYMENT_CERTIFICATE` stays exactly that after a disagreeing PASSPORT re-classification runs against it, proving the null-guard actually holds against real, not just theoretical, conflicting data. |
+| 4 | `pnpm run build` | 0 | PASS | Full monorepo build including `apps/web`, full route manifest produced. |
+| 5 | `pnpm audit --prod` | 0 | PASS | "No known vulnerabilities found", no new dependencies (pure application logic, no schema change: every column touched already existed). |
+
+Full detail: `docs/commercial-v1/architecture-decisions.md` AD-12; `docs/commercial-v1/known-issues.md`
+item 31 (duplicate detection and document review states, EVI-03's remaining scope);
+`docs/commercial-v1/requirements-ledger.md` EVI-03.

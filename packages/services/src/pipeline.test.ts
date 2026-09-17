@@ -357,6 +357,128 @@ describe('document intake pipeline', () => {
     expect(nameVersion?.proposedName).toContain('Passport');
     expect(nameVersion?.proposedName).toContain(applicantRow?.displayName ?? '');
     expect(nameVersion?.proposedName.endsWith('.pdf')).toBe(true);
+
+    // EVI-03: the same confident classification also populates the
+    // document's own metadata columns (previously dead for every real
+    // upload), using the MRZ's own parsed, check-digit-verified fields.
+    const mrz = parseTd3([L1, L2]);
+    if (!mrz.ok) throw new Error('mrz');
+    const updatedDocument = (
+      await db.select().from(schema.documents).where(eq(schema.documents.id, document.id))
+    )[0];
+    expect(updatedDocument?.docType).toBe('PASSPORT');
+    expect(updatedDocument?.issuer).toBe(mrz.value.issuingCountry);
+    expect(updatedDocument?.expiresAt?.toISOString().slice(0, 10)).toBe(mrz.value.expiryDate);
+
+    const updatedVersion = (
+      await db
+        .select()
+        .from(schema.documentVersions)
+        .where(eq(schema.documentVersions.id, versionId))
+    )[0];
+    expect(updatedVersion?.pages).toBe(1);
+  });
+
+  it('populates docType from a confident keyword classification, but never issuer/expiry (no structured fields to draw from)', async () => {
+    const { versionId } = await seedVersion(db, 'intake-bankstatement@example.com');
+    const document = (
+      await db
+        .select({ id: schema.documents.id })
+        .from(schema.documents)
+        .innerJoin(
+          schema.documentVersions,
+          eq(schema.documentVersions.documentId, schema.documents.id),
+        )
+        .where(eq(schema.documentVersions.id, versionId))
+    )[0];
+    if (!document) throw new Error('document not found');
+
+    const bankStatementExtractor: DocumentConverterPort = {
+      async extract(): Promise<ExtractionOutcome> {
+        return {
+          ok: true,
+          result: {
+            text: 'Statement of Account\nOpening Balance: 100\nClosing Balance: 200\nAccount Number: 12345',
+            truncated: false,
+            pageCount: 2,
+            warnings: [],
+            parserName: 'test-fixture',
+            parserVersion: '1.0.0',
+          },
+        };
+      },
+    };
+
+    const result = await processIntake(
+      db,
+      cleanScanner,
+      bankStatementExtractor,
+      passingContentLimits,
+      { documentVersionId: versionId },
+    );
+    expect(isOk(result)).toBe(true);
+
+    const updatedDocument = (
+      await db.select().from(schema.documents).where(eq(schema.documents.id, document.id))
+    )[0];
+    expect(updatedDocument?.docType).toBe('BANK_STATEMENT');
+    expect(updatedDocument?.issuer).toBeNull();
+    expect(updatedDocument?.expiresAt).toBeNull();
+
+    const updatedVersion = (
+      await db
+        .select()
+        .from(schema.documentVersions)
+        .where(eq(schema.documentVersions.id, versionId))
+    )[0];
+    expect(updatedVersion?.pages).toBe(2);
+  });
+
+  it('never overwrites an already-set docType with a later re-classification', async () => {
+    const { versionId } = await seedVersion(db, 'intake-no-overwrite@example.com');
+    const document = (
+      await db
+        .select({ id: schema.documents.id })
+        .from(schema.documents)
+        .innerJoin(
+          schema.documentVersions,
+          eq(schema.documentVersions.documentId, schema.documents.id),
+        )
+        .where(eq(schema.documentVersions.id, versionId))
+    )[0];
+    if (!document) throw new Error('document not found');
+    // Simulates docType already set by some earlier point (a prior version's
+    // classification, or a future manual correction): this run must not
+    // clobber it even though its own classification disagrees.
+    await db
+      .update(schema.documents)
+      .set({ docType: 'EMPLOYMENT_CERTIFICATE' })
+      .where(eq(schema.documents.id, document.id));
+
+    const passportExtractor: DocumentConverterPort = {
+      async extract(): Promise<ExtractionOutcome> {
+        return {
+          ok: true,
+          result: {
+            text: `PASSPORT\n${L1}\n${L2}\n`,
+            truncated: false,
+            pageCount: 1,
+            warnings: [],
+            parserName: 'test-fixture',
+            parserVersion: '1.0.0',
+          },
+        };
+      },
+    };
+    const result = await processIntake(db, cleanScanner, passportExtractor, passingContentLimits, {
+      documentVersionId: versionId,
+    });
+    expect(isOk(result)).toBe(true);
+
+    const updatedDocument = (
+      await db.select().from(schema.documents).where(eq(schema.documents.id, document.id))
+    )[0];
+    expect(updatedDocument?.docType).toBe('EMPLOYMENT_CERTIFICATE');
   });
 
   it('advances to AWAITING_REVIEW even when extraction fails (unsupported format)', async () => {

@@ -702,3 +702,38 @@ not-yet-included document; `expandGrantScope` adds a confirmed one, and it becom
 very next workspace read; a request to expand with a document that does not actually match the
 grant's categories is refused, not silently ignored; and both functions are owner-gated, denying
 a stranger, including the grant's own recipient.
+
+## AD-12: Wiring existing classification output into document metadata (EVI-03)
+
+**Decision.** `documents.docType`/`issuer`/`expiresAt` and `documentVersions.pages` existed as
+schema columns but were never written by any real code path; every real upload left them null
+forever. The pipeline already computes everything needed: `classifyDocumentText` (EXTRACTING
+stage, `intake.ts`) already produces a confidence-scored `classifiedType`, and for a PASSPORT with
+a valid, check-digit-verified MRZ, already parses `issuingCountry`/`expiryDate` too, previously
+used only to build a proposed filename string and then discarded. `runExtractionStep` now also
+persists `result.pageCount` onto the version and, when classification clears review
+(`classifiedType` set, `reviewRequired: false`), copies `classifiedType` into `documents.docType`
+and, for PASSPORT specifically, the MRZ's `issuingCountry`/`expiryDate` into `documents.issuer`/
+`expiresAt`. Each column is set only if currently null, never overwritten.
+
+**Why "only if null."** No code path lets anyone correct or override these values yet (no manual
+edit UI, no review-decision flow). Once one exists, a later, possibly worse-quality re-extraction
+overwriting an already-good value, machine-derived or human-corrected, would be a real regression.
+Guarding on null now costs nothing (nothing else ever sets these fields) and means this fix never
+needs revisiting when a correction flow is eventually built.
+
+**Why only PASSPORT gets issuer/expiresAt.** `BANK_STATEMENT`/`EMPLOYMENT_CERTIFICATE` are
+confidence-scored keyword matches with no structured fields to draw from; inventing NLP date or
+issuer extraction for them was out of scope and not asked for. Only `classifiedType` is set for
+those. `documentDate` and `subject` (EVI-03's other named fields) remain unpopulated: TD3 MRZ
+encodes date of birth and expiry, never an issue date, and "subject" (whose document this is,
+relevant mainly for third-party/sponsor evidence) has no existing signal anywhere in this codebase
+to derive it from. Recorded honestly as still open, not silently implied covered by this fix.
+
+**What this proves.** `pipeline.test.ts`'s existing passport-classification test gained new
+assertions computing the expected `issuingCountry`/`expiryDate` via the same `parseTd3` the
+pipeline itself uses (never hand-typed, so the test can't silently drift from the parser it is
+checking), plus a `pages` assertion. Two new tests prove the two edge cases that matter: a
+keyword-classified BANK_STATEMENT sets `docType` alone, leaving `issuer`/`expiresAt` null; and a
+document with `docType` already set (simulating a prior version or a future manual correction) is
+never overwritten by a disagreeing re-classification.
