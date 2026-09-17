@@ -213,6 +213,79 @@ describe('schema — missions & grants', () => {
         .values({ applicantId: applicant.id, actions: ['PREVIEW'], purpose: 'x' }),
     ).rejects.toThrow();
   });
+
+  it('rejects a selected_evidence row with neither factId nor documentId set, and one with both (exactly-one check constraint)', async () => {
+    const db = await freshDb();
+    const applicant = await seedApplicant(db);
+    const mission = one(
+      await db
+        .insert(schema.missions)
+        .values({ applicantId: applicant.id, title: 'UK Tourist Visa' })
+        .returning(),
+    );
+    const pack = one(
+      await db.insert(schema.packs).values({ key: 'uk.tourist', name: 'UK Tourist' }).returning(),
+    );
+    const packVersion = one(
+      await db.insert(schema.packVersions).values({ packId: pack.id, version: 1 }).returning(),
+    );
+    const requirement = one(
+      await db
+        .insert(schema.packRequirements)
+        .values({
+          packVersionId: packVersion.id,
+          kind: 'FIELD',
+          fieldKey: 'passport.number',
+          citation: 'rule 1',
+        })
+        .returning(),
+    );
+
+    await expect(
+      db.insert(schema.selectedEvidence).values({
+        missionId: mission.id,
+        packRequirementId: requirement.id,
+      }),
+    ).rejects.toThrow();
+
+    const fieldDef = one(
+      await db
+        .insert(schema.fieldDefinitions)
+        .values({ key: 'passport.number', dataType: 'string' })
+        .returning(),
+    );
+    const fact = one(
+      await db
+        .insert(schema.facts)
+        .values({ applicantId: applicant.id, fieldDefinitionId: fieldDef.id })
+        .returning(),
+    );
+    const document = one(
+      await db
+        .insert(schema.documents)
+        .values({ applicantId: applicant.id, originalName: 'p.pdf' })
+        .returning(),
+    );
+
+    await expect(
+      db.insert(schema.selectedEvidence).values({
+        missionId: mission.id,
+        packRequirementId: requirement.id,
+        factId: fact.id,
+        documentId: document.id,
+      }),
+    ).rejects.toThrow();
+
+    // Exactly one of the two set is the only valid shape.
+    const valid = one(
+      await db
+        .insert(schema.selectedEvidence)
+        .values({ missionId: mission.id, packRequirementId: requirement.id, factId: fact.id })
+        .returning(),
+    );
+    expect(valid.factId).toBe(fact.id);
+    expect(valid.documentId).toBeNull();
+  });
 });
 
 describe('schema — document vault', () => {
@@ -287,6 +360,87 @@ describe('schema — document vault', () => {
     await expect(
       db.execute(sql`INSERT INTO storage_objects (bucket, object_key) VALUES ('PUBLIC', 'k')`),
     ).rejects.toThrow();
+  });
+
+  it("allows at most one non-VERIFIED erasure job per storage object (backstop for enqueueErasureJob's own check)", async () => {
+    const db = await freshDb();
+    const storageObject = one(
+      await db
+        .insert(schema.storageObjects)
+        .values({ bucket: 'CLEAN', objectKey: randomUUID() })
+        .returning(),
+    );
+    await db.insert(schema.erasureJobs).values({
+      reason: 'ACCOUNT_DELETION',
+      status: 'PENDING',
+      bucket: 'CLEAN',
+      objectKey: storageObject.objectKey,
+      storageObjectId: storageObject.id,
+    });
+    // A second PENDING (or any non-VERIFIED) job for the SAME storage object
+    // is rejected, bypassing the service layer entirely, proving the DB
+    // constraint itself, not just enqueueErasureJob's own existence check.
+    await expect(
+      db.insert(schema.erasureJobs).values({
+        reason: 'RETENTION_PURGE',
+        status: 'FAILED',
+        bucket: 'CLEAN',
+        objectKey: storageObject.objectKey,
+        storageObjectId: storageObject.id,
+      }),
+    ).rejects.toThrow();
+
+    // Once VERIFIED, a fresh job for the same object is a different,
+    // legitimate case (not a live duplicate) and is allowed.
+    await db
+      .update(schema.erasureJobs)
+      .set({ status: 'VERIFIED' })
+      .where(eq(schema.erasureJobs.storageObjectId, storageObject.id));
+    await expect(
+      db.insert(schema.erasureJobs).values({
+        reason: 'RETENTION_PURGE',
+        status: 'PENDING',
+        bucket: 'CLEAN',
+        objectKey: storageObject.objectKey,
+        storageObjectId: storageObject.id,
+      }),
+    ).resolves.toBeDefined();
+  });
+
+  it('allows at most one PENDING account deletion request per account', async () => {
+    const db = await freshDb();
+    const account = one(
+      await db
+        .insert(schema.accounts)
+        .values({ email: `${randomUUID()}@x.com` })
+        .returning(),
+    );
+    await db.insert(schema.accountDeletionRequests).values({
+      accountId: account.id,
+      scheduledFor: new Date(),
+    });
+    // A second PENDING request for the SAME account is rejected, bypassing
+    // the service layer entirely, proving the DB constraint itself, not just
+    // requestAccountDeletion's own SELECT-then-INSERT pre-check.
+    await expect(
+      db.insert(schema.accountDeletionRequests).values({
+        accountId: account.id,
+        scheduledFor: new Date(),
+      }),
+    ).rejects.toThrow();
+
+    // Once no longer PENDING, a fresh request for the same account is a
+    // legitimate new cycle (cancel-then-request-again) and is allowed.
+    await db
+      .update(schema.accountDeletionRequests)
+      .set({ status: 'CANCELLED' })
+      .where(eq(schema.accountDeletionRequests.accountId, account.id));
+    await expect(
+      db.insert(schema.accountDeletionRequests).values({
+        accountId: account.id,
+        scheduledFor: new Date(),
+      }),
+    ).resolves.toBeDefined();
   });
 });
 

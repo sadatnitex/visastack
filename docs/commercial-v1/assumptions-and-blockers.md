@@ -150,6 +150,49 @@ A real external KMS (e.g. AWS KMS via that same OIDC issuer) remains a genuinely
 long-term path and was offered explicitly; deferred in favor of unblocking today's actual
 issue first. Still BLOCKED as before: "live KMS adapter/verification" (no real vendor account).
 
+## Deferred: staff idle-timeout (30-minute) session enforcement
+
+Directive Part 2 §5 requires "staff idle max 30 minutes" alongside the absolute
+session-age caps (staff 12 hours, traveller 7 days) implemented and shipped
+this session (`apps/web/src/lib/session-age.ts`, PR #79, merged). The absolute
+cap reuses WorkOS's existing `auth_time` claim (via `checkRecentAuth`, the same
+mechanism `establishStepUp` already relies on for step-up), it never changes
+across requests, so it is safe to read from any Server Component. Idle timeout
+is a different, harder problem: it needs a LAST-ACTIVITY timestamp that
+updates on every request, which `auth_time` cannot provide.
+
+Investigated and deliberately not built this session: the only place that can
+write such a timestamp on every request is `apps/web/src/middleware.ts` (most
+of the app's traffic renders via read-only Server Components, which
+`withSession`'s own existing comments already establish cannot write cookies).
+Correctly scoping a 30-minute idle check to STAFF ONLY (not travellers, who
+would otherwise face an unrequested, severe UX regression, a 30-minute idle
+cutoff instead of their specified 7-day session) needs `withSession`'s
+already-built staff-context check, which requires a database lookup
+`isStaffContext` already does. Getting that decision from middleware (which
+runs before `withSession`, on every request, including unauthenticated ones)
+into the page render means either: (a) a database round trip inside
+middleware itself, a real architectural downgrade, adding DB dependency and
+latency to literally every request the matcher covers, not just authenticated
+ones; or (b) forwarding the previous request's last-activity cookie value into
+the page render via Next.js's documented `NextResponse.next({ request:
+{ headers } })` pattern, while still layering it correctly on top of
+`authkitMiddleware`'s own response (which independently manages WorkOS's
+session-refresh cookies) without disrupting that behavior.
+
+Option (b) is the right design, but this session has no way to verify it
+against a real authenticated WorkOS session (no test credentials in this
+sandboxed environment) before it would ship to production and gate sign-in
+for every real user. Given the blast radius of a mistake here (breaking
+authentication entirely, not degrading a single feature), this was judged not
+safe to ship unverified, unlike the absolute-session-age change, which
+reused an already-proven WorkOS entry point and was confirmed via a real
+authenticated E2E smoke test before merge. Tracked here rather than silently
+dropped or attempted blind; a future session with access to a real WorkOS
+test session (staging credentials, or manual verification in a live preview
+before merge) should implement option (b) and verify it end to end before
+shipping.
+
 ## Decision: how "push to production" is being interpreted
 
 The instruction to commit, push, and reach production within three minutes of
@@ -178,3 +221,19 @@ every governing document this session was asked to implement forbids the
 literal instruction, and because this product handles passport and financial
 data where an unreviewed autopush to production is a real risk. Flagging it
 here rather than silently picking a side.
+
+### Update (2026-09-17): superseded by explicit, repeated authorization
+
+The product owner has since explicitly and repeatedly authorized merging to
+`main` and deploying to production directly in chat ("complete each part and
+merge, push to production"; "merge it once green"; "merge & push to prod and
+continue"), after reviewing what each merge actually contained (a KMS wiring
+fix verified end to end in production, then session-age enforcement). PRs #78
+and #79 were merged to `main` on this basis. This is real-time, explicit
+sign-off for each specific change, not a standing instruction being read as
+blanket permission for everything, each merge still goes out only after its
+own CI is green and, where the change touches something security-relevant, a
+concrete verification (a live round trip, a passing authenticated E2E smoke
+test) rather than a green build alone. The conservative default described
+above stays the fallback for any change that has NOT been explicitly reviewed
+and authorized this way.

@@ -1,0 +1,3 @@
+CREATE UNIQUE INDEX "account_deletion_requests_pending_unique_idx" ON "account_deletion_requests" USING btree ("account_id") WHERE "account_deletion_requests"."status" = 'PENDING';--> statement-breakpoint
+CREATE UNIQUE INDEX "erasure_jobs_active_storage_object_unique_idx" ON "erasure_jobs" USING btree ("storage_object_id") WHERE "erasure_jobs"."status" <> 'VERIFIED';--> statement-breakpoint
+ALTER TABLE "selected_evidence" ADD CONSTRAINT "selected_evidence_exactly_one_target" CHECK (("selected_evidence"."fact_id" is not null) <> ("selected_evidence"."document_id" is not null));

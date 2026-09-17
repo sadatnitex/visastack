@@ -1276,6 +1276,13 @@ export const selectedEvidence = pgTable(
       table.documentId,
     ),
     index('selected_evidence_mission_idx').on(table.missionId),
+    // Backstops the doc comment above ("exactly one of factId/documentId")
+    // at the database level, previously only true by construction (the two
+    // mutually-exclusive branches inside `selectEvidence`), not enforced.
+    check(
+      'selected_evidence_exactly_one_target',
+      sql`(${table.factId} is not null) <> (${table.documentId} is not null)`,
+    ),
   ],
 );
 
@@ -1411,17 +1418,29 @@ export const storageBlobs = pgTable('storage_blobs', {
 // --- Account deletion workflow (Build Spec §13; PRD §2) ---------------------
 // A deletion request is reversible during a grace window and executed after it.
 // accountId is set null on execution so the request survives as a tombstone.
-export const accountDeletionRequests = pgTable('account_deletion_requests', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  accountId: uuid('account_id').references(() => accounts.id, { onDelete: 'set null' }),
-  status: deletionStatus('status').notNull().default('PENDING'),
-  requestedAt: timestamp('requested_at', { withTimezone: true }).notNull().defaultNow(),
-  scheduledFor: timestamp('scheduled_for', { withTimezone: true }).notNull(),
-  cancelledAt: timestamp('cancelled_at', { withTimezone: true }),
-  executedAt: timestamp('executed_at', { withTimezone: true }),
-  reason: text('reason'),
-  ...timestamps,
-});
+export const accountDeletionRequests = pgTable(
+  'account_deletion_requests',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    accountId: uuid('account_id').references(() => accounts.id, { onDelete: 'set null' }),
+    status: deletionStatus('status').notNull().default('PENDING'),
+    requestedAt: timestamp('requested_at', { withTimezone: true }).notNull().defaultNow(),
+    scheduledFor: timestamp('scheduled_for', { withTimezone: true }).notNull(),
+    cancelledAt: timestamp('cancelled_at', { withTimezone: true }),
+    executedAt: timestamp('executed_at', { withTimezone: true }),
+    reason: text('reason'),
+    ...timestamps,
+  },
+  (table) => [
+    // Backstops `requestAccountDeletion`'s own pre-check (deletion.ts),
+    // which reads then inserts in two separate statements, not one atomic
+    // operation, a true concurrent race could otherwise open two PENDING
+    // requests for the same account. Mirrors `pilot_invitations_active_unique_idx`.
+    uniqueIndex('account_deletion_requests_pending_unique_idx')
+      .on(table.accountId)
+      .where(sql`${table.status} = 'PENDING'`),
+  ],
+);
 
 // --- Erasure outbox (master directive §7 "PR 4") ----------------------------
 // Durable, retriable record of every external-object deletion the domain
@@ -1491,6 +1510,14 @@ export const erasureJobs = pgTable(
     index('erasure_jobs_status_available_idx').on(table.status, table.availableAt),
     index('erasure_jobs_storage_object_idx').on(table.storageObjectId),
     index('erasure_jobs_lease_expires_idx').on(table.status, table.leaseExpiresAt),
+    // Backstops `enqueueErasureJob`'s own existence check (erasure.ts), which
+    // by its own admission adds no locking primitive of its own: at most one
+    // job per storage object may be anywhere short of VERIFIED at a time,
+    // matching that function's exact IN_FLIGHT+PARKED status set. Mirrors
+    // `pilot_invitations_active_unique_idx`'s same role for invitations.
+    uniqueIndex('erasure_jobs_active_storage_object_unique_idx')
+      .on(table.storageObjectId)
+      .where(sql`${table.status} <> 'VERIFIED'`),
   ],
 );
 

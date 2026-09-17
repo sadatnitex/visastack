@@ -3,7 +3,7 @@ import { fileURLToPath } from 'node:url';
 import { PGlite } from '@electric-sql/pglite';
 import { isErr, isOk } from '@visastack/core';
 import { schema } from '@visastack/db';
-import { eq, inArray } from 'drizzle-orm';
+import { eq, inArray, sql } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/pglite';
 import { migrate } from 'drizzle-orm/pglite/migrator';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -1115,6 +1115,17 @@ describe('erasure outbox', () => {
       // from D-A1's own enqueue-time prevention. Driven straight to FAILED
       // without ever running it through the worker — never claimed, so
       // runErasureWorker below only ever picks up the original.
+      //
+      // Commercial V1 ARC-01: a partial unique index now backstops D-A1's
+      // application-level dedup at the database level too (one non-VERIFIED
+      // job per storage object, enforced), which means this exact "hostile
+      // shape" can no longer be created by any real insert once that index
+      // exists. Dropped here, in this one isolated per-test `db` only, to
+      // simulate a database that predates the index (or any future bypass
+      // of it), the same technique schema.test.ts's audit-tamper test uses
+      // to disable the append-only RULE and prove what happens if a
+      // safeguard is bypassed, applied to a unique index instead of a RULE.
+      await db.execute(sql`DROP INDEX erasure_jobs_active_storage_object_unique_idx`);
       const [duplicateJob] = await db
         .insert(schema.erasureJobs)
         .values({

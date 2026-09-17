@@ -1275,6 +1275,43 @@ describe('mission collaboration — evidence selection, tasks, grounded letters 
     if (isErr(denied)) expect(denied.error.code).toBe('forbidden');
   });
 
+  it('refuses a task tied to a requirement from an unrelated pack (not just an unrelated document/fact)', async () => {
+    const { account, missionId } = await setUp(db);
+    // A second, unrelated pack the mission was never attached to.
+    const pack = await createPack(db, {
+      actorAccountId: account.id,
+      key: 'us.business',
+      name: 'US Business',
+    });
+    if (!isOk(pack)) throw new Error('pack');
+    const version = await addPackVersion(db, {
+      actorAccountId: account.id,
+      packId: pack.value.id,
+    });
+    if (!isOk(version)) throw new Error('version');
+    const requirement = await addRequirement(db, {
+      actorAccountId: account.id,
+      packVersionId: version.value.id,
+      kind: 'FIELD',
+      fieldKey: 'employer.name',
+      citation: 'rule 1',
+    });
+    if (!isOk(requirement)) throw new Error('requirement');
+
+    const foreignTask = await createTask(db, {
+      actorAccountId: account.id,
+      missionId,
+      description: 'Attached to a requirement from a different pack entirely.',
+      packRequirementId: requirement.value.id,
+    });
+    expect(isErr(foreignTask)).toBe(true);
+    if (isErr(foreignTask)) expect(foreignTask.error.code).toBe('not_found');
+
+    const list = await listTasks(db, account.id, missionId);
+    expect(isOk(list)).toBe(true);
+    if (isOk(list)) expect(list.value).toHaveLength(0);
+  });
+
   it('refuses to generate a letter with nothing grounded yet, then generates one citing exact evidence, versioned', async () => {
     const { account, applicantId } = await seed(db);
     const packVersionId = await publishedPack(db, account.id);
