@@ -101,6 +101,35 @@ was set up). Offered to walk through this now; the product owner deferred it. No
 dropped: revisit before Part 2 is called complete, since SEC-01's own checkpoint criteria
 name it explicitly ("Ensure runtime DB role is least privilege").
 
+### Resolution (2026-09-17)
+
+Product owner created the `visastack_app` role directly in Neon's console (name, and letting
+Neon auto-generate the password, per the exact steps this session gave). Migration
+`packages/db/migrations/0035_least_privilege_app_role.sql` grants it
+SELECT/INSERT/UPDATE/DELETE on every table and USAGE/SELECT on every sequence in the `public`
+schema, plus matching `ALTER DEFAULT PRIVILEGES FOR ROLE neondb_owner` so a table a future
+migration adds is covered automatically without a repeat grant. No CREATE/ALTER/DROP is
+granted; `neondb_owner` (via the existing `db-migrate.yml` GitHub Actions secret, untouched by
+this change) remains the only role that can modify schema.
+
+Two steps remain, both needing the role's password, which only the product owner has (this
+session never handled it and should not):
+
+1. Run migration 0035 against Neon (`db-migrate.yml`, type "migrate" to confirm), safe to run
+   any time, before or independent of step 2, since it only grants a privilege, it does not
+   revoke `neondb_owner`'s access or change what the app currently connects as.
+2. Switch the app's own connection string (`DIRECT_DATABASE_URL` in Vercel, Production and
+   Preview) from `neondb_owner`'s to `visastack_app`'s. This is the step that actually stops
+   the running app from using the powerful role day to day. `DIRECT_DATABASE_URL` is never read
+   by `db-migrate.yml` (confirmed: that workflow's `env:` block only lists
+   `DATABASE_URL`/`POSTGRES_URL`/`DATABASE_URL_UNPOOLED`/`POSTGRES_URL_NON_POOLING`/
+   `POSTGRES_PRISMA_URL` as GitHub Actions secrets), so this and the migration secret are
+   already two separate credential stores; switching one does not touch the other.
+
+Until both land, SEC-01's least-privilege requirement stays IMPLEMENTED_UNVERIFIED, not
+VERIFIED: the grant exists in committed, reviewed SQL, but has not yet been applied, and the
+app has not yet been proven to run correctly under the restricted role.
+
 ## Decision: how "push to production" is being interpreted
 
 The instruction to commit, push, and reach production within three minutes of
