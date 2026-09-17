@@ -302,7 +302,13 @@ export const missions = pgTable('missions', {
   purpose: text('purpose'),
   state: missionState('state').notNull().default('DRAFT'),
   // The published requirement pack version this mission is assembled against.
-  packVersionId: uuid('pack_version_id'),
+  // restrict, not cascade/set null: nothing deletes a pack version today
+  // (Pack Studio is create/version-forward only), but a mission must never
+  // silently lose the pack it was assembled against if that ever changes --
+  // missions.ts branches heavily on this being present.
+  packVersionId: uuid('pack_version_id').references(() => packVersions.id, {
+    onDelete: 'restrict',
+  }),
   ...timestamps,
 });
 
@@ -447,7 +453,11 @@ export const documentReviews = pgTable(
       .references(() => documents.id, { onDelete: 'cascade' }),
     outcome: documentReviewOutcome('outcome').notNull(),
     reason: text('reason'),
-    reviewedByAccountId: uuid('reviewed_by_account_id').notNull(),
+    // restrict, not set null: this column is NOT NULL (every review has a
+    // reviewer), so set null would fail the FK action outright on delete.
+    reviewedByAccountId: uuid('reviewed_by_account_id')
+      .notNull()
+      .references(() => accounts.id, { onDelete: 'restrict' }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [index('document_reviews_document_idx').on(table.documentId)],
@@ -819,7 +829,11 @@ export const issuerVerifications = pgTable(
     exactClaim: text('exact_claim').notNull(),
     response: text('response').notNull(),
     validUntil: timestamp('valid_until', { withTimezone: true }).notNull(),
-    verifiedByAccountId: uuid('verified_by_account_id').notNull(),
+    // restrict, not set null: this column is NOT NULL, so set null would
+    // fail the FK action outright on delete.
+    verifiedByAccountId: uuid('verified_by_account_id')
+      .notNull()
+      .references(() => accounts.id, { onDelete: 'restrict' }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
@@ -1107,7 +1121,9 @@ export const packVersions = pgTable(
     // approval; a published version is immutable and verifiable.
     manifest: jsonb('manifest'),
     checksum: text('checksum'),
-    approvedByAccountId: uuid('approved_by_account_id'),
+    approvedByAccountId: uuid('approved_by_account_id').references(() => accounts.id, {
+      onDelete: 'set null',
+    }),
     approvedAt: timestamp('approved_at', { withTimezone: true }),
     publishedAt: timestamp('published_at', { withTimezone: true }),
     ...timestamps,
@@ -1146,7 +1162,9 @@ export const missionSnapshots = pgTable(
     version: integer('version').notNull(),
     content: jsonb('content').notNull(),
     checksum: text('checksum').notNull(),
-    createdByAccountId: uuid('created_by_account_id'),
+    createdByAccountId: uuid('created_by_account_id').references(() => accounts.id, {
+      onDelete: 'set null',
+    }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
@@ -1183,7 +1201,9 @@ export const missionNotes = pgTable(
     missionId: uuid('mission_id')
       .notNull()
       .references(() => missions.id, { onDelete: 'cascade' }),
-    authorAccountId: uuid('author_account_id'),
+    authorAccountId: uuid('author_account_id').references(() => accounts.id, {
+      onDelete: 'set null',
+    }),
     // Set only when the author wrote this note while acting as a member of
     // this organization (never for an applicant-owner-authored note). Lets
     // an AGENCY_INTERNAL note be attributed to exactly one organization, so
@@ -1239,7 +1259,9 @@ export const selectedEvidence = pgTable(
       .references(() => packRequirements.id, { onDelete: 'cascade' }),
     factId: uuid('fact_id').references(() => facts.id, { onDelete: 'cascade' }),
     documentId: uuid('document_id').references(() => documents.id, { onDelete: 'cascade' }),
-    selectedByAccountId: uuid('selected_by_account_id'),
+    selectedByAccountId: uuid('selected_by_account_id').references(() => accounts.id, {
+      onDelete: 'set null',
+    }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
@@ -1273,7 +1295,11 @@ export const missionDecisions = pgTable(
       .references(() => packRequirements.id, { onDelete: 'cascade' }),
     outcome: missionDecisionOutcome('outcome').notNull(),
     reason: text('reason'),
-    decidedByAccountId: uuid('decided_by_account_id').notNull(),
+    // restrict, not set null: this column is NOT NULL, so set null would
+    // fail the FK action outright on delete.
+    decidedByAccountId: uuid('decided_by_account_id')
+      .notNull()
+      .references(() => accounts.id, { onDelete: 'restrict' }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [index('mission_decisions_mission_idx').on(table.missionId)],
@@ -1294,7 +1320,9 @@ export const missionTasks = pgTable(
       onDelete: 'set null',
     }),
     description: text('description').notNull(),
-    assigneeAccountId: uuid('assignee_account_id'),
+    assigneeAccountId: uuid('assignee_account_id').references(() => accounts.id, {
+      onDelete: 'set null',
+    }),
     status: missionTaskStatus('status').notNull().default('OPEN'),
     completedAt: timestamp('completed_at', { withTimezone: true }),
     ...timestamps,
@@ -1324,7 +1352,9 @@ export const generatedOutputs = pgTable(
     groundedReferences: jsonb('grounded_references').notNull(),
     language: text('language').notNull().default('en'),
     translatedFromOutputId: uuid('translated_from_output_id'),
-    createdByAccountId: uuid('created_by_account_id'),
+    createdByAccountId: uuid('created_by_account_id').references(() => accounts.id, {
+      onDelete: 'set null',
+    }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
@@ -1347,7 +1377,9 @@ export const legalHolds = pgTable(
       .notNull()
       .references(() => applicants.id, { onDelete: 'cascade' }),
     reason: text('reason').notNull(),
-    placedByAccountId: uuid('placed_by_account_id'),
+    placedByAccountId: uuid('placed_by_account_id').references(() => accounts.id, {
+      onDelete: 'set null',
+    }),
     active: boolean('active').notNull().default(true),
     releasedAt: timestamp('released_at', { withTimezone: true }),
     ...timestamps,

@@ -321,7 +321,7 @@ describe('erasure outbox', () => {
   });
 
   it('blocks a RETENTION_PURGE job at finalize time if a hold appears mid-flight, preserving the record', async () => {
-    const { applicantId } = await seedApplicant(db, 'finalize-race@example.com');
+    const { account, applicantId } = await seedApplicant(db, 'finalize-race@example.com');
     const object = await seedStorageObject(db, 'obj-finalize-race');
     await storage.putObject({
       bucket: 'CLEAN',
@@ -344,7 +344,7 @@ describe('erasure outbox', () => {
     storage.getObject = async (objectKey: string) => {
       const result = await originalGetObject(objectKey);
       await placeLegalHold(db, {
-        actorAccountId: applicantId,
+        actorAccountId: account.id,
         applicantId,
         reason: 'mid-flight',
         stepUpSatisfied: true,

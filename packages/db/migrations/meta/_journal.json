@@ -253,6 +253,13 @@
       "when": 1789650404158,
       "tag": "0035_least_privilege_app_role",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1789652233680,
+      "tag": "0036_safe_sugar_man",
+      "breakpoints": true
     }
   ]
 }
