@@ -10,8 +10,13 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
  * `MALWARE_SCANNER_PROVIDER=clamav` and a real connection are genuinely
  * configured, never by an attestation flag or by any OTHER gate being true.
  * "No normal administrator may override this guard" is the property under
- * test throughout: no single flag, and no combination of the other 18
+ * test throughout: no single flag, and no combination of the other 19
  * gates, may substitute for a gate whose own condition isn't actually met.
+ * `realKeyManagement` is the same kind of permanently-unsatisfiable LIVE
+ * gate `realMalwareScanner` used to be: `LocalEnvelopeKeyProvider`
+ * (KMS_PROVIDER=local, the only implementation today) is explicitly not a
+ * real KMS, so no env var combination can satisfy it until a genuine KMS
+ * vendor adapter is registered in providers.ts.
  */
 
 const ATTEST_FLAGS = [
@@ -99,6 +104,7 @@ describe('evaluateCommercialReadiness', () => {
     const result = evaluateCommercialReadiness({ databaseReady: false });
     expect(result.ready).toBe(false);
     expect(result.gates.find((g) => g.key === 'realMalwareScanner')?.satisfied).toBe(false);
+    expect(result.gates.find((g) => g.key === 'realKeyManagement')?.satisfied).toBe(false);
   }, 15_000);
 
   it('reports every gate the master directive names, none silently missing', async () => {
@@ -110,6 +116,7 @@ describe('evaluateCommercialReadiness', () => {
       'productionDatabase',
       'privateProductionStorage',
       'realMalwareScanner',
+      'realKeyManagement',
       'safeConversion',
       'stepUp',
       'externalObjectDeletionVerification',
@@ -134,16 +141,25 @@ describe('evaluateCommercialReadiness', () => {
     const failing = result.gates.filter((g) => !g.satisfied);
     expect(failing).toEqual([
       { key: 'realMalwareScanner', label: 'real malware scanner', satisfied: false },
+      {
+        key: 'realKeyManagement',
+        label: 'real key management (KMS)',
+        satisfied: false,
+      },
     ]);
     expect(result.ready).toBe(false);
   });
 
-  it('becomes ready once realMalwareScanner is also genuinely configured, same as any other live gate', async () => {
+  it('realMalwareScanner responds to genuine configuration, but overall readiness still needs realKeyManagement, since no real KMS vendor adapter exists yet', async () => {
     satisfyEveryGate();
     const { evaluateCommercialReadiness } = await import('./commercial-readiness');
     const result = evaluateCommercialReadiness({ databaseReady: true });
     expect(result.gates.find((g) => g.key === 'realMalwareScanner')?.satisfied).toBe(true);
-    expect(result.ready).toBe(true);
+    const failing = result.gates.filter((g) => !g.satisfied);
+    expect(failing).toEqual([
+      { key: 'realKeyManagement', label: 'real key management (KMS)', satisfied: false },
+    ]);
+    expect(result.ready).toBe(false);
   });
 
   it('does not satisfy realMalwareScanner from MALWARE_SCANNER_PROVIDER=clamav alone, without a real connection configured', async () => {
@@ -224,10 +240,10 @@ describe('commercialConfigurationReady', () => {
     expect(commercialConfigurationReady()).toBe(false);
   });
 
-  it('becomes true once every gate, including a genuinely configured real malware scanner, is satisfied', async () => {
+  it('stays false even with a genuinely configured real malware scanner, since realKeyManagement has no real KMS vendor adapter to configure yet', async () => {
     satisfyEveryGate();
     const { commercialConfigurationReady } = await import('./commercial-readiness');
-    expect(commercialConfigurationReady()).toBe(true);
+    expect(commercialConfigurationReady()).toBe(false);
   });
 
   it('never consults live DB connectivity (it has none to consult)', async () => {

@@ -6,6 +6,7 @@ import {
   ClamAvScanner,
   ConsoleObservabilityPort,
   DeterministicTextExtractor,
+  LocalEnvelopeKeyProvider,
   NullEmailPort,
   NullPaymentPort,
 } from '@visastack/adapters';
@@ -15,6 +16,7 @@ import {
   type DocumentConverterPort,
   type EmailPort,
   type IdentityPort,
+  type KeyManagementPort,
   type MalwareScannerPort,
   type ObservabilityPort,
   type PaymentPort,
@@ -62,6 +64,7 @@ const KNOWN_PROVIDERS = {
   EMAIL_PROVIDER: ['none'],
   OBSERVABILITY_PROVIDER: ['console'],
   PAYMENT_PROVIDER: ['none'],
+  KMS_PROVIDER: ['local'],
 } as const satisfies Record<string, readonly string[]>;
 
 type KnownProviderVar = keyof typeof KNOWN_PROVIDERS;
@@ -210,6 +213,31 @@ export function createObservabilityPort(): ObservabilityPort {
 export function createPaymentPort(): PaymentPort {
   checkKnownProvider('PAYMENT_PROVIDER');
   return new NullPaymentPort();
+}
+
+/**
+ * Envelope-key provider for protected-field encryption (Commercial V1
+ * SEC-03). `local` (`LocalEnvelopeKeyProvider`, @visastack/adapters) is the
+ * only implementation today and is explicitly NOT a real KMS, so it refuses
+ * to construct at all once `DEPLOYMENT_MODE=commercial` (its own
+ * `assertNotCommercialMode` guard), so this function can never hand back a
+ * fake-KMS port on a real commercial deployment.
+ *
+ * Unlike this file's other `create*Port()` functions, this one returns
+ * `undefined` rather than always constructing a port, matching
+ * `createAiExtractor`'s (./ai.ts) shape rather than e.g.
+ * `createEmailPort`'s: most profile fields are STANDARD sensitivity and
+ * must keep saving even where no master key has been configured yet.
+ * `editFact` (packages/services/src/profile.ts) is the one place that
+ * actually decides a port is required, failing loudly
+ * (`encryption_unavailable`) only when the specific field being written is
+ * SENSITIVE/RESTRICTED and no port was supplied.
+ */
+export function createKeyManagementPort(): KeyManagementPort | undefined {
+  checkKnownProvider('KMS_PROVIDER');
+  const masterKeyBase64 = readEnv('KMS_LOCAL_MASTER_KEY_BASE64');
+  if (!masterKeyBase64) return undefined;
+  return new LocalEnvelopeKeyProvider({ masterKeyBase64 });
 }
 
 export { createStorage } from './storage';

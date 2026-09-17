@@ -35,6 +35,7 @@ import {
 } from '../../../../lib/ai';
 import { triggerIntakeWorker } from '../../../../lib/jobs';
 import { profileField } from '../../../../lib/profile-fields';
+import { createKeyManagementPort } from '../../../../lib/providers';
 import { withSession } from '../../../../lib/session';
 import { createStorage } from '../../../../lib/storage';
 
@@ -88,6 +89,7 @@ export async function saveFactAction(_prev: ActionState, formData: FormData): Pr
       repeating: def.group !== undefined,
       packId: def.pack,
     });
+    const encryption = createKeyManagementPort();
     const edit = await editFact(db, {
       actorAccountId: accountId,
       applicantId,
@@ -95,6 +97,7 @@ export async function saveFactAction(_prev: ActionState, formData: FormData): Pr
       value,
       ...(repeatingRecordKey !== null ? { repeatingRecordKey } : {}),
       ...(effectiveFrom ? { effectiveFrom } : {}),
+      ...(encryption ? { encryption } : {}),
     });
     if (!edit.ok) return { ok: false, message: edit.error.message } satisfies ActionState;
     return { ok: true, message: `${def.label} saved.` } satisfies ActionState;
@@ -435,10 +438,12 @@ export async function decideProposalAction(
       if (!rejected.ok) return { ok: false, message: rejected.error.message } satisfies ActionState;
       return { ok: true, message: 'Proposal rejected.' } satisfies ActionState;
     }
+    const encryption = createKeyManagementPort();
     const approved = await approveProposal(db, {
       actorAccountId: accountId,
       proposalId,
       ...(correctedValue ? { correctedValue } : {}),
+      ...(encryption ? { encryption } : {}),
     });
     if (!approved.ok) return { ok: false, message: approved.error.message } satisfies ActionState;
     return {

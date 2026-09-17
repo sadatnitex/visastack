@@ -102,6 +102,20 @@ function buildGates(input: CommercialReadinessInput): readonly ReadinessGate[] {
         (isPresent('CLAMAV_SOCKET_PATH') || (isPresent('CLAMAV_HOST') && isPresent('CLAMAV_PORT'))),
     },
     {
+      key: 'realKeyManagement',
+      label: 'real key management (KMS)',
+      // LocalEnvelopeKeyProvider (KMS_PROVIDER=local, the only
+      // implementation today, ./providers.ts's createKeyManagementPort) is
+      // explicitly NOT a real KMS (packages/adapters/src/key-management.ts's
+      // own doc comment) and refuses to construct at all once
+      // DEPLOYMENT_MODE=commercial. Hardcoded false, same pattern
+      // `realMalwareScanner` used before ClamAvScanner existed, until a
+      // genuine KMS vendor adapter (e.g. AWS KMS, GCP Cloud KMS) is
+      // registered in ./providers.ts and this gate checks for it
+      // specifically.
+      satisfied: false,
+    },
+    {
       key: 'safeConversion',
       label: 'safe conversion',
       satisfied: true,
@@ -195,8 +209,8 @@ export function evaluateCommercialReadiness(
  * and it force-disables those same three capabilities in its own response
  * whenever the full guard fails, regardless of what this function reports.
  * In practice the two cannot currently diverge in the unsafe direction: the
- * hardcoded `realMalwareScanner` gate alone keeps this `false` until a real
- * scanner adapter exists.
+ * hardcoded `realKeyManagement` gate alone keeps this `false` until a real
+ * KMS vendor adapter exists.
  */
 export function commercialConfigurationReady(): boolean {
   return buildGates({ databaseReady: true })

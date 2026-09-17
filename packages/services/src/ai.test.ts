@@ -1,3 +1,4 @@
+import { randomBytes } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { PGlite } from '@electric-sql/pglite';
 import { isErr, isOk } from '@visastack/core';
@@ -21,6 +22,7 @@ import { createApplicant } from './applicants';
 import { setConsent } from './consent';
 import type { Db } from './db';
 import { addDocumentVersion, registerDocument } from './documents';
+import type { KeyManagementPort } from './ports';
 import { editFact, getCurrentFactVersion, registerFieldDefinition } from './profile';
 
 const migrationsFolder = fileURLToPath(new URL('../../db/migrations', import.meta.url));
@@ -62,6 +64,21 @@ async function seedVersion(db: Db, email: string) {
   });
   if (!isOk(version)) throw new Error('version');
   return { account, applicantId: applicant.value.id, versionId: version.value.version.id };
+}
+
+/** A deterministic, fixed-key test double, matching protected-fields.test.ts's own fixture. */
+function fakeKeyManagementPort(keyVersion = 'test-v1'): KeyManagementPort {
+  const masterKey = Buffer.alloc(32, 7);
+  return {
+    currentKeyVersion: () => keyVersion,
+    async generateDataKey() {
+      return { keyVersion, plaintextDataKey: randomBytes(32), wrappedDataKey: masterKey };
+    },
+    async unwrapDataKey(version) {
+      if (version !== keyVersion) throw new Error(`unknown key version ${version}`);
+      return masterKey;
+    },
+  };
 }
 
 async function grantAiConsent(db: Db, accountId: string) {
@@ -190,6 +207,53 @@ describe('AI Gateway — proposals never silently mutate', () => {
 
     const remaining = await listPendingProposals(db, applicantId);
     expect(remaining).toHaveLength(1);
+  });
+
+  it('threads an encryption port through to a RESTRICTED field approval (Commercial V1 SEC-03): fails closed without one, protects the value with one', async () => {
+    const { account, applicantId, versionId } = await seedVersion(db, 'ai-restricted@example.com');
+    await grantAiConsent(db, account.id);
+    await registerFieldDefinition(db, {
+      key: 'passport.number',
+      dataType: 'string',
+      sensitivity: 'RESTRICTED',
+    });
+    const run = await runExtraction(db, stubAi(), {
+      actorAccountId: account.id,
+      applicantId,
+      documentVersionId: versionId,
+      text: 'MRZ...',
+      budgetLimitUnits: 10,
+    });
+    if (!isOk(run)) throw new Error('run failed');
+    const mappedProposalId = run.value.proposals.find((p) => p.fieldKey === 'passport.number')
+      ?.id as string;
+
+    const withoutPort = await approveProposal(db, {
+      actorAccountId: account.id,
+      proposalId: mappedProposalId,
+    });
+    expect(isErr(withoutPort)).toBe(true);
+    if (isErr(withoutPort)) expect(withoutPort.error.code).toBe('encryption_unavailable');
+    // Still PENDING, not silently consumed by the failed attempt above — both
+    // fixture proposals (the mapped one and the UNMAPPED one) remain.
+    expect(await listPendingProposals(db, applicantId)).toHaveLength(2);
+
+    const port = fakeKeyManagementPort();
+    const withPort = await approveProposal(db, {
+      actorAccountId: account.id,
+      proposalId: mappedProposalId,
+      encryption: port,
+    });
+    expect(isOk(withPort)).toBe(true);
+    if (!isOk(withPort)) return;
+
+    const rows = await db.select().from(schema.factVersions);
+    const row = rows.find((r) => r.id === withPort.value.version.id);
+    expect(row?.value).toBeNull();
+    expect(row?.valueCiphertext).not.toBeNull();
+    expect(Buffer.from(row?.valueCiphertext ?? []).includes('L898902C3')).toBe(false);
+    // Only the mapped proposal was decided — the UNMAPPED one is still pending.
+    expect(await listPendingProposals(db, applicantId)).toHaveLength(1);
   });
 
   it('refuses to approve a proposal (writing to the Master Profile) once CORE_PROCESSING consent has been revoked, even though AI_EXTRACTION consent remains granted (Codex review, PR #65)', async () => {

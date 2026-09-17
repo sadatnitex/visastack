@@ -34,6 +34,8 @@ const ENV_KEYS = [
   'EMAIL_PROVIDER',
   'OBSERVABILITY_PROVIDER',
   'PAYMENT_PROVIDER',
+  'KMS_PROVIDER',
+  'KMS_LOCAL_MASTER_KEY_BASE64',
 ] as const;
 const ORIGINAL: Record<string, string | undefined> = {};
 
@@ -79,6 +81,7 @@ describe('validateProviderEnv', () => {
     setEnv('EMAIL_PROVIDER', 'none');
     setEnv('OBSERVABILITY_PROVIDER', 'console');
     setEnv('PAYMENT_PROVIDER', 'none');
+    setEnv('KMS_PROVIDER', 'local');
     const { validateProviderEnv } = await import('./providers');
     expect(() => validateProviderEnv()).not.toThrow();
   });
@@ -174,6 +177,26 @@ describe('createMalwareScanner / createDocumentConverter', () => {
     setEnv('MALWARE_SCANNER_PROVIDER', 'clamav');
     const { createMalwareScanner } = await import('./providers');
     expect(() => createMalwareScanner({} as never)).toThrow(/CLAMAV_SOCKET_PATH|CLAMAV_HOST/);
+  });
+});
+
+describe('createKeyManagementPort', () => {
+  it('returns undefined when no master key is configured, so STANDARD fields keep saving', async () => {
+    const { createKeyManagementPort } = await import('./providers');
+    expect(createKeyManagementPort()).toBeUndefined();
+  });
+
+  it('constructs a real LocalEnvelopeKeyProvider once a master key is configured', async () => {
+    setEnv('KMS_LOCAL_MASTER_KEY_BASE64', Buffer.alloc(32, 7).toString('base64'));
+    const { createKeyManagementPort } = await import('./providers');
+    const { LocalEnvelopeKeyProvider } = await import('@visastack/adapters');
+    expect(createKeyManagementPort()).toBeInstanceOf(LocalEnvelopeKeyProvider);
+  });
+
+  it('rejects an unrecognized KMS_PROVIDER instead of silently using the local provider anyway', async () => {
+    setEnv('KMS_PROVIDER', 'aws-kms');
+    const { createKeyManagementPort } = await import('./providers');
+    expect(() => createKeyManagementPort()).toThrow(/KMS_PROVIDER/);
   });
 });
 
