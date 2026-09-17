@@ -11,6 +11,7 @@ import {
   enqueueIntakeJob,
   failUpload,
   finalizeUpload,
+  findDuplicateVersions,
   getApplicant,
   getLatestExtractedText,
   loadUploadQuotaConfig,
@@ -257,9 +258,26 @@ export async function uploadDocumentAction(
     await finalizeUpload(db, intent.id, outcome.version.version.id);
     after(() => triggerIntakeWorker());
 
+    // EVI-03: informational only, never blocks the upload that already
+    // succeeded above, scoped to this SAME applicant's own other
+    // documents, never a cross-customer comparison.
+    const uploadedDocumentId = outcome.version.version.documentId;
+    const duplicateHash = outcome.version.version.sha256;
+    const duplicates = duplicateHash
+      ? await findDuplicateVersions(db, {
+          applicantId,
+          sha256: duplicateHash,
+          excludeDocumentId: uploadedDocumentId,
+        })
+      : [];
+    const duplicateNote =
+      duplicates.length > 0
+        ? ` This looks identical to ${duplicates.map((d) => `"${d.displayName}"`).join(', ')}, already in the vault.`
+        : '';
+
     return {
       ok: true,
-      message: `${originalName} uploaded and queued for a safety scan.`,
+      message: `${originalName} uploaded and queued for a safety scan.${duplicateNote}`,
     } satisfies ActionState;
   });
 

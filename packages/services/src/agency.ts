@@ -50,7 +50,7 @@ export type EvidenceRequest = typeof schema.evidenceRequests.$inferSelect;
  * this only proves the ORGANIZATION's grant, not the caller's standing
  * within it.
  */
-async function orgGrantPermits(
+export async function orgGrantPermits(
   db: Db,
   organizationId: string,
   applicantId: string,

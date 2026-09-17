@@ -415,6 +415,36 @@ export const documentVersions = pgTable(
   ],
 );
 
+// EVI-03: "document review supports pending, accepted, replacement required,
+// irrelevant and disputed." A document-level judgment on whether the
+// evidence itself is acceptable, distinct from missionDecisions (a
+// requirement-scoped, mission-specific judgment) and from
+// processingStatus/safetyStatus (pipeline state, not a reviewer's opinion).
+export const documentReviewOutcome = pgEnum('document_review_outcome', [
+  'PENDING',
+  'ACCEPTED',
+  'REPLACEMENT_REQUIRED',
+  'IRRELEVANT',
+  'DISPUTED',
+]);
+
+// Append-only, like missionDecisions: the latest row per document is "the"
+// current review status, with full history preserved.
+export const documentReviews = pgTable(
+  'document_reviews',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    documentId: uuid('document_id')
+      .notNull()
+      .references(() => documents.id, { onDelete: 'cascade' }),
+    outcome: documentReviewOutcome('outcome').notNull(),
+    reason: text('reason'),
+    reviewedByAccountId: uuid('reviewed_by_account_id').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index('document_reviews_document_idx').on(table.documentId)],
+);
+
 // --- Upload consistency: server-created upload intent (master directive §7
 // "PR 6") ---------------------------------------------------------------
 // Closes a real TOCTOU gap: without a durable reservation, two concurrent

@@ -737,3 +737,67 @@ checking), plus a `pages` assertion. Two new tests prove the two edge cases that
 keyword-classified BANK_STATEMENT sets `docType` alone, leaving `issuer`/`expiresAt` null; and a
 document with `docType` already set (simulating a prior version or a future manual correction) is
 never overwritten by a disagreeing re-classification.
+
+## AD-13: Duplicate detection and document review outcomes (EVI-03, closing known-issues.md item 31)
+
+**Decision, duplicate detection.** A new `findDuplicateVersions(db, {applicantId, sha256,
+excludeDocumentId})` (`packages/services/src/documents.ts`) finds other documents belonging to
+the SAME applicant with a version sharing the given hash. The real upload action
+(`apps/web/.../applicant/[id]/actions.ts`) calls it right after a successful upload, appending an
+informational note to the success message when a match is found. Advisory only: it never blocks
+or rejects the upload it runs against, matching EVI-03's own framing ("duplicate detection," not
+"duplicate prevention"). Checks every version of every other document, not only each one's
+latest, since a duplicate of a superseded version is still meaningfully "you already have this
+file." The `applicantId` filter is not an optimization; it is EVI-03's explicit safety
+requirement ("do not reveal cross-customer hash matches"), proven by a dedicated test with two
+real applicants sharing an identical hash and confirming zero cross-tenant matches.
+
+**Decision, document review outcomes.** A new append-only `documentReviews` table (mirroring
+`missionDecisions`'s own shape exactly: outcome, reason, actor, timestamp, latest row per subject
+is "the" current state) backs `recordDocumentReview`/`getCurrentDocumentReview`/
+`listDocumentReviews`, supporting exactly EVI-03's five named outcomes
+(PENDING/ACCEPTED/REPLACEMENT_REQUIRED/IRRELEVANT/DISPUTED). This is a judgment on the EVIDENCE
+itself, distinct from `missionDecisions` (a requirement-scoped, mission-specific judgment) and
+from `processingStatus`/`safetyStatus` (pipeline state, not a reviewer's opinion).
+
+**Who may record a review, and why this reads `missionDecisions` differently.**
+`recordMissionDecision`'s own doc comment is explicit that a mission decision is "deliberately not
+something the applicant can record on their own mission, or the concept collapses into
+self-attestation," so it authorizes org members only. `recordDocumentReview` authorizes BOTH the
+applicant owner and an org member whose organization holds a grant currently permitting `COMMENT`
+on the applicant, a deliberately different, wider call: EVI-03 places document review under
+evidence/metadata management, not under the mission-decision/case-readiness section
+`missionDecisions` itself serves, and an owner has a legitimate, non-self-attesting reason to
+flag their own document (e.g., "I know this bank statement is stale, mark it
+`REPLACEMENT_REQUIRED` while I get a new one") that is not a claim about case-readiness the way a
+mission decision is. Recorded plainly as an interpretation, not a certainty: if a later,
+more explicit product decision narrows this to org-only, `recordDocumentReview`'s own
+authorization block is the only place that needs to change.
+
+**Why `orgGrantPermits` was exported rather than reimplemented.** The org-standing check
+`recordDocumentReview` needs is byte-for-byte the same question `addNote`/`bulkExport`/
+`recordMissionDecision` already answer via `agency.ts`'s own (previously unexported)
+`orgGrantPermits`. Re-deriving the same grant/scope/status/expiry logic a second time in
+`documents.ts` was rejected outright, the same reasoning this codebase already applied to
+`structuralCheck` (AD-04) and `image-dimensions.ts` (AD-08): one implementation, reused, not two
+independently maintained copies that can silently drift apart. No circular import results
+(`agency.ts` does not import from `documents.ts`, directly or transitively).
+
+**What "replacement creates a new immutable version and notifies affected open cases" still
+needs.** The "new immutable version" half is already true structurally: `documentVersions` rows
+are never mutated or deleted by any normal write path, and `addDocumentVersion` always appends
+rather than overwrites. The "notifies affected open cases" half genuinely cannot be built yet:
+this codebase has no real notification system at all (Part 5 scope, `NullEmailPort` only
+`console.warn`s). Tracked honestly as a Part 5 dependency, not silently dropped or stubbed with a
+fake notification.
+
+**What this proves, and what remains open.** Four new tests for duplicate detection
+(`documents.test.ts`) prove: a same-applicant match is found; a matching hash across two
+different applicants is never returned (the tenant-isolation requirement itself); a document
+never matches itself; and no match when no other document shares the hash. Four new tests for
+review outcomes prove: the owner can review their own document; an org member with a real,
+accepted, covering grant can too; a stranger with no standing is denied; and the full history
+survives multiple reviews, with `getCurrentDocumentReview` correctly returning only the latest.
+Left open, tracked rather than assumed covered: no UI surface anywhere calls
+`recordDocumentReview` yet (neither an owner-facing nor an agency-facing one exists), and the
+notification half of "replacement" above.

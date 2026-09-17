@@ -10,6 +10,7 @@ import type {
 import { err, ok } from '@visastack/core';
 import { type Actor, type Grant as PolicyGrant, authorize } from '@visastack/policy';
 import { and, desc, eq, ne } from 'drizzle-orm';
+import { orgGrantPermits } from './agency';
 import { getApplicant } from './applicants';
 import { appendAuditEvent } from './audit';
 import { hasConsent } from './consent';
@@ -303,6 +304,157 @@ export async function registerDocumentWithVersion(
     if (error instanceof RegistrationAborted) return err(error.serviceError);
     throw error;
   }
+}
+
+export interface DuplicateDocumentMatch {
+  readonly documentId: string;
+  readonly displayName: string;
+}
+
+/**
+ * Other documents belonging to the SAME applicant that already have a
+ * version whose bytes hash identically to `sha256` (EVI-03: "duplicate
+ * detection is limited to the authorised subject/scope; do not reveal
+ * cross-customer hash matches": the `applicantId` filter here is not an
+ * optimization, it is the entire safety requirement this exists to meet).
+ * Checks every version of every other document, not only the latest: a
+ * duplicate of a superseded version is still meaningfully "you already have
+ * this file," and this is advisory only (informs the caller; never blocks
+ * or rejects the upload it's checking against).
+ */
+export async function findDuplicateVersions(
+  db: Db,
+  input: {
+    readonly applicantId: string;
+    readonly sha256: string;
+    readonly excludeDocumentId: string;
+  },
+): Promise<DuplicateDocumentMatch[]> {
+  const rows = await db
+    .selectDistinct({
+      documentId: schema.documents.id,
+      originalName: schema.documents.originalName,
+      approvedName: schema.documents.approvedName,
+    })
+    .from(schema.documentVersions)
+    .innerJoin(schema.documents, eq(schema.documents.id, schema.documentVersions.documentId))
+    .where(
+      and(
+        eq(schema.documents.applicantId, input.applicantId),
+        eq(schema.documentVersions.sha256, input.sha256),
+        ne(schema.documents.id, input.excludeDocumentId),
+      ),
+    );
+  return rows.map((r) => ({
+    documentId: r.documentId,
+    displayName: r.approvedName ?? r.originalName,
+  }));
+}
+
+// --- Document review (EVI-03) ------------------------------------------
+//
+// "Document review supports pending, accepted, replacement required,
+// irrelevant and disputed." A judgment on the EVIDENCE itself (is this
+// document acceptable), distinct from `missionDecisions` (a
+// requirement-scoped, mission-specific judgment in `agency.ts`) and from
+// `processingStatus`/`safetyStatus` (pipeline state, not a reviewer's
+// opinion). Append-only, like every other decision-history table in this
+// schema: the latest row per document is "the" current review status.
+
+export type DocumentReview = typeof schema.documentReviews.$inferSelect;
+
+/**
+ * Records a review outcome for a document (applicant owner, or an active
+ * member of an organization whose grant currently permits `COMMENT` on
+ * this applicant). Mirrors `addNote`'s own authorization shape exactly:
+ * the same bar that lets an org comment on a mission's case notes is the
+ * bar for judging whether the evidence itself is acceptable. Append-only;
+ * never updates or deletes a prior review, so a disputed history stays
+ * fully readable even after a later outcome supersedes it.
+ */
+export async function recordDocumentReview(
+  db: Db,
+  input: {
+    readonly actorAccountId: string;
+    readonly documentId: string;
+    readonly outcome: DocumentReview['outcome'];
+    readonly reason?: string;
+  },
+): Promise<Result<DocumentReview, ServiceError>> {
+  const document = first(
+    await db
+      .select()
+      .from(schema.documents)
+      .where(eq(schema.documents.id, input.documentId))
+      .limit(1),
+  );
+  if (!document) return err(serviceError('not_found', 'document not found'));
+
+  const applicant = await getApplicant(db, document.applicantId);
+  let authorized = applicant?.ownerAccountId === input.actorAccountId;
+  if (!authorized) {
+    const memberships = await listMembershipsForAccount(db, input.actorAccountId);
+    for (const membership of memberships) {
+      if (!membership.active) continue;
+      if (await orgGrantPermits(db, membership.organization.id, document.applicantId, 'COMMENT')) {
+        authorized = true;
+        break;
+      }
+    }
+  }
+  if (!authorized) return err(serviceError('forbidden', 'not authorized to review this document'));
+
+  return db.transaction(async (tx) => {
+    const review = required(
+      first(
+        await tx
+          .insert(schema.documentReviews)
+          .values({
+            documentId: input.documentId,
+            outcome: input.outcome,
+            reason: input.reason ?? null,
+            reviewedByAccountId: input.actorAccountId,
+          })
+          .returning(),
+      ),
+      'review',
+    );
+    await appendAuditEvent(tx, {
+      eventType: 'DOCUMENT_REVIEWED',
+      actorAccountId: input.actorAccountId,
+      method: 'MANUAL',
+      result: 'ALLOWED',
+      applicantId: document.applicantId,
+      resourceType: 'document',
+      resourceId: document.id,
+      metadata: { outcome: input.outcome },
+    });
+    return ok(review);
+  });
+}
+
+/** The current (most recent) review outcome for a document, or `undefined` if never reviewed. */
+export async function getCurrentDocumentReview(
+  db: Db,
+  documentId: string,
+): Promise<DocumentReview | undefined> {
+  return first(
+    await db
+      .select()
+      .from(schema.documentReviews)
+      .where(eq(schema.documentReviews.documentId, documentId))
+      .orderBy(desc(schema.documentReviews.createdAt))
+      .limit(1),
+  );
+}
+
+/** Full review history for a document, newest first (audit/transparency). */
+export async function listDocumentReviews(db: Db, documentId: string): Promise<DocumentReview[]> {
+  return db
+    .select()
+    .from(schema.documentReviews)
+    .where(eq(schema.documentReviews.documentId, documentId))
+    .orderBy(desc(schema.documentReviews.createdAt));
 }
 
 /** List an applicant's documents (owner-scoped). */

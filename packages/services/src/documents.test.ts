@@ -15,13 +15,19 @@ import { readDocumentAccessToken } from './document-access-token';
 import {
   addDocumentVersion,
   downloadDocument,
+  findDuplicateVersions,
+  getCurrentDocumentReview,
+  listDocumentReviews,
   listDocuments,
   previewDocument,
   recheckDocumentAccess,
+  recordDocumentReview,
   registerDocument,
   registerDocumentWithVersion,
 } from './documents';
 import { enqueueErasureJob } from './erasure';
+import { createOrganization, reviewOrganization } from './organizations';
+import { acceptGrant, createGrant } from './sharing';
 import type { AccessRef, IssueReadRefInput, StoragePort } from './storage';
 import { SUPPORT_ACCESS_PURPOSE, createSupportGrant } from './support-access';
 
@@ -204,6 +210,241 @@ describe('registerDocumentWithVersion — atomic first-version registration (mas
       .from(schema.documents)
       .where(eq(schema.documents.applicantId, applicant.id));
     expect(docs).toHaveLength(0);
+  });
+});
+
+describe('findDuplicateVersions: same-applicant-only duplicate detection (EVI-03)', () => {
+  let db: Db;
+  beforeEach(async () => {
+    db = await freshDb();
+  });
+
+  const HASH = 'd'.repeat(64);
+
+  it('finds another document belonging to the same applicant with an identical hash', async () => {
+    const { account, applicant } = await seedOwner(db, 'dup-owner@example.com');
+    const first = await registerDocumentWithVersion(db, {
+      actorAccountId: account.id,
+      applicantId: applicant.id,
+      originalName: 'passport.pdf',
+      source: 'UPLOAD',
+      bucket: 'QUARANTINE',
+      objectKey: 'dup-key-1',
+      sha256: HASH,
+    });
+    if (!isOk(first)) throw new Error('first');
+    const second = await registerDocumentWithVersion(db, {
+      actorAccountId: account.id,
+      applicantId: applicant.id,
+      originalName: 'passport-again.pdf',
+      source: 'UPLOAD',
+      bucket: 'QUARANTINE',
+      objectKey: 'dup-key-2',
+      sha256: HASH,
+    });
+    if (!isOk(second)) throw new Error('second');
+
+    const matches = await findDuplicateVersions(db, {
+      applicantId: applicant.id,
+      sha256: HASH,
+      excludeDocumentId: second.value.version.documentId,
+    });
+    expect(matches).toEqual([
+      { documentId: first.value.version.documentId, displayName: 'passport.pdf' },
+    ]);
+  });
+
+  it('never matches across two different applicants, even with the identical hash (tenant isolation)', async () => {
+    const { account: accountA, applicant: applicantA } = await seedOwner(
+      db,
+      'dup-tenant-a@example.com',
+    );
+    const { account: accountB, applicant: applicantB } = await seedOwner(
+      db,
+      'dup-tenant-b@example.com',
+    );
+    await registerDocumentWithVersion(db, {
+      actorAccountId: accountA.id,
+      applicantId: applicantA.id,
+      originalName: 'a-passport.pdf',
+      source: 'UPLOAD',
+      bucket: 'QUARANTINE',
+      objectKey: 'dup-tenant-a-key',
+      sha256: HASH,
+    });
+    const ownDoc = await registerDocumentWithVersion(db, {
+      actorAccountId: accountB.id,
+      applicantId: applicantB.id,
+      originalName: 'b-passport.pdf',
+      source: 'UPLOAD',
+      bucket: 'QUARANTINE',
+      objectKey: 'dup-tenant-b-key',
+      sha256: HASH,
+    });
+    if (!isOk(ownDoc)) throw new Error('ownDoc');
+
+    const matches = await findDuplicateVersions(db, {
+      applicantId: applicantB.id,
+      sha256: HASH,
+      excludeDocumentId: ownDoc.value.version.documentId,
+    });
+    expect(matches).toEqual([]);
+  });
+
+  it('excludes the document being checked from matching itself', async () => {
+    const { account, applicant } = await seedOwner(db, 'dup-self@example.com');
+    const doc = await registerDocumentWithVersion(db, {
+      actorAccountId: account.id,
+      applicantId: applicant.id,
+      originalName: 'passport.pdf',
+      source: 'UPLOAD',
+      bucket: 'QUARANTINE',
+      objectKey: 'dup-self-key',
+      sha256: HASH,
+    });
+    if (!isOk(doc)) throw new Error('doc');
+
+    const matches = await findDuplicateVersions(db, {
+      applicantId: applicant.id,
+      sha256: HASH,
+      excludeDocumentId: doc.value.version.documentId,
+    });
+    expect(matches).toEqual([]);
+  });
+
+  it('finds nothing when no other document shares the hash', async () => {
+    const { account, applicant } = await seedOwner(db, 'dup-none@example.com');
+    const doc = await registerDocumentWithVersion(db, {
+      actorAccountId: account.id,
+      applicantId: applicant.id,
+      originalName: 'passport.pdf',
+      source: 'UPLOAD',
+      bucket: 'QUARANTINE',
+      objectKey: 'dup-none-key',
+      sha256: HASH,
+    });
+    if (!isOk(doc)) throw new Error('doc');
+
+    const matches = await findDuplicateVersions(db, {
+      applicantId: applicant.id,
+      sha256: 'e'.repeat(64),
+      excludeDocumentId: doc.value.version.documentId,
+    });
+    expect(matches).toEqual([]);
+  });
+});
+
+describe('recordDocumentReview: document-level review outcomes (EVI-03)', () => {
+  let db: Db;
+  beforeEach(async () => {
+    db = await freshDb();
+  });
+
+  it('lets the applicant owner record a review on their own document', async () => {
+    const { account, document } = await seedOwnerWithDocument(db, 'review-owner@example.com');
+
+    const reviewed = await recordDocumentReview(db, {
+      actorAccountId: account.id,
+      documentId: document.id,
+      outcome: 'ACCEPTED',
+      reason: 'Looks correct.',
+    });
+    expect(isOk(reviewed)).toBe(true);
+    if (isOk(reviewed)) expect(reviewed.value.outcome).toBe('ACCEPTED');
+
+    const current = await getCurrentDocumentReview(db, document.id);
+    expect(current?.outcome).toBe('ACCEPTED');
+    expect(current?.reviewedByAccountId).toBe(account.id);
+  });
+
+  it('lets an org member with a covering COMMENT grant record a review', async () => {
+    const { account, applicant, document } = await seedOwnerWithDocument(
+      db,
+      'review-org-owner@example.com',
+    );
+    await setConsent(db, {
+      actorAccountId: account.id,
+      accountId: account.id,
+      type: 'SHARING',
+      granted: true,
+    });
+
+    const agent = await provisionAccount(db, { email: 'review-agent@example.com' });
+    if (!isOk(agent)) throw new Error('provision');
+    const org = await createOrganization(db, { actorAccountId: agent.value.id, name: 'Acme' });
+    if (!isOk(org)) throw new Error('org');
+    const admin = await provisionAccount(db, { email: 'review-platform-admin@example.com' });
+    if (!isOk(admin)) throw new Error('provision');
+    await reviewOrganization(db, {
+      reviewerAccountId: admin.value.id,
+      organizationId: org.value.id,
+      decision: 'ACTIVE',
+      stepUpSatisfied: true,
+    });
+    const grant = await createGrant(db, {
+      actorAccountId: account.id,
+      applicantId: applicant.id,
+      recipientOrganizationId: org.value.id,
+      actions: ['COMMENT'],
+      purpose: 'review',
+    });
+    if (!isOk(grant)) throw new Error('grant');
+    await acceptGrant(db, { actorAccountId: agent.value.id, grantId: grant.value.id });
+
+    const reviewed = await recordDocumentReview(db, {
+      actorAccountId: agent.value.id,
+      documentId: document.id,
+      outcome: 'REPLACEMENT_REQUIRED',
+      reason: 'Expired.',
+    });
+    expect(isOk(reviewed)).toBe(true);
+  });
+
+  it('denies a stranger with no standing at all', async () => {
+    const { document } = await seedOwnerWithDocument(db, 'review-denied-owner@example.com');
+    const stranger = await provisionAccount(db, { email: 'review-stranger@example.com' });
+    if (!isOk(stranger)) throw new Error('provision');
+
+    const denied = await recordDocumentReview(db, {
+      actorAccountId: stranger.value.id,
+      documentId: document.id,
+      outcome: 'DISPUTED',
+    });
+    expect(isErr(denied)).toBe(true);
+    if (isErr(denied)) expect(denied.error.code).toBe('forbidden');
+  });
+
+  it('keeps a full, append-only history; the latest review is the current one', async () => {
+    const { account, document } = await seedOwnerWithDocument(
+      db,
+      'review-history-owner@example.com',
+    );
+
+    await recordDocumentReview(db, {
+      actorAccountId: account.id,
+      documentId: document.id,
+      outcome: 'PENDING',
+    });
+    await recordDocumentReview(db, {
+      actorAccountId: account.id,
+      documentId: document.id,
+      outcome: 'DISPUTED',
+      reason: 'Looks altered.',
+    });
+    const accepted = await recordDocumentReview(db, {
+      actorAccountId: account.id,
+      documentId: document.id,
+      outcome: 'ACCEPTED',
+      reason: 'Confirmed genuine after all.',
+    });
+    expect(isOk(accepted)).toBe(true);
+
+    const history = await listDocumentReviews(db, document.id);
+    expect(history).toHaveLength(3);
+    expect(history.map((r) => r.outcome)).toEqual(['ACCEPTED', 'DISPUTED', 'PENDING']);
+
+    const current = await getCurrentDocumentReview(db, document.id);
+    expect(current?.outcome).toBe('ACCEPTED');
   });
 });
 

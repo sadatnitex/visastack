@@ -352,3 +352,25 @@ currently being null.
 Full detail: `docs/commercial-v1/architecture-decisions.md` AD-12; `docs/commercial-v1/known-issues.md`
 item 31 (duplicate detection and document review states, EVI-03's remaining scope);
 `docs/commercial-v1/requirements-ledger.md` EVI-03.
+
+## Part 4, chunk 5: duplicate detection and document review outcomes (EVI-03)
+
+Commit: working tree on top of `efecf92` (Part 4 chunk 4, document metadata, already pushed and
+PR #78 updated). New `findDuplicateVersions` (`packages/services/src/documents.ts`), new
+`documentReviews` table/enum (migration `0032_mixed_molly_hayes.sql`, additive only) backing
+`recordDocumentReview`/`getCurrentDocumentReview`/`listDocumentReviews`, and `agency.ts`'s
+previously-private `orgGrantPermits` exported for reuse rather than reimplemented.
+
+| # | Command | Exit | Result | Detail |
+|---|---|---|---|---|
+| 1 | `pnpm run lint` | 0 | PASS | Biome, 316 files checked, no fixes applied (import-order auto-fixes applied and re-verified before this run). No em-dashes in any newly-authored line. |
+| 2 | `pnpm run typecheck` | 0 | PASS | All 7 packages, no errors, including the new cross-file import (`documents.ts` importing `orgGrantPermits` from `agency.ts`) confirmed not to introduce a circular dependency. |
+| 3 | `pnpm run test` | 0 | PASS | 792 tests total across all 7 packages (i18n 6, core 2, policy 31, db 26 + 1 skipped, adapters 147 + 2 skipped, web 141, services 442). `findDuplicateVersions` gained 4 tests: a same-applicant match found; zero matches across two different applicants sharing an identical hash (the tenant-isolation requirement itself, proven with two real applicants, not asserted from reading the query); a document never matches itself; nothing found when no hash matches. `recordDocumentReview` gained 4 tests: the owner reviewing their own document; an org member with a real, accepted, covering `COMMENT` grant reviewing the same document; a stranger with no standing denied (`forbidden`); and a 3-review history where `listDocumentReviews` returns all 3 newest-first and `getCurrentDocumentReview` returns only the latest. |
+| 4 | `pnpm run build` | 0 | PASS | Full monorepo build including `apps/web`, full route manifest produced. |
+| 5 | `pnpm audit --prod` | 0 | PASS | "No known vulnerabilities found", no new dependencies (pure application/schema code). |
+
+Full detail: `docs/commercial-v1/architecture-decisions.md` AD-13; `docs/commercial-v1/known-issues.md`
+item 31 (resolved) and item 32 (the still-missing review UI and the Part-5-dependent notification
+half of "replacement"); `docs/commercial-v1/requirements-ledger.md` EVI-03. This closes EVI-03's
+tracked gaps down to `documentDate`/`subject` metadata (AD-12, no existing signal to derive them
+from) and the UI/notification items in known-issues.md item 32.

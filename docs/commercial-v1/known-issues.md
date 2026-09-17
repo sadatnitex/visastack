@@ -310,13 +310,17 @@ item gets its own requirements-ledger row once classified against the new direct
     `accessDocument`). Tracked here so it is not lost, since finding it required reading every
     document-resource `authorize()` call site in the codebase, work not likely to be repeated
     incidentally.
-31. (Part 4) EVI-03's remaining scope after AD-12: duplicate detection (`sha256` is computed and
-    stored on every `documentVersions` row, but no query anywhere compares it against an
-    applicant's other documents) and the PENDING/ACCEPTED/REPLACEMENT_REQUIRED/IRRELEVANT/DISPUTED
-    document review-state enum (no such column or state machine exists; `documents`/
-    `documentVersions` only carry `processingStatus`/`safetyStatus`, which are pipeline states, not
-    a human reviewer's decision on the document's content). Both are real, separate pieces of work
-    from the metadata-population fix in AD-12, tracked here rather than assumed covered by it.
+31. ~~EVI-03's remaining scope after AD-12: duplicate detection and the
+    PENDING/ACCEPTED/REPLACEMENT_REQUIRED/IRRELEVANT/DISPUTED document review-state enum.~~
+    **RESOLVED (Part 4, AD-13).** `findDuplicateVersions` (same-applicant-only, advisory) and
+    `documentReviews` (append-only, all five outcomes) are both real and tested.
+32. (Part 4) AD-13's own remaining scope: no UI anywhere, owner-facing or agency-facing, calls
+    the new `recordDocumentReview`. The service function is complete and tested, but a reviewer
+    has no page to actually use it from yet, matching this session's established pattern of a
+    still-missing feature rather than a regression. Also open: EVI-03's "replacement... notifies
+    affected open cases" needs a real notification system, which does not exist anywhere in this
+    codebase yet (Part 5 scope, `NullEmailPort` only `console.warn`s); tracked as a Part 5
+    dependency, not silently dropped.
 independently confirmed findings; the missing PRD file is tracked as Blocker 1 in
 `assumptions-and-blockers.md` (now resolved) rather than here, since it blocked the
 programme rather than being a product defect.
