@@ -60,7 +60,7 @@ export async function GET(): Promise<Response> {
     redirectUri: isPresent('NEXT_PUBLIC_WORKOS_REDIRECT_URI'),
   };
 
-  let db: { connected: boolean; schemaApplied: boolean; error?: string } = {
+  let db: { connected: boolean; schemaApplied: boolean; error?: string; dbNameDebug?: string } = {
     connected: false,
     schemaApplied: false,
   };
@@ -73,6 +73,17 @@ export async function GET(): Promise<Response> {
       db = { connected: true, schemaApplied: await isSchemaApplied(client) };
     } catch {
       db = { connected: false, schemaApplied: false, error: 'connection_failed' };
+    }
+    // TEMPORARY (2026-09-17): surfaces which database name this deployment
+    // actually resolved, to debug a schemaApplied mismatch. Not a secret
+    // (no credentials), gated by `verbose` same as everything else here.
+    // Removed once the mismatch is diagnosed.
+    if (verbose) {
+      try {
+        db.dbNameDebug = new URL(connectionString).pathname.replace(/^\//, '');
+      } catch {
+        db.dbNameDebug = 'unparseable';
+      }
     }
   }
 
