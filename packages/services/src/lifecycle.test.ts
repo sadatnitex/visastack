@@ -361,6 +361,39 @@ describe('account deletion workflow', () => {
     if (isErr(result)) expect(result.error.code).toBe('forbidden');
   });
 
+  it('refuses a second deletion request while one is already pending', async () => {
+    const { account } = await seedFullAccount(db, 'del-dup@example.com');
+    const first = await requestAccountDeletion(db, {
+      actorAccountId: account.id,
+      accountId: account.id,
+    });
+    expect(isOk(first)).toBe(true);
+
+    const second = await requestAccountDeletion(db, {
+      actorAccountId: account.id,
+      accountId: account.id,
+    });
+    expect(isErr(second)).toBe(true);
+    if (isErr(second)) expect(second.error.code).toBe('invalid');
+  });
+
+  it('under real concurrency, two requests racing for the same account never both create a PENDING row', async () => {
+    const { account } = await seedFullAccount(db, 'del-race@example.com');
+    const [a, b] = await Promise.all([
+      requestAccountDeletion(db, { actorAccountId: account.id, accountId: account.id }),
+      requestAccountDeletion(db, { actorAccountId: account.id, accountId: account.id }),
+    ]);
+    const results = [a, b];
+    expect(results.filter(isOk)).toHaveLength(1);
+    expect(results.filter(isErr)).toHaveLength(1);
+
+    const pendingRows = await db
+      .select()
+      .from(schema.accountDeletionRequests)
+      .where(eq(schema.accountDeletionRequests.accountId, account.id));
+    expect(pendingRows.filter((r) => r.status === 'PENDING')).toHaveLength(1);
+  });
+
   it('exposes the pending request via getPendingDeletion, cleared on cancel', async () => {
     const { account } = await seedFullAccount(db, 'del4@example.com');
     expect(await getPendingDeletion(db, account.id)).toBeUndefined();

@@ -1178,6 +1178,20 @@ export async function createTask(
   const description = input.description.trim();
   if (description.length === 0) return err(serviceError('invalid', 'a description is required'));
 
+  // Same cross-case check `loadOwnedRequirement` already applies for
+  // `selectEvidence`/`recordMissionDecision` (finding #34, post-programme
+  // defect register): without it, a task could attach to a requirement from
+  // a completely unrelated pack/case, not just an unrelated document/fact.
+  if (input.packRequirementId) {
+    const requirement = await loadOwnedRequirement(
+      db,
+      input.actorAccountId,
+      input.missionId,
+      input.packRequirementId,
+    );
+    if (!requirement.ok) return requirement;
+  }
+
   return db.transaction(async (tx) => {
     const task = required(
       first(

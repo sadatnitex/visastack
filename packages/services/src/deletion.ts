@@ -1,7 +1,7 @@
 import { type Result, err, ok } from '@visastack/core';
 import { and, eq, inArray, isNull, lte } from 'drizzle-orm';
 import { appendAuditEvent } from './audit';
-import { type Db, first, required, schema } from './db';
+import { type Db, first, isUniqueViolation, required, schema } from './db';
 import type { StorageObject } from './documents';
 import { enqueueErasureJob } from './erasure';
 import { type ServiceError, serviceError } from './errors';
@@ -76,31 +76,45 @@ export async function requestAccountDeletion(
   const now = input.now ?? new Date();
   const scheduledFor = new Date(now.getTime() + (input.gracePeriodMs ?? DEFAULT_GRACE_PERIOD_MS));
 
-  return db.transaction(async (tx) => {
-    const request = required(
-      first(
-        await tx
-          .insert(schema.accountDeletionRequests)
-          .values({
-            accountId: input.accountId,
-            scheduledFor,
-            reason: input.reason ?? null,
-          })
-          .returning(),
-      ),
-      'deletion request',
-    );
-    await appendAuditEvent(tx, {
-      eventType: 'ACCOUNT_DELETION_REQUESTED',
-      actorAccountId: input.accountId,
-      method: 'API',
-      result: 'ALLOWED',
-      resourceType: 'account',
-      resourceId: input.accountId,
-      metadata: { scheduledFor: scheduledFor.toISOString() },
+  try {
+    return await db.transaction(async (tx) => {
+      const request = required(
+        first(
+          await tx
+            .insert(schema.accountDeletionRequests)
+            .values({
+              accountId: input.accountId,
+              scheduledFor,
+              reason: input.reason ?? null,
+            })
+            .returning(),
+        ),
+        'deletion request',
+      );
+      await appendAuditEvent(tx, {
+        eventType: 'ACCOUNT_DELETION_REQUESTED',
+        actorAccountId: input.accountId,
+        method: 'API',
+        result: 'ALLOWED',
+        resourceType: 'account',
+        resourceId: input.accountId,
+        metadata: { scheduledFor: scheduledFor.toISOString() },
+      });
+      return ok(request);
     });
-    return ok(request);
-  });
+  } catch (error) {
+    // The pre-check above narrows the window but is two separate statements,
+    // not one atomic operation, a true concurrent request can still pass it
+    // before either commits. The partial unique index on (accountId) WHERE
+    // status = 'PENDING' is the real backstop; this turns its violation into
+    // the same clean error the pre-check already returns, matching
+    // accounts.ts's established isUniqueViolation pattern, rather than an
+    // unhandled 500.
+    if (isUniqueViolation(error)) {
+      return err(serviceError('invalid', 'a deletion request is already pending'));
+    }
+    throw error;
+  }
 }
 
 /** Cancel a pending deletion request during the grace window. */
