@@ -107,6 +107,13 @@ export {
 } from './protected-fields';
 
 export {
+  type BackfillProtectedFieldsInput,
+  type EncryptionBackfillReport,
+  type PlaintextProtectedField,
+  backfillProtectedFields,
+} from './encryption-backfill';
+
+export {
   SUPPORT_ACCESS_PURPOSE,
   SUPPORT_GRANT_MAX_DURATION_MINUTES,
   type CreateSupportGrantInput,
