@@ -67,6 +67,27 @@ Options for the product owner:
 Until resolved, IAM-01/SEC-01's MFA requirement is REPAIR/NOT_STARTED in the ledger, and A01
 cannot pass.
 
+### Resolution (2026-09-17)
+
+Product owner chose option 1: universal MFA for V1, travellers included, accepted as a
+stronger posture than the PRD's own traveller-optional design (deviation named per Part 1's
+rule: affected requirement IAM-01/§4; reason: no role-scoped alternative found; security
+effect: strictly more conservative, not weaker; migration effect: none, a live setting only;
+cost/operational effect: travellers must enroll a second factor, a real UX change from the
+PRD's stated design; replacement acceptance evidence: explicit product-owner authorization,
+this record).
+
+Attempted via the connected WorkOS MCP tool (`updateAuthkitSettings`, `mfaEnabled: "Required"`,
+Production environment): refused by WorkOS itself with `FORBIDDEN`, "Your role ('ADMIN') does
+not have permission for this operation. Some roles have different access levels in sandbox vs
+production environments." This is a WorkOS-side permission boundary on the connected account,
+not a decision this session made or can route around. The product owner needs to make this one
+specific change directly in the WorkOS dashboard (Production environment, AuthKit/Authentication
+settings, MFA -> Required); this session cannot perform it.
+
+Once flipped, IAM-01/SEC-01 can move from BLOCKED and A01 can be attempted. Nothing else in
+Part 2 depends on this specific change landing first.
+
 ## Decision: how "push to production" is being interpreted
 
 The instruction to commit, push, and reach production within three minutes of
