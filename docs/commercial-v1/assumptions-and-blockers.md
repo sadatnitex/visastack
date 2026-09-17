@@ -133,6 +133,23 @@ Until it lands, SEC-01's least-privilege requirement stays IMPLEMENTED_UNVERIFIE
 VERIFIED: the grant is live in Neon, but the app has not yet been proven to run correctly
 under the restricted role, since it isn't using it yet.
 
+### Update (2026-09-17): DB role switch deferred again, KMS master key set
+
+Offered the exact steps to switch `DIRECT_DATABASE_URL` to `visastack_app`'s connection
+string; the product owner deferred it again, reasonably: it is a hardening step, not a fix for
+something broken (the app runs fine on `neondb_owner` today), and can wait for a moment with
+more patience for another dashboard. Not silently dropped, tracked here as still open.
+
+Separately, and not blocked on the above: the product owner generated and set
+`KMS_LOCAL_MASTER_KEY_BASE64` in Vercel (Production and Preview, marked Sensitive) after this
+session explored, and ruled out, using their newly-created Vercel-managed OIDC token issuer
+(`kms.vercel.com`, an RS512 signing-key service for workload identity federation to external
+clouds, not a data-encryption service) for this purpose, confirmed by reading the actual
+dashboard page the product owner screenshotted, not assumed from the "Managed KMS" name alone.
+A real external KMS (e.g. AWS KMS via that same OIDC issuer) remains a genuinely better
+long-term path and was offered explicitly; deferred in favor of unblocking today's actual
+issue first. Still BLOCKED as before: "live KMS adapter/verification" (no real vendor account).
+
 ## Decision: how "push to production" is being interpreted
 
 The instruction to commit, push, and reach production within three minutes of
