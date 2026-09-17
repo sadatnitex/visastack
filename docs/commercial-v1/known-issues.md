@@ -413,6 +413,14 @@ item gets its own requirements-ledger row once classified against the new direct
     that prompted this audit: no wall-clock timeout at all on `checkPdf`/`extractPdf`'s parse
     step, and `renderPdf` never re-checking the page-count limit at render time (only at
     intake). Full detail: `requirements-ledger.md` SEC-05.
+39. ~~Directive Part 3 Section 3's "delete abandoned objects/reservations after 24 hours" was
+    unimplemented: the 10-minute `RESERVATION_TTL_MS` only ever excluded an abandoned upload
+    reservation from quota sums, never cleaned anything up, and a request killed between the
+    blob write and `finalizeUpload`/`failUpload` left a permanently `RESERVED` row and possibly
+    orphaned quarantine bytes with nothing ever revisiting either.~~ **RESOLVED (Part 3).** New
+    `sweepAbandonedUploads` runs on its own scheduled cron (`/api/jobs/process-abandoned-uploads`),
+    deletes bytes under the abandoned intent's own known object key, and marks the intent
+    `FAILED`. Full detail: `requirements-ledger.md` EVI-01.
 independently confirmed findings; the missing PRD file is tracked as Blocker 1 in
 `assumptions-and-blockers.md` (now resolved) rather than here, since it blocked the
 programme rather than being a product defect.

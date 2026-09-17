@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { type Result, err, ok } from '@visastack/core';
-import { and, eq, gt, sql } from 'drizzle-orm';
+import { and, eq, gt, lt, sql } from 'drizzle-orm';
 import { type Db, first, required, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
 import {
@@ -11,6 +11,7 @@ import {
   loadUploadQuotaConfig,
   mbLabel,
 } from './quotas';
+import type { BlobStore } from './storage';
 
 /**
  * Upload consistency (master directive §7 "PR 6"): server-created upload
@@ -180,4 +181,76 @@ export async function failUpload(db: Db, intentId: string, reason: string): Prom
     .update(schema.uploadIntents)
     .set({ status: 'FAILED', failureReason: reason.slice(0, 2000), updatedAt: new Date() })
     .where(eq(schema.uploadIntents.id, intentId));
+}
+
+/**
+ * Grace period before an abandoned reservation is irreversibly cleaned up
+ * (directive Part 3 §3: "Delete abandoned objects/reservations after 24
+ * hours"). Deliberately a separate, much longer constant than
+ * `RESERVATION_TTL_MS`, which only stops a reservation counting toward
+ * quota: cleanup deletes bytes and is not the same decision as "stop
+ * charging this against the applicant's limit."
+ */
+const ABANDONED_CLEANUP_AGE_MS = 24 * 60 * 60 * 1000;
+
+const DEFAULT_ABANDONED_SWEEP_LIMIT = 200;
+
+export interface AbandonedUploadSweepResult {
+  readonly checked: number;
+  readonly cleaned: number;
+}
+
+/**
+ * Sweeps `uploadIntents` rows still `RESERVED` well past their TTL:
+ * `reserveUpload`'s own request always ends in `finalizeUpload`/`failUpload`
+ * except when the request itself was killed partway through (a serverless
+ * timeout, OOM, or container recycle between the blob write and the
+ * following steps), which no in-request try/catch can cover (see
+ * `apps/web/.../actions.ts`'s own doc comment on why its try/catch is
+ * deliberately scoped to stop before that point). Best-effort deletes any
+ * bytes already written under the intent's own opaque `objectKey`, never
+ * assumed to exist since the crash may have happened before the write ever
+ * ran, then marks the intent `FAILED` with a compare-and-set so a
+ * reservation that legitimately completed or failed between this sweep's
+ * read and write is never stomped. Matches `failUpload`'s own shape: never
+ * deletes the row itself (audit trail of abandoned attempts).
+ *
+ * Distinct from `reconciliation.ts`'s admin-triggered, report-only orphan
+ * sweep: this targets one specific, well-understood failure shape (a
+ * reservation whose own object key is known with certainty, not inferred
+ * from "bytes with no metadata row" across the whole bucket) and is safe to
+ * run unattended on a schedule, deleting bytes automatically rather than
+ * only reporting them.
+ */
+export async function sweepAbandonedUploads(
+  db: Db,
+  blobStore: BlobStore,
+  limit = DEFAULT_ABANDONED_SWEEP_LIMIT,
+): Promise<AbandonedUploadSweepResult> {
+  const cutoff = new Date(Date.now() - ABANDONED_CLEANUP_AGE_MS);
+  const stale = await db
+    .select()
+    .from(schema.uploadIntents)
+    .where(
+      and(eq(schema.uploadIntents.status, 'RESERVED'), lt(schema.uploadIntents.expiresAt, cutoff)),
+    )
+    .limit(limit);
+
+  let cleaned = 0;
+  for (const intent of stale) {
+    await blobStore.deleteObject('QUARANTINE', intent.objectKey).catch(() => undefined);
+    const updated = await db
+      .update(schema.uploadIntents)
+      .set({
+        status: 'FAILED',
+        failureReason: 'abandoned: no upload activity completed within 24 hours of reservation',
+        updatedAt: new Date(),
+      })
+      .where(
+        and(eq(schema.uploadIntents.id, intent.id), eq(schema.uploadIntents.status, 'RESERVED')),
+      )
+      .returning({ id: schema.uploadIntents.id });
+    if (updated.length > 0) cleaned++;
+  }
+  return { checked: stale.length, cleaned };
 }

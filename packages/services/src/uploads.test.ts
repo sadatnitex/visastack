@@ -11,7 +11,8 @@ import { createApplicant } from './applicants';
 import { setConsent } from './consent';
 import type { Db } from './db';
 import { addDocumentVersion, registerDocument } from './documents';
-import { failUpload, finalizeUpload, reserveUpload } from './uploads';
+import type { BlobStore } from './storage';
+import { failUpload, finalizeUpload, reserveUpload, sweepAbandonedUploads } from './uploads';
 
 const migrationsFolder = fileURLToPath(new URL('../../db/migrations', import.meta.url));
 
@@ -324,5 +325,170 @@ describe('finalizeUpload / failUpload — reservation lifecycle', () => {
       tightConfig,
     );
     expect(isOk(afterFailure)).toBe(true);
+  });
+});
+
+/** An in-memory BlobStore fixture whose deleteObject calls are recorded, so a test can assert exactly which object keys a sweep actually cleaned up. */
+function fakeBlobStore(objectsPresent: ReadonlySet<string>): BlobStore & { deletedKeys: string[] } {
+  const deletedKeys: string[] = [];
+  return {
+    deletedKeys,
+    async getObject(objectKey: string) {
+      return objectsPresent.has(objectKey)
+        ? { contentType: 'application/pdf', bytes: new Uint8Array([1]) }
+        : undefined;
+    },
+    async putObject() {
+      throw new Error('not used in this test');
+    },
+    async deleteObject(_bucket, objectKey: string) {
+      deletedKeys.push(objectKey);
+    },
+    async listObjectKeys() {
+      throw new Error('not used in this test');
+    },
+  };
+}
+
+describe('sweepAbandonedUploads - 24h cleanup of abandoned reservations (directive Part 3 §3)', () => {
+  let db: Db;
+  beforeEach(async () => {
+    db = await freshDb();
+  });
+
+  it('cleans up a RESERVED intent whose reservation expired more than 24 hours ago: deletes its bytes and marks it FAILED', async () => {
+    const { accountId, applicantId } = await seedApplicantWithEvidence(
+      db,
+      'abandoned@example.com',
+      [],
+    );
+    const reserved = await reserveUpload(
+      db,
+      { accountId, applicantId, sizeBytes: MB },
+      tightConfig,
+    );
+    if (!isOk(reserved)) throw new Error('reserve failed');
+    const longAgo = new Date(Date.now() - 25 * 60 * 60 * 1000); // expired 25h ago
+    await db
+      .update(schema.uploadIntents)
+      .set({ expiresAt: longAgo })
+      .where(eq(schema.uploadIntents.id, reserved.value.id));
+
+    const blobStore = fakeBlobStore(new Set([reserved.value.objectKey]));
+    const result = await sweepAbandonedUploads(db, blobStore);
+    expect(result).toEqual({ checked: 1, cleaned: 1 });
+    expect(blobStore.deletedKeys).toEqual([reserved.value.objectKey]);
+
+    const [row] = await db
+      .select()
+      .from(schema.uploadIntents)
+      .where(eq(schema.uploadIntents.id, reserved.value.id));
+    expect(row?.status).toBe('FAILED');
+    expect(row?.failureReason).toContain('abandoned');
+  });
+
+  it('best-effort cleans up an abandoned intent even when no bytes were ever written for it (the crash happened before the blob write)', async () => {
+    const { accountId, applicantId } = await seedApplicantWithEvidence(
+      db,
+      'never-wrote@example.com',
+      [],
+    );
+    const reserved = await reserveUpload(
+      db,
+      { accountId, applicantId, sizeBytes: MB },
+      tightConfig,
+    );
+    if (!isOk(reserved)) throw new Error('reserve failed');
+    await db
+      .update(schema.uploadIntents)
+      .set({ expiresAt: new Date(Date.now() - 25 * 60 * 60 * 1000) })
+      .where(eq(schema.uploadIntents.id, reserved.value.id));
+
+    // No key present in the blob store at all -- deleteObject is still called
+    // (best-effort, no-op on the backend side) and the sweep still succeeds.
+    const blobStore = fakeBlobStore(new Set());
+    const result = await sweepAbandonedUploads(db, blobStore);
+    expect(result).toEqual({ checked: 1, cleaned: 1 });
+
+    const [row] = await db
+      .select()
+      .from(schema.uploadIntents)
+      .where(eq(schema.uploadIntents.id, reserved.value.id));
+    expect(row?.status).toBe('FAILED');
+  });
+
+  it('never touches a reservation that has not yet passed the 24h grace period, even if its 10-minute quota TTL already expired', async () => {
+    const { accountId, applicantId } = await seedApplicantWithEvidence(
+      db,
+      'recent@example.com',
+      [],
+    );
+    const reserved = await reserveUpload(
+      db,
+      { accountId, applicantId, sizeBytes: MB },
+      tightConfig,
+    );
+    if (!isOk(reserved)) throw new Error('reserve failed');
+    // Expired for quota purposes (in the past), but well within the 24h
+    // cleanup grace period -- a genuinely still-in-flight upload must never
+    // be swept just because its short quota TTL alone has lapsed.
+    await db
+      .update(schema.uploadIntents)
+      .set({ expiresAt: new Date(Date.now() - 60 * 1000) })
+      .where(eq(schema.uploadIntents.id, reserved.value.id));
+
+    const blobStore = fakeBlobStore(new Set([reserved.value.objectKey]));
+    const result = await sweepAbandonedUploads(db, blobStore);
+    expect(result).toEqual({ checked: 0, cleaned: 0 });
+    expect(blobStore.deletedKeys).toEqual([]);
+
+    const [row] = await db
+      .select()
+      .from(schema.uploadIntents)
+      .where(eq(schema.uploadIntents.id, reserved.value.id));
+    expect(row?.status).toBe('RESERVED');
+  });
+
+  it('never touches an intent that already completed or failed normally, however old', async () => {
+    const { accountId, applicantId } = await seedApplicantWithEvidence(
+      db,
+      'completed@example.com',
+      [],
+    );
+    const reserved = await reserveUpload(
+      db,
+      { accountId, applicantId, sizeBytes: MB },
+      tightConfig,
+    );
+    if (!isOk(reserved)) throw new Error('reserve failed');
+    const registered = await registerDocument(db, {
+      actorAccountId: accountId,
+      applicantId,
+      originalName: 'passport.pdf',
+    });
+    if (!isOk(registered)) throw new Error('register failed');
+    const versioned = await addDocumentVersion(db, {
+      actorAccountId: accountId,
+      documentId: registered.value.id,
+      bucket: 'QUARANTINE',
+      objectKey: reserved.value.objectKey,
+      sizeBytes: MB,
+    });
+    if (!isOk(versioned)) throw new Error('version failed');
+    await finalizeUpload(db, reserved.value.id, versioned.value.version.id);
+    await db
+      .update(schema.uploadIntents)
+      .set({ expiresAt: new Date(Date.now() - 48 * 60 * 60 * 1000) })
+      .where(eq(schema.uploadIntents.id, reserved.value.id));
+
+    const blobStore = fakeBlobStore(new Set([reserved.value.objectKey]));
+    const result = await sweepAbandonedUploads(db, blobStore);
+    expect(result).toEqual({ checked: 0, cleaned: 0 });
+
+    const [row] = await db
+      .select()
+      .from(schema.uploadIntents)
+      .where(eq(schema.uploadIntents.id, reserved.value.id));
+    expect(row?.status).toBe('COMPLETED');
   });
 });
