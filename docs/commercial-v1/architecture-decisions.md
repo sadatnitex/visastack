@@ -585,3 +585,52 @@ no UI regression, only a still-missing feature, tracked in `known-issues.md`); a
 `individual_recipient` actors have no notes-read path anywhere in this codebase, a pre-existing
 gap this fix did not introduce, worsen, or close (they can `addNote` via `COMMENT`, but nothing
 lets one list notes back), also tracked in `known-issues.md`.
+
+## AD-10: Grant duration bounds, 30-day default and 90-day maximum (SHR-01)
+
+**Decision.** `createGrant` (`packages/services/src/sharing.ts`) no longer treats an omitted
+`expiryAt` as "never expires." `GRANT_MAX_DURATION_DAYS` is corrected from an inherited `365` to
+the PRD's own explicit number, `90` ("maximum initial duration 90 days"); a new
+`GRANT_DEFAULT_DURATION_DAYS = 30` ("default duration is 30 days") is applied whenever the caller
+names no expiry at all. The resolved value, never the raw caller input, is what gets persisted.
+An explicit expiry from the caller is still validated exactly as before (must be in the future,
+capped at the same 90-day bound), so a caller asking for a shorter, bounded window is unaffected;
+only the previously-unbounded "no expiry" case changes.
+
+**Why this was a real, live gap, not a theoretical one.** `apps/web`'s own sharing UI
+(`grant-form.tsx`) is the only production caller of `createGrant`, and its `expiryDays` field was
+optional with the placeholder "Leave blank for no expiry," and its own live summary told the
+owner outright: "Access never expires unless you revoke it." Every grant created through this
+platform's one sharing flow without the owner manually typing a number was, and until this fix
+remained, permanent, directly contradicting the PRD's explicit default. This was found by reading
+`createGrant`'s validation branch while auditing Part 4's sharing/grant-lifecycle requirements,
+not reported; no existing test in `sharing.test.ts` exercised expiry defaulting or the maximum
+bound at all, confirming this had never been verified either way before now.
+
+**Why the fix lives entirely in the service, not the UI form.** `grant-form.tsx` already passes
+`expiryAt` through only when the owner supplies a number; leaving the default and cap to
+`createGrant` itself means every caller (this UI today, any future caller: an API, a CLI, a
+contributor-request flow) gets the same correct, PRD-compliant behavior automatically, rather
+than each needing to reimplement "default to 30 days" on its own and risk drifting out of sync.
+The UI change made alongside this is copy-only: the placeholder and live summary no longer claim
+grants can be permanent, and the input gains a `max="90"` affordance; the actual enforcement was
+already, and remains, server-side.
+
+**Why no migration or backfill.** This changes only what a *new* `createGrant` call persists, not
+the schema (`grants.expiry_at` was already a nullable timestamp) and not any existing row. Grants
+already sitting at `expiryAt: null` from before this fix keep working exactly as before: `authorize()`
+and the two `isNull(expiryAt) OR expiryAt > now` queries in `agency.ts` already treat a null
+expiry as "no time bound," which remains correct for that pre-existing data. Retroactively forcing
+an expiry onto a grant a recipient already accepted under a no-expiry promise would revoke access
+the recipient was told they'd keep, a real behavior change to existing relationships this fix does
+not make; only grants created from this commit forward get a bounded expiry.
+
+**What this proves, and what SHR-01 still needs.** Four new tests in `sharing.test.ts` prove,
+against real `createGrant` calls, not just the validation function in isolation: an omitted
+expiry lands within a few minutes of exactly 30 days out; a requested 91-day expiry is rejected;
+an explicit, valid 60-day request is honored exactly as given; and an expiry already in the past
+is rejected (the last of these was, like the other three, previously untested). Left open,
+tracked rather than silently assumed covered by this fix: SHR-01's own further clauses
+("renewal is an explicit action"; "categories do not automatically include future documents by
+default; expanding scope requires a displayed confirmation") are separate, larger pieces of the
+same requirement row, not yet built: see `known-issues.md` and `requirements-ledger.md` SHR-01.

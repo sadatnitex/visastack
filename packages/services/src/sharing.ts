@@ -90,8 +90,11 @@ export interface CreateGrantInput {
   readonly stepUpSatisfied?: boolean;
 }
 
-/** No grant may outlive its creation by more than this — a bound, not a default. */
-const GRANT_MAX_DURATION_DAYS = 365;
+/** PRD SHR-01: "maximum initial duration 90 days." No grant may outlive its creation by more than this. */
+const GRANT_MAX_DURATION_DAYS = 90;
+
+/** PRD SHR-01: "Default duration is 30 days." Applied when the caller names no expiry at all, so a grant is never silently permanent. */
+const GRANT_DEFAULT_DURATION_DAYS = 30;
 
 /**
  * Create a pending, purpose-bound grant (applicant owner only).
@@ -104,6 +107,13 @@ const GRANT_MAX_DURATION_DAYS = 365;
  * must actually belong to this applicant; categories must be canonical
  * packs; actions must be canonical `PermissionAction`s; expiry, if given,
  * must be in the future and within `GRANT_MAX_DURATION_DAYS`.
+ *
+ * PRD SHR-01 (Commercial V1 Part 4): an omitted `expiryAt` no longer means
+ * "never expires." Every grant gets a real, bounded expiry:
+ * `GRANT_DEFAULT_DURATION_DAYS` when the caller names none, capped at
+ * `GRANT_MAX_DURATION_DAYS` either way. Renewal beyond that bound is the
+ * owner's own explicit, separate action (accepting a fresh grant), never an
+ * initial duration this function will hand out itself.
  *
  * Step-up: creating a grant that hands out a `STEP_UP_ACTIONS` action
  * (`DOWNLOAD_ORIGINAL`, `EXPORT_PROFILE`, `SHARE`) is itself the sensitive
@@ -154,8 +164,8 @@ export async function createGrant(
     if (invalidCategory)
       return err(serviceError('invalid', `unknown category: ${invalidCategory}`));
   }
+  const now = Date.now();
   if (input.expiryAt) {
-    const now = Date.now();
     if (input.expiryAt.getTime() <= now) {
       return err(serviceError('invalid', 'expiry must be in the future'));
     }
@@ -165,6 +175,10 @@ export async function createGrant(
       );
     }
   }
+  // PRD SHR-01: no expiry named by the caller defaults to 30 days, never to
+  // permanent access. This is the value actually persisted below.
+  const resolvedExpiryAt =
+    input.expiryAt ?? new Date(now + GRANT_DEFAULT_DURATION_DAYS * 24 * 60 * 60 * 1000);
 
   if (input.recipientAccountId) {
     const recipient = first(
@@ -235,7 +249,7 @@ export async function createGrant(
             categories: input.categories ? [...input.categories] : null,
             documentIds: input.documentIds ? [...input.documentIds] : null,
             purpose: input.purpose.trim(),
-            expiryAt: input.expiryAt ?? null,
+            expiryAt: resolvedExpiryAt,
           })
           .returning(),
       ),

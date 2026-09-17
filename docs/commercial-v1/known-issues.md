@@ -285,6 +285,20 @@ item gets its own requirements-ledger row once classified against the new direct
     list notes back. This is a pre-existing gap, confirmed to predate this chunk's changes, not
     worsened or introduced by the visibility fix; tracked here since it was noticed while
     auditing every `missionNotes` read path, not because this chunk caused it.
+29. (Part 4) SHR-01's "categories do not automatically include future documents by default;
+    expanding scope requires a displayed confirmation" is confirmed, while fixing this row's
+    duration bounds (AD-10), to be unimplemented: `getRecipientWorkspace`
+    (`packages/services/src/sharing.ts`) and `bulkExport` (`packages/services/src/agency.ts`)
+    both re-evaluate `authorize()` against every document currently on the applicant on each
+    read, live, with no notion of which documents existed when the grant's `categories` were
+    set. A document uploaded the day after a category-scoped grant was accepted, if it matches
+    that category, becomes visible to the recipient immediately, with no owner action and no
+    displayed confirmation of any kind, exactly what this PRD line prohibits by default. Not
+    fixed this chunk: closing it correctly needs a real design decision (at minimum, a snapshot
+    of which documents a category grant actually covers, taken at accept time, plus a genuine
+    owner-facing "expand scope" action with its own confirmation step) that is larger than a
+    duration-bound correction and deserves its own dedicated chunk, tracked here rather than
+    folded silently into AD-10's smaller fix.
 
 Items 1 through 4, 5 through 9, and 14/15 above are carried forward or upgraded to
 independently confirmed findings; the missing PRD file is tracked as Blocker 1 in

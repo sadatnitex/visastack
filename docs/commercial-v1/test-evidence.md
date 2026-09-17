@@ -266,3 +266,29 @@ and unchanged by this fix (`known-issues.md` item 28b).
 Full detail: `docs/commercial-v1/architecture-decisions.md` AD-09; `docs/commercial-v1/known-issues.md`
 item 7 (resolved) and item 28 (the two gaps above); `docs/commercial-v1/requirements-ledger.md`
 CAS-05.
+
+## Part 4, chunk 2: grant duration bounds, 30-day default and 90-day maximum (SHR-01)
+
+Commit: working tree on top of `9cef63c` (Part 4 chunk 1, mission note visibility, already
+pushed and PR #78 updated). `GRANT_MAX_DURATION_DAYS` corrected 365 to 90; new
+`GRANT_DEFAULT_DURATION_DAYS = 30` applied whenever `createGrant`'s caller names no expiry.
+`grant-form.tsx` copy updated to match (no longer claims a blank expiry means permanent access).
+
+| # | Command | Exit | Result | Detail |
+|---|---|---|---|---|
+| 1 | `pnpm run lint` | 0 | PASS | Biome, 313 files checked. One formatting violation in the new `sharing.test.ts` tests (a line over print width) was caught and fixed with `biome check --write` before this run, then re-verified clean. Every newly-authored line checked against the no-em-dash preference; a test title needing an apostrophe used double quotes, matching this codebase's own established convention (`missions.test.ts`'s `"refuses actions on another owner's mission"`), not a Unicode curly quote. |
+| 2 | `pnpm run typecheck` | 0 | PASS | All 7 packages, no errors. |
+| 3 | `pnpm run test` | 0 | PASS | 780 tests total across all 7 packages (i18n 6, core 2, policy 29, db 26 + 1 skipped, adapters 147 + 2 skipped, web 141, services 426). `sharing.test.ts` gained 4 new tests, all against real `createGrant` calls, not the validation function in isolation: an omitted expiry lands within a few minutes of exactly 30 days out (asserted with a tolerance window, not an exact-millisecond match, since real wall-clock time elapses between the test's own `Date.now()` call and the service's); a 91-day requested expiry is rejected (`invalid`); an explicit, valid 60-day request is honored exactly as given; and an expiry already in the past is rejected, the last of these previously untested by any existing test in the file. Full existing `sharing.test.ts` suite (23 tests) re-run green, confirming no existing grant-creation test broke, consistent with none of them previously asserting anything about the resulting `expiryAt` value. |
+| 4 | `pnpm run build` | 0 | PASS | Full monorepo build including `apps/web`, full route manifest produced. |
+| 5 | `pnpm audit --prod` | 0 | PASS | "No known vulnerabilities found", no new dependencies added (pure application logic and UI copy). |
+
+While fixing this, auditing SHR-01's remaining clauses surfaced a second, larger, unfixed gap in
+the same PRD row: category-scoped grants silently absorb newly uploaded documents on every live
+read (`getRecipientWorkspace`, `bulkExport`), with no snapshot and no owner confirmation, directly
+contradicting "categories do not automatically include future documents by default; expanding
+scope requires a displayed confirmation." This is recorded, not fixed, this chunk: see
+`known-issues.md` item 29 for why it needs its own dedicated design work rather than being folded
+into this smaller, purely mechanical duration correction.
+
+Full detail: `docs/commercial-v1/architecture-decisions.md` AD-10; `docs/commercial-v1/known-issues.md`
+item 29 (the still-open scope-absorption gap); `docs/commercial-v1/requirements-ledger.md` SHR-01.

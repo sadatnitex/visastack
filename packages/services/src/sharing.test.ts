@@ -320,6 +320,86 @@ describe('sharing — grant lifecycle end-to-end with the policy engine', () => 
     expect(isOk(created)).toBe(true);
   });
 
+  it('defaults an omitted expiry to 30 days out, never permanent (PRD SHR-01)', async () => {
+    const { account, applicantId } = await ownerWithDoc(db, 'default-duration-owner@example.com');
+    const recipient = await provisionAccount(db, {
+      email: 'default-duration-recipient@example.com',
+    });
+    if (!isOk(recipient)) throw new Error('provision');
+
+    const created = await createGrant(db, {
+      actorAccountId: account.id,
+      applicantId,
+      recipientAccountId: recipient.value.id,
+      actions: ['PREVIEW'],
+      purpose: 'visa_application',
+    });
+    expect(isOk(created)).toBe(true);
+    if (isOk(created)) {
+      const expiryAt = created.value.expiryAt;
+      if (!expiryAt) throw new Error('expected a default expiry, got none');
+      const daysOut = (expiryAt.getTime() - Date.now()) / (24 * 60 * 60 * 1000);
+      expect(daysOut).toBeGreaterThan(29.9);
+      expect(daysOut).toBeLessThanOrEqual(30);
+    }
+  });
+
+  it('rejects an expiry beyond the 90-day maximum initial duration (PRD SHR-01)', async () => {
+    const { account, applicantId } = await ownerWithDoc(db, 'over-duration-owner@example.com');
+    const recipient = await provisionAccount(db, { email: 'over-duration-recipient@example.com' });
+    if (!isOk(recipient)) throw new Error('provision');
+
+    const denied = await createGrant(db, {
+      actorAccountId: account.id,
+      applicantId,
+      recipientAccountId: recipient.value.id,
+      actions: ['PREVIEW'],
+      purpose: 'visa_application',
+      expiryAt: new Date(Date.now() + 91 * 24 * 60 * 60 * 1000),
+    });
+    expect(isErr(denied)).toBe(true);
+    if (isErr(denied)) expect(denied.error.code).toBe('invalid');
+  });
+
+  it("accepts an explicit expiry within the 90-day bound, honoring the caller's own choice", async () => {
+    const { account, applicantId } = await ownerWithDoc(db, 'explicit-duration-owner@example.com');
+    const recipient = await provisionAccount(db, {
+      email: 'explicit-duration-recipient@example.com',
+    });
+    if (!isOk(recipient)) throw new Error('provision');
+    const requested = new Date(Date.now() + 60 * 24 * 60 * 60 * 1000);
+
+    const created = await createGrant(db, {
+      actorAccountId: account.id,
+      applicantId,
+      recipientAccountId: recipient.value.id,
+      actions: ['PREVIEW'],
+      purpose: 'visa_application',
+      expiryAt: requested,
+    });
+    expect(isOk(created)).toBe(true);
+    if (isOk(created)) {
+      expect(created.value.expiryAt?.getTime()).toBe(requested.getTime());
+    }
+  });
+
+  it('rejects an expiry already in the past', async () => {
+    const { account, applicantId } = await ownerWithDoc(db, 'past-duration-owner@example.com');
+    const recipient = await provisionAccount(db, { email: 'past-duration-recipient@example.com' });
+    if (!isOk(recipient)) throw new Error('provision');
+
+    const denied = await createGrant(db, {
+      actorAccountId: account.id,
+      applicantId,
+      recipientAccountId: recipient.value.id,
+      actions: ['PREVIEW'],
+      purpose: 'visa_application',
+      expiryAt: new Date(Date.now() - 1000),
+    });
+    expect(isErr(denied)).toBe(true);
+    if (isErr(denied)) expect(denied.error.code).toBe('invalid');
+  });
+
   it('refuses to create further grants once the anti-automation limit is hit (Build Spec §14)', async () => {
     const { account, applicantId } = await ownerWithDoc(db, 'rate-limited-owner@example.com');
     const recipient = await provisionAccount(db, { email: 'rate-limited-recipient@example.com' });
