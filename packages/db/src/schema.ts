@@ -134,6 +134,15 @@ export const evidenceRequestStatus = pgEnum('evidence_request_status', [
 // --- Mission collaboration additions (master directive §7 "PR 10") ---------
 export const missionDecisionOutcome = pgEnum('mission_decision_outcome', ['ACCEPTED', 'REJECTED']);
 export const missionTaskStatus = pgEnum('mission_task_status', ['OPEN', 'DONE', 'CANCELLED']);
+// Commercial V1 Part 4 §12: every note must declare a visibility explicitly.
+// AGENCY_INTERNAL is the safe default for the pre-existing-row backfill
+// (directive: "legacy unclassified notes: default restricted; do not expose
+// until ownership/visibility resolved") -- the service layer never omits it
+// on a new insert, so the DB default only ever fires for that backfill.
+export const missionNoteVisibility = pgEnum('mission_note_visibility', [
+  'AGENCY_INTERNAL',
+  'TRAVELLER_SHARED',
+]);
 export const generatedOutputKind = pgEnum('generated_output_kind', ['COVER_LETTER']);
 export const factStatus = pgEnum('fact_status', FACT_STATUSES);
 export const fieldSensitivity = pgEnum('field_sensitivity', [
@@ -246,6 +255,42 @@ export const auditEvents = pgTable(
   ],
 );
 
+// --- Audit checkpoints (Commercial V1 SEC-04) -------------------------------
+// A periodic, externally-signed anchor over a range of the audit_events
+// chain. The append-only RULEs on audit_events (migration 0000) stop the
+// application's own runtime credential from editing or deleting history, but
+// they do not stop a party with full database DDL access, who could drop the
+// rule, edit rows, and recreate it with nobody the wiser from inside the
+// database alone. A checkpoint closes that gap by construction, not by
+// promise: `signature` is an HMAC over (fromSeq, toSeq, chainHeadHash) keyed
+// by a secret the database itself never holds (an environment variable in
+// practice, the same posture as STEP_UP_SIGNING_SECRET) — a party who can
+// only read/write/alter this database, however completely, cannot forge a
+// new valid signature for a tampered chain, and cannot make an EXISTING
+// checkpoint agree with a chain it no longer matches. Detecting tampering
+// still requires comparing a checkpoint against the chain from a vantage
+// point outside the compromised database (an export, a second read replica,
+// or ultimately a real external anchor service) — this table alone does not
+// make that comparison happen automatically; see
+// packages/services/src/audit-checkpoints.ts for what is and is not
+// implemented yet.
+export const auditCheckpoints = pgTable(
+  'audit_checkpoints',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    fromSeq: bigint('from_seq', { mode: 'number' }).notNull(),
+    toSeq: bigint('to_seq', { mode: 'number' }).notNull(),
+    chainHeadHash: text('chain_head_hash').notNull(),
+    signature: text('signature').notNull(),
+    signingKeyVersion: text('signing_key_version').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('audit_checkpoints_to_seq_idx').on(table.toSeq),
+    check('audit_checkpoints_range_valid', sql`${table.toSeq} >= ${table.fromSeq}`),
+  ],
+);
+
 // --- Missions (parallel destination/purpose workspaces; Build Spec §4.3) ----
 export const missions = pgTable('missions', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -257,7 +302,13 @@ export const missions = pgTable('missions', {
   purpose: text('purpose'),
   state: missionState('state').notNull().default('DRAFT'),
   // The published requirement pack version this mission is assembled against.
-  packVersionId: uuid('pack_version_id'),
+  // restrict, not cascade/set null: nothing deletes a pack version today
+  // (Pack Studio is create/version-forward only), but a mission must never
+  // silently lose the pack it was assembled against if that ever changes --
+  // missions.ts branches heavily on this being present.
+  packVersionId: uuid('pack_version_id').references(() => packVersions.id, {
+    onDelete: 'restrict',
+  }),
   ...timestamps,
 });
 
@@ -285,6 +336,15 @@ export const grants = pgTable(
     // and persistence; previously modeled in the policy layer but never
     // actually storable.
     documentIds: uuid('document_ids').array(),
+    // Set only when `categories` is non-empty: the exact document ids that
+    // matched those categories at creation time (PRD SHR-01, Commercial V1
+    // Part 4 AD-11). A category grant authorizes documents in this snapshot
+    // only, never every document matching the category live, so a document
+    // uploaded after the grant is never silently absorbed; growing it is an
+    // explicit owner action (`expandGrantScope`), never automatic. Null when
+    // `categories` is unset (an unrestricted or explicit-documentIds-only
+    // grant has no category snapshot to speak of).
+    documentScopeSnapshot: uuid('document_scope_snapshot').array(),
     purpose: text('purpose').notNull(),
     status: grantStatus('status').notNull().default('PENDING_ACCEPTANCE'),
     acceptedAt: timestamp('accepted_at', { withTimezone: true }),
@@ -332,6 +392,14 @@ export const documents = pgTable('documents', {
     onDelete: 'set null',
   }),
   expiresAt: timestamp('expires_at', { withTimezone: true }),
+  // EVI-04 ("passport renewal updates the wallet, preserves the old passport
+  // and flags cases using it; it does not mutate historical snapshots"): set
+  // only via `supersedeDocument`, never mutates or deletes the old row, just
+  // links forward to its replacement. Plain uuid, no FK, matching the
+  // codebase's established self-reference pattern (e.g.
+  // ai_extraction_runs.served_from_cache_run_id) since a same-table FK
+  // reference has no sensible ON DELETE behavior here anyway.
+  supersededByDocumentId: uuid('superseded_by_document_id'),
   ...timestamps,
 });
 
@@ -359,6 +427,40 @@ export const documentVersions = pgTable(
     unique('document_versions_doc_version_unique').on(table.documentId, table.versionNumber),
     index('document_versions_document_idx').on(table.documentId),
   ],
+);
+
+// EVI-03: "document review supports pending, accepted, replacement required,
+// irrelevant and disputed." A document-level judgment on whether the
+// evidence itself is acceptable, distinct from missionDecisions (a
+// requirement-scoped, mission-specific judgment) and from
+// processingStatus/safetyStatus (pipeline state, not a reviewer's opinion).
+export const documentReviewOutcome = pgEnum('document_review_outcome', [
+  'PENDING',
+  'ACCEPTED',
+  'REPLACEMENT_REQUIRED',
+  'IRRELEVANT',
+  'DISPUTED',
+]);
+
+// Append-only, like missionDecisions: the latest row per document is "the"
+// current review status, with full history preserved.
+export const documentReviews = pgTable(
+  'document_reviews',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    documentId: uuid('document_id')
+      .notNull()
+      .references(() => documents.id, { onDelete: 'cascade' }),
+    outcome: documentReviewOutcome('outcome').notNull(),
+    reason: text('reason'),
+    // restrict, not set null: this column is NOT NULL (every review has a
+    // reviewer), so set null would fail the FK action outright on delete.
+    reviewedByAccountId: uuid('reviewed_by_account_id')
+      .notNull()
+      .references(() => accounts.id, { onDelete: 'restrict' }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index('document_reviews_document_idx').on(table.documentId)],
 );
 
 // --- Upload consistency: server-created upload intent (master directive §7
@@ -639,7 +741,23 @@ export const factVersions = pgTable(
     factId: uuid('fact_id')
       .notNull()
       .references(() => facts.id, { onDelete: 'cascade' }),
+    // Plaintext value for STANDARD-sensitivity fields, and for any row written
+    // before protected-field encryption existed (Commercial V1 SEC-03). When
+    // `protectedKeyVersion` is set, this is null and the real value lives
+    // encrypted in `valueCiphertext`/`valueNonce` instead — never both at
+    // once, enforced by the check constraint below.
     value: text('value'),
+    // AES-256-GCM ciphertext (includes the auth tag) for a SENSITIVE/RESTRICTED
+    // field, encrypted by packages/services/src/protected-fields.ts. Never the
+    // plaintext value.
+    valueCiphertext: bytea('value_ciphertext'),
+    // Random 96-bit nonce used for this specific encryption. Never reused
+    // across rows (a fresh nonce is generated on every write).
+    valueNonce: bytea('value_nonce'),
+    // Which envelope key version's data key encrypted this value (opaque
+    // label the KeyManagementPort adapter interprets — never the key
+    // material itself). Null means unprotected/plaintext.
+    protectedKeyVersion: text('protected_key_version'),
     normalizedValue: text('normalized_value'),
     status: factStatus('status').notNull().default('DECLARED'),
     method: auditMethod('method').notNull().default('MANUAL'),
@@ -660,7 +778,145 @@ export const factVersions = pgTable(
     approvedAt: timestamp('approved_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
-  (table) => [index('fact_versions_fact_idx').on(table.factId)],
+  (table) => [
+    index('fact_versions_fact_idx').on(table.factId),
+    // A row is never simultaneously plaintext AND protected, and the three
+    // protected columns are always set together or not at all — deliberately
+    // permissive about a row having neither (no value recorded at all;
+    // reserved/placeholder rows are not this constraint's concern, only
+    // "never half-protected" and "never both" are). Enforced at the database
+    // level so an application bug can't silently store a corrupt row.
+    check(
+      'fact_versions_protection_exclusive',
+      sql`(
+        ${table.value} is null or ${table.valueCiphertext} is null
+      ) and (
+        (${table.valueCiphertext} is null) = (${table.valueNonce} is null)
+        and (${table.valueCiphertext} is null) = (${table.protectedKeyVersion} is null)
+      )`,
+    ),
+  ],
+);
+
+// EVI-05 (assurance ladder), tier "issuer confirmed": the one tier with no
+// existing infrastructure to derive from. The other four statements the PRD
+// asks for read off data this schema already has: "applicant declared" and
+// "document supplied" off factVersions.status/sourceDocumentVersionId above,
+// "named machine checks performed" off documentClassifications/
+// extractionRuns/documentScanResults (joined via sourceDocumentVersionId),
+// and "agency reviewed" off missionDecisions (joined via selectedEvidence);
+// see packages/services/src/assurance.ts for how all five are assembled and
+// displayed. PRD is explicit this tier must never be "a staff checkbox
+// claiming verification": every substantive field is required NOT NULL, so
+// a row structurally cannot exist without real content, and `validUntil` is
+// required too (nothing here is presumed to hold forever, matching SHR-01's
+// refusal to let a grant have no expiry). factId/documentId are each
+// optional (a confirmation can cover a claim not yet modeled as a discrete
+// fact, or a document with no single fact it maps to) but the check
+// constraint below requires at least one, so every row stays reachable from
+// a real UI surface instead of floating unattached to anything.
+export const issuerVerifications = pgTable(
+  'issuer_verifications',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    applicantId: uuid('applicant_id')
+      .notNull()
+      .references(() => applicants.id, { onDelete: 'cascade' }),
+    factId: uuid('fact_id').references(() => facts.id, { onDelete: 'set null' }),
+    documentId: uuid('document_id').references(() => documents.id, { onDelete: 'set null' }),
+    issuerIdentity: text('issuer_identity').notNull(),
+    contactMethod: text('contact_method').notNull(),
+    exactClaim: text('exact_claim').notNull(),
+    response: text('response').notNull(),
+    validUntil: timestamp('valid_until', { withTimezone: true }).notNull(),
+    // restrict, not set null: this column is NOT NULL, so set null would
+    // fail the FK action outright on delete.
+    verifiedByAccountId: uuid('verified_by_account_id')
+      .notNull()
+      .references(() => accounts.id, { onDelete: 'restrict' }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('issuer_verifications_applicant_idx').on(table.applicantId),
+    index('issuer_verifications_fact_idx').on(table.factId),
+    index('issuer_verifications_document_idx').on(table.documentId),
+    check(
+      'issuer_verifications_covers_something',
+      sql`${table.factId} is not null or ${table.documentId} is not null`,
+    ),
+  ],
+);
+
+// --- Envelope key registry (Commercial V1 SEC-03) ---------------------------
+// Tracks only the KMS-WRAPPED (encrypted) data key per version — never
+// plaintext key material. Worthless without the KeyManagementPort adapter's
+// KMS to unwrap it, so a full database dump or backup never carries enough
+// to decrypt protected fields on its own (SEC-03's explicit requirement).
+// One row per key version; a version is retired (new writes stop using it)
+// without deleting it, since old ciphertext encrypted under it must remain
+// decryptable until a deliberate re-encryption pass rotates it away.
+export const dataKeys = pgTable('data_keys', {
+  keyVersion: text('key_version').primaryKey(),
+  wrappedDataKey: bytea('wrapped_data_key').notNull(),
+  algorithm: text('algorithm').notNull().default('AES-256-GCM'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  retiredAt: timestamp('retired_at', { withTimezone: true }),
+});
+
+// --- Support access grants (Commercial V1 SEC-06) ---------------------------
+// A scoped, time-limited, reasoned, approved grant of read access to one
+// applicant's protected content for a support operator. Distinct from the
+// ordinary `grants` table (which an applicant creates for themselves); this
+// is created by a platform operator ABOUT an applicant who never consented
+// to it, so it carries mandatory reason/approver fields ordinary sharing
+// grants don't need, and a database-enforced maximum duration and
+// no-self-approval rule — neither is optional configuration.
+// `loadSupportGrantsForPolicy` (packages/services/src/support-access.ts)
+// converts an active row here into the same `Grant` shape the policy engine
+// already evaluates for `support_admin` actors, reusing its tested
+// status/expiry/purpose logic rather than duplicating it.
+export const supportGrants = pgTable(
+  'support_grants',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    actorAccountId: uuid('actor_account_id')
+      .notNull()
+      .references(() => accounts.id, { onDelete: 'restrict' }),
+    applicantId: uuid('applicant_id')
+      .notNull()
+      .references(() => applicants.id, { onDelete: 'cascade' }),
+    actions: permissionAction('actions').array().notNull(),
+    reason: text('reason').notNull(),
+    approvedByAccountId: uuid('approved_by_account_id')
+      .notNull()
+      .references(() => accounts.id, { onDelete: 'restrict' }),
+    startAt: timestamp('start_at', { withTimezone: true }).notNull().defaultNow(),
+    expiryAt: timestamp('expiry_at', { withTimezone: true }).notNull(),
+    revokedAt: timestamp('revoked_at', { withTimezone: true }),
+    revokedByAccountId: uuid('revoked_by_account_id').references(() => accounts.id, {
+      onDelete: 'set null',
+    }),
+    revokedReason: text('revoked_reason'),
+    ...timestamps,
+  },
+  (table) => [
+    index('support_grants_applicant_idx').on(table.applicantId),
+    index('support_grants_actor_idx').on(table.actorAccountId),
+    // A support grant is never self-approved — the approver must be a
+    // different account from the operator receiving access, structurally,
+    // not just by service-layer convention.
+    check(
+      'support_grants_approver_not_actor',
+      sql`${table.approvedByAccountId} <> ${table.actorAccountId}`,
+    ),
+    // Maximum 60 minutes (SEC-06), enforced at the database level so an
+    // application bug can never issue a longer-lived grant.
+    check(
+      'support_grants_max_duration',
+      sql`extract(epoch from (${table.expiryAt} - ${table.startAt})) <= 3600`,
+    ),
+    check('support_grants_expiry_after_start', sql`${table.expiryAt} > ${table.startAt}`),
+  ],
 );
 
 // Links a document version (page/region) to a fact version as supporting
@@ -865,7 +1121,9 @@ export const packVersions = pgTable(
     // approval; a published version is immutable and verifiable.
     manifest: jsonb('manifest'),
     checksum: text('checksum'),
-    approvedByAccountId: uuid('approved_by_account_id'),
+    approvedByAccountId: uuid('approved_by_account_id').references(() => accounts.id, {
+      onDelete: 'set null',
+    }),
     approvedAt: timestamp('approved_at', { withTimezone: true }),
     publishedAt: timestamp('published_at', { withTimezone: true }),
     ...timestamps,
@@ -904,7 +1162,9 @@ export const missionSnapshots = pgTable(
     version: integer('version').notNull(),
     content: jsonb('content').notNull(),
     checksum: text('checksum').notNull(),
-    createdByAccountId: uuid('created_by_account_id'),
+    createdByAccountId: uuid('created_by_account_id').references(() => accounts.id, {
+      onDelete: 'set null',
+    }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
@@ -941,7 +1201,19 @@ export const missionNotes = pgTable(
     missionId: uuid('mission_id')
       .notNull()
       .references(() => missions.id, { onDelete: 'cascade' }),
-    authorAccountId: uuid('author_account_id'),
+    authorAccountId: uuid('author_account_id').references(() => accounts.id, {
+      onDelete: 'set null',
+    }),
+    // Set only when the author wrote this note while acting as a member of
+    // this organization (never for an applicant-owner-authored note). Lets
+    // an AGENCY_INTERNAL note be attributed to exactly one organization, so
+    // a second collaborating org's own internal notes stay distinguishable
+    // from this one (Commercial V1 Part 4 §12: "AGENCY_INTERNAL must
+    // include author organisation ID").
+    authorOrganizationId: uuid('author_organization_id').references(() => organizations.id, {
+      onDelete: 'cascade',
+    }),
+    visibility: missionNoteVisibility('visibility').notNull().default('AGENCY_INTERNAL'),
     body: text('body').notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
@@ -987,7 +1259,9 @@ export const selectedEvidence = pgTable(
       .references(() => packRequirements.id, { onDelete: 'cascade' }),
     factId: uuid('fact_id').references(() => facts.id, { onDelete: 'cascade' }),
     documentId: uuid('document_id').references(() => documents.id, { onDelete: 'cascade' }),
-    selectedByAccountId: uuid('selected_by_account_id'),
+    selectedByAccountId: uuid('selected_by_account_id').references(() => accounts.id, {
+      onDelete: 'set null',
+    }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
@@ -1021,7 +1295,11 @@ export const missionDecisions = pgTable(
       .references(() => packRequirements.id, { onDelete: 'cascade' }),
     outcome: missionDecisionOutcome('outcome').notNull(),
     reason: text('reason'),
-    decidedByAccountId: uuid('decided_by_account_id').notNull(),
+    // restrict, not set null: this column is NOT NULL, so set null would
+    // fail the FK action outright on delete.
+    decidedByAccountId: uuid('decided_by_account_id')
+      .notNull()
+      .references(() => accounts.id, { onDelete: 'restrict' }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [index('mission_decisions_mission_idx').on(table.missionId)],
@@ -1042,7 +1320,9 @@ export const missionTasks = pgTable(
       onDelete: 'set null',
     }),
     description: text('description').notNull(),
-    assigneeAccountId: uuid('assignee_account_id'),
+    assigneeAccountId: uuid('assignee_account_id').references(() => accounts.id, {
+      onDelete: 'set null',
+    }),
     status: missionTaskStatus('status').notNull().default('OPEN'),
     completedAt: timestamp('completed_at', { withTimezone: true }),
     ...timestamps,
@@ -1072,7 +1352,9 @@ export const generatedOutputs = pgTable(
     groundedReferences: jsonb('grounded_references').notNull(),
     language: text('language').notNull().default('en'),
     translatedFromOutputId: uuid('translated_from_output_id'),
-    createdByAccountId: uuid('created_by_account_id'),
+    createdByAccountId: uuid('created_by_account_id').references(() => accounts.id, {
+      onDelete: 'set null',
+    }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
@@ -1095,7 +1377,9 @@ export const legalHolds = pgTable(
       .notNull()
       .references(() => applicants.id, { onDelete: 'cascade' }),
     reason: text('reason').notNull(),
-    placedByAccountId: uuid('placed_by_account_id'),
+    placedByAccountId: uuid('placed_by_account_id').references(() => accounts.id, {
+      onDelete: 'set null',
+    }),
     active: boolean('active').notNull().default(true),
     releasedAt: timestamp('released_at', { withTimezone: true }),
     ...timestamps,

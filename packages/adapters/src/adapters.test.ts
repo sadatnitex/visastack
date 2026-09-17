@@ -16,6 +16,7 @@ import { migrate } from 'drizzle-orm/pglite/migrator';
 import JSZip from 'jszip';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { verifyBlobToken } from './blob-token';
+import { BuiltinContentLimitsChecker } from './content-limits';
 import { NeonBlobStorage } from './neon-blob';
 import { BasicSafetyScanner } from './scanner';
 import { DeterministicTextExtractor } from './text-extraction';
@@ -302,11 +303,16 @@ describe('end-to-end: real bytes through the intake pipeline (no S3, no ClamAV)'
   let storage: NeonBlobStorage;
   let scanner: BasicSafetyScanner;
   let extractor: DeterministicTextExtractor;
+  let contentLimits: BuiltinContentLimitsChecker;
   beforeEach(async () => {
     db = await freshDb();
     storage = new NeonBlobStorage({ db, signingSecret: SECRET, baseUrl: 'https://app.example' });
     scanner = new BasicSafetyScanner({ blobStore: storage });
     extractor = new DeterministicTextExtractor({ blobStore: storage });
+    contentLimits = new BuiltinContentLimitsChecker({
+      blobStore: storage,
+      config: { maxPdfPages: 50, maxImageMegapixels: 40 },
+    });
   });
 
   async function upload(email: string, bytes: Uint8Array) {
@@ -353,14 +359,18 @@ describe('end-to-end: real bytes through the intake pipeline (no S3, no ClamAV)'
     const pdfUpload = await upload('pdf@example.com', PDF);
     const exeUpload = await upload('exe@example.com', EXE);
 
-    const pdfResult = await processIntake(db, scanner, extractor, { documentVersionId: pdfUpload });
+    const pdfResult = await processIntake(db, scanner, extractor, contentLimits, {
+      documentVersionId: pdfUpload,
+    });
     expect(isOk(pdfResult)).toBe(true);
     if (isOk(pdfResult)) {
       expect(pdfResult.value.processingStatus).toBe('NEEDS_ATTENTION');
       expect(pdfResult.value.safetyStatus).toBe('QUARANTINED');
     }
 
-    const exeResult = await processIntake(db, scanner, extractor, { documentVersionId: exeUpload });
+    const exeResult = await processIntake(db, scanner, extractor, contentLimits, {
+      documentVersionId: exeUpload,
+    });
     expect(isOk(exeResult)).toBe(true);
     if (isOk(exeResult)) {
       expect(exeResult.value.processingStatus).toBe('NEEDS_ATTENTION');
@@ -388,7 +398,9 @@ describe('end-to-end: real bytes through the intake pipeline (no S3, no ClamAV)'
       },
     };
     const pdfUpload = await upload('spy-pdf@example.com', PDF);
-    const result = await processIntake(db, scanner, spyExtractor, { documentVersionId: pdfUpload });
+    const result = await processIntake(db, scanner, spyExtractor, contentLimits, {
+      documentVersionId: pdfUpload,
+    });
     expect(isOk(result)).toBe(true);
     if (isOk(result)) expect(result.value.processingStatus).toBe('NEEDS_ATTENTION');
     expect(extractCalls).toBe(0);

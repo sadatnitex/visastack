@@ -119,3 +119,45 @@ export interface EnqueueJobInput {
 export interface JobQueuePort {
   enqueue(input: EnqueueJobInput): Promise<{ readonly jobId: string }>;
 }
+
+export interface GeneratedDataKey {
+  readonly keyVersion: string;
+  readonly plaintextDataKey: Uint8Array;
+  readonly wrappedDataKey: Uint8Array;
+}
+
+/**
+ * Envelope-key management for protected-field encryption (Commercial V1
+ * SEC-03). A KMS wraps/unwraps DATA keys; it never sees field plaintext
+ * directly, and no caller of this port may persist a data key's plaintext
+ * form anywhere — only `wrappedDataKey` (the KMS's own ciphertext for it) is
+ * ever stored, in `data_keys.wrapped_data_key`. This is what makes "a
+ * database dump/backup does not carry enough to decrypt protected data"
+ * (SEC-03's explicit requirement) true: the wrapped key is worthless without
+ * this port's KMS to unwrap it.
+ *
+ * Pilot/dev/test implementation: `packages/adapters/src/key-management.ts`'s
+ * `LocalEnvelopeKeyProvider`, explicitly gated never to run in commercial
+ * mode (see its own doc comment) — it wraps with a locally-held master key
+ * rather than a real external KMS, so it cannot honestly provide this port's
+ * central guarantee. A real KMS adapter (AWS KMS / GCP KMS / etc) is a
+ * genuine future PR requiring a live account this session does not have;
+ * live verification of that guarantee is BLOCKED until then, recorded in
+ * docs/commercial-v1/known-issues.md rather than assumed.
+ */
+export interface KeyManagementPort {
+  /** The key version new writes should encrypt under right now. */
+  currentKeyVersion(): string;
+  /**
+   * Mint a fresh 256-bit data key for `currentKeyVersion()`, wrapped for
+   * storage. The caller must never persist `plaintextDataKey`.
+   */
+  generateDataKey(): Promise<GeneratedDataKey>;
+  /**
+   * Unwrap a previously-wrapped data key back to plaintext, given the
+   * version that wrapped it. Throws if that version is unknown to this
+   * provider (e.g. a real KMS provider asked to unwrap a key a different
+   * provider wrapped).
+   */
+  unwrapDataKey(keyVersion: string, wrappedDataKey: Uint8Array): Promise<Uint8Array>;
+}

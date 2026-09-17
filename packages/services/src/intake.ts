@@ -19,8 +19,12 @@ import { buildProposedName, extensionOf } from './naming';
  * EXTRACTING (master directive §11, Release C) now does real deterministic
  * work: fetch bytes, run text extraction, classify, and propose a filename —
  * persisted as ProcessingRun/ExtractionRun/DocumentClassification/
- * DocumentNameVersion rows. NORMALIZING remains a pass-through: no real
- * normalization work exists yet, and this is stated here rather than implied.
+ * DocumentNameVersion rows. NORMALIZING (Commercial V1 Part 3, EVI-01) now
+ * also does real work: enforcing the PRD's "initial configurable limits" a
+ * malware scan alone cannot check (50 PDF pages, 40 megapixels per image);
+ * see `ContentLimitsPort` below. Genuine content normalization (of the kind
+ * a future format-conversion step might do) still does not exist; this
+ * state is a bounded-parsing gate, not a conversion step.
  */
 
 export const PIPELINE_VERSION = '1.0.0';
@@ -38,6 +42,30 @@ export interface MalwareScannerPort {
     readonly bucket: 'QUARANTINE' | 'CLEAN';
     readonly objectKey: string;
   }): Promise<ScanResult>;
+}
+
+export interface ContentLimitsResult {
+  readonly withinLimits: boolean;
+  readonly detail?: string;
+}
+
+/**
+ * EVI-01's "initial configurable limits" a malware scan alone has no reason
+ * to enforce (page count, pixel count): a genuinely clean, genuinely
+ * well-formed PDF or image can still exceed them. Runs in NORMALIZING,
+ * after the scan already confirmed CLEAN: checking an unscanned file's
+ * page count would mean parsing untrusted bytes before they are known
+ * safe, spending the same "trust the bytes enough to parse them" budget
+ * SEC-05's own "bounded parsing" language is about, twice, for no benefit.
+ */
+export interface ContentLimitsPort {
+  /** Identifies which checker produced a result, persisted the same way `MalwareScannerPort.name` is. */
+  readonly name: string;
+  readonly version: string;
+  check(input: {
+    readonly bucket: 'QUARANTINE' | 'CLEAN';
+    readonly objectKey: string;
+  }): Promise<ContentLimitsResult>;
 }
 
 export type DocumentVersion = typeof schema.documentVersions.$inferSelect;
@@ -267,6 +295,9 @@ async function runExtractionStep(
         id: schema.documents.id,
         applicantId: schema.documents.applicantId,
         originalName: schema.documents.originalName,
+        docType: schema.documents.docType,
+        issuer: schema.documents.issuer,
+        expiresAt: schema.documents.expiresAt,
       })
       .from(schema.documents)
       .innerJoin(
@@ -394,6 +425,42 @@ async function runExtractionStep(
       rationale: classification.rationale,
     });
 
+    if (result.pageCount !== null) {
+      await tx
+        .update(schema.documentVersions)
+        .set({ pages: result.pageCount })
+        .where(eq(schema.documentVersions.id, version.id));
+    }
+
+    // EVI-03 ("store type/category ... issuer, issue/expiry date"): the same
+    // deterministic classification that already gates a naming proposal
+    // below is confident enough (classifiedType set, reviewRequired false)
+    // to also populate the document's own metadata columns, which otherwise
+    // stay null forever (no other write path ever sets them). Only fills a
+    // currently-null column, never overwrites one a later, possibly-worse
+    // re-extraction (or a future manual correction, once one exists) already
+    // set: this mirrors createGrant's own "never silently mutate" posture,
+    // just applied to a value this system derived rather than one a caller
+    // supplied. MRZ-sourced issuer/expiry are used only for PASSPORT, the
+    // only classification with real structured fields to draw from; the
+    // keyword-matched types (BANK_STATEMENT, EMPLOYMENT_CERTIFICATE) have no
+    // such fields, so only classifiedType itself is ever set for them.
+    const metadataUpdate: Partial<typeof schema.documents.$inferInsert> = {};
+    if (classification.classifiedType && !classification.reviewRequired) {
+      if (!document.docType) metadataUpdate.docType = classification.classifiedType;
+      if (classification.mrz) {
+        if (!document.issuer) metadataUpdate.issuer = classification.mrz.issuingCountry;
+        if (!document.expiresAt) metadataUpdate.expiresAt = new Date(classification.mrz.expiryDate);
+      }
+    }
+    const populatedFields = Object.keys(metadataUpdate);
+    if (populatedFields.length > 0) {
+      await tx
+        .update(schema.documents)
+        .set(metadataUpdate)
+        .where(eq(schema.documents.id, document.id));
+    }
+
     await tx
       .update(schema.processingRuns)
       .set({ status: 'COMPLETED', completedAt: new Date() })
@@ -410,6 +477,7 @@ async function runExtractionStep(
         status: 'SUCCEEDED',
         classifiedType: classification.classifiedType,
         confidence: classification.confidence,
+        populatedFields,
       },
     });
 
@@ -484,6 +552,7 @@ export async function processIntake(
   db: Db,
   scanner: MalwareScannerPort,
   extractor: DocumentConverterPort,
+  contentLimits: ContentLimitsPort,
   input: {
     readonly documentVersionId: string;
     /** Fences this run's side-effect writes against a mid-pipeline lease loss — see `stillHoldsLease`. Omit for a direct (non-job-queue) call. */
@@ -613,6 +682,71 @@ export async function processIntake(
       // overwrite it with our now-stale result.
       if (!scanned) return ok(await currentOrStale(db, input.documentVersionId, version));
       version = scanned;
+      continue;
+    }
+
+    if (state === 'NORMALIZING') {
+      const storageObject = first(
+        await db
+          .select()
+          .from(schema.storageObjects)
+          .where(eq(schema.storageObjects.id, version.storageObjectId))
+          .limit(1),
+      );
+      if (!storageObject) return err(serviceError('not_found', 'stored object missing'));
+      const documentVersionId = version.id;
+      // Same throw/resumability contract as the SCANNING branch above: a
+      // thrown error leaves the version in NORMALIZING (resumable), and the
+      // failed attempt is still durably recorded (reusing
+      // documentScanResults, distinguished by scannerName, rather than a
+      // parallel table; see AD-08) before the error propagates.
+      let result: ContentLimitsResult;
+      try {
+        result = await contentLimits.check({
+          bucket: storageObject.bucket,
+          objectKey: storageObject.objectKey,
+        });
+      } catch (error) {
+        const recorded = await db.transaction(async (tx) => {
+          if (input.fencing && !(await stillHoldsLease(tx, input.fencing))) return false;
+          await tx.insert(schema.documentScanResults).values({
+            documentVersionId,
+            scannerName: contentLimits.name,
+            scannerVersion: contentLimits.version,
+            scanErrored: true,
+            safe: false,
+            detail:
+              `content-limits check threw: ${error instanceof Error ? error.message : String(error)}`.slice(
+                0,
+                2000,
+              ),
+          });
+          return true;
+        });
+        if (!recorded) {
+          return ok(await currentOrStale(db, input.documentVersionId, version));
+        }
+        throw error;
+      }
+      const checkRecorded = await db.transaction(async (tx) => {
+        if (input.fencing && !(await stillHoldsLease(tx, input.fencing))) return false;
+        await tx.insert(schema.documentScanResults).values({
+          documentVersionId,
+          scannerName: contentLimits.name,
+          scannerVersion: contentLimits.version,
+          safe: result.withinLimits,
+          detail: result.detail ?? null,
+        });
+        return true;
+      });
+      if (!checkRecorded) {
+        return ok(await currentOrStale(db, input.documentVersionId, version));
+      }
+      const normalized = await commitTransition(db, version, {
+        processingStatus: result.withinLimits ? 'EXTRACTING' : 'NEEDS_ATTENTION',
+      });
+      if (!normalized) return ok(await currentOrStale(db, input.documentVersionId, version));
+      version = normalized;
       continue;
     }
 

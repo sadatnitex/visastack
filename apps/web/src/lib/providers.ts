@@ -1,19 +1,27 @@
 import 'server-only';
 import {
   BasicSafetyScanner,
+  BuiltinContentLimitsChecker,
+  BuiltinPreviewRenderer,
+  ClamAvScanner,
   ConsoleObservabilityPort,
   DeterministicTextExtractor,
+  LocalEnvelopeKeyProvider,
   NullEmailPort,
   NullPaymentPort,
 } from '@visastack/adapters';
-import type {
-  BlobStore,
-  DocumentConverterPort,
-  EmailPort,
-  IdentityPort,
-  MalwareScannerPort,
-  ObservabilityPort,
-  PaymentPort,
+import {
+  type BlobStore,
+  type ContentLimitsPort,
+  type DocumentConverterPort,
+  type EmailPort,
+  type IdentityPort,
+  type KeyManagementPort,
+  type MalwareScannerPort,
+  type ObservabilityPort,
+  type PaymentPort,
+  type PreviewRendererPort,
+  loadUploadQuotaConfig,
 } from '@visastack/services';
 import { WorkosIdentityPort } from './identity-provider';
 
@@ -47,13 +55,16 @@ const KNOWN_PROVIDERS = {
   IDENTITY_PROVIDER: ['workos'],
   STORAGE_PROVIDER: ['vercel_blob', 'neon'],
   DATABASE_PROVIDER: ['neon'],
-  MALWARE_SCANNER_PROVIDER: ['builtin'],
+  MALWARE_SCANNER_PROVIDER: ['builtin', 'clamav'],
   DOCUMENT_CONVERTER_PROVIDER: ['builtin'],
+  PREVIEW_RENDERER_PROVIDER: ['builtin'],
+  CONTENT_LIMITS_PROVIDER: ['builtin'],
   AI_PROVIDER: ['openai'],
   JOB_PROVIDER: ['neon'],
   EMAIL_PROVIDER: ['none'],
   OBSERVABILITY_PROVIDER: ['console'],
   PAYMENT_PROVIDER: ['none'],
+  KMS_PROVIDER: ['local'],
 } as const satisfies Record<string, readonly string[]>;
 
 type KnownProviderVar = keyof typeof KNOWN_PROVIDERS;
@@ -118,9 +129,37 @@ export function createIdentityPort(): IdentityPort {
   return new WorkosIdentityPort();
 }
 
-/** The built-in structural safety scanner (ADR-0011) — the only `MalwareScannerPort` implementation today. */
+/**
+ * The structural-only safety scanner (ADR-0011) by default, or a real
+ * ClamAV engine (SEC-05/EVI-02) when `MALWARE_SCANNER_PROVIDER=clamav` is
+ * explicitly set. `commercial-readiness.ts`'s `realMalwareScanner` gate
+ * checks the same env var this function reads, so the two can never
+ * disagree about whether a real scanner is actually configured.
+ */
 export function createMalwareScanner(blobStore: BlobStore): MalwareScannerPort {
   checkKnownProvider('MALWARE_SCANNER_PROVIDER');
+  if (readEnv('MALWARE_SCANNER_PROVIDER') === 'clamav') {
+    const socketPath = readEnv('CLAMAV_SOCKET_PATH');
+    const host = readEnv('CLAMAV_HOST');
+    const portRaw = readEnv('CLAMAV_PORT');
+    if (!socketPath && !(host && portRaw)) {
+      throw new Error(
+        'MALWARE_SCANNER_PROVIDER=clamav requires CLAMAV_SOCKET_PATH, or both CLAMAV_HOST and CLAMAV_PORT',
+      );
+    }
+    const maxAgeHoursRaw = readEnv('CLAMAV_MAX_SIGNATURE_AGE_HOURS');
+    const engineVersion = readEnv('CLAMAV_ENGINE_VERSION');
+    const databaseDirectory = readEnv('CLAMAV_DATABASE_DIRECTORY');
+    return new ClamAvScanner({
+      blobStore,
+      ...(socketPath ? { socketPath } : {}),
+      ...(host ? { host } : {}),
+      ...(portRaw ? { port: Number(portRaw) } : {}),
+      ...(engineVersion ? { engineVersion } : {}),
+      ...(databaseDirectory ? { databaseDirectory } : {}),
+      ...(maxAgeHoursRaw ? { maxSignatureAgeMs: Number(maxAgeHoursRaw) * 60 * 60 * 1000 } : {}),
+    });
+  }
   return new BasicSafetyScanner({ blobStore });
 }
 
@@ -128,6 +167,34 @@ export function createMalwareScanner(blobStore: BlobStore): MalwareScannerPort {
 export function createDocumentConverter(blobStore: BlobStore): DocumentConverterPort {
   checkKnownProvider('DOCUMENT_CONVERTER_PROVIDER');
   return new DeterministicTextExtractor({ blobStore });
+}
+
+/**
+ * The safe preview renderer (EVI-02/EVI-06), the only `PreviewRendererPort`
+ * implementation today, matching `createDocumentConverter`'s "builtin,
+ * always active" shape: no external account, no configuration branch.
+ */
+export function createPreviewRenderer(): PreviewRendererPort {
+  checkKnownProvider('PREVIEW_RENDERER_PROVIDER');
+  return new BuiltinPreviewRenderer();
+}
+
+/**
+ * The content-limits checker (EVI-01's "50 PDF pages, 40 megapixels per
+ * image"), the only `ContentLimitsPort` implementation today, same
+ * "builtin, always active" shape as `createPreviewRenderer`. Reads its
+ * limits from the same `loadUploadQuotaConfig()` the upload-size checks
+ * use, so an operator overriding `QUOTA_MAX_PDF_PAGES`/
+ * `QUOTA_MAX_IMAGE_MEGAPIXELS` changes both what `quotas.ts` reports and
+ * what this checker enforces from the one place.
+ */
+export function createContentLimitsChecker(blobStore: BlobStore): ContentLimitsPort {
+  checkKnownProvider('CONTENT_LIMITS_PROVIDER');
+  const { maxPdfPages, maxImageMegapixels } = loadUploadQuotaConfig();
+  return new BuiltinContentLimitsChecker({
+    blobStore,
+    config: { maxPdfPages, maxImageMegapixels },
+  });
 }
 
 /** No email provider is configured for the pilot (master directive §7 "PR 11": matches Payment's explicit "no payment provider"). */
@@ -146,6 +213,31 @@ export function createObservabilityPort(): ObservabilityPort {
 export function createPaymentPort(): PaymentPort {
   checkKnownProvider('PAYMENT_PROVIDER');
   return new NullPaymentPort();
+}
+
+/**
+ * Envelope-key provider for protected-field encryption (Commercial V1
+ * SEC-03). `local` (`LocalEnvelopeKeyProvider`, @visastack/adapters) is the
+ * only implementation today and is explicitly NOT a real KMS, so it refuses
+ * to construct at all once `DEPLOYMENT_MODE=commercial` (its own
+ * `assertNotCommercialMode` guard), so this function can never hand back a
+ * fake-KMS port on a real commercial deployment.
+ *
+ * Unlike this file's other `create*Port()` functions, this one returns
+ * `undefined` rather than always constructing a port, matching
+ * `createAiExtractor`'s (./ai.ts) shape rather than e.g.
+ * `createEmailPort`'s: most profile fields are STANDARD sensitivity and
+ * must keep saving even where no master key has been configured yet.
+ * `editFact` (packages/services/src/profile.ts) is the one place that
+ * actually decides a port is required, failing loudly
+ * (`encryption_unavailable`) only when the specific field being written is
+ * SENSITIVE/RESTRICTED and no port was supplied.
+ */
+export function createKeyManagementPort(): KeyManagementPort | undefined {
+  checkKnownProvider('KMS_PROVIDER');
+  const masterKeyBase64 = readEnv('KMS_LOCAL_MASTER_KEY_BASE64');
+  if (!masterKeyBase64) return undefined;
+  return new LocalEnvelopeKeyProvider({ masterKeyBase64 });
 }
 
 export { createStorage } from './storage';

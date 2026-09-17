@@ -154,17 +154,21 @@ export function GrantForm({
 
       <div className="field-row">
         <label className="field-label" htmlFor="expiryDays">
-          Expires after (days, optional)
+          Expires after (days)
         </label>
         <input
           id="expiryDays"
           name="expiryDays"
           type="number"
           min="1"
+          max="90"
           className="input"
-          placeholder="Leave blank for no expiry"
+          placeholder="30 (default), up to 90"
           onChange={(e) => setExpiryDays(e.target.value)}
         />
+        <p className="muted" style={{ fontSize: '0.75rem', margin: '0.3rem 0 0' }}>
+          Every grant expires. Leave blank for the 30-day default; the maximum is 90 days.
+        </p>
       </div>
 
       <div className="notice" aria-live="polite">
@@ -179,7 +183,7 @@ export function GrantForm({
         {docsLabel ? <> ({docsLabel})</> : null}. {canDownload ? 'Downloading is allowed. ' : ''}
         {expiryDays
           ? `Access expires in ${expiryDays} day${expiryDays === '1' ? '' : 's'}. `
-          : 'Access never expires unless you revoke it. '}
+          : 'Access expires in 30 days (the default) unless you set a different duration. '}
         They must accept before anything is visible to them.
       </div>
 

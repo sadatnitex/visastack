@@ -11,6 +11,7 @@ import {
   enqueueIntakeJob,
   failUpload,
   finalizeUpload,
+  findDuplicateVersions,
   getApplicant,
   getLatestExtractedText,
   loadUploadQuotaConfig,
@@ -34,6 +35,7 @@ import {
 } from '../../../../lib/ai';
 import { triggerIntakeWorker } from '../../../../lib/jobs';
 import { profileField } from '../../../../lib/profile-fields';
+import { createKeyManagementPort } from '../../../../lib/providers';
 import { withSession } from '../../../../lib/session';
 import { createStorage } from '../../../../lib/storage';
 
@@ -41,6 +43,11 @@ import { createStorage } from '../../../../lib/storage';
 export interface ActionState {
   readonly ok: boolean;
   readonly message: string;
+}
+
+/** Variable-keyed env read (satisfies both TS index-signature and Biome rules). */
+function readEnv(name: string): string | undefined {
+  return process.env[name];
 }
 
 /** Guard: the applicant must be owned by the signed-in account. */
@@ -82,6 +89,7 @@ export async function saveFactAction(_prev: ActionState, formData: FormData): Pr
       repeating: def.group !== undefined,
       packId: def.pack,
     });
+    const encryption = createKeyManagementPort();
     const edit = await editFact(db, {
       actorAccountId: accountId,
       applicantId,
@@ -89,6 +97,7 @@ export async function saveFactAction(_prev: ActionState, formData: FormData): Pr
       value,
       ...(repeatingRecordKey !== null ? { repeatingRecordKey } : {}),
       ...(effectiveFrom ? { effectiveFrom } : {}),
+      ...(encryption ? { encryption } : {}),
     });
     if (!edit.ok) return { ok: false, message: edit.error.message } satisfies ActionState;
     return { ok: true, message: `${def.label} saved.` } satisfies ActionState;
@@ -252,9 +261,26 @@ export async function uploadDocumentAction(
     await finalizeUpload(db, intent.id, outcome.version.version.id);
     after(() => triggerIntakeWorker());
 
+    // EVI-03: informational only, never blocks the upload that already
+    // succeeded above, scoped to this SAME applicant's own other
+    // documents, never a cross-customer comparison.
+    const uploadedDocumentId = outcome.version.version.documentId;
+    const duplicateHash = outcome.version.version.sha256;
+    const duplicates = duplicateHash
+      ? await findDuplicateVersions(db, {
+          applicantId,
+          sha256: duplicateHash,
+          excludeDocumentId: uploadedDocumentId,
+        })
+      : [];
+    const duplicateNote =
+      duplicates.length > 0
+        ? ` This looks identical to ${duplicates.map((d) => `"${d.displayName}"`).join(', ')}, already in the vault.`
+        : '';
+
     return {
       ok: true,
-      message: `${originalName} uploaded and queued for a safety scan.`,
+      message: `${originalName} uploaded and queued for a safety scan.${duplicateNote}`,
     } satisfies ActionState;
   });
 
@@ -315,7 +341,9 @@ export async function previewDocumentAction(formData: FormData): Promise<void> {
   const applicantId = String(formData.get('applicantId') ?? '');
   const documentId = String(formData.get('documentId') ?? '');
 
+  const accessTokenSecret = readEnv('BLOB_SIGNING_SECRET');
   const url = await withSession(async ({ db, accountId }) => {
+    if (!accessTokenSecret) return null;
     const applicant = await getApplicant(db, applicantId);
     if (!applicant || applicant.ownerAccountId !== accountId) return null;
     const actor: Actor = {
@@ -327,6 +355,7 @@ export async function previewDocumentAction(formData: FormData): Promise<void> {
       actor,
       documentId,
       purpose: 'owner_preview',
+      accessTokenSecret,
     });
     return ref.ok ? ref.value.url : null;
   });
@@ -409,10 +438,12 @@ export async function decideProposalAction(
       if (!rejected.ok) return { ok: false, message: rejected.error.message } satisfies ActionState;
       return { ok: true, message: 'Proposal rejected.' } satisfies ActionState;
     }
+    const encryption = createKeyManagementPort();
     const approved = await approveProposal(db, {
       actorAccountId: accountId,
       proposalId,
       ...(correctedValue ? { correctedValue } : {}),
+      ...(encryption ? { encryption } : {}),
     });
     if (!approved.ok) return { ok: false, message: approved.error.message } satisfies ActionState;
     return {

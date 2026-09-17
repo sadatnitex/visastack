@@ -23,7 +23,9 @@ export type ServiceErrorCode =
   /** A dependent external service (e.g. the AI provider) failed or is unreachable. */
   | 'upstream_error'
   /** The actor has exceeded an anti-automation rate limit; retry later. */
-  | 'rate_limited';
+  | 'rate_limited'
+  /** The operation needs a capability (e.g. protected-field encryption) that isn't configured in this environment — a server gap, not a client mistake. */
+  | 'encryption_unavailable';
 
 export interface ServiceError {
   readonly code: ServiceErrorCode;

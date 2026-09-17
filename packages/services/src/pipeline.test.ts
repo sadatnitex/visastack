@@ -13,7 +13,12 @@ import type { Db } from './db';
 import { getLatestNameVersion } from './document-naming';
 import { addDocumentVersion, registerDocument } from './documents';
 import type { DocumentConverterPort, ExtractionOutcome } from './extraction';
-import { type MalwareScannerPort, listScanResults, processIntake } from './intake';
+import {
+  type ContentLimitsPort,
+  type MalwareScannerPort,
+  listScanResults,
+  processIntake,
+} from './intake';
 import { checkDigit, parseTd3 } from './mrz';
 
 const migrationsFolder = fileURLToPath(new URL('../../db/migrations', import.meta.url));
@@ -125,10 +130,17 @@ describe('document intake pipeline', () => {
       return { ok: false, code: 'unsupported_format', message: 'test fixture: not exercised here' };
     },
   };
+  const passingContentLimits: ContentLimitsPort = {
+    name: 'test-content-limits',
+    version: '0.0.0',
+    async check() {
+      return { withinLimits: true };
+    },
+  };
 
   it('drives a clean document to AWAITING_REVIEW', async () => {
     const { versionId } = await seedVersion(db, 'intake1@example.com');
-    const result = await processIntake(db, cleanScanner, noOpExtractor, {
+    const result = await processIntake(db, cleanScanner, noOpExtractor, passingContentLimits, {
       documentVersionId: versionId,
     });
     expect(isOk(result)).toBe(true);
@@ -139,7 +151,7 @@ describe('document intake pipeline', () => {
 
   it('quarantines an unsafe document (NEEDS_ATTENTION, never processed)', async () => {
     const { versionId } = await seedVersion(db, 'intake2@example.com');
-    const result = await processIntake(db, infectedScanner, noOpExtractor, {
+    const result = await processIntake(db, infectedScanner, noOpExtractor, passingContentLimits, {
       documentVersionId: versionId,
     });
     expect(isOk(result)).toBe(true);
@@ -150,8 +162,10 @@ describe('document intake pipeline', () => {
 
   it('is idempotent when already terminal', async () => {
     const { versionId } = await seedVersion(db, 'intake3@example.com');
-    await processIntake(db, cleanScanner, noOpExtractor, { documentVersionId: versionId });
-    const again = await processIntake(db, cleanScanner, noOpExtractor, {
+    await processIntake(db, cleanScanner, noOpExtractor, passingContentLimits, {
+      documentVersionId: versionId,
+    });
+    const again = await processIntake(db, cleanScanner, noOpExtractor, passingContentLimits, {
       documentVersionId: versionId,
     });
     expect(isOk(again)).toBe(true);
@@ -171,7 +185,9 @@ describe('document intake pipeline', () => {
       },
     };
     await expect(
-      processIntake(db, flaky, noOpExtractor, { documentVersionId: versionId }),
+      processIntake(db, flaky, noOpExtractor, passingContentLimits, {
+        documentVersionId: versionId,
+      }),
     ).rejects.toThrow();
 
     // The throwing attempt still produces a durable scan-attempt row —
@@ -189,21 +205,86 @@ describe('document intake pipeline', () => {
     expect(afterFailure[0]?.detail).toContain('scanner down');
 
     // State is parked at SCANNING and resumes cleanly on retry.
-    const resumed = await processIntake(db, flaky, noOpExtractor, {
+    const resumed = await processIntake(db, flaky, noOpExtractor, passingContentLimits, {
       documentVersionId: versionId,
     });
     expect(isOk(resumed)).toBe(true);
     if (isOk(resumed)) expect(resumed.value.processingStatus).toBe('AWAITING_REVIEW');
 
-    // The retry's success adds a SECOND row rather than overwriting the
-    // failure — the full attempt history stays intact and durable. The
-    // successful row is a genuine verdict, never marked errored.
+    // The retry's success adds a SECOND scanner row rather than overwriting
+    // the failure; the full attempt history stays intact and durable. The
+    // successful row is a genuine verdict, never marked errored. Filtered
+    // by scannerName (not just "every row for this version") since the
+    // retry's successful run also advances into NORMALIZING, which records
+    // its own passingContentLimits row in this same, reused table (AD-08):
+    // a plain length check would conflate the two pipeline steps' evidence.
     const afterRetry = await listScanResults(db, versionId);
-    expect(afterRetry).toHaveLength(2);
-    const successRow = afterRetry.find((r) => r.safe === true);
-    const errorRow = afterRetry.find((r) => r.safe === false);
+    const scannerRows = afterRetry.filter((r) => r.scannerName === 'test-scanner');
+    expect(scannerRows).toHaveLength(2);
+    const successRow = scannerRows.find((r) => r.safe === true);
+    const errorRow = scannerRows.find((r) => r.safe === false);
     expect(successRow?.scanErrored).toBe(false);
     expect(errorRow?.scanErrored).toBe(true);
+  });
+
+  it('routes to NEEDS_ATTENTION when content limits are exceeded, even though the scan itself was clean (EVI-01)', async () => {
+    const { versionId } = await seedVersion(db, 'intake4b@example.com');
+    const failingContentLimits: ContentLimitsPort = {
+      name: 'test-content-limits',
+      version: '0.0.0',
+      async check() {
+        return { withinLimits: false, detail: 'PDF has 80 pages, exceeding the 50-page limit' };
+      },
+    };
+    const result = await processIntake(db, cleanScanner, noOpExtractor, failingContentLimits, {
+      documentVersionId: versionId,
+    });
+    expect(isOk(result)).toBe(true);
+    if (!isOk(result)) return;
+    // safetyStatus stays CLEAN: the scan genuinely found nothing unsafe.
+    // processingStatus alone routes this to NEEDS_ATTENTION and blocks
+    // servability (isServableProcessingState), so no second "unsafe" signal
+    // is invented for what is really an oversized-but-clean file.
+    expect(result.value.processingStatus).toBe('NEEDS_ATTENTION');
+    expect(result.value.safetyStatus).toBe('CLEAN');
+
+    // Reuses documentScanResults (distinguished by scannerName) rather than
+    // a parallel table; see AD-08 for why.
+    const results = await listScanResults(db, versionId);
+    const limitsRow = results.find((r) => r.scannerName === 'test-content-limits');
+    expect(limitsRow?.safe).toBe(false);
+    expect(limitsRow?.detail).toContain('80 pages');
+  });
+
+  it('is resumable after a content-limits check failure, with the same fail-durable-then-retry contract as the scanner', async () => {
+    const { versionId } = await seedVersion(db, 'intake4c@example.com');
+    let calls = 0;
+    const flakyLimits: ContentLimitsPort = {
+      name: 'test-content-limits',
+      version: '0.0.0',
+      async check() {
+        calls++;
+        if (calls === 1) throw new Error('content-limits checker unavailable');
+        return { withinLimits: true };
+      },
+    };
+    await expect(
+      processIntake(db, cleanScanner, noOpExtractor, flakyLimits, {
+        documentVersionId: versionId,
+      }),
+    ).rejects.toThrow();
+
+    const afterFailure = await listScanResults(db, versionId);
+    const errorRow = afterFailure.find((r) => r.scannerName === 'test-content-limits');
+    expect(errorRow?.safe).toBe(false);
+    expect(errorRow?.scanErrored).toBe(true);
+    expect(errorRow?.detail).toContain('content-limits checker unavailable');
+
+    const resumed = await processIntake(db, cleanScanner, noOpExtractor, flakyLimits, {
+      documentVersionId: versionId,
+    });
+    expect(isOk(resumed)).toBe(true);
+    if (isOk(resumed)) expect(resumed.value.processingStatus).toBe('AWAITING_REVIEW');
   });
 
   it('classifies a passport from its embedded MRZ text and proposes a filename', async () => {
@@ -237,7 +318,7 @@ describe('document intake pipeline', () => {
       },
     };
 
-    const result = await processIntake(db, cleanScanner, passportExtractor, {
+    const result = await processIntake(db, cleanScanner, passportExtractor, passingContentLimits, {
       documentVersionId: versionId,
     });
     expect(isOk(result)).toBe(true);
@@ -276,6 +357,128 @@ describe('document intake pipeline', () => {
     expect(nameVersion?.proposedName).toContain('Passport');
     expect(nameVersion?.proposedName).toContain(applicantRow?.displayName ?? '');
     expect(nameVersion?.proposedName.endsWith('.pdf')).toBe(true);
+
+    // EVI-03: the same confident classification also populates the
+    // document's own metadata columns (previously dead for every real
+    // upload), using the MRZ's own parsed, check-digit-verified fields.
+    const mrz = parseTd3([L1, L2]);
+    if (!mrz.ok) throw new Error('mrz');
+    const updatedDocument = (
+      await db.select().from(schema.documents).where(eq(schema.documents.id, document.id))
+    )[0];
+    expect(updatedDocument?.docType).toBe('PASSPORT');
+    expect(updatedDocument?.issuer).toBe(mrz.value.issuingCountry);
+    expect(updatedDocument?.expiresAt?.toISOString().slice(0, 10)).toBe(mrz.value.expiryDate);
+
+    const updatedVersion = (
+      await db
+        .select()
+        .from(schema.documentVersions)
+        .where(eq(schema.documentVersions.id, versionId))
+    )[0];
+    expect(updatedVersion?.pages).toBe(1);
+  });
+
+  it('populates docType from a confident keyword classification, but never issuer/expiry (no structured fields to draw from)', async () => {
+    const { versionId } = await seedVersion(db, 'intake-bankstatement@example.com');
+    const document = (
+      await db
+        .select({ id: schema.documents.id })
+        .from(schema.documents)
+        .innerJoin(
+          schema.documentVersions,
+          eq(schema.documentVersions.documentId, schema.documents.id),
+        )
+        .where(eq(schema.documentVersions.id, versionId))
+    )[0];
+    if (!document) throw new Error('document not found');
+
+    const bankStatementExtractor: DocumentConverterPort = {
+      async extract(): Promise<ExtractionOutcome> {
+        return {
+          ok: true,
+          result: {
+            text: 'Statement of Account\nOpening Balance: 100\nClosing Balance: 200\nAccount Number: 12345',
+            truncated: false,
+            pageCount: 2,
+            warnings: [],
+            parserName: 'test-fixture',
+            parserVersion: '1.0.0',
+          },
+        };
+      },
+    };
+
+    const result = await processIntake(
+      db,
+      cleanScanner,
+      bankStatementExtractor,
+      passingContentLimits,
+      { documentVersionId: versionId },
+    );
+    expect(isOk(result)).toBe(true);
+
+    const updatedDocument = (
+      await db.select().from(schema.documents).where(eq(schema.documents.id, document.id))
+    )[0];
+    expect(updatedDocument?.docType).toBe('BANK_STATEMENT');
+    expect(updatedDocument?.issuer).toBeNull();
+    expect(updatedDocument?.expiresAt).toBeNull();
+
+    const updatedVersion = (
+      await db
+        .select()
+        .from(schema.documentVersions)
+        .where(eq(schema.documentVersions.id, versionId))
+    )[0];
+    expect(updatedVersion?.pages).toBe(2);
+  });
+
+  it('never overwrites an already-set docType with a later re-classification', async () => {
+    const { versionId } = await seedVersion(db, 'intake-no-overwrite@example.com');
+    const document = (
+      await db
+        .select({ id: schema.documents.id })
+        .from(schema.documents)
+        .innerJoin(
+          schema.documentVersions,
+          eq(schema.documentVersions.documentId, schema.documents.id),
+        )
+        .where(eq(schema.documentVersions.id, versionId))
+    )[0];
+    if (!document) throw new Error('document not found');
+    // Simulates docType already set by some earlier point (a prior version's
+    // classification, or a future manual correction): this run must not
+    // clobber it even though its own classification disagrees.
+    await db
+      .update(schema.documents)
+      .set({ docType: 'EMPLOYMENT_CERTIFICATE' })
+      .where(eq(schema.documents.id, document.id));
+
+    const passportExtractor: DocumentConverterPort = {
+      async extract(): Promise<ExtractionOutcome> {
+        return {
+          ok: true,
+          result: {
+            text: `PASSPORT\n${L1}\n${L2}\n`,
+            truncated: false,
+            pageCount: 1,
+            warnings: [],
+            parserName: 'test-fixture',
+            parserVersion: '1.0.0',
+          },
+        };
+      },
+    };
+    const result = await processIntake(db, cleanScanner, passportExtractor, passingContentLimits, {
+      documentVersionId: versionId,
+    });
+    expect(isOk(result)).toBe(true);
+
+    const updatedDocument = (
+      await db.select().from(schema.documents).where(eq(schema.documents.id, document.id))
+    )[0];
+    expect(updatedDocument?.docType).toBe('EMPLOYMENT_CERTIFICATE');
   });
 
   it('advances to AWAITING_REVIEW even when extraction fails (unsupported format)', async () => {
@@ -285,7 +488,7 @@ describe('document intake pipeline', () => {
         return { ok: false, code: 'unsupported_format', message: 'image format, no OCR' };
       },
     };
-    const result = await processIntake(db, cleanScanner, failingExtractor, {
+    const result = await processIntake(db, cleanScanner, failingExtractor, passingContentLimits, {
       documentVersionId: versionId,
     });
     expect(isOk(result)).toBe(true);

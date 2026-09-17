@@ -1,4 +1,6 @@
 import type {
+  AccountId,
+  AgencyId,
   ApplicantId,
   DocumentId,
   DocumentState,
@@ -6,17 +8,26 @@ import type {
   Result,
 } from '@visastack/core';
 import { err, ok } from '@visastack/core';
-import { type Actor, authorize } from '@visastack/policy';
+import { type Actor, type Grant as PolicyGrant, authorize } from '@visastack/policy';
 import { and, desc, eq, ne } from 'drizzle-orm';
+import { orgGrantPermits } from './agency';
 import { getApplicant } from './applicants';
 import { appendAuditEvent } from './audit';
 import { hasConsent } from './consent';
 import { type Db, first, required, schema } from './db';
+import {
+  type DocumentAccessActorKind,
+  type DocumentAccessTokenFields,
+  appendDocumentAccessToken,
+  signDocumentAccessToken,
+} from './document-access-token';
 import { hasActiveOrVerifiedErasureJob } from './erasure';
 import { type ServiceError, serviceError } from './errors';
+import { listMembershipsForAccount } from './organizations';
 import { recordProductEvent } from './product-events';
 import { loadGrantsForPolicy } from './sharing';
 import type { AccessRef, AccessVariant, StorageBucket, StoragePort } from './storage';
+import { loadSupportGrantsForPolicy } from './support-access';
 
 /**
  * Document Vault (Build Spec §4.2, §7, §11; PRD §2).
@@ -34,7 +45,15 @@ export type Document = typeof schema.documents.$inferSelect;
 export type DocumentVersion = typeof schema.documentVersions.$inferSelect;
 export type StorageObject = typeof schema.storageObjects.$inferSelect;
 
-const DEFAULT_ACCESS_TTL_SECONDS = 300;
+/**
+ * EVI-06's explicit maximum ("maximum 60-second lifetime, rechecked at
+ * redemption"). Was 300 (5 minutes) before Commercial V1 Part 3; a 60-second
+ * window alone would still leave a mid-life grant revocation able to redeem
+ * successfully, which is why redemption also replays the original
+ * authorization decision against live state (see `recheckDocumentAccess`),
+ * not just the shorter window on its own.
+ */
+const DEFAULT_ACCESS_TTL_SECONDS = 60;
 
 // --- Registration (owner-authorized, consent-gated) ------------------------
 
@@ -287,6 +306,157 @@ export async function registerDocumentWithVersion(
   }
 }
 
+export interface DuplicateDocumentMatch {
+  readonly documentId: string;
+  readonly displayName: string;
+}
+
+/**
+ * Other documents belonging to the SAME applicant that already have a
+ * version whose bytes hash identically to `sha256` (EVI-03: "duplicate
+ * detection is limited to the authorised subject/scope; do not reveal
+ * cross-customer hash matches": the `applicantId` filter here is not an
+ * optimization, it is the entire safety requirement this exists to meet).
+ * Checks every version of every other document, not only the latest: a
+ * duplicate of a superseded version is still meaningfully "you already have
+ * this file," and this is advisory only (informs the caller; never blocks
+ * or rejects the upload it's checking against).
+ */
+export async function findDuplicateVersions(
+  db: Db,
+  input: {
+    readonly applicantId: string;
+    readonly sha256: string;
+    readonly excludeDocumentId: string;
+  },
+): Promise<DuplicateDocumentMatch[]> {
+  const rows = await db
+    .selectDistinct({
+      documentId: schema.documents.id,
+      originalName: schema.documents.originalName,
+      approvedName: schema.documents.approvedName,
+    })
+    .from(schema.documentVersions)
+    .innerJoin(schema.documents, eq(schema.documents.id, schema.documentVersions.documentId))
+    .where(
+      and(
+        eq(schema.documents.applicantId, input.applicantId),
+        eq(schema.documentVersions.sha256, input.sha256),
+        ne(schema.documents.id, input.excludeDocumentId),
+      ),
+    );
+  return rows.map((r) => ({
+    documentId: r.documentId,
+    displayName: r.approvedName ?? r.originalName,
+  }));
+}
+
+// --- Document review (EVI-03) ------------------------------------------
+//
+// "Document review supports pending, accepted, replacement required,
+// irrelevant and disputed." A judgment on the EVIDENCE itself (is this
+// document acceptable), distinct from `missionDecisions` (a
+// requirement-scoped, mission-specific judgment in `agency.ts`) and from
+// `processingStatus`/`safetyStatus` (pipeline state, not a reviewer's
+// opinion). Append-only, like every other decision-history table in this
+// schema: the latest row per document is "the" current review status.
+
+export type DocumentReview = typeof schema.documentReviews.$inferSelect;
+
+/**
+ * Records a review outcome for a document (applicant owner, or an active
+ * member of an organization whose grant currently permits `COMMENT` on
+ * this applicant). Mirrors `addNote`'s own authorization shape exactly:
+ * the same bar that lets an org comment on a mission's case notes is the
+ * bar for judging whether the evidence itself is acceptable. Append-only;
+ * never updates or deletes a prior review, so a disputed history stays
+ * fully readable even after a later outcome supersedes it.
+ */
+export async function recordDocumentReview(
+  db: Db,
+  input: {
+    readonly actorAccountId: string;
+    readonly documentId: string;
+    readonly outcome: DocumentReview['outcome'];
+    readonly reason?: string;
+  },
+): Promise<Result<DocumentReview, ServiceError>> {
+  const document = first(
+    await db
+      .select()
+      .from(schema.documents)
+      .where(eq(schema.documents.id, input.documentId))
+      .limit(1),
+  );
+  if (!document) return err(serviceError('not_found', 'document not found'));
+
+  const applicant = await getApplicant(db, document.applicantId);
+  let authorized = applicant?.ownerAccountId === input.actorAccountId;
+  if (!authorized) {
+    const memberships = await listMembershipsForAccount(db, input.actorAccountId);
+    for (const membership of memberships) {
+      if (!membership.active) continue;
+      if (await orgGrantPermits(db, membership.organization.id, document.applicantId, 'COMMENT')) {
+        authorized = true;
+        break;
+      }
+    }
+  }
+  if (!authorized) return err(serviceError('forbidden', 'not authorized to review this document'));
+
+  return db.transaction(async (tx) => {
+    const review = required(
+      first(
+        await tx
+          .insert(schema.documentReviews)
+          .values({
+            documentId: input.documentId,
+            outcome: input.outcome,
+            reason: input.reason ?? null,
+            reviewedByAccountId: input.actorAccountId,
+          })
+          .returning(),
+      ),
+      'review',
+    );
+    await appendAuditEvent(tx, {
+      eventType: 'DOCUMENT_REVIEWED',
+      actorAccountId: input.actorAccountId,
+      method: 'MANUAL',
+      result: 'ALLOWED',
+      applicantId: document.applicantId,
+      resourceType: 'document',
+      resourceId: document.id,
+      metadata: { outcome: input.outcome },
+    });
+    return ok(review);
+  });
+}
+
+/** The current (most recent) review outcome for a document, or `undefined` if never reviewed. */
+export async function getCurrentDocumentReview(
+  db: Db,
+  documentId: string,
+): Promise<DocumentReview | undefined> {
+  return first(
+    await db
+      .select()
+      .from(schema.documentReviews)
+      .where(eq(schema.documentReviews.documentId, documentId))
+      .orderBy(desc(schema.documentReviews.createdAt))
+      .limit(1),
+  );
+}
+
+/** Full review history for a document, newest first (audit/transparency). */
+export async function listDocumentReviews(db: Db, documentId: string): Promise<DocumentReview[]> {
+  return db
+    .select()
+    .from(schema.documentReviews)
+    .where(eq(schema.documentReviews.documentId, documentId))
+    .orderBy(desc(schema.documentReviews.createdAt));
+}
+
 /** List an applicant's documents (owner-scoped). */
 export async function listDocuments(
   db: Db,
@@ -467,16 +637,61 @@ export interface DocumentAccessInput {
   readonly purpose: string;
   readonly stepUpSatisfied?: boolean;
   readonly now?: Date;
+  /**
+   * Signs the redemption-time access-context token (EVI-06/SEC-05). The
+   * same secret the storage backend uses to sign its own blob token
+   * (`BLOB_SIGNING_SECRET`); a distinct namespace prefix inside the signed
+   * payload (`document-access-token.ts`'s `DAT1`) keeps the two token
+   * kinds from ever being confused, so reusing the secret needs no new
+   * secret-provisioning step.
+   */
+  readonly accessTokenSecret: string;
+}
+
+/** Reduces an `Actor` to the fields `document-access-token.ts` needs to reconstruct it fresh at redemption. */
+function actorAccessContext(actor: Actor): {
+  readonly actorKind: DocumentAccessActorKind;
+  readonly actorAccountId?: string;
+  readonly organizationId?: string;
+} {
+  switch (actor.kind) {
+    case 'applicant_owner':
+      return { actorKind: actor.kind };
+    case 'organization_member':
+      return {
+        actorKind: actor.kind,
+        actorAccountId: actor.accountId,
+        organizationId: actor.membership.organizationId,
+      };
+    case 'individual_recipient':
+    case 'support_admin':
+      return { actorKind: actor.kind, actorAccountId: actor.accountId };
+  }
 }
 
 /**
- * Whether this actor is the applicant's owner. The owner actor is minted by the
- * caller only after it has verified `applicant.ownerAccountId === session
- * account` (see the preview server action), so an owner actor for this
- * document's applicant is authoritative.
+ * Ordinary grants for this applicant, plus this actor's own active support
+ * grants merged in when the actor is `support_admin`. `authorize()`'s
+ * `support_admin` case (`packages/policy/src/authorize.ts`) filters
+ * candidate grants by `recipientAccountId`, the same shape
+ * `loadSupportGrantsForPolicy` already converts a support grant row into,
+ * so merging it into the same list is sufficient; no separate authorization
+ * path is needed. Previously always omitted here, which made support_admin
+ * document access structurally unreachable regardless of any support grant
+ * that existed (known-issues.md item 23) even though SEC-06's own
+ * support-grant issuance/approval/revocation machinery was itself correct.
+ * Skipped for every other actor kind to avoid an unneeded query on the
+ * ordinary preview/download path.
  */
-function isApplicantOwner(actor: Actor, applicantId: string): boolean {
-  return actor.kind === 'applicant_owner' && actor.applicantId === applicantId;
+async function loadGrantsForActor(
+  db: Db,
+  applicantId: string,
+  actor: Actor,
+): Promise<PolicyGrant[]> {
+  const grants = await loadGrantsForPolicy(db, applicantId);
+  if (actor.kind !== 'support_admin') return grants;
+  const supportGrants = await loadSupportGrantsForPolicy(db, applicantId);
+  return [...grants, ...supportGrants];
 }
 
 async function accessDocument(
@@ -496,20 +711,18 @@ async function accessDocument(
   );
   if (!document) return err(serviceError('not_found', 'document not found'));
 
-  // Preview variant is owner-scoped (Milestone 2): the applicant's owner may
-  // preview their own clean ORIGINAL; any third party gets a `redacted` variant,
-  // which the serving route fails closed on until real renditions exist — it can
-  // never expose the original bytes as a "preview". Downloads keep the requested
-  // variant (original still requires DOWNLOAD_ORIGINAL + step-up).
-  const effectiveVariant: AccessVariant =
-    disposition === 'preview'
-      ? isApplicantOwner(input.actor, document.applicantId)
-        ? 'original'
-        : 'redacted'
-      : variant;
+  // Preview is ALWAYS the rendered `redacted` derivative, for the owner and
+  // any third party alike (PRD §5: "Use safe rendered previews with active
+  // content removed; originals are explicit downloads, never an untrusted
+  // inline PDF shortcut", corrected this chunk; an earlier build gave the
+  // owner the raw original here, which the newer PRD text explicitly rules
+  // out). `/api/blob/[key]` renders it via `PreviewRendererPort`; it never
+  // falls through to original bytes. Downloads keep the requested variant
+  // (original still requires DOWNLOAD_ORIGINAL + step-up).
+  const effectiveVariant: AccessVariant = disposition === 'preview' ? 'redacted' : variant;
 
   const now = input.now ?? new Date();
-  const grants = await loadGrantsForPolicy(db, document.applicantId);
+  const grants = await loadGrantsForActor(db, document.applicantId, input.actor);
   const decision = authorize({
     actor: input.actor,
     action,
@@ -640,18 +853,145 @@ async function accessDocument(
     disposition,
     variant: effectiveVariant,
     expiresInSeconds: DEFAULT_ACCESS_TTL_SECONDS,
-    // The current approved name if one exists, else the preserved original —
+    // The current approved name if one exists, else the preserved original,
     // never the opaque storage key (master directive §10/§18/§21E).
     filename: document.approvedName ?? document.originalName,
   });
-  return ok(ref);
+
+  // A second, separate signed token (EVI-06/SEC-05) riding alongside the
+  // storage-generic blob token on the same URL, carrying just enough for
+  // the serving route to replay this exact authorization decision against
+  // LIVE state at redemption. See document-access-token.ts's module doc
+  // comment for why this is not folded into the blob token itself.
+  const accessTokenFields: Omit<DocumentAccessTokenFields, 'sig'> = {
+    documentId: document.id,
+    ...actorAccessContext(input.actor),
+    action,
+    purpose: input.purpose,
+    stepUpSatisfied: input.stepUpSatisfied ?? false,
+    exp: Math.floor(now.getTime() / 1000) + DEFAULT_ACCESS_TTL_SECONDS,
+  };
+  const signedAccessTokenFields: DocumentAccessTokenFields = {
+    ...accessTokenFields,
+    sig: signDocumentAccessToken(input.accessTokenSecret, accessTokenFields),
+  };
+  return ok({ ...ref, url: appendDocumentAccessToken(ref.url, signedAccessTokenFields) });
+}
+
+export type RecheckDocumentAccessResult =
+  | { readonly allowed: true }
+  | { readonly allowed: false; readonly reason: string };
+
+/**
+ * Replays the original authorization decision against LIVE state, called by
+ * the serving route at redemption (EVI-06/SEC-05: "redemption must recheck
+ * access", "revoking a grant before redemption must make an already issued
+ * token fail"). Never trusts anything the token itself claims about CURRENT
+ * state beyond its own signature/expiry (already verified by the caller):
+ * membership, grants, and document servability are all re-read fresh from
+ * the database here, not replayed from a mint-time snapshot.
+ *
+ * Deliberately returns a reason string rather than throwing or returning a
+ * bare boolean: the serving route logs which check actually failed, without
+ * that reason ever reaching the unauthenticated caller in the HTTP response.
+ */
+export async function recheckDocumentAccess(
+  db: Db,
+  fields: Omit<DocumentAccessTokenFields, 'sig' | 'exp'>,
+  now: Date = new Date(),
+): Promise<RecheckDocumentAccessResult> {
+  const document = first(
+    await db
+      .select()
+      .from(schema.documents)
+      .where(eq(schema.documents.id, fields.documentId))
+      .limit(1),
+  );
+  if (!document) return { allowed: false, reason: 'document_not_found' };
+
+  let actor: Actor;
+  switch (fields.actorKind) {
+    case 'applicant_owner':
+      actor = { kind: 'applicant_owner', applicantId: document.applicantId as ApplicantId };
+      break;
+    case 'organization_member': {
+      if (!fields.actorAccountId || !fields.organizationId) {
+        return { allowed: false, reason: 'missing_organization_member_context' };
+      }
+      // Fetched fresh, never trusted from the token: a membership
+      // deactivated after mint must be reflected here, not the mint-time
+      // snapshot the actor originally presented.
+      const memberships = await listMembershipsForAccount(db, fields.actorAccountId);
+      const membership = memberships.find((m) => m.organization.id === fields.organizationId);
+      if (!membership) return { allowed: false, reason: 'membership_not_found' };
+      actor = {
+        kind: 'organization_member',
+        accountId: fields.actorAccountId as AccountId,
+        membership: {
+          organizationId: fields.organizationId as AgencyId,
+          role: membership.role,
+          active: membership.active,
+        },
+      };
+      break;
+    }
+    case 'individual_recipient':
+      if (!fields.actorAccountId) return { allowed: false, reason: 'missing_actor_account_id' };
+      actor = { kind: 'individual_recipient', accountId: fields.actorAccountId as AccountId };
+      break;
+    case 'support_admin':
+      if (!fields.actorAccountId) return { allowed: false, reason: 'missing_actor_account_id' };
+      actor = { kind: 'support_admin', accountId: fields.actorAccountId as AccountId };
+      break;
+  }
+
+  // Grants are already loaded live (loadGrantsForActor queries the
+  // database directly, never a cache), so a grant revoked after mint is
+  // simply absent/inactive here. Support grants are included for a
+  // support_admin actor, matching accessDocument's own mint-time behaviour
+  // (known-issues.md item 23).
+  const grants = await loadGrantsForActor(db, document.applicantId, actor);
+  const decision = authorize({
+    actor,
+    action: fields.action,
+    resource: {
+      applicantId: document.applicantId as ApplicantId,
+      documentId: document.id as DocumentId,
+    },
+    context: { now, purpose: fields.purpose, stepUpSatisfied: fields.stepUpSatisfied, grants },
+  });
+  if (!decision.allowed) return { allowed: false, reason: decision.reason };
+
+  // "Exact version" (directive §10): the servability check `accessDocument`
+  // already ran at mint time is re-run here too, not assumed to still
+  // hold, so a version erased or otherwise made unusable between mint and
+  // redemption cannot still be served.
+  const version = first(
+    await db
+      .select()
+      .from(schema.documentVersions)
+      .where(eq(schema.documentVersions.documentId, document.id))
+      .orderBy(desc(schema.documentVersions.versionNumber))
+      .limit(1),
+  );
+  if (!version) return { allowed: false, reason: 'no_stored_version' };
+  const erased = await hasActiveOrVerifiedErasureJob(db, version.storageObjectId);
+  const servable = isDocumentVersionUsable({
+    safetyStatus: version.safetyStatus,
+    processingStatus: version.processingStatus,
+    erased,
+  });
+  if (!servable) return { allowed: false, reason: 'not_yet_safe_to_serve' };
+
+  return { allowed: true };
 }
 
 /**
- * Permission-checked preview. The owner previews their own clean original; any
- * third party is issued a `redacted` variant, which the serving route fails
- * closed on until real generated renditions exist (Milestone 2) — preview never
- * exposes original bytes to a non-owner.
+ * Permission-checked preview. Always issues a `redacted` variant, a
+ * rendered, active-content-stripped derivative, for the owner and any
+ * third party alike; preview never exposes original bytes to anyone (PRD
+ * §5). The original is reachable only via `downloadDocument`'s explicit
+ * `DOWNLOAD_ORIGINAL` action (step-up required).
  */
 export async function previewDocument(
   db: Db,

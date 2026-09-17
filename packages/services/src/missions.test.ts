@@ -26,21 +26,25 @@ import {
   listMissions,
   listMissionsUsingField,
   listSelectedEvidence,
+  listSelectedEvidenceForOrg,
   listTasks,
   selectEvidence,
   snapshotMission,
   transitionMission,
   unselectEvidence,
 } from './missions';
+import { createOrganization, reviewOrganization } from './organizations';
 import {
   addPackVersion,
   addRequirement,
   approvePackVersion,
   createPack,
   listPublishedPackVersions,
+  listRequirements,
   publishPackVersion,
 } from './packs';
 import { editFact, registerFieldDefinition } from './profile';
+import { acceptGrant, createGrant } from './sharing';
 
 const migrationsFolder = fileURLToPath(new URL('../../db/migrations', import.meta.url));
 
@@ -1454,5 +1458,118 @@ describe('mission collaboration — evidence selection, tasks, grounded letters 
     expect(field?.satisfied).toBe(false);
     expect(field?.facts).toHaveLength(1);
     expect(field?.facts?.[0]?.value).toBe('BAD');
+  });
+});
+
+describe('listSelectedEvidenceForOrg (EVI-05): the org-scoped sibling of listSelectedEvidence', () => {
+  let db: Db;
+  beforeEach(async () => {
+    db = await freshDb();
+  });
+
+  it('lets an org with a covering MANAGE grant read what is selected, mirroring listMissionRequirementsForOrg', async () => {
+    const { account, applicantId } = await seed(db);
+    await setConsent(db, {
+      actorAccountId: account.id,
+      accountId: account.id,
+      type: 'SHARING',
+      granted: true,
+    });
+    const packVersionId = await publishedPack(db, account.id);
+    const mission = await createMission(db, {
+      actorAccountId: account.id,
+      applicantId,
+      title: 'V',
+    });
+    if (!isOk(mission)) throw new Error('mission');
+    await attachPackVersion(db, {
+      actorAccountId: account.id,
+      missionId: mission.value.id,
+      packVersionId,
+    });
+    await registerFieldDefinition(db, { key: 'passport.number', dataType: 'string' });
+    const edited = await editFact(db, {
+      actorAccountId: account.id,
+      applicantId,
+      fieldKey: 'passport.number',
+      value: 'A1',
+    });
+    if (!isOk(edited)) throw new Error('edit');
+    const requirements = await listRequirements(db, packVersionId);
+    const fieldRequirement = requirements.find((r) => r.kind === 'FIELD');
+    if (!fieldRequirement) throw new Error('requirement');
+    const selected = await selectEvidence(db, {
+      actorAccountId: account.id,
+      missionId: mission.value.id,
+      packRequirementId: fieldRequirement.id,
+      factId: edited.value.fact.id,
+    });
+    expect(isOk(selected)).toBe(true);
+
+    const agent = await provisionAccount(db, { email: 'evidence-org-agent@example.com' });
+    if (!isOk(agent)) throw new Error('provision');
+    const org = await createOrganization(db, { actorAccountId: agent.value.id, name: 'Acme' });
+    if (!isOk(org)) throw new Error('org');
+    const admin = await provisionAccount(db, { email: 'evidence-org-admin@example.com' });
+    if (!isOk(admin)) throw new Error('provision');
+    await reviewOrganization(db, {
+      reviewerAccountId: admin.value.id,
+      organizationId: org.value.id,
+      decision: 'ACTIVE',
+      stepUpSatisfied: true,
+    });
+    const grant = await createGrant(db, {
+      actorAccountId: account.id,
+      applicantId,
+      recipientOrganizationId: org.value.id,
+      actions: ['MANAGE'],
+      purpose: 'case_management',
+    });
+    if (!isOk(grant)) throw new Error('grant');
+    await acceptGrant(db, { actorAccountId: agent.value.id, grantId: grant.value.id });
+
+    const forOrg = await listSelectedEvidenceForOrg(db, org.value.id, mission.value.id);
+    expect(isOk(forOrg)).toBe(true);
+    if (!isOk(forOrg)) return;
+    expect(forOrg.value).toHaveLength(1);
+    expect(forOrg.value[0]?.factId).toBe(edited.value.fact.id);
+  });
+
+  it('denies an org with no grant on the applicant at all', async () => {
+    const { account, applicantId } = await seed(db);
+    const packVersionId = await publishedPack(db, account.id);
+    const mission = await createMission(db, {
+      actorAccountId: account.id,
+      applicantId,
+      title: 'V',
+    });
+    if (!isOk(mission)) throw new Error('mission');
+    await attachPackVersion(db, {
+      actorAccountId: account.id,
+      missionId: mission.value.id,
+      packVersionId,
+    });
+
+    const agent = await provisionAccount(db, { email: 'evidence-stranger-agent@example.com' });
+    if (!isOk(agent)) throw new Error('provision');
+    const org = await createOrganization(db, {
+      actorAccountId: agent.value.id,
+      name: 'Stranger Co',
+    });
+    if (!isOk(org)) throw new Error('org');
+
+    const forOrg = await listSelectedEvidenceForOrg(db, org.value.id, mission.value.id);
+    expect(isErr(forOrg)).toBe(true);
+    if (isErr(forOrg)) expect(forOrg.error.code).toBe('forbidden');
+  });
+
+  it('reports not_found for an unknown mission', async () => {
+    const forOrg = await listSelectedEvidenceForOrg(
+      db,
+      '00000000-0000-0000-0000-000000000000',
+      '00000000-0000-0000-0000-000000000000',
+    );
+    expect(isErr(forOrg)).toBe(true);
+    if (isErr(forOrg)) expect(forOrg.error.code).toBe('not_found');
   });
 });

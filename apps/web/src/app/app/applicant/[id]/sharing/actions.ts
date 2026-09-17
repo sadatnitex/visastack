@@ -4,6 +4,7 @@ import { PERMISSION_ACTIONS, type PermissionAction } from '@visastack/core';
 import {
   STEP_UP_ACTIONS,
   createGrant,
+  expandGrantScope,
   getAccountByEmail,
   pauseGrant,
   resumeGrant,
@@ -129,4 +130,38 @@ export async function updateGrantAction(
   if (!result.ok) return { ok: false, message: result.error.message };
   revalidatePath(`/app/applicant/${applicantId}/sharing`);
   return { ok: true, message: `Access ${OP_LABELS[op] ?? 'updated'}.` };
+}
+
+/**
+ * Widen a category grant's scope to specific, newly matching documents the
+ * owner just confirmed (PRD SHR-01: "expanding scope requires a displayed
+ * confirmation"). `documentId` values come only from the checkboxes the
+ * owner was actually shown on this page, never a freeform list.
+ */
+export async function expandGrantScopeAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const applicantId = String(formData.get('applicantId') ?? '');
+  const grantId = String(formData.get('grantId') ?? '');
+  const documentIds = formData.getAll('documentId').map(String);
+  if (documentIds.length === 0) {
+    return { ok: false, message: 'Select at least one document to include.' };
+  }
+
+  const result = await withSession(async ({ db, accountId }) => {
+    const expanded = await expandGrantScope(db, {
+      actorAccountId: accountId,
+      grantId,
+      documentIds,
+    });
+    if (!expanded.ok) return { ok: false, message: expanded.error.message } satisfies ActionState;
+    return {
+      ok: true,
+      message: `${documentIds.length} document${documentIds.length === 1 ? '' : 's'} added to this grant.`,
+    } satisfies ActionState;
+  });
+
+  if (result.ok) revalidatePath(`/app/applicant/${applicantId}/sharing`);
+  return result;
 }

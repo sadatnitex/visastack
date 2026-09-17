@@ -1,9 +1,12 @@
 import { type MessageKey, type Translator, createTranslator } from '@visastack/i18n';
 import {
+  type DocumentLifecycleStatus,
   getApplicantEvidenceBytes,
+  getWalletView,
   hasConsent,
   isServableProcessingState,
   listDocumentsDetailed,
+  listIssuerVerificationsForDocument,
   listPendingProposals,
   loadUploadQuotaConfig,
 } from '@visastack/services';
@@ -57,6 +60,14 @@ function processingTone(status: string | null): string {
   return 'badge-neutral';
 }
 
+/** EVI-04 wallet lifecycle: current/expiring/expired/superseded, distinct from pipeline/safety status above. */
+const LIFECYCLE_BADGES: Record<DocumentLifecycleStatus, { label: string; tone: string }> = {
+  CURRENT: { label: 'Current', tone: 'badge-success' },
+  EXPIRING: { label: 'Expiring soon', tone: 'badge-warning' },
+  EXPIRED: { label: 'Expired', tone: 'badge-danger' },
+  SUPERSEDED: { label: 'Superseded', tone: 'badge-neutral' },
+};
+
 export default async function ApplicantDocumentsPage({
   params,
   searchParams,
@@ -70,21 +81,35 @@ export default async function ApplicantDocumentsPage({
   const t = createTranslator(locale);
 
   const data = await withSession(async ({ db, accountId }) => {
-    const [documents, coreGranted, aiGranted, evidenceBytes, pendingProposals] = await Promise.all([
-      listDocumentsDetailed(db, accountId, id),
-      hasConsent(db, accountId, 'CORE_PROCESSING'),
-      hasConsent(db, accountId, 'AI_EXTRACTION'),
-      getApplicantEvidenceBytes(db, id),
-      listPendingProposals(db, id),
-    ]);
+    const [documents, coreGranted, aiGranted, evidenceBytes, pendingProposals, wallet] =
+      await Promise.all([
+        listDocumentsDetailed(db, accountId, id),
+        hasConsent(db, accountId, 'CORE_PROCESSING'),
+        hasConsent(db, accountId, 'AI_EXTRACTION'),
+        getApplicantEvidenceBytes(db, id),
+        listPendingProposals(db, id),
+        getWalletView(db, { actorAccountId: accountId, applicantId: id }),
+      ]);
+    const documentRows = documents.ok ? documents.value : [];
+    // EVI-05: issuer confirmations, per document. There is no batch
+    // reader yet (document counts per applicant are small), so this fans
+    // out one query per document rather than adding one solely for this.
+    const issuerVerificationLists = await Promise.all(
+      documentRows.map((doc) => listIssuerVerificationsForDocument(db, doc.id)),
+    );
+    const issuerVerifications = new Map(
+      documentRows.map((doc, i) => [doc.id, issuerVerificationLists[i] ?? []] as const),
+    );
     return {
-      documents: documents.ok ? documents.value : [],
+      documents: documentRows,
       coreGranted,
       aiGranted,
       aiConfigured: Boolean(createAiExtractor()),
       evidenceBytes,
       pendingProposals,
       quota: loadUploadQuotaConfig(),
+      wallet: new Map((wallet.ok ? wallet.value : []).map((w) => [w.document.id, w])),
+      issuerVerifications,
     };
   });
 
@@ -168,6 +193,16 @@ export default async function ApplicantDocumentsPage({
                     </span>
                     <span style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
                       <span className={`badge ${badge.tone}`}>{badge.label}</span>
+                      {(() => {
+                        const lifecycle = data.wallet.get(doc.id);
+                        if (!lifecycle) return null;
+                        const lifecycleBadge = LIFECYCLE_BADGES[lifecycle.status];
+                        return (
+                          <span className={`badge ${lifecycleBadge.tone}`}>
+                            {lifecycleBadge.label}
+                          </span>
+                        );
+                      })()}
                       {processingKey ? (
                         <span
                           className={`badge ${processingTone(doc.processingStatus)}`}
@@ -191,6 +226,58 @@ export default async function ApplicantDocumentsPage({
                       ) : null}
                     </span>
                   </div>
+                  {(() => {
+                    const wallet = data.wallet.get(doc.id);
+                    if (
+                      !wallet ||
+                      (wallet.usedInMissions.length === 0 && wallet.accessibleTo.length === 0)
+                    ) {
+                      return null;
+                    }
+                    return (
+                      <p className="muted" style={{ fontSize: '0.75rem', margin: 0 }}>
+                        {wallet.usedInMissions.length > 0
+                          ? `Used in ${wallet.usedInMissions.map((m) => m.missionTitle).join(', ')}`
+                          : null}
+                        {wallet.usedInMissions.length > 0 && wallet.accessibleTo.length > 0
+                          ? ' · '
+                          : null}
+                        {wallet.accessibleTo.length > 0
+                          ? `Shared with ${wallet.accessibleTo.map((a) => a.label).join(', ')}`
+                          : null}
+                      </p>
+                    );
+                  })()}
+                  {(() => {
+                    const confirmations = data.issuerVerifications.get(doc.id) ?? [];
+                    if (confirmations.length === 0) return null;
+                    return (
+                      <details style={{ fontSize: '0.75rem' }}>
+                        <summary className="muted" style={{ cursor: 'pointer' }}>
+                          {confirmations.length} issuer confirmation
+                          {confirmations.length === 1 ? '' : 's'}
+                        </summary>
+                        <div
+                          style={{
+                            marginTop: '0.35rem',
+                            paddingLeft: '0.75rem',
+                            borderLeft: '2px solid var(--hairline-soft)',
+                          }}
+                        >
+                          {confirmations.map((c) => {
+                            const expired = c.validUntil.getTime() <= Date.now();
+                            return (
+                              <p key={c.id} className="muted" style={{ margin: '0 0 0.3rem' }}>
+                                {expired ? '(expired) ' : ''}
+                                {c.issuerIdentity}: "{c.exactClaim}", response: {c.response}, valid
+                                until {c.validUntil.toLocaleDateString()}
+                              </p>
+                            );
+                          })}
+                        </div>
+                      </details>
+                    );
+                  })()}
                   {doc.pendingNameVersion ? (
                     <NameReview
                       applicantId={id}

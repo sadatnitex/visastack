@@ -30,6 +30,14 @@ export interface Grant {
   readonly categories?: readonly string[];
   /** Document allow-list. Absent = no document constraint. */
   readonly documentIds?: readonly DocumentId[];
+  /**
+   * The documents a `categories` grant actually covers, snapshotted at
+   * creation (PRD SHR-01: "categories do not automatically include future
+   * documents by default"). Absent = no snapshot restriction (an
+   * unrestricted or `documentIds`-only grant has nothing to snapshot).
+   * Meaningless without `categories` also set.
+   */
+  readonly categoryScopeDocumentIds?: readonly DocumentId[];
   readonly actions: readonly PermissionAction[];
   readonly purpose: string;
   readonly status: GrantStatus;

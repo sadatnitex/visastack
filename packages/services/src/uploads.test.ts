@@ -85,6 +85,8 @@ const tightConfig = {
   maxAccountEvidenceBytes: 20 * MB,
   platformWarningBytes: 40 * MB,
   platformHardStopBytes: 50 * MB,
+  maxPdfPages: 50,
+  maxImageMegapixels: 40,
 };
 
 describe('reserveUpload — atomic quota reservation (master directive §7 "PR 6")', () => {

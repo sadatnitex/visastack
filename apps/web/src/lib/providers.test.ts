@@ -25,12 +25,17 @@ const ENV_KEYS = [
   'STORAGE_PROVIDER',
   'DATABASE_PROVIDER',
   'MALWARE_SCANNER_PROVIDER',
+  'CLAMAV_SOCKET_PATH',
+  'CLAMAV_HOST',
+  'CLAMAV_PORT',
   'DOCUMENT_CONVERTER_PROVIDER',
   'AI_PROVIDER',
   'JOB_PROVIDER',
   'EMAIL_PROVIDER',
   'OBSERVABILITY_PROVIDER',
   'PAYMENT_PROVIDER',
+  'KMS_PROVIDER',
+  'KMS_LOCAL_MASTER_KEY_BASE64',
 ] as const;
 const ORIGINAL: Record<string, string | undefined> = {};
 
@@ -76,14 +81,21 @@ describe('validateProviderEnv', () => {
     setEnv('EMAIL_PROVIDER', 'none');
     setEnv('OBSERVABILITY_PROVIDER', 'console');
     setEnv('PAYMENT_PROVIDER', 'none');
+    setEnv('KMS_PROVIDER', 'local');
     const { validateProviderEnv } = await import('./providers');
     expect(() => validateProviderEnv()).not.toThrow();
   });
 
   it('fails closed, naming the offending var, when one names a provider this deployment does not implement', async () => {
-    setEnv('MALWARE_SCANNER_PROVIDER', 'clamav');
+    setEnv('MALWARE_SCANNER_PROVIDER', 'windows-defender');
     const { validateProviderEnv } = await import('./providers');
     expect(() => validateProviderEnv()).toThrow(/MALWARE_SCANNER_PROVIDER/);
+  });
+
+  it('accepts clamav as a supported MALWARE_SCANNER_PROVIDER value (SEC-05)', async () => {
+    setEnv('MALWARE_SCANNER_PROVIDER', 'clamav');
+    const { validateProviderEnv } = await import('./providers');
+    expect(() => validateProviderEnv()).not.toThrow();
   });
 
   it('rejects an unsupported DATABASE_PROVIDER even though no port constructs anything from it', async () => {
@@ -137,11 +149,54 @@ describe('createMalwareScanner / createDocumentConverter', () => {
   });
 
   it('reject an unrecognized MALWARE_SCANNER_PROVIDER / DOCUMENT_CONVERTER_PROVIDER', async () => {
-    setEnv('MALWARE_SCANNER_PROVIDER', 'clamav');
+    setEnv('MALWARE_SCANNER_PROVIDER', 'windows-defender');
     setEnv('DOCUMENT_CONVERTER_PROVIDER', 'libreoffice');
     const { createMalwareScanner, createDocumentConverter } = await import('./providers');
     expect(() => createMalwareScanner({} as never)).toThrow(/MALWARE_SCANNER_PROVIDER/);
     expect(() => createDocumentConverter({} as never)).toThrow(/DOCUMENT_CONVERTER_PROVIDER/);
+  });
+
+  it('constructs a real ClamAvScanner when MALWARE_SCANNER_PROVIDER=clamav with a socket path configured (SEC-05)', async () => {
+    setEnv('MALWARE_SCANNER_PROVIDER', 'clamav');
+    setEnv('CLAMAV_SOCKET_PATH', '/var/run/clamav/clamd.ctl');
+    const { createMalwareScanner } = await import('./providers');
+    const { ClamAvScanner } = await import('@visastack/adapters');
+    expect(createMalwareScanner({} as never)).toBeInstanceOf(ClamAvScanner);
+  });
+
+  it('constructs a real ClamAvScanner from CLAMAV_HOST/CLAMAV_PORT too, not just a socket path', async () => {
+    setEnv('MALWARE_SCANNER_PROVIDER', 'clamav');
+    setEnv('CLAMAV_HOST', 'clamav.internal');
+    setEnv('CLAMAV_PORT', '3310');
+    const { createMalwareScanner } = await import('./providers');
+    const { ClamAvScanner } = await import('@visastack/adapters');
+    expect(createMalwareScanner({} as never)).toBeInstanceOf(ClamAvScanner);
+  });
+
+  it('fails loudly when clamav is selected but no connection is configured, rather than silently falling back', async () => {
+    setEnv('MALWARE_SCANNER_PROVIDER', 'clamav');
+    const { createMalwareScanner } = await import('./providers');
+    expect(() => createMalwareScanner({} as never)).toThrow(/CLAMAV_SOCKET_PATH|CLAMAV_HOST/);
+  });
+});
+
+describe('createKeyManagementPort', () => {
+  it('returns undefined when no master key is configured, so STANDARD fields keep saving', async () => {
+    const { createKeyManagementPort } = await import('./providers');
+    expect(createKeyManagementPort()).toBeUndefined();
+  });
+
+  it('constructs a real LocalEnvelopeKeyProvider once a master key is configured', async () => {
+    setEnv('KMS_LOCAL_MASTER_KEY_BASE64', Buffer.alloc(32, 7).toString('base64'));
+    const { createKeyManagementPort } = await import('./providers');
+    const { LocalEnvelopeKeyProvider } = await import('@visastack/adapters');
+    expect(createKeyManagementPort()).toBeInstanceOf(LocalEnvelopeKeyProvider);
+  });
+
+  it('rejects an unrecognized KMS_PROVIDER instead of silently using the local provider anyway', async () => {
+    setEnv('KMS_PROVIDER', 'aws-kms');
+    const { createKeyManagementPort } = await import('./providers');
+    expect(() => createKeyManagementPort()).toThrow(/KMS_PROVIDER/);
   });
 });
 

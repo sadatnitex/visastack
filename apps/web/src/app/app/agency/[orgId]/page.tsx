@@ -6,11 +6,14 @@ import {
   listAssignedMissionIds,
   listAssignmentsDetailed,
   listEvidenceRequestsForOrgDetailed,
+  listIssuerVerificationsForDocument,
+  listIssuerVerificationsForFact,
   listMissionDecisions,
   listMissionRequirementsForOrg,
   listMissionsForOrganization,
   listNotes,
   listOrgMemberships,
+  listSelectedEvidenceForOrg,
 } from '@visastack/services';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
@@ -101,12 +104,40 @@ export default async function OrgConsolePage({
       : orgMissions.filter((m) => assignedMissionIds?.has(m.missionId) ?? false);
     const missions = await Promise.all(
       visibleOrgMissions.map(async (mission) => {
-        const [assignments, notes, requirements, decisions] = await Promise.all([
+        const [assignments, notes, requirements, decisions, selectedEvidence] = await Promise.all([
           listAssignmentsDetailed(db, orgId, mission.applicantId, mission.missionId),
           listNotes(db, orgId, mission.applicantId, mission.missionId),
           listMissionRequirementsForOrg(db, orgId, mission.missionId),
           listMissionDecisions(db, accountId, mission.missionId),
+          listSelectedEvidenceForOrg(db, orgId, mission.missionId),
         ]);
+        // EVI-05: an issuer confirmation is recorded against whatever a
+        // requirement's evidence resolves to (fact or document), not
+        // against the requirement directly, so it's looked up the same way
+        // the write action resolves it (listSelectedEvidenceForOrg), then
+        // tagged with the requirement id here for display grouping.
+        const issuerVerifications = selectedEvidence.ok
+          ? (
+              await Promise.all(
+                selectedEvidence.value.map(async (evidence) => {
+                  const rows = evidence.factId
+                    ? await listIssuerVerificationsForFact(db, evidence.factId)
+                    : evidence.documentId
+                      ? await listIssuerVerificationsForDocument(db, evidence.documentId)
+                      : [];
+                  return rows.map((v) => ({
+                    id: v.id,
+                    packRequirementId: evidence.packRequirementId,
+                    issuerIdentity: v.issuerIdentity,
+                    exactClaim: v.exactClaim,
+                    response: v.response,
+                    validUntil: v.validUntil.toISOString(),
+                    expired: v.validUntil.getTime() <= Date.now(),
+                  }));
+                }),
+              )
+            ).flat()
+          : [];
         return {
           ...mission,
           assignments,
@@ -114,6 +145,7 @@ export default async function OrgConsolePage({
             id: n.id,
             body: n.body,
             createdAt: n.createdAt.toISOString(),
+            visibility: n.visibility,
             // Author email resolution needs the full membership roster,
             // admin-only data (above) — a non-admin viewer correctly sees
             // "Unknown" here rather than gaining roster access through a
@@ -143,6 +175,7 @@ export default async function OrgConsolePage({
                 createdAt: d.createdAt.toISOString(),
               }))
             : [],
+          issuerVerifications,
           viewerAssigned: assignments.some((a) => a.memberAccountId === accountId),
         };
       }),
@@ -390,6 +423,7 @@ export default async function OrgConsolePage({
                     key={mission.missionId}
                     organizationId={orgId}
                     missionId={mission.missionId}
+                    applicantId={mission.applicantId}
                     title={mission.title}
                     applicantName={mission.applicantName}
                     members={data.members.map((m) => ({ accountId: m.accountId, email: m.email }))}
@@ -397,6 +431,7 @@ export default async function OrgConsolePage({
                     notes={mission.notes}
                     requirements={mission.requirements}
                     decisions={mission.decisions}
+                    issuerVerifications={mission.issuerVerifications}
                     viewerAssigned={mission.viewerAssigned}
                   />
                 ))}

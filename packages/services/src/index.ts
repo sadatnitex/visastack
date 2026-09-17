@@ -24,6 +24,16 @@ export {
 } from './audit';
 
 export {
+  type AuditCheckpoint,
+  createAuditCheckpoint,
+  eventsInCheckpointRange,
+  getLatestAuditCheckpoint,
+  listAuditCheckpoints,
+  verifyCheckpointAgainstChain,
+  verifyCheckpointSignature,
+} from './audit-checkpoints';
+
+export {
   type CheckPilotAccessInput,
   type CreateInvitationInput,
   type PilotAccessDecision,
@@ -82,7 +92,39 @@ export {
   listApplicantProfile,
   listFactHistory,
   registerFieldDefinition,
+  revealFactVersionValue,
 } from './profile';
+
+export {
+  type FieldSensitivity,
+  type ProtectedValue,
+  type RevealValueInput,
+  buildFactVersionAad,
+  protectValue,
+  requiresProtection,
+  resetProtectedFieldKeyCacheForTests,
+  revealValue,
+} from './protected-fields';
+
+export {
+  type BackfillProtectedFieldsInput,
+  type EncryptionBackfillReport,
+  type PlaintextProtectedField,
+  backfillProtectedFields,
+} from './encryption-backfill';
+
+export {
+  SUPPORT_ACCESS_PURPOSE,
+  SUPPORT_GRANT_MAX_DURATION_MINUTES,
+  type CreateSupportGrantInput,
+  type RevokeSupportGrantInput,
+  type SupportGrant,
+  createSupportGrant,
+  listActiveSupportGrantsForApplicant,
+  listSupportGrantsForApplicant,
+  loadSupportGrantsForPolicy,
+  revokeSupportGrant,
+} from './support-access';
 
 export type {
   AccessDisposition,
@@ -97,6 +139,12 @@ export type {
   StoragePort,
   StoredBytes,
 } from './storage';
+
+export type {
+  PreviewRenderResult,
+  PreviewRendererPort,
+  RenderedPreview,
+} from './preview-rendering';
 
 export { type AccountExport, exportAccount } from './export';
 
@@ -159,11 +207,13 @@ export {
 export {
   type Assignment,
   type AssignmentView,
+  type AddNoteInput,
   type BulkExportRow,
   type EvidenceRequest,
   type EvidenceRequestWithApplicant,
   type MissionDecision,
   type MissionNote,
+  type MissionNoteVisibility,
   type OrgApplicant,
   type OrgMission,
   addNote,
@@ -181,6 +231,8 @@ export {
   listMissionRequirementsForOrg,
   listMissionsForOrganization,
   listNotes,
+  listNotesForOwner,
+  orgGrantPermits,
   recordMissionDecision,
   requestEvidence,
   respondEvidence,
@@ -212,14 +264,18 @@ export {
   type RecipientDocumentView,
   type RecipientFieldView,
   type RecipientWorkspaceView,
+  type ScopeExpansionCandidate,
   acceptGrant,
   createGrant,
+  documentCategory,
+  expandGrantScope,
   getRecipientWorkspace,
   listAccessForApplicant,
   listAccessForApplicantDetailed,
   listGrantsForRecipientAccount,
   loadGrantsForPolicy,
   pauseGrant,
+  previewScopeExpansion,
   resumeGrant,
   revokeGrant,
 } from './sharing';
@@ -253,6 +309,7 @@ export {
   listMissions,
   listMissionsUsingField,
   listSelectedEvidence,
+  listSelectedEvidenceForOrg,
   listTasks,
   selectEvidence,
   snapshotMission,
@@ -289,6 +346,8 @@ export {
 
 export {
   PIPELINE_VERSION,
+  type ContentLimitsPort,
+  type ContentLimitsResult,
   type DocumentScanResult,
   type MalwareScannerPort,
   type ScanResult,
@@ -381,21 +440,38 @@ export {
   type AddDocumentVersionResult,
   type Document,
   type DocumentAccessInput,
+  type DocumentReview,
   type DocumentSummary,
   type DocumentVersion,
   type DownloadDocumentInput,
+  type DuplicateDocumentMatch,
+  type RecheckDocumentAccessResult,
   type RegisterDocumentInput,
   type RegisterDocumentWithVersionInput,
   type StorageObject,
   addDocumentVersion,
   downloadDocument,
+  findDuplicateVersions,
+  getCurrentDocumentReview,
   isServableProcessingState,
+  listDocumentReviews,
   listDocuments,
   listDocumentsDetailed,
   previewDocument,
+  recheckDocumentAccess,
+  recordDocumentReview,
   registerDocument,
   registerDocumentWithVersion,
 } from './documents';
+
+export {
+  type DocumentAccessActorKind,
+  type DocumentAccessTokenFields,
+  appendDocumentAccessToken,
+  readDocumentAccessToken,
+  signDocumentAccessToken,
+  verifyDocumentAccessToken,
+} from './document-access-token';
 
 export {
   DEFAULT_UPLOAD_QUOTAS,
@@ -436,11 +512,38 @@ export type {
   CheckoutSession,
   EmailPort,
   EnqueueJobInput,
+  GeneratedDataKey,
   IdentityPort,
   JobQueuePort,
+  KeyManagementPort,
   ObservabilityEvent,
   ObservabilityPort,
   PaymentPort,
   ResolvedIdentity,
   SendEmailInput,
 } from './ports';
+
+export {
+  type DocumentLifecycleStatus,
+  type WalletAccessEntry,
+  type WalletDocumentView,
+  type WalletMissionUsage,
+  documentLifecycleStatus,
+  getWalletView,
+  supersedeDocument,
+} from './wallet';
+
+export {
+  type AgencyReviewSummary,
+  type AssuranceTier,
+  type FactAssuranceView,
+  type IssuerConfirmationSummary,
+  type IssuerVerification,
+  type MachineCheckSummary,
+  deriveAssuranceTier,
+  getFactAssurance,
+  listApplicantAssurance,
+  listIssuerVerificationsForDocument,
+  listIssuerVerificationsForFact,
+  recordIssuerVerification,
+} from './assurance';

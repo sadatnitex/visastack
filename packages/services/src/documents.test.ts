@@ -11,18 +11,29 @@ import { provisionAccount } from './accounts';
 import { createApplicant } from './applicants';
 import { setConsent } from './consent';
 import type { Db } from './db';
+import { readDocumentAccessToken } from './document-access-token';
 import {
   addDocumentVersion,
   downloadDocument,
+  findDuplicateVersions,
+  getCurrentDocumentReview,
+  listDocumentReviews,
   listDocuments,
   previewDocument,
+  recheckDocumentAccess,
+  recordDocumentReview,
   registerDocument,
   registerDocumentWithVersion,
 } from './documents';
 import { enqueueErasureJob } from './erasure';
+import { createOrganization, reviewOrganization } from './organizations';
+import { acceptGrant, createGrant } from './sharing';
 import type { AccessRef, IssueReadRefInput, StoragePort } from './storage';
+import { SUPPORT_ACCESS_PURPOSE, createSupportGrant } from './support-access';
 
 const migrationsFolder = fileURLToPath(new URL('../../db/migrations', import.meta.url));
+
+const TEST_ACCESS_TOKEN_SECRET = 'test-access-token-secret';
 
 /** Deterministic in-memory storage port — no S3, no network. */
 class FakeStorage implements StoragePort {
@@ -202,6 +213,241 @@ describe('registerDocumentWithVersion — atomic first-version registration (mas
   });
 });
 
+describe('findDuplicateVersions: same-applicant-only duplicate detection (EVI-03)', () => {
+  let db: Db;
+  beforeEach(async () => {
+    db = await freshDb();
+  });
+
+  const HASH = 'd'.repeat(64);
+
+  it('finds another document belonging to the same applicant with an identical hash', async () => {
+    const { account, applicant } = await seedOwner(db, 'dup-owner@example.com');
+    const first = await registerDocumentWithVersion(db, {
+      actorAccountId: account.id,
+      applicantId: applicant.id,
+      originalName: 'passport.pdf',
+      source: 'UPLOAD',
+      bucket: 'QUARANTINE',
+      objectKey: 'dup-key-1',
+      sha256: HASH,
+    });
+    if (!isOk(first)) throw new Error('first');
+    const second = await registerDocumentWithVersion(db, {
+      actorAccountId: account.id,
+      applicantId: applicant.id,
+      originalName: 'passport-again.pdf',
+      source: 'UPLOAD',
+      bucket: 'QUARANTINE',
+      objectKey: 'dup-key-2',
+      sha256: HASH,
+    });
+    if (!isOk(second)) throw new Error('second');
+
+    const matches = await findDuplicateVersions(db, {
+      applicantId: applicant.id,
+      sha256: HASH,
+      excludeDocumentId: second.value.version.documentId,
+    });
+    expect(matches).toEqual([
+      { documentId: first.value.version.documentId, displayName: 'passport.pdf' },
+    ]);
+  });
+
+  it('never matches across two different applicants, even with the identical hash (tenant isolation)', async () => {
+    const { account: accountA, applicant: applicantA } = await seedOwner(
+      db,
+      'dup-tenant-a@example.com',
+    );
+    const { account: accountB, applicant: applicantB } = await seedOwner(
+      db,
+      'dup-tenant-b@example.com',
+    );
+    await registerDocumentWithVersion(db, {
+      actorAccountId: accountA.id,
+      applicantId: applicantA.id,
+      originalName: 'a-passport.pdf',
+      source: 'UPLOAD',
+      bucket: 'QUARANTINE',
+      objectKey: 'dup-tenant-a-key',
+      sha256: HASH,
+    });
+    const ownDoc = await registerDocumentWithVersion(db, {
+      actorAccountId: accountB.id,
+      applicantId: applicantB.id,
+      originalName: 'b-passport.pdf',
+      source: 'UPLOAD',
+      bucket: 'QUARANTINE',
+      objectKey: 'dup-tenant-b-key',
+      sha256: HASH,
+    });
+    if (!isOk(ownDoc)) throw new Error('ownDoc');
+
+    const matches = await findDuplicateVersions(db, {
+      applicantId: applicantB.id,
+      sha256: HASH,
+      excludeDocumentId: ownDoc.value.version.documentId,
+    });
+    expect(matches).toEqual([]);
+  });
+
+  it('excludes the document being checked from matching itself', async () => {
+    const { account, applicant } = await seedOwner(db, 'dup-self@example.com');
+    const doc = await registerDocumentWithVersion(db, {
+      actorAccountId: account.id,
+      applicantId: applicant.id,
+      originalName: 'passport.pdf',
+      source: 'UPLOAD',
+      bucket: 'QUARANTINE',
+      objectKey: 'dup-self-key',
+      sha256: HASH,
+    });
+    if (!isOk(doc)) throw new Error('doc');
+
+    const matches = await findDuplicateVersions(db, {
+      applicantId: applicant.id,
+      sha256: HASH,
+      excludeDocumentId: doc.value.version.documentId,
+    });
+    expect(matches).toEqual([]);
+  });
+
+  it('finds nothing when no other document shares the hash', async () => {
+    const { account, applicant } = await seedOwner(db, 'dup-none@example.com');
+    const doc = await registerDocumentWithVersion(db, {
+      actorAccountId: account.id,
+      applicantId: applicant.id,
+      originalName: 'passport.pdf',
+      source: 'UPLOAD',
+      bucket: 'QUARANTINE',
+      objectKey: 'dup-none-key',
+      sha256: HASH,
+    });
+    if (!isOk(doc)) throw new Error('doc');
+
+    const matches = await findDuplicateVersions(db, {
+      applicantId: applicant.id,
+      sha256: 'e'.repeat(64),
+      excludeDocumentId: doc.value.version.documentId,
+    });
+    expect(matches).toEqual([]);
+  });
+});
+
+describe('recordDocumentReview: document-level review outcomes (EVI-03)', () => {
+  let db: Db;
+  beforeEach(async () => {
+    db = await freshDb();
+  });
+
+  it('lets the applicant owner record a review on their own document', async () => {
+    const { account, document } = await seedOwnerWithDocument(db, 'review-owner@example.com');
+
+    const reviewed = await recordDocumentReview(db, {
+      actorAccountId: account.id,
+      documentId: document.id,
+      outcome: 'ACCEPTED',
+      reason: 'Looks correct.',
+    });
+    expect(isOk(reviewed)).toBe(true);
+    if (isOk(reviewed)) expect(reviewed.value.outcome).toBe('ACCEPTED');
+
+    const current = await getCurrentDocumentReview(db, document.id);
+    expect(current?.outcome).toBe('ACCEPTED');
+    expect(current?.reviewedByAccountId).toBe(account.id);
+  });
+
+  it('lets an org member with a covering COMMENT grant record a review', async () => {
+    const { account, applicant, document } = await seedOwnerWithDocument(
+      db,
+      'review-org-owner@example.com',
+    );
+    await setConsent(db, {
+      actorAccountId: account.id,
+      accountId: account.id,
+      type: 'SHARING',
+      granted: true,
+    });
+
+    const agent = await provisionAccount(db, { email: 'review-agent@example.com' });
+    if (!isOk(agent)) throw new Error('provision');
+    const org = await createOrganization(db, { actorAccountId: agent.value.id, name: 'Acme' });
+    if (!isOk(org)) throw new Error('org');
+    const admin = await provisionAccount(db, { email: 'review-platform-admin@example.com' });
+    if (!isOk(admin)) throw new Error('provision');
+    await reviewOrganization(db, {
+      reviewerAccountId: admin.value.id,
+      organizationId: org.value.id,
+      decision: 'ACTIVE',
+      stepUpSatisfied: true,
+    });
+    const grant = await createGrant(db, {
+      actorAccountId: account.id,
+      applicantId: applicant.id,
+      recipientOrganizationId: org.value.id,
+      actions: ['COMMENT'],
+      purpose: 'review',
+    });
+    if (!isOk(grant)) throw new Error('grant');
+    await acceptGrant(db, { actorAccountId: agent.value.id, grantId: grant.value.id });
+
+    const reviewed = await recordDocumentReview(db, {
+      actorAccountId: agent.value.id,
+      documentId: document.id,
+      outcome: 'REPLACEMENT_REQUIRED',
+      reason: 'Expired.',
+    });
+    expect(isOk(reviewed)).toBe(true);
+  });
+
+  it('denies a stranger with no standing at all', async () => {
+    const { document } = await seedOwnerWithDocument(db, 'review-denied-owner@example.com');
+    const stranger = await provisionAccount(db, { email: 'review-stranger@example.com' });
+    if (!isOk(stranger)) throw new Error('provision');
+
+    const denied = await recordDocumentReview(db, {
+      actorAccountId: stranger.value.id,
+      documentId: document.id,
+      outcome: 'DISPUTED',
+    });
+    expect(isErr(denied)).toBe(true);
+    if (isErr(denied)) expect(denied.error.code).toBe('forbidden');
+  });
+
+  it('keeps a full, append-only history; the latest review is the current one', async () => {
+    const { account, document } = await seedOwnerWithDocument(
+      db,
+      'review-history-owner@example.com',
+    );
+
+    await recordDocumentReview(db, {
+      actorAccountId: account.id,
+      documentId: document.id,
+      outcome: 'PENDING',
+    });
+    await recordDocumentReview(db, {
+      actorAccountId: account.id,
+      documentId: document.id,
+      outcome: 'DISPUTED',
+      reason: 'Looks altered.',
+    });
+    const accepted = await recordDocumentReview(db, {
+      actorAccountId: account.id,
+      documentId: document.id,
+      outcome: 'ACCEPTED',
+      reason: 'Confirmed genuine after all.',
+    });
+    expect(isOk(accepted)).toBe(true);
+
+    const history = await listDocumentReviews(db, document.id);
+    expect(history).toHaveLength(3);
+    expect(history.map((r) => r.outcome)).toEqual(['ACCEPTED', 'DISPUTED', 'PENDING']);
+
+    const current = await getCurrentDocumentReview(db, document.id);
+    expect(current?.outcome).toBe('ACCEPTED');
+  });
+});
+
 describe('document vault — permission-aware access', () => {
   let db: Db;
   let storage: FakeStorage;
@@ -217,6 +463,7 @@ describe('document vault — permission-aware access', () => {
       actor: { kind: 'applicant_owner', applicantId: document.applicantId as never },
       documentId: document.id,
       purpose: 'self_review',
+      accessTokenSecret: TEST_ACCESS_TOKEN_SECRET,
     });
     expect(isOk(preview)).toBe(true);
     if (isOk(preview)) expect(preview.value.disposition).toBe('preview');
@@ -225,6 +472,7 @@ describe('document vault — permission-aware access', () => {
       actor: { kind: 'applicant_owner', applicantId: document.applicantId as never },
       documentId: document.id,
       purpose: 'self_review',
+      accessTokenSecret: TEST_ACCESS_TOKEN_SECRET,
       variant: 'redacted',
     });
     expect(isOk(download)).toBe(true);
@@ -264,6 +512,7 @@ describe('document vault — permission-aware access', () => {
       actor,
       documentId: document.id,
       purpose: 'self_review',
+      accessTokenSecret: TEST_ACCESS_TOKEN_SECRET,
     });
     expect(isErr(preview)).toBe(true);
     if (isErr(preview)) expect(preview.error.code).toBe('forbidden');
@@ -299,6 +548,7 @@ describe('document vault — permission-aware access', () => {
       actor,
       documentId: doc.value.id,
       purpose: 'self_review',
+      accessTokenSecret: TEST_ACCESS_TOKEN_SECRET,
     });
     expect(isErr(preview)).toBe(true);
     if (isErr(preview)) expect(preview.error.code).toBe('not_found');
@@ -369,6 +619,7 @@ describe('document vault — permission-aware access', () => {
       actor: { kind: 'organization_member', accountId: orgMember.value.id as never, membership },
       documentId: document.id,
       purpose: 'visa_application',
+      accessTokenSecret: TEST_ACCESS_TOKEN_SECRET,
     });
     expect(isErr(agencyAttempt)).toBe(true);
 
@@ -376,6 +627,7 @@ describe('document vault — permission-aware access', () => {
       actor: { kind: 'individual_recipient', accountId: recipient.value.id as never },
       documentId: document.id,
       purpose: 'visa_application',
+      accessTokenSecret: TEST_ACCESS_TOKEN_SECRET,
     });
     expect(isErr(recipientAttempt)).toBe(true);
   });
@@ -388,6 +640,7 @@ describe('document vault — permission-aware access', () => {
       actor,
       documentId: document.id,
       purpose: 'self_review',
+      accessTokenSecret: TEST_ACCESS_TOKEN_SECRET,
       variant: 'original',
       stepUpSatisfied: false,
     });
@@ -398,6 +651,7 @@ describe('document vault — permission-aware access', () => {
       actor,
       documentId: document.id,
       purpose: 'self_review',
+      accessTokenSecret: TEST_ACCESS_TOKEN_SECRET,
       variant: 'original',
       stepUpSatisfied: true,
     });
@@ -419,6 +673,7 @@ describe('document vault — permission-aware access', () => {
       actor: { kind: 'organization_member', accountId: stranger.value.id as never, membership },
       documentId: document.id,
       purpose: 'snooping',
+      accessTokenSecret: TEST_ACCESS_TOKEN_SECRET,
     });
     expect(isErr(result)).toBe(true);
     if (isErr(result)) expect(result.error.code).toBe('forbidden');
@@ -462,6 +717,7 @@ describe('document vault — permission-aware access', () => {
       actor: { kind: 'organization_member', accountId: member.value.id as never, membership },
       documentId: document.id,
       purpose: 'visa_application',
+      accessTokenSecret: TEST_ACCESS_TOKEN_SECRET,
     });
     expect(isOk(ok)).toBe(true);
 
@@ -470,6 +726,7 @@ describe('document vault — permission-aware access', () => {
       actor: { kind: 'organization_member', accountId: member.value.id as never, membership },
       documentId: document.id,
       purpose: 'something_else',
+      accessTokenSecret: TEST_ACCESS_TOKEN_SECRET,
     });
     expect(isErr(wrongPurpose)).toBe(true);
     void account;
@@ -512,6 +769,7 @@ describe('document vault — permission-aware access', () => {
       actor,
       documentId: document.id,
       purpose: 'self_review',
+      accessTokenSecret: TEST_ACCESS_TOKEN_SECRET,
     });
     expect(isErr(preview)).toBe(true);
     if (isErr(preview)) expect(preview.error.code).toBe('forbidden');
@@ -562,6 +820,7 @@ describe('document vault — permission-aware access', () => {
       actor,
       documentId: document.id,
       purpose: 'self_review',
+      accessTokenSecret: TEST_ACCESS_TOKEN_SECRET,
       variant: 'redacted',
     });
     expect(isErr(download)).toBe(true);
@@ -617,6 +876,7 @@ describe('document vault — permission-aware access', () => {
       actor,
       documentId: document.id,
       purpose: 'self_review',
+      accessTokenSecret: TEST_ACCESS_TOKEN_SECRET,
     });
     expect(isErr(preview)).toBe(true);
     if (isErr(preview)) expect(preview.error.code).toBe('forbidden');
@@ -662,6 +922,7 @@ describe('document vault — permission-aware access', () => {
       actor,
       documentId: document.id,
       purpose: 'self_review',
+      accessTokenSecret: TEST_ACCESS_TOKEN_SECRET,
       variant: 'redacted',
     });
     expect(isErr(download)).toBe(true);
@@ -707,6 +968,7 @@ describe('document vault — permission-aware access', () => {
       actor,
       documentId: document.id,
       purpose: 'self_review',
+      accessTokenSecret: TEST_ACCESS_TOKEN_SECRET,
     });
     expect(isErr(preview)).toBe(true);
     if (isErr(preview)) expect(preview.error.code).toBe('forbidden');
@@ -722,20 +984,23 @@ describe('document vault — preview never leaks originals to third parties (Mil
     storage = new FakeStorage();
   });
 
-  it('mints an ORIGINAL variant for the applicant owner previewing their own clean document', async () => {
+  it('mints a REDACTED variant for the applicant owner previewing their own clean document, preview never exposes original bytes, even to the owner (PRD §5)', async () => {
     const { document } = await seedOwnerWithDocument(db, 'p1@example.com');
 
     const preview = await previewDocument(db, storage, {
       actor: { kind: 'applicant_owner', applicantId: document.applicantId as never },
       documentId: document.id,
       purpose: 'owner_preview',
+      accessTokenSecret: TEST_ACCESS_TOKEN_SECRET,
     });
 
     expect(isOk(preview)).toBe(true);
-    // The owner sees the clean original; the serving route only releases bytes
-    // for an `original` variant token.
-    if (isOk(preview)) expect(preview.value.variant).toBe('original');
-    expect(storage.calls.at(-1)?.variant).toBe('original');
+    // Preview is always the rendered redacted derivative; only
+    // `downloadDocument`'s explicit `original` variant (its own
+    // DOWNLOAD_ORIGINAL check + step-up) ever reaches the serving route
+    // with an `original` token.
+    if (isOk(preview)) expect(preview.value.variant).toBe('redacted');
+    expect(storage.calls.at(-1)?.variant).toBe('redacted');
     // The display filename (original name, since nothing has been approved
     // yet) flows into the reference — never the opaque storage key.
     expect(storage.calls.at(-1)?.filename).toBe('passport.pdf');
@@ -770,6 +1035,7 @@ describe('document vault — preview never leaks originals to third parties (Mil
       actor: { kind: 'organization_member', accountId: member.value.id as never, membership },
       documentId: document.id,
       purpose: 'visa_application',
+      accessTokenSecret: TEST_ACCESS_TOKEN_SECRET,
     });
 
     // The grant authorises PREVIEW, but the third party must NEVER receive an
@@ -778,5 +1044,348 @@ describe('document vault — preview never leaks originals to third parties (Mil
     expect(isOk(preview)).toBe(true);
     if (isOk(preview)) expect(preview.value.variant).toBe('redacted');
     expect(storage.calls.at(-1)?.variant).toBe('redacted');
+  });
+});
+
+describe('recheckDocumentAccess, redemption-time replay against LIVE state (EVI-06/SEC-05)', () => {
+  let db: Db;
+  let storage: FakeStorage;
+  beforeEach(async () => {
+    db = await freshDb();
+    storage = new FakeStorage();
+  });
+
+  /** Extracts the access-context token fields from a minted AccessRef's URL, the same way the serving route would. */
+  function tokenFieldsFrom(url: string) {
+    const fields = readDocumentAccessToken(new URL(url).searchParams);
+    if (!fields) throw new Error('no access-context token on the minted URL');
+    return fields;
+  }
+
+  it('mints a 60-second token, not the old 300-second default (EVI-06 explicit maximum)', async () => {
+    const { document } = await seedOwnerWithDocument(db, 'ttl@example.com');
+    const actor = { kind: 'applicant_owner', applicantId: document.applicantId as never } as const;
+    const ref = await previewDocument(db, storage, {
+      actor,
+      documentId: document.id,
+      purpose: 'owner_preview',
+      accessTokenSecret: TEST_ACCESS_TOKEN_SECRET,
+    });
+    expect(isOk(ref)).toBe(true);
+    expect(storage.calls.at(-1)?.expiresInSeconds).toBe(60);
+  });
+
+  it('allows redemption immediately after mint for the owner path', async () => {
+    const { document } = await seedOwnerWithDocument(db, 'owner-recheck@example.com');
+    const actor = { kind: 'applicant_owner', applicantId: document.applicantId as never } as const;
+    const ref = await previewDocument(db, storage, {
+      actor,
+      documentId: document.id,
+      purpose: 'owner_preview',
+      accessTokenSecret: TEST_ACCESS_TOKEN_SECRET,
+    });
+    expect(isOk(ref)).toBe(true);
+    if (!isOk(ref)) return;
+    const result = await recheckDocumentAccess(db, tokenFieldsFrom(ref.value.url));
+    expect(result.allowed).toBe(true);
+  });
+
+  it('denies redemption once the version has been erased between mint and redemption, even for the owner (directive: "exact version" is rechecked, not assumed)', async () => {
+    const { document } = await seedOwnerWithDocument(db, 'owner-erased@example.com');
+    const actor = { kind: 'applicant_owner', applicantId: document.applicantId as never } as const;
+    const ref = await previewDocument(db, storage, {
+      actor,
+      documentId: document.id,
+      purpose: 'owner_preview',
+      accessTokenSecret: TEST_ACCESS_TOKEN_SECRET,
+    });
+    expect(isOk(ref)).toBe(true);
+    if (!isOk(ref)) return;
+    const fields = tokenFieldsFrom(ref.value.url);
+
+    // Confirm it would still redeem before the version is touched.
+    expect((await recheckDocumentAccess(db, fields)).allowed).toBe(true);
+
+    // Simulate the version having been marked unsafe after the token was
+    // minted (e.g. a later re-scan, or an erasure job completing).
+    await db
+      .update(schema.documentVersions)
+      .set({ safetyStatus: 'QUARANTINED' })
+      .where(eq(schema.documentVersions.documentId, document.id));
+
+    const result = await recheckDocumentAccess(db, fields);
+    expect(result.allowed).toBe(false);
+    if (!result.allowed) expect(result.reason).toBe('not_yet_safe_to_serve');
+  });
+
+  it('denies redemption once the document itself no longer exists', async () => {
+    const { document } = await seedOwnerWithDocument(db, 'owner-gone@example.com');
+    const actor = { kind: 'applicant_owner', applicantId: document.applicantId as never } as const;
+    const ref = await previewDocument(db, storage, {
+      actor,
+      documentId: document.id,
+      purpose: 'owner_preview',
+      accessTokenSecret: TEST_ACCESS_TOKEN_SECRET,
+    });
+    expect(isOk(ref)).toBe(true);
+    if (!isOk(ref)) return;
+    const fields = tokenFieldsFrom(ref.value.url);
+
+    await db
+      .delete(schema.documentVersions)
+      .where(eq(schema.documentVersions.documentId, document.id));
+    await db.delete(schema.documents).where(eq(schema.documents.id, document.id));
+
+    const result = await recheckDocumentAccess(db, fields);
+    expect(result.allowed).toBe(false);
+    if (!result.allowed) expect(result.reason).toBe('document_not_found');
+  });
+
+  async function seedOrgMemberWithGrant(
+    db: Db,
+    opts: {
+      readonly membershipActive?: boolean;
+      readonly grantStatus?: 'ACTIVE' | 'REVOKED' | 'PAUSED';
+    } = {},
+  ) {
+    const { applicant, document } = await seedOwnerWithDocument(
+      db,
+      `org-owner-${Math.random()}@example.com`,
+    );
+    const org = required1(
+      first1(
+        await db
+          .insert(schema.organizations)
+          .values({ name: 'Acme Travel', status: 'ACTIVE' })
+          .returning(),
+      ),
+    );
+    const member = await provisionAccount(db, { email: `agent-${Math.random()}@acme.com` });
+    if (!isOk(member)) throw new Error('provision failed');
+
+    await db.insert(schema.memberships).values({
+      accountId: member.value.id,
+      organizationId: org.id,
+      role: 'CASE_MANAGER',
+      active: opts.membershipActive ?? true,
+    });
+    await db.insert(schema.grants).values({
+      applicantId: applicant.id,
+      recipientOrganizationId: org.id,
+      actions: ['PREVIEW'],
+      purpose: 'visa_application',
+      status: opts.grantStatus ?? 'ACTIVE',
+      acceptedAt: new Date(),
+    });
+
+    const membership: Membership = {
+      organizationId: org.id as never,
+      role: 'CASE_MANAGER',
+      active: true,
+    };
+    return { document, org, member: member.value, membership };
+  }
+
+  // Minimal local helpers: this describe block intentionally does not
+  // import documents.ts's own `first`/`required` (module-private).
+  function first1<T>(rows: readonly T[]): T | undefined {
+    return rows[0];
+  }
+  function required1<T>(value: T | undefined): T {
+    if (value === undefined) throw new Error('expected a value');
+    return value;
+  }
+
+  it('allows redemption for an organization member with an active membership and an active, accepted grant', async () => {
+    const { document, member, membership } = await seedOrgMemberWithGrant(db);
+    const ref = await previewDocument(db, storage, {
+      actor: { kind: 'organization_member', accountId: member.id as never, membership },
+      documentId: document.id,
+      purpose: 'visa_application',
+      accessTokenSecret: TEST_ACCESS_TOKEN_SECRET,
+    });
+    expect(isOk(ref)).toBe(true);
+    if (!isOk(ref)) return;
+    const result = await recheckDocumentAccess(db, tokenFieldsFrom(ref.value.url));
+    expect(result.allowed).toBe(true);
+  });
+
+  it('denies redemption once the grant is revoked between mint and redemption, even though the token itself has not expired (A08: "revoked grant kills token")', async () => {
+    const { document, member, membership, org } = await seedOrgMemberWithGrant(db);
+    const ref = await previewDocument(db, storage, {
+      actor: { kind: 'organization_member', accountId: member.id as never, membership },
+      documentId: document.id,
+      purpose: 'visa_application',
+      accessTokenSecret: TEST_ACCESS_TOKEN_SECRET,
+    });
+    expect(isOk(ref)).toBe(true);
+    if (!isOk(ref)) return;
+    const fields = tokenFieldsFrom(ref.value.url);
+
+    expect((await recheckDocumentAccess(db, fields)).allowed).toBe(true);
+
+    await db
+      .update(schema.grants)
+      .set({ status: 'REVOKED' })
+      .where(eq(schema.grants.recipientOrganizationId, org.id));
+
+    const result = await recheckDocumentAccess(db, fields);
+    expect(result.allowed).toBe(false);
+    if (!result.allowed) expect(result.reason).toBe('grant_revoked');
+  });
+
+  it('denies redemption once the membership is deactivated between mint and redemption, even though the grant itself is untouched', async () => {
+    const { document, member, membership } = await seedOrgMemberWithGrant(db);
+    const ref = await previewDocument(db, storage, {
+      actor: { kind: 'organization_member', accountId: member.id as never, membership },
+      documentId: document.id,
+      purpose: 'visa_application',
+      accessTokenSecret: TEST_ACCESS_TOKEN_SECRET,
+    });
+    expect(isOk(ref)).toBe(true);
+    if (!isOk(ref)) return;
+    const fields = tokenFieldsFrom(ref.value.url);
+
+    expect((await recheckDocumentAccess(db, fields)).allowed).toBe(true);
+
+    await db
+      .update(schema.memberships)
+      .set({ active: false })
+      .where(eq(schema.memberships.accountId, member.id));
+
+    const result = await recheckDocumentAccess(db, fields);
+    expect(result.allowed).toBe(false);
+    if (!result.allowed) expect(result.reason).toBe('grant_revoked');
+  });
+
+  it('denies redemption for a direct individual recipient once their grant is revoked', async () => {
+    const { applicant, document } = await seedOwnerWithDocument(db, 'ind-owner@example.com');
+    const recipient = await provisionAccount(db, { email: 'recipient@example.com' });
+    if (!isOk(recipient)) throw new Error('provision failed');
+    await db.insert(schema.grants).values({
+      applicantId: applicant.id,
+      recipientAccountId: recipient.value.id,
+      actions: ['PREVIEW'],
+      purpose: 'visa_application',
+      status: 'ACTIVE',
+      acceptedAt: new Date(),
+    });
+
+    const ref = await previewDocument(db, storage, {
+      actor: { kind: 'individual_recipient', accountId: recipient.value.id as never },
+      documentId: document.id,
+      purpose: 'visa_application',
+      accessTokenSecret: TEST_ACCESS_TOKEN_SECRET,
+    });
+    expect(isOk(ref)).toBe(true);
+    if (!isOk(ref)) return;
+    const fields = tokenFieldsFrom(ref.value.url);
+    expect((await recheckDocumentAccess(db, fields)).allowed).toBe(true);
+
+    await db
+      .update(schema.grants)
+      .set({ status: 'REVOKED' })
+      .where(eq(schema.grants.recipientAccountId, recipient.value.id));
+
+    const result = await recheckDocumentAccess(db, fields);
+    expect(result.allowed).toBe(false);
+    if (!result.allowed) expect(result.reason).toBe('grant_revoked');
+  });
+
+  it('a support_admin actor with no support grant at all is denied at both mint and redemption (default-deny)', async () => {
+    const { document } = await seedOwnerWithDocument(db, 'support@example.com');
+    const supportAccount = await provisionAccount(db, { email: 'support-op@example.com' });
+    if (!isOk(supportAccount)) throw new Error('provision failed');
+    const actor = { kind: 'support_admin', accountId: supportAccount.value.id as never } as const;
+
+    // Mint-time denial, matching redemption-time denial below.
+    const mintAttempt = await previewDocument(db, storage, {
+      actor,
+      documentId: document.id,
+      purpose: 'support_access',
+      accessTokenSecret: TEST_ACCESS_TOKEN_SECRET,
+    });
+    expect(isErr(mintAttempt)).toBe(true);
+
+    // Directly exercise recheckDocumentAccess with a well-formed context
+    // (as if a token had somehow been minted) to prove redemption is at
+    // least as strict as mint, not a weaker fallback path.
+    const result = await recheckDocumentAccess(db, {
+      documentId: document.id,
+      actorKind: 'support_admin',
+      actorAccountId: supportAccount.value.id,
+      action: 'PREVIEW',
+      purpose: 'support_access',
+      stepUpSatisfied: false,
+    });
+    expect(result.allowed).toBe(false);
+  });
+
+  it('a support_admin actor WITH an active, action-matching support grant succeeds at both mint and redemption (known-issues.md item 23, now closed)', async () => {
+    const { document } = await seedOwnerWithDocument(db, 'support2@example.com');
+    const supportAccount = await provisionAccount(db, { email: 'support-op2@example.com' });
+    if (!isOk(supportAccount)) throw new Error('provision failed');
+    const approver = await provisionAccount(db, { email: 'support-approver@example.com' });
+    if (!isOk(approver)) throw new Error('provision failed');
+
+    const grant = await createSupportGrant(db, {
+      actorAccountId: supportAccount.value.id,
+      applicantId: document.applicantId,
+      actions: ['PREVIEW'],
+      reason: 'Investigating ticket #1234, applicant reports a stuck upload',
+      approvedByAccountId: approver.value.id,
+      durationMinutes: 30,
+    });
+    expect(isOk(grant)).toBe(true);
+
+    const actor = { kind: 'support_admin', accountId: supportAccount.value.id as never } as const;
+    const preview = await previewDocument(db, storage, {
+      actor,
+      documentId: document.id,
+      purpose: SUPPORT_ACCESS_PURPOSE,
+      accessTokenSecret: TEST_ACCESS_TOKEN_SECRET,
+    });
+    expect(isOk(preview)).toBe(true);
+    if (isOk(preview)) expect(preview.value.variant).toBe('redacted');
+
+    const fields = tokenFieldsFrom(isOk(preview) ? preview.value.url : '');
+    const recheck = await recheckDocumentAccess(db, fields);
+    expect(recheck.allowed).toBe(true);
+
+    // An action the grant does NOT cover is still refused, proving this
+    // isn't a blanket bypass once any support grant exists.
+    const downloadAttempt = await downloadDocument(db, storage, {
+      actor,
+      documentId: document.id,
+      purpose: SUPPORT_ACCESS_PURPOSE,
+      accessTokenSecret: TEST_ACCESS_TOKEN_SECRET,
+      variant: 'original',
+      stepUpSatisfied: true,
+    });
+    expect(isErr(downloadAttempt)).toBe(true);
+  });
+
+  it('denies redemption for an unknown documentId', async () => {
+    const result = await recheckDocumentAccess(db, {
+      documentId: '00000000-0000-0000-0000-000000000000',
+      actorKind: 'applicant_owner',
+      action: 'PREVIEW',
+      purpose: 'owner_preview',
+      stepUpSatisfied: false,
+    });
+    expect(result.allowed).toBe(false);
+    if (!result.allowed) expect(result.reason).toBe('document_not_found');
+  });
+
+  it('denies an organization_member recheck with no organizationId in context (malformed/incomplete context)', async () => {
+    const result = await recheckDocumentAccess(db, {
+      documentId: '00000000-0000-0000-0000-000000000000',
+      actorKind: 'organization_member',
+      actorAccountId: 'acc-1',
+      action: 'PREVIEW',
+      purpose: 'x',
+      stepUpSatisfied: false,
+    });
+    expect(result.allowed).toBe(false);
   });
 });

@@ -141,7 +141,7 @@ describe('GET /api/health/ready — honest health (200 vs 503)', () => {
   });
 
   it('returns 503 "degraded" when an unsupported *_PROVIDER value is configured, even with DB+WorkOS both ready (finding #36)', async () => {
-    setEnv('MALWARE_SCANNER_PROVIDER', 'clamav');
+    setEnv('MALWARE_SCANNER_PROVIDER', 'windows-defender');
     mockDb({});
     const { GET } = await import('./route');
     const res = await GET();
@@ -151,7 +151,7 @@ describe('GET /api/health/ready — honest health (200 vs 503)', () => {
   });
 
   it('names the offending *_PROVIDER var in the verbose body, but withholds that detail on a real deployment (finding #36)', async () => {
-    setEnv('MALWARE_SCANNER_PROVIDER', 'clamav');
+    setEnv('MALWARE_SCANNER_PROVIDER', 'windows-defender');
     mockDb({});
     const { GET: getVerbose } = await import('./route');
     const verboseRes = await getVerbose();

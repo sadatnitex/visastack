@@ -24,15 +24,31 @@ export interface UploadQuotaConfig {
   readonly platformWarningBytes: number;
   /** Platform-wide tracked storage total at which new uploads are hard-stopped. */
   readonly platformHardStopBytes: number;
+  /** Maximum PDF page count (EVI-01: "50 PDF pages"). Checked post-scan, not at reservation time; see `ContentLimitsPort`. */
+  readonly maxPdfPages: number;
+  /** Maximum image resolution in megapixels (EVI-01: "40 megapixels per image"). Checked post-scan, not at reservation time. */
+  readonly maxImageMegapixels: number;
 }
 
-/** Pilot defaults per the master directive: 10 MB / 50 MB / 100 MB / 500 MB / 700 MB. */
+/**
+ * Pilot defaults: 20 MiB / 50 MB / 100 MB / 500 MB / 700 MB / 50 pages / 40 MP.
+ * `maxUploadBytes` is Commercial V1 PRD EVI-01's explicit "20 MiB per
+ * original" initial configurable limit (superseding the prior engagement's
+ * own 10 MB pilot default, per this programme's standing instruction to
+ * follow the newer PRD's stated numbers rather than an older build's,
+ * where they conflict); `maxPdfPages`/`maxImageMegapixels` are EVI-01's own
+ * "50 PDF pages" / "40 megapixels per image" initial configurable limits,
+ * unimplemented until Part 3's content-limits check; the other three are
+ * unchanged pilot defaults not named by EVI-01.
+ */
 export const DEFAULT_UPLOAD_QUOTAS: UploadQuotaConfig = {
-  maxUploadBytes: 10 * BYTES_PER_MB,
+  maxUploadBytes: 20 * BYTES_PER_MB,
   maxApplicantEvidenceBytes: 50 * BYTES_PER_MB,
   maxAccountEvidenceBytes: 100 * BYTES_PER_MB,
   platformWarningBytes: 500 * BYTES_PER_MB,
   platformHardStopBytes: 700 * BYTES_PER_MB,
+  maxPdfPages: 50,
+  maxImageMegapixels: 40,
 };
 
 function envInt(
@@ -75,6 +91,9 @@ export function loadUploadQuotaConfig(
       'QUOTA_PLATFORM_HARD_STOP_MB',
       DEFAULT_UPLOAD_QUOTAS.platformHardStopBytes,
     ),
+    maxPdfPages: envInt(env, 'QUOTA_MAX_PDF_PAGES') ?? DEFAULT_UPLOAD_QUOTAS.maxPdfPages,
+    maxImageMegapixels:
+      envInt(env, 'QUOTA_MAX_IMAGE_MEGAPIXELS') ?? DEFAULT_UPLOAD_QUOTAS.maxImageMegapixels,
   };
 }
 

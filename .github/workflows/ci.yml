@@ -46,6 +46,53 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      # Real malware-engine verification (Commercial V1 SEC-05/EVI-02):
+      # installs and starts an actual ClamAV daemon so
+      # clamav-scanner.test.ts's live describe block genuinely exercises
+      # `ClamAvScanner` against real `clamd`, not only the fake-protocol
+      # server the rest of that file uses. Deliberately never fails the
+      # job on its own: if signature download or startup has a transient
+      # problem, `CLAMAV_TEST_SOCKET_PATH` is simply left unset and the
+      # live block skips (documented, not a silent fake pass) rather than
+      # blocking CI on a third-party mirror's availability, which is not
+      # this repository's own correctness. A minimal EICAR-only signature
+      # (the same public, standardized AV test string the test suite
+      # itself uses) is the fallback when the full signature database
+      # cannot be fetched, so the live path still runs whenever possible.
+      - name: Install and start ClamAV for live scanner verification
+        run: |
+          set +e
+          # apt-get update can exit non-zero over an unrelated third-party
+          # source (a stale PPA signing key, a mirror hiccup) while the
+          # primary Ubuntu archives it actually needs still refresh fine --
+          # gating on the INSTALL's own exit code, not update's, is what
+          # actually tells us whether clamav is fetchable.
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends clamav-daemon clamav-freshclam
+          if [ $? -ne 0 ]; then
+            echo "::warning::ClamAV install failed; live scanner verification will be skipped"
+            exit 0
+          fi
+          sudo systemctl stop clamav-freshclam 2>/dev/null || true
+          sudo freshclam --quiet || echo "::warning::freshclam failed; falling back to a minimal EICAR-only test database"
+          if ! ls /var/lib/clamav/*.cvd /var/lib/clamav/*.cld >/dev/null 2>&1; then
+            EICAR_MD5=$(printf 'X5O!P%%@AP[4\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*' | md5sum | cut -d' ' -f1)
+            echo "${EICAR_MD5}:68:CI-Fallback-EICAR" | sudo tee /var/lib/clamav/eicar.hdb >/dev/null
+            sudo chown clamav:clamav /var/lib/clamav/eicar.hdb
+          fi
+          sudo mkdir -p /var/run/clamav && sudo chown clamav:clamav /var/run/clamav
+          sudo -u clamav /usr/sbin/clamd --config-file=/etc/clamav/clamd.conf &
+          for _ in $(seq 1 30); do
+            if printf 'PING\n' | sudo -u clamav timeout 2 nc -U /var/run/clamav/clamd.ctl 2>/dev/null | grep -q PONG; then
+              echo "CLAMAV_TEST_SOCKET_PATH=/var/run/clamav/clamd.ctl" >> "$GITHUB_ENV"
+              echo "clamd is up"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "::warning::clamd did not become ready in time; live scanner verification will be skipped"
+          exit 0
+
       # GHAS-free dependency vulnerability gate (works on private repos).
       # Hard gate on what we actually ship (production deps); dev-tooling
       # advisories are surfaced but do not block, since they never deploy.

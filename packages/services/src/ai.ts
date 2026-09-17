@@ -7,6 +7,7 @@ import { appendAuditEvent } from './audit';
 import { hasConsent } from './consent';
 import { type Db, first, required, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
+import type { KeyManagementPort } from './ports';
 import { recordProductEvent } from './product-events';
 import { type EditFactResult, editFact, getCurrentFactVersion } from './profile';
 
@@ -578,6 +579,14 @@ export interface ApproveProposalInput {
   /** Edit-before-approve: applied instead of the proposed value when set and different. */
   readonly correctedValue?: string;
   readonly repeatingRecordKey?: string;
+  /**
+   * Required to approve a proposal targeting a SENSITIVE/RESTRICTED field
+   * (Commercial V1 SEC-03), passed straight through to `editFact`, which
+   * is the sole place that actually decides a port is needed. Omitted here,
+   * approving a proposal for such a field fails the same
+   * `encryption_unavailable` way a direct manual edit would.
+   */
+  readonly encryption?: KeyManagementPort;
 }
 
 /**
@@ -672,6 +681,7 @@ export async function approveProposal(
       promptVersion: run.promptVersion,
       reason: 'ai_proposal_approved',
       ...(repeatingRecordKey ? { repeatingRecordKey } : {}),
+      ...(input.encryption ? { encryption: input.encryption } : {}),
     });
     if (!isOk(editResult)) return editResult;
 
