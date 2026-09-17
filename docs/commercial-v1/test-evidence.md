@@ -396,3 +396,35 @@ mission-usage/access summaries per document.
 Full detail: `docs/commercial-v1/architecture-decisions.md` AD-14; `docs/commercial-v1/known-issues.md`
 item 33 (the still-missing supersede UI and the provisional 30-day expiring-soon threshold);
 `docs/commercial-v1/requirements-ledger.md` EVI-04.
+
+## Part 4, chunk 7: the assurance ladder (EVI-05)
+
+Commit: working tree on top of `59809b6` (Part 4 chunk 6, Document Wallet, already pushed and PR
+#78 updated). New `packages/services/src/assurance.ts` (`getFactAssurance`/
+`listApplicantAssurance`/`recordIssuerVerification`/`deriveAssuranceTier`/
+`listIssuerVerificationsForDocument`/`listIssuerVerificationsForFact`), new `issuerVerifications`
+table (migration `0034_hesitant_robin_chapel.sql`, additive only), a new
+`missions.ts`-exported `listSelectedEvidenceForOrg`, and the Master Profile page/editor, Document
+Vault page, and agency console (mission collaboration) all wired to the new data.
+
+Interrupted mid-verification by a direct instruction to confirm commit/push/deployment state
+before continuing; that check (git status, GitHub PR #78 status, Vercel deployment API) found
+every deployment on this branch failing with an identical `BUILD_FAILED`/"Resource provisioning
+failed" signature (near-zero build time, zero build log lines) going back to this session's very
+first, docs-only commit, confirmed by re-reading that commit's actual diff
+(`git show --stat 6762beb`: 5 markdown files, zero code), and affecting `main`'s own already-merged
+commit intermittently on repeated redeploys. Not a code defect: recorded here rather than in a
+separate report, since it directly gated this chunk's own commit.
+
+| # | Command | Exit | Result | Detail |
+|---|---|---|---|---|
+| 1 | `pnpm run lint` | 0 | PASS | Biome, 322 files checked. Three formatting-only issues found and fixed before the final clean run: Drizzle-generated `0034_snapshot.json` (array-formatting, the same class of auto-fix every migration in this session has needed), one long line in `mission-collaboration.tsx`, and a trailing-newline issue in `migrations/meta/_journal.json`. No em-dashes in any newly-authored line, verified per file as each was written, not swept once at the end. |
+| 2 | `pnpm run typecheck` | 0 | PASS | All 7 packages, no errors. Caught and fixed before this run: `deriveAssuranceTier`'s first cut let an accepted agency review with no backing document collapse all the way to E0, contradicted by the PRD's own "agency reviewed" being a separate statement from "document supplied"; corrected to reach E1 (real progress over a bare declaration) rather than being erased, with the pure-function unit tests and the integration test updated to match, not just the implementation. |
+| 3 | `pnpm run test` | 0 | PASS | 833 tests total across all 7 packages, 830 passed, 3 skipped (pre-existing, unrelated to this chunk), 0 failed: core 2, i18n 6, policy 31, db 26 + 1 skipped, adapters 147 + 2 skipped, web 141, services 477. New `assurance.test.ts` (20 tests): every `deriveAssuranceTier` tier boundary as a pure function; `getFactAssurance`/`listApplicantAssurance` proven against real PGlite Postgres for a bare declaration (E0), a document with real `documentScanResults`/`extractionRuns`/`documentClassifications` rows reaching E2, a real accepted `missionDecisions` row reached through an actual `selectEvidence` call reaching E1 (no document), owner-only access, and not_found for an unknown fact; `recordIssuerVerification` proven for a granted org (reaching E3), an expired confirmation still shown but excluded from the tier, missing-target/blank-field/past-date rejection, a COMMENT-only grant refused, the owner themselves refused, and a cross-applicant fact refused; `listIssuerVerificationsForDocument` proven newest-first. 3 new tests in `missions.test.ts` for `listSelectedEvidenceForOrg`: a granted org reading real selected evidence, a stranger org denied, and not_found for an unknown mission. |
+| 4 | `pnpm run build` | 0 | PASS | Full monorepo build including `apps/web`, full 34-route manifest produced (same `next build` Vercel's own build step would run), pre-existing `unpdf`/`import.meta` dependency warning unchanged from before this chunk, not a new regression. |
+| 5 | `pnpm audit --prod` | 0 | PASS | "No known vulnerabilities found", no new dependencies (pure application/schema code and UI). |
+
+Full detail: `docs/commercial-v1/architecture-decisions.md` AD-15; `docs/commercial-v1/known-issues.md`
+items 34 (why `AGENCY_REVIEWED` stays unreachable by design) and 35 (the missing evidence-selection
+prompt, and fact-level org sharing still not existing); `docs/commercial-v1/requirements-ledger.md`
+EVI-05.

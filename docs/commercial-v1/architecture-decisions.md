@@ -853,3 +853,82 @@ an owner actually call `supersedeDocument` yet (the read side, lifecycle badges 
 summary, is wired into the existing documents page; the write side needs a two-document picker
 UI, a larger, separate piece of work); `documentDate`/`subject` remain the only EVI-03 metadata
 fields with no derivation signal (AD-12, unchanged by this chunk).
+
+## AD-15: The assurance ladder (EVI-05), scoped to facts
+
+**Decision.** EVI-05 asks for five separate, always-shown statements per claim: applicant
+declared, document supplied, named machine checks performed, agency reviewed, issuer confirmed.
+Scoped to FACTS, not documents: `factVersions.status` already carries most of this exact ladder
+(Build Spec §9's own `DECLARED`/`DOCUMENT_SUPPORTED`/`AGENCY_REVIEWED` values, with the comment
+"Generic 'Verified' is forbidden"), and the PRD's E3 wording ("exact claim") is fact-shaped, not
+document-shaped, a document is simply supplied or not, with no meaningful "declared but not yet
+supplied" state the way a fact has. New `packages/services/src/assurance.ts` assembles all five
+per fact, reusing four of them from data this codebase already had: "declared" and "document
+supplied" from `factVersions.status`/`sourceDocumentVersionId`; "named machine checks performed"
+from `documentClassifications`/`extractionRuns`/`documentScanResults`, joined via
+`sourceDocumentVersionId`; "agency reviewed" from `missionDecisions`, joined via
+`selectedEvidence` (never a bare boolean, the exact mission/requirement/reviewer/date is shown,
+which is more precise than a flag would be anyway). Only "issuer confirmed" needed new
+infrastructure: a new `issuerVerifications` table and `recordIssuerVerification`.
+
+**`AGENCY_REVIEWED` was dead code before this chunk.** It has existed in `FACT_STATUSES` since
+Build Spec §9 and is treated as a trusted status by `ai.ts`'s `TRUSTED_FACT_STATUSES`, but nothing
+in the entire service layer ever wrote it: `recordMissionDecision` (the one place an agency judges
+a requirement) never touches `factVersions` at all. Rather than wiring `recordMissionDecision` to
+write a new fact version with that status, which would require loosening `editFact`'s
+current owner-only authorization (a separate, larger authorization change, explicitly out of
+scope here), "agency reviewed" is instead derived read-side from the existing
+`missionDecisions`/`selectedEvidence` join. This is deliberately more honest than flipping a
+status bit would be: it names which mission, which requirement, who decided, and when, not just
+that some review happened at some point.
+
+**Why `issuerVerifications` allows either a `factId` or a `documentId`, not one fixed choice.** An
+issuer confirmation is fundamentally about a claim (`exactClaim`, free text), which may reference
+a specific fact, a specific document, both, or something not cleanly reducible to either (e.g. a
+phone call confirming overall employment status ahead of any one field being edited). A DB check
+constraint requires at least one so every row stays reachable from a real UI surface; forcing a
+single fixed choice between "fact feature" or "document feature" would have been a false one the
+PRD itself does not impose. `validUntil` is required NOT NULL (never open-ended), matching SHR-01's
+own refusal to let a grant have no expiry: nothing in this ladder is presumed to hold forever.
+
+**Why `recordIssuerVerification` is deliberately NOT owner-permitted, unlike `recordDocumentReview`
+(AD-13).** The top assurance tier only means something if it is independent of the party whose
+claim it is. `recordDocumentReview` allowing the owner was defensible because judging "is this
+scan legible" is a low-stakes, symmetric judgment; letting an applicant self-certify their own E3
+would undercut the one guarantee that tier exists to give, so this chunk deliberately diverges
+from that precedent rather than copying it uniformly. It requires a MANAGE-level org grant (the
+same bar `recordMissionDecision` uses, not `recordDocumentReview`'s lighter COMMENT bar), checked
+with an optional `missionId` so a mission-scoped grant counts, not only an applicant-wide one.
+
+**E0-E3 is a derived, secondary label, never the primary UI.** The PRD itself calls these
+"internal labels." `deriveAssuranceTier` is a pure function: E3 only for a live (unexpired) issuer
+confirmation; E2 needs a document PLUS a passing check or an accepted review, "E2 is never proof
+of authenticity" holding structurally since neither alone reaches it; E1 for a document alone OR
+an agency review alone (real progress over a bare declaration, even with nothing else behind it,
+so it is never silently erased back to E0 for lack of a document); E0 otherwise. The five
+statements are always assembled and displayed regardless of what single letter this derives to.
+
+**Why the profile page changed but the documents page only gained a narrower slice.** The Master
+Profile UI (`profile-editor.tsx`) was rendering exactly the single opaque status badge EVI-05
+warns against (`STATUS_LABELS[status]`, one word, no breakdown); this is the real gap, now an
+expandable per-field breakdown of all five statements. Documents already surface their other four
+axes as separate, existing badges (safety, processing, EVI-04 lifecycle, EVI-03 review outcome),
+so a second, overlapping ladder there would mostly restate them; only the genuinely new axis
+(`listIssuerVerificationsForDocument`) was added to the Document Vault page instead.
+
+**What this proves, and what remains open.** 20 new tests (`assurance.test.ts`): `deriveAssuranceTier`
+covers every tier boundary as a pure function, including the "agency review alone still reaches E1"
+correction found while writing the first integration test (it initially expected E2, tracked as a
+correction, not a silent fix); `getFactAssurance`/`listApplicantAssurance` proven against real
+PGlite Postgres for a bare declaration, a document with real scan/extraction/classification rows,
+a real accepted `missionDecisions` row reached through `selectEvidence`, and owner-only access;
+`recordIssuerVerification` proven for a granted org, an expired confirmation still shown but not
+counted, missing-target/blank-field/past-date rejection, a COMMENT-only grant refused, the owner
+themselves refused, and a cross-applicant fact refused. 3 more tests cover the new
+`listSelectedEvidenceForOrg` (`missions.test.ts`), the org-scoped sibling of `listSelectedEvidence`
+the agency console's write action needs to resolve a requirement's evidence without owner access.
+Left open, tracked rather than assumed covered: no UI lets an org record an issuer confirmation
+against a requirement with no evidence selected yet (the action refuses cleanly, but there is no
+prompt guiding the case manager to select evidence first); fact-level sharing to an organization
+still does not exist as its own concept (the same limitation AD-05/AD-13 already note), so
+`getFactAssurance`/`listApplicantAssurance` remain owner-only with no agency-facing read path.

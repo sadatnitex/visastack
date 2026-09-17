@@ -6,6 +6,8 @@ import {
   addNote,
   assignMember,
   getAccountByEmail,
+  listSelectedEvidenceForOrg,
+  recordIssuerVerification,
   recordMissionDecision,
   requestEvidence,
   setMembershipActive,
@@ -214,6 +216,69 @@ export async function recordDecisionAction(
     });
     if (!decision.ok) return { ok: false, message: decision.error.message } satisfies ActionState;
     return { ok: true, message: `Decision recorded: ${outcome}.` } satisfies ActionState;
+  });
+  if (result.ok) revalidatePath(`/app/agency/${organizationId}`);
+  return result;
+}
+
+/**
+ * Record an issuer confirmation (EVI-05, tier E3) against whatever a
+ * requirement's evidence is currently selected as. The fact/document is
+ * resolved server-side from `packRequirementId` via
+ * `listSelectedEvidenceForOrg` (never trusted from the client directly);
+ * `recordIssuerVerification` itself re-authorizes independently with its
+ * own MANAGE-grant check, so this action does not widen either.
+ */
+export async function recordIssuerVerificationAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const gate = requireAgencyCollaboration();
+  if (gate) return gate;
+
+  const organizationId = String(formData.get('organizationId') ?? '');
+  const missionId = String(formData.get('missionId') ?? '');
+  const applicantId = String(formData.get('applicantId') ?? '');
+  const packRequirementId = String(formData.get('packRequirementId') ?? '');
+  const issuerIdentity = String(formData.get('issuerIdentity') ?? '').trim();
+  const contactMethod = String(formData.get('contactMethod') ?? '').trim();
+  const exactClaim = String(formData.get('exactClaim') ?? '').trim();
+  const response = String(formData.get('response') ?? '').trim();
+  const validUntilRaw = String(formData.get('validUntil') ?? '');
+  if (packRequirementId.length === 0) return { ok: false, message: 'Choose a requirement.' };
+  if (!issuerIdentity || !contactMethod || !exactClaim || !response || !validUntilRaw) {
+    return { ok: false, message: 'Every field is required to record an issuer confirmation.' };
+  }
+  const validUntil = new Date(validUntilRaw);
+  if (Number.isNaN(validUntil.getTime())) {
+    return { ok: false, message: 'Enter a valid date.' };
+  }
+
+  const result = await withSession(async ({ db, accountId }) => {
+    const evidence = await listSelectedEvidenceForOrg(db, organizationId, missionId);
+    if (!evidence.ok) return { ok: false, message: evidence.error.message } satisfies ActionState;
+    const selection = evidence.value.find((e) => e.packRequirementId === packRequirementId);
+    if (!selection || (!selection.factId && !selection.documentId)) {
+      return {
+        ok: false,
+        message: 'No evidence is selected for this requirement yet.',
+      } satisfies ActionState;
+    }
+
+    const recorded = await recordIssuerVerification(db, {
+      actorAccountId: accountId,
+      applicantId,
+      missionId,
+      ...(selection.factId ? { factId: selection.factId } : {}),
+      ...(selection.documentId ? { documentId: selection.documentId } : {}),
+      issuerIdentity,
+      contactMethod,
+      exactClaim,
+      response,
+      validUntil,
+    });
+    if (!recorded.ok) return { ok: false, message: recorded.error.message } satisfies ActionState;
+    return { ok: true, message: 'Issuer confirmation recorded.' } satisfies ActionState;
   });
   if (result.ok) revalidatePath(`/app/agency/${organizationId}`);
   return result;

@@ -328,6 +328,24 @@ item gets its own requirements-ledger row once classified against the new direct
     this chunk. Also open: the 30-day "expiring soon" threshold in `documentLifecycleStatus` is
     a documented provisional default, not a PRD-given number, pending Part 5's Expiry Centre
     (NTF-01).
+34. (Part 4) Found while building AD-15: `factVersions.status`'s `AGENCY_REVIEWED` value has
+    existed since Build Spec §9 and is treated as trusted by `ai.ts`'s `TRUSTED_FACT_STATUSES`,
+    but nothing in the service layer has ever written it, `recordMissionDecision` never touches
+    `factVersions`, so it stays unreachable in production even after this chunk. Deliberately not
+    fixed by wiring a literal write: doing so would require loosening `editFact`'s owner-only
+    authorization to let an org write a new fact version, a separate, larger authorization change.
+    Instead, "agency reviewed" is derived read-side in `assurance.ts` from the existing
+    `missionDecisions`/`selectedEvidence` join, naming the exact mission/requirement/reviewer/date
+    rather than a bare status flag, which serves EVI-05's actual display need without the literal
+    enum value ever needing to become reachable. Tracked as a deliberate design choice, not a
+    silently-dropped fix.
+35. (Part 4) AD-15's own remaining scope: no UI prompts a case manager to select evidence for a
+    requirement before trying to record an issuer confirmation against it; `recordIssuerVerification`
+    refuses cleanly with a clear message, but the agency console gives no upfront guidance. Also
+    open: fact-level sharing to an organization still does not exist as its own concept (the same
+    limitation AD-05/AD-13 already note for other surfaces), so the assurance view
+    (`getFactAssurance`/`listApplicantAssurance`) remains owner-only with no agency-facing read
+    path, even though `recordIssuerVerification` itself is agency-facing.
 independently confirmed findings; the missing PRD file is tracked as Blocker 1 in
 `assumptions-and-blockers.md` (now resolved) rather than here, since it blocked the
 programme rather than being a product defect.

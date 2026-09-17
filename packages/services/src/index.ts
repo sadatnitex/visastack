@@ -302,6 +302,7 @@ export {
   listMissions,
   listMissionsUsingField,
   listSelectedEvidence,
+  listSelectedEvidenceForOrg,
   listTasks,
   selectEvidence,
   snapshotMission,
@@ -524,3 +525,18 @@ export {
   getWalletView,
   supersedeDocument,
 } from './wallet';
+
+export {
+  type AgencyReviewSummary,
+  type AssuranceTier,
+  type FactAssuranceView,
+  type IssuerConfirmationSummary,
+  type IssuerVerification,
+  type MachineCheckSummary,
+  deriveAssuranceTier,
+  getFactAssurance,
+  listApplicantAssurance,
+  listIssuerVerificationsForDocument,
+  listIssuerVerificationsForFact,
+  recordIssuerVerification,
+} from './assurance';

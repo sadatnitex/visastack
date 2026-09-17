@@ -6,6 +6,7 @@ import {
   addNoteAction,
   assignMemberAction,
   recordDecisionAction,
+  recordIssuerVerificationAction,
 } from './actions';
 
 const INITIAL: ActionState = { ok: true, message: '' };
@@ -42,9 +43,21 @@ interface DecisionView {
   readonly createdAt: string;
 }
 
+/** EVI-05, tier E3 ("issuer confirmed"): a requirement can carry more than one over time. */
+interface IssuerVerificationView {
+  readonly id: string;
+  readonly packRequirementId: string;
+  readonly issuerIdentity: string;
+  readonly exactClaim: string;
+  readonly response: string;
+  readonly validUntil: string;
+  readonly expired: boolean;
+}
+
 interface MissionCollaborationProps {
   readonly organizationId: string;
   readonly missionId: string;
+  readonly applicantId: string;
   readonly title: string;
   readonly applicantName: string;
   readonly members: readonly MemberOption[];
@@ -52,6 +65,7 @@ interface MissionCollaborationProps {
   readonly notes: readonly NoteView[];
   readonly requirements: readonly RequirementOption[];
   readonly decisions: readonly DecisionView[];
+  readonly issuerVerifications: readonly IssuerVerificationView[];
   /** Only an assigned member can record a decision — self-attestation by the applicant is never allowed. */
   readonly viewerAssigned: boolean;
 }
@@ -59,6 +73,7 @@ interface MissionCollaborationProps {
 export function MissionCollaboration({
   organizationId,
   missionId,
+  applicantId,
   title,
   applicantName,
   members,
@@ -66,12 +81,17 @@ export function MissionCollaboration({
   notes,
   requirements,
   decisions,
+  issuerVerifications,
   viewerAssigned,
 }: MissionCollaborationProps) {
   const [noteState, noteAction, notePending] = useActionState(addNoteAction, INITIAL);
   const [assignState, assignAction, assignPending] = useActionState(assignMemberAction, INITIAL);
   const [decisionState, decisionAction, decisionPending] = useActionState(
     recordDecisionAction,
+    INITIAL,
+  );
+  const [issuerState, issuerAction, issuerPending] = useActionState(
+    recordIssuerVerificationAction,
     INITIAL,
   );
   const assignedAccountIds = new Set(assignments.map((a) => a.memberAccountId));
@@ -293,6 +313,119 @@ export function MissionCollaboration({
           {decisionState.message ? (
             <p className={`field-msg ${decisionState.ok ? 'field-msg-ok' : 'field-msg-err'}`}>
               {decisionState.message}
+            </p>
+          ) : null}
+        </div>
+      ) : null}
+
+      {requirements.length > 0 ? (
+        <div style={{ marginTop: '0.85rem' }}>
+          <p className="muted" style={{ fontSize: '0.78rem', marginBottom: '0.35rem' }}>
+            Issuer confirmations (EVI-05)
+          </p>
+          {issuerVerifications.length === 0 ? (
+            <p className="muted" style={{ fontSize: '0.85rem', marginBottom: '0.5rem' }}>
+              No issuer confirmed yet. Lack of this is not a readiness failure on its own.
+            </p>
+          ) : (
+            <div
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '0.4rem',
+                marginBottom: '0.5rem',
+              }}
+            >
+              {issuerVerifications.map((v) => (
+                <div key={v.id} style={{ fontSize: '0.85rem' }}>
+                  <span className={`badge ${v.expired ? 'badge-neutral' : 'badge-success'}`}>
+                    {v.expired ? 'Expired' : 'Confirmed'}
+                  </span>{' '}
+                  <span className="muted" style={{ fontSize: '0.75rem' }}>
+                    {requirements.find((r) => r.id === v.packRequirementId)?.label ??
+                      v.packRequirementId}
+                    : {v.issuerIdentity}, "{v.exactClaim}", valid until{' '}
+                    {new Date(v.validUntil).toLocaleDateString()}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+          <form action={issuerAction} style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+            <input type="hidden" name="organizationId" value={organizationId} />
+            <input type="hidden" name="missionId" value={missionId} />
+            <input type="hidden" name="applicantId" value={applicantId} />
+            <select
+              name="packRequirementId"
+              className="input"
+              required
+              defaultValue=""
+              aria-label="Requirement this confirmation covers"
+            >
+              <option value="" disabled>
+                Requirement…
+              </option>
+              {requirements.map((r) => (
+                <option key={r.id} value={r.id}>
+                  {r.label}
+                </option>
+              ))}
+            </select>
+            <input
+              name="issuerIdentity"
+              type="text"
+              className="input"
+              placeholder="Issuer (e.g. HM Passport Office)"
+              aria-label="Issuer identity"
+              required
+            />
+            <input
+              name="contactMethod"
+              type="text"
+              className="input"
+              placeholder="Contact method (e.g. phone: +44...)"
+              aria-label="Contact method"
+              required
+            />
+            <input
+              name="exactClaim"
+              type="text"
+              className="input"
+              placeholder="Exact claim confirmed"
+              aria-label="Exact claim"
+              required
+            />
+            <input
+              name="response"
+              type="text"
+              className="input"
+              placeholder="Issuer's response"
+              aria-label="Issuer response"
+              required
+            />
+            <input
+              name="validUntil"
+              type="date"
+              className="input"
+              aria-label="Valid until"
+              required
+            />
+            <button
+              type="submit"
+              className="btn btn-secondary"
+              style={{ padding: '0.3rem 0.85rem', fontSize: '0.8rem' }}
+              disabled={issuerPending}
+            >
+              {issuerPending ? 'Recording…' : 'Record confirmation'}
+            </button>
+          </form>
+          <p className="muted" style={{ fontSize: '0.75rem', marginTop: '0.35rem' }}>
+            Requires evidence already selected for that requirement; a staff checkbox alone is never
+            accepted as confirmation.
+          </p>
+          {issuerState.message ? (
+            <p className={`field-msg ${issuerState.ok ? 'field-msg-ok' : 'field-msg-err'}`}>
+              {issuerState.message}
             </p>
           ) : null}
         </div>

@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import type { FactStatus, MissionState } from '@visastack/core';
 import { type Result, err, ok } from '@visastack/core';
 import { and, desc, eq, inArray } from 'drizzle-orm';
+import { orgGrantPermits } from './agency';
 import { getApplicant } from './applicants';
 import { appendAuditEvent } from './audit';
 import { hasConsent } from './consent';
@@ -1119,6 +1120,37 @@ export async function listSelectedEvidence(
 ): Promise<Result<SelectedEvidence[], ServiceError>> {
   const owned = await ownedMission(db, actorAccountId, missionId);
   if (!owned.ok) return owned;
+  const rows = await db
+    .select()
+    .from(schema.selectedEvidence)
+    .where(eq(schema.selectedEvidence.missionId, missionId));
+  return ok(rows);
+}
+
+/**
+ * Every current evidence selection for a mission, for an org that currently
+ * holds a MANAGE grant covering it: the org-scoped sibling of
+ * `listSelectedEvidence` (owner-scoped), mirroring
+ * `listMissionRequirementsForOrg`'s exact authorization shape. Lets a case
+ * manager's UI resolve "which fact/document already backs this requirement"
+ * (e.g. to record an issuer confirmation against it, EVI-05) without
+ * needing owner-level mission access. Empty (not an error) if nothing is
+ * selected yet.
+ */
+export async function listSelectedEvidenceForOrg(
+  db: Db,
+  organizationId: string,
+  missionId: string,
+): Promise<Result<SelectedEvidence[], ServiceError>> {
+  const mission = first(
+    await db.select().from(schema.missions).where(eq(schema.missions.id, missionId)).limit(1),
+  );
+  if (!mission) return err(serviceError('not_found', 'mission not found'));
+  if (!(await orgGrantPermits(db, organizationId, mission.applicantId, 'MANAGE', mission.id))) {
+    return err(
+      serviceError('forbidden', 'this organization has no current grant covering that mission'),
+    );
+  }
   const rows = await db
     .select()
     .from(schema.selectedEvidence)

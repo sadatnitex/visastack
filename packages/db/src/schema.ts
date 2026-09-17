@@ -788,6 +788,51 @@ export const factVersions = pgTable(
   ],
 );
 
+// EVI-05 (assurance ladder), tier "issuer confirmed": the one tier with no
+// existing infrastructure to derive from. The other four statements the PRD
+// asks for read off data this schema already has: "applicant declared" and
+// "document supplied" off factVersions.status/sourceDocumentVersionId above,
+// "named machine checks performed" off documentClassifications/
+// extractionRuns/documentScanResults (joined via sourceDocumentVersionId),
+// and "agency reviewed" off missionDecisions (joined via selectedEvidence);
+// see packages/services/src/assurance.ts for how all five are assembled and
+// displayed. PRD is explicit this tier must never be "a staff checkbox
+// claiming verification": every substantive field is required NOT NULL, so
+// a row structurally cannot exist without real content, and `validUntil` is
+// required too (nothing here is presumed to hold forever, matching SHR-01's
+// refusal to let a grant have no expiry). factId/documentId are each
+// optional (a confirmation can cover a claim not yet modeled as a discrete
+// fact, or a document with no single fact it maps to) but the check
+// constraint below requires at least one, so every row stays reachable from
+// a real UI surface instead of floating unattached to anything.
+export const issuerVerifications = pgTable(
+  'issuer_verifications',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    applicantId: uuid('applicant_id')
+      .notNull()
+      .references(() => applicants.id, { onDelete: 'cascade' }),
+    factId: uuid('fact_id').references(() => facts.id, { onDelete: 'set null' }),
+    documentId: uuid('document_id').references(() => documents.id, { onDelete: 'set null' }),
+    issuerIdentity: text('issuer_identity').notNull(),
+    contactMethod: text('contact_method').notNull(),
+    exactClaim: text('exact_claim').notNull(),
+    response: text('response').notNull(),
+    validUntil: timestamp('valid_until', { withTimezone: true }).notNull(),
+    verifiedByAccountId: uuid('verified_by_account_id').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('issuer_verifications_applicant_idx').on(table.applicantId),
+    index('issuer_verifications_fact_idx').on(table.factId),
+    index('issuer_verifications_document_idx').on(table.documentId),
+    check(
+      'issuer_verifications_covers_something',
+      sql`${table.factId} is not null or ${table.documentId} is not null`,
+    ),
+  ],
+);
+
 // --- Envelope key registry (Commercial V1 SEC-03) ---------------------------
 // Tracks only the KMS-WRAPPED (encrypted) data key per version — never
 // plaintext key material. Worthless without the KeyManagementPort adapter's

@@ -6,6 +6,7 @@ import {
   hasConsent,
   isServableProcessingState,
   listDocumentsDetailed,
+  listIssuerVerificationsForDocument,
   listPendingProposals,
   loadUploadQuotaConfig,
 } from '@visastack/services';
@@ -89,8 +90,18 @@ export default async function ApplicantDocumentsPage({
         listPendingProposals(db, id),
         getWalletView(db, { actorAccountId: accountId, applicantId: id }),
       ]);
+    const documentRows = documents.ok ? documents.value : [];
+    // EVI-05: issuer confirmations, per document. There is no batch
+    // reader yet (document counts per applicant are small), so this fans
+    // out one query per document rather than adding one solely for this.
+    const issuerVerificationLists = await Promise.all(
+      documentRows.map((doc) => listIssuerVerificationsForDocument(db, doc.id)),
+    );
+    const issuerVerifications = new Map(
+      documentRows.map((doc, i) => [doc.id, issuerVerificationLists[i] ?? []] as const),
+    );
     return {
-      documents: documents.ok ? documents.value : [],
+      documents: documentRows,
       coreGranted,
       aiGranted,
       aiConfigured: Boolean(createAiExtractor()),
@@ -98,6 +109,7 @@ export default async function ApplicantDocumentsPage({
       pendingProposals,
       quota: loadUploadQuotaConfig(),
       wallet: new Map((wallet.ok ? wallet.value : []).map((w) => [w.document.id, w])),
+      issuerVerifications,
     };
   });
 
@@ -234,6 +246,36 @@ export default async function ApplicantDocumentsPage({
                           ? `Shared with ${wallet.accessibleTo.map((a) => a.label).join(', ')}`
                           : null}
                       </p>
+                    );
+                  })()}
+                  {(() => {
+                    const confirmations = data.issuerVerifications.get(doc.id) ?? [];
+                    if (confirmations.length === 0) return null;
+                    return (
+                      <details style={{ fontSize: '0.75rem' }}>
+                        <summary className="muted" style={{ cursor: 'pointer' }}>
+                          {confirmations.length} issuer confirmation
+                          {confirmations.length === 1 ? '' : 's'}
+                        </summary>
+                        <div
+                          style={{
+                            marginTop: '0.35rem',
+                            paddingLeft: '0.75rem',
+                            borderLeft: '2px solid var(--hairline-soft)',
+                          }}
+                        >
+                          {confirmations.map((c) => {
+                            const expired = c.validUntil.getTime() <= Date.now();
+                            return (
+                              <p key={c.id} className="muted" style={{ margin: '0 0 0.3rem' }}>
+                                {expired ? '(expired) ' : ''}
+                                {c.issuerIdentity}: "{c.exactClaim}", response: {c.response}, valid
+                                until {c.validUntil.toLocaleDateString()}
+                              </p>
+                            );
+                          })}
+                        </div>
+                      </details>
                     );
                   })()}
                   {doc.pendingNameVersion ? (
