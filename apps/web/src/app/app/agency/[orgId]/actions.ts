@@ -5,12 +5,14 @@ import {
   addMembership,
   addNote,
   assignMember,
+  createClientInvitation,
   createOrganizationInvitation,
   getAccountByEmail,
   listSelectedEvidenceForOrg,
   recordIssuerVerification,
   recordMissionDecision,
   requestEvidence,
+  revokeClientInvitation,
   revokeOrganizationInvitation,
   setMembershipActive,
 } from '@visastack/services';
@@ -160,6 +162,72 @@ export async function revokeInvitationAction(
 
   const result = await withSession(async ({ db, accountId }) => {
     const revoked = await revokeOrganizationInvitation(db, {
+      actorAccountId: accountId,
+      organizationId,
+      invitationId,
+    });
+    if (!revoked.ok) return { ok: false, message: revoked.error.message } satisfies ActionState;
+    return { ok: true, message: 'Invitation revoked.' } satisfies ActionState;
+  });
+  if (result.ok) revalidatePath(`/app/agency/${organizationId}`);
+  return result;
+}
+
+/**
+ * Invite a traveller as a new client (Commercial V1 Part 4 §6, IAM-03). The
+ * agency never claims or picks the traveller's applicant profile, only a
+ * minimal display name/contact/requested route/case owner, so the token
+ * this mints is the only thing that changes hands; the traveller alone
+ * decides what it attaches to when they accept. No real email adapter
+ * exists yet (Part 5 scope), so the accept link is handed straight back to
+ * the admin to share, the same interim pattern `addMemberAction` already
+ * uses for a teammate with no account yet.
+ */
+export async function inviteClientAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const organizationId = String(formData.get('organizationId') ?? '');
+  const caseOwnerAccountId = String(formData.get('caseOwnerAccountId') ?? '');
+  const displayName = String(formData.get('displayName') ?? '').trim();
+  const contactDestination = String(formData.get('contactDestination') ?? '').trim();
+  const requestedRoute = String(formData.get('requestedRoute') ?? '').trim();
+  if (displayName.length === 0) return { ok: false, message: "Enter the traveller's name." };
+  if (contactDestination.length === 0) {
+    return { ok: false, message: 'Enter a contact email or phone number.' };
+  }
+  if (caseOwnerAccountId.length === 0) return { ok: false, message: 'Choose a case owner.' };
+
+  const result = await withSession(async ({ db, accountId }) => {
+    const invited = await createClientInvitation(db, {
+      actorAccountId: accountId,
+      organizationId,
+      caseOwnerAccountId,
+      displayName,
+      contactDestination,
+      ...(requestedRoute.length > 0 ? { requestedRoute } : {}),
+    });
+    if (!invited.ok) return { ok: false, message: invited.error.message } satisfies ActionState;
+    const acceptUrl = `${resolveBaseUrl()}/app/client-invitations/accept?token=${invited.value.rawToken}`;
+    return {
+      ok: true,
+      message: `Invitation created for ${displayName}. Share this link (expires in 7 days): ${acceptUrl}`,
+    } satisfies ActionState;
+  });
+  if (result.ok) revalidatePath(`/app/agency/${organizationId}`);
+  return result;
+}
+
+/** Revoke a still-pending client invitation (org admin). */
+export async function revokeClientInvitationAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const organizationId = String(formData.get('organizationId') ?? '');
+  const invitationId = String(formData.get('invitationId') ?? '');
+
+  const result = await withSession(async ({ db, accountId }) => {
+    const revoked = await revokeClientInvitation(db, {
       actorAccountId: accountId,
       organizationId,
       invitationId,

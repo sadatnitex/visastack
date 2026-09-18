@@ -5,6 +5,7 @@ import {
   listApplicantsForOrganization,
   listAssignedMissionIds,
   listAssignmentsDetailed,
+  listClientInvitations,
   listEvidenceRequestsForOrgDetailed,
   listIssuerVerificationsForDocument,
   listIssuerVerificationsForFact,
@@ -24,6 +25,8 @@ import {
 } from '../../../../lib/capabilities';
 import { profileField } from '../../../../lib/profile-fields';
 import { withSession } from '../../../../lib/session';
+import { ClientInvitationForm } from './client-invitation-form';
+import { ClientInvitationRevokeButton } from './client-invitation-revoke-button';
 import { InvitationRevokeButton } from './invitation-revoke-button';
 import { AddMemberForm } from './member-form';
 import { MemberToggleButton } from './member-toggle-button';
@@ -74,6 +77,7 @@ export default async function OrgConsolePage({
         requests: [],
         members: [],
         invitations: [],
+        clientInvitations: [],
         applicants: [],
         missions: [],
         viewerAccountId: accountId,
@@ -84,22 +88,35 @@ export default async function OrgConsolePage({
     // org-wide evidence requests, and the applicant list the "Request
     // evidence" form targets, each gated by isOrgAdmin at the service
     // layer already (listOrgMemberships, listOrganizationInvitations,
-    // listEvidenceRequestsForOrgDetailed), or only ever consumed by an
-    // admin-only section of this page (applicants).
-    const [requests, members, invitations, applicants, orgMissions, assignedMissionIds] =
-      await Promise.all([
-        admin ? listEvidenceRequestsForOrgDetailed(db, accountId, orgId) : Promise.resolve(null),
-        admin ? listOrgMemberships(db, accountId, orgId) : Promise.resolve(null),
-        admin
-          ? listOrganizationInvitations(db, { actorAccountId: accountId, organizationId: orgId })
-          : Promise.resolve(null),
-        admin ? listApplicantsForOrganization(db, orgId) : Promise.resolve([]),
-        listMissionsForOrganization(db, orgId),
-        admin ? Promise.resolve(null) : listAssignedMissionIds(db, orgId, accountId),
-      ]);
+    // listClientInvitations, listEvidenceRequestsForOrgDetailed), or only
+    // ever consumed by an admin-only section of this page (applicants).
+    const [
+      requests,
+      members,
+      invitations,
+      clientInvitationsResult,
+      applicants,
+      orgMissions,
+      assignedMissionIds,
+    ] = await Promise.all([
+      admin ? listEvidenceRequestsForOrgDetailed(db, accountId, orgId) : Promise.resolve(null),
+      admin ? listOrgMemberships(db, accountId, orgId) : Promise.resolve(null),
+      admin
+        ? listOrganizationInvitations(db, { actorAccountId: accountId, organizationId: orgId })
+        : Promise.resolve(null),
+      admin
+        ? listClientInvitations(db, { actorAccountId: accountId, organizationId: orgId })
+        : Promise.resolve(null),
+      admin ? listApplicantsForOrganization(db, orgId) : Promise.resolve([]),
+      listMissionsForOrganization(db, orgId),
+      admin ? Promise.resolve(null) : listAssignedMissionIds(db, orgId, accountId),
+    ]);
     const membersResolved = members?.ok ? members.value : [];
     const invitationsResolved = invitations?.ok
       ? invitations.value.filter((i) => i.status === 'PENDING')
+      : [];
+    const clientInvitationsResolved = clientInvitationsResult?.ok
+      ? clientInvitationsResult.value.filter((i) => i.status === 'PENDING')
       : [];
     // Codex review, PR-D2, round 1: listAssignmentsDetailed/listNotes/
     // listMissionRequirementsForOrg below only check the ORGANIZATION's
@@ -198,6 +215,7 @@ export default async function OrgConsolePage({
       requests: requests?.ok ? requests.value : [],
       members: membersResolved,
       invitations: invitationsResolved,
+      clientInvitations: clientInvitationsResolved,
       applicants,
       missions,
       viewerAccountId: accountId,
@@ -438,6 +456,53 @@ export default async function OrgConsolePage({
                 </div>
               ) : null}
               <AddMemberForm organizationId={orgId} />
+            </article>
+          ) : null}
+
+          {data.admin ? (
+            <article className="card" style={{ marginTop: '1.5rem' }}>
+              <p className="card-kicker">Intake</p>
+              <h2 className="card-title">Clients</h2>
+              <p className="card-body" style={{ marginBottom: '1.25rem' }}>
+                Invite a traveller as a new client. They alone choose which of their own applicant
+                profiles the resulting case attaches to, and their acceptance is what actually
+                grants this organization access, never the invitation itself.
+              </p>
+              {data.clientInvitations.length > 0 ? (
+                <div className="rows" style={{ marginBottom: '1.5rem' }}>
+                  {data.clientInvitations.map((invitation) => (
+                    <div className="row" key={invitation.id}>
+                      <span className="row-key">
+                        {invitation.displayName}
+                        <span
+                          className="muted"
+                          style={{ fontSize: '0.8rem', marginLeft: '0.5rem' }}
+                        >
+                          {invitation.contactDestination}
+                        </span>
+                      </span>
+                      <span style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                        <span className="badge badge-warning">
+                          Invited &middot; expires{' '}
+                          {new Date(invitation.expiresAt).toLocaleDateString()}
+                        </span>
+                        <ClientInvitationRevokeButton
+                          organizationId={orgId}
+                          invitationId={invitation.id}
+                        />
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+              <ClientInvitationForm
+                organizationId={orgId}
+                members={data.members.map((m) => ({
+                  accountId: m.accountId,
+                  email: m.email,
+                  active: m.active,
+                }))}
+              />
             </article>
           ) : null}
 

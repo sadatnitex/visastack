@@ -442,6 +442,22 @@ item gets its own requirements-ledger row once classified against the new direct
     `packages/services/src/invitations.ts` implements a real, hashed, single-use, race-safe
     invitation token; `addMemberAction` falls back to it automatically when no account exists.
     Full detail: `requirements-ledger.md` IAM-02.
+42. ~~Directive Part 4 Section 6's "agency invites a traveller as a new client" (IAM-03) did not
+    exist at all. Found and fixed while building it: the initial implementation of
+    `acceptClientInvitation` created a grant to the inviting organisation and then immediately
+    called `assignMember` to wire up the named case owner, but a freshly created grant is
+    `PENDING_ACCEPTANCE` and `authorize()` (`packages/policy/src/authorize.ts`) denies it
+    outright until accepted, so `assignMember`'s own `orgGrantPermits` check would have failed
+    on every single real acceptance, and its result was being logged and swallowed as "best
+    effort" rather than surfaced, meaning the case owner an agency admin named at invite time
+    would silently never actually be assigned, with no error visible anywhere.~~ **RESOLVED
+    (Part 4).** The traveller's acceptance now also accepts the grant on the inviting admin's
+    behalf, re-verified live as an active org OWNER/ADMIN by `acceptGrant` itself rather than
+    trusted from invitation-creation time, and `MANAGE` was added to the default client-grant
+    scope (`assignMember` requires a `MANAGE`-scoped grant on the mission). A failed grant
+    acceptance is now fatal to the whole transaction rather than swallowed. Proven by a test
+    that asserts the assignment row actually exists after acceptance, not just that the call
+    returned ok. Full detail: `requirements-ledger.md` IAM-03.
 independently confirmed findings; the missing PRD file is tracked as Blocker 1 in
 `assumptions-and-blockers.md` (now resolved) rather than here, since it blocked the
 programme rather than being a product defect.
