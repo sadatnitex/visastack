@@ -22,7 +22,12 @@ import { withSession } from '../../../../lib/session';
 import { AttachPackForm, type PackOption } from './attach-pack-form';
 import { EvidenceSelectionPanel, LettersPanel, TasksPanel } from './collaboration-panels';
 import { composeSelectionCandidateKey } from './evidence-selection-key';
-import { ItineraryForm, SnapshotButton, TransitionButtons } from './mission-buttons';
+import {
+  CaseDetailsForm,
+  ItineraryForm,
+  SnapshotButton,
+  TransitionButtons,
+} from './mission-buttons';
 
 export const dynamic = 'force-dynamic';
 
@@ -170,6 +175,15 @@ export default async function MissionPage({
         <SnapshotButton missionId={mission.id} />
       </div>
 
+      {mission.manualMode ? (
+        <div className="notice notice-warn" style={{ marginBottom: '1.5rem' }}>
+          <strong>Manual mode.</strong> No automated requirement pack covers this route yet.
+          Readiness is not tracked automatically here - you are responsible for confirming what this
+          case needs yourself. This is never claimed as an official readiness assessment, on this
+          page or in any exported snapshot.
+        </div>
+      ) : null}
+
       <div className="grid">
         <article className="card">
           <p className="card-kicker">Requirements</p>
@@ -184,6 +198,20 @@ export default async function MissionPage({
               <AttachPackForm missionId={mission.id} options={data.packOptions} />
             </>
           )}
+        </article>
+
+        <article className="card">
+          <p className="card-kicker">Case</p>
+          <h2 className="card-title">Case details</h2>
+          <CaseDetailsForm
+            missionId={mission.id}
+            jurisdiction={mission.jurisdiction}
+            serviceCategory={mission.serviceCategory}
+            travelStartDate={mission.travelStartDate}
+            travelEndDate={mission.travelEndDate}
+            targetDeadline={mission.targetDeadline}
+            manualMode={mission.manualMode}
+          />
         </article>
 
         <article className="card">

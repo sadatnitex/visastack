@@ -323,6 +323,7 @@ export {
   snapshotMission,
   transitionMission,
   unselectEvidence,
+  updateMissionCaseDetails,
 } from './missions';
 
 export {

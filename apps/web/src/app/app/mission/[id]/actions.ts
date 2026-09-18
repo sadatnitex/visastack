@@ -11,6 +11,7 @@ import {
   snapshotMission,
   transitionMission,
   unselectEvidence,
+  updateMissionCaseDetails,
 } from '@visastack/services';
 import { revalidatePath } from 'next/cache';
 import { withSession } from '../../../../lib/session';
@@ -206,6 +207,45 @@ export async function setItineraryRefAction(
       ok: true,
       message: updated.value.itineraryRef ? 'Linked.' : 'Unlinked.',
     } satisfies ActionState;
+  });
+  if (result.ok) revalidatePath(`/app/mission/${missionId}`);
+  return result;
+}
+
+function parseOptionalDate(value: FormDataEntryValue | null): Date | null | undefined {
+  const raw = String(value ?? '').trim();
+  if (raw.length === 0) return undefined; // leave the existing value untouched
+  const parsed = new Date(raw);
+  return Number.isNaN(parsed.getTime()) ? undefined : parsed;
+}
+
+/** Update a mission's CAS-01 case-creation fields (mission owner only). Each field is optional; only what the form actually submits is changed. */
+export async function updateCaseDetailsAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const missionId = String(formData.get('missionId') ?? '');
+  if (missionId.length === 0) return { ok: false, message: 'Missing mission.' };
+  const jurisdiction = String(formData.get('jurisdiction') ?? '');
+  const serviceCategory = String(formData.get('serviceCategory') ?? '');
+  const travelStartDate = parseOptionalDate(formData.get('travelStartDate'));
+  const travelEndDate = parseOptionalDate(formData.get('travelEndDate'));
+  const targetDeadline = parseOptionalDate(formData.get('targetDeadline'));
+  const manualMode = formData.get('manualMode') === 'true';
+
+  const result = await withSession(async ({ db, accountId }) => {
+    const updated = await updateMissionCaseDetails(db, {
+      actorAccountId: accountId,
+      missionId,
+      jurisdiction,
+      serviceCategory,
+      ...(travelStartDate !== undefined ? { travelStartDate } : {}),
+      ...(travelEndDate !== undefined ? { travelEndDate } : {}),
+      ...(targetDeadline !== undefined ? { targetDeadline } : {}),
+      manualMode,
+    });
+    if (!updated.ok) return { ok: false, message: updated.error.message } satisfies ActionState;
+    return { ok: true, message: 'Case details updated.' } satisfies ActionState;
   });
   if (result.ok) revalidatePath(`/app/mission/${missionId}`);
   return result;

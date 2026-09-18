@@ -11,6 +11,13 @@ export interface ActionState {
   readonly message: string;
 }
 
+function parseOptionalDate(value: FormDataEntryValue | null): Date | undefined {
+  const raw = String(value ?? '').trim();
+  if (raw.length === 0) return undefined;
+  const parsed = new Date(raw);
+  return Number.isNaN(parsed.getTime()) ? undefined : parsed;
+}
+
 /** Create a mission for an applicant, then redirect into its workspace. */
 export async function createMissionAction(
   _prev: ActionState,
@@ -21,6 +28,11 @@ export async function createMissionAction(
   const destination = String(formData.get('destination') ?? '').trim();
   const purpose = String(formData.get('purpose') ?? '').trim();
   const itineraryRef = String(formData.get('itineraryRef') ?? '').trim();
+  const jurisdiction = String(formData.get('jurisdiction') ?? '').trim();
+  const serviceCategory = String(formData.get('serviceCategory') ?? '').trim();
+  const travelStartDate = parseOptionalDate(formData.get('travelStartDate'));
+  const travelEndDate = parseOptionalDate(formData.get('travelEndDate'));
+  const targetDeadline = parseOptionalDate(formData.get('targetDeadline'));
   if (title.length === 0) return { ok: false, message: 'Give the mission a title.' };
 
   const outcome = await withSession(async ({ db, accountId }) => {
@@ -31,6 +43,11 @@ export async function createMissionAction(
       ...(destination.length > 0 ? { destination } : {}),
       ...(purpose.length > 0 ? { purpose } : {}),
       ...(itineraryRef.length > 0 ? { itineraryRef } : {}),
+      ...(jurisdiction.length > 0 ? { jurisdiction } : {}),
+      ...(serviceCategory.length > 0 ? { serviceCategory } : {}),
+      ...(travelStartDate ? { travelStartDate } : {}),
+      ...(travelEndDate ? { travelEndDate } : {}),
+      ...(targetDeadline ? { targetDeadline } : {}),
     });
     if (!created.ok) {
       return { state: { ok: false, message: created.error.message } as ActionState, id: null };

@@ -34,6 +34,7 @@ import {
   snapshotMission,
   transitionMission,
   unselectEvidence,
+  updateMissionCaseDetails,
 } from './missions';
 import { createOrganization, reviewOrganization } from './organizations';
 import {
@@ -1765,5 +1766,124 @@ describe('missions - itinerary reference linking (IAM-04: family trips stay link
       itineraryRef: '  ',
     });
     expect(result).toHaveLength(0);
+  });
+});
+
+describe('missions - case-creation fields (Commercial V1 Part 4 §8 / CAS-01)', () => {
+  let db: Db;
+  beforeEach(async () => {
+    db = await freshDb();
+  });
+
+  it('createMission accepts and persists every CAS-01 field, none of them required', async () => {
+    const { account, applicantId } = await seed(db);
+    const org = await createOrganization(db, { actorAccountId: account.id, name: 'Acme Visas' });
+    if (!isOk(org)) throw new Error('org');
+    const travelStart = new Date('2026-11-01T00:00:00Z');
+    const travelEnd = new Date('2026-11-15T00:00:00Z');
+    const deadline = new Date('2026-10-01T00:00:00Z');
+
+    const mission = await createMission(db, {
+      actorAccountId: account.id,
+      applicantId,
+      title: 'UK Visa',
+      jurisdiction: '  US Embassy Dhaka  ',
+      serviceCategory: '  Tourist  ',
+      travelStartDate: travelStart,
+      travelEndDate: travelEnd,
+      targetDeadline: deadline,
+      ownerOrganizationId: org.value.id,
+      manualMode: true,
+    });
+    expect(isOk(mission)).toBe(true);
+    if (!isOk(mission)) return;
+    expect(mission.value.jurisdiction).toBe('US Embassy Dhaka');
+    expect(mission.value.serviceCategory).toBe('Tourist');
+    expect(mission.value.travelStartDate?.toISOString()).toBe(travelStart.toISOString());
+    expect(mission.value.travelEndDate?.toISOString()).toBe(travelEnd.toISOString());
+    expect(mission.value.targetDeadline?.toISOString()).toBe(deadline.toISOString());
+    expect(mission.value.ownerOrganizationId).toBe(org.value.id);
+    expect(mission.value.manualMode).toBe(true);
+  });
+
+  it('leaves every CAS-01 field null/false when omitted', async () => {
+    const { account, applicantId } = await seed(db);
+    const mission = await createMission(db, {
+      actorAccountId: account.id,
+      applicantId,
+      title: 'X',
+    });
+    expect(isOk(mission)).toBe(true);
+    if (!isOk(mission)) return;
+    expect(mission.value.jurisdiction).toBeNull();
+    expect(mission.value.serviceCategory).toBeNull();
+    expect(mission.value.travelStartDate).toBeNull();
+    expect(mission.value.targetDeadline).toBeNull();
+    expect(mission.value.ownerOrganizationId).toBeNull();
+    expect(mission.value.manualMode).toBe(false);
+  });
+
+  it('updateMissionCaseDetails updates only the fields provided, owner-only, leaving the rest untouched', async () => {
+    const { account, applicantId } = await seed(db);
+    const mission = await createMission(db, {
+      actorAccountId: account.id,
+      applicantId,
+      title: 'X',
+      jurisdiction: 'Original Jurisdiction',
+      manualMode: true,
+    });
+    if (!isOk(mission)) throw new Error('mission');
+
+    const updated = await updateMissionCaseDetails(db, {
+      actorAccountId: account.id,
+      missionId: mission.value.id,
+      serviceCategory: 'Student',
+    });
+    expect(isOk(updated)).toBe(true);
+    if (!isOk(updated)) return;
+    expect(updated.value.serviceCategory).toBe('Student');
+    // Untouched fields survive the partial update.
+    expect(updated.value.jurisdiction).toBe('Original Jurisdiction');
+    expect(updated.value.manualMode).toBe(true);
+
+    // manualMode can be explicitly turned off once a real pack is attached.
+    const turnedOff = await updateMissionCaseDetails(db, {
+      actorAccountId: account.id,
+      missionId: mission.value.id,
+      manualMode: false,
+    });
+    expect(isOk(turnedOff)).toBe(true);
+    if (isOk(turnedOff)) expect(turnedOff.value.manualMode).toBe(false);
+
+    const stranger = await provisionAccount(db, { email: 'case-details-stranger@example.com' });
+    if (!isOk(stranger)) throw new Error('provision');
+    const denied = await updateMissionCaseDetails(db, {
+      actorAccountId: stranger.value.id,
+      missionId: mission.value.id,
+      jurisdiction: 'Hijacked',
+    });
+    expect(isErr(denied)).toBe(true);
+  });
+
+  it('snapshotMission captures manualMode and the other case fields, immutably, per §8\'s "visible on the case and export"', async () => {
+    const { account, applicantId } = await seed(db);
+    const mission = await createMission(db, {
+      actorAccountId: account.id,
+      applicantId,
+      title: 'X',
+      jurisdiction: 'US Embassy Dhaka',
+      manualMode: true,
+    });
+    if (!isOk(mission)) throw new Error('mission');
+
+    const snapshot = await snapshotMission(db, {
+      actorAccountId: account.id,
+      missionId: mission.value.id,
+    });
+    expect(isOk(snapshot)).toBe(true);
+    if (!isOk(snapshot)) return;
+    const content = snapshot.value.content as { manualMode: boolean; jurisdiction: string | null };
+    expect(content.manualMode).toBe(true);
+    expect(content.jurisdiction).toBe('US Embassy Dhaka');
   });
 });

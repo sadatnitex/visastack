@@ -494,6 +494,19 @@ item gets its own requirements-ledger row once classified against the new direct
     (built for CAS-03) rather than `recordMissionDecision`, and "preparer" to
     `evidenceRequests.requestedByAccountId`, a genuine agency-internal signal. Full detail:
     `requirements-ledger.md` CAS-06.
+46. ~~Case creation (`createMission`) had no jurisdiction/consular context, service category,
+    agency owner, target deadline, or travel dates anywhere on a mission, and no manual-route
+    mode for a destination with no automated requirement pack, so a case built for one of those
+    routes had no way to record that fact anywhere the UI or an export could show it.~~
+    **RESOLVED (Part 4).** Seven new nullable/defaulted columns on `missions` (`jurisdiction`,
+    `serviceCategory`, `travelStartDate`/`travelEndDate`, `targetDeadline`,
+    `ownerOrganizationId`, `manualMode`), all purely descriptive and none gating any
+    authorization or readiness decision; new `updateMissionCaseDetails` for post-creation
+    partial edits; `snapshotMission` now captures all of it. The PRD's other two named gaps,
+    "assigned manager" and "explicit traveller grant binding at creation," needed no new work:
+    both were already covered by the pre-existing `assignMember`/`assignments` mechanism and
+    the pre-existing grant-lifecycle invariant respectively. Full detail:
+    `requirements-ledger.md` CAS-01.
 independently confirmed findings; the missing PRD file is tracked as Blocker 1 in
 `assumptions-and-blockers.md` (now resolved) rather than here, since it blocked the
 programme rather than being a product defect.

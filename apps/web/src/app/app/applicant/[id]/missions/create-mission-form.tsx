@@ -60,6 +60,57 @@ export function CreateMissionForm({ applicantId }: { readonly applicantId: strin
           placeholder="e.g. Smith Family Europe 2026"
         />
       </div>
+      <div className="field-row">
+        <label className="field-label" htmlFor="jurisdiction">
+          Jurisdiction / consular post (optional)
+        </label>
+        <input
+          id="jurisdiction"
+          name="jurisdiction"
+          type="text"
+          className="input"
+          placeholder="e.g. US Embassy Dhaka"
+        />
+      </div>
+      <div className="field-row">
+        <label className="field-label" htmlFor="serviceCategory">
+          Service category (optional)
+        </label>
+        <input
+          id="serviceCategory"
+          name="serviceCategory"
+          type="text"
+          className="input"
+          placeholder="e.g. Tourist, Student, Work"
+        />
+      </div>
+      <div className="field-row">
+        <label className="field-label" htmlFor="travelStartDate">
+          Travel dates (optional)
+        </label>
+        <div style={{ display: 'flex', gap: '0.5rem' }}>
+          <input
+            id="travelStartDate"
+            name="travelStartDate"
+            type="date"
+            className="input"
+            aria-label="Travel start date"
+          />
+          <input
+            id="travelEndDate"
+            name="travelEndDate"
+            type="date"
+            className="input"
+            aria-label="Travel end date"
+          />
+        </div>
+      </div>
+      <div className="field-row">
+        <label className="field-label" htmlFor="targetDeadline">
+          Target deadline (optional)
+        </label>
+        <input id="targetDeadline" name="targetDeadline" type="date" className="input" />
+      </div>
       <div>
         <button type="submit" className="btn btn-primary" disabled={pending}>
           {pending ? 'Creating…' : 'Create mission'}

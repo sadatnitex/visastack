@@ -137,6 +137,14 @@ export async function createMission(
     readonly purpose?: string;
     /** IAM-04: an optional free-text label linking this mission to other missions as one family trip. Display/reference only, never an access mechanism (see `itineraryRef`'s own schema comment). */
     readonly itineraryRef?: string;
+    /** CAS-01 case-creation fields (Commercial V1 Part 4 §8). All optional and purely descriptive: none of them gate any authorization decision anywhere else. */
+    readonly jurisdiction?: string;
+    readonly serviceCategory?: string;
+    readonly travelStartDate?: Date;
+    readonly travelEndDate?: Date;
+    readonly targetDeadline?: Date;
+    readonly ownerOrganizationId?: string;
+    readonly manualMode?: boolean;
   },
 ): Promise<Result<Mission, ServiceError>> {
   const applicant = await getApplicant(db, input.applicantId);
@@ -160,6 +168,13 @@ export async function createMission(
             destination: input.destination ?? null,
             purpose: input.purpose ?? null,
             itineraryRef: input.itineraryRef?.trim() || null,
+            jurisdiction: input.jurisdiction?.trim() || null,
+            serviceCategory: input.serviceCategory?.trim() || null,
+            travelStartDate: input.travelStartDate ?? null,
+            travelEndDate: input.travelEndDate ?? null,
+            targetDeadline: input.targetDeadline ?? null,
+            ownerOrganizationId: input.ownerOrganizationId ?? null,
+            manualMode: input.manualMode ?? false,
           })
           .returning(),
       ),
@@ -213,6 +228,64 @@ export async function setMissionItineraryRef(
 }
 
 /**
+ * Update a mission's CAS-01 case-creation fields after the fact (mission
+ * owner only) - most of these are rarely all known at creation time
+ * (jurisdiction, service category, exact travel dates, a target deadline,
+ * or which org is the case's primary owner). Every field is optional and
+ * only touched when explicitly provided; omitting a field leaves it
+ * unchanged, never clears it (unlike `setMissionItineraryRef`, this is a
+ * partial update, not a set-or-clear-one-value call, since callers here
+ * are expected to update one or two fields at a time from a settings form,
+ * not resend the whole case every time). Purely descriptive: none of these
+ * fields gate any authorization decision anywhere else in this codebase.
+ */
+export async function updateMissionCaseDetails(
+  db: Db,
+  input: {
+    readonly actorAccountId: string;
+    readonly missionId: string;
+    readonly jurisdiction?: string;
+    readonly serviceCategory?: string;
+    readonly travelStartDate?: Date | null;
+    readonly travelEndDate?: Date | null;
+    readonly targetDeadline?: Date | null;
+    readonly ownerOrganizationId?: string | null;
+    readonly manualMode?: boolean;
+  },
+): Promise<Result<Mission, ServiceError>> {
+  const owned = await ownedMission(db, input.actorAccountId, input.missionId);
+  if (!owned.ok) return owned;
+  const updated = required(
+    first(
+      await db
+        .update(schema.missions)
+        .set({
+          ...(input.jurisdiction !== undefined
+            ? { jurisdiction: input.jurisdiction.trim() || null }
+            : {}),
+          ...(input.serviceCategory !== undefined
+            ? { serviceCategory: input.serviceCategory.trim() || null }
+            : {}),
+          ...(input.travelStartDate !== undefined
+            ? { travelStartDate: input.travelStartDate }
+            : {}),
+          ...(input.travelEndDate !== undefined ? { travelEndDate: input.travelEndDate } : {}),
+          ...(input.targetDeadline !== undefined ? { targetDeadline: input.targetDeadline } : {}),
+          ...(input.ownerOrganizationId !== undefined
+            ? { ownerOrganizationId: input.ownerOrganizationId }
+            : {}),
+          ...(input.manualMode !== undefined ? { manualMode: input.manualMode } : {}),
+          updatedAt: new Date(),
+        })
+        .where(eq(schema.missions.id, input.missionId))
+        .returning(),
+    ),
+    'mission',
+  );
+  return ok(updated);
+}
+
+/**
  * Every mission of the caller's OWN applicants sharing the given itinerary
  * reference (exact match, trimmed): the "linked family cases" view.
  * Deliberately scoped to the actor's own applicants only, never a
@@ -228,19 +301,8 @@ export async function listMissionsByItineraryRef(
 ): Promise<Mission[]> {
   const ref = input.itineraryRef.trim();
   if (ref.length === 0) return [];
-  return db
-    .select({
-      id: schema.missions.id,
-      applicantId: schema.missions.applicantId,
-      title: schema.missions.title,
-      destination: schema.missions.destination,
-      purpose: schema.missions.purpose,
-      itineraryRef: schema.missions.itineraryRef,
-      state: schema.missions.state,
-      packVersionId: schema.missions.packVersionId,
-      createdAt: schema.missions.createdAt,
-      updatedAt: schema.missions.updatedAt,
-    })
+  const rows = await db
+    .select({ mission: schema.missions })
     .from(schema.missions)
     .innerJoin(schema.applicants, eq(schema.applicants.id, schema.missions.applicantId))
     .where(
@@ -249,6 +311,7 @@ export async function listMissionsByItineraryRef(
         eq(schema.missions.itineraryRef, ref),
       ),
     );
+  return rows.map((r) => r.mission);
 }
 
 /** Attach a PUBLISHED pack version to a mission. */
@@ -940,6 +1003,16 @@ export async function snapshotMission(
     documents,
     requirementMapping,
     readiness: readiness?.ok ? readiness.value : null,
+    // CAS-01 (Commercial V1 Part 4 §8): "the coverage limitation visible on
+    // the case AND EXPORT." A snapshot is the closest thing this codebase
+    // has to an export artifact today, so manualMode travels with it,
+    // immutably, rather than being knowable only from the live mission row.
+    manualMode: mission.manualMode,
+    jurisdiction: mission.jurisdiction,
+    serviceCategory: mission.serviceCategory,
+    travelStartDate: mission.travelStartDate?.toISOString() ?? null,
+    travelEndDate: mission.travelEndDate?.toISOString() ?? null,
+    targetDeadline: mission.targetDeadline?.toISOString() ?? null,
   };
   const checksum = createHash('sha256').update(stableStringify(content)).digest('hex');
 

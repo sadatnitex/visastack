@@ -279,6 +279,9 @@ export async function acceptClientInvitation(
           applicantId,
           title: invitation.requestedRoute ?? invitation.displayName,
           ...(invitation.requestedRoute ? { purpose: invitation.requestedRoute } : {}),
+          // CAS-01: this case's primary owner is exactly the org that
+          // invited the traveller here, the whole reason this flow exists.
+          ownerOrganizationId: invitation.organizationId,
         });
         if (!created.ok) throw new ClientInvitationAcceptAborted(created.error);
         return created.value;

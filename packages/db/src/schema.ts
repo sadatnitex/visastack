@@ -422,6 +422,34 @@ export const missions = pgTable('missions', {
   // its own mission/applicant exactly as before, and lookups by this value
   // are always scoped to the caller's own applicants, never cross-account.
   itineraryRef: text('itinerary_ref'),
+  // Commercial V1 Part 4 §8 (CAS-01) case-creation fields. All nullable:
+  // the same underlying mission serves both an independent traveller (who
+  // may never set most of these) and an agency-managed case, and none of
+  // them gate any authorization decision anywhere else in this codebase,
+  // deliberately, matching the PRD's own "same underlying mission services"
+  // requirement. `title`/`destination`/`purpose` above predate this and
+  // already cover "traveller/subject" (via applicantId), "destination", and
+  // "trip purpose"; the rest genuinely did not exist.
+  jurisdiction: text('jurisdiction'), // consular post / jurisdiction context, e.g. "US Embassy Dhaka"
+  serviceCategory: text('service_category'), // free text, deliberately not an enum: this product defines no fixed taxonomy
+  travelStartDate: timestamp('travel_start_date', { withTimezone: true }),
+  travelEndDate: timestamp('travel_end_date', { withTimezone: true }),
+  targetDeadline: timestamp('target_deadline', { withTimezone: true }),
+  // The org this case is primarily attributed to, distinct from
+  // `assignments` (which member(s) work it) and from `grants` (which orgs
+  // currently have real access): this is just the case's own "whose case is
+  // this" label. Never itself a source of access; set null keeps the
+  // mission, never blocks or cascades.
+  ownerOrganizationId: uuid('owner_organization_id').references(() => organizations.id, {
+    onDelete: 'set null',
+  }),
+  // "Unsupported routes operate in manual-checklist mode with the coverage
+  // limitation visible on the case and export" (CAS-01): an explicit,
+  // owner-asserted flag, never inferred from `packVersionId` being null
+  // (which could just as easily mean "not yet configured" as "genuinely no
+  // automated pack exists for this route") - the UI must be honest about
+  // which one it actually is.
+  manualMode: boolean('manual_mode').notNull().default(false),
   state: missionState('state').notNull().default('DRAFT'),
   // The published requirement pack version this mission is assembled against.
   // restrict, not cascade/set null: nothing deletes a pack version today
