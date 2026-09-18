@@ -6,6 +6,7 @@ import {
   getMissionForOwner,
   isFactStatusEligible,
   legalTransitions,
+  listAccessForApplicant,
   listGeneratedOutputs,
   listMissionSnapshots,
   listMissionsByItineraryRef,
@@ -55,22 +56,40 @@ export default async function MissionPage({
     if (!owned.ok) return null;
     const mission = owned.value;
     const applicant = await getApplicant(db, mission.applicantId);
-    const [readiness, snapshots, packs, tasks, letters, selections, candidates, linkedMissions] =
-      await Promise.all([
-        mission.packVersionId ? computeReadiness(db, mission.id) : Promise.resolve(null),
-        listMissionSnapshots(db, accountId, mission.id),
-        listPublishedPackVersions(db),
-        listTasks(db, accountId, mission.id),
-        listGeneratedOutputs(db, accountId, mission.id),
-        listSelectedEvidence(db, accountId, mission.id),
-        getEvidenceCandidates(db, accountId, mission.id),
-        mission.itineraryRef
-          ? listMissionsByItineraryRef(db, {
-              actorAccountId: accountId,
-              itineraryRef: mission.itineraryRef,
-            })
-          : Promise.resolve([]),
-      ]);
+    const [
+      readiness,
+      snapshots,
+      packs,
+      tasks,
+      letters,
+      selections,
+      candidates,
+      linkedMissions,
+      access,
+    ] = await Promise.all([
+      mission.packVersionId ? computeReadiness(db, mission.id) : Promise.resolve(null),
+      listMissionSnapshots(db, accountId, mission.id),
+      listPublishedPackVersions(db),
+      listTasks(db, accountId, mission.id),
+      listGeneratedOutputs(db, accountId, mission.id),
+      listSelectedEvidence(db, accountId, mission.id),
+      getEvidenceCandidates(db, accountId, mission.id),
+      mission.itineraryRef
+        ? listMissionsByItineraryRef(db, {
+            actorAccountId: accountId,
+            itineraryRef: mission.itineraryRef,
+          })
+        : Promise.resolve([]),
+      listAccessForApplicant(db, accountId, mission.applicantId),
+    ]);
+    // Commercial V1 Part 4 §13: "An independent traveller may self-review:
+    // label it self-reviewed." No organisation currently holding an ACTIVE,
+    // accepted grant on this applicant means there is no external reviewer
+    // in the picture at all, so the traveller's own assessment is the only
+    // one that exists; this is never inferred from the mission's own state.
+    const selfReviewed =
+      access.ok &&
+      !access.value.some((g) => g.recipientOrganizationId !== null && g.status === 'ACTIVE');
     // Composite key (finding #33, post-programme defect register) — see
     // evidence-selection-key.ts's own doc comment.
     const selectionIdsByCandidate: Record<string, string> = {};
@@ -117,6 +136,7 @@ export default async function MissionPage({
           label: `${p.packName} · v${p.version} · ${p.requirementCount} requirement${p.requirementCount === 1 ? '' : 's'}`,
         }),
       ),
+      selfReviewed,
     };
   });
 
@@ -189,6 +209,12 @@ export default async function MissionPage({
         <article className="card">
           <p className="card-kicker">Completeness</p>
           <h2 className="card-title">Readiness</h2>
+          {data.selfReviewed ? (
+            <p className="muted" style={{ fontSize: '0.85rem', marginBottom: '0.75rem' }}>
+              <span className="badge badge-neutral">Self-reviewed</span> No agency currently has
+              access to this case, so you are the only one assessing it.
+            </p>
+          ) : null}
           {data.readiness ? (
             <>
               <div className="rows" style={{ marginBottom: '1rem' }}>

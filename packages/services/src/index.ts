@@ -257,6 +257,7 @@ export {
   listOrgMemberships,
   reviewOrganization,
   setMembershipActive,
+  setRequireDifferentReviewer,
   suspendOrganization,
 } from './organizations';
 

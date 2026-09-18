@@ -33,6 +33,7 @@ import { AddMemberForm } from './member-form';
 import { MemberToggleButton } from './member-toggle-button';
 import { MissionCollaboration } from './mission-collaboration';
 import { RequestEvidenceForm } from './request-evidence-form';
+import { RequireDifferentReviewerToggle } from './require-different-reviewer-toggle';
 
 export const dynamic = 'force-dynamic';
 
@@ -398,6 +399,26 @@ export default async function OrgConsolePage({
                 )}
               </article>
             </div>
+          ) : null}
+
+          {data.admin ? (
+            <article className="card" style={{ marginTop: '1.5rem' }}>
+              <p className="card-kicker">Settings</p>
+              <h2 className="card-title">Review policy</h2>
+              <div className="row">
+                <span className="row-key" style={{ maxWidth: '32rem' }}>
+                  Require a different reviewer
+                  <span className="muted" style={{ display: 'block', fontSize: '0.8rem' }}>
+                    When on, whoever raised an evidence request cannot also accept it or ask for a
+                    replacement; a different team member must. Off by default.
+                  </span>
+                </span>
+                <RequireDifferentReviewerToggle
+                  organizationId={orgId}
+                  required={data.org.requireDifferentReviewer}
+                />
+              </div>
+            </article>
           ) : null}
 
           {data.admin ? (

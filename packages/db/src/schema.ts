@@ -219,6 +219,13 @@ export const organizations = pgTable('organizations', {
   id: uuid('id').primaryKey().defaultRandom(),
   name: text('name').notNull(),
   status: organizationStatus('status').notNull().default('PENDING_VERIFICATION'),
+  // Commercial V1 Part 4 §13 / PRD CAS-06: an org's own optional choice to
+  // require that whoever decides on an evidence-request response
+  // (`decideEvidenceResponse`, agency.ts) is not the same account that
+  // raised that request in the first place. Off by default, and a disabled
+  // setting must never let the UI imply independent review happened when
+  // it did not.
+  requireDifferentReviewer: boolean('require_different_reviewer').notNull().default(false),
   ...timestamps,
 });
 

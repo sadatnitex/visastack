@@ -17,6 +17,7 @@ import {
   revokeClientInvitation,
   revokeOrganizationInvitation,
   setMembershipActive,
+  setRequireDifferentReviewer,
   startEvidenceReview,
 } from '@visastack/services';
 import { revalidatePath } from 'next/cache';
@@ -503,6 +504,31 @@ export async function toggleMemberAction(
     return {
       ok: true,
       message: active ? 'Member reactivated.' : 'Member deactivated.',
+    } satisfies ActionState;
+  });
+  if (result.ok) revalidatePath(`/app/agency/${organizationId}`);
+  return result;
+}
+
+/** Org admin toggles whether a reviewer must differ from whoever raised the evidence request (Commercial V1 Part 4 §13). */
+export async function setRequireDifferentReviewerAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const organizationId = String(formData.get('organizationId') ?? '');
+  const required = String(formData.get('required') ?? '') === 'true';
+  const result = await withSession(async ({ db, accountId }) => {
+    const updated = await setRequireDifferentReviewer(db, {
+      actorAccountId: accountId,
+      organizationId,
+      required,
+    });
+    if (!updated.ok) return { ok: false, message: updated.error.message } satisfies ActionState;
+    return {
+      ok: true,
+      message: required
+        ? 'A reviewer must now differ from whoever raised the request.'
+        : 'Reviewer restriction turned off.',
     } satisfies ActionState;
   });
   if (result.ok) revalidatePath(`/app/agency/${organizationId}`);

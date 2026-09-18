@@ -38,6 +38,7 @@ import {
   listMembershipsForAccount,
   reviewOrganization,
   setMembershipActive,
+  setRequireDifferentReviewer,
 } from './organizations';
 import {
   addPackVersion,
@@ -559,6 +560,108 @@ describe('agency collaboration — assignments, notes, evidence', () => {
       expect(history.value[0]?.outcome).toBe('CANCELLED');
       expect(history.value[0]?.reason).toBe('no longer needed');
     }
+  });
+
+  it('requireDifferentReviewer (Commercial V1 Part 4 / PRD CAS-06): off by default lets the same account both raise and decide a request; once enabled, refuses the same account but still lets a genuinely different reviewer decide', async () => {
+    const { account, applicantId } = await consentedApplicant(db, 'ev-reviewer@example.com');
+    const preparer = await provisionAccount(db, { email: 'preparer-rd@acme.com' });
+    if (!isOk(preparer)) throw new Error('provision');
+    const reviewer = await provisionAccount(db, { email: 'reviewer-rd@acme.com' });
+    if (!isOk(reviewer)) throw new Error('provision');
+    const org = await createOrganization(db, { actorAccountId: preparer.value.id, name: 'Acme' });
+    if (!isOk(org)) throw new Error('org');
+    const orgId = org.value.id;
+    await activateOrg(db, orgId);
+    await addMembership(db, {
+      actorAccountId: preparer.value.id,
+      organizationId: orgId,
+      accountId: reviewer.value.id,
+      role: 'ADMIN',
+    });
+    const grant = await createGrant(db, {
+      actorAccountId: account.id,
+      applicantId,
+      recipientOrganizationId: orgId,
+      actions: ['MANAGE'],
+      purpose: 'collaboration',
+    });
+    if (!isOk(grant)) throw new Error('grant');
+    await acceptGrant(db, { actorAccountId: preparer.value.id, grantId: grant.value.id });
+
+    async function requestAndSubmit(requesterAccountId: string) {
+      const req = await requestEvidence(db, {
+        actorAccountId: requesterAccountId,
+        organizationId: orgId,
+        applicantId,
+        kind: 'DOCUMENT',
+        docType: 'bank_statement',
+      });
+      if (!isOk(req)) throw new Error('request');
+      const doc = await registerDocument(db, {
+        actorAccountId: account.id,
+        applicantId,
+        originalName: 'bank.pdf',
+        docType: 'bank_statement',
+      });
+      if (!isOk(doc)) throw new Error('doc');
+      await addDocumentVersion(db, {
+        actorAccountId: account.id,
+        documentId: doc.value.id,
+        bucket: 'CLEAN',
+        objectKey: `k-${req.value.id}`,
+        safetyStatus: 'CLEAN',
+        processingStatus: 'AWAITING_REVIEW',
+      });
+      const submitted = await submitEvidenceResponse(db, {
+        actorAccountId: account.id,
+        requestId: req.value.id,
+        documentId: doc.value.id,
+      });
+      if (!isOk(submitted)) throw new Error('submit');
+      return req.value.id;
+    }
+
+    // Off by default: the preparer may also decide.
+    const requestId1 = await requestAndSubmit(preparer.value.id);
+    const decidedByPreparerWhileOff = await decideEvidenceResponse(db, {
+      actorAccountId: preparer.value.id,
+      requestId: requestId1,
+      outcome: 'ACCEPTED',
+    });
+    expect(isOk(decidedByPreparerWhileOff)).toBe(true);
+
+    // A non-admin (here, the applicant owner has no org role at all) cannot
+    // change the setting.
+    const deniedToggle = await setRequireDifferentReviewer(db, {
+      actorAccountId: account.id,
+      organizationId: orgId,
+      required: true,
+    });
+    expect(isErr(deniedToggle)).toBe(true);
+
+    const enabled = await setRequireDifferentReviewer(db, {
+      actorAccountId: preparer.value.id,
+      organizationId: orgId,
+      required: true,
+    });
+    expect(isOk(enabled)).toBe(true);
+
+    // Now enabled: the SAME preparer may not also decide on their own request.
+    const requestId2 = await requestAndSubmit(preparer.value.id);
+    const deniedSamePreparer = await decideEvidenceResponse(db, {
+      actorAccountId: preparer.value.id,
+      requestId: requestId2,
+      outcome: 'ACCEPTED',
+    });
+    expect(isErr(deniedSamePreparer)).toBe(true);
+
+    // A genuinely different reviewer still may.
+    const decidedByReviewer = await decideEvidenceResponse(db, {
+      actorAccountId: reviewer.value.id,
+      requestId: requestId2,
+      outcome: 'ACCEPTED',
+    });
+    expect(isOk(decidedByReviewer)).toBe(true);
   });
 
   it('refuses further evidence requests once the anti-automation limit is hit (Build Spec §14)', async () => {

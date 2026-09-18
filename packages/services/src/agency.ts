@@ -1054,12 +1054,23 @@ const DECIDABLE_STATUSES: ReadonlySet<string> = new Set(['RECEIVED', 'UNDER_REVI
 
 /**
  * The requesting org accepts what was submitted, or asks for a replacement
- * (org, MANAGE-grant-gated). Every decision is appended to
- * `evidenceRequestDecisions`, an immutable snapshot of exactly what was
- * being decided on, so a later NEEDS_REPLACEMENT round, which clears the
- * request's own current responding pointers to make room for the next
- * submission, never loses this one's reason (Part 4 §13: "replacement
- * retains prior decision/reason").
+ * (org, MANAGE-grant-gated), the PRD's own CAS-06 definition of "review":
+ * "Reviewers accept or request replacement of selected evidence." Every
+ * decision is appended to `evidenceRequestDecisions`, an immutable snapshot
+ * of exactly what was being decided on, so a later NEEDS_REPLACEMENT round,
+ * which clears the request's own current responding pointers to make room
+ * for the next submission, never loses this one's reason (Part 4 §13:
+ * "replacement retains prior decision/reason").
+ *
+ * Also enforces CAS-06's "an organisation may require a reviewer different
+ * from the preparer; if enabled, the server enforces it": here, "preparer"
+ * is whoever on the org raised this specific request
+ * (`evidenceRequests.requestedByAccountId`), the one existing, genuinely
+ * agency-internal signal for who initiated/worked this ask, as opposed to
+ * `selectEvidence`, which is owner-only and could never name an org account
+ * at all. Off by default (a legacy request with no recorded requester never
+ * triggers this, nothing to compare against), and this function never
+ * claims independent review happened when the org has not opted in.
  */
 export async function decideEvidenceResponse(
   db: Db,
@@ -1075,6 +1086,25 @@ export async function decideEvidenceResponse(
   const request = loaded.value;
   if (!DECIDABLE_STATUSES.has(request.status)) {
     return err(serviceError('invalid', 'this request has nothing submitted to decide on yet'));
+  }
+  const org = first(
+    await db
+      .select({ requireDifferentReviewer: schema.organizations.requireDifferentReviewer })
+      .from(schema.organizations)
+      .where(eq(schema.organizations.id, request.organizationId))
+      .limit(1),
+  );
+  if (
+    org?.requireDifferentReviewer &&
+    request.requestedByAccountId &&
+    request.requestedByAccountId === input.actorAccountId
+  ) {
+    return err(
+      serviceError(
+        'forbidden',
+        'this organization requires a reviewer different from whoever raised this request',
+      ),
+    );
   }
 
   return db.transaction(async (tx) => {

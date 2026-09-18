@@ -438,3 +438,46 @@ export async function setMembershipActive(
     return ok(updated);
   });
 }
+
+/**
+ * Org OWNER/ADMIN toggles whether `recordMissionDecision` (agency.ts)
+ * requires the deciding account to differ from whoever most recently
+ * selected the evidence being decided on (Commercial V1 Part 4 §13:
+ * "Optional organisation setting: reviewer must differ from preparer. If
+ * enabled: server enforces it."). Purely this org's own choice; it never
+ * affects any other organization's missions.
+ */
+export async function setRequireDifferentReviewer(
+  db: Db,
+  input: {
+    readonly actorAccountId: string;
+    readonly organizationId: string;
+    readonly required: boolean;
+  },
+): Promise<Result<Organization, ServiceError>> {
+  if (!(await isOrgAdmin(db, input.actorAccountId, input.organizationId))) {
+    return err(
+      serviceError('forbidden', "only an org OWNER/ADMIN can change this organization's settings"),
+    );
+  }
+  const updated = required(
+    first(
+      await db
+        .update(schema.organizations)
+        .set({ requireDifferentReviewer: input.required, updatedAt: new Date() })
+        .where(eq(schema.organizations.id, input.organizationId))
+        .returning(),
+    ),
+    'organization',
+  );
+  await appendAuditEvent(db, {
+    eventType: 'ORGANIZATION_REVIEW_POLICY_CHANGED',
+    actorAccountId: input.actorAccountId,
+    method: 'MANUAL',
+    result: 'ALLOWED',
+    resourceType: 'organization',
+    resourceId: input.organizationId,
+    metadata: { requireDifferentReviewer: input.required },
+  });
+  return ok(updated);
+}

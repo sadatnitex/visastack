@@ -482,6 +482,18 @@ item gets its own requirements-ledger row once classified against the new direct
     reach RECEIVED by linking an actual fact or document the applicant owns, and a document must
     currently pass the same safety/processing/erasure check `missions.ts` readiness already uses
     or the submission is refused outright. Full detail: `requirements-ledger.md` CAS-03.
+45. ~~CAS-06's "reviewer must differ from preparer" had no implementation at all: any org member
+    could both prepare and decide on the same case with nothing stopping them.~~ **RESOLVED
+    (Part 4).** New `organizations.requireDifferentReviewer` setting, enforced in
+    `decideEvidenceResponse`. Caught during implementation, before it shipped: the first design
+    compared the deciding account against `selectedEvidence.selectedByAccountId` on
+    `recordMissionDecision`, which would have been dead code in practice, since `selectEvidence`
+    is owner-only and can never name an org account, so the check could never trigger for the
+    real agency-reviews-a-case scenario. Re-grounded in the PRD's own CAS-06 text ("Reviewers
+    accept or request replacement of selected evidence"), which maps to `decideEvidenceResponse`
+    (built for CAS-03) rather than `recordMissionDecision`, and "preparer" to
+    `evidenceRequests.requestedByAccountId`, a genuine agency-internal signal. Full detail:
+    `requirements-ledger.md` CAS-06.
 independently confirmed findings; the missing PRD file is tracked as Blocker 1 in
 `assumptions-and-blockers.md` (now resolved) rather than here, since it blocked the
 programme rather than being a product defect.
