@@ -14,6 +14,15 @@ import { recordProductEvent } from './product-events';
  * plus family members and minors under guardianship. Creating any subject
  * record requires the account's CORE_PROCESSING consent — data is never
  * created for a subject before the lawful basis exists (fail-closed).
+ *
+ * IAM-04: relationship alone is never authority. A FAMILY_MEMBER or
+ * MINOR_GUARDIAN record additionally requires the actor to explicitly
+ * confirm they hold authority to act for that person, recorded on the row
+ * itself (`authorityConfirmedAt`), never inferred from a surname, an email
+ * domain, or any other household signal: no such inference exists
+ * anywhere in this function, deliberately: the PRD names this exact
+ * shortcut as one adult must never become "managed" by another merely
+ * because they share a name or address.
  */
 
 export type Applicant = typeof schema.applicants.$inferSelect;
@@ -25,6 +34,14 @@ export interface CreateApplicantInput {
   readonly ownerAccountId: string;
   readonly displayName: string;
   readonly relationship?: ApplicantRelationship;
+  /**
+   * Required (and must be `true`) whenever `relationship` is not `SELF`: an
+   * explicit, separate attestation that the actor holds authority to act
+   * for this person, distinct from merely picking a relationship label.
+   * Ignored for `SELF`: an account holder needs no attestation to act for
+   * themselves.
+   */
+  readonly authorityConfirmed?: boolean;
 }
 
 /** List every applicant record owned by the account. */
@@ -75,12 +92,28 @@ export async function createApplicant(
   }
 
   const relationship = input.relationship ?? 'SELF';
+  if (relationship !== 'SELF' && !input.authorityConfirmed) {
+    return err(
+      serviceError(
+        'invalid',
+        'confirm you have authority to create a record for this person before continuing',
+      ),
+    );
+  }
+  const authorityConfirmedAt =
+    relationship !== 'SELF' && input.authorityConfirmed ? new Date() : null;
+
   return db.transaction(async (tx) => {
     const applicant = required(
       first(
         await tx
           .insert(schema.applicants)
-          .values({ ownerAccountId: input.ownerAccountId, displayName, relationship })
+          .values({
+            ownerAccountId: input.ownerAccountId,
+            displayName,
+            relationship,
+            authorityConfirmedAt,
+          })
           .returning(),
       ),
       'applicant',
@@ -93,7 +126,7 @@ export async function createApplicant(
       applicantId: applicant.id,
       resourceType: 'applicant',
       resourceId: applicant.id,
-      metadata: { relationship },
+      metadata: { relationship, authorityConfirmed: authorityConfirmedAt !== null },
     });
     await recordProductEvent(tx, {
       eventType: 'APPLICANT_CREATED',

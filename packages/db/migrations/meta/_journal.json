@@ -281,6 +281,13 @@
       "when": 1789706066264,
       "tag": "0039_furry_black_bird",
       "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1789707716581,
+      "tag": "0040_clean_pride",
+      "breakpoints": true
     }
   ]
 }

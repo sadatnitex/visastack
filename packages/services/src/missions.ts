@@ -135,6 +135,8 @@ export async function createMission(
     readonly title: string;
     readonly destination?: string;
     readonly purpose?: string;
+    /** IAM-04: an optional free-text label linking this mission to other missions as one family trip. Display/reference only, never an access mechanism (see `itineraryRef`'s own schema comment). */
+    readonly itineraryRef?: string;
   },
 ): Promise<Result<Mission, ServiceError>> {
   const applicant = await getApplicant(db, input.applicantId);
@@ -157,6 +159,7 @@ export async function createMission(
             title: input.title.trim(),
             destination: input.destination ?? null,
             purpose: input.purpose ?? null,
+            itineraryRef: input.itineraryRef?.trim() || null,
           })
           .returning(),
       ),
@@ -178,6 +181,74 @@ export async function createMission(
     });
     return ok(mission);
   });
+}
+
+/**
+ * Set or clear a mission's itinerary reference (mission owner only), for
+ * when the family-trip link is only decided after the mission already
+ * exists. An empty string clears it. Never touches any grant, note, or
+ * other permission: linking is purely this one display field.
+ */
+export async function setMissionItineraryRef(
+  db: Db,
+  input: {
+    readonly actorAccountId: string;
+    readonly missionId: string;
+    readonly itineraryRef: string;
+  },
+): Promise<Result<Mission, ServiceError>> {
+  const owned = await ownedMission(db, input.actorAccountId, input.missionId);
+  if (!owned.ok) return owned;
+  const updated = required(
+    first(
+      await db
+        .update(schema.missions)
+        .set({ itineraryRef: input.itineraryRef.trim() || null, updatedAt: new Date() })
+        .where(eq(schema.missions.id, input.missionId))
+        .returning(),
+    ),
+    'mission',
+  );
+  return ok(updated);
+}
+
+/**
+ * Every mission of the caller's OWN applicants sharing the given itinerary
+ * reference (exact match, trimmed): the "linked family cases" view.
+ * Deliberately scoped to the actor's own applicants only, never a
+ * cross-account lookup: the PRD is explicit that a shared itinerary
+ * reference is a display convenience, and "household permissions never
+ * replace per-subject authorisation." A different account using the same
+ * reference string is invisible here and always will be; nothing before
+ * this ever exposes another account's missions by a matched label.
+ */
+export async function listMissionsByItineraryRef(
+  db: Db,
+  input: { readonly actorAccountId: string; readonly itineraryRef: string },
+): Promise<Mission[]> {
+  const ref = input.itineraryRef.trim();
+  if (ref.length === 0) return [];
+  return db
+    .select({
+      id: schema.missions.id,
+      applicantId: schema.missions.applicantId,
+      title: schema.missions.title,
+      destination: schema.missions.destination,
+      purpose: schema.missions.purpose,
+      itineraryRef: schema.missions.itineraryRef,
+      state: schema.missions.state,
+      packVersionId: schema.missions.packVersionId,
+      createdAt: schema.missions.createdAt,
+      updatedAt: schema.missions.updatedAt,
+    })
+    .from(schema.missions)
+    .innerJoin(schema.applicants, eq(schema.applicants.id, schema.missions.applicantId))
+    .where(
+      and(
+        eq(schema.applicants.ownerAccountId, input.actorAccountId),
+        eq(schema.missions.itineraryRef, ref),
+      ),
+    );
 }
 
 /** Attach a PUBLISHED pack version to a mission. */

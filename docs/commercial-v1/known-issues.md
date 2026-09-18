@@ -458,6 +458,20 @@ item gets its own requirements-ledger row once classified against the new direct
     acceptance is now fatal to the whole transaction rather than swallowed. Proven by a test
     that asserts the assignment row actually exists after acceptance, not just that the call
     returned ok. Full detail: `requirements-ledger.md` IAM-03.
+43. ~~Directive Part 4 Section 7's "subject/guardian relationship" (IAM-04) had separate subject
+    IDs and a relationship label, but nothing distinct for "explicit authority": a caller could
+    create a MINOR_GUARDIAN or FAMILY_MEMBER record by picking one dropdown value, with no
+    separate confirmation that they actually held authority to act for that person, and no
+    persisted record of that confirmation either way. Separately, the PRD's "V1 family cases
+    remain separate linked cases with a shared itinerary reference" had no implementation at
+    all: no way for a guardian managing several of their own applicants' missions to visually
+    link them as one family trip.~~ **RESOLVED (Part 4).** New `authorityConfirmedAt` column on
+    `applicants`; `createApplicant` now refuses a non-SELF relationship without an explicit
+    `authorityConfirmed: true`, wired into the applicant-creation form as a required checkbox
+    shown only for non-SELF relationships. New nullable `itineraryRef` on `missions`, settable
+    via `setMissionItineraryRef`, with a dedicated `listMissionsByItineraryRef` read always
+    scoped to the caller's own applicants only, proven to never cross accounts even given an
+    identical reference string. Full detail: `requirements-ledger.md` IAM-04.
 independently confirmed findings; the missing PRD file is tracked as Blocker 1 in
 `assumptions-and-blockers.md` (now resolved) rather than here, since it blocked the
 programme rather than being a product defect.

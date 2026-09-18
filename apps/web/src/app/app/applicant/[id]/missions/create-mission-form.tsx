@@ -48,6 +48,18 @@ export function CreateMissionForm({ applicantId }: { readonly applicantId: strin
           placeholder="e.g. Postgraduate study"
         />
       </div>
+      <div className="field-row">
+        <label className="field-label" htmlFor="itineraryRef">
+          Family trip label (optional)
+        </label>
+        <input
+          id="itineraryRef"
+          name="itineraryRef"
+          type="text"
+          className="input"
+          placeholder="e.g. Smith Family Europe 2026"
+        />
+      </div>
       <div>
         <button type="submit" className="btn btn-primary" disabled={pending}>
           {pending ? 'Creating…' : 'Create mission'}

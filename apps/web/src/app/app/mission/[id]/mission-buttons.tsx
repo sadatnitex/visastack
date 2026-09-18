@@ -2,9 +2,47 @@
 
 import type { MissionState } from '@visastack/core';
 import { useActionState } from 'react';
-import { type ActionState, snapshotMissionAction, transitionMissionAction } from './actions';
+import {
+  type ActionState,
+  setItineraryRefAction,
+  snapshotMissionAction,
+  transitionMissionAction,
+} from './actions';
 
 const INITIAL: ActionState = { ok: true, message: '' };
+
+/** Set or clear this mission's itinerary reference (IAM-04's "family trip" link, display only, never an access change). */
+export function ItineraryForm({
+  missionId,
+  itineraryRef,
+}: {
+  readonly missionId: string;
+  readonly itineraryRef: string | null;
+}) {
+  const [state, formAction, pending] = useActionState(setItineraryRefAction, INITIAL);
+  return (
+    <form action={formAction} style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+      <input type="hidden" name="missionId" value={missionId} />
+      <input
+        name="itineraryRef"
+        type="text"
+        defaultValue={itineraryRef ?? ''}
+        className="input"
+        placeholder="e.g. Smith Family Europe 2026"
+      />
+      <div>
+        <button type="submit" className="btn btn-secondary" disabled={pending}>
+          {pending ? 'Saving…' : itineraryRef ? 'Update' : 'Link'}
+        </button>
+        {state.message ? (
+          <p className={`field-msg ${state.ok ? 'field-msg-ok' : 'field-msg-err'}`}>
+            {state.message}
+          </p>
+        ) : null}
+      </div>
+    </form>
+  );
+}
 
 export function SnapshotButton({ missionId }: { readonly missionId: string }) {
   const [state, formAction, pending] = useActionState(snapshotMissionAction, INITIAL);

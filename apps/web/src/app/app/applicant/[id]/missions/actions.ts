@@ -20,6 +20,7 @@ export async function createMissionAction(
   const title = String(formData.get('title') ?? '').trim();
   const destination = String(formData.get('destination') ?? '').trim();
   const purpose = String(formData.get('purpose') ?? '').trim();
+  const itineraryRef = String(formData.get('itineraryRef') ?? '').trim();
   if (title.length === 0) return { ok: false, message: 'Give the mission a title.' };
 
   const outcome = await withSession(async ({ db, accountId }) => {
@@ -29,6 +30,7 @@ export async function createMissionAction(
       title,
       ...(destination.length > 0 ? { destination } : {}),
       ...(purpose.length > 0 ? { purpose } : {}),
+      ...(itineraryRef.length > 0 ? { itineraryRef } : {}),
     });
     if (!created.ok) {
       return { state: { ok: false, message: created.error.message } as ActionState, id: null };

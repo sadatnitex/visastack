@@ -8,6 +8,7 @@ import {
   legalTransitions,
   listGeneratedOutputs,
   listMissionSnapshots,
+  listMissionsByItineraryRef,
   listPublishedPackVersions,
   listSelectedEvidence,
   listTasks,
@@ -20,7 +21,7 @@ import { withSession } from '../../../../lib/session';
 import { AttachPackForm, type PackOption } from './attach-pack-form';
 import { EvidenceSelectionPanel, LettersPanel, TasksPanel } from './collaboration-panels';
 import { composeSelectionCandidateKey } from './evidence-selection-key';
-import { SnapshotButton, TransitionButtons } from './mission-buttons';
+import { ItineraryForm, SnapshotButton, TransitionButtons } from './mission-buttons';
 
 export const dynamic = 'force-dynamic';
 
@@ -54,8 +55,8 @@ export default async function MissionPage({
     if (!owned.ok) return null;
     const mission = owned.value;
     const applicant = await getApplicant(db, mission.applicantId);
-    const [readiness, snapshots, packs, tasks, letters, selections, candidates] = await Promise.all(
-      [
+    const [readiness, snapshots, packs, tasks, letters, selections, candidates, linkedMissions] =
+      await Promise.all([
         mission.packVersionId ? computeReadiness(db, mission.id) : Promise.resolve(null),
         listMissionSnapshots(db, accountId, mission.id),
         listPublishedPackVersions(db),
@@ -63,8 +64,13 @@ export default async function MissionPage({
         listGeneratedOutputs(db, accountId, mission.id),
         listSelectedEvidence(db, accountId, mission.id),
         getEvidenceCandidates(db, accountId, mission.id),
-      ],
-    );
+        mission.itineraryRef
+          ? listMissionsByItineraryRef(db, {
+              actorAccountId: accountId,
+              itineraryRef: mission.itineraryRef,
+            })
+          : Promise.resolve([]),
+      ]);
     // Composite key (finding #33, post-programme defect register) — see
     // evidence-selection-key.ts's own doc comment.
     const selectionIdsByCandidate: Record<string, string> = {};
@@ -80,6 +86,16 @@ export default async function MissionPage({
         }
       }
     }
+    // Every linked mission is already scoped to the caller's own applicants
+    // (listMissionsByItineraryRef's own guarantee), so a name lookup per
+    // distinct applicant id is safe, never a cross-account resolution.
+    const otherLinked = linkedMissions.filter((m) => m.id !== mission.id);
+    const linkedApplicantNames = new Map<string, string>();
+    for (const m of otherLinked) {
+      if (linkedApplicantNames.has(m.applicantId)) continue;
+      const linkedApplicant = await getApplicant(db, m.applicantId);
+      linkedApplicantNames.set(m.applicantId, linkedApplicant?.displayName ?? 'Applicant');
+    }
     return {
       mission,
       applicantName: applicant?.displayName ?? 'Applicant',
@@ -90,6 +106,11 @@ export default async function MissionPage({
       letters: letters.ok ? letters.value : [],
       candidates: candidates.ok ? candidates.value : [],
       selectionIdsByCandidate,
+      linkedMissions: otherLinked.map((m) => ({
+        id: m.id,
+        title: m.title,
+        applicantName: linkedApplicantNames.get(m.applicantId) ?? 'Applicant',
+      })),
       packOptions: packs.map(
         (p): PackOption => ({
           packVersionId: p.packVersionId,
@@ -143,6 +164,26 @@ export default async function MissionPage({
               <AttachPackForm missionId={mission.id} options={data.packOptions} />
             </>
           )}
+        </article>
+
+        <article className="card">
+          <p className="card-kicker">Family trip</p>
+          <h2 className="card-title">Itinerary reference</h2>
+          <p className="card-body" style={{ marginBottom: '1rem' }}>
+            An optional label linking this case to another family member's, purely for display.
+            Access and permissions stay entirely separate per case.
+          </p>
+          <ItineraryForm missionId={mission.id} itineraryRef={mission.itineraryRef} />
+          {data.linkedMissions.length > 0 ? (
+            <div className="rows" style={{ marginTop: '1rem' }}>
+              {data.linkedMissions.map((m) => (
+                <Link className="row row-link" key={m.id} href={`/app/mission/${m.id}`}>
+                  <span className="row-key">{m.applicantName}</span>
+                  <span className="muted">{m.title}</span>
+                </Link>
+              ))}
+            </div>
+          ) : null}
         </article>
 
         <article className="card">

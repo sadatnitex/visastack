@@ -7,6 +7,7 @@ import {
   decideTask,
   generateCoverLetter,
   selectEvidence,
+  setMissionItineraryRef,
   snapshotMission,
   transitionMission,
   unselectEvidence,
@@ -180,6 +181,30 @@ export async function decideTaskAction(
     return {
       ok: true,
       message: status === 'DONE' ? 'Task completed.' : 'Task cancelled.',
+    } satisfies ActionState;
+  });
+  if (result.ok) revalidatePath(`/app/mission/${missionId}`);
+  return result;
+}
+
+/** Set or clear the mission's itinerary reference, linking it (display-only) to other missions as one family trip (IAM-04). */
+export async function setItineraryRefAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const missionId = String(formData.get('missionId') ?? '');
+  const itineraryRef = String(formData.get('itineraryRef') ?? '');
+  if (missionId.length === 0) return { ok: false, message: 'Missing mission.' };
+  const result = await withSession(async ({ db, accountId }) => {
+    const updated = await setMissionItineraryRef(db, {
+      actorAccountId: accountId,
+      missionId,
+      itineraryRef,
+    });
+    if (!updated.ok) return { ok: false, message: updated.error.message } satisfies ActionState;
+    return {
+      ok: true,
+      message: updated.value.itineraryRef ? 'Linked.' : 'Unlinked.',
     } satisfies ActionState;
   });
   if (result.ok) revalidatePath(`/app/mission/${missionId}`);

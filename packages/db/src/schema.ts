@@ -191,6 +191,11 @@ export const applicants = pgTable('applicants', {
     .references(() => accounts.id, { onDelete: 'restrict' }),
   displayName: text('display_name').notNull(),
   relationship: applicantRelationship('relationship').notNull().default('SELF'),
+  // IAM-04: explicit authority to act for a FAMILY_MEMBER/MINOR_GUARDIAN
+  // subject, distinct from the relationship label itself. Null for SELF
+  // (no separate authority to attest to) and for any record created before
+  // this column existed; never inferred from relationship alone.
+  authorityConfirmedAt: timestamp('authority_confirmed_at', { withTimezone: true }),
   ...timestamps,
 });
 
@@ -388,6 +393,13 @@ export const missions = pgTable('missions', {
   title: text('title').notNull(),
   destination: text('destination'),
   purpose: text('purpose'),
+  // IAM-04: an optional free-text label letting an owner (e.g. a guardian
+  // account managing several of its own applicants) visually link separate
+  // missions as one family trip. Purely a display/reference string, never
+  // an access mechanism: every grant, note, and permission stays scoped to
+  // its own mission/applicant exactly as before, and lookups by this value
+  // are always scoped to the caller's own applicants, never cross-account.
+  itineraryRef: text('itinerary_ref'),
   state: missionState('state').notNull().default('DRAFT'),
   // The published requirement pack version this mission is assembled against.
   // restrict, not cascade/set null: nothing deletes a pack version today

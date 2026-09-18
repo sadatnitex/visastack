@@ -7,7 +7,7 @@ import { drizzle } from 'drizzle-orm/pglite';
 import { migrate } from 'drizzle-orm/pglite/migrator';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { provisionAccount } from './accounts';
-import { createApplicant } from './applicants';
+import { addFamilyMember, createApplicant } from './applicants';
 import { setConsent } from './consent';
 import type { Db } from './db';
 import { addDocumentVersion, registerDocument } from './documents';
@@ -24,11 +24,13 @@ import {
   listGeneratedOutputs,
   listMissionSnapshots,
   listMissions,
+  listMissionsByItineraryRef,
   listMissionsUsingField,
   listSelectedEvidence,
   listSelectedEvidenceForOrg,
   listTasks,
   selectEvidence,
+  setMissionItineraryRef,
   snapshotMission,
   transitionMission,
   unselectEvidence,
@@ -1608,5 +1610,160 @@ describe('listSelectedEvidenceForOrg (EVI-05): the org-scoped sibling of listSel
     );
     expect(isErr(forOrg)).toBe(true);
     if (isErr(forOrg)) expect(forOrg.error.code).toBe('not_found');
+  });
+});
+
+describe('missions - itinerary reference linking (IAM-04: family trips stay linked, never merged)', () => {
+  let db: Db;
+  beforeEach(async () => {
+    db = await freshDb();
+  });
+
+  it('createMission accepts an optional itinerary reference, trimmed', async () => {
+    const { account, applicantId } = await seed(db);
+    const mission = await createMission(db, {
+      actorAccountId: account.id,
+      applicantId,
+      title: 'UK Visa',
+      itineraryRef: '  Smith Family Europe 2026  ',
+    });
+    expect(isOk(mission)).toBe(true);
+    if (!isOk(mission)) return;
+    expect(mission.value.itineraryRef).toBe('Smith Family Europe 2026');
+  });
+
+  it('leaves itineraryRef null when omitted', async () => {
+    const { account, applicantId } = await seed(db);
+    const mission = await createMission(db, {
+      actorAccountId: account.id,
+      applicantId,
+      title: 'X',
+    });
+    expect(isOk(mission)).toBe(true);
+    if (!isOk(mission)) return;
+    expect(mission.value.itineraryRef).toBeNull();
+  });
+
+  it('setMissionItineraryRef sets and clears it (mission owner only)', async () => {
+    const { account, applicantId } = await seed(db);
+    const mission = await createMission(db, {
+      actorAccountId: account.id,
+      applicantId,
+      title: 'X',
+    });
+    if (!isOk(mission)) throw new Error('mission');
+
+    const set = await setMissionItineraryRef(db, {
+      actorAccountId: account.id,
+      missionId: mission.value.id,
+      itineraryRef: 'Family Trip',
+    });
+    expect(isOk(set)).toBe(true);
+    if (isOk(set)) expect(set.value.itineraryRef).toBe('Family Trip');
+
+    const cleared = await setMissionItineraryRef(db, {
+      actorAccountId: account.id,
+      missionId: mission.value.id,
+      itineraryRef: '  ',
+    });
+    expect(isOk(cleared)).toBe(true);
+    if (isOk(cleared)) expect(cleared.value.itineraryRef).toBeNull();
+
+    const stranger = await provisionAccount(db, { email: 'itinerary-stranger@example.com' });
+    if (!isOk(stranger)) throw new Error('provision');
+    const denied = await setMissionItineraryRef(db, {
+      actorAccountId: stranger.value.id,
+      missionId: mission.value.id,
+      itineraryRef: 'Hijacked',
+    });
+    expect(isErr(denied)).toBe(true);
+    if (isErr(denied)) expect(denied.error.code).toBe('forbidden');
+  });
+
+  it('listMissionsByItineraryRef links missions across the owner’s own applicants (the real guardian-managing-several-subjects case)', async () => {
+    const { account, applicantId: selfId } = await seed(db);
+    const child = await addFamilyMember(db, {
+      actorAccountId: account.id,
+      ownerAccountId: account.id,
+      displayName: 'Child',
+      relationship: 'MINOR_GUARDIAN',
+      authorityConfirmed: true,
+    });
+    if (!isOk(child)) throw new Error('child');
+
+    const parentMission = await createMission(db, {
+      actorAccountId: account.id,
+      applicantId: selfId,
+      title: 'Parent leg',
+      itineraryRef: 'Family Europe 2026',
+    });
+    const childMission = await createMission(db, {
+      actorAccountId: account.id,
+      applicantId: child.value.id,
+      title: 'Child leg',
+      itineraryRef: 'Family Europe 2026',
+    });
+    // A third, unrelated mission for the same account must not show up.
+    await createMission(db, {
+      actorAccountId: account.id,
+      applicantId: selfId,
+      title: 'Unrelated',
+    });
+    if (!isOk(parentMission) || !isOk(childMission)) throw new Error('mission setup');
+
+    const linked = await listMissionsByItineraryRef(db, {
+      actorAccountId: account.id,
+      itineraryRef: 'Family Europe 2026',
+    });
+    expect(linked.map((m) => m.id).sort()).toEqual(
+      [parentMission.value.id, childMission.value.id].sort(),
+    );
+  });
+
+  it('never surfaces a different account’s missions even with an identical itinerary reference string', async () => {
+    const { account: accountA, applicantId: applicantA } = await seed(db);
+    const provisionedB = await provisionAccount(db, { email: 'itinerary-b@example.com' });
+    if (!isOk(provisionedB)) throw new Error('provision');
+    await setConsent(db, {
+      actorAccountId: provisionedB.value.id,
+      accountId: provisionedB.value.id,
+      type: 'CORE_PROCESSING',
+      granted: true,
+    });
+    const applicantB = await createApplicant(db, {
+      actorAccountId: provisionedB.value.id,
+      ownerAccountId: provisionedB.value.id,
+      displayName: 'B Owner',
+    });
+    if (!isOk(applicantB)) throw new Error('applicant');
+
+    await createMission(db, {
+      actorAccountId: accountA.id,
+      applicantId: applicantA,
+      title: 'A trip',
+      itineraryRef: 'Same Label',
+    });
+    const missionB = await createMission(db, {
+      actorAccountId: provisionedB.value.id,
+      applicantId: applicantB.value.id,
+      title: 'B trip',
+      itineraryRef: 'Same Label',
+    });
+    if (!isOk(missionB)) throw new Error('mission B');
+
+    const seenByB = await listMissionsByItineraryRef(db, {
+      actorAccountId: provisionedB.value.id,
+      itineraryRef: 'Same Label',
+    });
+    expect(seenByB.map((m) => m.id)).toEqual([missionB.value.id]);
+  });
+
+  it('returns an empty list for a blank reference rather than every mission', async () => {
+    const { account } = await seed(db);
+    const result = await listMissionsByItineraryRef(db, {
+      actorAccountId: account.id,
+      itineraryRef: '  ',
+    });
+    expect(result).toHaveLength(0);
   });
 });
