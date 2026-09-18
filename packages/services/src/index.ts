@@ -484,11 +484,13 @@ export {
 } from './quotas';
 
 export {
+  type AbandonedUploadSweepResult,
   type ReserveUploadInput,
   type UploadIntent,
   failUpload,
   finalizeUpload,
   reserveUpload,
+  sweepAbandonedUploads,
 } from './uploads';
 
 export {

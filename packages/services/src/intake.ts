@@ -47,6 +47,15 @@ export interface MalwareScannerPort {
 export interface ContentLimitsResult {
   readonly withinLimits: boolean;
   readonly detail?: string;
+  /**
+   * PDF page count, when this check determined one. Persisted to
+   * `documentVersions.pages` regardless of whether text extraction later
+   * succeeds, a scanned (image-only) PDF has a real, already-computed page
+   * count here but fails extraction with `empty_content` (no text layer),
+   * which would otherwise leave `pages` permanently null for exactly the
+   * kind of scanned passport/bank-statement upload this product sees most.
+   */
+  readonly pageCount?: number | null;
 }
 
 /**
@@ -737,6 +746,12 @@ export async function processIntake(
           safe: result.withinLimits,
           detail: result.detail ?? null,
         });
+        if (result.pageCount !== null && result.pageCount !== undefined) {
+          await tx
+            .update(schema.documentVersions)
+            .set({ pages: result.pageCount })
+            .where(eq(schema.documentVersions.id, documentVersionId));
+        }
         return true;
       });
       if (!checkRecorded) {

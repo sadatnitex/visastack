@@ -256,6 +256,46 @@ describe('document intake pipeline', () => {
     expect(limitsRow?.detail).toContain('80 pages');
   });
 
+  it('persists the page count from the content-limits check even when extraction never runs or fails (Part 3 §7: a scanned PDF has no text layer, so extraction always fails empty_content, but its page count is real and already known)', async () => {
+    const { versionId } = await seedVersion(db, 'intake4d@example.com');
+    const scannedPdfLimits: ContentLimitsPort = {
+      name: 'test-content-limits',
+      version: '0.0.0',
+      async check() {
+        return { withinLimits: true, pageCount: 4 };
+      },
+    };
+    const failingExtractor: DocumentConverterPort = {
+      async extract(): Promise<ExtractionOutcome> {
+        return {
+          ok: false,
+          code: 'empty_content',
+          message:
+            'PDF has no embedded text layer (likely a scanned image; OCR is not implemented)',
+        };
+      },
+    };
+    const result = await processIntake(db, cleanScanner, failingExtractor, scannedPdfLimits, {
+      documentVersionId: versionId,
+    });
+    expect(isOk(result)).toBe(true);
+    if (!isOk(result)) return;
+    // A failed extraction still reaches AWAITING_REVIEW, not NEEDS_ATTENTION
+    // (directive §6: "AI failure must not make a clean document unusable
+    // manually") -- confirmed here so the pages assertion below isn't
+    // accidentally passing via the OTHER (extraction-success) write path
+    // this same column also has.
+    expect(result.value.processingStatus).toBe('AWAITING_REVIEW');
+
+    const updatedVersion = (
+      await db
+        .select()
+        .from(schema.documentVersions)
+        .where(eq(schema.documentVersions.id, versionId))
+    )[0];
+    expect(updatedVersion?.pages).toBe(4);
+  });
+
   it('is resumable after a content-limits check failure, with the same fail-durable-then-retry contract as the scanner', async () => {
     const { versionId } = await seedVersion(db, 'intake4c@example.com');
     let calls = 0;

@@ -865,6 +865,7 @@ async function accessDocument(
   // comment for why this is not folded into the blob token itself.
   const accessTokenFields: Omit<DocumentAccessTokenFields, 'sig'> = {
     documentId: document.id,
+    documentVersionId: version.id,
     ...actorAccessContext(input.actor),
     action,
     purpose: input.purpose,
@@ -962,19 +963,26 @@ export async function recheckDocumentAccess(
   });
   if (!decision.allowed) return { allowed: false, reason: decision.reason };
 
-  // "Exact version" (directive §10): the servability check `accessDocument`
-  // already ran at mint time is re-run here too, not assumed to still
-  // hold, so a version erased or otherwise made unusable between mint and
-  // redemption cannot still be served.
+  // "Exact version" (directive §10): re-checks the SAME version
+  // `accessDocument` resolved at mint time (whose storage object the
+  // accompanying blob token's objectKey is bound to) -- never "whatever
+  // document_versions reports as latest right now". Re-deriving "latest"
+  // here would check a DIFFERENT row than the one actually being served
+  // the moment a new version appears between mint and redemption: a newer
+  // sibling being servable must never paper over the minted version having
+  // since been erased or otherwise made unusable, and the reverse (a newer
+  // sibling being unsafe) must never block redemption of a still-servable
+  // minted version either.
   const version = first(
     await db
       .select()
       .from(schema.documentVersions)
-      .where(eq(schema.documentVersions.documentId, document.id))
-      .orderBy(desc(schema.documentVersions.versionNumber))
+      .where(eq(schema.documentVersions.id, fields.documentVersionId))
       .limit(1),
   );
-  if (!version) return { allowed: false, reason: 'no_stored_version' };
+  if (!version || version.documentId !== document.id) {
+    return { allowed: false, reason: 'no_stored_version' };
+  }
   const erased = await hasActiveOrVerifiedErasureJob(db, version.storageObjectId);
   const servable = isDocumentVersionUsable({
     safetyStatus: version.safetyStatus,

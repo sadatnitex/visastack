@@ -1,6 +1,7 @@
 import type { BlobStore, StoredBytes } from '@visastack/services';
 import { describe, expect, it } from 'vitest';
 import { BuiltinContentLimitsChecker } from './content-limits';
+import { BuiltinPreviewRenderer } from './preview-renderer';
 
 /** Build a minimal, genuinely valid multi-page PDF (mirrors text-extraction.test.ts's single-page helper). */
 function buildMultiPagePdf(pageCount: number): Uint8Array {
@@ -70,7 +71,7 @@ describe('BuiltinContentLimitsChecker: EVI-01 initial configurable limits (50 PD
     expect(checker.version).toBeTruthy();
   });
 
-  it('accepts a real PDF within the page limit', async () => {
+  it('accepts a real PDF within the page limit and reports its exact page count', async () => {
     const pdfBytes = buildMultiPagePdf(3);
     const checker = new BuiltinContentLimitsChecker({
       blobStore: fakeBlobStore({ k1: { contentType: 'application/pdf', bytes: pdfBytes } }),
@@ -78,9 +79,14 @@ describe('BuiltinContentLimitsChecker: EVI-01 initial configurable limits (50 PD
     });
     const result = await checker.check({ bucket: 'CLEAN', objectKey: 'k1' });
     expect(result.withinLimits).toBe(true);
+    // documentVersions.pages persistence (Part 3 §7) relies on this: a
+    // scanned PDF passes this check but fails text extraction entirely
+    // (no text layer), so this is the only point in the pipeline that ever
+    // has a page count for it.
+    expect(result.pageCount).toBe(3);
   });
 
-  it('rejects a real PDF that exceeds the page limit, naming the actual page count', async () => {
+  it('rejects a real PDF that exceeds the page limit, naming and reporting the actual page count', async () => {
     const pdfBytes = buildMultiPagePdf(6);
     const checker = new BuiltinContentLimitsChecker({
       blobStore: fakeBlobStore({ k2: { contentType: 'application/pdf', bytes: pdfBytes } }),
@@ -90,6 +96,7 @@ describe('BuiltinContentLimitsChecker: EVI-01 initial configurable limits (50 PD
     expect(result.withinLimits).toBe(false);
     expect(result.detail).toContain('6 pages');
     expect(result.detail).toContain('5-page limit');
+    expect(result.pageCount).toBe(6);
   });
 
   it('fails closed (never invents a page count) on a corrupt PDF', async () => {
@@ -100,6 +107,7 @@ describe('BuiltinContentLimitsChecker: EVI-01 initial configurable limits (50 PD
     });
     const result = await checker.check({ bucket: 'CLEAN', objectKey: 'k3' });
     expect(result.withinLimits).toBe(false);
+    expect(result.pageCount).toBeUndefined();
   });
 
   it('accepts a real image within the megapixel limit', async () => {
@@ -176,5 +184,24 @@ describe('BuiltinContentLimitsChecker: EVI-01 initial configurable limits (50 PD
     const result = await checker.check({ bucket: 'CLEAN', objectKey: 'missing' });
     expect(result.withinLimits).toBe(false);
     expect(result.detail).toContain('not found');
+  });
+
+  it("does not leave an undestroyed PDF proxy behind that breaks a LATER, unrelated document's preview render in the same process (regression: checkPdf previously never called pdf.loadingTask.destroy(), which corrupted pdfjs's in-process worker transport for a subsequent, completely separate render -- reproduced and confirmed against the real library before this fix landed)", async () => {
+    const checkedPdf = buildMultiPagePdf(2);
+    const checker = new BuiltinContentLimitsChecker({
+      blobStore: fakeBlobStore({ checked: { contentType: 'application/pdf', bytes: checkedPdf } }),
+      config: { maxPdfPages: 50, maxImageMegapixels: 40 },
+    });
+    const checkResult = await checker.check({ bucket: 'CLEAN', objectKey: 'checked' });
+    expect(checkResult.withinLimits).toBe(true);
+
+    // A later, entirely unrelated document goes through the (separate)
+    // preview renderer in the same process -- this is the real production
+    // sequence: checkPdf runs once at intake, render runs later at serve
+    // time, potentially in the same warm container.
+    const laterPdf = buildMultiPagePdf(1);
+    const renderer = new BuiltinPreviewRenderer();
+    const renderResult = await renderer.render({ bytes: laterPdf, contentType: 'application/pdf' });
+    expect(renderResult.rendered).toBe(true);
   });
 });

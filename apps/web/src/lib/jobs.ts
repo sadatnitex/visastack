@@ -2,17 +2,20 @@ import 'server-only';
 import { isOk } from '@visastack/core';
 import { createPooledDb, resolveDatabaseUrl } from '@visastack/db';
 import {
+  type AbandonedUploadSweepResult,
   type ErasureWorkerResult,
   type IntakeWorkerResult,
   executeAccountDeletion,
   listDueDeletions,
   runErasureWorker,
   runIntakeWorker,
+  sweepAbandonedUploads,
 } from '@visastack/services';
 import {
   createContentLimitsChecker,
   createDocumentConverter,
   createMalwareScanner,
+  createObservabilityPort,
   createStorage,
 } from './providers';
 
@@ -52,7 +55,10 @@ export async function triggerIntakeWorker(
     const scanner = createMalwareScanner(storage);
     const extractor = createDocumentConverter(storage);
     const contentLimits = createContentLimitsChecker(storage);
-    return await runIntakeWorker(handle, scanner, extractor, contentLimits, options);
+    return await runIntakeWorker(handle, scanner, extractor, contentLimits, {
+      ...options,
+      observability: createObservabilityPort(),
+    });
   } catch (error) {
     console.error('[triggerIntakeWorker] worker pass failed', error);
     return { processed: 0, failed: 0 };
@@ -126,4 +132,34 @@ export async function triggerAccountDeletionSweep(): Promise<{ readonly executed
     await pool.end();
   }
   return { executed };
+}
+
+/**
+ * Cleans up upload reservations abandoned mid-request (directive Part 3 §3:
+ * "delete abandoned objects/reservations after 24 hours") on its own
+ * short-lived pooled connection, same rationale as the workers above.
+ */
+export async function triggerAbandonedUploadSweep(
+  options: { readonly limit?: number } = {},
+): Promise<AbandonedUploadSweepResult> {
+  const connectionString = resolveDatabaseUrl(process.env);
+  if (!connectionString) {
+    console.error('[triggerAbandonedUploadSweep] database not configured');
+    return { checked: 0, cleaned: 0 };
+  }
+
+  const { db, pool } = createPooledDb(connectionString);
+  pool.on('error', (error) => {
+    console.error('[triggerAbandonedUploadSweep] idle pool connection error', error);
+  });
+  try {
+    const handle = db as unknown as Parameters<typeof sweepAbandonedUploads>[0];
+    const storage = createStorage(handle);
+    return await sweepAbandonedUploads(handle, storage, options.limit, createObservabilityPort());
+  } catch (error) {
+    console.error('[triggerAbandonedUploadSweep] sweep failed', error);
+    return { checked: 0, cleaned: 0 };
+  } finally {
+    await pool.end();
+  }
 }

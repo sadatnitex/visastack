@@ -4,6 +4,7 @@ import { type Db, first, required, schema } from './db';
 import type { DocumentConverterPort } from './extraction';
 import type { ContentLimitsPort, MalwareScannerPort } from './intake';
 import { processIntake } from './intake';
+import type { ObservabilityPort } from './ports';
 
 /**
  * Low-volume durable job queue (Release B; master directive §5 — "DB-backed
@@ -236,6 +237,14 @@ async function classifyFailure(db: Db, documentVersionId: string): Promise<JobEr
   }
 }
 
+interface FailJobOutcome {
+  /** False only when the lease was already lost to another invocation (a safe no-op, not an error). */
+  readonly recorded: boolean;
+  readonly errorCode: JobErrorCode;
+  /** True once this job has exhausted every retry and is now permanently parked at FAILED. */
+  readonly exhausted: boolean;
+}
+
 /**
  * On failure: retry with backoff until maxAttempts, then park at FAILED.
  * Compare-and-set like `completeJob` — a lost lease is a safe no-op, not an
@@ -247,7 +256,7 @@ async function failJob(
   job: ProcessingJob,
   leaseOwner: string,
   errorMessage: string,
-): Promise<boolean> {
+): Promise<FailJobOutcome> {
   const exhausted = job.attempts >= job.maxAttempts;
   const errorCode = await classifyFailure(db, job.documentVersionId);
   const updated = await db
@@ -272,7 +281,7 @@ async function failJob(
       ),
     )
     .returning({ id: schema.processingJobs.id });
-  return updated.length > 0;
+  return { recorded: updated.length > 0, errorCode, exhausted };
 }
 
 /** A FAILED job with enough document context for an admin to act on it. */
@@ -352,13 +361,24 @@ export interface IntakeWorkerResult {
  * anything left over from a crashed/killed invocation gets picked up later,
  * either on its own next `availableAt` or once its lease expires and a later
  * `claimJobs` call reclaims it).
+ *
+ * `observability`, when provided, records a `job_failure` event on every
+ * failed attempt (directive Part 3 §13's "job failures" monitoring signal),
+ * carrying the same `errorCode` classification (`SCAN_FAILED`/
+ * `EXTRACTION_FAILED`/`STORAGE_UNAVAILABLE`/`UNKNOWN`) already persisted on
+ * the job row, at `error` severity once a job is permanently parked at
+ * FAILED and `warning` while it still has retries left. A sustained run of
+ * `errorCode: 'SCAN_FAILED'` events is this pipeline's available proxy for
+ * scanner-availability problems; a dedicated, continuous scanner-health
+ * signal independent of an actual job failing is not built here (tracked in
+ * `known-issues.md`).
  */
 export async function runIntakeWorker(
   db: Db,
   scanner: MalwareScannerPort,
   extractor: DocumentConverterPort,
   contentLimits: ContentLimitsPort,
-  options: { readonly limit?: number } = {},
+  options: { readonly limit?: number; readonly observability?: ObservabilityPort } = {},
 ): Promise<IntakeWorkerResult> {
   const jobs = await claimJobs(db, options.limit ?? DEFAULT_CLAIM_LIMIT);
   let processed = 0;
@@ -380,13 +400,27 @@ export async function runIntakeWorker(
       if (!result.ok) throw new Error(result.error.message);
       if (await completeJob(db, job, leaseOwner)) processed++;
     } catch (error) {
-      const stillOwned = await failJob(
+      const outcome = await failJob(
         db,
         job,
         leaseOwner,
         error instanceof Error ? error.message : String(error),
       );
-      if (stillOwned) failed++;
+      if (outcome.recorded) {
+        failed++;
+        options.observability?.record({
+          name: 'job_failure',
+          severity: outcome.exhausted ? 'error' : 'warning',
+          metadata: {
+            jobType: 'INTAKE',
+            documentVersionId: job.documentVersionId,
+            errorCode: outcome.errorCode,
+            attempts: job.attempts,
+            maxAttempts: job.maxAttempts,
+            exhausted: outcome.exhausted,
+          },
+        });
+      }
     }
   }
   return { processed, failed };

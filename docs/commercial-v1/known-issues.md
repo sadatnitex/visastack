@@ -378,6 +378,60 @@ item gets its own requirements-ledger row once classified against the new direct
     to that existing human-gated workflow rather than triggered autonomously here). Whether
     Preview deployments get their own fresh Neon branch per deployment or share one persistent
     database also remains unconfirmed; this fix does not depend on the answer either way.
+37. (Part 3) A genuine, previously-untracked security bug found and fixed this chunk while
+    auditing A07's "exact storage version" acceptance scenario:
+    `recheckDocumentAccess` (`packages/services/src/documents.ts`) re-derived "the latest
+    document version by version number" fresh at redemption time, entirely independent of
+    which version the blob token's storage object was actually bound to at mint time
+    (`accessDocument`). A version added between mint and redemption could make the recheck
+    verify safety of the wrong row: either wrongly allowing redemption of a now-unsafe minted
+    version (a clean newer sibling masking it), or wrongly denying redemption of a still-safe
+    minted version (an unsafe newer sibling blocking it). This directly violated directive
+    Part 3 Section 10's explicit requirement that redemption re-evaluate the exact version.
+    Fixed by adding `documentVersionId` to `DocumentAccessTokenFields`, signed and pinned at
+    mint time exactly like every other field, and looked up by exact ID (never "latest") at
+    redemption. Proven by two new tests in `documents.test.ts` exercising both directions of
+    the exploit, both confirmed to fail without the fix. Full design:
+    `architecture-decisions.md` AD-05 (extends the redemption-recheck work already recorded
+    there); ledger detail: `requirements-ledger.md` EVI-06.
+38. (Part 3) A genuine, previously-unknown, already-shipped production bug found while auditing
+    the worker pipeline's "bounded CPU/memory/time" (directive Part 3 Section 5): neither
+    `content-limits.ts`'s `checkPdf` nor `text-extraction.ts`'s `extractPdf` ever called
+    `pdf.loadingTask.destroy()` on the `PDFDocumentProxy` they resolved via `unpdf`'s
+    `getDocumentProxy`. Confirmed by an isolated reproduction against the real library that an
+    undestroyed proxy left open in a warm, reused process (ordinary Vercel serverless
+    container-reuse behavior, not an edge case) corrupts pdfjs's in-process fake-worker
+    transport for a LATER, completely unrelated document's own PDF call: processing one PDF
+    during intake could make a later, unconnected PDF's preview render (or even its own later
+    intake) fail with a cryptic "Cannot transfer object of unsupported type" error, purely as a
+    function of container warmth and processing order, never reproducible from a single
+    isolated request in this sandbox's own tests until two real PDF calls happened to land in
+    the same process. Fixed by destroying the resolved proxy in a `finally` block at all three
+    call sites (`checkPdf`, `extractPdf`, and `preview-renderer.ts`'s `renderPdf`, which also
+    gained its own new page-count re-check in this same chunk). Proven by a dedicated
+    cross-adapter regression test. Same chunk also closed the two adjacent, less severe gaps
+    that prompted this audit: no wall-clock timeout at all on `checkPdf`/`extractPdf`'s parse
+    step, and `renderPdf` never re-checking the page-count limit at render time (only at
+    intake). Full detail: `requirements-ledger.md` SEC-05.
+39. ~~Directive Part 3 Section 3's "delete abandoned objects/reservations after 24 hours" was
+    unimplemented: the 10-minute `RESERVATION_TTL_MS` only ever excluded an abandoned upload
+    reservation from quota sums, never cleaned anything up, and a request killed between the
+    blob write and `finalizeUpload`/`failUpload` left a permanently `RESERVED` row and possibly
+    orphaned quarantine bytes with nothing ever revisiting either.~~ **RESOLVED (Part 3).** New
+    `sweepAbandonedUploads` runs on its own scheduled cron (`/api/jobs/process-abandoned-uploads`),
+    deletes bytes under the abandoned intent's own known object key, and marks the intent
+    `FAILED`. Full detail: `requirements-ledger.md` EVI-01.
+40. (Part 3) Directive Section 13's monitoring signals ("queue age; job failures; scanner
+    availability; signature age; render failures; object-storage errors; abandoned uploads")
+    were confirmed completely unwired: `ObservabilityPort`/`ConsoleObservabilityPort` existed
+    with zero call sites anywhere in the codebase. Two of the seven signals are now wired
+    (`job_failure` on every failed intake job attempt; `abandoned_upload_cleaned` per sweep that
+    cleans something), chosen as the clearest hooks into already-existing code rather than new
+    instrumentation surfaces. Five remain genuinely open: queue age, a dedicated continuous
+    scanner-availability/signature-age signal (today only inferable from a `SCAN_FAILED`
+    job-failure spike, not observed independently), render failures, and object-storage errors.
+    Not silently dropped: tracked here and in `requirements-ledger.md` OPS-03, likely revisited
+    alongside Part 9's own monitoring/performance scope rather than gold-plated in this chunk.
 independently confirmed findings; the missing PRD file is tracked as Blocker 1 in
 `assumptions-and-blockers.md` (now resolved) rather than here, since it blocked the
 programme rather than being a product defect.
