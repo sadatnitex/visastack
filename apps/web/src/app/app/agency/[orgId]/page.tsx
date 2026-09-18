@@ -13,6 +13,7 @@ import {
   listMissionsForOrganization,
   listNotes,
   listOrgMemberships,
+  listOrganizationInvitations,
   listSelectedEvidenceForOrg,
 } from '@visastack/services';
 import Link from 'next/link';
@@ -23,6 +24,7 @@ import {
 } from '../../../../lib/capabilities';
 import { profileField } from '../../../../lib/profile-fields';
 import { withSession } from '../../../../lib/session';
+import { InvitationRevokeButton } from './invitation-revoke-button';
 import { AddMemberForm } from './member-form';
 import { MemberToggleButton } from './member-toggle-button';
 import { MissionCollaboration } from './mission-collaboration';
@@ -71,25 +73,34 @@ export default async function OrgConsolePage({
         member: false,
         requests: [],
         members: [],
+        invitations: [],
         applicants: [],
         missions: [],
         viewerAccountId: accountId,
       };
     }
 
-    // Admin-only data: full membership roster, org-wide evidence requests,
-    // and the applicant list the "Request evidence" form targets — each
-    // gated by isOrgAdmin at the service layer already (listOrgMemberships,
+    // Admin-only data: full membership roster, pending invitations,
+    // org-wide evidence requests, and the applicant list the "Request
+    // evidence" form targets, each gated by isOrgAdmin at the service
+    // layer already (listOrgMemberships, listOrganizationInvitations,
     // listEvidenceRequestsForOrgDetailed), or only ever consumed by an
     // admin-only section of this page (applicants).
-    const [requests, members, applicants, orgMissions, assignedMissionIds] = await Promise.all([
-      admin ? listEvidenceRequestsForOrgDetailed(db, accountId, orgId) : Promise.resolve(null),
-      admin ? listOrgMemberships(db, accountId, orgId) : Promise.resolve(null),
-      admin ? listApplicantsForOrganization(db, orgId) : Promise.resolve([]),
-      listMissionsForOrganization(db, orgId),
-      admin ? Promise.resolve(null) : listAssignedMissionIds(db, orgId, accountId),
-    ]);
+    const [requests, members, invitations, applicants, orgMissions, assignedMissionIds] =
+      await Promise.all([
+        admin ? listEvidenceRequestsForOrgDetailed(db, accountId, orgId) : Promise.resolve(null),
+        admin ? listOrgMemberships(db, accountId, orgId) : Promise.resolve(null),
+        admin
+          ? listOrganizationInvitations(db, { actorAccountId: accountId, organizationId: orgId })
+          : Promise.resolve(null),
+        admin ? listApplicantsForOrganization(db, orgId) : Promise.resolve([]),
+        listMissionsForOrganization(db, orgId),
+        admin ? Promise.resolve(null) : listAssignedMissionIds(db, orgId, accountId),
+      ]);
     const membersResolved = members?.ok ? members.value : [];
+    const invitationsResolved = invitations?.ok
+      ? invitations.value.filter((i) => i.status === 'PENDING')
+      : [];
     // Codex review, PR-D2, round 1: listAssignmentsDetailed/listNotes/
     // listMissionRequirementsForOrg below only check the ORGANIZATION's
     // grant, never the individual caller's own assignment — correct for
@@ -186,6 +197,7 @@ export default async function OrgConsolePage({
       member: true,
       requests: requests?.ok ? requests.value : [],
       members: membersResolved,
+      invitations: invitationsResolved,
       applicants,
       missions,
       viewerAccountId: accountId,
@@ -393,6 +405,33 @@ export default async function OrgConsolePage({
                             active={m.active}
                           />
                         ) : null}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+              {data.invitations.length > 0 ? (
+                <div className="rows" style={{ marginBottom: '1.5rem' }}>
+                  {data.invitations.map((invitation) => (
+                    <div className="row" key={invitation.id}>
+                      <span className="row-key">
+                        {invitation.email}
+                        <span
+                          className="muted"
+                          style={{ fontSize: '0.8rem', marginLeft: '0.5rem' }}
+                        >
+                          {invitation.role}
+                        </span>
+                      </span>
+                      <span style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                        <span className="badge badge-warning">
+                          Invited &middot; expires{' '}
+                          {new Date(invitation.expiresAt).toLocaleDateString()}
+                        </span>
+                        <InvitationRevokeButton
+                          organizationId={orgId}
+                          invitationId={invitation.id}
+                        />
                       </span>
                     </div>
                   ))}

@@ -549,3 +549,17 @@ export {
   listIssuerVerificationsForFact,
   recordIssuerVerification,
 } from './assurance';
+
+export {
+  type AcceptedOrganizationInvitation,
+  type AcceptOrganizationInvitationInput,
+  type CreatedOrganizationInvitation,
+  type CreateOrganizationInvitationInput,
+  type OrganizationInvitation,
+  type OrganizationInvitationPreview,
+  acceptOrganizationInvitation,
+  createOrganizationInvitation,
+  listOrganizationInvitations,
+  previewOrganizationInvitation,
+  revokeOrganizationInvitation,
+} from './invitations';

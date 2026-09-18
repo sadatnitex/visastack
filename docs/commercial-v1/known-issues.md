@@ -435,6 +435,13 @@ item gets its own requirements-ledger row once classified against the new direct
     job-failure spike, not observed independently), render failures, and object-storage errors.
     Not silently dropped: tracked here and in `requirements-ledger.md` OPS-03, likely revisited
     alongside Part 9's own monitoring/performance scope rather than gold-plated in this chunk.
+41. ~~Directive Part 4 Section 5's "secure member invitations" did not exist: the only "add
+    member" path required the invitee to already hold a VisaStack account, with no token, no
+    expiry, no single-use consumption, and nothing sent to anyone, so an org admin could not
+    actually invite a genuinely new colleague at all.~~ **RESOLVED (Part 4).** New
+    `packages/services/src/invitations.ts` implements a real, hashed, single-use, race-safe
+    invitation token; `addMemberAction` falls back to it automatically when no account exists.
+    Full detail: `requirements-ledger.md` IAM-02.
 independently confirmed findings; the missing PRD file is tracked as Blocker 1 in
 `assumptions-and-blockers.md` (now resolved) rather than here, since it blocked the
 programme rather than being a product defect.

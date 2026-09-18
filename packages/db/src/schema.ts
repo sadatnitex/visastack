@@ -63,6 +63,11 @@ export const organizationStatus = pgEnum('organization_status', ORGANIZATION_STA
 export const membershipRole = pgEnum('membership_role', MEMBERSHIP_ROLES);
 export const consentType = pgEnum('consent_type', CONSENT_TYPES);
 export const permissionAction = pgEnum('permission_action', PERMISSION_ACTIONS);
+export const organizationInvitationStatus = pgEnum('organization_invitation_status', [
+  'PENDING',
+  'ACCEPTED',
+  'REVOKED',
+]);
 export const applicantRelationship = pgEnum('applicant_relationship', [
   'SELF',
   'FAMILY_MEMBER',
@@ -208,6 +213,44 @@ export const memberships = pgTable(
     ...timestamps,
   },
   (table) => [unique('memberships_account_org_unique').on(table.accountId, table.organizationId)],
+);
+
+// --- Organization invitations (Commercial V1 Part 4 §5: secure member
+// invitations for a recipient with no VisaStack account yet). `tokenHash` is
+// the only thing ever persisted -- the raw, cryptographically random token
+// exists only in memory at mint time and in the link handed to the inviter;
+// looking it up is a hash comparison, never a raw-value comparison, the same
+// posture already used for password-reset-style tokens elsewhere. Recipient-
+// bound by `email` (checked against the accepting account's own WorkOS-
+// verified email, never just "whoever holds the link"), role-bound and
+// organisation-bound by their own columns, single-use via the `PENDING` ->
+// `ACCEPTED`/`REVOKED` transition (a terminal status can never move again),
+// and race-safe via the same compare-and-set-on-status pattern `grants`
+// already uses for `acceptGrant`.
+export const organizationInvitations = pgTable(
+  'organization_invitations',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    organizationId: uuid('organization_id')
+      .notNull()
+      .references(() => organizations.id, { onDelete: 'cascade' }),
+    email: text('email').notNull(),
+    role: membershipRole('role').notNull(),
+    tokenHash: text('token_hash').notNull().unique(),
+    status: organizationInvitationStatus('status').notNull().default('PENDING'),
+    invitedByAccountId: uuid('invited_by_account_id')
+      .notNull()
+      .references(() => accounts.id),
+    acceptedByAccountId: uuid('accepted_by_account_id').references(() => accounts.id),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    acceptedAt: timestamp('accepted_at', { withTimezone: true }),
+    revokedAt: timestamp('revoked_at', { withTimezone: true }),
+    ...timestamps,
+  },
+  (table) => [
+    index('org_invitations_org_status_idx').on(table.organizationId, table.status),
+    index('org_invitations_email_status_idx').on(table.email, table.status),
+  ],
 );
 
 // --- Consent records (separate consent per purpose) ------------------------

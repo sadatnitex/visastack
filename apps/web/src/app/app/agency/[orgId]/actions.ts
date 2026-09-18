@@ -5,14 +5,17 @@ import {
   addMembership,
   addNote,
   assignMember,
+  createOrganizationInvitation,
   getAccountByEmail,
   listSelectedEvidenceForOrg,
   recordIssuerVerification,
   recordMissionDecision,
   requestEvidence,
+  revokeOrganizationInvitation,
   setMembershipActive,
 } from '@visastack/services';
 import { revalidatePath } from 'next/cache';
+import { resolveBaseUrl } from '../../../../lib/base-url';
 import {
   capabilityUnavailableMessage,
   getPlatformCapabilities,
@@ -98,7 +101,14 @@ export async function requestEvidenceAction(
   return result;
 }
 
-/** Add an existing VisaStack user to the organization by email (org admin). */
+/**
+ * Add a member by email (org admin). When the email already has a VisaStack
+ * account, membership is granted immediately. Otherwise this mints a secure,
+ * single-use invitation (Commercial V1 Part 4 §5) instead of just erroring:
+ * no real email adapter exists yet (Part 5 scope), so the accept link is
+ * handed straight back to the admin to share, rather than the invitee never
+ * being reachable at all.
+ */
 export async function addMemberAction(
   _prev: ActionState,
   formData: FormData,
@@ -112,20 +122,50 @@ export async function addMemberAction(
 
   const result = await withSession(async ({ db, accountId }) => {
     const account = await getAccountByEmail(db, memberEmail);
-    if (!account) {
-      return {
-        ok: false,
-        message: 'No VisaStack account for that email. They must sign in once first.',
-      } satisfies ActionState;
+    if (account) {
+      const added = await addMembership(db, {
+        actorAccountId: accountId,
+        organizationId,
+        accountId: account.id,
+        role,
+      });
+      if (!added.ok) return { ok: false, message: added.error.message } satisfies ActionState;
+      return { ok: true, message: `${memberEmail} added as ${role}.` } satisfies ActionState;
     }
-    const added = await addMembership(db, {
+
+    const invited = await createOrganizationInvitation(db, {
       actorAccountId: accountId,
       organizationId,
-      accountId: account.id,
+      email: memberEmail,
       role,
     });
-    if (!added.ok) return { ok: false, message: added.error.message } satisfies ActionState;
-    return { ok: true, message: `${memberEmail} added as ${role}.` } satisfies ActionState;
+    if (!invited.ok) return { ok: false, message: invited.error.message } satisfies ActionState;
+    const acceptUrl = `${resolveBaseUrl()}/app/invitations/accept?token=${invited.value.rawToken}`;
+    return {
+      ok: true,
+      message: `No account yet for ${memberEmail}. Share this link (expires in 7 days): ${acceptUrl}`,
+    } satisfies ActionState;
+  });
+  if (result.ok) revalidatePath(`/app/agency/${organizationId}`);
+  return result;
+}
+
+/** Revoke a still-pending member invitation (org admin). */
+export async function revokeInvitationAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const organizationId = String(formData.get('organizationId') ?? '');
+  const invitationId = String(formData.get('invitationId') ?? '');
+
+  const result = await withSession(async ({ db, accountId }) => {
+    const revoked = await revokeOrganizationInvitation(db, {
+      actorAccountId: accountId,
+      organizationId,
+      invitationId,
+    });
+    if (!revoked.ok) return { ok: false, message: revoked.error.message } satisfies ActionState;
+    return { ok: true, message: 'Invitation revoked.' } satisfies ActionState;
   });
   if (result.ok) revalidatePath(`/app/agency/${organizationId}`);
   return result;
