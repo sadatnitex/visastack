@@ -27,6 +27,7 @@ import { profileField } from '../../../../lib/profile-fields';
 import { withSession } from '../../../../lib/session';
 import { ClientInvitationForm } from './client-invitation-form';
 import { ClientInvitationRevokeButton } from './client-invitation-revoke-button';
+import { EvidenceRequestActions } from './evidence-request-actions';
 import { InvitationRevokeButton } from './invitation-revoke-button';
 import { AddMemberForm } from './member-form';
 import { MemberToggleButton } from './member-toggle-button';
@@ -45,9 +46,17 @@ const ORG_STATUS: Record<string, { label: string; tone: string }> = {
 
 const REQ_STATUS: Record<string, { label: string; tone: string }> = {
   OPEN: { label: 'Open', tone: 'badge-warning' },
+  RECEIVED: { label: 'Submitted', tone: 'badge-neutral' },
+  UNDER_REVIEW: { label: 'Under review', tone: 'badge-neutral' },
+  ACCEPTED: { label: 'Accepted', tone: 'badge-success' },
+  NEEDS_REPLACEMENT: { label: 'Needs replacement', tone: 'badge-warning' },
+  CANCELLED: { label: 'Cancelled', tone: 'badge-neutral' },
+  // Legacy: no longer written, but a pre-Part-4 request row may still hold one.
   FULFILLED: { label: 'Fulfilled', tone: 'badge-success' },
   DECLINED: { label: 'Declined', tone: 'badge-neutral' },
 };
+
+const EVIDENCE_DECIDABLE_STATUSES = new Set(['RECEIVED', 'UNDER_REVIEW']);
 
 export default async function OrgConsolePage({
   params,
@@ -582,7 +591,17 @@ export default async function OrgConsolePage({
                         </div>
                         <span className="muted" style={{ fontSize: '0.8rem' }}>
                           {req.applicantName}
+                          {req.dueDate
+                            ? ` · due ${new Date(req.dueDate).toLocaleDateString()}`
+                            : ''}
                         </span>
+                        {EVIDENCE_DECIDABLE_STATUSES.has(req.status) ? (
+                          <EvidenceRequestActions
+                            organizationId={orgId}
+                            requestId={req.id}
+                            status={req.status}
+                          />
+                        ) : null}
                       </div>
                     );
                   })}

@@ -472,6 +472,16 @@ item gets its own requirements-ledger row once classified against the new direct
     via `setMissionItineraryRef`, with a dedicated `listMissionsByItineraryRef` read always
     scoped to the caller's own applicants only, proven to never cross accounts even given an
     identical reference string. Full detail: `requirements-ledger.md` IAM-04.
+44. ~~Evidence requests (`respondEvidence`) let the applicant owner mark any request FULFILLED or
+    DECLINED with nothing behind the click: no fact, no document, no safety check, no processing
+    status, no link to anything real. An applicant could "fulfil" a document request without
+    ever having submitted a document, and an agency reading the response had no way to know
+    whether it meant anything real had been provided.~~ **RESOLVED (Part 4).** Replaced entirely
+    with Commercial V1 Part 4 §10's exact six-state model
+    (OPEN/RECEIVED/UNDER_REVIEW/ACCEPTED/NEEDS_REPLACEMENT/CANCELLED); a request can now only
+    reach RECEIVED by linking an actual fact or document the applicant owns, and a document must
+    currently pass the same safety/processing/erasure check `missions.ts` readiness already uses
+    or the submission is refused outright. Full detail: `requirements-ledger.md` CAS-03.
 independently confirmed findings; the missing PRD file is tracked as Blocker 1 in
 `assumptions-and-blockers.md` (now resolved) rather than here, since it blocked the
 programme rather than being a product defect.

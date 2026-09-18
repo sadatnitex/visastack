@@ -210,6 +210,7 @@ export {
   type AddNoteInput,
   type BulkExportRow,
   type EvidenceRequest,
+  type EvidenceRequestDecision,
   type EvidenceRequestWithApplicant,
   type MissionDecision,
   type MissionNote,
@@ -219,11 +220,14 @@ export {
   addNote,
   assignMember,
   bulkExport,
+  cancelEvidenceRequest,
+  decideEvidenceResponse,
   isActiveMember,
   listApplicantsForOrganization,
   listAssignedMissionIds,
   listAssignments,
   listAssignmentsDetailed,
+  listEvidenceRequestDecisions,
   listEvidenceRequestsForApplicant,
   listEvidenceRequestsForOrg,
   listEvidenceRequestsForOrgDetailed,
@@ -235,7 +239,8 @@ export {
   orgGrantPermits,
   recordMissionDecision,
   requestEvidence,
-  respondEvidence,
+  startEvidenceReview,
+  submitEvidenceResponse,
 } from './agency';
 
 export {

@@ -10,9 +10,12 @@ import {
   addNote,
   assignMember,
   bulkExport,
+  cancelEvidenceRequest,
+  decideEvidenceResponse,
   listApplicantsForOrganization,
   listAssignedMissionIds,
   listAssignmentsDetailed,
+  listEvidenceRequestDecisions,
   listEvidenceRequestsForApplicant,
   listEvidenceRequestsForOrg,
   listEvidenceRequestsForOrgDetailed,
@@ -21,11 +24,13 @@ import {
   listNotes,
   recordMissionDecision,
   requestEvidence,
-  respondEvidence,
+  startEvidenceReview,
+  submitEvidenceResponse,
 } from './agency';
 import { createApplicant } from './applicants';
 import { setConsent } from './consent';
 import type { Db } from './db';
+import { addDocumentVersion, registerDocument } from './documents';
 import { attachPackVersion, createMission } from './missions';
 import {
   addMembership,
@@ -327,7 +332,7 @@ describe('agency collaboration — assignments, notes, evidence', () => {
     expect(fromOrgB[0]?.memberEmail).toBe('agent-crossorg-b@rival.com');
   });
 
-  it('runs the evidence-request lifecycle', async () => {
+  it('runs the evidence-request lifecycle (Commercial V1 Part 4 §10: OPEN -> RECEIVED -> UNDER_REVIEW -> NEEDS_REPLACEMENT -> RECEIVED -> ACCEPTED)', async () => {
     const { account, applicantId } = await consentedApplicant(db, 'ev@example.com');
     const agentAcc = await provisionAccount(db, { email: 'agent-ev@acme.com' });
     if (!isOk(agentAcc)) throw new Error('provision');
@@ -356,24 +361,204 @@ describe('agency collaboration — assignments, notes, evidence', () => {
     expect(isOk(req)).toBe(true);
     if (!isOk(req)) return;
     expect(req.value.status).toBe('OPEN');
+    expect(req.value.requestedByAccountId).toBe(agentAcc.value.id);
 
-    // A stranger cannot respond; the owner can.
+    // A stranger cannot submit a response; only the applicant owner can.
     const other = await provisionAccount(db, { email: 'other-ev@example.com' });
     if (!isOk(other)) throw new Error('provision');
-    const badResp = await respondEvidence(db, {
-      actorAccountId: other.value.id,
-      requestId: req.value.id,
-      decision: 'FULFILLED',
-    });
-    expect(isErr(badResp)).toBe(true);
 
-    const resp = await respondEvidence(db, {
+    // An unsafe (quarantined) document can never close the request, even
+    // though it is the right docType: "malware/failed/unrelated evidence
+    // cannot close request" (§10).
+    const unsafeDoc = await registerDocument(db, {
+      actorAccountId: account.id,
+      applicantId,
+      originalName: 'unsafe.pdf',
+      docType: 'bank_statement',
+    });
+    if (!isOk(unsafeDoc)) throw new Error('doc');
+    await addDocumentVersion(db, {
+      actorAccountId: account.id,
+      documentId: unsafeDoc.value.id,
+      bucket: 'QUARANTINE',
+      objectKey: 'unsafe-k',
+      safetyStatus: 'QUARANTINED',
+      processingStatus: 'NEEDS_ATTENTION',
+    });
+    const badSubmit = await submitEvidenceResponse(db, {
       actorAccountId: account.id,
       requestId: req.value.id,
-      decision: 'FULFILLED',
+      documentId: unsafeDoc.value.id,
     });
-    expect(isOk(resp)).toBe(true);
-    if (isOk(resp)) expect(resp.value.status).toBe('FULFILLED');
+    expect(isErr(badSubmit)).toBe(true);
+    const stillOpen = await listEvidenceRequestsForApplicant(db, account.id, applicantId);
+    expect(stillOpen.ok && stillOpen.value[0]?.status).toBe('OPEN');
+
+    const strangerSubmit = await submitEvidenceResponse(db, {
+      actorAccountId: other.value.id,
+      requestId: req.value.id,
+      documentId: unsafeDoc.value.id,
+    });
+    expect(isErr(strangerSubmit)).toBe(true);
+
+    // A genuinely clean, processed document of the right type is accepted
+    // and moves the request to RECEIVED, never straight to ACCEPTED
+    // ("upload never equals acceptance").
+    const cleanDoc = await registerDocument(db, {
+      actorAccountId: account.id,
+      applicantId,
+      originalName: 'clean.pdf',
+      docType: 'bank_statement',
+    });
+    if (!isOk(cleanDoc)) throw new Error('doc');
+    await addDocumentVersion(db, {
+      actorAccountId: account.id,
+      documentId: cleanDoc.value.id,
+      bucket: 'CLEAN',
+      objectKey: 'clean-k',
+      safetyStatus: 'CLEAN',
+      processingStatus: 'AWAITING_REVIEW',
+    });
+    const submitted = await submitEvidenceResponse(db, {
+      actorAccountId: account.id,
+      requestId: req.value.id,
+      documentId: cleanDoc.value.id,
+    });
+    expect(isOk(submitted)).toBe(true);
+    if (!isOk(submitted)) return;
+    expect(submitted.value.status).toBe('RECEIVED');
+    expect(submitted.value.respondingDocumentId).toBe(cleanDoc.value.id);
+
+    const reviewing = await startEvidenceReview(db, {
+      actorAccountId: agentAcc.value.id,
+      requestId: req.value.id,
+    });
+    expect(isOk(reviewing)).toBe(true);
+    if (isOk(reviewing)) expect(reviewing.value.status).toBe('UNDER_REVIEW');
+
+    // The org asks for a replacement instead of accepting.
+    const needsReplacement = await decideEvidenceResponse(db, {
+      actorAccountId: agentAcc.value.id,
+      requestId: req.value.id,
+      outcome: 'NEEDS_REPLACEMENT',
+      reason: 'statement is more than 3 months old',
+    });
+    expect(isOk(needsReplacement)).toBe(true);
+    if (!isOk(needsReplacement)) return;
+    expect(needsReplacement.value.status).toBe('NEEDS_REPLACEMENT');
+    // The current pointer clears; the decision itself does not.
+    expect(needsReplacement.value.respondingDocumentId).toBeNull();
+
+    // A second, fresher document resubmitted after replacement is asked for.
+    const secondDoc = await registerDocument(db, {
+      actorAccountId: account.id,
+      applicantId,
+      originalName: 'clean-2.pdf',
+      docType: 'bank_statement',
+    });
+    if (!isOk(secondDoc)) throw new Error('doc');
+    await addDocumentVersion(db, {
+      actorAccountId: account.id,
+      documentId: secondDoc.value.id,
+      bucket: 'CLEAN',
+      objectKey: 'clean-k-2',
+      safetyStatus: 'CLEAN',
+      processingStatus: 'AWAITING_REVIEW',
+    });
+    const resubmitted = await submitEvidenceResponse(db, {
+      actorAccountId: account.id,
+      requestId: req.value.id,
+      documentId: secondDoc.value.id,
+    });
+    expect(isOk(resubmitted)).toBe(true);
+    if (isOk(resubmitted)) expect(resubmitted.value.status).toBe('RECEIVED');
+
+    const accepted = await decideEvidenceResponse(db, {
+      actorAccountId: agentAcc.value.id,
+      requestId: req.value.id,
+      outcome: 'ACCEPTED',
+    });
+    expect(isOk(accepted)).toBe(true);
+    if (isOk(accepted)) {
+      expect(accepted.value.status).toBe('ACCEPTED');
+      // ACCEPTED keeps its pointer: it is exactly what was accepted.
+      expect(accepted.value.respondingDocumentId).toBe(secondDoc.value.id);
+    }
+
+    // Replacement retained the prior decision/reason (§13): both rounds are
+    // still in the history, newest first, neither overwriting the other.
+    const history = await listEvidenceRequestDecisions(db, account.id, req.value.id);
+    expect(isOk(history)).toBe(true);
+    if (!isOk(history)) return;
+    expect(history.value).toHaveLength(2);
+    expect(history.value[0]?.outcome).toBe('ACCEPTED');
+    expect(history.value[1]?.outcome).toBe('NEEDS_REPLACEMENT');
+    expect(history.value[1]?.reason).toBe('statement is more than 3 months old');
+    // The superseded round's own decision snapshot still points at the
+    // FIRST document, even though the request's current pointer moved on.
+    expect(history.value[1]?.respondingDocumentId).toBe(cleanDoc.value.id);
+
+    // A closed request cannot be decided on again or cancelled.
+    const redecide = await decideEvidenceResponse(db, {
+      actorAccountId: agentAcc.value.id,
+      requestId: req.value.id,
+      outcome: 'NEEDS_REPLACEMENT',
+    });
+    expect(isErr(redecide)).toBe(true);
+    const cancelClosed = await cancelEvidenceRequest(db, {
+      actorAccountId: agentAcc.value.id,
+      requestId: req.value.id,
+    });
+    expect(isErr(cancelClosed)).toBe(true);
+  });
+
+  it('cancelEvidenceRequest lets the requesting org withdraw a request that no longer needs an answer', async () => {
+    const { account, applicantId } = await consentedApplicant(db, 'ev-cancel@example.com');
+    const agentAcc = await provisionAccount(db, { email: 'agent-ev-cancel@acme.com' });
+    if (!isOk(agentAcc)) throw new Error('provision');
+    const org = await createOrganization(db, { actorAccountId: agentAcc.value.id, name: 'Acme' });
+    if (!isOk(org)) throw new Error('org');
+    await activateOrg(db, org.value.id);
+    const grant = await createGrant(db, {
+      actorAccountId: account.id,
+      applicantId,
+      recipientOrganizationId: org.value.id,
+      actions: ['MANAGE'],
+      purpose: 'collaboration',
+    });
+    if (!isOk(grant)) throw new Error('grant');
+    await acceptGrant(db, { actorAccountId: agentAcc.value.id, grantId: grant.value.id });
+
+    const req = await requestEvidence(db, {
+      actorAccountId: agentAcc.value.id,
+      organizationId: org.value.id,
+      applicantId,
+      kind: 'FIELD',
+      fieldKey: 'passport.number',
+    });
+    if (!isOk(req)) throw new Error('request');
+
+    const applicantOwnerCannotCancel = await cancelEvidenceRequest(db, {
+      actorAccountId: account.id,
+      requestId: req.value.id,
+    });
+    expect(isErr(applicantOwnerCannotCancel)).toBe(true);
+
+    const cancelled = await cancelEvidenceRequest(db, {
+      actorAccountId: agentAcc.value.id,
+      requestId: req.value.id,
+      reason: 'no longer needed',
+    });
+    expect(isOk(cancelled)).toBe(true);
+    if (isOk(cancelled)) expect(cancelled.value.status).toBe('CANCELLED');
+
+    const history = await listEvidenceRequestDecisions(db, agentAcc.value.id, req.value.id);
+    expect(isOk(history)).toBe(true);
+    if (isOk(history)) {
+      expect(history.value).toHaveLength(1);
+      expect(history.value[0]?.outcome).toBe('CANCELLED');
+      expect(history.value[0]?.reason).toBe('no longer needed');
+    }
   });
 
   it('refuses further evidence requests once the anti-automation limit is hit (Build Spec §14)', async () => {

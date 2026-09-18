@@ -136,10 +136,25 @@ export const packVersionStatus = pgEnum('pack_version_status', [
   'DEPRECATED',
 ]);
 export const requirementKind = pgEnum('requirement_kind', ['FIELD', 'DOCUMENT']);
+// Commercial V1 Part 4 §10's exact state model. FULFILLED/DECLINED are
+// retired (superseded by ACCEPTED/CANCELLED respectively) but kept in the
+// enum, never removed: a value cannot be dropped from a Postgres enum
+// without a type-swap migration, and any evidence_requests row written by
+// the pre-Part-4 code may still hold one. New code never writes either.
 export const evidenceRequestStatus = pgEnum('evidence_request_status', [
   'OPEN',
+  'RECEIVED',
+  'UNDER_REVIEW',
+  'ACCEPTED',
+  'NEEDS_REPLACEMENT',
+  'CANCELLED',
   'FULFILLED',
   'DECLINED',
+]);
+export const evidenceRequestDecisionOutcome = pgEnum('evidence_request_decision_outcome', [
+  'ACCEPTED',
+  'NEEDS_REPLACEMENT',
+  'CANCELLED',
 ]);
 // --- Mission collaboration additions (master directive §7 "PR 10") ---------
 export const missionDecisionOutcome = pgEnum('mission_decision_outcome', ['ACCEPTED', 'REJECTED']);
@@ -1320,7 +1335,16 @@ export const missionNotes = pgTable(
   (table) => [index('mission_notes_mission_idx').on(table.missionId)],
 );
 
-// An org asks an applicant for a specific field or document type.
+// An org asks an applicant for a specific field or document type
+// (Commercial V1 Part 4 §10). `missionId`/`packRequirementId`/`dueDate`
+// stay nullable rather than required: an org whose only grant on this
+// applicant is unscoped (applicant-wide, not mission-scoped) has always
+// been able to raise a request with neither (`orgGrantPermits` itself
+// treats an omitted mission as "applicant-wide"), a real, intentional
+// capability this migration does not remove. When a mission IS named, it
+// is now genuinely persisted (previously used only to check the grant,
+// then discarded), so the request can actually be shown as belonging to
+// that case, matching §10's "case" field.
 export const evidenceRequests = pgTable(
   'evidence_requests',
   {
@@ -1331,15 +1355,77 @@ export const evidenceRequests = pgTable(
     applicantId: uuid('applicant_id')
       .notNull()
       .references(() => applicants.id, { onDelete: 'cascade' }),
+    missionId: uuid('mission_id').references(() => missions.id, { onDelete: 'cascade' }),
+    packRequirementId: uuid('pack_requirement_id').references(() => packRequirements.id, {
+      onDelete: 'set null',
+    }),
+    // Nullable, not because a new request can omit it (the service layer
+    // always sets it), but because a pre-existing row from before this
+    // column existed has no requester to backfill.
+    requestedByAccountId: uuid('requested_by_account_id').references(() => accounts.id, {
+      onDelete: 'set null',
+    }),
     kind: requirementKind('kind').notNull(),
     fieldKey: text('field_key'),
     docType: text('doc_type'),
     message: text('message'),
+    dueDate: timestamp('due_date', { withTimezone: true }),
     status: evidenceRequestStatus('status').notNull().default('OPEN'),
+    // The fact/document instance the applicant submitted in response,
+    // exactly one at a time, enforced by the check constraint below.
+    // Cleared (never left dangling) on a NEEDS_REPLACEMENT decision, since
+    // the linked evidence is no longer what the request is currently
+    // awaiting; the immutable decision history below is what actually
+    // "retains prior decision/reason" (§13's exact wording), not this
+    // current-state pointer.
+    respondingFactId: uuid('responding_fact_id').references(() => facts.id, {
+      onDelete: 'set null',
+    }),
+    respondingDocumentId: uuid('responding_document_id').references(() => documents.id, {
+      onDelete: 'set null',
+    }),
     respondedAt: timestamp('responded_at', { withTimezone: true }),
     ...timestamps,
   },
-  (table) => [index('evidence_requests_applicant_idx').on(table.applicantId)],
+  (table) => [
+    index('evidence_requests_applicant_idx').on(table.applicantId),
+    index('evidence_requests_mission_idx').on(table.missionId),
+    check(
+      'evidence_requests_at_most_one_response_target',
+      sql`NOT (${table.respondingFactId} is not null AND ${table.respondingDocumentId} is not null)`,
+    ),
+  ],
+);
+
+// Append-only decision history on an evidence request (mirrors
+// `missionDecisions`' own pattern exactly): the current decision is the
+// latest row for a given evidenceRequestId. `respondingFactId`/
+// `respondingDocumentId` are an immutable SNAPSHOT of what was actually
+// being decided on at that moment, independent of the parent request's own
+// current pointer (which a later NEEDS_REPLACEMENT decision clears); this
+// is what makes "replacement retains prior decision/reason" (Part 4 §13)
+// genuinely true rather than only true until the next submission overwrites it.
+export const evidenceRequestDecisions = pgTable(
+  'evidence_request_decisions',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    evidenceRequestId: uuid('evidence_request_id')
+      .notNull()
+      .references(() => evidenceRequests.id, { onDelete: 'cascade' }),
+    outcome: evidenceRequestDecisionOutcome('outcome').notNull(),
+    reason: text('reason'),
+    respondingFactId: uuid('responding_fact_id').references(() => facts.id, {
+      onDelete: 'set null',
+    }),
+    respondingDocumentId: uuid('responding_document_id').references(() => documents.id, {
+      onDelete: 'set null',
+    }),
+    decidedByAccountId: uuid('decided_by_account_id')
+      .notNull()
+      .references(() => accounts.id, { onDelete: 'restrict' }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index('evidence_request_decisions_request_idx').on(table.evidenceRequestId)],
 );
 
 // A mission owner's explicit choice of which fact/document instance

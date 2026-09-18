@@ -5,8 +5,10 @@ import {
   addMembership,
   addNote,
   assignMember,
+  cancelEvidenceRequest,
   createClientInvitation,
   createOrganizationInvitation,
+  decideEvidenceResponse,
   getAccountByEmail,
   listSelectedEvidenceForOrg,
   recordIssuerVerification,
@@ -15,6 +17,7 @@ import {
   revokeClientInvitation,
   revokeOrganizationInvitation,
   setMembershipActive,
+  startEvidenceReview,
 } from '@visastack/services';
 import { revalidatePath } from 'next/cache';
 import { resolveBaseUrl } from '../../../../lib/base-url';
@@ -71,6 +74,11 @@ export async function requestEvidenceAction(
   const kind = String(formData.get('kind') ?? '') === 'DOCUMENT' ? 'DOCUMENT' : 'FIELD';
   const key = String(formData.get('key') ?? '').trim();
   const message = String(formData.get('message') ?? '').trim();
+  const dueDateRaw = String(formData.get('dueDate') ?? '').trim();
+  const dueDate = dueDateRaw.length > 0 ? new Date(dueDateRaw) : undefined;
+  if (dueDate && Number.isNaN(dueDate.getTime())) {
+    return { ok: false, message: 'Enter a valid due date.' };
+  }
 
   if (applicantId.length === 0) return { ok: false, message: 'Enter the applicant ID.' };
   if (key.length === 0) {
@@ -94,11 +102,91 @@ export async function requestEvidenceAction(
       // even though `listApplicantsForOrganization` correctly surfaces the
       // applicant (Codex review, PR #65).
       ...(missionId.length > 0 ? { missionId } : {}),
+      ...(dueDate ? { dueDate } : {}),
     });
     if (!requested.ok) return { ok: false, message: requested.error.message } satisfies ActionState;
     return { ok: true, message: 'Evidence request sent.' } satisfies ActionState;
   });
 
+  if (result.ok) revalidatePath(`/app/agency/${organizationId}`);
+  return result;
+}
+
+/** Org member marks a RECEIVED request as UNDER_REVIEW (workflow visibility only). */
+export async function startEvidenceReviewAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const gate = requireAgencyCollaboration();
+  if (gate) return gate;
+
+  const organizationId = String(formData.get('organizationId') ?? '');
+  const requestId = String(formData.get('requestId') ?? '');
+  const result = await withSession(async ({ db, accountId }) => {
+    const started = await startEvidenceReview(db, { actorAccountId: accountId, requestId });
+    if (!started.ok) return { ok: false, message: started.error.message } satisfies ActionState;
+    return { ok: true, message: 'Marked under review.' } satisfies ActionState;
+  });
+  if (result.ok) revalidatePath(`/app/agency/${organizationId}`);
+  return result;
+}
+
+/** Org member accepts what was submitted, or asks for a replacement, with an optional reason. */
+export async function decideEvidenceResponseAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const gate = requireAgencyCollaboration();
+  if (gate) return gate;
+
+  const organizationId = String(formData.get('organizationId') ?? '');
+  const requestId = String(formData.get('requestId') ?? '');
+  const outcomeRaw = String(formData.get('outcome') ?? '');
+  const outcome =
+    outcomeRaw === 'ACCEPTED' || outcomeRaw === 'NEEDS_REPLACEMENT' ? outcomeRaw : null;
+  const reason = String(formData.get('reason') ?? '').trim();
+  if (!outcome) return { ok: false, message: 'Choose accept or needs replacement.' };
+  if (outcome === 'NEEDS_REPLACEMENT' && reason.length === 0) {
+    return { ok: false, message: 'Explain what needs to be replaced.' };
+  }
+
+  const result = await withSession(async ({ db, accountId }) => {
+    const decided = await decideEvidenceResponse(db, {
+      actorAccountId: accountId,
+      requestId,
+      outcome,
+      ...(reason.length > 0 ? { reason } : {}),
+    });
+    if (!decided.ok) return { ok: false, message: decided.error.message } satisfies ActionState;
+    return {
+      ok: true,
+      message: outcome === 'ACCEPTED' ? 'Accepted.' : 'Replacement requested.',
+    } satisfies ActionState;
+  });
+  if (result.ok) revalidatePath(`/app/agency/${organizationId}`);
+  return result;
+}
+
+/** Org member withdraws a request that no longer needs an answer. */
+export async function cancelEvidenceRequestAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const gate = requireAgencyCollaboration();
+  if (gate) return gate;
+
+  const organizationId = String(formData.get('organizationId') ?? '');
+  const requestId = String(formData.get('requestId') ?? '');
+  const reason = String(formData.get('reason') ?? '').trim();
+  const result = await withSession(async ({ db, accountId }) => {
+    const cancelled = await cancelEvidenceRequest(db, {
+      actorAccountId: accountId,
+      requestId,
+      ...(reason.length > 0 ? { reason } : {}),
+    });
+    if (!cancelled.ok) return { ok: false, message: cancelled.error.message } satisfies ActionState;
+    return { ok: true, message: 'Request cancelled.' } satisfies ActionState;
+  });
   if (result.ok) revalidatePath(`/app/agency/${organizationId}`);
   return result;
 }

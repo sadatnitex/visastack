@@ -11,6 +11,8 @@ import { authorize } from '@visastack/policy';
 import { and, eq, gt, isNotNull, isNull, lte, or } from 'drizzle-orm';
 import { appendAuditEvent } from './audit';
 import { type Db, first, required, schema } from './db';
+import { isDocumentVersionUsable } from './documents';
+import { activeOrVerifiedErasureStorageObjectIds } from './erasure';
 import { type ServiceError, serviceError } from './errors';
 import { isOrgAdmin } from './organizations';
 import { type PackRequirement, listRequirements } from './packs';
@@ -33,6 +35,39 @@ import { loadGrantsForPolicy } from './sharing';
 export type Assignment = typeof schema.assignments.$inferSelect;
 export type MissionNote = typeof schema.missionNotes.$inferSelect;
 export type EvidenceRequest = typeof schema.evidenceRequests.$inferSelect;
+export type EvidenceRequestDecision = typeof schema.evidenceRequestDecisions.$inferSelect;
+
+/**
+ * Whether a document's CURRENT (highest version-numbered) version is
+ * currently safe, fully processed, and unerased: the exact gate Commercial
+ * V1 Part 4 §10 means by "upload can move to RECEIVED only after safe
+ * processing" and "malware/failed/unrelated evidence cannot close a
+ * request." Mirrors `missions.ts`'s own `loadDocumentInstancesByType`
+ * query/eligibility logic (the same canonical definition of "usable"), just
+ * scoped to one document instead of bulk-loading an applicant's whole set.
+ */
+async function documentIsUsable(db: Db, documentId: string): Promise<boolean> {
+  const versions = await db
+    .select({
+      versionNumber: schema.documentVersions.versionNumber,
+      safetyStatus: schema.documentVersions.safetyStatus,
+      processingStatus: schema.documentVersions.processingStatus,
+      storageObjectId: schema.documentVersions.storageObjectId,
+    })
+    .from(schema.documentVersions)
+    .where(eq(schema.documentVersions.documentId, documentId));
+  const latest = versions.reduce<(typeof versions)[number] | undefined>(
+    (best, row) => (!best || row.versionNumber > best.versionNumber ? row : best),
+    undefined,
+  );
+  if (!latest) return false;
+  const erased = await activeOrVerifiedErasureStorageObjectIds(db, [latest.storageObjectId]);
+  return isDocumentVersionUsable({
+    safetyStatus: latest.safetyStatus,
+    processingStatus: latest.processingStatus,
+    erased: erased.has(latest.storageObjectId),
+  });
+}
 
 /**
  * True if the organization holds at least one grant for `applicantId` that,
@@ -608,9 +643,14 @@ export async function requestEvidence(
      * can match it — an unscoped check against a mission-scoped grant always
      * fails `scope_mismatch` (docs/audits/post-programme-defect-register.md
      * finding #6), silently rejecting evidence requests the org's real grant
-     * should permit.
+     * should permit. Also, when given, now genuinely persisted as the
+     * request's own "case" (Commercial V1 Part 4 §10), not just used for
+     * this one check and discarded.
      */
     readonly missionId?: string;
+    /** The specific pack requirement this request is for, if any (§10: "requirement if applicable"). Requires `missionId`, and must belong to that mission's own attached pack version. */
+    readonly packRequirementId?: string;
+    readonly dueDate?: Date;
   },
 ): Promise<Result<EvidenceRequest, ServiceError>> {
   if (!(await isOrgAdmin(db, input.actorAccountId, input.organizationId))) {
@@ -632,6 +672,40 @@ export async function requestEvidence(
       serviceError('forbidden', 'this organization has no current grant for that applicant'),
     );
   }
+  if (input.packRequirementId) {
+    if (!input.missionId) {
+      return err(serviceError('invalid', 'a requirement-linked request must name its mission'));
+    }
+    const mission = first(
+      await db
+        .select()
+        .from(schema.missions)
+        .where(eq(schema.missions.id, input.missionId))
+        .limit(1),
+    );
+    if (!mission || mission.applicantId !== input.applicantId) {
+      return err(serviceError('not_found', 'mission not found for this applicant'));
+    }
+    const requirement = first(
+      await db
+        .select({ id: schema.packRequirements.id })
+        .from(schema.packRequirements)
+        .where(
+          and(
+            eq(schema.packRequirements.id, input.packRequirementId),
+            mission.packVersionId
+              ? eq(schema.packRequirements.packVersionId, mission.packVersionId)
+              : undefined,
+          ),
+        )
+        .limit(1),
+    );
+    if (!requirement) {
+      return err(
+        serviceError('not_found', "requirement not found on this mission's attached pack"),
+      );
+    }
+  }
 
   const rateLimit = await checkRateLimit(
     db,
@@ -648,10 +722,14 @@ export async function requestEvidence(
           .values({
             organizationId: input.organizationId,
             applicantId: input.applicantId,
+            missionId: input.missionId ?? null,
+            packRequirementId: input.packRequirementId ?? null,
+            requestedByAccountId: input.actorAccountId,
             kind: input.kind,
             fieldKey: input.fieldKey ?? null,
             docType: input.docType ?? null,
             message: input.message ?? null,
+            dueDate: input.dueDate ?? null,
           })
           .returning(),
       ),
@@ -772,20 +850,16 @@ export async function listApplicantsForOrganization(
   return rows;
 }
 
-/** The applicant owner responds to an evidence request. */
-export async function respondEvidence(
+async function loadEvidenceRequestForOwner(
   db: Db,
-  input: {
-    readonly actorAccountId: string;
-    readonly requestId: string;
-    readonly decision: 'FULFILLED' | 'DECLINED';
-  },
+  actorAccountId: string,
+  requestId: string,
 ): Promise<Result<EvidenceRequest, ServiceError>> {
   const request = first(
     await db
       .select()
       .from(schema.evidenceRequests)
-      .where(eq(schema.evidenceRequests.id, input.requestId))
+      .where(eq(schema.evidenceRequests.id, requestId))
       .limit(1),
   );
   if (!request) return err(serviceError('not_found', 'evidence request not found'));
@@ -796,17 +870,144 @@ export async function respondEvidence(
       .where(eq(schema.applicants.id, request.applicantId))
       .limit(1),
   );
-  if (!applicant || applicant.ownerAccountId !== input.actorAccountId) {
+  if (!applicant || applicant.ownerAccountId !== actorAccountId) {
     return err(serviceError('forbidden', 'only the applicant owner can respond'));
   }
-  if (request.status !== 'OPEN') return err(serviceError('invalid', 'request is not open'));
+  return ok(request);
+}
+
+/** The requesting org's current standing to act on a request (org OWNER/ADMIN, MANAGE grant covering the request's mission/applicant). */
+async function loadEvidenceRequestForOrg(
+  db: Db,
+  actorAccountId: string,
+  requestId: string,
+): Promise<Result<EvidenceRequest, ServiceError>> {
+  const request = first(
+    await db
+      .select()
+      .from(schema.evidenceRequests)
+      .where(eq(schema.evidenceRequests.id, requestId))
+      .limit(1),
+  );
+  if (!request) return err(serviceError('not_found', 'evidence request not found'));
+  if (!(await isOrgAdmin(db, actorAccountId, request.organizationId))) {
+    return err(serviceError('forbidden', 'only an org OWNER/ADMIN can act on this request'));
+  }
+  if (
+    !(await orgGrantPermits(
+      db,
+      request.organizationId,
+      request.applicantId,
+      'MANAGE',
+      request.missionId ?? undefined,
+    ))
+  ) {
+    return err(
+      serviceError('forbidden', 'this organization has no current grant for that applicant'),
+    );
+  }
+  return ok(request);
+}
+
+const AWAITING_SUBMISSION_STATUSES: ReadonlySet<string> = new Set(['OPEN', 'NEEDS_REPLACEMENT']);
+
+/**
+ * The applicant owner submits a fact or document they already hold, a fresh
+ * upload or explicit wallet reuse (Commercial V1 Part 4 §10 explicitly
+ * allows both), as the response to a request. This is the ONLY way a request
+ * moves toward RECEIVED, and only when the linked evidence is genuinely
+ * usable right now: a still-processing, quarantined/unsafe, failed, or
+ * erased document is refused outright, never silently accepted ("upload can
+ * move to RECEIVED only after safe processing"; "malware/failed/unrelated
+ * evidence cannot close a request"). A FIELD request has no such processing
+ * concept (a fact is just data), so only the DOCUMENT branch checks
+ * usability. Reachable from OPEN (first submission) or NEEDS_REPLACEMENT (a
+ * resubmission after the org asked for something else); the prior round's
+ * decision stays intact in `evidenceRequestDecisions`, untouched by this.
+ */
+export async function submitEvidenceResponse(
+  db: Db,
+  input: {
+    readonly actorAccountId: string;
+    readonly requestId: string;
+    readonly factId?: string;
+    readonly documentId?: string;
+  },
+): Promise<Result<EvidenceRequest, ServiceError>> {
+  const loaded = await loadEvidenceRequestForOwner(db, input.actorAccountId, input.requestId);
+  if (!loaded.ok) return loaded;
+  const request = loaded.value;
+  if (!AWAITING_SUBMISSION_STATUSES.has(request.status)) {
+    return err(serviceError('invalid', 'this request is not awaiting a submission'));
+  }
+
+  if (request.kind === 'FIELD') {
+    if (!input.factId || input.documentId) {
+      return err(serviceError('invalid', 'a FIELD request is satisfied by exactly one factId'));
+    }
+    const fact = first(
+      await db
+        .select({
+          applicantId: schema.facts.applicantId,
+          fieldKey: schema.fieldDefinitions.key,
+        })
+        .from(schema.facts)
+        .innerJoin(
+          schema.fieldDefinitions,
+          eq(schema.fieldDefinitions.id, schema.facts.fieldDefinitionId),
+        )
+        .where(eq(schema.facts.id, input.factId))
+        .limit(1),
+    );
+    if (!fact || fact.applicantId !== request.applicantId) {
+      return err(serviceError('not_found', 'fact not found for this applicant'));
+    }
+    if (fact.fieldKey !== request.fieldKey) {
+      return err(serviceError('invalid', "this fact does not match the request's field"));
+    }
+  } else {
+    if (!input.documentId || input.factId) {
+      return err(
+        serviceError('invalid', 'a DOCUMENT request is satisfied by exactly one documentId'),
+      );
+    }
+    const document = first(
+      await db
+        .select({ applicantId: schema.documents.applicantId, docType: schema.documents.docType })
+        .from(schema.documents)
+        .where(eq(schema.documents.id, input.documentId))
+        .limit(1),
+    );
+    if (!document || document.applicantId !== request.applicantId) {
+      return err(serviceError('not_found', 'document not found for this applicant'));
+    }
+    if (document.docType !== request.docType) {
+      return err(
+        serviceError('invalid', "this document does not match the request's document type"),
+      );
+    }
+    if (!(await documentIsUsable(db, input.documentId))) {
+      return err(
+        serviceError(
+          'invalid',
+          'this document has not finished safety processing, or failed it, and cannot be submitted yet',
+        ),
+      );
+    }
+  }
 
   return db.transaction(async (tx) => {
     const updated = required(
       first(
         await tx
           .update(schema.evidenceRequests)
-          .set({ status: input.decision, respondedAt: new Date(), updatedAt: new Date() })
+          .set({
+            status: 'RECEIVED',
+            respondingFactId: input.factId ?? null,
+            respondingDocumentId: input.documentId ?? null,
+            respondedAt: new Date(),
+            updatedAt: new Date(),
+          })
           .where(eq(schema.evidenceRequests.id, input.requestId))
           .returning(),
       ),
@@ -820,10 +1021,192 @@ export async function respondEvidence(
       applicantId: request.applicantId,
       resourceType: 'evidence_request',
       resourceId: updated.id,
-      metadata: { decision: input.decision },
+      metadata: { factId: input.factId, documentId: input.documentId },
     });
     return ok(updated);
   });
+}
+
+/** Optional, lightweight RECEIVED -> UNDER_REVIEW marker (org, MANAGE-grant-gated): mainly workflow visibility, never a prerequisite for a decision. */
+export async function startEvidenceReview(
+  db: Db,
+  input: { readonly actorAccountId: string; readonly requestId: string },
+): Promise<Result<EvidenceRequest, ServiceError>> {
+  const loaded = await loadEvidenceRequestForOrg(db, input.actorAccountId, input.requestId);
+  if (!loaded.ok) return loaded;
+  if (loaded.value.status !== 'RECEIVED') {
+    return err(serviceError('invalid', 'only a RECEIVED request can start review'));
+  }
+  const updated = required(
+    first(
+      await db
+        .update(schema.evidenceRequests)
+        .set({ status: 'UNDER_REVIEW', updatedAt: new Date() })
+        .where(eq(schema.evidenceRequests.id, input.requestId))
+        .returning(),
+    ),
+    'evidence request',
+  );
+  return ok(updated);
+}
+
+const DECIDABLE_STATUSES: ReadonlySet<string> = new Set(['RECEIVED', 'UNDER_REVIEW']);
+
+/**
+ * The requesting org accepts what was submitted, or asks for a replacement
+ * (org, MANAGE-grant-gated). Every decision is appended to
+ * `evidenceRequestDecisions`, an immutable snapshot of exactly what was
+ * being decided on, so a later NEEDS_REPLACEMENT round, which clears the
+ * request's own current responding pointers to make room for the next
+ * submission, never loses this one's reason (Part 4 §13: "replacement
+ * retains prior decision/reason").
+ */
+export async function decideEvidenceResponse(
+  db: Db,
+  input: {
+    readonly actorAccountId: string;
+    readonly requestId: string;
+    readonly outcome: 'ACCEPTED' | 'NEEDS_REPLACEMENT';
+    readonly reason?: string;
+  },
+): Promise<Result<EvidenceRequest, ServiceError>> {
+  const loaded = await loadEvidenceRequestForOrg(db, input.actorAccountId, input.requestId);
+  if (!loaded.ok) return loaded;
+  const request = loaded.value;
+  if (!DECIDABLE_STATUSES.has(request.status)) {
+    return err(serviceError('invalid', 'this request has nothing submitted to decide on yet'));
+  }
+
+  return db.transaction(async (tx) => {
+    await tx.insert(schema.evidenceRequestDecisions).values({
+      evidenceRequestId: request.id,
+      outcome: input.outcome,
+      reason: input.reason ?? null,
+      respondingFactId: request.respondingFactId,
+      respondingDocumentId: request.respondingDocumentId,
+      decidedByAccountId: input.actorAccountId,
+    });
+    const updated = required(
+      first(
+        await tx
+          .update(schema.evidenceRequests)
+          .set({
+            status: input.outcome,
+            // Cleared on NEEDS_REPLACEMENT: this pointer means "what's
+            // currently under consideration," which is nothing again until
+            // the applicant submits a fresh response. ACCEPTED keeps its
+            // pointer: it's exactly what was accepted.
+            ...(input.outcome === 'NEEDS_REPLACEMENT'
+              ? { respondingFactId: null, respondingDocumentId: null }
+              : {}),
+            updatedAt: new Date(),
+          })
+          .where(eq(schema.evidenceRequests.id, request.id))
+          .returning(),
+      ),
+      'evidence request',
+    );
+    await appendAuditEvent(tx, {
+      eventType: 'EVIDENCE_REQUEST_DECIDED',
+      actorAccountId: input.actorAccountId,
+      method: 'MANUAL',
+      result: 'ALLOWED',
+      applicantId: request.applicantId,
+      resourceType: 'evidence_request',
+      resourceId: request.id,
+      metadata: { outcome: input.outcome },
+    });
+    return ok(updated);
+  });
+}
+
+/** The requesting org withdraws a request that no longer needs an answer (org, MANAGE-grant-gated). Terminal; matches the applicant owner's own respondEvidence-era DECLINED intent, but as the requester's own act, not the applicant's. */
+export async function cancelEvidenceRequest(
+  db: Db,
+  input: { readonly actorAccountId: string; readonly requestId: string; readonly reason?: string },
+): Promise<Result<EvidenceRequest, ServiceError>> {
+  const loaded = await loadEvidenceRequestForOrg(db, input.actorAccountId, input.requestId);
+  if (!loaded.ok) return loaded;
+  const request = loaded.value;
+  if (request.status === 'CANCELLED' || request.status === 'ACCEPTED') {
+    return err(serviceError('invalid', 'this request is already closed'));
+  }
+
+  return db.transaction(async (tx) => {
+    await tx.insert(schema.evidenceRequestDecisions).values({
+      evidenceRequestId: request.id,
+      outcome: 'CANCELLED',
+      reason: input.reason ?? null,
+      respondingFactId: request.respondingFactId,
+      respondingDocumentId: request.respondingDocumentId,
+      decidedByAccountId: input.actorAccountId,
+    });
+    const updated = required(
+      first(
+        await tx
+          .update(schema.evidenceRequests)
+          .set({ status: 'CANCELLED', updatedAt: new Date() })
+          .where(eq(schema.evidenceRequests.id, request.id))
+          .returning(),
+      ),
+      'evidence request',
+    );
+    await appendAuditEvent(tx, {
+      eventType: 'EVIDENCE_REQUEST_CANCELLED',
+      actorAccountId: input.actorAccountId,
+      method: 'MANUAL',
+      result: 'ALLOWED',
+      applicantId: request.applicantId,
+      resourceType: 'evidence_request',
+      resourceId: request.id,
+    });
+    return ok(updated);
+  });
+}
+
+/** Full decision history on a request, newest first: the applicant owner or the requesting org's currently-standing member. */
+export async function listEvidenceRequestDecisions(
+  db: Db,
+  actorAccountId: string,
+  requestId: string,
+): Promise<Result<EvidenceRequestDecision[], ServiceError>> {
+  const request = first(
+    await db
+      .select()
+      .from(schema.evidenceRequests)
+      .where(eq(schema.evidenceRequests.id, requestId))
+      .limit(1),
+  );
+  if (!request) return err(serviceError('not_found', 'evidence request not found'));
+
+  const applicant = first(
+    await db
+      .select()
+      .from(schema.applicants)
+      .where(eq(schema.applicants.id, request.applicantId))
+      .limit(1),
+  );
+  const isOwner = applicant?.ownerAccountId === actorAccountId;
+  const isAuthorizedOrgMember =
+    !isOwner &&
+    (await isOrgAdmin(db, actorAccountId, request.organizationId)) &&
+    (await orgGrantPermits(
+      db,
+      request.organizationId,
+      request.applicantId,
+      'MANAGE',
+      request.missionId ?? undefined,
+    ));
+  if (!isOwner && !isAuthorizedOrgMember) {
+    return err(serviceError('forbidden', 'not authorized to view this request'));
+  }
+
+  const rows = await db
+    .select()
+    .from(schema.evidenceRequestDecisions)
+    .where(eq(schema.evidenceRequestDecisions.evidenceRequestId, requestId));
+  const sorted = [...rows].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+  return ok(sorted);
 }
 
 export interface BulkExportRow {
