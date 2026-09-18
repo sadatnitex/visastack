@@ -33,12 +33,15 @@ item gets its own requirements-ledger row once classified against the new direct
    deleting the 9 archived branches externally, then a redeploy of the same commit that had
    just failed getting past provisioning cleanly (install completed, buildCommand started).
    See item 36 for the second, distinct issue that redeploy then surfaced.
-4. `pnpm audit --dev` reports 6 findings (1 critical, 1 high, 4 moderate), all rooted in
-   `vitest@2.1.9` / `vite@6.4.x` / `esbuild`, none shipped in the production bundle.
-   `pnpm audit --prod` is reported clean by the prior engagement; this session re-runs its own
-   audit rather than relying solely on that claim (see `test-evidence.md`). Fixing the dev
-   findings requires a major `vitest` version bump across the monorepo, deliberately deferred
-   by the prior engagement as out of scope for its own PR.
+4. `pnpm audit --dev` reports 8 findings as of the Part 3 checkpoint re-run (1 critical, 1 high,
+   6 moderate; originally 6 findings/4 moderate at Part 1's baseline, 2 new moderate advisories
+   published against the same chain since), all rooted in `vitest@2.1.9` / `vite@6.4.x` /
+   `esbuild`, none shipped in the production bundle. `pnpm audit --prod` remains clean, re-run
+   fresh at every checkpoint rather than assumed to still hold (see `test-evidence.md`). Fixing
+   the dev findings requires a major `vitest` version bump across the monorepo, deliberately
+   deferred by the prior engagement as out of scope for its own PR, and still deferred here for
+   the same reason (no production impact, a monorepo-wide test-runner upgrade is real work
+   deserving its own change, not a drive-by inside a Part 3 checkpoint).
 5. AI provider wiring is OpenAI-only, confirmed this session by reading
    `apps/web/src/lib/ai.ts`: `createAiExtractor` explicitly returns `undefined` for any
    `AI_PROVIDER` other than `openai` ("only the OpenAI adapter exists so far"), and
