@@ -563,3 +563,18 @@ export {
   previewOrganizationInvitation,
   revokeOrganizationInvitation,
 } from './invitations';
+
+export {
+  type AcceptClientInvitationInput,
+  type AcceptedClientInvitation,
+  type ApplicantChoice,
+  type ClientInvitation,
+  type ClientInvitationPreview,
+  type CreateClientInvitationInput,
+  type CreatedClientInvitation,
+  acceptClientInvitation,
+  createClientInvitation,
+  listClientInvitations,
+  previewClientInvitation,
+  revokeClientInvitation,
+} from './client-invitations';

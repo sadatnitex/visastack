@@ -68,6 +68,11 @@ export const organizationInvitationStatus = pgEnum('organization_invitation_stat
   'ACCEPTED',
   'REVOKED',
 ]);
+export const clientInvitationStatus = pgEnum('client_invitation_status', [
+  'PENDING',
+  'ACCEPTED',
+  'REVOKED',
+]);
 export const applicantRelationship = pgEnum('applicant_relationship', [
   'SELF',
   'FAMILY_MEMBER',
@@ -251,6 +256,46 @@ export const organizationInvitations = pgTable(
     index('org_invitations_org_status_idx').on(table.organizationId, table.status),
     index('org_invitations_email_status_idx').on(table.email, table.status),
   ],
+);
+
+// --- Client invitations (Commercial V1 Part 4 §6, IAM-03: an agency invites a
+// traveller). Deliberately never checked against an existing account at
+// creation OR keyed by email at acceptance (unlike organizationInvitations,
+// which is): PRD IAM-03 explicitly forbids "claim an existing wallet" and
+// "expose whether email already has VisaStack account" -- so acceptance is
+// gated purely on holding the token plus being authenticated as ANY
+// account, never on an email match, the only design that cannot leak
+// account-existence information back to the inviting agency. The agency
+// supplies only a minimal display name/contact/route/case-owner; the
+// accepting traveller alone chooses which of their own applicant profiles
+// (existing or newly created) the resulting grant and mission attach to.
+export const clientInvitations = pgTable(
+  'client_invitations',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    organizationId: uuid('organization_id')
+      .notNull()
+      .references(() => organizations.id, { onDelete: 'cascade' }),
+    caseOwnerAccountId: uuid('case_owner_account_id')
+      .notNull()
+      .references(() => accounts.id),
+    displayName: text('display_name').notNull(),
+    contactDestination: text('contact_destination').notNull(),
+    requestedRoute: text('requested_route'),
+    tokenHash: text('token_hash').notNull().unique(),
+    status: clientInvitationStatus('status').notNull().default('PENDING'),
+    invitedByAccountId: uuid('invited_by_account_id')
+      .notNull()
+      .references(() => accounts.id),
+    acceptedByAccountId: uuid('accepted_by_account_id').references(() => accounts.id),
+    acceptedApplicantId: uuid('accepted_applicant_id').references(() => applicants.id),
+    acceptedMissionId: uuid('accepted_mission_id').references(() => missions.id),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    acceptedAt: timestamp('accepted_at', { withTimezone: true }),
+    revokedAt: timestamp('revoked_at', { withTimezone: true }),
+    ...timestamps,
+  },
+  (table) => [index('client_invitations_org_status_idx').on(table.organizationId, table.status)],
 );
 
 // --- Consent records (separate consent per purpose) ------------------------

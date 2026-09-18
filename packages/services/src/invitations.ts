@@ -1,4 +1,3 @@
-import { createHash, randomBytes } from 'node:crypto';
 import type { MembershipRole } from '@visastack/core';
 import { type Result, err, ok } from '@visastack/core';
 import { and, desc, eq } from 'drizzle-orm';
@@ -6,6 +5,7 @@ import { getAccountByEmail } from './accounts';
 import { appendAuditEvent } from './audit';
 import { type Db, first, required, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
+import { generateInvitationToken, hashInvitationToken } from './invitation-tokens';
 import { isOrgAdmin } from './organizations';
 
 /**
@@ -30,12 +30,7 @@ import { isOrgAdmin } from './organizations';
 export type OrganizationInvitation = typeof schema.organizationInvitations.$inferSelect;
 export type Membership = typeof schema.memberships.$inferSelect;
 
-const TOKEN_BYTES = 32;
 const DEFAULT_EXPIRY_DAYS = 7;
-
-function hashToken(rawToken: string): string {
-  return createHash('sha256').update(rawToken).digest('hex');
-}
 
 export interface CreateOrganizationInvitationInput {
   readonly actorAccountId: string;
@@ -71,8 +66,8 @@ export async function createOrganizationInvitation(
     );
   }
 
-  const rawToken = randomBytes(TOKEN_BYTES).toString('base64url');
-  const tokenHash = hashToken(rawToken);
+  const rawToken = generateInvitationToken();
+  const tokenHash = hashInvitationToken(rawToken);
   const expiresAt = new Date(Date.now() + DEFAULT_EXPIRY_DAYS * 24 * 60 * 60 * 1000);
 
   return db.transaction(async (tx) => {
@@ -140,7 +135,7 @@ export async function previewOrganizationInvitation(
   db: Db,
   input: { readonly rawToken: string; readonly actorEmail: string },
 ): Promise<Result<OrganizationInvitationPreview, ServiceError>> {
-  const tokenHash = hashToken(input.rawToken);
+  const tokenHash = hashInvitationToken(input.rawToken);
   const row = first(
     await db
       .select({
@@ -196,7 +191,7 @@ export async function acceptOrganizationInvitation(
   db: Db,
   input: AcceptOrganizationInvitationInput,
 ): Promise<Result<AcceptedOrganizationInvitation, ServiceError>> {
-  const tokenHash = hashToken(input.rawToken);
+  const tokenHash = hashInvitationToken(input.rawToken);
   const invitation = first(
     await db
       .select()
