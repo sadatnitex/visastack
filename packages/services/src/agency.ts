@@ -4,11 +4,12 @@ import type {
   ApplicantId,
   DocumentId,
   MissionId,
+  MissionState,
   PermissionAction,
 } from '@visastack/core';
 import { type Result, err, ok } from '@visastack/core';
 import { authorize } from '@visastack/policy';
-import { and, eq, gt, isNotNull, isNull, lte, or } from 'drizzle-orm';
+import { and, eq, gt, inArray, isNotNull, isNull, lte, or } from 'drizzle-orm';
 import { appendAuditEvent } from './audit';
 import { type Db, first, required, schema } from './db';
 import { isDocumentVersionUsable } from './documents';
@@ -329,6 +330,27 @@ export async function listAssignmentsDetailed(
   return rows.map((row) => ({ ...row, createdAt: row.createdAt.toISOString() }));
 }
 
+export type OrgVisibleTask = typeof schema.missionTasks.$inferSelect;
+
+/**
+ * Tasks on a mission, org-read-scoped exactly like `listNotes`/
+ * `listAssignmentsDetailed` above (`canReadMissionCollaboration`: COMMENT or
+ * MANAGE). CAS-02's workspace rollup needs a real "overdue tasks" signal,
+ * which needs this to exist at all -- this is currently the ONLY org-facing
+ * task read path; creating, assigning, or completing a task remains
+ * applicant-owner-only (`missions.ts`'s `ownedMission`), a CAS-04 write-side
+ * gap this chunk does not close (tracked in `known-issues.md`).
+ */
+export async function listTasksForOrg(
+  db: Db,
+  organizationId: string,
+  applicantId: string,
+  missionId: string,
+): Promise<OrgVisibleTask[]> {
+  if (!(await canReadMissionCollaboration(db, organizationId, applicantId, missionId))) return [];
+  return db.select().from(schema.missionTasks).where(eq(schema.missionTasks.missionId, missionId));
+}
+
 /** A mission this org can act on (a grant naming it), for the collaboration console. */
 export interface OrgMission {
   readonly missionId: string;
@@ -386,6 +408,97 @@ export async function listMissionsForOrganization(
     applicantId,
     applicantName,
   }));
+}
+
+/** A case as the org console's workspace/search view needs it (CAS-02): enough to filter and summarize, never any wallet content. */
+export interface OrgCaseSummary {
+  readonly missionId: string;
+  readonly applicantId: string;
+  readonly applicantName: string;
+  readonly title: string;
+  readonly state: MissionState;
+  readonly destination: string | null;
+  readonly jurisdiction: string | null;
+  readonly manualMode: boolean;
+  readonly packVersionId: string | null;
+  readonly targetDeadline: string | null;
+  readonly travelStartDate: string | null;
+  readonly updatedAt: string;
+}
+
+/**
+ * Every case this actor may see in this organization's console, and whether
+ * they're seeing it as an admin (the whole org's reachable cases) or as a
+ * non-admin member (only cases they're personally assigned to, Build Spec
+ * §2: "Agency staff / reviewer ... Sees only assigned applicants and
+ * missions"). This is the single source of truth for that scoping rule --
+ * previously duplicated ad hoc at the page layer (admin ? all : filter by
+ * assignment), now centralized here so CAS-02's search can reuse the exact
+ * same authorized set the default workspace view shows, never a separately
+ * queried, potentially wider one (PRD CAS-02: "list queries and counts obey
+ * the same object rules as detail pages").
+ *
+ * Callers must already know the actor is at least an active member (this
+ * function, like `listMissionsForOrganization`, does not itself re-check
+ * membership).
+ */
+export async function listVisibleMissionsForMember(
+  db: Db,
+  organizationId: string,
+  actorAccountId: string,
+): Promise<{ readonly admin: boolean; readonly missions: OrgCaseSummary[] }> {
+  const admin = await isOrgAdmin(db, actorAccountId, organizationId);
+  const base = await listMissionsForOrganization(db, organizationId);
+  let scoped = base;
+  if (!admin) {
+    const assignedIds = await listAssignedMissionIds(db, organizationId, actorAccountId);
+    scoped = base.filter((m) => assignedIds.has(m.missionId));
+  }
+  if (scoped.length === 0) return { admin, missions: [] };
+
+  const rows = await db
+    .select({
+      id: schema.missions.id,
+      state: schema.missions.state,
+      destination: schema.missions.destination,
+      jurisdiction: schema.missions.jurisdiction,
+      manualMode: schema.missions.manualMode,
+      packVersionId: schema.missions.packVersionId,
+      targetDeadline: schema.missions.targetDeadline,
+      travelStartDate: schema.missions.travelStartDate,
+      updatedAt: schema.missions.updatedAt,
+    })
+    .from(schema.missions)
+    .where(
+      inArray(
+        schema.missions.id,
+        scoped.map((m) => m.missionId),
+      ),
+    );
+  const detailById = new Map(rows.map((r) => [r.id, r]));
+
+  const missions = scoped.map((m): OrgCaseSummary => {
+    // scoped is derived from missions.ts's own missions table moments ago,
+    // inside the same request, so a missing detail row here would mean the
+    // mission was deleted mid-request -- never actually possible (missions
+    // are never deleted, only state-transitioned) -- not a real omission.
+    const detail = detailById.get(m.missionId);
+    return {
+      missionId: m.missionId,
+      applicantId: m.applicantId,
+      applicantName: m.applicantName,
+      title: m.title,
+      state: detail?.state ?? 'DRAFT',
+      destination: detail?.destination ?? null,
+      jurisdiction: detail?.jurisdiction ?? null,
+      manualMode: detail?.manualMode ?? false,
+      packVersionId: detail?.packVersionId ?? null,
+      targetDeadline: detail?.targetDeadline?.toISOString() ?? null,
+      travelStartDate: detail?.travelStartDate?.toISOString() ?? null,
+      updatedAt: detail?.updatedAt.toISOString() ?? new Date(0).toISOString(),
+    };
+  });
+  return { admin, missions };
 }
 
 const NOTE_MAX_LENGTH = 2000;

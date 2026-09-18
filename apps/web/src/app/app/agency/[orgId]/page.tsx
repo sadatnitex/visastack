@@ -1,9 +1,9 @@
 import {
+  computeReadiness,
   getOrganization,
   isActiveMember,
   isOrgAdmin,
   listApplicantsForOrganization,
-  listAssignedMissionIds,
   listAssignmentsDetailed,
   listClientInvitations,
   listEvidenceRequestsForOrgDetailed,
@@ -11,11 +11,12 @@ import {
   listIssuerVerificationsForFact,
   listMissionDecisions,
   listMissionRequirementsForOrg,
-  listMissionsForOrganization,
   listNotes,
   listOrgMemberships,
   listOrganizationInvitations,
   listSelectedEvidenceForOrg,
+  listTasksForOrg,
+  listVisibleMissionsForMember,
 } from '@visastack/services';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
@@ -25,6 +26,7 @@ import {
 } from '../../../../lib/capabilities';
 import { profileField } from '../../../../lib/profile-fields';
 import { withSession } from '../../../../lib/session';
+import { CaseSearchForm, STAGE_LABELS } from './case-search-form';
 import { ClientInvitationForm } from './client-invitation-form';
 import { ClientInvitationRevokeButton } from './client-invitation-revoke-button';
 import { EvidenceRequestActions } from './evidence-request-actions';
@@ -45,6 +47,33 @@ const ORG_STATUS: Record<string, { label: string; tone: string }> = {
   CLOSED: { label: 'Closed', tone: 'badge-neutral' },
 };
 
+// A case counts as "approaching" a date within this many days -- the same
+// horizon the rest of this product has no existing precedent for, chosen as
+// a reasonable default rather than derived from anything (Part 5's Expiry
+// Centre, NTF-01, is the eventual home for a configurable version of this).
+const APPROACHING_DAYS = 14;
+
+/** The soonest of a case's target deadline / travel start date that's still in the future and within APPROACHING_DAYS, or null. */
+function nextApproachingDate(
+  targetDeadline: string | null,
+  travelStartDate: string | null,
+): { readonly label: string; readonly date: string } | null {
+  const now = Date.now();
+  const horizon = now + APPROACHING_DAYS * 24 * 60 * 60 * 1000;
+  const candidates: { label: string; date: string; ms: number }[] = [];
+  if (targetDeadline) {
+    const ms = new Date(targetDeadline).getTime();
+    if (ms >= now && ms <= horizon)
+      candidates.push({ label: 'Deadline', date: targetDeadline, ms });
+  }
+  if (travelStartDate) {
+    const ms = new Date(travelStartDate).getTime();
+    if (ms >= now && ms <= horizon) candidates.push({ label: 'Travel', date: travelStartDate, ms });
+  }
+  candidates.sort((a, b) => a.ms - b.ms);
+  return candidates[0] ?? null;
+}
+
 const REQ_STATUS: Record<string, { label: string; tone: string }> = {
   OPEN: { label: 'Open', tone: 'badge-warning' },
   RECEIVED: { label: 'Submitted', tone: 'badge-neutral' },
@@ -61,16 +90,29 @@ const EVIDENCE_DECIDABLE_STATUSES = new Set(['RECEIVED', 'UNDER_REVIEW']);
 
 export default async function OrgConsolePage({
   params,
+  searchParams,
 }: {
   readonly params: Promise<{ orgId: string }>;
+  readonly searchParams: Promise<{
+    readonly q?: string;
+    readonly stage?: string;
+    readonly destination?: string;
+    readonly assignee?: string;
+  }>;
 }) {
   const { orgId } = await params;
+  const {
+    q: rawQuery = '',
+    stage: stageFilter = '',
+    destination: rawDestinationFilter = '',
+    assignee: assigneeFilter = '',
+  } = await searchParams;
   const capabilities = getPlatformCapabilities();
 
   const data = await withSession(async ({ db, accountId }) => {
     const org = await getOrganization(db, orgId);
     if (!org) return null;
-    const admin = await isOrgAdmin(db, accountId, orgId);
+    const adminCheck = await isOrgAdmin(db, accountId, orgId);
     // Finding #31 (post-programme defect register): mission collaboration —
     // assignments, notes, requirements, and the reviewer decision workflow
     // recordMissionDecision itself authorizes — is NOT an admin-only
@@ -78,7 +120,7 @@ export default async function OrgConsolePage({
     // a COMMENT-or-MANAGE org grant; recordMissionDecision checks active
     // membership + assignment + grant, never isOrgAdmin). Any active
     // member, not just an OWNER/ADMIN, has standing to reach it.
-    const member = admin || (await isActiveMember(db, accountId, orgId));
+    const member = adminCheck || (await isActiveMember(db, accountId, orgId));
     if (!member) {
       return {
         org,
@@ -100,27 +142,25 @@ export default async function OrgConsolePage({
     // layer already (listOrgMemberships, listOrganizationInvitations,
     // listClientInvitations, listEvidenceRequestsForOrgDetailed), or only
     // ever consumed by an admin-only section of this page (applicants).
-    const [
-      requests,
-      members,
-      invitations,
-      clientInvitationsResult,
-      applicants,
-      orgMissions,
-      assignedMissionIds,
-    ] = await Promise.all([
-      admin ? listEvidenceRequestsForOrgDetailed(db, accountId, orgId) : Promise.resolve(null),
-      admin ? listOrgMemberships(db, accountId, orgId) : Promise.resolve(null),
-      admin
-        ? listOrganizationInvitations(db, { actorAccountId: accountId, organizationId: orgId })
-        : Promise.resolve(null),
-      admin
-        ? listClientInvitations(db, { actorAccountId: accountId, organizationId: orgId })
-        : Promise.resolve(null),
-      admin ? listApplicantsForOrganization(db, orgId) : Promise.resolve([]),
-      listMissionsForOrganization(db, orgId),
-      admin ? Promise.resolve(null) : listAssignedMissionIds(db, orgId, accountId),
-    ]);
+    const [requests, members, invitations, clientInvitationsResult, applicants, visible] =
+      await Promise.all([
+        adminCheck
+          ? listEvidenceRequestsForOrgDetailed(db, accountId, orgId)
+          : Promise.resolve(null),
+        adminCheck ? listOrgMemberships(db, accountId, orgId) : Promise.resolve(null),
+        adminCheck
+          ? listOrganizationInvitations(db, { actorAccountId: accountId, organizationId: orgId })
+          : Promise.resolve(null),
+        adminCheck
+          ? listClientInvitations(db, { actorAccountId: accountId, organizationId: orgId })
+          : Promise.resolve(null),
+        adminCheck ? listApplicantsForOrganization(db, orgId) : Promise.resolve([]),
+        // CAS-02: the single source of truth for "which cases can this
+        // actor see" (admin-wide vs assigned-only), so the search below
+        // and this default listing never diverge in what they authorize.
+        listVisibleMissionsForMember(db, orgId, accountId),
+      ]);
+    const admin = visible.admin;
     const membersResolved = members?.ok ? members.value : [];
     const invitationsResolved = invitations?.ok
       ? invitations.value.filter((i) => i.status === 'PENDING')
@@ -128,27 +168,23 @@ export default async function OrgConsolePage({
     const clientInvitationsResolved = clientInvitationsResult?.ok
       ? clientInvitationsResult.value.filter((i) => i.status === 'PENDING')
       : [];
-    // Codex review, PR-D2, round 1: listAssignmentsDetailed/listNotes/
-    // listMissionRequirementsForOrg below only check the ORGANIZATION's
-    // grant, never the individual caller's own assignment — correct for
-    // an admin (who legitimately sees every mission the org can reach),
-    // but a non-admin member must see only THEIR OWN assigned missions
-    // (Build Spec §2: "Agency staff / reviewer ... Sees only assigned
-    // applicants and missions"). Without this filter, any active member
-    // could see every other member's assignments, note bodies, and
-    // applicant names for missions they have no personal standing on.
-    const visibleOrgMissions = admin
-      ? orgMissions
-      : orgMissions.filter((m) => assignedMissionIds?.has(m.missionId) ?? false);
     const missions = await Promise.all(
-      visibleOrgMissions.map(async (mission) => {
-        const [assignments, notes, requirements, decisions, selectedEvidence] = await Promise.all([
-          listAssignmentsDetailed(db, orgId, mission.applicantId, mission.missionId),
-          listNotes(db, orgId, mission.applicantId, mission.missionId),
-          listMissionRequirementsForOrg(db, orgId, mission.missionId),
-          listMissionDecisions(db, accountId, mission.missionId),
-          listSelectedEvidenceForOrg(db, orgId, mission.missionId),
-        ]);
+      visible.missions.map(async (mission) => {
+        const [assignments, notes, requirements, decisions, selectedEvidence, tasks, readiness] =
+          await Promise.all([
+            listAssignmentsDetailed(db, orgId, mission.applicantId, mission.missionId),
+            listNotes(db, orgId, mission.applicantId, mission.missionId),
+            listMissionRequirementsForOrg(db, orgId, mission.missionId),
+            listMissionDecisions(db, accountId, mission.missionId),
+            listSelectedEvidenceForOrg(db, orgId, mission.missionId),
+            listTasksForOrg(db, orgId, mission.applicantId, mission.missionId),
+            // Manual-mode cases never carry an official readiness claim
+            // (CAS-01 §8), even if a pack happens to still be attached;
+            // a case with no pack attached at all has nothing to compute.
+            !mission.manualMode && mission.packVersionId
+              ? computeReadiness(db, mission.missionId)
+              : Promise.resolve(null),
+          ]);
         // EVI-05: an issuer confirmation is recorded against whatever a
         // requirement's evidence resolves to (fact or document), not
         // against the requirement directly, so it's looked up the same way
@@ -215,6 +251,12 @@ export default async function OrgConsolePage({
             : [],
           issuerVerifications,
           viewerAssigned: assignments.some((a) => a.memberAccountId === accountId),
+          tasks: tasks.map((t) => ({
+            id: t.id,
+            status: t.status,
+            dueDate: t.dueDate ? t.dueDate.toISOString() : null,
+          })),
+          readiness: readiness?.ok ? readiness.value : null,
         };
       }),
     );
@@ -281,76 +323,203 @@ export default async function OrgConsolePage({
             </article>
           ) : null}
 
-          {data.admin ? (
-            <article className="card" style={{ marginBottom: '1.5rem' }}>
-              <p className="card-kicker">Case inbox</p>
-              <h2 className="card-title">What needs attention</h2>
-              {data.missions.length === 0 ? (
-                <p className="card-body">
-                  No cases are reachable yet — an applicant must grant this organization access to a
-                  specific mission.
-                </p>
-              ) : (
-                <div className="rows" style={{ marginTop: '0.5rem' }}>
-                  {data.missions
-                    .map((mission) => {
-                      const openRequests = data.requests.filter(
-                        (r) => r.applicantId === mission.applicantId && r.status === 'OPEN',
-                      ).length;
-                      const assignedToMe = mission.assignments.some(
-                        (a) => a.memberAccountId === data.viewerAccountId,
-                      );
-                      return { mission, openRequests, assignedToMe };
-                    })
-                    // Cases needing action float to the top: unassigned or open
-                    // requests first, then everything else.
-                    .sort((a, b) => {
-                      const weight = (x: typeof a) =>
-                        (x.mission.assignments.length === 0 ? 2 : 0) + (x.openRequests > 0 ? 1 : 0);
-                      return weight(b) - weight(a);
-                    })
-                    .map(({ mission, openRequests, assignedToMe }) => (
-                      <div
-                        className="row"
-                        key={mission.missionId}
-                        style={{ flexDirection: 'column', alignItems: 'stretch', gap: '0.3rem' }}
-                      >
-                        <div
-                          style={{
-                            display: 'flex',
-                            justifyContent: 'space-between',
-                            gap: '0.75rem',
-                          }}
-                        >
-                          <span className="row-key">
-                            {mission.applicantName} · {mission.title}
-                          </span>
-                          <span style={{ display: 'flex', gap: '0.4rem' }}>
-                            {assignedToMe ? (
-                              <span className="badge badge-neutral">Assigned to you</span>
-                            ) : null}
-                            {mission.assignments.length === 0 ? (
-                              <span className="badge badge-warning">Needs assignment</span>
-                            ) : null}
-                            {openRequests > 0 ? (
-                              <span className="badge badge-warning">
-                                {openRequests} open request{openRequests === 1 ? '' : 's'}
+          <article className="card" style={{ marginBottom: '1.5rem' }}>
+            <p className="card-kicker">Case inbox</p>
+            <h2 className="card-title">What needs attention</h2>
+            <p className="card-body" style={{ marginBottom: '1rem' }}>
+              Search only looks at cases you're already authorized to see below - never a wider,
+              unscoped lookup. There's no passport-number or wallet-content search here; only case
+              metadata already shown in this console.
+            </p>
+            <CaseSearchForm
+              orgId={orgId}
+              members={data.members.map((m) => ({ accountId: m.accountId, email: m.email }))}
+              query={rawQuery}
+              stage={stageFilter}
+              destination={rawDestinationFilter}
+              assignee={assigneeFilter}
+            />
+            {data.missions.length === 0 ? (
+              <p className="card-body" style={{ marginTop: '1rem' }}>
+                {data.admin
+                  ? 'No cases are reachable yet - an applicant must grant this organization access to a specific mission.'
+                  : "You aren't assigned to any cases yet - ask an admin to assign you to one."}
+              </p>
+            ) : (
+              (() => {
+                const q = rawQuery.trim().toLowerCase();
+                const destinationQuery = rawDestinationFilter.trim().toLowerCase();
+                const searched = data.missions.filter((mission) => {
+                  if (q.length > 0) {
+                    const haystack =
+                      `${mission.applicantName} ${mission.title} ${mission.missionId}`.toLowerCase();
+                    if (!haystack.includes(q)) return false;
+                  }
+                  if (stageFilter.length > 0 && mission.state !== stageFilter) return false;
+                  if (
+                    destinationQuery.length > 0 &&
+                    !(mission.destination ?? '').toLowerCase().includes(destinationQuery)
+                  ) {
+                    return false;
+                  }
+                  if (
+                    assigneeFilter.length > 0 &&
+                    !mission.assignments.some((a) => a.memberAccountId === assigneeFilter)
+                  ) {
+                    return false;
+                  }
+                  return true;
+                });
+                if (searched.length === 0) {
+                  return (
+                    <p className="card-body" style={{ marginTop: '1rem' }}>
+                      No cases match that search.
+                    </p>
+                  );
+                }
+                return (
+                  <div className="rows" style={{ marginTop: '1rem' }}>
+                    {searched
+                      .map((mission) => {
+                        const openRequests = data.requests.filter(
+                          (r) => r.applicantId === mission.applicantId && r.status === 'OPEN',
+                        ).length;
+                        // "Review issues": evidence a reviewer already looked
+                        // at and sent back for replacement. A separate, older
+                        // decision mechanism (recordMissionDecision/CAS-06's
+                        // ledger note) also produces REJECTED outcomes; not
+                        // folded in here, same as openRequests' own scope.
+                        const reviewIssues = data.requests.filter(
+                          (r) =>
+                            r.applicantId === mission.applicantId &&
+                            r.status === 'NEEDS_REPLACEMENT',
+                        ).length;
+                        const overdueTasks = mission.tasks.filter(
+                          (t) =>
+                            t.status === 'OPEN' &&
+                            t.dueDate &&
+                            t.dueDate < new Date().toISOString(),
+                        ).length;
+                        const approaching = nextApproachingDate(
+                          mission.targetDeadline,
+                          mission.travelStartDate,
+                        );
+                        const assignedToMe = mission.assignments.some(
+                          (a) => a.memberAccountId === data.viewerAccountId,
+                        );
+                        return {
+                          mission,
+                          openRequests,
+                          reviewIssues,
+                          overdueTasks,
+                          approaching,
+                          assignedToMe,
+                        };
+                      })
+                      // Cases needing action float to the top.
+                      .sort((a, b) => {
+                        const weight = (x: typeof a) =>
+                          (x.mission.assignments.length === 0 ? 2 : 0) +
+                          (x.openRequests > 0 ? 1 : 0) +
+                          (x.reviewIssues > 0 ? 1 : 0) +
+                          (x.overdueTasks > 0 ? 1 : 0) +
+                          (x.approaching ? 1 : 0);
+                        return weight(b) - weight(a);
+                      })
+                      .map(
+                        ({
+                          mission,
+                          openRequests,
+                          reviewIssues,
+                          overdueTasks,
+                          approaching,
+                          assignedToMe,
+                        }) => (
+                          <div
+                            className="row"
+                            key={mission.missionId}
+                            style={{
+                              flexDirection: 'column',
+                              alignItems: 'stretch',
+                              gap: '0.3rem',
+                            }}
+                          >
+                            <div
+                              style={{
+                                display: 'flex',
+                                justifyContent: 'space-between',
+                                gap: '0.75rem',
+                                flexWrap: 'wrap',
+                              }}
+                            >
+                              <span className="row-key">
+                                <Link href={`/app/mission/${mission.missionId}`}>
+                                  {mission.applicantName} · {mission.title}
+                                </Link>
                               </span>
-                            ) : null}
-                          </span>
-                        </div>
-                        <span className="muted" style={{ fontSize: '0.8rem' }}>
-                          {mission.assignments.length > 0
-                            ? `Assigned: ${mission.assignments.map((a) => a.memberEmail).join(', ')}`
-                            : 'Unassigned'}
-                          {mission.notes.length > 0 ? ` · ${mission.notes.length} note(s)` : ''}
-                        </span>
-                      </div>
-                    ))}
-                </div>
-              )}
-            </article>
-          ) : null}
+                              <span style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
+                                {assignedToMe ? (
+                                  <span className="badge badge-neutral">Assigned to you</span>
+                                ) : null}
+                                {mission.assignments.length === 0 ? (
+                                  <span className="badge badge-warning">Needs assignment</span>
+                                ) : null}
+                                {openRequests > 0 ? (
+                                  <span className="badge badge-warning">
+                                    {openRequests} open request{openRequests === 1 ? '' : 's'}
+                                  </span>
+                                ) : null}
+                                {reviewIssues > 0 ? (
+                                  <span className="badge badge-warning">
+                                    {reviewIssues} needs replacement
+                                  </span>
+                                ) : null}
+                                {overdueTasks > 0 ? (
+                                  <span className="badge badge-danger">
+                                    {overdueTasks} overdue task{overdueTasks === 1 ? '' : 's'}
+                                  </span>
+                                ) : null}
+                                {approaching ? (
+                                  <span className="badge badge-warning">
+                                    {approaching.label}{' '}
+                                    {new Date(approaching.date).toLocaleDateString()}
+                                  </span>
+                                ) : null}
+                                <span
+                                  className={`badge ${mission.manualMode ? 'badge-warning' : mission.readiness?.ready ? 'badge-success' : 'badge-neutral'}`}
+                                >
+                                  {mission.manualMode
+                                    ? 'Manual mode'
+                                    : !mission.packVersionId
+                                      ? 'No pack attached'
+                                      : mission.readiness
+                                        ? mission.readiness.ready
+                                          ? 'Ready'
+                                          : `${mission.readiness.requiredCount - mission.readiness.satisfiedRequired} missing`
+                                        : 'Readiness unavailable'}
+                                </span>
+                              </span>
+                            </div>
+                            <span className="muted" style={{ fontSize: '0.8rem' }}>
+                              {STAGE_LABELS[mission.state] ?? mission.state}
+                              {' · '}
+                              {mission.assignments.length > 0
+                                ? `Assigned: ${mission.assignments.map((a) => a.memberEmail).join(', ')}`
+                                : 'Unassigned'}
+                              {mission.notes.length > 0 ? ` · ${mission.notes.length} note(s)` : ''}
+                              {mission.destination ? ` · ${mission.destination}` : ''}
+                              {/* Acknowledgement (traveller final sign-off) isn't a built feature yet
+                                (Part 7, TRU-02); shown as an honest placeholder, never a fabricated status. */}
+                              {' · Acknowledgement: not yet tracked'}
+                            </span>
+                          </div>
+                        ),
+                      )}
+                  </div>
+                );
+              })()
+            )}
+          </article>
 
           {data.admin ? (
             <div className="grid">

@@ -507,6 +507,25 @@ item gets its own requirements-ledger row once classified against the new direct
     both were already covered by the pre-existing `assignMember`/`assignments` mechanism and
     the pre-existing grant-lifecycle invariant respectively. Full detail:
     `requirements-ledger.md` CAS-01.
+47. ~~The agency org console had no case search at all (name/stage/destination/assignee, or any
+    other dimension), and its one "Case inbox" rollup was admin-only, showing just assignment
+    status and an open-request count -- nothing for overdue tasks, approaching dates, review
+    issues, a readiness result, or acknowledgement status, all of which CAS-02 names as things a
+    case workspace must present together.~~ **RESOLVED (Part 4).** New `case-search-form.tsx` (a
+    plain GET form) filters by name/case-id, stage, destination, and assignee, strictly over
+    cases the viewer is already authorized to see -- never a separately or more broadly queried
+    set, and never a passport-number or wallet-content search. The rollup now shows, per case:
+    assignment, open requests, review issues (evidence requests sent back for replacement),
+    overdue tasks, approaching dates, a real readiness result (or an honest "Manual mode"/"No
+    pack attached" state, never a computed figure once a case is in manual mode), and an explicit
+    "not yet tracked" placeholder for acknowledgement (TRU-02 doesn't exist yet, Part 7 -- the
+    directive's own text for this section allows a placeholder here). While building this,
+    found that the admin-vs-assigned-only visibility rule (a non-admin org member may only see
+    cases they're personally assigned to) had never actually leaked -- the page component's own
+    existing filter was correct -- but lived ONLY there, meaning any future caller of the
+    underlying list query could have forgotten it entirely. Centralized into a new
+    `listVisibleMissionsForMember`, now the single source both the default listing and search run
+    through. Full detail: `requirements-ledger.md` CAS-02, CAS-04.
 independently confirmed findings; the missing PRD file is tracked as Blocker 1 in
 `assumptions-and-blockers.md` (now resolved) rather than here, since it blocked the
 programme rather than being a product defect.

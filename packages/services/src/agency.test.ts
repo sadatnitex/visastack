@@ -22,6 +22,8 @@ import {
   listMissionDecisions,
   listMissionsForOrganization,
   listNotes,
+  listTasksForOrg,
+  listVisibleMissionsForMember,
   recordMissionDecision,
   requestEvidence,
   startEvidenceReview,
@@ -31,7 +33,7 @@ import { createApplicant } from './applicants';
 import { setConsent } from './consent';
 import type { Db } from './db';
 import { addDocumentVersion, registerDocument } from './documents';
-import { attachPackVersion, createMission } from './missions';
+import { attachPackVersion, createMission, createTask } from './missions';
 import {
   addMembership,
   createOrganization,
@@ -1567,5 +1569,184 @@ describe('scope and read-authorization hardening (post-programme defect register
     const missions = await listMissionsForOrganization(db, org.value.id);
     expect(missions).toHaveLength(1);
     expect(missions[0]?.missionId).toBe(mission.value.id);
+  });
+});
+
+describe('CAS-02 - case workspace: authorized visibility, search fields, task rollup', () => {
+  let db: Db;
+  beforeEach(async () => {
+    db = await freshDb();
+  });
+
+  it('listVisibleMissionsForMember: an admin sees every case the org can reach; a non-admin member sees only cases they are personally assigned to', async () => {
+    const { account, applicantId } = await consentedApplicant(db, 'cas02-visibility@example.com');
+    const missionA = await createMission(db, {
+      actorAccountId: account.id,
+      applicantId,
+      title: 'Case A',
+    });
+    const missionB = await createMission(db, {
+      actorAccountId: account.id,
+      applicantId,
+      title: 'Case B',
+    });
+    if (!isOk(missionA) || !isOk(missionB)) throw new Error('mission');
+
+    const adminAcc = await provisionAccount(db, { email: 'cas02-admin@acme.com' });
+    const memberAcc = await provisionAccount(db, { email: 'cas02-member@acme.com' });
+    if (!isOk(adminAcc) || !isOk(memberAcc)) throw new Error('provision');
+    const org = await createOrganization(db, { actorAccountId: adminAcc.value.id, name: 'Acme' });
+    if (!isOk(org)) throw new Error('org');
+    await activateOrg(db, org.value.id);
+    await addMembership(db, {
+      actorAccountId: adminAcc.value.id,
+      organizationId: org.value.id,
+      accountId: memberAcc.value.id,
+      role: 'CASE_MANAGER',
+    });
+
+    // One applicant-wide grant makes BOTH cases reachable by the org.
+    const grant = await createGrant(db, {
+      actorAccountId: account.id,
+      applicantId,
+      recipientOrganizationId: org.value.id,
+      actions: ['MANAGE'],
+      purpose: 'collaboration',
+    });
+    if (!isOk(grant)) throw new Error('grant');
+    await acceptGrant(db, { actorAccountId: adminAcc.value.id, grantId: grant.value.id });
+
+    // The non-admin member is personally assigned to Case A only.
+    await assignMember(db, {
+      actorAccountId: adminAcc.value.id,
+      organizationId: org.value.id,
+      memberAccountId: memberAcc.value.id,
+      missionId: missionA.value.id,
+    });
+
+    const asAdmin = await listVisibleMissionsForMember(db, org.value.id, adminAcc.value.id);
+    expect(asAdmin.admin).toBe(true);
+    expect(asAdmin.missions.map((m) => m.missionId).sort()).toEqual(
+      [missionA.value.id, missionB.value.id].sort(),
+    );
+
+    const asMember = await listVisibleMissionsForMember(db, org.value.id, memberAcc.value.id);
+    expect(asMember.admin).toBe(false);
+    expect(asMember.missions).toHaveLength(1);
+    expect(asMember.missions[0]?.missionId).toBe(missionA.value.id);
+  });
+
+  it('listVisibleMissionsForMember: carries the CAS-01 case fields search/rollup needs (state, destination, jurisdiction, manualMode, dates)', async () => {
+    const { account, applicantId } = await consentedApplicant(db, 'cas02-fields@example.com');
+    const targetDeadline = new Date('2026-12-15T00:00:00Z');
+    const travelStartDate = new Date('2026-11-01T00:00:00Z');
+    const mission = await createMission(db, {
+      actorAccountId: account.id,
+      applicantId,
+      title: 'Manual route case',
+      destination: 'Narnia',
+      jurisdiction: 'Consulate of Narnia, Dhaka',
+      manualMode: true,
+      targetDeadline,
+      travelStartDate,
+    });
+    if (!isOk(mission)) throw new Error('mission');
+
+    const agentAcc = await provisionAccount(db, { email: 'cas02-fields-agent@acme.com' });
+    if (!isOk(agentAcc)) throw new Error('provision');
+    const org = await createOrganization(db, { actorAccountId: agentAcc.value.id, name: 'Acme' });
+    if (!isOk(org)) throw new Error('org');
+    await activateOrg(db, org.value.id);
+    const grant = await createGrant(db, {
+      actorAccountId: account.id,
+      applicantId,
+      recipientOrganizationId: org.value.id,
+      actions: ['MANAGE'],
+      purpose: 'collaboration',
+    });
+    if (!isOk(grant)) throw new Error('grant');
+    await acceptGrant(db, { actorAccountId: agentAcc.value.id, grantId: grant.value.id });
+
+    const { missions } = await listVisibleMissionsForMember(db, org.value.id, agentAcc.value.id);
+    expect(missions).toHaveLength(1);
+    const summary = missions[0];
+    expect(summary?.state).toBe('DRAFT');
+    expect(summary?.destination).toBe('Narnia');
+    expect(summary?.jurisdiction).toBe('Consulate of Narnia, Dhaka');
+    expect(summary?.manualMode).toBe(true);
+    expect(summary?.targetDeadline).toBe(targetDeadline.toISOString());
+    expect(summary?.travelStartDate).toBe(travelStartDate.toISOString());
+    // No protected wallet content anywhere on this shape -- just case metadata.
+    expect(Object.keys(summary ?? {}).sort()).toEqual(
+      [
+        'applicantId',
+        'applicantName',
+        'destination',
+        'jurisdiction',
+        'manualMode',
+        'missionId',
+        'packVersionId',
+        'state',
+        'targetDeadline',
+        'title',
+        'travelStartDate',
+        'updatedAt',
+      ].sort(),
+    );
+  });
+
+  it('listTasksForOrg: org-read-scoped like listNotes/listAssignmentsDetailed (COMMENT or MANAGE grant only), and carries dueDate for the overdue-tasks rollup', async () => {
+    const { account, applicantId } = await consentedApplicant(db, 'cas02-tasks@example.com');
+    const mission = await createMission(db, {
+      actorAccountId: account.id,
+      applicantId,
+      title: 'Task case',
+    });
+    if (!isOk(mission)) throw new Error('mission');
+    const dueDate = new Date('2020-01-01T00:00:00Z'); // deliberately in the past
+    const task = await createTask(db, {
+      actorAccountId: account.id,
+      missionId: mission.value.id,
+      description: 'Chase a replacement document.',
+      dueDate,
+    });
+    if (!isOk(task)) throw new Error('task');
+
+    const agentAcc = await provisionAccount(db, { email: 'cas02-tasks-agent@acme.com' });
+    if (!isOk(agentAcc)) throw new Error('provision');
+    const org = await createOrganization(db, { actorAccountId: agentAcc.value.id, name: 'Acme' });
+    if (!isOk(org)) throw new Error('org');
+    await activateOrg(db, org.value.id);
+
+    // No grant yet at all -- denied.
+    expect(await listTasksForOrg(db, org.value.id, applicantId, mission.value.id)).toHaveLength(0);
+
+    const previewGrant = await createGrant(db, {
+      actorAccountId: account.id,
+      applicantId,
+      recipientOrganizationId: org.value.id,
+      actions: ['PREVIEW'],
+      purpose: 'review',
+    });
+    if (!isOk(previewGrant)) throw new Error('grant');
+    await acceptGrant(db, { actorAccountId: agentAcc.value.id, grantId: previewGrant.value.id });
+
+    // PREVIEW alone is not COMMENT-or-MANAGE -- still denied.
+    expect(await listTasksForOrg(db, org.value.id, applicantId, mission.value.id)).toHaveLength(0);
+
+    const commentGrant = await createGrant(db, {
+      actorAccountId: account.id,
+      applicantId,
+      recipientOrganizationId: org.value.id,
+      actions: ['COMMENT'],
+      purpose: 'review-2',
+    });
+    if (!isOk(commentGrant)) throw new Error('grant');
+    await acceptGrant(db, { actorAccountId: agentAcc.value.id, grantId: commentGrant.value.id });
+
+    const tasks = await listTasksForOrg(db, org.value.id, applicantId, mission.value.id);
+    expect(tasks).toHaveLength(1);
+    expect(tasks[0]?.id).toBe(task.value.id);
+    expect(tasks[0]?.dueDate?.toISOString()).toBe(dueDate.toISOString());
   });
 });

@@ -1232,15 +1232,19 @@ describe('mission collaboration — evidence selection, tasks, grounded letters 
 
   it('creates, completes, and lists mission tasks, owner-scoped', async () => {
     const { account, missionId, fieldRequirementId } = await setUp(db);
+    const dueDate = new Date('2026-12-01T00:00:00Z');
     const task = await createTask(db, {
       actorAccountId: account.id,
       missionId,
       description: 'Chase the applicant for an updated bank statement.',
       packRequirementId: fieldRequirementId,
+      dueDate,
     });
     expect(isOk(task)).toBe(true);
     if (!isOk(task)) return;
     expect(task.value.status).toBe('OPEN');
+    // CAS-02's "overdue tasks" rollup needs a real due date on the row itself.
+    expect(task.value.dueDate?.toISOString()).toBe(dueDate.toISOString());
 
     const decided = await decideTask(db, {
       actorAccountId: account.id,

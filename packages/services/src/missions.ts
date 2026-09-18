@@ -1315,6 +1315,7 @@ export async function createTask(
     readonly description: string;
     readonly packRequirementId?: string;
     readonly assigneeAccountId?: string;
+    readonly dueDate?: Date;
   },
 ): Promise<Result<MissionTask, ServiceError>> {
   const owned = await ownedMission(db, input.actorAccountId, input.missionId);
@@ -1346,6 +1347,7 @@ export async function createTask(
             packRequirementId: input.packRequirementId ?? null,
             description,
             assigneeAccountId: input.assigneeAccountId ?? null,
+            dueDate: input.dueDate ?? null,
           })
           .returning(),
       ),

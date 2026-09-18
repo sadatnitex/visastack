@@ -1552,6 +1552,12 @@ export const missionTasks = pgTable(
       onDelete: 'set null',
     }),
     status: missionTaskStatus('status').notNull().default('OPEN'),
+    // CAS-02's workspace "overdue tasks" signal needs this to exist at all;
+    // nullable, since not every task has (or needs) a deadline. This is a
+    // minimal slice of CAS-04's own broader scope (timezone, priority, and
+    // real appointment fields remain open, tracked separately) -- added here
+    // only because CAS-02 cannot show "overdue" without it.
+    dueDate: timestamp('due_date', { withTimezone: true }),
     completedAt: timestamp('completed_at', { withTimezone: true }),
     ...timestamps,
   },
