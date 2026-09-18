@@ -7,6 +7,7 @@ import {
   isFactStatusEligible,
   legalTransitions,
   listAccessForApplicant,
+  listContributorRequests,
   listGeneratedOutputs,
   listMissionSnapshots,
   listMissionsByItineraryRef,
@@ -21,6 +22,7 @@ import { profileField } from '../../../../lib/profile-fields';
 import { withSession } from '../../../../lib/session';
 import { AttachPackForm, type PackOption } from './attach-pack-form';
 import { EvidenceSelectionPanel, LettersPanel, TasksPanel } from './collaboration-panels';
+import { ContributorRequestsPanel } from './contributor-requests-panel';
 import { composeSelectionCandidateKey } from './evidence-selection-key';
 import {
   CaseDetailsForm,
@@ -71,6 +73,7 @@ export default async function MissionPage({
       candidates,
       linkedMissions,
       access,
+      contributorRequests,
     ] = await Promise.all([
       mission.packVersionId ? computeReadiness(db, mission.id) : Promise.resolve(null),
       listMissionSnapshots(db, accountId, mission.id),
@@ -86,6 +89,7 @@ export default async function MissionPage({
           })
         : Promise.resolve([]),
       listAccessForApplicant(db, accountId, mission.applicantId),
+      listContributorRequests(db, { actorAccountId: accountId, missionId: mission.id }),
     ]);
     // Commercial V1 Part 4 §13: "An independent traveller may self-review:
     // label it self-reviewed." No organisation currently holding an ACTIVE,
@@ -142,6 +146,16 @@ export default async function MissionPage({
         }),
       ),
       selfReviewed,
+      contributorRequests: contributorRequests.ok
+        ? contributorRequests.value.map((r) => ({
+            id: r.id,
+            contributorEmail: r.contributorEmail,
+            docType: r.docType,
+            purpose: r.purpose,
+            status: r.status,
+            expiresAt: r.expiresAt.toISOString(),
+          }))
+        : [],
     };
   });
 
@@ -396,6 +410,19 @@ export default async function MissionPage({
               c.documentCandidates.some((d) => d.eligible),
           )}
         />
+      </div>
+
+      <div className="grid" style={{ marginTop: '1.5rem' }}>
+        <article className="card">
+          <p className="card-kicker">Delegate</p>
+          <h2 className="card-title">Ask a contributor</h2>
+          <p className="card-body" style={{ marginBottom: '1.25rem' }}>
+            Ask a sponsor or family member - who never gets a wallet, profile, or case view of any
+            kind - for exactly one named document. They see only what you type below before deciding
+            whether to upload.
+          </p>
+          <ContributorRequestsPanel missionId={mission.id} requests={data.contributorRequests} />
+        </article>
       </div>
     </section>
   );

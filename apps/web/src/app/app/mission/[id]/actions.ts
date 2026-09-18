@@ -3,9 +3,11 @@
 import type { MissionState } from '@visastack/core';
 import {
   attachPackVersion,
+  createContributorRequest,
   createTask,
   decideTask,
   generateCoverLetter,
+  revokeContributorRequest,
   selectEvidence,
   setMissionItineraryRef,
   snapshotMission,
@@ -14,6 +16,7 @@ import {
   updateMissionCaseDetails,
 } from '@visastack/services';
 import { revalidatePath } from 'next/cache';
+import { resolveBaseUrl } from '../../../../lib/base-url';
 import { withSession } from '../../../../lib/session';
 
 /** Result surfaced back to the client for inline feedback. */
@@ -246,6 +249,67 @@ export async function updateCaseDetailsAction(
     });
     if (!updated.ok) return { ok: false, message: updated.error.message } satisfies ActionState;
     return { ok: true, message: 'Case details updated.' } satisfies ActionState;
+  });
+  if (result.ok) revalidatePath(`/app/mission/${missionId}`);
+  return result;
+}
+
+/** Ask a named third party (a sponsor, a family member) for exactly one piece of evidence on this case (CAS-08). */
+export async function createContributorRequestAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const missionId = String(formData.get('missionId') ?? '');
+  const contributorEmail = String(formData.get('contributorEmail') ?? '').trim();
+  const docType = String(formData.get('docType') ?? '').trim();
+  const purpose = String(formData.get('purpose') ?? '').trim();
+  const message = String(formData.get('message') ?? '').trim();
+  if (missionId.length === 0) return { ok: false, message: 'Missing mission.' };
+  if (contributorEmail.length === 0)
+    return { ok: false, message: "Enter the contributor's email." };
+  if (docType.length === 0) return { ok: false, message: 'Name exactly what document is needed.' };
+  if (purpose.length === 0) {
+    return { ok: false, message: 'Explain why this is needed - the contributor will see this.' };
+  }
+
+  const result = await withSession(async ({ db, accountId }) => {
+    const created = await createContributorRequest(db, {
+      actorAccountId: accountId,
+      missionId,
+      contributorEmail,
+      docType,
+      purpose,
+      ...(message.length > 0 ? { message } : {}),
+    });
+    if (!created.ok) return { ok: false, message: created.error.message } satisfies ActionState;
+    const acceptUrl = `${resolveBaseUrl()}/app/contributor-requests/accept?token=${created.value.rawToken}`;
+    return {
+      ok: true,
+      message: `Request created. Share this link with ${contributorEmail} (expires in 7 days): ${acceptUrl}`,
+    } satisfies ActionState;
+  });
+  if (result.ok) revalidatePath(`/app/mission/${missionId}`);
+  return result;
+}
+
+/** Revoke a still-pending contributor request (mission owner only). */
+export async function revokeContributorRequestAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const missionId = String(formData.get('missionId') ?? '');
+  const requestId = String(formData.get('requestId') ?? '');
+  if (missionId.length === 0 || requestId.length === 0) {
+    return { ok: false, message: 'Missing request.' };
+  }
+  const result = await withSession(async ({ db, accountId }) => {
+    const revoked = await revokeContributorRequest(db, {
+      actorAccountId: accountId,
+      missionId,
+      requestId,
+    });
+    if (!revoked.ok) return { ok: false, message: revoked.error.message } satisfies ActionState;
+    return { ok: true, message: 'Request revoked.' } satisfies ActionState;
   });
   if (result.ok) revalidatePath(`/app/mission/${missionId}`);
   return result;

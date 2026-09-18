@@ -526,6 +526,19 @@ item gets its own requirements-ledger row once classified against the new direct
     underlying list query could have forgotten it entirely. Centralized into a new
     `listVisibleMissionsForMember`, now the single source both the default listing and search run
     through. Full detail: `requirements-ledger.md` CAS-02, CAS-04.
+48. ~~CAS-08's "contributor request" (a sponsor or family member submits exactly one named
+    document without ever getting a wallet, profile, or case view) did not exist anywhere in the
+    codebase.~~ **RESOLVED (Part 4).** New `contributor-requests.ts` reuses the existing
+    hashed-token invitation primitive and the applicant's own real upload/malware-scanning
+    pipeline end to end, gated by a new, narrow alternate authorization on
+    `documents.ts`'s `registerDocument`/`addDocumentVersion` (previously hard owner-only):
+    accepting a bound, currently-claimed contributor request, verified against the database, not
+    merely trusted from a caller-supplied flag. Proven not to weaken the existing owner-only
+    boundary by every pre-existing document/wallet test (76 tests) still passing unchanged
+    alongside 8 new ones covering the authorization boundary itself, race-safety, and the
+    "not copied into the reusable wallet without contributor permission" rule (a new
+    `documents.walletVisible` column, read by the wallet view, deliberately left out of
+    readiness/docType matching). Full detail: `requirements-ledger.md` CAS-08.
 independently confirmed findings; the missing PRD file is tracked as Blocker 1 in
 `assumptions-and-blockers.md` (now resolved) rather than here, since it blocked the
 programme rather than being a product defect.

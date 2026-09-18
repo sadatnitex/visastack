@@ -1,7 +1,7 @@
 import type { AccountId, AgencyId, ApplicantId, DocumentId, Result } from '@visastack/core';
 import { err, ok } from '@visastack/core';
 import { authorize } from '@visastack/policy';
-import { eq, inArray } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 import { getApplicant } from './applicants';
 import { appendAuditEvent } from './audit';
 import { type Db, first, schema } from './db';
@@ -83,10 +83,21 @@ export async function getWalletView(
     return err(serviceError('forbidden', 'not authorized to view this wallet'));
   }
 
+  // CAS-08: a contributor-submitted document whose contributor did not opt
+  // into wallet reuse is walletVisible: false - it stays usable evidence
+  // for the case it was submitted to (missions.ts's own docType matching
+  // is untouched), but never appears in the applicant's own browsable
+  // wallet. Every normal, owner-uploaded document defaults true and is
+  // unaffected.
   const documents = await db
     .select()
     .from(schema.documents)
-    .where(eq(schema.documents.applicantId, input.applicantId));
+    .where(
+      and(
+        eq(schema.documents.applicantId, input.applicantId),
+        eq(schema.documents.walletVisible, true),
+      ),
+    );
 
   const usageRows = await db
     .select({

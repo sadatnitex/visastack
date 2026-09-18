@@ -73,6 +73,16 @@ export const clientInvitationStatus = pgEnum('client_invitation_status', [
   'ACCEPTED',
   'REVOKED',
 ]);
+// CAS-08: unlike the two invitation statuses above, there is no separate
+// "accepted, standing created" state before the one action that matters --
+// accepting IS submitting the named evidence -- so this collapses straight
+// from PENDING to SUBMITTED. Expiry, like every other invitation in this
+// codebase, is checked live against expiresAt, never a stored value.
+export const contributorRequestStatus = pgEnum('contributor_request_status', [
+  'PENDING',
+  'SUBMITTED',
+  'REVOKED',
+]);
 export const applicantRelationship = pgEnum('applicant_relationship', [
   'SELF',
   'FAMILY_MEMBER',
@@ -541,6 +551,16 @@ export const documents = pgTable('documents', {
   uploaderAccountId: uuid('uploader_account_id').references(() => accounts.id, {
     onDelete: 'set null',
   }),
+  // CAS-08: "the file is case-scoped by default and is not copied into the
+  // traveller's reusable wallet without contributor permission." True for
+  // every normal, applicant-uploaded document (unaffected by this change);
+  // set false only for a contributor-submitted document whose contributor
+  // did not opt into wallet reuse (documents.ts's registerDocument). Read
+  // by wallet.ts's getWalletView; deliberately NOT read by missions.ts's
+  // own readiness/docType matching, which stays applicant-wide as before --
+  // "wallet" in this product's own vocabulary (EVI-04) names the browsable
+  // reuse view specifically, not the underlying evidence-matching mechanism.
+  walletVisible: boolean('wallet_visible').notNull().default(true),
   expiresAt: timestamp('expires_at', { withTimezone: true }),
   // EVI-04 ("passport renewal updates the wallet, preserves the old passport
   // and flags cases using it; it does not mutate historical snapshots"): set
@@ -1461,6 +1481,71 @@ export const evidenceRequestDecisions = pgTable(
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [index('evidence_request_decisions_request_idx').on(table.evidenceRequestId)],
+);
+
+// CAS-08 ("Contributor request"): a narrow, single-use, seven-day invitation
+// letting a named third party (a sponsor, a family member) who is NOT the
+// applicant submit exactly one named piece of evidence for one case,
+// without ever browsing the applicant's wallet, profile, or case. Reuses
+// the same hashed-token primitive as organizationInvitations/
+// clientInvitations (invitation-tokens.ts); unlike clientInvitations
+// (IAM-03, deliberately anonymous-until-accept), this one DOES verify the
+// contributor's own authenticated email against contributorEmail at
+// submission time, matching organizationInvitations -- the PRD's own
+// "email verification binds the contributor" is explicit where IAM-03's
+// text is explicitly silent on it.
+export const contributorRequests = pgTable(
+  'contributor_requests',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    missionId: uuid('mission_id')
+      .notNull()
+      .references(() => missions.id, { onDelete: 'cascade' }),
+    // Denormalized from missionId (matches evidenceRequests' own choice):
+    // every authorization check here is naturally applicant-shaped (owner
+    // check, wallet-visibility), so this avoids a join on every one of them.
+    applicantId: uuid('applicant_id')
+      .notNull()
+      .references(() => applicants.id, { onDelete: 'cascade' }),
+    requestedByAccountId: uuid('requested_by_account_id').references(() => accounts.id, {
+      onDelete: 'set null',
+    }),
+    contributorEmail: text('contributor_email').notNull(),
+    // Always a document (a third party has no fields in the applicant's own
+    // profile to fill in) -- "narrow named request only" -- never nullable,
+    // unlike evidenceRequests.docType which only applies to its DOCUMENT
+    // branch.
+    docType: text('doc_type').notNull(),
+    // Shown to the contributor before upload, per CAS-08's "sees purpose...
+    // before upload."
+    purpose: text('purpose').notNull(),
+    message: text('message'),
+    tokenHash: text('token_hash').notNull().unique(),
+    status: contributorRequestStatus('status').notNull().default('PENDING'),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    // The contributor's own explicit choice, defaulting to false (PRD: "not
+    // copied into the traveller's reusable wallet WITHOUT contributor
+    // permission"). Read by documents.walletVisible at submission time and
+    // never changed afterward -- it is the contributor's call, not the
+    // applicant's to later override.
+    allowWalletReuse: boolean('allow_wallet_reuse').notNull().default(false),
+    // Bound the moment a submission attempt begins (PENDING -> SUBMITTED),
+    // re-verified on every subsequent check -- see
+    // contributor-requests.ts's isInFlightContributorSubmission.
+    contributorAccountId: uuid('contributor_account_id').references(() => accounts.id, {
+      onDelete: 'set null',
+    }),
+    submittedDocumentId: uuid('submitted_document_id').references(() => documents.id, {
+      onDelete: 'set null',
+    }),
+    submittedAt: timestamp('submitted_at', { withTimezone: true }),
+    revokedAt: timestamp('revoked_at', { withTimezone: true }),
+    ...timestamps,
+  },
+  (table) => [
+    index('contributor_requests_mission_idx').on(table.missionId),
+    index('contributor_requests_applicant_idx').on(table.applicantId),
+  ],
 );
 
 // A mission owner's explicit choice of which fact/document instance

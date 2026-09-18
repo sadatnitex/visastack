@@ -14,6 +14,7 @@ import { orgGrantPermits } from './agency';
 import { getApplicant } from './applicants';
 import { appendAuditEvent } from './audit';
 import { hasConsent } from './consent';
+import { isInFlightContributorSubmission } from './contributor-requests';
 import { type Db, first, required, schema } from './db';
 import {
   type DocumentAccessActorKind,
@@ -63,9 +64,21 @@ export interface RegisterDocumentInput {
   readonly originalName: string;
   readonly docType?: string;
   readonly source?: string;
+  // CAS-08: whether this document appears in the applicant's own browsable
+  // wallet. True for every normal, owner-initiated registration (the
+  // default below matches that). A contributor-initiated one passes this
+  // explicitly, driven by the contributor's own allowWalletReuse choice.
+  readonly walletVisible?: boolean;
+  // CAS-08: set ONLY by contributor-requests.ts's own submission
+  // orchestration, never from user input directly, naming the specific,
+  // already-claimed (SUBMITTED, not yet completed) contributor_requests row
+  // this call is acting under. The one alternate path to the owner-account
+  // check below - verified via isInFlightContributorSubmission, not merely
+  // trusted because this field is present.
+  readonly onBehalfOfContributorRequestId?: string;
 }
 
-/** Create a document record owned by the applicant's account. */
+/** Create a document record owned by the applicant's account (or, narrowly, by a bound CAS-08 contributor acting for it). */
 export async function registerDocument(
   db: Db,
   input: RegisterDocumentInput,
@@ -73,7 +86,18 @@ export async function registerDocument(
   const applicant = await getApplicant(db, input.applicantId);
   if (!applicant) return err(serviceError('not_found', 'applicant not found'));
   if (applicant.ownerAccountId !== input.actorAccountId) {
-    return err(serviceError('forbidden', 'documents may only be registered by the owning account'));
+    const asContributor =
+      input.onBehalfOfContributorRequestId !== undefined &&
+      (await isInFlightContributorSubmission(db, {
+        contributorRequestId: input.onBehalfOfContributorRequestId,
+        actorAccountId: input.actorAccountId,
+        applicantId: input.applicantId,
+      }));
+    if (!asContributor) {
+      return err(
+        serviceError('forbidden', 'documents may only be registered by the owning account'),
+      );
+    }
   }
   if (input.originalName.trim().length === 0) {
     return err(serviceError('invalid', 'a document name is required'));
@@ -93,6 +117,7 @@ export async function registerDocument(
             docType: input.docType ?? null,
             source: input.source ?? null,
             uploaderAccountId: input.actorAccountId,
+            walletVisible: input.walletVisible ?? true,
           })
           .returning(),
       ),
@@ -119,6 +144,8 @@ export interface AddDocumentVersionInput {
   readonly objectKey: string;
   readonly sizeBytes?: number;
   readonly sha256?: string;
+  // CAS-08: see RegisterDocumentInput's identical field for what this is and how it's verified.
+  readonly onBehalfOfContributorRequestId?: string;
   readonly safetyStatus?: DocumentVersion['safetyStatus'];
   readonly processingStatus?: DocumentVersion['processingStatus'];
 }
@@ -142,8 +169,18 @@ export async function addDocumentVersion(
   );
   if (!document) return err(serviceError('not_found', 'document not found'));
   const applicant = await getApplicant(db, document.applicantId);
-  if (!applicant || applicant.ownerAccountId !== input.actorAccountId) {
-    return err(serviceError('forbidden', 'versions may only be added by the owning account'));
+  if (!applicant) return err(serviceError('not_found', 'applicant not found'));
+  if (applicant.ownerAccountId !== input.actorAccountId) {
+    const asContributor =
+      input.onBehalfOfContributorRequestId !== undefined &&
+      (await isInFlightContributorSubmission(db, {
+        contributorRequestId: input.onBehalfOfContributorRequestId,
+        actorAccountId: input.actorAccountId,
+        applicantId: document.applicantId,
+      }));
+    if (!asContributor) {
+      return err(serviceError('forbidden', 'versions may only be added by the owning account'));
+    }
   }
 
   return db.transaction(async (tx) => {
@@ -253,6 +290,8 @@ export interface RegisterDocumentWithVersionInput {
   readonly objectKey: string;
   readonly sizeBytes?: number;
   readonly sha256?: string;
+  readonly walletVisible?: boolean;
+  readonly onBehalfOfContributorRequestId?: string;
 }
 
 /** Carries a `ServiceError` out through a transaction rollback (a returned `err()` does not itself abort the transaction — only a throw does). */
@@ -285,6 +324,10 @@ export async function registerDocumentWithVersion(
         originalName: input.originalName,
         ...(input.docType !== undefined ? { docType: input.docType } : {}),
         ...(input.source !== undefined ? { source: input.source } : {}),
+        ...(input.walletVisible !== undefined ? { walletVisible: input.walletVisible } : {}),
+        ...(input.onBehalfOfContributorRequestId !== undefined
+          ? { onBehalfOfContributorRequestId: input.onBehalfOfContributorRequestId }
+          : {}),
       });
       if (!registered.ok) throw new RegistrationAborted(registered.error);
 
@@ -295,6 +338,9 @@ export async function registerDocumentWithVersion(
         objectKey: input.objectKey,
         ...(input.sizeBytes !== undefined ? { sizeBytes: input.sizeBytes } : {}),
         ...(input.sha256 !== undefined ? { sha256: input.sha256 } : {}),
+        ...(input.onBehalfOfContributorRequestId !== undefined
+          ? { onBehalfOfContributorRequestId: input.onBehalfOfContributorRequestId }
+          : {}),
       });
       if (!versioned.ok) throw new RegistrationAborted(versioned.error);
 
