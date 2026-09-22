@@ -585,6 +585,34 @@ item gets its own requirements-ledger row once classified against the new direct
     both UI label maps, migration `0046`), and `recordIssuerVerification`
     now refuses with `consent_required` when it is absent. Full detail:
     `requirements-ledger.md` SHR-04.
+53. ~~PRO-01's field-by-field audit against its own 13 named Master Profile
+    sections found two that did not exist as distinct concepts at all:
+    "current/historical passports" had only a single non-repeating
+    passport_number/passport_expiry pair, with no way to record a second,
+    prior, or otherwise-held passport; "self-employment" had no
+    representation distinct from the investor/entrepreneur-oriented
+    "business" pack. Also a real formatting gap: every monetary field
+    (annual_income, monthly_salary, investment_amount) was a single
+    unstructured string with no ISO currency ever captured, contradicting
+    PRO-01's own "Currency: decimal + ISO currency" rule.~~
+    **RESOLVED (Part 4).** Added a new repeating `historical_passport` group
+    alongside the untouched (zero data-risk) current passport fields, a
+    `self_employment` section under the professional pack, and a paired
+    `..._currency` select (new `options` support on `ProfileFieldDef`, a
+    34-code ISO 4217 subset) for every monetary field. Closed smaller
+    precision gaps in the same pass: `country_of_residence`,
+    `marital_status`, and `name_alternate`. Full detail:
+    `requirements-ledger.md` PRO-01.
+54. ~~PRO-02's "conflict creates a review issue/task" had a real mechanism
+    (`computeReadiness`'s `unresolved_conflict` reason, rendered as a
+    distinct red badge on the mission page) but it only fires for a mission
+    with an attached pack -- a conflict arising before any case exists, or
+    on a manual-mode/no-pack case, had no visibility anywhere except an
+    easy-to-miss per-field badge on the Master Profile page itself.~~
+    **RESOLVED (Part 4).** Added a page-level notice on the Master Profile
+    page whenever any fact is CONFLICTED, reusing already-fetched data (no
+    new query), so a conflict is now guaranteed visible independent of any
+    particular case. Full detail: `requirements-ledger.md` PRO-02.
 independently confirmed findings; the missing PRD file is tracked as Blocker 1 in
 `assumptions-and-blockers.md` (now resolved) rather than here, since it blocked the
 programme rather than being a product defect.

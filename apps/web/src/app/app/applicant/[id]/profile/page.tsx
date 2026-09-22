@@ -88,6 +88,13 @@ export default async function ApplicantProfilePage({
   const assuranceByFactId = new Map(
     data.assurance.map((a) => [a.factId, toClientAssurance(a)] as const),
   );
+  // PRO-02: "Conflict... creates review issue/task" - a mission with an
+  // attached pack already surfaces this prominently (an "unresolved_conflict"
+  // reason in its own missing-requirements list), but a conflict can exist
+  // before any case does, or on a manual-mode/no-pack case that never
+  // computes readiness at all. This banner is the one place every conflict is
+  // guaranteed to be visible, independent of any particular case.
+  const conflictedCount = data.profile.filter((p) => p.status === 'CONFLICTED').length;
 
   return (
     <article className="card">
@@ -97,6 +104,15 @@ export default async function ApplicantProfilePage({
         Every save appends an immutable, provenance-tracked version — earlier values are never
         overwritten.
       </p>
+      {conflictedCount > 0 ? (
+        <p className="notice notice-warn" role="alert" style={{ marginBottom: '1.25rem' }}>
+          {conflictedCount === 1
+            ? 'A document has proposed a value for one field that differs from what you last confirmed.'
+            : `Documents have proposed values for ${conflictedCount} fields that differ from what you last confirmed.`}{' '}
+          Review the field{conflictedCount === 1 ? '' : 's'} marked <strong>Conflicted</strong>{' '}
+          below.
+        </p>
+      ) : null}
       {data.coreGranted ? (
         <ProfileEditor
           applicantId={id}

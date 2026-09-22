@@ -210,14 +210,25 @@ function FieldRow({
         </span>
       </div>
       <div className="field-control">
-        <input
-          id={inputId}
-          name="value"
-          type={field.type === 'date' ? 'date' : 'text'}
-          defaultValue={currentValue ?? ''}
-          placeholder={field.placeholder ?? ''}
-          className="input"
-        />
+        {field.options ? (
+          <select id={inputId} name="value" defaultValue={currentValue ?? ''} className="input">
+            <option value="">Select…</option>
+            {field.options.map((opt) => (
+              <option key={opt} value={opt}>
+                {opt}
+              </option>
+            ))}
+          </select>
+        ) : (
+          <input
+            id={inputId}
+            name="value"
+            type={field.type === 'date' ? 'date' : 'text'}
+            defaultValue={currentValue ?? ''}
+            placeholder={field.placeholder ?? ''}
+            className="input"
+          />
+        )}
         <button type="submit" className="btn btn-secondary" disabled={pending}>
           {pending ? 'Saving…' : 'Save'}
         </button>
