@@ -777,14 +777,31 @@ item gets its own requirements-ledger row once classified against the new direct
     this later via `updatePlan`, with no code change or migration needed
     -- but until that happens, nothing in this system reflects a real
     commercial decision on what each tier actually costs or allows.
-    Separately, and not this item's scope: COM-02 (reconciling these new
-    plan-based entitlements with the existing flat, env-driven
-    `quotas.ts` limits into real enforcement -- today's entitlements are
-    display-only, never gating anything) and ADM-01 (an admin UI for
+    Separately, and not this item's scope: ADM-01 (an admin UI for
     `createPlan`/`updatePlan`/`activateSubscription`/`endSubscription`,
     all real and tested but only reachable via a direct service call
-    today, no UI yet) both remain open, separate ledger items. Full
+    today, no UI yet) remains open. COM-02 (reconciling these entitlements
+    with the existing flat, env-driven `quotas.ts` limits into real
+    enforcement) has since closed its seats/case-creation/storage slice --
+    see item 63 and `requirements-ledger.md` COM-02 for what it covers and
+    what of its own scope remains open. Full
     detail: `requirements-ledger.md` COM-01.
+63. COM-02 (quota enforcement) now genuinely gates three of the directive's
+    four required dimensions -- seats, case creation, and storage -- each
+    proven under real concurrency
+    (`packages/services/src/entitlement-enforcement.ts`). Honestly open,
+    not built this pass: AI allowance enforcement (the directive's own §7
+    text defers it, "AI later" -- not a gap this chunk silently left);
+    downgrade grace periods ("effective dates; warning/grace; blocks NEW
+    capacity use after grace; deletes nothing" -- `subscriptions` only
+    supports an immediate cutover today, no effective-date concept exists
+    to delay one); a platform-admin "commercial override" bypass (reason,
+    expiry, audit -- deliberately not designed until the enforcement it
+    would override actually existed to override, which it now does); and
+    billing-suspension blocking, which cannot be built at all yet since
+    COM-03's billing state machine (TRIAL/ACTIVE/GRACE/SUSPENDED/CLOSED)
+    does not exist -- there is no status column anywhere to check. Full
+    detail: `requirements-ledger.md` COM-02.
 independently confirmed findings; the missing PRD file is tracked as Blocker 1 in
 `assumptions-and-blockers.md` (now resolved) rather than here, since it blocked the
 programme rather than being a product defect.

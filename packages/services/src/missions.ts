@@ -8,6 +8,7 @@ import { appendAuditEvent } from './audit';
 import { hasConsent } from './consent';
 import { type Db, first, required, schema } from './db';
 import { isDocumentVersionUsable } from './documents';
+import { checkCaseCreationEntitlement } from './entitlement-enforcement';
 import { activeOrVerifiedErasureStorageObjectIds } from './erasure';
 import { type ServiceError, serviceError } from './errors';
 import { type StalenessClassification, classifyStaleness, parseDocumentDate } from './expiry';
@@ -160,6 +161,15 @@ export async function createMission(
   }
 
   return db.transaction(async (tx) => {
+    // An individual traveller's own case has no organization to check a cap
+    // against; the directive's cases-per-period/concurrent-open-cases
+    // entitlements are org-scoped (see plans.ts's own doc comment), and
+    // Traveller Free's seeded plan leaves both NULL (unlimited) besides.
+    if (input.ownerOrganizationId) {
+      const caseCheck = await checkCaseCreationEntitlement(tx, input.ownerOrganizationId);
+      if (!caseCheck.ok) return err(caseCheck.error);
+    }
+
     const mission = required(
       first(
         await tx

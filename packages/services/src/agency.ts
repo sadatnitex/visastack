@@ -1646,6 +1646,36 @@ export async function listApplicantsForOrganization(
   return rows;
 }
 
+/**
+ * Organizations with a CURRENT grant on this applicant -- the exact reverse
+ * of `listApplicantsForOrganization` above, sharing its identical
+ * ACTIVE/accepted/started/unexpired predicate so both directions of "which
+ * org sees which applicant" can never disagree. COM-02 (quota enforcement)
+ * uses this to find every organization whose storage entitlement an upload
+ * to this applicant counts against -- an applicant can be visible to more
+ * than one organization at once, and each one's own cap matters.
+ */
+export async function listOrganizationsWithAccessToApplicant(
+  db: Db,
+  applicantId: string,
+): Promise<string[]> {
+  const now = new Date();
+  const rows = await db
+    .selectDistinct({ organizationId: schema.grants.recipientOrganizationId })
+    .from(schema.grants)
+    .where(
+      and(
+        eq(schema.grants.applicantId, applicantId),
+        isNotNull(schema.grants.recipientOrganizationId),
+        eq(schema.grants.status, 'ACTIVE'),
+        isNotNull(schema.grants.acceptedAt),
+        lte(schema.grants.startAt, now),
+        or(isNull(schema.grants.expiryAt), gt(schema.grants.expiryAt, now)),
+      ),
+    );
+  return rows.map((r) => r.organizationId).filter((id): id is string => id !== null);
+}
+
 async function loadEvidenceRequestForOwner(
   db: Db,
   actorAccountId: string,

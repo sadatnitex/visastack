@@ -4,6 +4,7 @@ import { and, desc, eq } from 'drizzle-orm';
 import { getAccountByEmail } from './accounts';
 import { appendAuditEvent } from './audit';
 import { type Db, first, required, schema } from './db';
+import { checkInvitationEntitlement, checkSeatEntitlement } from './entitlement-enforcement';
 import { type ServiceError, serviceError } from './errors';
 import { generateInvitationToken, hashInvitationToken } from './invitation-tokens';
 import { isOrgAdmin } from './organizations';
@@ -85,6 +86,13 @@ export async function createOrganizationInvitation(
           eq(schema.organizationInvitations.status, 'PENDING'),
         ),
       );
+
+    // Checked AFTER the supersede update above, not before: re-inviting the
+    // same email replaces its own stale pending slot 1-for-1 rather than
+    // consuming an additional one, so the stale row must already be REVOKED
+    // (and excluded from the pending count) before this check runs.
+    const seatCheck = await checkInvitationEntitlement(tx, input.organizationId);
+    if (!seatCheck.ok) return err(seatCheck.error);
 
     const invitation = required(
       first(
@@ -211,6 +219,27 @@ export async function acceptOrganizationInvitation(
   }
 
   return db.transaction(async (tx) => {
+    // A genuine re-confirmation (this account is already an active member of
+    // this org) consumes no new seat and must never be blocked by a full
+    // org -- checked against the pre-write state, before anything below
+    // changes it.
+    const existingMembership = first(
+      await tx
+        .select({ active: schema.memberships.active })
+        .from(schema.memberships)
+        .where(
+          and(
+            eq(schema.memberships.accountId, input.actorAccountId),
+            eq(schema.memberships.organizationId, invitation.organizationId),
+          ),
+        )
+        .limit(1),
+    );
+    if (!existingMembership?.active) {
+      const seatCheck = await checkSeatEntitlement(tx, invitation.organizationId);
+      if (!seatCheck.ok) return err(seatCheck.error);
+    }
+
     const updated = first(
       await tx
         .update(schema.organizationInvitations)
