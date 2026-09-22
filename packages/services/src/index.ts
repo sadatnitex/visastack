@@ -414,6 +414,13 @@ export {
 } from './notifications';
 
 export {
+  type SweepResult,
+  computeTaskDeadlineThreshold,
+  sweepExpiryReminders,
+  sweepTaskDeadlineReminders,
+} from './notification-sweep';
+
+export {
   type MrzError,
   type Td3Result,
   checkDigit,

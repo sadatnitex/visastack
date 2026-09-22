@@ -6,12 +6,15 @@ import {
   type ErasureWorkerResult,
   type IntakeWorkerResult,
   type NotificationWorkerResult,
+  type SweepResult,
   executeAccountDeletion,
   listDueDeletions,
   runErasureWorker,
   runIntakeWorker,
   runNotificationWorker,
   sweepAbandonedUploads,
+  sweepExpiryReminders,
+  sweepTaskDeadlineReminders,
 } from '@visastack/services';
 import { resolveBaseUrl } from './base-url';
 import {
@@ -130,6 +133,43 @@ export async function triggerNotificationWorker(
   } catch (error) {
     console.error('[triggerNotificationWorker] worker pass failed', error);
     return { sent: 0, retrying: 0, failed: 0 };
+  } finally {
+    await pool.end();
+  }
+}
+
+/**
+ * Runs both NTF-04 date-threshold sweeps (task deadlines, document/
+ * verification expiry) on their own short-lived pooled connection -- same
+ * rationale as the workers above. "Date checks at least hourly": this is
+ * purely periodic (there is no single domain-change moment to `after()`
+ * off of, unlike the event-driven notifications), so `/api/jobs/
+ * process-notification-sweeps`' cron is this trigger's only source, not a
+ * backstop for an `after()` primary path.
+ */
+export async function triggerNotificationSweeps(
+  options: { readonly limit?: number } = {},
+): Promise<{ readonly tasks: SweepResult; readonly expiry: SweepResult }> {
+  const connectionString = resolveDatabaseUrl(process.env);
+  const empty: SweepResult = { checked: 0, enqueued: 0 };
+  if (!connectionString) {
+    console.error('[triggerNotificationSweeps] database not configured');
+    return { tasks: empty, expiry: empty };
+  }
+
+  const { db, pool } = createPooledDb(connectionString);
+  pool.on('error', (error) => {
+    console.error('[triggerNotificationSweeps] idle pool connection error', error);
+  });
+  try {
+    const handle = db as unknown as Parameters<typeof sweepTaskDeadlineReminders>[0];
+    const now = new Date();
+    const tasks = await sweepTaskDeadlineReminders(handle, now, options);
+    const expiry = await sweepExpiryReminders(handle, now, options);
+    return { tasks, expiry };
+  } catch (error) {
+    console.error('[triggerNotificationSweeps] sweep pass failed', error);
+    return { tasks: empty, expiry: empty };
   } finally {
     await pool.end();
   }

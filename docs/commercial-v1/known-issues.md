@@ -703,7 +703,26 @@ item gets its own requirements-ledger row once classified against the new direct
     tab. Deliberately NOT a full resolution: nine of the eleven event types
     remain unwired, and the date-threshold sweep (NTF-04) that would turn
     NTF-01's expiry classification into an actual reminder does not exist
-    yet. Full detail: `requirements-ledger.md` NTF-02/03/04.
+    yet. Full detail: `requirements-ledger.md` NTF-02/03/04. **Update
+    (2026-09-22, Part 5 §4):** the date-threshold sweep now exists --
+    `notification-sweep.ts`'s `sweepTaskDeadlineReminders`/
+    `sweepExpiryReminders`, DST-safe (calendar-date, never millisecond,
+    arithmetic), hourly via `/api/jobs/process-notification-sweeps`. The
+    nine unwired event types remain open.
+60. ~~`applicants` had no timezone concept at all; `wallet.ts`'s
+    `EXPIRING_SOON_DAYS` comment had explicitly named this as Part 5's
+    eventual responsibility, and no local-date (as opposed to raw
+    UTC-instant) threshold math existed anywhere for a task's own due date,
+    leaving `dueDate`/`dueTimezone` (CAS-04) write-only -- nothing ever
+    read them to decide when to remind anyone.~~ **RESOLVED (Part 5,
+    NTF-04).** `applicants.timezone` (migration `0050`, default
+    `Asia/Dhaka`, editable at the schema level though no UI yet lets an
+    owner change it) plus `notification-sweep.ts`'s calendar-date math
+    (`toLocalDateParts`/`localDateDiffInDays`) now correctly answers "is
+    this task 7 days out, 1 day out, or how many weeks overdue" in the
+    subject's own timezone, proven by a test that the same calendar day
+    produces the same verdict across a UTC-instant boundary that falls
+    mid-day locally. Full detail: `requirements-ledger.md` NTF-04.
 independently confirmed findings; the missing PRD file is tracked as Blocker 1 in
 `assumptions-and-blockers.md` (now resolved) rather than here, since it blocked the
 programme rather than being a product defect.
