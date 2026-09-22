@@ -590,6 +590,29 @@ export {
 } from './plans';
 
 export {
+  type BillingAccount,
+  type BillingStatus,
+  type BillingStatusHistoryEntry,
+  type CreateInvoiceInput,
+  type Invoice,
+  type InvoiceStatus,
+  type OpenBillingAccountInput,
+  type RecordInvoicePaymentInput,
+  type TransitionBillingStatusInput,
+  type VoidInvoiceInput,
+  createInvoice,
+  getBillingAccountForOrganization,
+  isBillingSuspended,
+  legalBillingTransitions,
+  listBillingStatusHistory,
+  listInvoicesForOrganization,
+  openBillingAccount,
+  recordInvoicePayment,
+  transitionBillingStatus,
+  voidInvoice,
+} from './billing';
+
+export {
   type AbandonedUploadSweepResult,
   type ReserveUploadInput,
   type UploadIntent,

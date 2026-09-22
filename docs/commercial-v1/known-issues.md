@@ -798,10 +798,28 @@ item gets its own requirements-ledger row once classified against the new direct
     to delay one); a platform-admin "commercial override" bypass (reason,
     expiry, audit -- deliberately not designed until the enforcement it
     would override actually existed to override, which it now does); and
-    billing-suspension blocking, which cannot be built at all yet since
-    COM-03's billing state machine (TRIAL/ACTIVE/GRACE/SUSPENDED/CLOSED)
-    does not exist -- there is no status column anywhere to check. Full
-    detail: `requirements-ledger.md` COM-02.
+    billing-suspension blocking. COM-03 (item 64) has since built the
+    SUSPENDED status this needs to check -- wiring it into
+    `entitlement-enforcement.ts` is the immediately following change, not
+    yet landed as of this item. Full detail: `requirements-ledger.md`
+    COM-02.
+64. COM-03 (manual billing) is built and tested
+    (`packages/services/src/billing.ts`, migration `0054`): billing
+    accounts with a real TRIAL/ACTIVE/GRACE/SUSPENDED/CLOSED state machine
+    and append-only history, plus invoices tracking invoiced vs. collected
+    amounts as two genuinely separate, DB-constrained columns. This is
+    deliberately mechanism only, same posture as COM-01/COM-02: no UI
+    exists yet for a platform owner to actually open an account, issue an
+    invoice, or record a payment (every function here is real, tested, and
+    reachable only via a direct service call today) -- deferred to ADM-01,
+    same as COM-01's plan-management actions and COM-02's has no admin UI
+    either. Separately, and the one genuinely load-bearing gap this chunk
+    leaves open: a SUSPENDED billing account does not yet block anything --
+    `isBillingSuspended` is exported and ready, but no caller in
+    `entitlement-enforcement.ts` checks it yet. Until that follow-up lands,
+    an organization can be marked SUSPENDED here and still add seats,
+    create cases, and upload evidence without any COM-02 check noticing.
+    Full detail: `requirements-ledger.md` COM-03.
 independently confirmed findings; the missing PRD file is tracked as Blocker 1 in
 `assumptions-and-blockers.md` (now resolved) rather than here, since it blocked the
 programme rather than being a product defect.
