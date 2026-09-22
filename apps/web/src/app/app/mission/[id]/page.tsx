@@ -7,6 +7,7 @@ import {
   isFactStatusEligible,
   legalTransitions,
   listAccessForApplicant,
+  listAppointments,
   listContributorRequests,
   listGeneratedOutputs,
   listMissionSnapshots,
@@ -22,7 +23,12 @@ import { getLocale } from '../../../../lib/locale';
 import { profileField } from '../../../../lib/profile-fields';
 import { withSession } from '../../../../lib/session';
 import { AttachPackForm, type PackOption } from './attach-pack-form';
-import { EvidenceSelectionPanel, LettersPanel, TasksPanel } from './collaboration-panels';
+import {
+  AppointmentsPanel,
+  EvidenceSelectionPanel,
+  LettersPanel,
+  TasksPanel,
+} from './collaboration-panels';
 import { ContributorRequestsPanel } from './contributor-requests-panel';
 import { composeSelectionCandidateKey } from './evidence-selection-key';
 import {
@@ -76,6 +82,7 @@ export default async function MissionPage({
       access,
       contributorRequests,
       notes,
+      appointments,
     ] = await Promise.all([
       mission.packVersionId ? computeReadiness(db, mission.id) : Promise.resolve(null),
       listMissionSnapshots(db, accountId, mission.id),
@@ -93,6 +100,7 @@ export default async function MissionPage({
       listAccessForApplicant(db, accountId, mission.applicantId),
       listContributorRequests(db, { actorAccountId: accountId, missionId: mission.id }),
       listNotesForOwner(db, accountId, mission.id),
+      listAppointments(db, accountId, mission.id),
     ]);
     // Commercial V1 Part 4 §13: "An independent traveller may self-review:
     // label it self-reviewed." No organisation currently holding an ACTIVE,
@@ -133,7 +141,27 @@ export default async function MissionPage({
       applicantId: mission.applicantId,
       readiness: readiness?.ok ? readiness.value : null,
       snapshots: snapshots.ok ? snapshots.value : [],
-      tasks: tasks.ok ? tasks.value : [],
+      tasks: tasks.ok
+        ? tasks.value.map((t) => ({
+            id: t.id,
+            description: t.description,
+            status: t.status,
+            priority: t.priority,
+            dueDate: t.dueDate ? t.dueDate.toISOString() : null,
+            dueTimezone: t.dueTimezone,
+          }))
+        : [],
+      appointments: appointments.ok
+        ? appointments.value.map((a) => ({
+            id: a.id,
+            title: a.title,
+            localDateTime: a.localDateTime.toISOString(),
+            timezone: a.timezone,
+            place: a.place,
+            channel: a.channel,
+            status: a.status,
+          }))
+        : [],
       letters: letters.ok ? letters.value : [],
       candidates: candidates.ok ? candidates.value : [],
       selectionIdsByCandidate,
@@ -405,6 +433,7 @@ export default async function MissionPage({
 
       <div className="grid" style={{ marginTop: '1.5rem' }}>
         <TasksPanel missionId={mission.id} tasks={data.tasks} />
+        <AppointmentsPanel missionId={mission.id} appointments={data.appointments} />
         <LettersPanel
           missionId={mission.id}
           letters={data.letters.map((l) => ({

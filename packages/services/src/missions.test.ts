@@ -15,12 +15,16 @@ import { enqueueErasureJob } from './erasure';
 import {
   attachPackVersion,
   computeReadiness,
+  createAppointment,
   createMission,
   createTask,
+  decideAppointment,
   decideTask,
   generateCoverLetter,
+  getAppointment,
   getMissionForOwner,
   getMissionSnapshot,
+  listAppointments,
   listGeneratedOutputs,
   listMissionSnapshots,
   listMissions,
@@ -34,7 +38,9 @@ import {
   snapshotMission,
   transitionMission,
   unselectEvidence,
+  updateAppointment,
   updateMissionCaseDetails,
+  updateTask,
 } from './missions';
 import { createOrganization, reviewOrganization } from './organizations';
 import {
@@ -1317,6 +1323,180 @@ describe('mission collaboration — evidence selection, tasks, grounded letters 
     const list = await listTasks(db, account.id, missionId);
     expect(isOk(list)).toBe(true);
     if (isOk(list)) expect(list.value).toHaveLength(0);
+  });
+
+  it('moves a task through OPEN -> IN_PROGRESS -> DONE, but refuses an invalid transition from a terminal state (Commercial V1 Part 4 §11)', async () => {
+    const { account, missionId } = await setUp(db);
+    const task = await createTask(db, {
+      actorAccountId: account.id,
+      missionId,
+      description: 'Prepare the cover letter.',
+    });
+    if (!isOk(task)) throw new Error('task');
+
+    const started = await decideTask(db, {
+      actorAccountId: account.id,
+      missionId,
+      taskId: task.value.id,
+      status: 'IN_PROGRESS',
+    });
+    expect(isOk(started)).toBe(true);
+    if (isOk(started)) {
+      expect(started.value.status).toBe('IN_PROGRESS');
+      // Only DONE/CANCELLED set completedAt; starting work is not completing it.
+      expect(started.value.completedAt).toBeNull();
+    }
+
+    const done = await decideTask(db, {
+      actorAccountId: account.id,
+      missionId,
+      taskId: task.value.id,
+      status: 'DONE',
+    });
+    expect(isOk(done)).toBe(true);
+    if (isOk(done)) expect(done.value.completedAt).not.toBeNull();
+
+    // DONE is terminal: cannot move it anywhere, including back to IN_PROGRESS.
+    const reopened = await decideTask(db, {
+      actorAccountId: account.id,
+      missionId,
+      taskId: task.value.id,
+      status: 'IN_PROGRESS',
+    });
+    expect(isErr(reopened)).toBe(true);
+    if (isErr(reopened)) expect(reopened.error.code).toBe('invalid');
+  });
+
+  it('updateTask reassigns/reschedules/re-prioritizes a task, auditing exactly what changed, and is a no-op when nothing is supplied', async () => {
+    const { account, missionId } = await setUp(db);
+    const original = await createTask(db, {
+      actorAccountId: account.id,
+      missionId,
+      description: 'Confirm sponsor letter.',
+      priority: 'LOW',
+    });
+    if (!isOk(original)) throw new Error('task');
+    const otherAccount = await provisionAccount(db, { email: 'task-assignee@example.com' });
+    if (!isOk(otherAccount)) throw new Error('provision');
+
+    const dueDate = new Date('2026-11-15T00:00:00Z');
+    const updated = await updateTask(db, {
+      actorAccountId: account.id,
+      missionId,
+      taskId: original.value.id,
+      assigneeAccountId: otherAccount.value.id,
+      dueDate,
+      dueTimezone: 'Asia/Dhaka',
+      priority: 'URGENT',
+    });
+    expect(isOk(updated)).toBe(true);
+    if (isOk(updated)) {
+      expect(updated.value.assigneeAccountId).toBe(otherAccount.value.id);
+      expect(updated.value.dueDate?.toISOString()).toBe(dueDate.toISOString());
+      expect(updated.value.dueTimezone).toBe('Asia/Dhaka');
+      expect(updated.value.priority).toBe('URGENT');
+    }
+
+    const events = await db
+      .select()
+      .from(schema.auditEvents)
+      .where(eq(schema.auditEvents.eventType, 'MISSION_TASK_UPDATED'));
+    expect(events).toHaveLength(1);
+    const metadata = events[0]?.metadata as {
+      changes: Partial<
+        Record<'priority' | 'assigneeAccountId', { before: unknown; after: unknown }>
+      >;
+    };
+    expect(metadata.changes.priority).toEqual({ before: 'LOW', after: 'URGENT' });
+    expect(metadata.changes.assigneeAccountId).toEqual({
+      before: null,
+      after: otherAccount.value.id,
+    });
+
+    // Calling again with no fields at all is a true no-op: same row, no new audit event.
+    const noop = await updateTask(db, {
+      actorAccountId: account.id,
+      missionId,
+      taskId: original.value.id,
+    });
+    expect(isOk(noop)).toBe(true);
+    const eventsAfterNoop = await db
+      .select()
+      .from(schema.auditEvents)
+      .where(eq(schema.auditEvents.eventType, 'MISSION_TASK_UPDATED'));
+    expect(eventsAfterNoop).toHaveLength(1);
+  });
+
+  it('appointments: create, reschedule/reassign (audited), complete, list soonest-first, and stay owner-scoped across missions (Commercial V1 Part 4 §11)', async () => {
+    const { account, missionId } = await setUp(db);
+    const first = await createAppointment(db, {
+      actorAccountId: account.id,
+      missionId,
+      title: 'Visa interview prep',
+      localDateTime: new Date('2026-11-20T09:00:00'),
+      timezone: 'Asia/Dhaka',
+      place: 'Agency office',
+      channel: 'In person',
+    });
+    expect(isOk(first)).toBe(true);
+    const second = await createAppointment(db, {
+      actorAccountId: account.id,
+      missionId,
+      title: 'Document review call',
+      localDateTime: new Date('2026-11-10T09:00:00'),
+      timezone: 'Asia/Dhaka',
+    });
+    expect(isOk(second)).toBe(true);
+    if (!isOk(first) || !isOk(second)) return;
+
+    // Soonest first - the earlier (Nov 10) appointment before the later (Nov 20) one.
+    const list = await listAppointments(db, account.id, missionId);
+    expect(isOk(list)).toBe(true);
+    if (isOk(list)) expect(list.value.map((a) => a.id)).toEqual([second.value.id, first.value.id]);
+
+    const rescheduled = await updateAppointment(db, {
+      actorAccountId: account.id,
+      missionId,
+      appointmentId: first.value.id,
+      localDateTime: new Date('2026-11-21T14:00:00'),
+      place: 'Video call',
+    });
+    expect(isOk(rescheduled)).toBe(true);
+    if (isOk(rescheduled)) {
+      expect(rescheduled.value.place).toBe('Video call');
+      expect(rescheduled.value.channel).toBe('In person'); // untouched field survives a partial update
+    }
+    const events = await db
+      .select()
+      .from(schema.auditEvents)
+      .where(eq(schema.auditEvents.eventType, 'MISSION_APPOINTMENT_UPDATED'));
+    expect(events).toHaveLength(1);
+
+    const completed = await decideAppointment(db, {
+      actorAccountId: account.id,
+      missionId,
+      appointmentId: first.value.id,
+      status: 'DONE',
+    });
+    expect(isOk(completed)).toBe(true);
+    if (isOk(completed)) expect(completed.value.completedAt).not.toBeNull();
+    // Already-decided cannot be decided again.
+    const redecided = await decideAppointment(db, {
+      actorAccountId: account.id,
+      missionId,
+      appointmentId: first.value.id,
+      status: 'CANCELLED',
+    });
+    expect(isErr(redecided)).toBe(true);
+
+    // A non-owner never reaches this mission's appointment at all, matching
+    // every other mission-scoped resource's cross-tenant IDOR discipline in
+    // this file (e.g. "refuses evidence selection on another owner's mission").
+    const stranger = await provisionAccount(db, { email: 'stranger-appt@example.com' });
+    if (!isOk(stranger)) throw new Error('provision');
+    const crossOwner = await getAppointment(db, stranger.value.id, missionId, second.value.id);
+    expect(isErr(crossOwner)).toBe(true);
+    if (isErr(crossOwner)) expect(crossOwner.error.code).toBe('forbidden');
   });
 
   it('refuses to generate a letter with nothing grounded yet, then generates one citing exact evidence, versioned', async () => {

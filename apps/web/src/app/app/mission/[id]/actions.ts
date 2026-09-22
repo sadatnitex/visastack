@@ -3,8 +3,10 @@
 import type { MissionState } from '@visastack/core';
 import {
   attachPackVersion,
+  createAppointment,
   createContributorRequest,
   createTask,
+  decideAppointment,
   decideTask,
   generateCoverLetter,
   revokeContributorRequest,
@@ -159,8 +161,24 @@ export async function createTaskAction(
   if (missionId.length === 0 || description.length === 0) {
     return { ok: false, message: 'A description is required.' };
   }
+  const priorityRaw = String(formData.get('priority') ?? '');
+  const priority = (['LOW', 'NORMAL', 'HIGH', 'URGENT'] as const).includes(priorityRaw as never)
+    ? (priorityRaw as 'LOW' | 'NORMAL' | 'HIGH' | 'URGENT')
+    : undefined;
+  const dueDateRaw = String(formData.get('dueDate') ?? '').trim();
+  const dueDate = dueDateRaw.length > 0 ? new Date(dueDateRaw) : undefined;
+  const dueTimezoneRaw = String(formData.get('dueTimezone') ?? '').trim();
+  const dueTimezone = dueTimezoneRaw.length > 0 ? dueTimezoneRaw : undefined;
+
   const result = await withSession(async ({ db, accountId }) => {
-    const task = await createTask(db, { actorAccountId: accountId, missionId, description });
+    const task = await createTask(db, {
+      actorAccountId: accountId,
+      missionId,
+      description,
+      ...(priority ? { priority } : {}),
+      ...(dueDate ? { dueDate } : {}),
+      ...(dueTimezone ? { dueTimezone } : {}),
+    });
     if (!task.ok) return { ok: false, message: task.error.message } satisfies ActionState;
     return { ok: true, message: 'Task added.' } satisfies ActionState;
   });
@@ -168,23 +186,96 @@ export async function createTaskAction(
   return result;
 }
 
-/** Mark a task DONE or CANCELLED. */
+/** Move a task through OPEN -> IN_PROGRESS -> DONE/CANCELLED. */
 export async function decideTaskAction(
   _prev: ActionState,
   formData: FormData,
 ): Promise<ActionState> {
   const missionId = String(formData.get('missionId') ?? '');
   const taskId = String(formData.get('taskId') ?? '');
-  const status = String(formData.get('status') ?? '') as 'DONE' | 'CANCELLED';
+  const status = String(formData.get('status') ?? '') as 'IN_PROGRESS' | 'DONE' | 'CANCELLED';
   if (missionId.length === 0 || taskId.length === 0) {
     return { ok: false, message: 'Missing task.' };
   }
   const result = await withSession(async ({ db, accountId }) => {
     const decided = await decideTask(db, { actorAccountId: accountId, missionId, taskId, status });
     if (!decided.ok) return { ok: false, message: decided.error.message } satisfies ActionState;
+    const messages: Record<typeof status, string> = {
+      IN_PROGRESS: 'Task started.',
+      DONE: 'Task completed.',
+      CANCELLED: 'Task cancelled.',
+    };
+    return { ok: true, message: messages[status] } satisfies ActionState;
+  });
+  if (result.ok) revalidatePath(`/app/mission/${missionId}`);
+  return result;
+}
+
+/** Schedule an appointment tied to the mission (Commercial V1 Part 4 §11). */
+export async function createAppointmentAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const missionId = String(formData.get('missionId') ?? '');
+  const title = String(formData.get('title') ?? '').trim();
+  const localDate = String(formData.get('localDate') ?? '').trim();
+  const localTime = String(formData.get('localTime') ?? '').trim();
+  const timezone = String(formData.get('timezone') ?? '').trim();
+  if (missionId.length === 0 || title.length === 0 || !localDate || !localTime || !timezone) {
+    return { ok: false, message: 'Title, date, time, and timezone are required.' };
+  }
+  // The literal wall-clock instant, deliberately parsed with no timezone
+  // suffix (never `Z`/offset) so it round-trips as the same local date/time
+  // regardless of the server's own timezone -- `timezone` above is what
+  // gives it meaning, not this raw value.
+  const localDateTime = new Date(`${localDate}T${localTime}:00`);
+  if (Number.isNaN(localDateTime.getTime())) {
+    return { ok: false, message: 'Invalid date or time.' };
+  }
+  const place = String(formData.get('place') ?? '').trim();
+  const channel = String(formData.get('channel') ?? '').trim();
+
+  const result = await withSession(async ({ db, accountId }) => {
+    const appointment = await createAppointment(db, {
+      actorAccountId: accountId,
+      missionId,
+      title,
+      localDateTime,
+      timezone,
+      ...(place ? { place } : {}),
+      ...(channel ? { channel } : {}),
+    });
+    if (!appointment.ok) {
+      return { ok: false, message: appointment.error.message } satisfies ActionState;
+    }
+    return { ok: true, message: 'Appointment scheduled.' } satisfies ActionState;
+  });
+  if (result.ok) revalidatePath(`/app/mission/${missionId}`);
+  return result;
+}
+
+/** Mark an appointment DONE or CANCELLED. */
+export async function decideAppointmentAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const missionId = String(formData.get('missionId') ?? '');
+  const appointmentId = String(formData.get('appointmentId') ?? '');
+  const status = String(formData.get('status') ?? '') as 'DONE' | 'CANCELLED';
+  if (missionId.length === 0 || appointmentId.length === 0) {
+    return { ok: false, message: 'Missing appointment.' };
+  }
+  const result = await withSession(async ({ db, accountId }) => {
+    const decided = await decideAppointment(db, {
+      actorAccountId: accountId,
+      missionId,
+      appointmentId,
+      status,
+    });
+    if (!decided.ok) return { ok: false, message: decided.error.message } satisfies ActionState;
     return {
       ok: true,
-      message: status === 'DONE' ? 'Task completed.' : 'Task cancelled.',
+      message: status === 'DONE' ? 'Appointment completed.' : 'Appointment cancelled.',
     } satisfies ActionState;
   });
   if (result.ok) revalidatePath(`/app/mission/${missionId}`);

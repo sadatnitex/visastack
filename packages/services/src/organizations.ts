@@ -1,6 +1,6 @@
 import type { MembershipRole } from '@visastack/core';
 import { type Result, err, ok } from '@visastack/core';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, ne } from 'drizzle-orm';
 import { appendAuditEvent } from './audit';
 import { type Db, first, required, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
@@ -435,6 +435,62 @@ export async function setMembershipActive(
       resourceId: updated.id,
       metadata: { organizationId: input.organizationId, targetRole: target.role },
     });
+
+    // Commercial V1 Part 4 §11: "Removed member may not remain sole owner of
+    // active case." A deactivated member no longer passes `isActiveMember`,
+    // so leaving them as a mission's only assignment would quietly strand
+    // that case with an assignee who can no longer act on it. Unassign them
+    // from every such mission (active, not CLOSED/CANCELLED) where they were
+    // the SOLE assignee -- never where a co-assignee remains, since that
+    // case still has a working assignee -- landing each one in the
+    // "reassignment queue" (`agency.ts`'s `listUnassignedActiveMissions`)
+    // rather than blocking the deactivation itself on a hand-off first.
+    if (!input.active) {
+      const ownMissionAssignments = await tx
+        .select({ id: schema.assignments.id, missionId: schema.assignments.missionId })
+        .from(schema.assignments)
+        .where(
+          and(
+            eq(schema.assignments.organizationId, input.organizationId),
+            eq(schema.assignments.memberAccountId, target.accountId),
+          ),
+        );
+      for (const assignment of ownMissionAssignments) {
+        const coAssignees = await tx
+          .select({ id: schema.assignments.id })
+          .from(schema.assignments)
+          .where(
+            and(
+              eq(schema.assignments.organizationId, input.organizationId),
+              eq(schema.assignments.missionId, assignment.missionId),
+              ne(schema.assignments.id, assignment.id),
+            ),
+          )
+          .limit(1);
+        if (coAssignees.length > 0) continue;
+        const mission = first(
+          await tx
+            .select({ state: schema.missions.state })
+            .from(schema.missions)
+            .where(eq(schema.missions.id, assignment.missionId))
+            .limit(1),
+        );
+        if (!mission || mission.state === 'CLOSED' || mission.state === 'CANCELLED') continue;
+        await tx.delete(schema.assignments).where(eq(schema.assignments.id, assignment.id));
+        await appendAuditEvent(tx, {
+          eventType: 'MEMBER_UNASSIGNED',
+          actorAccountId: input.actorAccountId,
+          method: 'MANUAL',
+          result: 'ALLOWED',
+          missionId: assignment.missionId,
+          resourceType: 'assignment',
+          resourceId: assignment.id,
+          reason: 'sole_assignee_deactivated',
+          metadata: { organizationId: input.organizationId, memberAccountId: target.accountId },
+        });
+      }
+    }
+
     return ok(updated);
   });
 }

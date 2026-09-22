@@ -2,6 +2,7 @@ import { fileURLToPath } from 'node:url';
 import { PGlite } from '@electric-sql/pglite';
 import { isErr, isOk } from '@visastack/core';
 import { schema } from '@visastack/db';
+import { and, eq } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/pglite';
 import { migrate } from 'drizzle-orm/pglite/migrator';
 import { beforeEach, describe, expect, it } from 'vitest';
@@ -11,8 +12,13 @@ import {
   assignMember,
   bulkExport,
   cancelEvidenceRequest,
+  createAppointmentForOrg,
+  createTaskForOrg,
+  decideAppointmentForOrg,
   decideEvidenceResponse,
+  decideTaskForOrg,
   listApplicantsForOrganization,
+  listAppointmentsForOrg,
   listAssignedMissionIds,
   listAssignmentsDetailed,
   listEvidenceRequestDecisions,
@@ -24,17 +30,20 @@ import {
   listMissionsForOrganization,
   listNotes,
   listTasksForOrg,
+  listUnassignedActiveMissions,
   listVisibleMissionsForMember,
   recordMissionDecision,
   requestEvidence,
   startEvidenceReview,
   submitEvidenceResponse,
+  unassignMember,
+  updateTaskForOrg,
 } from './agency';
 import { createApplicant } from './applicants';
 import { setConsent } from './consent';
 import type { Db } from './db';
 import { addDocumentVersion, registerDocument } from './documents';
-import { attachPackVersion, createMission, createTask } from './missions';
+import { attachPackVersion, createMission, createTask, transitionMission } from './missions';
 import {
   addMembership,
   createOrganization,
@@ -1858,5 +1867,317 @@ describe('CAS-02 - case workspace: authorized visibility, search fields, task ro
     expect(tasks).toHaveLength(1);
     expect(tasks[0]?.id).toBe(task.value.id);
     expect(tasks[0]?.dueDate?.toISOString()).toBe(dueDate.toISOString());
+  });
+});
+
+describe('CAS-04 - org-side tasks/appointments, unassignment, and the reassignment queue (Commercial V1 Part 4 §11)', () => {
+  let db: Db;
+  beforeEach(async () => {
+    db = await freshDb();
+  });
+
+  /** An org, an admin, an assigned member holding a real MANAGE grant, and one mission. */
+  async function setUpAssignedOrg(db: Db, tag: string) {
+    const { account, applicantId } = await consentedApplicant(db, `cas04-${tag}@example.com`);
+    const mission = await createMission(db, {
+      actorAccountId: account.id,
+      applicantId,
+      title: 'Task/appointment case',
+    });
+    if (!isOk(mission)) throw new Error('mission');
+
+    const adminAcc = await provisionAccount(db, { email: `cas04-${tag}-admin@acme.com` });
+    const memberAcc = await provisionAccount(db, { email: `cas04-${tag}-member@acme.com` });
+    if (!isOk(adminAcc) || !isOk(memberAcc)) throw new Error('provision');
+    const org = await createOrganization(db, { actorAccountId: adminAcc.value.id, name: 'Acme' });
+    if (!isOk(org)) throw new Error('org');
+    await activateOrg(db, org.value.id);
+    await addMembership(db, {
+      actorAccountId: adminAcc.value.id,
+      organizationId: org.value.id,
+      accountId: memberAcc.value.id,
+      role: 'CASE_MANAGER',
+    });
+    const grant = await createGrant(db, {
+      actorAccountId: account.id,
+      applicantId,
+      recipientOrganizationId: org.value.id,
+      actions: ['MANAGE'],
+      purpose: 'collaboration',
+    });
+    if (!isOk(grant)) throw new Error('grant');
+    await acceptGrant(db, { actorAccountId: adminAcc.value.id, grantId: grant.value.id });
+    await assignMember(db, {
+      actorAccountId: adminAcc.value.id,
+      organizationId: org.value.id,
+      memberAccountId: memberAcc.value.id,
+      missionId: mission.value.id,
+    });
+
+    return {
+      account,
+      applicantId,
+      missionId: mission.value.id,
+      organizationId: org.value.id,
+      adminAccountId: adminAcc.value.id,
+      memberAccountId: memberAcc.value.id,
+    };
+  }
+
+  it('createTaskForOrg/updateTaskForOrg/decideTaskForOrg require the actor to be assigned to the mission, not merely an active member with a covering grant', async () => {
+    const { missionId, organizationId, adminAccountId, memberAccountId } = await setUpAssignedOrg(
+      db,
+      'task',
+    );
+
+    const created = await createTaskForOrg(db, {
+      actorAccountId: memberAccountId,
+      organizationId,
+      missionId,
+      description: 'Chase the applicant for a bank statement.',
+      priority: 'HIGH',
+    });
+    expect(isOk(created)).toBe(true);
+    if (!isOk(created)) return;
+    expect(created.value.priority).toBe('HIGH');
+
+    const reassigned = await updateTaskForOrg(db, {
+      actorAccountId: memberAccountId,
+      organizationId,
+      missionId,
+      taskId: created.value.id,
+      assigneeAccountId: null,
+    });
+    expect(isOk(reassigned)).toBe(true);
+    if (isOk(reassigned)) expect(reassigned.value.assigneeAccountId).toBeNull();
+
+    const started = await decideTaskForOrg(db, {
+      actorAccountId: memberAccountId,
+      organizationId,
+      missionId,
+      taskId: created.value.id,
+      status: 'IN_PROGRESS',
+    });
+    expect(isOk(started)).toBe(true);
+    if (isOk(started)) expect(started.value.status).toBe('IN_PROGRESS');
+
+    // An active member with the SAME covering grant, but never assigned to
+    // this mission, is refused -- routine case work is assignment-gated,
+    // exactly like recordMissionDecision's own bar.
+    const outsider = await provisionAccount(db, { email: 'cas04-task-outsider@acme.com' });
+    if (!isOk(outsider)) throw new Error('provision');
+    await addMembership(db, {
+      actorAccountId: adminAccountId,
+      organizationId,
+      accountId: outsider.value.id,
+      role: 'CASE_MANAGER',
+    });
+    const deniedCreate = await createTaskForOrg(db, {
+      actorAccountId: outsider.value.id,
+      organizationId,
+      missionId,
+      description: 'Should be refused.',
+    });
+    expect(isErr(deniedCreate)).toBe(true);
+    if (isErr(deniedCreate)) expect(deniedCreate.error.code).toBe('forbidden');
+  });
+
+  it('org-side appointments: create/list/decide share the same assigned-member gate as tasks', async () => {
+    const { missionId, applicantId, organizationId, memberAccountId } = await setUpAssignedOrg(
+      db,
+      'appt',
+    );
+
+    const created = await createAppointmentForOrg(db, {
+      actorAccountId: memberAccountId,
+      organizationId,
+      missionId,
+      title: 'Prep call',
+      localDateTime: new Date('2026-12-01T10:00:00'),
+      timezone: 'Asia/Dhaka',
+    });
+    expect(isOk(created)).toBe(true);
+    if (!isOk(created)) return;
+
+    const listed = await listAppointmentsForOrg(db, organizationId, applicantId, missionId);
+    expect(listed.map((a) => a.id)).toEqual([created.value.id]);
+
+    const decided = await decideAppointmentForOrg(db, {
+      actorAccountId: memberAccountId,
+      organizationId,
+      missionId,
+      appointmentId: created.value.id,
+      status: 'DONE',
+    });
+    expect(isOk(decided)).toBe(true);
+    if (isOk(decided)) expect(decided.value.status).toBe('DONE');
+  });
+
+  it('unassignMember: admin-only, removes exactly that assignment, and is idempotent when nothing is assigned', async () => {
+    const { missionId, organizationId, adminAccountId, memberAccountId } = await setUpAssignedOrg(
+      db,
+      'unassign',
+    );
+
+    const nonAdminAttempt = await unassignMember(db, {
+      actorAccountId: memberAccountId,
+      organizationId,
+      memberAccountId,
+      missionId,
+    });
+    expect(isErr(nonAdminAttempt)).toBe(true);
+    if (isErr(nonAdminAttempt)) expect(nonAdminAttempt.error.code).toBe('forbidden');
+
+    const removed = await unassignMember(db, {
+      actorAccountId: adminAccountId,
+      organizationId,
+      memberAccountId,
+      missionId,
+    });
+    expect(isOk(removed)).toBe(true);
+    if (isOk(removed)) expect(removed.value.removed).toBe(true);
+
+    const assignments = await db
+      .select()
+      .from(schema.assignments)
+      .where(eq(schema.assignments.missionId, missionId));
+    expect(assignments).toHaveLength(0);
+
+    // Removing again is a true no-op, not an error.
+    const again = await unassignMember(db, {
+      actorAccountId: adminAccountId,
+      organizationId,
+      memberAccountId,
+      missionId,
+    });
+    expect(isOk(again)).toBe(true);
+    if (isOk(again)) expect(again.value.removed).toBe(false);
+  });
+
+  it('listUnassignedActiveMissions: surfaces an active, reachable case with nobody assigned, excludes an assigned one and a CANCELLED one', async () => {
+    const { account, applicantId, missionId, organizationId, adminAccountId, memberAccountId } =
+      await setUpAssignedOrg(db, 'queue');
+
+    // Assigned -- not in the queue.
+    expect(await listUnassignedActiveMissions(db, organizationId)).toEqual([]);
+
+    await unassignMember(db, {
+      actorAccountId: adminAccountId,
+      organizationId,
+      memberAccountId,
+      missionId,
+    });
+    const queue = await listUnassignedActiveMissions(db, organizationId);
+    expect(queue.map((m) => m.missionId)).toEqual([missionId]);
+
+    // A second, CANCELLED mission with no assignee at all never appears --
+    // a finished case needs no reassignment.
+    const cancelled = await createMission(db, {
+      actorAccountId: account.id,
+      applicantId,
+      title: 'Withdrawn case',
+    });
+    if (!isOk(cancelled)) throw new Error('mission');
+    await transitionMission(db, {
+      actorAccountId: account.id,
+      missionId: cancelled.value.id,
+      to: 'CANCELLED',
+    });
+    const grant = await createGrant(db, {
+      actorAccountId: account.id,
+      applicantId,
+      recipientOrganizationId: organizationId,
+      missionId: cancelled.value.id,
+      actions: ['MANAGE'],
+      purpose: 'collaboration',
+    });
+    if (!isOk(grant)) throw new Error('grant');
+    await acceptGrant(db, { actorAccountId: adminAccountId, grantId: grant.value.id });
+
+    const queueAfter = await listUnassignedActiveMissions(db, organizationId);
+    expect(queueAfter.map((m) => m.missionId)).toEqual([missionId]);
+  });
+
+  it('deactivating a member auto-unassigns them from every active mission where they were the SOLE assignee, landing it in the reassignment queue -- but never touches a mission with a co-assignee still standing', async () => {
+    const { account, applicantId, missionId, organizationId, adminAccountId, memberAccountId } =
+      await setUpAssignedOrg(db, 'deactivate');
+
+    // A second mission, co-assigned to both the admin and the member -- a
+    // deactivation must never strip the admin's own still-valid assignment.
+    const coAssignedMission = await createMission(db, {
+      actorAccountId: account.id,
+      applicantId,
+      title: 'Co-assigned case',
+    });
+    if (!isOk(coAssignedMission)) throw new Error('mission');
+    const grant = await createGrant(db, {
+      actorAccountId: account.id,
+      applicantId,
+      recipientOrganizationId: organizationId,
+      missionId: coAssignedMission.value.id,
+      actions: ['MANAGE'],
+      purpose: 'collaboration',
+    });
+    if (!isOk(grant)) throw new Error('grant');
+    await acceptGrant(db, { actorAccountId: adminAccountId, grantId: grant.value.id });
+    await assignMember(db, {
+      actorAccountId: adminAccountId,
+      organizationId,
+      memberAccountId: adminAccountId,
+      missionId: coAssignedMission.value.id,
+    });
+    await assignMember(db, {
+      actorAccountId: adminAccountId,
+      organizationId,
+      memberAccountId,
+      missionId: coAssignedMission.value.id,
+    });
+
+    const membership = (
+      await db
+        .select()
+        .from(schema.memberships)
+        .where(
+          and(
+            eq(schema.memberships.organizationId, organizationId),
+            eq(schema.memberships.accountId, memberAccountId),
+          ),
+        )
+    )[0];
+    if (!membership) throw new Error('membership');
+
+    const deactivated = await setMembershipActive(db, {
+      actorAccountId: adminAccountId,
+      organizationId,
+      membershipId: membership.id,
+      active: false,
+    });
+    expect(isOk(deactivated)).toBe(true);
+
+    // Sole-assignee mission: the member's assignment is gone, and it now
+    // shows up in the reassignment queue.
+    const soleAssignments = await db
+      .select()
+      .from(schema.assignments)
+      .where(
+        and(
+          eq(schema.assignments.missionId, missionId),
+          eq(schema.assignments.memberAccountId, memberAccountId),
+        ),
+      );
+    expect(soleAssignments).toHaveLength(0);
+    const queue = await listUnassignedActiveMissions(db, organizationId);
+    expect(queue.map((m) => m.missionId)).toContain(missionId);
+
+    // Co-assigned mission: BOTH assignments survive untouched -- the admin's
+    // own standing was never at risk, and the case still has a working
+    // assignee (the now-deactivated member's row itself is intentionally
+    // left as historical record; only a SOLE assignment is auto-removed).
+    const coAssignments = await db
+      .select()
+      .from(schema.assignments)
+      .where(eq(schema.assignments.missionId, coAssignedMission.value.id));
+    expect(coAssignments).toHaveLength(2);
+    expect(queue.map((m) => m.missionId)).not.toContain(coAssignedMission.value.id);
   });
 });

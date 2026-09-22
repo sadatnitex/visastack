@@ -624,6 +624,25 @@ item gets its own requirements-ledger row once classified against the new direct
     no bulk publish) was audited against the real code and confirmed already
     correct, not merely assumed. Full detail: `requirements-ledger.md`
     CAS-05.
+56. ~~CAS-04's own directive text (§11 "Tasks and appointments") names far
+    more than the prior minimal slice covered: explicit timezone, priority,
+    an IN_PROGRESS task state, a wholly distinct Appointment concept (local
+    date/time, timezone, place/channel, add-to-calendar download),
+    reassignment, "a removed member may not remain sole owner of an active
+    case," and "create reassignment queue." None of it existed, and none of
+    it is deferrable to Part 5 by the PRD's own wording -- only "reschedule
+    *notifications*" is named as later.~~ **RESOLVED (Part 4).** Built all
+    of it: `priority`/`dueTimezone` on `missionTasks`, a real OPEN ->
+    IN_PROGRESS -> DONE/CANCELLED task state machine, a new
+    `missionAppointments` table and full CRUD (owner and org side, org side
+    newly gated exactly like `recordMissionDecision`'s own assigned-member
+    bar), a real RFC 5545 `.ics` "add to calendar" download, `unassignMember`
+    plus `listUnassignedActiveMissions` (the reassignment queue), and
+    `setMembershipActive` now auto-unassigns a deactivated member from every
+    active mission where they were the SOLE assignee, in the same
+    transaction as the deactivation itself -- proven by a test that a
+    co-assigned mission's assignments survive a deactivation untouched.
+    Full detail: `requirements-ledger.md` CAS-04.
 independently confirmed findings; the missing PRD file is tracked as Blocker 1 in
 `assumptions-and-blockers.md` (now resolved) rather than here, since it blocked the
 programme rather than being a product defect.

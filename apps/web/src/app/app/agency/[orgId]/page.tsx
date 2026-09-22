@@ -4,6 +4,7 @@ import {
   isActiveMember,
   isOrgAdmin,
   listApplicantsForOrganization,
+  listAppointmentsForOrg,
   listAssignmentsDetailed,
   listClientInvitations,
   listEvidenceRequestsForOrgDetailed,
@@ -16,6 +17,7 @@ import {
   listOrganizationInvitations,
   listSelectedEvidenceForOrg,
   listTasksForOrg,
+  listUnassignedActiveMissions,
   listVisibleMissionsForMember,
 } from '@visastack/services';
 import Link from 'next/link';
@@ -132,6 +134,7 @@ export default async function OrgConsolePage({
         clientInvitations: [],
         applicants: [],
         missions: [],
+        unassignedQueue: [],
         viewerAccountId: accountId,
       };
     }
@@ -170,21 +173,30 @@ export default async function OrgConsolePage({
       : [];
     const missions = await Promise.all(
       visible.missions.map(async (mission) => {
-        const [assignments, notes, requirements, decisions, selectedEvidence, tasks, readiness] =
-          await Promise.all([
-            listAssignmentsDetailed(db, orgId, mission.applicantId, mission.missionId),
-            listNotes(db, orgId, mission.applicantId, mission.missionId),
-            listMissionRequirementsForOrg(db, orgId, mission.missionId),
-            listMissionDecisions(db, accountId, mission.missionId),
-            listSelectedEvidenceForOrg(db, orgId, mission.missionId),
-            listTasksForOrg(db, orgId, mission.applicantId, mission.missionId),
-            // Manual-mode cases never carry an official readiness claim
-            // (CAS-01 §8), even if a pack happens to still be attached;
-            // a case with no pack attached at all has nothing to compute.
-            !mission.manualMode && mission.packVersionId
-              ? computeReadiness(db, mission.missionId)
-              : Promise.resolve(null),
-          ]);
+        const [
+          assignments,
+          notes,
+          requirements,
+          decisions,
+          selectedEvidence,
+          tasks,
+          appointments,
+          readiness,
+        ] = await Promise.all([
+          listAssignmentsDetailed(db, orgId, mission.applicantId, mission.missionId),
+          listNotes(db, orgId, mission.applicantId, mission.missionId),
+          listMissionRequirementsForOrg(db, orgId, mission.missionId),
+          listMissionDecisions(db, accountId, mission.missionId),
+          listSelectedEvidenceForOrg(db, orgId, mission.missionId),
+          listTasksForOrg(db, orgId, mission.applicantId, mission.missionId),
+          listAppointmentsForOrg(db, orgId, mission.applicantId, mission.missionId),
+          // Manual-mode cases never carry an official readiness claim
+          // (CAS-01 §8), even if a pack happens to still be attached;
+          // a case with no pack attached at all has nothing to compute.
+          !mission.manualMode && mission.packVersionId
+            ? computeReadiness(db, mission.missionId)
+            : Promise.resolve(null),
+        ]);
         // EVI-05: an issuer confirmation is recorded against whatever a
         // requirement's evidence resolves to (fact or document), not
         // against the requirement directly, so it's looked up the same way
@@ -253,13 +265,33 @@ export default async function OrgConsolePage({
           viewerAssigned: assignments.some((a) => a.memberAccountId === accountId),
           tasks: tasks.map((t) => ({
             id: t.id,
+            description: t.description,
             status: t.status,
+            priority: t.priority,
+            assigneeAccountId: t.assigneeAccountId,
             dueDate: t.dueDate ? t.dueDate.toISOString() : null,
+          })),
+          appointments: appointments.map((a) => ({
+            id: a.id,
+            title: a.title,
+            localDateTime: a.localDateTime.toISOString(),
+            timezone: a.timezone,
+            place: a.place,
+            channel: a.channel,
+            status: a.status,
           })),
           readiness: readiness?.ok ? readiness.value : null,
         };
       }),
     );
+    // Commercial V1 Part 4 §11's "reassignment queue": every mission this
+    // org can still act on but that currently has nobody assigned at all,
+    // most often because `setMembershipActive`'s deactivation path
+    // auto-unassigned a departed member's sole case. Admin-only surfacing
+    // (matches assignMember/unassignMember's own admin-only bar), though the
+    // read itself carries no more than `listMissionsForOrganization` already
+    // exposes to this org.
+    const unassignedQueue = admin ? await listUnassignedActiveMissions(db, orgId) : [];
     return {
       org,
       admin,
@@ -270,6 +302,7 @@ export default async function OrgConsolePage({
       clientInvitations: clientInvitationsResolved,
       applicants,
       missions,
+      unassignedQueue,
       viewerAccountId: accountId,
     };
   });
@@ -705,6 +738,26 @@ export default async function OrgConsolePage({
             </article>
           ) : null}
 
+          {data.admin && data.unassignedQueue.length > 0 ? (
+            <article className="card" style={{ marginTop: '1.5rem' }}>
+              <p className="card-kicker">Needs attention</p>
+              <h2 className="card-title">Reassignment queue</h2>
+              <p className="card-body" style={{ marginBottom: '1.25rem' }}>
+                Active cases this organization can still act on but that currently have nobody
+                assigned - most often because the only assigned member was removed. Assign someone
+                in the Missions section below.
+              </p>
+              <div className="rows">
+                {data.unassignedQueue.map((m) => (
+                  <a key={m.missionId} href={`#mission-${m.missionId}`} className="row row-link">
+                    <span className="row-key">{m.title}</span>
+                    <span className="muted">{m.applicantName}</span>
+                  </a>
+                ))}
+              </div>
+            </article>
+          ) : null}
+
           <article className="card" style={{ marginTop: '1.5rem' }}>
             <p className="card-kicker">Collaborate</p>
             <h2 className="card-title">Missions</h2>
@@ -732,6 +785,8 @@ export default async function OrgConsolePage({
                     members={data.members.map((m) => ({ accountId: m.accountId, email: m.email }))}
                     assignments={mission.assignments}
                     notes={mission.notes}
+                    tasks={mission.tasks}
+                    appointments={mission.appointments}
                     requirements={mission.requirements}
                     decisions={mission.decisions}
                     issuerVerifications={mission.issuerVerifications}

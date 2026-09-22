@@ -239,6 +239,94 @@ export async function assignMember(
   });
 }
 
+/**
+ * Remove one member's assignment from a mission (admin-gated, same bar as
+ * `assignMember`). Commercial V1 Part 4 §11's counterpart to "Create
+ * reassignment queue": deactivating a member (`setMembershipActive` in
+ * `organizations.ts`) already calls this automatically for every mission
+ * where they were the SOLE assignee, so this function also serves an org
+ * admin choosing to unassign someone directly, case still active, without
+ * deactivating their membership at all.
+ */
+export async function unassignMember(
+  db: Db,
+  input: {
+    readonly actorAccountId: string;
+    readonly organizationId: string;
+    readonly memberAccountId: string;
+    readonly missionId: string;
+  },
+): Promise<Result<{ readonly removed: boolean }, ServiceError>> {
+  if (!(await isOrgAdmin(db, input.actorAccountId, input.organizationId))) {
+    return err(serviceError('forbidden', 'only an org OWNER/ADMIN can unassign members'));
+  }
+  return db.transaction(async (tx) => {
+    const existing = first(
+      await tx
+        .select({ id: schema.assignments.id })
+        .from(schema.assignments)
+        .where(
+          and(
+            eq(schema.assignments.organizationId, input.organizationId),
+            eq(schema.assignments.missionId, input.missionId),
+            eq(schema.assignments.memberAccountId, input.memberAccountId),
+          ),
+        )
+        .limit(1),
+    );
+    if (!existing) return ok({ removed: false });
+    await tx.delete(schema.assignments).where(eq(schema.assignments.id, existing.id));
+    await appendAuditEvent(tx, {
+      eventType: 'MEMBER_UNASSIGNED',
+      actorAccountId: input.actorAccountId,
+      method: 'MANUAL',
+      result: 'ALLOWED',
+      missionId: input.missionId,
+      resourceType: 'assignment',
+      resourceId: existing.id,
+      metadata: { organizationId: input.organizationId, memberAccountId: input.memberAccountId },
+    });
+    return ok({ removed: true });
+  });
+}
+
+/**
+ * Missions this organization currently holds a grant to act on but that
+ * have NO assigned member at all -- the "reassignment queue" Commercial V1
+ * Part 4 §11 names: a case a departed/deactivated member's sole assignment
+ * was automatically removed from (`organizations.ts`'s `setMembershipActive`)
+ * lands here until an admin assigns someone new. Excludes terminal-state
+ * missions (CLOSED/CANCELLED): a finished case needs no reassignment.
+ */
+export async function listUnassignedActiveMissions(
+  db: Db,
+  organizationId: string,
+): Promise<OrgMission[]> {
+  const missions = await listMissionsForOrganization(db, organizationId);
+  const assigned = new Set(
+    (
+      await db
+        .select({ missionId: schema.assignments.missionId })
+        .from(schema.assignments)
+        .where(eq(schema.assignments.organizationId, organizationId))
+    ).map((a) => a.missionId),
+  );
+  const active = await db
+    .select({ id: schema.missions.id, state: schema.missions.state })
+    .from(schema.missions)
+    .where(
+      inArray(
+        schema.missions.id,
+        missions.map((m) => m.missionId),
+      ),
+    );
+  const activeStateByMissionId = new Map(active.map((m) => [m.id, m.state]));
+  return missions.filter((m) => {
+    const state = activeStateByMissionId.get(m.missionId);
+    return !assigned.has(m.missionId) && state !== 'CLOSED' && state !== 'CANCELLED';
+  });
+}
+
 export async function listAssignments(db: Db, missionId: string): Promise<Assignment[]> {
   return db.select().from(schema.assignments).where(eq(schema.assignments.missionId, missionId));
 }
@@ -358,6 +446,509 @@ export async function listTasksForOrg(
 ): Promise<OrgVisibleTask[]> {
   if (!(await canReadMissionCollaboration(db, organizationId, applicantId, missionId))) return [];
   return db.select().from(schema.missionTasks).where(eq(schema.missionTasks.missionId, missionId));
+}
+
+/**
+ * The gate every org-side task/appointment write shares (mirrors
+ * `recordMissionDecision`'s own three-part check exactly): an active member,
+ * assigned to this specific mission -- not merely any active member of the
+ * org -- whose organization currently holds a MANAGE grant covering it.
+ * Routine caseworker write access, deliberately looser than `assignMember`/
+ * `requestEvidence`'s admin-only bar: creating or completing a task is
+ * day-to-day case work, not an organizational management action.
+ */
+async function loadMissionForOrgWrite(
+  db: Db,
+  organizationId: string,
+  actorAccountId: string,
+  missionId: string,
+) {
+  if (!(await isActiveMember(db, actorAccountId, organizationId))) {
+    return err(serviceError('forbidden', 'not an active member of this organization'));
+  }
+  if (!(await assignedToMission(db, organizationId, actorAccountId, missionId))) {
+    return err(serviceError('forbidden', 'not assigned to this mission'));
+  }
+  const mission = first(
+    await db.select().from(schema.missions).where(eq(schema.missions.id, missionId)).limit(1),
+  );
+  if (!mission) return err(serviceError('not_found', 'mission not found'));
+  if (!(await orgGrantPermits(db, organizationId, mission.applicantId, 'MANAGE', mission.id))) {
+    return err(
+      serviceError('forbidden', 'this organization has no current grant covering that mission'),
+    );
+  }
+  return ok(mission);
+}
+
+export interface CreateTaskForOrgInput {
+  readonly actorAccountId: string;
+  readonly organizationId: string;
+  readonly missionId: string;
+  readonly description: string;
+  readonly assigneeAccountId?: string;
+  readonly dueDate?: Date;
+  readonly dueTimezone?: string;
+  readonly priority?: 'LOW' | 'NORMAL' | 'HIGH' | 'URGENT';
+}
+
+/** Org-side task creation (Commercial V1 Part 4 §11) -- the write path `listTasksForOrg`'s own doc comment named as still open. */
+export async function createTaskForOrg(
+  db: Db,
+  input: CreateTaskForOrgInput,
+): Promise<Result<OrgVisibleTask, ServiceError>> {
+  const description = input.description.trim();
+  if (description.length === 0) return err(serviceError('invalid', 'a description is required'));
+  const mission = await loadMissionForOrgWrite(
+    db,
+    input.organizationId,
+    input.actorAccountId,
+    input.missionId,
+  );
+  if (!mission.ok) return mission;
+
+  return db.transaction(async (tx) => {
+    const task = required(
+      first(
+        await tx
+          .insert(schema.missionTasks)
+          .values({
+            missionId: input.missionId,
+            description,
+            assigneeAccountId: input.assigneeAccountId ?? null,
+            dueDate: input.dueDate ?? null,
+            dueTimezone: input.dueTimezone ?? null,
+            ...(input.priority ? { priority: input.priority } : {}),
+          })
+          .returning(),
+      ),
+      'mission task',
+    );
+    await appendAuditEvent(tx, {
+      eventType: 'MISSION_TASK_CREATED',
+      actorAccountId: input.actorAccountId,
+      method: 'MANUAL',
+      result: 'ALLOWED',
+      missionId: input.missionId,
+      resourceType: 'mission_task',
+      resourceId: task.id,
+    });
+    return ok(task);
+  });
+}
+
+export interface UpdateTaskForOrgInput {
+  readonly actorAccountId: string;
+  readonly organizationId: string;
+  readonly missionId: string;
+  readonly taskId: string;
+  readonly assigneeAccountId?: string | null;
+  readonly dueDate?: Date | null;
+  readonly dueTimezone?: string | null;
+  readonly priority?: 'LOW' | 'NORMAL' | 'HIGH' | 'URGENT';
+}
+
+/** Org-side reassignment/reschedule/re-prioritization, audited exactly like the owner-side `updateTask`. */
+export async function updateTaskForOrg(
+  db: Db,
+  input: UpdateTaskForOrgInput,
+): Promise<Result<OrgVisibleTask, ServiceError>> {
+  const mission = await loadMissionForOrgWrite(
+    db,
+    input.organizationId,
+    input.actorAccountId,
+    input.missionId,
+  );
+  if (!mission.ok) return mission;
+
+  return db.transaction(async (tx) => {
+    const task = first(
+      await tx
+        .select()
+        .from(schema.missionTasks)
+        .where(
+          and(
+            eq(schema.missionTasks.id, input.taskId),
+            eq(schema.missionTasks.missionId, input.missionId),
+          ),
+        )
+        .limit(1),
+    );
+    if (!task) return err(serviceError('not_found', 'task not found'));
+
+    let changes: Record<string, { readonly before: unknown; readonly after: unknown }> = {};
+    if (input.assigneeAccountId !== undefined) {
+      changes = {
+        ...changes,
+        assigneeAccountId: { before: task.assigneeAccountId, after: input.assigneeAccountId },
+      };
+    }
+    if (input.dueDate !== undefined) {
+      changes = {
+        ...changes,
+        dueDate: {
+          before: task.dueDate?.toISOString() ?? null,
+          after: input.dueDate?.toISOString() ?? null,
+        },
+      };
+    }
+    if (input.dueTimezone !== undefined) {
+      changes = {
+        ...changes,
+        dueTimezone: { before: task.dueTimezone, after: input.dueTimezone },
+      };
+    }
+    if (input.priority !== undefined) {
+      changes = { ...changes, priority: { before: task.priority, after: input.priority } };
+    }
+    if (Object.keys(changes).length === 0) return ok(task);
+
+    const updated = required(
+      first(
+        await tx
+          .update(schema.missionTasks)
+          .set({
+            ...(input.assigneeAccountId !== undefined
+              ? { assigneeAccountId: input.assigneeAccountId }
+              : {}),
+            ...(input.dueDate !== undefined ? { dueDate: input.dueDate } : {}),
+            ...(input.dueTimezone !== undefined ? { dueTimezone: input.dueTimezone } : {}),
+            ...(input.priority !== undefined ? { priority: input.priority } : {}),
+            updatedAt: new Date(),
+          })
+          .where(eq(schema.missionTasks.id, input.taskId))
+          .returning(),
+      ),
+      'mission task',
+    );
+    await appendAuditEvent(tx, {
+      eventType: 'MISSION_TASK_UPDATED',
+      actorAccountId: input.actorAccountId,
+      method: 'MANUAL',
+      result: 'ALLOWED',
+      missionId: input.missionId,
+      resourceType: 'mission_task',
+      resourceId: task.id,
+      metadata: { changes },
+    });
+    return ok(updated);
+  });
+}
+
+/** Org-side task state transition, sharing `missions.ts`'s `decideTask` state machine (OPEN -> IN_PROGRESS -> DONE/CANCELLED). */
+export async function decideTaskForOrg(
+  db: Db,
+  input: {
+    readonly actorAccountId: string;
+    readonly organizationId: string;
+    readonly missionId: string;
+    readonly taskId: string;
+    readonly status: 'IN_PROGRESS' | 'DONE' | 'CANCELLED';
+  },
+): Promise<Result<OrgVisibleTask, ServiceError>> {
+  const mission = await loadMissionForOrgWrite(
+    db,
+    input.organizationId,
+    input.actorAccountId,
+    input.missionId,
+  );
+  if (!mission.ok) return mission;
+
+  return db.transaction(async (tx) => {
+    const task = first(
+      await tx
+        .select()
+        .from(schema.missionTasks)
+        .where(
+          and(
+            eq(schema.missionTasks.id, input.taskId),
+            eq(schema.missionTasks.missionId, input.missionId),
+          ),
+        )
+        .limit(1),
+    );
+    if (!task) return err(serviceError('not_found', 'task not found'));
+    if (!TASK_TRANSITIONS_FOR_ORG[task.status]?.includes(input.status)) {
+      return err(
+        serviceError('invalid', `cannot move a task from ${task.status} to ${input.status}`),
+      );
+    }
+    const updated = required(
+      first(
+        await tx
+          .update(schema.missionTasks)
+          .set({
+            status: input.status,
+            completedAt:
+              input.status === 'DONE' || input.status === 'CANCELLED' ? new Date() : null,
+            updatedAt: new Date(),
+          })
+          .where(eq(schema.missionTasks.id, input.taskId))
+          .returning(),
+      ),
+      'mission task',
+    );
+    await appendAuditEvent(tx, {
+      eventType: 'MISSION_TASK_DECIDED',
+      actorAccountId: input.actorAccountId,
+      method: 'MANUAL',
+      result: 'ALLOWED',
+      missionId: input.missionId,
+      resourceType: 'mission_task',
+      resourceId: task.id,
+      metadata: { from: task.status, status: input.status },
+    });
+    return ok(updated);
+  });
+}
+
+// Duplicated (not imported) from `missions.ts`'s own `TASK_TRANSITIONS`: two
+// independently-authorized write paths (owner, org) sharing one state
+// machine's SHAPE, matching this file's established convention of never
+// importing a write path across the owner/org boundary.
+const TASK_TRANSITIONS_FOR_ORG: Readonly<Record<string, readonly string[]>> = {
+  OPEN: ['IN_PROGRESS', 'DONE', 'CANCELLED'],
+  IN_PROGRESS: ['DONE', 'CANCELLED'],
+  DONE: [],
+  CANCELLED: [],
+};
+
+export type OrgVisibleAppointment = typeof schema.missionAppointments.$inferSelect;
+
+export interface CreateAppointmentForOrgInput {
+  readonly actorAccountId: string;
+  readonly organizationId: string;
+  readonly missionId: string;
+  readonly title: string;
+  readonly localDateTime: Date;
+  readonly timezone: string;
+  readonly assigneeAccountId?: string;
+  readonly place?: string;
+  readonly channel?: string;
+}
+
+/** Org-side appointment scheduling, the same shape as the owner-side `createAppointment` in `missions.ts`. */
+export async function createAppointmentForOrg(
+  db: Db,
+  input: CreateAppointmentForOrgInput,
+): Promise<Result<OrgVisibleAppointment, ServiceError>> {
+  const title = input.title.trim();
+  if (title.length === 0) return err(serviceError('invalid', 'a title is required'));
+  const timezone = input.timezone.trim();
+  if (timezone.length === 0) return err(serviceError('invalid', 'a timezone is required'));
+  const mission = await loadMissionForOrgWrite(
+    db,
+    input.organizationId,
+    input.actorAccountId,
+    input.missionId,
+  );
+  if (!mission.ok) return mission;
+
+  return db.transaction(async (tx) => {
+    const appointment = required(
+      first(
+        await tx
+          .insert(schema.missionAppointments)
+          .values({
+            missionId: input.missionId,
+            title,
+            assigneeAccountId: input.assigneeAccountId ?? null,
+            localDateTime: input.localDateTime,
+            timezone,
+            place: input.place?.trim() || null,
+            channel: input.channel?.trim() || null,
+          })
+          .returning(),
+      ),
+      'mission appointment',
+    );
+    await appendAuditEvent(tx, {
+      eventType: 'MISSION_APPOINTMENT_CREATED',
+      actorAccountId: input.actorAccountId,
+      method: 'MANUAL',
+      result: 'ALLOWED',
+      missionId: input.missionId,
+      resourceType: 'mission_appointment',
+      resourceId: appointment.id,
+    });
+    return ok(appointment);
+  });
+}
+
+/** Org-side appointment reschedule/reassign, audited like `missions.ts`'s owner-side `updateAppointment`. */
+export async function updateAppointmentForOrg(
+  db: Db,
+  input: {
+    readonly actorAccountId: string;
+    readonly organizationId: string;
+    readonly missionId: string;
+    readonly appointmentId: string;
+    readonly assigneeAccountId?: string | null;
+    readonly localDateTime?: Date;
+    readonly timezone?: string;
+    readonly place?: string | null;
+    readonly channel?: string | null;
+  },
+): Promise<Result<OrgVisibleAppointment, ServiceError>> {
+  const mission = await loadMissionForOrgWrite(
+    db,
+    input.organizationId,
+    input.actorAccountId,
+    input.missionId,
+  );
+  if (!mission.ok) return mission;
+
+  return db.transaction(async (tx) => {
+    const appointment = first(
+      await tx
+        .select()
+        .from(schema.missionAppointments)
+        .where(
+          and(
+            eq(schema.missionAppointments.id, input.appointmentId),
+            eq(schema.missionAppointments.missionId, input.missionId),
+          ),
+        )
+        .limit(1),
+    );
+    if (!appointment) return err(serviceError('not_found', 'appointment not found'));
+
+    let changes: Record<string, { readonly before: unknown; readonly after: unknown }> = {};
+    if (input.assigneeAccountId !== undefined) {
+      changes = {
+        ...changes,
+        assigneeAccountId: {
+          before: appointment.assigneeAccountId,
+          after: input.assigneeAccountId,
+        },
+      };
+    }
+    if (input.localDateTime !== undefined) {
+      changes = {
+        ...changes,
+        localDateTime: {
+          before: appointment.localDateTime.toISOString(),
+          after: input.localDateTime.toISOString(),
+        },
+      };
+    }
+    if (input.timezone !== undefined) {
+      changes = { ...changes, timezone: { before: appointment.timezone, after: input.timezone } };
+    }
+    if (input.place !== undefined) {
+      changes = { ...changes, place: { before: appointment.place, after: input.place } };
+    }
+    if (input.channel !== undefined) {
+      changes = { ...changes, channel: { before: appointment.channel, after: input.channel } };
+    }
+    if (Object.keys(changes).length === 0) return ok(appointment);
+
+    const updated = required(
+      first(
+        await tx
+          .update(schema.missionAppointments)
+          .set({
+            ...(input.assigneeAccountId !== undefined
+              ? { assigneeAccountId: input.assigneeAccountId }
+              : {}),
+            ...(input.localDateTime !== undefined ? { localDateTime: input.localDateTime } : {}),
+            ...(input.timezone !== undefined ? { timezone: input.timezone } : {}),
+            ...(input.place !== undefined ? { place: input.place } : {}),
+            ...(input.channel !== undefined ? { channel: input.channel } : {}),
+            updatedAt: new Date(),
+          })
+          .where(eq(schema.missionAppointments.id, input.appointmentId))
+          .returning(),
+      ),
+      'mission appointment',
+    );
+    await appendAuditEvent(tx, {
+      eventType: 'MISSION_APPOINTMENT_UPDATED',
+      actorAccountId: input.actorAccountId,
+      method: 'MANUAL',
+      result: 'ALLOWED',
+      missionId: input.missionId,
+      resourceType: 'mission_appointment',
+      resourceId: appointment.id,
+      metadata: { changes },
+    });
+    return ok(updated);
+  });
+}
+
+/** Org-side appointment completion/cancellation. */
+export async function decideAppointmentForOrg(
+  db: Db,
+  input: {
+    readonly actorAccountId: string;
+    readonly organizationId: string;
+    readonly missionId: string;
+    readonly appointmentId: string;
+    readonly status: 'DONE' | 'CANCELLED';
+  },
+): Promise<Result<OrgVisibleAppointment, ServiceError>> {
+  const mission = await loadMissionForOrgWrite(
+    db,
+    input.organizationId,
+    input.actorAccountId,
+    input.missionId,
+  );
+  if (!mission.ok) return mission;
+
+  return db.transaction(async (tx) => {
+    const appointment = first(
+      await tx
+        .select()
+        .from(schema.missionAppointments)
+        .where(
+          and(
+            eq(schema.missionAppointments.id, input.appointmentId),
+            eq(schema.missionAppointments.missionId, input.missionId),
+          ),
+        )
+        .limit(1),
+    );
+    if (!appointment) return err(serviceError('not_found', 'appointment not found'));
+    if (appointment.status !== 'OPEN') {
+      return err(serviceError('invalid', 'only an OPEN appointment can be decided'));
+    }
+    const updated = required(
+      first(
+        await tx
+          .update(schema.missionAppointments)
+          .set({ status: input.status, completedAt: new Date(), updatedAt: new Date() })
+          .where(eq(schema.missionAppointments.id, input.appointmentId))
+          .returning(),
+      ),
+      'mission appointment',
+    );
+    await appendAuditEvent(tx, {
+      eventType: 'MISSION_APPOINTMENT_DECIDED',
+      actorAccountId: input.actorAccountId,
+      method: 'MANUAL',
+      result: 'ALLOWED',
+      missionId: input.missionId,
+      resourceType: 'mission_appointment',
+      resourceId: appointment.id,
+      metadata: { status: input.status },
+    });
+    return ok(updated);
+  });
+}
+
+/** Appointments on a mission, org-read-scoped exactly like `listTasksForOrg` (COMMENT or MANAGE), soonest first. */
+export async function listAppointmentsForOrg(
+  db: Db,
+  organizationId: string,
+  applicantId: string,
+  missionId: string,
+): Promise<OrgVisibleAppointment[]> {
+  if (!(await canReadMissionCollaboration(db, organizationId, applicantId, missionId))) return [];
+  const rows = await db
+    .select()
+    .from(schema.missionAppointments)
+    .where(eq(schema.missionAppointments.missionId, missionId));
+  return [...rows].sort((a, b) => a.localDateTime.getTime() - b.localDateTime.getTime());
 }
 
 /** A mission this org can act on (a grant naming it), for the collaboration console. */

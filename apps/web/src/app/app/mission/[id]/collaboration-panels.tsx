@@ -3,7 +3,9 @@
 import { useActionState } from 'react';
 import {
   type ActionState,
+  createAppointmentAction,
   createTaskAction,
+  decideAppointmentAction,
   decideTaskAction,
   generateLetterAction,
   selectEvidenceAction,
@@ -13,10 +15,20 @@ import { composeSelectionCandidateKey } from './evidence-selection-key';
 
 const INITIAL: ActionState = { ok: true, message: '' };
 
+const PRIORITY_LABELS: Record<string, string> = {
+  LOW: 'Low',
+  NORMAL: 'Normal',
+  HIGH: 'High',
+  URGENT: 'Urgent',
+};
+
 interface TaskView {
   readonly id: string;
   readonly description: string;
-  readonly status: 'OPEN' | 'DONE' | 'CANCELLED';
+  readonly status: 'OPEN' | 'IN_PROGRESS' | 'DONE' | 'CANCELLED';
+  readonly priority: 'LOW' | 'NORMAL' | 'HIGH' | 'URGENT';
+  readonly dueDate: string | null;
+  readonly dueTimezone: string | null;
 }
 
 export function TasksPanel({
@@ -28,28 +40,62 @@ export function TasksPanel({
 }) {
   const [createState, createAction, createPending] = useActionState(createTaskAction, INITIAL);
   const [decideState, decideAction, decidePending] = useActionState(decideTaskAction, INITIAL);
-  const open = tasks.filter((t) => t.status === 'OPEN');
-  const decided = tasks.filter((t) => t.status !== 'OPEN');
+  const openOrInProgress = tasks.filter((t) => t.status === 'OPEN' || t.status === 'IN_PROGRESS');
+  const decided = tasks.filter((t) => t.status === 'DONE' || t.status === 'CANCELLED');
 
   return (
     <article className="card">
       <p className="card-kicker">Checklist</p>
       <h2 className="card-title">Tasks</h2>
-      {open.length === 0 ? (
+      {openOrInProgress.length === 0 ? (
         <p className="card-body">No open tasks.</p>
       ) : (
         <div className="rows" style={{ marginBottom: '1rem' }}>
-          {open.map((task) => (
+          {openOrInProgress.map((task) => (
             <form
               action={decideAction}
               key={task.id}
               className="row"
-              style={{ alignItems: 'center' }}
+              style={{ alignItems: 'center', flexWrap: 'wrap', gap: '0.4rem' }}
             >
               <input type="hidden" name="missionId" value={missionId} />
               <input type="hidden" name="taskId" value={task.id} />
-              <span className="row-key">{task.description}</span>
+              <span
+                className="row-key"
+                style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}
+              >
+                {task.description}
+                <span
+                  className={`badge ${task.priority === 'URGENT' || task.priority === 'HIGH' ? 'badge-warning' : 'badge-neutral'}`}
+                  style={{ fontSize: '0.65rem' }}
+                >
+                  {PRIORITY_LABELS[task.priority] ?? task.priority}
+                </span>
+                {task.status === 'IN_PROGRESS' ? (
+                  <span className="badge badge-neutral" style={{ fontSize: '0.65rem' }}>
+                    In progress
+                  </span>
+                ) : null}
+                {task.dueDate ? (
+                  <span className="muted" style={{ fontSize: '0.7rem' }}>
+                    due {new Date(task.dueDate).toLocaleDateString()}
+                    {task.dueTimezone ? ` (${task.dueTimezone})` : ''}
+                  </span>
+                ) : null}
+              </span>
               <div style={{ display: 'flex', gap: '0.4rem' }}>
+                {task.status === 'OPEN' ? (
+                  <button
+                    type="submit"
+                    name="status"
+                    value="IN_PROGRESS"
+                    className="btn btn-secondary"
+                    style={{ padding: '0.25rem 0.7rem', fontSize: '0.78rem' }}
+                    disabled={decidePending}
+                  >
+                    Start
+                  </button>
+                ) : null}
                 <button
                   type="submit"
                   name="status"
@@ -99,7 +145,10 @@ export function TasksPanel({
         </details>
       ) : null}
 
-      <form action={createAction} style={{ display: 'flex', gap: '0.5rem' }}>
+      <form
+        action={createAction}
+        style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}
+      >
         <input type="hidden" name="missionId" value={missionId} />
         <input
           name="description"
@@ -108,9 +157,199 @@ export function TasksPanel({
           placeholder="Add a task…"
           aria-label="Task description"
           required
+          style={{ flex: 1, minWidth: '10rem' }}
+        />
+        <select name="priority" className="input" defaultValue="NORMAL" aria-label="Priority">
+          {Object.entries(PRIORITY_LABELS).map(([value, label]) => (
+            <option key={value} value={value}>
+              {label}
+            </option>
+          ))}
+        </select>
+        <input
+          name="dueDate"
+          type="date"
+          className="input"
+          aria-label="Due date (optional)"
+          style={{ maxWidth: '9rem' }}
+        />
+        <input
+          name="dueTimezone"
+          type="text"
+          className="input"
+          placeholder="Timezone, e.g. Asia/Dhaka"
+          aria-label="Due timezone (optional)"
+          style={{ maxWidth: '10rem' }}
         />
         <button type="submit" className="btn btn-secondary" disabled={createPending}>
           {createPending ? 'Adding…' : 'Add'}
+        </button>
+      </form>
+      {createState.message ? (
+        <p className={`field-msg ${createState.ok ? 'field-msg-ok' : 'field-msg-err'}`}>
+          {createState.message}
+        </p>
+      ) : null}
+    </article>
+  );
+}
+
+interface AppointmentView {
+  readonly id: string;
+  readonly title: string;
+  readonly localDateTime: string;
+  readonly timezone: string;
+  readonly place: string | null;
+  readonly channel: string | null;
+  readonly status: 'OPEN' | 'IN_PROGRESS' | 'DONE' | 'CANCELLED';
+}
+
+/** Commercial V1 Part 4 §11: a scheduled meeting, distinct from a checklist task -- local date/time, timezone, place/channel, and a real add-to-calendar download. */
+export function AppointmentsPanel({
+  missionId,
+  appointments,
+}: {
+  readonly missionId: string;
+  readonly appointments: readonly AppointmentView[];
+}) {
+  const [createState, createAction, createPending] = useActionState(
+    createAppointmentAction,
+    INITIAL,
+  );
+  const [decideState, decideAction, decidePending] = useActionState(
+    decideAppointmentAction,
+    INITIAL,
+  );
+  const upcoming = appointments.filter((a) => a.status === 'OPEN' || a.status === 'IN_PROGRESS');
+  const past = appointments.filter((a) => a.status === 'DONE' || a.status === 'CANCELLED');
+
+  return (
+    <article className="card">
+      <p className="card-kicker">Meetings</p>
+      <h2 className="card-title">Appointments</h2>
+      {upcoming.length === 0 ? (
+        <p className="card-body" style={{ marginBottom: '1rem' }}>
+          No appointments scheduled.
+        </p>
+      ) : (
+        <div className="rows" style={{ marginBottom: '1rem' }}>
+          {upcoming.map((appt) => (
+            <div
+              key={appt.id}
+              className="row"
+              style={{ flexDirection: 'column', alignItems: 'flex-start', gap: '0.3rem' }}
+            >
+              <span className="row-key">{appt.title}</span>
+              <span className="muted" style={{ fontSize: '0.8rem' }}>
+                {new Date(appt.localDateTime).toLocaleString(undefined, {
+                  dateStyle: 'medium',
+                  timeStyle: 'short',
+                })}{' '}
+                ({appt.timezone}){appt.place ? ` · ${appt.place}` : ''}
+                {appt.channel ? ` · ${appt.channel}` : ''}
+              </span>
+              <div style={{ display: 'flex', gap: '0.4rem' }}>
+                <a
+                  href={`/app/mission/${missionId}/appointments/${appt.id}/ics`}
+                  className="btn btn-secondary"
+                  style={{ padding: '0.2rem 0.6rem', fontSize: '0.75rem', textDecoration: 'none' }}
+                >
+                  Add to calendar
+                </a>
+                <form action={decideAction} style={{ display: 'flex', gap: '0.4rem' }}>
+                  <input type="hidden" name="missionId" value={missionId} />
+                  <input type="hidden" name="appointmentId" value={appt.id} />
+                  <button
+                    type="submit"
+                    name="status"
+                    value="DONE"
+                    className="btn btn-secondary"
+                    style={{ padding: '0.2rem 0.6rem', fontSize: '0.75rem' }}
+                    disabled={decidePending}
+                  >
+                    Done
+                  </button>
+                  <button
+                    type="submit"
+                    name="status"
+                    value="CANCELLED"
+                    className="btn btn-secondary"
+                    style={{ padding: '0.2rem 0.6rem', fontSize: '0.75rem' }}
+                    disabled={decidePending}
+                  >
+                    Cancel
+                  </button>
+                </form>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+      {decideState.message ? (
+        <p className={`field-msg ${decideState.ok ? 'field-msg-ok' : 'field-msg-err'}`}>
+          {decideState.message}
+        </p>
+      ) : null}
+
+      {past.length > 0 ? (
+        <details style={{ marginBottom: '1rem' }}>
+          <summary className="muted" style={{ fontSize: '0.8rem', cursor: 'pointer' }}>
+            {past.length} past
+          </summary>
+          <div className="rows" style={{ marginTop: '0.5rem' }}>
+            {past.map((appt) => (
+              <div className="row" key={appt.id}>
+                <span className="row-key" style={{ textDecoration: 'line-through' }}>
+                  {appt.title}
+                </span>
+                <span className="badge badge-neutral">{appt.status}</span>
+              </div>
+            ))}
+          </div>
+        </details>
+      ) : null}
+
+      <form
+        action={createAction}
+        style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}
+      >
+        <input type="hidden" name="missionId" value={missionId} />
+        <input
+          name="title"
+          type="text"
+          className="input"
+          placeholder="e.g. Visa interview prep call"
+          aria-label="Appointment title"
+          required
+          style={{ flex: 1, minWidth: '10rem' }}
+        />
+        <input name="localDate" type="date" className="input" aria-label="Date" required />
+        <input name="localTime" type="time" className="input" aria-label="Time" required />
+        <input
+          name="timezone"
+          type="text"
+          className="input"
+          placeholder="Timezone, e.g. Asia/Dhaka"
+          aria-label="Timezone"
+          required
+          style={{ maxWidth: '10rem' }}
+        />
+        <input
+          name="place"
+          type="text"
+          className="input"
+          placeholder="Place (optional)"
+          aria-label="Place"
+        />
+        <input
+          name="channel"
+          type="text"
+          className="input"
+          placeholder="Channel, e.g. video call (optional)"
+          aria-label="Channel"
+        />
+        <button type="submit" className="btn btn-secondary" disabled={createPending}>
+          {createPending ? 'Scheduling…' : 'Schedule'}
         </button>
       </form>
       {createState.message ? (

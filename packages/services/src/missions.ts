@@ -1316,6 +1316,8 @@ export async function createTask(
     readonly packRequirementId?: string;
     readonly assigneeAccountId?: string;
     readonly dueDate?: Date;
+    readonly dueTimezone?: string;
+    readonly priority?: 'LOW' | 'NORMAL' | 'HIGH' | 'URGENT';
   },
 ): Promise<Result<MissionTask, ServiceError>> {
   const owned = await ownedMission(db, input.actorAccountId, input.missionId);
@@ -1348,6 +1350,8 @@ export async function createTask(
             description,
             assigneeAccountId: input.assigneeAccountId ?? null,
             dueDate: input.dueDate ?? null,
+            dueTimezone: input.dueTimezone ?? null,
+            ...(input.priority ? { priority: input.priority } : {}),
           })
           .returning(),
       ),
@@ -1366,14 +1370,25 @@ export async function createTask(
   });
 }
 
-/** Mark a task DONE or CANCELLED (owner-scoped). */
+// Commercial V1 Part 4 §11: "States: OPEN, IN_PROGRESS, DONE, CANCELLED."
+// DONE/CANCELLED are terminal; IN_PROGRESS is an optional, skippable
+// waypoint (a task may go straight from OPEN to DONE) that itself only
+// signals work has started, never a distinct completion.
+const TASK_TRANSITIONS: Readonly<Record<string, readonly string[]>> = {
+  OPEN: ['IN_PROGRESS', 'DONE', 'CANCELLED'],
+  IN_PROGRESS: ['DONE', 'CANCELLED'],
+  DONE: [],
+  CANCELLED: [],
+};
+
+/** Move a task through its state machine (owner-scoped): OPEN -> IN_PROGRESS -> DONE/CANCELLED. */
 export async function decideTask(
   db: Db,
   input: {
     readonly actorAccountId: string;
     readonly missionId: string;
     readonly taskId: string;
-    readonly status: 'DONE' | 'CANCELLED';
+    readonly status: 'IN_PROGRESS' | 'DONE' | 'CANCELLED';
   },
 ): Promise<Result<MissionTask, ServiceError>> {
   const owned = await ownedMission(db, input.actorAccountId, input.missionId);
@@ -1393,14 +1408,21 @@ export async function decideTask(
         .limit(1),
     );
     if (!task) return err(serviceError('not_found', 'task not found'));
-    if (task.status !== 'OPEN') {
-      return err(serviceError('invalid', 'only an OPEN task can be decided'));
+    if (!(TASK_TRANSITIONS[task.status] ?? []).includes(input.status)) {
+      return err(
+        serviceError('invalid', `cannot move a task from ${task.status} to ${input.status}`),
+      );
     }
     const updated = required(
       first(
         await tx
           .update(schema.missionTasks)
-          .set({ status: input.status, completedAt: new Date(), updatedAt: new Date() })
+          .set({
+            status: input.status,
+            completedAt:
+              input.status === 'DONE' || input.status === 'CANCELLED' ? new Date() : null,
+            updatedAt: new Date(),
+          })
           .where(eq(schema.missionTasks.id, input.taskId))
           .returning(),
       ),
@@ -1414,7 +1436,107 @@ export async function decideTask(
       missionId: input.missionId,
       resourceType: 'mission_task',
       resourceId: task.id,
-      metadata: { status: input.status },
+      metadata: { from: task.status, status: input.status },
+    });
+    return ok(updated);
+  });
+}
+
+export interface UpdateTaskInput {
+  readonly actorAccountId: string;
+  readonly missionId: string;
+  readonly taskId: string;
+  readonly assigneeAccountId?: string | null;
+  readonly dueDate?: Date | null;
+  readonly dueTimezone?: string | null;
+  readonly priority?: 'LOW' | 'NORMAL' | 'HIGH' | 'URGENT';
+}
+
+/**
+ * Change a task's assignee, due date/timezone, or priority (owner-scoped).
+ * Commercial V1 Part 4 §11: "Reassignment/deadline changes: audit" -- every
+ * field this call actually changes is captured in one audit event alongside
+ * its PRIOR value, never a silent overwrite with no trace. A field omitted
+ * from `input` (as opposed to explicitly passed, even as `null`) is left
+ * untouched, the same partial-update discipline `updateMissionCaseDetails`
+ * already established for case details.
+ */
+export async function updateTask(
+  db: Db,
+  input: UpdateTaskInput,
+): Promise<Result<MissionTask, ServiceError>> {
+  const owned = await ownedMission(db, input.actorAccountId, input.missionId);
+  if (!owned.ok) return owned;
+
+  return db.transaction(async (tx) => {
+    const task = first(
+      await tx
+        .select()
+        .from(schema.missionTasks)
+        .where(
+          and(
+            eq(schema.missionTasks.id, input.taskId),
+            eq(schema.missionTasks.missionId, input.missionId),
+          ),
+        )
+        .limit(1),
+    );
+    if (!task) return err(serviceError('not_found', 'task not found'));
+
+    let changes: Record<string, { readonly before: unknown; readonly after: unknown }> = {};
+    if (input.assigneeAccountId !== undefined) {
+      changes = {
+        ...changes,
+        assigneeAccountId: { before: task.assigneeAccountId, after: input.assigneeAccountId },
+      };
+    }
+    if (input.dueDate !== undefined) {
+      changes = {
+        ...changes,
+        dueDate: {
+          before: task.dueDate?.toISOString() ?? null,
+          after: input.dueDate?.toISOString() ?? null,
+        },
+      };
+    }
+    if (input.dueTimezone !== undefined) {
+      changes = {
+        ...changes,
+        dueTimezone: { before: task.dueTimezone, after: input.dueTimezone },
+      };
+    }
+    if (input.priority !== undefined) {
+      changes = { ...changes, priority: { before: task.priority, after: input.priority } };
+    }
+    if (Object.keys(changes).length === 0) return ok(task);
+
+    const updated = required(
+      first(
+        await tx
+          .update(schema.missionTasks)
+          .set({
+            ...(input.assigneeAccountId !== undefined
+              ? { assigneeAccountId: input.assigneeAccountId }
+              : {}),
+            ...(input.dueDate !== undefined ? { dueDate: input.dueDate } : {}),
+            ...(input.dueTimezone !== undefined ? { dueTimezone: input.dueTimezone } : {}),
+            ...(input.priority !== undefined ? { priority: input.priority } : {}),
+            updatedAt: new Date(),
+          })
+          .where(eq(schema.missionTasks.id, input.taskId))
+          .returning(),
+      ),
+      'mission task',
+    );
+    await appendAuditEvent(tx, {
+      eventType: 'MISSION_TASK_UPDATED',
+      actorAccountId: input.actorAccountId,
+      method: 'MANUAL',
+      result: 'ALLOWED',
+      missionId: input.missionId,
+      resourceType: 'mission_task',
+      resourceId: task.id,
+      metadata: { changes },
     });
     return ok(updated);
   });
@@ -1433,6 +1555,255 @@ export async function listTasks(
     .from(schema.missionTasks)
     .where(eq(schema.missionTasks.missionId, missionId));
   return ok([...rows].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()));
+}
+
+// --- Mission appointments (Commercial V1 Part 4 §11) ------------------------
+
+export type MissionAppointment = typeof schema.missionAppointments.$inferSelect;
+
+export interface CreateAppointmentInput {
+  readonly actorAccountId: string;
+  readonly missionId: string;
+  readonly title: string;
+  readonly localDateTime: Date;
+  readonly timezone: string;
+  readonly assigneeAccountId?: string;
+  readonly place?: string;
+  readonly channel?: string;
+}
+
+/** Schedule a meeting tied to a mission -- a local date/time in an explicit timezone, not a checklist item. */
+export async function createAppointment(
+  db: Db,
+  input: CreateAppointmentInput,
+): Promise<Result<MissionAppointment, ServiceError>> {
+  const owned = await ownedMission(db, input.actorAccountId, input.missionId);
+  if (!owned.ok) return owned;
+  const title = input.title.trim();
+  if (title.length === 0) return err(serviceError('invalid', 'a title is required'));
+  const timezone = input.timezone.trim();
+  if (timezone.length === 0) return err(serviceError('invalid', 'a timezone is required'));
+
+  return db.transaction(async (tx) => {
+    const appointment = required(
+      first(
+        await tx
+          .insert(schema.missionAppointments)
+          .values({
+            missionId: input.missionId,
+            title,
+            assigneeAccountId: input.assigneeAccountId ?? null,
+            localDateTime: input.localDateTime,
+            timezone,
+            place: input.place?.trim() || null,
+            channel: input.channel?.trim() || null,
+          })
+          .returning(),
+      ),
+      'mission appointment',
+    );
+    await appendAuditEvent(tx, {
+      eventType: 'MISSION_APPOINTMENT_CREATED',
+      actorAccountId: input.actorAccountId,
+      method: 'MANUAL',
+      result: 'ALLOWED',
+      missionId: input.missionId,
+      resourceType: 'mission_appointment',
+      resourceId: appointment.id,
+    });
+    return ok(appointment);
+  });
+}
+
+export interface UpdateAppointmentInput {
+  readonly actorAccountId: string;
+  readonly missionId: string;
+  readonly appointmentId: string;
+  readonly assigneeAccountId?: string | null;
+  readonly localDateTime?: Date;
+  readonly timezone?: string;
+  readonly place?: string | null;
+  readonly channel?: string | null;
+}
+
+/** Reschedule or reassign an appointment (owner-scoped); every changed field is audited with its prior value. */
+export async function updateAppointment(
+  db: Db,
+  input: UpdateAppointmentInput,
+): Promise<Result<MissionAppointment, ServiceError>> {
+  const owned = await ownedMission(db, input.actorAccountId, input.missionId);
+  if (!owned.ok) return owned;
+
+  return db.transaction(async (tx) => {
+    const appointment = first(
+      await tx
+        .select()
+        .from(schema.missionAppointments)
+        .where(
+          and(
+            eq(schema.missionAppointments.id, input.appointmentId),
+            eq(schema.missionAppointments.missionId, input.missionId),
+          ),
+        )
+        .limit(1),
+    );
+    if (!appointment) return err(serviceError('not_found', 'appointment not found'));
+
+    let changes: Record<string, { readonly before: unknown; readonly after: unknown }> = {};
+    if (input.assigneeAccountId !== undefined) {
+      changes = {
+        ...changes,
+        assigneeAccountId: {
+          before: appointment.assigneeAccountId,
+          after: input.assigneeAccountId,
+        },
+      };
+    }
+    if (input.localDateTime !== undefined) {
+      changes = {
+        ...changes,
+        localDateTime: {
+          before: appointment.localDateTime.toISOString(),
+          after: input.localDateTime.toISOString(),
+        },
+      };
+    }
+    if (input.timezone !== undefined) {
+      changes = { ...changes, timezone: { before: appointment.timezone, after: input.timezone } };
+    }
+    if (input.place !== undefined) {
+      changes = { ...changes, place: { before: appointment.place, after: input.place } };
+    }
+    if (input.channel !== undefined) {
+      changes = { ...changes, channel: { before: appointment.channel, after: input.channel } };
+    }
+    if (Object.keys(changes).length === 0) return ok(appointment);
+
+    const updated = required(
+      first(
+        await tx
+          .update(schema.missionAppointments)
+          .set({
+            ...(input.assigneeAccountId !== undefined
+              ? { assigneeAccountId: input.assigneeAccountId }
+              : {}),
+            ...(input.localDateTime !== undefined ? { localDateTime: input.localDateTime } : {}),
+            ...(input.timezone !== undefined ? { timezone: input.timezone } : {}),
+            ...(input.place !== undefined ? { place: input.place } : {}),
+            ...(input.channel !== undefined ? { channel: input.channel } : {}),
+            updatedAt: new Date(),
+          })
+          .where(eq(schema.missionAppointments.id, input.appointmentId))
+          .returning(),
+      ),
+      'mission appointment',
+    );
+    await appendAuditEvent(tx, {
+      eventType: 'MISSION_APPOINTMENT_UPDATED',
+      actorAccountId: input.actorAccountId,
+      method: 'MANUAL',
+      result: 'ALLOWED',
+      missionId: input.missionId,
+      resourceType: 'mission_appointment',
+      resourceId: appointment.id,
+      metadata: { changes },
+    });
+    return ok(updated);
+  });
+}
+
+/** Mark an appointment DONE or CANCELLED (owner-scoped). */
+export async function decideAppointment(
+  db: Db,
+  input: {
+    readonly actorAccountId: string;
+    readonly missionId: string;
+    readonly appointmentId: string;
+    readonly status: 'DONE' | 'CANCELLED';
+  },
+): Promise<Result<MissionAppointment, ServiceError>> {
+  const owned = await ownedMission(db, input.actorAccountId, input.missionId);
+  if (!owned.ok) return owned;
+
+  return db.transaction(async (tx) => {
+    const appointment = first(
+      await tx
+        .select()
+        .from(schema.missionAppointments)
+        .where(
+          and(
+            eq(schema.missionAppointments.id, input.appointmentId),
+            eq(schema.missionAppointments.missionId, input.missionId),
+          ),
+        )
+        .limit(1),
+    );
+    if (!appointment) return err(serviceError('not_found', 'appointment not found'));
+    if (appointment.status !== 'OPEN') {
+      return err(serviceError('invalid', 'only an OPEN appointment can be decided'));
+    }
+    const updated = required(
+      first(
+        await tx
+          .update(schema.missionAppointments)
+          .set({ status: input.status, completedAt: new Date(), updatedAt: new Date() })
+          .where(eq(schema.missionAppointments.id, input.appointmentId))
+          .returning(),
+      ),
+      'mission appointment',
+    );
+    await appendAuditEvent(tx, {
+      eventType: 'MISSION_APPOINTMENT_DECIDED',
+      actorAccountId: input.actorAccountId,
+      method: 'MANUAL',
+      result: 'ALLOWED',
+      missionId: input.missionId,
+      resourceType: 'mission_appointment',
+      resourceId: appointment.id,
+      metadata: { status: input.status },
+    });
+    return ok(updated);
+  });
+}
+
+/** Every appointment for a mission, soonest first (owner-scoped). */
+export async function listAppointments(
+  db: Db,
+  actorAccountId: string,
+  missionId: string,
+): Promise<Result<MissionAppointment[], ServiceError>> {
+  const owned = await ownedMission(db, actorAccountId, missionId);
+  if (!owned.ok) return owned;
+  const rows = await db
+    .select()
+    .from(schema.missionAppointments)
+    .where(eq(schema.missionAppointments.missionId, missionId));
+  return ok([...rows].sort((a, b) => a.localDateTime.getTime() - b.localDateTime.getTime()));
+}
+
+/** One appointment (owner-scoped) -- backs the "add to calendar" ICS download, which needs exactly one row, not the whole list. */
+export async function getAppointment(
+  db: Db,
+  actorAccountId: string,
+  missionId: string,
+  appointmentId: string,
+): Promise<Result<MissionAppointment, ServiceError>> {
+  const owned = await ownedMission(db, actorAccountId, missionId);
+  if (!owned.ok) return owned;
+  const appointment = first(
+    await db
+      .select()
+      .from(schema.missionAppointments)
+      .where(
+        and(
+          eq(schema.missionAppointments.id, appointmentId),
+          eq(schema.missionAppointments.missionId, missionId),
+        ),
+      )
+      .limit(1),
+  );
+  if (!appointment) return err(serviceError('not_found', 'appointment not found'));
+  return ok(appointment);
 }
 
 // --- Grounded letters (master directive §7 "PR 10") -------------------------

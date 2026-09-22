@@ -168,7 +168,16 @@ export const evidenceRequestDecisionOutcome = pgEnum('evidence_request_decision_
 ]);
 // --- Mission collaboration additions (master directive §7 "PR 10") ---------
 export const missionDecisionOutcome = pgEnum('mission_decision_outcome', ['ACCEPTED', 'REJECTED']);
-export const missionTaskStatus = pgEnum('mission_task_status', ['OPEN', 'DONE', 'CANCELLED']);
+// Commercial V1 Part 4 §11: "States: OPEN, IN_PROGRESS, DONE, CANCELLED."
+// IN_PROGRESS added after OPEN/DONE/CANCELLED already shipped (Part 3) --
+// additive only, matching this codebase's enum-migration discipline.
+export const missionTaskStatus = pgEnum('mission_task_status', [
+  'OPEN',
+  'IN_PROGRESS',
+  'DONE',
+  'CANCELLED',
+]);
+export const taskPriority = pgEnum('task_priority', ['LOW', 'NORMAL', 'HIGH', 'URGENT']);
 // Commercial V1 Part 4 §12: every note must declare a visibility explicitly.
 // AGENCY_INTERNAL is the safe default for the pre-existing-row backfill
 // (directive: "legacy unclassified notes: default restricted; do not expose
@@ -1638,15 +1647,64 @@ export const missionTasks = pgTable(
     }),
     status: missionTaskStatus('status').notNull().default('OPEN'),
     // CAS-02's workspace "overdue tasks" signal needs this to exist at all;
-    // nullable, since not every task has (or needs) a deadline. This is a
-    // minimal slice of CAS-04's own broader scope (timezone, priority, and
-    // real appointment fields remain open, tracked separately) -- added here
-    // only because CAS-02 cannot show "overdue" without it.
+    // nullable, since not every task has (or needs) a deadline.
     dueDate: timestamp('due_date', { withTimezone: true }),
+    // The IANA zone the due date/time was set in (Commercial V1 Part 4 §11:
+    // "explicit timezone"), e.g. "Asia/Dhaka" -- `dueDate` itself is a
+    // `timestamptz`, always interpretable in UTC, but doesn't by itself
+    // record which zone a human meant when they set it, the way a display
+    // like "5pm" needs to know to render correctly. Nullable: not every task
+    // carries a due date at all.
+    dueTimezone: text('due_timezone'),
+    priority: taskPriority('priority').notNull().default('NORMAL'),
     completedAt: timestamp('completed_at', { withTimezone: true }),
     ...timestamps,
   },
   (table) => [index('mission_tasks_mission_idx').on(table.missionId)],
+);
+
+// Commercial V1 Part 4 §11's distinct "Appointment" concept: unlike a task
+// (a completable checklist item), an appointment is a scheduled meeting at a
+// specific local date/time, place or channel, exportable to the traveller's
+// own calendar. Deliberately its own table, not a `kind` discriminator on
+// `missionTasks`: an appointment's defining fields (local wall-clock time,
+// timezone, place/channel) have no task equivalent, and forcing them onto
+// the same row would make every plain checklist task carry nullable
+// appointment-only columns for no benefit.
+export const missionAppointments = pgTable(
+  'mission_appointments',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    missionId: uuid('mission_id')
+      .notNull()
+      .references(() => missions.id, { onDelete: 'cascade' }),
+    title: text('title').notNull(),
+    assigneeAccountId: uuid('assignee_account_id').references(() => accounts.id, {
+      onDelete: 'set null',
+    }),
+    // The literal wall-clock date/time the appointment is AT, in `timezone`
+    // below -- deliberately a timezone-naive `timestamp` (never `timestamptz`,
+    // which would silently normalize and could shift the displayed local
+    // time under a session/connection timezone change). "9am" stays "9am".
+    // Relies on the Node process's own local timezone being UTC on both
+    // write and read (true of this app's deployment target and every CI/dev
+    // environment this codebase runs in) -- `pg`'s driver parses/formats a
+    // timezone-naive column using the process's local zone, so a non-UTC
+    // process would silently shift this value. `services/src/missions.ts`'s
+    // `createAppointment`/`updateAppointment` never do their own zone math on
+    // it either, for the same reason: it is passed straight through as the
+    // wall-clock string it already is.
+    localDateTime: timestamp('local_date_time', { withTimezone: false }).notNull(),
+    // IANA zone name (e.g. "Asia/Dhaka") `localDateTime` is expressed in --
+    // required, per §11's explicit "timezone" field, never inferred.
+    timezone: text('timezone').notNull(),
+    place: text('place'),
+    channel: text('channel'),
+    status: missionTaskStatus('status').notNull().default('OPEN'),
+    completedAt: timestamp('completed_at', { withTimezone: true }),
+    ...timestamps,
+  },
+  (table) => [index('mission_appointments_mission_idx').on(table.missionId)],
 );
 
 // A generated, grounded document (currently: cover letters only) —

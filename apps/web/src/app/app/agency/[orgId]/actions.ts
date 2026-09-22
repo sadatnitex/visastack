@@ -6,9 +6,13 @@ import {
   addNote,
   assignMember,
   cancelEvidenceRequest,
+  createAppointmentForOrg,
   createClientInvitation,
   createOrganizationInvitation,
+  createTaskForOrg,
+  decideAppointmentForOrg,
   decideEvidenceResponse,
+  decideTaskForOrg,
   getAccountByEmail,
   listSelectedEvidenceForOrg,
   recordIssuerVerification,
@@ -19,6 +23,8 @@ import {
   setMembershipActive,
   setRequireDifferentReviewer,
   startEvidenceReview,
+  unassignMember,
+  updateTaskForOrg,
 } from '@visastack/services';
 import { revalidatePath } from 'next/cache';
 import { resolveBaseUrl } from '../../../../lib/base-url';
@@ -351,6 +357,210 @@ export async function assignMemberAction(
     });
     if (!assigned.ok) return { ok: false, message: assigned.error.message } satisfies ActionState;
     return { ok: true, message: 'Member assigned.' } satisfies ActionState;
+  });
+  if (result.ok) revalidatePath(`/app/agency/${organizationId}`);
+  return result;
+}
+
+/** Unassign a member from a mission (org admin) -- the manual counterpart to the automatic reassignment-queue unassign on membership deactivation. */
+export async function unassignMemberAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const gate = requireAgencyCollaboration();
+  if (gate) return gate;
+
+  const organizationId = String(formData.get('organizationId') ?? '');
+  const missionId = String(formData.get('missionId') ?? '');
+  const memberAccountId = String(formData.get('memberAccountId') ?? '');
+  if (missionId.length === 0 || memberAccountId.length === 0) {
+    return { ok: false, message: 'Missing member or mission.' };
+  }
+  const result = await withSession(async ({ db, accountId }) => {
+    const unassigned = await unassignMember(db, {
+      actorAccountId: accountId,
+      organizationId,
+      memberAccountId,
+      missionId,
+    });
+    if (!unassigned.ok) {
+      return { ok: false, message: unassigned.error.message } satisfies ActionState;
+    }
+    return { ok: true, message: 'Member unassigned.' } satisfies ActionState;
+  });
+  if (result.ok) revalidatePath(`/app/agency/${organizationId}`);
+  return result;
+}
+
+/** Org-side task creation (Commercial V1 Part 4 §11) -- an assigned member's own checklist item, distinct from the applicant owner's. */
+export async function createTaskForOrgAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const gate = requireAgencyCollaboration();
+  if (gate) return gate;
+
+  const organizationId = String(formData.get('organizationId') ?? '');
+  const missionId = String(formData.get('missionId') ?? '');
+  const description = String(formData.get('description') ?? '').trim();
+  if (description.length === 0) return { ok: false, message: 'A description is required.' };
+  const priorityRaw = String(formData.get('priority') ?? '');
+  const priority = (['LOW', 'NORMAL', 'HIGH', 'URGENT'] as const).includes(priorityRaw as never)
+    ? (priorityRaw as 'LOW' | 'NORMAL' | 'HIGH' | 'URGENT')
+    : undefined;
+  const dueDateRaw = String(formData.get('dueDate') ?? '').trim();
+  const dueDate = dueDateRaw.length > 0 ? new Date(dueDateRaw) : undefined;
+  const assigneeAccountId = String(formData.get('assigneeAccountId') ?? '').trim();
+
+  const result = await withSession(async ({ db, accountId }) => {
+    const task = await createTaskForOrg(db, {
+      actorAccountId: accountId,
+      organizationId,
+      missionId,
+      description,
+      ...(priority ? { priority } : {}),
+      ...(dueDate ? { dueDate } : {}),
+      ...(assigneeAccountId ? { assigneeAccountId } : {}),
+    });
+    if (!task.ok) return { ok: false, message: task.error.message } satisfies ActionState;
+    return { ok: true, message: 'Task added.' } satisfies ActionState;
+  });
+  if (result.ok) revalidatePath(`/app/agency/${organizationId}`);
+  return result;
+}
+
+/** Reassign, reschedule, or re-prioritize a task (org admin/assigned member); every change is audited (Commercial V1 Part 4 §11). */
+export async function updateTaskForOrgAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const gate = requireAgencyCollaboration();
+  if (gate) return gate;
+
+  const organizationId = String(formData.get('organizationId') ?? '');
+  const missionId = String(formData.get('missionId') ?? '');
+  const taskId = String(formData.get('taskId') ?? '');
+  const assigneeAccountId = String(formData.get('assigneeAccountId') ?? '').trim();
+  if (taskId.length === 0) return { ok: false, message: 'Missing task.' };
+
+  const result = await withSession(async ({ db, accountId }) => {
+    const updated = await updateTaskForOrg(db, {
+      actorAccountId: accountId,
+      organizationId,
+      missionId,
+      taskId,
+      assigneeAccountId: assigneeAccountId.length > 0 ? assigneeAccountId : null,
+    });
+    if (!updated.ok) return { ok: false, message: updated.error.message } satisfies ActionState;
+    return { ok: true, message: 'Task reassigned.' } satisfies ActionState;
+  });
+  if (result.ok) revalidatePath(`/app/agency/${organizationId}`);
+  return result;
+}
+
+/** Move an org-visible task through OPEN -> IN_PROGRESS -> DONE/CANCELLED. */
+export async function decideTaskForOrgAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const gate = requireAgencyCollaboration();
+  if (gate) return gate;
+
+  const organizationId = String(formData.get('organizationId') ?? '');
+  const missionId = String(formData.get('missionId') ?? '');
+  const taskId = String(formData.get('taskId') ?? '');
+  const status = String(formData.get('status') ?? '') as 'IN_PROGRESS' | 'DONE' | 'CANCELLED';
+  if (taskId.length === 0) return { ok: false, message: 'Missing task.' };
+
+  const result = await withSession(async ({ db, accountId }) => {
+    const decided = await decideTaskForOrg(db, {
+      actorAccountId: accountId,
+      organizationId,
+      missionId,
+      taskId,
+      status,
+    });
+    if (!decided.ok) return { ok: false, message: decided.error.message } satisfies ActionState;
+    return {
+      ok: true,
+      message: `Task ${status.toLowerCase().replace('_', ' ')}.`,
+    } satisfies ActionState;
+  });
+  if (result.ok) revalidatePath(`/app/agency/${organizationId}`);
+  return result;
+}
+
+/** Org-side appointment scheduling (Commercial V1 Part 4 §11). */
+export async function createAppointmentForOrgAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const gate = requireAgencyCollaboration();
+  if (gate) return gate;
+
+  const organizationId = String(formData.get('organizationId') ?? '');
+  const missionId = String(formData.get('missionId') ?? '');
+  const title = String(formData.get('title') ?? '').trim();
+  const localDate = String(formData.get('localDate') ?? '').trim();
+  const localTime = String(formData.get('localTime') ?? '').trim();
+  const timezone = String(formData.get('timezone') ?? '').trim();
+  if (title.length === 0 || !localDate || !localTime || !timezone) {
+    return { ok: false, message: 'Title, date, time, and timezone are required.' };
+  }
+  const localDateTime = new Date(`${localDate}T${localTime}:00`);
+  if (Number.isNaN(localDateTime.getTime())) {
+    return { ok: false, message: 'Invalid date or time.' };
+  }
+  const place = String(formData.get('place') ?? '').trim();
+  const channel = String(formData.get('channel') ?? '').trim();
+
+  const result = await withSession(async ({ db, accountId }) => {
+    const appointment = await createAppointmentForOrg(db, {
+      actorAccountId: accountId,
+      organizationId,
+      missionId,
+      title,
+      localDateTime,
+      timezone,
+      ...(place ? { place } : {}),
+      ...(channel ? { channel } : {}),
+    });
+    if (!appointment.ok) {
+      return { ok: false, message: appointment.error.message } satisfies ActionState;
+    }
+    return { ok: true, message: 'Appointment scheduled.' } satisfies ActionState;
+  });
+  if (result.ok) revalidatePath(`/app/agency/${organizationId}`);
+  return result;
+}
+
+/** Mark an org-visible appointment DONE or CANCELLED. */
+export async function decideAppointmentForOrgAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const gate = requireAgencyCollaboration();
+  if (gate) return gate;
+
+  const organizationId = String(formData.get('organizationId') ?? '');
+  const missionId = String(formData.get('missionId') ?? '');
+  const appointmentId = String(formData.get('appointmentId') ?? '');
+  const status = String(formData.get('status') ?? '') as 'DONE' | 'CANCELLED';
+  if (appointmentId.length === 0) return { ok: false, message: 'Missing appointment.' };
+
+  const result = await withSession(async ({ db, accountId }) => {
+    const decided = await decideAppointmentForOrg(db, {
+      actorAccountId: accountId,
+      organizationId,
+      missionId,
+      appointmentId,
+      status,
+    });
+    if (!decided.ok) return { ok: false, message: decided.error.message } satisfies ActionState;
+    return {
+      ok: true,
+      message: status === 'DONE' ? 'Appointment completed.' : 'Appointment cancelled.',
+    } satisfies ActionState;
   });
   if (result.ok) revalidatePath(`/app/agency/${organizationId}`);
   return result;
