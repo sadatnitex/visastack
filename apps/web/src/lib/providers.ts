@@ -9,6 +9,7 @@ import {
   LocalEnvelopeKeyProvider,
   NullEmailPort,
   NullPaymentPort,
+  ResendEmailPort,
 } from '@visastack/adapters';
 import {
   type BlobStore,
@@ -61,7 +62,7 @@ const KNOWN_PROVIDERS = {
   CONTENT_LIMITS_PROVIDER: ['builtin'],
   AI_PROVIDER: ['openai'],
   JOB_PROVIDER: ['neon'],
-  EMAIL_PROVIDER: ['none'],
+  EMAIL_PROVIDER: ['none', 'resend'],
   OBSERVABILITY_PROVIDER: ['console'],
   PAYMENT_PROVIDER: ['none'],
   KMS_PROVIDER: ['local'],
@@ -203,9 +204,25 @@ export function createContentLimitsChecker(blobStore: BlobStore): ContentLimitsP
   });
 }
 
-/** No email provider is configured for the pilot (master directive §7 "PR 11": matches Payment's explicit "no payment provider"). */
+/**
+ * `NullEmailPort` (pilot default, matches Payment's explicit "no payment
+ * provider") unless `EMAIL_PROVIDER=resend` is explicitly set (NTF-03, Part
+ * 5 §5), in which case a real Resend adapter is constructed instead.
+ * `commercial-readiness.ts`'s `realEmailProvider` gate checks the same env
+ * vars this function reads, so the two can never disagree about whether a
+ * real provider is actually configured -- same pairing as
+ * `createMalwareScanner`/`realMalwareScanner` above.
+ */
 export function createEmailPort(): EmailPort {
   checkKnownProvider('EMAIL_PROVIDER');
+  if (readEnv('EMAIL_PROVIDER') === 'resend') {
+    const apiKey = readEnv('RESEND_API_KEY');
+    const from = readEnv('RESEND_FROM_ADDRESS');
+    if (!apiKey || !from) {
+      throw new Error('EMAIL_PROVIDER=resend requires RESEND_API_KEY and RESEND_FROM_ADDRESS');
+    }
+    return new ResendEmailPort({ apiKey, from });
+  }
   return new NullEmailPort();
 }
 

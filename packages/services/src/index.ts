@@ -403,6 +403,7 @@ export {
   type NotificationNeedingAttention,
   type NotificationPayload,
   type NotificationWorkerResult,
+  applyEmailDeliveryEvent,
   buildNotificationIdempotencyKey,
   enqueueNotification,
   enqueueNotificationBothChannels,
@@ -607,6 +608,7 @@ export type {
   PaymentPort,
   ResolvedIdentity,
   SendEmailInput,
+  SendEmailResult,
 } from './ports';
 
 export {

@@ -708,7 +708,19 @@ item gets its own requirements-ledger row once classified against the new direct
     `notification-sweep.ts`'s `sweepTaskDeadlineReminders`/
     `sweepExpiryReminders`, DST-safe (calendar-date, never millisecond,
     arithmetic), hourly via `/api/jobs/process-notification-sweeps`. The
-    nine unwired event types remain open.
+    nine unwired event types remain open. **Update (2026-09-22, Part 5 §5):**
+    `NullEmailPort` is no longer the only path -- `lib/providers.ts`'s
+    `createEmailPort` returns a real `ResendEmailPort`
+    (`packages/adapters/src/email.ts`) when `EMAIL_PROVIDER=resend` is
+    configured (`docs/adr/0013-transactional-email-resend.md`), and
+    `NullEmailPort` now refuses to construct at all in commercial mode and no
+    longer logs the recipient or subject at all. Delivery/bounce/complaint
+    state now updates from a real, HMAC-verified webhook
+    (`packages/adapters/src/resend-webhook.ts`,
+    `/api/webhooks/resend`) rather than staying frozen at "provider
+    accepted." Full detail: `requirements-ledger.md` NTF-03. Still open, not
+    this chunk's scope: the nine unwired event types noted above, and (see
+    item 61 below) live A18 verification against a real Resend account.
 60. ~~`applicants` had no timezone concept at all; `wallet.ts`'s
     `EXPIRING_SOON_DAYS` comment had explicitly named this as Part 5's
     eventual responsibility, and no local-date (as opposed to raw
@@ -723,6 +735,18 @@ item gets its own requirements-ledger row once classified against the new direct
     subject's own timezone, proven by a test that the same calendar day
     produces the same verdict across a UTC-instant boundary that falls
     mid-day locally. Full detail: `requirements-ledger.md` NTF-04.
+61. Real transactional email (Resend, `docs/adr/0013-transactional-email-resend.md`) is
+    implemented and unit-tested against the documented Svix/REST protocol --
+    `ResendEmailPort`, `verifyResendWebhookSignature`, `/api/webhooks/resend`,
+    `applyEmailDeliveryEvent` -- but no real Resend account, API key,
+    verified sending domain, or webhook secret exists in this sandbox. Live
+    A18 (an actual synthetic send plus a real signed webhook round-trip)
+    cannot run without one -- BLOCKED, not fabricated as passing, exactly the
+    outcome directive §5 itself anticipates for a credential-less sandbox.
+    Provisioning a real account and a verified sending domain (for
+    SPF/DKIM) is a genuine operational step requiring billing and DNS
+    access this session does not have, not something further code changes
+    here can close. Full detail: `requirements-ledger.md` A18.
 independently confirmed findings; the missing PRD file is tracked as Blocker 1 in
 `assumptions-and-blockers.md` (now resolved) rather than here, since it blocked the
 programme rather than being a product defect.

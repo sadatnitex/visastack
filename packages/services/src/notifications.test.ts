@@ -11,6 +11,7 @@ import { createApplicant } from './applicants';
 import { setConsent } from './consent';
 import type { Db } from './db';
 import {
+  applyEmailDeliveryEvent,
   buildNotificationIdempotencyKey,
   enqueueNotification,
   enqueueNotificationBothChannels,
@@ -21,7 +22,7 @@ import {
   runNotificationWorker,
 } from './notifications';
 import { createOrganization } from './organizations';
-import type { EmailPort, SendEmailInput } from './ports';
+import type { EmailPort, SendEmailInput, SendEmailResult } from './ports';
 
 const migrationsFolder = fileURLToPath(new URL('../../db/migrations', import.meta.url));
 
@@ -55,17 +56,20 @@ async function seedOwner(db: Db, email: string) {
 class FakeEmailPort implements EmailPort {
   public readonly sent: SendEmailInput[] = [];
   private failNext = 0;
+  private nextProviderMessageId = 0;
 
   failNextSends(count: number): void {
     this.failNext = count;
   }
 
-  async send(input: SendEmailInput): Promise<void> {
+  async send(input: SendEmailInput): Promise<SendEmailResult> {
     if (this.failNext > 0) {
       this.failNext--;
       throw new Error('simulated transient provider failure');
     }
     this.sent.push(input);
+    this.nextProviderMessageId++;
+    return { providerMessageId: `fake-message-${this.nextProviderMessageId}` };
   }
 }
 
@@ -225,6 +229,9 @@ describe('runNotificationWorker', () => {
     expect(emailPort.sent[0]?.subject).toBe(PAYLOAD.subject);
     expect(emailPort.sent[0]?.body).toContain(PAYLOAD.summary);
     expect(emailPort.sent[0]?.body).toContain('https://app.example.com/app/test');
+
+    const row = (await db.select().from(schema.notifications))[0];
+    expect(row?.providerMessageId).toBe('fake-message-1');
   });
 
   it('never labels provider acceptance as delivered - SENT stays SENT until a real webhook would confirm DELIVERED (not modeled here)', async () => {
@@ -499,5 +506,91 @@ describe('listNotificationsNeedingAttention / retryNotification', () => {
     expect(retried.ok).toBe(true);
     const row = (await db.select().from(schema.notifications))[0];
     expect(row?.status).toBe('QUEUED');
+  });
+});
+
+describe('applyEmailDeliveryEvent (NTF-03 delivery/bounce webhook)', () => {
+  let db: Db;
+  beforeEach(async () => {
+    db = await freshDb();
+  });
+
+  async function seedSentEmail(db: Db) {
+    const { account } = await seedOwner(db, `webhook-owner-${Math.random()}@example.com`);
+    await enqueueNotification(db, {
+      eventType: 'EVIDENCE_REQUEST_CREATED',
+      channel: 'EMAIL',
+      resourceId: 'req-1',
+      recipientAccountId: account.id,
+      payload: PAYLOAD,
+    });
+    await runNotificationWorker(db, new FakeEmailPort(), 'https://app.example.com');
+    const row = (await db.select().from(schema.notifications))[0];
+    if (!row?.providerMessageId) throw new Error('missing providerMessageId');
+    return row;
+  }
+
+  it('marks a SENT row DELIVERED on a delivered event', async () => {
+    const row = await seedSentEmail(db);
+    const result = await applyEmailDeliveryEvent(db, {
+      providerMessageId: row.providerMessageId as string,
+      outcome: 'delivered',
+    });
+    expect(result.applied).toBe(true);
+    const updated = (await db.select().from(schema.notifications))[0];
+    expect(updated?.status).toBe('DELIVERED');
+    expect(updated?.deliveredAt).not.toBeNull();
+  });
+
+  it('marks a SENT row BOUNCED on a bounced event', async () => {
+    const row = await seedSentEmail(db);
+    const result = await applyEmailDeliveryEvent(db, {
+      providerMessageId: row.providerMessageId as string,
+      outcome: 'bounced',
+    });
+    expect(result.applied).toBe(true);
+    const updated = (await db.select().from(schema.notifications))[0];
+    expect(updated?.status).toBe('BOUNCED');
+    expect(updated?.bouncedAt).not.toBeNull();
+  });
+
+  it('is idempotent: replaying the same event twice applies once, the second time is a harmless no-op', async () => {
+    const row = await seedSentEmail(db);
+    const first = await applyEmailDeliveryEvent(db, {
+      providerMessageId: row.providerMessageId as string,
+      outcome: 'delivered',
+    });
+    const second = await applyEmailDeliveryEvent(db, {
+      providerMessageId: row.providerMessageId as string,
+      outcome: 'delivered',
+    });
+    expect(first.applied).toBe(true);
+    expect(second.applied).toBe(false);
+    const rows = await db.select().from(schema.notifications);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.status).toBe('DELIVERED');
+  });
+
+  it('never un-bounces an already-BOUNCED row from a late out-of-order delivered event', async () => {
+    const row = await seedSentEmail(db);
+    await applyEmailDeliveryEvent(db, {
+      providerMessageId: row.providerMessageId as string,
+      outcome: 'bounced',
+    });
+    const lateDelivered = await applyEmailDeliveryEvent(db, {
+      providerMessageId: row.providerMessageId as string,
+      outcome: 'delivered',
+    });
+    expect(lateDelivered.applied).toBe(false);
+    const updated = (await db.select().from(schema.notifications))[0];
+    expect(updated?.status).toBe('BOUNCED');
+  });
+
+  it('does nothing for an unknown providerMessageId', async () => {
+    const result = await applyEmailDeliveryEvent(db, {
+      providerMessageId: 'unknown-id',
+      outcome: 'delivered',
+    });
+    expect(result.applied).toBe(false);
   });
 });

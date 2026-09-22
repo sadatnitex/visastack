@@ -2159,6 +2159,11 @@ export const notifications = pgTable(
     leaseOwner: text('lease_owner'),
     leaseExpiresAt: timestamp('lease_expires_at', { withTimezone: true }),
     lastError: text('last_error'),
+    // NTF-03 (Part 5 §5): the email provider's own id for this exact send,
+    // set when `status` first becomes SENT via the EMAIL channel. The one
+    // thing a delivery/bounce webhook carries that can correlate its event
+    // back to this row -- never set for IN_APP.
+    providerMessageId: text('provider_message_id'),
     sentAt: timestamp('sent_at', { withTimezone: true }),
     deliveredAt: timestamp('delivered_at', { withTimezone: true }),
     readAt: timestamp('read_at', { withTimezone: true }),
@@ -2169,6 +2174,7 @@ export const notifications = pgTable(
     unique('notifications_idempotency_unique').on(table.idempotencyKey),
     index('notifications_dispatch_idx').on(table.status, table.nextAttemptAt),
     index('notifications_recipient_idx').on(table.recipientAccountId),
+    index('notifications_provider_message_idx').on(table.providerMessageId),
     check(
       'notifications_recipient_present',
       sql`${table.recipientAccountId} is not null or ${table.recipientEmail} is not null`,

@@ -290,14 +290,21 @@ async function dispatchOne(
   }
 
   try {
-    await emailPort.send({
+    const sent = await emailPort.send({
       to: recipient.email,
       subject: payload.subject,
       body: `${payload.summary}\n\n${baseUrl}${payload.deepLinkPath}`,
     });
     await db
       .update(schema.notifications)
-      .set({ status: 'SENT', attempts, sentAt: now, leaseOwner: null, leaseExpiresAt: null })
+      .set({
+        status: 'SENT',
+        attempts,
+        sentAt: now,
+        providerMessageId: sent.providerMessageId ?? null,
+        leaseOwner: null,
+        leaseExpiresAt: null,
+      })
       .where(eq(schema.notifications.id, notification.id));
     return 'sent';
   } catch (error) {
@@ -479,4 +486,40 @@ export async function retryNotification(
     .set({ status: 'QUEUED', nextAttemptAt: new Date(), leaseOwner: null, leaseExpiresAt: null })
     .where(eq(schema.notifications.id, notification.id));
   return ok(undefined);
+}
+
+/**
+ * NTF-03 (Part 5 §5) delivery/bounce webhook: applies a provider-confirmed
+ * outcome to the one row it names, via `providerMessageId` (set when the
+ * row was originally SENT). "DELIVERED only if provider confirms" -- this
+ * is that confirmation's only entry point; nothing else in this file ever
+ * sets DELIVERED. Idempotent by construction, not by a separate dedup log:
+ * only a currently-SENT row transitions (`status = 'SENT'` in the WHERE
+ * clause), so replaying the same webhook event twice is a harmless
+ * second no-op update, and an already-BOUNCED row can never be
+ * "un-bounced" by a late/out-of-order `delivered` event.
+ */
+export async function applyEmailDeliveryEvent(
+  db: Db,
+  input: {
+    readonly providerMessageId: string;
+    readonly outcome: 'delivered' | 'bounced' | 'complained';
+  },
+): Promise<{ readonly applied: boolean }> {
+  const now = new Date();
+  const set =
+    input.outcome === 'delivered'
+      ? { status: 'DELIVERED' as const, deliveredAt: now }
+      : { status: 'BOUNCED' as const, bouncedAt: now };
+  const updated = await db
+    .update(schema.notifications)
+    .set(set)
+    .where(
+      and(
+        eq(schema.notifications.providerMessageId, input.providerMessageId),
+        eq(schema.notifications.status, 'SENT'),
+      ),
+    )
+    .returning({ id: schema.notifications.id });
+  return { applied: updated.length > 0 };
 }

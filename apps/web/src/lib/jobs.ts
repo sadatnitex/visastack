@@ -7,6 +7,7 @@ import {
   type IntakeWorkerResult,
   type NotificationWorkerResult,
   type SweepResult,
+  applyEmailDeliveryEvent,
   executeAccountDeletion,
   listDueDeletions,
   runErasureWorker,
@@ -170,6 +171,38 @@ export async function triggerNotificationSweeps(
   } catch (error) {
     console.error('[triggerNotificationSweeps] sweep pass failed', error);
     return { tasks: empty, expiry: empty };
+  } finally {
+    await pool.end();
+  }
+}
+
+/**
+ * Applies a delivery/bounce/complaint webhook event (NTF-03, Part 5 §5) on
+ * its own short-lived pooled connection -- same rationale as the workers
+ * above. Called from `/api/webhooks/resend` only after that route has
+ * already verified the request's Svix signature; this function performs no
+ * verification of its own and trusts the caller entirely.
+ */
+export async function triggerEmailDeliveryWebhook(input: {
+  readonly providerMessageId: string;
+  readonly outcome: 'delivered' | 'bounced' | 'complained';
+}): Promise<{ readonly applied: boolean }> {
+  const connectionString = resolveDatabaseUrl(process.env);
+  if (!connectionString) {
+    console.error('[triggerEmailDeliveryWebhook] database not configured');
+    return { applied: false };
+  }
+
+  const { db, pool } = createPooledDb(connectionString);
+  pool.on('error', (error) => {
+    console.error('[triggerEmailDeliveryWebhook] idle pool connection error', error);
+  });
+  try {
+    const handle = db as unknown as Parameters<typeof applyEmailDeliveryEvent>[0];
+    return await applyEmailDeliveryEvent(handle, input);
+  } catch (error) {
+    console.error('[triggerEmailDeliveryWebhook] apply failed', error);
+    return { applied: false };
   } finally {
     await pool.end();
   }
