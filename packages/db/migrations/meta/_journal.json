@@ -372,6 +372,13 @@
       "when": 1790075271124,
       "tag": "0052_kind_radioactive_man",
       "breakpoints": true
+    },
+    {
+      "idx": 53,
+      "version": "7",
+      "when": 1790081408217,
+      "tag": "0053_friendly_madripoor",
+      "breakpoints": true
     }
   ]
 }

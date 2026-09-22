@@ -563,10 +563,31 @@ export {
   type UploadQuotaConfig,
   getAccountEvidenceBytes,
   getApplicantEvidenceBytes,
+  getOrganizationEvidenceBytes,
   getPlatformEvidenceBytes,
   loadUploadQuotaConfig,
   mbLabel,
 } from './quotas';
+
+export {
+  TRAVELLER_FREE_PLAN_KEY,
+  type ActivateSubscriptionInput,
+  type CreatePlanInput,
+  type EndSubscriptionInput,
+  type OrganizationUsage,
+  type Plan,
+  type Subscription,
+  type UpdatePlanInput,
+  type UsageMeter,
+  activateSubscription,
+  createPlan,
+  endSubscription,
+  getCurrentPlanForOrganization,
+  getPlanByKey,
+  getUsageForOrganization,
+  listPlans,
+  updatePlan,
+} from './plans';
 
 export {
   type AbandonedUploadSweepResult,
