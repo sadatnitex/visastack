@@ -27,6 +27,13 @@ const STATUS_BADGE: Record<string, { label: string; tone: string }> = {
 
 const AWAITING_SUBMISSION = new Set(['OPEN', 'NEEDS_REPLACEMENT']);
 
+/** Commercial V1 Part 4 §13: the applicant sees which of the four review outcomes a decision was, not just a generic rejection. */
+const DECISION_PREFIX: Record<string, string> = {
+  NEEDS_REPLACEMENT: 'Replacement needed: ',
+  CONTRADICTION: 'Contradicts your profile: ',
+  CORRECTION_PROPOSED: 'Suggested correction: ',
+};
+
 export default async function EvidencePage({
   params,
 }: {
@@ -138,7 +145,7 @@ export default async function EvidencePage({
                   ) : null}
                   {latestDecision?.reason ? (
                     <p className="field-msg field-msg-err" style={{ margin: 0 }}>
-                      {latestDecision.outcome === 'NEEDS_REPLACEMENT' ? 'Replacement needed: ' : ''}
+                      {DECISION_PREFIX[latestDecision.outcome] ?? ''}
                       {latestDecision.reason}
                     </p>
                   ) : null}

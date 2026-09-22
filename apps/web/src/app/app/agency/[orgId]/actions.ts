@@ -138,7 +138,22 @@ export async function startEvidenceReviewAction(
   return result;
 }
 
-/** Org member accepts what was submitted, or asks for a replacement, with an optional reason. */
+const EVIDENCE_OUTCOMES = [
+  'ACCEPTED',
+  'NEEDS_REPLACEMENT',
+  'CONTRADICTION',
+  'CORRECTION_PROPOSED',
+] as const;
+type EvidenceOutcome = (typeof EVIDENCE_OUTCOMES)[number];
+
+const EVIDENCE_OUTCOME_MESSAGES: Record<EvidenceOutcome, string> = {
+  ACCEPTED: 'Accepted.',
+  NEEDS_REPLACEMENT: 'Replacement requested.',
+  CONTRADICTION: 'Flagged as contradicting the applicant profile.',
+  CORRECTION_PROPOSED: 'Correction suggested to the applicant.',
+};
+
+/** Org member decides on what was submitted (Commercial V1 Part 4 §13): accept, ask for a replacement, flag a contradiction, or suggest a correction. */
 export async function decideEvidenceResponseAction(
   _prev: ActionState,
   formData: FormData,
@@ -149,12 +164,18 @@ export async function decideEvidenceResponseAction(
   const organizationId = String(formData.get('organizationId') ?? '');
   const requestId = String(formData.get('requestId') ?? '');
   const outcomeRaw = String(formData.get('outcome') ?? '');
-  const outcome =
-    outcomeRaw === 'ACCEPTED' || outcomeRaw === 'NEEDS_REPLACEMENT' ? outcomeRaw : null;
+  const outcome = (EVIDENCE_OUTCOMES as readonly string[]).includes(outcomeRaw)
+    ? (outcomeRaw as EvidenceOutcome)
+    : null;
   const reason = String(formData.get('reason') ?? '').trim();
-  if (!outcome) return { ok: false, message: 'Choose accept or needs replacement.' };
-  if (outcome === 'NEEDS_REPLACEMENT' && reason.length === 0) {
-    return { ok: false, message: 'Explain what needs to be replaced.' };
+  if (!outcome) {
+    return {
+      ok: false,
+      message: 'Choose accept, needs replacement, contradiction, or correction.',
+    };
+  }
+  if (outcome !== 'ACCEPTED' && reason.length === 0) {
+    return { ok: false, message: 'Explain the reason for the applicant to see.' };
   }
 
   const result = await withSession(async ({ db, accountId }) => {
@@ -165,10 +186,7 @@ export async function decideEvidenceResponseAction(
       ...(reason.length > 0 ? { reason } : {}),
     });
     if (!decided.ok) return { ok: false, message: decided.error.message } satisfies ActionState;
-    return {
-      ok: true,
-      message: outcome === 'ACCEPTED' ? 'Accepted.' : 'Replacement requested.',
-    } satisfies ActionState;
+    return { ok: true, message: EVIDENCE_OUTCOME_MESSAGES[outcome] } satisfies ActionState;
   });
   if (result.ok) revalidatePath(`/app/agency/${organizationId}`);
   return result;

@@ -10,6 +10,15 @@ import {
 
 const INITIAL: ActionState = { ok: true, message: '' };
 
+const REASON_PLACEHOLDER: Record<
+  'NEEDS_REPLACEMENT' | 'CONTRADICTION' | 'CORRECTION_PROPOSED',
+  string
+> = {
+  NEEDS_REPLACEMENT: 'What needs to be replaced, and why',
+  CONTRADICTION: 'What this evidence contradicts on the applicant profile',
+  CORRECTION_PROPOSED: 'The correction you suggest, and why',
+};
+
 /** The requesting org's side of a request awaiting their attention: start review, accept, ask for a replacement, or withdraw. */
 export function EvidenceRequestActions({
   organizationId,
@@ -32,7 +41,9 @@ export function EvidenceRequestActions({
     cancelEvidenceRequestAction,
     INITIAL,
   );
-  const [showReplaceReason, setShowReplaceReason] = useState(false);
+  const [reasonOutcome, setReasonOutcome] = useState<
+    'NEEDS_REPLACEMENT' | 'CONTRADICTION' | 'CORRECTION_PROPOSED' | null
+  >(null);
 
   const anyMessage = reviewState.message || decideState.message || cancelState.message;
   const anyOk = reviewState.ok && decideState.ok && cancelState.ok;
@@ -71,9 +82,29 @@ export function EvidenceRequestActions({
           type="button"
           className="btn btn-secondary"
           style={{ padding: '0.3rem 0.75rem', fontSize: '0.8rem' }}
-          onClick={() => setShowReplaceReason((v) => !v)}
+          onClick={() =>
+            setReasonOutcome((v) => (v === 'NEEDS_REPLACEMENT' ? null : 'NEEDS_REPLACEMENT'))
+          }
         >
           Needs replacement
+        </button>
+        <button
+          type="button"
+          className="btn btn-secondary"
+          style={{ padding: '0.3rem 0.75rem', fontSize: '0.8rem' }}
+          onClick={() => setReasonOutcome((v) => (v === 'CONTRADICTION' ? null : 'CONTRADICTION'))}
+        >
+          Contradiction
+        </button>
+        <button
+          type="button"
+          className="btn btn-secondary"
+          style={{ padding: '0.3rem 0.75rem', fontSize: '0.8rem' }}
+          onClick={() =>
+            setReasonOutcome((v) => (v === 'CORRECTION_PROPOSED' ? null : 'CORRECTION_PROPOSED'))
+          }
+        >
+          Propose correction
         </button>
         <form action={cancelAction}>
           <input type="hidden" name="organizationId" value={organizationId} />
@@ -88,20 +119,20 @@ export function EvidenceRequestActions({
           </button>
         </form>
       </div>
-      {showReplaceReason ? (
+      {reasonOutcome ? (
         <form
           action={decideAction}
           style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}
         >
           <input type="hidden" name="organizationId" value={organizationId} />
           <input type="hidden" name="requestId" value={requestId} />
-          <input type="hidden" name="outcome" value="NEEDS_REPLACEMENT" />
+          <input type="hidden" name="outcome" value={reasonOutcome} />
           <input
             name="reason"
             type="text"
             required
             className="input"
-            placeholder="What needs to be replaced, and why"
+            placeholder={REASON_PLACEHOLDER[reasonOutcome]}
             style={{ fontSize: '0.8rem' }}
           />
           <button

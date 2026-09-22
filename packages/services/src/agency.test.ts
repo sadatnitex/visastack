@@ -526,6 +526,108 @@ describe('agency collaboration — assignments, notes, evidence', () => {
     expect(isErr(cancelClosed)).toBe(true);
   });
 
+  it("decideEvidenceResponse: CONTRADICTION and CORRECTION_PROPOSED are real, distinct outcomes (Commercial V1 Part 4 §13's full four-item review list), both routing the request back to NEEDS_REPLACEMENT while the decision record keeps the more specific classification", async () => {
+    const { account, applicantId } = await consentedApplicant(db, 'ev-review@example.com');
+    const agentAcc = await provisionAccount(db, { email: 'agent-ev-review@acme.com' });
+    if (!isOk(agentAcc)) throw new Error('provision');
+    const org = await createOrganization(db, { actorAccountId: agentAcc.value.id, name: 'Acme' });
+    if (!isOk(org)) throw new Error('org');
+    await activateOrg(db, org.value.id);
+    const grant = await createGrant(db, {
+      actorAccountId: account.id,
+      applicantId,
+      recipientOrganizationId: org.value.id,
+      actions: ['MANAGE'],
+      purpose: 'collaboration',
+    });
+    if (!isOk(grant)) throw new Error('grant');
+    await acceptGrant(db, { actorAccountId: agentAcc.value.id, grantId: grant.value.id });
+    // Narrowing through isOk() doesn't survive into the nested closure below.
+    const agentAccountId = agentAcc.value.id;
+    const organizationId = org.value.id;
+
+    async function submitOneResponse() {
+      const req = await requestEvidence(db, {
+        actorAccountId: agentAccountId,
+        organizationId,
+        applicantId,
+        kind: 'DOCUMENT',
+        docType: 'bank_statement',
+      });
+      if (!isOk(req)) throw new Error('request');
+      const doc = await registerDocument(db, {
+        actorAccountId: account.id,
+        applicantId,
+        originalName: 'statement.pdf',
+        docType: 'bank_statement',
+      });
+      if (!isOk(doc)) throw new Error('doc');
+      await addDocumentVersion(db, {
+        actorAccountId: account.id,
+        documentId: doc.value.id,
+        bucket: 'CLEAN',
+        objectKey: `k-${req.value.id}`,
+        safetyStatus: 'CLEAN',
+        processingStatus: 'AWAITING_REVIEW',
+      });
+      const submitted = await submitEvidenceResponse(db, {
+        actorAccountId: account.id,
+        requestId: req.value.id,
+        documentId: doc.value.id,
+      });
+      if (!isOk(submitted)) throw new Error('submit');
+      return req.value.id;
+    }
+
+    const contradictionRequestId = await submitOneResponse();
+    const contradiction = await decideEvidenceResponse(db, {
+      actorAccountId: agentAccountId,
+      requestId: contradictionRequestId,
+      outcome: 'CONTRADICTION',
+      reason: 'Statement shows a different home address than your profile.',
+    });
+    expect(isOk(contradiction)).toBe(true);
+    if (isOk(contradiction)) {
+      // Same underlying transition as NEEDS_REPLACEMENT: a fresh submission
+      // is needed, and the current pointer clears, exactly like §13's
+      // "replacement retains prior decision/reason" already tested above.
+      expect(contradiction.value.status).toBe('NEEDS_REPLACEMENT');
+      expect(contradiction.value.respondingDocumentId).toBeNull();
+    }
+    const contradictionHistory = await listEvidenceRequestDecisions(
+      db,
+      account.id,
+      contradictionRequestId,
+    );
+    expect(isOk(contradictionHistory)).toBe(true);
+    if (isOk(contradictionHistory)) {
+      // The DECISION record keeps the specific classification, distinct
+      // from a generic NEEDS_REPLACEMENT, even though the request's own
+      // status collapsed onto it.
+      expect(contradictionHistory.value[0]?.outcome).toBe('CONTRADICTION');
+      expect(contradictionHistory.value[0]?.reason).toContain('different home address');
+    }
+
+    const correctionRequestId = await submitOneResponse();
+    const correction = await decideEvidenceResponse(db, {
+      actorAccountId: agentAccountId,
+      requestId: correctionRequestId,
+      outcome: 'CORRECTION_PROPOSED',
+      reason: 'Consider updating your address to match this statement.',
+    });
+    expect(isOk(correction)).toBe(true);
+    if (isOk(correction)) expect(correction.value.status).toBe('NEEDS_REPLACEMENT');
+    const correctionHistory = await listEvidenceRequestDecisions(
+      db,
+      account.id,
+      correctionRequestId,
+    );
+    expect(isOk(correctionHistory)).toBe(true);
+    if (isOk(correctionHistory)) {
+      expect(correctionHistory.value[0]?.outcome).toBe('CORRECTION_PROPOSED');
+    }
+  });
+
   it('cancelEvidenceRequest lets the requesting org withdraw a request that no longer needs an answer', async () => {
     const { account, applicantId } = await consentedApplicant(db, 'ev-cancel@example.com');
     const agentAcc = await provisionAccount(db, { email: 'agent-ev-cancel@acme.com' });

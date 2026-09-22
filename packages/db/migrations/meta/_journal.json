@@ -337,6 +337,13 @@
       "when": 1790043473428,
       "tag": "0047_glamorous_moonstone",
       "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "7",
+      "when": 1790045563435,
+      "tag": "0048_yielding_captain_flint",
+      "breakpoints": true
     }
   ]
 }

@@ -161,9 +161,17 @@ export const evidenceRequestStatus = pgEnum('evidence_request_status', [
   'FULFILLED',
   'DECLINED',
 ]);
+// Commercial V1 Part 4 §13 ("Review") names four decision outcomes: accepted
+// evidence; replacement requested; contradiction; proposed correction. The
+// first two are the original two values below; CONTRADICTION and
+// CORRECTION_PROPOSED are the two this codebase had previously mapped onto
+// generic mechanisms (FACT_STATUSES CONFLICTED, field_proposals) rather than
+// implementing as their own real, reviewer-facing outcomes.
 export const evidenceRequestDecisionOutcome = pgEnum('evidence_request_decision_outcome', [
   'ACCEPTED',
   'NEEDS_REPLACEMENT',
+  'CONTRADICTION',
+  'CORRECTION_PROPOSED',
   'CANCELLED',
 ]);
 // --- Mission collaboration additions (master directive §7 "PR 10") ---------

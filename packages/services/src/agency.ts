@@ -1782,14 +1782,31 @@ export async function startEvidenceReview(
 const DECIDABLE_STATUSES: ReadonlySet<string> = new Set(['RECEIVED', 'UNDER_REVIEW']);
 
 /**
- * The requesting org accepts what was submitted, or asks for a replacement
- * (org, MANAGE-grant-gated), the PRD's own CAS-06 definition of "review":
- * "Reviewers accept or request replacement of selected evidence." Every
- * decision is appended to `evidenceRequestDecisions`, an immutable snapshot
- * of exactly what was being decided on, so a later NEEDS_REPLACEMENT round,
- * which clears the request's own current responding pointers to make room
- * for the next submission, never loses this one's reason (Part 4 §13:
- * "replacement retains prior decision/reason").
+ * The requesting org decides on what was submitted (org, MANAGE-grant-gated)
+ * -- Part 4 §13's full "Review" list, all four outcomes: accepted evidence;
+ * replacement requested; contradiction; proposed correction. Every decision
+ * is appended to `evidenceRequestDecisions`, an immutable snapshot of
+ * exactly what was being decided on, so a later round, which clears the
+ * request's own current responding pointers to make room for the next
+ * submission, never loses this one's reason (§13: "replacement retains
+ * prior decision/reason").
+ *
+ * CONTRADICTION and CORRECTION_PROPOSED are real, distinct, reviewer-facing
+ * outcomes -- previously this codebase had mapped them onto generic,
+ * unreachable-by-a-reviewer mechanisms instead (AI-extraction-only
+ * FACT_STATUSES CONFLICTED; AI-extraction-only `field_proposals`, whose
+ * `aiExtractionRunId` is a required foreign key with no human-reviewer
+ * equivalent). Both are handled as the same underlying request-status
+ * transition as NEEDS_REPLACEMENT (evidence didn't stand as submitted,
+ * a fresh response is needed; CAS-03's own six-state model is not extended
+ * with new states for this), while the DECISION record itself keeps the
+ * more specific classification, surfaced to the applicant on the evidence
+ * page with its own distinct label. A structured, one-click-apply
+ * `field_proposals` row from a CORRECTION_PROPOSED decision (rather than a
+ * plain-text suggestion the applicant reads and then acts on through their
+ * own Master Profile edit, same as any self-directed correction) would need
+ * decoupling `field_proposals` from `aiExtractionRunId`, a real but
+ * deliberately separate, undone enhancement -- see `known-issues.md`.
  *
  * Also enforces CAS-06's "an organisation may require a reviewer different
  * from the preparer; if enabled, the server enforces it": here, "preparer"
@@ -1806,7 +1823,7 @@ export async function decideEvidenceResponse(
   input: {
     readonly actorAccountId: string;
     readonly requestId: string;
-    readonly outcome: 'ACCEPTED' | 'NEEDS_REPLACEMENT';
+    readonly outcome: 'ACCEPTED' | 'NEEDS_REPLACEMENT' | 'CONTRADICTION' | 'CORRECTION_PROPOSED';
     readonly reason?: string;
   },
 ): Promise<Result<EvidenceRequest, ServiceError>> {
@@ -1836,6 +1853,16 @@ export async function decideEvidenceResponse(
     );
   }
 
+  // CAS-03's own request-status enum has no CONTRADICTION/CORRECTION_PROPOSED
+  // value: both mean "this submission doesn't stand, a fresh one is needed,"
+  // the same underlying transition as NEEDS_REPLACEMENT. The decision record
+  // (just below) keeps the more specific classification; only the REQUEST's
+  // status collapses the two onto NEEDS_REPLACEMENT.
+  const requestStatus =
+    input.outcome === 'CONTRADICTION' || input.outcome === 'CORRECTION_PROPOSED'
+      ? 'NEEDS_REPLACEMENT'
+      : input.outcome;
+
   return db.transaction(async (tx) => {
     await tx.insert(schema.evidenceRequestDecisions).values({
       evidenceRequestId: request.id,
@@ -1850,12 +1877,13 @@ export async function decideEvidenceResponse(
         await tx
           .update(schema.evidenceRequests)
           .set({
-            status: input.outcome,
-            // Cleared on NEEDS_REPLACEMENT: this pointer means "what's
-            // currently under consideration," which is nothing again until
-            // the applicant submits a fresh response. ACCEPTED keeps its
-            // pointer: it's exactly what was accepted.
-            ...(input.outcome === 'NEEDS_REPLACEMENT'
+            status: requestStatus,
+            // Cleared whenever the request goes back to needing a fresh
+            // response: this pointer means "what's currently under
+            // consideration," which is nothing again until the applicant
+            // submits again. ACCEPTED keeps its pointer: it's exactly what
+            // was accepted.
+            ...(requestStatus === 'NEEDS_REPLACEMENT'
               ? { respondingFactId: null, respondingDocumentId: null }
               : {}),
             updatedAt: new Date(),

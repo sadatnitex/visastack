@@ -643,6 +643,23 @@ item gets its own requirements-ledger row once classified against the new direct
     transaction as the deactivation itself -- proven by a test that a
     co-assigned mission's assignments survive a deactivation untouched.
     Full detail: `requirements-ledger.md` CAS-04.
+57. ~~CAS-06's own directive text (§13 "Review") names four review outcomes:
+    accepted evidence; replacement requested; contradiction; proposed
+    correction. Only the first two were ever reachable by a human reviewer
+    -- an existing code comment had quoted just "accept or request
+    replacement," dropping the other two, which led an earlier chunk to map
+    "contradiction"/"proposed correction" onto `FACT_STATUSES` CONFLICTED
+    and `field_proposals`, both AI-extraction-only mechanisms with no path a
+    human reviewer could actually reach.~~ **RESOLVED (Part 4).** Added
+    `CONTRADICTION`/`CORRECTION_PROPOSED` as real `decideEvidenceResponse`
+    outcomes (migration `0048`), routing to the same request-status
+    transition as NEEDS_REPLACEMENT while the decision record keeps the
+    specific classification, surfaced to the applicant on the evidence page
+    with its own label. Honestly scoped: a proposed correction is the
+    reviewer's plain-text suggestion, not a structured `field_proposals`
+    row -- that would need decoupling `field_proposals` from its required
+    `aiExtractionRunId`, a real, separate, deliberately undone enhancement.
+    Full detail: `requirements-ledger.md` CAS-06.
 independently confirmed findings; the missing PRD file is tracked as Blocker 1 in
 `assumptions-and-blockers.md` (now resolved) rather than here, since it blocked the
 programme rather than being a product defect.
