@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { type Result, err, ok } from '@visastack/core';
 import { and, eq, gt, lt, sql } from 'drizzle-orm';
 import { type Db, first, required, schema } from './db';
+import { checkStorageEntitlement } from './entitlement-enforcement';
 import { type ServiceError, serviceError } from './errors';
 import type { ObservabilityPort } from './ports';
 import {
@@ -144,6 +145,14 @@ export async function reserveUpload(
         ),
       );
     }
+
+    // COM-02: a fifth, org-scoped tier layered on top of the four
+    // infrastructure-level ones above -- a plan's storageBytesAllowed, for
+    // every organization with current grant access to this applicant.
+    // Reuses this same already-held platform-wide lock; no separate one
+    // needed.
+    const orgCheck = await checkStorageEntitlement(tx, input.applicantId, input.sizeBytes);
+    if (!orgCheck.ok) return err(orgCheck.error);
 
     const intent = required(
       first(

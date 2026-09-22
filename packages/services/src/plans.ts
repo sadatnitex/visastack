@@ -496,7 +496,7 @@ export interface OrganizationUsage {
   readonly meters: readonly UsageMeter[];
 }
 
-async function countActiveSeats(db: Db, organizationId: string): Promise<number> {
+export async function countActiveSeats(db: Db, organizationId: string): Promise<number> {
   const row = first(
     await db
       .select({ n: sql<number>`count(*)::int` })
@@ -511,7 +511,11 @@ async function countActiveSeats(db: Db, organizationId: string): Promise<number>
   return row?.n ?? 0;
 }
 
-async function countCasesInPeriod(db: Db, organizationId: string, since: Date): Promise<number> {
+export async function countCasesInPeriod(
+  db: Db,
+  organizationId: string,
+  since: Date,
+): Promise<number> {
   const row = first(
     await db
       .select({ n: sql<number>`count(*)::int` })
@@ -528,7 +532,7 @@ async function countCasesInPeriod(db: Db, organizationId: string, since: Date): 
 
 const TERMINAL_MISSION_STATES = ['CLOSED', 'CANCELLED'] as const;
 
-async function countConcurrentOpenCases(db: Db, organizationId: string): Promise<number> {
+export async function countConcurrentOpenCases(db: Db, organizationId: string): Promise<number> {
   const row = first(
     await db
       .select({ n: sql<number>`count(*)::int` })

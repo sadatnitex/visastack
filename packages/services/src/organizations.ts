@@ -3,6 +3,7 @@ import { type Result, err, ok } from '@visastack/core';
 import { and, eq, ne } from 'drizzle-orm';
 import { appendAuditEvent } from './audit';
 import { type Db, first, required, schema } from './db';
+import { checkSeatEntitlement } from './entitlement-enforcement';
 import { type ServiceError, serviceError } from './errors';
 
 /**
@@ -287,6 +288,9 @@ export async function addMembership(
     return err(serviceError('forbidden', 'only an org OWNER/ADMIN can add members'));
   }
   return db.transaction(async (tx) => {
+    const seatCheck = await checkSeatEntitlement(tx, input.organizationId);
+    if (!seatCheck.ok) return err(seatCheck.error);
+
     const membership = required(
       first(
         await tx
@@ -380,6 +384,14 @@ export async function setMembershipActive(
   }
 
   return db.transaction(async (tx) => {
+    // Only a genuine false -> true transition consumes a new seat; a
+    // redundant "activate an already-active member" call is a no-op that
+    // must never be blocked by a full org.
+    if (input.active && !target.active) {
+      const seatCheck = await checkSeatEntitlement(tx, input.organizationId);
+      if (!seatCheck.ok) return err(seatCheck.error);
+    }
+
     if (!input.active && target.role === 'OWNER') {
       // Lock every OWNER row of this org so a concurrent attempt to
       // deactivate a DIFFERENT owner serializes against this one instead of
