@@ -13,6 +13,7 @@ import type { Db } from './db';
 import {
   applyEmailDeliveryEvent,
   buildNotificationIdempotencyKey,
+  cancelQueuedNotificationsForResource,
   enqueueNotification,
   enqueueNotificationBothChannels,
   listNotificationsForAccount,
@@ -136,6 +137,9 @@ describe('enqueueNotification / enqueueNotificationBothChannels', () => {
     expect(rows).toHaveLength(1);
     expect(rows[0]?.status).toBe('QUEUED');
     expect(rows[0]?.idempotencyKey).toBe(`EVIDENCE_REQUEST_CREATED:${account.id}:IN_APP:req-1:`);
+    // resourceId is its own queryable column, not just folded into the
+    // idempotency key string (Part 5 §4's cancellation mechanism needs it).
+    expect(rows[0]?.resourceId).toBe('req-1');
   });
 
   it('is idempotent - a duplicate (event, recipient, channel, resource, threshold) tuple is silently skipped, never double-enqueued', async () => {
@@ -185,6 +189,73 @@ describe('enqueueNotification / enqueueNotificationBothChannels', () => {
     });
     const rows = await db.select().from(schema.notifications);
     expect(rows).toHaveLength(2);
+  });
+});
+
+describe('cancelQueuedNotificationsForResource (Part 5 §4 / A17)', () => {
+  let db: Db;
+  beforeEach(async () => {
+    db = await freshDb();
+  });
+
+  it('cancels every still-QUEUED row for the resource, both channels', async () => {
+    const { account } = await seedOwner(db, 'cancel-owner@example.com');
+    await enqueueNotificationBothChannels(db, {
+      eventType: 'TASK_DEADLINE',
+      resourceId: 'task-1',
+      recipientAccountId: account.id,
+      threshold: 'due_7d',
+      payload: PAYLOAD,
+    });
+    const result = await cancelQueuedNotificationsForResource(db, 'task-1');
+    expect(result.cancelled).toBe(2);
+    const rows = await db.select().from(schema.notifications);
+    for (const row of rows) expect(row.status).toBe('CANCELLED');
+  });
+
+  it('never touches a different resourceId', async () => {
+    const { account } = await seedOwner(db, 'cancel-scope-owner@example.com');
+    await enqueueNotificationBothChannels(db, {
+      eventType: 'TASK_DEADLINE',
+      resourceId: 'task-a',
+      recipientAccountId: account.id,
+      payload: PAYLOAD,
+    });
+    await enqueueNotificationBothChannels(db, {
+      eventType: 'TASK_DEADLINE',
+      resourceId: 'task-b',
+      recipientAccountId: account.id,
+      payload: PAYLOAD,
+    });
+    const result = await cancelQueuedNotificationsForResource(db, 'task-a');
+    expect(result.cancelled).toBe(2);
+    const rows = await db.select().from(schema.notifications);
+    for (const row of rows) {
+      expect(row.status).toBe(row.resourceId === 'task-a' ? 'CANCELLED' : 'QUEUED');
+    }
+  });
+
+  it('never un-sends an already-SENT notification', async () => {
+    const { account } = await seedOwner(db, 'cancel-sent-owner@example.com');
+    await enqueueNotification(db, {
+      eventType: 'TASK_DEADLINE',
+      channel: 'IN_APP',
+      resourceId: 'task-1',
+      recipientAccountId: account.id,
+      payload: PAYLOAD,
+    });
+    const sentResult = await runNotificationWorker(db, new FakeEmailPort(), 'https://example.test');
+    expect(sentResult.sent).toBe(1);
+
+    const result = await cancelQueuedNotificationsForResource(db, 'task-1');
+    expect(result.cancelled).toBe(0);
+    const rows = await db.select().from(schema.notifications);
+    expect(rows[0]?.status).toBe('SENT');
+  });
+
+  it('is a harmless no-op for a resourceId with no notifications at all', async () => {
+    const result = await cancelQueuedNotificationsForResource(db, 'no-such-resource');
+    expect(result.cancelled).toBe(0);
   });
 });
 

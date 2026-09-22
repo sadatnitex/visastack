@@ -15,7 +15,10 @@ import { type Db, first, required, schema } from './db';
 import { isDocumentVersionUsable } from './documents';
 import { activeOrVerifiedErasureStorageObjectIds } from './erasure';
 import { type ServiceError, serviceError } from './errors';
-import { enqueueNotificationBothChannels } from './notifications';
+import {
+  cancelQueuedNotificationsForResource,
+  enqueueNotificationBothChannels,
+} from './notifications';
 import { getOrganization, isOrgAdmin } from './organizations';
 import { type PackRequirement, listRequirements } from './packs';
 import { RATE_LIMITS, checkRateLimit } from './rate-limit';
@@ -699,6 +702,11 @@ export async function decideTaskForOrg(
       resourceId: task.id,
       metadata: { from: task.status, status: input.status },
     });
+    if (input.status === 'CANCELLED') {
+      // Part 5 §4: a cancelled task invalidates its own still-QUEUED
+      // TASK_DEADLINE reminders (NTF-04's sweep), if any are still pending.
+      await cancelQueuedNotificationsForResource(tx, task.id);
+    }
     return ok(updated);
   });
 }
@@ -772,6 +780,32 @@ export async function createAppointmentForOrg(
       resourceType: 'mission_appointment',
       resourceId: appointment.id,
     });
+
+    // NTF-02: "appointments" -- notify the applicant owner an org member
+    // scheduled one on their case. Neutral: never the place/channel/title
+    // details, just that an appointment exists and a deep link to see it.
+    const owner = first(
+      await tx
+        .select({ ownerAccountId: schema.applicants.ownerAccountId })
+        .from(schema.applicants)
+        .where(eq(schema.applicants.id, mission.value.applicantId))
+        .limit(1),
+    );
+    if (owner) {
+      await enqueueNotificationBothChannels(tx, {
+        eventType: 'APPOINTMENT_SCHEDULED',
+        resourceId: appointment.id,
+        recipientAccountId: owner.ownerAccountId,
+        applicantId: mission.value.applicantId,
+        organizationId: input.organizationId,
+        missionId: input.missionId,
+        payload: {
+          subject: 'Appointment scheduled',
+          summary: 'An appointment was scheduled on your case.',
+          deepLinkPath: `/app/mission/${input.missionId}`,
+        },
+      });
+    }
     return ok(appointment);
   });
 }
@@ -933,6 +967,11 @@ export async function decideAppointmentForOrg(
       resourceId: appointment.id,
       metadata: { status: input.status },
     });
+    if (input.status === 'CANCELLED') {
+      // Part 5 §4: a cancelled appointment invalidates its own still-QUEUED
+      // APPOINTMENT_SCHEDULED notice, if the worker hasn't sent it yet.
+      await cancelQueuedNotificationsForResource(tx, appointment.id);
+    }
     return ok(updated);
   });
 }
@@ -1931,6 +1970,51 @@ export async function decideEvidenceResponse(
       resourceId: request.id,
       metadata: { outcome: input.outcome },
     });
+
+    // NTF-02: "replacement requests" / "final review" -- a reviewer's
+    // verdict on a submitted response, same neutral shape as
+    // MISSION_STATUS_CHANGED (never the reviewer's own `reason` text, just
+    // that a decision landed and a deep link to go see it). ACCEPTED reads
+    // as this specific evidence item's review closing out; the other three
+    // outcomes all mean "this doesn't stand, resubmit" -- one event type,
+    // matching how `requestStatus` above already collapses them.
+    const owner = first(
+      await tx
+        .select({ ownerAccountId: schema.applicants.ownerAccountId })
+        .from(schema.applicants)
+        .where(eq(schema.applicants.id, request.applicantId))
+        .limit(1),
+    );
+    if (owner) {
+      const deepLinkPath = `/app/applicant/${request.applicantId}/evidence`;
+      if (input.outcome === 'ACCEPTED') {
+        await enqueueNotificationBothChannels(tx, {
+          eventType: 'EVIDENCE_REVIEW_ACCEPTED',
+          resourceId: request.id,
+          recipientAccountId: owner.ownerAccountId,
+          applicantId: request.applicantId,
+          organizationId: request.organizationId,
+          payload: {
+            subject: 'Evidence accepted',
+            summary: 'A reviewer accepted your submitted evidence.',
+            deepLinkPath,
+          },
+        });
+      } else {
+        await enqueueNotificationBothChannels(tx, {
+          eventType: 'EVIDENCE_REPLACEMENT_REQUESTED',
+          resourceId: request.id,
+          recipientAccountId: owner.ownerAccountId,
+          applicantId: request.applicantId,
+          organizationId: request.organizationId,
+          payload: {
+            subject: 'Evidence needs a fresh submission',
+            summary: 'A reviewer requested a replacement for your submitted evidence.',
+            deepLinkPath,
+          },
+        });
+      }
+    }
     return ok(updated);
   });
 }
@@ -1975,6 +2059,10 @@ export async function cancelEvidenceRequest(
       resourceType: 'evidence_request',
       resourceId: request.id,
     });
+    // Part 5 §4: this request no longer needs an answer -- any still-QUEUED
+    // notice about it (e.g. the original EVIDENCE_REQUEST_CREATED, if the
+    // worker hasn't dispatched it yet) is now obsolete.
+    await cancelQueuedNotificationsForResource(tx, request.id);
     return ok(updated);
   });
 }

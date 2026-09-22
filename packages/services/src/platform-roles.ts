@@ -3,6 +3,7 @@ import { and, count, desc, eq, isNull, sql } from 'drizzle-orm';
 import { appendAuditEvent } from './audit';
 import { type Db, first, required, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
+import { enqueueNotificationBothChannels } from './notifications';
 
 /**
  * Namespaced advisory-lock key serializing platform-role grant decisions
@@ -287,6 +288,21 @@ export async function grantPlatformRole(
         ...(isBootstrapGrant && role !== input.role ? { requestedRole: input.role } : {}),
       },
     });
+
+    // NTF-02: "security/account changes" -- the target is notified about
+    // their OWN account, a different recipient shape than every other wired
+    // event (no applicant/org context; never the granting actor's own
+    // `reason` text).
+    await enqueueNotificationBothChannels(tx, {
+      eventType: 'PLATFORM_ROLE_GRANTED',
+      resourceId: grant.id,
+      recipientAccountId: input.targetAccountId,
+      payload: {
+        subject: 'Your platform role changed',
+        summary: `You were granted the ${role} platform role.`,
+        deepLinkPath: '/app/account',
+      },
+    });
     return ok(grant);
   });
 }
@@ -373,6 +389,21 @@ export async function revokePlatformRole(
       resourceId: updated.id,
       metadata: { targetAccountId: updated.accountId, role: updated.role },
     });
+    // accountId is nullable (finding #17: deleting an account sets it null
+    // rather than erasing this append-only row) -- nobody left to notify if
+    // that already happened.
+    if (updated.accountId) {
+      await enqueueNotificationBothChannels(tx, {
+        eventType: 'PLATFORM_ROLE_REVOKED',
+        resourceId: updated.id,
+        recipientAccountId: updated.accountId,
+        payload: {
+          subject: 'Your platform role changed',
+          summary: `Your ${updated.role} platform role was revoked.`,
+          deepLinkPath: '/app/account',
+        },
+      });
+    }
     return ok(updated);
   });
 }

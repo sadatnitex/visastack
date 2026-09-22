@@ -43,6 +43,7 @@ import {
   updateMissionCaseDetails,
   updateTask,
 } from './missions';
+import { enqueueNotificationBothChannels } from './notifications';
 import { createOrganization, reviewOrganization } from './organizations';
 import {
   addPackVersion,
@@ -1289,6 +1290,41 @@ describe('mission collaboration — evidence selection, tasks, grounded letters 
     if (isErr(denied)) expect(denied.error.code).toBe('forbidden');
   });
 
+  it('Part 5 §4: decideTask CANCELLED cancels a still-QUEUED notice tied to that task (e.g. an NTF-04 deadline reminder not yet dispatched)', async () => {
+    const { account, missionId } = await setUp(db);
+    const task = await createTask(db, {
+      actorAccountId: account.id,
+      missionId,
+      description: 'Chase the applicant for an updated bank statement.',
+    });
+    if (!isOk(task)) throw new Error('task');
+
+    await db.transaction(async (tx) => {
+      await enqueueNotificationBothChannels(tx, {
+        eventType: 'TASK_DEADLINE',
+        resourceId: task.value.id,
+        recipientAccountId: account.id,
+        threshold: 'due_7d',
+        payload: { subject: 'Task due soon', summary: 'A task is due soon.', deepLinkPath: '/app' },
+      });
+    });
+
+    const decided = await decideTask(db, {
+      actorAccountId: account.id,
+      missionId,
+      taskId: task.value.id,
+      status: 'CANCELLED',
+    });
+    expect(isOk(decided)).toBe(true);
+
+    const rows = await db
+      .select()
+      .from(schema.notifications)
+      .where(eq(schema.notifications.resourceId, task.value.id));
+    expect(rows).toHaveLength(2);
+    for (const row of rows) expect(row.status).toBe('CANCELLED');
+  });
+
   it('refuses a task tied to a requirement from an unrelated pack (not just an unrelated document/fact)', async () => {
     const { account, missionId } = await setUp(db);
     // A second, unrelated pack the mission was never attached to.
@@ -1498,6 +1534,46 @@ describe('mission collaboration — evidence selection, tasks, grounded letters 
     const crossOwner = await getAppointment(db, stranger.value.id, missionId, second.value.id);
     expect(isErr(crossOwner)).toBe(true);
     if (isErr(crossOwner)) expect(crossOwner.error.code).toBe('forbidden');
+  });
+
+  it('Part 5 §4: decideAppointment CANCELLED cancels a still-QUEUED notice tied to that appointment', async () => {
+    const { account, missionId } = await setUp(db);
+    const appointment = await createAppointment(db, {
+      actorAccountId: account.id,
+      missionId,
+      title: 'Visa interview prep',
+      localDateTime: new Date('2026-11-20T09:00:00'),
+      timezone: 'Asia/Dhaka',
+    });
+    if (!isOk(appointment)) throw new Error('appointment');
+
+    await db.transaction(async (tx) => {
+      await enqueueNotificationBothChannels(tx, {
+        eventType: 'APPOINTMENT_SCHEDULED',
+        resourceId: appointment.value.id,
+        recipientAccountId: account.id,
+        payload: {
+          subject: 'Appointment scheduled',
+          summary: 'An appointment was scheduled.',
+          deepLinkPath: '/app',
+        },
+      });
+    });
+
+    const decided = await decideAppointment(db, {
+      actorAccountId: account.id,
+      missionId,
+      appointmentId: appointment.value.id,
+      status: 'CANCELLED',
+    });
+    expect(isOk(decided)).toBe(true);
+
+    const rows = await db
+      .select()
+      .from(schema.notifications)
+      .where(eq(schema.notifications.resourceId, appointment.value.id));
+    expect(rows).toHaveLength(2);
+    for (const row of rows) expect(row.status).toBe('CANCELLED');
   });
 
   it('refuses to generate a letter with nothing grounded yet, then generates one citing exact evidence, versioned', async () => {

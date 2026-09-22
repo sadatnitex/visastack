@@ -158,6 +158,13 @@ export const notificationDeliveryStatus = pgEnum('notification_delivery_status',
   'BOUNCED',
   'FAILED',
   'READ',
+  // Added for Part 5 §4 ("Cancellation/replacement/revocation invalidates
+  // obsolete notices") and A17 ("stale scheduled messages cancelled") --
+  // distinct from the directive's six-state delivery vocabulary above (which
+  // stays untouched), this is a genuine, separately-required terminal
+  // outcome: a QUEUED row whose underlying resource was cancelled/replaced/
+  // revoked before it ever sent, never delivered nor a delivery failure.
+  'CANCELLED',
 ]);
 // Commercial V1 Part 4 §10's exact state model. FULFILLED/DECLINED are
 // retired (superseded by ACCEPTED/CANCELLED respectively) but kept in the
@@ -2137,6 +2144,16 @@ export const notifications = pgTable(
       onDelete: 'cascade',
     }),
     missionId: uuid('mission_id').references(() => missions.id, { onDelete: 'cascade' }),
+    // The domain object driving this notification (e.g. a task, appointment,
+    // or evidence-request-decision id) -- already folded into
+    // `idempotencyKey` since NTF-02's original design, but not previously
+    // its own queryable column. Part 5 §4's obsolete-notice cancellation
+    // needs exactly this: "all still-QUEUED rows for resource X," which
+    // `idempotencyKey`'s composed string can't answer without parsing it.
+    // No FK: a resource id here can point at any of several unrelated
+    // tables depending on `eventType` (mirrors `auditEvents.resourceId`'s
+    // own plain-text, non-FK convention for the identical reason).
+    resourceId: text('resource_id'),
     // Neutral, minimal message content + a relative deep-link path only
     // ("Email content: neutral; minimal; authenticated deep link." / "Never
     // include: passport number; financial details; medical details; refusal
@@ -2175,6 +2192,7 @@ export const notifications = pgTable(
     index('notifications_dispatch_idx').on(table.status, table.nextAttemptAt),
     index('notifications_recipient_idx').on(table.recipientAccountId),
     index('notifications_provider_message_idx').on(table.providerMessageId),
+    index('notifications_resource_idx').on(table.resourceId, table.status),
     check(
       'notifications_recipient_present',
       sql`${table.recipientAccountId} is not null or ${table.recipientEmail} is not null`,

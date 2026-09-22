@@ -388,6 +388,59 @@ describe('platform roles — grant and revoke', () => {
     expect(revokeEvents).toHaveLength(1);
   });
 
+  it('NTF-02: grant and revoke each notify the TARGET account about their own role change, in-app + email', async () => {
+    const support = await seedAccount(db, 'support-notify@example.com');
+    const granted = await grantPlatformRole(db, {
+      actor: ownerAuth,
+      targetAccountId: support.id,
+      role: 'SUPPORT_ADMIN',
+      reason: 'a reason that must never leak into the notification payload',
+      stepUpSatisfied: true,
+    });
+    if (!isOk(granted)) throw new Error('grant');
+
+    // Filtered by this specific grant's id, not just eventType -- the
+    // beforeEach's own bootstrap grantPlatformRole call already enqueued a
+    // PLATFORM_ROLE_GRANTED pair of its own (same reason the audit-trail
+    // test above asserts >= 2, not exactly 2).
+    const grantRows = await db
+      .select()
+      .from(schema.notifications)
+      .where(eq(schema.notifications.resourceId, granted.value.id));
+    expect(grantRows).toHaveLength(2);
+    expect(grantRows.map((r) => r.channel).sort()).toEqual(['EMAIL', 'IN_APP']);
+    for (const row of grantRows) {
+      expect(row.eventType).toBe('PLATFORM_ROLE_GRANTED');
+      // The recipient is the account the role change happened TO, not the
+      // granting owner -- a different recipient shape than every other
+      // wired event (no applicant/org context at all).
+      expect(row.recipientAccountId).toBe(support.id);
+      expect(row.applicantId).toBeNull();
+      expect(row.organizationId).toBeNull();
+      const payload = row.payload as { summary: string };
+      expect(payload.summary).not.toContain('must never leak');
+    }
+
+    const revoked = await revokePlatformRole(db, {
+      actor: ownerAuth,
+      grantId: granted.value.id,
+      reason: 'a different reason that must also never leak',
+      stepUpSatisfied: true,
+    });
+    expect(isOk(revoked)).toBe(true);
+
+    const revokeRows = await db
+      .select()
+      .from(schema.notifications)
+      .where(eq(schema.notifications.eventType, 'PLATFORM_ROLE_REVOKED'));
+    expect(revokeRows).toHaveLength(2);
+    for (const row of revokeRows) {
+      expect(row.recipientAccountId).toBe(support.id);
+      const payload = row.payload as { summary: string };
+      expect(payload.summary).not.toContain('must also never leak');
+    }
+  });
+
   it('refuses to grant a platform role without step-up, even for a genuine platform owner (master directive §7 "PR 5")', async () => {
     const target = await seedAccount(db, 'stepup-target@example.com');
     const denied = await grantPlatformRole(db, {

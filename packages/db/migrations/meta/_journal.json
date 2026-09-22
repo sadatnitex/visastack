@@ -365,6 +365,13 @@
       "when": 1790050389859,
       "tag": "0051_sparkling_sauron",
       "breakpoints": true
+    },
+    {
+      "idx": 52,
+      "version": "7",
+      "when": 1790075271124,
+      "tag": "0052_kind_radioactive_man",
+      "breakpoints": true
     }
   ]
 }
