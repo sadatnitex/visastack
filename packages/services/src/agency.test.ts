@@ -44,6 +44,7 @@ import { setConsent } from './consent';
 import type { Db } from './db';
 import { addDocumentVersion, registerDocument } from './documents';
 import { attachPackVersion, createMission, createTask, transitionMission } from './missions';
+import { enqueueNotificationBothChannels } from './notifications';
 import {
   addMembership,
   createOrganization,
@@ -567,6 +568,158 @@ describe('agency collaboration — assignments, notes, evidence', () => {
       expect(payload.summary).not.toContain('must never leak');
       expect(payload.deepLinkPath).toBe(`/app/applicant/${applicantId}/evidence`);
     }
+  });
+
+  it("NTF-02: decideEvidenceResponse enqueues distinct notifications for ACCEPTED (EVIDENCE_REVIEW_ACCEPTED) versus NEEDS_REPLACEMENT (EVIDENCE_REPLACEMENT_REQUESTED), both to the applicant owner, neither leaking the reviewer's reason text", async () => {
+    const { account, applicantId } = await consentedApplicant(db, 'ev-decide-notify@example.com');
+    const agentAcc = await provisionAccount(db, { email: 'agent-ev-decide-notify@acme.com' });
+    if (!isOk(agentAcc)) throw new Error('provision');
+    const org = await createOrganization(db, { actorAccountId: agentAcc.value.id, name: 'Acme' });
+    if (!isOk(org)) throw new Error('org');
+    await activateOrg(db, org.value.id);
+    const grant = await createGrant(db, {
+      actorAccountId: account.id,
+      applicantId,
+      recipientOrganizationId: org.value.id,
+      actions: ['MANAGE'],
+      purpose: 'collaboration',
+    });
+    if (!isOk(grant)) throw new Error('grant');
+    await acceptGrant(db, { actorAccountId: agentAcc.value.id, grantId: grant.value.id });
+    const agentAccountId = agentAcc.value.id;
+    const organizationId = org.value.id;
+
+    async function submitOneResponse() {
+      const req = await requestEvidence(db, {
+        actorAccountId: agentAccountId,
+        organizationId,
+        applicantId,
+        kind: 'DOCUMENT',
+        docType: 'bank_statement',
+      });
+      if (!isOk(req)) throw new Error('request');
+      const doc = await registerDocument(db, {
+        actorAccountId: account.id,
+        applicantId,
+        originalName: 'statement.pdf',
+        docType: 'bank_statement',
+      });
+      if (!isOk(doc)) throw new Error('doc');
+      await addDocumentVersion(db, {
+        actorAccountId: account.id,
+        documentId: doc.value.id,
+        bucket: 'CLEAN',
+        objectKey: `k-${req.value.id}`,
+        safetyStatus: 'CLEAN',
+        processingStatus: 'AWAITING_REVIEW',
+      });
+      const submitted = await submitEvidenceResponse(db, {
+        actorAccountId: account.id,
+        requestId: req.value.id,
+        documentId: doc.value.id,
+      });
+      if (!isOk(submitted)) throw new Error('submit');
+      return req.value.id;
+    }
+
+    const acceptedRequestId = await submitOneResponse();
+    const accepted = await decideEvidenceResponse(db, {
+      actorAccountId: agentAccountId,
+      requestId: acceptedRequestId,
+      outcome: 'ACCEPTED',
+      reason: 'a reason that must never leak into the notification payload',
+    });
+    expect(isOk(accepted)).toBe(true);
+
+    const acceptedRows = await db
+      .select()
+      .from(schema.notifications)
+      .where(eq(schema.notifications.eventType, 'EVIDENCE_REVIEW_ACCEPTED'));
+    expect(acceptedRows).toHaveLength(2);
+    expect(acceptedRows.map((r) => r.channel).sort()).toEqual(['EMAIL', 'IN_APP']);
+    for (const row of acceptedRows) {
+      expect(row.recipientAccountId).toBe(account.id);
+      expect(row.resourceId).toBe(acceptedRequestId);
+      const payload = row.payload as { summary: string; deepLinkPath: string };
+      expect(payload.summary).not.toContain('must never leak');
+      expect(payload.deepLinkPath).toBe(`/app/applicant/${applicantId}/evidence`);
+    }
+
+    const replacementRequestId = await submitOneResponse();
+    const replacement = await decideEvidenceResponse(db, {
+      actorAccountId: agentAccountId,
+      requestId: replacementRequestId,
+      outcome: 'NEEDS_REPLACEMENT',
+      reason: 'a different reason that must also never leak',
+    });
+    expect(isOk(replacement)).toBe(true);
+
+    const replacementRows = await db
+      .select()
+      .from(schema.notifications)
+      .where(eq(schema.notifications.eventType, 'EVIDENCE_REPLACEMENT_REQUESTED'));
+    expect(replacementRows).toHaveLength(2);
+    for (const row of replacementRows) {
+      expect(row.recipientAccountId).toBe(account.id);
+      expect(row.resourceId).toBe(replacementRequestId);
+      const payload = row.payload as { summary: string };
+      expect(payload.summary).not.toContain('must also never leak');
+    }
+  });
+
+  it("Part 5 §4: cancelEvidenceRequest cancels a still-QUEUED notice for that request, without touching an unrelated request's notice", async () => {
+    const { account, applicantId } = await consentedApplicant(db, 'ev-cancel-notify@example.com');
+    const agentAcc = await provisionAccount(db, { email: 'agent-ev-cancel-notify@acme.com' });
+    if (!isOk(agentAcc)) throw new Error('provision');
+    const org = await createOrganization(db, { actorAccountId: agentAcc.value.id, name: 'Acme' });
+    if (!isOk(org)) throw new Error('org');
+    await activateOrg(db, org.value.id);
+    const grant = await createGrant(db, {
+      actorAccountId: account.id,
+      applicantId,
+      recipientOrganizationId: org.value.id,
+      actions: ['MANAGE'],
+      purpose: 'collaboration',
+    });
+    if (!isOk(grant)) throw new Error('grant');
+    await acceptGrant(db, { actorAccountId: agentAcc.value.id, grantId: grant.value.id });
+
+    const toCancel = await requestEvidence(db, {
+      actorAccountId: agentAcc.value.id,
+      organizationId: org.value.id,
+      applicantId,
+      kind: 'DOCUMENT',
+      docType: 'bank_statement',
+    });
+    if (!isOk(toCancel)) throw new Error('request');
+    const untouched = await requestEvidence(db, {
+      actorAccountId: agentAcc.value.id,
+      organizationId: org.value.id,
+      applicantId,
+      kind: 'DOCUMENT',
+      docType: 'passport_bio_page',
+    });
+    if (!isOk(untouched)) throw new Error('request');
+
+    const cancelled = await cancelEvidenceRequest(db, {
+      actorAccountId: agentAcc.value.id,
+      requestId: toCancel.value.id,
+    });
+    expect(isOk(cancelled)).toBe(true);
+
+    const cancelledRows = await db
+      .select()
+      .from(schema.notifications)
+      .where(eq(schema.notifications.resourceId, toCancel.value.id));
+    expect(cancelledRows).toHaveLength(2);
+    for (const row of cancelledRows) expect(row.status).toBe('CANCELLED');
+
+    const untouchedRows = await db
+      .select()
+      .from(schema.notifications)
+      .where(eq(schema.notifications.resourceId, untouched.value.id));
+    expect(untouchedRows).toHaveLength(2);
+    for (const row of untouchedRows) expect(row.status).toBe('QUEUED');
   });
 
   it("decideEvidenceResponse: CONTRADICTION and CORRECTION_PROPOSED are real, distinct outcomes (Commercial V1 Part 4 §13's full four-item review list), both routing the request back to NEEDS_REPLACEMENT while the decision record keeps the more specific classification", async () => {
@@ -2184,6 +2337,111 @@ describe('CAS-04 - org-side tasks/appointments, unassignment, and the reassignme
     });
     expect(isOk(decided)).toBe(true);
     if (isOk(decided)) expect(decided.value.status).toBe('DONE');
+  });
+
+  it('NTF-02: createAppointmentForOrg enqueues an APPOINTMENT_SCHEDULED notification to the applicant owner', async () => {
+    const { account, missionId, organizationId, memberAccountId } = await setUpAssignedOrg(
+      db,
+      'appt-notify',
+    );
+
+    const created = await createAppointmentForOrg(db, {
+      actorAccountId: memberAccountId,
+      organizationId,
+      missionId,
+      title: 'Prep call',
+      localDateTime: new Date('2026-12-01T10:00:00'),
+      timezone: 'Asia/Dhaka',
+    });
+    expect(isOk(created)).toBe(true);
+    if (!isOk(created)) return;
+
+    const rows = await db
+      .select()
+      .from(schema.notifications)
+      .where(eq(schema.notifications.eventType, 'APPOINTMENT_SCHEDULED'));
+    expect(rows).toHaveLength(2);
+    expect(rows.map((r) => r.channel).sort()).toEqual(['EMAIL', 'IN_APP']);
+    for (const row of rows) {
+      expect(row.recipientAccountId).toBe(account.id);
+      expect(row.resourceId).toBe(created.value.id);
+      const payload = row.payload as { deepLinkPath: string };
+      expect(payload.deepLinkPath).toBe(`/app/mission/${missionId}`);
+    }
+  });
+
+  it('Part 5 §4: decideAppointmentForOrg CANCELLED cancels the still-QUEUED APPOINTMENT_SCHEDULED notice', async () => {
+    const { missionId, organizationId, memberAccountId } = await setUpAssignedOrg(
+      db,
+      'appt-cancel-notify',
+    );
+    const created = await createAppointmentForOrg(db, {
+      actorAccountId: memberAccountId,
+      organizationId,
+      missionId,
+      title: 'Prep call',
+      localDateTime: new Date('2026-12-01T10:00:00'),
+      timezone: 'Asia/Dhaka',
+    });
+    if (!isOk(created)) throw new Error('appointment');
+
+    const decided = await decideAppointmentForOrg(db, {
+      actorAccountId: memberAccountId,
+      organizationId,
+      missionId,
+      appointmentId: created.value.id,
+      status: 'CANCELLED',
+    });
+    expect(isOk(decided)).toBe(true);
+
+    const rows = await db
+      .select()
+      .from(schema.notifications)
+      .where(eq(schema.notifications.resourceId, created.value.id));
+    expect(rows).toHaveLength(2);
+    for (const row of rows) expect(row.status).toBe('CANCELLED');
+  });
+
+  it('Part 5 §4: decideTaskForOrg CANCELLED cancels a still-QUEUED notice tied to that task (e.g. an NTF-04 deadline reminder not yet dispatched)', async () => {
+    const { missionId, applicantId, organizationId, adminAccountId, memberAccountId } =
+      await setUpAssignedOrg(db, 'task-cancel-notify');
+    const created = await createTaskForOrg(db, {
+      actorAccountId: memberAccountId,
+      organizationId,
+      missionId,
+      description: 'Chase the applicant for a bank statement.',
+    });
+    if (!isOk(created)) throw new Error('task');
+
+    // Simulates what NTF-04's sweepTaskDeadlineReminders would have already
+    // enqueued for this task's due date, still sitting QUEUED because the
+    // worker hasn't run yet.
+    await db.transaction(async (tx) => {
+      await enqueueNotificationBothChannels(tx, {
+        eventType: 'TASK_DEADLINE',
+        resourceId: created.value.id,
+        recipientAccountId: adminAccountId,
+        applicantId,
+        threshold: 'due_7d',
+        payload: { subject: 'Task due soon', summary: 'A task is due soon.', deepLinkPath: '/app' },
+      });
+    });
+
+    const decided = await decideTaskForOrg(db, {
+      actorAccountId: memberAccountId,
+      organizationId,
+      missionId,
+      taskId: created.value.id,
+      status: 'CANCELLED',
+    });
+    expect(isOk(decided)).toBe(true);
+
+    const rows = await db
+      .select()
+      .from(schema.notifications)
+      .where(eq(schema.notifications.resourceId, created.value.id));
+    expect(rows).toHaveLength(2);
+    for (const row of rows) expect(row.status).toBe('CANCELLED');
   });
 
   it('unassignMember: admin-only, removes exactly that assignment, and is idempotent when nothing is assigned', async () => {

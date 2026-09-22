@@ -18,11 +18,18 @@ import type { EmailPort } from './ports';
  * re-verifying the recipient's authorization at send time rather than
  * trusting who was authorized at enqueue time.
  *
- * Only two event types are wired to a real domain call site so far
- * (evidence-request creation, mission status change) - proof that the
- * mechanism works end to end. The rest of NTF-02's eleven-event list, the
- * date-threshold sweep (NTF-04), and a real email provider (NTF-03) are
- * later chunks; see `requirements-ledger.md` NTF-02/03/04.
+ * `cancelQueuedNotificationsForResource` is this outbox's other write path
+ * besides enqueueing: Part 5 §4 ("Cancellation/replacement/revocation
+ * invalidates obsolete notices") and A17 ("stale scheduled messages
+ * cancelled") require that a still-QUEUED row tied to a resource that was
+ * cancelled, replaced, or revoked before it ever sent never goes out at all.
+ * Called from the SAME transaction as that cancellation, the same
+ * "commits together" discipline as enqueueing itself - never a separate,
+ * droppable follow-up call.
+ *
+ * See `requirements-ledger.md` NTF-02 for which of the directive's eleven
+ * event types are wired to a real call site, which are honestly deferred,
+ * and which are blocked on a later part's own concept not existing yet.
  */
 
 export type NotificationChannel = 'IN_APP' | 'EMAIL';
@@ -32,7 +39,8 @@ export type NotificationDeliveryStatus =
   | 'DELIVERED'
   | 'BOUNCED'
   | 'FAILED'
-  | 'READ';
+  | 'READ'
+  | 'CANCELLED';
 
 export type Notification = typeof schema.notifications.$inferSelect;
 
@@ -41,7 +49,17 @@ export type Notification = typeof schema.notifications.$inferSelect;
  * stays free text at the schema level (matching `auditEvents`), so this
  * union is a convenience for known callers, not an exhaustive gate.
  */
-export type NotificationEventType = 'EVIDENCE_REQUEST_CREATED' | 'MISSION_STATUS_CHANGED';
+export type NotificationEventType =
+  | 'EVIDENCE_REQUEST_CREATED'
+  | 'MISSION_STATUS_CHANGED'
+  | 'EVIDENCE_REPLACEMENT_REQUESTED'
+  | 'EVIDENCE_REVIEW_ACCEPTED'
+  | 'APPOINTMENT_SCHEDULED'
+  | 'PLATFORM_ROLE_GRANTED'
+  | 'PLATFORM_ROLE_REVOKED'
+  | 'TASK_DEADLINE'
+  | 'DOCUMENT_EXPIRY'
+  | 'VERIFICATION_EXPIRY';
 
 /**
  * "Email content: neutral; minimal; authenticated deep link." / "Never
@@ -112,6 +130,7 @@ export async function enqueueNotification(tx: Db, input: EnqueueNotificationInpu
       applicantId: input.applicantId ?? null,
       organizationId: input.organizationId ?? null,
       missionId: input.missionId ?? null,
+      resourceId: input.resourceId,
       payload: input.payload,
     })
     .onConflictDoNothing({ target: schema.notifications.idempotencyKey });
@@ -124,6 +143,35 @@ export async function enqueueNotificationBothChannels(
 ): Promise<void> {
   await enqueueNotification(tx, { ...input, channel: 'IN_APP' });
   await enqueueNotification(tx, { ...input, channel: 'EMAIL' });
+}
+
+/**
+ * Part 5 §4 ("Cancellation/replacement/revocation invalidates obsolete
+ * notices") / A17 ("stale scheduled messages cancelled"): cancels every
+ * still-QUEUED notification tied to `resourceId`, so a reminder about
+ * something no longer relevant never actually sends. MUST be called from
+ * inside the same transaction as the domain cancellation/replacement/
+ * revocation it reports on, same "commits together" discipline as
+ * enqueueing. A no-op (returns `cancelled: 0`) when nothing is still
+ * QUEUED for this resource - already-SENT notices are historical record,
+ * never retroactively hidden, and this never touches them (the WHERE
+ * clause matches only `status = 'QUEUED'`).
+ */
+export async function cancelQueuedNotificationsForResource(
+  tx: Db,
+  resourceId: string,
+): Promise<{ readonly cancelled: number }> {
+  const updated = await tx
+    .update(schema.notifications)
+    .set({ status: 'CANCELLED' })
+    .where(
+      and(
+        eq(schema.notifications.resourceId, resourceId),
+        eq(schema.notifications.status, 'QUEUED'),
+      ),
+    )
+    .returning({ id: schema.notifications.id });
+  return { cancelled: updated.length };
 }
 
 // --- Delivery worker ---------------------------------------------------

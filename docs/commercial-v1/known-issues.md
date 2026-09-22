@@ -721,6 +721,24 @@ item gets its own requirements-ledger row once classified against the new direct
     accepted." Full detail: `requirements-ledger.md` NTF-03. Still open, not
     this chunk's scope: the nine unwired event types noted above, and (see
     item 61 below) live A18 verification against a real Resend account.
+    **Update (2026-09-22, Part 5 §2/§4 continued):** five more of the nine
+    wired -- replacement requests and final review (both via
+    `decideEvidenceResponse`), appointments scheduled, and platform-role
+    grant/revoke (`agency.ts`, `platform-roles.ts`) -- plus the separately
+    directive-required obsolete-notice cancellation mechanism (§4: "invalidates
+    obsolete notices"; A17: "stale scheduled messages cancelled"), previously
+    entirely missing (`notifications.ts` had no way to stop a still-QUEUED row
+    at all). Four of the remaining event types are now honestly closed, not
+    just unwired: acknowledgement invalidation and rule-pack impact are
+    confirmed BLOCKED on Part 7/Part 6 respectively (grepped, no such concept
+    exists anywhere in the codebase yet); material case status/readiness
+    changes is confirmed narrow by architecture (`computeReadiness` has no
+    stored previous value to diff against, so there is no second moment to
+    hook beyond what `recordMissionDecision` already covers); invitations is a
+    deliberate, reasoned deferral (the accept flow's bearer token exists in
+    plaintext only as one function's return value today -- persisting it in
+    `notifications.payload` needs a real send-then-redact design, not a rushed
+    bolt-on). Full detail: `requirements-ledger.md` NTF-02.
 60. ~~`applicants` had no timezone concept at all; `wallet.ts`'s
     `EXPIRING_SOON_DAYS` comment had explicitly named this as Part 5's
     eventual responsibility, and no local-date (as opposed to raw

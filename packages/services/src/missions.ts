@@ -11,6 +11,7 @@ import { isDocumentVersionUsable } from './documents';
 import { activeOrVerifiedErasureStorageObjectIds } from './erasure';
 import { type ServiceError, serviceError } from './errors';
 import { type StalenessClassification, classifyStaleness, parseDocumentDate } from './expiry';
+import { cancelQueuedNotificationsForResource } from './notifications';
 import { type PackRequirement, listRequirements } from './packs';
 import { recordProductEvent } from './product-events';
 
@@ -1485,6 +1486,11 @@ export async function decideTask(
       resourceId: task.id,
       metadata: { from: task.status, status: input.status },
     });
+    if (input.status === 'CANCELLED') {
+      // Part 5 §4: a cancelled task invalidates its own still-QUEUED
+      // TASK_DEADLINE reminders (NTF-04's sweep), if any are still pending.
+      await cancelQueuedNotificationsForResource(tx, task.id);
+    }
     return ok(updated);
   });
 }
@@ -1809,6 +1815,11 @@ export async function decideAppointment(
       resourceId: appointment.id,
       metadata: { status: input.status },
     });
+    if (input.status === 'CANCELLED') {
+      // Part 5 §4: a cancelled appointment invalidates its own still-QUEUED
+      // APPOINTMENT_SCHEDULED notice, if the worker hasn't sent it yet.
+      await cancelQueuedNotificationsForResource(tx, appointment.id);
+    }
     return ok(updated);
   });
 }
