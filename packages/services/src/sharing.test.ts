@@ -239,6 +239,7 @@ describe('sharing — grant lifecycle end-to-end with the policy engine', () => 
       organizationId: orgId as never,
       role: 'CASE_MANAGER',
       active: true,
+      organizationActive: true,
     };
     const preview = () =>
       previewDocument(db, storage, {

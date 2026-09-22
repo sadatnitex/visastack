@@ -460,11 +460,25 @@ export function pauseGrant(
   );
 }
 
-/** Resume a paused grant (applicant owner). Only reachable from PAUSED — never from REVOKED. */
-export function resumeGrant(
+/**
+ * Resume a paused grant (applicant owner). Only reachable from PAUSED -
+ * never from REVOKED. SHR-01/SHR-02: "a paused grant may resume only
+ * within its original validity" - a grant whose `expiryAt` has already
+ * passed while paused cannot be resumed at all, even by its own owner.
+ * `authorize()` would deny actual access through it either way (it always
+ * re-checks `expiryAt` live), but resuming it anyway would still leave a
+ * misleading `status: 'ACTIVE'` row nothing else corrects, so this refuses
+ * the transition itself rather than relying on that separate check alone.
+ */
+export async function resumeGrant(
   db: Db,
   input: { readonly actorAccountId: string; readonly grantId: string },
 ): Promise<Result<Grant, ServiceError>> {
+  const grant = await loadGrant(db, input.grantId);
+  if (!grant) return err(serviceError('not_found', 'grant not found'));
+  if (grant.expiryAt && grant.expiryAt.getTime() <= Date.now()) {
+    return err(serviceError('invalid', 'this grant has already expired and cannot be resumed'));
+  }
   return ownerTransition(
     db,
     input.actorAccountId,
@@ -668,8 +682,16 @@ export async function getRecipientWorkspace(
   } else if (grant.recipientOrganizationId) {
     const membership = first(
       await db
-        .select()
+        .select({
+          role: schema.memberships.role,
+          active: schema.memberships.active,
+          organizationStatus: schema.organizations.status,
+        })
         .from(schema.memberships)
+        .innerJoin(
+          schema.organizations,
+          eq(schema.organizations.id, schema.memberships.organizationId),
+        )
         .where(
           and(
             eq(schema.memberships.accountId, input.actorAccountId),
@@ -688,6 +710,9 @@ export async function getRecipientWorkspace(
         organizationId: grant.recipientOrganizationId as AgencyId,
         role: membership.role,
         active: membership.active,
+        // SHR-02: a suspended/closed organization has no standing, even
+        // with a still-active membership row.
+        organizationActive: membership.organizationStatus === 'ACTIVE',
       },
     };
   } else {

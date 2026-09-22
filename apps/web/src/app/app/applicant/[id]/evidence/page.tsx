@@ -1,14 +1,37 @@
-import { getApplicant, listEvidenceRequestsForApplicant } from '@visastack/services';
+import {
+  type EvidenceRequestDecision,
+  getApplicant,
+  listApplicantProfile,
+  listDocumentsDetailed,
+  listEvidenceRequestDecisions,
+  listEvidenceRequestsForApplicant,
+} from '@visastack/services';
 import { notFound } from 'next/navigation';
 import { withSession } from '../../../../../lib/session';
-import { RespondButtons } from './respond-buttons';
+import { SubmitResponseForm } from './submit-response-form';
 
 export const dynamic = 'force-dynamic';
 
 const STATUS_BADGE: Record<string, { label: string; tone: string }> = {
   OPEN: { label: 'Open', tone: 'badge-warning' },
+  RECEIVED: { label: 'Submitted', tone: 'badge-neutral' },
+  UNDER_REVIEW: { label: 'Under review', tone: 'badge-neutral' },
+  ACCEPTED: { label: 'Accepted', tone: 'badge-success' },
+  NEEDS_REPLACEMENT: { label: 'Needs replacement', tone: 'badge-warning' },
+  CANCELLED: { label: 'Cancelled', tone: 'badge-neutral' },
+  // Legacy statuses: no longer written by new requests, but a request
+  // created before Commercial V1 Part 4 §10's state model may still hold one.
   FULFILLED: { label: 'Fulfilled', tone: 'badge-success' },
   DECLINED: { label: 'Declined', tone: 'badge-neutral' },
+};
+
+const AWAITING_SUBMISSION = new Set(['OPEN', 'NEEDS_REPLACEMENT']);
+
+/** Commercial V1 Part 4 §13: the applicant sees which of the four review outcomes a decision was, not just a generic rejection. */
+const DECISION_PREFIX: Record<string, string> = {
+  NEEDS_REPLACEMENT: 'Replacement needed: ',
+  CONTRADICTION: 'Contradicts your profile: ',
+  CORRECTION_PROPOSED: 'Suggested correction: ',
 };
 
 export default async function EvidencePage({
@@ -21,8 +44,25 @@ export default async function EvidencePage({
   const data = await withSession(async ({ db, accountId }) => {
     const applicant = await getApplicant(db, id);
     if (!applicant || applicant.ownerAccountId !== accountId) return null;
-    const requests = await listEvidenceRequestsForApplicant(db, accountId, id);
-    return { applicant, requests: requests.ok ? requests.value : [] };
+    const [requests, profile, documents] = await Promise.all([
+      listEvidenceRequestsForApplicant(db, accountId, id),
+      listApplicantProfile(db, id),
+      listDocumentsDetailed(db, accountId, id),
+    ]);
+    const requestList = requests.ok ? requests.value : [];
+    const decisionsByRequest = new Map<string, readonly EvidenceRequestDecision[]>();
+    for (const req of requestList) {
+      if (AWAITING_SUBMISSION.has(req.status)) continue; // nothing decided yet
+      const decisions = await listEvidenceRequestDecisions(db, accountId, req.id);
+      if (decisions.ok) decisionsByRequest.set(req.id, decisions.value);
+    }
+    return {
+      applicant,
+      requests: requestList,
+      profile,
+      documents: documents.ok ? documents.value : [],
+      decisionsByRequest,
+    };
   });
 
   if (!data) notFound();
@@ -36,8 +76,9 @@ export default async function EvidencePage({
             Requests from agencies
           </h2>
           <p className="muted" style={{ margin: '0.35rem 0 0' }}>
-            Organizations can ask you for a specific field or document. You decide whether to fulfil
-            or decline each request.
+            An agency request is that organisation asking you for something, never an official visa
+            requirement on its own. You decide what to submit, and can reuse anything already in
+            your wallet.
           </p>
         </div>
       </div>
@@ -55,6 +96,18 @@ export default async function EvidencePage({
                 tone: 'badge-neutral',
               };
               const target = req.kind === 'FIELD' ? req.fieldKey : req.docType;
+              const decisions = data.decisionsByRequest.get(req.id) ?? [];
+              const latestDecision = decisions[0];
+              const candidateFacts =
+                req.kind === 'FIELD'
+                  ? data.profile.filter(
+                      (entry) => entry.fieldKey === req.fieldKey && entry.value !== null,
+                    )
+                  : [];
+              const candidateDocuments =
+                req.kind === 'DOCUMENT'
+                  ? data.documents.filter((doc) => doc.docType === req.docType)
+                  : [];
               return (
                 <div
                   className="row"
@@ -71,16 +124,50 @@ export default async function EvidencePage({
                   >
                     <span className="row-key">
                       {req.kind === 'FIELD' ? 'Field' : 'Document'}: {target ?? '(unspecified)'}
+                      <span
+                        className="badge badge-neutral"
+                        style={{ marginLeft: '0.5rem', fontSize: '0.7rem' }}
+                      >
+                        Agency request
+                      </span>
                     </span>
                     <span className={`badge ${badge.tone}`}>{badge.label}</span>
                   </div>
                   {req.message ? (
                     <p className="muted" style={{ margin: 0, fontSize: '0.85rem' }}>
-                      “{req.message}”
+                      &ldquo;{req.message}&rdquo;
                     </p>
                   ) : null}
-                  {req.status === 'OPEN' ? (
-                    <RespondButtons applicantId={id} requestId={req.id} />
+                  {req.dueDate ? (
+                    <p className="muted" style={{ margin: 0, fontSize: '0.8rem' }}>
+                      Due {new Date(req.dueDate).toLocaleDateString()}
+                    </p>
+                  ) : null}
+                  {latestDecision?.reason ? (
+                    <p className="field-msg field-msg-err" style={{ margin: 0 }}>
+                      {DECISION_PREFIX[latestDecision.outcome] ?? ''}
+                      {latestDecision.reason}
+                    </p>
+                  ) : null}
+                  {AWAITING_SUBMISSION.has(req.status) ? (
+                    <SubmitResponseForm
+                      applicantId={id}
+                      requestId={req.id}
+                      kind={req.kind}
+                      candidateFacts={candidateFacts.map((f) => ({
+                        factId: f.factId,
+                        value: f.value ?? '',
+                      }))}
+                      candidateDocuments={candidateDocuments.map((d) => ({
+                        documentId: d.id,
+                        displayName: d.approvedName ?? d.originalName,
+                        usable: d.safetyStatus === 'CLEAN' && d.processingStatus !== 'FAILED',
+                        statusLabel:
+                          d.safetyStatus === 'CLEAN'
+                            ? (d.processingStatus ?? 'PROCESSING')
+                            : (d.safetyStatus ?? 'PROCESSING'),
+                      }))}
+                    />
                   ) : null}
                 </div>
               );

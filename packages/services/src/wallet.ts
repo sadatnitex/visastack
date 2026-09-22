@@ -1,7 +1,7 @@
 import type { AccountId, AgencyId, ApplicantId, DocumentId, Result } from '@visastack/core';
 import { err, ok } from '@visastack/core';
 import { authorize } from '@visastack/policy';
-import { eq, inArray } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 import { getApplicant } from './applicants';
 import { appendAuditEvent } from './audit';
 import { type Db, first, schema } from './db';
@@ -21,11 +21,16 @@ import { documentCategory, loadGrantsForPolicy } from './sharing';
 export type DocumentLifecycleStatus = 'CURRENT' | 'EXPIRING' | 'EXPIRED' | 'SUPERSEDED';
 
 /**
- * The PRD gives no exact "expiring soon" window for documents (unlike, say,
- * SHR-01's exact 30/90-day grant durations). 30 days is a provisional,
- * clearly-documented default; Part 5's Expiry Centre (NTF-01, "intrinsic vs
- * staleness distinction") is the eventual authoritative owner of this
- * number and may formalize or override it.
+ * The PRD gives no exact "expiring soon" window for this specific wallet
+ * badge (unlike, say, SHR-01's exact 30/90-day grant durations). 30 days is
+ * a provisional, clearly-documented default, kept as-is deliberately: NTF-01
+ * (Part 5 §1) has since formalized the general mechanism - `expiry.ts`'s
+ * `classifyExpiry`, a full 90/60/30/7/0 reminder ladder configurable by
+ * document type - but this wallet badge stays this simpler, always-30-day,
+ * four-state (`CURRENT`/`EXPIRING`/`EXPIRED`/`SUPERSEDED`) categorization on
+ * purpose; upgrading it to the richer ladder is a UX choice for a future
+ * pass, not a gap in NTF-01 itself. See `expiry.ts` and the applicant
+ * "Expiry" tab for the authoritative, docType-aware classification.
  */
 const EXPIRING_SOON_DAYS = 30;
 
@@ -83,10 +88,21 @@ export async function getWalletView(
     return err(serviceError('forbidden', 'not authorized to view this wallet'));
   }
 
+  // CAS-08: a contributor-submitted document whose contributor did not opt
+  // into wallet reuse is walletVisible: false - it stays usable evidence
+  // for the case it was submitted to (missions.ts's own docType matching
+  // is untouched), but never appears in the applicant's own browsable
+  // wallet. Every normal, owner-uploaded document defaults true and is
+  // unaffected.
   const documents = await db
     .select()
     .from(schema.documents)
-    .where(eq(schema.documents.applicantId, input.applicantId));
+    .where(
+      and(
+        eq(schema.documents.applicantId, input.applicantId),
+        eq(schema.documents.walletVisible, true),
+      ),
+    );
 
   const usageRows = await db
     .select({
@@ -110,12 +126,20 @@ export async function getWalletView(
     ...new Set(policyGrants.flatMap((g) => (g.recipientAccountId ? [g.recipientAccountId] : []))),
   ];
   const orgLabels = new Map<string, string>();
+  const orgActive = new Map<string, boolean>();
   if (orgIds.length > 0) {
     const rows = await db
-      .select({ id: schema.organizations.id, name: schema.organizations.name })
+      .select({
+        id: schema.organizations.id,
+        name: schema.organizations.name,
+        status: schema.organizations.status,
+      })
       .from(schema.organizations)
       .where(inArray(schema.organizations.id, orgIds));
-    for (const r of rows) orgLabels.set(r.id, r.name);
+    for (const r of rows) {
+      orgLabels.set(r.id, r.name);
+      orgActive.set(r.id, r.status === 'ACTIVE');
+    }
   }
   const accountLabels = new Map<string, string>();
   if (accountIds.length > 0) {
@@ -144,6 +168,9 @@ export async function getWalletView(
                   organizationId: grant.recipientOrganizationId as AgencyId,
                   role: 'ADMIN',
                   active: true,
+                  // SHR-02: a suspended/closed org must not show as "has
+                  // access" here even while its grant row is still ACTIVE.
+                  organizationActive: orgActive.get(grant.recipientOrganizationId) ?? false,
                 },
               }
             : { kind: 'individual_recipient', accountId: grant.recipientAccountId as AccountId },

@@ -5,18 +5,35 @@ import {
   addMembership,
   addNote,
   assignMember,
+  cancelEvidenceRequest,
+  createAppointmentForOrg,
+  createClientInvitation,
+  createOrganizationInvitation,
+  createTaskForOrg,
+  decideAppointmentForOrg,
+  decideEvidenceResponse,
+  decideTaskForOrg,
   getAccountByEmail,
   listSelectedEvidenceForOrg,
   recordIssuerVerification,
   recordMissionDecision,
   requestEvidence,
+  revokeClientInvitation,
+  revokeOrganizationInvitation,
   setMembershipActive,
+  setRequireDifferentReviewer,
+  startEvidenceReview,
+  unassignMember,
+  updateTaskForOrg,
 } from '@visastack/services';
 import { revalidatePath } from 'next/cache';
+import { after } from 'next/server';
+import { resolveBaseUrl } from '../../../../lib/base-url';
 import {
   capabilityUnavailableMessage,
   getPlatformCapabilities,
 } from '../../../../lib/capabilities';
+import { triggerNotificationWorker } from '../../../../lib/jobs';
 import { withSession } from '../../../../lib/session';
 
 /** Result surfaced back to the client for inline feedback. */
@@ -66,6 +83,11 @@ export async function requestEvidenceAction(
   const kind = String(formData.get('kind') ?? '') === 'DOCUMENT' ? 'DOCUMENT' : 'FIELD';
   const key = String(formData.get('key') ?? '').trim();
   const message = String(formData.get('message') ?? '').trim();
+  const dueDateRaw = String(formData.get('dueDate') ?? '').trim();
+  const dueDate = dueDateRaw.length > 0 ? new Date(dueDateRaw) : undefined;
+  if (dueDate && Number.isNaN(dueDate.getTime())) {
+    return { ok: false, message: 'Enter a valid due date.' };
+  }
 
   if (applicantId.length === 0) return { ok: false, message: 'Enter the applicant ID.' };
   if (key.length === 0) {
@@ -89,16 +111,126 @@ export async function requestEvidenceAction(
       // even though `listApplicantsForOrganization` correctly surfaces the
       // applicant (Codex review, PR #65).
       ...(missionId.length > 0 ? { missionId } : {}),
+      ...(dueDate ? { dueDate } : {}),
     });
     if (!requested.ok) return { ok: false, message: requested.error.message } satisfies ActionState;
     return { ok: true, message: 'Evidence request sent.' } satisfies ActionState;
   });
 
+  if (result.ok) {
+    revalidatePath(`/app/agency/${organizationId}`);
+    // NTF-02/§3: "event enqueue <=60 seconds" -- near-instant delivery for
+    // the common case; the periodic cron sweep is the durability backstop.
+    after(() => triggerNotificationWorker());
+  }
+  return result;
+}
+
+/** Org member marks a RECEIVED request as UNDER_REVIEW (workflow visibility only). */
+export async function startEvidenceReviewAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const gate = requireAgencyCollaboration();
+  if (gate) return gate;
+
+  const organizationId = String(formData.get('organizationId') ?? '');
+  const requestId = String(formData.get('requestId') ?? '');
+  const result = await withSession(async ({ db, accountId }) => {
+    const started = await startEvidenceReview(db, { actorAccountId: accountId, requestId });
+    if (!started.ok) return { ok: false, message: started.error.message } satisfies ActionState;
+    return { ok: true, message: 'Marked under review.' } satisfies ActionState;
+  });
   if (result.ok) revalidatePath(`/app/agency/${organizationId}`);
   return result;
 }
 
-/** Add an existing VisaStack user to the organization by email (org admin). */
+const EVIDENCE_OUTCOMES = [
+  'ACCEPTED',
+  'NEEDS_REPLACEMENT',
+  'CONTRADICTION',
+  'CORRECTION_PROPOSED',
+] as const;
+type EvidenceOutcome = (typeof EVIDENCE_OUTCOMES)[number];
+
+const EVIDENCE_OUTCOME_MESSAGES: Record<EvidenceOutcome, string> = {
+  ACCEPTED: 'Accepted.',
+  NEEDS_REPLACEMENT: 'Replacement requested.',
+  CONTRADICTION: 'Flagged as contradicting the applicant profile.',
+  CORRECTION_PROPOSED: 'Correction suggested to the applicant.',
+};
+
+/** Org member decides on what was submitted (Commercial V1 Part 4 §13): accept, ask for a replacement, flag a contradiction, or suggest a correction. */
+export async function decideEvidenceResponseAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const gate = requireAgencyCollaboration();
+  if (gate) return gate;
+
+  const organizationId = String(formData.get('organizationId') ?? '');
+  const requestId = String(formData.get('requestId') ?? '');
+  const outcomeRaw = String(formData.get('outcome') ?? '');
+  const outcome = (EVIDENCE_OUTCOMES as readonly string[]).includes(outcomeRaw)
+    ? (outcomeRaw as EvidenceOutcome)
+    : null;
+  const reason = String(formData.get('reason') ?? '').trim();
+  if (!outcome) {
+    return {
+      ok: false,
+      message: 'Choose accept, needs replacement, contradiction, or correction.',
+    };
+  }
+  if (outcome !== 'ACCEPTED' && reason.length === 0) {
+    return { ok: false, message: 'Explain the reason for the applicant to see.' };
+  }
+
+  const result = await withSession(async ({ db, accountId }) => {
+    const decided = await decideEvidenceResponse(db, {
+      actorAccountId: accountId,
+      requestId,
+      outcome,
+      ...(reason.length > 0 ? { reason } : {}),
+    });
+    if (!decided.ok) return { ok: false, message: decided.error.message } satisfies ActionState;
+    return { ok: true, message: EVIDENCE_OUTCOME_MESSAGES[outcome] } satisfies ActionState;
+  });
+  if (result.ok) revalidatePath(`/app/agency/${organizationId}`);
+  return result;
+}
+
+/** Org member withdraws a request that no longer needs an answer. */
+export async function cancelEvidenceRequestAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const gate = requireAgencyCollaboration();
+  if (gate) return gate;
+
+  const organizationId = String(formData.get('organizationId') ?? '');
+  const requestId = String(formData.get('requestId') ?? '');
+  const reason = String(formData.get('reason') ?? '').trim();
+  const result = await withSession(async ({ db, accountId }) => {
+    const cancelled = await cancelEvidenceRequest(db, {
+      actorAccountId: accountId,
+      requestId,
+      ...(reason.length > 0 ? { reason } : {}),
+    });
+    if (!cancelled.ok) return { ok: false, message: cancelled.error.message } satisfies ActionState;
+    return { ok: true, message: 'Request cancelled.' } satisfies ActionState;
+  });
+  if (result.ok) revalidatePath(`/app/agency/${organizationId}`);
+  return result;
+}
+
+/**
+ * Add a member by email (org admin). When the email already has a VisaStack
+ * account, membership is granted immediately. Otherwise this mints a secure,
+ * single-use invitation (Commercial V1 Part 4 §5) instead of just erroring:
+ * no real email adapter exists yet (Part 5 scope), so the accept link is
+ * handed straight back to the admin to share, rather than the invitee never
+ * being reachable at all.
+ */
 export async function addMemberAction(
   _prev: ActionState,
   formData: FormData,
@@ -112,20 +244,116 @@ export async function addMemberAction(
 
   const result = await withSession(async ({ db, accountId }) => {
     const account = await getAccountByEmail(db, memberEmail);
-    if (!account) {
-      return {
-        ok: false,
-        message: 'No VisaStack account for that email. They must sign in once first.',
-      } satisfies ActionState;
+    if (account) {
+      const added = await addMembership(db, {
+        actorAccountId: accountId,
+        organizationId,
+        accountId: account.id,
+        role,
+      });
+      if (!added.ok) return { ok: false, message: added.error.message } satisfies ActionState;
+      return { ok: true, message: `${memberEmail} added as ${role}.` } satisfies ActionState;
     }
-    const added = await addMembership(db, {
+
+    const invited = await createOrganizationInvitation(db, {
       actorAccountId: accountId,
       organizationId,
-      accountId: account.id,
+      email: memberEmail,
       role,
     });
-    if (!added.ok) return { ok: false, message: added.error.message } satisfies ActionState;
-    return { ok: true, message: `${memberEmail} added as ${role}.` } satisfies ActionState;
+    if (!invited.ok) return { ok: false, message: invited.error.message } satisfies ActionState;
+    const acceptUrl = `${resolveBaseUrl()}/app/invitations/accept?token=${invited.value.rawToken}`;
+    return {
+      ok: true,
+      message: `No account yet for ${memberEmail}. Share this link (expires in 7 days): ${acceptUrl}`,
+    } satisfies ActionState;
+  });
+  if (result.ok) revalidatePath(`/app/agency/${organizationId}`);
+  return result;
+}
+
+/** Revoke a still-pending member invitation (org admin). */
+export async function revokeInvitationAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const organizationId = String(formData.get('organizationId') ?? '');
+  const invitationId = String(formData.get('invitationId') ?? '');
+
+  const result = await withSession(async ({ db, accountId }) => {
+    const revoked = await revokeOrganizationInvitation(db, {
+      actorAccountId: accountId,
+      organizationId,
+      invitationId,
+    });
+    if (!revoked.ok) return { ok: false, message: revoked.error.message } satisfies ActionState;
+    return { ok: true, message: 'Invitation revoked.' } satisfies ActionState;
+  });
+  if (result.ok) revalidatePath(`/app/agency/${organizationId}`);
+  return result;
+}
+
+/**
+ * Invite a traveller as a new client (Commercial V1 Part 4 §6, IAM-03). The
+ * agency never claims or picks the traveller's applicant profile, only a
+ * minimal display name/contact/requested route/case owner, so the token
+ * this mints is the only thing that changes hands; the traveller alone
+ * decides what it attaches to when they accept. No real email adapter
+ * exists yet (Part 5 scope), so the accept link is handed straight back to
+ * the admin to share, the same interim pattern `addMemberAction` already
+ * uses for a teammate with no account yet.
+ */
+export async function inviteClientAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const organizationId = String(formData.get('organizationId') ?? '');
+  const caseOwnerAccountId = String(formData.get('caseOwnerAccountId') ?? '');
+  const displayName = String(formData.get('displayName') ?? '').trim();
+  const contactDestination = String(formData.get('contactDestination') ?? '').trim();
+  const requestedRoute = String(formData.get('requestedRoute') ?? '').trim();
+  if (displayName.length === 0) return { ok: false, message: "Enter the traveller's name." };
+  if (contactDestination.length === 0) {
+    return { ok: false, message: 'Enter a contact email or phone number.' };
+  }
+  if (caseOwnerAccountId.length === 0) return { ok: false, message: 'Choose a case owner.' };
+
+  const result = await withSession(async ({ db, accountId }) => {
+    const invited = await createClientInvitation(db, {
+      actorAccountId: accountId,
+      organizationId,
+      caseOwnerAccountId,
+      displayName,
+      contactDestination,
+      ...(requestedRoute.length > 0 ? { requestedRoute } : {}),
+    });
+    if (!invited.ok) return { ok: false, message: invited.error.message } satisfies ActionState;
+    const acceptUrl = `${resolveBaseUrl()}/app/client-invitations/accept?token=${invited.value.rawToken}`;
+    return {
+      ok: true,
+      message: `Invitation created for ${displayName}. Share this link (expires in 7 days): ${acceptUrl}`,
+    } satisfies ActionState;
+  });
+  if (result.ok) revalidatePath(`/app/agency/${organizationId}`);
+  return result;
+}
+
+/** Revoke a still-pending client invitation (org admin). */
+export async function revokeClientInvitationAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const organizationId = String(formData.get('organizationId') ?? '');
+  const invitationId = String(formData.get('invitationId') ?? '');
+
+  const result = await withSession(async ({ db, accountId }) => {
+    const revoked = await revokeClientInvitation(db, {
+      actorAccountId: accountId,
+      organizationId,
+      invitationId,
+    });
+    if (!revoked.ok) return { ok: false, message: revoked.error.message } satisfies ActionState;
+    return { ok: true, message: 'Invitation revoked.' } satisfies ActionState;
   });
   if (result.ok) revalidatePath(`/app/agency/${organizationId}`);
   return result;
@@ -154,6 +382,210 @@ export async function assignMemberAction(
     });
     if (!assigned.ok) return { ok: false, message: assigned.error.message } satisfies ActionState;
     return { ok: true, message: 'Member assigned.' } satisfies ActionState;
+  });
+  if (result.ok) revalidatePath(`/app/agency/${organizationId}`);
+  return result;
+}
+
+/** Unassign a member from a mission (org admin) -- the manual counterpart to the automatic reassignment-queue unassign on membership deactivation. */
+export async function unassignMemberAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const gate = requireAgencyCollaboration();
+  if (gate) return gate;
+
+  const organizationId = String(formData.get('organizationId') ?? '');
+  const missionId = String(formData.get('missionId') ?? '');
+  const memberAccountId = String(formData.get('memberAccountId') ?? '');
+  if (missionId.length === 0 || memberAccountId.length === 0) {
+    return { ok: false, message: 'Missing member or mission.' };
+  }
+  const result = await withSession(async ({ db, accountId }) => {
+    const unassigned = await unassignMember(db, {
+      actorAccountId: accountId,
+      organizationId,
+      memberAccountId,
+      missionId,
+    });
+    if (!unassigned.ok) {
+      return { ok: false, message: unassigned.error.message } satisfies ActionState;
+    }
+    return { ok: true, message: 'Member unassigned.' } satisfies ActionState;
+  });
+  if (result.ok) revalidatePath(`/app/agency/${organizationId}`);
+  return result;
+}
+
+/** Org-side task creation (Commercial V1 Part 4 §11) -- an assigned member's own checklist item, distinct from the applicant owner's. */
+export async function createTaskForOrgAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const gate = requireAgencyCollaboration();
+  if (gate) return gate;
+
+  const organizationId = String(formData.get('organizationId') ?? '');
+  const missionId = String(formData.get('missionId') ?? '');
+  const description = String(formData.get('description') ?? '').trim();
+  if (description.length === 0) return { ok: false, message: 'A description is required.' };
+  const priorityRaw = String(formData.get('priority') ?? '');
+  const priority = (['LOW', 'NORMAL', 'HIGH', 'URGENT'] as const).includes(priorityRaw as never)
+    ? (priorityRaw as 'LOW' | 'NORMAL' | 'HIGH' | 'URGENT')
+    : undefined;
+  const dueDateRaw = String(formData.get('dueDate') ?? '').trim();
+  const dueDate = dueDateRaw.length > 0 ? new Date(dueDateRaw) : undefined;
+  const assigneeAccountId = String(formData.get('assigneeAccountId') ?? '').trim();
+
+  const result = await withSession(async ({ db, accountId }) => {
+    const task = await createTaskForOrg(db, {
+      actorAccountId: accountId,
+      organizationId,
+      missionId,
+      description,
+      ...(priority ? { priority } : {}),
+      ...(dueDate ? { dueDate } : {}),
+      ...(assigneeAccountId ? { assigneeAccountId } : {}),
+    });
+    if (!task.ok) return { ok: false, message: task.error.message } satisfies ActionState;
+    return { ok: true, message: 'Task added.' } satisfies ActionState;
+  });
+  if (result.ok) revalidatePath(`/app/agency/${organizationId}`);
+  return result;
+}
+
+/** Reassign, reschedule, or re-prioritize a task (org admin/assigned member); every change is audited (Commercial V1 Part 4 §11). */
+export async function updateTaskForOrgAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const gate = requireAgencyCollaboration();
+  if (gate) return gate;
+
+  const organizationId = String(formData.get('organizationId') ?? '');
+  const missionId = String(formData.get('missionId') ?? '');
+  const taskId = String(formData.get('taskId') ?? '');
+  const assigneeAccountId = String(formData.get('assigneeAccountId') ?? '').trim();
+  if (taskId.length === 0) return { ok: false, message: 'Missing task.' };
+
+  const result = await withSession(async ({ db, accountId }) => {
+    const updated = await updateTaskForOrg(db, {
+      actorAccountId: accountId,
+      organizationId,
+      missionId,
+      taskId,
+      assigneeAccountId: assigneeAccountId.length > 0 ? assigneeAccountId : null,
+    });
+    if (!updated.ok) return { ok: false, message: updated.error.message } satisfies ActionState;
+    return { ok: true, message: 'Task reassigned.' } satisfies ActionState;
+  });
+  if (result.ok) revalidatePath(`/app/agency/${organizationId}`);
+  return result;
+}
+
+/** Move an org-visible task through OPEN -> IN_PROGRESS -> DONE/CANCELLED. */
+export async function decideTaskForOrgAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const gate = requireAgencyCollaboration();
+  if (gate) return gate;
+
+  const organizationId = String(formData.get('organizationId') ?? '');
+  const missionId = String(formData.get('missionId') ?? '');
+  const taskId = String(formData.get('taskId') ?? '');
+  const status = String(formData.get('status') ?? '') as 'IN_PROGRESS' | 'DONE' | 'CANCELLED';
+  if (taskId.length === 0) return { ok: false, message: 'Missing task.' };
+
+  const result = await withSession(async ({ db, accountId }) => {
+    const decided = await decideTaskForOrg(db, {
+      actorAccountId: accountId,
+      organizationId,
+      missionId,
+      taskId,
+      status,
+    });
+    if (!decided.ok) return { ok: false, message: decided.error.message } satisfies ActionState;
+    return {
+      ok: true,
+      message: `Task ${status.toLowerCase().replace('_', ' ')}.`,
+    } satisfies ActionState;
+  });
+  if (result.ok) revalidatePath(`/app/agency/${organizationId}`);
+  return result;
+}
+
+/** Org-side appointment scheduling (Commercial V1 Part 4 §11). */
+export async function createAppointmentForOrgAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const gate = requireAgencyCollaboration();
+  if (gate) return gate;
+
+  const organizationId = String(formData.get('organizationId') ?? '');
+  const missionId = String(formData.get('missionId') ?? '');
+  const title = String(formData.get('title') ?? '').trim();
+  const localDate = String(formData.get('localDate') ?? '').trim();
+  const localTime = String(formData.get('localTime') ?? '').trim();
+  const timezone = String(formData.get('timezone') ?? '').trim();
+  if (title.length === 0 || !localDate || !localTime || !timezone) {
+    return { ok: false, message: 'Title, date, time, and timezone are required.' };
+  }
+  const localDateTime = new Date(`${localDate}T${localTime}:00`);
+  if (Number.isNaN(localDateTime.getTime())) {
+    return { ok: false, message: 'Invalid date or time.' };
+  }
+  const place = String(formData.get('place') ?? '').trim();
+  const channel = String(formData.get('channel') ?? '').trim();
+
+  const result = await withSession(async ({ db, accountId }) => {
+    const appointment = await createAppointmentForOrg(db, {
+      actorAccountId: accountId,
+      organizationId,
+      missionId,
+      title,
+      localDateTime,
+      timezone,
+      ...(place ? { place } : {}),
+      ...(channel ? { channel } : {}),
+    });
+    if (!appointment.ok) {
+      return { ok: false, message: appointment.error.message } satisfies ActionState;
+    }
+    return { ok: true, message: 'Appointment scheduled.' } satisfies ActionState;
+  });
+  if (result.ok) revalidatePath(`/app/agency/${organizationId}`);
+  return result;
+}
+
+/** Mark an org-visible appointment DONE or CANCELLED. */
+export async function decideAppointmentForOrgAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const gate = requireAgencyCollaboration();
+  if (gate) return gate;
+
+  const organizationId = String(formData.get('organizationId') ?? '');
+  const missionId = String(formData.get('missionId') ?? '');
+  const appointmentId = String(formData.get('appointmentId') ?? '');
+  const status = String(formData.get('status') ?? '') as 'DONE' | 'CANCELLED';
+  if (appointmentId.length === 0) return { ok: false, message: 'Missing appointment.' };
+
+  const result = await withSession(async ({ db, accountId }) => {
+    const decided = await decideAppointmentForOrg(db, {
+      actorAccountId: accountId,
+      organizationId,
+      missionId,
+      appointmentId,
+      status,
+    });
+    if (!decided.ok) return { ok: false, message: decided.error.message } satisfies ActionState;
+    return {
+      ok: true,
+      message: status === 'DONE' ? 'Appointment completed.' : 'Appointment cancelled.',
+    } satisfies ActionState;
   });
   if (result.ok) revalidatePath(`/app/agency/${organizationId}`);
   return result;
@@ -217,7 +649,10 @@ export async function recordDecisionAction(
     if (!decision.ok) return { ok: false, message: decision.error.message } satisfies ActionState;
     return { ok: true, message: `Decision recorded: ${outcome}.` } satisfies ActionState;
   });
-  if (result.ok) revalidatePath(`/app/agency/${organizationId}`);
+  if (result.ok) {
+    revalidatePath(`/app/agency/${organizationId}`);
+    after(() => triggerNotificationWorker());
+  }
   return result;
 }
 
@@ -307,6 +742,31 @@ export async function toggleMemberAction(
     return {
       ok: true,
       message: active ? 'Member reactivated.' : 'Member deactivated.',
+    } satisfies ActionState;
+  });
+  if (result.ok) revalidatePath(`/app/agency/${organizationId}`);
+  return result;
+}
+
+/** Org admin toggles whether a reviewer must differ from whoever raised the evidence request (Commercial V1 Part 4 §13). */
+export async function setRequireDifferentReviewerAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const organizationId = String(formData.get('organizationId') ?? '');
+  const required = String(formData.get('required') ?? '') === 'true';
+  const result = await withSession(async ({ db, accountId }) => {
+    const updated = await setRequireDifferentReviewer(db, {
+      actorAccountId: accountId,
+      organizationId,
+      required,
+    });
+    if (!updated.ok) return { ok: false, message: updated.error.message } satisfies ActionState;
+    return {
+      ok: true,
+      message: required
+        ? 'A reviewer must now differ from whoever raised the request.'
+        : 'Reviewer restriction turned off.',
     } satisfies ActionState;
   });
   if (result.ok) revalidatePath(`/app/agency/${organizationId}`);

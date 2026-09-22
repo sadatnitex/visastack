@@ -48,6 +48,9 @@ const ENV_KEYS = [
   'CLAMAV_SOCKET_PATH',
   'CLAMAV_HOST',
   'CLAMAV_PORT',
+  'EMAIL_PROVIDER',
+  'RESEND_API_KEY',
+  'RESEND_FROM_ADDRESS',
   ...ATTEST_FLAGS.map((flag) => `COMMERCIAL_READINESS_ATTEST_${flag}` as const),
 ] as const;
 const ORIGINAL: Record<string, string | undefined> = {};
@@ -68,6 +71,9 @@ function satisfyEveryGateExceptMalwareScanner(): void {
   setEnv('NEXT_PUBLIC_WORKOS_REDIRECT_URI', 'https://example.test/callback');
   setEnv('BLOB_READ_WRITE_TOKEN', 'x');
   setEnv('STEP_UP_SIGNING_SECRET', 'x');
+  setEnv('EMAIL_PROVIDER', 'resend');
+  setEnv('RESEND_API_KEY', 'x');
+  setEnv('RESEND_FROM_ADDRESS', 'VisaStack <notifications@example.test>');
   for (const flag of ATTEST_FLAGS) setEnv(`COMMERCIAL_READINESS_ATTEST_${flag}`, 'true');
 }
 
@@ -116,6 +122,7 @@ describe('evaluateCommercialReadiness', () => {
       'productionDatabase',
       'privateProductionStorage',
       'realMalwareScanner',
+      'realEmailProvider',
       'realKeyManagement',
       'safeConversion',
       'stepUp',
@@ -167,6 +174,38 @@ describe('evaluateCommercialReadiness', () => {
     const { evaluateCommercialReadiness } = await import('./commercial-readiness');
     const result = evaluateCommercialReadiness({ databaseReady: true });
     expect(result.gates.find((g) => g.key === 'realMalwareScanner')?.satisfied).toBe(false);
+  });
+
+  describe('realEmailProvider', () => {
+    it('is not satisfied when nothing is configured', async () => {
+      const { evaluateCommercialReadiness } = await import('./commercial-readiness');
+      const result = evaluateCommercialReadiness({ databaseReady: true });
+      expect(result.gates.find((g) => g.key === 'realEmailProvider')?.satisfied).toBe(false);
+    });
+
+    it('is not satisfied by EMAIL_PROVIDER=resend alone, without RESEND_API_KEY/RESEND_FROM_ADDRESS', async () => {
+      setEnv('EMAIL_PROVIDER', 'resend');
+      const { evaluateCommercialReadiness } = await import('./commercial-readiness');
+      const result = evaluateCommercialReadiness({ databaseReady: true });
+      expect(result.gates.find((g) => g.key === 'realEmailProvider')?.satisfied).toBe(false);
+    });
+
+    it('is not satisfied by RESEND_API_KEY/RESEND_FROM_ADDRESS alone, without EMAIL_PROVIDER=resend', async () => {
+      setEnv('RESEND_API_KEY', 'x');
+      setEnv('RESEND_FROM_ADDRESS', 'VisaStack <notifications@example.test>');
+      const { evaluateCommercialReadiness } = await import('./commercial-readiness');
+      const result = evaluateCommercialReadiness({ databaseReady: true });
+      expect(result.gates.find((g) => g.key === 'realEmailProvider')?.satisfied).toBe(false);
+    });
+
+    it('is satisfied only once EMAIL_PROVIDER=resend, RESEND_API_KEY, and RESEND_FROM_ADDRESS are all configured -- the same vars createEmailPort reads', async () => {
+      setEnv('EMAIL_PROVIDER', 'resend');
+      setEnv('RESEND_API_KEY', 'x');
+      setEnv('RESEND_FROM_ADDRESS', 'VisaStack <notifications@example.test>');
+      const { evaluateCommercialReadiness } = await import('./commercial-readiness');
+      const result = evaluateCommercialReadiness({ databaseReady: true });
+      expect(result.gates.find((g) => g.key === 'realEmailProvider')?.satisfied).toBe(true);
+    });
   });
 
   it('never satisfies workosProduction from WorkOS config alone, without the explicit production attestation', async () => {

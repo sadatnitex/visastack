@@ -494,6 +494,16 @@ describe('grant lifecycle — hostile state transitions', () => {
     expect(isOk(afterResume)).toBe(true);
   });
 
+  it('resumeGrant refuses a paused grant whose own expiry already passed (SHR-01/SHR-02: "may resume only within its original validity")', async () => {
+    const { owner, grantId } = await activeCollaborationGrant('resume-past-expiry');
+    await pauseGrant(db, { actorAccountId: owner.account.id, grantId });
+    await expireGrantNow(db, grantId);
+
+    const resumed = await resumeGrant(db, { actorAccountId: owner.account.id, grantId });
+    expect(isErr(resumed)).toBe(true);
+    if (isErr(resumed)) expect(resumed.error.code).toBe('invalid');
+  });
+
   it('an expired grant blocks org-mediated access even while its status still reads ACTIVE', async () => {
     const { owner, org, grantId } = await activeCollaborationGrant('expiry');
     await expireGrantNow(db, grantId);
@@ -685,10 +695,15 @@ describe('mission note visibility: AGENCY_INTERNAL vs TRAVELLER_SHARED (Commerci
     expect(seenByB.some((n) => n.body.startsWith('Org A internal'))).toBe(false);
 
     // The traveller: only the shared note, from either org's internal notes.
+    // The author is resolved to a real, recognizable email, never a raw
+    // account id (matching how every other "who did this" surface in this
+    // codebase - wallet.ts, the sharing page's access log - already
+    // resolves identity).
     const seenByOwner = await listNotesForOwner(db, account.id, mission.value.id);
     expect(seenByOwner.map((n) => n.body)).toEqual([
       'Org A shared: please upload your bank statement.',
     ]);
+    expect(seenByOwner[0]?.authorEmail).toBe('notes-a@acme.com');
   });
 
   it('rejects an AGENCY_INTERNAL note from the applicant owner: the owner is never "an agency"', async () => {

@@ -46,16 +46,19 @@ export interface SendEmailInput {
   readonly body: string;
 }
 
+export interface SendEmailResult {
+  /** The provider's own id for this send, if it returns one - lets a later webhook (delivered/bounced) correlate back to this exact send without re-sending it. */
+  readonly providerMessageId?: string;
+}
+
 /**
- * Sends transactional email. No pilot provider is configured — the
- * directive's own pilot-provider list names one for every other port except
- * this one, matching Payment's explicit "no payment provider." Pilot
- * implementation (`packages/adapters/src/email.ts`'s `NullEmailPort`) never
- * actually sends; it only logs, so the absence of a real provider fails
- * loud in development rather than silently pretending to work.
+ * Sends transactional email. NTF-03 (Part 5 §5): implemented by
+ * `packages/adapters/src/email.ts`'s `ResendEmailPort` (a real provider) and
+ * `NullEmailPort` (pilot/test only - logs and never actually sends, refuses
+ * to construct at all in commercial mode).
  */
 export interface EmailPort {
-  send(input: SendEmailInput): Promise<void>;
+  send(input: SendEmailInput): Promise<SendEmailResult>;
 }
 
 export interface ObservabilityEvent {

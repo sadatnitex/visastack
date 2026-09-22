@@ -1,6 +1,6 @@
 import type { PermissionAction } from '@visastack/core';
 import { type AuditFieldValue, computeAuditHash } from '@visastack/db';
-import { desc, sql } from 'drizzle-orm';
+import { desc, eq, sql } from 'drizzle-orm';
 import { type Db, first, required, schema } from './db';
 
 /**
@@ -127,4 +127,56 @@ export async function appendAuditEvent(tx: Db, input: AuditEventInput): Promise<
  */
 export async function listRecentAuditEvents(db: Db, limit = 100): Promise<AuditEventRow[]> {
   return db.select().from(schema.auditEvents).orderBy(desc(schema.auditEvents.seq)).limit(limit);
+}
+
+/** One applicant-scoped audit event, with its actor already resolved to a human-recognizable email (never a raw account id, matching how every other "who did this" surface in this codebase - wallet.ts, the sharing page's own recipient labels - already resolves identity). */
+export interface ApplicantAuditEvent {
+  readonly seq: number;
+  readonly eventType: string;
+  readonly actorEmail: string | null;
+  readonly action: PermissionAction | null;
+  readonly result: 'ALLOWED' | 'DENIED' | null;
+  readonly occurredAt: Date;
+}
+
+/**
+ * SHR-03: "show recipient, reason, scope, expiry, accesses and revocation
+ * controls" -- this is the "accesses" part, the applicant's own transparent
+ * log of what actually happened to their data (not merely what a grant
+ * theoretically permits, which the sharing page already shows separately).
+ * Owner-only; every event already carries `applicantId` at write time
+ * (`appendAuditEvent`'s own required field for anything applicant-scoped),
+ * so this needed no new schema, just a scoped read that didn't exist yet
+ * (the platform-admin `listRecentAuditEvents` above is deliberately
+ * unscoped, spanning every tenant, and must never be reused for this).
+ */
+export async function listAuditEventsForApplicant(
+  db: Db,
+  actorAccountId: string,
+  applicantId: string,
+  limit = 100,
+): Promise<ApplicantAuditEvent[]> {
+  const applicant = first(
+    await db
+      .select({ ownerAccountId: schema.applicants.ownerAccountId })
+      .from(schema.applicants)
+      .where(eq(schema.applicants.id, applicantId))
+      .limit(1),
+  );
+  if (!applicant || applicant.ownerAccountId !== actorAccountId) return [];
+  const rows = await db
+    .select({
+      seq: schema.auditEvents.seq,
+      eventType: schema.auditEvents.eventType,
+      actorEmail: schema.accounts.email,
+      action: schema.auditEvents.action,
+      result: schema.auditEvents.result,
+      occurredAt: schema.auditEvents.occurredAt,
+    })
+    .from(schema.auditEvents)
+    .leftJoin(schema.accounts, eq(schema.accounts.id, schema.auditEvents.actorAccountId))
+    .where(eq(schema.auditEvents.applicantId, applicantId))
+    .orderBy(desc(schema.auditEvents.seq))
+    .limit(limit);
+  return rows.map((r) => ({ ...r, actorEmail: r.actorEmail ?? null }));
 }

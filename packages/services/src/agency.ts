@@ -4,15 +4,19 @@ import type {
   ApplicantId,
   DocumentId,
   MissionId,
+  MissionState,
   PermissionAction,
 } from '@visastack/core';
 import { type Result, err, ok } from '@visastack/core';
 import { authorize } from '@visastack/policy';
-import { and, eq, gt, isNotNull, isNull, lte, or } from 'drizzle-orm';
+import { and, desc, eq, gt, inArray, isNotNull, isNull, lte, or } from 'drizzle-orm';
 import { appendAuditEvent } from './audit';
 import { type Db, first, required, schema } from './db';
+import { isDocumentVersionUsable } from './documents';
+import { activeOrVerifiedErasureStorageObjectIds } from './erasure';
 import { type ServiceError, serviceError } from './errors';
-import { isOrgAdmin } from './organizations';
+import { enqueueNotificationBothChannels } from './notifications';
+import { getOrganization, isOrgAdmin } from './organizations';
 import { type PackRequirement, listRequirements } from './packs';
 import { RATE_LIMITS, checkRateLimit } from './rate-limit';
 import { loadGrantsForPolicy } from './sharing';
@@ -33,6 +37,39 @@ import { loadGrantsForPolicy } from './sharing';
 export type Assignment = typeof schema.assignments.$inferSelect;
 export type MissionNote = typeof schema.missionNotes.$inferSelect;
 export type EvidenceRequest = typeof schema.evidenceRequests.$inferSelect;
+export type EvidenceRequestDecision = typeof schema.evidenceRequestDecisions.$inferSelect;
+
+/**
+ * Whether a document's CURRENT (highest version-numbered) version is
+ * currently safe, fully processed, and unerased: the exact gate Commercial
+ * V1 Part 4 §10 means by "upload can move to RECEIVED only after safe
+ * processing" and "malware/failed/unrelated evidence cannot close a
+ * request." Mirrors `missions.ts`'s own `loadDocumentInstancesByType`
+ * query/eligibility logic (the same canonical definition of "usable"), just
+ * scoped to one document instead of bulk-loading an applicant's whole set.
+ */
+async function documentIsUsable(db: Db, documentId: string): Promise<boolean> {
+  const versions = await db
+    .select({
+      versionNumber: schema.documentVersions.versionNumber,
+      safetyStatus: schema.documentVersions.safetyStatus,
+      processingStatus: schema.documentVersions.processingStatus,
+      storageObjectId: schema.documentVersions.storageObjectId,
+    })
+    .from(schema.documentVersions)
+    .where(eq(schema.documentVersions.documentId, documentId));
+  const latest = versions.reduce<(typeof versions)[number] | undefined>(
+    (best, row) => (!best || row.versionNumber > best.versionNumber ? row : best),
+    undefined,
+  );
+  if (!latest) return false;
+  const erased = await activeOrVerifiedErasureStorageObjectIds(db, [latest.storageObjectId]);
+  return isDocumentVersionUsable({
+    safetyStatus: latest.safetyStatus,
+    processingStatus: latest.processingStatus,
+    erased: erased.has(latest.storageObjectId),
+  });
+}
 
 /**
  * True if the organization holds at least one grant for `applicantId` that,
@@ -57,6 +94,10 @@ export async function orgGrantPermits(
   action: PermissionAction,
   missionId?: string,
 ): Promise<boolean> {
+  // SHR-02: a suspended/closed organization has no standing at all, even
+  // with an otherwise-valid grant still on the books.
+  const org = await getOrganization(db, organizationId);
+  if (!org || org.status !== 'ACTIVE') return false;
   const grants = await loadGrantsForPolicy(db, applicantId);
   const orgGrants = grants.filter((g) => g.recipientOrganizationId === organizationId);
   if (orgGrants.length === 0) return false;
@@ -67,7 +108,12 @@ export async function orgGrantPermits(
         actor: {
           kind: 'organization_member',
           accountId: 'org-grant-scope-check' as AccountId,
-          membership: { organizationId: organizationId as AgencyId, role: 'ADMIN', active: true },
+          membership: {
+            organizationId: organizationId as AgencyId,
+            role: 'ADMIN',
+            active: true,
+            organizationActive: true,
+          },
         },
         action,
         resource: {
@@ -194,6 +240,94 @@ export async function assignMember(
   });
 }
 
+/**
+ * Remove one member's assignment from a mission (admin-gated, same bar as
+ * `assignMember`). Commercial V1 Part 4 §11's counterpart to "Create
+ * reassignment queue": deactivating a member (`setMembershipActive` in
+ * `organizations.ts`) already calls this automatically for every mission
+ * where they were the SOLE assignee, so this function also serves an org
+ * admin choosing to unassign someone directly, case still active, without
+ * deactivating their membership at all.
+ */
+export async function unassignMember(
+  db: Db,
+  input: {
+    readonly actorAccountId: string;
+    readonly organizationId: string;
+    readonly memberAccountId: string;
+    readonly missionId: string;
+  },
+): Promise<Result<{ readonly removed: boolean }, ServiceError>> {
+  if (!(await isOrgAdmin(db, input.actorAccountId, input.organizationId))) {
+    return err(serviceError('forbidden', 'only an org OWNER/ADMIN can unassign members'));
+  }
+  return db.transaction(async (tx) => {
+    const existing = first(
+      await tx
+        .select({ id: schema.assignments.id })
+        .from(schema.assignments)
+        .where(
+          and(
+            eq(schema.assignments.organizationId, input.organizationId),
+            eq(schema.assignments.missionId, input.missionId),
+            eq(schema.assignments.memberAccountId, input.memberAccountId),
+          ),
+        )
+        .limit(1),
+    );
+    if (!existing) return ok({ removed: false });
+    await tx.delete(schema.assignments).where(eq(schema.assignments.id, existing.id));
+    await appendAuditEvent(tx, {
+      eventType: 'MEMBER_UNASSIGNED',
+      actorAccountId: input.actorAccountId,
+      method: 'MANUAL',
+      result: 'ALLOWED',
+      missionId: input.missionId,
+      resourceType: 'assignment',
+      resourceId: existing.id,
+      metadata: { organizationId: input.organizationId, memberAccountId: input.memberAccountId },
+    });
+    return ok({ removed: true });
+  });
+}
+
+/**
+ * Missions this organization currently holds a grant to act on but that
+ * have NO assigned member at all -- the "reassignment queue" Commercial V1
+ * Part 4 §11 names: a case a departed/deactivated member's sole assignment
+ * was automatically removed from (`organizations.ts`'s `setMembershipActive`)
+ * lands here until an admin assigns someone new. Excludes terminal-state
+ * missions (CLOSED/CANCELLED): a finished case needs no reassignment.
+ */
+export async function listUnassignedActiveMissions(
+  db: Db,
+  organizationId: string,
+): Promise<OrgMission[]> {
+  const missions = await listMissionsForOrganization(db, organizationId);
+  const assigned = new Set(
+    (
+      await db
+        .select({ missionId: schema.assignments.missionId })
+        .from(schema.assignments)
+        .where(eq(schema.assignments.organizationId, organizationId))
+    ).map((a) => a.missionId),
+  );
+  const active = await db
+    .select({ id: schema.missions.id, state: schema.missions.state })
+    .from(schema.missions)
+    .where(
+      inArray(
+        schema.missions.id,
+        missions.map((m) => m.missionId),
+      ),
+    );
+  const activeStateByMissionId = new Map(active.map((m) => [m.id, m.state]));
+  return missions.filter((m) => {
+    const state = activeStateByMissionId.get(m.missionId);
+    return !assigned.has(m.missionId) && state !== 'CLOSED' && state !== 'CANCELLED';
+  });
+}
+
 export async function listAssignments(db: Db, missionId: string): Promise<Assignment[]> {
   return db.select().from(schema.assignments).where(eq(schema.assignments.missionId, missionId));
 }
@@ -294,6 +428,530 @@ export async function listAssignmentsDetailed(
   return rows.map((row) => ({ ...row, createdAt: row.createdAt.toISOString() }));
 }
 
+export type OrgVisibleTask = typeof schema.missionTasks.$inferSelect;
+
+/**
+ * Tasks on a mission, org-read-scoped exactly like `listNotes`/
+ * `listAssignmentsDetailed` above (`canReadMissionCollaboration`: COMMENT or
+ * MANAGE). CAS-02's workspace rollup needs a real "overdue tasks" signal,
+ * which needs this to exist at all -- this is currently the ONLY org-facing
+ * task read path; creating, assigning, or completing a task remains
+ * applicant-owner-only (`missions.ts`'s `ownedMission`), a CAS-04 write-side
+ * gap this chunk does not close (tracked in `known-issues.md`).
+ */
+export async function listTasksForOrg(
+  db: Db,
+  organizationId: string,
+  applicantId: string,
+  missionId: string,
+): Promise<OrgVisibleTask[]> {
+  if (!(await canReadMissionCollaboration(db, organizationId, applicantId, missionId))) return [];
+  return db.select().from(schema.missionTasks).where(eq(schema.missionTasks.missionId, missionId));
+}
+
+/**
+ * The gate every org-side task/appointment write shares (mirrors
+ * `recordMissionDecision`'s own three-part check exactly): an active member,
+ * assigned to this specific mission -- not merely any active member of the
+ * org -- whose organization currently holds a MANAGE grant covering it.
+ * Routine caseworker write access, deliberately looser than `assignMember`/
+ * `requestEvidence`'s admin-only bar: creating or completing a task is
+ * day-to-day case work, not an organizational management action.
+ */
+async function loadMissionForOrgWrite(
+  db: Db,
+  organizationId: string,
+  actorAccountId: string,
+  missionId: string,
+) {
+  if (!(await isActiveMember(db, actorAccountId, organizationId))) {
+    return err(serviceError('forbidden', 'not an active member of this organization'));
+  }
+  if (!(await assignedToMission(db, organizationId, actorAccountId, missionId))) {
+    return err(serviceError('forbidden', 'not assigned to this mission'));
+  }
+  const mission = first(
+    await db.select().from(schema.missions).where(eq(schema.missions.id, missionId)).limit(1),
+  );
+  if (!mission) return err(serviceError('not_found', 'mission not found'));
+  if (!(await orgGrantPermits(db, organizationId, mission.applicantId, 'MANAGE', mission.id))) {
+    return err(
+      serviceError('forbidden', 'this organization has no current grant covering that mission'),
+    );
+  }
+  return ok(mission);
+}
+
+export interface CreateTaskForOrgInput {
+  readonly actorAccountId: string;
+  readonly organizationId: string;
+  readonly missionId: string;
+  readonly description: string;
+  readonly assigneeAccountId?: string;
+  readonly dueDate?: Date;
+  readonly dueTimezone?: string;
+  readonly priority?: 'LOW' | 'NORMAL' | 'HIGH' | 'URGENT';
+}
+
+/** Org-side task creation (Commercial V1 Part 4 §11) -- the write path `listTasksForOrg`'s own doc comment named as still open. */
+export async function createTaskForOrg(
+  db: Db,
+  input: CreateTaskForOrgInput,
+): Promise<Result<OrgVisibleTask, ServiceError>> {
+  const description = input.description.trim();
+  if (description.length === 0) return err(serviceError('invalid', 'a description is required'));
+  const mission = await loadMissionForOrgWrite(
+    db,
+    input.organizationId,
+    input.actorAccountId,
+    input.missionId,
+  );
+  if (!mission.ok) return mission;
+
+  return db.transaction(async (tx) => {
+    const task = required(
+      first(
+        await tx
+          .insert(schema.missionTasks)
+          .values({
+            missionId: input.missionId,
+            description,
+            assigneeAccountId: input.assigneeAccountId ?? null,
+            dueDate: input.dueDate ?? null,
+            dueTimezone: input.dueTimezone ?? null,
+            ...(input.priority ? { priority: input.priority } : {}),
+          })
+          .returning(),
+      ),
+      'mission task',
+    );
+    await appendAuditEvent(tx, {
+      eventType: 'MISSION_TASK_CREATED',
+      actorAccountId: input.actorAccountId,
+      method: 'MANUAL',
+      result: 'ALLOWED',
+      missionId: input.missionId,
+      resourceType: 'mission_task',
+      resourceId: task.id,
+    });
+    return ok(task);
+  });
+}
+
+export interface UpdateTaskForOrgInput {
+  readonly actorAccountId: string;
+  readonly organizationId: string;
+  readonly missionId: string;
+  readonly taskId: string;
+  readonly assigneeAccountId?: string | null;
+  readonly dueDate?: Date | null;
+  readonly dueTimezone?: string | null;
+  readonly priority?: 'LOW' | 'NORMAL' | 'HIGH' | 'URGENT';
+}
+
+/** Org-side reassignment/reschedule/re-prioritization, audited exactly like the owner-side `updateTask`. */
+export async function updateTaskForOrg(
+  db: Db,
+  input: UpdateTaskForOrgInput,
+): Promise<Result<OrgVisibleTask, ServiceError>> {
+  const mission = await loadMissionForOrgWrite(
+    db,
+    input.organizationId,
+    input.actorAccountId,
+    input.missionId,
+  );
+  if (!mission.ok) return mission;
+
+  return db.transaction(async (tx) => {
+    const task = first(
+      await tx
+        .select()
+        .from(schema.missionTasks)
+        .where(
+          and(
+            eq(schema.missionTasks.id, input.taskId),
+            eq(schema.missionTasks.missionId, input.missionId),
+          ),
+        )
+        .limit(1),
+    );
+    if (!task) return err(serviceError('not_found', 'task not found'));
+
+    let changes: Record<string, { readonly before: unknown; readonly after: unknown }> = {};
+    if (input.assigneeAccountId !== undefined) {
+      changes = {
+        ...changes,
+        assigneeAccountId: { before: task.assigneeAccountId, after: input.assigneeAccountId },
+      };
+    }
+    if (input.dueDate !== undefined) {
+      changes = {
+        ...changes,
+        dueDate: {
+          before: task.dueDate?.toISOString() ?? null,
+          after: input.dueDate?.toISOString() ?? null,
+        },
+      };
+    }
+    if (input.dueTimezone !== undefined) {
+      changes = {
+        ...changes,
+        dueTimezone: { before: task.dueTimezone, after: input.dueTimezone },
+      };
+    }
+    if (input.priority !== undefined) {
+      changes = { ...changes, priority: { before: task.priority, after: input.priority } };
+    }
+    if (Object.keys(changes).length === 0) return ok(task);
+
+    const updated = required(
+      first(
+        await tx
+          .update(schema.missionTasks)
+          .set({
+            ...(input.assigneeAccountId !== undefined
+              ? { assigneeAccountId: input.assigneeAccountId }
+              : {}),
+            ...(input.dueDate !== undefined ? { dueDate: input.dueDate } : {}),
+            ...(input.dueTimezone !== undefined ? { dueTimezone: input.dueTimezone } : {}),
+            ...(input.priority !== undefined ? { priority: input.priority } : {}),
+            updatedAt: new Date(),
+          })
+          .where(eq(schema.missionTasks.id, input.taskId))
+          .returning(),
+      ),
+      'mission task',
+    );
+    await appendAuditEvent(tx, {
+      eventType: 'MISSION_TASK_UPDATED',
+      actorAccountId: input.actorAccountId,
+      method: 'MANUAL',
+      result: 'ALLOWED',
+      missionId: input.missionId,
+      resourceType: 'mission_task',
+      resourceId: task.id,
+      metadata: { changes },
+    });
+    return ok(updated);
+  });
+}
+
+/** Org-side task state transition, sharing `missions.ts`'s `decideTask` state machine (OPEN -> IN_PROGRESS -> DONE/CANCELLED). */
+export async function decideTaskForOrg(
+  db: Db,
+  input: {
+    readonly actorAccountId: string;
+    readonly organizationId: string;
+    readonly missionId: string;
+    readonly taskId: string;
+    readonly status: 'IN_PROGRESS' | 'DONE' | 'CANCELLED';
+  },
+): Promise<Result<OrgVisibleTask, ServiceError>> {
+  const mission = await loadMissionForOrgWrite(
+    db,
+    input.organizationId,
+    input.actorAccountId,
+    input.missionId,
+  );
+  if (!mission.ok) return mission;
+
+  return db.transaction(async (tx) => {
+    const task = first(
+      await tx
+        .select()
+        .from(schema.missionTasks)
+        .where(
+          and(
+            eq(schema.missionTasks.id, input.taskId),
+            eq(schema.missionTasks.missionId, input.missionId),
+          ),
+        )
+        .limit(1),
+    );
+    if (!task) return err(serviceError('not_found', 'task not found'));
+    if (!TASK_TRANSITIONS_FOR_ORG[task.status]?.includes(input.status)) {
+      return err(
+        serviceError('invalid', `cannot move a task from ${task.status} to ${input.status}`),
+      );
+    }
+    const updated = required(
+      first(
+        await tx
+          .update(schema.missionTasks)
+          .set({
+            status: input.status,
+            completedAt:
+              input.status === 'DONE' || input.status === 'CANCELLED' ? new Date() : null,
+            updatedAt: new Date(),
+          })
+          .where(eq(schema.missionTasks.id, input.taskId))
+          .returning(),
+      ),
+      'mission task',
+    );
+    await appendAuditEvent(tx, {
+      eventType: 'MISSION_TASK_DECIDED',
+      actorAccountId: input.actorAccountId,
+      method: 'MANUAL',
+      result: 'ALLOWED',
+      missionId: input.missionId,
+      resourceType: 'mission_task',
+      resourceId: task.id,
+      metadata: { from: task.status, status: input.status },
+    });
+    return ok(updated);
+  });
+}
+
+// Duplicated (not imported) from `missions.ts`'s own `TASK_TRANSITIONS`: two
+// independently-authorized write paths (owner, org) sharing one state
+// machine's SHAPE, matching this file's established convention of never
+// importing a write path across the owner/org boundary.
+const TASK_TRANSITIONS_FOR_ORG: Readonly<Record<string, readonly string[]>> = {
+  OPEN: ['IN_PROGRESS', 'DONE', 'CANCELLED'],
+  IN_PROGRESS: ['DONE', 'CANCELLED'],
+  DONE: [],
+  CANCELLED: [],
+};
+
+export type OrgVisibleAppointment = typeof schema.missionAppointments.$inferSelect;
+
+export interface CreateAppointmentForOrgInput {
+  readonly actorAccountId: string;
+  readonly organizationId: string;
+  readonly missionId: string;
+  readonly title: string;
+  readonly localDateTime: Date;
+  readonly timezone: string;
+  readonly assigneeAccountId?: string;
+  readonly place?: string;
+  readonly channel?: string;
+}
+
+/** Org-side appointment scheduling, the same shape as the owner-side `createAppointment` in `missions.ts`. */
+export async function createAppointmentForOrg(
+  db: Db,
+  input: CreateAppointmentForOrgInput,
+): Promise<Result<OrgVisibleAppointment, ServiceError>> {
+  const title = input.title.trim();
+  if (title.length === 0) return err(serviceError('invalid', 'a title is required'));
+  const timezone = input.timezone.trim();
+  if (timezone.length === 0) return err(serviceError('invalid', 'a timezone is required'));
+  const mission = await loadMissionForOrgWrite(
+    db,
+    input.organizationId,
+    input.actorAccountId,
+    input.missionId,
+  );
+  if (!mission.ok) return mission;
+
+  return db.transaction(async (tx) => {
+    const appointment = required(
+      first(
+        await tx
+          .insert(schema.missionAppointments)
+          .values({
+            missionId: input.missionId,
+            title,
+            assigneeAccountId: input.assigneeAccountId ?? null,
+            localDateTime: input.localDateTime,
+            timezone,
+            place: input.place?.trim() || null,
+            channel: input.channel?.trim() || null,
+          })
+          .returning(),
+      ),
+      'mission appointment',
+    );
+    await appendAuditEvent(tx, {
+      eventType: 'MISSION_APPOINTMENT_CREATED',
+      actorAccountId: input.actorAccountId,
+      method: 'MANUAL',
+      result: 'ALLOWED',
+      missionId: input.missionId,
+      resourceType: 'mission_appointment',
+      resourceId: appointment.id,
+    });
+    return ok(appointment);
+  });
+}
+
+/** Org-side appointment reschedule/reassign, audited like `missions.ts`'s owner-side `updateAppointment`. */
+export async function updateAppointmentForOrg(
+  db: Db,
+  input: {
+    readonly actorAccountId: string;
+    readonly organizationId: string;
+    readonly missionId: string;
+    readonly appointmentId: string;
+    readonly assigneeAccountId?: string | null;
+    readonly localDateTime?: Date;
+    readonly timezone?: string;
+    readonly place?: string | null;
+    readonly channel?: string | null;
+  },
+): Promise<Result<OrgVisibleAppointment, ServiceError>> {
+  const mission = await loadMissionForOrgWrite(
+    db,
+    input.organizationId,
+    input.actorAccountId,
+    input.missionId,
+  );
+  if (!mission.ok) return mission;
+
+  return db.transaction(async (tx) => {
+    const appointment = first(
+      await tx
+        .select()
+        .from(schema.missionAppointments)
+        .where(
+          and(
+            eq(schema.missionAppointments.id, input.appointmentId),
+            eq(schema.missionAppointments.missionId, input.missionId),
+          ),
+        )
+        .limit(1),
+    );
+    if (!appointment) return err(serviceError('not_found', 'appointment not found'));
+
+    let changes: Record<string, { readonly before: unknown; readonly after: unknown }> = {};
+    if (input.assigneeAccountId !== undefined) {
+      changes = {
+        ...changes,
+        assigneeAccountId: {
+          before: appointment.assigneeAccountId,
+          after: input.assigneeAccountId,
+        },
+      };
+    }
+    if (input.localDateTime !== undefined) {
+      changes = {
+        ...changes,
+        localDateTime: {
+          before: appointment.localDateTime.toISOString(),
+          after: input.localDateTime.toISOString(),
+        },
+      };
+    }
+    if (input.timezone !== undefined) {
+      changes = { ...changes, timezone: { before: appointment.timezone, after: input.timezone } };
+    }
+    if (input.place !== undefined) {
+      changes = { ...changes, place: { before: appointment.place, after: input.place } };
+    }
+    if (input.channel !== undefined) {
+      changes = { ...changes, channel: { before: appointment.channel, after: input.channel } };
+    }
+    if (Object.keys(changes).length === 0) return ok(appointment);
+
+    const updated = required(
+      first(
+        await tx
+          .update(schema.missionAppointments)
+          .set({
+            ...(input.assigneeAccountId !== undefined
+              ? { assigneeAccountId: input.assigneeAccountId }
+              : {}),
+            ...(input.localDateTime !== undefined ? { localDateTime: input.localDateTime } : {}),
+            ...(input.timezone !== undefined ? { timezone: input.timezone } : {}),
+            ...(input.place !== undefined ? { place: input.place } : {}),
+            ...(input.channel !== undefined ? { channel: input.channel } : {}),
+            updatedAt: new Date(),
+          })
+          .where(eq(schema.missionAppointments.id, input.appointmentId))
+          .returning(),
+      ),
+      'mission appointment',
+    );
+    await appendAuditEvent(tx, {
+      eventType: 'MISSION_APPOINTMENT_UPDATED',
+      actorAccountId: input.actorAccountId,
+      method: 'MANUAL',
+      result: 'ALLOWED',
+      missionId: input.missionId,
+      resourceType: 'mission_appointment',
+      resourceId: appointment.id,
+      metadata: { changes },
+    });
+    return ok(updated);
+  });
+}
+
+/** Org-side appointment completion/cancellation. */
+export async function decideAppointmentForOrg(
+  db: Db,
+  input: {
+    readonly actorAccountId: string;
+    readonly organizationId: string;
+    readonly missionId: string;
+    readonly appointmentId: string;
+    readonly status: 'DONE' | 'CANCELLED';
+  },
+): Promise<Result<OrgVisibleAppointment, ServiceError>> {
+  const mission = await loadMissionForOrgWrite(
+    db,
+    input.organizationId,
+    input.actorAccountId,
+    input.missionId,
+  );
+  if (!mission.ok) return mission;
+
+  return db.transaction(async (tx) => {
+    const appointment = first(
+      await tx
+        .select()
+        .from(schema.missionAppointments)
+        .where(
+          and(
+            eq(schema.missionAppointments.id, input.appointmentId),
+            eq(schema.missionAppointments.missionId, input.missionId),
+          ),
+        )
+        .limit(1),
+    );
+    if (!appointment) return err(serviceError('not_found', 'appointment not found'));
+    if (appointment.status !== 'OPEN') {
+      return err(serviceError('invalid', 'only an OPEN appointment can be decided'));
+    }
+    const updated = required(
+      first(
+        await tx
+          .update(schema.missionAppointments)
+          .set({ status: input.status, completedAt: new Date(), updatedAt: new Date() })
+          .where(eq(schema.missionAppointments.id, input.appointmentId))
+          .returning(),
+      ),
+      'mission appointment',
+    );
+    await appendAuditEvent(tx, {
+      eventType: 'MISSION_APPOINTMENT_DECIDED',
+      actorAccountId: input.actorAccountId,
+      method: 'MANUAL',
+      result: 'ALLOWED',
+      missionId: input.missionId,
+      resourceType: 'mission_appointment',
+      resourceId: appointment.id,
+      metadata: { status: input.status },
+    });
+    return ok(updated);
+  });
+}
+
+/** Appointments on a mission, org-read-scoped exactly like `listTasksForOrg` (COMMENT or MANAGE), soonest first. */
+export async function listAppointmentsForOrg(
+  db: Db,
+  organizationId: string,
+  applicantId: string,
+  missionId: string,
+): Promise<OrgVisibleAppointment[]> {
+  if (!(await canReadMissionCollaboration(db, organizationId, applicantId, missionId))) return [];
+  const rows = await db
+    .select()
+    .from(schema.missionAppointments)
+    .where(eq(schema.missionAppointments.missionId, missionId));
+  return [...rows].sort((a, b) => a.localDateTime.getTime() - b.localDateTime.getTime());
+}
+
 /** A mission this org can act on (a grant naming it), for the collaboration console. */
 export interface OrgMission {
   readonly missionId: string;
@@ -351,6 +1009,97 @@ export async function listMissionsForOrganization(
     applicantId,
     applicantName,
   }));
+}
+
+/** A case as the org console's workspace/search view needs it (CAS-02): enough to filter and summarize, never any wallet content. */
+export interface OrgCaseSummary {
+  readonly missionId: string;
+  readonly applicantId: string;
+  readonly applicantName: string;
+  readonly title: string;
+  readonly state: MissionState;
+  readonly destination: string | null;
+  readonly jurisdiction: string | null;
+  readonly manualMode: boolean;
+  readonly packVersionId: string | null;
+  readonly targetDeadline: string | null;
+  readonly travelStartDate: string | null;
+  readonly updatedAt: string;
+}
+
+/**
+ * Every case this actor may see in this organization's console, and whether
+ * they're seeing it as an admin (the whole org's reachable cases) or as a
+ * non-admin member (only cases they're personally assigned to, Build Spec
+ * §2: "Agency staff / reviewer ... Sees only assigned applicants and
+ * missions"). This is the single source of truth for that scoping rule --
+ * previously duplicated ad hoc at the page layer (admin ? all : filter by
+ * assignment), now centralized here so CAS-02's search can reuse the exact
+ * same authorized set the default workspace view shows, never a separately
+ * queried, potentially wider one (PRD CAS-02: "list queries and counts obey
+ * the same object rules as detail pages").
+ *
+ * Callers must already know the actor is at least an active member (this
+ * function, like `listMissionsForOrganization`, does not itself re-check
+ * membership).
+ */
+export async function listVisibleMissionsForMember(
+  db: Db,
+  organizationId: string,
+  actorAccountId: string,
+): Promise<{ readonly admin: boolean; readonly missions: OrgCaseSummary[] }> {
+  const admin = await isOrgAdmin(db, actorAccountId, organizationId);
+  const base = await listMissionsForOrganization(db, organizationId);
+  let scoped = base;
+  if (!admin) {
+    const assignedIds = await listAssignedMissionIds(db, organizationId, actorAccountId);
+    scoped = base.filter((m) => assignedIds.has(m.missionId));
+  }
+  if (scoped.length === 0) return { admin, missions: [] };
+
+  const rows = await db
+    .select({
+      id: schema.missions.id,
+      state: schema.missions.state,
+      destination: schema.missions.destination,
+      jurisdiction: schema.missions.jurisdiction,
+      manualMode: schema.missions.manualMode,
+      packVersionId: schema.missions.packVersionId,
+      targetDeadline: schema.missions.targetDeadline,
+      travelStartDate: schema.missions.travelStartDate,
+      updatedAt: schema.missions.updatedAt,
+    })
+    .from(schema.missions)
+    .where(
+      inArray(
+        schema.missions.id,
+        scoped.map((m) => m.missionId),
+      ),
+    );
+  const detailById = new Map(rows.map((r) => [r.id, r]));
+
+  const missions = scoped.map((m): OrgCaseSummary => {
+    // scoped is derived from missions.ts's own missions table moments ago,
+    // inside the same request, so a missing detail row here would mean the
+    // mission was deleted mid-request -- never actually possible (missions
+    // are never deleted, only state-transitioned) -- not a real omission.
+    const detail = detailById.get(m.missionId);
+    return {
+      missionId: m.missionId,
+      applicantId: m.applicantId,
+      applicantName: m.applicantName,
+      title: m.title,
+      state: detail?.state ?? 'DRAFT',
+      destination: detail?.destination ?? null,
+      jurisdiction: detail?.jurisdiction ?? null,
+      manualMode: detail?.manualMode ?? false,
+      packVersionId: detail?.packVersionId ?? null,
+      targetDeadline: detail?.targetDeadline?.toISOString() ?? null,
+      travelStartDate: detail?.travelStartDate?.toISOString() ?? null,
+      updatedAt: detail?.updatedAt.toISOString() ?? new Date(0).toISOString(),
+    };
+  });
+  return { admin, missions };
 }
 
 const NOTE_MAX_LENGTH = 2000;
@@ -547,6 +1296,14 @@ export async function listNotes(
     );
 }
 
+/** A note as the applicant owner sees it - author already resolved to an email, never a raw account id. */
+export interface OwnerVisibleNote {
+  readonly id: string;
+  readonly body: string;
+  readonly authorEmail: string | null;
+  readonly createdAt: Date;
+}
+
 /**
  * Notes on a mission, visible to the applicant OWNER. Only `TRAVELLER_SHARED`
  * notes, from any author: an AGENCY_INTERNAL note is never visible to the
@@ -559,7 +1316,7 @@ export async function listNotesForOwner(
   db: Db,
   actorAccountId: string,
   missionId: string,
-): Promise<MissionNote[]> {
+): Promise<OwnerVisibleNote[]> {
   const mission = first(
     await db.select().from(schema.missions).where(eq(schema.missions.id, missionId)).limit(1),
   );
@@ -572,15 +1329,23 @@ export async function listNotesForOwner(
       .limit(1),
   );
   if (!applicant || applicant.ownerAccountId !== actorAccountId) return [];
-  return db
-    .select()
+  const rows = await db
+    .select({
+      id: schema.missionNotes.id,
+      body: schema.missionNotes.body,
+      authorEmail: schema.accounts.email,
+      createdAt: schema.missionNotes.createdAt,
+    })
     .from(schema.missionNotes)
+    .leftJoin(schema.accounts, eq(schema.accounts.id, schema.missionNotes.authorAccountId))
     .where(
       and(
         eq(schema.missionNotes.missionId, missionId),
         eq(schema.missionNotes.visibility, 'TRAVELLER_SHARED'),
       ),
-    );
+    )
+    .orderBy(desc(schema.missionNotes.createdAt));
+  return rows.map((r) => ({ ...r, authorEmail: r.authorEmail ?? null }));
 }
 
 /**
@@ -608,9 +1373,14 @@ export async function requestEvidence(
      * can match it — an unscoped check against a mission-scoped grant always
      * fails `scope_mismatch` (docs/audits/post-programme-defect-register.md
      * finding #6), silently rejecting evidence requests the org's real grant
-     * should permit.
+     * should permit. Also, when given, now genuinely persisted as the
+     * request's own "case" (Commercial V1 Part 4 §10), not just used for
+     * this one check and discarded.
      */
     readonly missionId?: string;
+    /** The specific pack requirement this request is for, if any (§10: "requirement if applicable"). Requires `missionId`, and must belong to that mission's own attached pack version. */
+    readonly packRequirementId?: string;
+    readonly dueDate?: Date;
   },
 ): Promise<Result<EvidenceRequest, ServiceError>> {
   if (!(await isOrgAdmin(db, input.actorAccountId, input.organizationId))) {
@@ -632,6 +1402,40 @@ export async function requestEvidence(
       serviceError('forbidden', 'this organization has no current grant for that applicant'),
     );
   }
+  if (input.packRequirementId) {
+    if (!input.missionId) {
+      return err(serviceError('invalid', 'a requirement-linked request must name its mission'));
+    }
+    const mission = first(
+      await db
+        .select()
+        .from(schema.missions)
+        .where(eq(schema.missions.id, input.missionId))
+        .limit(1),
+    );
+    if (!mission || mission.applicantId !== input.applicantId) {
+      return err(serviceError('not_found', 'mission not found for this applicant'));
+    }
+    const requirement = first(
+      await db
+        .select({ id: schema.packRequirements.id })
+        .from(schema.packRequirements)
+        .where(
+          and(
+            eq(schema.packRequirements.id, input.packRequirementId),
+            mission.packVersionId
+              ? eq(schema.packRequirements.packVersionId, mission.packVersionId)
+              : undefined,
+          ),
+        )
+        .limit(1),
+    );
+    if (!requirement) {
+      return err(
+        serviceError('not_found', "requirement not found on this mission's attached pack"),
+      );
+    }
+  }
 
   const rateLimit = await checkRateLimit(
     db,
@@ -648,10 +1452,14 @@ export async function requestEvidence(
           .values({
             organizationId: input.organizationId,
             applicantId: input.applicantId,
+            missionId: input.missionId ?? null,
+            packRequirementId: input.packRequirementId ?? null,
+            requestedByAccountId: input.actorAccountId,
             kind: input.kind,
             fieldKey: input.fieldKey ?? null,
             docType: input.docType ?? null,
             message: input.message ?? null,
+            dueDate: input.dueDate ?? null,
           })
           .returning(),
       ),
@@ -666,6 +1474,33 @@ export async function requestEvidence(
       resourceType: 'evidence_request',
       resourceId: request.id,
     });
+
+    // NTF-02: "evidence requests" is explicitly named in the notification
+    // event list. Neutral/minimal on purpose -- never the request's own
+    // `message`, `fieldKey`, or `docType` (could itself hint at sensitive
+    // content), just that a request exists and a deep link to go see it.
+    const applicant = first(
+      await tx
+        .select({ ownerAccountId: schema.applicants.ownerAccountId })
+        .from(schema.applicants)
+        .where(eq(schema.applicants.id, input.applicantId))
+        .limit(1),
+    );
+    if (applicant) {
+      await enqueueNotificationBothChannels(tx, {
+        eventType: 'EVIDENCE_REQUEST_CREATED',
+        resourceId: request.id,
+        recipientAccountId: applicant.ownerAccountId,
+        applicantId: input.applicantId,
+        organizationId: input.organizationId,
+        ...(input.missionId !== undefined ? { missionId: input.missionId } : {}),
+        payload: {
+          subject: 'New evidence request',
+          summary: 'An agency working your case has asked for evidence.',
+          deepLinkPath: `/app/applicant/${input.applicantId}/evidence`,
+        },
+      });
+    }
     return ok(request);
   });
 }
@@ -772,20 +1607,16 @@ export async function listApplicantsForOrganization(
   return rows;
 }
 
-/** The applicant owner responds to an evidence request. */
-export async function respondEvidence(
+async function loadEvidenceRequestForOwner(
   db: Db,
-  input: {
-    readonly actorAccountId: string;
-    readonly requestId: string;
-    readonly decision: 'FULFILLED' | 'DECLINED';
-  },
+  actorAccountId: string,
+  requestId: string,
 ): Promise<Result<EvidenceRequest, ServiceError>> {
   const request = first(
     await db
       .select()
       .from(schema.evidenceRequests)
-      .where(eq(schema.evidenceRequests.id, input.requestId))
+      .where(eq(schema.evidenceRequests.id, requestId))
       .limit(1),
   );
   if (!request) return err(serviceError('not_found', 'evidence request not found'));
@@ -796,17 +1627,144 @@ export async function respondEvidence(
       .where(eq(schema.applicants.id, request.applicantId))
       .limit(1),
   );
-  if (!applicant || applicant.ownerAccountId !== input.actorAccountId) {
+  if (!applicant || applicant.ownerAccountId !== actorAccountId) {
     return err(serviceError('forbidden', 'only the applicant owner can respond'));
   }
-  if (request.status !== 'OPEN') return err(serviceError('invalid', 'request is not open'));
+  return ok(request);
+}
+
+/** The requesting org's current standing to act on a request (org OWNER/ADMIN, MANAGE grant covering the request's mission/applicant). */
+async function loadEvidenceRequestForOrg(
+  db: Db,
+  actorAccountId: string,
+  requestId: string,
+): Promise<Result<EvidenceRequest, ServiceError>> {
+  const request = first(
+    await db
+      .select()
+      .from(schema.evidenceRequests)
+      .where(eq(schema.evidenceRequests.id, requestId))
+      .limit(1),
+  );
+  if (!request) return err(serviceError('not_found', 'evidence request not found'));
+  if (!(await isOrgAdmin(db, actorAccountId, request.organizationId))) {
+    return err(serviceError('forbidden', 'only an org OWNER/ADMIN can act on this request'));
+  }
+  if (
+    !(await orgGrantPermits(
+      db,
+      request.organizationId,
+      request.applicantId,
+      'MANAGE',
+      request.missionId ?? undefined,
+    ))
+  ) {
+    return err(
+      serviceError('forbidden', 'this organization has no current grant for that applicant'),
+    );
+  }
+  return ok(request);
+}
+
+const AWAITING_SUBMISSION_STATUSES: ReadonlySet<string> = new Set(['OPEN', 'NEEDS_REPLACEMENT']);
+
+/**
+ * The applicant owner submits a fact or document they already hold, a fresh
+ * upload or explicit wallet reuse (Commercial V1 Part 4 §10 explicitly
+ * allows both), as the response to a request. This is the ONLY way a request
+ * moves toward RECEIVED, and only when the linked evidence is genuinely
+ * usable right now: a still-processing, quarantined/unsafe, failed, or
+ * erased document is refused outright, never silently accepted ("upload can
+ * move to RECEIVED only after safe processing"; "malware/failed/unrelated
+ * evidence cannot close a request"). A FIELD request has no such processing
+ * concept (a fact is just data), so only the DOCUMENT branch checks
+ * usability. Reachable from OPEN (first submission) or NEEDS_REPLACEMENT (a
+ * resubmission after the org asked for something else); the prior round's
+ * decision stays intact in `evidenceRequestDecisions`, untouched by this.
+ */
+export async function submitEvidenceResponse(
+  db: Db,
+  input: {
+    readonly actorAccountId: string;
+    readonly requestId: string;
+    readonly factId?: string;
+    readonly documentId?: string;
+  },
+): Promise<Result<EvidenceRequest, ServiceError>> {
+  const loaded = await loadEvidenceRequestForOwner(db, input.actorAccountId, input.requestId);
+  if (!loaded.ok) return loaded;
+  const request = loaded.value;
+  if (!AWAITING_SUBMISSION_STATUSES.has(request.status)) {
+    return err(serviceError('invalid', 'this request is not awaiting a submission'));
+  }
+
+  if (request.kind === 'FIELD') {
+    if (!input.factId || input.documentId) {
+      return err(serviceError('invalid', 'a FIELD request is satisfied by exactly one factId'));
+    }
+    const fact = first(
+      await db
+        .select({
+          applicantId: schema.facts.applicantId,
+          fieldKey: schema.fieldDefinitions.key,
+        })
+        .from(schema.facts)
+        .innerJoin(
+          schema.fieldDefinitions,
+          eq(schema.fieldDefinitions.id, schema.facts.fieldDefinitionId),
+        )
+        .where(eq(schema.facts.id, input.factId))
+        .limit(1),
+    );
+    if (!fact || fact.applicantId !== request.applicantId) {
+      return err(serviceError('not_found', 'fact not found for this applicant'));
+    }
+    if (fact.fieldKey !== request.fieldKey) {
+      return err(serviceError('invalid', "this fact does not match the request's field"));
+    }
+  } else {
+    if (!input.documentId || input.factId) {
+      return err(
+        serviceError('invalid', 'a DOCUMENT request is satisfied by exactly one documentId'),
+      );
+    }
+    const document = first(
+      await db
+        .select({ applicantId: schema.documents.applicantId, docType: schema.documents.docType })
+        .from(schema.documents)
+        .where(eq(schema.documents.id, input.documentId))
+        .limit(1),
+    );
+    if (!document || document.applicantId !== request.applicantId) {
+      return err(serviceError('not_found', 'document not found for this applicant'));
+    }
+    if (document.docType !== request.docType) {
+      return err(
+        serviceError('invalid', "this document does not match the request's document type"),
+      );
+    }
+    if (!(await documentIsUsable(db, input.documentId))) {
+      return err(
+        serviceError(
+          'invalid',
+          'this document has not finished safety processing, or failed it, and cannot be submitted yet',
+        ),
+      );
+    }
+  }
 
   return db.transaction(async (tx) => {
     const updated = required(
       first(
         await tx
           .update(schema.evidenceRequests)
-          .set({ status: input.decision, respondedAt: new Date(), updatedAt: new Date() })
+          .set({
+            status: 'RECEIVED',
+            respondingFactId: input.factId ?? null,
+            respondingDocumentId: input.documentId ?? null,
+            respondedAt: new Date(),
+            updatedAt: new Date(),
+          })
           .where(eq(schema.evidenceRequests.id, input.requestId))
           .returning(),
       ),
@@ -820,10 +1778,250 @@ export async function respondEvidence(
       applicantId: request.applicantId,
       resourceType: 'evidence_request',
       resourceId: updated.id,
-      metadata: { decision: input.decision },
+      metadata: { factId: input.factId, documentId: input.documentId },
     });
     return ok(updated);
   });
+}
+
+/** Optional, lightweight RECEIVED -> UNDER_REVIEW marker (org, MANAGE-grant-gated): mainly workflow visibility, never a prerequisite for a decision. */
+export async function startEvidenceReview(
+  db: Db,
+  input: { readonly actorAccountId: string; readonly requestId: string },
+): Promise<Result<EvidenceRequest, ServiceError>> {
+  const loaded = await loadEvidenceRequestForOrg(db, input.actorAccountId, input.requestId);
+  if (!loaded.ok) return loaded;
+  if (loaded.value.status !== 'RECEIVED') {
+    return err(serviceError('invalid', 'only a RECEIVED request can start review'));
+  }
+  const updated = required(
+    first(
+      await db
+        .update(schema.evidenceRequests)
+        .set({ status: 'UNDER_REVIEW', updatedAt: new Date() })
+        .where(eq(schema.evidenceRequests.id, input.requestId))
+        .returning(),
+    ),
+    'evidence request',
+  );
+  return ok(updated);
+}
+
+const DECIDABLE_STATUSES: ReadonlySet<string> = new Set(['RECEIVED', 'UNDER_REVIEW']);
+
+/**
+ * The requesting org decides on what was submitted (org, MANAGE-grant-gated)
+ * -- Part 4 §13's full "Review" list, all four outcomes: accepted evidence;
+ * replacement requested; contradiction; proposed correction. Every decision
+ * is appended to `evidenceRequestDecisions`, an immutable snapshot of
+ * exactly what was being decided on, so a later round, which clears the
+ * request's own current responding pointers to make room for the next
+ * submission, never loses this one's reason (§13: "replacement retains
+ * prior decision/reason").
+ *
+ * CONTRADICTION and CORRECTION_PROPOSED are real, distinct, reviewer-facing
+ * outcomes -- previously this codebase had mapped them onto generic,
+ * unreachable-by-a-reviewer mechanisms instead (AI-extraction-only
+ * FACT_STATUSES CONFLICTED; AI-extraction-only `field_proposals`, whose
+ * `aiExtractionRunId` is a required foreign key with no human-reviewer
+ * equivalent). Both are handled as the same underlying request-status
+ * transition as NEEDS_REPLACEMENT (evidence didn't stand as submitted,
+ * a fresh response is needed; CAS-03's own six-state model is not extended
+ * with new states for this), while the DECISION record itself keeps the
+ * more specific classification, surfaced to the applicant on the evidence
+ * page with its own distinct label. A structured, one-click-apply
+ * `field_proposals` row from a CORRECTION_PROPOSED decision (rather than a
+ * plain-text suggestion the applicant reads and then acts on through their
+ * own Master Profile edit, same as any self-directed correction) would need
+ * decoupling `field_proposals` from `aiExtractionRunId`, a real but
+ * deliberately separate, undone enhancement -- see `known-issues.md`.
+ *
+ * Also enforces CAS-06's "an organisation may require a reviewer different
+ * from the preparer; if enabled, the server enforces it": here, "preparer"
+ * is whoever on the org raised this specific request
+ * (`evidenceRequests.requestedByAccountId`), the one existing, genuinely
+ * agency-internal signal for who initiated/worked this ask, as opposed to
+ * `selectEvidence`, which is owner-only and could never name an org account
+ * at all. Off by default (a legacy request with no recorded requester never
+ * triggers this, nothing to compare against), and this function never
+ * claims independent review happened when the org has not opted in.
+ */
+export async function decideEvidenceResponse(
+  db: Db,
+  input: {
+    readonly actorAccountId: string;
+    readonly requestId: string;
+    readonly outcome: 'ACCEPTED' | 'NEEDS_REPLACEMENT' | 'CONTRADICTION' | 'CORRECTION_PROPOSED';
+    readonly reason?: string;
+  },
+): Promise<Result<EvidenceRequest, ServiceError>> {
+  const loaded = await loadEvidenceRequestForOrg(db, input.actorAccountId, input.requestId);
+  if (!loaded.ok) return loaded;
+  const request = loaded.value;
+  if (!DECIDABLE_STATUSES.has(request.status)) {
+    return err(serviceError('invalid', 'this request has nothing submitted to decide on yet'));
+  }
+  const org = first(
+    await db
+      .select({ requireDifferentReviewer: schema.organizations.requireDifferentReviewer })
+      .from(schema.organizations)
+      .where(eq(schema.organizations.id, request.organizationId))
+      .limit(1),
+  );
+  if (
+    org?.requireDifferentReviewer &&
+    request.requestedByAccountId &&
+    request.requestedByAccountId === input.actorAccountId
+  ) {
+    return err(
+      serviceError(
+        'forbidden',
+        'this organization requires a reviewer different from whoever raised this request',
+      ),
+    );
+  }
+
+  // CAS-03's own request-status enum has no CONTRADICTION/CORRECTION_PROPOSED
+  // value: both mean "this submission doesn't stand, a fresh one is needed,"
+  // the same underlying transition as NEEDS_REPLACEMENT. The decision record
+  // (just below) keeps the more specific classification; only the REQUEST's
+  // status collapses the two onto NEEDS_REPLACEMENT.
+  const requestStatus =
+    input.outcome === 'CONTRADICTION' || input.outcome === 'CORRECTION_PROPOSED'
+      ? 'NEEDS_REPLACEMENT'
+      : input.outcome;
+
+  return db.transaction(async (tx) => {
+    await tx.insert(schema.evidenceRequestDecisions).values({
+      evidenceRequestId: request.id,
+      outcome: input.outcome,
+      reason: input.reason ?? null,
+      respondingFactId: request.respondingFactId,
+      respondingDocumentId: request.respondingDocumentId,
+      decidedByAccountId: input.actorAccountId,
+    });
+    const updated = required(
+      first(
+        await tx
+          .update(schema.evidenceRequests)
+          .set({
+            status: requestStatus,
+            // Cleared whenever the request goes back to needing a fresh
+            // response: this pointer means "what's currently under
+            // consideration," which is nothing again until the applicant
+            // submits again. ACCEPTED keeps its pointer: it's exactly what
+            // was accepted.
+            ...(requestStatus === 'NEEDS_REPLACEMENT'
+              ? { respondingFactId: null, respondingDocumentId: null }
+              : {}),
+            updatedAt: new Date(),
+          })
+          .where(eq(schema.evidenceRequests.id, request.id))
+          .returning(),
+      ),
+      'evidence request',
+    );
+    await appendAuditEvent(tx, {
+      eventType: 'EVIDENCE_REQUEST_DECIDED',
+      actorAccountId: input.actorAccountId,
+      method: 'MANUAL',
+      result: 'ALLOWED',
+      applicantId: request.applicantId,
+      resourceType: 'evidence_request',
+      resourceId: request.id,
+      metadata: { outcome: input.outcome },
+    });
+    return ok(updated);
+  });
+}
+
+/** The requesting org withdraws a request that no longer needs an answer (org, MANAGE-grant-gated). Terminal; matches the applicant owner's own respondEvidence-era DECLINED intent, but as the requester's own act, not the applicant's. */
+export async function cancelEvidenceRequest(
+  db: Db,
+  input: { readonly actorAccountId: string; readonly requestId: string; readonly reason?: string },
+): Promise<Result<EvidenceRequest, ServiceError>> {
+  const loaded = await loadEvidenceRequestForOrg(db, input.actorAccountId, input.requestId);
+  if (!loaded.ok) return loaded;
+  const request = loaded.value;
+  if (request.status === 'CANCELLED' || request.status === 'ACCEPTED') {
+    return err(serviceError('invalid', 'this request is already closed'));
+  }
+
+  return db.transaction(async (tx) => {
+    await tx.insert(schema.evidenceRequestDecisions).values({
+      evidenceRequestId: request.id,
+      outcome: 'CANCELLED',
+      reason: input.reason ?? null,
+      respondingFactId: request.respondingFactId,
+      respondingDocumentId: request.respondingDocumentId,
+      decidedByAccountId: input.actorAccountId,
+    });
+    const updated = required(
+      first(
+        await tx
+          .update(schema.evidenceRequests)
+          .set({ status: 'CANCELLED', updatedAt: new Date() })
+          .where(eq(schema.evidenceRequests.id, request.id))
+          .returning(),
+      ),
+      'evidence request',
+    );
+    await appendAuditEvent(tx, {
+      eventType: 'EVIDENCE_REQUEST_CANCELLED',
+      actorAccountId: input.actorAccountId,
+      method: 'MANUAL',
+      result: 'ALLOWED',
+      applicantId: request.applicantId,
+      resourceType: 'evidence_request',
+      resourceId: request.id,
+    });
+    return ok(updated);
+  });
+}
+
+/** Full decision history on a request, newest first: the applicant owner or the requesting org's currently-standing member. */
+export async function listEvidenceRequestDecisions(
+  db: Db,
+  actorAccountId: string,
+  requestId: string,
+): Promise<Result<EvidenceRequestDecision[], ServiceError>> {
+  const request = first(
+    await db
+      .select()
+      .from(schema.evidenceRequests)
+      .where(eq(schema.evidenceRequests.id, requestId))
+      .limit(1),
+  );
+  if (!request) return err(serviceError('not_found', 'evidence request not found'));
+
+  const applicant = first(
+    await db
+      .select()
+      .from(schema.applicants)
+      .where(eq(schema.applicants.id, request.applicantId))
+      .limit(1),
+  );
+  const isOwner = applicant?.ownerAccountId === actorAccountId;
+  const isAuthorizedOrgMember =
+    !isOwner &&
+    (await isOrgAdmin(db, actorAccountId, request.organizationId)) &&
+    (await orgGrantPermits(
+      db,
+      request.organizationId,
+      request.applicantId,
+      'MANAGE',
+      request.missionId ?? undefined,
+    ));
+  if (!isOwner && !isAuthorizedOrgMember) {
+    return err(serviceError('forbidden', 'not authorized to view this request'));
+  }
+
+  const rows = await db
+    .select()
+    .from(schema.evidenceRequestDecisions)
+    .where(eq(schema.evidenceRequestDecisions.evidenceRequestId, requestId));
+  const sorted = [...rows].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+  return ok(sorted);
 }
 
 export interface BulkExportRow {
@@ -877,6 +2075,12 @@ export async function bulkExport(
     (actorMembership.role !== 'OWNER' && actorMembership.role !== 'ADMIN')
   ) {
     return err(serviceError('forbidden', 'only an org OWNER/ADMIN can bulk export'));
+  }
+  // SHR-02: a suspended/closed organization has no standing, regardless of
+  // the caller's own still-active membership row.
+  const org = await getOrganization(db, input.organizationId);
+  if (!org || org.status !== 'ACTIVE') {
+    return err(serviceError('forbidden', 'this organization is not active'));
   }
 
   // Candidate applicants: those with any grant naming this org, bounded.
@@ -934,6 +2138,7 @@ export async function bulkExport(
             organizationId: input.organizationId as AgencyId,
             role: actorMembership.role,
             active: actorMembership.active,
+            organizationActive: true,
           },
         },
         action: 'EXPORT_PROFILE',
@@ -1111,6 +2316,34 @@ export async function recordMissionDecision(
       resourceId: decision.id,
       metadata: { packRequirementId: input.packRequirementId, outcome: input.outcome },
     });
+
+    // NTF-02: "material case status/readiness changes" -- a reviewer's
+    // ACCEPTED/REJECTED verdict on a requirement is exactly that. Neutral on
+    // purpose: never the requirement's own field/doc identity or the
+    // reviewer's `reason` text, just that a decision landed and a deep link
+    // to go see it.
+    const owner = first(
+      await tx
+        .select({ ownerAccountId: schema.applicants.ownerAccountId })
+        .from(schema.applicants)
+        .where(eq(schema.applicants.id, mission.applicantId))
+        .limit(1),
+    );
+    if (owner) {
+      await enqueueNotificationBothChannels(tx, {
+        eventType: 'MISSION_STATUS_CHANGED',
+        resourceId: decision.id,
+        recipientAccountId: owner.ownerAccountId,
+        applicantId: mission.applicantId,
+        organizationId: input.organizationId,
+        missionId: input.missionId,
+        payload: {
+          subject: 'Update on your case',
+          summary: 'A reviewer recorded a decision on your case.',
+          deepLinkPath: `/app/mission/${input.missionId}`,
+        },
+      });
+    }
     return ok(decision);
   });
 }

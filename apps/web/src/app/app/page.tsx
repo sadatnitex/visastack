@@ -22,6 +22,7 @@ const CONSENT_MESSAGE_KEYS: Record<ConsentType, MessageKey> = {
   AI_EXTRACTION: 'consent.ai.title',
   SHARING: 'consent.sharing.title',
   MARKETING: 'consent.marketing.title',
+  ISSUER_CONTACT: 'consent.issuerContact.title',
 };
 
 /** Terminal mission states never count toward "active". */

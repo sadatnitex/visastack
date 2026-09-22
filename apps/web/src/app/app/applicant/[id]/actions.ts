@@ -22,6 +22,7 @@ import {
   rejectProposal,
   reserveUpload,
   runExtraction,
+  setDocumentDate,
 } from '@visastack/services';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
@@ -362,6 +363,30 @@ export async function previewDocumentAction(formData: FormData): Promise<void> {
 
   if (url) redirect(url);
   redirect(`/app/applicant/${applicantId}/documents?preview_error=1`);
+}
+
+/**
+ * NTF-01 (Part 5 §1): record a document's own "as of" date - the input
+ * `classifyStaleness` needs to judge case-specific freshness. Nothing
+ * extracts this automatically today, so it stays unknown until set here.
+ * An empty submitted value clears a mistaken entry back to unknown.
+ */
+export async function setDocumentDateAction(formData: FormData): Promise<void> {
+  const applicantId = String(formData.get('applicantId') ?? '');
+  const documentId = String(formData.get('documentId') ?? '');
+  const documentDateRaw = String(formData.get('documentDate') ?? '').trim();
+
+  const result = await withSession(async ({ db, accountId }) => {
+    return setDocumentDate(db, {
+      actorAccountId: accountId,
+      documentId,
+      documentDate: documentDateRaw.length > 0 ? documentDateRaw : null,
+    });
+  });
+
+  revalidatePath(`/app/applicant/${applicantId}/documents`);
+  if (!result.ok) redirect(`/app/applicant/${applicantId}/documents?date_error=1`);
+  redirect(`/app/applicant/${applicantId}/documents`);
 }
 
 /**

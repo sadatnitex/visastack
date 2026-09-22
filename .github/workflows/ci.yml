@@ -18,7 +18,15 @@ jobs:
   verify:
     name: Lint · Build · Typecheck · Test
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    # Was 15: too tight for the current suite size. A 2026-09-22 run (PR #82,
+    # commit 3df132c) was cancelled by this exact ceiling mid-run, not by any
+    # real failure -- checkout/install/ClamAV setup/audits/lint/build/
+    # typecheck alone took ~2m51s before the Test step even started, and
+    # packages/services' own suite (~7min locally, visibly slower again on
+    # this runner class) had no room left after web/db/adapters' ~1m46s.
+    # 30 keeps a real ceiling (a genuine hang still gets killed) with enough
+    # margin for the suite's current size and ordinary CI-runner variance.
+    timeout-minutes: 30
     steps:
       # Explicit ref (master directive §8: "A deployment test may not check
       # out tests from another revision"). Without this, actions/checkout on

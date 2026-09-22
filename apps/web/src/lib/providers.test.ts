@@ -4,6 +4,7 @@ import {
   DeterministicTextExtractor,
   NullEmailPort,
   NullPaymentPort,
+  ResendEmailPort,
 } from '@visastack/adapters';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -32,6 +33,8 @@ const ENV_KEYS = [
   'AI_PROVIDER',
   'JOB_PROVIDER',
   'EMAIL_PROVIDER',
+  'RESEND_API_KEY',
+  'RESEND_FROM_ADDRESS',
   'OBSERVABILITY_PROVIDER',
   'PAYMENT_PROVIDER',
   'KMS_PROVIDER',
@@ -220,5 +223,19 @@ describe('createEmailPort / createObservabilityPort / createPaymentPort', () => 
     expect(() => createEmailPort()).toThrow(/EMAIL_PROVIDER/);
     expect(() => createObservabilityPort()).toThrow(/OBSERVABILITY_PROVIDER/);
     expect(() => createPaymentPort()).toThrow(/PAYMENT_PROVIDER/);
+  });
+
+  it('constructs a real ResendEmailPort once EMAIL_PROVIDER=resend, RESEND_API_KEY, and RESEND_FROM_ADDRESS are all configured (NTF-03)', async () => {
+    setEnv('EMAIL_PROVIDER', 'resend');
+    setEnv('RESEND_API_KEY', 're_test_key');
+    setEnv('RESEND_FROM_ADDRESS', 'VisaStack <notifications@example.test>');
+    const { createEmailPort } = await import('./providers');
+    expect(createEmailPort()).toBeInstanceOf(ResendEmailPort);
+  });
+
+  it('refuses EMAIL_PROVIDER=resend without both RESEND_API_KEY and RESEND_FROM_ADDRESS, rather than constructing a half-configured adapter', async () => {
+    setEnv('EMAIL_PROVIDER', 'resend');
+    const { createEmailPort } = await import('./providers');
+    expect(() => createEmailPort()).toThrow(/RESEND_API_KEY|RESEND_FROM_ADDRESS/);
   });
 });

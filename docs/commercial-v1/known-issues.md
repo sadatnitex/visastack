@@ -33,12 +33,15 @@ item gets its own requirements-ledger row once classified against the new direct
    deleting the 9 archived branches externally, then a redeploy of the same commit that had
    just failed getting past provisioning cleanly (install completed, buildCommand started).
    See item 36 for the second, distinct issue that redeploy then surfaced.
-4. `pnpm audit --dev` reports 6 findings (1 critical, 1 high, 4 moderate), all rooted in
-   `vitest@2.1.9` / `vite@6.4.x` / `esbuild`, none shipped in the production bundle.
-   `pnpm audit --prod` is reported clean by the prior engagement; this session re-runs its own
-   audit rather than relying solely on that claim (see `test-evidence.md`). Fixing the dev
-   findings requires a major `vitest` version bump across the monorepo, deliberately deferred
-   by the prior engagement as out of scope for its own PR.
+4. `pnpm audit --dev` reports 8 findings as of the Part 3 checkpoint re-run (1 critical, 1 high,
+   6 moderate; originally 6 findings/4 moderate at Part 1's baseline, 2 new moderate advisories
+   published against the same chain since), all rooted in `vitest@2.1.9` / `vite@6.4.x` /
+   `esbuild`, none shipped in the production bundle. `pnpm audit --prod` remains clean, re-run
+   fresh at every checkpoint rather than assumed to still hold (see `test-evidence.md`). Fixing
+   the dev findings requires a major `vitest` version bump across the monorepo, deliberately
+   deferred by the prior engagement as out of scope for its own PR, and still deferred here for
+   the same reason (no production impact, a monorepo-wide test-runner upgrade is real work
+   deserving its own change, not a drive-by inside a Part 3 checkpoint).
 5. AI provider wiring is OpenAI-only, confirmed this session by reading
    `apps/web/src/lib/ai.ts`: `createAiExtractor` explicitly returns `undefined` for any
    `AI_PROVIDER` other than `openai` ("only the OpenAI adapter exists so far"), and
@@ -432,6 +435,318 @@ item gets its own requirements-ledger row once classified against the new direct
     job-failure spike, not observed independently), render failures, and object-storage errors.
     Not silently dropped: tracked here and in `requirements-ledger.md` OPS-03, likely revisited
     alongside Part 9's own monitoring/performance scope rather than gold-plated in this chunk.
+41. ~~Directive Part 4 Section 5's "secure member invitations" did not exist: the only "add
+    member" path required the invitee to already hold a VisaStack account, with no token, no
+    expiry, no single-use consumption, and nothing sent to anyone, so an org admin could not
+    actually invite a genuinely new colleague at all.~~ **RESOLVED (Part 4).** New
+    `packages/services/src/invitations.ts` implements a real, hashed, single-use, race-safe
+    invitation token; `addMemberAction` falls back to it automatically when no account exists.
+    Full detail: `requirements-ledger.md` IAM-02.
+42. ~~Directive Part 4 Section 6's "agency invites a traveller as a new client" (IAM-03) did not
+    exist at all. Found and fixed while building it: the initial implementation of
+    `acceptClientInvitation` created a grant to the inviting organisation and then immediately
+    called `assignMember` to wire up the named case owner, but a freshly created grant is
+    `PENDING_ACCEPTANCE` and `authorize()` (`packages/policy/src/authorize.ts`) denies it
+    outright until accepted, so `assignMember`'s own `orgGrantPermits` check would have failed
+    on every single real acceptance, and its result was being logged and swallowed as "best
+    effort" rather than surfaced, meaning the case owner an agency admin named at invite time
+    would silently never actually be assigned, with no error visible anywhere.~~ **RESOLVED
+    (Part 4).** The traveller's acceptance now also accepts the grant on the inviting admin's
+    behalf, re-verified live as an active org OWNER/ADMIN by `acceptGrant` itself rather than
+    trusted from invitation-creation time, and `MANAGE` was added to the default client-grant
+    scope (`assignMember` requires a `MANAGE`-scoped grant on the mission). A failed grant
+    acceptance is now fatal to the whole transaction rather than swallowed. Proven by a test
+    that asserts the assignment row actually exists after acceptance, not just that the call
+    returned ok. Full detail: `requirements-ledger.md` IAM-03.
+43. ~~Directive Part 4 Section 7's "subject/guardian relationship" (IAM-04) had separate subject
+    IDs and a relationship label, but nothing distinct for "explicit authority": a caller could
+    create a MINOR_GUARDIAN or FAMILY_MEMBER record by picking one dropdown value, with no
+    separate confirmation that they actually held authority to act for that person, and no
+    persisted record of that confirmation either way. Separately, the PRD's "V1 family cases
+    remain separate linked cases with a shared itinerary reference" had no implementation at
+    all: no way for a guardian managing several of their own applicants' missions to visually
+    link them as one family trip.~~ **RESOLVED (Part 4).** New `authorityConfirmedAt` column on
+    `applicants`; `createApplicant` now refuses a non-SELF relationship without an explicit
+    `authorityConfirmed: true`, wired into the applicant-creation form as a required checkbox
+    shown only for non-SELF relationships. New nullable `itineraryRef` on `missions`, settable
+    via `setMissionItineraryRef`, with a dedicated `listMissionsByItineraryRef` read always
+    scoped to the caller's own applicants only, proven to never cross accounts even given an
+    identical reference string. Full detail: `requirements-ledger.md` IAM-04.
+44. ~~Evidence requests (`respondEvidence`) let the applicant owner mark any request FULFILLED or
+    DECLINED with nothing behind the click: no fact, no document, no safety check, no processing
+    status, no link to anything real. An applicant could "fulfil" a document request without
+    ever having submitted a document, and an agency reading the response had no way to know
+    whether it meant anything real had been provided.~~ **RESOLVED (Part 4).** Replaced entirely
+    with Commercial V1 Part 4 §10's exact six-state model
+    (OPEN/RECEIVED/UNDER_REVIEW/ACCEPTED/NEEDS_REPLACEMENT/CANCELLED); a request can now only
+    reach RECEIVED by linking an actual fact or document the applicant owns, and a document must
+    currently pass the same safety/processing/erasure check `missions.ts` readiness already uses
+    or the submission is refused outright. Full detail: `requirements-ledger.md` CAS-03.
+45. ~~CAS-06's "reviewer must differ from preparer" had no implementation at all: any org member
+    could both prepare and decide on the same case with nothing stopping them.~~ **RESOLVED
+    (Part 4).** New `organizations.requireDifferentReviewer` setting, enforced in
+    `decideEvidenceResponse`. Caught during implementation, before it shipped: the first design
+    compared the deciding account against `selectedEvidence.selectedByAccountId` on
+    `recordMissionDecision`, which would have been dead code in practice, since `selectEvidence`
+    is owner-only and can never name an org account, so the check could never trigger for the
+    real agency-reviews-a-case scenario. Re-grounded in the PRD's own CAS-06 text ("Reviewers
+    accept or request replacement of selected evidence"), which maps to `decideEvidenceResponse`
+    (built for CAS-03) rather than `recordMissionDecision`, and "preparer" to
+    `evidenceRequests.requestedByAccountId`, a genuine agency-internal signal. Full detail:
+    `requirements-ledger.md` CAS-06.
+46. ~~Case creation (`createMission`) had no jurisdiction/consular context, service category,
+    agency owner, target deadline, or travel dates anywhere on a mission, and no manual-route
+    mode for a destination with no automated requirement pack, so a case built for one of those
+    routes had no way to record that fact anywhere the UI or an export could show it.~~
+    **RESOLVED (Part 4).** Seven new nullable/defaulted columns on `missions` (`jurisdiction`,
+    `serviceCategory`, `travelStartDate`/`travelEndDate`, `targetDeadline`,
+    `ownerOrganizationId`, `manualMode`), all purely descriptive and none gating any
+    authorization or readiness decision; new `updateMissionCaseDetails` for post-creation
+    partial edits; `snapshotMission` now captures all of it. The PRD's other two named gaps,
+    "assigned manager" and "explicit traveller grant binding at creation," needed no new work:
+    both were already covered by the pre-existing `assignMember`/`assignments` mechanism and
+    the pre-existing grant-lifecycle invariant respectively. Full detail:
+    `requirements-ledger.md` CAS-01.
+47. ~~The agency org console had no case search at all (name/stage/destination/assignee, or any
+    other dimension), and its one "Case inbox" rollup was admin-only, showing just assignment
+    status and an open-request count -- nothing for overdue tasks, approaching dates, review
+    issues, a readiness result, or acknowledgement status, all of which CAS-02 names as things a
+    case workspace must present together.~~ **RESOLVED (Part 4).** New `case-search-form.tsx` (a
+    plain GET form) filters by name/case-id, stage, destination, and assignee, strictly over
+    cases the viewer is already authorized to see -- never a separately or more broadly queried
+    set, and never a passport-number or wallet-content search. The rollup now shows, per case:
+    assignment, open requests, review issues (evidence requests sent back for replacement),
+    overdue tasks, approaching dates, a real readiness result (or an honest "Manual mode"/"No
+    pack attached" state, never a computed figure once a case is in manual mode), and an explicit
+    "not yet tracked" placeholder for acknowledgement (TRU-02 doesn't exist yet, Part 7 -- the
+    directive's own text for this section allows a placeholder here). While building this,
+    found that the admin-vs-assigned-only visibility rule (a non-admin org member may only see
+    cases they're personally assigned to) had never actually leaked -- the page component's own
+    existing filter was correct -- but lived ONLY there, meaning any future caller of the
+    underlying list query could have forgotten it entirely. Centralized into a new
+    `listVisibleMissionsForMember`, now the single source both the default listing and search run
+    through. Full detail: `requirements-ledger.md` CAS-02, CAS-04.
+48. ~~CAS-08's "contributor request" (a sponsor or family member submits exactly one named
+    document without ever getting a wallet, profile, or case view) did not exist anywhere in the
+    codebase.~~ **RESOLVED (Part 4).** New `contributor-requests.ts` reuses the existing
+    hashed-token invitation primitive and the applicant's own real upload/malware-scanning
+    pipeline end to end, gated by a new, narrow alternate authorization on
+    `documents.ts`'s `registerDocument`/`addDocumentVersion` (previously hard owner-only):
+    accepting a bound, currently-claimed contributor request, verified against the database, not
+    merely trusted from a caller-supplied flag. Proven not to weaken the existing owner-only
+    boundary by every pre-existing document/wallet test (76 tests) still passing unchanged
+    alongside 8 new ones covering the authorization boundary itself, race-safety, and the
+    "not copied into the reusable wallet without contributor permission" rule (a new
+    `documents.walletVisible` column, read by the wallet view, deliberately left out of
+    readiness/docType matching). Full detail: `requirements-ledger.md` CAS-08.
+49. ~~`authorize()`'s `organization_member` case checked only the individual
+    membership row's own status, never whether the organization itself was
+    still ACTIVE -- so a suspended or closed organization's members kept
+    full, live, functional access to every applicant that had ever granted
+    that organization access, through every one of the 5 places in the
+    codebase that construct an `organization_member` Actor (`agency.ts`'s
+    `orgGrantPermits`/`bulkExport`, `documents.ts`'s `recheckDocumentAccess`,
+    `sharing.ts`'s `getRecipientWorkspace`, `wallet.ts`'s `getWalletView`).
+    This was a live, exploitable access-control gap, not a cosmetic one:
+    SHR-02's own "enforcement, revalidation" requirement is meaningless if
+    organization standing is never part of what gets revalidated.~~
+    **RESOLVED (Part 4).** `Membership` gained `organizationActive: boolean`,
+    `DenyReason` gained `'organization_not_active'`, and `authorize()`'s
+    `organization_member` case now denies outright when the organization is
+    not active; every one of the 5 call sites now supplies real organization
+    status rather than omitting the field. Proven by a pure policy-unit test
+    and two real service-integration tests (`bulkExport` and
+    `orgGrantPermits` via `assignMember`). Full detail:
+    `requirements-ledger.md` SHR-02.
+50. ~~`resumeGrant` never checked `expiryAt`, so an owner could resume a
+    paused grant back to `status: 'ACTIVE'` after it had already expired
+    while paused, leaving a misleading "Active" status nothing else
+    corrected (`authorize()`'s own independent live `expiryAt` recheck meant
+    this was never an actual access-control hole, only a data-integrity/
+    honesty one).~~ **RESOLVED (Part 4).** `resumeGrant` now refuses the
+    transition outright once `expiryAt` has passed, proven by a new test.
+    Full detail: `requirements-ledger.md` SHR-01, SHR-02.
+51. ~~SHR-03's "show... accesses" (an actual log of what happened to an
+    applicant's data, distinct from what a grant theoretically permits) did
+    not exist anywhere in the product, despite the underlying `auditEvents`
+    chain already recording everything comprehensively; and the sharing
+    page's grant rows showed only an action COUNT, never which actions or
+    what scope (categories, documents, mission) were actually granted.~~
+    **RESOLVED (Part 4).** New `listAuditEventsForApplicant` (owner-scoped,
+    tenant-isolation-tested, actor resolved to an email) backs a new
+    "Access log" card; a full `ACTION_LABELS` map and richer row rendering
+    now surface the real scope already present on the `Grant` type but
+    never rendered. Full detail: `requirements-ledger.md` SHR-03.
+52. ~~SHR-04 names "external issuer contact" as a consent type separate from
+    SHARING; it did not exist anywhere in the product, and
+    `recordIssuerVerification` dispatched real outbound issuer-contact
+    actions with zero consent gate at all.~~ **RESOLVED (Part 4).** Added
+    `ISSUER_CONTACT` end to end (`CONSENT_TYPES`, English + Bangla copy,
+    both UI label maps, migration `0046`), and `recordIssuerVerification`
+    now refuses with `consent_required` when it is absent. Full detail:
+    `requirements-ledger.md` SHR-04.
+53. ~~PRO-01's field-by-field audit against its own 13 named Master Profile
+    sections found two that did not exist as distinct concepts at all:
+    "current/historical passports" had only a single non-repeating
+    passport_number/passport_expiry pair, with no way to record a second,
+    prior, or otherwise-held passport; "self-employment" had no
+    representation distinct from the investor/entrepreneur-oriented
+    "business" pack. Also a real formatting gap: every monetary field
+    (annual_income, monthly_salary, investment_amount) was a single
+    unstructured string with no ISO currency ever captured, contradicting
+    PRO-01's own "Currency: decimal + ISO currency" rule.~~
+    **RESOLVED (Part 4).** Added a new repeating `historical_passport` group
+    alongside the untouched (zero data-risk) current passport fields, a
+    `self_employment` section under the professional pack, and a paired
+    `..._currency` select (new `options` support on `ProfileFieldDef`, a
+    34-code ISO 4217 subset) for every monetary field. Closed smaller
+    precision gaps in the same pass: `country_of_residence`,
+    `marital_status`, and `name_alternate`. Full detail:
+    `requirements-ledger.md` PRO-01.
+54. ~~PRO-02's "conflict creates a review issue/task" had a real mechanism
+    (`computeReadiness`'s `unresolved_conflict` reason, rendered as a
+    distinct red badge on the mission page) but it only fires for a mission
+    with an attached pack -- a conflict arising before any case exists, or
+    on a manual-mode/no-pack case, had no visibility anywhere except an
+    easy-to-miss per-field badge on the Master Profile page itself.~~
+    **RESOLVED (Part 4).** Added a page-level notice on the Master Profile
+    page whenever any fact is CONFLICTED, reusing already-fetched data (no
+    new query), so a conflict is now guaranteed visible independent of any
+    particular case. Full detail: `requirements-ledger.md` PRO-02.
+55. ~~CAS-05's `listNotesForOwner` (traveller-visible, `TRAVELLER_SHARED`-only
+    notes) was correct but unreachable: no page in `apps/web` ever called
+    it, so a traveller had no way to actually see a note an agency chose to
+    share with them, despite the read path itself being safe.~~
+    **RESOLVED (Part 4).** Wired it into a new "Notes from your agency" card
+    on the mission page; `listNotesForOwner` now also resolves the author to
+    a real email (`OwnerVisibleNote`) instead of a raw account id. Every
+    other §12 rule (legacy-note restriction, AI/search/export non-leakage,
+    no bulk publish) was audited against the real code and confirmed already
+    correct, not merely assumed. Full detail: `requirements-ledger.md`
+    CAS-05.
+56. ~~CAS-04's own directive text (§11 "Tasks and appointments") names far
+    more than the prior minimal slice covered: explicit timezone, priority,
+    an IN_PROGRESS task state, a wholly distinct Appointment concept (local
+    date/time, timezone, place/channel, add-to-calendar download),
+    reassignment, "a removed member may not remain sole owner of an active
+    case," and "create reassignment queue." None of it existed, and none of
+    it is deferrable to Part 5 by the PRD's own wording -- only "reschedule
+    *notifications*" is named as later.~~ **RESOLVED (Part 4).** Built all
+    of it: `priority`/`dueTimezone` on `missionTasks`, a real OPEN ->
+    IN_PROGRESS -> DONE/CANCELLED task state machine, a new
+    `missionAppointments` table and full CRUD (owner and org side, org side
+    newly gated exactly like `recordMissionDecision`'s own assigned-member
+    bar), a real RFC 5545 `.ics` "add to calendar" download, `unassignMember`
+    plus `listUnassignedActiveMissions` (the reassignment queue), and
+    `setMembershipActive` now auto-unassigns a deactivated member from every
+    active mission where they were the SOLE assignee, in the same
+    transaction as the deactivation itself -- proven by a test that a
+    co-assigned mission's assignments survive a deactivation untouched.
+    Full detail: `requirements-ledger.md` CAS-04.
+57. ~~CAS-06's own directive text (§13 "Review") names four review outcomes:
+    accepted evidence; replacement requested; contradiction; proposed
+    correction. Only the first two were ever reachable by a human reviewer
+    -- an existing code comment had quoted just "accept or request
+    replacement," dropping the other two, which led an earlier chunk to map
+    "contradiction"/"proposed correction" onto `FACT_STATUSES` CONFLICTED
+    and `field_proposals`, both AI-extraction-only mechanisms with no path a
+    human reviewer could actually reach.~~ **RESOLVED (Part 4).** Added
+    `CONTRADICTION`/`CORRECTION_PROPOSED` as real `decideEvidenceResponse`
+    outcomes (migration `0048`), routing to the same request-status
+    transition as NEEDS_REPLACEMENT while the decision record keeps the
+    specific classification, surfaced to the applicant on the evidence page
+    with its own label. Honestly scoped: a proposed correction is the
+    reviewer's plain-text suggestion, not a structured `field_proposals`
+    row -- that would need decoupling `field_proposals` from its required
+    `aiExtractionRunId`, a real, separate, deliberately undone enhancement.
+    Full detail: `requirements-ledger.md` CAS-06.
+58. ~~No expiry concept existed for case-specific document freshness (e.g. "a
+    bank statement must be dated within 90 days for this route"), and the
+    two expiry concepts that DID exist (`documents.expiresAt` intrinsic,
+    `issuerVerifications.validUntil` verification) had no shared
+    classification logic -- three separate call sites each computed their
+    own ad-hoc `validUntil.getTime() <= Date.now()` boolean, with no
+    reminder-threshold ladder anywhere and `documents.documentDate` a
+    genuinely dead column (declared in the schema, never read or written by
+    any code path).~~ **RESOLVED (Part 5, NTF-01).** New
+    `packages/services/src/expiry.ts`: `classifyExpiry` (intrinsic/
+    verification, a graduated `unknown/ok/reminder/expired` status against a
+    90/60/30/7/0-day default ladder) and `classifyStaleness` (case-specific,
+    `not_applicable/unknown/fresh/stale`) as two deliberately separate
+    functions, matching the directive's "track separately." New
+    `packRequirements.maxAgeDays` (migration `0049`) is the case-specific
+    freshness rule; a new `setDocumentDate` (`documents.ts`) is a real,
+    strictly-validated human write path for the previously-dead
+    `documentDate` column, since a freshness rule with no way to ever record
+    a date would be permanently unreachable. A confirmed-stale document now
+    genuinely blocks requirement satisfaction (`MissingRequirement` reason
+    `stale_evidence`); an unknown one does not, deliberately, matching the
+    same fail-open-on-missing/fail-closed-on-confirmed posture already used
+    for conflicted facts. New applicant "Expiry" tab shows all three signals
+    in three separate cards. Full detail: `requirements-ledger.md` NTF-01.
+59. ~~No notification mechanism of any kind existed: no outbox, no delivery
+    worker, no in-app notification list, and `NullEmailPort` was the only
+    email path (logs a warning, never sends). None of the directive's
+    eleven notification-worthy events (evidence requests, case status
+    changes, expiry, etc.) reached the applicant in any form.~~ **PARTIALLY
+    RESOLVED (Part 5, NTF-02).** Built the transactional outbox mechanism in
+    full: new `notifications` table (migration `0050`) with the directive's
+    exact six delivery states, a composed idempotency key, and lease-based
+    concurrent-safe claiming; `packages/services/src/notifications.ts`'s
+    `runNotificationWorker` dispatches IN_APP immediately and EMAIL via the
+    injected port with a real 5-attempt/24-hour backoff schedule, and
+    RE-VERIFIES the recipient's authorization at send time rather than
+    trusting enqueue time. Wired to two real domain events
+    (`requestEvidence`, `recordMissionDecision`) as proof, both notifying
+    the applicant owner in-app and by email (still via `NullEmailPort`,
+    since NTF-03's real provider is unstarted). New applicant "Notifications"
+    tab. Deliberately NOT a full resolution: nine of the eleven event types
+    remain unwired, and the date-threshold sweep (NTF-04) that would turn
+    NTF-01's expiry classification into an actual reminder does not exist
+    yet. Full detail: `requirements-ledger.md` NTF-02/03/04. **Update
+    (2026-09-22, Part 5 §4):** the date-threshold sweep now exists --
+    `notification-sweep.ts`'s `sweepTaskDeadlineReminders`/
+    `sweepExpiryReminders`, DST-safe (calendar-date, never millisecond,
+    arithmetic), hourly via `/api/jobs/process-notification-sweeps`. The
+    nine unwired event types remain open. **Update (2026-09-22, Part 5 §5):**
+    `NullEmailPort` is no longer the only path -- `lib/providers.ts`'s
+    `createEmailPort` returns a real `ResendEmailPort`
+    (`packages/adapters/src/email.ts`) when `EMAIL_PROVIDER=resend` is
+    configured (`docs/adr/0013-transactional-email-resend.md`), and
+    `NullEmailPort` now refuses to construct at all in commercial mode and no
+    longer logs the recipient or subject at all. Delivery/bounce/complaint
+    state now updates from a real, HMAC-verified webhook
+    (`packages/adapters/src/resend-webhook.ts`,
+    `/api/webhooks/resend`) rather than staying frozen at "provider
+    accepted." Full detail: `requirements-ledger.md` NTF-03. Still open, not
+    this chunk's scope: the nine unwired event types noted above, and (see
+    item 61 below) live A18 verification against a real Resend account.
+60. ~~`applicants` had no timezone concept at all; `wallet.ts`'s
+    `EXPIRING_SOON_DAYS` comment had explicitly named this as Part 5's
+    eventual responsibility, and no local-date (as opposed to raw
+    UTC-instant) threshold math existed anywhere for a task's own due date,
+    leaving `dueDate`/`dueTimezone` (CAS-04) write-only -- nothing ever
+    read them to decide when to remind anyone.~~ **RESOLVED (Part 5,
+    NTF-04).** `applicants.timezone` (migration `0050`, default
+    `Asia/Dhaka`, editable at the schema level though no UI yet lets an
+    owner change it) plus `notification-sweep.ts`'s calendar-date math
+    (`toLocalDateParts`/`localDateDiffInDays`) now correctly answers "is
+    this task 7 days out, 1 day out, or how many weeks overdue" in the
+    subject's own timezone, proven by a test that the same calendar day
+    produces the same verdict across a UTC-instant boundary that falls
+    mid-day locally. Full detail: `requirements-ledger.md` NTF-04.
+61. Real transactional email (Resend, `docs/adr/0013-transactional-email-resend.md`) is
+    implemented and unit-tested against the documented Svix/REST protocol --
+    `ResendEmailPort`, `verifyResendWebhookSignature`, `/api/webhooks/resend`,
+    `applyEmailDeliveryEvent` -- but no real Resend account, API key,
+    verified sending domain, or webhook secret exists in this sandbox. Live
+    A18 (an actual synthetic send plus a real signed webhook round-trip)
+    cannot run without one -- BLOCKED, not fabricated as passing, exactly the
+    outcome directive §5 itself anticipates for a credential-less sandbox.
+    Provisioning a real account and a verified sending domain (for
+    SPF/DKIM) is a genuine operational step requiring billing and DNS
+    access this session does not have, not something further code changes
+    here can close. Full detail: `requirements-ledger.md` A18.
 independently confirmed findings; the missing PRD file is tracked as Blocker 1 in
 `assumptions-and-blockers.md` (now resolved) rather than here, since it blocked the
 programme rather than being a product defect.

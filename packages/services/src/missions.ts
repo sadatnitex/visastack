@@ -10,6 +10,7 @@ import { type Db, first, required, schema } from './db';
 import { isDocumentVersionUsable } from './documents';
 import { activeOrVerifiedErasureStorageObjectIds } from './erasure';
 import { type ServiceError, serviceError } from './errors';
+import { type StalenessClassification, classifyStaleness, parseDocumentDate } from './expiry';
 import { type PackRequirement, listRequirements } from './packs';
 import { recordProductEvent } from './product-events';
 
@@ -135,6 +136,16 @@ export async function createMission(
     readonly title: string;
     readonly destination?: string;
     readonly purpose?: string;
+    /** IAM-04: an optional free-text label linking this mission to other missions as one family trip. Display/reference only, never an access mechanism (see `itineraryRef`'s own schema comment). */
+    readonly itineraryRef?: string;
+    /** CAS-01 case-creation fields (Commercial V1 Part 4 §8). All optional and purely descriptive: none of them gate any authorization decision anywhere else. */
+    readonly jurisdiction?: string;
+    readonly serviceCategory?: string;
+    readonly travelStartDate?: Date;
+    readonly travelEndDate?: Date;
+    readonly targetDeadline?: Date;
+    readonly ownerOrganizationId?: string;
+    readonly manualMode?: boolean;
   },
 ): Promise<Result<Mission, ServiceError>> {
   const applicant = await getApplicant(db, input.applicantId);
@@ -157,6 +168,14 @@ export async function createMission(
             title: input.title.trim(),
             destination: input.destination ?? null,
             purpose: input.purpose ?? null,
+            itineraryRef: input.itineraryRef?.trim() || null,
+            jurisdiction: input.jurisdiction?.trim() || null,
+            serviceCategory: input.serviceCategory?.trim() || null,
+            travelStartDate: input.travelStartDate ?? null,
+            travelEndDate: input.travelEndDate ?? null,
+            targetDeadline: input.targetDeadline ?? null,
+            ownerOrganizationId: input.ownerOrganizationId ?? null,
+            manualMode: input.manualMode ?? false,
           })
           .returning(),
       ),
@@ -178,6 +197,122 @@ export async function createMission(
     });
     return ok(mission);
   });
+}
+
+/**
+ * Set or clear a mission's itinerary reference (mission owner only), for
+ * when the family-trip link is only decided after the mission already
+ * exists. An empty string clears it. Never touches any grant, note, or
+ * other permission: linking is purely this one display field.
+ */
+export async function setMissionItineraryRef(
+  db: Db,
+  input: {
+    readonly actorAccountId: string;
+    readonly missionId: string;
+    readonly itineraryRef: string;
+  },
+): Promise<Result<Mission, ServiceError>> {
+  const owned = await ownedMission(db, input.actorAccountId, input.missionId);
+  if (!owned.ok) return owned;
+  const updated = required(
+    first(
+      await db
+        .update(schema.missions)
+        .set({ itineraryRef: input.itineraryRef.trim() || null, updatedAt: new Date() })
+        .where(eq(schema.missions.id, input.missionId))
+        .returning(),
+    ),
+    'mission',
+  );
+  return ok(updated);
+}
+
+/**
+ * Update a mission's CAS-01 case-creation fields after the fact (mission
+ * owner only) - most of these are rarely all known at creation time
+ * (jurisdiction, service category, exact travel dates, a target deadline,
+ * or which org is the case's primary owner). Every field is optional and
+ * only touched when explicitly provided; omitting a field leaves it
+ * unchanged, never clears it (unlike `setMissionItineraryRef`, this is a
+ * partial update, not a set-or-clear-one-value call, since callers here
+ * are expected to update one or two fields at a time from a settings form,
+ * not resend the whole case every time). Purely descriptive: none of these
+ * fields gate any authorization decision anywhere else in this codebase.
+ */
+export async function updateMissionCaseDetails(
+  db: Db,
+  input: {
+    readonly actorAccountId: string;
+    readonly missionId: string;
+    readonly jurisdiction?: string;
+    readonly serviceCategory?: string;
+    readonly travelStartDate?: Date | null;
+    readonly travelEndDate?: Date | null;
+    readonly targetDeadline?: Date | null;
+    readonly ownerOrganizationId?: string | null;
+    readonly manualMode?: boolean;
+  },
+): Promise<Result<Mission, ServiceError>> {
+  const owned = await ownedMission(db, input.actorAccountId, input.missionId);
+  if (!owned.ok) return owned;
+  const updated = required(
+    first(
+      await db
+        .update(schema.missions)
+        .set({
+          ...(input.jurisdiction !== undefined
+            ? { jurisdiction: input.jurisdiction.trim() || null }
+            : {}),
+          ...(input.serviceCategory !== undefined
+            ? { serviceCategory: input.serviceCategory.trim() || null }
+            : {}),
+          ...(input.travelStartDate !== undefined
+            ? { travelStartDate: input.travelStartDate }
+            : {}),
+          ...(input.travelEndDate !== undefined ? { travelEndDate: input.travelEndDate } : {}),
+          ...(input.targetDeadline !== undefined ? { targetDeadline: input.targetDeadline } : {}),
+          ...(input.ownerOrganizationId !== undefined
+            ? { ownerOrganizationId: input.ownerOrganizationId }
+            : {}),
+          ...(input.manualMode !== undefined ? { manualMode: input.manualMode } : {}),
+          updatedAt: new Date(),
+        })
+        .where(eq(schema.missions.id, input.missionId))
+        .returning(),
+    ),
+    'mission',
+  );
+  return ok(updated);
+}
+
+/**
+ * Every mission of the caller's OWN applicants sharing the given itinerary
+ * reference (exact match, trimmed): the "linked family cases" view.
+ * Deliberately scoped to the actor's own applicants only, never a
+ * cross-account lookup: the PRD is explicit that a shared itinerary
+ * reference is a display convenience, and "household permissions never
+ * replace per-subject authorisation." A different account using the same
+ * reference string is invisible here and always will be; nothing before
+ * this ever exposes another account's missions by a matched label.
+ */
+export async function listMissionsByItineraryRef(
+  db: Db,
+  input: { readonly actorAccountId: string; readonly itineraryRef: string },
+): Promise<Mission[]> {
+  const ref = input.itineraryRef.trim();
+  if (ref.length === 0) return [];
+  const rows = await db
+    .select({ mission: schema.missions })
+    .from(schema.missions)
+    .innerJoin(schema.applicants, eq(schema.applicants.id, schema.missions.applicantId))
+    .where(
+      and(
+        eq(schema.applicants.ownerAccountId, input.actorAccountId),
+        eq(schema.missions.itineraryRef, ref),
+      ),
+    );
+  return rows.map((r) => r.mission);
 }
 
 /** Attach a PUBLISHED pack version to a mission. */
@@ -232,8 +367,8 @@ export interface MissingRequirement {
   readonly kind: 'FIELD' | 'DOCUMENT';
   readonly key: string;
   readonly optional: boolean;
-  /** Distinguishes "never provided" from "provided but not currently trustworthy". */
-  readonly reason: 'not_provided' | 'unresolved_conflict';
+  /** Distinguishes "never provided" from "provided but not currently trustworthy" from "provided but too old for this route (NTF-01)". */
+  readonly reason: 'not_provided' | 'unresolved_conflict' | 'stale_evidence';
 }
 
 export interface Readiness {
@@ -401,6 +536,13 @@ export interface DocumentInstance {
   readonly processingStatus: string;
   /** Master directive §7 "PR 10": readiness must ignore unsafe, expired, or still-processing/rejected documents. */
   readonly eligible: boolean;
+  /** Raw `documents.documentDate` (`YYYY-MM-DD` or `null`) - parse with `expiry.ts`'s `parseDocumentDate`. Requirement-agnostic, like every other field here; per-requirement staleness is computed separately in `buildRequirementMapping`/`getEvidenceCandidates`, since `maxAgeDays` lives on the requirement, not the document. */
+  readonly documentDate: string | null;
+}
+
+/** A document candidate plus the requirement-specific staleness verdict (NTF-01) - never folded into `DocumentInstance.eligible`, which stays intrinsic-only ("track separately"). */
+export interface DocumentCandidateWithStaleness extends DocumentInstance {
+  readonly staleness: StalenessClassification;
 }
 
 /**
@@ -467,6 +609,7 @@ async function loadDocumentInstancesByType(
       originalName: schema.documents.originalName,
       approvedName: schema.documents.approvedName,
       expiresAt: schema.documents.expiresAt,
+      documentDate: schema.documents.documentDate,
       documentVersionId: schema.documentVersions.id,
       versionNumber: schema.documentVersions.versionNumber,
       sha256: schema.documentVersions.sha256,
@@ -516,6 +659,7 @@ async function loadDocumentInstancesByType(
       safetyStatus: row.safetyStatus,
       processingStatus: row.processingStatus,
       eligible,
+      documentDate: row.documentDate,
     });
     map.set(groupKey, list);
   }
@@ -570,6 +714,7 @@ async function loadSelectionsByRequirement(db: Db, missionId: string): Promise<S
 export async function computeReadiness(
   db: Db,
   missionId: string,
+  now: Date = new Date(),
 ): Promise<Result<Readiness, ServiceError>> {
   const mission = first(
     await db.select().from(schema.missions).where(eq(schema.missions.id, missionId)).limit(1),
@@ -583,7 +728,13 @@ export async function computeReadiness(
   const factsByKey = await loadFactInstancesByKey(db, mission.applicantId);
   const documentsByType = await loadDocumentInstancesByType(db, mission.applicantId);
   const selections = await loadSelectionsByRequirement(db, missionId);
-  const mapping = buildRequirementMapping(requirements, factsByKey, documentsByType, selections);
+  const mapping = buildRequirementMapping(
+    requirements,
+    factsByKey,
+    documentsByType,
+    selections,
+    now,
+  );
 
   const missing: MissingRequirement[] = [];
   let requiredCount = 0;
@@ -596,11 +747,18 @@ export async function computeReadiness(
     if (!entry.satisfied) {
       const anyConflicted =
         entry.kind === 'FIELD' && (entry.facts ?? []).some((f) => f.status === 'CONFLICTED');
+      const anyStale =
+        entry.kind === 'DOCUMENT' &&
+        (entry.documents ?? []).some((d) => d.eligible && d.staleness.status === 'stale');
       missing.push({
         kind: entry.kind,
         key: entry.key,
         optional: entry.optional,
-        reason: anyConflicted ? 'unresolved_conflict' : 'not_provided',
+        reason: anyConflicted
+          ? 'unresolved_conflict'
+          : anyStale
+            ? 'stale_evidence'
+            : 'not_provided',
       });
     }
   }
@@ -621,7 +779,7 @@ export interface EvidenceCandidateEntry {
   readonly citation: string;
   readonly optional: boolean;
   readonly factCandidates: readonly FactInstance[];
-  readonly documentCandidates: readonly DocumentInstance[];
+  readonly documentCandidates: readonly DocumentCandidateWithStaleness[];
   readonly selectedFactIds: readonly string[];
   readonly selectedDocumentIds: readonly string[];
 }
@@ -647,6 +805,7 @@ export async function getEvidenceCandidates(
   const factsByKey = await loadFactInstancesByKey(db, mission.applicantId);
   const documentsByType = await loadDocumentInstancesByType(db, mission.applicantId);
   const selections = await loadSelectionsByRequirement(db, missionId);
+  const now = new Date();
 
   return ok(
     requirements.map((req) => ({
@@ -656,7 +815,10 @@ export async function getEvidenceCandidates(
       citation: req.citation,
       optional: req.optional,
       factCandidates: factsByKey.get(req.fieldKey ?? '') ?? [],
-      documentCandidates: documentsByType.get(req.docType ?? '') ?? [],
+      documentCandidates: (documentsByType.get(req.docType ?? '') ?? []).map((d) => ({
+        ...d,
+        staleness: classifyStaleness(parseDocumentDate(d.documentDate), req.maxAgeDays, now),
+      })),
       selectedFactIds: [...(selections.factIdsByRequirement.get(req.id) ?? [])],
       selectedDocumentIds: [...(selections.documentIdsByRequirement.get(req.id) ?? [])],
     })),
@@ -734,6 +896,8 @@ export interface RequirementMappingEntry {
     readonly displayName: string;
     readonly sha256: string | null;
     readonly eligible: boolean;
+    /** NTF-01: this requirement's `maxAgeDays` rule applied to this document's own date, kept separate from `eligible` (intrinsic-only). */
+    readonly staleness: StalenessClassification;
   }>;
 }
 
@@ -747,12 +911,26 @@ export interface RequirementMappingEntry {
  * instance is still listed, not just the satisfying one, so a reviewer can
  * see the full picture. Takes already-loaded data rather than re-fetching
  * per requirement.
+ *
+ * A DOCUMENT instance additionally satisfies its requirement only when it is
+ * NOT confirmed `stale` (NTF-01) - a route-specific freshness rule, distinct
+ * from `eligible`'s intrinsic-only expiry check. `unknown` staleness (no
+ * rule, or a rule but no recorded document date) does not block
+ * satisfaction: "unknown expiry remains unknown" reads as a display
+ * obligation, not a readiness gate, and retroactively failing every
+ * already-uploaded document the moment an admin adds a freshness rule (with
+ * no bulk way to backfill dates) would be a harsh, silent regression. Only a
+ * CONFIRMED-stale document - a real, known date past the window - blocks
+ * satisfaction, the same "fail open on missing data, fail closed on a
+ * confirmed problem" posture `computeReadiness` already applies to a
+ * CONFLICTED fact vs. one simply not yet provided.
  */
 function buildRequirementMapping(
   requirements: readonly PackRequirement[],
   factsByKey: ReadonlyMap<string, readonly FactInstance[]>,
   documentsByType: ReadonlyMap<DocumentGroupKey, readonly DocumentInstance[]>,
   selections: SelectionSets,
+  now: Date,
 ): RequirementMappingEntry[] {
   return requirements.map((req): RequirementMappingEntry => {
     if (req.kind === 'FIELD') {
@@ -787,21 +965,23 @@ function buildRequirementMapping(
     if (selectedDocumentIds && selectedDocumentIds.size > 0) {
       instances = instances.filter((d) => selectedDocumentIds.has(d.documentId));
     }
+    const documents = instances.map((d) => ({
+      documentId: d.documentId,
+      documentVersionId: d.documentVersionId,
+      docType: d.docType,
+      displayName: d.displayName,
+      sha256: d.sha256,
+      eligible: d.eligible,
+      staleness: classifyStaleness(parseDocumentDate(d.documentDate), req.maxAgeDays, now),
+    }));
     return {
       packRequirementId: req.id,
       kind: 'DOCUMENT',
       key,
       citation: req.citation,
       optional: req.optional,
-      satisfied: instances.some((d) => d.eligible),
-      documents: instances.map((d) => ({
-        documentId: d.documentId,
-        documentVersionId: d.documentVersionId,
-        docType: d.docType,
-        displayName: d.displayName,
-        sha256: d.sha256,
-        eligible: d.eligible,
-      })),
+      satisfied: documents.some((d) => d.eligible && d.staleness.status !== 'stale'),
+      documents,
     };
   });
 }
@@ -849,6 +1029,7 @@ export async function snapshotMission(
       factsByKey,
       documentsByType,
       selections,
+      new Date(),
     );
     packVersionSnapshot = packVersion ?? null;
   }
@@ -869,6 +1050,16 @@ export async function snapshotMission(
     documents,
     requirementMapping,
     readiness: readiness?.ok ? readiness.value : null,
+    // CAS-01 (Commercial V1 Part 4 §8): "the coverage limitation visible on
+    // the case AND EXPORT." A snapshot is the closest thing this codebase
+    // has to an export artifact today, so manualMode travels with it,
+    // immutably, rather than being knowable only from the live mission row.
+    manualMode: mission.manualMode,
+    jurisdiction: mission.jurisdiction,
+    serviceCategory: mission.serviceCategory,
+    travelStartDate: mission.travelStartDate?.toISOString() ?? null,
+    travelEndDate: mission.travelEndDate?.toISOString() ?? null,
+    targetDeadline: mission.targetDeadline?.toISOString() ?? null,
   };
   const checksum = createHash('sha256').update(stableStringify(content)).digest('hex');
 
@@ -1171,6 +1362,9 @@ export async function createTask(
     readonly description: string;
     readonly packRequirementId?: string;
     readonly assigneeAccountId?: string;
+    readonly dueDate?: Date;
+    readonly dueTimezone?: string;
+    readonly priority?: 'LOW' | 'NORMAL' | 'HIGH' | 'URGENT';
   },
 ): Promise<Result<MissionTask, ServiceError>> {
   const owned = await ownedMission(db, input.actorAccountId, input.missionId);
@@ -1202,6 +1396,9 @@ export async function createTask(
             packRequirementId: input.packRequirementId ?? null,
             description,
             assigneeAccountId: input.assigneeAccountId ?? null,
+            dueDate: input.dueDate ?? null,
+            dueTimezone: input.dueTimezone ?? null,
+            ...(input.priority ? { priority: input.priority } : {}),
           })
           .returning(),
       ),
@@ -1220,14 +1417,25 @@ export async function createTask(
   });
 }
 
-/** Mark a task DONE or CANCELLED (owner-scoped). */
+// Commercial V1 Part 4 §11: "States: OPEN, IN_PROGRESS, DONE, CANCELLED."
+// DONE/CANCELLED are terminal; IN_PROGRESS is an optional, skippable
+// waypoint (a task may go straight from OPEN to DONE) that itself only
+// signals work has started, never a distinct completion.
+const TASK_TRANSITIONS: Readonly<Record<string, readonly string[]>> = {
+  OPEN: ['IN_PROGRESS', 'DONE', 'CANCELLED'],
+  IN_PROGRESS: ['DONE', 'CANCELLED'],
+  DONE: [],
+  CANCELLED: [],
+};
+
+/** Move a task through its state machine (owner-scoped): OPEN -> IN_PROGRESS -> DONE/CANCELLED. */
 export async function decideTask(
   db: Db,
   input: {
     readonly actorAccountId: string;
     readonly missionId: string;
     readonly taskId: string;
-    readonly status: 'DONE' | 'CANCELLED';
+    readonly status: 'IN_PROGRESS' | 'DONE' | 'CANCELLED';
   },
 ): Promise<Result<MissionTask, ServiceError>> {
   const owned = await ownedMission(db, input.actorAccountId, input.missionId);
@@ -1247,14 +1455,21 @@ export async function decideTask(
         .limit(1),
     );
     if (!task) return err(serviceError('not_found', 'task not found'));
-    if (task.status !== 'OPEN') {
-      return err(serviceError('invalid', 'only an OPEN task can be decided'));
+    if (!(TASK_TRANSITIONS[task.status] ?? []).includes(input.status)) {
+      return err(
+        serviceError('invalid', `cannot move a task from ${task.status} to ${input.status}`),
+      );
     }
     const updated = required(
       first(
         await tx
           .update(schema.missionTasks)
-          .set({ status: input.status, completedAt: new Date(), updatedAt: new Date() })
+          .set({
+            status: input.status,
+            completedAt:
+              input.status === 'DONE' || input.status === 'CANCELLED' ? new Date() : null,
+            updatedAt: new Date(),
+          })
           .where(eq(schema.missionTasks.id, input.taskId))
           .returning(),
       ),
@@ -1268,7 +1483,107 @@ export async function decideTask(
       missionId: input.missionId,
       resourceType: 'mission_task',
       resourceId: task.id,
-      metadata: { status: input.status },
+      metadata: { from: task.status, status: input.status },
+    });
+    return ok(updated);
+  });
+}
+
+export interface UpdateTaskInput {
+  readonly actorAccountId: string;
+  readonly missionId: string;
+  readonly taskId: string;
+  readonly assigneeAccountId?: string | null;
+  readonly dueDate?: Date | null;
+  readonly dueTimezone?: string | null;
+  readonly priority?: 'LOW' | 'NORMAL' | 'HIGH' | 'URGENT';
+}
+
+/**
+ * Change a task's assignee, due date/timezone, or priority (owner-scoped).
+ * Commercial V1 Part 4 §11: "Reassignment/deadline changes: audit" -- every
+ * field this call actually changes is captured in one audit event alongside
+ * its PRIOR value, never a silent overwrite with no trace. A field omitted
+ * from `input` (as opposed to explicitly passed, even as `null`) is left
+ * untouched, the same partial-update discipline `updateMissionCaseDetails`
+ * already established for case details.
+ */
+export async function updateTask(
+  db: Db,
+  input: UpdateTaskInput,
+): Promise<Result<MissionTask, ServiceError>> {
+  const owned = await ownedMission(db, input.actorAccountId, input.missionId);
+  if (!owned.ok) return owned;
+
+  return db.transaction(async (tx) => {
+    const task = first(
+      await tx
+        .select()
+        .from(schema.missionTasks)
+        .where(
+          and(
+            eq(schema.missionTasks.id, input.taskId),
+            eq(schema.missionTasks.missionId, input.missionId),
+          ),
+        )
+        .limit(1),
+    );
+    if (!task) return err(serviceError('not_found', 'task not found'));
+
+    let changes: Record<string, { readonly before: unknown; readonly after: unknown }> = {};
+    if (input.assigneeAccountId !== undefined) {
+      changes = {
+        ...changes,
+        assigneeAccountId: { before: task.assigneeAccountId, after: input.assigneeAccountId },
+      };
+    }
+    if (input.dueDate !== undefined) {
+      changes = {
+        ...changes,
+        dueDate: {
+          before: task.dueDate?.toISOString() ?? null,
+          after: input.dueDate?.toISOString() ?? null,
+        },
+      };
+    }
+    if (input.dueTimezone !== undefined) {
+      changes = {
+        ...changes,
+        dueTimezone: { before: task.dueTimezone, after: input.dueTimezone },
+      };
+    }
+    if (input.priority !== undefined) {
+      changes = { ...changes, priority: { before: task.priority, after: input.priority } };
+    }
+    if (Object.keys(changes).length === 0) return ok(task);
+
+    const updated = required(
+      first(
+        await tx
+          .update(schema.missionTasks)
+          .set({
+            ...(input.assigneeAccountId !== undefined
+              ? { assigneeAccountId: input.assigneeAccountId }
+              : {}),
+            ...(input.dueDate !== undefined ? { dueDate: input.dueDate } : {}),
+            ...(input.dueTimezone !== undefined ? { dueTimezone: input.dueTimezone } : {}),
+            ...(input.priority !== undefined ? { priority: input.priority } : {}),
+            updatedAt: new Date(),
+          })
+          .where(eq(schema.missionTasks.id, input.taskId))
+          .returning(),
+      ),
+      'mission task',
+    );
+    await appendAuditEvent(tx, {
+      eventType: 'MISSION_TASK_UPDATED',
+      actorAccountId: input.actorAccountId,
+      method: 'MANUAL',
+      result: 'ALLOWED',
+      missionId: input.missionId,
+      resourceType: 'mission_task',
+      resourceId: task.id,
+      metadata: { changes },
     });
     return ok(updated);
   });
@@ -1287,6 +1602,255 @@ export async function listTasks(
     .from(schema.missionTasks)
     .where(eq(schema.missionTasks.missionId, missionId));
   return ok([...rows].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()));
+}
+
+// --- Mission appointments (Commercial V1 Part 4 §11) ------------------------
+
+export type MissionAppointment = typeof schema.missionAppointments.$inferSelect;
+
+export interface CreateAppointmentInput {
+  readonly actorAccountId: string;
+  readonly missionId: string;
+  readonly title: string;
+  readonly localDateTime: Date;
+  readonly timezone: string;
+  readonly assigneeAccountId?: string;
+  readonly place?: string;
+  readonly channel?: string;
+}
+
+/** Schedule a meeting tied to a mission -- a local date/time in an explicit timezone, not a checklist item. */
+export async function createAppointment(
+  db: Db,
+  input: CreateAppointmentInput,
+): Promise<Result<MissionAppointment, ServiceError>> {
+  const owned = await ownedMission(db, input.actorAccountId, input.missionId);
+  if (!owned.ok) return owned;
+  const title = input.title.trim();
+  if (title.length === 0) return err(serviceError('invalid', 'a title is required'));
+  const timezone = input.timezone.trim();
+  if (timezone.length === 0) return err(serviceError('invalid', 'a timezone is required'));
+
+  return db.transaction(async (tx) => {
+    const appointment = required(
+      first(
+        await tx
+          .insert(schema.missionAppointments)
+          .values({
+            missionId: input.missionId,
+            title,
+            assigneeAccountId: input.assigneeAccountId ?? null,
+            localDateTime: input.localDateTime,
+            timezone,
+            place: input.place?.trim() || null,
+            channel: input.channel?.trim() || null,
+          })
+          .returning(),
+      ),
+      'mission appointment',
+    );
+    await appendAuditEvent(tx, {
+      eventType: 'MISSION_APPOINTMENT_CREATED',
+      actorAccountId: input.actorAccountId,
+      method: 'MANUAL',
+      result: 'ALLOWED',
+      missionId: input.missionId,
+      resourceType: 'mission_appointment',
+      resourceId: appointment.id,
+    });
+    return ok(appointment);
+  });
+}
+
+export interface UpdateAppointmentInput {
+  readonly actorAccountId: string;
+  readonly missionId: string;
+  readonly appointmentId: string;
+  readonly assigneeAccountId?: string | null;
+  readonly localDateTime?: Date;
+  readonly timezone?: string;
+  readonly place?: string | null;
+  readonly channel?: string | null;
+}
+
+/** Reschedule or reassign an appointment (owner-scoped); every changed field is audited with its prior value. */
+export async function updateAppointment(
+  db: Db,
+  input: UpdateAppointmentInput,
+): Promise<Result<MissionAppointment, ServiceError>> {
+  const owned = await ownedMission(db, input.actorAccountId, input.missionId);
+  if (!owned.ok) return owned;
+
+  return db.transaction(async (tx) => {
+    const appointment = first(
+      await tx
+        .select()
+        .from(schema.missionAppointments)
+        .where(
+          and(
+            eq(schema.missionAppointments.id, input.appointmentId),
+            eq(schema.missionAppointments.missionId, input.missionId),
+          ),
+        )
+        .limit(1),
+    );
+    if (!appointment) return err(serviceError('not_found', 'appointment not found'));
+
+    let changes: Record<string, { readonly before: unknown; readonly after: unknown }> = {};
+    if (input.assigneeAccountId !== undefined) {
+      changes = {
+        ...changes,
+        assigneeAccountId: {
+          before: appointment.assigneeAccountId,
+          after: input.assigneeAccountId,
+        },
+      };
+    }
+    if (input.localDateTime !== undefined) {
+      changes = {
+        ...changes,
+        localDateTime: {
+          before: appointment.localDateTime.toISOString(),
+          after: input.localDateTime.toISOString(),
+        },
+      };
+    }
+    if (input.timezone !== undefined) {
+      changes = { ...changes, timezone: { before: appointment.timezone, after: input.timezone } };
+    }
+    if (input.place !== undefined) {
+      changes = { ...changes, place: { before: appointment.place, after: input.place } };
+    }
+    if (input.channel !== undefined) {
+      changes = { ...changes, channel: { before: appointment.channel, after: input.channel } };
+    }
+    if (Object.keys(changes).length === 0) return ok(appointment);
+
+    const updated = required(
+      first(
+        await tx
+          .update(schema.missionAppointments)
+          .set({
+            ...(input.assigneeAccountId !== undefined
+              ? { assigneeAccountId: input.assigneeAccountId }
+              : {}),
+            ...(input.localDateTime !== undefined ? { localDateTime: input.localDateTime } : {}),
+            ...(input.timezone !== undefined ? { timezone: input.timezone } : {}),
+            ...(input.place !== undefined ? { place: input.place } : {}),
+            ...(input.channel !== undefined ? { channel: input.channel } : {}),
+            updatedAt: new Date(),
+          })
+          .where(eq(schema.missionAppointments.id, input.appointmentId))
+          .returning(),
+      ),
+      'mission appointment',
+    );
+    await appendAuditEvent(tx, {
+      eventType: 'MISSION_APPOINTMENT_UPDATED',
+      actorAccountId: input.actorAccountId,
+      method: 'MANUAL',
+      result: 'ALLOWED',
+      missionId: input.missionId,
+      resourceType: 'mission_appointment',
+      resourceId: appointment.id,
+      metadata: { changes },
+    });
+    return ok(updated);
+  });
+}
+
+/** Mark an appointment DONE or CANCELLED (owner-scoped). */
+export async function decideAppointment(
+  db: Db,
+  input: {
+    readonly actorAccountId: string;
+    readonly missionId: string;
+    readonly appointmentId: string;
+    readonly status: 'DONE' | 'CANCELLED';
+  },
+): Promise<Result<MissionAppointment, ServiceError>> {
+  const owned = await ownedMission(db, input.actorAccountId, input.missionId);
+  if (!owned.ok) return owned;
+
+  return db.transaction(async (tx) => {
+    const appointment = first(
+      await tx
+        .select()
+        .from(schema.missionAppointments)
+        .where(
+          and(
+            eq(schema.missionAppointments.id, input.appointmentId),
+            eq(schema.missionAppointments.missionId, input.missionId),
+          ),
+        )
+        .limit(1),
+    );
+    if (!appointment) return err(serviceError('not_found', 'appointment not found'));
+    if (appointment.status !== 'OPEN') {
+      return err(serviceError('invalid', 'only an OPEN appointment can be decided'));
+    }
+    const updated = required(
+      first(
+        await tx
+          .update(schema.missionAppointments)
+          .set({ status: input.status, completedAt: new Date(), updatedAt: new Date() })
+          .where(eq(schema.missionAppointments.id, input.appointmentId))
+          .returning(),
+      ),
+      'mission appointment',
+    );
+    await appendAuditEvent(tx, {
+      eventType: 'MISSION_APPOINTMENT_DECIDED',
+      actorAccountId: input.actorAccountId,
+      method: 'MANUAL',
+      result: 'ALLOWED',
+      missionId: input.missionId,
+      resourceType: 'mission_appointment',
+      resourceId: appointment.id,
+      metadata: { status: input.status },
+    });
+    return ok(updated);
+  });
+}
+
+/** Every appointment for a mission, soonest first (owner-scoped). */
+export async function listAppointments(
+  db: Db,
+  actorAccountId: string,
+  missionId: string,
+): Promise<Result<MissionAppointment[], ServiceError>> {
+  const owned = await ownedMission(db, actorAccountId, missionId);
+  if (!owned.ok) return owned;
+  const rows = await db
+    .select()
+    .from(schema.missionAppointments)
+    .where(eq(schema.missionAppointments.missionId, missionId));
+  return ok([...rows].sort((a, b) => a.localDateTime.getTime() - b.localDateTime.getTime()));
+}
+
+/** One appointment (owner-scoped) -- backs the "add to calendar" ICS download, which needs exactly one row, not the whole list. */
+export async function getAppointment(
+  db: Db,
+  actorAccountId: string,
+  missionId: string,
+  appointmentId: string,
+): Promise<Result<MissionAppointment, ServiceError>> {
+  const owned = await ownedMission(db, actorAccountId, missionId);
+  if (!owned.ok) return owned;
+  const appointment = first(
+    await db
+      .select()
+      .from(schema.missionAppointments)
+      .where(
+        and(
+          eq(schema.missionAppointments.id, appointmentId),
+          eq(schema.missionAppointments.missionId, missionId),
+        ),
+      )
+      .limit(1),
+  );
+  if (!appointment) return err(serviceError('not_found', 'appointment not found'));
+  return ok(appointment);
 }
 
 // --- Grounded letters (master directive §7 "PR 10") -------------------------
@@ -1368,7 +1932,13 @@ export async function generateCoverLetter(
   const factsByKey = await loadFactInstancesByKey(db, mission.applicantId);
   const documentsByType = await loadDocumentInstancesByType(db, mission.applicantId);
   const selections = await loadSelectionsByRequirement(db, mission.id);
-  const mapping = buildRequirementMapping(requirements, factsByKey, documentsByType, selections);
+  const mapping = buildRequirementMapping(
+    requirements,
+    factsByKey,
+    documentsByType,
+    selections,
+    new Date(),
+  );
   const { content, groundedReferences } = buildCoverLetterContent(mission, mapping);
   if (groundedReferences.length === 0) {
     return err(serviceError('invalid', 'no satisfied requirements to ground a letter in yet'));

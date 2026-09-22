@@ -20,7 +20,7 @@ const owner: Actor = { kind: 'applicant_owner', applicantId: applicant };
 const member: Actor = {
   kind: 'organization_member',
   accountId: account,
-  membership: { organizationId: org, role: 'REVIEWER', active: true },
+  membership: { organizationId: org, role: 'REVIEWER', active: true, organizationActive: true },
 };
 const individual: Actor = { kind: 'individual_recipient', accountId: account };
 
@@ -100,7 +100,12 @@ describe('authorize — membership is not authorization (law 2)', () => {
     const inactive: Actor = {
       kind: 'organization_member',
       accountId: account,
-      membership: { organizationId: org, role: 'REVIEWER', active: false },
+      membership: {
+        organizationId: org,
+        role: 'REVIEWER',
+        active: false,
+        organizationActive: true,
+      },
     };
     expect(
       authorize({
@@ -110,6 +115,27 @@ describe('authorize — membership is not authorization (law 2)', () => {
         context: ctx({ grants: [grant()] }),
       }),
     ).toEqual({ allowed: false, reason: 'grant_revoked' });
+  });
+
+  it('denies a still-active member of a suspended/closed organization (SHR-02: "termination of an organisation... denies the next request")', () => {
+    const memberOfSuspendedOrg: Actor = {
+      kind: 'organization_member',
+      accountId: account,
+      membership: {
+        organizationId: org,
+        role: 'REVIEWER',
+        active: true,
+        organizationActive: false,
+      },
+    };
+    expect(
+      authorize({
+        actor: memberOfSuspendedOrg,
+        action: 'PREVIEW',
+        resource: res(),
+        context: ctx({ grants: [grant()] }),
+      }),
+    ).toEqual({ allowed: false, reason: 'organization_not_active' });
   });
 });
 

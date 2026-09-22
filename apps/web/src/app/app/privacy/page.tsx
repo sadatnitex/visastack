@@ -10,6 +10,7 @@ const CONSENT_LABELS: Record<ConsentType, string> = {
   AI_EXTRACTION: 'AI extraction',
   SHARING: 'Sharing',
   MARKETING: 'Marketing',
+  ISSUER_CONTACT: 'Issuer contact',
 };
 
 function formatDateTime(iso: string): string {

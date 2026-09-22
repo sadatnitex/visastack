@@ -7,31 +7,41 @@ import { drizzle } from 'drizzle-orm/pglite';
 import { migrate } from 'drizzle-orm/pglite/migrator';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { provisionAccount } from './accounts';
-import { createApplicant } from './applicants';
+import { addFamilyMember, createApplicant } from './applicants';
 import { setConsent } from './consent';
 import type { Db } from './db';
-import { addDocumentVersion, registerDocument } from './documents';
+import { addDocumentVersion, registerDocument, setDocumentDate } from './documents';
 import { enqueueErasureJob } from './erasure';
 import {
   attachPackVersion,
   computeReadiness,
+  createAppointment,
   createMission,
   createTask,
+  decideAppointment,
   decideTask,
   generateCoverLetter,
+  getAppointment,
+  getEvidenceCandidates,
   getMissionForOwner,
   getMissionSnapshot,
+  listAppointments,
   listGeneratedOutputs,
   listMissionSnapshots,
   listMissions,
+  listMissionsByItineraryRef,
   listMissionsUsingField,
   listSelectedEvidence,
   listSelectedEvidenceForOrg,
   listTasks,
   selectEvidence,
+  setMissionItineraryRef,
   snapshotMission,
   transitionMission,
   unselectEvidence,
+  updateAppointment,
+  updateMissionCaseDetails,
+  updateTask,
 } from './missions';
 import { createOrganization, reviewOrganization } from './organizations';
 import {
@@ -1229,15 +1239,19 @@ describe('mission collaboration — evidence selection, tasks, grounded letters 
 
   it('creates, completes, and lists mission tasks, owner-scoped', async () => {
     const { account, missionId, fieldRequirementId } = await setUp(db);
+    const dueDate = new Date('2026-12-01T00:00:00Z');
     const task = await createTask(db, {
       actorAccountId: account.id,
       missionId,
       description: 'Chase the applicant for an updated bank statement.',
       packRequirementId: fieldRequirementId,
+      dueDate,
     });
     expect(isOk(task)).toBe(true);
     if (!isOk(task)) return;
     expect(task.value.status).toBe('OPEN');
+    // CAS-02's "overdue tasks" rollup needs a real due date on the row itself.
+    expect(task.value.dueDate?.toISOString()).toBe(dueDate.toISOString());
 
     const decided = await decideTask(db, {
       actorAccountId: account.id,
@@ -1310,6 +1324,180 @@ describe('mission collaboration — evidence selection, tasks, grounded letters 
     const list = await listTasks(db, account.id, missionId);
     expect(isOk(list)).toBe(true);
     if (isOk(list)) expect(list.value).toHaveLength(0);
+  });
+
+  it('moves a task through OPEN -> IN_PROGRESS -> DONE, but refuses an invalid transition from a terminal state (Commercial V1 Part 4 §11)', async () => {
+    const { account, missionId } = await setUp(db);
+    const task = await createTask(db, {
+      actorAccountId: account.id,
+      missionId,
+      description: 'Prepare the cover letter.',
+    });
+    if (!isOk(task)) throw new Error('task');
+
+    const started = await decideTask(db, {
+      actorAccountId: account.id,
+      missionId,
+      taskId: task.value.id,
+      status: 'IN_PROGRESS',
+    });
+    expect(isOk(started)).toBe(true);
+    if (isOk(started)) {
+      expect(started.value.status).toBe('IN_PROGRESS');
+      // Only DONE/CANCELLED set completedAt; starting work is not completing it.
+      expect(started.value.completedAt).toBeNull();
+    }
+
+    const done = await decideTask(db, {
+      actorAccountId: account.id,
+      missionId,
+      taskId: task.value.id,
+      status: 'DONE',
+    });
+    expect(isOk(done)).toBe(true);
+    if (isOk(done)) expect(done.value.completedAt).not.toBeNull();
+
+    // DONE is terminal: cannot move it anywhere, including back to IN_PROGRESS.
+    const reopened = await decideTask(db, {
+      actorAccountId: account.id,
+      missionId,
+      taskId: task.value.id,
+      status: 'IN_PROGRESS',
+    });
+    expect(isErr(reopened)).toBe(true);
+    if (isErr(reopened)) expect(reopened.error.code).toBe('invalid');
+  });
+
+  it('updateTask reassigns/reschedules/re-prioritizes a task, auditing exactly what changed, and is a no-op when nothing is supplied', async () => {
+    const { account, missionId } = await setUp(db);
+    const original = await createTask(db, {
+      actorAccountId: account.id,
+      missionId,
+      description: 'Confirm sponsor letter.',
+      priority: 'LOW',
+    });
+    if (!isOk(original)) throw new Error('task');
+    const otherAccount = await provisionAccount(db, { email: 'task-assignee@example.com' });
+    if (!isOk(otherAccount)) throw new Error('provision');
+
+    const dueDate = new Date('2026-11-15T00:00:00Z');
+    const updated = await updateTask(db, {
+      actorAccountId: account.id,
+      missionId,
+      taskId: original.value.id,
+      assigneeAccountId: otherAccount.value.id,
+      dueDate,
+      dueTimezone: 'Asia/Dhaka',
+      priority: 'URGENT',
+    });
+    expect(isOk(updated)).toBe(true);
+    if (isOk(updated)) {
+      expect(updated.value.assigneeAccountId).toBe(otherAccount.value.id);
+      expect(updated.value.dueDate?.toISOString()).toBe(dueDate.toISOString());
+      expect(updated.value.dueTimezone).toBe('Asia/Dhaka');
+      expect(updated.value.priority).toBe('URGENT');
+    }
+
+    const events = await db
+      .select()
+      .from(schema.auditEvents)
+      .where(eq(schema.auditEvents.eventType, 'MISSION_TASK_UPDATED'));
+    expect(events).toHaveLength(1);
+    const metadata = events[0]?.metadata as {
+      changes: Partial<
+        Record<'priority' | 'assigneeAccountId', { before: unknown; after: unknown }>
+      >;
+    };
+    expect(metadata.changes.priority).toEqual({ before: 'LOW', after: 'URGENT' });
+    expect(metadata.changes.assigneeAccountId).toEqual({
+      before: null,
+      after: otherAccount.value.id,
+    });
+
+    // Calling again with no fields at all is a true no-op: same row, no new audit event.
+    const noop = await updateTask(db, {
+      actorAccountId: account.id,
+      missionId,
+      taskId: original.value.id,
+    });
+    expect(isOk(noop)).toBe(true);
+    const eventsAfterNoop = await db
+      .select()
+      .from(schema.auditEvents)
+      .where(eq(schema.auditEvents.eventType, 'MISSION_TASK_UPDATED'));
+    expect(eventsAfterNoop).toHaveLength(1);
+  });
+
+  it('appointments: create, reschedule/reassign (audited), complete, list soonest-first, and stay owner-scoped across missions (Commercial V1 Part 4 §11)', async () => {
+    const { account, missionId } = await setUp(db);
+    const first = await createAppointment(db, {
+      actorAccountId: account.id,
+      missionId,
+      title: 'Visa interview prep',
+      localDateTime: new Date('2026-11-20T09:00:00'),
+      timezone: 'Asia/Dhaka',
+      place: 'Agency office',
+      channel: 'In person',
+    });
+    expect(isOk(first)).toBe(true);
+    const second = await createAppointment(db, {
+      actorAccountId: account.id,
+      missionId,
+      title: 'Document review call',
+      localDateTime: new Date('2026-11-10T09:00:00'),
+      timezone: 'Asia/Dhaka',
+    });
+    expect(isOk(second)).toBe(true);
+    if (!isOk(first) || !isOk(second)) return;
+
+    // Soonest first - the earlier (Nov 10) appointment before the later (Nov 20) one.
+    const list = await listAppointments(db, account.id, missionId);
+    expect(isOk(list)).toBe(true);
+    if (isOk(list)) expect(list.value.map((a) => a.id)).toEqual([second.value.id, first.value.id]);
+
+    const rescheduled = await updateAppointment(db, {
+      actorAccountId: account.id,
+      missionId,
+      appointmentId: first.value.id,
+      localDateTime: new Date('2026-11-21T14:00:00'),
+      place: 'Video call',
+    });
+    expect(isOk(rescheduled)).toBe(true);
+    if (isOk(rescheduled)) {
+      expect(rescheduled.value.place).toBe('Video call');
+      expect(rescheduled.value.channel).toBe('In person'); // untouched field survives a partial update
+    }
+    const events = await db
+      .select()
+      .from(schema.auditEvents)
+      .where(eq(schema.auditEvents.eventType, 'MISSION_APPOINTMENT_UPDATED'));
+    expect(events).toHaveLength(1);
+
+    const completed = await decideAppointment(db, {
+      actorAccountId: account.id,
+      missionId,
+      appointmentId: first.value.id,
+      status: 'DONE',
+    });
+    expect(isOk(completed)).toBe(true);
+    if (isOk(completed)) expect(completed.value.completedAt).not.toBeNull();
+    // Already-decided cannot be decided again.
+    const redecided = await decideAppointment(db, {
+      actorAccountId: account.id,
+      missionId,
+      appointmentId: first.value.id,
+      status: 'CANCELLED',
+    });
+    expect(isErr(redecided)).toBe(true);
+
+    // A non-owner never reaches this mission's appointment at all, matching
+    // every other mission-scoped resource's cross-tenant IDOR discipline in
+    // this file (e.g. "refuses evidence selection on another owner's mission").
+    const stranger = await provisionAccount(db, { email: 'stranger-appt@example.com' });
+    if (!isOk(stranger)) throw new Error('provision');
+    const crossOwner = await getAppointment(db, stranger.value.id, missionId, second.value.id);
+    expect(isErr(crossOwner)).toBe(true);
+    if (isErr(crossOwner)) expect(crossOwner.error.code).toBe('forbidden');
   });
 
   it('refuses to generate a letter with nothing grounded yet, then generates one citing exact evidence, versioned', async () => {
@@ -1608,5 +1796,447 @@ describe('listSelectedEvidenceForOrg (EVI-05): the org-scoped sibling of listSel
     );
     expect(isErr(forOrg)).toBe(true);
     if (isErr(forOrg)) expect(forOrg.error.code).toBe('not_found');
+  });
+});
+
+describe('missions - itinerary reference linking (IAM-04: family trips stay linked, never merged)', () => {
+  let db: Db;
+  beforeEach(async () => {
+    db = await freshDb();
+  });
+
+  it('createMission accepts an optional itinerary reference, trimmed', async () => {
+    const { account, applicantId } = await seed(db);
+    const mission = await createMission(db, {
+      actorAccountId: account.id,
+      applicantId,
+      title: 'UK Visa',
+      itineraryRef: '  Smith Family Europe 2026  ',
+    });
+    expect(isOk(mission)).toBe(true);
+    if (!isOk(mission)) return;
+    expect(mission.value.itineraryRef).toBe('Smith Family Europe 2026');
+  });
+
+  it('leaves itineraryRef null when omitted', async () => {
+    const { account, applicantId } = await seed(db);
+    const mission = await createMission(db, {
+      actorAccountId: account.id,
+      applicantId,
+      title: 'X',
+    });
+    expect(isOk(mission)).toBe(true);
+    if (!isOk(mission)) return;
+    expect(mission.value.itineraryRef).toBeNull();
+  });
+
+  it('setMissionItineraryRef sets and clears it (mission owner only)', async () => {
+    const { account, applicantId } = await seed(db);
+    const mission = await createMission(db, {
+      actorAccountId: account.id,
+      applicantId,
+      title: 'X',
+    });
+    if (!isOk(mission)) throw new Error('mission');
+
+    const set = await setMissionItineraryRef(db, {
+      actorAccountId: account.id,
+      missionId: mission.value.id,
+      itineraryRef: 'Family Trip',
+    });
+    expect(isOk(set)).toBe(true);
+    if (isOk(set)) expect(set.value.itineraryRef).toBe('Family Trip');
+
+    const cleared = await setMissionItineraryRef(db, {
+      actorAccountId: account.id,
+      missionId: mission.value.id,
+      itineraryRef: '  ',
+    });
+    expect(isOk(cleared)).toBe(true);
+    if (isOk(cleared)) expect(cleared.value.itineraryRef).toBeNull();
+
+    const stranger = await provisionAccount(db, { email: 'itinerary-stranger@example.com' });
+    if (!isOk(stranger)) throw new Error('provision');
+    const denied = await setMissionItineraryRef(db, {
+      actorAccountId: stranger.value.id,
+      missionId: mission.value.id,
+      itineraryRef: 'Hijacked',
+    });
+    expect(isErr(denied)).toBe(true);
+    if (isErr(denied)) expect(denied.error.code).toBe('forbidden');
+  });
+
+  it('listMissionsByItineraryRef links missions across the owner’s own applicants (the real guardian-managing-several-subjects case)', async () => {
+    const { account, applicantId: selfId } = await seed(db);
+    const child = await addFamilyMember(db, {
+      actorAccountId: account.id,
+      ownerAccountId: account.id,
+      displayName: 'Child',
+      relationship: 'MINOR_GUARDIAN',
+      authorityConfirmed: true,
+    });
+    if (!isOk(child)) throw new Error('child');
+
+    const parentMission = await createMission(db, {
+      actorAccountId: account.id,
+      applicantId: selfId,
+      title: 'Parent leg',
+      itineraryRef: 'Family Europe 2026',
+    });
+    const childMission = await createMission(db, {
+      actorAccountId: account.id,
+      applicantId: child.value.id,
+      title: 'Child leg',
+      itineraryRef: 'Family Europe 2026',
+    });
+    // A third, unrelated mission for the same account must not show up.
+    await createMission(db, {
+      actorAccountId: account.id,
+      applicantId: selfId,
+      title: 'Unrelated',
+    });
+    if (!isOk(parentMission) || !isOk(childMission)) throw new Error('mission setup');
+
+    const linked = await listMissionsByItineraryRef(db, {
+      actorAccountId: account.id,
+      itineraryRef: 'Family Europe 2026',
+    });
+    expect(linked.map((m) => m.id).sort()).toEqual(
+      [parentMission.value.id, childMission.value.id].sort(),
+    );
+  });
+
+  it('never surfaces a different account’s missions even with an identical itinerary reference string', async () => {
+    const { account: accountA, applicantId: applicantA } = await seed(db);
+    const provisionedB = await provisionAccount(db, { email: 'itinerary-b@example.com' });
+    if (!isOk(provisionedB)) throw new Error('provision');
+    await setConsent(db, {
+      actorAccountId: provisionedB.value.id,
+      accountId: provisionedB.value.id,
+      type: 'CORE_PROCESSING',
+      granted: true,
+    });
+    const applicantB = await createApplicant(db, {
+      actorAccountId: provisionedB.value.id,
+      ownerAccountId: provisionedB.value.id,
+      displayName: 'B Owner',
+    });
+    if (!isOk(applicantB)) throw new Error('applicant');
+
+    await createMission(db, {
+      actorAccountId: accountA.id,
+      applicantId: applicantA,
+      title: 'A trip',
+      itineraryRef: 'Same Label',
+    });
+    const missionB = await createMission(db, {
+      actorAccountId: provisionedB.value.id,
+      applicantId: applicantB.value.id,
+      title: 'B trip',
+      itineraryRef: 'Same Label',
+    });
+    if (!isOk(missionB)) throw new Error('mission B');
+
+    const seenByB = await listMissionsByItineraryRef(db, {
+      actorAccountId: provisionedB.value.id,
+      itineraryRef: 'Same Label',
+    });
+    expect(seenByB.map((m) => m.id)).toEqual([missionB.value.id]);
+  });
+
+  it('returns an empty list for a blank reference rather than every mission', async () => {
+    const { account } = await seed(db);
+    const result = await listMissionsByItineraryRef(db, {
+      actorAccountId: account.id,
+      itineraryRef: '  ',
+    });
+    expect(result).toHaveLength(0);
+  });
+});
+
+describe('missions - case-creation fields (Commercial V1 Part 4 §8 / CAS-01)', () => {
+  let db: Db;
+  beforeEach(async () => {
+    db = await freshDb();
+  });
+
+  it('createMission accepts and persists every CAS-01 field, none of them required', async () => {
+    const { account, applicantId } = await seed(db);
+    const org = await createOrganization(db, { actorAccountId: account.id, name: 'Acme Visas' });
+    if (!isOk(org)) throw new Error('org');
+    const travelStart = new Date('2026-11-01T00:00:00Z');
+    const travelEnd = new Date('2026-11-15T00:00:00Z');
+    const deadline = new Date('2026-10-01T00:00:00Z');
+
+    const mission = await createMission(db, {
+      actorAccountId: account.id,
+      applicantId,
+      title: 'UK Visa',
+      jurisdiction: '  US Embassy Dhaka  ',
+      serviceCategory: '  Tourist  ',
+      travelStartDate: travelStart,
+      travelEndDate: travelEnd,
+      targetDeadline: deadline,
+      ownerOrganizationId: org.value.id,
+      manualMode: true,
+    });
+    expect(isOk(mission)).toBe(true);
+    if (!isOk(mission)) return;
+    expect(mission.value.jurisdiction).toBe('US Embassy Dhaka');
+    expect(mission.value.serviceCategory).toBe('Tourist');
+    expect(mission.value.travelStartDate?.toISOString()).toBe(travelStart.toISOString());
+    expect(mission.value.travelEndDate?.toISOString()).toBe(travelEnd.toISOString());
+    expect(mission.value.targetDeadline?.toISOString()).toBe(deadline.toISOString());
+    expect(mission.value.ownerOrganizationId).toBe(org.value.id);
+    expect(mission.value.manualMode).toBe(true);
+  });
+
+  it('leaves every CAS-01 field null/false when omitted', async () => {
+    const { account, applicantId } = await seed(db);
+    const mission = await createMission(db, {
+      actorAccountId: account.id,
+      applicantId,
+      title: 'X',
+    });
+    expect(isOk(mission)).toBe(true);
+    if (!isOk(mission)) return;
+    expect(mission.value.jurisdiction).toBeNull();
+    expect(mission.value.serviceCategory).toBeNull();
+    expect(mission.value.travelStartDate).toBeNull();
+    expect(mission.value.targetDeadline).toBeNull();
+    expect(mission.value.ownerOrganizationId).toBeNull();
+    expect(mission.value.manualMode).toBe(false);
+  });
+
+  it('updateMissionCaseDetails updates only the fields provided, owner-only, leaving the rest untouched', async () => {
+    const { account, applicantId } = await seed(db);
+    const mission = await createMission(db, {
+      actorAccountId: account.id,
+      applicantId,
+      title: 'X',
+      jurisdiction: 'Original Jurisdiction',
+      manualMode: true,
+    });
+    if (!isOk(mission)) throw new Error('mission');
+
+    const updated = await updateMissionCaseDetails(db, {
+      actorAccountId: account.id,
+      missionId: mission.value.id,
+      serviceCategory: 'Student',
+    });
+    expect(isOk(updated)).toBe(true);
+    if (!isOk(updated)) return;
+    expect(updated.value.serviceCategory).toBe('Student');
+    // Untouched fields survive the partial update.
+    expect(updated.value.jurisdiction).toBe('Original Jurisdiction');
+    expect(updated.value.manualMode).toBe(true);
+
+    // manualMode can be explicitly turned off once a real pack is attached.
+    const turnedOff = await updateMissionCaseDetails(db, {
+      actorAccountId: account.id,
+      missionId: mission.value.id,
+      manualMode: false,
+    });
+    expect(isOk(turnedOff)).toBe(true);
+    if (isOk(turnedOff)) expect(turnedOff.value.manualMode).toBe(false);
+
+    const stranger = await provisionAccount(db, { email: 'case-details-stranger@example.com' });
+    if (!isOk(stranger)) throw new Error('provision');
+    const denied = await updateMissionCaseDetails(db, {
+      actorAccountId: stranger.value.id,
+      missionId: mission.value.id,
+      jurisdiction: 'Hijacked',
+    });
+    expect(isErr(denied)).toBe(true);
+  });
+
+  it('snapshotMission captures manualMode and the other case fields, immutably, per §8\'s "visible on the case and export"', async () => {
+    const { account, applicantId } = await seed(db);
+    const mission = await createMission(db, {
+      actorAccountId: account.id,
+      applicantId,
+      title: 'X',
+      jurisdiction: 'US Embassy Dhaka',
+      manualMode: true,
+    });
+    if (!isOk(mission)) throw new Error('mission');
+
+    const snapshot = await snapshotMission(db, {
+      actorAccountId: account.id,
+      missionId: mission.value.id,
+    });
+    expect(isOk(snapshot)).toBe(true);
+    if (!isOk(snapshot)) return;
+    const content = snapshot.value.content as { manualMode: boolean; jurisdiction: string | null };
+    expect(content.manualMode).toBe(true);
+    expect(content.jurisdiction).toBe('US Embassy Dhaka');
+  });
+});
+
+describe('NTF-01 - case-specific staleness, tracked separately from intrinsic expiry', () => {
+  let db: Db;
+  beforeEach(async () => {
+    db = await freshDb();
+  });
+
+  /** A published pack whose DOCUMENT requirement demands evidence dated within 90 days. */
+  async function publishedPackWithFreshnessRule(db: Db, actor: string): Promise<string> {
+    const pack = await createPack(db, { actorAccountId: actor, key: 'uk.freshness', name: 'F' });
+    if (!isOk(pack)) throw new Error('pack');
+    const version = await addPackVersion(db, { actorAccountId: actor, packId: pack.value.id });
+    if (!isOk(version)) throw new Error('version');
+    await addRequirement(db, {
+      actorAccountId: actor,
+      packVersionId: version.value.id,
+      kind: 'DOCUMENT',
+      docType: 'bank_statement',
+      citation: 'rule',
+      maxAgeDays: 90,
+    });
+    await approvePackVersion(db, { actorAccountId: actor, packVersionId: version.value.id });
+    await publishPackVersion(db, { actorAccountId: actor, packVersionId: version.value.id });
+    return version.value.id;
+  }
+
+  it('rejects a non-positive or non-DOCUMENT maxAgeDays', async () => {
+    const { account } = await seed(db);
+    const pack = await createPack(db, { actorAccountId: account.id, key: 'x', name: 'X' });
+    if (!isOk(pack)) throw new Error('pack');
+    const version = await addPackVersion(db, { actorAccountId: account.id, packId: pack.value.id });
+    if (!isOk(version)) throw new Error('version');
+
+    const onField = await addRequirement(db, {
+      actorAccountId: account.id,
+      packVersionId: version.value.id,
+      kind: 'FIELD',
+      fieldKey: 'passport.number',
+      citation: 'c',
+      maxAgeDays: 90,
+    });
+    expect(isErr(onField)).toBe(true);
+
+    const nonPositive = await addRequirement(db, {
+      actorAccountId: account.id,
+      packVersionId: version.value.id,
+      kind: 'DOCUMENT',
+      docType: 'bank_statement',
+      citation: 'c',
+      maxAgeDays: 0,
+    });
+    expect(isErr(nonPositive)).toBe(true);
+  });
+
+  it('a stale document blocks satisfaction with reason "stale_evidence", distinct from "not_provided"', async () => {
+    const { account, applicantId } = await seed(db);
+    const packVersionId = await publishedPackWithFreshnessRule(db, account.id);
+    const mission = await createMission(db, {
+      actorAccountId: account.id,
+      applicantId,
+      title: 'UK Visa',
+    });
+    if (!isOk(mission)) throw new Error('mission');
+    await attachPackVersion(db, {
+      actorAccountId: account.id,
+      missionId: mission.value.id,
+      packVersionId,
+    });
+
+    const doc = await registerDocument(db, {
+      actorAccountId: account.id,
+      applicantId,
+      originalName: 'bank.pdf',
+      docType: 'bank_statement',
+    });
+    if (!isOk(doc)) throw new Error('doc');
+    await addDocumentVersion(db, {
+      actorAccountId: account.id,
+      documentId: doc.value.id,
+      bucket: 'CLEAN',
+      objectKey: 'k',
+      safetyStatus: 'CLEAN',
+      processingStatus: 'AWAITING_REVIEW',
+    });
+
+    // No date recorded yet - "unknown" freshness does not block satisfaction.
+    const unknown = await computeReadiness(db, mission.value.id);
+    if (!isOk(unknown)) throw new Error('readiness');
+    expect(unknown.value.ready).toBe(true);
+
+    // Dated 120 days ago - outside the 90-day window.
+    const staleDate = new Date(Date.now() - 120 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    const dated = await setDocumentDate(db, {
+      actorAccountId: account.id,
+      documentId: doc.value.id,
+      documentDate: staleDate,
+    });
+    expect(isOk(dated)).toBe(true);
+
+    const stale = await computeReadiness(db, mission.value.id);
+    if (!isOk(stale)) throw new Error('readiness');
+    expect(stale.value.ready).toBe(false);
+    expect(stale.value.missing).toHaveLength(1);
+    expect(stale.value.missing[0]?.reason).toBe('stale_evidence');
+
+    // The candidate view (evidence-selection UI) surfaces the same verdict, kept separate from `eligible`.
+    const candidates = await getEvidenceCandidates(db, account.id, mission.value.id);
+    if (!isOk(candidates)) throw new Error('candidates');
+    const docCandidate = candidates.value.find((c) => c.kind === 'DOCUMENT');
+    expect(docCandidate?.documentCandidates[0]?.eligible).toBe(true);
+    expect(docCandidate?.documentCandidates[0]?.staleness.status).toBe('stale');
+
+    // Recording a recent date makes the same requirement satisfied again.
+    const freshDate = new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    await setDocumentDate(db, {
+      actorAccountId: account.id,
+      documentId: doc.value.id,
+      documentDate: freshDate,
+    });
+    const fresh = await computeReadiness(db, mission.value.id);
+    if (!isOk(fresh)) throw new Error('readiness');
+    expect(fresh.value.ready).toBe(true);
+  });
+
+  it('never mutates the document intrinsic expiresAt when a freshness rule applies', async () => {
+    const { account, applicantId } = await seed(db);
+    const packVersionId = await publishedPackWithFreshnessRule(db, account.id);
+    const mission = await createMission(db, {
+      actorAccountId: account.id,
+      applicantId,
+      title: 'UK Visa',
+    });
+    if (!isOk(mission)) throw new Error('mission');
+    await attachPackVersion(db, {
+      actorAccountId: account.id,
+      missionId: mission.value.id,
+      packVersionId,
+    });
+
+    const doc = await registerDocument(db, {
+      actorAccountId: account.id,
+      applicantId,
+      originalName: 'bank.pdf',
+      docType: 'bank_statement',
+    });
+    if (!isOk(doc)) throw new Error('doc');
+    await addDocumentVersion(db, {
+      actorAccountId: account.id,
+      documentId: doc.value.id,
+      bucket: 'CLEAN',
+      objectKey: 'k',
+      safetyStatus: 'CLEAN',
+      processingStatus: 'AWAITING_REVIEW',
+    });
+    const staleDate = new Date(Date.now() - 200 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    await setDocumentDate(db, {
+      actorAccountId: account.id,
+      documentId: doc.value.id,
+      documentDate: staleDate,
+    });
+    await computeReadiness(db, mission.value.id);
+
+    const row = (
+      await db.select().from(schema.documents).where(eq(schema.documents.id, doc.value.id))
+    )[0];
+    expect(row?.expiresAt).toBeNull();
   });
 });

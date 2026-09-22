@@ -2,6 +2,7 @@ import { fileURLToPath } from 'node:url';
 import { PGlite } from '@electric-sql/pglite';
 import { isErr, isOk } from '@visastack/core';
 import { schema } from '@visastack/db';
+import { and, eq } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/pglite';
 import { migrate } from 'drizzle-orm/pglite/migrator';
 import { beforeEach, describe, expect, it } from 'vitest';
@@ -10,29 +11,47 @@ import {
   addNote,
   assignMember,
   bulkExport,
+  cancelEvidenceRequest,
+  createAppointmentForOrg,
+  createTaskForOrg,
+  decideAppointmentForOrg,
+  decideEvidenceResponse,
+  decideTaskForOrg,
   listApplicantsForOrganization,
+  listAppointmentsForOrg,
   listAssignedMissionIds,
   listAssignmentsDetailed,
+  listEvidenceRequestDecisions,
   listEvidenceRequestsForApplicant,
   listEvidenceRequestsForOrg,
   listEvidenceRequestsForOrgDetailed,
   listMissionDecisions,
+  listMissionRequirementsForOrg,
   listMissionsForOrganization,
   listNotes,
+  listTasksForOrg,
+  listUnassignedActiveMissions,
+  listVisibleMissionsForMember,
   recordMissionDecision,
   requestEvidence,
-  respondEvidence,
+  startEvidenceReview,
+  submitEvidenceResponse,
+  unassignMember,
+  updateTaskForOrg,
 } from './agency';
 import { createApplicant } from './applicants';
 import { setConsent } from './consent';
 import type { Db } from './db';
-import { attachPackVersion, createMission } from './missions';
+import { addDocumentVersion, registerDocument } from './documents';
+import { attachPackVersion, createMission, createTask, transitionMission } from './missions';
 import {
   addMembership,
   createOrganization,
   listMembershipsForAccount,
   reviewOrganization,
   setMembershipActive,
+  setRequireDifferentReviewer,
+  suspendOrganization,
 } from './organizations';
 import {
   addPackVersion,
@@ -327,7 +346,7 @@ describe('agency collaboration — assignments, notes, evidence', () => {
     expect(fromOrgB[0]?.memberEmail).toBe('agent-crossorg-b@rival.com');
   });
 
-  it('runs the evidence-request lifecycle', async () => {
+  it('runs the evidence-request lifecycle (Commercial V1 Part 4 §10: OPEN -> RECEIVED -> UNDER_REVIEW -> NEEDS_REPLACEMENT -> RECEIVED -> ACCEPTED)', async () => {
     const { account, applicantId } = await consentedApplicant(db, 'ev@example.com');
     const agentAcc = await provisionAccount(db, { email: 'agent-ev@acme.com' });
     if (!isOk(agentAcc)) throw new Error('provision');
@@ -356,24 +375,451 @@ describe('agency collaboration — assignments, notes, evidence', () => {
     expect(isOk(req)).toBe(true);
     if (!isOk(req)) return;
     expect(req.value.status).toBe('OPEN');
+    expect(req.value.requestedByAccountId).toBe(agentAcc.value.id);
 
-    // A stranger cannot respond; the owner can.
+    // A stranger cannot submit a response; only the applicant owner can.
     const other = await provisionAccount(db, { email: 'other-ev@example.com' });
     if (!isOk(other)) throw new Error('provision');
-    const badResp = await respondEvidence(db, {
-      actorAccountId: other.value.id,
-      requestId: req.value.id,
-      decision: 'FULFILLED',
-    });
-    expect(isErr(badResp)).toBe(true);
 
-    const resp = await respondEvidence(db, {
+    // An unsafe (quarantined) document can never close the request, even
+    // though it is the right docType: "malware/failed/unrelated evidence
+    // cannot close request" (§10).
+    const unsafeDoc = await registerDocument(db, {
+      actorAccountId: account.id,
+      applicantId,
+      originalName: 'unsafe.pdf',
+      docType: 'bank_statement',
+    });
+    if (!isOk(unsafeDoc)) throw new Error('doc');
+    await addDocumentVersion(db, {
+      actorAccountId: account.id,
+      documentId: unsafeDoc.value.id,
+      bucket: 'QUARANTINE',
+      objectKey: 'unsafe-k',
+      safetyStatus: 'QUARANTINED',
+      processingStatus: 'NEEDS_ATTENTION',
+    });
+    const badSubmit = await submitEvidenceResponse(db, {
       actorAccountId: account.id,
       requestId: req.value.id,
-      decision: 'FULFILLED',
+      documentId: unsafeDoc.value.id,
     });
-    expect(isOk(resp)).toBe(true);
-    if (isOk(resp)) expect(resp.value.status).toBe('FULFILLED');
+    expect(isErr(badSubmit)).toBe(true);
+    const stillOpen = await listEvidenceRequestsForApplicant(db, account.id, applicantId);
+    expect(stillOpen.ok && stillOpen.value[0]?.status).toBe('OPEN');
+
+    const strangerSubmit = await submitEvidenceResponse(db, {
+      actorAccountId: other.value.id,
+      requestId: req.value.id,
+      documentId: unsafeDoc.value.id,
+    });
+    expect(isErr(strangerSubmit)).toBe(true);
+
+    // A genuinely clean, processed document of the right type is accepted
+    // and moves the request to RECEIVED, never straight to ACCEPTED
+    // ("upload never equals acceptance").
+    const cleanDoc = await registerDocument(db, {
+      actorAccountId: account.id,
+      applicantId,
+      originalName: 'clean.pdf',
+      docType: 'bank_statement',
+    });
+    if (!isOk(cleanDoc)) throw new Error('doc');
+    await addDocumentVersion(db, {
+      actorAccountId: account.id,
+      documentId: cleanDoc.value.id,
+      bucket: 'CLEAN',
+      objectKey: 'clean-k',
+      safetyStatus: 'CLEAN',
+      processingStatus: 'AWAITING_REVIEW',
+    });
+    const submitted = await submitEvidenceResponse(db, {
+      actorAccountId: account.id,
+      requestId: req.value.id,
+      documentId: cleanDoc.value.id,
+    });
+    expect(isOk(submitted)).toBe(true);
+    if (!isOk(submitted)) return;
+    expect(submitted.value.status).toBe('RECEIVED');
+    expect(submitted.value.respondingDocumentId).toBe(cleanDoc.value.id);
+
+    const reviewing = await startEvidenceReview(db, {
+      actorAccountId: agentAcc.value.id,
+      requestId: req.value.id,
+    });
+    expect(isOk(reviewing)).toBe(true);
+    if (isOk(reviewing)) expect(reviewing.value.status).toBe('UNDER_REVIEW');
+
+    // The org asks for a replacement instead of accepting.
+    const needsReplacement = await decideEvidenceResponse(db, {
+      actorAccountId: agentAcc.value.id,
+      requestId: req.value.id,
+      outcome: 'NEEDS_REPLACEMENT',
+      reason: 'statement is more than 3 months old',
+    });
+    expect(isOk(needsReplacement)).toBe(true);
+    if (!isOk(needsReplacement)) return;
+    expect(needsReplacement.value.status).toBe('NEEDS_REPLACEMENT');
+    // The current pointer clears; the decision itself does not.
+    expect(needsReplacement.value.respondingDocumentId).toBeNull();
+
+    // A second, fresher document resubmitted after replacement is asked for.
+    const secondDoc = await registerDocument(db, {
+      actorAccountId: account.id,
+      applicantId,
+      originalName: 'clean-2.pdf',
+      docType: 'bank_statement',
+    });
+    if (!isOk(secondDoc)) throw new Error('doc');
+    await addDocumentVersion(db, {
+      actorAccountId: account.id,
+      documentId: secondDoc.value.id,
+      bucket: 'CLEAN',
+      objectKey: 'clean-k-2',
+      safetyStatus: 'CLEAN',
+      processingStatus: 'AWAITING_REVIEW',
+    });
+    const resubmitted = await submitEvidenceResponse(db, {
+      actorAccountId: account.id,
+      requestId: req.value.id,
+      documentId: secondDoc.value.id,
+    });
+    expect(isOk(resubmitted)).toBe(true);
+    if (isOk(resubmitted)) expect(resubmitted.value.status).toBe('RECEIVED');
+
+    const accepted = await decideEvidenceResponse(db, {
+      actorAccountId: agentAcc.value.id,
+      requestId: req.value.id,
+      outcome: 'ACCEPTED',
+    });
+    expect(isOk(accepted)).toBe(true);
+    if (isOk(accepted)) {
+      expect(accepted.value.status).toBe('ACCEPTED');
+      // ACCEPTED keeps its pointer: it is exactly what was accepted.
+      expect(accepted.value.respondingDocumentId).toBe(secondDoc.value.id);
+    }
+
+    // Replacement retained the prior decision/reason (§13): both rounds are
+    // still in the history, newest first, neither overwriting the other.
+    const history = await listEvidenceRequestDecisions(db, account.id, req.value.id);
+    expect(isOk(history)).toBe(true);
+    if (!isOk(history)) return;
+    expect(history.value).toHaveLength(2);
+    expect(history.value[0]?.outcome).toBe('ACCEPTED');
+    expect(history.value[1]?.outcome).toBe('NEEDS_REPLACEMENT');
+    expect(history.value[1]?.reason).toBe('statement is more than 3 months old');
+    // The superseded round's own decision snapshot still points at the
+    // FIRST document, even though the request's current pointer moved on.
+    expect(history.value[1]?.respondingDocumentId).toBe(cleanDoc.value.id);
+
+    // A closed request cannot be decided on again or cancelled.
+    const redecide = await decideEvidenceResponse(db, {
+      actorAccountId: agentAcc.value.id,
+      requestId: req.value.id,
+      outcome: 'NEEDS_REPLACEMENT',
+    });
+    expect(isErr(redecide)).toBe(true);
+    const cancelClosed = await cancelEvidenceRequest(db, {
+      actorAccountId: agentAcc.value.id,
+      requestId: req.value.id,
+    });
+    expect(isErr(cancelClosed)).toBe(true);
+  });
+
+  it('NTF-02: requestEvidence enqueues an in-app + email notification to the applicant owner', async () => {
+    const { account, applicantId } = await consentedApplicant(db, 'ev-notify@example.com');
+    const agentAcc = await provisionAccount(db, { email: 'agent-ev-notify@acme.com' });
+    if (!isOk(agentAcc)) throw new Error('provision');
+    const org = await createOrganization(db, { actorAccountId: agentAcc.value.id, name: 'Acme' });
+    if (!isOk(org)) throw new Error('org');
+    await activateOrg(db, org.value.id);
+    const grant = await createGrant(db, {
+      actorAccountId: account.id,
+      applicantId,
+      recipientOrganizationId: org.value.id,
+      actions: ['MANAGE'],
+      purpose: 'collaboration',
+    });
+    if (!isOk(grant)) throw new Error('grant');
+    await acceptGrant(db, { actorAccountId: agentAcc.value.id, grantId: grant.value.id });
+
+    const req = await requestEvidence(db, {
+      actorAccountId: agentAcc.value.id,
+      organizationId: org.value.id,
+      applicantId,
+      kind: 'DOCUMENT',
+      docType: 'bank_statement',
+      message: 'a message that must never leak into the notification payload',
+    });
+    expect(isOk(req)).toBe(true);
+
+    const rows = await db
+      .select()
+      .from(schema.notifications)
+      .where(eq(schema.notifications.eventType, 'EVIDENCE_REQUEST_CREATED'));
+    expect(rows).toHaveLength(2);
+    expect(rows.map((r) => r.channel).sort()).toEqual(['EMAIL', 'IN_APP']);
+    for (const row of rows) {
+      expect(row.recipientAccountId).toBe(account.id);
+      expect(row.applicantId).toBe(applicantId);
+      expect(row.organizationId).toBe(org.value.id);
+      const payload = row.payload as { summary: string; deepLinkPath: string };
+      expect(payload.summary).not.toContain('must never leak');
+      expect(payload.deepLinkPath).toBe(`/app/applicant/${applicantId}/evidence`);
+    }
+  });
+
+  it("decideEvidenceResponse: CONTRADICTION and CORRECTION_PROPOSED are real, distinct outcomes (Commercial V1 Part 4 §13's full four-item review list), both routing the request back to NEEDS_REPLACEMENT while the decision record keeps the more specific classification", async () => {
+    const { account, applicantId } = await consentedApplicant(db, 'ev-review@example.com');
+    const agentAcc = await provisionAccount(db, { email: 'agent-ev-review@acme.com' });
+    if (!isOk(agentAcc)) throw new Error('provision');
+    const org = await createOrganization(db, { actorAccountId: agentAcc.value.id, name: 'Acme' });
+    if (!isOk(org)) throw new Error('org');
+    await activateOrg(db, org.value.id);
+    const grant = await createGrant(db, {
+      actorAccountId: account.id,
+      applicantId,
+      recipientOrganizationId: org.value.id,
+      actions: ['MANAGE'],
+      purpose: 'collaboration',
+    });
+    if (!isOk(grant)) throw new Error('grant');
+    await acceptGrant(db, { actorAccountId: agentAcc.value.id, grantId: grant.value.id });
+    // Narrowing through isOk() doesn't survive into the nested closure below.
+    const agentAccountId = agentAcc.value.id;
+    const organizationId = org.value.id;
+
+    async function submitOneResponse() {
+      const req = await requestEvidence(db, {
+        actorAccountId: agentAccountId,
+        organizationId,
+        applicantId,
+        kind: 'DOCUMENT',
+        docType: 'bank_statement',
+      });
+      if (!isOk(req)) throw new Error('request');
+      const doc = await registerDocument(db, {
+        actorAccountId: account.id,
+        applicantId,
+        originalName: 'statement.pdf',
+        docType: 'bank_statement',
+      });
+      if (!isOk(doc)) throw new Error('doc');
+      await addDocumentVersion(db, {
+        actorAccountId: account.id,
+        documentId: doc.value.id,
+        bucket: 'CLEAN',
+        objectKey: `k-${req.value.id}`,
+        safetyStatus: 'CLEAN',
+        processingStatus: 'AWAITING_REVIEW',
+      });
+      const submitted = await submitEvidenceResponse(db, {
+        actorAccountId: account.id,
+        requestId: req.value.id,
+        documentId: doc.value.id,
+      });
+      if (!isOk(submitted)) throw new Error('submit');
+      return req.value.id;
+    }
+
+    const contradictionRequestId = await submitOneResponse();
+    const contradiction = await decideEvidenceResponse(db, {
+      actorAccountId: agentAccountId,
+      requestId: contradictionRequestId,
+      outcome: 'CONTRADICTION',
+      reason: 'Statement shows a different home address than your profile.',
+    });
+    expect(isOk(contradiction)).toBe(true);
+    if (isOk(contradiction)) {
+      // Same underlying transition as NEEDS_REPLACEMENT: a fresh submission
+      // is needed, and the current pointer clears, exactly like §13's
+      // "replacement retains prior decision/reason" already tested above.
+      expect(contradiction.value.status).toBe('NEEDS_REPLACEMENT');
+      expect(contradiction.value.respondingDocumentId).toBeNull();
+    }
+    const contradictionHistory = await listEvidenceRequestDecisions(
+      db,
+      account.id,
+      contradictionRequestId,
+    );
+    expect(isOk(contradictionHistory)).toBe(true);
+    if (isOk(contradictionHistory)) {
+      // The DECISION record keeps the specific classification, distinct
+      // from a generic NEEDS_REPLACEMENT, even though the request's own
+      // status collapsed onto it.
+      expect(contradictionHistory.value[0]?.outcome).toBe('CONTRADICTION');
+      expect(contradictionHistory.value[0]?.reason).toContain('different home address');
+    }
+
+    const correctionRequestId = await submitOneResponse();
+    const correction = await decideEvidenceResponse(db, {
+      actorAccountId: agentAccountId,
+      requestId: correctionRequestId,
+      outcome: 'CORRECTION_PROPOSED',
+      reason: 'Consider updating your address to match this statement.',
+    });
+    expect(isOk(correction)).toBe(true);
+    if (isOk(correction)) expect(correction.value.status).toBe('NEEDS_REPLACEMENT');
+    const correctionHistory = await listEvidenceRequestDecisions(
+      db,
+      account.id,
+      correctionRequestId,
+    );
+    expect(isOk(correctionHistory)).toBe(true);
+    if (isOk(correctionHistory)) {
+      expect(correctionHistory.value[0]?.outcome).toBe('CORRECTION_PROPOSED');
+    }
+  });
+
+  it('cancelEvidenceRequest lets the requesting org withdraw a request that no longer needs an answer', async () => {
+    const { account, applicantId } = await consentedApplicant(db, 'ev-cancel@example.com');
+    const agentAcc = await provisionAccount(db, { email: 'agent-ev-cancel@acme.com' });
+    if (!isOk(agentAcc)) throw new Error('provision');
+    const org = await createOrganization(db, { actorAccountId: agentAcc.value.id, name: 'Acme' });
+    if (!isOk(org)) throw new Error('org');
+    await activateOrg(db, org.value.id);
+    const grant = await createGrant(db, {
+      actorAccountId: account.id,
+      applicantId,
+      recipientOrganizationId: org.value.id,
+      actions: ['MANAGE'],
+      purpose: 'collaboration',
+    });
+    if (!isOk(grant)) throw new Error('grant');
+    await acceptGrant(db, { actorAccountId: agentAcc.value.id, grantId: grant.value.id });
+
+    const req = await requestEvidence(db, {
+      actorAccountId: agentAcc.value.id,
+      organizationId: org.value.id,
+      applicantId,
+      kind: 'FIELD',
+      fieldKey: 'passport.number',
+    });
+    if (!isOk(req)) throw new Error('request');
+
+    const applicantOwnerCannotCancel = await cancelEvidenceRequest(db, {
+      actorAccountId: account.id,
+      requestId: req.value.id,
+    });
+    expect(isErr(applicantOwnerCannotCancel)).toBe(true);
+
+    const cancelled = await cancelEvidenceRequest(db, {
+      actorAccountId: agentAcc.value.id,
+      requestId: req.value.id,
+      reason: 'no longer needed',
+    });
+    expect(isOk(cancelled)).toBe(true);
+    if (isOk(cancelled)) expect(cancelled.value.status).toBe('CANCELLED');
+
+    const history = await listEvidenceRequestDecisions(db, agentAcc.value.id, req.value.id);
+    expect(isOk(history)).toBe(true);
+    if (isOk(history)) {
+      expect(history.value).toHaveLength(1);
+      expect(history.value[0]?.outcome).toBe('CANCELLED');
+      expect(history.value[0]?.reason).toBe('no longer needed');
+    }
+  });
+
+  it('requireDifferentReviewer (Commercial V1 Part 4 / PRD CAS-06): off by default lets the same account both raise and decide a request; once enabled, refuses the same account but still lets a genuinely different reviewer decide', async () => {
+    const { account, applicantId } = await consentedApplicant(db, 'ev-reviewer@example.com');
+    const preparer = await provisionAccount(db, { email: 'preparer-rd@acme.com' });
+    if (!isOk(preparer)) throw new Error('provision');
+    const reviewer = await provisionAccount(db, { email: 'reviewer-rd@acme.com' });
+    if (!isOk(reviewer)) throw new Error('provision');
+    const org = await createOrganization(db, { actorAccountId: preparer.value.id, name: 'Acme' });
+    if (!isOk(org)) throw new Error('org');
+    const orgId = org.value.id;
+    await activateOrg(db, orgId);
+    await addMembership(db, {
+      actorAccountId: preparer.value.id,
+      organizationId: orgId,
+      accountId: reviewer.value.id,
+      role: 'ADMIN',
+    });
+    const grant = await createGrant(db, {
+      actorAccountId: account.id,
+      applicantId,
+      recipientOrganizationId: orgId,
+      actions: ['MANAGE'],
+      purpose: 'collaboration',
+    });
+    if (!isOk(grant)) throw new Error('grant');
+    await acceptGrant(db, { actorAccountId: preparer.value.id, grantId: grant.value.id });
+
+    async function requestAndSubmit(requesterAccountId: string) {
+      const req = await requestEvidence(db, {
+        actorAccountId: requesterAccountId,
+        organizationId: orgId,
+        applicantId,
+        kind: 'DOCUMENT',
+        docType: 'bank_statement',
+      });
+      if (!isOk(req)) throw new Error('request');
+      const doc = await registerDocument(db, {
+        actorAccountId: account.id,
+        applicantId,
+        originalName: 'bank.pdf',
+        docType: 'bank_statement',
+      });
+      if (!isOk(doc)) throw new Error('doc');
+      await addDocumentVersion(db, {
+        actorAccountId: account.id,
+        documentId: doc.value.id,
+        bucket: 'CLEAN',
+        objectKey: `k-${req.value.id}`,
+        safetyStatus: 'CLEAN',
+        processingStatus: 'AWAITING_REVIEW',
+      });
+      const submitted = await submitEvidenceResponse(db, {
+        actorAccountId: account.id,
+        requestId: req.value.id,
+        documentId: doc.value.id,
+      });
+      if (!isOk(submitted)) throw new Error('submit');
+      return req.value.id;
+    }
+
+    // Off by default: the preparer may also decide.
+    const requestId1 = await requestAndSubmit(preparer.value.id);
+    const decidedByPreparerWhileOff = await decideEvidenceResponse(db, {
+      actorAccountId: preparer.value.id,
+      requestId: requestId1,
+      outcome: 'ACCEPTED',
+    });
+    expect(isOk(decidedByPreparerWhileOff)).toBe(true);
+
+    // A non-admin (here, the applicant owner has no org role at all) cannot
+    // change the setting.
+    const deniedToggle = await setRequireDifferentReviewer(db, {
+      actorAccountId: account.id,
+      organizationId: orgId,
+      required: true,
+    });
+    expect(isErr(deniedToggle)).toBe(true);
+
+    const enabled = await setRequireDifferentReviewer(db, {
+      actorAccountId: preparer.value.id,
+      organizationId: orgId,
+      required: true,
+    });
+    expect(isOk(enabled)).toBe(true);
+
+    // Now enabled: the SAME preparer may not also decide on their own request.
+    const requestId2 = await requestAndSubmit(preparer.value.id);
+    const deniedSamePreparer = await decideEvidenceResponse(db, {
+      actorAccountId: preparer.value.id,
+      requestId: requestId2,
+      outcome: 'ACCEPTED',
+    });
+    expect(isErr(deniedSamePreparer)).toBe(true);
+
+    // A genuinely different reviewer still may.
+    const decidedByReviewer = await decideEvidenceResponse(db, {
+      actorAccountId: reviewer.value.id,
+      requestId: requestId2,
+      outcome: 'ACCEPTED',
+    });
+    expect(isOk(decidedByReviewer)).toBe(true);
   });
 
   it('refuses further evidence requests once the anti-automation limit is hit (Build Spec §14)', async () => {
@@ -671,6 +1117,44 @@ describe('permissioned bulk export', () => {
     // Only A (accepted EXPORT_PROFILE grant) is included.
     expect(exported.value).toHaveLength(1);
     expect(exported.value[0]?.facts['name.full']).toBe('Alice');
+  });
+
+  it('denies bulk export once the organization itself is suspended, even for a still-active OWNER (SHR-02: "termination of an organisation... denies the next request")', async () => {
+    const agentAcc = await provisionAccount(db, { email: 'agent-bulk-suspended@acme.com' });
+    if (!isOk(agentAcc)) throw new Error('provision');
+    const org = await createOrganization(db, { actorAccountId: agentAcc.value.id, name: 'Acme' });
+    if (!isOk(org)) throw new Error('org');
+    await activateOrg(db, org.value.id);
+
+    // Works while the org is ACTIVE.
+    const before = await bulkExport(db, {
+      actorAccountId: agentAcc.value.id,
+      organizationId: org.value.id,
+      purpose: 'bulk',
+      stepUpSatisfied: true,
+    });
+    expect(isOk(before)).toBe(true);
+
+    const reviewer = await provisionAccount(db, {
+      email: 'platform-reviewer-bulk-suspend@example.com',
+    });
+    if (!isOk(reviewer)) throw new Error('provision');
+    const suspended = await suspendOrganization(db, {
+      reviewerAccountId: reviewer.value.id,
+      organizationId: org.value.id,
+    });
+    expect(isOk(suspended)).toBe(true);
+
+    // The caller's own OWNER membership is untouched - only the
+    // organization's own status changed.
+    const after = await bulkExport(db, {
+      actorAccountId: agentAcc.value.id,
+      organizationId: org.value.id,
+      purpose: 'bulk',
+      stepUpSatisfied: true,
+    });
+    expect(isErr(after)).toBe(true);
+    if (isErr(after)) expect(after.error.code).toBe('forbidden');
   });
 
   it('is denied for a non-admin caller', async () => {
@@ -998,6 +1482,34 @@ describe('reviewer decisions (master directive §7 "PR 10")', () => {
     const list = await listMissionDecisions(db, agentAcc.value.id, missionId);
     expect(isOk(list)).toBe(true);
   });
+
+  it('NTF-02: enqueues an in-app + email notification to the applicant owner when a decision is recorded', async () => {
+    const { account, missionId, packRequirementId, org, agentAcc } = await setUp(db);
+    const decided = await recordMissionDecision(db, {
+      actorAccountId: agentAcc.value.id,
+      organizationId: org.value.id,
+      missionId,
+      packRequirementId,
+      outcome: 'REJECTED',
+      reason: 'Not legible.',
+    });
+    expect(isOk(decided)).toBe(true);
+
+    const rows = await db
+      .select()
+      .from(schema.notifications)
+      .where(eq(schema.notifications.eventType, 'MISSION_STATUS_CHANGED'));
+    expect(rows).toHaveLength(2);
+    expect(rows.map((r) => r.channel).sort()).toEqual(['EMAIL', 'IN_APP']);
+    for (const row of rows) {
+      expect(row.recipientAccountId).toBe(account.id);
+      expect(row.status).toBe('QUEUED');
+      // Neutral/minimal: never the reviewer's own reason text or the outcome.
+      const payload = row.payload as { summary: string };
+      expect(payload.summary).not.toContain('Not legible');
+      expect(payload.summary).not.toContain('REJECTED');
+    }
+  });
 });
 
 describe('scope and read-authorization hardening (post-programme defect register findings #3–#7)', () => {
@@ -1279,5 +1791,566 @@ describe('scope and read-authorization hardening (post-programme defect register
     const missions = await listMissionsForOrganization(db, org.value.id);
     expect(missions).toHaveLength(1);
     expect(missions[0]?.missionId).toBe(mission.value.id);
+  });
+});
+
+describe("SHR-02: a suspended/closed organization loses standing everywhere orgGrantPermits gates, independent of any individual member's own still-active row", () => {
+  let db: Db;
+  beforeEach(async () => {
+    db = await freshDb();
+  });
+
+  it('orgGrantPermits denies once the organization is suspended, then a NEW grant to a re-activated organization works again', async () => {
+    const { account, applicantId } = await consentedApplicant(db, 'shr02-orggrant@example.com');
+    const mission = await createMission(db, {
+      actorAccountId: account.id,
+      applicantId,
+      title: 'M',
+    });
+    if (!isOk(mission)) throw new Error('mission');
+    const agentAcc = await provisionAccount(db, { email: 'shr02-orggrant-agent@acme.com' });
+    if (!isOk(agentAcc)) throw new Error('provision');
+    const org = await createOrganization(db, { actorAccountId: agentAcc.value.id, name: 'Acme' });
+    if (!isOk(org)) throw new Error('org');
+    await activateOrg(db, org.value.id);
+
+    const grant = await createGrant(db, {
+      actorAccountId: account.id,
+      applicantId,
+      recipientOrganizationId: org.value.id,
+      missionId: mission.value.id,
+      actions: ['MANAGE'],
+      purpose: 'collaboration',
+    });
+    if (!isOk(grant)) throw new Error('grant');
+    await acceptGrant(db, { actorAccountId: agentAcc.value.id, grantId: grant.value.id });
+
+    // assignMember (orgGrantPermits-gated) works while the org is ACTIVE.
+    const assignedBefore = await assignMember(db, {
+      actorAccountId: agentAcc.value.id,
+      organizationId: org.value.id,
+      memberAccountId: agentAcc.value.id,
+      missionId: mission.value.id,
+    });
+    expect(isOk(assignedBefore)).toBe(true);
+
+    const reviewer = await provisionAccount(db, {
+      email: 'shr02-orggrant-reviewer@example.com',
+    });
+    if (!isOk(reviewer)) throw new Error('provision');
+    await suspendOrganization(db, {
+      reviewerAccountId: reviewer.value.id,
+      organizationId: org.value.id,
+    });
+
+    // The grant itself is untouched (still ACTIVE, still accepted), the
+    // actor is still a genuine OWNER, and the assignee is still a genuine
+    // active member -- isOrgAdmin/isActiveMember both still pass. Only the
+    // organization's own status changed, so orgGrantPermits is the ONE
+    // check left that can refuse this.
+    const assignedAfter = await assignMember(db, {
+      actorAccountId: agentAcc.value.id,
+      organizationId: org.value.id,
+      memberAccountId: agentAcc.value.id,
+      missionId: mission.value.id,
+    });
+    expect(isErr(assignedAfter)).toBe(true);
+    if (isErr(assignedAfter)) expect(assignedAfter.error.code).toBe('forbidden');
+
+    // Reading collaboration data through the same gate is denied too.
+    const requirements = await listMissionRequirementsForOrg(db, org.value.id, mission.value.id);
+    expect(isErr(requirements)).toBe(true);
+    if (isErr(requirements)) expect(requirements.error.code).toBe('forbidden');
+  });
+});
+
+describe('CAS-02 - case workspace: authorized visibility, search fields, task rollup', () => {
+  let db: Db;
+  beforeEach(async () => {
+    db = await freshDb();
+  });
+
+  it('listVisibleMissionsForMember: an admin sees every case the org can reach; a non-admin member sees only cases they are personally assigned to', async () => {
+    const { account, applicantId } = await consentedApplicant(db, 'cas02-visibility@example.com');
+    const missionA = await createMission(db, {
+      actorAccountId: account.id,
+      applicantId,
+      title: 'Case A',
+    });
+    const missionB = await createMission(db, {
+      actorAccountId: account.id,
+      applicantId,
+      title: 'Case B',
+    });
+    if (!isOk(missionA) || !isOk(missionB)) throw new Error('mission');
+
+    const adminAcc = await provisionAccount(db, { email: 'cas02-admin@acme.com' });
+    const memberAcc = await provisionAccount(db, { email: 'cas02-member@acme.com' });
+    if (!isOk(adminAcc) || !isOk(memberAcc)) throw new Error('provision');
+    const org = await createOrganization(db, { actorAccountId: adminAcc.value.id, name: 'Acme' });
+    if (!isOk(org)) throw new Error('org');
+    await activateOrg(db, org.value.id);
+    await addMembership(db, {
+      actorAccountId: adminAcc.value.id,
+      organizationId: org.value.id,
+      accountId: memberAcc.value.id,
+      role: 'CASE_MANAGER',
+    });
+
+    // One applicant-wide grant makes BOTH cases reachable by the org.
+    const grant = await createGrant(db, {
+      actorAccountId: account.id,
+      applicantId,
+      recipientOrganizationId: org.value.id,
+      actions: ['MANAGE'],
+      purpose: 'collaboration',
+    });
+    if (!isOk(grant)) throw new Error('grant');
+    await acceptGrant(db, { actorAccountId: adminAcc.value.id, grantId: grant.value.id });
+
+    // The non-admin member is personally assigned to Case A only.
+    await assignMember(db, {
+      actorAccountId: adminAcc.value.id,
+      organizationId: org.value.id,
+      memberAccountId: memberAcc.value.id,
+      missionId: missionA.value.id,
+    });
+
+    const asAdmin = await listVisibleMissionsForMember(db, org.value.id, adminAcc.value.id);
+    expect(asAdmin.admin).toBe(true);
+    expect(asAdmin.missions.map((m) => m.missionId).sort()).toEqual(
+      [missionA.value.id, missionB.value.id].sort(),
+    );
+
+    const asMember = await listVisibleMissionsForMember(db, org.value.id, memberAcc.value.id);
+    expect(asMember.admin).toBe(false);
+    expect(asMember.missions).toHaveLength(1);
+    expect(asMember.missions[0]?.missionId).toBe(missionA.value.id);
+  });
+
+  it('listVisibleMissionsForMember: carries the CAS-01 case fields search/rollup needs (state, destination, jurisdiction, manualMode, dates)', async () => {
+    const { account, applicantId } = await consentedApplicant(db, 'cas02-fields@example.com');
+    const targetDeadline = new Date('2026-12-15T00:00:00Z');
+    const travelStartDate = new Date('2026-11-01T00:00:00Z');
+    const mission = await createMission(db, {
+      actorAccountId: account.id,
+      applicantId,
+      title: 'Manual route case',
+      destination: 'Narnia',
+      jurisdiction: 'Consulate of Narnia, Dhaka',
+      manualMode: true,
+      targetDeadline,
+      travelStartDate,
+    });
+    if (!isOk(mission)) throw new Error('mission');
+
+    const agentAcc = await provisionAccount(db, { email: 'cas02-fields-agent@acme.com' });
+    if (!isOk(agentAcc)) throw new Error('provision');
+    const org = await createOrganization(db, { actorAccountId: agentAcc.value.id, name: 'Acme' });
+    if (!isOk(org)) throw new Error('org');
+    await activateOrg(db, org.value.id);
+    const grant = await createGrant(db, {
+      actorAccountId: account.id,
+      applicantId,
+      recipientOrganizationId: org.value.id,
+      actions: ['MANAGE'],
+      purpose: 'collaboration',
+    });
+    if (!isOk(grant)) throw new Error('grant');
+    await acceptGrant(db, { actorAccountId: agentAcc.value.id, grantId: grant.value.id });
+
+    const { missions } = await listVisibleMissionsForMember(db, org.value.id, agentAcc.value.id);
+    expect(missions).toHaveLength(1);
+    const summary = missions[0];
+    expect(summary?.state).toBe('DRAFT');
+    expect(summary?.destination).toBe('Narnia');
+    expect(summary?.jurisdiction).toBe('Consulate of Narnia, Dhaka');
+    expect(summary?.manualMode).toBe(true);
+    expect(summary?.targetDeadline).toBe(targetDeadline.toISOString());
+    expect(summary?.travelStartDate).toBe(travelStartDate.toISOString());
+    // No protected wallet content anywhere on this shape -- just case metadata.
+    expect(Object.keys(summary ?? {}).sort()).toEqual(
+      [
+        'applicantId',
+        'applicantName',
+        'destination',
+        'jurisdiction',
+        'manualMode',
+        'missionId',
+        'packVersionId',
+        'state',
+        'targetDeadline',
+        'title',
+        'travelStartDate',
+        'updatedAt',
+      ].sort(),
+    );
+  });
+
+  it('listTasksForOrg: org-read-scoped like listNotes/listAssignmentsDetailed (COMMENT or MANAGE grant only), and carries dueDate for the overdue-tasks rollup', async () => {
+    const { account, applicantId } = await consentedApplicant(db, 'cas02-tasks@example.com');
+    const mission = await createMission(db, {
+      actorAccountId: account.id,
+      applicantId,
+      title: 'Task case',
+    });
+    if (!isOk(mission)) throw new Error('mission');
+    const dueDate = new Date('2020-01-01T00:00:00Z'); // deliberately in the past
+    const task = await createTask(db, {
+      actorAccountId: account.id,
+      missionId: mission.value.id,
+      description: 'Chase a replacement document.',
+      dueDate,
+    });
+    if (!isOk(task)) throw new Error('task');
+
+    const agentAcc = await provisionAccount(db, { email: 'cas02-tasks-agent@acme.com' });
+    if (!isOk(agentAcc)) throw new Error('provision');
+    const org = await createOrganization(db, { actorAccountId: agentAcc.value.id, name: 'Acme' });
+    if (!isOk(org)) throw new Error('org');
+    await activateOrg(db, org.value.id);
+
+    // No grant yet at all -- denied.
+    expect(await listTasksForOrg(db, org.value.id, applicantId, mission.value.id)).toHaveLength(0);
+
+    const previewGrant = await createGrant(db, {
+      actorAccountId: account.id,
+      applicantId,
+      recipientOrganizationId: org.value.id,
+      actions: ['PREVIEW'],
+      purpose: 'review',
+    });
+    if (!isOk(previewGrant)) throw new Error('grant');
+    await acceptGrant(db, { actorAccountId: agentAcc.value.id, grantId: previewGrant.value.id });
+
+    // PREVIEW alone is not COMMENT-or-MANAGE -- still denied.
+    expect(await listTasksForOrg(db, org.value.id, applicantId, mission.value.id)).toHaveLength(0);
+
+    const commentGrant = await createGrant(db, {
+      actorAccountId: account.id,
+      applicantId,
+      recipientOrganizationId: org.value.id,
+      actions: ['COMMENT'],
+      purpose: 'review-2',
+    });
+    if (!isOk(commentGrant)) throw new Error('grant');
+    await acceptGrant(db, { actorAccountId: agentAcc.value.id, grantId: commentGrant.value.id });
+
+    const tasks = await listTasksForOrg(db, org.value.id, applicantId, mission.value.id);
+    expect(tasks).toHaveLength(1);
+    expect(tasks[0]?.id).toBe(task.value.id);
+    expect(tasks[0]?.dueDate?.toISOString()).toBe(dueDate.toISOString());
+  });
+});
+
+describe('CAS-04 - org-side tasks/appointments, unassignment, and the reassignment queue (Commercial V1 Part 4 §11)', () => {
+  let db: Db;
+  beforeEach(async () => {
+    db = await freshDb();
+  });
+
+  /** An org, an admin, an assigned member holding a real MANAGE grant, and one mission. */
+  async function setUpAssignedOrg(db: Db, tag: string) {
+    const { account, applicantId } = await consentedApplicant(db, `cas04-${tag}@example.com`);
+    const mission = await createMission(db, {
+      actorAccountId: account.id,
+      applicantId,
+      title: 'Task/appointment case',
+    });
+    if (!isOk(mission)) throw new Error('mission');
+
+    const adminAcc = await provisionAccount(db, { email: `cas04-${tag}-admin@acme.com` });
+    const memberAcc = await provisionAccount(db, { email: `cas04-${tag}-member@acme.com` });
+    if (!isOk(adminAcc) || !isOk(memberAcc)) throw new Error('provision');
+    const org = await createOrganization(db, { actorAccountId: adminAcc.value.id, name: 'Acme' });
+    if (!isOk(org)) throw new Error('org');
+    await activateOrg(db, org.value.id);
+    await addMembership(db, {
+      actorAccountId: adminAcc.value.id,
+      organizationId: org.value.id,
+      accountId: memberAcc.value.id,
+      role: 'CASE_MANAGER',
+    });
+    const grant = await createGrant(db, {
+      actorAccountId: account.id,
+      applicantId,
+      recipientOrganizationId: org.value.id,
+      actions: ['MANAGE'],
+      purpose: 'collaboration',
+    });
+    if (!isOk(grant)) throw new Error('grant');
+    await acceptGrant(db, { actorAccountId: adminAcc.value.id, grantId: grant.value.id });
+    await assignMember(db, {
+      actorAccountId: adminAcc.value.id,
+      organizationId: org.value.id,
+      memberAccountId: memberAcc.value.id,
+      missionId: mission.value.id,
+    });
+
+    return {
+      account,
+      applicantId,
+      missionId: mission.value.id,
+      organizationId: org.value.id,
+      adminAccountId: adminAcc.value.id,
+      memberAccountId: memberAcc.value.id,
+    };
+  }
+
+  it('createTaskForOrg/updateTaskForOrg/decideTaskForOrg require the actor to be assigned to the mission, not merely an active member with a covering grant', async () => {
+    const { missionId, organizationId, adminAccountId, memberAccountId } = await setUpAssignedOrg(
+      db,
+      'task',
+    );
+
+    const created = await createTaskForOrg(db, {
+      actorAccountId: memberAccountId,
+      organizationId,
+      missionId,
+      description: 'Chase the applicant for a bank statement.',
+      priority: 'HIGH',
+    });
+    expect(isOk(created)).toBe(true);
+    if (!isOk(created)) return;
+    expect(created.value.priority).toBe('HIGH');
+
+    const reassigned = await updateTaskForOrg(db, {
+      actorAccountId: memberAccountId,
+      organizationId,
+      missionId,
+      taskId: created.value.id,
+      assigneeAccountId: null,
+    });
+    expect(isOk(reassigned)).toBe(true);
+    if (isOk(reassigned)) expect(reassigned.value.assigneeAccountId).toBeNull();
+
+    const started = await decideTaskForOrg(db, {
+      actorAccountId: memberAccountId,
+      organizationId,
+      missionId,
+      taskId: created.value.id,
+      status: 'IN_PROGRESS',
+    });
+    expect(isOk(started)).toBe(true);
+    if (isOk(started)) expect(started.value.status).toBe('IN_PROGRESS');
+
+    // An active member with the SAME covering grant, but never assigned to
+    // this mission, is refused -- routine case work is assignment-gated,
+    // exactly like recordMissionDecision's own bar.
+    const outsider = await provisionAccount(db, { email: 'cas04-task-outsider@acme.com' });
+    if (!isOk(outsider)) throw new Error('provision');
+    await addMembership(db, {
+      actorAccountId: adminAccountId,
+      organizationId,
+      accountId: outsider.value.id,
+      role: 'CASE_MANAGER',
+    });
+    const deniedCreate = await createTaskForOrg(db, {
+      actorAccountId: outsider.value.id,
+      organizationId,
+      missionId,
+      description: 'Should be refused.',
+    });
+    expect(isErr(deniedCreate)).toBe(true);
+    if (isErr(deniedCreate)) expect(deniedCreate.error.code).toBe('forbidden');
+  });
+
+  it('org-side appointments: create/list/decide share the same assigned-member gate as tasks', async () => {
+    const { missionId, applicantId, organizationId, memberAccountId } = await setUpAssignedOrg(
+      db,
+      'appt',
+    );
+
+    const created = await createAppointmentForOrg(db, {
+      actorAccountId: memberAccountId,
+      organizationId,
+      missionId,
+      title: 'Prep call',
+      localDateTime: new Date('2026-12-01T10:00:00'),
+      timezone: 'Asia/Dhaka',
+    });
+    expect(isOk(created)).toBe(true);
+    if (!isOk(created)) return;
+
+    const listed = await listAppointmentsForOrg(db, organizationId, applicantId, missionId);
+    expect(listed.map((a) => a.id)).toEqual([created.value.id]);
+
+    const decided = await decideAppointmentForOrg(db, {
+      actorAccountId: memberAccountId,
+      organizationId,
+      missionId,
+      appointmentId: created.value.id,
+      status: 'DONE',
+    });
+    expect(isOk(decided)).toBe(true);
+    if (isOk(decided)) expect(decided.value.status).toBe('DONE');
+  });
+
+  it('unassignMember: admin-only, removes exactly that assignment, and is idempotent when nothing is assigned', async () => {
+    const { missionId, organizationId, adminAccountId, memberAccountId } = await setUpAssignedOrg(
+      db,
+      'unassign',
+    );
+
+    const nonAdminAttempt = await unassignMember(db, {
+      actorAccountId: memberAccountId,
+      organizationId,
+      memberAccountId,
+      missionId,
+    });
+    expect(isErr(nonAdminAttempt)).toBe(true);
+    if (isErr(nonAdminAttempt)) expect(nonAdminAttempt.error.code).toBe('forbidden');
+
+    const removed = await unassignMember(db, {
+      actorAccountId: adminAccountId,
+      organizationId,
+      memberAccountId,
+      missionId,
+    });
+    expect(isOk(removed)).toBe(true);
+    if (isOk(removed)) expect(removed.value.removed).toBe(true);
+
+    const assignments = await db
+      .select()
+      .from(schema.assignments)
+      .where(eq(schema.assignments.missionId, missionId));
+    expect(assignments).toHaveLength(0);
+
+    // Removing again is a true no-op, not an error.
+    const again = await unassignMember(db, {
+      actorAccountId: adminAccountId,
+      organizationId,
+      memberAccountId,
+      missionId,
+    });
+    expect(isOk(again)).toBe(true);
+    if (isOk(again)) expect(again.value.removed).toBe(false);
+  });
+
+  it('listUnassignedActiveMissions: surfaces an active, reachable case with nobody assigned, excludes an assigned one and a CANCELLED one', async () => {
+    const { account, applicantId, missionId, organizationId, adminAccountId, memberAccountId } =
+      await setUpAssignedOrg(db, 'queue');
+
+    // Assigned -- not in the queue.
+    expect(await listUnassignedActiveMissions(db, organizationId)).toEqual([]);
+
+    await unassignMember(db, {
+      actorAccountId: adminAccountId,
+      organizationId,
+      memberAccountId,
+      missionId,
+    });
+    const queue = await listUnassignedActiveMissions(db, organizationId);
+    expect(queue.map((m) => m.missionId)).toEqual([missionId]);
+
+    // A second, CANCELLED mission with no assignee at all never appears --
+    // a finished case needs no reassignment.
+    const cancelled = await createMission(db, {
+      actorAccountId: account.id,
+      applicantId,
+      title: 'Withdrawn case',
+    });
+    if (!isOk(cancelled)) throw new Error('mission');
+    await transitionMission(db, {
+      actorAccountId: account.id,
+      missionId: cancelled.value.id,
+      to: 'CANCELLED',
+    });
+    const grant = await createGrant(db, {
+      actorAccountId: account.id,
+      applicantId,
+      recipientOrganizationId: organizationId,
+      missionId: cancelled.value.id,
+      actions: ['MANAGE'],
+      purpose: 'collaboration',
+    });
+    if (!isOk(grant)) throw new Error('grant');
+    await acceptGrant(db, { actorAccountId: adminAccountId, grantId: grant.value.id });
+
+    const queueAfter = await listUnassignedActiveMissions(db, organizationId);
+    expect(queueAfter.map((m) => m.missionId)).toEqual([missionId]);
+  });
+
+  it('deactivating a member auto-unassigns them from every active mission where they were the SOLE assignee, landing it in the reassignment queue -- but never touches a mission with a co-assignee still standing', async () => {
+    const { account, applicantId, missionId, organizationId, adminAccountId, memberAccountId } =
+      await setUpAssignedOrg(db, 'deactivate');
+
+    // A second mission, co-assigned to both the admin and the member -- a
+    // deactivation must never strip the admin's own still-valid assignment.
+    const coAssignedMission = await createMission(db, {
+      actorAccountId: account.id,
+      applicantId,
+      title: 'Co-assigned case',
+    });
+    if (!isOk(coAssignedMission)) throw new Error('mission');
+    const grant = await createGrant(db, {
+      actorAccountId: account.id,
+      applicantId,
+      recipientOrganizationId: organizationId,
+      missionId: coAssignedMission.value.id,
+      actions: ['MANAGE'],
+      purpose: 'collaboration',
+    });
+    if (!isOk(grant)) throw new Error('grant');
+    await acceptGrant(db, { actorAccountId: adminAccountId, grantId: grant.value.id });
+    await assignMember(db, {
+      actorAccountId: adminAccountId,
+      organizationId,
+      memberAccountId: adminAccountId,
+      missionId: coAssignedMission.value.id,
+    });
+    await assignMember(db, {
+      actorAccountId: adminAccountId,
+      organizationId,
+      memberAccountId,
+      missionId: coAssignedMission.value.id,
+    });
+
+    const membership = (
+      await db
+        .select()
+        .from(schema.memberships)
+        .where(
+          and(
+            eq(schema.memberships.organizationId, organizationId),
+            eq(schema.memberships.accountId, memberAccountId),
+          ),
+        )
+    )[0];
+    if (!membership) throw new Error('membership');
+
+    const deactivated = await setMembershipActive(db, {
+      actorAccountId: adminAccountId,
+      organizationId,
+      membershipId: membership.id,
+      active: false,
+    });
+    expect(isOk(deactivated)).toBe(true);
+
+    // Sole-assignee mission: the member's assignment is gone, and it now
+    // shows up in the reassignment queue.
+    const soleAssignments = await db
+      .select()
+      .from(schema.assignments)
+      .where(
+        and(
+          eq(schema.assignments.missionId, missionId),
+          eq(schema.assignments.memberAccountId, memberAccountId),
+        ),
+      );
+    expect(soleAssignments).toHaveLength(0);
+    const queue = await listUnassignedActiveMissions(db, organizationId);
+    expect(queue.map((m) => m.missionId)).toContain(missionId);
+
+    // Co-assigned mission: BOTH assignments survive untouched -- the admin's
+    // own standing was never at risk, and the case still has a working
+    // assignee (the now-deactivated member's row itself is intentionally
+    // left as historical record; only a SOLE assignment is auto-removed).
+    const coAssignments = await db
+      .select()
+      .from(schema.assignments)
+      .where(eq(schema.assignments.missionId, coAssignedMission.value.id));
+    expect(coAssignments).toHaveLength(2);
+    expect(queue.map((m) => m.missionId)).not.toContain(coAssignedMission.value.id);
   });
 });

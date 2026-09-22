@@ -89,8 +89,21 @@ export const DOCUMENT_STATES = [
 ] as const;
 export type DocumentState = (typeof DOCUMENT_STATES)[number];
 
-/** Build Spec §13 — separate consent records. */
-export const CONSENT_TYPES = ['CORE_PROCESSING', 'AI_EXTRACTION', 'SHARING', 'MARKETING'] as const;
+/**
+ * Build Spec §13 / PRD SHR-04 - separate consent records. `ISSUER_CONTACT`
+ * (Commercial V1 Part 4 §7): an agency contacting an external issuer (a
+ * bank, a university) to verify a fact or document on the applicant's
+ * behalf is its own optional purpose, independent of SHARING (which only
+ * governs an agency VIEWING the applicant's existing records, never
+ * authorizes reaching out to a third party about them).
+ */
+export const CONSENT_TYPES = [
+  'CORE_PROCESSING',
+  'AI_EXTRACTION',
+  'SHARING',
+  'MARKETING',
+  'ISSUER_CONTACT',
+] as const;
 export type ConsentType = (typeof CONSENT_TYPES)[number];
 
 /**

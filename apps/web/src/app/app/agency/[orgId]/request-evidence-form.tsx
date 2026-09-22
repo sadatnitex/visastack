@@ -105,6 +105,12 @@ export function RequestEvidenceForm({
           placeholder="Why you need it"
         />
       </div>
+      <div className="field-row">
+        <label className="field-label" htmlFor="dueDate">
+          Due date (optional)
+        </label>
+        <input id="dueDate" name="dueDate" type="date" className="input" />
+      </div>
       <div>
         <button type="submit" className="btn btn-primary" disabled={pending}>
           {pending ? 'Sending…' : 'Request evidence'}

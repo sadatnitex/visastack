@@ -1,6 +1,6 @@
 'use server';
 
-import { respondEvidence } from '@visastack/services';
+import { submitEvidenceResponse } from '@visastack/services';
 import { revalidatePath } from 'next/cache';
 import { withSession } from '../../../../../lib/session';
 
@@ -10,27 +10,30 @@ export interface ActionState {
   readonly message: string;
 }
 
-/** Applicant owner fulfils or declines an evidence request. */
-export async function respondEvidenceAction(
+/** Applicant owner submits a fact or document they already hold as the response to an evidence request. */
+export async function submitEvidenceResponseAction(
   _prev: ActionState,
   formData: FormData,
 ): Promise<ActionState> {
   const applicantId = String(formData.get('applicantId') ?? '');
   const requestId = String(formData.get('requestId') ?? '');
-  const decision = String(formData.get('decision') ?? '');
-  if (requestId.length === 0 || (decision !== 'FULFILLED' && decision !== 'DECLINED')) {
-    return { ok: false, message: 'Invalid request.' };
+  const factId = String(formData.get('factId') ?? '') || undefined;
+  const documentId = String(formData.get('documentId') ?? '') || undefined;
+  if (requestId.length === 0 || (!factId && !documentId)) {
+    return { ok: false, message: 'Choose what to submit.' };
   }
 
   const result = await withSession(async ({ db, accountId }) => {
-    const responded = await respondEvidence(db, { actorAccountId: accountId, requestId, decision });
-    if (!responded.ok) {
-      return { ok: false, message: responded.error.message } satisfies ActionState;
+    const submitted = await submitEvidenceResponse(db, {
+      actorAccountId: accountId,
+      requestId,
+      ...(factId ? { factId } : {}),
+      ...(documentId ? { documentId } : {}),
+    });
+    if (!submitted.ok) {
+      return { ok: false, message: submitted.error.message } satisfies ActionState;
     }
-    return {
-      ok: true,
-      message: decision === 'FULFILLED' ? 'Marked as fulfilled.' : 'Request declined.',
-    } satisfies ActionState;
+    return { ok: true, message: 'Submitted. The agency will review it.' } satisfies ActionState;
   });
   if (result.ok) revalidatePath(`/app/applicant/${applicantId}/evidence`);
   return result;

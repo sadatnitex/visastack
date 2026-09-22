@@ -1,0 +1,2 @@
+ALTER TYPE "public"."evidence_request_decision_outcome" ADD VALUE 'CONTRADICTION' BEFORE 'CANCELLED';--> statement-breakpoint
+ALTER TYPE "public"."evidence_request_decision_outcome" ADD VALUE 'CORRECTION_PROPOSED' BEFORE 'CANCELLED';

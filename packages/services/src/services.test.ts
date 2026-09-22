@@ -167,14 +167,30 @@ describe('applicants — consent-gated subject records', () => {
       ownerAccountId: account.id,
       displayName: 'Child',
       relationship: 'MINOR_GUARDIAN',
+      authorityConfirmed: true,
     });
     expect(isOk(self) && isOk(child)).toBe(true);
     if (!isOk(self) || !isOk(child)) return;
     expect(self.value.relationship).toBe('SELF');
     expect(child.value.relationship).toBe('MINOR_GUARDIAN');
+    // SELF needs no separate attestation; a guardian record must record one (IAM-04).
+    expect(self.value.authorityConfirmedAt).toBeNull();
+    expect(child.value.authorityConfirmedAt).not.toBeNull();
 
     const all = await listApplicants(db, account.id);
     expect(all).toHaveLength(2);
+  });
+
+  it('IAM-04: refuses a non-SELF relationship without an explicit authority attestation', async () => {
+    const account = await seedConsentedAccount(db, 'no-authority@example.com');
+    const result = await addFamilyMember(db, {
+      actorAccountId: account.id,
+      ownerAccountId: account.id,
+      displayName: 'Child',
+      relationship: 'MINOR_GUARDIAN',
+    });
+    expect(isErr(result)).toBe(true);
+    if (isErr(result)) expect(result.error.message).toContain('authority');
   });
 
   it('lists every applicant platform-wide, for admin pickers/lookups', async () => {

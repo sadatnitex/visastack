@@ -56,6 +56,12 @@ async function seedOwner(db: Db, email: string) {
     type: 'SHARING',
     granted: true,
   });
+  await setConsent(db, {
+    actorAccountId: account.id,
+    accountId: account.id,
+    type: 'ISSUER_CONTACT',
+    granted: true,
+  });
   const applicant = await createApplicant(db, {
     actorAccountId: account.id,
     ownerAccountId: account.id,
@@ -455,6 +461,68 @@ describe('recordIssuerVerification (EVI-05)', () => {
   let db: Db;
   beforeEach(async () => {
     db = await freshDb();
+  });
+
+  it('refuses without the applicant\'s ISSUER_CONTACT consent, even with a fully valid MANAGE grant (SHR-04: "keep... external issuer contact separate")', async () => {
+    const provisioned = await provisionAccount(db, {
+      email: 'assurance-no-issuer-consent@example.com',
+    });
+    if (!isOk(provisioned)) throw new Error('provision');
+    const account = provisioned.value;
+    // CORE_PROCESSING + SHARING granted, but NOT ISSUER_CONTACT -- proving
+    // this is a genuinely separate, independently-gated purpose, not
+    // implied by SHARING alone.
+    await setConsent(db, {
+      actorAccountId: account.id,
+      accountId: account.id,
+      type: 'CORE_PROCESSING',
+      granted: true,
+    });
+    await setConsent(db, {
+      actorAccountId: account.id,
+      accountId: account.id,
+      type: 'SHARING',
+      granted: true,
+    });
+    const applicant = await createApplicant(db, {
+      actorAccountId: account.id,
+      ownerAccountId: account.id,
+      displayName: 'Owner',
+    });
+    if (!isOk(applicant)) throw new Error('applicant');
+    await registerFieldDefinition(db, { key: 'passport.number.noconsent', dataType: 'string' });
+    const edited = await editFact(db, {
+      actorAccountId: account.id,
+      applicantId: applicant.value.id,
+      fieldKey: 'passport.number.noconsent',
+      value: 'A999999',
+    });
+    if (!isOk(edited)) throw new Error('edit');
+
+    const { agent, organization } = await seedActiveOrg(
+      db,
+      'assurance-no-issuer-consent-agent@example.com',
+    );
+    await grantOrg(db, {
+      ownerAccountId: account.id,
+      applicantId: applicant.value.id,
+      organizationId: organization.id,
+      agentAccountId: agent.id,
+      actions: ['MANAGE'],
+    });
+
+    const result = await recordIssuerVerification(db, {
+      actorAccountId: agent.id,
+      applicantId: applicant.value.id,
+      factId: edited.value.fact.id,
+      issuerIdentity: 'HM Passport Office',
+      contactMethod: 'phone',
+      exactClaim: 'Passport A999999 is genuine.',
+      response: 'Confirmed.',
+      validUntil: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+    });
+    expect(isErr(result)).toBe(true);
+    if (isErr(result)) expect(result.error.code).toBe('consent_required');
   });
 
   it('lets an org member with a MANAGE grant record a live issuer confirmation, reaching E3', async () => {

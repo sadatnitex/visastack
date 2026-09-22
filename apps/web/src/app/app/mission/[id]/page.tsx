@@ -6,8 +6,13 @@ import {
   getMissionForOwner,
   isFactStatusEligible,
   legalTransitions,
+  listAccessForApplicant,
+  listAppointments,
+  listContributorRequests,
   listGeneratedOutputs,
   listMissionSnapshots,
+  listMissionsByItineraryRef,
+  listNotesForOwner,
   listPublishedPackVersions,
   listSelectedEvidence,
   listTasks,
@@ -18,9 +23,20 @@ import { getLocale } from '../../../../lib/locale';
 import { profileField } from '../../../../lib/profile-fields';
 import { withSession } from '../../../../lib/session';
 import { AttachPackForm, type PackOption } from './attach-pack-form';
-import { EvidenceSelectionPanel, LettersPanel, TasksPanel } from './collaboration-panels';
+import {
+  AppointmentsPanel,
+  EvidenceSelectionPanel,
+  LettersPanel,
+  TasksPanel,
+} from './collaboration-panels';
+import { ContributorRequestsPanel } from './contributor-requests-panel';
 import { composeSelectionCandidateKey } from './evidence-selection-key';
-import { SnapshotButton, TransitionButtons } from './mission-buttons';
+import {
+  CaseDetailsForm,
+  ItineraryForm,
+  SnapshotButton,
+  TransitionButtons,
+} from './mission-buttons';
 
 export const dynamic = 'force-dynamic';
 
@@ -54,18 +70,47 @@ export default async function MissionPage({
     if (!owned.ok) return null;
     const mission = owned.value;
     const applicant = await getApplicant(db, mission.applicantId);
-    const [readiness, snapshots, packs, tasks, letters, selections, candidates] = await Promise.all(
-      [
-        mission.packVersionId ? computeReadiness(db, mission.id) : Promise.resolve(null),
-        listMissionSnapshots(db, accountId, mission.id),
-        listPublishedPackVersions(db),
-        listTasks(db, accountId, mission.id),
-        listGeneratedOutputs(db, accountId, mission.id),
-        listSelectedEvidence(db, accountId, mission.id),
-        getEvidenceCandidates(db, accountId, mission.id),
-      ],
-    );
-    // Composite key (finding #33, post-programme defect register) — see
+    const [
+      readiness,
+      snapshots,
+      packs,
+      tasks,
+      letters,
+      selections,
+      candidates,
+      linkedMissions,
+      access,
+      contributorRequests,
+      notes,
+      appointments,
+    ] = await Promise.all([
+      mission.packVersionId ? computeReadiness(db, mission.id) : Promise.resolve(null),
+      listMissionSnapshots(db, accountId, mission.id),
+      listPublishedPackVersions(db),
+      listTasks(db, accountId, mission.id),
+      listGeneratedOutputs(db, accountId, mission.id),
+      listSelectedEvidence(db, accountId, mission.id),
+      getEvidenceCandidates(db, accountId, mission.id),
+      mission.itineraryRef
+        ? listMissionsByItineraryRef(db, {
+            actorAccountId: accountId,
+            itineraryRef: mission.itineraryRef,
+          })
+        : Promise.resolve([]),
+      listAccessForApplicant(db, accountId, mission.applicantId),
+      listContributorRequests(db, { actorAccountId: accountId, missionId: mission.id }),
+      listNotesForOwner(db, accountId, mission.id),
+      listAppointments(db, accountId, mission.id),
+    ]);
+    // Commercial V1 Part 4 §13: "An independent traveller may self-review:
+    // label it self-reviewed." No organisation currently holding an ACTIVE,
+    // accepted grant on this applicant means there is no external reviewer
+    // in the picture at all, so the traveller's own assessment is the only
+    // one that exists; this is never inferred from the mission's own state.
+    const selfReviewed =
+      access.ok &&
+      !access.value.some((g) => g.recipientOrganizationId !== null && g.status === 'ACTIVE');
+    // Composite key (finding #33, post-programme defect register) - see
     // evidence-selection-key.ts's own doc comment.
     const selectionIdsByCandidate: Record<string, string> = {};
     if (selections.ok) {
@@ -80,22 +125,74 @@ export default async function MissionPage({
         }
       }
     }
+    // Every linked mission is already scoped to the caller's own applicants
+    // (listMissionsByItineraryRef's own guarantee), so a name lookup per
+    // distinct applicant id is safe, never a cross-account resolution.
+    const otherLinked = linkedMissions.filter((m) => m.id !== mission.id);
+    const linkedApplicantNames = new Map<string, string>();
+    for (const m of otherLinked) {
+      if (linkedApplicantNames.has(m.applicantId)) continue;
+      const linkedApplicant = await getApplicant(db, m.applicantId);
+      linkedApplicantNames.set(m.applicantId, linkedApplicant?.displayName ?? 'Applicant');
+    }
     return {
       mission,
       applicantName: applicant?.displayName ?? 'Applicant',
       applicantId: mission.applicantId,
       readiness: readiness?.ok ? readiness.value : null,
       snapshots: snapshots.ok ? snapshots.value : [],
-      tasks: tasks.ok ? tasks.value : [],
+      tasks: tasks.ok
+        ? tasks.value.map((t) => ({
+            id: t.id,
+            description: t.description,
+            status: t.status,
+            priority: t.priority,
+            dueDate: t.dueDate ? t.dueDate.toISOString() : null,
+            dueTimezone: t.dueTimezone,
+          }))
+        : [],
+      appointments: appointments.ok
+        ? appointments.value.map((a) => ({
+            id: a.id,
+            title: a.title,
+            localDateTime: a.localDateTime.toISOString(),
+            timezone: a.timezone,
+            place: a.place,
+            channel: a.channel,
+            status: a.status,
+          }))
+        : [],
       letters: letters.ok ? letters.value : [],
       candidates: candidates.ok ? candidates.value : [],
       selectionIdsByCandidate,
+      linkedMissions: otherLinked.map((m) => ({
+        id: m.id,
+        title: m.title,
+        applicantName: linkedApplicantNames.get(m.applicantId) ?? 'Applicant',
+      })),
       packOptions: packs.map(
         (p): PackOption => ({
           packVersionId: p.packVersionId,
           label: `${p.packName} · v${p.version} · ${p.requirementCount} requirement${p.requirementCount === 1 ? '' : 's'}`,
         }),
       ),
+      selfReviewed,
+      contributorRequests: contributorRequests.ok
+        ? contributorRequests.value.map((r) => ({
+            id: r.id,
+            contributorEmail: r.contributorEmail,
+            docType: r.docType,
+            purpose: r.purpose,
+            status: r.status,
+            expiresAt: r.expiresAt.toISOString(),
+          }))
+        : [],
+      notes: notes.map((n) => ({
+        id: n.id,
+        body: n.body,
+        authorEmail: n.authorEmail,
+        createdAt: n.createdAt.toISOString(),
+      })),
     };
   });
 
@@ -129,6 +226,15 @@ export default async function MissionPage({
         <SnapshotButton missionId={mission.id} />
       </div>
 
+      {mission.manualMode ? (
+        <div className="notice notice-warn" style={{ marginBottom: '1.5rem' }}>
+          <strong>Manual mode.</strong> No automated requirement pack covers this route yet.
+          Readiness is not tracked automatically here - you are responsible for confirming what this
+          case needs yourself. This is never claimed as an official readiness assessment, on this
+          page or in any exported snapshot.
+        </div>
+      ) : null}
+
       <div className="grid">
         <article className="card">
           <p className="card-kicker">Requirements</p>
@@ -146,8 +252,48 @@ export default async function MissionPage({
         </article>
 
         <article className="card">
+          <p className="card-kicker">Case</p>
+          <h2 className="card-title">Case details</h2>
+          <CaseDetailsForm
+            missionId={mission.id}
+            jurisdiction={mission.jurisdiction}
+            serviceCategory={mission.serviceCategory}
+            travelStartDate={mission.travelStartDate}
+            travelEndDate={mission.travelEndDate}
+            targetDeadline={mission.targetDeadline}
+            manualMode={mission.manualMode}
+          />
+        </article>
+
+        <article className="card">
+          <p className="card-kicker">Family trip</p>
+          <h2 className="card-title">Itinerary reference</h2>
+          <p className="card-body" style={{ marginBottom: '1rem' }}>
+            An optional label linking this case to another family member's, purely for display.
+            Access and permissions stay entirely separate per case.
+          </p>
+          <ItineraryForm missionId={mission.id} itineraryRef={mission.itineraryRef} />
+          {data.linkedMissions.length > 0 ? (
+            <div className="rows" style={{ marginTop: '1rem' }}>
+              {data.linkedMissions.map((m) => (
+                <Link className="row row-link" key={m.id} href={`/app/mission/${m.id}`}>
+                  <span className="row-key">{m.applicantName}</span>
+                  <span className="muted">{m.title}</span>
+                </Link>
+              ))}
+            </div>
+          ) : null}
+        </article>
+
+        <article className="card">
           <p className="card-kicker">Completeness</p>
           <h2 className="card-title">Readiness</h2>
+          {data.selfReviewed ? (
+            <p className="muted" style={{ fontSize: '0.85rem', marginBottom: '0.75rem' }}>
+              <span className="badge badge-neutral">Self-reviewed</span> No agency currently has
+              access to this case, so you are the only one assessing it.
+            </p>
+          ) : null}
           {data.readiness ? (
             <>
               <div className="rows" style={{ marginBottom: '1rem' }}>
@@ -186,11 +332,13 @@ export default async function MissionPage({
                         <div className="row" key={`${m.kind}-${m.key}`}>
                           <span className="row-key">{label || '(unnamed)'}</span>
                           <span
-                            className={`badge ${m.reason === 'unresolved_conflict' ? 'badge-danger' : 'badge-neutral'}`}
+                            className={`badge ${m.reason === 'not_provided' ? 'badge-neutral' : 'badge-danger'}`}
                           >
                             {m.reason === 'unresolved_conflict'
                               ? 'Needs attention · disputed value'
-                              : `${m.kind === 'FIELD' ? 'Field' : 'Document'}${m.optional ? ' · optional' : ''}`}
+                              : m.reason === 'stale_evidence'
+                                ? 'Needs attention · evidence too old for this route'
+                                : `${m.kind === 'FIELD' ? 'Field' : 'Document'}${m.optional ? ' · optional' : ''}`}
                           </span>
                         </div>
                       );
@@ -199,7 +347,7 @@ export default async function MissionPage({
                 </>
               ) : null}
               <p className="muted" style={{ fontSize: '0.8rem', marginTop: '1rem' }}>
-                Readiness is completeness only — never an approval likelihood.
+                Readiness is completeness only - never an approval likelihood.
               </p>
             </>
           ) : (
@@ -277,6 +425,7 @@ export default async function MissionPage({
               documentId: d.documentId,
               displayName: d.displayName,
               eligible: d.eligible,
+              staleness: d.staleness.status,
             })),
             selectedFactIds: c.selectedFactIds,
             selectedDocumentIds: c.selectedDocumentIds,
@@ -287,6 +436,7 @@ export default async function MissionPage({
 
       <div className="grid" style={{ marginTop: '1.5rem' }}>
         <TasksPanel missionId={mission.id} tasks={data.tasks} />
+        <AppointmentsPanel missionId={mission.id} appointments={data.appointments} />
         <LettersPanel
           missionId={mission.id}
           letters={data.letters.map((l) => ({
@@ -301,6 +451,48 @@ export default async function MissionPage({
               c.documentCandidates.some((d) => d.eligible),
           )}
         />
+      </div>
+
+      <div className="grid" style={{ marginTop: '1.5rem' }}>
+        <article className="card">
+          <p className="card-kicker">Delegate</p>
+          <h2 className="card-title">Ask a contributor</h2>
+          <p className="card-body" style={{ marginBottom: '1.25rem' }}>
+            Ask a sponsor or family member - who never gets a wallet, profile, or case view of any
+            kind - for exactly one named document. They see only what you type below before deciding
+            whether to upload.
+          </p>
+          <ContributorRequestsPanel missionId={mission.id} requests={data.contributorRequests} />
+        </article>
+
+        <article className="card">
+          <p className="card-kicker">Collaboration</p>
+          <h2 className="card-title">Notes from your agency</h2>
+          <p className="card-body" style={{ marginBottom: '1.25rem' }}>
+            Notes an agency working this case has chosen to share with you. An agency's own internal
+            notes are never shown here.
+          </p>
+          {data.notes.length === 0 ? (
+            <p className="muted" style={{ fontSize: '0.9rem' }}>
+              No notes shared with you yet.
+            </p>
+          ) : (
+            <div className="rows">
+              {data.notes.map((n) => (
+                <div
+                  className="row"
+                  key={n.id}
+                  style={{ flexDirection: 'column', alignItems: 'flex-start' }}
+                >
+                  <span style={{ fontSize: '0.9rem' }}>{n.body}</span>
+                  <span className="muted" style={{ fontSize: '0.75rem', marginTop: '0.2rem' }}>
+                    {n.authorEmail ?? 'Unknown'}, {new Date(n.createdAt).toLocaleDateString()}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </article>
       </div>
     </section>
   );

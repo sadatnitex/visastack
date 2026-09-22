@@ -1,0 +1,1 @@
+ALTER TABLE "mission_tasks" ADD COLUMN "due_date" timestamp with time zone;

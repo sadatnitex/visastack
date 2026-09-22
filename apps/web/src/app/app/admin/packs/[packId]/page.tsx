@@ -126,6 +126,11 @@ export default async function PackDetailPage({
                         <span className="muted" style={{ fontSize: '0.8rem' }}>
                           Cite: {req.citation}
                         </span>
+                        {req.maxAgeDays !== null ? (
+                          <span className="muted" style={{ fontSize: '0.8rem' }}>
+                            Freshness: must be dated within {req.maxAgeDays} day(s)
+                          </span>
+                        ) : null}
                       </div>
                     ))}
                   </div>

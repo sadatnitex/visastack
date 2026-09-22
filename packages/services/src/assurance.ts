@@ -4,6 +4,7 @@ import { and, desc, eq, inArray } from 'drizzle-orm';
 import { orgGrantPermits } from './agency';
 import { getApplicant } from './applicants';
 import { appendAuditEvent } from './audit';
+import { hasConsent } from './consent';
 import { type Db, first, required, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
 import { listMembershipsForAccount } from './organizations';
@@ -390,6 +391,14 @@ export async function recordIssuerVerification(
 
   const applicant = await getApplicant(db, input.applicantId);
   if (!applicant) return err(serviceError('not_found', 'applicant not found'));
+  // SHR-04: "keep optional AI processing, sharing, marketing and external
+  // issuer contact separate." An agency's SHARING grant only lets it VIEW
+  // the applicant's existing records; contacting a third-party issuer about
+  // them is a distinct optional purpose the applicant must separately
+  // permit, gated here exactly like registerDocument gates CORE_PROCESSING.
+  if (!(await hasConsent(db, applicant.ownerAccountId, 'ISSUER_CONTACT'))) {
+    return err(serviceError('consent_required', 'ISSUER_CONTACT consent is required'));
+  }
 
   if (input.factId) {
     const fact = first(

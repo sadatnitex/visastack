@@ -10,12 +10,13 @@ import { SubNav } from '../../subnav';
 export const dynamic = 'force-dynamic';
 
 /**
- * Applicant workspace shell (master directive §7 "PR 7" — Overview, Profile,
+ * Applicant workspace shell (master directive §7 "PR 7" - Overview, Profile,
  * Documents, Missions, Sharing, Evidence, History as real, distinct
  * destinations rather than one overloaded page). "Evidence" isn't in the
  * directive's own 6-item list but is real, shipped functionality (responding
- * to an agency's evidence requests) — kept as a 7th tab rather than deleted
- * or silently hidden.
+ * to an agency's evidence requests) - kept as a 7th tab rather than deleted
+ * or silently hidden. "Expiry" (NTF-01, Part 5 §1) is an 8th tab for the
+ * same reason.
  */
 export default async function ApplicantWorkspaceLayout({
   children,
@@ -56,6 +57,7 @@ export default async function ApplicantWorkspaceLayout({
           { href: `${base}/missions`, label: 'Missions' },
           { href: `${base}/sharing`, label: 'Sharing' },
           { href: `${base}/evidence`, label: 'Evidence' },
+          { href: `${base}/expiry`, label: 'Expiry' },
           { href: `${base}/history`, label: 'History' },
         ]}
       />

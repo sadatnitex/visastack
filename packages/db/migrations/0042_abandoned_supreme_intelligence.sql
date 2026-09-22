@@ -1,0 +1,1 @@
+ALTER TABLE "organizations" ADD COLUMN "require_different_reviewer" boolean DEFAULT false NOT NULL;

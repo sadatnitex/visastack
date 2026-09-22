@@ -20,6 +20,8 @@ export {
   type AuditEventInput,
   type AuditEventRow,
   appendAuditEvent,
+  type ApplicantAuditEvent,
+  listAuditEventsForApplicant,
   listRecentAuditEvents,
 } from './audit';
 
@@ -209,21 +211,37 @@ export {
   type AssignmentView,
   type AddNoteInput,
   type BulkExportRow,
+  type CreateAppointmentForOrgInput,
+  type CreateTaskForOrgInput,
   type EvidenceRequest,
+  type EvidenceRequestDecision,
   type EvidenceRequestWithApplicant,
   type MissionDecision,
   type MissionNote,
   type MissionNoteVisibility,
   type OrgApplicant,
+  type OrgCaseSummary,
   type OrgMission,
+  type OrgVisibleAppointment,
+  type OrgVisibleTask,
+  type OwnerVisibleNote,
+  type UpdateTaskForOrgInput,
   addNote,
   assignMember,
   bulkExport,
+  cancelEvidenceRequest,
+  createAppointmentForOrg,
+  createTaskForOrg,
+  decideAppointmentForOrg,
+  decideEvidenceResponse,
+  decideTaskForOrg,
   isActiveMember,
   listApplicantsForOrganization,
+  listAppointmentsForOrg,
   listAssignedMissionIds,
   listAssignments,
   listAssignmentsDetailed,
+  listEvidenceRequestDecisions,
   listEvidenceRequestsForApplicant,
   listEvidenceRequestsForOrg,
   listEvidenceRequestsForOrgDetailed,
@@ -232,10 +250,17 @@ export {
   listMissionsForOrganization,
   listNotes,
   listNotesForOwner,
+  listTasksForOrg,
+  listUnassignedActiveMissions,
+  listVisibleMissionsForMember,
   orgGrantPermits,
   recordMissionDecision,
   requestEvidence,
-  respondEvidence,
+  startEvidenceReview,
+  submitEvidenceResponse,
+  unassignMember,
+  updateAppointmentForOrg,
+  updateTaskForOrg,
 } from './agency';
 
 export {
@@ -252,6 +277,7 @@ export {
   listOrgMemberships,
   reviewOrganization,
   setMembershipActive,
+  setRequireDifferentReviewer,
   suspendOrganization,
 } from './organizations';
 
@@ -281,11 +307,14 @@ export {
 } from './sharing';
 
 export {
+  type CreateAppointmentInput,
+  type DocumentCandidateWithStaleness,
   type DocumentInstance,
   type EvidenceCandidateEntry,
   type FactInstance,
   type GeneratedOutput,
   type Mission,
+  type MissionAppointment,
   type MissionSnapshot,
   type MissionTask,
   type MissingRequirement,
@@ -293,28 +322,39 @@ export {
   type Readiness,
   type RequirementMappingEntry,
   type SelectedEvidence,
+  type UpdateAppointmentInput,
+  type UpdateTaskInput,
   attachPackVersion,
   computeReadiness,
+  createAppointment,
   createMission,
   createTask,
+  decideAppointment,
   decideTask,
   generateCoverLetter,
+  getAppointment,
   getEvidenceCandidates,
   getMissionForOwner,
   getMissionSnapshot,
   isFactStatusEligible,
   legalTransitions,
+  listAppointments,
   listGeneratedOutputs,
   listMissionSnapshots,
   listMissions,
+  listMissionsByItineraryRef,
   listMissionsUsingField,
   listSelectedEvidence,
   listSelectedEvidenceForOrg,
   listTasks,
   selectEvidence,
+  setMissionItineraryRef,
   snapshotMission,
   transitionMission,
   unselectEvidence,
+  updateAppointment,
+  updateMissionCaseDetails,
+  updateTask,
 } from './missions';
 
 export {
@@ -336,6 +376,50 @@ export {
   publishPackVersion,
   verifyPackChecksum,
 } from './packs';
+
+export {
+  DEFAULT_EXPIRY_REMINDER_THRESHOLD_DAYS,
+  type DocumentExpiryPolicy,
+  type ExpiryClassification,
+  type ExpiryUrgency,
+  type StalenessClassification,
+  type StalenessStatus,
+  classifyExpiry,
+  classifyStaleness,
+  getReminderThresholds,
+  isValidDocumentDateString,
+  listDocumentExpiryPolicies,
+  parseDocumentDate,
+  setDocumentExpiryPolicy,
+} from './expiry';
+
+export {
+  type EnqueueNotificationInput,
+  type InAppNotificationView,
+  type Notification,
+  type NotificationChannel,
+  type NotificationDeliveryStatus,
+  type NotificationEventType,
+  type NotificationNeedingAttention,
+  type NotificationPayload,
+  type NotificationWorkerResult,
+  applyEmailDeliveryEvent,
+  buildNotificationIdempotencyKey,
+  enqueueNotification,
+  enqueueNotificationBothChannels,
+  listNotificationsForAccount,
+  listNotificationsNeedingAttention,
+  markNotificationRead,
+  retryNotification,
+  runNotificationWorker,
+} from './notifications';
+
+export {
+  type SweepResult,
+  computeTaskDeadlineThreshold,
+  sweepExpiryReminders,
+  sweepTaskDeadlineReminders,
+} from './notification-sweep';
 
 export {
   type MrzError,
@@ -462,6 +546,7 @@ export {
   recordDocumentReview,
   registerDocument,
   registerDocumentWithVersion,
+  setDocumentDate,
 } from './documents';
 
 export {
@@ -523,6 +608,7 @@ export type {
   PaymentPort,
   ResolvedIdentity,
   SendEmailInput,
+  SendEmailResult,
 } from './ports';
 
 export {
@@ -549,3 +635,47 @@ export {
   listIssuerVerificationsForFact,
   recordIssuerVerification,
 } from './assurance';
+
+export {
+  type AcceptedOrganizationInvitation,
+  type AcceptOrganizationInvitationInput,
+  type CreatedOrganizationInvitation,
+  type CreateOrganizationInvitationInput,
+  type OrganizationInvitation,
+  type OrganizationInvitationPreview,
+  acceptOrganizationInvitation,
+  createOrganizationInvitation,
+  listOrganizationInvitations,
+  previewOrganizationInvitation,
+  revokeOrganizationInvitation,
+} from './invitations';
+
+export {
+  type AcceptClientInvitationInput,
+  type AcceptedClientInvitation,
+  type ApplicantChoice,
+  type ClientInvitation,
+  type ClientInvitationPreview,
+  type CreateClientInvitationInput,
+  type CreatedClientInvitation,
+  acceptClientInvitation,
+  createClientInvitation,
+  listClientInvitations,
+  previewClientInvitation,
+  revokeClientInvitation,
+} from './client-invitations';
+
+export {
+  type BeginContributorSubmissionInput,
+  type ContributorRequest,
+  type ContributorRequestPreview,
+  type CreateContributorRequestInput,
+  type CreatedContributorRequest,
+  abandonContributorSubmission,
+  beginContributorSubmission,
+  completeContributorSubmission,
+  createContributorRequest,
+  listContributorRequests,
+  previewContributorRequest,
+  revokeContributorRequest,
+} from './contributor-requests';

@@ -63,6 +63,26 @@ export const organizationStatus = pgEnum('organization_status', ORGANIZATION_STA
 export const membershipRole = pgEnum('membership_role', MEMBERSHIP_ROLES);
 export const consentType = pgEnum('consent_type', CONSENT_TYPES);
 export const permissionAction = pgEnum('permission_action', PERMISSION_ACTIONS);
+export const organizationInvitationStatus = pgEnum('organization_invitation_status', [
+  'PENDING',
+  'ACCEPTED',
+  'REVOKED',
+]);
+export const clientInvitationStatus = pgEnum('client_invitation_status', [
+  'PENDING',
+  'ACCEPTED',
+  'REVOKED',
+]);
+// CAS-08: unlike the two invitation statuses above, there is no separate
+// "accepted, standing created" state before the one action that matters --
+// accepting IS submitting the named evidence -- so this collapses straight
+// from PENDING to SUBMITTED. Expiry, like every other invitation in this
+// codebase, is checked live against expiresAt, never a stored value.
+export const contributorRequestStatus = pgEnum('contributor_request_status', [
+  'PENDING',
+  'SUBMITTED',
+  'REVOKED',
+]);
 export const applicantRelationship = pgEnum('applicant_relationship', [
   'SELF',
   'FAMILY_MEMBER',
@@ -126,14 +146,59 @@ export const packVersionStatus = pgEnum('pack_version_status', [
   'DEPRECATED',
 ]);
 export const requirementKind = pgEnum('requirement_kind', ['FIELD', 'DOCUMENT']);
+export const notificationChannel = pgEnum('notification_channel', ['IN_APP', 'EMAIL']);
+// NTF-02/§3's exact delivery-state vocabulary: "QUEUED; SENT/provider
+// accepted; DELIVERED only if provider confirms; BOUNCED; FAILED; READ if
+// legitimately observable." SENT never implies DELIVERED, and DELIVERED is
+// never inferred, only set by an actual provider confirmation (a webhook).
+export const notificationDeliveryStatus = pgEnum('notification_delivery_status', [
+  'QUEUED',
+  'SENT',
+  'DELIVERED',
+  'BOUNCED',
+  'FAILED',
+  'READ',
+]);
+// Commercial V1 Part 4 §10's exact state model. FULFILLED/DECLINED are
+// retired (superseded by ACCEPTED/CANCELLED respectively) but kept in the
+// enum, never removed: a value cannot be dropped from a Postgres enum
+// without a type-swap migration, and any evidence_requests row written by
+// the pre-Part-4 code may still hold one. New code never writes either.
 export const evidenceRequestStatus = pgEnum('evidence_request_status', [
   'OPEN',
+  'RECEIVED',
+  'UNDER_REVIEW',
+  'ACCEPTED',
+  'NEEDS_REPLACEMENT',
+  'CANCELLED',
   'FULFILLED',
   'DECLINED',
 ]);
+// Commercial V1 Part 4 §13 ("Review") names four decision outcomes: accepted
+// evidence; replacement requested; contradiction; proposed correction. The
+// first two are the original two values below; CONTRADICTION and
+// CORRECTION_PROPOSED are the two this codebase had previously mapped onto
+// generic mechanisms (FACT_STATUSES CONFLICTED, field_proposals) rather than
+// implementing as their own real, reviewer-facing outcomes.
+export const evidenceRequestDecisionOutcome = pgEnum('evidence_request_decision_outcome', [
+  'ACCEPTED',
+  'NEEDS_REPLACEMENT',
+  'CONTRADICTION',
+  'CORRECTION_PROPOSED',
+  'CANCELLED',
+]);
 // --- Mission collaboration additions (master directive §7 "PR 10") ---------
 export const missionDecisionOutcome = pgEnum('mission_decision_outcome', ['ACCEPTED', 'REJECTED']);
-export const missionTaskStatus = pgEnum('mission_task_status', ['OPEN', 'DONE', 'CANCELLED']);
+// Commercial V1 Part 4 §11: "States: OPEN, IN_PROGRESS, DONE, CANCELLED."
+// IN_PROGRESS added after OPEN/DONE/CANCELLED already shipped (Part 3) --
+// additive only, matching this codebase's enum-migration discipline.
+export const missionTaskStatus = pgEnum('mission_task_status', [
+  'OPEN',
+  'IN_PROGRESS',
+  'DONE',
+  'CANCELLED',
+]);
+export const taskPriority = pgEnum('task_priority', ['LOW', 'NORMAL', 'HIGH', 'URGENT']);
 // Commercial V1 Part 4 §12: every note must declare a visibility explicitly.
 // AGENCY_INTERNAL is the safe default for the pre-existing-row backfill
 // (directive: "legacy unclassified notes: default restricted; do not expose
@@ -181,6 +246,18 @@ export const applicants = pgTable('applicants', {
     .references(() => accounts.id, { onDelete: 'restrict' }),
   displayName: text('display_name').notNull(),
   relationship: applicantRelationship('relationship').notNull().default('SELF'),
+  // IAM-04: explicit authority to act for a FAMILY_MEMBER/MINOR_GUARDIAN
+  // subject, distinct from the relationship label itself. Null for SELF
+  // (no separate authority to attest to) and for any record created before
+  // this column existed; never inferred from relationship alone.
+  authorityConfirmedAt: timestamp('authority_confirmed_at', { withTimezone: true }),
+  // NTF-04 (Part 5 §4): "Subject timezone drives date notifications. Default
+  // onboarding timezone: Asia/Dhaka. Editable." An IANA name, not an offset
+  // (so DST is handled by the zone itself, never computed here). Defaulted
+  // rather than nullable so every date-threshold computation always has a
+  // concrete zone to use, including for every applicant that existed before
+  // this column did.
+  timezone: text('timezone').notNull().default('Asia/Dhaka'),
   ...timestamps,
 });
 
@@ -189,6 +266,13 @@ export const organizations = pgTable('organizations', {
   id: uuid('id').primaryKey().defaultRandom(),
   name: text('name').notNull(),
   status: organizationStatus('status').notNull().default('PENDING_VERIFICATION'),
+  // Commercial V1 Part 4 §13 / PRD CAS-06: an org's own optional choice to
+  // require that whoever decides on an evidence-request response
+  // (`decideEvidenceResponse`, agency.ts) is not the same account that
+  // raised that request in the first place. Off by default, and a disabled
+  // setting must never let the UI imply independent review happened when
+  // it did not.
+  requireDifferentReviewer: boolean('require_different_reviewer').notNull().default(false),
   ...timestamps,
 });
 
@@ -208,6 +292,84 @@ export const memberships = pgTable(
     ...timestamps,
   },
   (table) => [unique('memberships_account_org_unique').on(table.accountId, table.organizationId)],
+);
+
+// --- Organization invitations (Commercial V1 Part 4 §5: secure member
+// invitations for a recipient with no VisaStack account yet). `tokenHash` is
+// the only thing ever persisted -- the raw, cryptographically random token
+// exists only in memory at mint time and in the link handed to the inviter;
+// looking it up is a hash comparison, never a raw-value comparison, the same
+// posture already used for password-reset-style tokens elsewhere. Recipient-
+// bound by `email` (checked against the accepting account's own WorkOS-
+// verified email, never just "whoever holds the link"), role-bound and
+// organisation-bound by their own columns, single-use via the `PENDING` ->
+// `ACCEPTED`/`REVOKED` transition (a terminal status can never move again),
+// and race-safe via the same compare-and-set-on-status pattern `grants`
+// already uses for `acceptGrant`.
+export const organizationInvitations = pgTable(
+  'organization_invitations',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    organizationId: uuid('organization_id')
+      .notNull()
+      .references(() => organizations.id, { onDelete: 'cascade' }),
+    email: text('email').notNull(),
+    role: membershipRole('role').notNull(),
+    tokenHash: text('token_hash').notNull().unique(),
+    status: organizationInvitationStatus('status').notNull().default('PENDING'),
+    invitedByAccountId: uuid('invited_by_account_id')
+      .notNull()
+      .references(() => accounts.id),
+    acceptedByAccountId: uuid('accepted_by_account_id').references(() => accounts.id),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    acceptedAt: timestamp('accepted_at', { withTimezone: true }),
+    revokedAt: timestamp('revoked_at', { withTimezone: true }),
+    ...timestamps,
+  },
+  (table) => [
+    index('org_invitations_org_status_idx').on(table.organizationId, table.status),
+    index('org_invitations_email_status_idx').on(table.email, table.status),
+  ],
+);
+
+// --- Client invitations (Commercial V1 Part 4 §6, IAM-03: an agency invites a
+// traveller). Deliberately never checked against an existing account at
+// creation OR keyed by email at acceptance (unlike organizationInvitations,
+// which is): PRD IAM-03 explicitly forbids "claim an existing wallet" and
+// "expose whether email already has VisaStack account" -- so acceptance is
+// gated purely on holding the token plus being authenticated as ANY
+// account, never on an email match, the only design that cannot leak
+// account-existence information back to the inviting agency. The agency
+// supplies only a minimal display name/contact/route/case-owner; the
+// accepting traveller alone chooses which of their own applicant profiles
+// (existing or newly created) the resulting grant and mission attach to.
+export const clientInvitations = pgTable(
+  'client_invitations',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    organizationId: uuid('organization_id')
+      .notNull()
+      .references(() => organizations.id, { onDelete: 'cascade' }),
+    caseOwnerAccountId: uuid('case_owner_account_id')
+      .notNull()
+      .references(() => accounts.id),
+    displayName: text('display_name').notNull(),
+    contactDestination: text('contact_destination').notNull(),
+    requestedRoute: text('requested_route'),
+    tokenHash: text('token_hash').notNull().unique(),
+    status: clientInvitationStatus('status').notNull().default('PENDING'),
+    invitedByAccountId: uuid('invited_by_account_id')
+      .notNull()
+      .references(() => accounts.id),
+    acceptedByAccountId: uuid('accepted_by_account_id').references(() => accounts.id),
+    acceptedApplicantId: uuid('accepted_applicant_id').references(() => applicants.id),
+    acceptedMissionId: uuid('accepted_mission_id').references(() => missions.id),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    acceptedAt: timestamp('accepted_at', { withTimezone: true }),
+    revokedAt: timestamp('revoked_at', { withTimezone: true }),
+    ...timestamps,
+  },
+  (table) => [index('client_invitations_org_status_idx').on(table.organizationId, table.status)],
 );
 
 // --- Consent records (separate consent per purpose) ------------------------
@@ -300,6 +462,41 @@ export const missions = pgTable('missions', {
   title: text('title').notNull(),
   destination: text('destination'),
   purpose: text('purpose'),
+  // IAM-04: an optional free-text label letting an owner (e.g. a guardian
+  // account managing several of its own applicants) visually link separate
+  // missions as one family trip. Purely a display/reference string, never
+  // an access mechanism: every grant, note, and permission stays scoped to
+  // its own mission/applicant exactly as before, and lookups by this value
+  // are always scoped to the caller's own applicants, never cross-account.
+  itineraryRef: text('itinerary_ref'),
+  // Commercial V1 Part 4 §8 (CAS-01) case-creation fields. All nullable:
+  // the same underlying mission serves both an independent traveller (who
+  // may never set most of these) and an agency-managed case, and none of
+  // them gate any authorization decision anywhere else in this codebase,
+  // deliberately, matching the PRD's own "same underlying mission services"
+  // requirement. `title`/`destination`/`purpose` above predate this and
+  // already cover "traveller/subject" (via applicantId), "destination", and
+  // "trip purpose"; the rest genuinely did not exist.
+  jurisdiction: text('jurisdiction'), // consular post / jurisdiction context, e.g. "US Embassy Dhaka"
+  serviceCategory: text('service_category'), // free text, deliberately not an enum: this product defines no fixed taxonomy
+  travelStartDate: timestamp('travel_start_date', { withTimezone: true }),
+  travelEndDate: timestamp('travel_end_date', { withTimezone: true }),
+  targetDeadline: timestamp('target_deadline', { withTimezone: true }),
+  // The org this case is primarily attributed to, distinct from
+  // `assignments` (which member(s) work it) and from `grants` (which orgs
+  // currently have real access): this is just the case's own "whose case is
+  // this" label. Never itself a source of access; set null keeps the
+  // mission, never blocks or cascades.
+  ownerOrganizationId: uuid('owner_organization_id').references(() => organizations.id, {
+    onDelete: 'set null',
+  }),
+  // "Unsupported routes operate in manual-checklist mode with the coverage
+  // limitation visible on the case and export" (CAS-01): an explicit,
+  // owner-asserted flag, never inferred from `packVersionId` being null
+  // (which could just as easily mean "not yet configured" as "genuinely no
+  // automated pack exists for this route") - the UI must be honest about
+  // which one it actually is.
+  manualMode: boolean('manual_mode').notNull().default(false),
   state: missionState('state').notNull().default('DRAFT'),
   // The published requirement pack version this mission is assembled against.
   // restrict, not cascade/set null: nothing deletes a pack version today
@@ -391,6 +588,16 @@ export const documents = pgTable('documents', {
   uploaderAccountId: uuid('uploader_account_id').references(() => accounts.id, {
     onDelete: 'set null',
   }),
+  // CAS-08: "the file is case-scoped by default and is not copied into the
+  // traveller's reusable wallet without contributor permission." True for
+  // every normal, applicant-uploaded document (unaffected by this change);
+  // set false only for a contributor-submitted document whose contributor
+  // did not opt into wallet reuse (documents.ts's registerDocument). Read
+  // by wallet.ts's getWalletView; deliberately NOT read by missions.ts's
+  // own readiness/docType matching, which stays applicant-wide as before --
+  // "wallet" in this product's own vocabulary (EVI-04) names the browsable
+  // reuse view specifically, not the underlying evidence-matching mechanism.
+  walletVisible: boolean('wallet_visible').notNull().default(true),
   expiresAt: timestamp('expires_at', { withTimezone: true }),
   // EVI-04 ("passport renewal updates the wallet, preserves the old passport
   // and flags cases using it; it does not mutate historical snapshots"): set
@@ -1146,10 +1353,37 @@ export const packRequirements = pgTable(
     citation: text('citation').notNull(),
     optional: boolean('optional').notNull().default(false),
     notes: text('notes'),
+    // NTF-01 "case-specific freshness/staleness" (Part 5 §1): a DOCUMENT
+    // requirement may demand its evidence be dated within this many days
+    // (e.g. "bank statement must be < 90 days old for this route"). Null for
+    // every FIELD requirement and for a DOCUMENT requirement with no
+    // freshness rule. Deliberately a column on the requirement, never on
+    // `documents` itself - "never mutate the document's intrinsic validity
+    // to represent a route rule." Because a pack version is immutable once
+    // published and a mission binds to one exact `packVersionId` forever,
+    // reading this column through that binding already "tracks rule version
+    // behind case staleness" (the directive's own phrase) with no separate
+    // versioning mechanism needed.
+    maxAgeDays: integer('max_age_days'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [index('pack_requirements_version_idx').on(table.packVersionId)],
 );
+
+// NTF-01 (Part 5 §1): "Default expiry reminder thresholds: 90/60/30/7/expiry
+// date. Make configurable by document type." One row per overridden
+// `docType`; a `docType` with no row here uses `expiry.ts`'s
+// `DEFAULT_EXPIRY_REMINDER_THRESHOLD_DAYS`. Platform-admin-managed
+// (`PACK_MANAGE`, the same concern that already owns pack/requirement
+// content) - never per-organization, matching every other document-type
+// vocabulary item in this schema (`packRequirements.docType`,
+// `classifyDocumentText`'s output) being platform-global, not tenant-scoped.
+export const documentExpiryPolicies = pgTable('document_expiry_policies', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  docType: text('doc_type').notNull().unique(),
+  thresholdDays: integer('threshold_days').array().notNull(),
+  ...timestamps,
+});
 
 // --- Mission snapshots (immutable; Build Spec §4.3) -------------------------
 export const missionSnapshots = pgTable(
@@ -1220,7 +1454,16 @@ export const missionNotes = pgTable(
   (table) => [index('mission_notes_mission_idx').on(table.missionId)],
 );
 
-// An org asks an applicant for a specific field or document type.
+// An org asks an applicant for a specific field or document type
+// (Commercial V1 Part 4 §10). `missionId`/`packRequirementId`/`dueDate`
+// stay nullable rather than required: an org whose only grant on this
+// applicant is unscoped (applicant-wide, not mission-scoped) has always
+// been able to raise a request with neither (`orgGrantPermits` itself
+// treats an omitted mission as "applicant-wide"), a real, intentional
+// capability this migration does not remove. When a mission IS named, it
+// is now genuinely persisted (previously used only to check the grant,
+// then discarded), so the request can actually be shown as belonging to
+// that case, matching §10's "case" field.
 export const evidenceRequests = pgTable(
   'evidence_requests',
   {
@@ -1231,15 +1474,142 @@ export const evidenceRequests = pgTable(
     applicantId: uuid('applicant_id')
       .notNull()
       .references(() => applicants.id, { onDelete: 'cascade' }),
+    missionId: uuid('mission_id').references(() => missions.id, { onDelete: 'cascade' }),
+    packRequirementId: uuid('pack_requirement_id').references(() => packRequirements.id, {
+      onDelete: 'set null',
+    }),
+    // Nullable, not because a new request can omit it (the service layer
+    // always sets it), but because a pre-existing row from before this
+    // column existed has no requester to backfill.
+    requestedByAccountId: uuid('requested_by_account_id').references(() => accounts.id, {
+      onDelete: 'set null',
+    }),
     kind: requirementKind('kind').notNull(),
     fieldKey: text('field_key'),
     docType: text('doc_type'),
     message: text('message'),
+    dueDate: timestamp('due_date', { withTimezone: true }),
     status: evidenceRequestStatus('status').notNull().default('OPEN'),
+    // The fact/document instance the applicant submitted in response,
+    // exactly one at a time, enforced by the check constraint below.
+    // Cleared (never left dangling) on a NEEDS_REPLACEMENT decision, since
+    // the linked evidence is no longer what the request is currently
+    // awaiting; the immutable decision history below is what actually
+    // "retains prior decision/reason" (§13's exact wording), not this
+    // current-state pointer.
+    respondingFactId: uuid('responding_fact_id').references(() => facts.id, {
+      onDelete: 'set null',
+    }),
+    respondingDocumentId: uuid('responding_document_id').references(() => documents.id, {
+      onDelete: 'set null',
+    }),
     respondedAt: timestamp('responded_at', { withTimezone: true }),
     ...timestamps,
   },
-  (table) => [index('evidence_requests_applicant_idx').on(table.applicantId)],
+  (table) => [
+    index('evidence_requests_applicant_idx').on(table.applicantId),
+    index('evidence_requests_mission_idx').on(table.missionId),
+    check(
+      'evidence_requests_at_most_one_response_target',
+      sql`NOT (${table.respondingFactId} is not null AND ${table.respondingDocumentId} is not null)`,
+    ),
+  ],
+);
+
+// Append-only decision history on an evidence request (mirrors
+// `missionDecisions`' own pattern exactly): the current decision is the
+// latest row for a given evidenceRequestId. `respondingFactId`/
+// `respondingDocumentId` are an immutable SNAPSHOT of what was actually
+// being decided on at that moment, independent of the parent request's own
+// current pointer (which a later NEEDS_REPLACEMENT decision clears); this
+// is what makes "replacement retains prior decision/reason" (Part 4 §13)
+// genuinely true rather than only true until the next submission overwrites it.
+export const evidenceRequestDecisions = pgTable(
+  'evidence_request_decisions',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    evidenceRequestId: uuid('evidence_request_id')
+      .notNull()
+      .references(() => evidenceRequests.id, { onDelete: 'cascade' }),
+    outcome: evidenceRequestDecisionOutcome('outcome').notNull(),
+    reason: text('reason'),
+    respondingFactId: uuid('responding_fact_id').references(() => facts.id, {
+      onDelete: 'set null',
+    }),
+    respondingDocumentId: uuid('responding_document_id').references(() => documents.id, {
+      onDelete: 'set null',
+    }),
+    decidedByAccountId: uuid('decided_by_account_id')
+      .notNull()
+      .references(() => accounts.id, { onDelete: 'restrict' }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index('evidence_request_decisions_request_idx').on(table.evidenceRequestId)],
+);
+
+// CAS-08 ("Contributor request"): a narrow, single-use, seven-day invitation
+// letting a named third party (a sponsor, a family member) who is NOT the
+// applicant submit exactly one named piece of evidence for one case,
+// without ever browsing the applicant's wallet, profile, or case. Reuses
+// the same hashed-token primitive as organizationInvitations/
+// clientInvitations (invitation-tokens.ts); unlike clientInvitations
+// (IAM-03, deliberately anonymous-until-accept), this one DOES verify the
+// contributor's own authenticated email against contributorEmail at
+// submission time, matching organizationInvitations -- the PRD's own
+// "email verification binds the contributor" is explicit where IAM-03's
+// text is explicitly silent on it.
+export const contributorRequests = pgTable(
+  'contributor_requests',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    missionId: uuid('mission_id')
+      .notNull()
+      .references(() => missions.id, { onDelete: 'cascade' }),
+    // Denormalized from missionId (matches evidenceRequests' own choice):
+    // every authorization check here is naturally applicant-shaped (owner
+    // check, wallet-visibility), so this avoids a join on every one of them.
+    applicantId: uuid('applicant_id')
+      .notNull()
+      .references(() => applicants.id, { onDelete: 'cascade' }),
+    requestedByAccountId: uuid('requested_by_account_id').references(() => accounts.id, {
+      onDelete: 'set null',
+    }),
+    contributorEmail: text('contributor_email').notNull(),
+    // Always a document (a third party has no fields in the applicant's own
+    // profile to fill in) -- "narrow named request only" -- never nullable,
+    // unlike evidenceRequests.docType which only applies to its DOCUMENT
+    // branch.
+    docType: text('doc_type').notNull(),
+    // Shown to the contributor before upload, per CAS-08's "sees purpose...
+    // before upload."
+    purpose: text('purpose').notNull(),
+    message: text('message'),
+    tokenHash: text('token_hash').notNull().unique(),
+    status: contributorRequestStatus('status').notNull().default('PENDING'),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    // The contributor's own explicit choice, defaulting to false (PRD: "not
+    // copied into the traveller's reusable wallet WITHOUT contributor
+    // permission"). Read by documents.walletVisible at submission time and
+    // never changed afterward -- it is the contributor's call, not the
+    // applicant's to later override.
+    allowWalletReuse: boolean('allow_wallet_reuse').notNull().default(false),
+    // Bound the moment a submission attempt begins (PENDING -> SUBMITTED),
+    // re-verified on every subsequent check -- see
+    // contributor-requests.ts's isInFlightContributorSubmission.
+    contributorAccountId: uuid('contributor_account_id').references(() => accounts.id, {
+      onDelete: 'set null',
+    }),
+    submittedDocumentId: uuid('submitted_document_id').references(() => documents.id, {
+      onDelete: 'set null',
+    }),
+    submittedAt: timestamp('submitted_at', { withTimezone: true }),
+    revokedAt: timestamp('revoked_at', { withTimezone: true }),
+    ...timestamps,
+  },
+  (table) => [
+    index('contributor_requests_mission_idx').on(table.missionId),
+    index('contributor_requests_applicant_idx').on(table.applicantId),
+  ],
 );
 
 // A mission owner's explicit choice of which fact/document instance
@@ -1331,10 +1701,65 @@ export const missionTasks = pgTable(
       onDelete: 'set null',
     }),
     status: missionTaskStatus('status').notNull().default('OPEN'),
+    // CAS-02's workspace "overdue tasks" signal needs this to exist at all;
+    // nullable, since not every task has (or needs) a deadline.
+    dueDate: timestamp('due_date', { withTimezone: true }),
+    // The IANA zone the due date/time was set in (Commercial V1 Part 4 §11:
+    // "explicit timezone"), e.g. "Asia/Dhaka" -- `dueDate` itself is a
+    // `timestamptz`, always interpretable in UTC, but doesn't by itself
+    // record which zone a human meant when they set it, the way a display
+    // like "5pm" needs to know to render correctly. Nullable: not every task
+    // carries a due date at all.
+    dueTimezone: text('due_timezone'),
+    priority: taskPriority('priority').notNull().default('NORMAL'),
     completedAt: timestamp('completed_at', { withTimezone: true }),
     ...timestamps,
   },
   (table) => [index('mission_tasks_mission_idx').on(table.missionId)],
+);
+
+// Commercial V1 Part 4 §11's distinct "Appointment" concept: unlike a task
+// (a completable checklist item), an appointment is a scheduled meeting at a
+// specific local date/time, place or channel, exportable to the traveller's
+// own calendar. Deliberately its own table, not a `kind` discriminator on
+// `missionTasks`: an appointment's defining fields (local wall-clock time,
+// timezone, place/channel) have no task equivalent, and forcing them onto
+// the same row would make every plain checklist task carry nullable
+// appointment-only columns for no benefit.
+export const missionAppointments = pgTable(
+  'mission_appointments',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    missionId: uuid('mission_id')
+      .notNull()
+      .references(() => missions.id, { onDelete: 'cascade' }),
+    title: text('title').notNull(),
+    assigneeAccountId: uuid('assignee_account_id').references(() => accounts.id, {
+      onDelete: 'set null',
+    }),
+    // The literal wall-clock date/time the appointment is AT, in `timezone`
+    // below -- deliberately a timezone-naive `timestamp` (never `timestamptz`,
+    // which would silently normalize and could shift the displayed local
+    // time under a session/connection timezone change). "9am" stays "9am".
+    // Relies on the Node process's own local timezone being UTC on both
+    // write and read (true of this app's deployment target and every CI/dev
+    // environment this codebase runs in) -- `pg`'s driver parses/formats a
+    // timezone-naive column using the process's local zone, so a non-UTC
+    // process would silently shift this value. `services/src/missions.ts`'s
+    // `createAppointment`/`updateAppointment` never do their own zone math on
+    // it either, for the same reason: it is passed straight through as the
+    // wall-clock string it already is.
+    localDateTime: timestamp('local_date_time', { withTimezone: false }).notNull(),
+    // IANA zone name (e.g. "Asia/Dhaka") `localDateTime` is expressed in --
+    // required, per §11's explicit "timezone" field, never inferred.
+    timezone: text('timezone').notNull(),
+    place: text('place'),
+    channel: text('channel'),
+    status: missionTaskStatus('status').notNull().default('OPEN'),
+    completedAt: timestamp('completed_at', { withTimezone: true }),
+    ...timestamps,
+  },
+  (table) => [index('mission_appointments_mission_idx').on(table.missionId)],
 );
 
 // A generated, grounded document (currently: cover letters only) —
@@ -1670,4 +2095,89 @@ export const productEvents = pgTable(
     occurredAt: timestamp('occurred_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [index('product_events_type_time_idx').on(table.eventType, table.occurredAt)],
+);
+
+// --- Notification outbox (NTF-02/§3, Part 5) --------------------------------
+// A transactional outbox: `notifications.ts`'s `enqueueNotification` is
+// always called from inside the SAME transaction as the domain change it
+// reports on ("domain change and outbox entry commit together"), and a
+// separate worker (`runNotificationWorker`) claims and dispatches rows
+// later, asynchronously. `eventType` is free text (matching `auditEvents`'
+// own convention), not an enum — the vocabulary of notification-worthy
+// events grows without a schema migration per addition. `channel` and
+// `status`, by contrast, are small, stable, structural sets, so they ARE
+// enums, matching `requirementKind`/`packVersionStatus` above.
+export const notifications = pgTable(
+  'notifications',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    eventType: text('event_type').notNull(),
+    channel: notificationChannel('channel').notNull(),
+    // Composed by `notifications.ts` from event + recipient + channel +
+    // resource + threshold ("idempotency key including: event; recipient;
+    // channel; threshold where applicable") — the UNIQUE constraint below is
+    // what actually makes both enqueueing and delivery idempotent.
+    idempotencyKey: text('idempotency_key').notNull(),
+    // An existing account (the common case) OR a not-yet-registered
+    // invitee's email (e.g. an organization invitation) — never both unset,
+    // enforced below. `recipientAccountId` is the intended recipient AT
+    // ENQUEUE TIME; `runNotificationWorker` re-verifies this account is
+    // STILL authorized to receive it at SEND TIME ("Recipients must be
+    // authorized at SEND TIME, not merely at event creation"), never trusts
+    // this column alone.
+    recipientAccountId: uuid('recipient_account_id').references(() => accounts.id, {
+      onDelete: 'cascade',
+    }),
+    recipientEmail: text('recipient_email'),
+    // Resource context for re-authorization at send time and for the
+    // payload's deep link. Nullable: not every event touches every kind of
+    // resource.
+    applicantId: uuid('applicant_id').references(() => applicants.id, { onDelete: 'cascade' }),
+    organizationId: uuid('organization_id').references(() => organizations.id, {
+      onDelete: 'cascade',
+    }),
+    missionId: uuid('mission_id').references(() => missions.id, { onDelete: 'cascade' }),
+    // Neutral, minimal message content + a relative deep-link path only
+    // ("Email content: neutral; minimal; authenticated deep link." / "Never
+    // include: passport number; financial details; medical details; refusal
+    // narrative.") — never the underlying sensitive record itself.
+    payload: jsonb('payload').notNull(),
+    status: notificationDeliveryStatus('status').notNull().default('QUEUED'),
+    attempts: integer('attempts').notNull().default(0),
+    // "Retries: transient only; maximum 5; spread over 24 hours with backoff."
+    maxAttempts: integer('max_attempts').notNull().default(5),
+    nextAttemptAt: timestamp('next_attempt_at', { withTimezone: true }).notNull().defaultNow(),
+    // Claim fields, deliberately NOT part of `status` (the directive's six
+    // delivery states are exhaustive and final — adding a seventh "CLAIMED"
+    // state would be inventing one): `runNotificationWorker` claims a batch
+    // of QUEUED rows with `SELECT ... FOR UPDATE SKIP LOCKED` inside one
+    // short transaction (mirrors `erasureJobs`' own `leaseOwner` pattern),
+    // stamps these two fields, and commits that claim separately from the
+    // dispatch itself — so a row lock is never held across an outbound email
+    // call. A lease that outlives `leaseExpiresAt` (a crashed worker) is
+    // simply eligible to be claimed again; still QUEUED throughout.
+    leaseOwner: text('lease_owner'),
+    leaseExpiresAt: timestamp('lease_expires_at', { withTimezone: true }),
+    lastError: text('last_error'),
+    // NTF-03 (Part 5 §5): the email provider's own id for this exact send,
+    // set when `status` first becomes SENT via the EMAIL channel. The one
+    // thing a delivery/bounce webhook carries that can correlate its event
+    // back to this row -- never set for IN_APP.
+    providerMessageId: text('provider_message_id'),
+    sentAt: timestamp('sent_at', { withTimezone: true }),
+    deliveredAt: timestamp('delivered_at', { withTimezone: true }),
+    readAt: timestamp('read_at', { withTimezone: true }),
+    bouncedAt: timestamp('bounced_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    unique('notifications_idempotency_unique').on(table.idempotencyKey),
+    index('notifications_dispatch_idx').on(table.status, table.nextAttemptAt),
+    index('notifications_recipient_idx').on(table.recipientAccountId),
+    index('notifications_provider_message_idx').on(table.providerMessageId),
+    check(
+      'notifications_recipient_present',
+      sql`${table.recipientAccountId} is not null or ${table.recipientEmail} is not null`,
+    ),
+  ],
 );

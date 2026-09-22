@@ -102,6 +102,22 @@ function buildGates(input: CommercialReadinessInput): readonly ReadinessGate[] {
         (isPresent('CLAMAV_SOCKET_PATH') || (isPresent('CLAMAV_HOST') && isPresent('CLAMAV_PORT'))),
     },
     {
+      key: 'realEmailProvider',
+      label: 'real email provider',
+      // Matches the exact env vars `./providers.ts`'s `createEmailPort` reads
+      // (EMAIL_PROVIDER=resend, RESEND_API_KEY, RESEND_FROM_ADDRESS) -- same
+      // "gate and constructed adapter can never disagree" pairing as
+      // `realMalwareScanner` above. NullEmailPort itself refuses to
+      // construct at all once DEPLOYMENT_MODE=commercial (its own
+      // `assertNotCommercialMode` guard, packages/adapters/src/email.ts);
+      // this gate is what stops commercial mode from ever reporting READY
+      // while still silently defaulted to it.
+      satisfied:
+        readEnv('EMAIL_PROVIDER') === 'resend' &&
+        isPresent('RESEND_API_KEY') &&
+        isPresent('RESEND_FROM_ADDRESS'),
+    },
+    {
       key: 'realKeyManagement',
       label: 'real key management (KMS)',
       // LocalEnvelopeKeyProvider (KMS_PROVIDER=local, the only

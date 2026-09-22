@@ -5,11 +5,24 @@ import {
   type ActionState,
   addNoteAction,
   assignMemberAction,
+  createAppointmentForOrgAction,
+  createTaskForOrgAction,
+  decideAppointmentForOrgAction,
+  decideTaskForOrgAction,
   recordDecisionAction,
   recordIssuerVerificationAction,
+  unassignMemberAction,
+  updateTaskForOrgAction,
 } from './actions';
 
 const INITIAL: ActionState = { ok: true, message: '' };
+
+const PRIORITY_LABELS: Record<string, string> = {
+  LOW: 'Low',
+  NORMAL: 'Normal',
+  HIGH: 'High',
+  URGENT: 'Urgent',
+};
 
 interface MemberOption {
   readonly accountId: string;
@@ -28,6 +41,25 @@ interface NoteView {
   readonly authorEmail: string;
   readonly createdAt: string;
   readonly visibility: 'AGENCY_INTERNAL' | 'TRAVELLER_SHARED';
+}
+
+interface OrgTaskView {
+  readonly id: string;
+  readonly description: string;
+  readonly status: 'OPEN' | 'IN_PROGRESS' | 'DONE' | 'CANCELLED';
+  readonly priority: 'LOW' | 'NORMAL' | 'HIGH' | 'URGENT';
+  readonly assigneeAccountId: string | null;
+  readonly dueDate: string | null;
+}
+
+interface OrgAppointmentView {
+  readonly id: string;
+  readonly title: string;
+  readonly localDateTime: string;
+  readonly timezone: string;
+  readonly place: string | null;
+  readonly channel: string | null;
+  readonly status: 'OPEN' | 'IN_PROGRESS' | 'DONE' | 'CANCELLED';
 }
 
 interface RequirementOption {
@@ -63,6 +95,8 @@ interface MissionCollaborationProps {
   readonly members: readonly MemberOption[];
   readonly assignments: readonly AssignmentView[];
   readonly notes: readonly NoteView[];
+  readonly tasks: readonly OrgTaskView[];
+  readonly appointments: readonly OrgAppointmentView[];
   readonly requirements: readonly RequirementOption[];
   readonly decisions: readonly DecisionView[];
   readonly issuerVerifications: readonly IssuerVerificationView[];
@@ -79,6 +113,8 @@ export function MissionCollaboration({
   members,
   assignments,
   notes,
+  tasks,
+  appointments,
   requirements,
   decisions,
   issuerVerifications,
@@ -86,6 +122,30 @@ export function MissionCollaboration({
 }: MissionCollaborationProps) {
   const [noteState, noteAction, notePending] = useActionState(addNoteAction, INITIAL);
   const [assignState, assignAction, assignPending] = useActionState(assignMemberAction, INITIAL);
+  const [unassignState, unassignAction, unassignPending] = useActionState(
+    unassignMemberAction,
+    INITIAL,
+  );
+  const [taskCreateState, taskCreateAction, taskCreatePending] = useActionState(
+    createTaskForOrgAction,
+    INITIAL,
+  );
+  const [taskDecideState, taskDecideAction, taskDecidePending] = useActionState(
+    decideTaskForOrgAction,
+    INITIAL,
+  );
+  const [taskReassignState, taskReassignAction, taskReassignPending] = useActionState(
+    updateTaskForOrgAction,
+    INITIAL,
+  );
+  const [apptCreateState, apptCreateAction, apptCreatePending] = useActionState(
+    createAppointmentForOrgAction,
+    INITIAL,
+  );
+  const [apptDecideState, apptDecideAction, apptDecidePending] = useActionState(
+    decideAppointmentForOrgAction,
+    INITIAL,
+  );
   const [decisionState, decisionAction, decisionPending] = useActionState(
     recordDecisionAction,
     INITIAL,
@@ -96,9 +156,15 @@ export function MissionCollaboration({
   );
   const assignedAccountIds = new Set(assignments.map((a) => a.memberAccountId));
   const assignableMembers = members.filter((m) => !assignedAccountIds.has(m.accountId));
+  const memberEmailByAccountId = new Map(members.map((m) => [m.accountId, m.email] as const));
+  const openTasks = tasks.filter((t) => t.status === 'OPEN' || t.status === 'IN_PROGRESS');
+  const upcomingAppointments = appointments.filter(
+    (a) => a.status === 'OPEN' || a.status === 'IN_PROGRESS',
+  );
 
   return (
     <div
+      id={`mission-${missionId}`}
       style={{
         padding: '0.85rem',
         border: '1px solid var(--hairline-soft)',
@@ -123,9 +189,25 @@ export function MissionCollaboration({
         ) : (
           <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', marginBottom: '0.5rem' }}>
             {assignments.map((a) => (
-              <span key={a.id} className="badge badge-neutral">
-                {a.memberEmail}
-              </span>
+              <form
+                action={unassignAction}
+                key={a.id}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}
+              >
+                <input type="hidden" name="organizationId" value={organizationId} />
+                <input type="hidden" name="missionId" value={missionId} />
+                <input type="hidden" name="memberAccountId" value={a.memberAccountId} />
+                <span className="badge badge-neutral">{a.memberEmail}</span>
+                <button
+                  type="submit"
+                  className="btn btn-secondary"
+                  style={{ padding: '0.1rem 0.5rem', fontSize: '0.7rem' }}
+                  disabled={unassignPending}
+                  title="Unassign"
+                >
+                  ×
+                </button>
+              </form>
             ))}
           </div>
         )}
@@ -156,6 +238,288 @@ export function MissionCollaboration({
         {assignState.message ? (
           <p className={`field-msg ${assignState.ok ? 'field-msg-ok' : 'field-msg-err'}`}>
             {assignState.message}
+          </p>
+        ) : null}
+        {unassignState.message ? (
+          <p className={`field-msg ${unassignState.ok ? 'field-msg-ok' : 'field-msg-err'}`}>
+            {unassignState.message}
+          </p>
+        ) : null}
+      </div>
+
+      <div style={{ marginTop: '0.85rem' }}>
+        <p className="muted" style={{ fontSize: '0.78rem', marginBottom: '0.35rem' }}>
+          Tasks
+        </p>
+        {openTasks.length === 0 ? (
+          <p className="muted" style={{ fontSize: '0.85rem', marginBottom: '0.5rem' }}>
+            No open tasks.
+          </p>
+        ) : (
+          <div
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '0.4rem',
+              marginBottom: '0.5rem',
+            }}
+          >
+            {openTasks.map((t) => (
+              <div key={t.id} style={{ fontSize: '0.85rem' }}>
+                <span>{t.description}</span>{' '}
+                <span className="badge badge-neutral" style={{ fontSize: '0.65rem' }}>
+                  {PRIORITY_LABELS[t.priority] ?? t.priority}
+                </span>{' '}
+                <span className="muted" style={{ fontSize: '0.75rem' }}>
+                  {t.assigneeAccountId
+                    ? (memberEmailByAccountId.get(t.assigneeAccountId) ?? 'unknown')
+                    : 'unassigned'}
+                  {t.dueDate ? `, due ${new Date(t.dueDate).toLocaleDateString()}` : ''}
+                </span>
+                <div style={{ display: 'flex', gap: '0.35rem', marginTop: '0.25rem' }}>
+                  <form action={taskReassignAction} style={{ display: 'flex', gap: '0.3rem' }}>
+                    <input type="hidden" name="organizationId" value={organizationId} />
+                    <input type="hidden" name="missionId" value={missionId} />
+                    <input type="hidden" name="taskId" value={t.id} />
+                    <select
+                      name="assigneeAccountId"
+                      className="input"
+                      style={{ padding: '0.15rem 0.4rem', fontSize: '0.72rem' }}
+                      defaultValue={t.assigneeAccountId ?? ''}
+                      aria-label="Reassign task"
+                    >
+                      <option value="">Unassigned</option>
+                      {members.map((m) => (
+                        <option key={m.accountId} value={m.accountId}>
+                          {m.email}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      type="submit"
+                      className="btn btn-secondary"
+                      style={{ padding: '0.15rem 0.5rem', fontSize: '0.72rem' }}
+                      disabled={taskReassignPending}
+                    >
+                      Reassign
+                    </button>
+                  </form>
+                  <form action={taskDecideAction} style={{ display: 'flex', gap: '0.3rem' }}>
+                    <input type="hidden" name="organizationId" value={organizationId} />
+                    <input type="hidden" name="missionId" value={missionId} />
+                    <input type="hidden" name="taskId" value={t.id} />
+                    {t.status === 'OPEN' ? (
+                      <button
+                        type="submit"
+                        name="status"
+                        value="IN_PROGRESS"
+                        className="btn btn-secondary"
+                        style={{ padding: '0.15rem 0.5rem', fontSize: '0.72rem' }}
+                        disabled={taskDecidePending}
+                      >
+                        Start
+                      </button>
+                    ) : null}
+                    <button
+                      type="submit"
+                      name="status"
+                      value="DONE"
+                      className="btn btn-secondary"
+                      style={{ padding: '0.15rem 0.5rem', fontSize: '0.72rem' }}
+                      disabled={taskDecidePending}
+                    >
+                      Done
+                    </button>
+                    <button
+                      type="submit"
+                      name="status"
+                      value="CANCELLED"
+                      className="btn btn-secondary"
+                      style={{ padding: '0.15rem 0.5rem', fontSize: '0.72rem' }}
+                      disabled={taskDecidePending}
+                    >
+                      Cancel
+                    </button>
+                  </form>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+        <form
+          action={taskCreateAction}
+          style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}
+        >
+          <input type="hidden" name="organizationId" value={organizationId} />
+          <input type="hidden" name="missionId" value={missionId} />
+          <input
+            name="description"
+            type="text"
+            className="input"
+            placeholder="Add a task…"
+            aria-label="Task description"
+            required
+            style={{ flex: 1, minWidth: '9rem' }}
+          />
+          <select name="assigneeAccountId" className="input" defaultValue="" aria-label="Assignee">
+            <option value="">Unassigned</option>
+            {members.map((m) => (
+              <option key={m.accountId} value={m.accountId}>
+                {m.email}
+              </option>
+            ))}
+          </select>
+          <select name="priority" className="input" defaultValue="NORMAL" aria-label="Priority">
+            {Object.entries(PRIORITY_LABELS).map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
+          </select>
+          <input name="dueDate" type="date" className="input" aria-label="Due date (optional)" />
+          <button
+            type="submit"
+            className="btn btn-secondary"
+            style={{ padding: '0.3rem 0.85rem', fontSize: '0.8rem' }}
+            disabled={taskCreatePending}
+          >
+            {taskCreatePending ? 'Adding…' : 'Add'}
+          </button>
+        </form>
+        {taskCreateState.message ? (
+          <p className={`field-msg ${taskCreateState.ok ? 'field-msg-ok' : 'field-msg-err'}`}>
+            {taskCreateState.message}
+          </p>
+        ) : null}
+        {taskDecideState.message ? (
+          <p className={`field-msg ${taskDecideState.ok ? 'field-msg-ok' : 'field-msg-err'}`}>
+            {taskDecideState.message}
+          </p>
+        ) : null}
+        {taskReassignState.message ? (
+          <p className={`field-msg ${taskReassignState.ok ? 'field-msg-ok' : 'field-msg-err'}`}>
+            {taskReassignState.message}
+          </p>
+        ) : null}
+      </div>
+
+      <div style={{ marginTop: '0.85rem' }}>
+        <p className="muted" style={{ fontSize: '0.78rem', marginBottom: '0.35rem' }}>
+          Appointments
+        </p>
+        {upcomingAppointments.length === 0 ? (
+          <p className="muted" style={{ fontSize: '0.85rem', marginBottom: '0.5rem' }}>
+            No appointments scheduled.
+          </p>
+        ) : (
+          <div
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '0.4rem',
+              marginBottom: '0.5rem',
+            }}
+          >
+            {upcomingAppointments.map((a) => (
+              <div key={a.id} style={{ fontSize: '0.85rem' }}>
+                <span>{a.title}</span>{' '}
+                <span className="muted" style={{ fontSize: '0.75rem' }}>
+                  {new Date(a.localDateTime).toLocaleString(undefined, {
+                    dateStyle: 'medium',
+                    timeStyle: 'short',
+                  })}{' '}
+                  ({a.timezone}){a.place ? ` · ${a.place}` : ''}
+                  {a.channel ? ` · ${a.channel}` : ''}
+                </span>
+                <form
+                  action={apptDecideAction}
+                  style={{ display: 'flex', gap: '0.35rem', marginTop: '0.25rem' }}
+                >
+                  <input type="hidden" name="organizationId" value={organizationId} />
+                  <input type="hidden" name="missionId" value={missionId} />
+                  <input type="hidden" name="appointmentId" value={a.id} />
+                  <button
+                    type="submit"
+                    name="status"
+                    value="DONE"
+                    className="btn btn-secondary"
+                    style={{ padding: '0.15rem 0.5rem', fontSize: '0.72rem' }}
+                    disabled={apptDecidePending}
+                  >
+                    Done
+                  </button>
+                  <button
+                    type="submit"
+                    name="status"
+                    value="CANCELLED"
+                    className="btn btn-secondary"
+                    style={{ padding: '0.15rem 0.5rem', fontSize: '0.72rem' }}
+                    disabled={apptDecidePending}
+                  >
+                    Cancel
+                  </button>
+                </form>
+              </div>
+            ))}
+          </div>
+        )}
+        <form
+          action={apptCreateAction}
+          style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}
+        >
+          <input type="hidden" name="organizationId" value={organizationId} />
+          <input type="hidden" name="missionId" value={missionId} />
+          <input
+            name="title"
+            type="text"
+            className="input"
+            placeholder="e.g. Visa interview prep call"
+            aria-label="Appointment title"
+            required
+            style={{ flex: 1, minWidth: '9rem' }}
+          />
+          <input name="localDate" type="date" className="input" aria-label="Date" required />
+          <input name="localTime" type="time" className="input" aria-label="Time" required />
+          <input
+            name="timezone"
+            type="text"
+            className="input"
+            placeholder="Timezone"
+            aria-label="Timezone"
+            required
+            style={{ maxWidth: '9rem' }}
+          />
+          <input
+            name="place"
+            type="text"
+            className="input"
+            placeholder="Place"
+            aria-label="Place"
+          />
+          <input
+            name="channel"
+            type="text"
+            className="input"
+            placeholder="Channel"
+            aria-label="Channel"
+          />
+          <button
+            type="submit"
+            className="btn btn-secondary"
+            style={{ padding: '0.3rem 0.85rem', fontSize: '0.8rem' }}
+            disabled={apptCreatePending}
+          >
+            {apptCreatePending ? 'Scheduling…' : 'Schedule'}
+          </button>
+        </form>
+        {apptCreateState.message ? (
+          <p className={`field-msg ${apptCreateState.ok ? 'field-msg-ok' : 'field-msg-err'}`}>
+            {apptCreateState.message}
+          </p>
+        ) : null}
+        {apptDecideState.message ? (
+          <p className={`field-msg ${apptDecideState.ok ? 'field-msg-ok' : 'field-msg-err'}`}>
+            {apptDecideState.message}
           </p>
         ) : null}
       </div>

@@ -52,7 +52,8 @@ export {
   type OpenAiExtractionAdapterOptions,
 } from './openai-extraction';
 
-export { NullEmailPort } from './email';
+export { NullEmailPort, ResendEmailPort, type ResendEmailPortOptions } from './email';
+export { type SvixWebhookHeaders, verifyResendWebhookSignature } from './resend-webhook';
 
 export { NullPaymentPort } from './payment';
 

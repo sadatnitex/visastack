@@ -2,9 +2,149 @@
 
 import type { MissionState } from '@visastack/core';
 import { useActionState } from 'react';
-import { type ActionState, snapshotMissionAction, transitionMissionAction } from './actions';
+import {
+  type ActionState,
+  setItineraryRefAction,
+  snapshotMissionAction,
+  transitionMissionAction,
+  updateCaseDetailsAction,
+} from './actions';
 
 const INITIAL: ActionState = { ok: true, message: '' };
+
+/** CAS-01 case-creation fields, editable after the fact (mission owner only). */
+export function CaseDetailsForm({
+  missionId,
+  jurisdiction,
+  serviceCategory,
+  travelStartDate,
+  travelEndDate,
+  targetDeadline,
+  manualMode,
+}: {
+  readonly missionId: string;
+  readonly jurisdiction: string | null;
+  readonly serviceCategory: string | null;
+  readonly travelStartDate: Date | null;
+  readonly travelEndDate: Date | null;
+  readonly targetDeadline: Date | null;
+  readonly manualMode: boolean;
+}) {
+  const [state, formAction, pending] = useActionState(updateCaseDetailsAction, INITIAL);
+  return (
+    <form action={formAction} className="field-list">
+      <input type="hidden" name="missionId" value={missionId} />
+      <div className="field-row">
+        <label className="field-label" htmlFor="jurisdiction">
+          Jurisdiction / consular post
+        </label>
+        <input
+          id="jurisdiction"
+          name="jurisdiction"
+          type="text"
+          defaultValue={jurisdiction ?? ''}
+          className="input"
+          placeholder="e.g. US Embassy Dhaka"
+        />
+      </div>
+      <div className="field-row">
+        <label className="field-label" htmlFor="serviceCategory">
+          Service category
+        </label>
+        <input
+          id="serviceCategory"
+          name="serviceCategory"
+          type="text"
+          defaultValue={serviceCategory ?? ''}
+          className="input"
+          placeholder="e.g. Tourist, Student, Work"
+        />
+      </div>
+      <div className="field-row">
+        <label className="field-label" htmlFor="travelStartDate">
+          Travel dates
+        </label>
+        <div style={{ display: 'flex', gap: '0.5rem' }}>
+          <input
+            id="travelStartDate"
+            name="travelStartDate"
+            type="date"
+            defaultValue={travelStartDate ? travelStartDate.toISOString().slice(0, 10) : ''}
+            className="input"
+            aria-label="Travel start date"
+          />
+          <input
+            id="travelEndDate"
+            name="travelEndDate"
+            type="date"
+            defaultValue={travelEndDate ? travelEndDate.toISOString().slice(0, 10) : ''}
+            className="input"
+            aria-label="Travel end date"
+          />
+        </div>
+      </div>
+      <div className="field-row">
+        <label className="field-label" htmlFor="targetDeadline">
+          Target deadline
+        </label>
+        <input
+          id="targetDeadline"
+          name="targetDeadline"
+          type="date"
+          defaultValue={targetDeadline ? targetDeadline.toISOString().slice(0, 10) : ''}
+          className="input"
+        />
+      </div>
+      <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem' }}>
+        <input type="checkbox" name="manualMode" value="true" defaultChecked={manualMode} />
+        No automated requirement pack covers this route (manual mode)
+      </label>
+      <div>
+        <button type="submit" className="btn btn-secondary" disabled={pending}>
+          {pending ? 'Saving…' : 'Save case details'}
+        </button>
+        {state.message ? (
+          <p className={`field-msg ${state.ok ? 'field-msg-ok' : 'field-msg-err'}`}>
+            {state.message}
+          </p>
+        ) : null}
+      </div>
+    </form>
+  );
+}
+
+/** Set or clear this mission's itinerary reference (IAM-04's "family trip" link, display only, never an access change). */
+export function ItineraryForm({
+  missionId,
+  itineraryRef,
+}: {
+  readonly missionId: string;
+  readonly itineraryRef: string | null;
+}) {
+  const [state, formAction, pending] = useActionState(setItineraryRefAction, INITIAL);
+  return (
+    <form action={formAction} style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+      <input type="hidden" name="missionId" value={missionId} />
+      <input
+        name="itineraryRef"
+        type="text"
+        defaultValue={itineraryRef ?? ''}
+        className="input"
+        placeholder="e.g. Smith Family Europe 2026"
+      />
+      <div>
+        <button type="submit" className="btn btn-secondary" disabled={pending}>
+          {pending ? 'Saving…' : itineraryRef ? 'Update' : 'Link'}
+        </button>
+        {state.message ? (
+          <p className={`field-msg ${state.ok ? 'field-msg-ok' : 'field-msg-err'}`}>
+            {state.message}
+          </p>
+        ) : null}
+      </div>
+    </form>
+  );
+}
 
 export function SnapshotButton({ missionId }: { readonly missionId: string }) {
   const [state, formAction, pending] = useActionState(snapshotMissionAction, INITIAL);

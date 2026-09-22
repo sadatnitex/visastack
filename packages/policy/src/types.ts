@@ -53,6 +53,16 @@ export interface Membership {
   readonly role: MembershipRole;
   /** Removing/suspending a member terminates access immediately (Build Spec §2). */
   readonly active: boolean;
+  /**
+   * True only if the organization's own status is ACTIVE right now - SHR-02:
+   * "termination of an organisation... denies the next request even with a
+   * previously issued token." Independent of `active` above: a member's own
+   * row can stay active while the ORGANIZATION itself is suspended or
+   * closed, and neither implies the other. Callers must fetch this fresh
+   * from the organization's current row, never trust a cached/mint-time
+   * value, exactly like `active` itself already must be.
+   */
+  readonly organizationActive: boolean;
 }
 
 export type Actor =
@@ -106,7 +116,8 @@ export type DenyReason =
   | 'scope_mismatch'
   | 'purpose_mismatch'
   | 'step_up_required'
-  | 'support_access_not_role';
+  | 'support_access_not_role'
+  | 'organization_not_active';
 
 export type Decision =
   | { readonly allowed: true }

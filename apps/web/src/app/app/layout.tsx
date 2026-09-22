@@ -33,6 +33,7 @@ export default async function AppLayout({ children }: { readonly children: React
             { href: '/app', label: 'Home' },
             { href: '/app/applicants', label: 'Applicants' },
             { href: '/app/shared', label: 'Shared with me' },
+            { href: '/app/notifications', label: 'Notifications' },
             { href: '/app/privacy', label: 'Privacy' },
             { href: '/app/account', label: 'Account' },
           ]}

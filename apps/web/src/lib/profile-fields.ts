@@ -37,7 +37,67 @@ export interface ProfileFieldDef {
    */
   readonly group?: string;
   readonly groupLabel?: string;
+  /**
+   * A fixed, closed set of values, rendered as a `<select>` instead of a free
+   * text input (e.g. an ISO 4217 currency code, or a marital status). The
+   * stored fact value is still a plain string, identical to any other field -
+   * this only constrains what the editor lets someone type.
+   */
+  readonly options?: readonly string[];
 }
+
+/**
+ * PRO-01 (Commercial V1 Part 4 §2): "Currency: decimal + ISO currency." Every
+ * monetary field pairs a free decimal-amount field with one of these codes,
+ * rather than a single unstructured string - a practical, commonly-needed
+ * subset of ISO 4217, not the full standard's ~180 codes.
+ */
+export const ISO_CURRENCY_CODES: readonly string[] = [
+  'BDT',
+  'USD',
+  'EUR',
+  'GBP',
+  'SGD',
+  'AED',
+  'SAR',
+  'QAR',
+  'KWD',
+  'OMR',
+  'BHD',
+  'MYR',
+  'INR',
+  'PKR',
+  'LKR',
+  'NPR',
+  'THB',
+  'IDR',
+  'PHP',
+  'VND',
+  'CNY',
+  'JPY',
+  'KRW',
+  'AUD',
+  'CAD',
+  'CHF',
+  'NZD',
+  'ZAR',
+  'TRY',
+  'EGP',
+  'HKD',
+  'SEK',
+  'NOK',
+  'DKK',
+];
+
+const MARITAL_STATUS_OPTIONS: readonly string[] = [
+  'Single',
+  'Married',
+  'Divorced',
+  'Widowed',
+  'Separated',
+  'Civil partnership',
+  'Other',
+];
 
 export const PACK_LABELS: Readonly<Record<ProfilePack, string>> = {
   universal: 'Universal',
@@ -96,6 +156,27 @@ export const PROFILE_FIELDS: readonly ProfileFieldDef[] = [
     placeholder: 'e.g. Bangladeshi',
   },
   {
+    key: 'country_of_residence',
+    label: 'Country of residence',
+    sensitivity: 'STANDARD',
+    pack: 'universal',
+    placeholder: 'Where you currently live, if different from nationality',
+  },
+  {
+    key: 'marital_status',
+    label: 'Marital status',
+    sensitivity: 'STANDARD',
+    pack: 'universal',
+    options: MARITAL_STATUS_OPTIONS,
+  },
+  {
+    key: 'name_alternate',
+    label: 'Alternate / transliterated name',
+    sensitivity: 'STANDARD',
+    pack: 'universal',
+    placeholder: 'Only if different from the legal spelling above',
+  },
+  {
     key: 'sex',
     label: 'Sex',
     sensitivity: 'STANDARD',
@@ -103,6 +184,20 @@ export const PROFILE_FIELDS: readonly ProfileFieldDef[] = [
     placeholder: 'M / F / X',
   },
   { key: 'passport_number', label: 'Passport number', sensitivity: 'SENSITIVE', pack: 'universal' },
+  {
+    key: 'passport_issuing_country',
+    label: 'Passport issuing country',
+    sensitivity: 'STANDARD',
+    pack: 'universal',
+    placeholder: 'If different from nationality',
+  },
+  {
+    key: 'passport_issue_date',
+    label: 'Passport issue date',
+    sensitivity: 'STANDARD',
+    pack: 'universal',
+    type: 'date',
+  },
   {
     key: 'passport_expiry',
     label: 'Passport expiry',
@@ -112,12 +207,61 @@ export const PROFILE_FIELDS: readonly ProfileFieldDef[] = [
   },
   { key: 'place_of_birth', label: 'Place of birth', sensitivity: 'STANDARD', pack: 'universal' },
 
+  // --- Universal: repeating - historical / additional passports --------------
+  // PRO-01 names "current/historical passports" as two distinct concepts, and
+  // PRO-02 names "passports" explicitly as repeating data that must not
+  // overwrite one another. `passport_number`/`passport_expiry` above are the
+  // single current-passport fields (unchanged, so no existing fact data moves
+  // or disappears); a prior or otherwise-held passport is recorded here
+  // instead, as its own independent repeating record.
+  {
+    key: 'historical_passport_number',
+    label: 'Passport number',
+    sensitivity: 'SENSITIVE',
+    pack: 'universal',
+    group: 'historical_passport',
+    groupLabel: 'Historical / additional passport',
+  },
+  {
+    key: 'historical_passport_country',
+    label: 'Issuing country',
+    sensitivity: 'STANDARD',
+    pack: 'universal',
+    group: 'historical_passport',
+    groupLabel: 'Historical / additional passport',
+  },
+  {
+    key: 'historical_passport_issue_date',
+    label: 'Issue date',
+    sensitivity: 'STANDARD',
+    pack: 'universal',
+    type: 'date',
+    group: 'historical_passport',
+    groupLabel: 'Historical / additional passport',
+  },
+  {
+    key: 'historical_passport_expiry',
+    label: 'Expiry (or was expired)',
+    sensitivity: 'STANDARD',
+    pack: 'universal',
+    type: 'date',
+    group: 'historical_passport',
+    groupLabel: 'Historical / additional passport',
+  },
+
   // --- Universal: contact ---------------------------------------------------
   { key: 'email', label: 'Email', sensitivity: 'STANDARD', pack: 'universal' },
   { key: 'phone', label: 'Phone', sensitivity: 'STANDARD', pack: 'universal' },
 
   // --- Universal: finances ---------------------------------------------------
   { key: 'annual_income', label: 'Annual income', sensitivity: 'SENSITIVE', pack: 'universal' },
+  {
+    key: 'annual_income_currency',
+    label: 'Annual income currency',
+    sensitivity: 'STANDARD',
+    pack: 'universal',
+    options: ISO_CURRENCY_CODES,
+  },
   {
     key: 'funding_source',
     label: 'Source of funds',
@@ -347,6 +491,49 @@ export const PROFILE_FIELDS: readonly ProfileFieldDef[] = [
     pack: 'professional',
   },
   {
+    key: 'monthly_salary_currency',
+    label: 'Monthly salary currency',
+    sensitivity: 'STANDARD',
+    pack: 'professional',
+    options: ISO_CURRENCY_CODES,
+  },
+
+  // --- Professional / employment: self-employment -----------------------------
+  {
+    key: 'self_employment_nature',
+    label: 'Nature of self-employment',
+    sensitivity: 'STANDARD',
+    pack: 'professional',
+    placeholder: 'e.g. Freelance graphic design, private consulting',
+  },
+  {
+    key: 'self_employment_business_name',
+    label: 'Business / trade name',
+    sensitivity: 'STANDARD',
+    pack: 'professional',
+    placeholder: 'If operating under a registered or trade name',
+  },
+  {
+    key: 'self_employment_since',
+    label: 'Self-employed since',
+    sensitivity: 'STANDARD',
+    pack: 'professional',
+    type: 'date',
+  },
+  {
+    key: 'self_employment_income',
+    label: 'Annual self-employment income',
+    sensitivity: 'SENSITIVE',
+    pack: 'professional',
+  },
+  {
+    key: 'self_employment_income_currency',
+    label: 'Self-employment income currency',
+    sensitivity: 'STANDARD',
+    pack: 'professional',
+    options: ISO_CURRENCY_CODES,
+  },
+  {
     key: 'employer_name',
     label: 'Employer name',
     sensitivity: 'STANDARD',
@@ -442,6 +629,13 @@ export const PROFILE_FIELDS: readonly ProfileFieldDef[] = [
     label: 'Investment amount',
     sensitivity: 'SENSITIVE',
     pack: 'business',
+  },
+  {
+    key: 'investment_amount_currency',
+    label: 'Investment amount currency',
+    sensitivity: 'STANDARD',
+    pack: 'business',
+    options: ISO_CURRENCY_CODES,
   },
   {
     key: 'ownership_percentage',

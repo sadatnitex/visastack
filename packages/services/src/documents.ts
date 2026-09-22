@@ -14,6 +14,7 @@ import { orgGrantPermits } from './agency';
 import { getApplicant } from './applicants';
 import { appendAuditEvent } from './audit';
 import { hasConsent } from './consent';
+import { isInFlightContributorSubmission } from './contributor-requests';
 import { type Db, first, required, schema } from './db';
 import {
   type DocumentAccessActorKind,
@@ -23,6 +24,7 @@ import {
 } from './document-access-token';
 import { hasActiveOrVerifiedErasureJob } from './erasure';
 import { type ServiceError, serviceError } from './errors';
+import { isValidDocumentDateString } from './expiry';
 import { listMembershipsForAccount } from './organizations';
 import { recordProductEvent } from './product-events';
 import { loadGrantsForPolicy } from './sharing';
@@ -63,9 +65,21 @@ export interface RegisterDocumentInput {
   readonly originalName: string;
   readonly docType?: string;
   readonly source?: string;
+  // CAS-08: whether this document appears in the applicant's own browsable
+  // wallet. True for every normal, owner-initiated registration (the
+  // default below matches that). A contributor-initiated one passes this
+  // explicitly, driven by the contributor's own allowWalletReuse choice.
+  readonly walletVisible?: boolean;
+  // CAS-08: set ONLY by contributor-requests.ts's own submission
+  // orchestration, never from user input directly, naming the specific,
+  // already-claimed (SUBMITTED, not yet completed) contributor_requests row
+  // this call is acting under. The one alternate path to the owner-account
+  // check below - verified via isInFlightContributorSubmission, not merely
+  // trusted because this field is present.
+  readonly onBehalfOfContributorRequestId?: string;
 }
 
-/** Create a document record owned by the applicant's account. */
+/** Create a document record owned by the applicant's account (or, narrowly, by a bound CAS-08 contributor acting for it). */
 export async function registerDocument(
   db: Db,
   input: RegisterDocumentInput,
@@ -73,7 +87,18 @@ export async function registerDocument(
   const applicant = await getApplicant(db, input.applicantId);
   if (!applicant) return err(serviceError('not_found', 'applicant not found'));
   if (applicant.ownerAccountId !== input.actorAccountId) {
-    return err(serviceError('forbidden', 'documents may only be registered by the owning account'));
+    const asContributor =
+      input.onBehalfOfContributorRequestId !== undefined &&
+      (await isInFlightContributorSubmission(db, {
+        contributorRequestId: input.onBehalfOfContributorRequestId,
+        actorAccountId: input.actorAccountId,
+        applicantId: input.applicantId,
+      }));
+    if (!asContributor) {
+      return err(
+        serviceError('forbidden', 'documents may only be registered by the owning account'),
+      );
+    }
   }
   if (input.originalName.trim().length === 0) {
     return err(serviceError('invalid', 'a document name is required'));
@@ -93,6 +118,7 @@ export async function registerDocument(
             docType: input.docType ?? null,
             source: input.source ?? null,
             uploaderAccountId: input.actorAccountId,
+            walletVisible: input.walletVisible ?? true,
           })
           .returning(),
       ),
@@ -119,6 +145,8 @@ export interface AddDocumentVersionInput {
   readonly objectKey: string;
   readonly sizeBytes?: number;
   readonly sha256?: string;
+  // CAS-08: see RegisterDocumentInput's identical field for what this is and how it's verified.
+  readonly onBehalfOfContributorRequestId?: string;
   readonly safetyStatus?: DocumentVersion['safetyStatus'];
   readonly processingStatus?: DocumentVersion['processingStatus'];
 }
@@ -142,8 +170,18 @@ export async function addDocumentVersion(
   );
   if (!document) return err(serviceError('not_found', 'document not found'));
   const applicant = await getApplicant(db, document.applicantId);
-  if (!applicant || applicant.ownerAccountId !== input.actorAccountId) {
-    return err(serviceError('forbidden', 'versions may only be added by the owning account'));
+  if (!applicant) return err(serviceError('not_found', 'applicant not found'));
+  if (applicant.ownerAccountId !== input.actorAccountId) {
+    const asContributor =
+      input.onBehalfOfContributorRequestId !== undefined &&
+      (await isInFlightContributorSubmission(db, {
+        contributorRequestId: input.onBehalfOfContributorRequestId,
+        actorAccountId: input.actorAccountId,
+        applicantId: document.applicantId,
+      }));
+    if (!asContributor) {
+      return err(serviceError('forbidden', 'versions may only be added by the owning account'));
+    }
   }
 
   return db.transaction(async (tx) => {
@@ -253,6 +291,8 @@ export interface RegisterDocumentWithVersionInput {
   readonly objectKey: string;
   readonly sizeBytes?: number;
   readonly sha256?: string;
+  readonly walletVisible?: boolean;
+  readonly onBehalfOfContributorRequestId?: string;
 }
 
 /** Carries a `ServiceError` out through a transaction rollback (a returned `err()` does not itself abort the transaction — only a throw does). */
@@ -285,6 +325,10 @@ export async function registerDocumentWithVersion(
         originalName: input.originalName,
         ...(input.docType !== undefined ? { docType: input.docType } : {}),
         ...(input.source !== undefined ? { source: input.source } : {}),
+        ...(input.walletVisible !== undefined ? { walletVisible: input.walletVisible } : {}),
+        ...(input.onBehalfOfContributorRequestId !== undefined
+          ? { onBehalfOfContributorRequestId: input.onBehalfOfContributorRequestId }
+          : {}),
       });
       if (!registered.ok) throw new RegistrationAborted(registered.error);
 
@@ -295,6 +339,9 @@ export async function registerDocumentWithVersion(
         objectKey: input.objectKey,
         ...(input.sizeBytes !== undefined ? { sizeBytes: input.sizeBytes } : {}),
         ...(input.sha256 !== undefined ? { sha256: input.sha256 } : {}),
+        ...(input.onBehalfOfContributorRequestId !== undefined
+          ? { onBehalfOfContributorRequestId: input.onBehalfOfContributorRequestId }
+          : {}),
       });
       if (!versioned.ok) throw new RegistrationAborted(versioned.error);
 
@@ -433,6 +480,79 @@ export async function recordDocumentReview(
   });
 }
 
+/**
+ * Set or clear a document's own claimed date (NTF-01, Part 5 §1
+ * "case-specific freshness/staleness"): the "as of" date the Expiry
+ * Centre's `classifyStaleness` compares against a requirement's
+ * `maxAgeDays`. Owner-asserted, like `walletVisible` - nothing extracts
+ * this automatically today, so it stays `null` ("unknown expiry remains
+ * unknown") until a human enters it. Same authorization as
+ * `recordDocumentReview`: the applicant owner, or an org member holding at
+ * least COMMENT on this applicant.
+ */
+export async function setDocumentDate(
+  db: Db,
+  input: {
+    readonly actorAccountId: string;
+    readonly documentId: string;
+    /** Strict `YYYY-MM-DD`, not in the future; `null` clears a mistaken entry. Validate with `isValidDocumentDateString` before calling. */
+    readonly documentDate: string | null;
+  },
+): Promise<Result<Document, ServiceError>> {
+  const document = first(
+    await db
+      .select()
+      .from(schema.documents)
+      .where(eq(schema.documents.id, input.documentId))
+      .limit(1),
+  );
+  if (!document) return err(serviceError('not_found', 'document not found'));
+
+  const applicant = await getApplicant(db, document.applicantId);
+  let authorized = applicant?.ownerAccountId === input.actorAccountId;
+  if (!authorized) {
+    const memberships = await listMembershipsForAccount(db, input.actorAccountId);
+    for (const membership of memberships) {
+      if (!membership.active) continue;
+      if (await orgGrantPermits(db, membership.organization.id, document.applicantId, 'COMMENT')) {
+        authorized = true;
+        break;
+      }
+    }
+  }
+  if (!authorized) return err(serviceError('forbidden', 'not authorized to edit this document'));
+
+  if (input.documentDate !== null && !isValidDocumentDateString(input.documentDate)) {
+    return err(
+      serviceError('invalid', 'documentDate must be a valid YYYY-MM-DD date, not in the future'),
+    );
+  }
+
+  return db.transaction(async (tx) => {
+    const updated = required(
+      first(
+        await tx
+          .update(schema.documents)
+          .set({ documentDate: input.documentDate })
+          .where(eq(schema.documents.id, input.documentId))
+          .returning(),
+      ),
+      'document',
+    );
+    await appendAuditEvent(tx, {
+      eventType: 'DOCUMENT_DATE_SET',
+      actorAccountId: input.actorAccountId,
+      method: 'MANUAL',
+      result: 'ALLOWED',
+      applicantId: document.applicantId,
+      resourceType: 'document',
+      resourceId: document.id,
+      metadata: { documentDate: input.documentDate },
+    });
+    return ok(updated);
+  });
+}
+
 /** The current (most recent) review outcome for a document, or `undefined` if never reviewed. */
 export async function getCurrentDocumentReview(
   db: Db,
@@ -485,6 +605,9 @@ export interface DocumentSummary {
   readonly safetyStatus: DocumentVersion['safetyStatus'] | null;
   readonly processingStatus: DocumentVersion['processingStatus'] | null;
   readonly createdAt: string;
+  /** NTF-01: the document's own claimed date (`YYYY-MM-DD`), for case-specific staleness. `null` = unknown, never fabricated. */
+  readonly documentDate: string | null;
+  readonly expiresAt: string | null;
   /** A naming proposal awaiting a human decision (Release C), if any. */
   readonly pendingNameVersion: { readonly id: string; readonly proposedName: string } | null;
   /** Deterministic classification of the latest version, if it ran. */
@@ -544,6 +667,8 @@ export async function listDocumentsDetailed(
       safetyStatus: version?.safetyStatus ?? null,
       processingStatus: version?.processingStatus ?? null,
       createdAt: doc.createdAt.toISOString(),
+      documentDate: doc.documentDate,
+      expiresAt: doc.expiresAt ? doc.expiresAt.toISOString() : null,
       pendingNameVersion:
         latestNameVersion && latestNameVersion.decision === 'PENDING'
           ? { id: latestNameVersion.id, proposedName: latestNameVersion.proposedName }
@@ -932,6 +1057,7 @@ export async function recheckDocumentAccess(
           organizationId: fields.organizationId as AgencyId,
           role: membership.role,
           active: membership.active,
+          organizationActive: membership.organization.status === 'ACTIVE',
         },
       };
       break;

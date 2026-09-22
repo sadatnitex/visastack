@@ -2,18 +2,35 @@ import { createTranslator } from '@visastack/i18n';
 import {
   getApplicant,
   listAccessForApplicantDetailed,
+  listAuditEventsForApplicant,
   listDocumentsDetailed,
   previewScopeExpansion,
 } from '@visastack/services';
 import { notFound } from 'next/navigation';
 import { grantStatusBadge } from '../../../../../lib/grant-status';
 import { getLocale } from '../../../../../lib/locale';
+import { PACK_LABELS } from '../../../../../lib/profile-fields';
 import { withSession } from '../../../../../lib/session';
 import { GrantForm } from './grant-form';
 import { GrantOpButtons } from './grant-op-buttons';
 import { ScopeExpansionForm } from './scope-expansion-form';
 
 export const dynamic = 'force-dynamic';
+
+/** Every PermissionAction this platform defines (@visastack/core), in plain language -- SHR-03's "show... scope," covering every grant regardless of which flow created it, not just this page's own curated share form. */
+const ACTION_LABELS: Record<string, string> = {
+  VIEW_METADATA: 'View metadata',
+  PREVIEW: 'Preview documents',
+  COMMENT: 'Comment',
+  PROPOSE_EDIT: 'Propose edits',
+  APPROVE_EDIT: 'Approve edits',
+  DOWNLOAD_ORIGINAL: 'Download originals',
+  DOWNLOAD_REDACTED: 'Download redacted copies',
+  DOWNLOAD_PACK: 'Download the application pack',
+  EXPORT_PROFILE: 'Export the full profile',
+  SHARE: 'Re-share access',
+  MANAGE: 'Manage the case',
+};
 
 export default async function SharingPage({
   params,
@@ -26,9 +43,10 @@ export default async function SharingPage({
   const data = await withSession(async ({ db, accountId }) => {
     const applicant = await getApplicant(db, id);
     if (!applicant || applicant.ownerAccountId !== accountId) return null;
-    const [access, documents] = await Promise.all([
+    const [access, documents, auditEvents] = await Promise.all([
       listAccessForApplicantDetailed(db, accountId, id),
       listDocumentsDetailed(db, accountId, id),
+      listAuditEventsForApplicant(db, accountId, id),
     ]);
     const grants = access.ok ? access.value : [];
 
@@ -55,6 +73,7 @@ export default async function SharingPage({
       grants,
       documents: documents.ok ? documents.value : [],
       scopeExpansions,
+      auditEvents: auditEvents.map((e) => ({ ...e, occurredAt: e.occurredAt.toISOString() })),
     };
   });
 
@@ -134,13 +153,28 @@ export default async function SharingPage({
                       <span className={`badge ${badge.tone}`}>{badge.label}</span>
                     </div>
                     <p className="muted" style={{ margin: 0, fontSize: '0.8rem' }}>
-                      {grant.purpose} · {grant.actions.length} permission
-                      {grant.actions.length === 1 ? '' : 's'}
+                      {grant.purpose}
                       {grant.expiryAt
                         ? ` · expires ${new Date(grant.expiryAt).toLocaleDateString()}`
                         : ''}
                       {grant.acceptedAt
                         ? ` · accepted ${new Date(grant.acceptedAt).toLocaleDateString()}`
+                        : ''}
+                    </p>
+                    <p className="muted" style={{ margin: 0, fontSize: '0.8rem' }}>
+                      Can: {grant.actions.map((a) => ACTION_LABELS[a] ?? a).join(', ')}
+                    </p>
+                    <p className="muted" style={{ margin: 0, fontSize: '0.8rem' }}>
+                      Scope:{' '}
+                      {grant.missionId
+                        ? 'one specific case'
+                        : grant.categories && grant.categories.length > 0
+                          ? grant.categories
+                              .map((c) => PACK_LABELS[c as keyof typeof PACK_LABELS] ?? c)
+                              .join(', ')
+                          : 'your whole profile'}
+                      {grant.documentIds && grant.documentIds.length > 0
+                        ? ` · ${grant.documentIds.length} specific document${grant.documentIds.length === 1 ? '' : 's'}`
                         : ''}
                     </p>
                     {canPause || canResume || canRevoke ? (
@@ -173,6 +207,45 @@ export default async function SharingPage({
                   </div>
                 );
               })}
+            </div>
+          )}
+        </article>
+      </div>
+
+      <div className="grid" style={{ marginTop: '1.5rem' }}>
+        <article className="card">
+          <p className="card-kicker">Transparency</p>
+          <h2 className="card-title">Access log</h2>
+          <p className="card-body" style={{ marginBottom: '1rem' }}>
+            What actually happened to your data, not just what a grant permits - the most recent{' '}
+            {data.auditEvents.length} event{data.auditEvents.length === 1 ? '' : 's'}.
+          </p>
+          {data.auditEvents.length === 0 ? (
+            <p className="card-body">No recorded activity yet.</p>
+          ) : (
+            <div className="rows" style={{ marginTop: '0.5rem' }}>
+              {data.auditEvents.map((e) => (
+                <div className="row" key={e.seq}>
+                  <span className="row-key">
+                    {e.eventType.toLowerCase().replaceAll('_', ' ')}
+                    <span className="muted" style={{ fontSize: '0.8rem', marginLeft: '0.5rem' }}>
+                      {e.actorEmail ?? 'System'}
+                    </span>
+                  </span>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    {e.result ? (
+                      <span
+                        className={`badge ${e.result === 'ALLOWED' ? 'badge-success' : 'badge-danger'}`}
+                      >
+                        {e.result === 'ALLOWED' ? 'Allowed' : 'Denied'}
+                      </span>
+                    ) : null}
+                    <span className="muted" style={{ fontSize: '0.8rem' }}>
+                      {new Date(e.occurredAt).toLocaleString()}
+                    </span>
+                  </span>
+                </div>
+              ))}
             </div>
           )}
         </article>
