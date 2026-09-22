@@ -4,14 +4,23 @@ import { triggerNotificationWorker } from '../../../../lib/jobs';
  * Periodic sweep for the notification outbox (NTF-02/§3, Part 5).
  *
  * The primary trigger is `after()` right after an event-enqueueing action
- * commits -- this route exists as the durability backstop for whatever that
- * doesn't catch: a crashed invocation, or a retry whose backoff has since
- * elapsed. Configured as a Vercel Cron target (see `apps/web/vercel.json`),
- * running far more often than the other daily sweeps -- "Targets: ...
- * email handoff <=5 minutes" demands it. Vercel signs cron-triggered
- * requests with `Authorization: Bearer $CRON_SECRET` when `CRON_SECRET` is
- * set on the project, which this route verifies. Fails closed (503) if the
- * secret isn't configured -- never runs unauthenticated.
+ * commits -- this route exists purely as the durability backstop for
+ * whatever that doesn't catch: a crashed invocation, or a retry whose
+ * backoff has since elapsed. Configured as a Vercel Cron target (see
+ * `apps/web/vercel.json`), once daily -- this project is on Vercel's Hobby
+ * plan, which rejects any cron schedule that would fire more than once a
+ * day (a first attempt at a five-minute schedule here failed every
+ * deployment until this was caught and fixed). "Targets: ... email
+ * handoff <=5 minutes" is therefore met only via the `after()` primary
+ * trigger, not by this cron's
+ * own cadence -- an event whose `after()` call is somehow lost (e.g. the
+ * request that enqueued it crashed before that callback ran) will not be
+ * retried until this once-daily backstop runs, an honest, documented
+ * degradation from the directive's target rather than a silent one. Vercel
+ * signs cron-triggered requests with `Authorization: Bearer $CRON_SECRET`
+ * when `CRON_SECRET` is set on the project, which this route verifies.
+ * Fails closed (503) if the secret isn't configured -- never runs
+ * unauthenticated.
  */
 
 export const dynamic = 'force-dynamic';
