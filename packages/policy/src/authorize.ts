@@ -18,7 +18,8 @@ import type {
  *  3. PREVIEW never implies DOWNLOAD_* (an action must be granted exactly).
  *  4. DOWNLOAD_REDACTED never implies DOWNLOAD_ORIGINAL.
  *  5. Mission access never implies the whole Vault/Profile.
- *  6. Expired/revoked/paused access fails the next request.
+ *  6. Expired/revoked/paused access (grant, membership, or the
+ *     organization's own status) fails the next request.
  *  7. Recipient acceptance is required.
  *  8. Support/admin access is not an ordinary role permission.
  */
@@ -140,6 +141,9 @@ function evaluateBase(
       // Membership alone is never authorization (law 2). A member whose
       // access was terminated is denied even with a stale grant.
       if (!actor.membership.active) return deny('grant_revoked');
+      // SHR-02: a suspended/closed organization denies every member's next
+      // request, independent of that member's own still-active row.
+      if (!actor.membership.organizationActive) return deny('organization_not_active');
       return evaluateGrants(
         action,
         resource,

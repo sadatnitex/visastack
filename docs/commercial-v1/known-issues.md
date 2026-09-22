@@ -539,6 +539,52 @@ item gets its own requirements-ledger row once classified against the new direct
     "not copied into the reusable wallet without contributor permission" rule (a new
     `documents.walletVisible` column, read by the wallet view, deliberately left out of
     readiness/docType matching). Full detail: `requirements-ledger.md` CAS-08.
+49. ~~`authorize()`'s `organization_member` case checked only the individual
+    membership row's own status, never whether the organization itself was
+    still ACTIVE -- so a suspended or closed organization's members kept
+    full, live, functional access to every applicant that had ever granted
+    that organization access, through every one of the 5 places in the
+    codebase that construct an `organization_member` Actor (`agency.ts`'s
+    `orgGrantPermits`/`bulkExport`, `documents.ts`'s `recheckDocumentAccess`,
+    `sharing.ts`'s `getRecipientWorkspace`, `wallet.ts`'s `getWalletView`).
+    This was a live, exploitable access-control gap, not a cosmetic one:
+    SHR-02's own "enforcement, revalidation" requirement is meaningless if
+    organization standing is never part of what gets revalidated.~~
+    **RESOLVED (Part 4).** `Membership` gained `organizationActive: boolean`,
+    `DenyReason` gained `'organization_not_active'`, and `authorize()`'s
+    `organization_member` case now denies outright when the organization is
+    not active; every one of the 5 call sites now supplies real organization
+    status rather than omitting the field. Proven by a pure policy-unit test
+    and two real service-integration tests (`bulkExport` and
+    `orgGrantPermits` via `assignMember`). Full detail:
+    `requirements-ledger.md` SHR-02.
+50. ~~`resumeGrant` never checked `expiryAt`, so an owner could resume a
+    paused grant back to `status: 'ACTIVE'` after it had already expired
+    while paused, leaving a misleading "Active" status nothing else
+    corrected (`authorize()`'s own independent live `expiryAt` recheck meant
+    this was never an actual access-control hole, only a data-integrity/
+    honesty one).~~ **RESOLVED (Part 4).** `resumeGrant` now refuses the
+    transition outright once `expiryAt` has passed, proven by a new test.
+    Full detail: `requirements-ledger.md` SHR-01, SHR-02.
+51. ~~SHR-03's "show... accesses" (an actual log of what happened to an
+    applicant's data, distinct from what a grant theoretically permits) did
+    not exist anywhere in the product, despite the underlying `auditEvents`
+    chain already recording everything comprehensively; and the sharing
+    page's grant rows showed only an action COUNT, never which actions or
+    what scope (categories, documents, mission) were actually granted.~~
+    **RESOLVED (Part 4).** New `listAuditEventsForApplicant` (owner-scoped,
+    tenant-isolation-tested, actor resolved to an email) backs a new
+    "Access log" card; a full `ACTION_LABELS` map and richer row rendering
+    now surface the real scope already present on the `Grant` type but
+    never rendered. Full detail: `requirements-ledger.md` SHR-03.
+52. ~~SHR-04 names "external issuer contact" as a consent type separate from
+    SHARING; it did not exist anywhere in the product, and
+    `recordIssuerVerification` dispatched real outbound issuer-contact
+    actions with zero consent gate at all.~~ **RESOLVED (Part 4).** Added
+    `ISSUER_CONTACT` end to end (`CONSENT_TYPES`, English + Bangla copy,
+    both UI label maps, migration `0046`), and `recordIssuerVerification`
+    now refuses with `consent_required` when it is absent. Full detail:
+    `requirements-ledger.md` SHR-04.
 independently confirmed findings; the missing PRD file is tracked as Blocker 1 in
 `assumptions-and-blockers.md` (now resolved) rather than here, since it blocked the
 programme rather than being a product defect.

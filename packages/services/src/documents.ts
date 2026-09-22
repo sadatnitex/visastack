@@ -978,6 +978,7 @@ export async function recheckDocumentAccess(
           organizationId: fields.organizationId as AgencyId,
           role: membership.role,
           active: membership.active,
+          organizationActive: membership.organization.status === 'ACTIVE',
         },
       };
       break;

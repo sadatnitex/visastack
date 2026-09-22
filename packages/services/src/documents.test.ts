@@ -614,6 +614,7 @@ describe('document vault — permission-aware access', () => {
       organizationId: orgId as never,
       role: 'CASE_MANAGER',
       active: true,
+      organizationActive: true,
     };
     const agencyAttempt = await previewDocument(db, storage, {
       actor: { kind: 'organization_member', accountId: orgMember.value.id as never, membership },
@@ -667,6 +668,7 @@ describe('document vault — permission-aware access', () => {
       organizationId: '00000000-0000-0000-0000-000000000000' as never,
       role: 'CASE_MANAGER',
       active: true,
+      organizationActive: true,
     };
 
     const result = await previewDocument(db, storage, {
@@ -712,6 +714,7 @@ describe('document vault — permission-aware access', () => {
       organizationId: orgId as never,
       role: 'CASE_MANAGER',
       active: true,
+      organizationActive: true,
     };
     const ok = await previewDocument(db, storage, {
       actor: { kind: 'organization_member', accountId: member.value.id as never, membership },
@@ -1029,6 +1032,7 @@ describe('document vault — preview never leaks originals to third parties (Mil
       organizationId: orgId as never,
       role: 'CASE_MANAGER',
       active: true,
+      organizationActive: true,
     };
 
     const preview = await previewDocument(db, storage, {
@@ -1261,6 +1265,7 @@ describe('recheckDocumentAccess, redemption-time replay against LIVE state (EVI-
       organizationId: org.id as never,
       role: 'CASE_MANAGER',
       active: true,
+      organizationActive: true,
     };
     return { document, org, member: member.value, membership };
   }
@@ -1335,6 +1340,30 @@ describe('recheckDocumentAccess, redemption-time replay against LIVE state (EVI-
     const result = await recheckDocumentAccess(db, fields);
     expect(result.allowed).toBe(false);
     if (!result.allowed) expect(result.reason).toBe('grant_revoked');
+  });
+
+  it("denies redemption once the organization itself is suspended between mint and redemption, even though the member's own row and the grant are both untouched (SHR-02)", async () => {
+    const { document, org, member, membership } = await seedOrgMemberWithGrant(db);
+    const ref = await previewDocument(db, storage, {
+      actor: { kind: 'organization_member', accountId: member.id as never, membership },
+      documentId: document.id,
+      purpose: 'visa_application',
+      accessTokenSecret: TEST_ACCESS_TOKEN_SECRET,
+    });
+    expect(isOk(ref)).toBe(true);
+    if (!isOk(ref)) return;
+    const fields = tokenFieldsFrom(ref.value.url);
+
+    expect((await recheckDocumentAccess(db, fields)).allowed).toBe(true);
+
+    await db
+      .update(schema.organizations)
+      .set({ status: 'SUSPENDED' })
+      .where(eq(schema.organizations.id, org.id));
+
+    const result = await recheckDocumentAccess(db, fields);
+    expect(result.allowed).toBe(false);
+    if (!result.allowed) expect(result.reason).toBe('organization_not_active');
   });
 
   it('denies redemption for a direct individual recipient once their grant is revoked', async () => {

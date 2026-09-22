@@ -494,6 +494,16 @@ describe('grant lifecycle — hostile state transitions', () => {
     expect(isOk(afterResume)).toBe(true);
   });
 
+  it('resumeGrant refuses a paused grant whose own expiry already passed (SHR-01/SHR-02: "may resume only within its original validity")', async () => {
+    const { owner, grantId } = await activeCollaborationGrant('resume-past-expiry');
+    await pauseGrant(db, { actorAccountId: owner.account.id, grantId });
+    await expireGrantNow(db, grantId);
+
+    const resumed = await resumeGrant(db, { actorAccountId: owner.account.id, grantId });
+    expect(isErr(resumed)).toBe(true);
+    if (isErr(resumed)) expect(resumed.error.code).toBe('invalid');
+  });
+
   it('an expired grant blocks org-mediated access even while its status still reads ACTIVE', async () => {
     const { owner, org, grantId } = await activeCollaborationGrant('expiry');
     await expireGrantNow(db, grantId);

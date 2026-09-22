@@ -20,6 +20,7 @@ import {
   listEvidenceRequestsForOrg,
   listEvidenceRequestsForOrgDetailed,
   listMissionDecisions,
+  listMissionRequirementsForOrg,
   listMissionsForOrganization,
   listNotes,
   listTasksForOrg,
@@ -41,6 +42,7 @@ import {
   reviewOrganization,
   setMembershipActive,
   setRequireDifferentReviewer,
+  suspendOrganization,
 } from './organizations';
 import {
   addPackVersion,
@@ -963,6 +965,44 @@ describe('permissioned bulk export', () => {
     expect(exported.value[0]?.facts['name.full']).toBe('Alice');
   });
 
+  it('denies bulk export once the organization itself is suspended, even for a still-active OWNER (SHR-02: "termination of an organisation... denies the next request")', async () => {
+    const agentAcc = await provisionAccount(db, { email: 'agent-bulk-suspended@acme.com' });
+    if (!isOk(agentAcc)) throw new Error('provision');
+    const org = await createOrganization(db, { actorAccountId: agentAcc.value.id, name: 'Acme' });
+    if (!isOk(org)) throw new Error('org');
+    await activateOrg(db, org.value.id);
+
+    // Works while the org is ACTIVE.
+    const before = await bulkExport(db, {
+      actorAccountId: agentAcc.value.id,
+      organizationId: org.value.id,
+      purpose: 'bulk',
+      stepUpSatisfied: true,
+    });
+    expect(isOk(before)).toBe(true);
+
+    const reviewer = await provisionAccount(db, {
+      email: 'platform-reviewer-bulk-suspend@example.com',
+    });
+    if (!isOk(reviewer)) throw new Error('provision');
+    const suspended = await suspendOrganization(db, {
+      reviewerAccountId: reviewer.value.id,
+      organizationId: org.value.id,
+    });
+    expect(isOk(suspended)).toBe(true);
+
+    // The caller's own OWNER membership is untouched - only the
+    // organization's own status changed.
+    const after = await bulkExport(db, {
+      actorAccountId: agentAcc.value.id,
+      organizationId: org.value.id,
+      purpose: 'bulk',
+      stepUpSatisfied: true,
+    });
+    expect(isErr(after)).toBe(true);
+    if (isErr(after)) expect(after.error.code).toBe('forbidden');
+  });
+
   it('is denied for a non-admin caller', async () => {
     const agentAcc = await provisionAccount(db, { email: 'agent-bulk2@acme.com' });
     if (!isOk(agentAcc)) throw new Error('provision');
@@ -1569,6 +1609,76 @@ describe('scope and read-authorization hardening (post-programme defect register
     const missions = await listMissionsForOrganization(db, org.value.id);
     expect(missions).toHaveLength(1);
     expect(missions[0]?.missionId).toBe(mission.value.id);
+  });
+});
+
+describe("SHR-02: a suspended/closed organization loses standing everywhere orgGrantPermits gates, independent of any individual member's own still-active row", () => {
+  let db: Db;
+  beforeEach(async () => {
+    db = await freshDb();
+  });
+
+  it('orgGrantPermits denies once the organization is suspended, then a NEW grant to a re-activated organization works again', async () => {
+    const { account, applicantId } = await consentedApplicant(db, 'shr02-orggrant@example.com');
+    const mission = await createMission(db, {
+      actorAccountId: account.id,
+      applicantId,
+      title: 'M',
+    });
+    if (!isOk(mission)) throw new Error('mission');
+    const agentAcc = await provisionAccount(db, { email: 'shr02-orggrant-agent@acme.com' });
+    if (!isOk(agentAcc)) throw new Error('provision');
+    const org = await createOrganization(db, { actorAccountId: agentAcc.value.id, name: 'Acme' });
+    if (!isOk(org)) throw new Error('org');
+    await activateOrg(db, org.value.id);
+
+    const grant = await createGrant(db, {
+      actorAccountId: account.id,
+      applicantId,
+      recipientOrganizationId: org.value.id,
+      missionId: mission.value.id,
+      actions: ['MANAGE'],
+      purpose: 'collaboration',
+    });
+    if (!isOk(grant)) throw new Error('grant');
+    await acceptGrant(db, { actorAccountId: agentAcc.value.id, grantId: grant.value.id });
+
+    // assignMember (orgGrantPermits-gated) works while the org is ACTIVE.
+    const assignedBefore = await assignMember(db, {
+      actorAccountId: agentAcc.value.id,
+      organizationId: org.value.id,
+      memberAccountId: agentAcc.value.id,
+      missionId: mission.value.id,
+    });
+    expect(isOk(assignedBefore)).toBe(true);
+
+    const reviewer = await provisionAccount(db, {
+      email: 'shr02-orggrant-reviewer@example.com',
+    });
+    if (!isOk(reviewer)) throw new Error('provision');
+    await suspendOrganization(db, {
+      reviewerAccountId: reviewer.value.id,
+      organizationId: org.value.id,
+    });
+
+    // The grant itself is untouched (still ACTIVE, still accepted), the
+    // actor is still a genuine OWNER, and the assignee is still a genuine
+    // active member -- isOrgAdmin/isActiveMember both still pass. Only the
+    // organization's own status changed, so orgGrantPermits is the ONE
+    // check left that can refuse this.
+    const assignedAfter = await assignMember(db, {
+      actorAccountId: agentAcc.value.id,
+      organizationId: org.value.id,
+      memberAccountId: agentAcc.value.id,
+      missionId: mission.value.id,
+    });
+    expect(isErr(assignedAfter)).toBe(true);
+    if (isErr(assignedAfter)) expect(assignedAfter.error.code).toBe('forbidden');
+
+    // Reading collaboration data through the same gate is denied too.
+    const requirements = await listMissionRequirementsForOrg(db, org.value.id, mission.value.id);
+    expect(isErr(requirements)).toBe(true);
+    if (isErr(requirements)) expect(requirements.error.code).toBe('forbidden');
   });
 });
 

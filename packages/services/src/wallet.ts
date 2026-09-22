@@ -121,12 +121,20 @@ export async function getWalletView(
     ...new Set(policyGrants.flatMap((g) => (g.recipientAccountId ? [g.recipientAccountId] : []))),
   ];
   const orgLabels = new Map<string, string>();
+  const orgActive = new Map<string, boolean>();
   if (orgIds.length > 0) {
     const rows = await db
-      .select({ id: schema.organizations.id, name: schema.organizations.name })
+      .select({
+        id: schema.organizations.id,
+        name: schema.organizations.name,
+        status: schema.organizations.status,
+      })
       .from(schema.organizations)
       .where(inArray(schema.organizations.id, orgIds));
-    for (const r of rows) orgLabels.set(r.id, r.name);
+    for (const r of rows) {
+      orgLabels.set(r.id, r.name);
+      orgActive.set(r.id, r.status === 'ACTIVE');
+    }
   }
   const accountLabels = new Map<string, string>();
   if (accountIds.length > 0) {
@@ -155,6 +163,9 @@ export async function getWalletView(
                   organizationId: grant.recipientOrganizationId as AgencyId,
                   role: 'ADMIN',
                   active: true,
+                  // SHR-02: a suspended/closed org must not show as "has
+                  // access" here even while its grant row is still ACTIVE.
+                  organizationActive: orgActive.get(grant.recipientOrganizationId) ?? false,
                 },
               }
             : { kind: 'individual_recipient', accountId: grant.recipientAccountId as AccountId },

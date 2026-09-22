@@ -15,7 +15,7 @@ import { type Db, first, required, schema } from './db';
 import { isDocumentVersionUsable } from './documents';
 import { activeOrVerifiedErasureStorageObjectIds } from './erasure';
 import { type ServiceError, serviceError } from './errors';
-import { isOrgAdmin } from './organizations';
+import { getOrganization, isOrgAdmin } from './organizations';
 import { type PackRequirement, listRequirements } from './packs';
 import { RATE_LIMITS, checkRateLimit } from './rate-limit';
 import { loadGrantsForPolicy } from './sharing';
@@ -93,6 +93,10 @@ export async function orgGrantPermits(
   action: PermissionAction,
   missionId?: string,
 ): Promise<boolean> {
+  // SHR-02: a suspended/closed organization has no standing at all, even
+  // with an otherwise-valid grant still on the books.
+  const org = await getOrganization(db, organizationId);
+  if (!org || org.status !== 'ACTIVE') return false;
   const grants = await loadGrantsForPolicy(db, applicantId);
   const orgGrants = grants.filter((g) => g.recipientOrganizationId === organizationId);
   if (orgGrants.length === 0) return false;
@@ -103,7 +107,12 @@ export async function orgGrantPermits(
         actor: {
           kind: 'organization_member',
           accountId: 'org-grant-scope-check' as AccountId,
-          membership: { organizationId: organizationId as AgencyId, role: 'ADMIN', active: true },
+          membership: {
+            organizationId: organizationId as AgencyId,
+            role: 'ADMIN',
+            active: true,
+            organizationActive: true,
+          },
         },
         action,
         resource: {
@@ -1404,6 +1413,12 @@ export async function bulkExport(
   ) {
     return err(serviceError('forbidden', 'only an org OWNER/ADMIN can bulk export'));
   }
+  // SHR-02: a suspended/closed organization has no standing, regardless of
+  // the caller's own still-active membership row.
+  const org = await getOrganization(db, input.organizationId);
+  if (!org || org.status !== 'ACTIVE') {
+    return err(serviceError('forbidden', 'this organization is not active'));
+  }
 
   // Candidate applicants: those with any grant naming this org, bounded.
   const grantRows = await db
@@ -1460,6 +1475,7 @@ export async function bulkExport(
             organizationId: input.organizationId as AgencyId,
             role: actorMembership.role,
             active: actorMembership.active,
+            organizationActive: true,
           },
         },
         action: 'EXPORT_PROFILE',

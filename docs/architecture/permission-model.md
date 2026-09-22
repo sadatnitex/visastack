@@ -23,8 +23,8 @@ grant start/expiry · risk context · step-up status.
 3. `PREVIEW` never implies `DOWNLOAD_*`.
 4. `DOWNLOAD_REDACTED` never implies `DOWNLOAD_ORIGINAL`.
 5. Mission access never implies the whole Vault/Profile.
-6. Expired/revoked access (grant or membership) fails the **next** server
-   request — no cached allow.
+6. Expired/revoked access (grant, membership, or the organization's own
+   status) fails the **next** server request - no cached allow.
 7. Recipient acceptance is required for a grant to take effect.
 8. Support/admin access is **not** an ordinary role permission — it is
    just-in-time, reasoned, approved, time-limited, and visible to the

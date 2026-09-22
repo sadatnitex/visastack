@@ -20,6 +20,8 @@ export {
   type AuditEventInput,
   type AuditEventRow,
   appendAuditEvent,
+  type ApplicantAuditEvent,
+  listAuditEventsForApplicant,
   listRecentAuditEvents,
 } from './audit';
 
