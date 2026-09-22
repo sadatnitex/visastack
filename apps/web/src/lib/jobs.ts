@@ -5,15 +5,19 @@ import {
   type AbandonedUploadSweepResult,
   type ErasureWorkerResult,
   type IntakeWorkerResult,
+  type NotificationWorkerResult,
   executeAccountDeletion,
   listDueDeletions,
   runErasureWorker,
   runIntakeWorker,
+  runNotificationWorker,
   sweepAbandonedUploads,
 } from '@visastack/services';
+import { resolveBaseUrl } from './base-url';
 import {
   createContentLimitsChecker,
   createDocumentConverter,
+  createEmailPort,
   createMalwareScanner,
   createObservabilityPort,
   createStorage,
@@ -93,6 +97,39 @@ export async function triggerErasureWorker(
   } catch (error) {
     console.error('[triggerErasureWorker] worker pass failed', error);
     return { processed: 0, blocked: 0, failed: 0 };
+  } finally {
+    await pool.end();
+  }
+}
+
+/**
+ * Runs the notification outbox worker (NTF-02/§3, Part 5) on its own
+ * short-lived pooled connection -- same rationale as the workers above.
+ * "Targets: event enqueue <=60 seconds" is met by calling this right after
+ * an event-enqueueing action via `after()`; the periodic
+ * `/api/jobs/process-notifications` cron is the durability backstop for
+ * whatever that misses (a crashed invocation, a retry whose backoff has
+ * since elapsed).
+ */
+export async function triggerNotificationWorker(
+  options: { readonly limit?: number } = {},
+): Promise<NotificationWorkerResult> {
+  const connectionString = resolveDatabaseUrl(process.env);
+  if (!connectionString) {
+    console.error('[triggerNotificationWorker] database not configured');
+    return { sent: 0, retrying: 0, failed: 0 };
+  }
+
+  const { db, pool } = createPooledDb(connectionString);
+  pool.on('error', (error) => {
+    console.error('[triggerNotificationWorker] idle pool connection error', error);
+  });
+  try {
+    const handle = db as unknown as Parameters<typeof runNotificationWorker>[0];
+    return await runNotificationWorker(handle, createEmailPort(), resolveBaseUrl(), options);
+  } catch (error) {
+    console.error('[triggerNotificationWorker] worker pass failed', error);
+    return { sent: 0, retrying: 0, failed: 0 };
   } finally {
     await pool.end();
   }

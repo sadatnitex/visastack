@@ -18,6 +18,10 @@
     {
       "path": "/api/jobs/process-abandoned-uploads",
       "schedule": "30 3 * * *"
+    },
+    {
+      "path": "/api/jobs/process-notifications",
+      "schedule": "*/5 * * * *"
     }
   ]
 }

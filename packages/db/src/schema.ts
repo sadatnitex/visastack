@@ -146,6 +146,19 @@ export const packVersionStatus = pgEnum('pack_version_status', [
   'DEPRECATED',
 ]);
 export const requirementKind = pgEnum('requirement_kind', ['FIELD', 'DOCUMENT']);
+export const notificationChannel = pgEnum('notification_channel', ['IN_APP', 'EMAIL']);
+// NTF-02/§3's exact delivery-state vocabulary: "QUEUED; SENT/provider
+// accepted; DELIVERED only if provider confirms; BOUNCED; FAILED; READ if
+// legitimately observable." SENT never implies DELIVERED, and DELIVERED is
+// never inferred, only set by an actual provider confirmation (a webhook).
+export const notificationDeliveryStatus = pgEnum('notification_delivery_status', [
+  'QUEUED',
+  'SENT',
+  'DELIVERED',
+  'BOUNCED',
+  'FAILED',
+  'READ',
+]);
 // Commercial V1 Part 4 §10's exact state model. FULFILLED/DECLINED are
 // retired (superseded by ACCEPTED/CANCELLED respectively) but kept in the
 // enum, never removed: a value cannot be dropped from a Postgres enum
@@ -238,6 +251,13 @@ export const applicants = pgTable('applicants', {
   // (no separate authority to attest to) and for any record created before
   // this column existed; never inferred from relationship alone.
   authorityConfirmedAt: timestamp('authority_confirmed_at', { withTimezone: true }),
+  // NTF-04 (Part 5 §4): "Subject timezone drives date notifications. Default
+  // onboarding timezone: Asia/Dhaka. Editable." An IANA name, not an offset
+  // (so DST is handled by the zone itself, never computed here). Defaulted
+  // rather than nullable so every date-threshold computation always has a
+  // concrete zone to use, including for every applicant that existed before
+  // this column did.
+  timezone: text('timezone').notNull().default('Asia/Dhaka'),
   ...timestamps,
 });
 
@@ -2075,4 +2095,83 @@ export const productEvents = pgTable(
     occurredAt: timestamp('occurred_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [index('product_events_type_time_idx').on(table.eventType, table.occurredAt)],
+);
+
+// --- Notification outbox (NTF-02/§3, Part 5) --------------------------------
+// A transactional outbox: `notifications.ts`'s `enqueueNotification` is
+// always called from inside the SAME transaction as the domain change it
+// reports on ("domain change and outbox entry commit together"), and a
+// separate worker (`runNotificationWorker`) claims and dispatches rows
+// later, asynchronously. `eventType` is free text (matching `auditEvents`'
+// own convention), not an enum — the vocabulary of notification-worthy
+// events grows without a schema migration per addition. `channel` and
+// `status`, by contrast, are small, stable, structural sets, so they ARE
+// enums, matching `requirementKind`/`packVersionStatus` above.
+export const notifications = pgTable(
+  'notifications',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    eventType: text('event_type').notNull(),
+    channel: notificationChannel('channel').notNull(),
+    // Composed by `notifications.ts` from event + recipient + channel +
+    // resource + threshold ("idempotency key including: event; recipient;
+    // channel; threshold where applicable") — the UNIQUE constraint below is
+    // what actually makes both enqueueing and delivery idempotent.
+    idempotencyKey: text('idempotency_key').notNull(),
+    // An existing account (the common case) OR a not-yet-registered
+    // invitee's email (e.g. an organization invitation) — never both unset,
+    // enforced below. `recipientAccountId` is the intended recipient AT
+    // ENQUEUE TIME; `runNotificationWorker` re-verifies this account is
+    // STILL authorized to receive it at SEND TIME ("Recipients must be
+    // authorized at SEND TIME, not merely at event creation"), never trusts
+    // this column alone.
+    recipientAccountId: uuid('recipient_account_id').references(() => accounts.id, {
+      onDelete: 'cascade',
+    }),
+    recipientEmail: text('recipient_email'),
+    // Resource context for re-authorization at send time and for the
+    // payload's deep link. Nullable: not every event touches every kind of
+    // resource.
+    applicantId: uuid('applicant_id').references(() => applicants.id, { onDelete: 'cascade' }),
+    organizationId: uuid('organization_id').references(() => organizations.id, {
+      onDelete: 'cascade',
+    }),
+    missionId: uuid('mission_id').references(() => missions.id, { onDelete: 'cascade' }),
+    // Neutral, minimal message content + a relative deep-link path only
+    // ("Email content: neutral; minimal; authenticated deep link." / "Never
+    // include: passport number; financial details; medical details; refusal
+    // narrative.") — never the underlying sensitive record itself.
+    payload: jsonb('payload').notNull(),
+    status: notificationDeliveryStatus('status').notNull().default('QUEUED'),
+    attempts: integer('attempts').notNull().default(0),
+    // "Retries: transient only; maximum 5; spread over 24 hours with backoff."
+    maxAttempts: integer('max_attempts').notNull().default(5),
+    nextAttemptAt: timestamp('next_attempt_at', { withTimezone: true }).notNull().defaultNow(),
+    // Claim fields, deliberately NOT part of `status` (the directive's six
+    // delivery states are exhaustive and final — adding a seventh "CLAIMED"
+    // state would be inventing one): `runNotificationWorker` claims a batch
+    // of QUEUED rows with `SELECT ... FOR UPDATE SKIP LOCKED` inside one
+    // short transaction (mirrors `erasureJobs`' own `leaseOwner` pattern),
+    // stamps these two fields, and commits that claim separately from the
+    // dispatch itself — so a row lock is never held across an outbound email
+    // call. A lease that outlives `leaseExpiresAt` (a crashed worker) is
+    // simply eligible to be claimed again; still QUEUED throughout.
+    leaseOwner: text('lease_owner'),
+    leaseExpiresAt: timestamp('lease_expires_at', { withTimezone: true }),
+    lastError: text('last_error'),
+    sentAt: timestamp('sent_at', { withTimezone: true }),
+    deliveredAt: timestamp('delivered_at', { withTimezone: true }),
+    readAt: timestamp('read_at', { withTimezone: true }),
+    bouncedAt: timestamp('bounced_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    unique('notifications_idempotency_unique').on(table.idempotencyKey),
+    index('notifications_dispatch_idx').on(table.status, table.nextAttemptAt),
+    index('notifications_recipient_idx').on(table.recipientAccountId),
+    check(
+      'notifications_recipient_present',
+      sql`${table.recipientAccountId} is not null or ${table.recipientEmail} is not null`,
+    ),
+  ],
 );

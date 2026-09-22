@@ -394,6 +394,26 @@ export {
 } from './expiry';
 
 export {
+  type EnqueueNotificationInput,
+  type InAppNotificationView,
+  type Notification,
+  type NotificationChannel,
+  type NotificationDeliveryStatus,
+  type NotificationEventType,
+  type NotificationNeedingAttention,
+  type NotificationPayload,
+  type NotificationWorkerResult,
+  buildNotificationIdempotencyKey,
+  enqueueNotification,
+  enqueueNotificationBothChannels,
+  listNotificationsForAccount,
+  listNotificationsNeedingAttention,
+  markNotificationRead,
+  retryNotification,
+  runNotificationWorker,
+} from './notifications';
+
+export {
   type MrzError,
   type Td3Result,
   checkDigit,

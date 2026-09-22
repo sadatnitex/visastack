@@ -27,11 +27,13 @@ import {
   updateTaskForOrg,
 } from '@visastack/services';
 import { revalidatePath } from 'next/cache';
+import { after } from 'next/server';
 import { resolveBaseUrl } from '../../../../lib/base-url';
 import {
   capabilityUnavailableMessage,
   getPlatformCapabilities,
 } from '../../../../lib/capabilities';
+import { triggerNotificationWorker } from '../../../../lib/jobs';
 import { withSession } from '../../../../lib/session';
 
 /** Result surfaced back to the client for inline feedback. */
@@ -115,7 +117,12 @@ export async function requestEvidenceAction(
     return { ok: true, message: 'Evidence request sent.' } satisfies ActionState;
   });
 
-  if (result.ok) revalidatePath(`/app/agency/${organizationId}`);
+  if (result.ok) {
+    revalidatePath(`/app/agency/${organizationId}`);
+    // NTF-02/§3: "event enqueue <=60 seconds" -- near-instant delivery for
+    // the common case; the periodic cron sweep is the durability backstop.
+    after(() => triggerNotificationWorker());
+  }
   return result;
 }
 
@@ -642,7 +649,10 @@ export async function recordDecisionAction(
     if (!decision.ok) return { ok: false, message: decision.error.message } satisfies ActionState;
     return { ok: true, message: `Decision recorded: ${outcome}.` } satisfies ActionState;
   });
-  if (result.ok) revalidatePath(`/app/agency/${organizationId}`);
+  if (result.ok) {
+    revalidatePath(`/app/agency/${organizationId}`);
+    after(() => triggerNotificationWorker());
+  }
   return result;
 }
 

@@ -15,6 +15,7 @@ import { type Db, first, required, schema } from './db';
 import { isDocumentVersionUsable } from './documents';
 import { activeOrVerifiedErasureStorageObjectIds } from './erasure';
 import { type ServiceError, serviceError } from './errors';
+import { enqueueNotificationBothChannels } from './notifications';
 import { getOrganization, isOrgAdmin } from './organizations';
 import { type PackRequirement, listRequirements } from './packs';
 import { RATE_LIMITS, checkRateLimit } from './rate-limit';
@@ -1473,6 +1474,33 @@ export async function requestEvidence(
       resourceType: 'evidence_request',
       resourceId: request.id,
     });
+
+    // NTF-02: "evidence requests" is explicitly named in the notification
+    // event list. Neutral/minimal on purpose -- never the request's own
+    // `message`, `fieldKey`, or `docType` (could itself hint at sensitive
+    // content), just that a request exists and a deep link to go see it.
+    const applicant = first(
+      await tx
+        .select({ ownerAccountId: schema.applicants.ownerAccountId })
+        .from(schema.applicants)
+        .where(eq(schema.applicants.id, input.applicantId))
+        .limit(1),
+    );
+    if (applicant) {
+      await enqueueNotificationBothChannels(tx, {
+        eventType: 'EVIDENCE_REQUEST_CREATED',
+        resourceId: request.id,
+        recipientAccountId: applicant.ownerAccountId,
+        applicantId: input.applicantId,
+        organizationId: input.organizationId,
+        ...(input.missionId !== undefined ? { missionId: input.missionId } : {}),
+        payload: {
+          subject: 'New evidence request',
+          summary: 'An agency working your case has asked for evidence.',
+          deepLinkPath: `/app/applicant/${input.applicantId}/evidence`,
+        },
+      });
+    }
     return ok(request);
   });
 }
@@ -2288,6 +2316,34 @@ export async function recordMissionDecision(
       resourceId: decision.id,
       metadata: { packRequirementId: input.packRequirementId, outcome: input.outcome },
     });
+
+    // NTF-02: "material case status/readiness changes" -- a reviewer's
+    // ACCEPTED/REJECTED verdict on a requirement is exactly that. Neutral on
+    // purpose: never the requirement's own field/doc identity or the
+    // reviewer's `reason` text, just that a decision landed and a deep link
+    // to go see it.
+    const owner = first(
+      await tx
+        .select({ ownerAccountId: schema.applicants.ownerAccountId })
+        .from(schema.applicants)
+        .where(eq(schema.applicants.id, mission.applicantId))
+        .limit(1),
+    );
+    if (owner) {
+      await enqueueNotificationBothChannels(tx, {
+        eventType: 'MISSION_STATUS_CHANGED',
+        resourceId: decision.id,
+        recipientAccountId: owner.ownerAccountId,
+        applicantId: mission.applicantId,
+        organizationId: input.organizationId,
+        missionId: input.missionId,
+        payload: {
+          subject: 'Update on your case',
+          summary: 'A reviewer recorded a decision on your case.',
+          deepLinkPath: `/app/mission/${input.missionId}`,
+        },
+      });
+    }
     return ok(decision);
   });
 }

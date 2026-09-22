@@ -684,6 +684,26 @@ item gets its own requirements-ledger row once classified against the new direct
     same fail-open-on-missing/fail-closed-on-confirmed posture already used
     for conflicted facts. New applicant "Expiry" tab shows all three signals
     in three separate cards. Full detail: `requirements-ledger.md` NTF-01.
+59. ~~No notification mechanism of any kind existed: no outbox, no delivery
+    worker, no in-app notification list, and `NullEmailPort` was the only
+    email path (logs a warning, never sends). None of the directive's
+    eleven notification-worthy events (evidence requests, case status
+    changes, expiry, etc.) reached the applicant in any form.~~ **PARTIALLY
+    RESOLVED (Part 5, NTF-02).** Built the transactional outbox mechanism in
+    full: new `notifications` table (migration `0050`) with the directive's
+    exact six delivery states, a composed idempotency key, and lease-based
+    concurrent-safe claiming; `packages/services/src/notifications.ts`'s
+    `runNotificationWorker` dispatches IN_APP immediately and EMAIL via the
+    injected port with a real 5-attempt/24-hour backoff schedule, and
+    RE-VERIFIES the recipient's authorization at send time rather than
+    trusting enqueue time. Wired to two real domain events
+    (`requestEvidence`, `recordMissionDecision`) as proof, both notifying
+    the applicant owner in-app and by email (still via `NullEmailPort`,
+    since NTF-03's real provider is unstarted). New applicant "Notifications"
+    tab. Deliberately NOT a full resolution: nine of the eleven event types
+    remain unwired, and the date-threshold sweep (NTF-04) that would turn
+    NTF-01's expiry classification into an actual reminder does not exist
+    yet. Full detail: `requirements-ledger.md` NTF-02/03/04.
 independently confirmed findings; the missing PRD file is tracked as Blocker 1 in
 `assumptions-and-blockers.md` (now resolved) rather than here, since it blocked the
 programme rather than being a product defect.

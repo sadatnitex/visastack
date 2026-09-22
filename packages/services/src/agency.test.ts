@@ -526,6 +526,49 @@ describe('agency collaboration — assignments, notes, evidence', () => {
     expect(isErr(cancelClosed)).toBe(true);
   });
 
+  it('NTF-02: requestEvidence enqueues an in-app + email notification to the applicant owner', async () => {
+    const { account, applicantId } = await consentedApplicant(db, 'ev-notify@example.com');
+    const agentAcc = await provisionAccount(db, { email: 'agent-ev-notify@acme.com' });
+    if (!isOk(agentAcc)) throw new Error('provision');
+    const org = await createOrganization(db, { actorAccountId: agentAcc.value.id, name: 'Acme' });
+    if (!isOk(org)) throw new Error('org');
+    await activateOrg(db, org.value.id);
+    const grant = await createGrant(db, {
+      actorAccountId: account.id,
+      applicantId,
+      recipientOrganizationId: org.value.id,
+      actions: ['MANAGE'],
+      purpose: 'collaboration',
+    });
+    if (!isOk(grant)) throw new Error('grant');
+    await acceptGrant(db, { actorAccountId: agentAcc.value.id, grantId: grant.value.id });
+
+    const req = await requestEvidence(db, {
+      actorAccountId: agentAcc.value.id,
+      organizationId: org.value.id,
+      applicantId,
+      kind: 'DOCUMENT',
+      docType: 'bank_statement',
+      message: 'a message that must never leak into the notification payload',
+    });
+    expect(isOk(req)).toBe(true);
+
+    const rows = await db
+      .select()
+      .from(schema.notifications)
+      .where(eq(schema.notifications.eventType, 'EVIDENCE_REQUEST_CREATED'));
+    expect(rows).toHaveLength(2);
+    expect(rows.map((r) => r.channel).sort()).toEqual(['EMAIL', 'IN_APP']);
+    for (const row of rows) {
+      expect(row.recipientAccountId).toBe(account.id);
+      expect(row.applicantId).toBe(applicantId);
+      expect(row.organizationId).toBe(org.value.id);
+      const payload = row.payload as { summary: string; deepLinkPath: string };
+      expect(payload.summary).not.toContain('must never leak');
+      expect(payload.deepLinkPath).toBe(`/app/applicant/${applicantId}/evidence`);
+    }
+  });
+
   it("decideEvidenceResponse: CONTRADICTION and CORRECTION_PROPOSED are real, distinct outcomes (Commercial V1 Part 4 §13's full four-item review list), both routing the request back to NEEDS_REPLACEMENT while the decision record keeps the more specific classification", async () => {
     const { account, applicantId } = await consentedApplicant(db, 'ev-review@example.com');
     const agentAcc = await provisionAccount(db, { email: 'agent-ev-review@acme.com' });
@@ -1438,6 +1481,34 @@ describe('reviewer decisions (master directive §7 "PR 10")', () => {
     // regardless of which row an unordered query happens to return first.
     const list = await listMissionDecisions(db, agentAcc.value.id, missionId);
     expect(isOk(list)).toBe(true);
+  });
+
+  it('NTF-02: enqueues an in-app + email notification to the applicant owner when a decision is recorded', async () => {
+    const { account, missionId, packRequirementId, org, agentAcc } = await setUp(db);
+    const decided = await recordMissionDecision(db, {
+      actorAccountId: agentAcc.value.id,
+      organizationId: org.value.id,
+      missionId,
+      packRequirementId,
+      outcome: 'REJECTED',
+      reason: 'Not legible.',
+    });
+    expect(isOk(decided)).toBe(true);
+
+    const rows = await db
+      .select()
+      .from(schema.notifications)
+      .where(eq(schema.notifications.eventType, 'MISSION_STATUS_CHANGED'));
+    expect(rows).toHaveLength(2);
+    expect(rows.map((r) => r.channel).sort()).toEqual(['EMAIL', 'IN_APP']);
+    for (const row of rows) {
+      expect(row.recipientAccountId).toBe(account.id);
+      expect(row.status).toBe('QUEUED');
+      // Neutral/minimal: never the reviewer's own reason text or the outcome.
+      const payload = row.payload as { summary: string };
+      expect(payload.summary).not.toContain('Not legible');
+      expect(payload.summary).not.toContain('REJECTED');
+    }
   });
 });
 
