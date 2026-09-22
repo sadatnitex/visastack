@@ -765,6 +765,26 @@ item gets its own requirements-ledger row once classified against the new direct
     SPF/DKIM) is a genuine operational step requiring billing and DNS
     access this session does not have, not something further code changes
     here can close. Full detail: `requirements-ledger.md` A18.
+62. COM-01 (plans/entitlements as data) is built and tested
+    (`packages/services/src/plans.ts`, migration `0053`), but the three
+    seeded catalog plans' entitlement numbers (seats/cases/storage/AI-
+    allowance limits) are clearly-flagged PLACEHOLDERS, not a real
+    product-owner pricing/capacity decision -- the PRD's own explicit
+    instruction is that "numerical allowances/prices are product-owner
+    configuration, not invented market truth," so none was invented here.
+    `priceMinorUnits`/`currency` are left unset for all three seeded rows
+    entirely, for the same reason. A platform owner can correct any of
+    this later via `updatePlan`, with no code change or migration needed
+    -- but until that happens, nothing in this system reflects a real
+    commercial decision on what each tier actually costs or allows.
+    Separately, and not this item's scope: COM-02 (reconciling these new
+    plan-based entitlements with the existing flat, env-driven
+    `quotas.ts` limits into real enforcement -- today's entitlements are
+    display-only, never gating anything) and ADM-01 (an admin UI for
+    `createPlan`/`updatePlan`/`activateSubscription`/`endSubscription`,
+    all real and tested but only reachable via a direct service call
+    today, no UI yet) both remain open, separate ledger items. Full
+    detail: `requirements-ledger.md` COM-01.
 independently confirmed findings; the missing PRD file is tracked as Blocker 1 in
 `assumptions-and-blockers.md` (now resolved) rather than here, since it blocked the
 programme rather than being a product defect.

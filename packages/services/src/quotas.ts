@@ -1,4 +1,5 @@
-import { sql } from 'drizzle-orm';
+import { inArray, sql } from 'drizzle-orm';
+import { listApplicantsForOrganization } from './agency';
 import { type Db, schema } from './db';
 
 /**
@@ -125,6 +126,39 @@ export async function getAccountEvidenceBytes(db: Db, accountId: string): Promis
     )
     .innerJoin(schema.applicants, sql`${schema.documents.applicantId} = ${schema.applicants.id}`)
     .where(sql`${schema.applicants.ownerAccountId} = ${accountId}`);
+  return Number(rows[0]?.total ?? 0);
+}
+
+/**
+ * Total evidence bytes across every applicant this organization currently
+ * has real (active, accepted, current) access to -- COM-01's "total
+ * retained storage" plan entitlement. Deliberately reuses
+ * `listApplicantsForOrganization`'s exact grant-based definition of "which
+ * applicants this org serves" rather than a narrower "cases this org
+ * owns" one: storage is a genuine infrastructure footprint the org's
+ * access enables, not a workload/ownership count (see `plans.ts`'s own
+ * doc comment on why the cases-created/concurrent-open-cases meters use a
+ * different, ownership-based definition instead).
+ */
+export async function getOrganizationEvidenceBytes(
+  db: Db,
+  organizationId: string,
+): Promise<number> {
+  const applicants = await listApplicantsForOrganization(db, organizationId);
+  if (applicants.length === 0) return 0;
+  const rows = await db
+    .select({ total: sql<string>`coalesce(sum(${schema.documentVersions.sizeBytes}), 0)` })
+    .from(schema.documentVersions)
+    .innerJoin(
+      schema.documents,
+      sql`${schema.documentVersions.documentId} = ${schema.documents.id}`,
+    )
+    .where(
+      inArray(
+        schema.documents.applicantId,
+        applicants.map((a) => a.applicantId),
+      ),
+    );
   return Number(rows[0]?.total ?? 0);
 }
 

@@ -328,7 +328,14 @@ export default async function OrgConsolePage({
             Collaboration console
           </p>
         </div>
-        <span className={`badge ${badge.tone}`}>{badge.label}</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+          {data.member ? (
+            <Link href={`/app/agency/${orgId}/plan`} className="pill">
+              Plan &amp; usage
+            </Link>
+          ) : null}
+          <span className={`badge ${badge.tone}`}>{badge.label}</span>
+        </div>
       </div>
 
       {!data.member ? (

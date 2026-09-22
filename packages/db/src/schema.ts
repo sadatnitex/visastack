@@ -2199,3 +2199,99 @@ export const notifications = pgTable(
     ),
   ],
 );
+
+// --- Commerce: plans and subscriptions (Commercial V1 COM-01, Part 5 §6) ---
+// "Entitlements are data, not hardcoded UI conditions." A plan's own numeric
+// columns ARE its entitlements -- no separate normalized "entitlements"
+// table exists because there is nothing left to normalize: every
+// entitlement belongs to exactly one plan. `key` is free text, not a closed
+// enum, despite exactly three seeded rows today (traveller_free,
+// agency_starter, agency_pro) -- the catalog itself must stay genuinely
+// data-driven, so a product owner can add a fourth plan as a data row,
+// never a migration.
+export const plans = pgTable(
+  'plans',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    key: text('key').notNull(),
+    name: text('name').notNull(),
+    // Offered/assignable right now. Retiring a plan means false, never a
+    // delete -- a subscription already on a retired plan keeps its own
+    // entitlements unchanged; `activateSubscription` refuses to assign it to
+    // anyone new.
+    active: boolean('active').notNull().default(true),
+    // Every entitlement is nullable; NULL means unlimited/no cap, never zero
+    // -- a distinction "Show each meter and its definition" depends on (a
+    // bare number can't tell "0 allowed" from "no ceiling").
+    seatsAllowed: integer('seats_allowed'),
+    casesPerPeriodAllowed: integer('cases_per_period_allowed'),
+    concurrentOpenCasesAllowed: integer('concurrent_open_cases_allowed'),
+    storageBytesAllowed: bigint('storage_bytes_allowed', { mode: 'number' }),
+    // Same cost-unit system `aiExtractionRuns.costUnits` already uses --
+    // never a second, incompatible unit definition for the same quantity.
+    aiAllowanceUnitsAllowed: integer('ai_allowance_units_allowed'),
+    // Rolling window length backing casesPerPeriodAllowed and
+    // aiAllowanceUnitsAllowed ("cases created per billing period"). A
+    // provisional, honestly-labeled placeholder -- COM-03's real
+    // billing-cycle dates do not exist yet; see plans.ts's own doc comment.
+    periodDays: integer('period_days').notNull().default(30),
+    // Configuration (the product owner's listed price), never itself a
+    // record of cash collected -- COM-03's future billing records own that
+    // distinction ("never equate proposal/commitment/invoice with collected
+    // cash"). Both null together (Traveller Free) or both set together.
+    priceMinorUnits: integer('price_minor_units'),
+    currency: text('currency'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    unique('plans_key_unique').on(table.key),
+    check(
+      'plans_price_currency_together',
+      sql`(${table.priceMinorUnits} is null) = (${table.currency} is null)`,
+    ),
+  ],
+);
+
+// One organization's plan assignment over time -- "manually activated,"
+// never self-serve (master directive §7 "PR 11"'s own "no payment provider"
+// posture; NullPaymentPort). Traveller Free needs no row here at all: it is
+// the implicit default for any individual account with no organization
+// context (plans.ts's own `getEntitlementsForAccount`), since every
+// traveller starts on it automatically and there is no self-upgrade path
+// yet. An organization, by contrast, has NO entitlements at all until a
+// platform owner explicitly assigns one -- genuinely zero, never a silent
+// free-tier fallback, since agency work requires real capacity a free
+// traveller plan was never sized for.
+export const subscriptions = pgTable(
+  'subscriptions',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    organizationId: uuid('organization_id')
+      .notNull()
+      .references(() => organizations.id, { onDelete: 'cascade' }),
+    planId: uuid('plan_id')
+      .notNull()
+      .references(() => plans.id),
+    startedAt: timestamp('started_at', { withTimezone: true }).notNull().defaultNow(),
+    // NULL = this is the organization's CURRENT subscription. Set the
+    // instant a new one is activated for the same org (activateSubscription
+    // does both atomically) -- a "plan change" is always real history, never
+    // an overwritten row.
+    endedAt: timestamp('ended_at', { withTimezone: true }),
+    assignedByAccountId: uuid('assigned_by_account_id')
+      .notNull()
+      .references(() => accounts.id),
+    reason: text('reason').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('subscriptions_organization_idx').on(table.organizationId),
+    // At most one CURRENT subscription per organization -- the database
+    // itself makes "the" current plan unambiguous, never a query-time
+    // ORDER BY/LIMIT 1 guess across concurrent activations.
+    uniqueIndex('subscriptions_one_current_per_org')
+      .on(table.organizationId)
+      .where(sql`${table.endedAt} is null`),
+  ],
+);
