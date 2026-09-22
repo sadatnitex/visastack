@@ -10,7 +10,7 @@ import { provisionAccount } from './accounts';
 import { addFamilyMember, createApplicant } from './applicants';
 import { setConsent } from './consent';
 import type { Db } from './db';
-import { addDocumentVersion, registerDocument } from './documents';
+import { addDocumentVersion, registerDocument, setDocumentDate } from './documents';
 import { enqueueErasureJob } from './erasure';
 import {
   attachPackVersion,
@@ -22,6 +22,7 @@ import {
   decideTask,
   generateCoverLetter,
   getAppointment,
+  getEvidenceCandidates,
   getMissionForOwner,
   getMissionSnapshot,
   listAppointments,
@@ -2069,5 +2070,173 @@ describe('missions - case-creation fields (Commercial V1 Part 4 §8 / CAS-01)', 
     const content = snapshot.value.content as { manualMode: boolean; jurisdiction: string | null };
     expect(content.manualMode).toBe(true);
     expect(content.jurisdiction).toBe('US Embassy Dhaka');
+  });
+});
+
+describe('NTF-01 - case-specific staleness, tracked separately from intrinsic expiry', () => {
+  let db: Db;
+  beforeEach(async () => {
+    db = await freshDb();
+  });
+
+  /** A published pack whose DOCUMENT requirement demands evidence dated within 90 days. */
+  async function publishedPackWithFreshnessRule(db: Db, actor: string): Promise<string> {
+    const pack = await createPack(db, { actorAccountId: actor, key: 'uk.freshness', name: 'F' });
+    if (!isOk(pack)) throw new Error('pack');
+    const version = await addPackVersion(db, { actorAccountId: actor, packId: pack.value.id });
+    if (!isOk(version)) throw new Error('version');
+    await addRequirement(db, {
+      actorAccountId: actor,
+      packVersionId: version.value.id,
+      kind: 'DOCUMENT',
+      docType: 'bank_statement',
+      citation: 'rule',
+      maxAgeDays: 90,
+    });
+    await approvePackVersion(db, { actorAccountId: actor, packVersionId: version.value.id });
+    await publishPackVersion(db, { actorAccountId: actor, packVersionId: version.value.id });
+    return version.value.id;
+  }
+
+  it('rejects a non-positive or non-DOCUMENT maxAgeDays', async () => {
+    const { account } = await seed(db);
+    const pack = await createPack(db, { actorAccountId: account.id, key: 'x', name: 'X' });
+    if (!isOk(pack)) throw new Error('pack');
+    const version = await addPackVersion(db, { actorAccountId: account.id, packId: pack.value.id });
+    if (!isOk(version)) throw new Error('version');
+
+    const onField = await addRequirement(db, {
+      actorAccountId: account.id,
+      packVersionId: version.value.id,
+      kind: 'FIELD',
+      fieldKey: 'passport.number',
+      citation: 'c',
+      maxAgeDays: 90,
+    });
+    expect(isErr(onField)).toBe(true);
+
+    const nonPositive = await addRequirement(db, {
+      actorAccountId: account.id,
+      packVersionId: version.value.id,
+      kind: 'DOCUMENT',
+      docType: 'bank_statement',
+      citation: 'c',
+      maxAgeDays: 0,
+    });
+    expect(isErr(nonPositive)).toBe(true);
+  });
+
+  it('a stale document blocks satisfaction with reason "stale_evidence", distinct from "not_provided"', async () => {
+    const { account, applicantId } = await seed(db);
+    const packVersionId = await publishedPackWithFreshnessRule(db, account.id);
+    const mission = await createMission(db, {
+      actorAccountId: account.id,
+      applicantId,
+      title: 'UK Visa',
+    });
+    if (!isOk(mission)) throw new Error('mission');
+    await attachPackVersion(db, {
+      actorAccountId: account.id,
+      missionId: mission.value.id,
+      packVersionId,
+    });
+
+    const doc = await registerDocument(db, {
+      actorAccountId: account.id,
+      applicantId,
+      originalName: 'bank.pdf',
+      docType: 'bank_statement',
+    });
+    if (!isOk(doc)) throw new Error('doc');
+    await addDocumentVersion(db, {
+      actorAccountId: account.id,
+      documentId: doc.value.id,
+      bucket: 'CLEAN',
+      objectKey: 'k',
+      safetyStatus: 'CLEAN',
+      processingStatus: 'AWAITING_REVIEW',
+    });
+
+    // No date recorded yet - "unknown" freshness does not block satisfaction.
+    const unknown = await computeReadiness(db, mission.value.id);
+    if (!isOk(unknown)) throw new Error('readiness');
+    expect(unknown.value.ready).toBe(true);
+
+    // Dated 120 days ago - outside the 90-day window.
+    const staleDate = new Date(Date.now() - 120 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    const dated = await setDocumentDate(db, {
+      actorAccountId: account.id,
+      documentId: doc.value.id,
+      documentDate: staleDate,
+    });
+    expect(isOk(dated)).toBe(true);
+
+    const stale = await computeReadiness(db, mission.value.id);
+    if (!isOk(stale)) throw new Error('readiness');
+    expect(stale.value.ready).toBe(false);
+    expect(stale.value.missing).toHaveLength(1);
+    expect(stale.value.missing[0]?.reason).toBe('stale_evidence');
+
+    // The candidate view (evidence-selection UI) surfaces the same verdict, kept separate from `eligible`.
+    const candidates = await getEvidenceCandidates(db, account.id, mission.value.id);
+    if (!isOk(candidates)) throw new Error('candidates');
+    const docCandidate = candidates.value.find((c) => c.kind === 'DOCUMENT');
+    expect(docCandidate?.documentCandidates[0]?.eligible).toBe(true);
+    expect(docCandidate?.documentCandidates[0]?.staleness.status).toBe('stale');
+
+    // Recording a recent date makes the same requirement satisfied again.
+    const freshDate = new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    await setDocumentDate(db, {
+      actorAccountId: account.id,
+      documentId: doc.value.id,
+      documentDate: freshDate,
+    });
+    const fresh = await computeReadiness(db, mission.value.id);
+    if (!isOk(fresh)) throw new Error('readiness');
+    expect(fresh.value.ready).toBe(true);
+  });
+
+  it('never mutates the document intrinsic expiresAt when a freshness rule applies', async () => {
+    const { account, applicantId } = await seed(db);
+    const packVersionId = await publishedPackWithFreshnessRule(db, account.id);
+    const mission = await createMission(db, {
+      actorAccountId: account.id,
+      applicantId,
+      title: 'UK Visa',
+    });
+    if (!isOk(mission)) throw new Error('mission');
+    await attachPackVersion(db, {
+      actorAccountId: account.id,
+      missionId: mission.value.id,
+      packVersionId,
+    });
+
+    const doc = await registerDocument(db, {
+      actorAccountId: account.id,
+      applicantId,
+      originalName: 'bank.pdf',
+      docType: 'bank_statement',
+    });
+    if (!isOk(doc)) throw new Error('doc');
+    await addDocumentVersion(db, {
+      actorAccountId: account.id,
+      documentId: doc.value.id,
+      bucket: 'CLEAN',
+      objectKey: 'k',
+      safetyStatus: 'CLEAN',
+      processingStatus: 'AWAITING_REVIEW',
+    });
+    const staleDate = new Date(Date.now() - 200 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    await setDocumentDate(db, {
+      actorAccountId: account.id,
+      documentId: doc.value.id,
+      documentDate: staleDate,
+    });
+    await computeReadiness(db, mission.value.id);
+
+    const row = (
+      await db.select().from(schema.documents).where(eq(schema.documents.id, doc.value.id))
+    )[0];
+    expect(row?.expiresAt).toBeNull();
   });
 });

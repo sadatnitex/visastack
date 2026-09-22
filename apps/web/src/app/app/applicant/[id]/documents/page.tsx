@@ -1,6 +1,7 @@
 import { type MessageKey, type Translator, createTranslator } from '@visastack/i18n';
 import {
   type DocumentLifecycleStatus,
+  classifyExpiry,
   getApplicantEvidenceBytes,
   getWalletView,
   hasConsent,
@@ -14,7 +15,7 @@ import Link from 'next/link';
 import { createAiExtractor } from '../../../../../lib/ai';
 import { getLocale } from '../../../../../lib/locale';
 import { withSession } from '../../../../../lib/session';
-import { previewDocumentAction } from '../actions';
+import { previewDocumentAction, setDocumentDateAction } from '../actions';
 import { AiProposalReview, RunAiExtractionButton } from '../ai-review';
 import { DocumentUploader } from '../document-uploader';
 import { NameReview } from '../name-review';
@@ -73,10 +74,10 @@ export default async function ApplicantDocumentsPage({
   searchParams,
 }: {
   readonly params: Promise<{ id: string }>;
-  readonly searchParams: Promise<{ readonly preview_error?: string }>;
+  readonly searchParams: Promise<{ readonly preview_error?: string; readonly date_error?: string }>;
 }) {
   const { id } = await params;
-  const { preview_error: previewError } = await searchParams;
+  const { preview_error: previewError, date_error: dateError } = await searchParams;
   const locale = await getLocale();
   const t = createTranslator(locale);
 
@@ -117,7 +118,13 @@ export default async function ApplicantDocumentsPage({
     <>
       {previewError ? (
         <p className="notice notice-warn" role="alert" style={{ marginBottom: '1.5rem' }}>
-          Couldn't open that preview — the document may no longer be available. Please try again.
+          Couldn't open that preview - the document may no longer be available. Please try again.
+        </p>
+      ) : null}
+
+      {dateError ? (
+        <p className="notice notice-warn" role="alert" style={{ marginBottom: '1.5rem' }}>
+          Couldn't save that date - enter a valid date that isn't in the future.
         </p>
       ) : null}
 
@@ -248,6 +255,39 @@ export default async function ApplicantDocumentsPage({
                       </p>
                     );
                   })()}
+                  <form
+                    action={setDocumentDateAction}
+                    style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}
+                  >
+                    <input type="hidden" name="applicantId" value={id} />
+                    <input type="hidden" name="documentId" value={doc.id} />
+                    <label
+                      className="muted"
+                      style={{ fontSize: '0.75rem' }}
+                      htmlFor={`date-${doc.id}`}
+                    >
+                      Document date
+                    </label>
+                    <input
+                      id={`date-${doc.id}`}
+                      name="documentDate"
+                      type="date"
+                      defaultValue={doc.documentDate ?? ''}
+                      max={new Date().toISOString().slice(0, 10)}
+                      className="input"
+                      style={{ padding: '0.2rem 0.5rem', fontSize: '0.8rem', width: 'auto' }}
+                    />
+                    <button
+                      type="submit"
+                      className="btn btn-secondary"
+                      style={{ padding: '0.2rem 0.6rem', fontSize: '0.75rem' }}
+                    >
+                      Save
+                    </button>
+                    <span className="muted" style={{ fontSize: '0.7rem' }}>
+                      Used to judge freshness for routes that require recently-dated evidence.
+                    </span>
+                  </form>
                   {(() => {
                     const confirmations = data.issuerVerifications.get(doc.id) ?? [];
                     if (confirmations.length === 0) return null;
@@ -265,10 +305,13 @@ export default async function ApplicantDocumentsPage({
                           }}
                         >
                           {confirmations.map((c) => {
-                            const expired = c.validUntil.getTime() <= Date.now();
+                            const verification = classifyExpiry(c.validUntil, new Date());
                             return (
                               <p key={c.id} className="muted" style={{ margin: '0 0 0.3rem' }}>
-                                {expired ? '(expired) ' : ''}
+                                {verification.urgency === 'expired' ? '(expired) ' : ''}
+                                {verification.urgency === 'reminder'
+                                  ? `(expires in ${verification.daysRemaining} day(s)) `
+                                  : ''}
                                 {c.issuerIdentity}: "{c.exactClaim}", response: {c.response}, valid
                                 until {c.validUntil.toLocaleDateString()}
                               </p>

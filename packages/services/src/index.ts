@@ -308,6 +308,7 @@ export {
 
 export {
   type CreateAppointmentInput,
+  type DocumentCandidateWithStaleness,
   type DocumentInstance,
   type EvidenceCandidateEntry,
   type FactInstance,
@@ -375,6 +376,22 @@ export {
   publishPackVersion,
   verifyPackChecksum,
 } from './packs';
+
+export {
+  DEFAULT_EXPIRY_REMINDER_THRESHOLD_DAYS,
+  type DocumentExpiryPolicy,
+  type ExpiryClassification,
+  type ExpiryUrgency,
+  type StalenessClassification,
+  type StalenessStatus,
+  classifyExpiry,
+  classifyStaleness,
+  getReminderThresholds,
+  isValidDocumentDateString,
+  listDocumentExpiryPolicies,
+  parseDocumentDate,
+  setDocumentExpiryPolicy,
+} from './expiry';
 
 export {
   type MrzError,
@@ -501,6 +518,7 @@ export {
   recordDocumentReview,
   registerDocument,
   registerDocumentWithVersion,
+  setDocumentDate,
 } from './documents';
 
 export {

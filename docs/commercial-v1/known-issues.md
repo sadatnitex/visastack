@@ -660,6 +660,30 @@ item gets its own requirements-ledger row once classified against the new direct
     row -- that would need decoupling `field_proposals` from its required
     `aiExtractionRunId`, a real, separate, deliberately undone enhancement.
     Full detail: `requirements-ledger.md` CAS-06.
+58. ~~No expiry concept existed for case-specific document freshness (e.g. "a
+    bank statement must be dated within 90 days for this route"), and the
+    two expiry concepts that DID exist (`documents.expiresAt` intrinsic,
+    `issuerVerifications.validUntil` verification) had no shared
+    classification logic -- three separate call sites each computed their
+    own ad-hoc `validUntil.getTime() <= Date.now()` boolean, with no
+    reminder-threshold ladder anywhere and `documents.documentDate` a
+    genuinely dead column (declared in the schema, never read or written by
+    any code path).~~ **RESOLVED (Part 5, NTF-01).** New
+    `packages/services/src/expiry.ts`: `classifyExpiry` (intrinsic/
+    verification, a graduated `unknown/ok/reminder/expired` status against a
+    90/60/30/7/0-day default ladder) and `classifyStaleness` (case-specific,
+    `not_applicable/unknown/fresh/stale`) as two deliberately separate
+    functions, matching the directive's "track separately." New
+    `packRequirements.maxAgeDays` (migration `0049`) is the case-specific
+    freshness rule; a new `setDocumentDate` (`documents.ts`) is a real,
+    strictly-validated human write path for the previously-dead
+    `documentDate` column, since a freshness rule with no way to ever record
+    a date would be permanently unreachable. A confirmed-stale document now
+    genuinely blocks requirement satisfaction (`MissingRequirement` reason
+    `stale_evidence`); an unknown one does not, deliberately, matching the
+    same fail-open-on-missing/fail-closed-on-confirmed posture already used
+    for conflicted facts. New applicant "Expiry" tab shows all three signals
+    in three separate cards. Full detail: `requirements-ledger.md` NTF-01.
 independently confirmed findings; the missing PRD file is tracked as Blocker 1 in
 `assumptions-and-blockers.md` (now resolved) rather than here, since it blocked the
 programme rather than being a product defect.

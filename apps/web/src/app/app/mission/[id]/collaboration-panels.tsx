@@ -383,7 +383,7 @@ export function LettersPanel({
       <p className="card-kicker">Grounded documents</p>
       <h2 className="card-title">Cover letters</h2>
       <p className="muted" style={{ fontSize: '0.8rem', marginBottom: '1rem' }}>
-        Generated strictly from confirmed, eligible evidence — nothing is invented. Not AI-written;
+        Generated strictly from confirmed, eligible evidence - nothing is invented. Not AI-written;
         deterministic and versioned.
       </p>
       {letters.length === 0 ? (
@@ -446,10 +446,12 @@ interface CandidateView {
     readonly documentId: string;
     readonly displayName: string;
     readonly eligible: boolean;
+    /** NTF-01: this candidate's freshness against the requirement's route-specific rule, if any. */
+    readonly staleness: 'not_applicable' | 'unknown' | 'fresh' | 'stale';
   }>;
   readonly selectedFactIds: readonly string[];
   readonly selectedDocumentIds: readonly string[];
-  /** Keyed by `composeSelectionCandidateKey` (evidence-selection-key.ts) — finding #33. */
+  /** Keyed by `composeSelectionCandidateKey` (evidence-selection-key.ts) - finding #33. */
   readonly selectionIdsByCandidate: Readonly<Record<string, string>>;
 }
 
@@ -476,7 +478,7 @@ export function EvidenceSelectionPanel({
       <p className="card-kicker">Precision</p>
       <h2 className="card-title">Select evidence</h2>
       <p className="muted" style={{ fontSize: '0.8rem', marginBottom: '1rem' }}>
-        More than one instance is on file for these requirements — pick exactly which one backs
+        More than one instance is on file for these requirements - pick exactly which one backs
         each. Until you select, any eligible instance may count.
       </p>
       <div className="rows">
@@ -517,7 +519,7 @@ export function EvidenceSelectionPanel({
                             style={{ padding: '0.2rem 0.6rem', fontSize: '0.75rem' }}
                             disabled={unselectPending}
                           >
-                            Selected — remove
+                            Selected - remove
                           </button>
                         </form>
                       ) : (
@@ -560,6 +562,16 @@ export function EvidenceSelectionPanel({
                             not eligible
                           </span>
                         ) : null}
+                        {doc.staleness === 'stale' ? (
+                          <span className="badge badge-danger" style={{ marginLeft: '0.4rem' }}>
+                            too old for this route
+                          </span>
+                        ) : null}
+                        {doc.staleness === 'unknown' ? (
+                          <span className="badge badge-neutral" style={{ marginLeft: '0.4rem' }}>
+                            freshness unknown
+                          </span>
+                        ) : null}
                       </span>
                       {selected && selectionId ? (
                         <form action={unselectAction}>
@@ -571,7 +583,7 @@ export function EvidenceSelectionPanel({
                             style={{ padding: '0.2rem 0.6rem', fontSize: '0.75rem' }}
                             disabled={unselectPending}
                           >
-                            Selected — remove
+                            Selected - remove
                           </button>
                         </form>
                       ) : (

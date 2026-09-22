@@ -24,6 +24,7 @@ import {
 } from './document-access-token';
 import { hasActiveOrVerifiedErasureJob } from './erasure';
 import { type ServiceError, serviceError } from './errors';
+import { isValidDocumentDateString } from './expiry';
 import { listMembershipsForAccount } from './organizations';
 import { recordProductEvent } from './product-events';
 import { loadGrantsForPolicy } from './sharing';
@@ -479,6 +480,79 @@ export async function recordDocumentReview(
   });
 }
 
+/**
+ * Set or clear a document's own claimed date (NTF-01, Part 5 §1
+ * "case-specific freshness/staleness"): the "as of" date the Expiry
+ * Centre's `classifyStaleness` compares against a requirement's
+ * `maxAgeDays`. Owner-asserted, like `walletVisible` - nothing extracts
+ * this automatically today, so it stays `null` ("unknown expiry remains
+ * unknown") until a human enters it. Same authorization as
+ * `recordDocumentReview`: the applicant owner, or an org member holding at
+ * least COMMENT on this applicant.
+ */
+export async function setDocumentDate(
+  db: Db,
+  input: {
+    readonly actorAccountId: string;
+    readonly documentId: string;
+    /** Strict `YYYY-MM-DD`, not in the future; `null` clears a mistaken entry. Validate with `isValidDocumentDateString` before calling. */
+    readonly documentDate: string | null;
+  },
+): Promise<Result<Document, ServiceError>> {
+  const document = first(
+    await db
+      .select()
+      .from(schema.documents)
+      .where(eq(schema.documents.id, input.documentId))
+      .limit(1),
+  );
+  if (!document) return err(serviceError('not_found', 'document not found'));
+
+  const applicant = await getApplicant(db, document.applicantId);
+  let authorized = applicant?.ownerAccountId === input.actorAccountId;
+  if (!authorized) {
+    const memberships = await listMembershipsForAccount(db, input.actorAccountId);
+    for (const membership of memberships) {
+      if (!membership.active) continue;
+      if (await orgGrantPermits(db, membership.organization.id, document.applicantId, 'COMMENT')) {
+        authorized = true;
+        break;
+      }
+    }
+  }
+  if (!authorized) return err(serviceError('forbidden', 'not authorized to edit this document'));
+
+  if (input.documentDate !== null && !isValidDocumentDateString(input.documentDate)) {
+    return err(
+      serviceError('invalid', 'documentDate must be a valid YYYY-MM-DD date, not in the future'),
+    );
+  }
+
+  return db.transaction(async (tx) => {
+    const updated = required(
+      first(
+        await tx
+          .update(schema.documents)
+          .set({ documentDate: input.documentDate })
+          .where(eq(schema.documents.id, input.documentId))
+          .returning(),
+      ),
+      'document',
+    );
+    await appendAuditEvent(tx, {
+      eventType: 'DOCUMENT_DATE_SET',
+      actorAccountId: input.actorAccountId,
+      method: 'MANUAL',
+      result: 'ALLOWED',
+      applicantId: document.applicantId,
+      resourceType: 'document',
+      resourceId: document.id,
+      metadata: { documentDate: input.documentDate },
+    });
+    return ok(updated);
+  });
+}
+
 /** The current (most recent) review outcome for a document, or `undefined` if never reviewed. */
 export async function getCurrentDocumentReview(
   db: Db,
@@ -531,6 +605,9 @@ export interface DocumentSummary {
   readonly safetyStatus: DocumentVersion['safetyStatus'] | null;
   readonly processingStatus: DocumentVersion['processingStatus'] | null;
   readonly createdAt: string;
+  /** NTF-01: the document's own claimed date (`YYYY-MM-DD`), for case-specific staleness. `null` = unknown, never fabricated. */
+  readonly documentDate: string | null;
+  readonly expiresAt: string | null;
   /** A naming proposal awaiting a human decision (Release C), if any. */
   readonly pendingNameVersion: { readonly id: string; readonly proposedName: string } | null;
   /** Deterministic classification of the latest version, if it ran. */
@@ -590,6 +667,8 @@ export async function listDocumentsDetailed(
       safetyStatus: version?.safetyStatus ?? null,
       processingStatus: version?.processingStatus ?? null,
       createdAt: doc.createdAt.toISOString(),
+      documentDate: doc.documentDate,
+      expiresAt: doc.expiresAt ? doc.expiresAt.toISOString() : null,
       pendingNameVersion:
         latestNameVersion && latestNameVersion.decision === 'PENDING'
           ? { id: latestNameVersion.id, proposedName: latestNameVersion.proposedName }

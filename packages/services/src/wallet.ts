@@ -21,11 +21,16 @@ import { documentCategory, loadGrantsForPolicy } from './sharing';
 export type DocumentLifecycleStatus = 'CURRENT' | 'EXPIRING' | 'EXPIRED' | 'SUPERSEDED';
 
 /**
- * The PRD gives no exact "expiring soon" window for documents (unlike, say,
- * SHR-01's exact 30/90-day grant durations). 30 days is a provisional,
- * clearly-documented default; Part 5's Expiry Centre (NTF-01, "intrinsic vs
- * staleness distinction") is the eventual authoritative owner of this
- * number and may formalize or override it.
+ * The PRD gives no exact "expiring soon" window for this specific wallet
+ * badge (unlike, say, SHR-01's exact 30/90-day grant durations). 30 days is
+ * a provisional, clearly-documented default, kept as-is deliberately: NTF-01
+ * (Part 5 §1) has since formalized the general mechanism - `expiry.ts`'s
+ * `classifyExpiry`, a full 90/60/30/7/0 reminder ladder configurable by
+ * document type - but this wallet badge stays this simpler, always-30-day,
+ * four-state (`CURRENT`/`EXPIRING`/`EXPIRED`/`SUPERSEDED`) categorization on
+ * purpose; upgrading it to the richer ladder is a UX choice for a future
+ * pass, not a gap in NTF-01 itself. See `expiry.ts` and the applicant
+ * "Expiry" tab for the authoritative, docType-aware classification.
  */
 const EXPIRING_SOON_DAYS = 30;
 

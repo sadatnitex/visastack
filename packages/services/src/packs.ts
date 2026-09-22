@@ -27,6 +27,8 @@ export interface RequirementInput {
   readonly citation: string;
   readonly optional?: boolean;
   readonly notes?: string;
+  /** DOCUMENT-only (NTF-01, Part 5 §1): case-specific freshness rule, e.g. "must be dated within 90 days." */
+  readonly maxAgeDays?: number;
 }
 
 /** Deterministic manifest for a set of requirements, plus its checksum. */
@@ -34,6 +36,16 @@ export function buildManifest(requirements: readonly PackRequirement[]): {
   manifest: { requirements: unknown[] };
   checksum: string;
 } {
+  // NTF-01's `maxAgeDays` is deliberately NOT included here: this manifest's
+  // shape is checksummed and re-verified against every already-published
+  // pack version's stored `checksum` (`VerifyChecksumForm`) - adding a key
+  // would change `buildManifest`'s output for every EXISTING version too
+  // (drizzle returns `null`, not `undefined`, for the new column, and
+  // `JSON.stringify` does serialize an explicit `null`), silently breaking
+  // verification for every pack approved before this column existed. The
+  // staleness rule is still real and still enforced (`missions.ts`'s
+  // `buildRequirementMapping`); it just isn't part of this content-integrity
+  // checksum, the same way `notes` already isn't.
   const items = requirements
     .map((r) => ({
       kind: r.kind,
@@ -190,6 +202,14 @@ export async function addRequirement(
   if (input.kind === 'DOCUMENT' && !input.docType) {
     return err(serviceError('invalid', 'a DOCUMENT requirement needs a docType'));
   }
+  if (input.maxAgeDays !== undefined) {
+    if (input.kind !== 'DOCUMENT') {
+      return err(serviceError('invalid', 'maxAgeDays only applies to a DOCUMENT requirement'));
+    }
+    if (!Number.isInteger(input.maxAgeDays) || input.maxAgeDays <= 0) {
+      return err(serviceError('invalid', 'maxAgeDays must be a positive integer'));
+    }
+  }
 
   return db.transaction(async (tx) => {
     const requirement = required(
@@ -204,6 +224,7 @@ export async function addRequirement(
             citation: input.citation.trim(),
             optional: input.optional ?? false,
             notes: input.notes ?? null,
+            maxAgeDays: input.maxAgeDays ?? null,
           })
           .returning(),
       ),
@@ -220,6 +241,7 @@ export async function addRequirement(
         kind: input.kind,
         fieldKey: input.fieldKey ?? null,
         docType: input.docType ?? null,
+        maxAgeDays: input.maxAgeDays ?? null,
       },
     });
     return ok(requirement);

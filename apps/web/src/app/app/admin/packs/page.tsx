@@ -1,15 +1,19 @@
-import { listPacks } from '@visastack/services';
+import { listDocumentExpiryPolicies, listPacks } from '@visastack/services';
 import Link from 'next/link';
 import { isPlatformAdmin } from '../../../../lib/admin';
 import { withSession } from '../../../../lib/session';
-import { CreatePackForm } from './pack-forms';
+import { CreatePackForm, SetDocumentExpiryPolicyForm } from './pack-forms';
 
 export const dynamic = 'force-dynamic';
 
 export default async function PackStudioPage() {
   const data = await withSession(async ({ db, accountId, email }) => {
     if (!(await isPlatformAdmin(db, { accountId, email }))) return { admin: false as const };
-    return { admin: true as const, packs: await listPacks(db) };
+    return {
+      admin: true as const,
+      packs: await listPacks(db),
+      expiryPolicies: await listDocumentExpiryPolicies(db),
+    };
   });
 
   return (
@@ -66,6 +70,26 @@ export default async function PackStudioPage() {
             <p className="card-kicker">New</p>
             <h2 className="card-title">Create a pack</h2>
             <CreatePackForm />
+          </article>
+
+          <article className="card">
+            <p className="card-kicker">Expiry Centre</p>
+            <h2 className="card-title">Reminder thresholds by document type</h2>
+            <p className="muted" style={{ margin: '0.35rem 0 1rem', fontSize: '0.85rem' }}>
+              Default for every document type: 90, 60, 30, 7 and 0 days before expiry. Override per
+              type below.
+            </p>
+            {data.expiryPolicies.length > 0 ? (
+              <div className="rows" style={{ marginBottom: '1.25rem' }}>
+                {data.expiryPolicies.map((p) => (
+                  <div className="row" key={p.id}>
+                    <span className="row-key">{p.docType}</span>
+                    <span className="row-val">{p.thresholdDays.join(', ')}</span>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+            <SetDocumentExpiryPolicyForm />
           </article>
         </div>
       )}

@@ -10,6 +10,7 @@ import { type Db, first, required, schema } from './db';
 import { isDocumentVersionUsable } from './documents';
 import { activeOrVerifiedErasureStorageObjectIds } from './erasure';
 import { type ServiceError, serviceError } from './errors';
+import { type StalenessClassification, classifyStaleness, parseDocumentDate } from './expiry';
 import { type PackRequirement, listRequirements } from './packs';
 import { recordProductEvent } from './product-events';
 
@@ -366,8 +367,8 @@ export interface MissingRequirement {
   readonly kind: 'FIELD' | 'DOCUMENT';
   readonly key: string;
   readonly optional: boolean;
-  /** Distinguishes "never provided" from "provided but not currently trustworthy". */
-  readonly reason: 'not_provided' | 'unresolved_conflict';
+  /** Distinguishes "never provided" from "provided but not currently trustworthy" from "provided but too old for this route (NTF-01)". */
+  readonly reason: 'not_provided' | 'unresolved_conflict' | 'stale_evidence';
 }
 
 export interface Readiness {
@@ -535,6 +536,13 @@ export interface DocumentInstance {
   readonly processingStatus: string;
   /** Master directive §7 "PR 10": readiness must ignore unsafe, expired, or still-processing/rejected documents. */
   readonly eligible: boolean;
+  /** Raw `documents.documentDate` (`YYYY-MM-DD` or `null`) - parse with `expiry.ts`'s `parseDocumentDate`. Requirement-agnostic, like every other field here; per-requirement staleness is computed separately in `buildRequirementMapping`/`getEvidenceCandidates`, since `maxAgeDays` lives on the requirement, not the document. */
+  readonly documentDate: string | null;
+}
+
+/** A document candidate plus the requirement-specific staleness verdict (NTF-01) - never folded into `DocumentInstance.eligible`, which stays intrinsic-only ("track separately"). */
+export interface DocumentCandidateWithStaleness extends DocumentInstance {
+  readonly staleness: StalenessClassification;
 }
 
 /**
@@ -601,6 +609,7 @@ async function loadDocumentInstancesByType(
       originalName: schema.documents.originalName,
       approvedName: schema.documents.approvedName,
       expiresAt: schema.documents.expiresAt,
+      documentDate: schema.documents.documentDate,
       documentVersionId: schema.documentVersions.id,
       versionNumber: schema.documentVersions.versionNumber,
       sha256: schema.documentVersions.sha256,
@@ -650,6 +659,7 @@ async function loadDocumentInstancesByType(
       safetyStatus: row.safetyStatus,
       processingStatus: row.processingStatus,
       eligible,
+      documentDate: row.documentDate,
     });
     map.set(groupKey, list);
   }
@@ -704,6 +714,7 @@ async function loadSelectionsByRequirement(db: Db, missionId: string): Promise<S
 export async function computeReadiness(
   db: Db,
   missionId: string,
+  now: Date = new Date(),
 ): Promise<Result<Readiness, ServiceError>> {
   const mission = first(
     await db.select().from(schema.missions).where(eq(schema.missions.id, missionId)).limit(1),
@@ -717,7 +728,13 @@ export async function computeReadiness(
   const factsByKey = await loadFactInstancesByKey(db, mission.applicantId);
   const documentsByType = await loadDocumentInstancesByType(db, mission.applicantId);
   const selections = await loadSelectionsByRequirement(db, missionId);
-  const mapping = buildRequirementMapping(requirements, factsByKey, documentsByType, selections);
+  const mapping = buildRequirementMapping(
+    requirements,
+    factsByKey,
+    documentsByType,
+    selections,
+    now,
+  );
 
   const missing: MissingRequirement[] = [];
   let requiredCount = 0;
@@ -730,11 +747,18 @@ export async function computeReadiness(
     if (!entry.satisfied) {
       const anyConflicted =
         entry.kind === 'FIELD' && (entry.facts ?? []).some((f) => f.status === 'CONFLICTED');
+      const anyStale =
+        entry.kind === 'DOCUMENT' &&
+        (entry.documents ?? []).some((d) => d.eligible && d.staleness.status === 'stale');
       missing.push({
         kind: entry.kind,
         key: entry.key,
         optional: entry.optional,
-        reason: anyConflicted ? 'unresolved_conflict' : 'not_provided',
+        reason: anyConflicted
+          ? 'unresolved_conflict'
+          : anyStale
+            ? 'stale_evidence'
+            : 'not_provided',
       });
     }
   }
@@ -755,7 +779,7 @@ export interface EvidenceCandidateEntry {
   readonly citation: string;
   readonly optional: boolean;
   readonly factCandidates: readonly FactInstance[];
-  readonly documentCandidates: readonly DocumentInstance[];
+  readonly documentCandidates: readonly DocumentCandidateWithStaleness[];
   readonly selectedFactIds: readonly string[];
   readonly selectedDocumentIds: readonly string[];
 }
@@ -781,6 +805,7 @@ export async function getEvidenceCandidates(
   const factsByKey = await loadFactInstancesByKey(db, mission.applicantId);
   const documentsByType = await loadDocumentInstancesByType(db, mission.applicantId);
   const selections = await loadSelectionsByRequirement(db, missionId);
+  const now = new Date();
 
   return ok(
     requirements.map((req) => ({
@@ -790,7 +815,10 @@ export async function getEvidenceCandidates(
       citation: req.citation,
       optional: req.optional,
       factCandidates: factsByKey.get(req.fieldKey ?? '') ?? [],
-      documentCandidates: documentsByType.get(req.docType ?? '') ?? [],
+      documentCandidates: (documentsByType.get(req.docType ?? '') ?? []).map((d) => ({
+        ...d,
+        staleness: classifyStaleness(parseDocumentDate(d.documentDate), req.maxAgeDays, now),
+      })),
       selectedFactIds: [...(selections.factIdsByRequirement.get(req.id) ?? [])],
       selectedDocumentIds: [...(selections.documentIdsByRequirement.get(req.id) ?? [])],
     })),
@@ -868,6 +896,8 @@ export interface RequirementMappingEntry {
     readonly displayName: string;
     readonly sha256: string | null;
     readonly eligible: boolean;
+    /** NTF-01: this requirement's `maxAgeDays` rule applied to this document's own date, kept separate from `eligible` (intrinsic-only). */
+    readonly staleness: StalenessClassification;
   }>;
 }
 
@@ -881,12 +911,26 @@ export interface RequirementMappingEntry {
  * instance is still listed, not just the satisfying one, so a reviewer can
  * see the full picture. Takes already-loaded data rather than re-fetching
  * per requirement.
+ *
+ * A DOCUMENT instance additionally satisfies its requirement only when it is
+ * NOT confirmed `stale` (NTF-01) - a route-specific freshness rule, distinct
+ * from `eligible`'s intrinsic-only expiry check. `unknown` staleness (no
+ * rule, or a rule but no recorded document date) does not block
+ * satisfaction: "unknown expiry remains unknown" reads as a display
+ * obligation, not a readiness gate, and retroactively failing every
+ * already-uploaded document the moment an admin adds a freshness rule (with
+ * no bulk way to backfill dates) would be a harsh, silent regression. Only a
+ * CONFIRMED-stale document - a real, known date past the window - blocks
+ * satisfaction, the same "fail open on missing data, fail closed on a
+ * confirmed problem" posture `computeReadiness` already applies to a
+ * CONFLICTED fact vs. one simply not yet provided.
  */
 function buildRequirementMapping(
   requirements: readonly PackRequirement[],
   factsByKey: ReadonlyMap<string, readonly FactInstance[]>,
   documentsByType: ReadonlyMap<DocumentGroupKey, readonly DocumentInstance[]>,
   selections: SelectionSets,
+  now: Date,
 ): RequirementMappingEntry[] {
   return requirements.map((req): RequirementMappingEntry => {
     if (req.kind === 'FIELD') {
@@ -921,21 +965,23 @@ function buildRequirementMapping(
     if (selectedDocumentIds && selectedDocumentIds.size > 0) {
       instances = instances.filter((d) => selectedDocumentIds.has(d.documentId));
     }
+    const documents = instances.map((d) => ({
+      documentId: d.documentId,
+      documentVersionId: d.documentVersionId,
+      docType: d.docType,
+      displayName: d.displayName,
+      sha256: d.sha256,
+      eligible: d.eligible,
+      staleness: classifyStaleness(parseDocumentDate(d.documentDate), req.maxAgeDays, now),
+    }));
     return {
       packRequirementId: req.id,
       kind: 'DOCUMENT',
       key,
       citation: req.citation,
       optional: req.optional,
-      satisfied: instances.some((d) => d.eligible),
-      documents: instances.map((d) => ({
-        documentId: d.documentId,
-        documentVersionId: d.documentVersionId,
-        docType: d.docType,
-        displayName: d.displayName,
-        sha256: d.sha256,
-        eligible: d.eligible,
-      })),
+      satisfied: documents.some((d) => d.eligible && d.staleness.status !== 'stale'),
+      documents,
     };
   });
 }
@@ -983,6 +1029,7 @@ export async function snapshotMission(
       factsByKey,
       documentsByType,
       selections,
+      new Date(),
     );
     packVersionSnapshot = packVersion ?? null;
   }
@@ -1885,7 +1932,13 @@ export async function generateCoverLetter(
   const factsByKey = await loadFactInstancesByKey(db, mission.applicantId);
   const documentsByType = await loadDocumentInstancesByType(db, mission.applicantId);
   const selections = await loadSelectionsByRequirement(db, mission.id);
-  const mapping = buildRequirementMapping(requirements, factsByKey, documentsByType, selections);
+  const mapping = buildRequirementMapping(
+    requirements,
+    factsByKey,
+    documentsByType,
+    selections,
+    new Date(),
+  );
   const { content, groundedReferences } = buildCoverLetterContent(mission, mapping);
   if (groundedReferences.length === 0) {
     return err(serviceError('invalid', 'no satisfied requirements to ground a letter in yet'));

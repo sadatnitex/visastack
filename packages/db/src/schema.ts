@@ -1333,10 +1333,37 @@ export const packRequirements = pgTable(
     citation: text('citation').notNull(),
     optional: boolean('optional').notNull().default(false),
     notes: text('notes'),
+    // NTF-01 "case-specific freshness/staleness" (Part 5 §1): a DOCUMENT
+    // requirement may demand its evidence be dated within this many days
+    // (e.g. "bank statement must be < 90 days old for this route"). Null for
+    // every FIELD requirement and for a DOCUMENT requirement with no
+    // freshness rule. Deliberately a column on the requirement, never on
+    // `documents` itself - "never mutate the document's intrinsic validity
+    // to represent a route rule." Because a pack version is immutable once
+    // published and a mission binds to one exact `packVersionId` forever,
+    // reading this column through that binding already "tracks rule version
+    // behind case staleness" (the directive's own phrase) with no separate
+    // versioning mechanism needed.
+    maxAgeDays: integer('max_age_days'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [index('pack_requirements_version_idx').on(table.packVersionId)],
 );
+
+// NTF-01 (Part 5 §1): "Default expiry reminder thresholds: 90/60/30/7/expiry
+// date. Make configurable by document type." One row per overridden
+// `docType`; a `docType` with no row here uses `expiry.ts`'s
+// `DEFAULT_EXPIRY_REMINDER_THRESHOLD_DAYS`. Platform-admin-managed
+// (`PACK_MANAGE`, the same concern that already owns pack/requirement
+// content) - never per-organization, matching every other document-type
+// vocabulary item in this schema (`packRequirements.docType`,
+// `classifyDocumentText`'s output) being platform-global, not tenant-scoped.
+export const documentExpiryPolicies = pgTable('document_expiry_policies', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  docType: text('doc_type').notNull().unique(),
+  thresholdDays: integer('threshold_days').array().notNull(),
+  ...timestamps,
+});
 
 // --- Mission snapshots (immutable; Build Spec §4.3) -------------------------
 export const missionSnapshots = pgTable(

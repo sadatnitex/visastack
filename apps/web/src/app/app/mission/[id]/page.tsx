@@ -110,7 +110,7 @@ export default async function MissionPage({
     const selfReviewed =
       access.ok &&
       !access.value.some((g) => g.recipientOrganizationId !== null && g.status === 'ACTIVE');
-    // Composite key (finding #33, post-programme defect register) — see
+    // Composite key (finding #33, post-programme defect register) - see
     // evidence-selection-key.ts's own doc comment.
     const selectionIdsByCandidate: Record<string, string> = {};
     if (selections.ok) {
@@ -332,11 +332,13 @@ export default async function MissionPage({
                         <div className="row" key={`${m.kind}-${m.key}`}>
                           <span className="row-key">{label || '(unnamed)'}</span>
                           <span
-                            className={`badge ${m.reason === 'unresolved_conflict' ? 'badge-danger' : 'badge-neutral'}`}
+                            className={`badge ${m.reason === 'not_provided' ? 'badge-neutral' : 'badge-danger'}`}
                           >
                             {m.reason === 'unresolved_conflict'
                               ? 'Needs attention · disputed value'
-                              : `${m.kind === 'FIELD' ? 'Field' : 'Document'}${m.optional ? ' · optional' : ''}`}
+                              : m.reason === 'stale_evidence'
+                                ? 'Needs attention · evidence too old for this route'
+                                : `${m.kind === 'FIELD' ? 'Field' : 'Document'}${m.optional ? ' · optional' : ''}`}
                           </span>
                         </div>
                       );
@@ -345,7 +347,7 @@ export default async function MissionPage({
                 </>
               ) : null}
               <p className="muted" style={{ fontSize: '0.8rem', marginTop: '1rem' }}>
-                Readiness is completeness only — never an approval likelihood.
+                Readiness is completeness only - never an approval likelihood.
               </p>
             </>
           ) : (
@@ -423,6 +425,7 @@ export default async function MissionPage({
               documentId: d.documentId,
               displayName: d.displayName,
               eligible: d.eligible,
+              staleness: d.staleness.status,
             })),
             selectedFactIds: c.selectedFactIds,
             selectedDocumentIds: c.selectedDocumentIds,

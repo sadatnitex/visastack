@@ -24,6 +24,7 @@ import {
   recordDocumentReview,
   registerDocument,
   registerDocumentWithVersion,
+  setDocumentDate,
 } from './documents';
 import { enqueueErasureJob } from './erasure';
 import { createOrganization, reviewOrganization } from './organizations';
@@ -448,7 +449,68 @@ describe('recordDocumentReview: document-level review outcomes (EVI-03)', () => 
   });
 });
 
-describe('document vault — permission-aware access', () => {
+describe('setDocumentDate: owner-asserted "as of" date for NTF-01 case-specific staleness', () => {
+  let db: Db;
+  beforeEach(async () => {
+    db = await freshDb();
+  });
+
+  it('lets the applicant owner set, then clear, the document date', async () => {
+    const { account, document } = await seedOwnerWithDocument(db, 'date-owner@example.com');
+
+    const set = await setDocumentDate(db, {
+      actorAccountId: account.id,
+      documentId: document.id,
+      documentDate: '2025-06-15',
+    });
+    expect(isOk(set)).toBe(true);
+    if (isOk(set)) expect(set.value.documentDate).toBe('2025-06-15');
+
+    const cleared = await setDocumentDate(db, {
+      actorAccountId: account.id,
+      documentId: document.id,
+      documentDate: null,
+    });
+    expect(isOk(cleared)).toBe(true);
+    if (isOk(cleared)) expect(cleared.value.documentDate).toBeNull();
+  });
+
+  it('rejects a malformed or future-dated value rather than storing a fabricated date', async () => {
+    const { account, document } = await seedOwnerWithDocument(db, 'date-invalid@example.com');
+
+    const malformed = await setDocumentDate(db, {
+      actorAccountId: account.id,
+      documentId: document.id,
+      documentDate: '15 June 2025',
+    });
+    expect(isErr(malformed)).toBe(true);
+    if (isErr(malformed)) expect(malformed.error.code).toBe('invalid');
+
+    const future = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    const futureDated = await setDocumentDate(db, {
+      actorAccountId: account.id,
+      documentId: document.id,
+      documentDate: future,
+    });
+    expect(isErr(futureDated)).toBe(true);
+  });
+
+  it('denies a stranger with no standing at all', async () => {
+    const { document } = await seedOwnerWithDocument(db, 'date-denied-owner@example.com');
+    const stranger = await provisionAccount(db, { email: 'date-stranger@example.com' });
+    if (!isOk(stranger)) throw new Error('provision');
+
+    const denied = await setDocumentDate(db, {
+      actorAccountId: stranger.value.id,
+      documentId: document.id,
+      documentDate: '2025-06-15',
+    });
+    expect(isErr(denied)).toBe(true);
+    if (isErr(denied)) expect(denied.error.code).toBe('forbidden');
+  });
+});
+
+describe('document vault - permission-aware access', () => {
   let db: Db;
   let storage: FakeStorage;
   beforeEach(async () => {

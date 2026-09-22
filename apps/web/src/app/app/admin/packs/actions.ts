@@ -6,6 +6,7 @@ import {
   approvePackVersion,
   createPack,
   publishPackVersion,
+  setDocumentExpiryPolicy,
   verifyPackChecksum,
 } from '@visastack/services';
 import { revalidatePath } from 'next/cache';
@@ -87,6 +88,7 @@ export async function addRequirementAction(
   const key = String(formData.get('key') ?? '').trim();
   const citation = String(formData.get('citation') ?? '').trim();
   const optional = String(formData.get('optional') ?? '') === 'on';
+  const maxAgeDaysRaw = String(formData.get('maxAgeDays') ?? '').trim();
   if (key.length === 0) {
     return {
       ok: false,
@@ -94,6 +96,14 @@ export async function addRequirementAction(
     };
   }
   if (citation.length === 0) return { ok: false, message: 'Every requirement needs a citation.' };
+  let maxAgeDays: number | undefined;
+  if (maxAgeDaysRaw.length > 0) {
+    const parsed = Number(maxAgeDaysRaw);
+    if (!Number.isInteger(parsed) || parsed <= 0) {
+      return { ok: false, message: 'Max age in days must be a positive whole number.' };
+    }
+    maxAgeDays = parsed;
+  }
 
   const result = await withSession(async ({ db, accountId, email }) => {
     if (!(await hasPlatformPermission(db, { accountId, email }, 'PACK_MANAGE'))) return DENIED;
@@ -104,6 +114,7 @@ export async function addRequirementAction(
       ...(kind === 'FIELD' ? { fieldKey: key } : { docType: key }),
       citation,
       optional,
+      ...(maxAgeDays !== undefined ? { maxAgeDays } : {}),
     });
     if (!added.ok) return { ok: false, message: added.error.message } satisfies ActionState;
     return { ok: true, message: 'Requirement added.' } satisfies ActionState;
@@ -170,5 +181,42 @@ export async function publishVersionAction(
     } satisfies ActionState;
   });
   if (result.ok) revalidatePath(`/app/admin/packs/${packId}`);
+  return result;
+}
+
+/** Set (or replace) a docType's expiry-reminder threshold ladder (NTF-01). Platform-admin only. */
+export async function setDocumentExpiryPolicyAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const docType = String(formData.get('docType') ?? '').trim();
+  const thresholdDaysRaw = String(formData.get('thresholdDays') ?? '').trim();
+  if (docType.length === 0) return { ok: false, message: 'Enter the document type.' };
+  const thresholdDays = thresholdDaysRaw
+    .split(',')
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0)
+    .map(Number);
+  if (thresholdDays.length === 0 || thresholdDays.some((n) => !Number.isInteger(n) || n < 0)) {
+    return {
+      ok: false,
+      message: 'Enter comma-separated non-negative whole days, e.g. 90,60,30,7,0.',
+    };
+  }
+
+  const result = await withSession(async ({ db, accountId, email }) => {
+    if (!(await hasPlatformPermission(db, { accountId, email }, 'PACK_MANAGE'))) return DENIED;
+    const saved = await setDocumentExpiryPolicy(db, {
+      actorAccountId: accountId,
+      docType,
+      thresholdDays,
+    });
+    if (!saved.ok) return { ok: false, message: saved.error.message } satisfies ActionState;
+    return {
+      ok: true,
+      message: `Reminder thresholds saved for "${docType}".`,
+    } satisfies ActionState;
+  });
+  if (result.ok) revalidatePath('/app/admin/packs');
   return result;
 }
