@@ -221,6 +221,7 @@ export {
   type OrgCaseSummary,
   type OrgMission,
   type OrgVisibleTask,
+  type OwnerVisibleNote,
   addNote,
   assignMember,
   bulkExport,

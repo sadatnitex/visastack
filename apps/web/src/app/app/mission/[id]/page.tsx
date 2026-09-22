@@ -11,6 +11,7 @@ import {
   listGeneratedOutputs,
   listMissionSnapshots,
   listMissionsByItineraryRef,
+  listNotesForOwner,
   listPublishedPackVersions,
   listSelectedEvidence,
   listTasks,
@@ -74,6 +75,7 @@ export default async function MissionPage({
       linkedMissions,
       access,
       contributorRequests,
+      notes,
     ] = await Promise.all([
       mission.packVersionId ? computeReadiness(db, mission.id) : Promise.resolve(null),
       listMissionSnapshots(db, accountId, mission.id),
@@ -90,6 +92,7 @@ export default async function MissionPage({
         : Promise.resolve([]),
       listAccessForApplicant(db, accountId, mission.applicantId),
       listContributorRequests(db, { actorAccountId: accountId, missionId: mission.id }),
+      listNotesForOwner(db, accountId, mission.id),
     ]);
     // Commercial V1 Part 4 §13: "An independent traveller may self-review:
     // label it self-reviewed." No organisation currently holding an ACTIVE,
@@ -156,6 +159,12 @@ export default async function MissionPage({
             expiresAt: r.expiresAt.toISOString(),
           }))
         : [],
+      notes: notes.map((n) => ({
+        id: n.id,
+        body: n.body,
+        authorEmail: n.authorEmail,
+        createdAt: n.createdAt.toISOString(),
+      })),
     };
   });
 
@@ -422,6 +431,35 @@ export default async function MissionPage({
             whether to upload.
           </p>
           <ContributorRequestsPanel missionId={mission.id} requests={data.contributorRequests} />
+        </article>
+
+        <article className="card">
+          <p className="card-kicker">Collaboration</p>
+          <h2 className="card-title">Notes from your agency</h2>
+          <p className="card-body" style={{ marginBottom: '1.25rem' }}>
+            Notes an agency working this case has chosen to share with you. An agency's own internal
+            notes are never shown here.
+          </p>
+          {data.notes.length === 0 ? (
+            <p className="muted" style={{ fontSize: '0.9rem' }}>
+              No notes shared with you yet.
+            </p>
+          ) : (
+            <div className="rows">
+              {data.notes.map((n) => (
+                <div
+                  className="row"
+                  key={n.id}
+                  style={{ flexDirection: 'column', alignItems: 'flex-start' }}
+                >
+                  <span style={{ fontSize: '0.9rem' }}>{n.body}</span>
+                  <span className="muted" style={{ fontSize: '0.75rem', marginTop: '0.2rem' }}>
+                    {n.authorEmail ?? 'Unknown'}, {new Date(n.createdAt).toLocaleDateString()}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
         </article>
       </div>
     </section>

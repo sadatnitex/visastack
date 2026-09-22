@@ -9,7 +9,7 @@ import type {
 } from '@visastack/core';
 import { type Result, err, ok } from '@visastack/core';
 import { authorize } from '@visastack/policy';
-import { and, eq, gt, inArray, isNotNull, isNull, lte, or } from 'drizzle-orm';
+import { and, desc, eq, gt, inArray, isNotNull, isNull, lte, or } from 'drizzle-orm';
 import { appendAuditEvent } from './audit';
 import { type Db, first, required, schema } from './db';
 import { isDocumentVersionUsable } from './documents';
@@ -704,6 +704,14 @@ export async function listNotes(
     );
 }
 
+/** A note as the applicant owner sees it - author already resolved to an email, never a raw account id. */
+export interface OwnerVisibleNote {
+  readonly id: string;
+  readonly body: string;
+  readonly authorEmail: string | null;
+  readonly createdAt: Date;
+}
+
 /**
  * Notes on a mission, visible to the applicant OWNER. Only `TRAVELLER_SHARED`
  * notes, from any author: an AGENCY_INTERNAL note is never visible to the
@@ -716,7 +724,7 @@ export async function listNotesForOwner(
   db: Db,
   actorAccountId: string,
   missionId: string,
-): Promise<MissionNote[]> {
+): Promise<OwnerVisibleNote[]> {
   const mission = first(
     await db.select().from(schema.missions).where(eq(schema.missions.id, missionId)).limit(1),
   );
@@ -729,15 +737,23 @@ export async function listNotesForOwner(
       .limit(1),
   );
   if (!applicant || applicant.ownerAccountId !== actorAccountId) return [];
-  return db
-    .select()
+  const rows = await db
+    .select({
+      id: schema.missionNotes.id,
+      body: schema.missionNotes.body,
+      authorEmail: schema.accounts.email,
+      createdAt: schema.missionNotes.createdAt,
+    })
     .from(schema.missionNotes)
+    .leftJoin(schema.accounts, eq(schema.accounts.id, schema.missionNotes.authorAccountId))
     .where(
       and(
         eq(schema.missionNotes.missionId, missionId),
         eq(schema.missionNotes.visibility, 'TRAVELLER_SHARED'),
       ),
-    );
+    )
+    .orderBy(desc(schema.missionNotes.createdAt));
+  return rows.map((r) => ({ ...r, authorEmail: r.authorEmail ?? null }));
 }
 
 /**

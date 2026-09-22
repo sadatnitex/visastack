@@ -613,6 +613,17 @@ item gets its own requirements-ledger row once classified against the new direct
     page whenever any fact is CONFLICTED, reusing already-fetched data (no
     new query), so a conflict is now guaranteed visible independent of any
     particular case. Full detail: `requirements-ledger.md` PRO-02.
+55. ~~CAS-05's `listNotesForOwner` (traveller-visible, `TRAVELLER_SHARED`-only
+    notes) was correct but unreachable: no page in `apps/web` ever called
+    it, so a traveller had no way to actually see a note an agency chose to
+    share with them, despite the read path itself being safe.~~
+    **RESOLVED (Part 4).** Wired it into a new "Notes from your agency" card
+    on the mission page; `listNotesForOwner` now also resolves the author to
+    a real email (`OwnerVisibleNote`) instead of a raw account id. Every
+    other §12 rule (legacy-note restriction, AI/search/export non-leakage,
+    no bulk publish) was audited against the real code and confirmed already
+    correct, not merely assumed. Full detail: `requirements-ledger.md`
+    CAS-05.
 independently confirmed findings; the missing PRD file is tracked as Blocker 1 in
 `assumptions-and-blockers.md` (now resolved) rather than here, since it blocked the
 programme rather than being a product defect.
