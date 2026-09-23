@@ -695,6 +695,15 @@ export default async function AdminPage() {
                       <span style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
                         <span className={`badge ${badge.tone}`}>{badge.label}</span>
                         {pending ? <OrgReviewButtons organizationId={org.id} /> : null}
+                        {data.owner ? (
+                          <Link
+                            href={`/app/admin/organizations/${org.id}`}
+                            className="btn btn-secondary"
+                            style={{ padding: '0.3rem 0.85rem', fontSize: '0.8rem' }}
+                          >
+                            Manage
+                          </Link>
+                        ) : null}
                       </span>
                     </div>
                   );

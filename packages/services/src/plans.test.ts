@@ -1096,6 +1096,26 @@ describe('getUsageForOrganization - meters and their definitions (COM-01)', () =
     });
     expect(isErr(result)).toBe(true);
     if (isErr(result)) expect(result.error.code).toBe('forbidden');
+
+    const strangerWithEmail = await getUsageForOrganization(db, {
+      actorAccountId: stranger.value.id,
+      organizationId,
+      actorEmail: stranger.value.email,
+      bootstrapEmails: [],
+    });
+    expect(isErr(strangerWithEmail)).toBe(true);
+  });
+
+  it('allows a platform owner who is not a member to read usage for any organization', async () => {
+    const { organizationId } = await seedOrganization(db, 'owner-read');
+    const result = await getUsageForOrganization(db, {
+      actorAccountId: owner.accountId,
+      organizationId,
+      actorEmail: owner.actor.email,
+      bootstrapEmails: owner.actor.bootstrapEmails,
+    });
+    expect(isOk(result)).toBe(true);
+    if (isOk(result)) expect(result.value.planAssigned).toBe(false);
   });
 
   it('reports planAssigned: false and every meter allowed: null when no plan has been activated, with real usage still shown', async () => {

@@ -217,6 +217,37 @@ describe('billing accounts -- states, transitions, and history (COM-03)', () => 
     if (isOk(historyBeforeOpen)) expect(historyBeforeOpen.value).toEqual([]);
   });
 
+  it('getBillingAccountForOrganization / listBillingStatusHistory allow a platform owner who is not a member, but still refuse a non-owner stranger even with an email supplied', async () => {
+    const { organizationId } = await seedOrganization(db, 'ownerread');
+    const strangerId = await seedStranger(db, 'ownerread');
+
+    const strangerWithEmail = await getBillingAccountForOrganization(db, {
+      actorAccountId: strangerId,
+      organizationId,
+      actorEmail: 'stranger-ownerread@example.com',
+      bootstrapEmails: [],
+    });
+    expect(isErr(strangerWithEmail)).toBe(true);
+
+    const ownerRead = await getBillingAccountForOrganization(db, {
+      actorAccountId: owner.accountId,
+      organizationId,
+      actorEmail: owner.actor.email,
+      bootstrapEmails: owner.actor.bootstrapEmails,
+    });
+    expect(isOk(ownerRead)).toBe(true);
+    if (isOk(ownerRead)) expect(ownerRead.value).toBeUndefined();
+
+    const ownerHistory = await listBillingStatusHistory(db, {
+      actorAccountId: owner.accountId,
+      organizationId,
+      actorEmail: owner.actor.email,
+      bootstrapEmails: owner.actor.bootstrapEmails,
+    });
+    expect(isOk(ownerHistory)).toBe(true);
+    if (isOk(ownerHistory)) expect(ownerHistory.value).toEqual([]);
+  });
+
   it('transitionBillingStatus refuses a non-owner, refuses without step-up, and refuses an unknown/unopened organization', async () => {
     const { organizationId } = await seedOrganization(db, 'trans-auth');
     const strangerId = await seedStranger(db, 'trans-auth');
@@ -885,6 +916,15 @@ describe('invoices -- issue, collect, void (COM-03)', () => {
     expect(list.value).toHaveLength(2);
     expect(list.value[0]?.id).toBe(second.value.id);
     expect(list.value[1]?.id).toBe(first.value.id);
+
+    const platformOwnerList = await listInvoicesForOrganization(db, {
+      actorAccountId: owner.accountId,
+      organizationId,
+      actorEmail: owner.actor.email,
+      bootstrapEmails: owner.actor.bootstrapEmails,
+    });
+    expect(isOk(platformOwnerList)).toBe(true);
+    if (isOk(platformOwnerList)) expect(platformOwnerList.value).toHaveLength(2);
   });
 
   it('the database itself refuses collected amount exceeding invoiced amount, even if the service layer were bypassed', async () => {

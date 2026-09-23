@@ -244,12 +244,46 @@ export async function transitionBillingStatus(
   });
 }
 
-/** An organization's billing account, or `undefined` if none has been opened yet. Active-member-readable. */
+/**
+ * Read access to an organization's billing/invoice data: an active member of
+ * the organization, or a platform owner (or bootstrap-eligible) acting
+ * without membership. This is the read-side counterpart to this file's
+ * platform-owner-only write gates -- a platform owner who can already
+ * transition billing status or create an invoice for any organization must
+ * also be able to read what they would be changing. `actorEmail`/
+ * `bootstrapEmails` are optional so every existing member-facing call site
+ * keeps its exact prior behavior (refused unless an active member) when it
+ * doesn't pass them.
+ */
+async function canReadOrganizationBilling(
+  db: Db,
+  input: {
+    readonly actorAccountId: string;
+    readonly organizationId: string;
+    readonly actorEmail?: string;
+    readonly bootstrapEmails?: readonly string[];
+  },
+): Promise<boolean> {
+  if (await isActiveMember(db, input.actorAccountId, input.organizationId)) return true;
+  if (input.actorEmail === undefined) return false;
+  return isPlatformOwner(db, {
+    accountId: input.actorAccountId,
+    email: input.actorEmail,
+    bootstrapEmails: input.bootstrapEmails ?? [],
+  });
+}
+
+/** An organization's billing account, or `undefined` if none has been opened yet. Active-member-readable, or platform-owner-readable for any organization. */
 export async function getBillingAccountForOrganization(
   db: Db,
-  input: { readonly actorAccountId: string; readonly organizationId: string },
+  input: {
+    readonly actorAccountId: string;
+    readonly organizationId: string;
+    readonly actorEmail?: string;
+    readonly bootstrapEmails?: readonly string[];
+  },
 ): Promise<Result<BillingAccount | undefined, ServiceError>> {
-  if (!(await isActiveMember(db, input.actorAccountId, input.organizationId))) {
+  if (!(await canReadOrganizationBilling(db, input))) {
     return err(serviceError('forbidden', 'not an active member of this organization'));
   }
   const account = first(
@@ -262,12 +296,17 @@ export async function getBillingAccountForOrganization(
   return ok(account);
 }
 
-/** Full billing-status transition history for an organization, newest first. Empty (not an error) if no billing account has been opened yet. */
+/** Full billing-status transition history for an organization, newest first. Empty (not an error) if no billing account has been opened yet. Active-member-readable, or platform-owner-readable for any organization. */
 export async function listBillingStatusHistory(
   db: Db,
-  input: { readonly actorAccountId: string; readonly organizationId: string },
+  input: {
+    readonly actorAccountId: string;
+    readonly organizationId: string;
+    readonly actorEmail?: string;
+    readonly bootstrapEmails?: readonly string[];
+  },
 ): Promise<Result<BillingStatusHistoryEntry[], ServiceError>> {
-  if (!(await isActiveMember(db, input.actorAccountId, input.organizationId))) {
+  if (!(await canReadOrganizationBilling(db, input))) {
     return err(serviceError('forbidden', 'not an active member of this organization'));
   }
   const account = first(
@@ -538,12 +577,17 @@ export async function voidInvoice(
   });
 }
 
-/** Every invoice for an organization, newest first. Active-member-readable. */
+/** Every invoice for an organization, newest first. Active-member-readable, or platform-owner-readable for any organization. */
 export async function listInvoicesForOrganization(
   db: Db,
-  input: { readonly actorAccountId: string; readonly organizationId: string },
+  input: {
+    readonly actorAccountId: string;
+    readonly organizationId: string;
+    readonly actorEmail?: string;
+    readonly bootstrapEmails?: readonly string[];
+  },
 ): Promise<Result<Invoice[], ServiceError>> {
-  if (!(await isActiveMember(db, input.actorAccountId, input.organizationId))) {
+  if (!(await canReadOrganizationBilling(db, input))) {
     return err(serviceError('forbidden', 'not an active member of this organization'));
   }
   const rows = await db

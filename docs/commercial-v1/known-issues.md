@@ -902,6 +902,47 @@ item gets its own requirements-ledger row once classified against the new direct
     admin-workspace list and the PRD's own capability table -- "approved
     logo" reads as "passed the safety pipeline," not "admin sign-off").
     Full detail: `requirements-ledger.md` COM-04.
+66. ADM-01 (admin workspace)'s prior ledger status ("TBD / not yet read this
+    session") was itself stale: a full read of the existing 751-line
+    `admin/page.tsx`/485-line `admin/actions.ts` this session found most of
+    the admin workspace already real and working -- organisation
+    verification, platform-role grant/revoke, pilot invitations, retention
+    policies, legal holds, failed-job retry (both intake and erasure),
+    orphan reconciliation, usage/spend cards, an audit-event view, and Pack
+    Studio -- none of it built this session, all of it now correctly
+    counted in the ledger for the first time instead of read as a gap. What
+    was genuinely missing, and is what this session actually built: a
+    per-organization commercial admin page
+    (`/app/admin/organizations/[orgId]`) covering plan assignment, billing
+    status/invoices, and commercial overrides -- the admin UI COM-01/02/03
+    had each explicitly deferred. Building it surfaced a real, previously
+    latent authorization gap: `getBillingAccountForOrganization`/
+    `listBillingStatusHistory`/`listInvoicesForOrganization`
+    (`billing.ts`) and `getUsageForOrganization` (`plans.ts`) gated reads on
+    active organization membership only, with no platform-owner path --
+    meaning a platform owner could already WRITE a billing/plan change for
+    any organization via these same files, but could not READ what they
+    were about to change for one they don't personally belong to (the
+    normal case). Fixed by widening all four functions' authorization to
+    active-member OR platform-owner, via new optional actor fields that
+    default to the exact prior member-only behavior when omitted -- fully
+    backward compatible with the one pre-existing member-facing call site.
+    Genuinely still open, not built this session and not silently folded
+    in: account-suspension UI (`suspendOrganization` exists, confirmed zero
+    UI callers, and does not yet take a `stepUpSatisfied` parameter --  an
+    open design question); notification-failure admin UI
+    (`listNotificationsNeedingAttention`/`retryNotification` exist,
+    confirmed zero UI callers); deletion-request admin visibility
+    (`listDueDeletions` is wired into the automated cron sweep only, no
+    admin-facing view of pending/due deletions); a support-grant admin UI
+    (SEC-06's own row already names this gap -- `createSupportGrant`/
+    `revokeSupportGrant` have zero UI callers, confirmed this session;
+    deliberately not folded into this page, since a support grant needs a
+    two-person approver-distinct-from-actor flow, a genuinely different
+    actor model from this page's single-owner commercial actions); and the
+    AI admin surface, correctly out of scope here since that is Part 8's
+    multi-provider gateway, not a placeholder worth building ahead of the
+    gateway it would control. Full detail: `requirements-ledger.md` ADM-01.
 independently confirmed findings; the missing PRD file is tracked as Blocker 1 in
 `assumptions-and-blockers.md` (now resolved) rather than here, since it blocked the
 programme rather than being a product defect.
