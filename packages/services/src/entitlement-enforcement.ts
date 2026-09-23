@@ -1,6 +1,7 @@
 import { type Result, err, ok } from '@visastack/core';
 import { and, eq, gt, inArray, sql } from 'drizzle-orm';
 import { listApplicantsForOrganization, listOrganizationsWithAccessToApplicant } from './agency';
+import { isBillingSuspended } from './billing';
 import { type Db, first, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
 import {
@@ -50,17 +51,26 @@ import { getOrganizationEvidenceBytes, mbLabel } from './quotas';
  * one's own cap independently, since more than one organization can have
  * real, simultaneous, billable access to the same applicant.
  *
+ * "Suspended billing blocks new paid work" (PRD COM-02's own line) is now
+ * wired too: every check function below refuses outright, independent of
+ * any entitlement number, once `isBillingSuspended` (COM-03,
+ * `billing.ts`) reads SUSPENDED for the relevant organization -- checked
+ * even when no plan is assigned or a dimension is unlimited, since a
+ * suspension blocks new capacity regardless of what the plan would
+ * otherwise allow. Never touches existing read/export access or
+ * already-granted case history, since none of that runs through these
+ * four functions in the first place -- they gate only the four
+ * capacity-*consuming* actions COM-02 already covered (seats,
+ * invitations, case creation, storage), never a read path.
+ *
  * Deliberately NOT in this file (see requirements-ledger.md COM-02):
  * - AI allowance enforcement -- the directive's own §7 text defers it ("AI
  *   later"), not a gap this chunk silently left.
- * - Downgrade grace periods, billing-suspension blocking, and a
- *   platform-admin "commercial override" bypass -- each a genuinely separate
- *   mechanism with its own real design surface (an override needs its own
- *   audited grant table; a downgrade needs an effective-date concept
- *   `subscriptions` doesn't have yet; billing suspension needs a status this
- *   system has nothing to check, since COM-03's state machine does not
- *   exist yet) -- a separate, immediately-following chunk, not invented here
- *   to look complete.
+ * - Downgrade grace periods and a platform-admin "commercial override"
+ *   bypass -- each a genuinely separate mechanism with its own real design
+ *   surface (a downgrade needs an effective-date concept `subscriptions`
+ *   doesn't have yet; an override needs its own audited grant table) --
+ *   still open, not invented here to look complete.
  */
 
 // Two-argument advisory-lock namespaces (the high bits of the composite
@@ -89,6 +99,14 @@ export async function checkSeatEntitlement(
   await tx.execute(
     sql`select pg_advisory_xact_lock(${SEAT_QUOTA_LOCK_NAMESPACE}, hashtext(${organizationId}))`,
   );
+  if (await isBillingSuspended(tx, organizationId)) {
+    return err(
+      serviceError(
+        'invalid',
+        'billing for this organization is suspended; new seats cannot be added until it is resolved',
+      ),
+    );
+  }
   const plan = await getCurrentPlanForOrganization(tx, organizationId);
   if (!plan || plan.seatsAllowed === null) return ok(undefined);
   const current = await countActiveSeats(tx, organizationId);
@@ -135,6 +153,14 @@ export async function checkInvitationEntitlement(
   await tx.execute(
     sql`select pg_advisory_xact_lock(${SEAT_QUOTA_LOCK_NAMESPACE}, hashtext(${organizationId}))`,
   );
+  if (await isBillingSuspended(tx, organizationId)) {
+    return err(
+      serviceError(
+        'invalid',
+        'billing for this organization is suspended; new invitations cannot be sent until it is resolved',
+      ),
+    );
+  }
   const plan = await getCurrentPlanForOrganization(tx, organizationId);
   if (!plan || plan.seatsAllowed === null) return ok(undefined);
   const activeSeats = await countActiveSeats(tx, organizationId);
@@ -166,6 +192,14 @@ export async function checkCaseCreationEntitlement(
   await tx.execute(
     sql`select pg_advisory_xact_lock(${CASE_QUOTA_LOCK_NAMESPACE}, hashtext(${organizationId}))`,
   );
+  if (await isBillingSuspended(tx, organizationId)) {
+    return err(
+      serviceError(
+        'invalid',
+        'billing for this organization is suspended; new cases cannot be created until it is resolved',
+      ),
+    );
+  }
   const plan = await getCurrentPlanForOrganization(tx, organizationId);
   if (!plan) return ok(undefined);
 
@@ -234,6 +268,14 @@ export async function checkStorageEntitlement(
 ): Promise<Result<void, ServiceError>> {
   const organizationIds = await listOrganizationsWithAccessToApplicant(tx, applicantId);
   for (const organizationId of organizationIds) {
+    if (await isBillingSuspended(tx, organizationId)) {
+      return err(
+        serviceError(
+          'invalid',
+          'an organization with access to this applicant has suspended billing; new uploads cannot be added until it is resolved',
+        ),
+      );
+    }
     const plan = await getCurrentPlanForOrganization(tx, organizationId);
     if (!plan || plan.storageBytesAllowed === null) continue;
     const committed = await getOrganizationEvidenceBytes(tx, organizationId);
