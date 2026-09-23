@@ -1,14 +1,18 @@
 import {
-  type UsageMeter as UsageMeterData,
   getOrganization,
   getOrganizationBrandingForDisplay,
   getUsageForOrganization,
-  mbLabel,
 } from '@visastack/services';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { withSession } from '../../../../../lib/session';
 import { createStorage } from '../../../../../lib/storage';
+import {
+  formatMeterValue,
+  formatPrice,
+  meterFraction,
+  meterTone,
+} from '../../../../../lib/usage-format';
 import { OrgBrandingHeader } from '../org-branding-header';
 
 export const dynamic = 'force-dynamic';
@@ -19,39 +23,8 @@ export const dynamic = 'force-dynamic';
  * elsewhere in the app; it only displays the entitlement data
  * `getUsageForOrganization` already computes. Plan/subscription management
  * itself (creating plans, activating one for an org) is a platform-owner,
- * step-up-gated action with no UI yet -- deferred to ADM-01, the same
- * "service layer now, admin UI deferred" split already used for NTF-02's
- * `listNotificationsNeedingAttention`/`retryNotification`.
+ * step-up-gated action -- see `/app/admin/organizations/[orgId]` (ADM-01).
  */
-
-/** Correctly converts an integer count of a currency's smallest unit to a display string, without assuming 2 decimal places (JPY has 0, BHD has 3). */
-function formatPrice(priceMinorUnits: number, currency: string): string {
-  const formatter = new Intl.NumberFormat('en-US', { style: 'currency', currency });
-  // `maximumFractionDigits` is typed optional (it's unset when significant-digit
-  // rounding is used instead), but 'currency' style always resolves it in
-  // practice; 2 is the correct fallback for the common case if it's ever absent.
-  const divisor = 10 ** (formatter.resolvedOptions().maximumFractionDigits ?? 2);
-  return formatter.format(priceMinorUnits / divisor);
-}
-
-function formatMeterValue(meter: UsageMeterData): string {
-  const used = meter.key === 'storageBytes' ? mbLabel(meter.used) : `${meter.used}`;
-  if (meter.allowed === null) return `${used} used (unlimited)`;
-  const allowed = meter.key === 'storageBytes' ? mbLabel(meter.allowed) : `${meter.allowed}`;
-  return `${used} of ${allowed} used`;
-}
-
-function meterFraction(meter: UsageMeterData): number {
-  if (meter.allowed === null || meter.allowed <= 0) return 0;
-  return Math.min(1, meter.used / meter.allowed);
-}
-
-function meterTone(meter: UsageMeterData): string {
-  if (meter.allowed === null) return '';
-  if (meter.used >= meter.allowed) return 'meter-full';
-  if (meterFraction(meter) >= 0.85) return 'meter-warn';
-  return '';
-}
 
 export default async function OrgPlanPage({
   params,

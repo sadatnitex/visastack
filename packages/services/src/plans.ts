@@ -1083,9 +1083,24 @@ async function sumAiAllowanceUsed(db: Db, organizationId: string, since: Date): 
  */
 export async function getUsageForOrganization(
   db: Db,
-  input: { readonly actorAccountId: string; readonly organizationId: string; readonly now?: Date },
+  input: {
+    readonly actorAccountId: string;
+    readonly organizationId: string;
+    readonly now?: Date;
+    /** Platform-owner read access for any organization, mirroring this file's platform-owner-only write gates -- optional so every existing member-facing call site keeps its exact prior behavior when it doesn't pass these. */
+    readonly actorEmail?: string;
+    readonly bootstrapEmails?: readonly string[];
+  },
 ): Promise<Result<OrganizationUsage, ServiceError>> {
-  if (!(await isActiveMember(db, input.actorAccountId, input.organizationId))) {
+  const authorized =
+    (await isActiveMember(db, input.actorAccountId, input.organizationId)) ||
+    (input.actorEmail !== undefined &&
+      (await isPlatformOwner(db, {
+        accountId: input.actorAccountId,
+        email: input.actorEmail,
+        bootstrapEmails: input.bootstrapEmails ?? [],
+      })));
+  if (!authorized) {
     return err(serviceError('forbidden', 'not an active member of this organization'));
   }
   const now = input.now ?? new Date();
