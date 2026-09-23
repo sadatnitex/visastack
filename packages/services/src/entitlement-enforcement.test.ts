@@ -9,6 +9,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { provisionAccount } from './accounts';
 import { createApplicant } from './applicants';
 import { openBillingAccount, transitionBillingStatus } from './billing';
+import { grantCommercialOverride, revokeCommercialOverride } from './commercial-override';
 import { setConsent } from './consent';
 import type { Db } from './db';
 import { generateInvitationToken, hashInvitationToken } from './invitation-tokens';
@@ -973,5 +974,227 @@ describe('suspended billing blocks new paid work (COM-02 + COM-03)', () => {
       role: 'CASE_MANAGER',
     });
     expect(isOk(allowed)).toBe(true);
+  });
+});
+
+describe('commercial override bypasses every commercial check (COM-02)', () => {
+  let db: Db;
+  let owner: Awaited<ReturnType<typeof seedPlatformOwner>>;
+  beforeEach(async () => {
+    db = await freshDb();
+    owner = await seedPlatformOwner(db, 'override');
+  });
+
+  async function grantOverride(organizationId: string) {
+    const granted = await grantCommercialOverride(db, {
+      actor: owner.actor,
+      stepUpSatisfied: true,
+      organizationId,
+      reason: 'exceptional case',
+      durationDays: 7,
+    });
+    if (!isOk(granted)) throw new Error('grant override');
+    return granted.value;
+  }
+
+  it('bypasses the seat cap for addMembership, even genuinely at the limit', async () => {
+    const { organizationId, ownerAccountId } = await seedOrganization(db, 'override-seats');
+    const plan = await createTightPlan(db, owner, { seatsAllowed: 1 });
+    await activateSubscription(db, {
+      actor: owner.actor,
+      stepUpSatisfied: true,
+      organizationId,
+      planId: plan.id,
+      reason: 'test',
+    });
+    // Already at the 1-seat cap (the org owner is the sole active seat).
+    await grantOverride(organizationId);
+
+    const member = await provisionAccount(db, { email: 'override-seat-member@acme.com' });
+    if (!isOk(member)) throw new Error('provision');
+    const added = await addMembership(db, {
+      actorAccountId: ownerAccountId,
+      organizationId,
+      accountId: member.value.id,
+      role: 'CASE_MANAGER',
+    });
+    expect(isOk(added)).toBe(true);
+  });
+
+  it('bypasses the invitation cap for createOrganizationInvitation', async () => {
+    const { organizationId, ownerAccountId } = await seedOrganization(db, 'override-invite');
+    const plan = await createTightPlan(db, owner, { seatsAllowed: 1 });
+    await activateSubscription(db, {
+      actor: owner.actor,
+      stepUpSatisfied: true,
+      organizationId,
+      planId: plan.id,
+      reason: 'test',
+    });
+    await grantOverride(organizationId);
+
+    const invited = await createOrganizationInvitation(db, {
+      actorAccountId: ownerAccountId,
+      organizationId,
+      email: 'override-invitee@example.com',
+      role: 'CASE_MANAGER',
+    });
+    expect(isOk(invited)).toBe(true);
+  });
+
+  it('bypasses both the per-period and concurrent-open case caps for createMission', async () => {
+    const traveller = await seedTraveller(db, 'override-case');
+    const { organizationId } = await seedOrganization(db, 'override-case-org');
+    const plan = await createTightPlan(db, owner, {
+      casesPerPeriodAllowed: 0,
+      concurrentOpenCasesAllowed: 0,
+    });
+    await activateSubscription(db, {
+      actor: owner.actor,
+      stepUpSatisfied: true,
+      organizationId,
+      planId: plan.id,
+      reason: 'test',
+    });
+    await grantOverride(organizationId);
+
+    const mission = await createMission(db, {
+      actorAccountId: traveller.accountId,
+      applicantId: traveller.applicantId,
+      title: 'Should be allowed under override',
+      ownerOrganizationId: organizationId,
+    });
+    expect(isOk(mission)).toBe(true);
+  });
+
+  it('bypasses the storage cap for reserveUpload', async () => {
+    const traveller = await seedTraveller(db, 'override-storage');
+    const { organizationId, ownerAccountId } = await seedOrganization(db, 'override-storage-org');
+    await grantOrgAccessToApplicant(db, {
+      applicantOwnerAccountId: traveller.accountId,
+      applicantId: traveller.applicantId,
+      organizationId,
+      orgOwnerAccountId: ownerAccountId,
+    });
+    const plan = await createTightPlan(db, owner, { storageBytesAllowed: 1 });
+    await activateSubscription(db, {
+      actor: owner.actor,
+      stepUpSatisfied: true,
+      organizationId,
+      planId: plan.id,
+      reason: 'test',
+    });
+    await grantOverride(organizationId);
+
+    const result = await reserveUpload(
+      db,
+      { accountId: traveller.accountId, applicantId: traveller.applicantId, sizeBytes: 1 * MB },
+      generousUploadConfig,
+    );
+    expect(isOk(result)).toBe(true);
+  });
+
+  it('also bypasses a SUSPENDED billing status -- the override supersedes suspension too, not just the plan cap', async () => {
+    const { organizationId, ownerAccountId } = await seedOrganization(db, 'override-suspended');
+    const opened = await openBillingAccount(db, {
+      actor: owner.actor,
+      stepUpSatisfied: true,
+      organizationId,
+      initialStatus: 'ACTIVE',
+      reason: 'onboarding',
+    });
+    if (!isOk(opened)) throw new Error('open billing account');
+    const suspended = await transitionBillingStatus(db, {
+      actor: owner.actor,
+      stepUpSatisfied: true,
+      organizationId,
+      toStatus: 'SUSPENDED',
+      reason: 'non-payment',
+    });
+    if (!isOk(suspended)) throw new Error('suspend');
+    await grantOverride(organizationId);
+
+    const member = await provisionAccount(db, { email: 'override-vs-suspended@acme.com' });
+    if (!isOk(member)) throw new Error('provision');
+    const added = await addMembership(db, {
+      actorAccountId: ownerAccountId,
+      organizationId,
+      accountId: member.value.id,
+      role: 'CASE_MANAGER',
+    });
+    expect(isOk(added)).toBe(true);
+  });
+
+  it('revoking the override immediately re-establishes the block', async () => {
+    const { organizationId, ownerAccountId } = await seedOrganization(db, 'override-revoke');
+    const plan = await createTightPlan(db, owner, { seatsAllowed: 1 });
+    await activateSubscription(db, {
+      actor: owner.actor,
+      stepUpSatisfied: true,
+      organizationId,
+      planId: plan.id,
+      reason: 'test',
+    });
+    const override = await grantOverride(organizationId);
+
+    const allowedMember = await provisionAccount(db, { email: 'override-revoke-allowed@acme.com' });
+    if (!isOk(allowedMember)) throw new Error('provision');
+    const allowed = await addMembership(db, {
+      actorAccountId: ownerAccountId,
+      organizationId,
+      accountId: allowedMember.value.id,
+      role: 'CASE_MANAGER',
+    });
+    expect(isOk(allowed)).toBe(true);
+
+    const revoked = await revokeCommercialOverride(db, {
+      actor: owner.actor,
+      stepUpSatisfied: true,
+      overrideId: override.id,
+      reason: 'resolved',
+    });
+    expect(isOk(revoked)).toBe(true);
+
+    const blockedMember = await provisionAccount(db, { email: 'override-revoke-blocked@acme.com' });
+    if (!isOk(blockedMember)) throw new Error('provision');
+    const blocked = await addMembership(db, {
+      actorAccountId: ownerAccountId,
+      organizationId,
+      accountId: blockedMember.value.id,
+      role: 'CASE_MANAGER',
+    });
+    expect(isErr(blocked)).toBe(true);
+  });
+
+  it('an expired (but not revoked) override no longer bypasses the check', async () => {
+    const { organizationId, ownerAccountId } = await seedOrganization(db, 'override-expired');
+    const plan = await createTightPlan(db, owner, { seatsAllowed: 1 });
+    await activateSubscription(db, {
+      actor: owner.actor,
+      stepUpSatisfied: true,
+      organizationId,
+      planId: plan.id,
+      reason: 'test',
+    });
+    const override = await grantOverride(organizationId);
+
+    // Backdate both startAt and expiryAt into the past (expiryAt still after
+    // startAt, satisfying commercial_overrides_expiry_after_start), matching
+    // this file's established technique for exercising a time boundary
+    // without actually waiting.
+    await db
+      .update(schema.commercialOverrides)
+      .set({ startAt: new Date(Date.now() - 120_000), expiryAt: new Date(Date.now() - 60_000) })
+      .where(eq(schema.commercialOverrides.id, override.id));
+
+    const member = await provisionAccount(db, { email: 'override-expired-member@acme.com' });
+    if (!isOk(member)) throw new Error('provision');
+    const added = await addMembership(db, {
+      actorAccountId: ownerAccountId,
+      organizationId,
+      accountId: member.value.id,
+      role: 'CASE_MANAGER',
+    });
+    expect(isErr(added)).toBe(true);
   });
 });

@@ -2365,6 +2365,57 @@ export const scheduledDowngrades = pgTable(
   ],
 );
 
+// --- Commercial override (Commercial V1 COM-02, Part 5 §7) -----------------
+// "Platform admin; reason; expiry; audit; cannot bypass security/consent/
+// release gates" (master directive). Modeled directly on `supportGrants`
+// above -- a scoped, time-limited, reasoned, revocable grant -- but scoped to
+// an ORGANIZATION's commercial entitlements rather than an applicant's
+// protected content, and granted by a single platform owner rather than
+// requiring a distinct approver: this bypasses a capacity NUMBER, not
+// consent-gated access to someone's sensitive data, so the two-person
+// control `supportGrants` needs for the latter is not the right fit here.
+// No uniqueness constraint -- like `supportGrants`, more than one override
+// can be simultaneously active for the same organization (independently
+// granted, independently revocable), `isCommercialOverrideActive`
+// (`packages/services/src/commercial-override.ts`) is a plain existence
+// check, not a singleton lookup. "Cannot bypass security/consent/release
+// gates" is structural, not a rule this table or its check functions
+// enforce: an active override is only ever read by
+// `entitlement-enforcement.ts`'s four commercial capacity checks, which
+// never touch security, consent, or release-gate code at all.
+export const commercialOverrides = pgTable(
+  'commercial_overrides',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    organizationId: uuid('organization_id')
+      .notNull()
+      .references(() => organizations.id, { onDelete: 'cascade' }),
+    grantedByAccountId: uuid('granted_by_account_id')
+      .notNull()
+      .references(() => accounts.id, { onDelete: 'restrict' }),
+    reason: text('reason').notNull(),
+    startAt: timestamp('start_at', { withTimezone: true }).notNull().defaultNow(),
+    expiryAt: timestamp('expiry_at', { withTimezone: true }).notNull(),
+    revokedAt: timestamp('revoked_at', { withTimezone: true }),
+    revokedByAccountId: uuid('revoked_by_account_id').references(() => accounts.id, {
+      onDelete: 'set null',
+    }),
+    revokedReason: text('revoked_reason'),
+    ...timestamps,
+  },
+  (table) => [
+    index('commercial_overrides_organization_idx').on(table.organizationId),
+    check('commercial_overrides_expiry_after_start', sql`${table.expiryAt} > ${table.startAt}`),
+    // Maximum 30 days -- generous enough for a genuine billing dispute or
+    // migration to resolve, but a database-enforced ceiling all the same, so
+    // an application bug can never issue an indefinitely-lived override.
+    check(
+      'commercial_overrides_max_duration',
+      sql`extract(epoch from (${table.expiryAt} - ${table.startAt})) <= 2592000`,
+    ),
+  ],
+);
+
 // --- Commerce: manual billing (Commercial V1 COM-03, Part 5 §8) ---
 // "This is subscription administration, not a full agency CRM." No payment
 // gateway, card handling, tax engine, or automated accounting exists or is
