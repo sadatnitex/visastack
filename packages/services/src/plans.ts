@@ -1,9 +1,13 @@
 import { type Result, err, ok } from '@visastack/core';
-import { and, desc, eq, gte, inArray, isNull, notInArray, sql } from 'drizzle-orm';
+import { and, desc, eq, gte, inArray, isNull, lte, notInArray, sql } from 'drizzle-orm';
 import { isActiveMember, listApplicantsForOrganization } from './agency';
 import { appendAuditEvent } from './audit';
-import { type Db, first, required, schema } from './db';
+import { type Db, first, isUniqueViolation, required, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
+import {
+  cancelQueuedNotificationsForResource,
+  enqueueNotificationBothChannels,
+} from './notifications';
 import { type PlatformAuthInput, isPlatformOwner } from './platform-roles';
 import { getOrganizationEvidenceBytes } from './quotas';
 
@@ -64,6 +68,25 @@ import { getOrganizationEvidenceBytes } from './quotas';
  * date -- COM-03's billing records (TRIAL/ACTIVE/GRACE/SUSPENDED/CLOSED,
  * invoice periods) do not exist yet. An honestly-provisional placeholder,
  * the same posture NTF-04's own weekly-overdue-follow-up cap already used.
+ *
+ * Downgrade grace periods (master directive Part 5 §7's "effective dates;
+ * warning/grace; blocks NEW capacity use after grace; deletes nothing") are
+ * a SEPARATE, explicitly-scheduled path alongside `activateSubscription`'s
+ * immediate cutover, not a variant of it: `scheduleDowngrade` inserts a
+ * `scheduledDowngrades` row for a caller-chosen future `effectiveAt`
+ * (defaulting to 14 days out) rather than touching `subscriptions` at all,
+ * so the organization's CURRENT plan -- and everything
+ * entitlement-enforcement.ts checks against it -- stays exactly what it was
+ * until a daily sweep (`executeScheduledDowngrade`, invoked by
+ * `triggerDowngradeSweep`, `apps/web/src/lib/jobs.ts`) actually applies it.
+ * "Blocks NEW capacity use after grace" therefore costs nothing extra here
+ * -- once the sweep flips the org onto the lower plan, the existing checks
+ * simply start comparing against smaller numbers, the same as any other
+ * plan assignment; "deletes nothing" holds for the identical reason. Both
+ * `activateSubscription` and `endSubscription` auto-cancel any still-PENDING
+ * scheduled downgrade the instant they touch an organization's plan
+ * directly, so a stale schedule can never silently reapply itself over an
+ * admin's later, more immediate decision.
  */
 
 export const TRAVELLER_FREE_PLAN_KEY = 'traveller_free';
@@ -392,6 +415,7 @@ export async function activateSubscription(
       resourceId: subscription.id,
       metadata: { organizationId: input.organizationId, planKey: plan.key, reason },
     });
+    await supersedePendingDowngrade(tx, input.organizationId, input.actor.accountId, now);
     return ok(subscription);
   });
 }
@@ -437,9 +461,10 @@ export async function endSubscription(
     );
     if (!current) return ok({ ended: false });
 
+    const now = new Date();
     await tx
       .update(schema.subscriptions)
-      .set({ endedAt: new Date() })
+      .set({ endedAt: now })
       .where(eq(schema.subscriptions.id, current.id));
     await appendAuditEvent(tx, {
       eventType: 'SUBSCRIPTION_ENDED',
@@ -451,8 +476,487 @@ export async function endSubscription(
       resourceId: current.id,
       metadata: { organizationId: input.organizationId, reason },
     });
+    await supersedePendingDowngrade(tx, input.organizationId, input.actor.accountId, now);
     return ok({ ended: true });
   });
+}
+
+/**
+ * Auto-cancels any still-PENDING scheduled downgrade for this organization,
+ * as a side effect of an immediate plan change (`activateSubscription`) or
+ * an unassignment (`endSubscription`) that makes it stale -- left in place,
+ * it would later fire and silently re-apply a now-irrelevant plan change
+ * (or worse, undo the change this call just made). MUST be called from
+ * inside the caller's own transaction, mirroring every other multi-effect
+ * mutation in this file.
+ */
+async function supersedePendingDowngrade(
+  tx: Db,
+  organizationId: string,
+  actorAccountId: string,
+  now: Date,
+): Promise<void> {
+  const pending = first(
+    await tx
+      .select({ id: schema.scheduledDowngrades.id })
+      .from(schema.scheduledDowngrades)
+      .where(
+        and(
+          eq(schema.scheduledDowngrades.organizationId, organizationId),
+          eq(schema.scheduledDowngrades.status, 'PENDING'),
+        ),
+      )
+      .limit(1),
+  );
+  if (!pending) return;
+  await tx
+    .update(schema.scheduledDowngrades)
+    .set({
+      status: 'CANCELLED',
+      cancelledAt: now,
+      cancelledByAccountId: actorAccountId,
+      cancelledReason: 'superseded by an immediate plan change',
+      updatedAt: now,
+    })
+    .where(eq(schema.scheduledDowngrades.id, pending.id));
+  await appendAuditEvent(tx, {
+    eventType: 'DOWNGRADE_CANCELLED',
+    actorAccountId,
+    action: 'MANAGE',
+    method: 'SYSTEM',
+    result: 'ALLOWED',
+    resourceType: 'scheduled_downgrade',
+    resourceId: pending.id,
+    reason: 'superseded by an immediate plan change',
+    metadata: { organizationId },
+  });
+  await cancelQueuedNotificationsForResource(tx, pending.id);
+}
+
+const DOWNGRADE_COMPARISON_DIMENSIONS = [
+  'seatsAllowed',
+  'casesPerPeriodAllowed',
+  'concurrentOpenCasesAllowed',
+  'storageBytesAllowed',
+  'aiAllowanceUnitsAllowed',
+] as const;
+
+/**
+ * True if `to` is not MORE generous than `from` on any entitlement
+ * dimension (`null` = unlimited = the largest possible value). The gate
+ * `scheduleDowngrade` uses to refuse being used for what is actually an
+ * upgrade, or a mixed change that increases some dimension, in disguise.
+ */
+function isDowngrade(from: Plan, to: Plan): boolean {
+  return DOWNGRADE_COMPARISON_DIMENSIONS.every((dimension) => {
+    const fromValue = from[dimension] ?? Number.POSITIVE_INFINITY;
+    const toValue = to[dimension] ?? Number.POSITIVE_INFINITY;
+    return toValue <= fromValue;
+  });
+}
+
+async function activeOwnerAccountIds(tx: Db, organizationId: string): Promise<string[]> {
+  const rows = await tx
+    .select({ accountId: schema.memberships.accountId })
+    .from(schema.memberships)
+    .where(
+      and(
+        eq(schema.memberships.organizationId, organizationId),
+        eq(schema.memberships.role, 'OWNER'),
+        eq(schema.memberships.active, true),
+      ),
+    );
+  return rows.map((r) => r.accountId);
+}
+
+export type ScheduledDowngrade = typeof schema.scheduledDowngrades.$inferSelect;
+
+/** Default warning/grace window when `scheduleDowngrade` isn't given an explicit `effectiveAt`. */
+const DEFAULT_DOWNGRADE_GRACE_MS = 14 * 24 * 60 * 60 * 1000; // 14 days
+
+export interface ScheduleDowngradeInput {
+  readonly actor: PlatformAuthInput;
+  readonly stepUpSatisfied: boolean;
+  readonly organizationId: string;
+  readonly toPlanId: string;
+  readonly reason: string;
+  /** Must be in the future. Defaults to `now + 14 days` when omitted. */
+  readonly effectiveAt?: Date;
+  readonly now?: Date;
+}
+
+/**
+ * Schedule a future, warned plan change for an organization currently on a
+ * more generous plan -- see this file's own top doc comment for how this
+ * differs from `activateSubscription`'s immediate cutover. Refuses a target
+ * plan that is not actually a downgrade on every dimension (`isDowngrade`);
+ * an upgrade or a lateral change should go through `activateSubscription`
+ * instead, immediately, with no reason to warn anyone first. Sends one
+ * warning notification to the organization's active owner(s) -- the PRD's
+ * own "warning" requirement -- with the exact effective date.
+ */
+export async function scheduleDowngrade(
+  db: Db,
+  input: ScheduleDowngradeInput,
+): Promise<Result<ScheduledDowngrade, ServiceError>> {
+  if (!(await isPlatformOwner(db, input.actor))) {
+    return err(serviceError('forbidden', 'only a platform owner can schedule a downgrade'));
+  }
+  if (!input.stepUpSatisfied) {
+    return err(
+      serviceError('step_up_required', 'scheduling a downgrade requires reauthentication'),
+    );
+  }
+  const reason = input.reason.trim();
+  if (reason.length === 0) return err(serviceError('invalid', 'a reason is required'));
+
+  const now = input.now ?? new Date();
+  const effectiveAt = input.effectiveAt ?? new Date(now.getTime() + DEFAULT_DOWNGRADE_GRACE_MS);
+  if (effectiveAt.getTime() <= now.getTime()) {
+    return err(serviceError('invalid', 'effectiveAt must be in the future'));
+  }
+
+  const org = first(
+    await db
+      .select({ id: schema.organizations.id })
+      .from(schema.organizations)
+      .where(eq(schema.organizations.id, input.organizationId))
+      .limit(1),
+  );
+  if (!org) return err(serviceError('not_found', 'organization not found'));
+
+  const toPlan = first(
+    await db.select().from(schema.plans).where(eq(schema.plans.id, input.toPlanId)).limit(1),
+  );
+  if (!toPlan) return err(serviceError('not_found', 'plan not found'));
+  if (!toPlan.active) {
+    return err(serviceError('invalid', 'this plan is retired and cannot be newly assigned'));
+  }
+
+  const fromPlan = await getCurrentPlanForOrganization(db, input.organizationId);
+  if (!fromPlan) {
+    return err(
+      serviceError(
+        'invalid',
+        'this organization has no current subscription to downgrade from -- use activateSubscription',
+      ),
+    );
+  }
+  if (!isDowngrade(fromPlan, toPlan)) {
+    return err(
+      serviceError(
+        'invalid',
+        'the target plan is not a downgrade from the current plan on every dimension -- use activateSubscription for an immediate change',
+      ),
+    );
+  }
+
+  const existingPending = first(
+    await db
+      .select({ id: schema.scheduledDowngrades.id })
+      .from(schema.scheduledDowngrades)
+      .where(
+        and(
+          eq(schema.scheduledDowngrades.organizationId, input.organizationId),
+          eq(schema.scheduledDowngrades.status, 'PENDING'),
+        ),
+      )
+      .limit(1),
+  );
+  if (existingPending) {
+    return err(serviceError('invalid', 'a downgrade is already scheduled for this organization'));
+  }
+
+  try {
+    return await db.transaction(async (tx) => {
+      const downgrade = required(
+        first(
+          await tx
+            .insert(schema.scheduledDowngrades)
+            .values({
+              organizationId: input.organizationId,
+              fromPlanId: fromPlan.id,
+              toPlanId: toPlan.id,
+              effectiveAt,
+              requestedByAccountId: input.actor.accountId,
+              reason,
+            })
+            .returning(),
+        ),
+        'scheduled downgrade',
+      );
+      await appendAuditEvent(tx, {
+        eventType: 'DOWNGRADE_SCHEDULED',
+        actorAccountId: input.actor.accountId,
+        action: 'MANAGE',
+        method: 'MANUAL',
+        result: 'ALLOWED',
+        resourceType: 'scheduled_downgrade',
+        resourceId: downgrade.id,
+        reason,
+        metadata: {
+          organizationId: input.organizationId,
+          fromPlanKey: fromPlan.key,
+          toPlanKey: toPlan.key,
+          effectiveAt: effectiveAt.toISOString(),
+        },
+      });
+      for (const ownerAccountId of await activeOwnerAccountIds(tx, input.organizationId)) {
+        await enqueueNotificationBothChannels(tx, {
+          eventType: 'DOWNGRADE_SCHEDULED',
+          resourceId: downgrade.id,
+          recipientAccountId: ownerAccountId,
+          organizationId: input.organizationId,
+          payload: {
+            subject: 'A plan change is scheduled for your organization',
+            summary: `Your plan will change from ${fromPlan.name} to ${toPlan.name} on ${effectiveAt.toDateString()}.`,
+            deepLinkPath: `/app/agency/${input.organizationId}/plan`,
+          },
+        });
+      }
+      return ok(downgrade);
+    });
+  } catch (error) {
+    if (isUniqueViolation(error)) {
+      return err(serviceError('invalid', 'a downgrade is already scheduled for this organization'));
+    }
+    throw error;
+  }
+}
+
+export interface CancelScheduledDowngradeInput {
+  readonly actor: PlatformAuthInput;
+  readonly stepUpSatisfied: boolean;
+  readonly downgradeId: string;
+  readonly reason: string;
+}
+
+/**
+ * Cancel a still-PENDING scheduled downgrade. Idempotent: cancelling an
+ * already-cancelled downgrade returns it unchanged, the same shape
+ * `revokeSupportGrant` already uses for "nothing left to do." Refuses once
+ * the downgrade has already EXECUTED -- the plan change it describes has
+ * already happened and cannot be undone by cancelling the record of it.
+ */
+export async function cancelScheduledDowngrade(
+  db: Db,
+  input: CancelScheduledDowngradeInput,
+): Promise<Result<ScheduledDowngrade, ServiceError>> {
+  if (!(await isPlatformOwner(db, input.actor))) {
+    return err(serviceError('forbidden', 'only a platform owner can cancel a scheduled downgrade'));
+  }
+  if (!input.stepUpSatisfied) {
+    return err(
+      serviceError(
+        'step_up_required',
+        'cancelling a scheduled downgrade requires reauthentication',
+      ),
+    );
+  }
+  const reason = input.reason.trim();
+  if (reason.length === 0) return err(serviceError('invalid', 'a reason is required'));
+
+  const existing = first(
+    await db
+      .select()
+      .from(schema.scheduledDowngrades)
+      .where(eq(schema.scheduledDowngrades.id, input.downgradeId))
+      .limit(1),
+  );
+  if (!existing) return err(serviceError('not_found', 'scheduled downgrade not found'));
+  if (existing.status === 'CANCELLED') return ok(existing);
+  if (existing.status === 'EXECUTED') {
+    return err(serviceError('invalid', 'this downgrade has already taken effect'));
+  }
+
+  return db.transaction(async (tx) => {
+    const cancelled = required(
+      first(
+        await tx
+          .update(schema.scheduledDowngrades)
+          .set({
+            status: 'CANCELLED',
+            cancelledAt: new Date(),
+            cancelledByAccountId: input.actor.accountId,
+            cancelledReason: reason,
+            updatedAt: new Date(),
+          })
+          .where(eq(schema.scheduledDowngrades.id, input.downgradeId))
+          .returning(),
+      ),
+      'scheduled downgrade',
+    );
+    await appendAuditEvent(tx, {
+      eventType: 'DOWNGRADE_CANCELLED',
+      actorAccountId: input.actor.accountId,
+      action: 'MANAGE',
+      method: 'MANUAL',
+      result: 'ALLOWED',
+      resourceType: 'scheduled_downgrade',
+      resourceId: cancelled.id,
+      reason,
+      metadata: { organizationId: cancelled.organizationId },
+    });
+    await cancelQueuedNotificationsForResource(tx, cancelled.id);
+    return ok(cancelled);
+  });
+}
+
+/** PENDING scheduled downgrades whose effective date has arrived -- ready for `executeScheduledDowngrade`. */
+export async function listDueDowngrades(
+  db: Db,
+  now: Date = new Date(),
+): Promise<ScheduledDowngrade[]> {
+  return db
+    .select()
+    .from(schema.scheduledDowngrades)
+    .where(
+      and(
+        eq(schema.scheduledDowngrades.status, 'PENDING'),
+        lte(schema.scheduledDowngrades.effectiveAt, now),
+      ),
+    );
+}
+
+/**
+ * Apply a due scheduled downgrade: ends the organization's current
+ * subscription and starts the new (lower) one, the same atomic cutover
+ * `activateSubscription` itself performs, then marks the schedule EXECUTED.
+ * System operation -- invoked only by the sweep (`triggerDowngradeSweep`,
+ * `apps/web/src/lib/jobs.ts`), never directly by a user, so it takes no
+ * actor/step-up. Re-checks both that the downgrade is still due AND that
+ * the organization's current subscription still matches what was scheduled
+ * -- it always should, since `activateSubscription`/`endSubscription` both
+ * auto-cancel any PENDING downgrade the instant they touch this
+ * organization's plan -- but this is the same defense-in-depth re-check
+ * `executeAccountDeletion` already applies to its own grace window.
+ */
+export async function executeScheduledDowngrade(
+  db: Db,
+  input: { readonly downgradeId: string; readonly now?: Date },
+): Promise<Result<ScheduledDowngrade, ServiceError>> {
+  const pending = first(
+    await db
+      .select()
+      .from(schema.scheduledDowngrades)
+      .where(
+        and(
+          eq(schema.scheduledDowngrades.id, input.downgradeId),
+          eq(schema.scheduledDowngrades.status, 'PENDING'),
+        ),
+      )
+      .limit(1),
+  );
+  if (!pending) return err(serviceError('not_found', 'no pending scheduled downgrade'));
+  const now = input.now ?? new Date();
+  if (now.getTime() < pending.effectiveAt.getTime()) {
+    return err(serviceError('invalid', 'effective date has not arrived'));
+  }
+
+  return db.transaction(async (tx) => {
+    const current = first(
+      await tx
+        .select()
+        .from(schema.subscriptions)
+        .where(
+          and(
+            eq(schema.subscriptions.organizationId, pending.organizationId),
+            isNull(schema.subscriptions.endedAt),
+          ),
+        )
+        .limit(1),
+    );
+    if (!current || current.planId !== pending.fromPlanId) {
+      return err(
+        serviceError(
+          'invalid',
+          "this organization's plan changed since this downgrade was scheduled",
+        ),
+      );
+    }
+
+    const toPlan = first(
+      await tx.select().from(schema.plans).where(eq(schema.plans.id, pending.toPlanId)).limit(1),
+    );
+    if (!toPlan) return err(serviceError('not_found', 'plan not found'));
+
+    await tx
+      .update(schema.subscriptions)
+      .set({ endedAt: now })
+      .where(eq(schema.subscriptions.id, current.id));
+    const subscription = required(
+      first(
+        await tx
+          .insert(schema.subscriptions)
+          .values({
+            organizationId: pending.organizationId,
+            planId: pending.toPlanId,
+            startedAt: now,
+            assignedByAccountId: pending.requestedByAccountId,
+            reason: `Scheduled downgrade executed: ${pending.reason}`,
+          })
+          .returning(),
+      ),
+      'subscription',
+    );
+    const executed = required(
+      first(
+        await tx
+          .update(schema.scheduledDowngrades)
+          .set({ status: 'EXECUTED', executedAt: now, updatedAt: now })
+          .where(eq(schema.scheduledDowngrades.id, pending.id))
+          .returning(),
+      ),
+      'scheduled downgrade',
+    );
+    await appendAuditEvent(tx, {
+      eventType: 'DOWNGRADE_EXECUTED',
+      actorAccountId: pending.requestedByAccountId,
+      action: 'MANAGE',
+      method: 'SYSTEM',
+      result: 'ALLOWED',
+      resourceType: 'subscription',
+      resourceId: subscription.id,
+      metadata: {
+        organizationId: pending.organizationId,
+        planKey: toPlan.key,
+        scheduledDowngradeId: pending.id,
+      },
+    });
+    for (const ownerAccountId of await activeOwnerAccountIds(tx, pending.organizationId)) {
+      await enqueueNotificationBothChannels(tx, {
+        eventType: 'DOWNGRADE_EXECUTED',
+        resourceId: executed.id,
+        recipientAccountId: ownerAccountId,
+        organizationId: pending.organizationId,
+        payload: {
+          subject: 'Your plan has changed',
+          summary: `Your organization's plan changed to ${toPlan.name}.`,
+          deepLinkPath: `/app/agency/${pending.organizationId}/plan`,
+        },
+      });
+    }
+    return ok(executed);
+  });
+}
+
+/** The organization's currently pending scheduled downgrade, if any (read-only). */
+export async function getPendingDowngradeForOrganization(
+  db: Db,
+  organizationId: string,
+): Promise<ScheduledDowngrade | undefined> {
+  return first(
+    await db
+      .select()
+      .from(schema.scheduledDowngrades)
+      .where(
+        and(
+          eq(schema.scheduledDowngrades.organizationId, organizationId),
+          eq(schema.scheduledDowngrades.status, 'PENDING'),
+        ),
+      )
+      .limit(1),
+  );
 }
 
 /** The organization's current plan, or `undefined` if none has ever been manually activated (or the last one was ended and never replaced). */

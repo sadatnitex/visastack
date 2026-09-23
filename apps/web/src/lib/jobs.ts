@@ -9,7 +9,9 @@ import {
   type SweepResult,
   applyEmailDeliveryEvent,
   executeAccountDeletion,
+  executeScheduledDowngrade,
   listDueDeletions,
+  listDueDowngrades,
   runErasureWorker,
   runIntakeWorker,
   runNotificationWorker,
@@ -238,6 +240,44 @@ export async function triggerAccountDeletionSweep(): Promise<{ readonly executed
     }
   } catch (error) {
     console.error('[triggerAccountDeletionSweep] sweep failed', error);
+  } finally {
+    await pool.end();
+  }
+  return { executed };
+}
+
+/**
+ * Executes every scheduled downgrade whose effective date has arrived
+ * (Commercial V1 COM-02, Part 5 §7 "Downgrade"). This is the only thing
+ * that ever calls `executeScheduledDowngrade` -- without it, a downgrade
+ * opened via `scheduleDowngrade` would sit at PENDING forever, its
+ * organization never actually moved onto the lower plan it warned about.
+ * Errors on one organization are logged and skipped, never allowed to
+ * abort the rest of the sweep -- same rationale as
+ * `triggerAccountDeletionSweep`.
+ */
+export async function triggerDowngradeSweep(): Promise<{ readonly executed: number }> {
+  const connectionString = resolveDatabaseUrl(process.env);
+  if (!connectionString) {
+    console.error('[triggerDowngradeSweep] database not configured');
+    return { executed: 0 };
+  }
+
+  const { db, pool } = createPooledDb(connectionString);
+  pool.on('error', (error) => {
+    console.error('[triggerDowngradeSweep] idle pool connection error', error);
+  });
+  let executed = 0;
+  try {
+    const handle = db as unknown as Parameters<typeof listDueDowngrades>[0];
+    const due = await listDueDowngrades(handle);
+    for (const downgrade of due) {
+      const result = await executeScheduledDowngrade(handle, { downgradeId: downgrade.id });
+      if (isOk(result)) executed++;
+      else console.error('[triggerDowngradeSweep] execution failed', result.error);
+    }
+  } catch (error) {
+    console.error('[triggerDowngradeSweep] sweep failed', error);
   } finally {
     await pool.end();
   }

@@ -59,7 +59,9 @@ export type NotificationEventType =
   | 'PLATFORM_ROLE_REVOKED'
   | 'TASK_DEADLINE'
   | 'DOCUMENT_EXPIRY'
-  | 'VERIFICATION_EXPIRY';
+  | 'VERIFICATION_EXPIRY'
+  | 'DOWNGRADE_SCHEDULED'
+  | 'DOWNGRADE_EXECUTED';
 
 /**
  * "Email content: neutral; minimal; authenticated deep link." / "Never

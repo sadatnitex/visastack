@@ -2297,6 +2297,74 @@ export const subscriptions = pgTable(
   ],
 );
 
+// --- Commerce: scheduled downgrades (Commercial V1 COM-02, Part 5 §7) ---
+// "Downgrade: effective dates; warning/grace; blocks NEW capacity use after
+// grace; deletes nothing" (master directive). `activateSubscription` above
+// is an immediate cutover -- this is the separate, explicitly-scheduled
+// path: a plan change that takes effect at a caller-chosen future
+// `effectiveAt`, giving the organization a warning period before its
+// capacity actually shrinks. At most one PENDING row per organization
+// (mirrors `accountDeletionRequests`' own "at most one PENDING request"
+// shape). "Blocks NEW capacity use after grace" costs nothing extra here --
+// once `executeScheduledDowngrade` (plans.ts) flips the org's current
+// subscription to the lower plan, `entitlement-enforcement.ts`'s existing
+// checks naturally start comparing against it. "Deletes nothing" is
+// likewise structural: nothing in this table or its execution path ever
+// removes a seat, case, or document -- an organization already over its new
+// plan's cap simply cannot consume more until it is back under, same as any
+// other over-cap organization today.
+export const downgradeStatus = pgEnum('downgrade_status', ['PENDING', 'CANCELLED', 'EXECUTED']);
+
+export const scheduledDowngrades = pgTable(
+  'scheduled_downgrades',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    organizationId: uuid('organization_id')
+      .notNull()
+      .references(() => organizations.id, { onDelete: 'cascade' }),
+    // Snapshots of both ends of the change, for audit/display -- neither is
+    // "the truth" at read time (`getCurrentPlanForOrganization` always is);
+    // these record what was true when the downgrade was scheduled.
+    fromPlanId: uuid('from_plan_id')
+      .notNull()
+      .references(() => plans.id),
+    toPlanId: uuid('to_plan_id')
+      .notNull()
+      .references(() => plans.id),
+    status: downgradeStatus('status').notNull().default('PENDING'),
+    requestedAt: timestamp('requested_at', { withTimezone: true }).notNull().defaultNow(),
+    effectiveAt: timestamp('effective_at', { withTimezone: true }).notNull(),
+    requestedByAccountId: uuid('requested_by_account_id')
+      .notNull()
+      .references(() => accounts.id),
+    reason: text('reason').notNull(),
+    cancelledAt: timestamp('cancelled_at', { withTimezone: true }),
+    cancelledByAccountId: uuid('cancelled_by_account_id').references(() => accounts.id, {
+      onDelete: 'set null',
+    }),
+    cancelledReason: text('cancelled_reason'),
+    executedAt: timestamp('executed_at', { withTimezone: true }),
+    ...timestamps,
+  },
+  (table) => [
+    index('scheduled_downgrades_organization_idx').on(table.organizationId),
+    // The sweep's own "what's due" query (listDueDowngrades) filters on
+    // exactly these two columns together.
+    index('scheduled_downgrades_status_effective_idx').on(table.status, table.effectiveAt),
+    // Backstops scheduleDowngrade's own pre-check the same way
+    // account_deletion_requests_pending_unique_idx backstops
+    // requestAccountDeletion's -- a true concurrent race could otherwise
+    // open two PENDING downgrades for the same organization.
+    uniqueIndex('scheduled_downgrades_pending_unique_idx')
+      .on(table.organizationId)
+      .where(sql`${table.status} = 'PENDING'`),
+    check(
+      'scheduled_downgrades_effective_after_requested',
+      sql`${table.effectiveAt} > ${table.requestedAt}`,
+    ),
+  ],
+);
+
 // --- Commerce: manual billing (Commercial V1 COM-03, Part 5 §8) ---
 // "This is subscription administration, not a full agency CRM." No payment
 // gateway, card handling, tax engine, or automated accounting exists or is
