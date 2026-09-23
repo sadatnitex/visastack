@@ -621,6 +621,17 @@ export {
 } from './billing';
 
 export {
+  COMMERCIAL_OVERRIDE_MAX_DURATION_DAYS,
+  type CommercialOverride,
+  type GrantCommercialOverrideInput,
+  type RevokeCommercialOverrideInput,
+  grantCommercialOverride,
+  isCommercialOverrideActive,
+  listCommercialOverridesForOrganization,
+  revokeCommercialOverride,
+} from './commercial-override';
+
+export {
   type AbandonedUploadSweepResult,
   type ReserveUploadInput,
   type UploadIntent,

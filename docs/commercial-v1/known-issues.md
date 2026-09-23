@@ -790,14 +790,13 @@ item gets its own requirements-ledger row once classified against the new direct
     dimensions -- seats, invitations, case creation, and storage -- each
     proven under real concurrency where the directive requires it
     (`packages/services/src/entitlement-enforcement.ts`), plus
-    billing-suspension blocking (see item 64's update: closed) and
-    downgrade grace periods (see this item's own update below: closed).
-    Honestly open, not built this pass: AI allowance enforcement (the
-    directive's own §7 text defers it, "AI later" -- not a gap this chunk
-    silently left); a platform-admin "commercial override" bypass (reason,
-    expiry, audit -- deliberately not designed until the enforcement it
-    would override actually existed to override, which it now does, but
-    still not built). Full detail: `requirements-ledger.md` COM-02.
+    billing-suspension blocking (see item 64's update: closed), downgrade
+    grace periods, and the platform-admin commercial override (see this
+    item's own updates below: both closed). Honestly open, not built this
+    pass: AI allowance enforcement (the directive's own §7 text defers it,
+    "AI later" -- not a gap this chunk silently left; the only item
+    remaining from COM-02's original scope). Full detail:
+    `requirements-ledger.md` COM-02.
     **Update (2026-09-23):** the "downgrade grace periods" gap originally
     flagged here -- "effective dates; warning/grace; blocks NEW capacity
     use after grace; deletes nothing," with `subscriptions` supporting only
@@ -820,9 +819,41 @@ item gets its own requirements-ledger row once classified against the new direct
     nothing"). `activateSubscription`/`endSubscription` auto-cancel any
     still-PENDING scheduled downgrade the instant they touch an
     organization's plan directly, so a stale schedule can never silently
-    reapply itself over an admin's later, more immediate decision. Still
-    open: AI allowance enforcement, the commercial-override bypass. Full
-    detail: `requirements-ledger.md` COM-02.
+    reapply itself over an admin's later, more immediate decision.
+    **Update (2026-09-23, continued): the platform-admin "commercial
+    override" bypass is now closed too.** "Platform admin; reason; expiry;
+    audit; cannot bypass security/consent/release gates" -- new
+    `commercialOverrides` table (migration `0056`) modeled directly on
+    `support-access.ts`'s own scoped-grant shape (reason, expiry,
+    revocable, audited, database-enforced maximum duration -- 30 days
+    here, generous enough for a genuine billing dispute or migration,
+    versus support access's 60 minutes for sensitive-data access), but
+    deliberately NOT that file's two-person approver-distinct-from-actor
+    control: a single platform owner (matching `activateSubscription`/
+    `scheduleDowngrade`'s own single-actor pattern) is the right-sized
+    control for bypassing a capacity number rather than consent-gated data
+    access. New `packages/services/src/commercial-override.ts`:
+    `grantCommercialOverride`/`revokeCommercialOverride`/
+    `isCommercialOverrideActive`, the last wired into
+    `entitlement-enforcement.ts`'s four gated functions as the very first
+    check -- ahead of even billing suspension, so an active override
+    bypasses both the suspension gate and every capacity number at once
+    (the directive names no per-dimension scoping). "Cannot bypass
+    security/consent/release gates" is structural, not a rule enforced in
+    code: `isCommercialOverrideActive` is read by exactly these four
+    commercial-capacity functions and nothing else, so there is no path by
+    which it could ever reach security, consent, or release-gate logic. 7
+    new tests (`commercial-override.test.ts`: grant/revoke authorization
+    and validation, expiry, multiple independently-granted overrides
+    coexisting since there is no uniqueness constraint) plus 6 more
+    (`entitlement-enforcement.test.ts`'s new "commercial override bypasses
+    every commercial check" describe block: one per gated function proving
+    the bypass at the real cap, one proving it also lifts a SUSPENDED
+    billing status, one proving revocation re-blocks immediately, one
+    proving an expired-but-not-revoked override no longer bypasses). COM-02
+    is now fully built against its original scope, with AI allowance
+    enforcement the one item the directive itself deferred rather than
+    left incomplete. Full detail: `requirements-ledger.md` COM-02.
 64. COM-03 (manual billing) is built and tested
     (`packages/services/src/billing.ts`, migration `0054`): billing
     accounts with a real TRIAL/ACTIVE/GRACE/SUSPENDED/CLOSED state machine

@@ -2,6 +2,7 @@ import { type Result, err, ok } from '@visastack/core';
 import { and, eq, gt, inArray, sql } from 'drizzle-orm';
 import { listApplicantsForOrganization, listOrganizationsWithAccessToApplicant } from './agency';
 import { isBillingSuspended } from './billing';
+import { isCommercialOverrideActive } from './commercial-override';
 import { type Db, first, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
 import {
@@ -63,14 +64,20 @@ import { getOrganizationEvidenceBytes, mbLabel } from './quotas';
  * capacity-*consuming* actions COM-02 already covered (seats,
  * invitations, case creation, storage), never a read path.
  *
+ * A platform-admin "commercial override" (`commercial-override.ts`) is
+ * checked first of all, before even billing suspension: an active,
+ * unexpired, non-revoked override for the relevant organization makes every
+ * check function below return `ok` immediately, bypassing both the
+ * suspension check and every capacity number. This is deliberately a blunt,
+ * all-four-dimensions bypass -- the directive's own "platform admin; reason;
+ * expiry; audit" line names no per-dimension scoping -- and it never
+ * touches security, consent, or release-gate code (the directive's "cannot
+ * bypass security/consent/release gates"), since nothing outside these four
+ * functions ever reads it.
+ *
  * Deliberately NOT in this file (see requirements-ledger.md COM-02):
  * - AI allowance enforcement -- the directive's own §7 text defers it ("AI
  *   later"), not a gap this chunk silently left.
- * - Downgrade grace periods and a platform-admin "commercial override"
- *   bypass -- each a genuinely separate mechanism with its own real design
- *   surface (a downgrade needs an effective-date concept `subscriptions`
- *   doesn't have yet; an override needs its own audited grant table) --
- *   still open, not invented here to look complete.
  */
 
 // Two-argument advisory-lock namespaces (the high bits of the composite
@@ -99,6 +106,7 @@ export async function checkSeatEntitlement(
   await tx.execute(
     sql`select pg_advisory_xact_lock(${SEAT_QUOTA_LOCK_NAMESPACE}, hashtext(${organizationId}))`,
   );
+  if (await isCommercialOverrideActive(tx, organizationId)) return ok(undefined);
   if (await isBillingSuspended(tx, organizationId)) {
     return err(
       serviceError(
@@ -153,6 +161,7 @@ export async function checkInvitationEntitlement(
   await tx.execute(
     sql`select pg_advisory_xact_lock(${SEAT_QUOTA_LOCK_NAMESPACE}, hashtext(${organizationId}))`,
   );
+  if (await isCommercialOverrideActive(tx, organizationId)) return ok(undefined);
   if (await isBillingSuspended(tx, organizationId)) {
     return err(
       serviceError(
@@ -192,6 +201,7 @@ export async function checkCaseCreationEntitlement(
   await tx.execute(
     sql`select pg_advisory_xact_lock(${CASE_QUOTA_LOCK_NAMESPACE}, hashtext(${organizationId}))`,
   );
+  if (await isCommercialOverrideActive(tx, organizationId)) return ok(undefined);
   if (await isBillingSuspended(tx, organizationId)) {
     return err(
       serviceError(
@@ -268,6 +278,7 @@ export async function checkStorageEntitlement(
 ): Promise<Result<void, ServiceError>> {
   const organizationIds = await listOrganizationsWithAccessToApplicant(tx, applicantId);
   for (const organizationId of organizationIds) {
+    if (await isCommercialOverrideActive(tx, organizationId)) continue;
     if (await isBillingSuspended(tx, organizationId)) {
       return err(
         serviceError(
