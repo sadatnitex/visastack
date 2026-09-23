@@ -1,6 +1,7 @@
 import {
   computeReadiness,
   getOrganization,
+  getOrganizationBrandingForDisplay,
   isActiveMember,
   isOrgAdmin,
   listApplicantsForOrganization,
@@ -28,6 +29,8 @@ import {
 } from '../../../../lib/capabilities';
 import { profileField } from '../../../../lib/profile-fields';
 import { withSession } from '../../../../lib/session';
+import { createStorage } from '../../../../lib/storage';
+import { BrandingForm } from './branding-form';
 import { CaseSearchForm, STAGE_LABELS } from './case-search-form';
 import { ClientInvitationForm } from './client-invitation-form';
 import { ClientInvitationRevokeButton } from './client-invitation-revoke-button';
@@ -36,6 +39,7 @@ import { InvitationRevokeButton } from './invitation-revoke-button';
 import { AddMemberForm } from './member-form';
 import { MemberToggleButton } from './member-toggle-button';
 import { MissionCollaboration } from './mission-collaboration';
+import { OrgBrandingHeader } from './org-branding-header';
 import { RequestEvidenceForm } from './request-evidence-form';
 import { RequireDifferentReviewerToggle } from './require-different-reviewer-toggle';
 
@@ -114,6 +118,10 @@ export default async function OrgConsolePage({
   const data = await withSession(async ({ db, accountId }) => {
     const org = await getOrganization(db, orgId);
     if (!org) return null;
+    // Not member-gated: the org name already renders unconditionally in the
+    // header below for anyone who can reach this page by URL, and branding
+    // (name/logo/accent color) carries no more sensitivity than that.
+    const branding = await getOrganizationBrandingForDisplay(db, createStorage(db), orgId);
     const adminCheck = await isOrgAdmin(db, accountId, orgId);
     // Finding #31 (post-programme defect register): mission collaboration —
     // assignments, notes, requirements, and the reviewer decision workflow
@@ -126,6 +134,7 @@ export default async function OrgConsolePage({
     if (!member) {
       return {
         org,
+        branding,
         admin: false,
         member: false,
         requests: [],
@@ -294,6 +303,7 @@ export default async function OrgConsolePage({
     const unassignedQueue = admin ? await listUnassignedActiveMissions(db, orgId) : [];
     return {
       org,
+      branding,
       admin,
       member: true,
       requests: requests?.ok ? requests.value : [],
@@ -321,6 +331,7 @@ export default async function OrgConsolePage({
       <div className="toolbar" style={{ marginBottom: '2rem' }}>
         <div>
           <span className="eyebrow">Organization</span>
+          <OrgBrandingHeader branding={data.branding} />
           <h1 className="section-title" style={{ margin: '0.25rem 0 0' }}>
             {data.org.name}
           </h1>
@@ -627,6 +638,24 @@ export default async function OrgConsolePage({
                   required={data.org.requireDifferentReviewer}
                 />
               </div>
+            </article>
+          ) : null}
+
+          {data.admin ? (
+            <article className="card" style={{ marginTop: '1.5rem' }}>
+              <p className="card-kicker">Settings</p>
+              <h2 className="card-title">Branding</h2>
+              <p className="card-body" style={{ marginBottom: '1.25rem' }}>
+                Approved logo, agency name, and one accessible accent color -- shown on this console
+                and on invitations. "Powered by VisaStack" always stays alongside it, and this
+                organization's branding never appears in another organization's workspace.
+              </p>
+              <BrandingForm
+                organizationId={orgId}
+                name={data.org.name}
+                accentColor={data.org.accentColor}
+                logoUrl={data.branding?.logoUrl ?? null}
+              />
             </article>
           ) : null}
 

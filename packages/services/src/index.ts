@@ -282,6 +282,24 @@ export {
 } from './organizations';
 
 export {
+  ALLOWED_LOGO_CONTENT_TYPES,
+  MAX_LOGO_BYTES,
+  MIN_ACCENT_CONTRAST_RATIO,
+  type OrganizationBranding,
+  type OrganizationBrandingRow,
+  type RemoveOrganizationLogoInput,
+  type UpdateOrganizationBrandingInput,
+  type UploadOrganizationLogoInput,
+  contrastRatio,
+  getOrganizationBrandingForDisplay,
+  isAccessibleAccentColor,
+  relativeLuminance,
+  removeOrganizationLogo,
+  updateOrganizationBranding,
+  uploadOrganizationLogo,
+} from './branding';
+
+export {
   type CreateGrantInput,
   type Grant,
   type GrantRecipient,

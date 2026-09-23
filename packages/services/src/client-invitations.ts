@@ -123,6 +123,7 @@ export async function createClientInvitation(
 }
 
 export interface ClientInvitationPreview {
+  readonly organizationId: string;
   readonly organizationName: string;
   readonly displayName: string;
   readonly requestedRoute: string | null;
@@ -143,6 +144,7 @@ export async function previewClientInvitation(
   const row = first(
     await db
       .select({
+        organizationId: schema.clientInvitations.organizationId,
         organizationName: schema.organizations.name,
         displayName: schema.clientInvitations.displayName,
         requestedRoute: schema.clientInvitations.requestedRoute,
@@ -165,6 +167,7 @@ export async function previewClientInvitation(
     return err(serviceError('invalid', 'this invitation has expired'));
   }
   return ok({
+    organizationId: row.organizationId,
     organizationName: row.organizationName,
     displayName: row.displayName,
     requestedRoute: row.requestedRoute,

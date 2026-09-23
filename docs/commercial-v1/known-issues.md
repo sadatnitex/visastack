@@ -871,6 +871,37 @@ item gets its own requirements-ledger row once classified against the new direct
     case creation, storage), each refusing outright once an organization
     reads SUSPENDED, independent of any entitlement number. Full detail:
     `requirements-ledger.md` COM-03.
+65. COM-04 (agency branding) is built and tested
+    (`packages/services/src/branding.ts`, migration `0057`): logo, agency
+    name, and one accent color, real and owner/admin self-service --
+    `isOrgAdmin`-gated (the same OWNER-or-ADMIN boundary
+    `setRequireDifferentReviewer`/`addMembership` already use), not a
+    platform-owner action, matching directive §11's "Agency owner should be
+    able to... manage branding" rather than §10's admin-workspace list
+    (which never mentions branding). "One ACCESSIBLE accent color" is
+    genuinely WCAG-validated (real relative-luminance/contrast-ratio math,
+    >=4.5:1 against white), not just a hex-format check. The logo composes
+    the evidence pipeline's own lower-level primitives
+    (`BlobStore`/`MalwareScannerPort`/`StoragePort`) directly rather than
+    reusing `uploads.ts`/`documents.ts` themselves, since those are shaped
+    around an applicant/quota/consent that an organization doesn't have;
+    scanning runs synchronously in the request (a single small image, not
+    evidence needing the async intake worker). "Agency A branding can never
+    appear in Agency B context" is proven by a dedicated isolation test, not
+    just asserted. Real owner-facing UI shipped: a Branding settings card
+    in the org console (name, accent color, logo upload/replace/remove),
+    reflected in a small branded header on the console and plan pages, and
+    on the client-invitation accept-preview page (the PRD's own named
+    "invitations" surface, PRD line 266) -- unlike COM-01/02/03's
+    platform-admin actions, this one is NOT deferred to ADM-01, since it is
+    an owner capability, not an admin one. Deliberately not built: any
+    re-theming of the rest of the UI with the accent color beyond a small,
+    tasteful application (the PRD scopes this to "logo; agency name; one
+    accessible accent color," not a design system), and no admin-side
+    logo-approval workflow (confirmed absent from both the directive's
+    admin-workspace list and the PRD's own capability table -- "approved
+    logo" reads as "passed the safety pipeline," not "admin sign-off").
+    Full detail: `requirements-ledger.md` COM-04.
 independently confirmed findings; the missing PRD file is tracked as Blocker 1 in
 `assumptions-and-blockers.md` (now resolved) rather than here, since it blocked the
 programme rather than being a product defect.

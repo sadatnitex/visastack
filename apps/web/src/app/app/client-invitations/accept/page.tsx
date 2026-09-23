@@ -1,5 +1,11 @@
-import { getConsents, listApplicants, previewClientInvitation } from '@visastack/services';
+import {
+  getConsents,
+  getOrganizationBrandingForDisplay,
+  listApplicants,
+  previewClientInvitation,
+} from '@visastack/services';
 import { withSession } from '../../../../lib/session';
+import { createStorage } from '../../../../lib/storage';
 import { AcceptClientInvitationForm } from './accept-form';
 import { ConsentGate } from './consent-gate';
 
@@ -45,12 +51,13 @@ export default async function AcceptClientInvitationPage({
 
   const data = await withSession(async ({ db, accountId }) => {
     const preview = await previewClientInvitation(db, token);
-    if (!preview.ok) return { preview, consents: null, applicants: [] };
-    const [consents, applicants] = await Promise.all([
+    if (!preview.ok) return { preview, consents: null, applicants: [], branding: undefined };
+    const [consents, applicants, branding] = await Promise.all([
       getConsents(db, accountId),
       listApplicants(db, accountId),
+      getOrganizationBrandingForDisplay(db, createStorage(db), preview.value.organizationId),
     ]);
-    return { preview, consents, applicants };
+    return { preview, consents, applicants, branding };
   });
 
   const coreGranted = data.consents?.CORE_PROCESSING === true;
@@ -73,10 +80,49 @@ export default async function AcceptClientInvitationPage({
           </p>
         ) : (
           <>
+            {data.branding?.logoUrl || data.branding?.accentColor ? (
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.6rem',
+                  marginBottom: '0.75rem',
+                }}
+              >
+                {data.branding.logoUrl ? (
+                  <img
+                    src={data.branding.logoUrl}
+                    alt={`${data.preview.value.organizationName} logo`}
+                    style={{
+                      height: '2.5rem',
+                      width: '2.5rem',
+                      objectFit: 'contain',
+                      borderRadius: '0.25rem',
+                      border: '1px solid var(--border, #ddd)',
+                    }}
+                  />
+                ) : null}
+                {data.branding.accentColor ? (
+                  <span
+                    aria-hidden="true"
+                    style={{
+                      display: 'inline-block',
+                      height: '0.6rem',
+                      width: '2rem',
+                      borderRadius: '999px',
+                      backgroundColor: data.branding.accentColor,
+                    }}
+                  />
+                ) : null}
+              </div>
+            ) : null}
             <p className="card-body">
               <strong>{data.preview.value.organizationName}</strong> wants to work with you on{' '}
               <strong>{data.preview.value.requestedRoute ?? data.preview.value.displayName}</strong>
               .
+            </p>
+            <p className="muted" style={{ fontSize: '0.75rem', marginTop: '-0.75rem' }}>
+              Powered by VisaStack
             </p>
             <p className="card-body" style={{ fontWeight: 600, marginBottom: '0.5rem' }}>
               If you accept, they will be able to:
