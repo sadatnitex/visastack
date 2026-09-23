@@ -943,6 +943,38 @@ item gets its own requirements-ledger row once classified against the new direct
     AI admin surface, correctly out of scope here since that is Part 8's
     multi-provider gateway, not a placeholder worth building ahead of the
     gateway it would control. Full detail: `requirements-ledger.md` ADM-01.
+67. Part 6 (rules engine, RUL-01/02/03/05) Phase 1 closes the schema and
+    engine foundations, real and tested, but deliberately does not yet
+    change what any existing case sees. New `packages/services/src/
+    rule-conditions.ts`: a typed, allowlisted rule-condition AST (existence,
+    equality, membership, date/duration comparison, numeric bounds, Kleene
+    and/or/not) with no `eval`/arbitrary-code path, a missing fact always
+    evaluating to `unknown` rather than `false`. New nullable columns on
+    `packRequirements` (`condition`, source URL/title/publisher/extract/
+    interpretation/type, observed date, author, change reason) and
+    `packVersions` (author, next-review date + documented-reason-if-later
+    rule, effective date, withdrawn/superseded fields) -- every one
+    additive, so every pre-existing pack (none of which has a `condition`)
+    evaluates exactly as it always has. `WITHDRAWN` is now a real, reasoned,
+    audited terminal state; the long-orphaned `DEPRECATED` enum value
+    (declared with zero writer, confirmed by this session's own research)
+    now means "superseded by a newer publish," set automatically. Author
+    and reviewer distinctness is enforced for an `authoritative` pack only,
+    never an agency's own custom checklist, matching the directive's own
+    scoping. **Not yet done, and explicitly not silently skipped:** the new
+    AST is not wired into `computeReadiness`/`buildRequirementMapping` --
+    that, plus RUL-04's richer per-requirement/overall result vocabulary it
+    will feed, is the next PR in this Part, kept separate so "add the
+    engine" and "change what readiness computes" stay independently
+    reviewable. Also still open: RUL-05's review queue, version diff, and
+    active-case impact list (admin UI, Phase 2); RUL-06 Public Trust Lite
+    (untouched); and, as stated from the start of this Part, the two launch
+    packs' actual rule content -- this sandbox has no live internet access
+    (confirmed this session: the outbound egress proxy denies even the
+    production URL, let alone an official government source), so real UK
+    Standard Visitor / Schengen short-stay content stays honestly
+    DRAFT/BLOCKED rather than fabricated. Full detail:
+    `requirements-ledger.md` RUL-01/02/03/05.
 independently confirmed findings; the missing PRD file is tracked as Blocker 1 in
 `assumptions-and-blockers.md` (now resolved) rather than here, since it blocked the
 programme rather than being a product defect.

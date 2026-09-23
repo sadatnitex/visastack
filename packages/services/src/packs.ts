@@ -1,24 +1,34 @@
 import { createHash } from 'node:crypto';
 import { type Result, err, ok } from '@visastack/core';
-import { eq } from 'drizzle-orm';
+import { and, eq, ne } from 'drizzle-orm';
 import { appendAuditEvent } from './audit';
 import { type Db, first, required, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
+import { type RuleCondition, isValidRuleCondition } from './rule-conditions';
 
 /**
- * Requirement Packs & Pack Studio (Build Spec §4.5; PRD §4).
+ * Requirement Packs & Pack Studio (Build Spec §4.5; PRD §4; Commercial V1
+ * RUL-01 to RUL-05).
  *
  * A pack is a composable, versioned requirement set. Requirements are authored
  * in a DRAFT version, each carrying a citation (nothing is required without a
  * grounded source). Approval freezes a deterministic manifest + checksum;
  * publishing makes the version immutable and usable by missions. The lifecycle
- * is DRAFT → APPROVED → PUBLISHED (→ DEPRECATED), and content can only change
- * while DRAFT.
+ * is DRAFT → APPROVED → PUBLISHED, and content can only change while DRAFT.
+ * From PUBLISHED, a version reaches exactly one of two terminal states:
+ * DEPRECATED (automatic -- a later version of the same pack published) or
+ * WITHDRAWN (explicit, reasoned -- pulled for cause).
+ *
+ * None of these functions check authorization themselves -- like every other
+ * function in this file, the caller (the Pack Studio admin Server Action)
+ * gates on `hasPlatformPermission(..., 'PACK_MANAGE')` first.
  */
 
 export type Pack = typeof schema.packs.$inferSelect;
 export type PackVersion = typeof schema.packVersions.$inferSelect;
 export type PackRequirement = typeof schema.packRequirements.$inferSelect;
+
+const DEFAULT_REVIEW_INTERVAL_DAYS = 30;
 
 export interface RequirementInput {
   readonly kind: 'FIELD' | 'DOCUMENT';
@@ -29,6 +39,16 @@ export interface RequirementInput {
   readonly notes?: string;
   /** DOCUMENT-only (NTF-01, Part 5 §1): case-specific freshness rule, e.g. "must be dated within 90 days." */
   readonly maxAgeDays?: number;
+  /** RUL-03 typed rule AST. Validated against the allowlisted operator shapes before it is ever stored. */
+  readonly condition?: RuleCondition;
+  readonly sourceUrl?: string;
+  readonly sourceTitle?: string;
+  readonly publisher?: string;
+  readonly officialExtract?: string;
+  readonly interpretation?: string;
+  readonly sourceType?: string;
+  readonly observedDate?: Date;
+  readonly changeReason?: string;
 }
 
 /** Deterministic manifest for a set of requirements, plus its checksum. */
@@ -105,6 +125,14 @@ export async function createPack(
     readonly name: string;
     readonly description?: string;
     readonly ownerOrganizationId?: string;
+    /** RUL-01 coverage model: which population/route this pack covers. */
+    readonly jurisdiction?: string;
+    readonly route?: string;
+    readonly purpose?: string;
+    readonly nationalityApplicability?: readonly string[];
+    readonly residenceApplicability?: readonly string[];
+    /** RUL-02: whether author/reviewer distinctness is enforced on this pack's versions. False for an agency's own custom checklist. */
+    readonly authoritative?: boolean;
   },
 ): Promise<Result<Pack, ServiceError>> {
   if (input.key.trim().length === 0 || input.name.trim().length === 0) {
@@ -120,6 +148,16 @@ export async function createPack(
             name: input.name.trim(),
             description: input.description ?? null,
             ownerOrganizationId: input.ownerOrganizationId ?? null,
+            jurisdiction: input.jurisdiction ?? null,
+            route: input.route ?? null,
+            purpose: input.purpose ?? null,
+            nationalityApplicability: input.nationalityApplicability
+              ? [...input.nationalityApplicability]
+              : null,
+            residenceApplicability: input.residenceApplicability
+              ? [...input.residenceApplicability]
+              : null,
+            authoritative: input.authoritative ?? false,
           })
           .returning(),
       ),
@@ -159,7 +197,11 @@ export async function addPackVersion(
       first(
         await tx
           .insert(schema.packVersions)
-          .values({ packId: input.packId, version: nextVersion })
+          .values({
+            packId: input.packId,
+            version: nextVersion,
+            authoredByAccountId: input.actorAccountId,
+          })
           .returning(),
       ),
       'pack version',
@@ -210,6 +252,9 @@ export async function addRequirement(
       return err(serviceError('invalid', 'maxAgeDays must be a positive integer'));
     }
   }
+  if (input.condition !== undefined && !isValidRuleCondition(input.condition)) {
+    return err(serviceError('invalid', 'condition is not a recognized rule shape'));
+  }
 
   return db.transaction(async (tx) => {
     const requirement = required(
@@ -225,6 +270,16 @@ export async function addRequirement(
             optional: input.optional ?? false,
             notes: input.notes ?? null,
             maxAgeDays: input.maxAgeDays ?? null,
+            condition: input.condition ?? null,
+            sourceUrl: input.sourceUrl ?? null,
+            sourceTitle: input.sourceTitle ?? null,
+            publisher: input.publisher ?? null,
+            officialExtract: input.officialExtract ?? null,
+            interpretation: input.interpretation ?? null,
+            sourceType: input.sourceType ?? null,
+            observedDate: input.observedDate ?? null,
+            changeReason: input.changeReason ?? null,
+            authorAccountId: input.actorAccountId,
           })
           .returning(),
       ),
@@ -242,6 +297,7 @@ export async function addRequirement(
         fieldKey: input.fieldKey ?? null,
         docType: input.docType ?? null,
         maxAgeDays: input.maxAgeDays ?? null,
+        hasCondition: input.condition !== undefined,
       },
     });
     return ok(requirement);
@@ -278,10 +334,25 @@ export async function listPackVersions(db: Db, packId: string): Promise<PackVers
 /**
  * Approve a DRAFT version (admin/reviewer action). Freezes the manifest +
  * checksum; the version becomes immutable content.
+ *
+ * RUL-02 "author and reviewer must be distinct" is enforced here, for an
+ * `authoritative` pack only: the account approving (the reviewer) must
+ * differ from `authoredByAccountId` (whoever opened this DRAFT version). An
+ * agency's own non-authoritative custom pack has no such restriction.
+ *
+ * RUL-05 "initial next-review <=30 days unless documented reason": defaults
+ * `nextReviewDate` to 30 days out when omitted; a caller-supplied date
+ * further out requires a non-empty `reviewIntervalReason`.
  */
 export async function approvePackVersion(
   db: Db,
-  input: { readonly actorAccountId: string; readonly packVersionId: string },
+  input: {
+    readonly actorAccountId: string;
+    readonly packVersionId: string;
+    readonly nextReviewDate?: Date;
+    readonly reviewIntervalReason?: string;
+    readonly effectiveDate?: Date;
+  },
 ): Promise<Result<PackVersion, ServiceError>> {
   const version = await loadVersion(db, input.packVersionId);
   if (!version) return err(serviceError('not_found', 'pack version not found'));
@@ -292,6 +363,34 @@ export async function approvePackVersion(
   if (requirements.length === 0) {
     return err(serviceError('invalid', 'cannot approve a version with no requirements'));
   }
+
+  const now = new Date();
+  const defaultNextReview = new Date(
+    now.getTime() + DEFAULT_REVIEW_INTERVAL_DAYS * 24 * 60 * 60 * 1000,
+  );
+  const nextReviewDate = input.nextReviewDate ?? defaultNextReview;
+  if (
+    nextReviewDate.getTime() > defaultNextReview.getTime() &&
+    (input.reviewIntervalReason === undefined || input.reviewIntervalReason.trim().length === 0)
+  ) {
+    return err(
+      serviceError(
+        'invalid',
+        `a next-review date more than ${DEFAULT_REVIEW_INTERVAL_DAYS} days out requires a documented reason`,
+      ),
+    );
+  }
+
+  const pack = await getPack(db, version.packId);
+  if (pack?.authoritative && version.authoredByAccountId === input.actorAccountId) {
+    return err(
+      serviceError(
+        'forbidden',
+        'this pack requires the reviewer to be different from the version author',
+      ),
+    );
+  }
+
   const { manifest, checksum } = buildManifest(requirements);
 
   return db.transaction(async (tx) => {
@@ -304,8 +403,11 @@ export async function approvePackVersion(
             manifest,
             checksum,
             approvedByAccountId: input.actorAccountId,
-            approvedAt: new Date(),
-            updatedAt: new Date(),
+            approvedAt: now,
+            nextReviewDate,
+            reviewIntervalReason: input.reviewIntervalReason ?? null,
+            effectiveDate: input.effectiveDate ?? null,
+            updatedAt: now,
           })
           .where(eq(schema.packVersions.id, input.packVersionId))
           .returning(),
@@ -320,13 +422,21 @@ export async function approvePackVersion(
       result: 'ALLOWED',
       resourceType: 'pack_version',
       resourceId: updated.id,
-      metadata: { checksum },
+      metadata: { checksum, nextReviewDate: nextReviewDate.toISOString() },
     });
     return ok(updated);
   });
 }
 
-/** Publish an APPROVED version, making it usable by missions. */
+/**
+ * Publish an APPROVED version, making it usable by missions. Any other
+ * still-PUBLISHED version of the SAME pack is automatically superseded
+ * (DEPRECATED, `supersededAt` set) in the same transaction -- mirroring
+ * `activateSubscription`'s auto-ending of a prior subscription -- so at most
+ * one version of a pack is ever current at a time. Content and any mission
+ * already bound to the superseded version's exact `packVersionId` are
+ * untouched; only its own `status` changes.
+ */
 export async function publishPackVersion(
   db: Db,
   input: { readonly actorAccountId: string; readonly packVersionId: string },
@@ -337,11 +447,12 @@ export async function publishPackVersion(
     return err(serviceError('invalid', 'only an APPROVED version can be published'));
   }
   return db.transaction(async (tx) => {
+    const now = new Date();
     const updated = required(
       first(
         await tx
           .update(schema.packVersions)
-          .set({ status: 'PUBLISHED', publishedAt: new Date(), updatedAt: new Date() })
+          .set({ status: 'PUBLISHED', publishedAt: now, updatedAt: now })
           .where(eq(schema.packVersions.id, input.packVersionId))
           .returning(),
       ),
@@ -354,6 +465,141 @@ export async function publishPackVersion(
       method: 'MANUAL',
       result: 'ALLOWED',
       resourceType: 'pack_version',
+      resourceId: updated.id,
+    });
+
+    const superseded = await tx
+      .update(schema.packVersions)
+      .set({ status: 'DEPRECATED', supersededAt: now, updatedAt: now })
+      .where(
+        and(
+          eq(schema.packVersions.packId, version.packId),
+          eq(schema.packVersions.status, 'PUBLISHED'),
+          ne(schema.packVersions.id, updated.id),
+        ),
+      )
+      .returning({ id: schema.packVersions.id });
+    for (const row of superseded) {
+      await appendAuditEvent(tx, {
+        eventType: 'PACK_VERSION_SUPERSEDED',
+        actorAccountId: input.actorAccountId,
+        action: 'MANAGE',
+        method: 'SYSTEM',
+        result: 'ALLOWED',
+        resourceType: 'pack_version',
+        resourceId: row.id,
+        metadata: { supersededByPackVersionId: updated.id },
+      });
+    }
+
+    return ok(updated);
+  });
+}
+
+/**
+ * Withdraw a PUBLISHED version for cause (RUL-05: source turned out wrong,
+ * unsafe, or inaccessible) -- always explicit and reasoned, unlike the
+ * automatic DEPRECATED transition above. A version still in DRAFT/APPROVED
+ * was never live; discard or correct it with a new version instead.
+ */
+export async function withdrawPackVersion(
+  db: Db,
+  input: {
+    readonly actorAccountId: string;
+    readonly packVersionId: string;
+    readonly reason: string;
+  },
+): Promise<Result<PackVersion, ServiceError>> {
+  const reason = input.reason.trim();
+  if (reason.length === 0) return err(serviceError('invalid', 'a reason is required'));
+  const version = await loadVersion(db, input.packVersionId);
+  if (!version) return err(serviceError('not_found', 'pack version not found'));
+  if (version.status !== 'PUBLISHED') {
+    return err(serviceError('invalid', 'only a PUBLISHED version can be withdrawn'));
+  }
+
+  return db.transaction(async (tx) => {
+    const now = new Date();
+    const updated = required(
+      first(
+        await tx
+          .update(schema.packVersions)
+          .set({
+            status: 'WITHDRAWN',
+            withdrawnAt: now,
+            withdrawnByAccountId: input.actorAccountId,
+            withdrawnReason: reason,
+            updatedAt: now,
+          })
+          .where(eq(schema.packVersions.id, input.packVersionId))
+          .returning(),
+      ),
+      'pack version',
+    );
+    await appendAuditEvent(tx, {
+      eventType: 'PACK_VERSION_WITHDRAWN',
+      actorAccountId: input.actorAccountId,
+      action: 'MANAGE',
+      method: 'MANUAL',
+      result: 'ALLOWED',
+      resourceType: 'pack_version',
+      resourceId: updated.id,
+      reason,
+    });
+    return ok(updated);
+  });
+}
+
+/** Mark one requirement's source as unreachable on re-check (RUL-05). Cleared by `clearRequirementSourceInaccessible` once a later re-check succeeds. */
+export async function markRequirementSourceInaccessible(
+  db: Db,
+  input: { readonly actorAccountId: string; readonly requirementId: string },
+): Promise<Result<PackRequirement, ServiceError>> {
+  return setRequirementSourceInaccessible(db, input, new Date());
+}
+
+export async function clearRequirementSourceInaccessible(
+  db: Db,
+  input: { readonly actorAccountId: string; readonly requirementId: string },
+): Promise<Result<PackRequirement, ServiceError>> {
+  return setRequirementSourceInaccessible(db, input, null);
+}
+
+async function setRequirementSourceInaccessible(
+  db: Db,
+  input: { readonly actorAccountId: string; readonly requirementId: string },
+  sourceInaccessibleAt: Date | null,
+): Promise<Result<PackRequirement, ServiceError>> {
+  const requirement = first(
+    await db
+      .select()
+      .from(schema.packRequirements)
+      .where(eq(schema.packRequirements.id, input.requirementId))
+      .limit(1),
+  );
+  if (!requirement) return err(serviceError('not_found', 'requirement not found'));
+
+  return db.transaction(async (tx) => {
+    const updated = required(
+      first(
+        await tx
+          .update(schema.packRequirements)
+          .set({ sourceInaccessibleAt })
+          .where(eq(schema.packRequirements.id, input.requirementId))
+          .returning(),
+      ),
+      'requirement',
+    );
+    await appendAuditEvent(tx, {
+      eventType:
+        sourceInaccessibleAt === null
+          ? 'PACK_REQUIREMENT_SOURCE_RESTORED'
+          : 'PACK_REQUIREMENT_SOURCE_INACCESSIBLE',
+      actorAccountId: input.actorAccountId,
+      action: 'MANAGE',
+      method: 'MANUAL',
+      result: 'ALLOWED',
+      resourceType: 'pack_requirement',
       resourceId: updated.id,
     });
     return ok(updated);

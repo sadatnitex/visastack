@@ -407,6 +407,13 @@
       "when": 1790135567666,
       "tag": "0057_organization_branding",
       "breakpoints": true
+    },
+    {
+      "idx": 58,
+      "version": "7",
+      "when": 1790150159835,
+      "tag": "0058_rule_engine_foundations",
+      "breakpoints": true
     }
   ]
 }

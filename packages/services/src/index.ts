@@ -385,15 +385,28 @@ export {
   addRequirement,
   approvePackVersion,
   buildManifest,
+  clearRequirementSourceInaccessible,
   createPack,
   getPack,
   listPackVersions,
   listPacks,
   listPublishedPackVersions,
   listRequirements,
+  markRequirementSourceInaccessible,
   publishPackVersion,
   verifyPackChecksum,
+  withdrawPackVersion,
 } from './packs';
+
+export {
+  type EvaluationContext,
+  type RuleCondition,
+  type RuleConditionResult,
+  type RuleFieldValue,
+  type RuleOperand,
+  evaluateCondition,
+  isValidRuleCondition,
+} from './rule-conditions';
 
 export {
   DEFAULT_EXPIRY_REMINDER_THRESHOLD_DAYS,
