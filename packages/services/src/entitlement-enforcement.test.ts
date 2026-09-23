@@ -8,6 +8,7 @@ import { migrate } from 'drizzle-orm/pglite/migrator';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { provisionAccount } from './accounts';
 import { createApplicant } from './applicants';
+import { openBillingAccount, transitionBillingStatus } from './billing';
 import { setConsent } from './consent';
 import type { Db } from './db';
 import { generateInvitationToken, hashInvitationToken } from './invitation-tokens';
@@ -811,5 +812,166 @@ describe('checkStorageEntitlement - upload storage (COM-02)', () => {
     const results = [a, b];
     expect(results.filter(isOk)).toHaveLength(1);
     expect(results.filter(isErr)).toHaveLength(1);
+  });
+});
+
+describe('suspended billing blocks new paid work (COM-02 + COM-03)', () => {
+  let db: Db;
+  let owner: Awaited<ReturnType<typeof seedPlatformOwner>>;
+  beforeEach(async () => {
+    db = await freshDb();
+    owner = await seedPlatformOwner(db, 'suspended');
+  });
+
+  async function suspendOrg(organizationId: string): Promise<void> {
+    const opened = await openBillingAccount(db, {
+      actor: owner.actor,
+      stepUpSatisfied: true,
+      organizationId,
+      initialStatus: 'ACTIVE',
+      reason: 'onboarding',
+    });
+    if (!isOk(opened)) throw new Error('open billing account');
+    const suspended = await transitionBillingStatus(db, {
+      actor: owner.actor,
+      stepUpSatisfied: true,
+      organizationId,
+      toStatus: 'SUSPENDED',
+      reason: 'non-payment',
+    });
+    if (!isOk(suspended)) throw new Error('suspend');
+  }
+
+  it('blocks addMembership once billing is suspended, even with generous seat headroom to spare', async () => {
+    const { organizationId, ownerAccountId } = await seedOrganization(db, 'seats-suspended');
+    const plan = await createPlan(db, {
+      actor: owner.actor,
+      stepUpSatisfied: true,
+      key: 'suspended-seats-plan',
+      name: 'Suspended Seats Plan',
+      seatsAllowed: 100,
+    });
+    if (!isOk(plan)) throw new Error('plan');
+    await activateSubscription(db, {
+      actor: owner.actor,
+      stepUpSatisfied: true,
+      organizationId,
+      planId: plan.value.id,
+      reason: 'test',
+    });
+    await suspendOrg(organizationId);
+
+    const newMember = await provisionAccount(db, { email: 'm-suspended-seats@acme.com' });
+    if (!isOk(newMember)) throw new Error('provision');
+    const added = await addMembership(db, {
+      actorAccountId: ownerAccountId,
+      organizationId,
+      accountId: newMember.value.id,
+      role: 'CASE_MANAGER',
+    });
+    expect(isErr(added)).toBe(true);
+    if (isErr(added)) expect(added.error.message).toContain('suspended');
+  });
+
+  it('blocks createOrganizationInvitation once billing is suspended, even with no plan assigned at all', async () => {
+    const { organizationId, ownerAccountId } = await seedOrganization(db, 'invite-suspended');
+    await suspendOrg(organizationId);
+    const invited = await createOrganizationInvitation(db, {
+      actorAccountId: ownerAccountId,
+      organizationId,
+      email: 'blocked-suspended@example.com',
+      role: 'CASE_MANAGER',
+    });
+    expect(isErr(invited)).toBe(true);
+    if (isErr(invited)) expect(invited.error.message).toContain('suspended');
+  });
+
+  it('blocks createMission (org-owned) once billing is suspended, even with no plan assigned at all', async () => {
+    const traveller = await seedTraveller(db, 'case-suspended');
+    const { organizationId } = await seedOrganization(db, 'case-suspended-org');
+    await suspendOrg(organizationId);
+    const mission = await createMission(db, {
+      actorAccountId: traveller.accountId,
+      applicantId: traveller.applicantId,
+      title: 'Should be blocked',
+      ownerOrganizationId: organizationId,
+    });
+    expect(isErr(mission)).toBe(true);
+    if (isErr(mission)) expect(mission.error.message).toContain('suspended');
+  });
+
+  it('blocks reserveUpload once an accessing organization is suspended, even with no plan assigned at all', async () => {
+    const traveller = await seedTraveller(db, 'storage-suspended');
+    const { organizationId, ownerAccountId } = await seedOrganization(db, 'storage-suspended-org');
+    await grantOrgAccessToApplicant(db, {
+      applicantOwnerAccountId: traveller.accountId,
+      applicantId: traveller.applicantId,
+      organizationId,
+      orgOwnerAccountId: ownerAccountId,
+    });
+    await suspendOrg(organizationId);
+    const result = await reserveUpload(
+      db,
+      { accountId: traveller.accountId, applicantId: traveller.applicantId, sizeBytes: 1 * MB },
+      generousUploadConfig,
+    );
+    expect(isErr(result)).toBe(true);
+    if (isErr(result)) expect(result.error.message).toContain('suspended');
+  });
+
+  it('does not block when billing is ACTIVE, not SUSPENDED -- the gate only fires on the real SUSPENDED status', async () => {
+    const { organizationId, ownerAccountId } = await seedOrganization(db, 'active-not-blocked');
+    const opened = await openBillingAccount(db, {
+      actor: owner.actor,
+      stepUpSatisfied: true,
+      organizationId,
+      initialStatus: 'ACTIVE',
+      reason: 'onboarding',
+    });
+    expect(isOk(opened)).toBe(true);
+
+    const newMember = await provisionAccount(db, { email: 'm-active-ok@acme.com' });
+    if (!isOk(newMember)) throw new Error('provision');
+    const added = await addMembership(db, {
+      actorAccountId: ownerAccountId,
+      organizationId,
+      accountId: newMember.value.id,
+      role: 'CASE_MANAGER',
+    });
+    expect(isOk(added)).toBe(true);
+  });
+
+  it('reactivating billing (SUSPENDED -> ACTIVE) immediately un-blocks new work', async () => {
+    const { organizationId, ownerAccountId } = await seedOrganization(db, 'reactivated');
+    await suspendOrg(organizationId);
+
+    const blockedMember = await provisionAccount(db, { email: 'm-blocked@acme.com' });
+    if (!isOk(blockedMember)) throw new Error('provision');
+    const blocked = await addMembership(db, {
+      actorAccountId: ownerAccountId,
+      organizationId,
+      accountId: blockedMember.value.id,
+      role: 'CASE_MANAGER',
+    });
+    expect(isErr(blocked)).toBe(true);
+
+    const reactivated = await transitionBillingStatus(db, {
+      actor: owner.actor,
+      stepUpSatisfied: true,
+      organizationId,
+      toStatus: 'ACTIVE',
+      reason: 'payment received',
+    });
+    expect(isOk(reactivated)).toBe(true);
+
+    const allowedMember = await provisionAccount(db, { email: 'm-allowed@acme.com' });
+    if (!isOk(allowedMember)) throw new Error('provision');
+    const allowed = await addMembership(db, {
+      actorAccountId: ownerAccountId,
+      organizationId,
+      accountId: allowedMember.value.id,
+      role: 'CASE_MANAGER',
+    });
+    expect(isOk(allowed)).toBe(true);
   });
 });
