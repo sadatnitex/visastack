@@ -139,11 +139,17 @@ export const nameVersionDecision = pgEnum('name_version_decision', [
   'ACCEPTED_EDITED',
   'REJECTED',
 ]);
+// DEPRECATED means superseded by a later PUBLISHED version of the same pack
+// (set automatically by `publishPackVersion`, never chosen directly) --
+// content is fine, just no longer current. WITHDRAWN (Commercial V1 RUL-05)
+// means pulled for cause (the source turned out wrong, unsafe, or
+// inaccessible) and is always an explicit, reasoned, audited action.
 export const packVersionStatus = pgEnum('pack_version_status', [
   'DRAFT',
   'APPROVED',
   'PUBLISHED',
   'DEPRECATED',
+  'WITHDRAWN',
 ]);
 export const requirementKind = pgEnum('requirement_kind', ['FIELD', 'DOCUMENT']);
 export const notificationChannel = pgEnum('notification_channel', ['IN_APP', 'EMAIL']);
@@ -1351,6 +1357,24 @@ export const packs = pgTable('packs', {
   ownerOrganizationId: uuid('owner_organization_id').references(() => organizations.id, {
     onDelete: 'set null',
   }),
+  // Commercial V1 RUL-01 coverage model. A pack is one coherent route/context
+  // (e.g. "uk.tourist" already is, by convention) -- these describe which
+  // population it covers, never read by evaluation itself (evaluation only
+  // ever reads one exact `packVersionId`, permanently bound to a mission).
+  // Nullable: unset means "not yet classified," never "applies universally."
+  jurisdiction: text('jurisdiction'),
+  route: text('route'),
+  purpose: text('purpose'),
+  nationalityApplicability: text('nationality_applicability').array(),
+  residenceApplicability: text('residence_applicability').array(),
+  // RUL-02 "author and reviewer must be distinct" applies only to an
+  // authoritative public pack, never an agency's own custom checklist
+  // (directive §3: "Agency custom checklist: must remain visibly separate").
+  // Enforced in `approvePackVersion`, service-layer (like
+  // `organizations.requireDifferentReviewer`), not a DB constraint, since
+  // it is conditional on this flag rather than universal like
+  // `support_grants_approver_not_actor`.
+  authoritative: boolean('authoritative').notNull().default(false),
   ...timestamps,
 });
 
@@ -1367,11 +1391,41 @@ export const packVersions = pgTable(
     // approval; a published version is immutable and verifiable.
     manifest: jsonb('manifest'),
     checksum: text('checksum'),
+    // RUL-02 "reviewer" -- the account that approved/froze this version's
+    // content. `authoredByAccountId` below is the DRAFT's own author; RUL-02's
+    // "author and reviewer must be distinct" (authoritative public packs
+    // only, `packs.authoritative`) compares these two columns, enforced in
+    // `approvePackVersion`.
     approvedByAccountId: uuid('approved_by_account_id').references(() => accounts.id, {
       onDelete: 'set null',
     }),
     approvedAt: timestamp('approved_at', { withTimezone: true }),
     publishedAt: timestamp('published_at', { withTimezone: true }),
+    authoredByAccountId: uuid('authored_by_account_id').references(() => accounts.id, {
+      onDelete: 'set null',
+    }),
+    // RUL-05 source maintenance: "initial next-review <=30 days unless
+    // documented reason." Set at approval time; `reviewIntervalReason` is
+    // required only when `nextReviewDate` is more than 30 days out.
+    nextReviewDate: timestamp('next_review_date', { withTimezone: true }),
+    reviewIntervalReason: text('review_interval_reason'),
+    // When this version's content takes legal/official effect -- distinct
+    // from `publishedAt` (when it became usable by missions in this system).
+    effectiveDate: timestamp('effective_date', { withTimezone: true }),
+    // Auto-set by `publishPackVersion` on any earlier PUBLISHED version of
+    // the same pack the instant a newer one publishes (mirrors
+    // `activateSubscription`'s auto-supersede of a prior subscription). Not
+    // a human decision -- `withdrawnAt` below is.
+    supersededAt: timestamp('superseded_at', { withTimezone: true }),
+    // Pulled for cause (source turned out wrong/unsafe/inaccessible) --
+    // always explicit, reasoned, audited. Refused from DRAFT (nothing to
+    // withdraw yet; discard the version instead) or an already-terminal
+    // status.
+    withdrawnAt: timestamp('withdrawn_at', { withTimezone: true }),
+    withdrawnByAccountId: uuid('withdrawn_by_account_id').references(() => accounts.id, {
+      onDelete: 'set null',
+    }),
+    withdrawnReason: text('withdrawn_reason'),
     ...timestamps,
   },
   (table) => [unique('pack_versions_pack_version_unique').on(table.packId, table.version)],
@@ -1404,6 +1458,42 @@ export const packRequirements = pgTable(
     // behind case staleness" (the directive's own phrase) with no separate
     // versioning mechanism needed.
     maxAgeDays: integer('max_age_days'),
+    // RUL-03 typed rule AST (packages/services/src/rule-conditions.ts).
+    // Nullable: when absent, evaluation falls back to the pre-existing
+    // "does an eligible fact/document instance exist" check unchanged --
+    // this column is purely additive, no existing pack is affected by its
+    // introduction. When present, a `RuleCondition` tree the evaluator reads
+    // (never `eval`/arbitrary code); a missing referenced fact evaluates to
+    // `unknown`, never silently `false`.
+    condition: jsonb('condition'),
+    // RUL-02 rule-record fields, grounding this one requirement's source
+    // (distinct from `citation`, the pre-existing free-text grounding
+    // string, which stays as the short human-readable reference).
+    sourceUrl: text('source_url'),
+    sourceTitle: text('source_title'),
+    publisher: text('publisher'),
+    // Bounded official extract/reference, kept separate from VisaStack's own
+    // interpretation of it (directive §3) so a reader can always tell which
+    // words are the government's and which are ours.
+    officialExtract: text('official_extract'),
+    interpretation: text('interpretation'),
+    // Free text, deliberately -- no fixed taxonomy exists to draw an enum
+    // from (matching `missions.serviceCategory`'s own precedent), though the
+    // directive's own examples are "government," "consular," and
+    // "service-provider."
+    sourceType: text('source_type'),
+    observedDate: timestamp('observed_date', { withTimezone: true }),
+    authorAccountId: uuid('author_account_id').references(() => accounts.id, {
+      onDelete: 'set null',
+    }),
+    // Why this requirement's content changed from what a prior pack version
+    // had for the same rule -- filled in only when authoring a revision.
+    changeReason: text('change_reason'),
+    // RUL-05 "source inaccessible state," scoped to this one citation --
+    // distinct from `packVersions.withdrawnAt` (the whole version pulled for
+    // cause). Set when an admin re-checks a source and finds it unreachable;
+    // cleared if a later re-check succeeds.
+    sourceInaccessibleAt: timestamp('source_inaccessible_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [index('pack_requirements_version_idx').on(table.packVersionId)],
