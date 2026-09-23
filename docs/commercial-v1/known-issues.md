@@ -790,17 +790,39 @@ item gets its own requirements-ledger row once classified against the new direct
     dimensions -- seats, invitations, case creation, and storage -- each
     proven under real concurrency where the directive requires it
     (`packages/services/src/entitlement-enforcement.ts`), plus
-    billing-suspension blocking (see item 64's update: closed). Honestly
-    open, not built this pass: AI allowance enforcement (the directive's
-    own §7 text defers it, "AI later" -- not a gap this chunk silently
-    left); downgrade grace periods ("effective dates; warning/grace;
-    blocks NEW capacity use after grace; deletes nothing" --
-    `subscriptions` only supports an immediate cutover today, no
-    effective-date concept exists to delay one); a platform-admin
-    "commercial override" bypass (reason, expiry, audit -- deliberately
-    not designed until the enforcement it would override actually existed
-    to override, which it now does, but still not built). Full detail:
-    `requirements-ledger.md` COM-02.
+    billing-suspension blocking (see item 64's update: closed) and
+    downgrade grace periods (see this item's own update below: closed).
+    Honestly open, not built this pass: AI allowance enforcement (the
+    directive's own §7 text defers it, "AI later" -- not a gap this chunk
+    silently left); a platform-admin "commercial override" bypass (reason,
+    expiry, audit -- deliberately not designed until the enforcement it
+    would override actually existed to override, which it now does, but
+    still not built). Full detail: `requirements-ledger.md` COM-02.
+    **Update (2026-09-23):** the "downgrade grace periods" gap originally
+    flagged here -- "effective dates; warning/grace; blocks NEW capacity
+    use after grace; deletes nothing," with `subscriptions` supporting only
+    an immediate cutover -- is now closed: a new `scheduledDowngrades`
+    table (migration `0055`, modeled on `accountDeletionRequests`' own
+    request/grace/sweep shape) plus `scheduleDowngrade`/
+    `cancelScheduledDowngrade`/`executeScheduledDowngrade` (`plans.ts`) give
+    a platform owner a real, warned, effective-dated downgrade path (default
+    14-day grace), enacted by a new daily sweep
+    (`triggerDowngradeSweep`, `/api/jobs/process-downgrades`) that performs
+    the exact same atomic cutover `activateSubscription` itself uses once
+    the effective date arrives -- costing `entitlement-enforcement.ts`
+    nothing extra, since the existing four checks simply start comparing
+    against the lower plan's numbers once the sweep flips it. Proven
+    end-to-end, not just at the unit level: a test adds a second seat
+    successfully during the grace window (still on the generous current
+    plan), then shows a third seat refused via the real `addMembership`
+    call site once the downgrade has executed and the org is over the new
+    cap, while confirming both original members remain active ("deletes
+    nothing"). `activateSubscription`/`endSubscription` auto-cancel any
+    still-PENDING scheduled downgrade the instant they touch an
+    organization's plan directly, so a stale schedule can never silently
+    reapply itself over an admin's later, more immediate decision. Still
+    open: AI allowance enforcement, the commercial-override bypass. Full
+    detail: `requirements-ledger.md` COM-02.
 64. COM-03 (manual billing) is built and tested
     (`packages/services/src/billing.ts`, migration `0054`): billing
     accounts with a real TRIAL/ACTIVE/GRACE/SUSPENDED/CLOSED state machine
