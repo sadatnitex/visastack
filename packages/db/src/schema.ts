@@ -2257,9 +2257,10 @@ export const plans = pgTable(
 // never self-serve (master directive §7 "PR 11"'s own "no payment provider"
 // posture; NullPaymentPort). Traveller Free needs no row here at all: it is
 // the implicit default for any individual account with no organization
-// context (plans.ts's own `getEntitlementsForAccount`), since every
-// traveller starts on it automatically and there is no self-upgrade path
-// yet. An organization, by contrast, has NO entitlements at all until a
+// context (plans.ts's own `getPlanByKey(db, TRAVELLER_FREE_PLAN_KEY)`),
+// since every traveller starts on it automatically and there is no
+// self-upgrade path yet. An organization, by contrast, has NO entitlements
+// at all until a
 // platform owner explicitly assigns one -- genuinely zero, never a silent
 // free-tier fallback, since agency work requires real capacity a free
 // traveller plan was never sized for.
@@ -2293,5 +2294,119 @@ export const subscriptions = pgTable(
     uniqueIndex('subscriptions_one_current_per_org')
       .on(table.organizationId)
       .where(sql`${table.endedAt} is null`),
+  ],
+);
+
+// --- Commerce: manual billing (Commercial V1 COM-03, Part 5 §8) ---
+// "This is subscription administration, not a full agency CRM." No payment
+// gateway, card handling, tax engine, or automated accounting exists or is
+// simulated here -- every amount tracked below was typed in by a platform
+// owner after receiving it some other way (bank transfer, cheque, whatever).
+// "Never equate proposal/commitment/invoice with collected cash" (a promise
+// `plans.priceMinorUnits`'s own comment already made) is kept structurally:
+// `invoicedAmountMinorUnits` and `collectedAmountMinorUnits` are two
+// separate, independently-tracked columns on `invoices` below, and nothing
+// anywhere infers one from the other.
+export const billingStatus = pgEnum('billing_status', [
+  'TRIAL',
+  'ACTIVE',
+  'GRACE',
+  'SUSPENDED',
+  'CLOSED',
+]);
+
+// One organization's overall billing relationship -- deliberately decoupled
+// from `subscriptions` (which plan is assigned): an org's billing standing
+// (current, in a payment grace period, suspended for non-payment) changes
+// independently of which plan it's on, and must survive a plan change
+// untouched (a downgrade/upgrade is COM-02's concern, never itself a
+// billing-status transition). Exactly one row per organization for its
+// entire lifetime -- unlike `subscriptions`, this table holds the CURRENT
+// status as a single mutable column, not one row per period; every
+// transition it ever went through lives in `billingStatusHistory` instead.
+export const billingAccounts = pgTable(
+  'billing_accounts',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    organizationId: uuid('organization_id')
+      .notNull()
+      .references(() => organizations.id, { onDelete: 'cascade' }),
+    status: billingStatus('status').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [unique('billing_accounts_organization_unique').on(table.organizationId)],
+);
+
+// Append-only, like every other decision-history table in this schema
+// (auditEvents, missionDecisions, factVersions) -- `billingAccounts.status`
+// is what's authoritative for "what state is this org in right now," never
+// re-derived from this table, but every transition that ever produced it is
+// preserved here for review.
+export const billingStatusHistory = pgTable(
+  'billing_status_history',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    billingAccountId: uuid('billing_account_id')
+      .notNull()
+      .references(() => billingAccounts.id, { onDelete: 'cascade' }),
+    fromStatus: billingStatus('from_status'),
+    toStatus: billingStatus('to_status').notNull(),
+    actorAccountId: uuid('actor_account_id')
+      .notNull()
+      .references(() => accounts.id),
+    reason: text('reason').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index('billing_status_history_account_idx').on(table.billingAccountId)],
+);
+
+export const invoiceStatus = pgEnum('invoice_status', ['OPEN', 'PARTIALLY_PAID', 'PAID', 'VOID']);
+
+// One invoice per billed period per organization, manually issued by a
+// platform owner. `invoicedAmountMinorUnits`/`currency` are this invoice's
+// own immutable record of what was billed -- never a live join to
+// `plans.priceMinorUnits`, which can change later via `updatePlan` without
+// retroactively altering a historical invoice. `planId` is kept purely for
+// traceability (which plan/tier this invoice was for).
+export const invoices = pgTable(
+  'invoices',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    organizationId: uuid('organization_id')
+      .notNull()
+      .references(() => organizations.id, { onDelete: 'cascade' }),
+    planId: uuid('plan_id')
+      .notNull()
+      .references(() => plans.id),
+    periodStart: timestamp('period_start', { withTimezone: true }).notNull(),
+    periodEnd: timestamp('period_end', { withTimezone: true }).notNull(),
+    invoiceRef: text('invoice_ref').notNull(),
+    invoicedAmountMinorUnits: integer('invoiced_amount_minor_units').notNull(),
+    currency: text('currency').notNull(),
+    dueDate: timestamp('due_date', { withTimezone: true }).notNull(),
+    status: invoiceStatus('status').notNull().default('OPEN'),
+    // Both default to "nothing collected yet," never null -- "collected
+    // amount/date" only means something once a real payment is recorded,
+    // and 0/absent express that unambiguously without a third
+    // null-vs-zero state for every reader to reason about.
+    collectedAmountMinorUnits: integer('collected_amount_minor_units').notNull().default(0),
+    collectedDate: timestamp('collected_date', { withTimezone: true }),
+    paymentReference: text('payment_reference'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('invoices_organization_idx').on(table.organizationId),
+    unique('invoices_ref_unique').on(table.invoiceRef),
+    check('invoices_period_order', sql`${table.periodEnd} > ${table.periodStart}`),
+    check(
+      'invoices_collected_not_over_invoiced',
+      sql`${table.collectedAmountMinorUnits} <= ${table.invoicedAmountMinorUnits}`,
+    ),
+    check(
+      'invoices_amounts_non_negative',
+      sql`${table.invoicedAmountMinorUnits} >= 0 and ${table.collectedAmountMinorUnits} >= 0`,
+    ),
   ],
 );
