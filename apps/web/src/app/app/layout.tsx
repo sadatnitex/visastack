@@ -1,4 +1,3 @@
-import { listMembershipsForAccount } from '@visastack/services';
 import { signOut } from '@workos-inc/authkit-nextjs';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
@@ -11,19 +10,19 @@ export const dynamic = 'force-dynamic';
 /**
  * Persistent primary navigation for every signed-in page (master directive
  * §7 "PR 7" — global navigation IA: Home, Applicants, Shared with me,
- * Privacy, Account). Agency and Platform administration are separate,
- * role-gated areas a qualifying account can switch into — surfaced as a
- * secondary control here rather than crowded into the primary five, since
- * most applicants have neither.
+ * Privacy, Account). Agency and Platform administration are separate areas a
+ * qualifying account can switch into, surfaced as a secondary control here
+ * rather than crowded into the primary six, since most applicants use
+ * neither. Agency is always reachable (not gated on already having a
+ * membership): `/app/agency` is also the only entry point to create an
+ * organization, so hiding it pre-membership would leave a brand-new account
+ * with no way to ever get one. Admin stays role-gated, since there is no
+ * equivalent self-service path into platform administration.
  */
 export default async function AppLayout({ children }: { readonly children: ReactNode }) {
-  const { isAdmin, hasAgencyAccess } = await withSession(async ({ db, accountId, email }) => {
-    const [admin, memberships] = await Promise.all([
-      isPlatformAdmin(db, { accountId, email }),
-      listMembershipsForAccount(db, accountId),
-    ]);
-    return { isAdmin: admin, hasAgencyAccess: memberships.length > 0 };
-  });
+  const isAdmin = await withSession(async ({ db, accountId, email }) =>
+    isPlatformAdmin(db, { accountId, email }),
+  );
 
   return (
     <>
@@ -39,11 +38,9 @@ export default async function AppLayout({ children }: { readonly children: React
           ]}
         />
         <div className="app-shell-switch">
-          {hasAgencyAccess ? (
-            <Link href="/app/agency" className="btn btn-secondary nav-cta">
-              Agency
-            </Link>
-          ) : null}
+          <Link href="/app/agency" className="btn btn-secondary nav-cta">
+            Agency
+          </Link>
           {isAdmin ? (
             <Link href="/app/admin" className="btn btn-secondary nav-cta">
               Admin
