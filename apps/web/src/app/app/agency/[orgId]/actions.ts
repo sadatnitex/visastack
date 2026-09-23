@@ -17,6 +17,7 @@ import {
   listSelectedEvidenceForOrg,
   recordIssuerVerification,
   recordMissionDecision,
+  removeOrganizationLogo,
   requestEvidence,
   revokeClientInvitation,
   revokeOrganizationInvitation,
@@ -24,7 +25,9 @@ import {
   setRequireDifferentReviewer,
   startEvidenceReview,
   unassignMember,
+  updateOrganizationBranding,
   updateTaskForOrg,
+  uploadOrganizationLogo,
 } from '@visastack/services';
 import { revalidatePath } from 'next/cache';
 import { after } from 'next/server';
@@ -34,7 +37,9 @@ import {
   getPlatformCapabilities,
 } from '../../../../lib/capabilities';
 import { triggerNotificationWorker } from '../../../../lib/jobs';
+import { createMalwareScanner } from '../../../../lib/providers';
 import { withSession } from '../../../../lib/session';
+import { createStorage } from '../../../../lib/storage';
 
 /** Result surfaced back to the client for inline feedback. */
 export interface ActionState {
@@ -768,6 +773,74 @@ export async function setRequireDifferentReviewerAction(
         ? 'A reviewer must now differ from whoever raised the request.'
         : 'Reviewer restriction turned off.',
     } satisfies ActionState;
+  });
+  if (result.ok) revalidatePath(`/app/agency/${organizationId}`);
+  return result;
+}
+
+/** Org admin changes the agency name and/or accent color (Commercial V1 COM-04). An empty accentColor field clears it back to unset. */
+export async function updateBrandingAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const organizationId = String(formData.get('organizationId') ?? '');
+  const nameRaw = formData.get('name');
+  const accentColorRaw = String(formData.get('accentColor') ?? '').trim();
+  const result = await withSession(async ({ db, accountId }) => {
+    const updated = await updateOrganizationBranding(db, {
+      actorAccountId: accountId,
+      organizationId,
+      ...(typeof nameRaw === 'string' && nameRaw.trim().length > 0 ? { name: nameRaw } : {}),
+      accentColor: accentColorRaw.length > 0 ? accentColorRaw : null,
+    });
+    if (!updated.ok) return { ok: false, message: updated.error.message } satisfies ActionState;
+    return { ok: true, message: 'Branding updated.' } satisfies ActionState;
+  });
+  if (result.ok) revalidatePath(`/app/agency/${organizationId}`);
+  return result;
+}
+
+/** Org admin uploads (or replaces) the agency logo (Commercial V1 COM-04). Scanned synchronously; an unsafe or invalid image is never attached. */
+export async function uploadLogoAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const organizationId = String(formData.get('organizationId') ?? '');
+  const file = formData.get('logo');
+  if (!(file instanceof File) || file.size === 0) {
+    return { ok: false, message: 'Choose an image file.' };
+  }
+  const result = await withSession(async ({ db, accountId }) => {
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    const storage = createStorage(db);
+    const scanner = createMalwareScanner(storage);
+    const uploaded = await uploadOrganizationLogo(db, storage, scanner, {
+      actorAccountId: accountId,
+      organizationId,
+      contentType: file.type,
+      bytes,
+    });
+    if (!uploaded.ok) return { ok: false, message: uploaded.error.message } satisfies ActionState;
+    return { ok: true, message: 'Logo updated.' } satisfies ActionState;
+  });
+  if (result.ok) revalidatePath(`/app/agency/${organizationId}`);
+  return result;
+}
+
+/** Org admin removes the agency logo (Commercial V1 COM-04). Idempotent -- a no-op success when none is set. */
+export async function removeLogoAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const organizationId = String(formData.get('organizationId') ?? '');
+  const result = await withSession(async ({ db, accountId }) => {
+    const storage = createStorage(db);
+    const removed = await removeOrganizationLogo(db, storage, {
+      actorAccountId: accountId,
+      organizationId,
+    });
+    if (!removed.ok) return { ok: false, message: removed.error.message } satisfies ActionState;
+    return { ok: true, message: 'Logo removed.' } satisfies ActionState;
   });
   if (result.ok) revalidatePath(`/app/agency/${organizationId}`);
   return result;

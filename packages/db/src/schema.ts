@@ -269,19 +269,51 @@ export const applicants = pgTable('applicants', {
 });
 
 // --- Organizations (agencies) ----------------------------------------------
-export const organizations = pgTable('organizations', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  name: text('name').notNull(),
-  status: organizationStatus('status').notNull().default('PENDING_VERIFICATION'),
-  // Commercial V1 Part 4 §13 / PRD CAS-06: an org's own optional choice to
-  // require that whoever decides on an evidence-request response
-  // (`decideEvidenceResponse`, agency.ts) is not the same account that
-  // raised that request in the first place. Off by default, and a disabled
-  // setting must never let the UI imply independent review happened when
-  // it did not.
-  requireDifferentReviewer: boolean('require_different_reviewer').notNull().default(false),
-  ...timestamps,
-});
+export const organizations = pgTable(
+  'organizations',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    name: text('name').notNull(),
+    status: organizationStatus('status').notNull().default('PENDING_VERIFICATION'),
+    // Commercial V1 Part 4 §13 / PRD CAS-06: an org's own optional choice to
+    // require that whoever decides on an evidence-request response
+    // (`decideEvidenceResponse`, agency.ts) is not the same account that
+    // raised that request in the first place. Off by default, and a disabled
+    // setting must never let the UI imply independent review happened when
+    // it did not.
+    requireDifferentReviewer: boolean('require_different_reviewer').notNull().default(false),
+    // --- Commercial V1 COM-04, Part 5 §9 ("Agency branding") ---------------
+    // "Allow: approved logo; agency name; one accessible accent color."
+    // `name` above IS the agency name this bullet means -- no separate
+    // "display name" concept exists or is invented here. `accentColor` is
+    // validated for WCAG AA contrast (against white or black) at write time
+    // (`branding.ts`'s `isAccessibleAccentColor`), never merely a
+    // well-formed hex string -- "accessible" is the PRD's own word, not
+    // decorative. The CHECK below only re-verifies the hex FORMAT
+    // (belt-and-suspenders against a service-layer bug), since the
+    // contrast/luminance math cannot be expressed as a simple SQL
+    // constraint.
+    accentColor: text('accent_color'),
+    // Logo bytes live in `storageBlobs` (the generic, non-evidence-specific
+    // bytes-by-key store), never `documents`/`documentVersions` -- a logo
+    // has no applicant, consent, or review-state concept to hang off of.
+    // Both null together (no logo set, the default) or both set together
+    // (enforced below) -- there is no "logo present but type unknown" state.
+    logoObjectKey: text('logo_object_key'),
+    logoContentType: text('logo_content_type'),
+    ...timestamps,
+  },
+  (table) => [
+    check(
+      'organizations_accent_color_format',
+      sql`${table.accentColor} is null or ${table.accentColor} ~ '^#[0-9a-fA-F]{6}$'`,
+    ),
+    check(
+      'organizations_logo_fields_together',
+      sql`(${table.logoObjectKey} is null) = (${table.logoContentType} is null)`,
+    ),
+  ],
+);
 
 // --- Memberships (account <-> organization; roles never grant resource access)
 export const memberships = pgTable(

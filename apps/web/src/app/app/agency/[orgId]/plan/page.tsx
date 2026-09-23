@@ -1,12 +1,15 @@
 import {
   type UsageMeter as UsageMeterData,
   getOrganization,
+  getOrganizationBrandingForDisplay,
   getUsageForOrganization,
   mbLabel,
 } from '@visastack/services';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { withSession } from '../../../../../lib/session';
+import { createStorage } from '../../../../../lib/storage';
+import { OrgBrandingHeader } from '../org-branding-header';
 
 export const dynamic = 'force-dynamic';
 
@@ -61,12 +64,13 @@ export default async function OrgPlanPage({
     const org = await getOrganization(db, orgId);
     if (!org) return null;
 
-    const usage = await getUsageForOrganization(db, {
-      actorAccountId: accountId,
-      organizationId: orgId,
-    });
+    const [usage, branding] = await Promise.all([
+      getUsageForOrganization(db, { actorAccountId: accountId, organizationId: orgId }),
+      getOrganizationBrandingForDisplay(db, createStorage(db), orgId),
+    ]);
     return {
       org,
+      branding,
       usage: usage.ok ? usage.value : null,
       error: usage.ok ? null : usage.error.message,
     };
@@ -84,6 +88,7 @@ export default async function OrgPlanPage({
       <div className="toolbar" style={{ marginBottom: '2rem' }}>
         <div>
           <span className="eyebrow">Plan &amp; usage</span>
+          <OrgBrandingHeader branding={data.branding} />
           <h1 className="section-title" style={{ margin: '0.25rem 0 0' }}>
             {data.org.name}
           </h1>
