@@ -322,6 +322,13 @@ export async function getPack(db: Db, packId: string): Promise<Pack | undefined>
   return first(await db.select().from(schema.packs).where(eq(schema.packs.id, packId)).limit(1));
 }
 
+/** Load one pack version by id (case-readiness UI, §10: resolving a mission's attached version back to its pack for the authoritative/custom distinction). */
+export async function getPackVersion(db: Db, id: string): Promise<PackVersion | undefined> {
+  return first(
+    await db.select().from(schema.packVersions).where(eq(schema.packVersions.id, id)).limit(1),
+  );
+}
+
 /** Versions of a pack, highest version first. */
 export async function listPackVersions(db: Db, packId: string): Promise<PackVersion[]> {
   const rows = await db
