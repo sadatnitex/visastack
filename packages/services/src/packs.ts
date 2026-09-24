@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { type Result, err, ok } from '@visastack/core';
-import { and, eq, ne } from 'drizzle-orm';
+import { and, eq, lte, ne } from 'drizzle-orm';
 import { appendAuditEvent } from './audit';
 import { type Db, first, required, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
@@ -612,4 +612,150 @@ export async function verifyPackChecksum(db: Db, packVersionId: string): Promise
   if (!version || !version.checksum) return false;
   const { checksum } = buildManifest(await listRequirements(db, packVersionId));
   return checksum === version.checksum;
+}
+
+export interface PackVersionDueForReview {
+  readonly packVersionId: string;
+  readonly packId: string;
+  readonly packKey: string;
+  readonly packName: string;
+  readonly version: number;
+  readonly nextReviewDate: Date;
+}
+
+/**
+ * PUBLISHED versions whose next-review date has passed (RUL-05 "scheduled
+ * review queue"), most overdue first. `lte` against a nullable column
+ * naturally excludes a null `nextReviewDate` (SQL: `NULL <= x` is never
+ * true), so no separate not-null filter is needed; the `.filter` below only
+ * narrows the TypeScript type to match what the query already guarantees.
+ */
+export async function listPackVersionsDueForReview(
+  db: Db,
+  now: Date = new Date(),
+): Promise<PackVersionDueForReview[]> {
+  const rows = await db
+    .select({
+      packVersionId: schema.packVersions.id,
+      packId: schema.packs.id,
+      packKey: schema.packs.key,
+      packName: schema.packs.name,
+      version: schema.packVersions.version,
+      nextReviewDate: schema.packVersions.nextReviewDate,
+    })
+    .from(schema.packVersions)
+    .innerJoin(schema.packs, eq(schema.packs.id, schema.packVersions.packId))
+    .where(
+      and(
+        eq(schema.packVersions.status, 'PUBLISHED'),
+        lte(schema.packVersions.nextReviewDate, now),
+      ),
+    );
+  return rows
+    .filter((r): r is typeof r & { nextReviewDate: Date } => r.nextReviewDate !== null)
+    .sort((a, b) => a.nextReviewDate.getTime() - b.nextReviewDate.getTime());
+}
+
+/**
+ * A requirement's identity across versions: `addRequirement` always inserts
+ * a fresh row (a new DRAFT version never copies a prior version's rows
+ * forward), so no two versions ever share a requirement row id, even for a
+ * requirement that is otherwise completely unchanged. `kind` + the relevant
+ * identifier (`fieldKey` for FIELD, `docType` for DOCUMENT) is what
+ * `buildRequirementMapping` (missions.ts) already keys readiness lookups
+ * on -- the same natural identity, reused here for a diff instead of a
+ * database id.
+ */
+function requirementNaturalKey(req: PackRequirement): string {
+  return `${req.kind}:${req.kind === 'FIELD' ? (req.fieldKey ?? '') : (req.docType ?? '')}`;
+}
+
+/** Authorable requirement fields compared directly by `===` for a diff (excludes `condition`/`observedDate`, compared separately below since neither is `===`-comparable). */
+const DIFFABLE_SCALAR_FIELDS = [
+  'citation',
+  'optional',
+  'maxAgeDays',
+  'sourceUrl',
+  'sourceTitle',
+  'publisher',
+  'officialExtract',
+  'interpretation',
+  'sourceType',
+  'changeReason',
+] as const satisfies readonly (keyof PackRequirement)[];
+
+/** Every field name that differs between two requirements sharing the same natural key. Empty when they are equivalent. */
+function changedRequirementFields(from: PackRequirement, to: PackRequirement): string[] {
+  const changed: string[] = DIFFABLE_SCALAR_FIELDS.filter((field) => from[field] !== to[field]);
+  if (JSON.stringify(from.condition) !== JSON.stringify(to.condition)) changed.push('condition');
+  const fromObserved = from.observedDate?.getTime() ?? null;
+  const toObserved = to.observedDate?.getTime() ?? null;
+  if (fromObserved !== toObserved) changed.push('observedDate');
+  return changed;
+}
+
+export interface RequirementDiffEntry {
+  readonly key: string;
+  readonly kind: 'FIELD' | 'DOCUMENT';
+  readonly change: 'added' | 'removed' | 'changed' | 'unchanged';
+  readonly from: PackRequirement | null;
+  readonly to: PackRequirement | null;
+  /** Which authorable fields differ. Always empty for 'added'/'removed'/'unchanged'. */
+  readonly changedFields: readonly string[];
+}
+
+export interface PackVersionDiff {
+  readonly fromVersion: PackVersion;
+  readonly toVersion: PackVersion;
+  readonly entries: readonly RequirementDiffEntry[];
+}
+
+/**
+ * Structural diff between two versions of the SAME pack's requirement sets
+ * (RUL-05 "diff between versions"). Requirements are matched by their
+ * natural identity (`requirementNaturalKey`), not by row id -- see that
+ * function's own comment for why a row-id match would never work here.
+ * Entries are sorted by key for a stable, deterministic ordering.
+ */
+export async function diffPackVersions(
+  db: Db,
+  fromVersionId: string,
+  toVersionId: string,
+): Promise<Result<PackVersionDiff, ServiceError>> {
+  const [fromVersion, toVersion] = await Promise.all([
+    loadVersion(db, fromVersionId),
+    loadVersion(db, toVersionId),
+  ]);
+  if (!fromVersion) return err(serviceError('not_found', 'from version not found'));
+  if (!toVersion) return err(serviceError('not_found', 'to version not found'));
+  if (fromVersion.packId !== toVersion.packId) {
+    return err(serviceError('invalid', 'both versions must belong to the same pack'));
+  }
+
+  const [fromReqs, toReqs] = await Promise.all([
+    listRequirements(db, fromVersionId),
+    listRequirements(db, toVersionId),
+  ]);
+  const fromByKey = new Map(fromReqs.map((r) => [requirementNaturalKey(r), r]));
+  const toByKey = new Map(toReqs.map((r) => [requirementNaturalKey(r), r]));
+  const keys = [...new Set([...fromByKey.keys(), ...toByKey.keys()])].sort();
+
+  const entries: RequirementDiffEntry[] = keys.map((key) => {
+    const kind = key.startsWith('FIELD:') ? 'FIELD' : 'DOCUMENT';
+    const from = fromByKey.get(key) ?? null;
+    const to = toByKey.get(key) ?? null;
+    if (!from) return { key, kind, change: 'added', from: null, to, changedFields: [] };
+    if (!to) return { key, kind, change: 'removed', from, to: null, changedFields: [] };
+    const changedFields = changedRequirementFields(from, to);
+    return {
+      key,
+      kind,
+      change: changedFields.length > 0 ? 'changed' : 'unchanged',
+      from,
+      to,
+      changedFields,
+    };
+  });
+
+  return ok({ fromVersion, toVersion, entries });
 }

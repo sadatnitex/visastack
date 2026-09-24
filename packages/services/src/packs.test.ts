@@ -13,7 +13,9 @@ import {
   approvePackVersion,
   clearRequirementSourceInaccessible,
   createPack,
+  diffPackVersions,
   listPackVersions,
+  listPackVersionsDueForReview,
   listPacks,
   listPublishedPackVersions,
   markRequirementSourceInaccessible,
@@ -497,6 +499,186 @@ describe('Pack Studio - per-requirement source inaccessibility (RUL-05)', () => 
       actorAccountId: actor,
       requirementId: '00000000-0000-0000-0000-000000000000',
     });
+    expect(isErr(result)).toBe(true);
+    if (isErr(result)) expect(result.error.code).toBe('not_found');
+  });
+});
+
+describe('Pack Studio - review queue and version diff (RUL-05)', () => {
+  let db: Db;
+  let actor: string;
+  beforeEach(async () => {
+    db = await freshDb();
+    actor = await authorId(db);
+  });
+
+  async function publishedVersionWithReview(packId: string, nextReviewDate: Date): Promise<string> {
+    const version = await addPackVersion(db, { actorAccountId: actor, packId });
+    if (!isOk(version)) throw new Error('version');
+    const req = await addRequirement(db, {
+      actorAccountId: actor,
+      packVersionId: version.value.id,
+      kind: 'FIELD',
+      fieldKey: 'x',
+      citation: 'x',
+    });
+    if (!isOk(req)) throw new Error('req');
+    const approved = await approvePackVersion(db, {
+      actorAccountId: actor,
+      packVersionId: version.value.id,
+      nextReviewDate,
+      reviewIntervalReason: 'test fixture',
+    });
+    if (!isOk(approved)) throw new Error('approve');
+    const published = await publishPackVersion(db, {
+      actorAccountId: actor,
+      packVersionId: version.value.id,
+    });
+    if (!isOk(published)) throw new Error('publish');
+    return published.value.id;
+  }
+
+  it('lists only PUBLISHED versions whose next-review date has passed, most overdue first', async () => {
+    // Three SEPARATE packs, not three versions of one pack: publishPackVersion
+    // auto-supersedes (DEPRECATED) any prior PUBLISHED version of the SAME
+    // pack (RUL-05), so publishing three versions of one pack in sequence
+    // would leave only the last one actually PUBLISHED - exactly the trap
+    // this fixture originally fell into.
+    const packSooner = await createPack(db, {
+      actorAccountId: actor,
+      key: 'review.sooner',
+      name: 'S',
+    });
+    const packEarlier = await createPack(db, {
+      actorAccountId: actor,
+      key: 'review.earlier',
+      name: 'E',
+    });
+    const packNotDue = await createPack(db, {
+      actorAccountId: actor,
+      key: 'review.notdue',
+      name: 'N',
+    });
+    if (!isOk(packSooner) || !isOk(packEarlier) || !isOk(packNotDue)) throw new Error('pack');
+
+    const now = new Date();
+    const overdueByTwoDays = new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000);
+    const overdueByOneDay = new Date(now.getTime() - 1 * 24 * 60 * 60 * 1000);
+    const notYetDue = new Date(now.getTime() + 10 * 24 * 60 * 60 * 1000);
+
+    const dueSoonerId = await publishedVersionWithReview(packSooner.value.id, overdueByOneDay);
+    const dueEarlierId = await publishedVersionWithReview(packEarlier.value.id, overdueByTwoDays);
+    await publishedVersionWithReview(packNotDue.value.id, notYetDue);
+
+    const due = await listPackVersionsDueForReview(db, now);
+    const relevantIds = due
+      .map((d) => d.packVersionId)
+      .filter((id) => id === dueSoonerId || id === dueEarlierId);
+    expect(relevantIds).toEqual([dueEarlierId, dueSoonerId]);
+    expect(due.some((d) => d.packId === packNotDue.value.id)).toBe(false);
+  });
+
+  it('never lists a DRAFT/APPROVED version or a version with no next-review date set', async () => {
+    const pack = await createPack(db, { actorAccountId: actor, key: 'review.2', name: 'R2' });
+    if (!isOk(pack)) throw new Error('pack');
+    const draft = await addPackVersion(db, { actorAccountId: actor, packId: pack.value.id });
+    if (!isOk(draft)) throw new Error('draft');
+
+    const due = await listPackVersionsDueForReview(db, new Date());
+    expect(due.some((d) => d.packVersionId === draft.value.id)).toBe(false);
+  });
+
+  it('diffs two versions of the same pack: added, removed, changed, and unchanged requirements', async () => {
+    const pack = await createPack(db, { actorAccountId: actor, key: 'diff.1', name: 'D1' });
+    if (!isOk(pack)) throw new Error('pack');
+
+    const v1 = await addPackVersion(db, { actorAccountId: actor, packId: pack.value.id });
+    if (!isOk(v1)) throw new Error('v1');
+    await addRequirement(db, {
+      actorAccountId: actor,
+      packVersionId: v1.value.id,
+      kind: 'FIELD',
+      fieldKey: 'unchanged.field',
+      citation: 'same citation',
+    });
+    await addRequirement(db, {
+      actorAccountId: actor,
+      packVersionId: v1.value.id,
+      kind: 'FIELD',
+      fieldKey: 'changed.field',
+      citation: 'old citation',
+    });
+    await addRequirement(db, {
+      actorAccountId: actor,
+      packVersionId: v1.value.id,
+      kind: 'DOCUMENT',
+      docType: 'removed_doc',
+      citation: 'gone in v2',
+    });
+
+    const v2 = await addPackVersion(db, { actorAccountId: actor, packId: pack.value.id });
+    if (!isOk(v2)) throw new Error('v2');
+    await addRequirement(db, {
+      actorAccountId: actor,
+      packVersionId: v2.value.id,
+      kind: 'FIELD',
+      fieldKey: 'unchanged.field',
+      citation: 'same citation',
+    });
+    await addRequirement(db, {
+      actorAccountId: actor,
+      packVersionId: v2.value.id,
+      kind: 'FIELD',
+      fieldKey: 'changed.field',
+      citation: 'new citation',
+    });
+    await addRequirement(db, {
+      actorAccountId: actor,
+      packVersionId: v2.value.id,
+      kind: 'DOCUMENT',
+      docType: 'added_doc',
+      citation: 'new in v2',
+    });
+
+    const diff = await diffPackVersions(db, v1.value.id, v2.value.id);
+    expect(isOk(diff)).toBe(true);
+    if (!isOk(diff)) return;
+    const byKey = Object.fromEntries(diff.value.entries.map((e) => [e.key, e]));
+
+    expect(byKey['FIELD:unchanged.field']?.change).toBe('unchanged');
+    expect(byKey['FIELD:unchanged.field']?.changedFields).toEqual([]);
+
+    expect(byKey['FIELD:changed.field']?.change).toBe('changed');
+    expect(byKey['FIELD:changed.field']?.changedFields).toEqual(['citation']);
+
+    expect(byKey['DOCUMENT:removed_doc']?.change).toBe('removed');
+    expect(byKey['DOCUMENT:removed_doc']?.to).toBeNull();
+
+    expect(byKey['DOCUMENT:added_doc']?.change).toBe('added');
+    expect(byKey['DOCUMENT:added_doc']?.from).toBeNull();
+  });
+
+  it('refuses to diff versions from two different packs', async () => {
+    const packA = await createPack(db, { actorAccountId: actor, key: 'diff.a', name: 'A' });
+    const packB = await createPack(db, { actorAccountId: actor, key: 'diff.b', name: 'B' });
+    if (!isOk(packA) || !isOk(packB)) throw new Error('pack');
+    const vA = await addPackVersion(db, { actorAccountId: actor, packId: packA.value.id });
+    const vB = await addPackVersion(db, { actorAccountId: actor, packId: packB.value.id });
+    if (!isOk(vA) || !isOk(vB)) throw new Error('version');
+
+    const result = await diffPackVersions(db, vA.value.id, vB.value.id);
+    expect(isErr(result)).toBe(true);
+    if (isErr(result)) expect(result.error.code).toBe('invalid');
+  });
+
+  it('returns not_found for an unknown version id on either side', async () => {
+    const pack = await createPack(db, { actorAccountId: actor, key: 'diff.missing', name: 'M' });
+    if (!isOk(pack)) throw new Error('pack');
+    const v1 = await addPackVersion(db, { actorAccountId: actor, packId: pack.value.id });
+    if (!isOk(v1)) throw new Error('v1');
+
+    const missing = '00000000-0000-0000-0000-000000000000';
+    const result = await diffPackVersions(db, v1.value.id, missing);
     expect(isErr(result)).toBe(true);
     if (isErr(result)) expect(result.error.code).toBe('not_found');
   });

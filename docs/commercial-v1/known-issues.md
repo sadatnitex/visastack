@@ -999,6 +999,27 @@ item gets its own requirements-ledger row once classified against the new direct
     freshness, and next action to an agency or traveller) is UI-layer work,
     out of this service-layer chunk. Full detail: `requirements-ledger.md`
     RUL-03/RUL-04.
+69. Part 6 Phase 2a closes RUL-05's three remaining service-layer gaps named
+    in item 67: `listPackVersionsDueForReview` (the scheduled review queue),
+    `diffPackVersions` (a structural diff between two versions of the same
+    pack, matched by kind + fieldKey/docType since a requirement is
+    re-authored fresh in every new DRAFT version and never shares a row id
+    across versions), and `listMissionsByPackVersion` (the active-case
+    impact list, deliberately admin-scoped rather than owner-scoped, unlike
+    every other function in `missions.ts`). 9 new tests across
+    `packs.test.ts`/`missions.test.ts`. One genuine test-fixture bug found
+    and fixed while writing the review-queue test: publishing three versions
+    of the SAME pack in sequence silently auto-deprecated the first two, via
+    RUL-05 Phase 1's own supersede-on-publish behavior working exactly as
+    designed -- fixed by using three separate packs, the more realistic
+    shape for a catalog-wide queue anyway. All 78 tests across both files
+    pass. **Not yet done, and explicitly not silently skipped:** none of
+    these three functions, nor RUL-05 Phase 1's `withdrawPackVersion`/
+    `markRequirementSourceInaccessible`/`clearRequirementSourceInaccessible`,
+    are wired into Pack Studio's actual UI yet (confirmed via this session's
+    own research: no withdraw button, no review-queue view, no diff view, no
+    impact-list view anywhere in `apps/web/src/app/app/admin/packs`) --
+    Phase 2b. Full detail: `requirements-ledger.md` RUL-05.
 independently confirmed findings; the missing PRD file is tracked as Blocker 1 in
 `assumptions-and-blockers.md` (now resolved) rather than here, since it blocked the
 programme rather than being a product defect.

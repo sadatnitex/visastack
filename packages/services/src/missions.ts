@@ -481,6 +481,41 @@ export async function listMissionsUsingField(
   return ok([...seen.values()]);
 }
 
+export interface MissionOnPackVersion {
+  readonly missionId: string;
+  readonly title: string;
+  readonly state: MissionState;
+  readonly applicantId: string;
+  readonly ownerOrganizationId: string | null;
+}
+
+/**
+ * Every mission currently attached to a specific pack version, across every
+ * applicant and organization (RUL-05 "active-case impact list": an admin
+ * deciding whether to withdraw or supersede a version needs to see who
+ * currently relies on it before acting). Admin-scoped, unlike
+ * `listMissionsUsingField` above (owner-scoped) or `attachPackVersion`
+ * (which writes this same column): the caller is expected to gate on
+ * `hasPlatformPermission(..., 'PACK_MANAGE')` first, the same discipline
+ * every function in `packs.ts` already relies on its own Server Action
+ * caller for, rather than checking authorization itself.
+ */
+export async function listMissionsByPackVersion(
+  db: Db,
+  packVersionId: string,
+): Promise<MissionOnPackVersion[]> {
+  return db
+    .select({
+      missionId: schema.missions.id,
+      title: schema.missions.title,
+      state: schema.missions.state,
+      applicantId: schema.missions.applicantId,
+      ownerOrganizationId: schema.missions.ownerOrganizationId,
+    })
+    .from(schema.missions)
+    .where(eq(schema.missions.packVersionId, packVersionId));
+}
+
 /**
  * Fact statuses that must NOT be treated as confirmed for readiness purposes
  * (master directive §7 "PR 10": readiness must ignore conflicted facts AND

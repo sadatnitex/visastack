@@ -30,6 +30,7 @@ import {
   listMissionSnapshots,
   listMissions,
   listMissionsByItineraryRef,
+  listMissionsByPackVersion,
   listMissionsUsingField,
   listSelectedEvidence,
   listSelectedEvidenceForOrg,
@@ -2617,5 +2618,85 @@ describe('RUL-04 - richer per-requirement/overall readiness states (condition-dr
       missionId: mission.id,
     });
     expect(isOk(letter)).toBe(true);
+  });
+});
+
+describe('listMissionsByPackVersion (RUL-05 active-case impact list)', () => {
+  let db: Db;
+  beforeEach(async () => {
+    db = await freshDb();
+  });
+
+  async function publishedVersion(actor: string, key: string): Promise<string> {
+    const pack = await createPack(db, { actorAccountId: actor, key, name: key });
+    if (!isOk(pack)) throw new Error('pack');
+    const version = await addPackVersion(db, { actorAccountId: actor, packId: pack.value.id });
+    if (!isOk(version)) throw new Error('version');
+    await addRequirement(db, {
+      actorAccountId: actor,
+      packVersionId: version.value.id,
+      kind: 'FIELD',
+      fieldKey: 'x',
+      citation: 'x',
+    });
+    const approved = await approvePackVersion(db, {
+      actorAccountId: actor,
+      packVersionId: version.value.id,
+    });
+    if (!isOk(approved)) throw new Error('approve');
+    const published = await publishPackVersion(db, {
+      actorAccountId: actor,
+      packVersionId: version.value.id,
+    });
+    if (!isOk(published)) throw new Error('publish');
+    return published.value.id;
+  }
+
+  it('lists every mission attached to a specific pack version, and none attached to a different one', async () => {
+    const { account, applicantId } = await seed(db);
+    const versionA = await publishedVersion(account.id, 'impact.a');
+    const versionB = await publishedVersion(account.id, 'impact.b');
+
+    const onA = await createMission(db, {
+      actorAccountId: account.id,
+      applicantId,
+      title: 'On A',
+    });
+    const alsoOnA = await createMission(db, {
+      actorAccountId: account.id,
+      applicantId,
+      title: 'Also on A',
+    });
+    const onB = await createMission(db, {
+      actorAccountId: account.id,
+      applicantId,
+      title: 'On B',
+    });
+    if (!isOk(onA) || !isOk(alsoOnA) || !isOk(onB)) throw new Error('mission');
+    await attachPackVersion(db, {
+      actorAccountId: account.id,
+      missionId: onA.value.id,
+      packVersionId: versionA,
+    });
+    await attachPackVersion(db, {
+      actorAccountId: account.id,
+      missionId: alsoOnA.value.id,
+      packVersionId: versionA,
+    });
+    await attachPackVersion(db, {
+      actorAccountId: account.id,
+      missionId: onB.value.id,
+      packVersionId: versionB,
+    });
+
+    const impact = await listMissionsByPackVersion(db, versionA);
+    expect(impact.map((m) => m.missionId).sort()).toEqual([onA.value.id, alsoOnA.value.id].sort());
+    expect(impact.every((m) => m.applicantId === applicantId)).toBe(true);
+  });
+
+  it('returns an empty list for a version nothing is attached to', async () => {
+    const { account } = await seed(db);
+    const versionA = await publishedVersion(account.id, 'impact.unused');
+    expect(await listMissionsByPackVersion(db, versionA)).toEqual([]);
   });
 });
