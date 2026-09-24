@@ -1038,6 +1038,43 @@ item gets its own requirements-ledger row once classified against the new direct
     `approvePackVersion`, which requires opening a whole new DRAFT version
     even when nothing actually changed. A real, small, separate follow-up.
     Full detail: `requirements-ledger.md` RUL-05.
+71. Part 6 §10 wires RUL-04's richer result states into the actual live
+    case-readiness UI (`/app/mission/[id]`), closing the gap RUL-04's own
+    Phase 1b entry flagged as deliberately deferred. The Readiness card
+    previously showed only a binary Complete/Incomplete badge and a
+    "missing" list collapsed to three reasons; it now renders the exact
+    seven-state model (SATISFIED/ATTENTION/CRITICAL_GAP/UNVERIFIED/
+    CONFLICTING/EXPIRING_STALE/NOT_APPLICABLE) for every requirement,
+    ordered so what still needs a decision surfaces first, plus the
+    four-state overallState (previously computed and stored but never
+    rendered anywhere). Each row shows its source (publisher/title/link,
+    RUL-02) and observed date, a source-inaccessible flag when RUL-05 has
+    marked one, and a next-action line -- a CONFLICTING field links to the
+    profile page to resolve it, a CRITICAL_GAP/EXPIRING_STALE requirement
+    links down to the evidence panel. The Requirement pack card now names
+    the attached pack and badges it "Official requirement pack" vs. "Agency
+    custom checklist" (`packs.authoritative`, directive §10's "distinguish
+    official rule from agency custom request" -- previously not shown at
+    all, not even the pack's name). The historical snapshot viewer
+    (`/app/mission/[id]/snapshots/[id]`) gained the same per-requirement
+    state badge for any snapshot captured since Phase 1b (every one of them
+    already carries `resultState` in its stored JSON; the viewer had simply
+    never read it), falling back to the old satisfied/not-satisfied badge
+    for an older snapshot rather than breaking on it. Two new i18n keys
+    (`mission.readiness.needsReview`/`.manualOnly`, EN+BN) extend the
+    existing two-key precedent for the summary sentence rather than
+    hardcoding English only. New `getPackVersion` service function (a
+    trivial single-row getter, same pattern as `getPack`). **Not yet done,
+    honestly still open:** UNVERIFIED's next-action text is generic
+    ("depends on other case details not yet confirmed") rather than naming
+    the specific field a condition actually reads -- nothing in the
+    codebase currently walks a `RuleCondition` AST to extract its
+    referenced field name(s) for display, only to evaluate them; a real,
+    separate enhancement. No live database in this sandbox to click through
+    the rendered page; `pnpm --filter web build` succeeds (both routes
+    compile) and `pnpm --filter @visastack/services test` (`packs.test.ts` +
+    `missions.test.ts`, 78/78) confirms zero regression to the underlying
+    data this UI reads. Full detail: `requirements-ledger.md` RUL-04, J07.
 independently confirmed findings; the missing PRD file is tracked as Blocker 1 in
 `assumptions-and-blockers.md` (now resolved) rather than here, since it blocked the
 programme rather than being a product defect.

@@ -1,4 +1,8 @@
-import { getMissionForOwner, getMissionSnapshot } from '@visastack/services';
+import {
+  type RequirementResultState,
+  getMissionForOwner,
+  getMissionSnapshot,
+} from '@visastack/services';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { profileField } from '../../../../../../lib/profile-fields';
@@ -42,6 +46,8 @@ interface SnapshotContent {
     readonly citation: string;
     readonly optional: boolean;
     readonly satisfied: boolean;
+    /** RUL-04 (Part 6 §5). Absent on any snapshot captured before that chunk landed - `satisfied` alone is the fallback for those, never a crash on old data. */
+    readonly resultState?: RequirementResultState;
     readonly facts?: ReadonlyArray<{ readonly value: string | null; readonly eligible: boolean }>;
     readonly documents?: ReadonlyArray<{
       readonly displayName: string;
@@ -55,6 +61,19 @@ interface SnapshotContent {
 // workflow is the application packet (Build Spec §4.5's "pack production"),
 // not just a working evidence capture.
 const PACKET_STATES: ReadonlySet<string> = new Set(['READY_TO_EXPORT', 'LOCKED', 'CLOSED']);
+
+// RUL-04 (Part 6 §5) labels, matching the live mission page's own map. A
+// snapshot is a frozen historical view, never actionable, so unlike the live
+// page this carries no "next action" links.
+const RESULT_STATE_LABELS: Record<RequirementResultState, { label: string; tone: string }> = {
+  CRITICAL_GAP: { label: 'Missing', tone: 'badge-danger' },
+  CONFLICTING: { label: 'Conflicting values', tone: 'badge-danger' },
+  EXPIRING_STALE: { label: 'Evidence too old', tone: 'badge-danger' },
+  UNVERIFIED: { label: 'Unverified', tone: 'badge-warning' },
+  ATTENTION: { label: 'Optional · not provided', tone: 'badge-neutral' },
+  SATISFIED: { label: 'On file', tone: 'badge-success' },
+  NOT_APPLICABLE: { label: 'Not applicable', tone: 'badge-neutral' },
+};
 
 export default async function MissionSnapshotPage({
   params,
@@ -123,9 +142,15 @@ export default async function MissionSnapshotPage({
                       {label}
                       {m.optional ? ' · optional' : ''}
                     </span>
-                    <span className={`badge ${m.satisfied ? 'badge-success' : 'badge-warning'}`}>
-                      {m.satisfied ? 'Satisfied' : 'Not satisfied'}
-                    </span>
+                    {m.resultState ? (
+                      <span className={`badge ${RESULT_STATE_LABELS[m.resultState].tone}`}>
+                        {RESULT_STATE_LABELS[m.resultState].label}
+                      </span>
+                    ) : (
+                      <span className={`badge ${m.satisfied ? 'badge-success' : 'badge-warning'}`}>
+                        {m.satisfied ? 'Satisfied' : 'Not satisfied'}
+                      </span>
+                    )}
                   </div>
                   <p className="muted" style={{ margin: 0, fontSize: '0.75rem' }}>
                     {m.citation}

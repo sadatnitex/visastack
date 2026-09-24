@@ -397,6 +397,7 @@ export {
   createPack,
   diffPackVersions,
   getPack,
+  getPackVersion,
   listPackVersions,
   listPackVersionsDueForReview,
   listPacks,

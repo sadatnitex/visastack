@@ -1,9 +1,13 @@
 import { createTranslator } from '@visastack/i18n';
 import {
+  type OverallReadinessState,
+  type RequirementResultState,
   computeReadiness,
   getApplicant,
   getEvidenceCandidates,
   getMissionForOwner,
+  getPack,
+  getPackVersion,
   isFactStatusEligible,
   legalTransitions,
   listAccessForApplicant,
@@ -14,6 +18,7 @@ import {
   listMissionsByItineraryRef,
   listNotesForOwner,
   listPublishedPackVersions,
+  listRequirements,
   listSelectedEvidence,
   listTasks,
 } from '@visastack/services';
@@ -56,6 +61,74 @@ const STATE_LABELS: Record<string, string> = {
 // not just a working evidence capture.
 const PACKET_STATES: ReadonlySet<string> = new Set(['READY_TO_EXPORT', 'LOCKED', 'CLOSED']);
 
+// RUL-04's four case-level outcomes (directive §10 case-readiness experience),
+// never averaged from the per-requirement states below.
+const OVERALL_STATE_META: Record<OverallReadinessState, { label: string; tone: string }> = {
+  READY_FOR_APPLICANT_REVIEW: { label: 'Ready for review', tone: 'badge-success' },
+  NEEDS_REVIEW: { label: 'Needs review', tone: 'badge-warning' },
+  NEEDS_ACTION: { label: 'Needs action', tone: 'badge-danger' },
+  MANUAL_ONLY: { label: 'Manual · not automatically assessed', tone: 'badge-neutral' },
+};
+
+// RUL-04's seven per-requirement outcomes. Sort order surfaces what still
+// needs a decision first; NOT_APPLICABLE trails last since it needs none.
+const REQUIREMENT_STATE_META: Record<
+  RequirementResultState,
+  { label: string; tone: string; next: string; order: number }
+> = {
+  CRITICAL_GAP: {
+    label: 'Missing',
+    tone: 'badge-danger',
+    next: 'Required to move this case forward.',
+    order: 0,
+  },
+  CONFLICTING: {
+    label: 'Conflicting values',
+    tone: 'badge-danger',
+    next: 'Multiple conflicting values are on file. Resolve this on the profile before it can count.',
+    order: 1,
+  },
+  EXPIRING_STALE: {
+    label: 'Evidence too old',
+    tone: 'badge-danger',
+    next: "The evidence on file is outside this route's freshness window. Upload a current version.",
+    order: 2,
+  },
+  UNVERIFIED: {
+    label: 'Unverified',
+    tone: 'badge-warning',
+    next: 'Whether this applies depends on other case details not yet confirmed.',
+    order: 3,
+  },
+  ATTENTION: {
+    label: 'Optional · not provided',
+    tone: 'badge-neutral',
+    next: 'Optional for this case.',
+    order: 4,
+  },
+  SATISFIED: { label: 'On file', tone: 'badge-success', next: '', order: 5 },
+  NOT_APPLICABLE: {
+    label: 'Not applicable',
+    tone: 'badge-neutral',
+    next: 'Does not apply to this case.',
+    order: 6,
+  },
+};
+
+interface RequirementDetailRow {
+  readonly packRequirementId: string;
+  readonly kind: 'FIELD' | 'DOCUMENT';
+  readonly key: string;
+  readonly optional: boolean;
+  readonly state: RequirementResultState;
+  readonly citation: string;
+  readonly sourceTitle: string | null;
+  readonly sourceUrl: string | null;
+  readonly publisher: string | null;
+  readonly observedDate: string | null;
+  readonly sourceInaccessible: boolean;
+}
+
 export default async function MissionPage({
   params,
 }: {
@@ -72,6 +145,8 @@ export default async function MissionPage({
     const applicant = await getApplicant(db, mission.applicantId);
     const [
       readiness,
+      requirements,
+      packVersionRow,
       snapshots,
       packs,
       tasks,
@@ -85,6 +160,10 @@ export default async function MissionPage({
       appointments,
     ] = await Promise.all([
       mission.packVersionId ? computeReadiness(db, mission.id) : Promise.resolve(null),
+      mission.packVersionId ? listRequirements(db, mission.packVersionId) : Promise.resolve([]),
+      mission.packVersionId
+        ? getPackVersion(db, mission.packVersionId)
+        : Promise.resolve(undefined),
       listMissionSnapshots(db, accountId, mission.id),
       listPublishedPackVersions(db),
       listTasks(db, accountId, mission.id),
@@ -102,6 +181,42 @@ export default async function MissionPage({
       listNotesForOwner(db, accountId, mission.id),
       listAppointments(db, accountId, mission.id),
     ]);
+    const pack = packVersionRow ? await getPack(db, packVersionRow.packId) : undefined;
+    // Case-readiness UI (directive §10): every requirement's richer RUL-04
+    // state, joined back to its RUL-02 source-grounding fields (citation
+    // alone lives on `RequirementResultSummary`; source URL/title/publisher/
+    // observed date only live on the underlying `packRequirements` row), then
+    // ordered so what still needs a decision surfaces above what doesn't.
+    const readinessValue = readiness?.ok ? readiness.value : null;
+    const requirementRowsById = new Map(requirements.map((r) => [r.id, r] as const));
+    const requirementDetails: RequirementDetailRow[] = (readinessValue?.requirementResults ?? [])
+      .map((r): RequirementDetailRow => {
+        const row = requirementRowsById.get(r.packRequirementId);
+        return {
+          packRequirementId: r.packRequirementId,
+          kind: r.kind,
+          key: r.key,
+          optional: r.optional,
+          state: r.state,
+          citation: row?.citation ?? '',
+          sourceTitle: row?.sourceTitle ?? null,
+          sourceUrl: row?.sourceUrl ?? null,
+          publisher: row?.publisher ?? null,
+          observedDate: row?.observedDate ? row.observedDate.toISOString() : null,
+          sourceInaccessible: row?.sourceInaccessibleAt != null,
+        };
+      })
+      .sort(
+        (a, b) => REQUIREMENT_STATE_META[a.state].order - REQUIREMENT_STATE_META[b.state].order,
+      );
+    const requiredHardGapCount = requirementDetails.filter(
+      (r) =>
+        !r.optional &&
+        (r.state === 'CRITICAL_GAP' || r.state === 'CONFLICTING' || r.state === 'EXPIRING_STALE'),
+    ).length;
+    const requiredUnverifiedCount = requirementDetails.filter(
+      (r) => !r.optional && r.state === 'UNVERIFIED',
+    ).length;
     // Commercial V1 Part 4 §13: "An independent traveller may self-review:
     // label it self-reviewed." No organisation currently holding an ACTIVE,
     // accepted grant on this applicant means there is no external reviewer
@@ -139,7 +254,21 @@ export default async function MissionPage({
       mission,
       applicantName: applicant?.displayName ?? 'Applicant',
       applicantId: mission.applicantId,
-      readiness: readiness?.ok ? readiness.value : null,
+      readiness: readinessValue,
+      requirementDetails,
+      requiredHardGapCount,
+      requiredUnverifiedCount,
+      packInfo: pack
+        ? {
+            name: pack.name,
+            authoritative: pack.authoritative,
+            route: pack.route,
+            jurisdiction: pack.jurisdiction,
+            effectiveDate: packVersionRow?.effectiveDate
+              ? packVersionRow.effectiveDate.toISOString()
+              : null,
+          }
+        : null,
       snapshots: snapshots.ok ? snapshots.value : [],
       tasks: tasks.ok
         ? tasks.value.map((t) => ({
@@ -239,8 +368,39 @@ export default async function MissionPage({
         <article className="card">
           <p className="card-kicker">Requirements</p>
           <h2 className="card-title">Requirement pack</h2>
-          {mission.packVersionId ? (
-            <p className="card-body">A published pack is attached to this mission.</p>
+          {mission.packVersionId && data.packInfo ? (
+            <>
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  gap: '0.75rem',
+                  marginBottom: '0.5rem',
+                }}
+              >
+                <span className="card-body" style={{ margin: 0 }}>
+                  {data.packInfo.name}
+                </span>
+                <span
+                  className={`badge ${data.packInfo.authoritative ? 'badge-success' : 'badge-neutral'}`}
+                >
+                  {data.packInfo.authoritative
+                    ? 'Official requirement pack'
+                    : 'Agency custom checklist'}
+                </span>
+              </div>
+              {data.packInfo.jurisdiction || data.packInfo.route ? (
+                <p className="muted" style={{ fontSize: '0.85rem', margin: 0 }}>
+                  {[data.packInfo.jurisdiction, data.packInfo.route].filter(Boolean).join(' · ')}
+                </p>
+              ) : null}
+              {data.packInfo.effectiveDate ? (
+                <p className="muted" style={{ fontSize: '0.8rem', margin: '0.35rem 0 0' }}>
+                  In effect since {new Date(data.packInfo.effectiveDate).toLocaleDateString()}
+                </p>
+              ) : null}
+            </>
           ) : (
             <>
               <p className="card-body" style={{ marginBottom: '1rem' }}>
@@ -305,41 +465,94 @@ export default async function MissionPage({
                 </div>
                 <div className="row">
                   <span className="row-key">Status</span>
-                  <span
-                    className={`badge ${data.readiness.ready ? 'badge-success' : 'badge-warning'}`}
-                  >
-                    {data.readiness.ready ? 'Complete' : 'Incomplete'}
+                  <span className={`badge ${OVERALL_STATE_META[data.readiness.overallState].tone}`}>
+                    {OVERALL_STATE_META[data.readiness.overallState].label}
                   </span>
                 </div>
               </div>
               <p className="muted" style={{ fontSize: '0.85rem', marginBottom: '1rem' }}>
-                {data.readiness.ready
+                {data.readiness.overallState === 'READY_FOR_APPLICANT_REVIEW'
                   ? t('mission.readiness.ready')
-                  : t('mission.readiness.missing', {
-                      count: data.readiness.requiredCount - data.readiness.satisfiedRequired,
-                    })}
+                  : data.readiness.overallState === 'NEEDS_REVIEW'
+                    ? t('mission.readiness.needsReview', { count: data.requiredUnverifiedCount })
+                    : data.readiness.overallState === 'MANUAL_ONLY'
+                      ? t('mission.readiness.manualOnly')
+                      : t('mission.readiness.missing', { count: data.requiredHardGapCount })}
               </p>
-              {data.readiness.missing.length > 0 ? (
+              {data.requirementDetails.length > 0 ? (
                 <>
                   <p className="card-kicker" style={{ marginBottom: '0.5rem' }}>
-                    Missing
+                    Every requirement
                   </p>
                   <div className="rows">
-                    {data.readiness.missing.map((m) => {
+                    {data.requirementDetails.map((r) => {
+                      const meta = REQUIREMENT_STATE_META[r.state];
                       const label =
-                        m.kind === 'FIELD' ? (profileField(m.key)?.label ?? m.key) : m.key;
+                        r.kind === 'FIELD' ? (profileField(r.key)?.label ?? r.key) : r.key;
+                      const sourceLine = [r.publisher, r.sourceTitle].filter(Boolean).join(' · ');
                       return (
-                        <div className="row" key={`${m.kind}-${m.key}`}>
-                          <span className="row-key">{label || '(unnamed)'}</span>
-                          <span
-                            className={`badge ${m.reason === 'not_provided' ? 'badge-neutral' : 'badge-danger'}`}
+                        <div
+                          className="row"
+                          key={r.packRequirementId}
+                          style={{ flexDirection: 'column', alignItems: 'stretch', gap: '0.3rem' }}
+                        >
+                          <div
+                            style={{
+                              display: 'flex',
+                              justifyContent: 'space-between',
+                              alignItems: 'center',
+                              gap: '0.75rem',
+                            }}
                           >
-                            {m.reason === 'unresolved_conflict'
-                              ? 'Needs attention · disputed value'
-                              : m.reason === 'stale_evidence'
-                                ? 'Needs attention · evidence too old for this route'
-                                : `${m.kind === 'FIELD' ? 'Field' : 'Document'}${m.optional ? ' · optional' : ''}`}
-                          </span>
+                            <span className="row-key">
+                              {label || '(unnamed)'}
+                              {r.optional ? ' · optional' : ''}
+                            </span>
+                            <span className={`badge ${meta.tone}`}>{meta.label}</span>
+                          </div>
+                          {meta.next ? (
+                            <span className="muted" style={{ fontSize: '0.8rem' }}>
+                              {meta.next}
+                              {r.state === 'CONFLICTING' ? (
+                                <>
+                                  {' '}
+                                  <Link href={`/app/applicant/${data.applicantId}/profile`}>
+                                    Resolve on profile →
+                                  </Link>
+                                </>
+                              ) : null}
+                              {r.state === 'CRITICAL_GAP' || r.state === 'EXPIRING_STALE' ? (
+                                <>
+                                  {' '}
+                                  <a href="#evidence">Provide evidence ↓</a>
+                                </>
+                              ) : null}
+                            </span>
+                          ) : null}
+                          {r.citation ? (
+                            <span className="muted" style={{ fontSize: '0.75rem' }}>
+                              Cite: {sourceLine || r.citation}
+                              {r.observedDate
+                                ? ` · as of ${new Date(r.observedDate).toLocaleDateString()}`
+                                : ''}
+                              {r.sourceUrl ? (
+                                <>
+                                  {' · '}
+                                  <a href={r.sourceUrl} target="_blank" rel="noreferrer">
+                                    source
+                                  </a>
+                                </>
+                              ) : null}
+                            </span>
+                          ) : null}
+                          {r.sourceInaccessible ? (
+                            <span
+                              className="badge badge-danger"
+                              style={{ alignSelf: 'flex-start' }}
+                            >
+                              Source currently unreachable - under review
+                            </span>
+                          ) : null}
                         </div>
                       );
                     })}
@@ -407,7 +620,7 @@ export default async function MissionPage({
         </article>
       </div>
 
-      <div className="grid" style={{ marginTop: '1.5rem' }}>
+      <div className="grid" id="evidence" style={{ marginTop: '1.5rem' }}>
         <EvidenceSelectionPanel
           missionId={mission.id}
           candidates={data.candidates.map((c) => ({
