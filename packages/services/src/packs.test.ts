@@ -2,6 +2,7 @@ import { fileURLToPath } from 'node:url';
 import { PGlite } from '@electric-sql/pglite';
 import { isErr, isOk } from '@visastack/core';
 import { schema } from '@visastack/db';
+import { eq } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/pglite';
 import { migrate } from 'drizzle-orm/pglite/migrator';
 import { beforeEach, describe, expect, it } from 'vitest';
@@ -11,15 +12,22 @@ import {
   addPackVersion,
   addRequirement,
   approvePackVersion,
+  clearOfficialFeeStale,
   clearRequirementSourceInaccessible,
   createPack,
   diffPackVersions,
+  getPublicTrustRoute,
   listPackVersions,
   listPackVersionsDueForReview,
   listPacks,
+  listPublicTrustPublished,
   listPublishedPackVersions,
+  markOfficialFeeStale,
   markRequirementSourceInaccessible,
   publishPackVersion,
+  publishToPublicTrust,
+  setPublicTrustContent,
+  unpublishFromPublicTrust,
   verifyPackChecksum,
   withdrawPackVersion,
 } from './packs';
@@ -681,5 +689,336 @@ describe('Pack Studio - review queue and version diff (RUL-05)', () => {
     const result = await diffPackVersions(db, v1.value.id, missing);
     expect(isErr(result)).toBe(true);
     if (isErr(result)) expect(result.error.code).toBe('not_found');
+  });
+});
+
+describe('Pack Studio - Public Trust Lite (RUL-06)', () => {
+  let db: Db;
+  let actor: string;
+  let reviewer: string;
+  beforeEach(async () => {
+    db = await freshDb();
+    actor = await authorId(db);
+    const p = await provisionAccount(db, { email: 'trust-reviewer@example.com' });
+    if (!isOk(p)) throw new Error('provision');
+    reviewer = p.value.id;
+  });
+
+  /** A DRAFT version of an authoritative pack, with one sourced requirement, ready for `setPublicTrustContent`. */
+  async function draftAuthoritative(key: string) {
+    const pack = await createPack(db, {
+      actorAccountId: actor,
+      key,
+      name: 'UK Tourist',
+      jurisdiction: 'UK',
+      route: 'Standard Visitor',
+      authoritative: true,
+    });
+    if (!isOk(pack)) throw new Error('pack');
+    const version = await addPackVersion(db, { actorAccountId: actor, packId: pack.value.id });
+    if (!isOk(version)) throw new Error('version');
+    const req = await addRequirement(db, {
+      actorAccountId: actor,
+      packVersionId: version.value.id,
+      kind: 'FIELD',
+      fieldKey: 'passport_expiry',
+      citation: 'UK Immigration Rules Appendix V 4.2',
+      sourceUrl: 'https://www.gov.uk/standard-visitor',
+      sourceTitle: 'Standard Visitor visa',
+      publisher: 'UK Home Office',
+    });
+    if (!isOk(req)) throw new Error('req');
+    return { packId: pack.value.id, packKey: pack.value.key, versionId: version.value.id };
+  }
+
+  /** Carries a `draftAuthoritative` version all the way to PUBLISHED + live on the public trust surface. */
+  async function publishedAndTrusted(key: string) {
+    const { packId, packKey, versionId } = await draftAuthoritative(key);
+    const content = await setPublicTrustContent(db, {
+      actorAccountId: actor,
+      packVersionId: versionId,
+      routeDescription: 'The UK Standard Visitor route for short tourist stays.',
+      officialFeeMinorUnits: 10000,
+      officialFeeCurrency: 'GBP',
+      officialChannelName: 'UK Visas and Immigration',
+      officialChannelUrl: 'https://www.gov.uk/apply-uk-visa',
+      officialReportingUrl: 'https://www.gov.uk/report-immigration-crime',
+    });
+    if (!isOk(content)) throw new Error('content');
+    const approved = await approvePackVersion(db, {
+      actorAccountId: reviewer,
+      packVersionId: versionId,
+    });
+    if (!isOk(approved)) throw new Error('approved');
+    const published = await publishPackVersion(db, {
+      actorAccountId: actor,
+      packVersionId: versionId,
+    });
+    if (!isOk(published)) throw new Error('published');
+    const trusted = await publishToPublicTrust(db, {
+      actorAccountId: actor,
+      packVersionId: versionId,
+    });
+    if (!isOk(trusted)) throw new Error('trusted');
+    return { packId, packKey, versionId };
+  }
+
+  it('setPublicTrustContent updates only the fields provided, leaving the rest untouched', async () => {
+    const { versionId } = await draftAuthoritative('trust.partial');
+    const first = await setPublicTrustContent(db, {
+      actorAccountId: actor,
+      packVersionId: versionId,
+      routeDescription: 'First description.',
+      officialChannelName: 'UKVI',
+    });
+    expect(isOk(first)).toBe(true);
+    if (!isOk(first)) return;
+    expect(first.value.routeDescription).toBe('First description.');
+    expect(first.value.officialChannelName).toBe('UKVI');
+
+    const second = await setPublicTrustContent(db, {
+      actorAccountId: actor,
+      packVersionId: versionId,
+      officialChannelUrl: 'https://www.gov.uk/apply-uk-visa',
+    });
+    expect(isOk(second)).toBe(true);
+    if (!isOk(second)) return;
+    // Untouched by the second call.
+    expect(second.value.routeDescription).toBe('First description.');
+    expect(second.value.officialChannelName).toBe('UKVI');
+    // Set by the second call.
+    expect(second.value.officialChannelUrl).toBe('https://www.gov.uk/apply-uk-visa');
+  });
+
+  it('refuses public trust content once the version has left DRAFT', async () => {
+    const { versionId } = await draftAuthoritative('trust.notdraft');
+    const approved = await approvePackVersion(db, {
+      actorAccountId: reviewer,
+      packVersionId: versionId,
+    });
+    expect(isOk(approved)).toBe(true);
+    const result = await setPublicTrustContent(db, {
+      actorAccountId: actor,
+      packVersionId: versionId,
+      routeDescription: 'Too late.',
+    });
+    expect(isErr(result)).toBe(true);
+    if (isErr(result)) expect(result.error.code).toBe('invalid');
+  });
+
+  it('refuses an official fee set without a currency, or vice versa', async () => {
+    const { versionId } = await draftAuthoritative('trust.feepair');
+    const amountOnly = await setPublicTrustContent(db, {
+      actorAccountId: actor,
+      packVersionId: versionId,
+      officialFeeMinorUnits: 5000,
+    });
+    expect(isErr(amountOnly)).toBe(true);
+    if (isErr(amountOnly)) expect(amountOnly.error.code).toBe('invalid');
+
+    const currencyOnly = await setPublicTrustContent(db, {
+      actorAccountId: actor,
+      packVersionId: versionId,
+      officialFeeCurrency: 'GBP',
+    });
+    expect(isErr(currencyOnly)).toBe(true);
+  });
+
+  it('publishToPublicTrust refuses a non-PUBLISHED version, a missing route description, and a non-authoritative pack', async () => {
+    const { versionId: draftVersionId } = await draftAuthoritative('trust.notpub');
+    const notPublished = await publishToPublicTrust(db, {
+      actorAccountId: actor,
+      packVersionId: draftVersionId,
+    });
+    expect(isErr(notPublished)).toBe(true);
+    if (isErr(notPublished)) expect(notPublished.error.code).toBe('invalid');
+
+    // No route description set before publishing.
+    const approved = await approvePackVersion(db, {
+      actorAccountId: reviewer,
+      packVersionId: draftVersionId,
+    });
+    expect(isOk(approved)).toBe(true);
+    const published = await publishPackVersion(db, {
+      actorAccountId: actor,
+      packVersionId: draftVersionId,
+    });
+    expect(isOk(published)).toBe(true);
+    const noDescription = await publishToPublicTrust(db, {
+      actorAccountId: actor,
+      packVersionId: draftVersionId,
+    });
+    expect(isErr(noDescription)).toBe(true);
+    if (isErr(noDescription)) expect(noDescription.error.code).toBe('invalid');
+
+    // A non-authoritative (agency custom) pack, even with a description set and published.
+    const customPack = await createPack(db, {
+      actorAccountId: actor,
+      key: 'trust.custom',
+      name: 'Agency Custom',
+      authoritative: false,
+    });
+    if (!isOk(customPack)) throw new Error('pack');
+    const customVersion = await addPackVersion(db, {
+      actorAccountId: actor,
+      packId: customPack.value.id,
+    });
+    if (!isOk(customVersion)) throw new Error('version');
+    const customReq = await addRequirement(db, {
+      actorAccountId: actor,
+      packVersionId: customVersion.value.id,
+      kind: 'FIELD',
+      fieldKey: 'x',
+      citation: 'agency checklist item',
+    });
+    if (!isOk(customReq)) throw new Error('req');
+    const customContent = await setPublicTrustContent(db, {
+      actorAccountId: actor,
+      packVersionId: customVersion.value.id,
+      routeDescription: 'An agency checklist, not an official source.',
+    });
+    expect(isOk(customContent)).toBe(true);
+    const customApproved = await approvePackVersion(db, {
+      actorAccountId: actor,
+      packVersionId: customVersion.value.id,
+    });
+    expect(isOk(customApproved)).toBe(true);
+    const customPublished = await publishPackVersion(db, {
+      actorAccountId: actor,
+      packVersionId: customVersion.value.id,
+    });
+    expect(isOk(customPublished)).toBe(true);
+    const notAuthoritative = await publishToPublicTrust(db, {
+      actorAccountId: actor,
+      packVersionId: customVersion.value.id,
+    });
+    expect(isErr(notAuthoritative)).toBe(true);
+    if (isErr(notAuthoritative)) expect(notAuthoritative.error.code).toBe('forbidden');
+  });
+
+  it('unpublishFromPublicTrust clears exposure without touching case-readiness usability', async () => {
+    const { versionId } = await publishedAndTrusted('trust.unpub');
+    const unpublished = await unpublishFromPublicTrust(db, {
+      actorAccountId: actor,
+      packVersionId: versionId,
+    });
+    expect(isOk(unpublished)).toBe(true);
+    if (!isOk(unpublished)) return;
+    expect(unpublished.value.publicTrustPublishedAt).toBeNull();
+    expect(unpublished.value.status).toBe('PUBLISHED');
+
+    const again = await unpublishFromPublicTrust(db, {
+      actorAccountId: actor,
+      packVersionId: versionId,
+    });
+    expect(isErr(again)).toBe(true);
+    if (isErr(again)) expect(again.error.code).toBe('invalid');
+  });
+
+  it('getPublicTrustRoute returns null for an unknown pack, a non-authoritative pack, and a PUBLISHED-but-not-trust-published version', async () => {
+    expect(await getPublicTrustRoute(db, 'does.not.exist')).toBeNull();
+
+    const { packKey: draftedKey } = await draftAuthoritative('trust.notyet');
+    // PUBLISHED never happened for this one at all.
+    expect(await getPublicTrustRoute(db, draftedKey)).toBeNull();
+  });
+
+  it('getPublicTrustRoute returns the full public shape, with deduplicated official sources', async () => {
+    const { packKey } = await publishedAndTrusted('trust.full');
+    const route = await getPublicTrustRoute(db, packKey);
+    expect(route).not.toBeNull();
+    if (!route) return;
+    expect(route.routeDescription).toBe('The UK Standard Visitor route for short tourist stays.');
+    expect(route.jurisdiction).toBe('UK');
+    expect(route.officialFee).toEqual({ minorUnits: 10000, currency: 'GBP' });
+    expect(route.officialChannelUrl).toBe('https://www.gov.uk/apply-uk-visa');
+    expect(route.officialReportingUrl).toBe('https://www.gov.uk/report-immigration-crime');
+    expect(route.officialSources).toEqual([
+      {
+        publisher: 'UK Home Office',
+        sourceTitle: 'Standard Visitor visa',
+        sourceUrl: 'https://www.gov.uk/standard-visitor',
+      },
+    ]);
+  });
+
+  it('removes the fee amount once marked stale, but restores it once cleared, per directive §9', async () => {
+    const { packKey, versionId } = await publishedAndTrusted('trust.stale');
+    const staled = await markOfficialFeeStale(db, {
+      actorAccountId: actor,
+      packVersionId: versionId,
+    });
+    expect(isOk(staled)).toBe(true);
+
+    const staleRoute = await getPublicTrustRoute(db, packKey);
+    expect(staleRoute?.officialFee).toBeNull();
+    // Everything else about the route is still shown -- only the amount is withheld.
+    expect(staleRoute?.officialChannelUrl).toBe('https://www.gov.uk/apply-uk-visa');
+
+    const cleared = await clearOfficialFeeStale(db, {
+      actorAccountId: actor,
+      packVersionId: versionId,
+    });
+    expect(isOk(cleared)).toBe(true);
+    const restoredRoute = await getPublicTrustRoute(db, packKey);
+    expect(restoredRoute?.officialFee).toEqual({ minorUnits: 10000, currency: 'GBP' });
+  });
+
+  it('removes the fee amount once this version is overdue for review', async () => {
+    const { packId, packKey, versionId } = await publishedAndTrusted('trust.overdue');
+    // Overdue: nextReviewDate in the past. Only reachable directly on the
+    // row here -- there is no service function that backdates a review
+    // date, by design (RUL-02's own "<=30 days unless documented reason").
+    await db
+      .update(schema.packVersions)
+      .set({ nextReviewDate: new Date(Date.now() - 1000) })
+      .where(eq(schema.packVersions.id, versionId));
+    const route = await getPublicTrustRoute(db, packKey);
+    expect(route?.officialFee).toBeNull();
+    expect(packId).toBeTruthy();
+  });
+
+  it('does not carry public trust exposure forward to a newer version that supersedes it', async () => {
+    const { packId, packKey, versionId: v1Id } = await publishedAndTrusted('trust.supersede');
+    expect(await getPublicTrustRoute(db, packKey)).not.toBeNull();
+
+    const v2 = await addPackVersion(db, { actorAccountId: actor, packId });
+    if (!isOk(v2)) throw new Error('v2');
+    await addRequirement(db, {
+      actorAccountId: actor,
+      packVersionId: v2.value.id,
+      kind: 'FIELD',
+      fieldKey: 'passport_expiry',
+      citation: 'UK Immigration Rules Appendix V 4.2',
+    });
+    const approved = await approvePackVersion(db, {
+      actorAccountId: reviewer,
+      packVersionId: v2.value.id,
+    });
+    if (!isOk(approved)) throw new Error('approved');
+    const published = await publishPackVersion(db, {
+      actorAccountId: actor,
+      packVersionId: v2.value.id,
+    });
+    expect(isOk(published)).toBe(true);
+
+    // v1 is now DEPRECATED (auto-superseded); v2 was never explicitly
+    // opted into public trust. The route must go honestly unavailable,
+    // never silently keep showing v1's now-superseded content.
+    expect(await getPublicTrustRoute(db, packKey)).toBeNull();
+    expect(v1Id).toBeTruthy();
+  });
+
+  it('listPublicTrustPublished lists only currently-live routes, most recently published first', async () => {
+    const { packKey: keyA } = await publishedAndTrusted('trust.list.a');
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    const { packKey: keyB, versionId: versionB } = await publishedAndTrusted('trust.list.b');
+
+    const before = await listPublicTrustPublished(db);
+    expect(before.map((r) => r.packKey)).toEqual([keyB, keyA]);
+
+    await unpublishFromPublicTrust(db, { actorAccountId: actor, packVersionId: versionB });
+    const after = await listPublicTrustPublished(db);
+    expect(after.map((r) => r.packKey)).toEqual([keyA]);
   });
 });

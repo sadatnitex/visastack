@@ -1075,6 +1075,42 @@ item gets its own requirements-ledger row once classified against the new direct
     compile) and `pnpm --filter @visastack/services test` (`packs.test.ts` +
     `missions.test.ts`, 78/78) confirms zero regression to the underlying
     data this UI reads. Full detail: `requirements-ledger.md` RUL-04, J07.
+72. Part 6 §9 (RUL-06 Public Trust Lite) Phase 1 closes the schema and
+    service layer, UI deliberately deferred to Phase 2. New migration
+    `0059`: eight nullable `packVersions` columns for a route description,
+    an official fee (amount+currency paired by a CHECK constraint, plus a
+    `officialFeeStaleAt` mark trackable on an already-PUBLISHED version
+    without a new DRAFT, mirroring RUL-05's `sourceInaccessibleAt`), an
+    official application channel, an official reporting link, and an
+    explicit `publicTrustPublishedAt` opt-in gate kept separate from
+    `publishedAt` -- a version can be usable by missions without ever being
+    shown publicly. Six new `packs.ts` functions covering authoring
+    (DRAFT-only, partial-update), publish/unpublish (PUBLISHED +
+    authoritative-pack-only -- an agency's own unreviewed custom checklist
+    can never be shown as public "trust" content), fee-staleness
+    marking/clearing, and the public read itself: `getPublicTrustRoute`
+    returns `null` (never a fabricated fallback) for anything not meant to
+    be public, and deliberately does NOT carry a route's public exposure
+    forward when a newer version supersedes an already-trusted one -- the
+    new version needs its own explicit opt-in, so an unreviewed publish
+    never silently goes live. "Official source" reuses the distinct set of
+    publisher/title/URL already cited across the version's own
+    RUL-02-sourced requirements, rather than a second field that could
+    drift from them; "remove the fee amount when stale/unverified"
+    (directive §9) is enforced by checking one staleness clock
+    (`officialFeeStaleAt` OR the version's own overdue `nextReviewDate`),
+    reused from RUL-05 rather than a second one that could disagree with
+    it. 11 new tests (`packs.test.ts`, 35/35 green with the 24
+    pre-existing); `packages/db/src/schema.test.ts` (20/20) and every
+    affected package's typecheck also clean. One genuine test-fixture bug
+    found and fixed while writing these: approving a version with zero
+    requirements, which is `approvePackVersion`'s own pre-existing rule,
+    not a RUL-06 defect. **Not yet done, honestly still open (Phase 2):**
+    no admin UI at all to author, publish, or mark-stale this content --
+    Pack Studio's pages are unchanged this chunk; no public `/trust/
+    [packKey]` route yet; ScamShield Lite (the scam-warning checklist and
+    official reporting links display) not yet built. Full detail:
+    `requirements-ledger.md` RUL-06, J13.
 independently confirmed findings; the missing PRD file is tracked as Blocker 1 in
 `assumptions-and-blockers.md` (now resolved) rather than here, since it blocked the
 programme rather than being a product defect.

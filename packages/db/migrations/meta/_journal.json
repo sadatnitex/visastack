@@ -414,6 +414,13 @@
       "when": 1790150159835,
       "tag": "0058_rule_engine_foundations",
       "breakpoints": true
+    },
+    {
+      "idx": 59,
+      "version": "7",
+      "when": 1790262410892,
+      "tag": "0059_stiff_yellowjacket",
+      "breakpoints": true
     }
   ]
 }
