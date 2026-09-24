@@ -1,4 +1,8 @@
-import { listDocumentExpiryPolicies, listPacks } from '@visastack/services';
+import {
+  listDocumentExpiryPolicies,
+  listPackVersionsDueForReview,
+  listPacks,
+} from '@visastack/services';
 import Link from 'next/link';
 import { isPlatformAdmin } from '../../../../lib/admin';
 import { withSession } from '../../../../lib/session';
@@ -13,6 +17,7 @@ export default async function PackStudioPage() {
       admin: true as const,
       packs: await listPacks(db),
       expiryPolicies: await listDocumentExpiryPolicies(db),
+      reviewQueue: await listPackVersionsDueForReview(db),
     };
   });
 
@@ -59,6 +64,39 @@ export default async function PackStudioPage() {
                     </span>
                     <span className="muted" aria-hidden="true">
                       →
+                    </span>
+                  </Link>
+                ))}
+              </div>
+            )}
+          </article>
+
+          <article className="card">
+            <p className="card-kicker">RUL-05</p>
+            <h2 className="card-title">Review queue</h2>
+            <p className="muted" style={{ margin: '0.35rem 0 0', fontSize: '0.85rem' }}>
+              Published versions whose next-review date has passed, most overdue first.
+            </p>
+            {data.reviewQueue.length === 0 ? (
+              <p className="card-body" style={{ marginTop: '0.75rem' }}>
+                Nothing due for review.
+              </p>
+            ) : (
+              <div className="rows" style={{ marginTop: '0.5rem' }}>
+                {data.reviewQueue.map((due) => (
+                  <Link
+                    className="row row-link"
+                    key={due.packVersionId}
+                    href={`/app/admin/packs/${due.packId}`}
+                  >
+                    <span className="row-key">
+                      {due.packName}
+                      <span className="muted" style={{ fontSize: '0.8rem', marginLeft: '0.5rem' }}>
+                        v{due.version}
+                      </span>
+                    </span>
+                    <span className="muted" style={{ fontSize: '0.8rem' }}>
+                      due {due.nextReviewDate.toLocaleDateString()}
                     </span>
                   </Link>
                 ))}

@@ -1020,6 +1020,24 @@ item gets its own requirements-ledger row once classified against the new direct
     own research: no withdraw button, no review-queue view, no diff view, no
     impact-list view anywhere in `apps/web/src/app/app/admin/packs`) --
     Phase 2b. Full detail: `requirements-ledger.md` RUL-05.
+70. Part 6 Phase 2b wires all of RUL-05 into Pack Studio's actual UI: a
+    Review queue card on the catalog page; a WITHDRAWN status badge (never
+    present before this, a real pre-existing gap closed incidentally); a
+    reasoned Withdraw button on a PUBLISHED version (window-prompt pattern,
+    matching ADM-01's `ReasonPromptButton` -- never a bare confirm); a
+    mark/clear source-inaccessible button per requirement; an active-case
+    impact count on PUBLISHED/WITHDRAWN versions; and a Compare-versions
+    form leading to a new `[packId]/diff` route rendering the added/
+    removed/changed/unchanged breakdown. `pnpm --filter web build`
+    succeeds; no live database in this sandbox to click through the actual
+    flow, honestly disclosed rather than claimed as tested. **One genuine
+    gap found while building this, left open rather than papered over:**
+    the directive's "explicit adoption/reviewer decision" (Part 6 §6) has
+    no dedicated action for "reviewed this due item, still accurate, no
+    content change" -- the only way to reset `nextReviewDate` today is
+    `approvePackVersion`, which requires opening a whole new DRAFT version
+    even when nothing actually changed. A real, small, separate follow-up.
+    Full detail: `requirements-ledger.md` RUL-05.
 independently confirmed findings; the missing PRD file is tracked as Blocker 1 in
 `assumptions-and-blockers.md` (now resolved) rather than here, since it blocked the
 programme rather than being a product defect.
