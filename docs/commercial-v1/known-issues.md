@@ -1111,6 +1111,49 @@ item gets its own requirements-ledger row once classified against the new direct
     [packKey]` route yet; ScamShield Lite (the scam-warning checklist and
     official reporting links display) not yet built. Full detail:
     `requirements-ledger.md` RUL-06, J13.
+73. Part 6 §9 (RUL-06 Public Trust Lite) Phase 2 closes the admin UI and the
+    actual public surface, item 72's deferred half. `CreatePackForm` gained
+    jurisdiction/route/purpose/authoritative fields -- a pre-existing gap
+    (RUL-01's own row already flagged "no admin UI yet for entering the
+    coverage fields") that now concretely blocked this chunk, since there
+    was no way to create an authoritative pack through the UI at all and
+    `publishToPublicTrust` refuses a non-authoritative one. A DRAFT version
+    of an authoritative pack gets a form for the route description, fee,
+    channel, and reporting URL; a PUBLISHED one shows its live status plus
+    publish/unpublish and fee-staleness toggle buttons, mirroring RUL-05's
+    `SourceInaccessibleButton` pattern exactly. Two new genuinely public,
+    unauthenticated routes: `/trust` (a neutral catalog by route name,
+    never agency name -- not the "agency ranking" the directive forbids)
+    and `/trust/[packKey]` (route description; official fee shown only
+    when currently verified, else an honest "not currently verified"
+    badge, never a fabricated or stale number; effective/review dates; the
+    official application channel as the primary call to action; the
+    distinct official sources cited across the version's requirements;
+    ScamShield Lite, a static platform-level warning-signs checklist with
+    general fraud-reporting guidance, plus a route's own verified
+    reporting URL when one is on file). An explicit notice disclaims
+    embassy endorsement and agency preference; the official government fee
+    is explicitly separated from an agency's own service fee, which is
+    never itself shown as a number on this neutral page at all -- the
+    safest way to honor "separate agency service fee" without drifting
+    toward a ranking. New `lib/public-db.ts`'s `withPublicDb` extracts
+    exactly the connection-lifecycle half of `withSession` (pool creation,
+    idle-connection error listener, guaranteed cleanup) for a page that
+    needs a database connection with no session at all -- every
+    auth/pilot-access/provisioning concern deliberately stays in
+    `withSession` itself, never duplicated. `middleware.ts` needed no
+    change: its `matcher` is an allowlist of paths it even processes, so
+    `/trust/*` already skips the auth gate by not being listed, the same
+    as any other page that opts out. `pnpm --filter web build` succeeds
+    (every new/changed route compiles); `pnpm run lint`/`pnpm --filter web
+    typecheck` both clean; no live database in this sandbox to click
+    through the actual rendered pages, honestly disclosed rather than
+    claimed as tested. RUL-06 and Part 6 §9 are now closed. **Still
+    genuinely open, not part of this chunk:** directive §11's A12/A13/A34
+    acceptance-test IDs have not been written as their own dedicated,
+    formally-mapped test suite -- the underlying functions are thoroughly
+    unit-tested (item 72's 11 tests), but that is not the same claim as
+    "A34 passes." Full detail: `requirements-ledger.md` RUL-06, J13.
 independently confirmed findings; the missing PRD file is tracked as Blocker 1 in
 `assumptions-and-blockers.md` (now resolved) rather than here, since it blocked the
 programme rather than being a product defect.

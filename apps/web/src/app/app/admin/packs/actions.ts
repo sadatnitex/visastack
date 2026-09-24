@@ -4,11 +4,16 @@ import {
   addPackVersion,
   addRequirement,
   approvePackVersion,
+  clearOfficialFeeStale,
   clearRequirementSourceInaccessible,
   createPack,
+  markOfficialFeeStale,
   markRequirementSourceInaccessible,
   publishPackVersion,
+  publishToPublicTrust,
   setDocumentExpiryPolicy,
+  setPublicTrustContent,
+  unpublishFromPublicTrust,
   verifyPackChecksum,
   withdrawPackVersion,
 } from '@visastack/services';
@@ -33,6 +38,16 @@ export async function createPackAction(
   const key = String(formData.get('key') ?? '').trim();
   const name = String(formData.get('name') ?? '').trim();
   const description = String(formData.get('description') ?? '').trim();
+  // RUL-01 coverage model (jurisdiction/route/purpose) and the RUL-02/06
+  // authoritative flag: previously never read from this form at all, a real
+  // pre-existing gap (see requirements-ledger.md RUL-01's own "no admin UI
+  // yet" note) that now blocks RUL-06 concretely -- there was no way to
+  // create an authoritative pack through the UI, and publishToPublicTrust
+  // refuses a non-authoritative one.
+  const jurisdiction = String(formData.get('jurisdiction') ?? '').trim();
+  const route = String(formData.get('route') ?? '').trim();
+  const purpose = String(formData.get('purpose') ?? '').trim();
+  const authoritative = String(formData.get('authoritative') ?? '') === 'on';
   if (key.length === 0 || name.length === 0) {
     return { ok: false, message: 'Key and name are required.' };
   }
@@ -46,6 +61,10 @@ export async function createPackAction(
       key,
       name,
       ...(description.length > 0 ? { description } : {}),
+      ...(jurisdiction.length > 0 ? { jurisdiction } : {}),
+      ...(route.length > 0 ? { route } : {}),
+      ...(purpose.length > 0 ? { purpose } : {}),
+      authoritative,
     });
     if (!created.ok) {
       return { state: { ok: false, message: created.error.message } as ActionState, id: null };
@@ -285,6 +304,149 @@ export async function clearSourceInaccessibleAction(
     });
     if (!cleared.ok) return { ok: false, message: cleared.error.message } satisfies ActionState;
     return { ok: true, message: 'Source access restored.' } satisfies ActionState;
+  });
+  if (result.ok) revalidatePath(`/app/admin/packs/${packId}`);
+  return result;
+}
+
+/** Parses a human-entered decimal amount (e.g. "100.00") into the currency's smallest unit, using the same currency-aware decimal-digit resolution `formatPrice` (lib/usage-format.ts) uses for display -- symmetric, so a JPY/BHD amount round-trips correctly rather than assuming 2 decimal places. Returns `null` for an unparseable amount or an unrecognized ISO currency code. */
+function parseOfficialFeeMinorUnits(amountText: string, currency: string): number | null {
+  const parsed = Number(amountText);
+  if (!Number.isFinite(parsed) || parsed < 0) return null;
+  try {
+    const formatter = new Intl.NumberFormat('en-US', { style: 'currency', currency });
+    const divisor = 10 ** (formatter.resolvedOptions().maximumFractionDigits ?? 2);
+    return Math.round(parsed * divisor);
+  } catch {
+    return null;
+  }
+}
+
+/** Author Public Trust Lite content on a DRAFT version (RUL-06). Platform-admin only. */
+export async function setPublicTrustContentAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const packId = String(formData.get('packId') ?? '').trim();
+  const packVersionId = String(formData.get('packVersionId') ?? '').trim();
+  if (packVersionId.length === 0) return { ok: false, message: 'Missing version id.' };
+  const routeDescription = String(formData.get('routeDescription') ?? '').trim();
+  const officialFeeAmountRaw = String(formData.get('officialFeeAmount') ?? '').trim();
+  const officialFeeCurrency = String(formData.get('officialFeeCurrency') ?? '')
+    .trim()
+    .toUpperCase();
+  const officialChannelName = String(formData.get('officialChannelName') ?? '').trim();
+  const officialChannelUrl = String(formData.get('officialChannelUrl') ?? '').trim();
+  const officialReportingUrl = String(formData.get('officialReportingUrl') ?? '').trim();
+
+  let officialFeeMinorUnits: number | null = null;
+  if (officialFeeAmountRaw.length > 0) {
+    if (officialFeeCurrency.length === 0) {
+      return { ok: false, message: 'Enter a currency code (e.g. GBP) alongside the fee amount.' };
+    }
+    officialFeeMinorUnits = parseOfficialFeeMinorUnits(officialFeeAmountRaw, officialFeeCurrency);
+    if (officialFeeMinorUnits === null) {
+      return {
+        ok: false,
+        message: 'Enter a valid non-negative amount and a recognized currency code.',
+      };
+    }
+  }
+
+  const result = await withSession(async ({ db, accountId, email }) => {
+    if (!(await hasPlatformPermission(db, { accountId, email }, 'PACK_MANAGE'))) return DENIED;
+    const saved = await setPublicTrustContent(db, {
+      actorAccountId: accountId,
+      packVersionId,
+      routeDescription,
+      officialFeeMinorUnits,
+      officialFeeCurrency: officialFeeMinorUnits !== null ? officialFeeCurrency : null,
+      officialChannelName,
+      officialChannelUrl,
+      officialReportingUrl,
+    });
+    if (!saved.ok) return { ok: false, message: saved.error.message } satisfies ActionState;
+    return { ok: true, message: 'Public trust content saved.' } satisfies ActionState;
+  });
+  if (result.ok) revalidatePath(`/app/admin/packs/${packId}`);
+  return result;
+}
+
+/** Expose a PUBLISHED, authoritative version on the public trust surface (RUL-06). Platform-admin only. */
+export async function publishToPublicTrustAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const packId = String(formData.get('packId') ?? '').trim();
+  const packVersionId = String(formData.get('packVersionId') ?? '').trim();
+  if (packVersionId.length === 0) return { ok: false, message: 'Missing version id.' };
+  const result = await withSession(async ({ db, accountId, email }) => {
+    if (!(await hasPlatformPermission(db, { accountId, email }, 'PACK_MANAGE'))) return DENIED;
+    const published = await publishToPublicTrust(db, { actorAccountId: accountId, packVersionId });
+    if (!published.ok) return { ok: false, message: published.error.message } satisfies ActionState;
+    return { ok: true, message: 'Now live on the public trust surface.' } satisfies ActionState;
+  });
+  if (result.ok) revalidatePath(`/app/admin/packs/${packId}`);
+  return result;
+}
+
+/** Remove a version from the public trust surface, without touching its case-readiness usability (RUL-06). Platform-admin only. */
+export async function unpublishFromPublicTrustAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const packId = String(formData.get('packId') ?? '').trim();
+  const packVersionId = String(formData.get('packVersionId') ?? '').trim();
+  if (packVersionId.length === 0) return { ok: false, message: 'Missing version id.' };
+  const result = await withSession(async ({ db, accountId, email }) => {
+    if (!(await hasPlatformPermission(db, { accountId, email }, 'PACK_MANAGE'))) return DENIED;
+    const unpublished = await unpublishFromPublicTrust(db, {
+      actorAccountId: accountId,
+      packVersionId,
+    });
+    if (!unpublished.ok) {
+      return { ok: false, message: unpublished.error.message } satisfies ActionState;
+    }
+    return { ok: true, message: 'Removed from the public trust surface.' } satisfies ActionState;
+  });
+  if (result.ok) revalidatePath(`/app/admin/packs/${packId}`);
+  return result;
+}
+
+/** Mark a PUBLISHED version's official fee as no longer current, without opening a new DRAFT (RUL-06). Platform-admin only. */
+export async function markOfficialFeeStaleAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const packId = String(formData.get('packId') ?? '').trim();
+  const packVersionId = String(formData.get('packVersionId') ?? '').trim();
+  if (packVersionId.length === 0) return { ok: false, message: 'Missing version id.' };
+  const result = await withSession(async ({ db, accountId, email }) => {
+    if (!(await hasPlatformPermission(db, { accountId, email }, 'PACK_MANAGE'))) return DENIED;
+    const marked = await markOfficialFeeStale(db, { actorAccountId: accountId, packVersionId });
+    if (!marked.ok) return { ok: false, message: marked.error.message } satisfies ActionState;
+    return {
+      ok: true,
+      message: 'Fee marked stale - hidden on the public page.',
+    } satisfies ActionState;
+  });
+  if (result.ok) revalidatePath(`/app/admin/packs/${packId}`);
+  return result;
+}
+
+/** Clear a fee staleness mark once a re-check confirms the amount is current again (RUL-06). Platform-admin only. */
+export async function clearOfficialFeeStaleAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const packId = String(formData.get('packId') ?? '').trim();
+  const packVersionId = String(formData.get('packVersionId') ?? '').trim();
+  if (packVersionId.length === 0) return { ok: false, message: 'Missing version id.' };
+  const result = await withSession(async ({ db, accountId, email }) => {
+    if (!(await hasPlatformPermission(db, { accountId, email }, 'PACK_MANAGE'))) return DENIED;
+    const cleared = await clearOfficialFeeStale(db, { actorAccountId: accountId, packVersionId });
+    if (!cleared.ok) return { ok: false, message: cleared.error.message } satisfies ActionState;
+    return { ok: true, message: 'Fee restored on the public page.' } satisfies ActionState;
   });
   if (result.ok) revalidatePath(`/app/admin/packs/${packId}`);
   return result;

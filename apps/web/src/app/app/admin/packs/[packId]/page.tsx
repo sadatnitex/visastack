@@ -8,10 +8,13 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { isPlatformAdmin } from '../../../../../lib/admin';
 import { withSession } from '../../../../../lib/session';
-import { AddRequirementForm, VerifyChecksumForm } from '../pack-forms';
+import { formatPrice } from '../../../../../lib/usage-format';
+import { AddRequirementForm, PublicTrustContentForm, VerifyChecksumForm } from '../pack-forms';
 import {
   ApproveVersionButton,
+  OfficialFeeStaleButton,
   OpenVersionButton,
+  PublicTrustPublishButton,
   PublishVersionButton,
   SourceInaccessibleButton,
   WithdrawVersionButton,
@@ -79,9 +82,21 @@ export default async function PackDetailPage({
           <h1 className="section-title" style={{ margin: '0.25rem 0 0' }}>
             {data.pack.name}
           </h1>
+          <span
+            className={`badge ${data.pack.authoritative ? 'badge-success' : 'badge-neutral'}`}
+            style={{ marginTop: '0.5rem', display: 'inline-block' }}
+          >
+            {data.pack.authoritative ? 'Official requirement pack' : 'Agency custom checklist'}
+          </span>
           {data.pack.description ? (
             <p className="muted" style={{ margin: '0.35rem 0 0' }}>
               {data.pack.description}
+            </p>
+          ) : null}
+          {!data.pack.authoritative ? (
+            <p className="muted" style={{ margin: '0.35rem 0 0', fontSize: '0.8rem' }}>
+              Not eligible for the public trust surface (RUL-06) - only an authoritative pack can be
+              published there.
             </p>
           ) : null}
         </div>
@@ -210,6 +225,23 @@ export default async function PackDetailPage({
                     <div style={{ margin: '1.25rem 0' }}>
                       <AddRequirementForm packId={packId} packVersionId={version.id} />
                     </div>
+                    {data.pack.authoritative ? (
+                      <div style={{ margin: '1.25rem 0' }}>
+                        <p className="card-kicker" style={{ marginBottom: '0.5rem' }}>
+                          RUL-06 · Public Trust Lite
+                        </p>
+                        <PublicTrustContentForm
+                          packId={packId}
+                          packVersionId={version.id}
+                          routeDescription={version.routeDescription}
+                          officialFeeMinorUnits={version.officialFeeMinorUnits}
+                          officialFeeCurrency={version.officialFeeCurrency}
+                          officialChannelName={version.officialChannelName}
+                          officialChannelUrl={version.officialChannelUrl}
+                          officialReportingUrl={version.officialReportingUrl}
+                        />
+                      </div>
+                    ) : null}
                     <ApproveVersionButton packId={packId} packVersionId={version.id} />
                   </>
                 ) : null}
@@ -219,7 +251,72 @@ export default async function PackDetailPage({
                 ) : null}
 
                 {isPublished ? (
-                  <WithdrawVersionButton packId={packId} packVersionId={version.id} />
+                  <>
+                    <WithdrawVersionButton packId={packId} packVersionId={version.id} />
+                    {data.pack.authoritative ? (
+                      <div style={{ marginTop: '1.25rem' }}>
+                        <p className="card-kicker" style={{ marginBottom: '0.5rem' }}>
+                          RUL-06 · Public Trust Lite
+                        </p>
+                        <div className="rows" style={{ marginBottom: '0.75rem' }}>
+                          <div className="row">
+                            <span className="row-key">Route description</span>
+                            <span className="row-val">{version.routeDescription ?? 'Not set'}</span>
+                          </div>
+                          <div className="row">
+                            <span className="row-key">Official fee</span>
+                            <span className="row-val">
+                              {version.officialFeeMinorUnits !== null &&
+                              version.officialFeeCurrency !== null
+                                ? formatPrice(
+                                    version.officialFeeMinorUnits,
+                                    version.officialFeeCurrency,
+                                  )
+                                : 'Not set'}
+                              {version.officialFeeStaleAt ? (
+                                <span
+                                  className="badge badge-danger"
+                                  style={{ marginLeft: '0.5rem' }}
+                                >
+                                  Marked stale
+                                </span>
+                              ) : null}
+                            </span>
+                          </div>
+                          <div className="row">
+                            <span className="row-key">Status</span>
+                            <span
+                              className={`badge ${version.publicTrustPublishedAt ? 'badge-success' : 'badge-neutral'}`}
+                            >
+                              {version.publicTrustPublishedAt ? 'Live' : 'Not published'}
+                            </span>
+                          </div>
+                        </div>
+                        {version.publicTrustPublishedAt ? (
+                          <div style={{ marginBottom: '0.75rem' }}>
+                            <OfficialFeeStaleButton
+                              packId={packId}
+                              packVersionId={version.id}
+                              stale={version.officialFeeStaleAt !== null}
+                            />
+                          </div>
+                        ) : null}
+                        <PublicTrustPublishButton
+                          packId={packId}
+                          packVersionId={version.id}
+                          published={version.publicTrustPublishedAt !== null}
+                        />
+                        {version.publicTrustPublishedAt ? (
+                          <p className="muted" style={{ fontSize: '0.8rem', marginTop: '0.5rem' }}>
+                            Live at{' '}
+                            <a href={`/trust/${data.pack.key}`} target="_blank" rel="noreferrer">
+                              /trust/{data.pack.key}
+                            </a>
+                          </p>
+                        ) : null}
+                      </div>
+                    ) : null}
+                  </>
                 ) : null}
               </article>
             );

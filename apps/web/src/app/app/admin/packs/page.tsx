@@ -2,6 +2,7 @@ import {
   listDocumentExpiryPolicies,
   listPackVersionsDueForReview,
   listPacks,
+  listPublicTrustPublished,
 } from '@visastack/services';
 import Link from 'next/link';
 import { isPlatformAdmin } from '../../../../lib/admin';
@@ -18,6 +19,7 @@ export default async function PackStudioPage() {
       packs: await listPacks(db),
       expiryPolicies: await listDocumentExpiryPolicies(db),
       reviewQueue: await listPackVersionsDueForReview(db),
+      publicTrust: await listPublicTrustPublished(db),
     };
   });
 
@@ -99,6 +101,36 @@ export default async function PackStudioPage() {
                       due {due.nextReviewDate.toLocaleDateString()}
                     </span>
                   </Link>
+                ))}
+              </div>
+            )}
+          </article>
+
+          <article className="card">
+            <p className="card-kicker">RUL-06</p>
+            <h2 className="card-title">Public Trust Lite</h2>
+            <p className="muted" style={{ margin: '0.35rem 0 0', fontSize: '0.85rem' }}>
+              Routes currently live on the public trust surface.
+            </p>
+            {data.publicTrust.length === 0 ? (
+              <p className="card-body" style={{ marginTop: '0.75rem' }}>
+                Nothing published yet.
+              </p>
+            ) : (
+              <div className="rows" style={{ marginTop: '0.5rem' }}>
+                {data.publicTrust.map((route) => (
+                  <a
+                    className="row row-link"
+                    key={route.packKey}
+                    href={`/trust/${route.packKey}`}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    <span className="row-key">{route.packName}</span>
+                    <span className="muted" style={{ fontSize: '0.8rem' }}>
+                      /trust/{route.packKey} ↗
+                    </span>
+                  </a>
                 ))}
               </div>
             )}

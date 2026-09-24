@@ -1,0 +1,187 @@
+import { getPublicTrustRoute } from '@visastack/services';
+import Link from 'next/link';
+import { notFound } from 'next/navigation';
+import { withPublicDb } from '../../../lib/public-db';
+import { formatPrice } from '../../../lib/usage-format';
+
+export const dynamic = 'force-dynamic';
+
+/**
+ * ScamShield Lite (directive §9): a general, platform-level checklist and
+ * reporting guidance -- never route-authored, never naming a specific
+ * agency or party (no fraud accusation without evidence/process), never a
+ * fabricated reporting link. A route's own verified `officialReportingUrl`,
+ * shown separately above this section when one is on file, is the only
+ * place a specific link ever appears.
+ */
+const SCAM_WARNING_SIGNS: readonly string[] = [
+  'A guaranteed approval, or a promise no genuine visa process can make.',
+  'A request to pay by personal bank transfer, cryptocurrency, or gift cards instead of the official channel shown above.',
+  'Pressure to pay an upfront "processing fee" before any real application has started.',
+  'A claim of special access, personal contacts, or a guaranteed fast-track at the embassy or consulate.',
+  'Unsolicited contact through WhatsApp, social media, or a messaging app offering visa help.',
+  'Being asked to sign a blank form, or to hand over original documents with no receipt.',
+  'A website whose address does not match the official channel shown above for this route.',
+];
+
+export default async function PublicTrustRoutePage({
+  params,
+}: {
+  readonly params: Promise<{ packKey: string }>;
+}) {
+  const { packKey } = await params;
+  const route = await withPublicDb((db) => getPublicTrustRoute(db, packKey));
+  if (!route) notFound();
+
+  return (
+    <section className="section container">
+      <div style={{ marginBottom: '1.5rem' }}>
+        <Link href="/trust" className="muted" style={{ fontSize: '0.9rem' }}>
+          ← Public Trust
+        </Link>
+      </div>
+      <div className="toolbar" style={{ marginBottom: '2rem' }}>
+        <div>
+          <span className="eyebrow">Public Trust · v{route.version}</span>
+          <h1 className="section-title" style={{ margin: '0.25rem 0 0' }}>
+            {route.packName}
+          </h1>
+          <p className="muted" style={{ margin: '0.35rem 0 0' }}>
+            {[route.jurisdiction, route.route, route.purpose].filter(Boolean).join(' · ')}
+          </p>
+        </div>
+      </div>
+
+      <div className="notice" style={{ marginBottom: '2rem' }}>
+        This page describes the official process only. It is not an embassy or government service,
+        does not guarantee approval, and does not endorse any particular agency. Anyone may use this
+        route directly, with no agency at all.
+      </div>
+
+      <div className="grid">
+        <article className="card">
+          <p className="card-kicker">Route</p>
+          <h2 className="card-title">What this route is</h2>
+          <p className="card-body">{route.routeDescription}</p>
+          {route.effectiveDate ? (
+            <p className="muted" style={{ fontSize: '0.8rem', marginTop: '0.75rem' }}>
+              In effect since {route.effectiveDate.toLocaleDateString()}
+            </p>
+          ) : null}
+          {route.nextReviewDate ? (
+            <p className="muted" style={{ fontSize: '0.8rem', marginTop: '0.25rem' }}>
+              Next reviewed {route.nextReviewDate.toLocaleDateString()}
+            </p>
+          ) : null}
+        </article>
+
+        <article className="card">
+          <p className="card-kicker">Official fee</p>
+          <h2 className="card-title">What the government charges</h2>
+          {route.officialFee ? (
+            <>
+              <p className="card-body" style={{ fontSize: '1.5rem', fontWeight: 600 }}>
+                {formatPrice(route.officialFee.minorUnits, route.officialFee.currency)}
+              </p>
+              <p className="muted" style={{ fontSize: '0.8rem' }}>
+                The official government fee only. Any agency you choose to work with charges its own
+                service fee separately - never included here.
+              </p>
+            </>
+          ) : (
+            <>
+              <span className="badge badge-warning">Not currently verified</span>
+              <p className="muted" style={{ fontSize: '0.85rem', marginTop: '0.5rem' }}>
+                We do not show a fee amount here unless it is currently verified. Confirm the exact,
+                current fee at the official channel below before paying anyone.
+              </p>
+            </>
+          )}
+        </article>
+
+        <article className="card">
+          <p className="card-kicker">Official channel</p>
+          <h2 className="card-title">Where to actually apply</h2>
+          {route.officialChannelUrl ? (
+            <a
+              className="btn btn-primary"
+              href={route.officialChannelUrl}
+              target="_blank"
+              rel="noreferrer"
+            >
+              {route.officialChannelName ?? 'Official application channel'} ↗
+            </a>
+          ) : (
+            <p className="card-body">Not yet on file for this route.</p>
+          )}
+          <p className="muted" style={{ fontSize: '0.8rem', marginTop: '0.75rem' }}>
+            The only channel that actually decides your case. VisaStack and any agency you work with
+            only help you prepare for it.
+          </p>
+        </article>
+
+        <article className="card">
+          <p className="card-kicker">Official source</p>
+          <h2 className="card-title">Where this information comes from</h2>
+          {route.officialSources.length === 0 ? (
+            <p className="card-body">Not yet on file for this route.</p>
+          ) : (
+            <div className="rows" style={{ marginTop: '0.5rem' }}>
+              {route.officialSources.map((source) => (
+                <div
+                  className="row"
+                  key={`${source.publisher ?? ''}|${source.sourceTitle ?? ''}|${source.sourceUrl ?? ''}`}
+                  style={{ flexDirection: 'column', alignItems: 'flex-start' }}
+                >
+                  <span className="row-key">
+                    {[source.publisher, source.sourceTitle].filter(Boolean).join(' · ') ||
+                      'Official source'}
+                  </span>
+                  {source.sourceUrl ? (
+                    <a
+                      href={source.sourceUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      style={{ fontSize: '0.85rem' }}
+                    >
+                      {source.sourceUrl}
+                    </a>
+                  ) : null}
+                </div>
+              ))}
+            </div>
+          )}
+        </article>
+      </div>
+
+      <article className="card" style={{ marginTop: '1.5rem' }}>
+        <p className="card-kicker">ScamShield Lite</p>
+        <h2 className="card-title">Warning signs to watch for</h2>
+        <p className="muted" style={{ margin: '0.35rem 0 1rem', fontSize: '0.85rem' }}>
+          General guidance, the same for every route - not specific to this one, and never an
+          accusation against any named person or agency.
+        </p>
+        <ul className="pill-list" style={{ flexDirection: 'column', alignItems: 'flex-start' }}>
+          {SCAM_WARNING_SIGNS.map((sign) => (
+            <li key={sign} className="card-body" style={{ padding: '0.35rem 0' }}>
+              {sign}
+            </li>
+          ))}
+        </ul>
+        <p className="card-body" style={{ marginTop: '1rem' }}>
+          If you suspect fraud, report it to the official immigration authority for the destination
+          country and to your own country's consumer-protection or cybercrime authority.
+          {route.officialReportingUrl ? (
+            <>
+              {' '}
+              For this route specifically:{' '}
+              <a href={route.officialReportingUrl} target="_blank" rel="noreferrer">
+                official reporting channel ↗
+              </a>
+            </>
+          ) : null}
+        </p>
+      </article>
+    </section>
+  );
+}
