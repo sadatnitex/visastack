@@ -4,10 +4,13 @@ import {
   addPackVersion,
   addRequirement,
   approvePackVersion,
+  clearRequirementSourceInaccessible,
   createPack,
+  markRequirementSourceInaccessible,
   publishPackVersion,
   setDocumentExpiryPolicy,
   verifyPackChecksum,
+  withdrawPackVersion,
 } from '@visastack/services';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
@@ -218,5 +221,71 @@ export async function setDocumentExpiryPolicyAction(
     } satisfies ActionState;
   });
   if (result.ok) revalidatePath('/app/admin/packs');
+  return result;
+}
+
+/** Withdraw a PUBLISHED version for cause, explicit and reasoned (RUL-05). Platform-admin only. */
+export async function withdrawVersionAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const packId = String(formData.get('packId') ?? '').trim();
+  const packVersionId = String(formData.get('packVersionId') ?? '').trim();
+  const reason = String(formData.get('reason') ?? '').trim();
+  if (packVersionId.length === 0) return { ok: false, message: 'Missing version id.' };
+  if (reason.length === 0) return { ok: false, message: 'A reason is required to withdraw.' };
+  const result = await withSession(async ({ db, accountId, email }) => {
+    if (!(await hasPlatformPermission(db, { accountId, email }, 'PACK_MANAGE'))) return DENIED;
+    const withdrawn = await withdrawPackVersion(db, {
+      actorAccountId: accountId,
+      packVersionId,
+      reason,
+    });
+    if (!withdrawn.ok) return { ok: false, message: withdrawn.error.message } satisfies ActionState;
+    return { ok: true, message: 'Version withdrawn.' } satisfies ActionState;
+  });
+  if (result.ok) revalidatePath(`/app/admin/packs/${packId}`);
+  return result;
+}
+
+/** Mark one requirement's source as unreachable on re-check (RUL-05). Platform-admin only. */
+export async function markSourceInaccessibleAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const packId = String(formData.get('packId') ?? '').trim();
+  const requirementId = String(formData.get('requirementId') ?? '').trim();
+  if (requirementId.length === 0) return { ok: false, message: 'Missing requirement id.' };
+  const result = await withSession(async ({ db, accountId, email }) => {
+    if (!(await hasPlatformPermission(db, { accountId, email }, 'PACK_MANAGE'))) return DENIED;
+    const marked = await markRequirementSourceInaccessible(db, {
+      actorAccountId: accountId,
+      requirementId,
+    });
+    if (!marked.ok) return { ok: false, message: marked.error.message } satisfies ActionState;
+    return { ok: true, message: 'Marked source inaccessible.' } satisfies ActionState;
+  });
+  if (result.ok) revalidatePath(`/app/admin/packs/${packId}`);
+  return result;
+}
+
+/** Clear a requirement's source-inaccessible mark once a later re-check succeeds (RUL-05). Platform-admin only. */
+export async function clearSourceInaccessibleAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const packId = String(formData.get('packId') ?? '').trim();
+  const requirementId = String(formData.get('requirementId') ?? '').trim();
+  if (requirementId.length === 0) return { ok: false, message: 'Missing requirement id.' };
+  const result = await withSession(async ({ db, accountId, email }) => {
+    if (!(await hasPlatformPermission(db, { accountId, email }, 'PACK_MANAGE'))) return DENIED;
+    const cleared = await clearRequirementSourceInaccessible(db, {
+      actorAccountId: accountId,
+      requirementId,
+    });
+    if (!cleared.ok) return { ok: false, message: cleared.error.message } satisfies ActionState;
+    return { ok: true, message: 'Source access restored.' } satisfies ActionState;
+  });
+  if (result.ok) revalidatePath(`/app/admin/packs/${packId}`);
   return result;
 }

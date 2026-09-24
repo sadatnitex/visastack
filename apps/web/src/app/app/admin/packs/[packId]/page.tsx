@@ -1,4 +1,9 @@
-import { getPack, listPackVersions, listRequirements } from '@visastack/services';
+import {
+  getPack,
+  listMissionsByPackVersion,
+  listPackVersions,
+  listRequirements,
+} from '@visastack/services';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { isPlatformAdmin } from '../../../../../lib/admin';
@@ -8,6 +13,8 @@ import {
   ApproveVersionButton,
   OpenVersionButton,
   PublishVersionButton,
+  SourceInaccessibleButton,
+  WithdrawVersionButton,
 } from '../pack-version-buttons';
 
 export const dynamic = 'force-dynamic';
@@ -17,6 +24,7 @@ const VERSION_STATUS: Record<string, { label: string; tone: string }> = {
   APPROVED: { label: 'Approved', tone: 'badge-warning' },
   PUBLISHED: { label: 'Published', tone: 'badge-success' },
   DEPRECATED: { label: 'Deprecated', tone: 'badge-neutral' },
+  WITHDRAWN: { label: 'Withdrawn', tone: 'badge-danger' },
 };
 
 export default async function PackDetailPage({
@@ -35,6 +43,13 @@ export default async function PackDetailPage({
       versions.map(async (version) => ({
         version,
         requirements: await listRequirements(db, version.id),
+        // Impact list (RUL-05) only matters once a version has ever been
+        // usable by a mission -- a DRAFT/APPROVED version can never have one
+        // attached, so skip the query rather than always paying for it.
+        missionCount:
+          version.status === 'PUBLISHED' || version.status === 'WITHDRAWN'
+            ? (await listMissionsByPackVersion(db, version.id)).length
+            : 0,
       })),
     );
     return { admin: true as const, pack, versions: withReqs };
@@ -81,13 +96,15 @@ export default async function PackDetailPage({
         </article>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-          {data.versions.map(({ version, requirements }) => {
+          {data.versions.map(({ version, requirements, missionCount }) => {
             const badge = VERSION_STATUS[version.status] ?? {
               label: version.status,
               tone: 'badge-neutral',
             };
             const isDraft = version.status === 'DRAFT';
             const isApproved = version.status === 'APPROVED';
+            const isPublished = version.status === 'PUBLISHED';
+            const isWithdrawn = version.status === 'WITHDRAWN';
             return (
               <article className="card" key={version.id}>
                 <div className="toolbar" style={{ marginBottom: '1rem', alignItems: 'center' }}>
@@ -96,6 +113,26 @@ export default async function PackDetailPage({
                   </h2>
                   <span className={`badge ${badge.tone}`}>{badge.label}</span>
                 </div>
+
+                {isWithdrawn ? (
+                  <p className="muted" style={{ fontSize: '0.85rem', marginBottom: '1rem' }}>
+                    Withdrawn {version.withdrawnAt?.toLocaleDateString()}: {version.withdrawnReason}
+                  </p>
+                ) : null}
+
+                {(isPublished || isWithdrawn) && version.nextReviewDate ? (
+                  <p className="muted" style={{ fontSize: '0.85rem', marginBottom: '0.5rem' }}>
+                    Next review: {version.nextReviewDate.toLocaleDateString()}
+                  </p>
+                ) : null}
+
+                {isPublished || isWithdrawn ? (
+                  <p className="muted" style={{ fontSize: '0.85rem', marginBottom: '1rem' }}>
+                    {missionCount === 0
+                      ? 'No missions currently attached to this version.'
+                      : `${missionCount} mission${missionCount === 1 ? '' : 's'} currently attached to this version.`}
+                  </p>
+                ) : null}
 
                 {requirements.length === 0 ? (
                   <p className="card-body">No requirements yet.</p>
@@ -131,6 +168,19 @@ export default async function PackDetailPage({
                             Freshness: must be dated within {req.maxAgeDays} day(s)
                           </span>
                         ) : null}
+                        {req.sourceInaccessibleAt ? (
+                          <span className="badge badge-danger" style={{ alignSelf: 'flex-start' }}>
+                            Source inaccessible since{' '}
+                            {req.sourceInaccessibleAt.toLocaleDateString()}
+                          </span>
+                        ) : null}
+                        <div style={{ marginTop: '0.2rem' }}>
+                          <SourceInaccessibleButton
+                            packId={packId}
+                            requirementId={req.id}
+                            inaccessible={req.sourceInaccessibleAt !== null}
+                          />
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -167,11 +217,67 @@ export default async function PackDetailPage({
                 {isApproved ? (
                   <PublishVersionButton packId={packId} packVersionId={version.id} />
                 ) : null}
+
+                {isPublished ? (
+                  <WithdrawVersionButton packId={packId} packVersionId={version.id} />
+                ) : null}
               </article>
             );
           })}
         </div>
       )}
+
+      {data.versions.length >= 2 ? (
+        <article className="card" style={{ marginTop: '1.5rem' }}>
+          <p className="card-kicker">RUL-05</p>
+          <h2 className="card-title">Compare versions</h2>
+          <p className="muted" style={{ margin: '0.35rem 0 1rem', fontSize: '0.85rem' }}>
+            See exactly which requirements were added, removed, or changed between two versions of
+            this pack.
+          </p>
+          <form
+            method="get"
+            action={`/app/admin/packs/${packId}/diff`}
+            style={{ display: 'flex', gap: '0.6rem', alignItems: 'flex-end', flexWrap: 'wrap' }}
+          >
+            <div className="field-row">
+              <label className="field-label" htmlFor="diff-from">
+                From
+              </label>
+              <select id="diff-from" name="from" required className="input" defaultValue="">
+                <option value="" disabled>
+                  Choose a version…
+                </option>
+                {data.versions.map(({ version }) => (
+                  <option key={version.id} value={version.id}>
+                    Version {version.version} (
+                    {VERSION_STATUS[version.status]?.label ?? version.status})
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="field-row">
+              <label className="field-label" htmlFor="diff-to">
+                To
+              </label>
+              <select id="diff-to" name="to" required className="input" defaultValue="">
+                <option value="" disabled>
+                  Choose a version…
+                </option>
+                {data.versions.map(({ version }) => (
+                  <option key={version.id} value={version.id}>
+                    Version {version.version} (
+                    {VERSION_STATUS[version.status]?.label ?? version.status})
+                  </option>
+                ))}
+              </select>
+            </div>
+            <button type="submit" className="btn btn-primary">
+              Compare
+            </button>
+          </form>
+        </article>
+      ) : null}
     </section>
   );
 }
