@@ -1426,9 +1426,50 @@ export const packVersions = pgTable(
       onDelete: 'set null',
     }),
     withdrawnReason: text('withdrawn_reason'),
+    // RUL-06 Public Trust Lite (directive §9). Authored the same way as
+    // every other requirement field -- only while DRAFT -- and purely
+    // additive; no pre-existing version is affected by these being unset.
+    // A short public-facing paragraph, distinct from any one requirement's
+    // own `officialExtract`/`interpretation` (RUL-02), which stay
+    // requirement-scoped.
+    routeDescription: text('route_description'),
+    // Configuration the platform publishes, never a record of what any one
+    // applicant paid -- same "listed price, not collected cash" distinction
+    // `plans.priceMinorUnits` already draws. Both null together or both set
+    // together (constraint below); "if fee stale/unverified, remove amount"
+    // is enforced by the read path checking `officialFeeStaleAt` below and
+    // this version's own `nextReviewDate`, never by a separate boolean.
+    officialFeeMinorUnits: integer('official_fee_minor_units'),
+    officialFeeCurrency: text('official_fee_currency'),
+    // Tracks a real-world "this number is no longer trustworthy" observation
+    // on an already-PUBLISHED version, set/cleared without opening a new
+    // DRAFT -- exactly `packRequirements.sourceInaccessibleAt`'s own pattern
+    // (RUL-05), applied to the one field the directive singles out as able
+    // to go stale independently of the rest of a version's content.
+    officialFeeStaleAt: timestamp('official_fee_stale_at', { withTimezone: true }),
+    officialChannelName: text('official_channel_name'),
+    officialChannelUrl: text('official_channel_url'),
+    // Route-specific official fraud-reporting link, shown only when an
+    // admin has actually recorded one -- never a fabricated or generic
+    // guess (directive §9/§12: treat source text as grounded, never invent
+    // a link that isn't on file).
+    officialReportingUrl: text('official_reporting_url'),
+    // Explicit, audited opt-in gate distinct from `publishedAt`: a pack
+    // version can be PUBLISHED (usable by missions) without ever being
+    // exposed on the public trust surface -- publishing case-readiness
+    // content and publishing public marketing/trust content are separate
+    // deliberate acts, mirroring `publishedAt`/`withdrawnAt`'s own
+    // explicit-timestamp pattern rather than a bare boolean.
+    publicTrustPublishedAt: timestamp('public_trust_published_at', { withTimezone: true }),
     ...timestamps,
   },
-  (table) => [unique('pack_versions_pack_version_unique').on(table.packId, table.version)],
+  (table) => [
+    unique('pack_versions_pack_version_unique').on(table.packId, table.version),
+    check(
+      'pack_versions_official_fee_currency_together',
+      sql`(${table.officialFeeMinorUnits} is null) = (${table.officialFeeCurrency} is null)`,
+    ),
+  ],
 );
 
 export const packRequirements = pgTable(

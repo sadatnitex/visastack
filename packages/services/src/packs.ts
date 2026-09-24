@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { type Result, err, ok } from '@visastack/core';
-import { and, eq, lte, ne } from 'drizzle-orm';
+import { and, eq, isNotNull, lte, ne } from 'drizzle-orm';
 import { appendAuditEvent } from './audit';
 import { type Db, first, required, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
@@ -611,6 +611,389 @@ async function setRequirementSourceInaccessible(
     });
     return ok(updated);
   });
+}
+
+/**
+ * Author Public Trust Lite content (RUL-06, directive §9) on a DRAFT
+ * version -- the same "content only changes while DRAFT, then freezes"
+ * discipline every other requirement field already follows. Partial-update
+ * semantics matching `updateMissionCaseDetails`: an omitted field is left
+ * untouched, a provided one (including an empty string) is set/cleared.
+ * `officialFeeMinorUnits`/`officialFeeCurrency` are a single logical unit --
+ * touching either requires both to end up set together or both cleared
+ * together, never one without the other (mirrors `plans.priceMinorUnits`'s
+ * own paired-nullability rule, enforced here rather than only by the DB
+ * CHECK constraint so the caller gets a clear `invalid` result).
+ */
+export async function setPublicTrustContent(
+  db: Db,
+  input: {
+    readonly actorAccountId: string;
+    readonly packVersionId: string;
+    readonly routeDescription?: string;
+    readonly officialFeeMinorUnits?: number | null;
+    readonly officialFeeCurrency?: string | null;
+    readonly officialChannelName?: string;
+    readonly officialChannelUrl?: string;
+    readonly officialReportingUrl?: string;
+  },
+): Promise<Result<PackVersion, ServiceError>> {
+  const version = await loadVersion(db, input.packVersionId);
+  if (!version) return err(serviceError('not_found', 'pack version not found'));
+  if (version.status !== 'DRAFT') {
+    return err(
+      serviceError('invalid', 'public trust content can only change while the version is DRAFT'),
+    );
+  }
+  const feeTouched =
+    input.officialFeeMinorUnits !== undefined || input.officialFeeCurrency !== undefined;
+  if (feeTouched) {
+    const amount = input.officialFeeMinorUnits;
+    const currency = input.officialFeeCurrency;
+    const bothCleared = amount == null && currency == null;
+    if (!bothCleared) {
+      if (amount == null || currency == null || currency.trim().length === 0) {
+        return err(
+          serviceError(
+            'invalid',
+            'official fee amount and currency must be set together, or both cleared',
+          ),
+        );
+      }
+      if (!Number.isInteger(amount) || amount < 0) {
+        return err(
+          serviceError('invalid', 'official fee must be a non-negative integer (minor units)'),
+        );
+      }
+    }
+  }
+
+  return db.transaction(async (tx) => {
+    const updated = required(
+      first(
+        await tx
+          .update(schema.packVersions)
+          .set({
+            ...(input.routeDescription !== undefined
+              ? { routeDescription: input.routeDescription.trim() || null }
+              : {}),
+            ...(feeTouched
+              ? {
+                  officialFeeMinorUnits: input.officialFeeMinorUnits ?? null,
+                  officialFeeCurrency: input.officialFeeCurrency?.trim() || null,
+                }
+              : {}),
+            ...(input.officialChannelName !== undefined
+              ? { officialChannelName: input.officialChannelName.trim() || null }
+              : {}),
+            ...(input.officialChannelUrl !== undefined
+              ? { officialChannelUrl: input.officialChannelUrl.trim() || null }
+              : {}),
+            ...(input.officialReportingUrl !== undefined
+              ? { officialReportingUrl: input.officialReportingUrl.trim() || null }
+              : {}),
+            updatedAt: new Date(),
+          })
+          .where(eq(schema.packVersions.id, input.packVersionId))
+          .returning(),
+      ),
+      'pack version',
+    );
+    await appendAuditEvent(tx, {
+      eventType: 'PACK_VERSION_PUBLIC_TRUST_CONTENT_SET',
+      actorAccountId: input.actorAccountId,
+      action: 'MANAGE',
+      method: 'MANUAL',
+      result: 'ALLOWED',
+      resourceType: 'pack_version',
+      resourceId: updated.id,
+    });
+    return ok(updated);
+  });
+}
+
+/**
+ * Expose a PUBLISHED, authoritative version's Public Trust Lite content on
+ * the public route (RUL-06). Deliberately separate from `publishPackVersion`
+ * (case-readiness usability): a version can be usable by missions without
+ * ever appearing on the public trust surface, and exposure never carries
+ * forward automatically when a newer version supersedes this one -- the new
+ * version needs its own explicit opt-in, so a not-yet-reviewed publish never
+ * silently goes live publicly (directive §9/§12 grounding discipline).
+ * Restricted to an `authoritative` pack: showing an agency's own unreviewed
+ * custom checklist as a public "trust" surface would itself be the
+ * "unjustified endorsement" the directive forbids.
+ */
+export async function publishToPublicTrust(
+  db: Db,
+  input: { readonly actorAccountId: string; readonly packVersionId: string },
+): Promise<Result<PackVersion, ServiceError>> {
+  const version = await loadVersion(db, input.packVersionId);
+  if (!version) return err(serviceError('not_found', 'pack version not found'));
+  if (version.status !== 'PUBLISHED') {
+    return err(
+      serviceError('invalid', 'only a PUBLISHED version can be shown on the public trust surface'),
+    );
+  }
+  if (!version.routeDescription || version.routeDescription.trim().length === 0) {
+    return err(
+      serviceError('invalid', 'a route description is required before publishing to public trust'),
+    );
+  }
+  const pack = await getPack(db, version.packId);
+  if (!pack?.authoritative) {
+    return err(
+      serviceError(
+        'forbidden',
+        'only an authoritative pack can be shown on the public trust surface',
+      ),
+    );
+  }
+
+  return db.transaction(async (tx) => {
+    const now = new Date();
+    const updated = required(
+      first(
+        await tx
+          .update(schema.packVersions)
+          .set({ publicTrustPublishedAt: now, updatedAt: now })
+          .where(eq(schema.packVersions.id, input.packVersionId))
+          .returning(),
+      ),
+      'pack version',
+    );
+    await appendAuditEvent(tx, {
+      eventType: 'PACK_VERSION_PUBLIC_TRUST_PUBLISHED',
+      actorAccountId: input.actorAccountId,
+      action: 'MANAGE',
+      method: 'MANUAL',
+      result: 'ALLOWED',
+      resourceType: 'pack_version',
+      resourceId: updated.id,
+    });
+    return ok(updated);
+  });
+}
+
+/** Remove a version from the public trust surface without changing its case-readiness usability. */
+export async function unpublishFromPublicTrust(
+  db: Db,
+  input: { readonly actorAccountId: string; readonly packVersionId: string },
+): Promise<Result<PackVersion, ServiceError>> {
+  const version = await loadVersion(db, input.packVersionId);
+  if (!version) return err(serviceError('not_found', 'pack version not found'));
+  if (!version.publicTrustPublishedAt) {
+    return err(
+      serviceError('invalid', 'this version is not currently shown on the public trust surface'),
+    );
+  }
+
+  return db.transaction(async (tx) => {
+    const updated = required(
+      first(
+        await tx
+          .update(schema.packVersions)
+          .set({ publicTrustPublishedAt: null, updatedAt: new Date() })
+          .where(eq(schema.packVersions.id, input.packVersionId))
+          .returning(),
+      ),
+      'pack version',
+    );
+    await appendAuditEvent(tx, {
+      eventType: 'PACK_VERSION_PUBLIC_TRUST_UNPUBLISHED',
+      actorAccountId: input.actorAccountId,
+      action: 'MANAGE',
+      method: 'MANUAL',
+      result: 'ALLOWED',
+      resourceType: 'pack_version',
+      resourceId: updated.id,
+    });
+    return ok(updated);
+  });
+}
+
+/** Mark a PUBLISHED version's official fee as no longer current, without requiring a new DRAFT version (RUL-06, mirrors `markRequirementSourceInaccessible`). The public read (`getPublicTrustRoute`) removes the amount and falls back to the official source while this is set. */
+export async function markOfficialFeeStale(
+  db: Db,
+  input: { readonly actorAccountId: string; readonly packVersionId: string },
+): Promise<Result<PackVersion, ServiceError>> {
+  return setOfficialFeeStale(db, input, new Date());
+}
+
+/** Clear a fee staleness mark once a re-check confirms the amount is current again. */
+export async function clearOfficialFeeStale(
+  db: Db,
+  input: { readonly actorAccountId: string; readonly packVersionId: string },
+): Promise<Result<PackVersion, ServiceError>> {
+  return setOfficialFeeStale(db, input, null);
+}
+
+async function setOfficialFeeStale(
+  db: Db,
+  input: { readonly actorAccountId: string; readonly packVersionId: string },
+  officialFeeStaleAt: Date | null,
+): Promise<Result<PackVersion, ServiceError>> {
+  const version = await loadVersion(db, input.packVersionId);
+  if (!version) return err(serviceError('not_found', 'pack version not found'));
+
+  return db.transaction(async (tx) => {
+    const updated = required(
+      first(
+        await tx
+          .update(schema.packVersions)
+          .set({ officialFeeStaleAt, updatedAt: new Date() })
+          .where(eq(schema.packVersions.id, input.packVersionId))
+          .returning(),
+      ),
+      'pack version',
+    );
+    await appendAuditEvent(tx, {
+      eventType:
+        officialFeeStaleAt === null
+          ? 'PACK_VERSION_OFFICIAL_FEE_RESTORED'
+          : 'PACK_VERSION_OFFICIAL_FEE_STALE',
+      actorAccountId: input.actorAccountId,
+      action: 'MANAGE',
+      method: 'MANUAL',
+      result: 'ALLOWED',
+      resourceType: 'pack_version',
+      resourceId: updated.id,
+    });
+    return ok(updated);
+  });
+}
+
+export interface PublicTrustRouteSource {
+  readonly publisher: string | null;
+  readonly sourceTitle: string | null;
+  readonly sourceUrl: string | null;
+}
+
+export interface PublicTrustRoute {
+  readonly packKey: string;
+  readonly packName: string;
+  readonly jurisdiction: string | null;
+  readonly route: string | null;
+  readonly purpose: string | null;
+  readonly routeDescription: string;
+  readonly version: number;
+  readonly effectiveDate: Date | null;
+  readonly nextReviewDate: Date | null;
+  /** Null whenever the fee is unset, marked stale, or this version's own review date has passed -- directive §9: "if fee stale/unverified, remove amount [and] show official source link/status." */
+  readonly officialFee: { readonly minorUnits: number; readonly currency: string } | null;
+  readonly officialChannelName: string | null;
+  readonly officialChannelUrl: string | null;
+  readonly officialReportingUrl: string | null;
+  /** The distinct official sources cited across this version's requirements -- the route's "official source," aggregated rather than duplicating a second single-source field on the version itself. */
+  readonly officialSources: readonly PublicTrustRouteSource[];
+}
+
+async function toPublicTrustRoute(
+  db: Db,
+  pack: Pack,
+  version: PackVersion,
+  now: Date,
+): Promise<PublicTrustRoute> {
+  const feeCurrent =
+    version.officialFeeMinorUnits !== null &&
+    version.officialFeeCurrency !== null &&
+    version.officialFeeStaleAt === null &&
+    (version.nextReviewDate === null || version.nextReviewDate.getTime() > now.getTime());
+
+  const requirements = await listRequirements(db, version.id);
+  const seen = new Set<string>();
+  const officialSources: PublicTrustRouteSource[] = [];
+  for (const req of requirements) {
+    if (!req.publisher && !req.sourceTitle && !req.sourceUrl) continue;
+    const key = `${req.publisher ?? ''}|${req.sourceTitle ?? ''}|${req.sourceUrl ?? ''}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    officialSources.push({
+      publisher: req.publisher,
+      sourceTitle: req.sourceTitle,
+      sourceUrl: req.sourceUrl,
+    });
+  }
+
+  return {
+    packKey: pack.key,
+    packName: pack.name,
+    jurisdiction: pack.jurisdiction,
+    route: pack.route,
+    purpose: pack.purpose,
+    // Not-null by construction: both public-read paths below only ever call
+    // this with a version whose `routeDescription` has already been checked.
+    routeDescription: version.routeDescription as string,
+    version: version.version,
+    effectiveDate: version.effectiveDate,
+    nextReviewDate: version.nextReviewDate,
+    officialFee: feeCurrent
+      ? {
+          minorUnits: version.officialFeeMinorUnits as number,
+          currency: version.officialFeeCurrency as string,
+        }
+      : null,
+    officialChannelName: version.officialChannelName,
+    officialChannelUrl: version.officialChannelUrl,
+    officialReportingUrl: version.officialReportingUrl,
+    officialSources,
+  };
+}
+
+/**
+ * The public, unauthenticated Public Trust Lite read (RUL-06, directive §9).
+ * Resolves a pack's current PUBLISHED version ONLY when that exact version
+ * has been explicitly opted into public display (`publishToPublicTrust`) --
+ * see that function's own doc comment for why exposure never carries
+ * forward to a newer version automatically. Returns `null` for anything not
+ * meant to be public: no matching pack, a non-authoritative (agency custom)
+ * pack, or no currently-published trust content -- the caller renders this
+ * as the directive's own "honest unavailable status," never a fabricated
+ * fallback.
+ */
+export async function getPublicTrustRoute(
+  db: Db,
+  packKey: string,
+): Promise<PublicTrustRoute | null> {
+  const pack = first(
+    await db.select().from(schema.packs).where(eq(schema.packs.key, packKey)).limit(1),
+  );
+  if (!pack || !pack.authoritative) return null;
+
+  const version = first(
+    await db
+      .select()
+      .from(schema.packVersions)
+      .where(
+        and(eq(schema.packVersions.packId, pack.id), eq(schema.packVersions.status, 'PUBLISHED')),
+      )
+      .limit(1),
+  );
+  if (!version || !version.publicTrustPublishedAt || !version.routeDescription) return null;
+
+  return toPublicTrustRoute(db, pack, version, new Date());
+}
+
+/** Every route currently live on the public trust surface (admin overview, Pack Studio catalog page), most-recently-published first. */
+export async function listPublicTrustPublished(db: Db): Promise<PublicTrustRoute[]> {
+  const rows = await db
+    .select({ pack: schema.packs, version: schema.packVersions })
+    .from(schema.packVersions)
+    .innerJoin(schema.packs, eq(schema.packs.id, schema.packVersions.packId))
+    .where(
+      and(
+        eq(schema.packVersions.status, 'PUBLISHED'),
+        eq(schema.packs.authoritative, true),
+        isNotNull(schema.packVersions.publicTrustPublishedAt),
+      ),
+    );
+  const now = new Date();
+  const sorted = [...rows].sort(
+    (a, b) =>
+      (b.version.publicTrustPublishedAt?.getTime() ?? 0) -
+      (a.version.publicTrustPublishedAt?.getTime() ?? 0),
+  );
+  return Promise.all(sorted.map((row) => toPublicTrustRoute(db, row.pack, row.version, now)));
 }
 
 /** Verify a version's stored checksum matches its current requirements. */
