@@ -2316,3 +2316,306 @@ describe('NTF-01 - case-specific staleness, tracked separately from intrinsic ex
     expect(row?.expiresAt).toBeNull();
   });
 });
+
+describe('RUL-04 - richer per-requirement/overall readiness states (condition-driven)', () => {
+  let db: Db;
+  beforeEach(async () => {
+    db = await freshDb();
+  });
+
+  /**
+   * A published pack with one always-required FIELD requirement
+   * (passport.number, no condition - the zero-behavior-change control) plus
+   * one FIELD requirement gated on `visa_purpose` equalling `business`.
+   */
+  async function publishedPackWithConditionalRequirement(
+    db: Db,
+    actor: string,
+    conditionalOptional = false,
+  ): Promise<string> {
+    const pack = await createPack(db, { actorAccountId: actor, key: 'uk.conditional', name: 'C' });
+    if (!isOk(pack)) throw new Error('pack');
+    const version = await addPackVersion(db, { actorAccountId: actor, packId: pack.value.id });
+    if (!isOk(version)) throw new Error('version');
+    await addRequirement(db, {
+      actorAccountId: actor,
+      packVersionId: version.value.id,
+      kind: 'FIELD',
+      fieldKey: 'passport.number',
+      citation: 'always required',
+    });
+    await addRequirement(db, {
+      actorAccountId: actor,
+      packVersionId: version.value.id,
+      kind: 'FIELD',
+      fieldKey: 'us_visa_history',
+      citation: 'business visitors only',
+      optional: conditionalOptional,
+      condition: { op: 'equals', field: 'visa_purpose', value: 'business' },
+    });
+    await approvePackVersion(db, { actorAccountId: actor, packVersionId: version.value.id });
+    await publishPackVersion(db, { actorAccountId: actor, packVersionId: version.value.id });
+    return version.value.id;
+  }
+
+  async function missionWithPack(
+    db: Db,
+    account: { id: string },
+    applicantId: string,
+    packVersionId: string,
+    manualMode = false,
+  ) {
+    const mission = await createMission(db, {
+      actorAccountId: account.id,
+      applicantId,
+      title: 'UK Visa',
+      manualMode,
+    });
+    if (!isOk(mission)) throw new Error('mission');
+    await attachPackVersion(db, {
+      actorAccountId: account.id,
+      missionId: mission.value.id,
+      packVersionId,
+    });
+    return mission.value;
+  }
+
+  it('a requirement with no condition resolves exactly as before - CRITICAL_GAP/ATTENTION/SATISFIED, unchanged', async () => {
+    const { account, applicantId } = await seed(db);
+    const pack = await createPack(db, { actorAccountId: account.id, key: 'x', name: 'X' });
+    if (!isOk(pack)) throw new Error('pack');
+    const version = await addPackVersion(db, { actorAccountId: account.id, packId: pack.value.id });
+    if (!isOk(version)) throw new Error('version');
+    await addRequirement(db, {
+      actorAccountId: account.id,
+      packVersionId: version.value.id,
+      kind: 'FIELD',
+      fieldKey: 'passport.number',
+      citation: 'required',
+    });
+    await addRequirement(db, {
+      actorAccountId: account.id,
+      packVersionId: version.value.id,
+      kind: 'FIELD',
+      fieldKey: 'middle_name',
+      citation: 'optional',
+      optional: true,
+    });
+    await approvePackVersion(db, { actorAccountId: account.id, packVersionId: version.value.id });
+    await publishPackVersion(db, { actorAccountId: account.id, packVersionId: version.value.id });
+    const mission = await missionWithPack(db, account, applicantId, version.value.id);
+
+    const before = await computeReadiness(db, mission.id);
+    if (!isOk(before)) throw new Error('readiness');
+    const byKey = (r: typeof before.value) =>
+      Object.fromEntries(r.requirementResults.map((e) => [e.key, e.state]));
+    expect(byKey(before.value)).toEqual({
+      'passport.number': 'CRITICAL_GAP',
+      middle_name: 'ATTENTION',
+    });
+    expect(before.value.overallState).toBe('NEEDS_ACTION');
+
+    await registerFieldDefinition(db, { key: 'passport.number', dataType: 'string' });
+    await editFact(db, {
+      actorAccountId: account.id,
+      applicantId,
+      fieldKey: 'passport.number',
+      value: 'A1',
+    });
+    const after = await computeReadiness(db, mission.id);
+    if (!isOk(after)) throw new Error('readiness');
+    expect(byKey(after.value)).toEqual({
+      'passport.number': 'SATISFIED',
+      middle_name: 'ATTENTION',
+    });
+    expect(after.value.ready).toBe(true);
+    expect(after.value.overallState).toBe('READY_FOR_APPLICANT_REVIEW');
+  });
+
+  it('a condition evaluating false marks NOT_APPLICABLE and excludes the requirement from requiredCount/missing', async () => {
+    const { account, applicantId } = await seed(db);
+    const packVersionId = await publishedPackWithConditionalRequirement(db, account.id);
+    const mission = await missionWithPack(db, account, applicantId, packVersionId);
+
+    await registerFieldDefinition(db, { key: 'passport.number', dataType: 'string' });
+    await registerFieldDefinition(db, { key: 'visa_purpose', dataType: 'string' });
+    await editFact(db, {
+      actorAccountId: account.id,
+      applicantId,
+      fieldKey: 'passport.number',
+      value: 'A1',
+    });
+    await editFact(db, {
+      actorAccountId: account.id,
+      applicantId,
+      fieldKey: 'visa_purpose',
+      value: 'tourism',
+    });
+
+    const readiness = await computeReadiness(db, mission.id);
+    if (!isOk(readiness)) throw new Error('readiness');
+    const conditional = readiness.value.requirementResults.find((r) => r.key === 'us_visa_history');
+    expect(conditional?.state).toBe('NOT_APPLICABLE');
+    expect(readiness.value.requiredCount).toBe(1); // only passport.number counts
+    expect(readiness.value.missing).toHaveLength(0);
+    expect(readiness.value.ready).toBe(true);
+    expect(readiness.value.overallState).toBe('READY_FOR_APPLICANT_REVIEW');
+  });
+
+  it('a condition evaluating unknown marks UNVERIFIED and the case NEEDS_REVIEW, distinct from a hard CRITICAL_GAP', async () => {
+    const { account, applicantId } = await seed(db);
+    const packVersionId = await publishedPackWithConditionalRequirement(db, account.id);
+    const mission = await missionWithPack(db, account, applicantId, packVersionId);
+
+    // passport.number satisfied; visa_purpose never provided at all, so the
+    // conditional requirement's own condition cannot be resolved.
+    await registerFieldDefinition(db, { key: 'passport.number', dataType: 'string' });
+    await editFact(db, {
+      actorAccountId: account.id,
+      applicantId,
+      fieldKey: 'passport.number',
+      value: 'A1',
+    });
+
+    const readiness = await computeReadiness(db, mission.id);
+    if (!isOk(readiness)) throw new Error('readiness');
+    const conditional = readiness.value.requirementResults.find((r) => r.key === 'us_visa_history');
+    expect(conditional?.state).toBe('UNVERIFIED');
+    // UNVERIFIED still counts as a required requirement (unlike NOT_APPLICABLE) - just not a satisfied one.
+    expect(readiness.value.requiredCount).toBe(2);
+    expect(readiness.value.satisfiedRequired).toBe(1);
+    expect(readiness.value.ready).toBe(false);
+    // A softer signal than a hard gap: NEEDS_REVIEW, never NEEDS_ACTION, for an all-UNVERIFIED shortfall.
+    expect(readiness.value.overallState).toBe('NEEDS_REVIEW');
+  });
+
+  it('already-satisfied evidence reports SATISFIED even while its own condition is still unknown', async () => {
+    const { account, applicantId } = await seed(db);
+    const packVersionId = await publishedPackWithConditionalRequirement(db, account.id);
+    const mission = await missionWithPack(db, account, applicantId, packVersionId);
+
+    // us_visa_history itself IS provided, even though visa_purpose (what the
+    // condition depends on) never is - the evidence on file is never wrong
+    // to report as satisfied, regardless of the unrelated unknown.
+    await registerFieldDefinition(db, { key: 'passport.number', dataType: 'string' });
+    await registerFieldDefinition(db, { key: 'us_visa_history', dataType: 'string' });
+    await editFact(db, {
+      actorAccountId: account.id,
+      applicantId,
+      fieldKey: 'passport.number',
+      value: 'A1',
+    });
+    await editFact(db, {
+      actorAccountId: account.id,
+      applicantId,
+      fieldKey: 'us_visa_history',
+      value: 'B2 2019-2024',
+    });
+
+    const readiness = await computeReadiness(db, mission.id);
+    if (!isOk(readiness)) throw new Error('readiness');
+    const conditional = readiness.value.requirementResults.find((r) => r.key === 'us_visa_history');
+    expect(conditional?.state).toBe('SATISFIED');
+    expect(readiness.value.ready).toBe(true);
+    expect(readiness.value.overallState).toBe('READY_FOR_APPLICANT_REVIEW');
+  });
+
+  it('a conflicting instance is surfaced as CONFLICTING even when another instance of the same repeating field otherwise satisfies it', async () => {
+    const { account, applicantId } = await seed(db);
+    const pack = await createPack(db, { actorAccountId: account.id, key: 'y', name: 'Y' });
+    if (!isOk(pack)) throw new Error('pack');
+    const version = await addPackVersion(db, { actorAccountId: account.id, packId: pack.value.id });
+    if (!isOk(version)) throw new Error('version');
+    await addRequirement(db, {
+      actorAccountId: account.id,
+      packVersionId: version.value.id,
+      kind: 'FIELD',
+      fieldKey: 'prior_visa.number',
+      citation: 'c',
+    });
+    await approvePackVersion(db, { actorAccountId: account.id, packVersionId: version.value.id });
+    await publishPackVersion(db, { actorAccountId: account.id, packVersionId: version.value.id });
+    const mission = await missionWithPack(db, account, applicantId, version.value.id);
+
+    await registerFieldDefinition(db, {
+      key: 'prior_visa.number',
+      dataType: 'string',
+      repeating: true,
+    });
+    await editFact(db, {
+      actorAccountId: account.id,
+      applicantId,
+      fieldKey: 'prior_visa.number',
+      value: 'CLEAN-1',
+      repeatingRecordKey: 'a',
+    });
+    await editFact(db, {
+      actorAccountId: account.id,
+      applicantId,
+      fieldKey: 'prior_visa.number',
+      value: 'DISPUTED-2',
+      repeatingRecordKey: 'b',
+      status: 'CONFLICTED',
+    });
+
+    const readiness = await computeReadiness(db, mission.id);
+    if (!isOk(readiness)) throw new Error('readiness');
+    const entry = readiness.value.requirementResults[0];
+    // The pre-existing satisfied check only needs ONE eligible instance, so
+    // this requirement is (and always was) satisfied=true - but RUL-04 must
+    // not let that hide the conflicted sibling instance behind a plain SATISFIED.
+    expect(entry?.state).toBe('CONFLICTING');
+  });
+
+  it('MANUAL_ONLY overrides every requirement state when the mission is in manual mode', async () => {
+    const { account, applicantId } = await seed(db);
+    const packVersionId = await publishedPackWithConditionalRequirement(db, account.id);
+    const mission = await missionWithPack(db, account, applicantId, packVersionId, true);
+
+    // Nothing provided at all - would otherwise be NEEDS_ACTION (a genuine CRITICAL_GAP exists).
+    const readiness = await computeReadiness(db, mission.id);
+    if (!isOk(readiness)) throw new Error('readiness');
+    expect(readiness.value.overallState).toBe('MANUAL_ONLY');
+  });
+
+  it('snapshotMission and generateCoverLetter both carry the same resultState on their requirement mapping', async () => {
+    const { account, applicantId } = await seed(db);
+    const packVersionId = await publishedPackWithConditionalRequirement(db, account.id);
+    const mission = await missionWithPack(db, account, applicantId, packVersionId);
+
+    await registerFieldDefinition(db, { key: 'passport.number', dataType: 'string' });
+    await editFact(db, {
+      actorAccountId: account.id,
+      applicantId,
+      fieldKey: 'passport.number',
+      value: 'A1',
+    });
+    await registerFieldDefinition(db, { key: 'visa_purpose', dataType: 'string' });
+    await editFact(db, {
+      actorAccountId: account.id,
+      applicantId,
+      fieldKey: 'visa_purpose',
+      value: 'tourism',
+    });
+
+    const snapshot = await snapshotMission(db, {
+      actorAccountId: account.id,
+      missionId: mission.id,
+    });
+    if (!isOk(snapshot)) throw new Error('snapshot');
+    const content = snapshot.value.content as {
+      requirementMapping: ReadonlyArray<{ key: string; resultState: string }>;
+      readiness: { overallState: string } | null;
+    };
+    const conditional = content.requirementMapping.find((e) => e.key === 'us_visa_history');
+    expect(conditional?.resultState).toBe('NOT_APPLICABLE');
+    expect(content.readiness?.overallState).toBe('READY_FOR_APPLICANT_REVIEW');
+
+    // A satisfied, non-conditional requirement still grounds a cover letter as before.
+    const letter = await generateCoverLetter(db, {
+      actorAccountId: account.id,
+      missionId: mission.id,
+    });
+    expect(isOk(letter)).toBe(true);
+  });
+});
