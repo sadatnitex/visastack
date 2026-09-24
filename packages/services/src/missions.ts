@@ -15,6 +15,12 @@ import { type StalenessClassification, classifyStaleness, parseDocumentDate } fr
 import { cancelQueuedNotificationsForResource } from './notifications';
 import { type PackRequirement, listRequirements } from './packs';
 import { recordProductEvent } from './product-events';
+import {
+  type EvaluationContext,
+  type RuleConditionResult,
+  evaluateCondition,
+  isValidRuleCondition,
+} from './rule-conditions';
 
 /**
  * Mission Workspaces (Build Spec §4.3; PRD §4).
@@ -382,6 +388,39 @@ export interface MissingRequirement {
   readonly reason: 'not_provided' | 'unresolved_conflict' | 'stale_evidence';
 }
 
+/**
+ * The seven per-requirement outcomes RUL-04 names (master directive Part 6
+ * §5). A requirement with no `condition` (every pre-existing pack, since
+ * none has ever set one) can only ever resolve to SATISFIED, CONFLICTING,
+ * EXPIRING_STALE, ATTENTION, or CRITICAL_GAP, the exact same five outcomes
+ * the pre-RUL-04 satisfied/reason logic already distinguished, just named
+ * richly instead of collapsed into a boolean. NOT_APPLICABLE and UNVERIFIED
+ * are reachable only once a requirement actually carries a condition.
+ */
+export type RequirementResultState =
+  | 'SATISFIED'
+  | 'ATTENTION'
+  | 'CRITICAL_GAP'
+  | 'UNVERIFIED'
+  | 'CONFLICTING'
+  | 'EXPIRING_STALE'
+  | 'NOT_APPLICABLE';
+
+/** The four case-level outcomes RUL-04 names (master directive Part 6 §5), never an average of the per-requirement states. */
+export type OverallReadinessState =
+  | 'MANUAL_ONLY'
+  | 'NEEDS_ACTION'
+  | 'NEEDS_REVIEW'
+  | 'READY_FOR_APPLICANT_REVIEW';
+
+export interface RequirementResultSummary {
+  readonly packRequirementId: string;
+  readonly kind: 'FIELD' | 'DOCUMENT';
+  readonly key: string;
+  readonly optional: boolean;
+  readonly state: RequirementResultState;
+}
+
 export interface Readiness {
   readonly total: number;
   readonly requiredCount: number;
@@ -389,6 +428,9 @@ export interface Readiness {
   readonly missing: readonly MissingRequirement[];
   /** Completeness only — never an approval likelihood. */
   readonly ready: boolean;
+  /** RUL-04: every requirement's richer result state, including NOT_APPLICABLE ones (never excluded, since a case-not-applicable verdict is itself something a reviewer needs to see, not silently dropped). */
+  readonly requirementResults: readonly RequirementResultSummary[];
+  readonly overallState: OverallReadinessState;
 }
 
 export interface MissionUsingField {
@@ -739,18 +781,34 @@ export async function computeReadiness(
   const factsByKey = await loadFactInstancesByKey(db, mission.applicantId);
   const documentsByType = await loadDocumentInstancesByType(db, mission.applicantId);
   const selections = await loadSelectionsByRequirement(db, missionId);
+  const context = buildFactEvaluationContext(factsByKey, now);
   const mapping = buildRequirementMapping(
     requirements,
     factsByKey,
     documentsByType,
     selections,
     now,
+    context,
   );
 
   const missing: MissingRequirement[] = [];
+  const requirementResults: RequirementResultSummary[] = [];
   let requiredCount = 0;
   let satisfiedRequired = 0;
   for (const entry of mapping) {
+    requirementResults.push({
+      packRequirementId: entry.packRequirementId,
+      kind: entry.kind,
+      key: entry.key,
+      optional: entry.optional,
+      state: entry.resultState,
+    });
+    // A NOT_APPLICABLE requirement never counts toward "what must still be
+    // done": it is not required, not missing, not satisfied; it simply
+    // does not apply to this case (RUL-04). `total` below stays the full
+    // pack-defined count regardless, so a UI can still say "N total, M not
+    // applicable to your case."
+    if (entry.resultState === 'NOT_APPLICABLE') continue;
     if (!entry.optional) {
       requiredCount++;
       if (entry.satisfied) satisfiedRequired++;
@@ -774,12 +832,19 @@ export async function computeReadiness(
     }
   }
 
+  const ready = requiredCount > 0 && satisfiedRequired === requiredCount;
   return ok({
     total: mapping.length,
     requiredCount,
     satisfiedRequired,
     missing,
-    ready: requiredCount > 0 && satisfiedRequired === requiredCount,
+    ready,
+    requirementResults,
+    overallState: deriveOverallReadinessState({
+      manualMode: mission.manualMode,
+      requirementResults,
+      ready,
+    }),
   });
 }
 
@@ -891,6 +956,8 @@ export interface RequirementMappingEntry {
   readonly citation: string;
   readonly optional: boolean;
   readonly satisfied: boolean;
+  /** RUL-04's richer outcome for this one requirement, per `resolveRequirementResultState`'s cascade. */
+  readonly resultState: RequirementResultState;
   readonly facts?: ReadonlyArray<{
     readonly factId: string;
     readonly factVersionId: string | null;
@@ -910,6 +977,124 @@ export interface RequirementMappingEntry {
     /** NTF-01: this requirement's `maxAgeDays` rule applied to this document's own date, kept separate from `eligible` (intrinsic-only). */
     readonly staleness: StalenessClassification;
   }>;
+}
+
+/**
+ * One `EvaluationContext` built once per readiness computation (RUL-03/04),
+ * shared by every requirement's `condition`. A condition's `field` always
+ * references an applicant fact by key, FIELD and DOCUMENT requirements
+ * alike, since a condition describes when the requirement applies, never a
+ * property of the requirement's own evidence. For a repeating field, the
+ * first ELIGIBLE instance's value stands in for "the field's value", a
+ * pragmatic, documented choice, since a condition referencing a genuinely
+ * repeating fact is an edge case the directive doesn't specify further. A
+ * field with no eligible instance (never provided, or every instance
+ * conflicted/stale/unconfirmed) resolves to `undefined`, which
+ * `evaluateCondition` already treats as `'unknown'`, never `'false'`.
+ */
+function buildFactEvaluationContext(
+  factsByKey: ReadonlyMap<string, readonly FactInstance[]>,
+  now: Date,
+): EvaluationContext {
+  return {
+    now,
+    getValue(field) {
+      const eligible = (factsByKey.get(field) ?? []).find((i) => isFactStatusEligible(i.status));
+      return eligible?.value ?? undefined;
+    },
+  };
+}
+
+/**
+ * The RUL-04 cascade deciding one requirement's richer result state, given
+ * what the pre-existing satisfied/reason logic already establishes plus the
+ * new condition tri-state. Order matters and is deliberate:
+ *
+ * 1. `condition` evaluates `'false'` → NOT_APPLICABLE, unconditionally:
+ *    a requirement that structurally does not apply to this case must never
+ *    read as blocking or needing evidence, whatever evidence happens to
+ *    exist.
+ * 2. A genuine conflict/staleness among this requirement's OWN evidence
+ *    outranks an otherwise-satisfied verdict. A repeating field can have
+ *    one clean instance and one CONFLICTED instance simultaneously
+ *    (`satisfied` only requires ONE eligible instance), and silently
+ *    reporting SATISFIED while hiding that would bury exactly the kind of
+ *    conflict RUL-03/04 exists to surface, not paper over.
+ * 3. `satisfied` (the existing, unchanged existence check) → SATISFIED.
+ *    Evidence that is genuinely present and eligible is never wrong to
+ *    report as satisfied, regardless of whether this requirement's OWN
+ *    condition happens to also be unknown (that uncertainty belongs to
+ *    whichever OTHER requirement tracks the condition's referenced field,
+ *    if any; this module never invents a dependency it can't observe).
+ * 4. `condition` evaluates `'unknown'` (and evidence is NOT satisfied) →
+ *    UNVERIFIED. We cannot yet tell whether this requirement even applies,
+ *    so demanding evidence for it now (CRITICAL_GAP) would overstate the
+ *    actual next action; "answer the condition's field first" is.
+ * 5. Otherwise: ATTENTION for an optional gap, CRITICAL_GAP for a required
+ *    one, the pre-existing required/optional split, now named.
+ */
+function resolveRequirementResultState(input: {
+  readonly satisfied: boolean;
+  readonly optional: boolean;
+  readonly conditionResult: RuleConditionResult | null;
+  readonly hasConflict: boolean;
+  readonly hasStale: boolean;
+}): RequirementResultState {
+  if (input.conditionResult === 'false') return 'NOT_APPLICABLE';
+  if (input.hasConflict) return 'CONFLICTING';
+  if (input.hasStale) return 'EXPIRING_STALE';
+  if (input.satisfied) return 'SATISFIED';
+  if (input.conditionResult === 'unknown') return 'UNVERIFIED';
+  return input.optional ? 'ATTENTION' : 'CRITICAL_GAP';
+}
+
+/**
+ * The RUL-04 case-level cascade: "do not average scores; one blocking
+ * requirement remains visible" (master directive Part 6 §5). A manual-mode
+ * mission (CAS-01: an unsupported/manual route) is MANUAL_ONLY regardless of
+ * what the requirement states below would otherwise say. It deliberately
+ * receives no automated assessment at all, per RUL-04's "still usable,
+ * visibly not officially assessed." Otherwise: any REQUIRED requirement in a
+ * hard-gap state (CRITICAL_GAP/CONFLICTING/EXPIRING_STALE) blocks outright
+ * (NEEDS_ACTION); short of that, any required UNVERIFIED requirement still
+ * needs a human answer before the case can be called complete (NEEDS_REVIEW,
+ * distinct from a hard block); only once neither applies does `ready` (the
+ * pre-existing, unchanged completeness check) decide
+ * READY_FOR_APPLICANT_REVIEW. A NOT_APPLICABLE requirement can never match
+ * any of these state checks (they are mutually exclusive), so it needs no
+ * separate exclusion here.
+ */
+function deriveOverallReadinessState(input: {
+  readonly manualMode: boolean;
+  readonly requirementResults: readonly RequirementResultSummary[];
+  readonly ready: boolean;
+}): OverallReadinessState {
+  if (input.manualMode) return 'MANUAL_ONLY';
+  const required = input.requirementResults.filter((r) => !r.optional);
+  if (
+    required.some(
+      (r) =>
+        r.state === 'CRITICAL_GAP' || r.state === 'CONFLICTING' || r.state === 'EXPIRING_STALE',
+    )
+  ) {
+    return 'NEEDS_ACTION';
+  }
+  if (required.some((r) => r.state === 'UNVERIFIED')) return 'NEEDS_REVIEW';
+  if (input.ready) return 'READY_FOR_APPLICANT_REVIEW';
+  // Edge case: e.g. requiredCount === 0 (no required requirements at all).
+  // `ready` is deliberately false for that today (unchanged), and there is
+  // no more honest bucket among the four named states than "not yet
+  // reviewable," so this conservative fallback never claims a false green.
+  return 'NEEDS_ACTION';
+}
+
+/** This requirement's condition result, or `null` for the (today, universal) case of no condition at all: never evaluated, never NOT_APPLICABLE/UNVERIFIED. An unparseable stored value (should never happen; `addRequirement` validates before storing) fails open the same way, rather than throwing. */
+function evaluateRequirementCondition(
+  req: PackRequirement,
+  context: EvaluationContext,
+): RuleConditionResult | null {
+  if (req.condition == null || !isValidRuleCondition(req.condition)) return null;
+  return evaluateCondition(req.condition, context);
 }
 
 /**
@@ -935,6 +1120,11 @@ export interface RequirementMappingEntry {
  * satisfaction, the same "fail open on missing data, fail closed on a
  * confirmed problem" posture `computeReadiness` already applies to a
  * CONFLICTED fact vs. one simply not yet provided.
+ *
+ * `context` (RUL-03/04) resolves each requirement's optional `condition`
+ * against the same applicant facts, feeding `resolveRequirementResultState`.
+ * A requirement with no condition (every pre-existing pack) evaluates
+ * exactly as before; this parameter changes nothing for it.
  */
 function buildRequirementMapping(
   requirements: readonly PackRequirement[],
@@ -942,8 +1132,10 @@ function buildRequirementMapping(
   documentsByType: ReadonlyMap<DocumentGroupKey, readonly DocumentInstance[]>,
   selections: SelectionSets,
   now: Date,
+  context: EvaluationContext,
 ): RequirementMappingEntry[] {
   return requirements.map((req): RequirementMappingEntry => {
+    const conditionResult = evaluateRequirementCondition(req, context);
     if (req.kind === 'FIELD') {
       const key = req.fieldKey ?? '';
       let instances = factsByKey.get(key) ?? [];
@@ -960,13 +1152,21 @@ function buildRequirementMapping(
         eligible: isFactStatusEligible(i.status),
         evidenceLinkIds: i.evidenceLinkIds,
       }));
+      const satisfied = facts.some((f) => f.eligible);
       return {
         packRequirementId: req.id,
         kind: 'FIELD',
         key,
         citation: req.citation,
         optional: req.optional,
-        satisfied: facts.some((f) => f.eligible),
+        satisfied,
+        resultState: resolveRequirementResultState({
+          satisfied,
+          optional: req.optional,
+          conditionResult,
+          hasConflict: facts.some((f) => f.status === 'CONFLICTED'),
+          hasStale: false,
+        }),
         facts,
       };
     }
@@ -985,13 +1185,21 @@ function buildRequirementMapping(
       eligible: d.eligible,
       staleness: classifyStaleness(parseDocumentDate(d.documentDate), req.maxAgeDays, now),
     }));
+    const satisfied = documents.some((d) => d.eligible && d.staleness.status !== 'stale');
     return {
       packRequirementId: req.id,
       kind: 'DOCUMENT',
       key,
       citation: req.citation,
       optional: req.optional,
-      satisfied: documents.some((d) => d.eligible && d.staleness.status !== 'stale'),
+      satisfied,
+      resultState: resolveRequirementResultState({
+        satisfied,
+        optional: req.optional,
+        conditionResult,
+        hasConflict: false,
+        hasStale: documents.some((d) => d.eligible && d.staleness.status === 'stale'),
+      }),
       documents,
     };
   });
@@ -1035,12 +1243,14 @@ export async function snapshotMission(
         .limit(1),
     );
     const requirements = await listRequirements(db, mission.packVersionId);
+    const snapshotNow = new Date();
     requirementMapping = buildRequirementMapping(
       requirements,
       factsByKey,
       documentsByType,
       selections,
-      new Date(),
+      snapshotNow,
+      buildFactEvaluationContext(factsByKey, snapshotNow),
     );
     packVersionSnapshot = packVersion ?? null;
   }
@@ -1953,12 +2163,14 @@ export async function generateCoverLetter(
   const factsByKey = await loadFactInstancesByKey(db, mission.applicantId);
   const documentsByType = await loadDocumentInstancesByType(db, mission.applicantId);
   const selections = await loadSelectionsByRequirement(db, mission.id);
+  const letterNow = new Date();
   const mapping = buildRequirementMapping(
     requirements,
     factsByKey,
     documentsByType,
     selections,
-    new Date(),
+    letterNow,
+    buildFactEvaluationContext(factsByKey, letterNow),
   );
   const { content, groundedReferences } = buildCoverLetterContent(mission, mapping);
   if (groundedReferences.length === 0) {

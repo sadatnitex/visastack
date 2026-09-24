@@ -961,12 +961,13 @@ item gets its own requirements-ledger row once classified against the new direct
     now means "superseded by a newer publish," set automatically. Author
     and reviewer distinctness is enforced for an `authoritative` pack only,
     never an agency's own custom checklist, matching the directive's own
-    scoping. **Not yet done, and explicitly not silently skipped:** the new
+    scoping. ~~**Not yet done, and explicitly not silently skipped:** the new
     AST is not wired into `computeReadiness`/`buildRequirementMapping` --
     that, plus RUL-04's richer per-requirement/overall result vocabulary it
     will feed, is the next PR in this Part, kept separate so "add the
     engine" and "change what readiness computes" stay independently
-    reviewable. Also still open: RUL-05's review queue, version diff, and
+    reviewable.~~ **RESOLVED (Part 6 Phase 1b) -- see item 68.** Still open:
+    RUL-05's review queue, version diff, and
     active-case impact list (admin UI, Phase 2); RUL-06 Public Trust Lite
     (untouched); and, as stated from the start of this Part, the two launch
     packs' actual rule content -- this sandbox has no live internet access
@@ -975,6 +976,29 @@ item gets its own requirements-ledger row once classified against the new direct
     Standard Visitor / Schengen short-stay content stays honestly
     DRAFT/BLOCKED rather than fabricated. Full detail:
     `requirements-ledger.md` RUL-01/02/03/05.
+68. Part 6 Phase 1b wires RUL-03's condition AST into
+    `computeReadiness`/`buildRequirementMapping` (`missions.ts`) and
+    implements RUL-04's full result-state vocabulary, closing item 67's one
+    open thread. Every requirement now resolves to one of the directive's
+    seven named states (SATISFIED/ATTENTION/CRITICAL_GAP/UNVERIFIED/
+    CONFLICTING/EXPIRING_STALE/NOT_APPLICABLE) via a single cascade function
+    (`resolveRequirementResultState`), and `Readiness` gained `overallState`
+    (MANUAL_ONLY/NEEDS_ACTION/NEEDS_REVIEW/READY_FOR_APPLICANT_REVIEW) via
+    `deriveOverallReadinessState`, matching "do not average scores; one
+    blocking requirement remains visible." A conflicted or stale instance is
+    now surfaced even when a sibling instance of the same repeating field
+    would otherwise report the requirement satisfied -- the pre-existing
+    boolean `satisfied` check only ever needed one eligible instance, which
+    silently hid a conflict on a second one. Zero behavior change for any
+    pre-existing pack: none has ever set a `condition`, so every requirement
+    still resolves through exactly the same satisfied/reason logic as
+    before, proven by a dedicated regression test. 7 new tests
+    (`missions.test.ts`); all 52 tests in that file pass, unmodified ones
+    included. **Not yet done, and explicitly not silently skipped:** the
+    case-readiness UI itself (directive §10 -- surfacing state, source,
+    freshness, and next action to an agency or traveller) is UI-layer work,
+    out of this service-layer chunk. Full detail: `requirements-ledger.md`
+    RUL-03/RUL-04.
 independently confirmed findings; the missing PRD file is tracked as Blocker 1 in
 `assumptions-and-blockers.md` (now resolved) rather than here, since it blocked the
 programme rather than being a product defect.
