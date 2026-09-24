@@ -49,6 +49,7 @@ export default async function RootLayout({ children }: { readonly children: Reac
           </Link>
           <nav className="nav-links" aria-label="Primary">
             <Link href="/#capabilities">Platform</Link>
+            <Link href="/trust">Public trust</Link>
             <Link href="/status">Status</Link>
             <form action={setLocaleAction} aria-label="Language">
               <input type="hidden" name="locale" value={locale === 'en' ? 'bn' : 'en'} />

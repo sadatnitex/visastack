@@ -4,10 +4,14 @@ import { useActionState } from 'react';
 import {
   type ActionState,
   approveVersionAction,
+  clearOfficialFeeStaleAction,
   clearSourceInaccessibleAction,
+  markOfficialFeeStaleAction,
   markSourceInaccessibleAction,
   openVersionAction,
+  publishToPublicTrustAction,
   publishVersionAction,
+  unpublishFromPublicTrustAction,
   withdrawVersionAction,
 } from './actions';
 
@@ -131,6 +135,97 @@ export function WithdrawVersionButton({
         <p className={`field-msg ${state.ok ? 'field-msg-ok' : 'field-msg-err'}`}>
           {state.message}
         </p>
+      ) : null}
+    </div>
+  );
+}
+
+/** Expose/remove a PUBLISHED, authoritative version on the public trust surface (RUL-06). */
+export function PublicTrustPublishButton({
+  packId,
+  packVersionId,
+  published,
+}: {
+  readonly packId: string;
+  readonly packVersionId: string;
+  readonly published: boolean;
+}) {
+  const [state, formAction, pending] = useActionState(
+    published ? unpublishFromPublicTrustAction : publishToPublicTrustAction,
+    INITIAL,
+  );
+  return (
+    <div style={{ marginTop: '0.75rem' }}>
+      <form
+        action={formAction}
+        onSubmit={(e) => {
+          if (
+            published &&
+            !window.confirm(
+              'Remove this route from the public trust page? It stays usable by missions.',
+            )
+          ) {
+            e.preventDefault();
+          }
+        }}
+      >
+        <input type="hidden" name="packId" value={packId} />
+        <input type="hidden" name="packVersionId" value={packVersionId} />
+        <button
+          type="submit"
+          className={`btn ${published ? 'btn-danger' : 'btn-primary'}`}
+          disabled={pending}
+        >
+          {pending
+            ? published
+              ? 'Removing…'
+              : 'Publishing…'
+            : published
+              ? 'Remove from public trust'
+              : 'Publish to public trust'}
+        </button>
+      </form>
+      {state.message ? (
+        <p className={`field-msg ${state.ok ? 'field-msg-ok' : 'field-msg-err'}`}>
+          {state.message}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+/** Toggle a PUBLISHED version's official-fee staleness mark (RUL-06) -- mirrors `SourceInaccessibleButton` exactly. */
+export function OfficialFeeStaleButton({
+  packId,
+  packVersionId,
+  stale,
+}: {
+  readonly packId: string;
+  readonly packVersionId: string;
+  readonly stale: boolean;
+}) {
+  const [state, formAction, pending] = useActionState(
+    stale ? clearOfficialFeeStaleAction : markOfficialFeeStaleAction,
+    INITIAL,
+  );
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+      <form action={formAction}>
+        <input type="hidden" name="packId" value={packId} />
+        <input type="hidden" name="packVersionId" value={packVersionId} />
+        <button
+          type="submit"
+          className={`btn ${stale ? 'btn-secondary' : 'btn-danger'}`}
+          style={{ padding: '0.2rem 0.6rem', fontSize: '0.75rem' }}
+          disabled={pending}
+        >
+          {pending ? '…' : stale ? 'Restore fee' : 'Mark fee stale'}
+        </button>
+      </form>
+      {state.message ? (
+        <span className={`field-msg ${state.ok ? 'field-msg-ok' : 'field-msg-err'}`}>
+          {state.message}
+        </span>
       ) : null}
     </div>
   );
