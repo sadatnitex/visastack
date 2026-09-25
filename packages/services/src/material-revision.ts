@@ -1,4 +1,4 @@
-import { eq, sql } from 'drizzle-orm';
+import { and, eq, isNull, sql } from 'drizzle-orm';
 import { type Db, schema } from './db';
 
 /**
@@ -9,21 +9,44 @@ import { type Db, schema } from './db';
  * inside the caller's own transaction, alongside the material mutation that
  * triggered it -- never as a separate, later write that could commit
  * independently. The exact value is never meaningful on its own, only
- * whether it still matches what a snapshot (or, once built, an
- * acknowledgement, TRU-02) captured.
+ * whether it still matches what a snapshot or acknowledgement (TRU-02)
+ * captured.
  *
  * Lives in its own module, depending only on `db`/`schema`, specifically so
- * `missions.ts`, `profile.ts` (`editFact`), and `documents.ts`
- * (`addDocumentVersion`) can all call it without any of the three importing
- * from one another. `missions.ts` already imports from `documents.ts`, so
- * either of those importing this same concern back from `missions.ts` would
- * be a circular import.
+ * `missions.ts`, `profile.ts` (`editFact`), `documents.ts`
+ * (`addDocumentVersion`), and `erasure.ts` can all call it without any of
+ * them importing from one another. `missions.ts` already imports from
+ * `documents.ts`, so either of those importing this same concern back from
+ * `missions.ts` would be a circular import.
+ *
+ * §4's own text: "Material changes increment revision in SAME transaction
+ * as mutation AND ACKNOWLEDGEMENT INVALIDATION" -- so this function also
+ * invalidates any currently-live acknowledgement (TRU-02) for the mission,
+ * right here, rather than making every one of the call sites above
+ * separately re-derive "does this mutation invalidate the current
+ * acknowledgement" (they would all get the same answer: yes, always, since
+ * ANY material change does). This references `schema.acknowledgements`
+ * directly -- a table shape from `@visastack/db`, not a service export --
+ * so it needs no import from `acknowledgements.ts` and creates no new edge
+ * at all. Only a still-valid ACKNOWLEDGED row is touched:
+ * REJECTED/CORRECTION_REQUESTED rows were never a valid green light to
+ * begin with, and an already-invalidated row has nothing left to mark.
  */
 export async function incrementMaterialRevision(tx: Db, missionId: string): Promise<void> {
   await tx
     .update(schema.missions)
     .set({ materialRevision: sql`${schema.missions.materialRevision} + 1` })
     .where(eq(schema.missions.id, missionId));
+  await tx
+    .update(schema.acknowledgements)
+    .set({ invalidatedAt: sql`now()` })
+    .where(
+      and(
+        eq(schema.acknowledgements.missionId, missionId),
+        eq(schema.acknowledgements.decision, 'ACKNOWLEDGED'),
+        isNull(schema.acknowledgements.invalidatedAt),
+      ),
+    );
 }
 
 /**
