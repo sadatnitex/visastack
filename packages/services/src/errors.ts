@@ -25,7 +25,9 @@ export type ServiceErrorCode =
   /** The actor has exceeded an anti-automation rate limit; retry later. */
   | 'rate_limited'
   /** The operation needs a capability (e.g. protected-field encryption) that isn't configured in this environment — a server gap, not a client mistake. */
-  | 'encryption_unavailable';
+  | 'encryption_unavailable'
+  /** The caller's view of the world (a revision, checksum, or other precondition) is no longer current - retry against fresh data, this is not a malformed request. */
+  | 'stale';
 
 export interface ServiceError {
   readonly code: ServiceErrorCode;

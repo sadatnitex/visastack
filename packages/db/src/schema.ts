@@ -202,6 +202,17 @@ export const evidenceRequestDecisionOutcome = pgEnum('evidence_request_decision_
 ]);
 // --- Mission collaboration additions (master directive §7 "PR 10") ---------
 export const missionDecisionOutcome = pgEnum('mission_decision_outcome', ['ACCEPTED', 'REJECTED']);
+// TRU-02 (master directive Part 7 §3): the applicant's own decision on a
+// prepared file, distinct from missionDecisionOutcome above (a REVIEWER's
+// decision on one piece of evidence). REJECTED/CORRECTION_REQUESTED both
+// require a reason (enforced in the service layer, not here, matching this
+// schema's existing convention for optional-but-conditionally-required text
+// columns); ACKNOWLEDGED does not.
+export const acknowledgementDecision = pgEnum('acknowledgement_decision', [
+  'ACKNOWLEDGED',
+  'REJECTED',
+  'CORRECTION_REQUESTED',
+]);
 // Commercial V1 Part 4 §11: "States: OPEN, IN_PROGRESS, DONE, CANCELLED."
 // IN_PROGRESS added after OPEN/DONE/CANCELLED already shipped (Part 3) --
 // additive only, matching this codebase's enum-migration discipline.
@@ -1592,6 +1603,88 @@ export const missionSnapshots = pgTable(
   },
   (table) => [
     unique('mission_snapshots_mission_version_unique').on(table.missionId, table.version),
+  ],
+);
+
+// TRU-02 (master directive Part 7 §3): "Implement immutable acknowledgement
+// record." Every applicant decision on a prepared file (acknowledge; reject;
+// request correction) is its own row, created already-decided -- there is no
+// PENDING state to propose in advance, unlike documentNameVersions' own
+// propose-then-decide shape, since the applicant reviews the file and picks
+// one of the three actions in a single step. "Immutable" describes every
+// column below except `invalidatedAt`: a later material change can mark an
+// ACKNOWLEDGED row invalid (TRU-03, Part 7 §4's "acknowledgement
+// invalidation"), but nothing ever edits what this row says the actor
+// actually attested to at the time -- see invalidatedAt's own comment.
+export const acknowledgements = pgTable(
+  'acknowledgements',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    missionId: uuid('mission_id')
+      .notNull()
+      .references(() => missions.id, { onDelete: 'cascade' }),
+    // "subject": the represented applicant -- IAM-04's own row already
+    // established Applicant.id as the represented-subject half of "guardian/
+    // delegate records both actor and represented applicant." Denormalized
+    // off the mission rather than joined on every read, since a mission's
+    // applicantId is fixed at creation and never changes.
+    subjectApplicantId: uuid('subject_applicant_id')
+      .notNull()
+      .references(() => applicants.id, { onDelete: 'restrict' }),
+    snapshotId: uuid('snapshot_id')
+      .notNull()
+      .references(() => missionSnapshots.id, { onDelete: 'restrict' }),
+    // Denormalized copies of the snapshot's own checksum/revision AT THIS
+    // ACKNOWLEDGEMENT'S MOMENT -- the same "store a tamper-evident copy on
+    // the record itself" reasoning missionSnapshots.checksum already gets a
+    // real column for, independent of whatever the referenced snapshot row
+    // shows. This is also literally what "case material revision" (the
+    // directive's own field name, distinct from "snapshot ID") means: the
+    // value in force when THIS action was taken, permanent even if the
+    // snapshot row's own materialRevisionAtCapture were ever inspected
+    // alongside it.
+    snapshotChecksum: text('snapshot_checksum').notNull(),
+    caseMaterialRevision: integer('case_material_revision').notNull(),
+    decision: acknowledgementDecision('decision').notNull(),
+    // Required for REJECTED/CORRECTION_REQUESTED ("request correction +
+    // reason"); optional for ACKNOWLEDGED (agreeing needs no explanation).
+    reason: text('reason'),
+    // "acknowledging actor": restrict, not set null -- every field on an
+    // immutable attestation record must stay permanently attributable; an
+    // anonymized actor would defeat the record's own purpose.
+    actorAccountId: uuid('actor_account_id')
+      .notNull()
+      .references(() => accounts.id, { onDelete: 'restrict' }),
+    // "actor authority/representation": the applicant's own `relationship`
+    // value AT THIS MOMENT, copied rather than joined, so a later edit to
+    // the applicant's relationship can never retroactively change what this
+    // record says the actor's authority was when they actually acted.
+    actorAuthority: applicantRelationship('actor_authority').notNull(),
+    // "acknowledgement-text version": see ACKNOWLEDGEMENT_TEXT_VERSION's own
+    // doc comment (packages/services/src/acknowledgements.ts).
+    textVersion: integer('text_version').notNull(),
+    // "auth/assurance context": a server-recorded description of how step-up
+    // was satisfied for this action, never a caller-supplied claim. jsonb
+    // rather than a fixed column set, since this is the field most likely to
+    // gain richer detail later (a specific session marker, an MFA method)
+    // without another migration.
+    authAssuranceContext: jsonb('auth_assurance_context').notNull(),
+    // TRU-03 (Part 7 §4): "Material changes increment revision in the SAME
+    // transaction as mutation AND acknowledgement invalidation." Set only by
+    // material-revision.ts's incrementMaterialRevision, never by this
+    // table's own service file -- a later material change on the mission
+    // invalidates a live ACKNOWLEDGED row without editing any of the columns
+    // above, preserving "immutable acknowledgement record" for everything
+    // this action actually attested to; only the fact that something else
+    // later happened is layered on top. Null means still valid, or not
+    // applicable: REJECTED/CORRECTION_REQUESTED were never a valid green
+    // light in the first place, so this stays null for them permanently.
+    invalidatedAt: timestamp('invalidated_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('acknowledgements_mission_idx').on(table.missionId),
+    index('acknowledgements_snapshot_idx').on(table.snapshotId),
   ],
 );
 

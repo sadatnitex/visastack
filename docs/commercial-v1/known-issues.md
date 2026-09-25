@@ -1198,6 +1198,31 @@ item gets its own requirements-ledger row once classified against the new direct
     bumping has already been deleted, along with its applicant, before that
     erasure worker step ever runs. Full detail: `requirements-ledger.md`
     TRU-03.
+75. (Part 7 §3) TRU-02 (acknowledgement) is backend-only so far: the
+    `acknowledgements` table, `decideAcknowledgement`, and the
+    invalidation wiring into `incrementMaterialRevision` are built and
+    tested, but nothing in `apps/web` calls any of it yet. Deliberately
+    split this way, the same Phase-1/Phase-2 shape RUL-06 already used, not
+    a gap discovered late. Concretely still missing, each named rather than
+    lumped together: (a) the applicant review page itself (§2's manifest,
+    evidence bundle, selected facts, rule/source context, known
+    limitations, and the "Applicant-acknowledged prepared file" label,
+    with the "do not label embassy submitted/officially verified/approved/
+    legally signed unless separately true" rule to honor); (b) the
+    acknowledge/reject/request-correction buttons and the real
+    `establishStepUp`/`tryEstablishStepUp` call that produces the
+    `stepUpSatisfied` boolean `decideAcknowledgement` takes as input; (c)
+    §5's case-workspace treatment of an invalidated acknowledgement
+    ("historical acknowledged snapshot remains immutable/downloadable...
+    labelled historical") and of a case going "dirty" when its live
+    acknowledgement is invalidated; (d) any UI surfacing
+    `listAcknowledgementsForMission`/`getLiveAcknowledgement` at all, so a
+    case's acknowledgement history and current status are only queryable
+    today, not visible anywhere a person looks. None of this blocks TRU-02's
+    own backend guarantees (they are proven by `acknowledgements.test.ts`
+    independent of any UI), but the acknowledgement FEATURE -- something an
+    applicant can actually do -- does not exist until it is built. Full
+    detail: `requirements-ledger.md` TRU-02.
 independently confirmed findings; the missing PRD file is tracked as Blocker 1 in
 `assumptions-and-blockers.md` (now resolved) rather than here, since it blocked the
 programme rather than being a product defect.

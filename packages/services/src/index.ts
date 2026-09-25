@@ -381,6 +381,15 @@ export {
 } from './missions';
 
 export {
+  ACKNOWLEDGEMENT_TEXT_VERSION,
+  type Acknowledgement,
+  type DecideAcknowledgementInput,
+  decideAcknowledgement,
+  getLiveAcknowledgement,
+  listAcknowledgementsForMission,
+} from './acknowledgements';
+
+export {
   type Pack,
   type PackRequirement,
   type PackVersion,
