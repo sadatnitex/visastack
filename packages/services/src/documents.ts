@@ -25,6 +25,7 @@ import {
 import { hasActiveOrVerifiedErasureJob } from './erasure';
 import { type ServiceError, serviceError } from './errors';
 import { isValidDocumentDateString } from './expiry';
+import { incrementMaterialRevision, missionsSelectingDocument } from './material-revision';
 import { listMembershipsForAccount } from './organizations';
 import { recordProductEvent } from './product-events';
 import { loadGrantsForPolicy } from './sharing';
@@ -262,6 +263,13 @@ export async function addDocumentVersion(
       ),
       'document version',
     );
+
+    // TRU-03 (Part 7 §4): "selected document version" is material even when
+    // the selection itself doesn't change -- see material-revision.ts's own
+    // doc comment for why this can't live in missions.ts directly.
+    for (const missionId of await missionsSelectingDocument(tx, input.documentId)) {
+      await incrementMaterialRevision(tx, missionId);
+    }
 
     await appendAuditEvent(tx, {
       eventType: 'DOCUMENT_VERSION_ADDED',

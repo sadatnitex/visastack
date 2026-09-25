@@ -19,6 +19,14 @@ import {
   runErasureWorker,
 } from './erasure';
 import { placeLegalHold } from './legal-hold';
+import { attachPackVersion, createMission, getMissionForOwner, selectEvidence } from './missions';
+import {
+  addPackVersion,
+  addRequirement,
+  approvePackVersion,
+  createPack,
+  publishPackVersion,
+} from './packs';
 import type {
   BlobStore,
   ListObjectsPage,
@@ -223,6 +231,99 @@ describe('erasure outbox', () => {
     expect(
       await db.select().from(schema.documents).where(eq(schema.documents.id, doc.value.id)),
     ).toHaveLength(0);
+  });
+
+  it("TRU-03 (Part 7 §4): purging a document selected as evidence bumps its selecting mission's material revision", async () => {
+    const { account, applicantId } = await seedApplicant(db, 'purge-selected@example.com');
+    const pack = await createPack(db, {
+      actorAccountId: account.id,
+      key: 'purge-selected.pack',
+      name: 'Purge Selected Test Pack',
+    });
+    if (!isOk(pack)) throw new Error('pack');
+    const version = await addPackVersion(db, { actorAccountId: account.id, packId: pack.value.id });
+    if (!isOk(version)) throw new Error('version');
+    const requirement = await addRequirement(db, {
+      actorAccountId: account.id,
+      packVersionId: version.value.id,
+      kind: 'DOCUMENT',
+      docType: 'bank_statement',
+      citation: 'rule 1',
+    });
+    if (!isOk(requirement)) throw new Error('requirement');
+    await approvePackVersion(db, { actorAccountId: account.id, packVersionId: version.value.id });
+    await publishPackVersion(db, { actorAccountId: account.id, packVersionId: version.value.id });
+
+    const mission = await createMission(db, {
+      actorAccountId: account.id,
+      applicantId,
+      title: 'Purge-affected case',
+    });
+    if (!isOk(mission)) throw new Error('mission');
+    await attachPackVersion(db, {
+      actorAccountId: account.id,
+      missionId: mission.value.id,
+      packVersionId: version.value.id,
+    });
+
+    const doc = await registerDocument(db, {
+      actorAccountId: account.id,
+      applicantId,
+      originalName: 'r2.pdf',
+      docType: 'bank_statement',
+    });
+    if (!isOk(doc)) throw new Error('doc');
+    await addDocumentVersion(db, {
+      actorAccountId: account.id,
+      documentId: doc.value.id,
+      bucket: 'CLEAN',
+      objectKey: 'obj-purge-selected',
+      safetyStatus: 'CLEAN',
+      processingStatus: 'AWAITING_REVIEW',
+    });
+    await storage.putObject({
+      bucket: 'CLEAN',
+      objectKey: 'obj-purge-selected',
+      contentType: 'application/pdf',
+      bytes: new Uint8Array([1]),
+    });
+
+    const selected = await selectEvidence(db, {
+      actorAccountId: account.id,
+      missionId: mission.value.id,
+      packRequirementId: requirement.value.id,
+      documentId: doc.value.id,
+    });
+    expect(isOk(selected)).toBe(true);
+
+    const before = await getMissionForOwner(db, account.id, mission.value.id);
+    if (!isOk(before)) throw new Error('mission');
+    const beforeRevision = before.value.materialRevision;
+
+    const [storageObject] = await db
+      .select()
+      .from(schema.storageObjects)
+      .where(eq(schema.storageObjects.objectKey, 'obj-purge-selected'));
+    if (!storageObject) throw new Error('storage object');
+    await enqueueErasureJob(db, {
+      reason: 'RETENTION_PURGE',
+      bucket: 'CLEAN',
+      objectKey: 'obj-purge-selected',
+      expectedHash: null,
+      storageObjectId: storageObject.id,
+      documentId: doc.value.id,
+      applicantId,
+    });
+
+    const result = await runErasureWorker(db, storage, { limit: 5 });
+    expect(result).toEqual({ processed: 1, blocked: 0, failed: 0 });
+    expect(
+      await db.select().from(schema.documents).where(eq(schema.documents.id, doc.value.id)),
+    ).toHaveLength(0);
+
+    const after = await getMissionForOwner(db, account.id, mission.value.id);
+    if (!isOk(after)) throw new Error('mission');
+    expect(after.value.materialRevision).toBe(beforeRevision + 1);
   });
 
   it('never touches the deferred document for ACCOUNT_DELETION jobs (documentId is unset)', async () => {

@@ -1884,6 +1884,328 @@ describe('mission collaboration — evidence selection, tasks, grounded letters 
   });
 });
 
+describe('TRU-03 (Commercial V1 Part 7 §4): case material revision', () => {
+  let db: Db;
+  beforeEach(async () => {
+    db = await freshDb();
+  });
+
+  async function setUp(db: Db) {
+    const { account, applicantId } = await seed(db);
+    const packVersionId = await publishedPack(db, account.id);
+    const mission = await createMission(db, {
+      actorAccountId: account.id,
+      applicantId,
+      title: 'UK Visa',
+    });
+    if (!isOk(mission)) throw new Error('mission');
+    await attachPackVersion(db, {
+      actorAccountId: account.id,
+      missionId: mission.value.id,
+      packVersionId,
+    });
+    await registerFieldDefinition(db, { key: 'passport.number', dataType: 'string' });
+    const fact = await editFact(db, {
+      actorAccountId: account.id,
+      applicantId,
+      fieldKey: 'passport.number',
+      value: 'A1',
+    });
+    if (!isOk(fact)) throw new Error('fact');
+    const doc = await registerDocument(db, {
+      actorAccountId: account.id,
+      applicantId,
+      originalName: 'bank.pdf',
+      docType: 'bank_statement',
+    });
+    if (!isOk(doc)) throw new Error('doc');
+    await addDocumentVersion(db, {
+      actorAccountId: account.id,
+      documentId: doc.value.id,
+      bucket: 'CLEAN',
+      objectKey: 'k',
+      safetyStatus: 'CLEAN',
+      processingStatus: 'AWAITING_REVIEW',
+    });
+
+    const requirements = await db
+      .select()
+      .from(schema.packRequirements)
+      .where(eq(schema.packRequirements.packVersionId, packVersionId));
+    const fieldRequirementId = requirements.find((r) => r.kind === 'FIELD')?.id;
+    const documentRequirementId = requirements.find((r) => r.kind === 'DOCUMENT')?.id;
+    if (!fieldRequirementId || !documentRequirementId) throw new Error('requirements');
+
+    return {
+      account,
+      applicantId,
+      packVersionId,
+      missionId: mission.value.id,
+      factId: fact.value.fact.id,
+      documentId: doc.value.id,
+      fieldRequirementId,
+      documentRequirementId,
+    };
+  }
+
+  async function revisionOf(actorAccountId: string, missionId: string): Promise<number> {
+    const loaded = await getMissionForOwner(db, actorAccountId, missionId);
+    if (!isOk(loaded)) throw new Error('mission');
+    return loaded.value.materialRevision;
+  }
+
+  it('starts at 1 on creation, and attaching a pack version bumps it by exactly 1', async () => {
+    const { account, applicantId, packVersionId } = await setUp(db);
+    const mission = await createMission(db, {
+      actorAccountId: account.id,
+      applicantId,
+      title: 'Fresh case',
+    });
+    if (!isOk(mission)) throw new Error('mission');
+    expect(mission.value.materialRevision).toBe(1);
+
+    const attached = await attachPackVersion(db, {
+      actorAccountId: account.id,
+      missionId: mission.value.id,
+      packVersionId,
+    });
+    expect(isOk(attached)).toBe(true);
+    if (isOk(attached)) expect(attached.value.materialRevision).toBe(2);
+  });
+
+  it('updateMissionCaseDetails bumps by 1 when a field is provided, and not at all when none is (presence-triggered, not a value diff)', async () => {
+    const { account, missionId } = await setUp(db);
+    const before = await revisionOf(account.id, missionId);
+
+    const noop = await updateMissionCaseDetails(db, { actorAccountId: account.id, missionId });
+    expect(isOk(noop)).toBe(true);
+    expect(await revisionOf(account.id, missionId)).toBe(before);
+
+    const withField = await updateMissionCaseDetails(db, {
+      actorAccountId: account.id,
+      missionId,
+      jurisdiction: 'UK',
+    });
+    expect(isOk(withField)).toBe(true);
+    expect(await revisionOf(account.id, missionId)).toBe(before + 1);
+
+    // Re-providing the SAME value still counts: presence-triggered, matching
+    // the same granularity updateTask's own no-op test already uses, not a
+    // before/after value comparison.
+    const sameValueAgain = await updateMissionCaseDetails(db, {
+      actorAccountId: account.id,
+      missionId,
+      jurisdiction: 'UK',
+    });
+    expect(isOk(sameValueAgain)).toBe(true);
+    expect(await revisionOf(account.id, missionId)).toBe(before + 2);
+  });
+
+  it('selectEvidence bumps by 1 on a new selection, and not at all on an idempotent re-selection', async () => {
+    const { account, missionId, factId, fieldRequirementId } = await setUp(db);
+    const before = await revisionOf(account.id, missionId);
+
+    const first = await selectEvidence(db, {
+      actorAccountId: account.id,
+      missionId,
+      packRequirementId: fieldRequirementId,
+      factId,
+    });
+    expect(isOk(first)).toBe(true);
+    expect(await revisionOf(account.id, missionId)).toBe(before + 1);
+
+    const again = await selectEvidence(db, {
+      actorAccountId: account.id,
+      missionId,
+      packRequirementId: fieldRequirementId,
+      factId,
+    });
+    expect(isOk(again)).toBe(true);
+    expect(await revisionOf(account.id, missionId)).toBe(before + 1);
+  });
+
+  it('unselectEvidence bumps by 1', async () => {
+    const { account, missionId, factId, fieldRequirementId } = await setUp(db);
+    const selected = await selectEvidence(db, {
+      actorAccountId: account.id,
+      missionId,
+      packRequirementId: fieldRequirementId,
+      factId,
+    });
+    if (!isOk(selected)) throw new Error('select');
+    const before = await revisionOf(account.id, missionId);
+
+    const removed = await unselectEvidence(db, {
+      actorAccountId: account.id,
+      missionId,
+      selectionId: selected.value.id,
+    });
+    expect(isOk(removed)).toBe(true);
+    expect(await revisionOf(account.id, missionId)).toBe(before + 1);
+  });
+
+  it('generateCoverLetter bumps by 1', async () => {
+    const { account, missionId, factId, documentId, fieldRequirementId, documentRequirementId } =
+      await setUp(db);
+    await selectEvidence(db, {
+      actorAccountId: account.id,
+      missionId,
+      packRequirementId: fieldRequirementId,
+      factId,
+    });
+    await selectEvidence(db, {
+      actorAccountId: account.id,
+      missionId,
+      packRequirementId: documentRequirementId,
+      documentId,
+    });
+    const before = await revisionOf(account.id, missionId);
+
+    const letter = await generateCoverLetter(db, { actorAccountId: account.id, missionId });
+    expect(isOk(letter)).toBe(true);
+    expect(await revisionOf(account.id, missionId)).toBe(before + 1);
+  });
+
+  it("editing an already-selected fact bumps the selecting mission's revision; editing an unselected fact does not", async () => {
+    const { account, applicantId, missionId, fieldRequirementId, factId } = await setUp(db);
+
+    // Not yet selected by any mission: re-editing the fact must not touch
+    // this mission's revision at all.
+    const beforeSelection = await revisionOf(account.id, missionId);
+    const unselectedEdit = await editFact(db, {
+      actorAccountId: account.id,
+      applicantId,
+      fieldKey: 'passport.number',
+      value: 'A2',
+    });
+    expect(isOk(unselectedEdit)).toBe(true);
+    expect(await revisionOf(account.id, missionId)).toBe(beforeSelection);
+
+    // Now select it, and edit again - a selection points at the fact's
+    // stable id, not a frozen version, so this SHOULD be material.
+    const selected = await selectEvidence(db, {
+      actorAccountId: account.id,
+      missionId,
+      packRequirementId: fieldRequirementId,
+      factId,
+    });
+    expect(isOk(selected)).toBe(true);
+    const afterSelection = await revisionOf(account.id, missionId);
+
+    const selectedEdit = await editFact(db, {
+      actorAccountId: account.id,
+      applicantId,
+      fieldKey: 'passport.number',
+      value: 'A3',
+    });
+    expect(isOk(selectedEdit)).toBe(true);
+    expect(await revisionOf(account.id, missionId)).toBe(afterSelection + 1);
+  });
+
+  it("adding a version to an already-selected document bumps the selecting mission's revision; an unselected document does not", async () => {
+    const { account, missionId, documentRequirementId, documentId } = await setUp(db);
+
+    const beforeSelection = await revisionOf(account.id, missionId);
+    const unselectedVersion = await addDocumentVersion(db, {
+      actorAccountId: account.id,
+      documentId,
+      bucket: 'CLEAN',
+      objectKey: 'k2',
+      safetyStatus: 'CLEAN',
+      processingStatus: 'AWAITING_REVIEW',
+    });
+    expect(isOk(unselectedVersion)).toBe(true);
+    expect(await revisionOf(account.id, missionId)).toBe(beforeSelection);
+
+    const selected = await selectEvidence(db, {
+      actorAccountId: account.id,
+      missionId,
+      packRequirementId: documentRequirementId,
+      documentId,
+    });
+    expect(isOk(selected)).toBe(true);
+    const afterSelection = await revisionOf(account.id, missionId);
+
+    const selectedVersion = await addDocumentVersion(db, {
+      actorAccountId: account.id,
+      documentId,
+      bucket: 'CLEAN',
+      objectKey: 'k3',
+      safetyStatus: 'CLEAN',
+      processingStatus: 'AWAITING_REVIEW',
+    });
+    expect(isOk(selectedVersion)).toBe(true);
+    expect(await revisionOf(account.id, missionId)).toBe(afterSelection + 1);
+  });
+
+  it("a fact selected by TWO different missions bumps BOTH missions' revisions on a single edit", async () => {
+    const {
+      account,
+      applicantId,
+      factId,
+      fieldRequirementId,
+      packVersionId,
+      missionId: firstMissionId,
+    } = await setUp(db);
+    await selectEvidence(db, {
+      actorAccountId: account.id,
+      missionId: firstMissionId,
+      packRequirementId: fieldRequirementId,
+      factId,
+    });
+
+    // A second, independent mission for the SAME applicant, attached to the
+    // same pack version, also selecting the same fact.
+    const secondMission = await createMission(db, {
+      actorAccountId: account.id,
+      applicantId,
+      title: 'Second case, same applicant',
+    });
+    if (!isOk(secondMission)) throw new Error('mission');
+    await attachPackVersion(db, {
+      actorAccountId: account.id,
+      missionId: secondMission.value.id,
+      packVersionId,
+    });
+    await selectEvidence(db, {
+      actorAccountId: account.id,
+      missionId: secondMission.value.id,
+      packRequirementId: fieldRequirementId,
+      factId,
+    });
+
+    const beforeFirst = await revisionOf(account.id, firstMissionId);
+    const beforeSecond = await revisionOf(account.id, secondMission.value.id);
+
+    const edited = await editFact(db, {
+      actorAccountId: account.id,
+      applicantId,
+      fieldKey: 'passport.number',
+      value: 'SHARED-EDIT',
+    });
+    expect(isOk(edited)).toBe(true);
+
+    expect(await revisionOf(account.id, firstMissionId)).toBe(beforeFirst + 1);
+    expect(await revisionOf(account.id, secondMission.value.id)).toBe(beforeSecond + 1);
+  });
+
+  it('snapshotMission captures the current revision (in content and materialRevisionAtCapture) without itself bumping it', async () => {
+    const { account, missionId } = await setUp(db);
+    const before = await revisionOf(account.id, missionId);
+
+    const snap = await snapshotMission(db, { actorAccountId: account.id, missionId });
+    expect(isOk(snap)).toBe(true);
+    if (isOk(snap)) {
+      const content = snap.value.content as { materialRevision: number };
+      expect(content.materialRevision).toBe(before);
+      expect(snap.value.materialRevisionAtCapture).toBe(before);
+    }
+    // Taking a snapshot is a read/export, not a mutation of the case's own
+    // material - the live revision is unchanged.
+    expect(await revisionOf(account.id, missionId)).toBe(before);
+  });
+});
+
 describe('listSelectedEvidenceForOrg (EVI-05): the org-scoped sibling of listSelectedEvidence', () => {
   let db: Db;
   beforeEach(async () => {

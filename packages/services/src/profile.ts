@@ -7,6 +7,7 @@ import { appendAuditEvent } from './audit';
 import { hasConsent } from './consent';
 import { type Db, first, required, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
+import { incrementMaterialRevision, missionsSelectingFact } from './material-revision';
 import type { KeyManagementPort } from './ports';
 import {
   buildFactVersionAad,
@@ -297,6 +298,13 @@ export async function editFact(
       ),
       'updated fact',
     );
+
+    // TRU-03 (Part 7 §4): "selected fact value/version" is material even
+    // when the selection itself doesn't change -- see material-revision.ts's
+    // own doc comment for why this can't live in missions.ts directly.
+    for (const missionId of await missionsSelectingFact(tx, fact.id)) {
+      await incrementMaterialRevision(tx, missionId);
+    }
 
     await appendAuditEvent(tx, {
       eventType: 'FACT_APPROVED',

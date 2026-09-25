@@ -421,6 +421,13 @@
       "when": 1790262410892,
       "tag": "0059_stiff_yellowjacket",
       "breakpoints": true
+    },
+    {
+      "idx": 60,
+      "version": "7",
+      "when": 1790309617147,
+      "tag": "0060_romantic_prism",
+      "breakpoints": true
     }
   ]
 }

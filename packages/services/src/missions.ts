@@ -12,6 +12,7 @@ import { checkCaseCreationEntitlement } from './entitlement-enforcement';
 import { activeOrVerifiedErasureStorageObjectIds } from './erasure';
 import { type ServiceError, serviceError } from './errors';
 import { type StalenessClassification, classifyStaleness, parseDocumentDate } from './expiry';
+import { incrementMaterialRevision } from './material-revision';
 import { cancelQueuedNotificationsForResource } from './notifications';
 import { type PackRequirement, listRequirements } from './packs';
 import { recordProductEvent } from './product-events';
@@ -273,34 +274,52 @@ export async function updateMissionCaseDetails(
 ): Promise<Result<Mission, ServiceError>> {
   const owned = await ownedMission(db, input.actorAccountId, input.missionId);
   if (!owned.ok) return owned;
-  const updated = required(
-    first(
-      await db
-        .update(schema.missions)
-        .set({
-          ...(input.jurisdiction !== undefined
-            ? { jurisdiction: input.jurisdiction.trim() || null }
-            : {}),
-          ...(input.serviceCategory !== undefined
-            ? { serviceCategory: input.serviceCategory.trim() || null }
-            : {}),
-          ...(input.travelStartDate !== undefined
-            ? { travelStartDate: input.travelStartDate }
-            : {}),
-          ...(input.travelEndDate !== undefined ? { travelEndDate: input.travelEndDate } : {}),
-          ...(input.targetDeadline !== undefined ? { targetDeadline: input.targetDeadline } : {}),
-          ...(input.ownerOrganizationId !== undefined
-            ? { ownerOrganizationId: input.ownerOrganizationId }
-            : {}),
-          ...(input.manualMode !== undefined ? { manualMode: input.manualMode } : {}),
-          updatedAt: new Date(),
-        })
-        .where(eq(schema.missions.id, input.missionId))
-        .returning(),
-    ),
-    'mission',
-  );
-  return ok(updated);
+  // TRU-03 (Part 7 §4): jurisdiction/serviceCategory/dates/ownerOrganization/
+  // manualMode are all case-identity/scope data the directive's own material
+  // list means to cover ("itinerary; destination; purpose" and siblings) --
+  // presence-triggered (was a field provided at all), matching the same
+  // granularity `updateTask`'s own "no-op when nothing is supplied" already
+  // uses elsewhere, not a before/after value diff.
+  const anyFieldProvided =
+    input.jurisdiction !== undefined ||
+    input.serviceCategory !== undefined ||
+    input.travelStartDate !== undefined ||
+    input.travelEndDate !== undefined ||
+    input.targetDeadline !== undefined ||
+    input.ownerOrganizationId !== undefined ||
+    input.manualMode !== undefined;
+
+  return db.transaction(async (tx) => {
+    if (anyFieldProvided) await incrementMaterialRevision(tx, input.missionId);
+    const updated = required(
+      first(
+        await tx
+          .update(schema.missions)
+          .set({
+            ...(input.jurisdiction !== undefined
+              ? { jurisdiction: input.jurisdiction.trim() || null }
+              : {}),
+            ...(input.serviceCategory !== undefined
+              ? { serviceCategory: input.serviceCategory.trim() || null }
+              : {}),
+            ...(input.travelStartDate !== undefined
+              ? { travelStartDate: input.travelStartDate }
+              : {}),
+            ...(input.travelEndDate !== undefined ? { travelEndDate: input.travelEndDate } : {}),
+            ...(input.targetDeadline !== undefined ? { targetDeadline: input.targetDeadline } : {}),
+            ...(input.ownerOrganizationId !== undefined
+              ? { ownerOrganizationId: input.ownerOrganizationId }
+              : {}),
+            ...(input.manualMode !== undefined ? { manualMode: input.manualMode } : {}),
+            updatedAt: new Date(),
+          })
+          .where(eq(schema.missions.id, input.missionId))
+          .returning(),
+      ),
+      'mission',
+    );
+    return ok(updated);
+  });
 }
 
 /**
@@ -356,6 +375,7 @@ export async function attachPackVersion(
   }
 
   return db.transaction(async (tx) => {
+    await incrementMaterialRevision(tx, input.missionId);
     const mission = required(
       first(
         await tx
@@ -1361,6 +1381,13 @@ export async function snapshotMission(
     evidenceScope,
     requirementMapping,
     readiness: readiness?.ok ? readiness.value : null,
+    // TRU-03 (Part 7 §4): "snapshot creation must read consistent material
+    // revision." Read once, at the same point in this function every other
+    // piece of "current state" here (facts/documents/requirementMapping/
+    // readiness) is already read -- not re-verified inside the transaction
+    // below, matching this function's own pre-existing consistency model
+    // rather than selectively hardening only this one field.
+    materialRevision: mission.materialRevision,
     // CAS-01 (Commercial V1 Part 4 §8): "the coverage limitation visible on
     // the case AND EXPORT." A snapshot is the closest thing this codebase
     // has to an export artifact today, so manualMode travels with it,
@@ -1390,6 +1417,7 @@ export async function snapshotMission(
             version: nextVersion,
             content,
             checksum,
+            materialRevisionAtCapture: mission.materialRevision,
             createdByAccountId: input.actorAccountId,
           })
           .returning(),
@@ -1543,6 +1571,7 @@ export async function selectEvidence(
     );
     if (existing) return ok(existing);
 
+    await incrementMaterialRevision(tx, mission.id);
     const selection = required(
       first(
         await tx
@@ -1601,6 +1630,7 @@ export async function unselectEvidence(
         .returning(),
     );
     if (!deleted) return err(serviceError('not_found', 'selection not found'));
+    await incrementMaterialRevision(tx, input.missionId);
     await appendAuditEvent(tx, {
       eventType: 'MISSION_EVIDENCE_UNSELECTED',
       actorAccountId: input.actorAccountId,
@@ -2279,6 +2309,7 @@ export async function generateCoverLetter(
       );
     const nextVersion = existing.reduce((max, r) => Math.max(max, r.version), 0) + 1;
 
+    await incrementMaterialRevision(tx, mission.id);
     const output = required(
       first(
         await tx
