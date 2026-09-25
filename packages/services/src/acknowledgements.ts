@@ -201,27 +201,12 @@ export async function listAcknowledgementsForMission(
 }
 
 /**
- * The mission's current live acknowledgement, if any: the most recent
- * ACKNOWLEDGED row not yet invalidated by a later material change. Never
- * REJECTED/CORRECTION_REQUESTED (those were never a valid green light) and
- * never a stale ACKNOWLEDGED row (TRU-03's own invalidation already marked
- * it). Internal helper for a future submission-readiness check (TRU-04) --
- * not owner-gated itself since every caller so far already holds an
- * owner-checked mission.
+ * The mission's current live acknowledgement, if any -- defined in
+ * `material-revision.ts`, not here, specifically so `missions.ts` can call
+ * it too (CAS-07's own SUBMISSION_READY gate) without creating a circular
+ * import: this file already imports `getMissionForOwner` from
+ * `missions.ts`, so `missions.ts` importing anything back from THIS file
+ * would be a cycle. Re-exported here so every other caller keeps reading it
+ * as this module's own acknowledgement-status API.
  */
-export async function getLiveAcknowledgement(
-  db: Db,
-  missionId: string,
-): Promise<Acknowledgement | undefined> {
-  const rows = await db
-    .select()
-    .from(schema.acknowledgements)
-    .where(
-      and(
-        eq(schema.acknowledgements.missionId, missionId),
-        eq(schema.acknowledgements.decision, 'ACKNOWLEDGED'),
-      ),
-    );
-  const valid = rows.filter((row) => row.invalidatedAt === null);
-  return valid.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())[0];
-}
+export { getLiveAcknowledgement } from './material-revision';

@@ -23,7 +23,55 @@ export const PERMISSION_ACTIONS = [
 ] as const;
 export type PermissionAction = (typeof PERMISSION_ACTIONS)[number];
 
-/** Build Spec §4.3 — mission lifecycle. */
+/**
+ * Build Spec §4.3 - mission lifecycle, extended by CAS-07 (master directive
+ * Part 7 §6, "Canonical case states"). Two overlapping vocabularies share
+ * this one enum, kept additive per the directive's own instruction ("do not
+ * convert legacy LOCKED into acknowledged/submitted"; "preserve raw legacy
+ * state") - no existing mission's `state` value is ever rewritten by this
+ * addition, and none of the five legacy-only values below are ever removed.
+ * `MISSION_STATES` itself keeps the ORIGINAL 8 values in their original
+ * order and appends the 5 new ones after, rather than interleaving them -
+ * purely so the generated migration is a plain `ALTER TYPE ... ADD VALUE`
+ * per new value, never a drop-and-recreate of the whole enum type.
+ *
+ * - LEGACY_ONLY_MISSION_STATES: the five reviewer-workflow states this
+ *   product shipped with before CAS-07. Still fully legal for any mission
+ *   already using them (`missions.ts`'s own `TRANSITIONS` map keeps every
+ *   one of their original moves unchanged) - never assigned to a NEW
+ *   mission going forward.
+ * - CANONICAL_CASE_STATES: the eight states §6 actually names. DRAFT/
+ *   CLOSED/CANCELLED are shared with the legacy vocabulary (same name, same
+ *   meaning, one shared terminal/starting point) - the other five
+ *   (INTAKE/IN_REVIEW/AWAITING_APPLICANT/SUBMISSION_READY/SUBMITTED) are
+ *   new. SUBMISSION_READY specifically requires a live applicant
+ *   acknowledgement (TRU-02) before `transitionMission` allows reaching it
+ *   - "submission-ready" is meant to mean "acknowledged," the same
+ *   principle the directive states explicitly for the legacy LOCKED bridge
+ *   ("requires real acknowledgement for future submission-ready claim").
+ *   SUBMITTED itself is not yet a legal `transitionMission` target for any
+ *   state: the directive's own §7 requires a real, attributable submission
+ *   report first ("export/download does NOT mean submitted"), and that
+ *   mechanism (TRU-04) does not exist yet - added once it does, rather than
+ *   exposing a transition target that could only ever fail today.
+ */
+export const LEGACY_ONLY_MISSION_STATES = [
+  'IN_PROGRESS',
+  'READY_FOR_REVIEW',
+  'UNDER_REVIEW',
+  'READY_TO_EXPORT',
+  'LOCKED',
+] as const;
+export const CANONICAL_CASE_STATES = [
+  'DRAFT',
+  'INTAKE',
+  'IN_REVIEW',
+  'AWAITING_APPLICANT',
+  'SUBMISSION_READY',
+  'SUBMITTED',
+  'CLOSED',
+  'CANCELLED',
+] as const;
 export const MISSION_STATES = [
   'DRAFT',
   'IN_PROGRESS',
@@ -33,6 +81,11 @@ export const MISSION_STATES = [
   'LOCKED',
   'CLOSED',
   'CANCELLED',
+  'INTAKE',
+  'IN_REVIEW',
+  'AWAITING_APPLICANT',
+  'SUBMISSION_READY',
+  'SUBMITTED',
 ] as const;
 export type MissionState = (typeof MISSION_STATES)[number];
 

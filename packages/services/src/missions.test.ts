@@ -7,6 +7,7 @@ import { drizzle } from 'drizzle-orm/pglite';
 import { migrate } from 'drizzle-orm/pglite/migrator';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { provisionAccount } from './accounts';
+import { decideAcknowledgement } from './acknowledgements';
 import { addFamilyMember, createApplicant } from './applicants';
 import { setConsent } from './consent';
 import type { Db } from './db';
@@ -25,6 +26,7 @@ import {
   getEvidenceCandidates,
   getMissionForOwner,
   getMissionSnapshot,
+  legalTransitions,
   listAppointments,
   listGeneratedOutputs,
   listMissionSnapshots,
@@ -3141,5 +3143,258 @@ describe('listMissionsByPackVersion (RUL-05 active-case impact list)', () => {
     const { account } = await seed(db);
     const versionA = await publishedVersion(account.id, 'impact.unused');
     expect(await listMissionsByPackVersion(db, versionA)).toEqual([]);
+  });
+});
+
+describe('CAS-07 (Commercial V1 Part 7 §6): canonical case states', () => {
+  let db: Db;
+  beforeEach(async () => {
+    db = await freshDb();
+  });
+
+  async function setUp(db: Db) {
+    const { account, applicantId } = await seed(db);
+    const packVersionId = await publishedPack(db, account.id);
+    const mission = await createMission(db, {
+      actorAccountId: account.id,
+      applicantId,
+      title: 'UK Visa',
+    });
+    if (!isOk(mission)) throw new Error('mission');
+    await attachPackVersion(db, {
+      actorAccountId: account.id,
+      missionId: mission.value.id,
+      packVersionId,
+    });
+    await registerFieldDefinition(db, { key: 'passport.number', dataType: 'string' });
+    const fact = await editFact(db, {
+      actorAccountId: account.id,
+      applicantId,
+      fieldKey: 'passport.number',
+      value: 'A1',
+    });
+    if (!isOk(fact)) throw new Error('fact');
+    const requirements = await db
+      .select()
+      .from(schema.packRequirements)
+      .where(eq(schema.packRequirements.packVersionId, packVersionId));
+    const fieldRequirementId = requirements.find((r) => r.kind === 'FIELD')?.id;
+    if (!fieldRequirementId) throw new Error('requirement');
+    const selected = await selectEvidence(db, {
+      actorAccountId: account.id,
+      missionId: mission.value.id,
+      packRequirementId: fieldRequirementId,
+      factId: fact.value.fact.id,
+    });
+    if (!isOk(selected)) throw new Error('select');
+    const snap = await snapshotMission(db, {
+      actorAccountId: account.id,
+      missionId: mission.value.id,
+    });
+    if (!isOk(snap)) throw new Error('snapshot');
+
+    return {
+      account,
+      applicantId,
+      missionId: mission.value.id,
+      snapshotId: snap.value.id,
+      checksum: snap.value.checksum,
+    };
+  }
+
+  /** Acknowledge the mission's current snapshot, so it has a live acknowledgement. */
+  async function acknowledge(
+    db: Db,
+    actorAccountId: string,
+    missionId: string,
+    snapshotId: string,
+    checksum: string,
+  ) {
+    const result = await decideAcknowledgement(db, {
+      actorAccountId,
+      missionId,
+      snapshotId,
+      expectedSnapshotChecksum: checksum,
+      decision: 'ACKNOWLEDGED',
+      stepUpSatisfied: true,
+    });
+    if (!isOk(result)) throw new Error('acknowledge');
+  }
+
+  it('walks the full canonical path: DRAFT -> INTAKE -> IN_REVIEW -> AWAITING_APPLICANT -> SUBMISSION_READY -> CLOSED', async () => {
+    const { account, missionId, snapshotId, checksum } = await setUp(db);
+
+    const toIntake = await transitionMission(db, {
+      actorAccountId: account.id,
+      missionId,
+      to: 'INTAKE',
+    });
+    expect(isOk(toIntake)).toBe(true);
+    const toInReview = await transitionMission(db, {
+      actorAccountId: account.id,
+      missionId,
+      to: 'IN_REVIEW',
+    });
+    expect(isOk(toInReview)).toBe(true);
+    const toAwaiting = await transitionMission(db, {
+      actorAccountId: account.id,
+      missionId,
+      to: 'AWAITING_APPLICANT',
+    });
+    expect(isOk(toAwaiting)).toBe(true);
+
+    await acknowledge(db, account.id, missionId, snapshotId, checksum);
+
+    const toSubmissionReady = await transitionMission(db, {
+      actorAccountId: account.id,
+      missionId,
+      to: 'SUBMISSION_READY',
+    });
+    expect(isOk(toSubmissionReady)).toBe(true);
+    if (isOk(toSubmissionReady)) expect(toSubmissionReady.value.state).toBe('SUBMISSION_READY');
+
+    const toClosed = await transitionMission(db, {
+      actorAccountId: account.id,
+      missionId,
+      to: 'CLOSED',
+    });
+    expect(isOk(toClosed)).toBe(true);
+  });
+
+  it('refuses AWAITING_APPLICANT -> SUBMISSION_READY without a live acknowledgement', async () => {
+    const { account, missionId } = await setUp(db);
+    await transitionMission(db, { actorAccountId: account.id, missionId, to: 'INTAKE' });
+    await transitionMission(db, { actorAccountId: account.id, missionId, to: 'IN_REVIEW' });
+    await transitionMission(db, {
+      actorAccountId: account.id,
+      missionId,
+      to: 'AWAITING_APPLICANT',
+    });
+
+    const result = await transitionMission(db, {
+      actorAccountId: account.id,
+      missionId,
+      to: 'SUBMISSION_READY',
+    });
+    expect(isErr(result)).toBe(true);
+    if (isErr(result)) {
+      expect(result.error.code).toBe('invalid');
+      expect(result.error.message).toContain('acknowledgement');
+    }
+  });
+
+  it('a material change after acknowledging invalidates it, so a later SUBMISSION_READY attempt fails again (TRU-03 -> TRU-02 -> CAS-07, end to end)', async () => {
+    const { account, applicantId, missionId, snapshotId, checksum } = await setUp(db);
+    await transitionMission(db, { actorAccountId: account.id, missionId, to: 'INTAKE' });
+    await transitionMission(db, { actorAccountId: account.id, missionId, to: 'IN_REVIEW' });
+    await transitionMission(db, {
+      actorAccountId: account.id,
+      missionId,
+      to: 'AWAITING_APPLICANT',
+    });
+    await acknowledge(db, account.id, missionId, snapshotId, checksum);
+
+    // The case changes materially after acknowledging -- TRU-03's own
+    // invalidation wiring (via incrementMaterialRevision) marks that
+    // acknowledgement no longer live.
+    const edited = await editFact(db, {
+      actorAccountId: account.id,
+      applicantId,
+      fieldKey: 'passport.number',
+      value: 'A2',
+    });
+    expect(isOk(edited)).toBe(true);
+
+    const result = await transitionMission(db, {
+      actorAccountId: account.id,
+      missionId,
+      to: 'SUBMISSION_READY',
+    });
+    expect(isErr(result)).toBe(true);
+    if (isErr(result)) expect(result.error.code).toBe('invalid');
+  });
+
+  it('bridges the legacy LOCKED state to SUBMISSION_READY, but only with a live acknowledgement (directive: "Legacy locked ... requires real acknowledgement for future submission-ready claim")', async () => {
+    const { account, missionId } = await setUp(db);
+    // Walk the ORIGINAL legacy path, completely unchanged.
+    await transitionMission(db, { actorAccountId: account.id, missionId, to: 'IN_PROGRESS' });
+    await transitionMission(db, { actorAccountId: account.id, missionId, to: 'READY_FOR_REVIEW' });
+    await transitionMission(db, { actorAccountId: account.id, missionId, to: 'UNDER_REVIEW' });
+    await transitionMission(db, { actorAccountId: account.id, missionId, to: 'READY_TO_EXPORT' });
+    const toLocked = await transitionMission(db, {
+      actorAccountId: account.id,
+      missionId,
+      to: 'LOCKED',
+    });
+    expect(isOk(toLocked)).toBe(true);
+
+    const withoutAck = await transitionMission(db, {
+      actorAccountId: account.id,
+      missionId,
+      to: 'SUBMISSION_READY',
+    });
+    expect(isErr(withoutAck)).toBe(true);
+    if (isErr(withoutAck)) expect(withoutAck.error.code).toBe('invalid');
+
+    // LOCKED's own original path to CLOSED still works, unchanged.
+    const stillLegacyClosed = await transitionMission(db, {
+      actorAccountId: account.id,
+      missionId,
+      to: 'CLOSED',
+    });
+    expect(isOk(stillLegacyClosed)).toBe(true);
+  });
+
+  it('the legacy LOCKED -> SUBMISSION_READY bridge succeeds once a live acknowledgement exists', async () => {
+    const { account, missionId, snapshotId, checksum } = await setUp(db);
+    await transitionMission(db, { actorAccountId: account.id, missionId, to: 'IN_PROGRESS' });
+    await transitionMission(db, { actorAccountId: account.id, missionId, to: 'READY_FOR_REVIEW' });
+    await transitionMission(db, { actorAccountId: account.id, missionId, to: 'UNDER_REVIEW' });
+    await transitionMission(db, { actorAccountId: account.id, missionId, to: 'READY_TO_EXPORT' });
+    await transitionMission(db, { actorAccountId: account.id, missionId, to: 'LOCKED' });
+
+    await acknowledge(db, account.id, missionId, snapshotId, checksum);
+
+    const result = await transitionMission(db, {
+      actorAccountId: account.id,
+      missionId,
+      to: 'SUBMISSION_READY',
+    });
+    expect(isOk(result)).toBe(true);
+    if (isOk(result)) expect(result.value.state).toBe('SUBMISSION_READY');
+  });
+
+  it('SUBMITTED is not yet a legal transition target from any state (TRU-04 not built)', async () => {
+    const { account, missionId, snapshotId, checksum } = await setUp(db);
+    await transitionMission(db, { actorAccountId: account.id, missionId, to: 'INTAKE' });
+    await transitionMission(db, { actorAccountId: account.id, missionId, to: 'IN_REVIEW' });
+    await transitionMission(db, {
+      actorAccountId: account.id,
+      missionId,
+      to: 'AWAITING_APPLICANT',
+    });
+    await acknowledge(db, account.id, missionId, snapshotId, checksum);
+    await transitionMission(db, { actorAccountId: account.id, missionId, to: 'SUBMISSION_READY' });
+
+    const result = await transitionMission(db, {
+      actorAccountId: account.id,
+      missionId,
+      to: 'SUBMITTED',
+    });
+    expect(isErr(result)).toBe(true);
+    if (isErr(result)) expect(result.error.code).toBe('invalid');
+  });
+
+  it('DRAFT still legally reaches the original legacy IN_PROGRESS path alongside the new INTAKE one', async () => {
+    const { account, missionId } = await setUp(db);
+    expect(legalTransitions('DRAFT')).toEqual(
+      expect.arrayContaining(['INTAKE', 'IN_PROGRESS', 'CANCELLED']),
+    );
+    const result = await transitionMission(db, {
+      actorAccountId: account.id,
+      missionId,
+      to: 'IN_PROGRESS',
+    });
+    expect(isOk(result)).toBe(true);
   });
 });
