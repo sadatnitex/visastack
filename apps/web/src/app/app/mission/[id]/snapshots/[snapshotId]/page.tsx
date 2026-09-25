@@ -55,6 +55,8 @@ interface SnapshotContent {
     }>;
   }>;
   readonly readiness: { readonly ready: boolean } | null;
+  /** Directive Part 7 §1 ("repair snapshot scope"). Absent on any snapshot captured before that fix landed - treated as unknown/legacy below, never assumed correctly scoped. */
+  readonly evidenceScope?: 'case_selected' | 'all_applicant_evidence';
 }
 
 // A snapshot taken once the mission has reached this stage of the reviewer
@@ -120,6 +122,20 @@ export default async function MissionSnapshotPage({
           Download JSON
         </a>
       </div>
+
+      {content.evidenceScope === 'all_applicant_evidence' ? (
+        <div className="notice notice-warn" style={{ marginBottom: '1.5rem' }}>
+          <strong>Not narrowed to this case.</strong> This mission had no automated requirement pack
+          attached when captured, so there is no case-specific selection to disclose from - the
+          facts and documents below are this applicant's full record, not limited to this case.
+        </div>
+      ) : content.evidenceScope === undefined ? (
+        <div className="notice notice-warn" style={{ marginBottom: '1.5rem' }}>
+          <strong>Captured before case-scoped disclosure existed.</strong> This snapshot may include
+          evidence unrelated to this case - later snapshots are narrowed to what this case actually
+          uses.
+        </div>
+      ) : null}
 
       {content.requirementMapping.length > 0 ? (
         <article className="card" style={{ marginBottom: '1.5rem' }}>

@@ -75,7 +75,7 @@ Status, Notes.
 ## Applicant Truth Check and case state (TRU) — PRD §10
 | ID | PRD § | Classification | Status | Notes |
 |---|---|---|---|---|
-| TRU-01 | §10 | REPAIR (confirmed) | NOT_STARTED | Final disclosure/snapshot scope. Confirmed this session (`known-issues.md` item 6): `snapshotMission` loads every fact and every document for the whole applicant, not the mission's selected evidence, and includes all of it unconditionally in `content`. Direct match to the PRD's own audited finding. Must become selected-evidence-only. |
+| TRU-01 | §10 | REPAIR (confirmed) | DONE | Final disclosure/snapshot scope. **Update (2026-09-24, Part 7 §1).** Fixed. `snapshotMission`'s `facts`/`documents` are now filtered to exactly the instances referenced by the snapshot's own `requirementMapping` (already the correct, tested per-requirement candidate scoping -- narrowed to an explicit selection once one exists -- reused rather than duplicated). A genuinely unclassified document (no docType) can never appear in `requirementMapping`, so it is included only when the pack needs at least one DOCUMENT requirement at all (preserving finding #30's "not silently dropped" guarantee), never otherwise. New `evidenceScope: 'case_selected' \| 'all_applicant_evidence'` field: a manual-mode/no-pack mission has no requirement-driven selection mechanism yet (`selectedEvidence.packRequirementId` is a NOT NULL FK), so there is no case-scoped subset to derive there -- honestly labelled rather than silently indistinguishable from a correctly-scoped snapshot; the snapshot viewer shows a visible notice for that label and for any pre-fix snapshot with no `evidenceScope` at all. 2 new tests, 56/56 `missions.test.ts` green. **Still genuinely open, tracked separately:** manual-mode evidence selection itself (`known-issues.md` item 6's remaining note) -- a real fix would need `selectedEvidence.packRequirementId` to become nullable (a schema/constraint change touching two unique indexes), out of this structural-repair's scope. |
 | TRU-02 | §10 | NEW (confirmed) | NOT_STARTED | Acknowledgement. Confirmed missing: no acknowledgement entity, table, or service function found in `missions.ts`. Needs a new immutable record type per PRD's exact field list. |
 | TRU-03 | §10 | REPAIR | NOT_STARTED | Atomic validity / material revision. No monotonic case material revision counter found yet in the schema areas read so far; `missionSnapshots.version` exists but is a snapshot-count version, not the PRD's separate material-revision concept gating acknowledgement staleness. Needs design in Part 7. |
 | TRU-04 | §10 | NEW | NOT_STARTED | Snapshot vs sent file, submission report. Not yet located; likely does not exist (no `submission` concept found in `missions.ts` reads so far). |
@@ -159,7 +159,7 @@ Still remaining, explicitly not yet done: AI proposals/OCR/snapshots/exports/cac
 | J05 | NOT_STARTED | Expiry replacement |
 | J06 | NOT_STARTED | Sharing |
 | J07 | IN_PROGRESS | Agency preparation/readiness. **Update (2026-09-24).** The case-readiness experience (directive §10) is now real on the live mission page: full per-requirement state list with source/freshness/next-action, pack authority badge, historical snapshot parity. See RUL-04's row for full detail. Genuinely still open toward calling this journey complete: the generic (not field-specific) UNVERIFIED next-action text, and no live-database click-through in this sandbox. |
-| J08 | NOT_STARTED | Applicant truth |
+| J08 | IN_PROGRESS | Applicant truth. **Update (2026-09-24).** TRU-01 (disclosure/snapshot scope) closed. Genuinely still NOT_STARTED toward calling this journey complete: TRU-02 (acknowledgement entity), TRU-03 (material revision concurrency), TRU-04 (submission report) -- there is no acknowledgement UI at all yet for "the exact file review/acknowledgement" this journey names. |
 | J09 | NOT_STARTED | Outcome/feedback |
 | J10 | NOT_STARTED | Change agency |
 | J11 | NOT_STARTED | Family/sponsor contributor |
@@ -184,7 +184,7 @@ Still remaining, explicitly not yet done: AI proposals/OCR/snapshots/exports/cac
 | A11 | NOT_STARTED | CAS-03, CAS-04 | Requests/tasks |
 | A12 | NOT_STARTED | RUL-01 to RUL-05 | Rules regression |
 | A13 | NOT_STARTED | CAS-01, RUL-04 | Manual route |
-| A14 | NOT_STARTED | TRU-01 | Snapshot minimisation |
+| A14 | DONE | TRU-01 | Snapshot minimisation. **Update (2026-09-24).** `missions.test.ts` proves it directly: unrelated wallet facts/documents are seeded, loaded, and confirmed excluded from a snapshot whose mission has a pack attached. See TRU-01's row. |
 | A15 | NOT_STARTED | TRU-02, TRU-03 | Acknowledgement |
 | A16 | NOT_STARTED | TRU-03, TRU-04 | Post-approval change |
 | A17 | IN_PROGRESS | NTF-01 to NTF-04 | Alerts. Real test coverage now exists for 6 of the directive's 11 event types (evidence requests, mission status, evidence replacement/review outcomes, appointments scheduled, task deadlines, expiry) plus obsolete-notice cancellation (§4). Not yet a full scenario-by-scenario audit against A17's own named list; see NTF-02's row for exactly what's covered, deferred, and blocked. |
