@@ -346,6 +346,11 @@ main {
   background: var(--warning-bg);
   border-color: transparent;
 }
+.notice-ok {
+  color: var(--success);
+  background: var(--success-bg);
+  border-color: transparent;
+}
 
 /* Section headings */
 .section-head {

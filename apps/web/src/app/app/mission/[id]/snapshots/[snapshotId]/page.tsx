@@ -2,11 +2,13 @@ import {
   type RequirementResultState,
   getMissionForOwner,
   getMissionSnapshot,
+  listAcknowledgementsForMission,
 } from '@visastack/services';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { profileField } from '../../../../../../lib/profile-fields';
 import { withSession } from '../../../../../../lib/session';
+import { AcknowledgementPanel } from './acknowledgement-panel';
 import {
   type LegacyFactsShape,
   type SnapshotFactEntry,
@@ -89,11 +91,25 @@ export default async function MissionSnapshotPage({
     if (!owned.ok) return null;
     const snapshot = await getMissionSnapshot(db, accountId, id, snapshotId);
     if (!snapshot.ok) return null;
-    return { mission: owned.value, snapshot: snapshot.value };
+    const acknowledgements = await listAcknowledgementsForMission(db, accountId, id);
+    return {
+      mission: owned.value,
+      snapshot: snapshot.value,
+      acknowledgements: acknowledgements.ok ? acknowledgements.value : [],
+    };
   });
 
   if (!data) notFound();
-  const { mission, snapshot } = data;
+  const { mission, snapshot, acknowledgements } = data;
+  const acknowledgementHistory = acknowledgements
+    .filter((a) => a.snapshotId === snapshot.id)
+    .map((a) => ({
+      id: a.id,
+      decision: a.decision,
+      reason: a.reason,
+      createdAt: a.createdAt,
+      invalidatedAt: a.invalidatedAt,
+    }));
   const content = snapshot.content as SnapshotContent;
   const isPacket = PACKET_STATES.has(content.state);
   const facts = normalizeSnapshotFacts(content.facts);
@@ -231,6 +247,15 @@ export default async function MissionSnapshotPage({
             </div>
           )}
         </article>
+      </div>
+
+      <div style={{ marginTop: '1.5rem' }}>
+        <AcknowledgementPanel
+          missionId={mission.id}
+          snapshotId={snapshot.id}
+          checksum={snapshot.checksum}
+          history={acknowledgementHistory}
+        />
       </div>
     </section>
   );

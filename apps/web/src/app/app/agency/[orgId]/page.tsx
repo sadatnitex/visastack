@@ -1,5 +1,6 @@
 import {
   computeReadiness,
+  getLiveAcknowledgement,
   getOrganization,
   getOrganizationBrandingForDisplay,
   isActiveMember,
@@ -191,6 +192,7 @@ export default async function OrgConsolePage({
           tasks,
           appointments,
           readiness,
+          liveAcknowledgement,
         ] = await Promise.all([
           listAssignmentsDetailed(db, orgId, mission.applicantId, mission.missionId),
           listNotes(db, orgId, mission.applicantId, mission.missionId),
@@ -205,6 +207,13 @@ export default async function OrgConsolePage({
           !mission.manualMode && mission.packVersionId
             ? computeReadiness(db, mission.missionId)
             : Promise.resolve(null),
+          // TRU-02 (Part 7 §3): replaces CAS-02's earlier "Acknowledgement:
+          // not yet tracked" placeholder now that the feature exists.
+          // getLiveAcknowledgement does no authorization of its own by
+          // design -- safe here since `mission.missionId` is already this
+          // org's own authorized set (every other read in this Promise.all
+          // already trusts it the same way).
+          getLiveAcknowledgement(db, mission.missionId),
         ]);
         // EVI-05: an issuer confirmation is recorded against whatever a
         // requirement's evidence resolves to (fact or document), not
@@ -290,6 +299,7 @@ export default async function OrgConsolePage({
             status: a.status,
           })),
           readiness: readiness?.ok ? readiness.value : null,
+          liveAcknowledgementAt: liveAcknowledgement?.createdAt.toISOString() ?? null,
         };
       }),
     );
@@ -559,9 +569,12 @@ export default async function OrgConsolePage({
                                 : 'Unassigned'}
                               {mission.notes.length > 0 ? ` · ${mission.notes.length} note(s)` : ''}
                               {mission.destination ? ` · ${mission.destination}` : ''}
-                              {/* Acknowledgement (traveller final sign-off) isn't a built feature yet
-                                (Part 7, TRU-02); shown as an honest placeholder, never a fabricated status. */}
-                              {' · Acknowledgement: not yet tracked'}
+                              {/* TRU-02 (Part 7 §3): the applicant's own live
+                                sign-off status, not a reviewer's -- this org
+                                can see whether it exists, never act on it. */}
+                              {mission.liveAcknowledgementAt
+                                ? ` · Acknowledged ${new Date(mission.liveAcknowledgementAt).toLocaleDateString()}`
+                                : ' · Not yet acknowledged'}
                             </span>
                           </div>
                         ),
