@@ -1198,31 +1198,35 @@ item gets its own requirements-ledger row once classified against the new direct
     bumping has already been deleted, along with its applicant, before that
     erasure worker step ever runs. Full detail: `requirements-ledger.md`
     TRU-03.
-75. (Part 7 §3) TRU-02 (acknowledgement) is backend-only so far: the
+75. ~~(Part 7 §3) TRU-02 (acknowledgement) is backend-only so far: the
     `acknowledgements` table, `decideAcknowledgement`, and the
     invalidation wiring into `incrementMaterialRevision` are built and
-    tested, but nothing in `apps/web` calls any of it yet. Deliberately
-    split this way, the same Phase-1/Phase-2 shape RUL-06 already used, not
-    a gap discovered late. Concretely still missing, each named rather than
-    lumped together: (a) the applicant review page itself (§2's manifest,
-    evidence bundle, selected facts, rule/source context, known
-    limitations, and the "Applicant-acknowledged prepared file" label,
-    with the "do not label embassy submitted/officially verified/approved/
-    legally signed unless separately true" rule to honor); (b) the
-    acknowledge/reject/request-correction buttons and the real
-    `establishStepUp`/`tryEstablishStepUp` call that produces the
-    `stepUpSatisfied` boolean `decideAcknowledgement` takes as input; (c)
-    §5's case-workspace treatment of an invalidated acknowledgement
-    ("historical acknowledged snapshot remains immutable/downloadable...
-    labelled historical") and of a case going "dirty" when its live
-    acknowledgement is invalidated; (d) any UI surfacing
-    `listAcknowledgementsForMission`/`getLiveAcknowledgement` at all, so a
-    case's acknowledgement history and current status are only queryable
-    today, not visible anywhere a person looks. None of this blocks TRU-02's
-    own backend guarantees (they are proven by `acknowledgements.test.ts`
-    independent of any UI), but the acknowledgement FEATURE -- something an
-    applicant can actually do -- does not exist until it is built. Full
-    detail: `requirements-ledger.md` TRU-02.
+    tested, but nothing in `apps/web` calls any of it yet.~~ **RESOLVED,
+    partially (Part 7 §2/§3, Chunk B).** (a) The applicant review page did
+    not need to be a NEW page: `mission/[id]/snapshots/[snapshotId]/page.tsx`
+    (Part 7 §1's own work) already was the manifest/evidence bundle/selected
+    facts/rule citations §2 describes -- this chunk added the decision layer
+    (a new `AcknowledgementPanel`) directly onto it, with explicit copy
+    stating acknowledging is not submission/official verification/approval.
+    (b) The acknowledge/reject/request-correction buttons exist
+    (`AcknowledgementPanel`, one shared form, three plain-HTML submit
+    buttons), wired to a real `tryEstablishStepUp` call
+    (`snapshots/[snapshotId]/actions.ts`) that mints a genuine WorkOS-backed
+    assurance record or redirects to reauthentication -- never a
+    client-asserted boolean. (d) `getLiveAcknowledgement` now backs a real
+    status line in the org case workspace (`agency/[orgId]/page.tsx`,
+    replacing CAS-02's own former "not yet tracked" placeholder), and
+    `listAcknowledgementsForMission` backs the snapshot page's own
+    acknowledgement history list. **Still genuinely open, not resolved by
+    this chunk:** part of (c) -- a case-workspace-WIDE "this case is dirty"
+    banner (§5's own phrase) is NOT built; this chunk only labels an
+    invalidated entry "Historical" within a single snapshot's own history
+    list, which is a real but narrower reading of §5. The wider banner is
+    deferred to CAS-07 on purpose: "invalidate submission-ready use" needs a
+    `SUBMISSION_READY` state to invalidate, and CAS-07 (canonical case
+    states) is NOT_STARTED, so there is nothing to wire "dirty" into yet.
+    Not verified in a live browser (sandbox limitation, same as every prior
+    UI chunk this session). Full detail: `requirements-ledger.md` TRU-02.
 independently confirmed findings; the missing PRD file is tracked as Blocker 1 in
 `assumptions-and-blockers.md` (now resolved) rather than here, since it blocked the
 programme rather than being a product defect.
