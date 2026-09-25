@@ -420,6 +420,127 @@ describe('missions — workspace, readiness, workflow, snapshot', () => {
     if (isOk(fetched)) expect(fetched.value.checksum).toBe(snap.value.checksum);
   });
 
+  it("A14 (master directive Part 7 §1): a snapshot discloses only this case's own evidence, excluding unrelated wallet facts/documents even when they are seeded and loaded", async () => {
+    const { account, applicantId } = await seed(db);
+    const packVersionId = await publishedPack(db, account.id);
+    const mission = await createMission(db, {
+      actorAccountId: account.id,
+      applicantId,
+      title: 'UK Visa',
+    });
+    if (!isOk(mission)) throw new Error('mission');
+    await attachPackVersion(db, {
+      actorAccountId: account.id,
+      missionId: mission.value.id,
+      packVersionId,
+    });
+
+    // Relevant to this case's pack (passport.number FIELD, bank_statement DOCUMENT).
+    await registerFieldDefinition(db, { key: 'passport.number', dataType: 'string' });
+    await editFact(db, {
+      actorAccountId: account.id,
+      applicantId,
+      fieldKey: 'passport.number',
+      value: 'A1',
+    });
+    const relevantDoc = await registerDocument(db, {
+      actorAccountId: account.id,
+      applicantId,
+      originalName: 'bank.pdf',
+      docType: 'bank_statement',
+    });
+    if (!isOk(relevantDoc)) throw new Error('relevant doc');
+    await addDocumentVersion(db, {
+      actorAccountId: account.id,
+      documentId: relevantDoc.value.id,
+      bucket: 'CLEAN',
+      objectKey: 'k1',
+      safetyStatus: 'CLEAN',
+      processingStatus: 'AWAITING_REVIEW',
+    });
+
+    // Seeded on the SAME applicant wallet but referenced by no requirement on
+    // this pack at all - the exact "unrelated wallet facts/documents" the
+    // directive's exclusion list names. Pre-fix, `snapshotMission` embedded
+    // every fact/document the applicant has, regardless of relevance.
+    await registerFieldDefinition(db, { key: 'unrelated.hobby', dataType: 'string' });
+    await editFact(db, {
+      actorAccountId: account.id,
+      applicantId,
+      fieldKey: 'unrelated.hobby',
+      value: 'chess',
+    });
+    const unrelatedDoc = await registerDocument(db, {
+      actorAccountId: account.id,
+      applicantId,
+      originalName: 'unrelated-refusal-letter.pdf',
+      docType: 'refusal_letter',
+    });
+    if (!isOk(unrelatedDoc)) throw new Error('unrelated doc');
+    await addDocumentVersion(db, {
+      actorAccountId: account.id,
+      documentId: unrelatedDoc.value.id,
+      bucket: 'CLEAN',
+      objectKey: 'k2',
+      safetyStatus: 'CLEAN',
+      processingStatus: 'AWAITING_REVIEW',
+    });
+
+    const snap = await snapshotMission(db, {
+      actorAccountId: account.id,
+      missionId: mission.value.id,
+    });
+    expect(isOk(snap)).toBe(true);
+    if (!isOk(snap)) return;
+    const content = snap.value.content as {
+      evidenceScope: string;
+      facts: ReadonlyArray<{ fieldKey: string; value: string | null }>;
+      documents: ReadonlyArray<{ documentId: string; displayName: string; docType: string | null }>;
+    };
+
+    expect(content.evidenceScope).toBe('case_selected');
+    expect(content.facts.map((f) => f.fieldKey)).toEqual(['passport.number']);
+    expect(content.facts.some((f) => f.fieldKey === 'unrelated.hobby')).toBe(false);
+    expect(content.documents.map((d) => d.displayName)).toEqual(['bank.pdf']);
+    expect(content.documents.some((d) => d.documentId === unrelatedDoc.value.id)).toBe(false);
+  });
+
+  it('a manual-mode mission with no attached pack has no case-scoped selection to derive, so its snapshot honestly labels evidenceScope "all_applicant_evidence" rather than silently claiming case-scoped disclosure', async () => {
+    const { account, applicantId } = await seed(db);
+    const mission = await createMission(db, {
+      actorAccountId: account.id,
+      applicantId,
+      title: 'Manual case',
+    });
+    if (!isOk(mission)) throw new Error('mission');
+    await updateMissionCaseDetails(db, {
+      actorAccountId: account.id,
+      missionId: mission.value.id,
+      manualMode: true,
+    });
+
+    await registerFieldDefinition(db, { key: 'passport.number', dataType: 'string' });
+    await editFact(db, {
+      actorAccountId: account.id,
+      applicantId,
+      fieldKey: 'passport.number',
+      value: 'A1',
+    });
+
+    const snap = await snapshotMission(db, {
+      actorAccountId: account.id,
+      missionId: mission.value.id,
+    });
+    expect(isOk(snap)).toBe(true);
+    if (!isOk(snap)) return;
+    const content = snap.value.content as {
+      evidenceScope: string;
+      facts: ReadonlyArray<{ fieldKey: string }>;
+    };
+    expect(content.evidenceScope).toBe('all_applicant_evidence');
+    expect(content.facts.map((f) => f.fieldKey)).toEqual(['passport.number']);
+  });
+
   it('includes an unclassified (no docType) document in a snapshot, ineligible for any specific-type requirement (finding #30, post-programme defect register)', async () => {
     const { account, applicantId } = await seed(db);
     const packVersionId = await publishedPack(db, account.id);

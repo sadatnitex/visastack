@@ -1291,12 +1291,66 @@ export async function snapshotMission(
   }
   const readiness = mission.packVersionId ? await computeReadiness(db, mission.id) : null;
 
+  // Directive Part 7 §1 ("repair snapshot scope"): a disclosure snapshot must
+  // include ONLY this case's own selected/candidate evidence, never the
+  // applicant's entire wallet. `requirementMapping` already resolves each
+  // requirement to the exact fact/document instances that are candidates for
+  // IT specifically (narrowed to an explicit selection once one exists, per
+  // `buildRequirementMapping`'s own established semantics) -- the union of
+  // every instance referenced anywhere in it is exactly "this case's
+  // disclosure," reusing that already-correct, already-tested scoping rather
+  // than inventing a second one.
+  //
+  // A manual-mode/no-pack mission has no requirement-driven selection
+  // mechanism at all yet (`selectedEvidence.packRequirementId` is a
+  // NOT NULL FK -- there is no way to select evidence without a pack),
+  // so there is no case-scoped subset to derive here. Rather than silently
+  // keep the old, wrong, whole-wallet behavior indistinguishable from a
+  // correctly-scoped snapshot, it is explicitly labelled
+  // `evidenceScope: 'all_applicant_evidence'` so any reader (the snapshot
+  // viewer, a future export) can tell the difference and render/handle it
+  // honestly. Building real evidence selection for manual mode is a
+  // separate, still-open gap (known-issues.md) -- out of this structural
+  // fix's scope.
+  const usedFactIds = new Set<string>();
+  const usedDocumentVersionIds = new Set<string>();
+  for (const entry of requirementMapping) {
+    for (const f of entry.facts ?? []) usedFactIds.add(f.factId);
+    for (const d of entry.documents ?? []) usedDocumentVersionIds.add(d.documentVersionId);
+  }
+  const evidenceScope: 'case_selected' | 'all_applicant_evidence' = mission.packVersionId
+    ? 'case_selected'
+    : 'all_applicant_evidence';
+
+  // An unclassified document (`docType` null -- AI classification never ran,
+  // or stayed below the confidence threshold) can never appear in
+  // `requirementMapping` at all: no requirement's docType can match null, by
+  // the exact same reasoning the unclassified-group sentinel guard
+  // (Codex review, PR-D1) already established. Its case-relevance is
+  // genuinely unknown -- nothing in the data model records which case an
+  // upload was originally meant for -- so it belongs in neither "this
+  // case's own evidence" nor "unrelated" outright. Finding #30's own
+  // guarantee ("not silently dropped") still holds: when this case needs
+  // ANY document evidence at all, an unclassified one is exactly what a
+  // reviewer needs to see and manually triage, so it is included whenever
+  // the pack has at least one DOCUMENT-kind requirement; a pack needing no
+  // documents at all correctly excludes it, since it could not possibly be
+  // relevant there.
+  const packNeedsDocuments = requirementMapping.some((entry) => entry.kind === 'DOCUMENT');
+
   // Arrays, not key->value objects — a repeating field's multiple instances
   // (or a doc type's multiple documents) are never collapsed into one slot.
-  const facts = [...factsByKey.entries()].flatMap(([fieldKey, instances]) =>
-    instances.map((i) => ({ fieldKey, ...i })),
-  );
-  const documents = [...documentsByType.values()].flat();
+  const facts = [...factsByKey.entries()]
+    .flatMap(([fieldKey, instances]) => instances.map((i) => ({ fieldKey, ...i })))
+    .filter((f) => evidenceScope === 'all_applicant_evidence' || usedFactIds.has(f.factId));
+  const documents = [...documentsByType.values()]
+    .flat()
+    .filter(
+      (d) =>
+        evidenceScope === 'all_applicant_evidence' ||
+        usedDocumentVersionIds.has(d.documentVersionId) ||
+        (d.docType === null && packNeedsDocuments),
+    );
 
   const content = {
     missionId: mission.id,
@@ -1304,6 +1358,7 @@ export async function snapshotMission(
     packVersion: packVersionSnapshot,
     facts,
     documents,
+    evidenceScope,
     requirementMapping,
     readiness: readiness?.ok ? readiness.value : null,
     // CAS-01 (Commercial V1 Part 4 §8): "the coverage limitation visible on

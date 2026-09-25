@@ -49,15 +49,36 @@ item gets its own requirements-ledger row once classified against the new direct
    `AiExtractionPort`. Cost accounting is confirmed approximate: `ai.ts` converts a fixed
    `APPROX_USD_PER_MILLION_TOKENS = 10` constant, documented in its own comment as "very
    rough ... NOT a billing source of truth," with no per-model or per-unit-type pricing.
-6. `MissionSnapshot` over-collection is confirmed this session by reading
+6. ~~`MissionSnapshot` over-collection is confirmed this session by reading
    `packages/services/src/missions.ts`: `snapshotMission` calls
    `loadFactInstancesByKey(db, mission.applicantId)` and `loadDocumentInstancesByType(db,
    mission.applicantId)`, both scoped to the whole applicant, then includes every returned
    fact/document in the snapshot content unconditionally, not filtered to the mission's
-   selected evidence. Applicant acknowledgement is confirmed missing: no acknowledgement
-   entity, table, or service function was found in `packages/services/src/missions.ts`; the
-   mission state machine's terminal pre-close states are `READY_TO_EXPORT` and `LOCKED`,
-   with no acknowledgement step between review and lock.
+   selected evidence.~~ **RESOLVED (Part 7 §1, TRU-01/A14).** `snapshotMission`'s `facts`/
+   `documents` fields are now filtered to exactly the fact/document instances that appear
+   somewhere in the snapshot's own `requirementMapping` -- reusing that already-correct,
+   already-tested per-requirement candidate scoping (narrowed to an explicit selection once
+   one exists) rather than a second, parallel scoping mechanism. A genuinely unclassified
+   document (`docType` null -- AI classification never ran or stayed below threshold) can
+   never appear in `requirementMapping` at all, so it is included whenever the pack needs at
+   least one DOCUMENT-kind requirement (preserving finding #30's own "not silently dropped"
+   guarantee) and correctly excluded when the pack needs no documents at all. A manual-mode/
+   no-pack mission has no requirement-driven selection mechanism at all yet
+   (`selectedEvidence.packRequirementId` is a NOT NULL FK, so there is no way to select
+   evidence without a pack) -- there is no case-scoped subset to derive for it, so its
+   snapshot is explicitly labelled `evidenceScope: 'all_applicant_evidence'` rather than
+   silently indistinguishable from a correctly-scoped one; the snapshot viewer renders a
+   visible notice whenever a snapshot carries that label, or carries no `evidenceScope` at
+   all (any snapshot captured before this fix). Building real evidence selection for manual
+   mode is a separate, still-open, smaller gap -- out of this fix's scope, not silently
+   folded into "resolved." 2 new tests (`missions.test.ts`): the A14 minimisation proof
+   itself (unrelated wallet facts/documents seeded, loaded, and confirmed excluded from a
+   snapshot that DOES have a pack attached) and the manual-mode honest-labelling case. All
+   56 `missions.test.ts` tests pass (54 pre-existing, unmodified, still green). Applicant
+   acknowledgement is confirmed still missing: no acknowledgement entity, table, or service
+   function was found in `packages/services/src/missions.ts`; the mission state machine's
+   terminal pre-close states are `READY_TO_EXPORT` and `LOCKED`, with no acknowledgement step
+   between review and lock. Tracked as its own item, TRU-02 (`requirements-ledger.md`).
 7. ~~Mission notes carry no visibility classification and no author-organisation ID.~~
    **RESOLVED (Part 4).** This was a live, currently-exploitable cross-tenant leak, not just a
    missing feature: two organizations both holding a valid grant on the same shared mission
