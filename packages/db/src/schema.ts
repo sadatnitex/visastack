@@ -551,6 +551,15 @@ export const missions = pgTable('missions', {
   packVersionId: uuid('pack_version_id').references(() => packVersions.id, {
     onDelete: 'restrict',
   }),
+  // TRU-03 (master directive Part 7 §4): monotonically increasing, bumped
+  // in the same transaction as any material mutation (selected fact/
+  // document, generated output, case-detail field, or attached pack
+  // version) -- never a separate, later write. The exact value is never
+  // meaningful on its own, only whether it still matches what a snapshot or
+  // acknowledgement (TRU-02, not yet built) captured. Starts at 1, not 0,
+  // so "never yet touched" and "explicitly reset" are never confusable with
+  // the same sentinel.
+  materialRevision: integer('material_revision').notNull().default(1),
   ...timestamps,
 });
 
@@ -1566,6 +1575,16 @@ export const missionSnapshots = pgTable(
     version: integer('version').notNull(),
     content: jsonb('content').notNull(),
     checksum: text('checksum').notNull(),
+    // TRU-03 (master directive Part 7 §4): "snapshot creation must read
+    // consistent material revision." A real, queryable column -- not buried
+    // in `content`'s jsonb -- so a later staleness check (an
+    // acknowledgement's own "does this still match the mission's current
+    // revision," TRU-02) is a plain integer comparison, the same reasoning
+    // every other compare-later value in this schema (`packVersions.version`,
+    // `packRequirements.observedDate`, ...) already gets a real column for.
+    // Nullable: a snapshot taken before this column existed recorded no
+    // revision at all -- never assumed to be either current or stale.
+    materialRevisionAtCapture: integer('material_revision_at_capture'),
     createdByAccountId: uuid('created_by_account_id').references(() => accounts.id, {
       onDelete: 'set null',
     }),

@@ -1175,6 +1175,29 @@ item gets its own requirements-ledger row once classified against the new direct
     formally-mapped test suite -- the underlying functions are thoroughly
     unit-tested (item 72's 11 tests), but that is not the same claim as
     "A34 passes." Full detail: `requirements-ledger.md` RUL-06, J13.
+74. (Part 7 §4) TRU-03 (case material revision) is built and tested, but has
+    no consumer yet: nothing reads or checks `missions.materialRevision`
+    today, since that is TRU-02's (acknowledgement, still NOT_STARTED) own
+    job. This is by design, not an oversight -- a counter with nothing
+    reading it cannot itself be "wrong," so shipping it ahead of its
+    consumer is safe -- but it means TRU-03 alone changes no user-visible
+    behavior yet. When TRU-02 is built, its own §4 requirement
+    ("acknowledgement invalidation" in the SAME transaction as the material
+    change) should hook `incrementMaterialRevision` itself
+    (`material-revision.ts`) rather than re-deriving "does this mutation
+    invalidate the current acknowledgement" separately at every call site
+    that already calls it -- that function is already the one chokepoint
+    every material mutation funnels through. Separately, honestly scoped
+    out of this chunk after a real audit (not a guess): `erasure.ts`'s
+    RETENTION_PURGE document-deletion path IS wired (a document erased while
+    still selected as evidence on a live mission now bumps that mission's
+    revision, proven by a dedicated `erasure.test.ts` test); the sibling
+    ACCOUNT_DELETION path deliberately is NOT, confirmed correct by
+    inspection rather than left as a gap -- `missions.applicantId` cascades
+    on the applicant's deletion, so a mission whose revision would need
+    bumping has already been deleted, along with its applicant, before that
+    erasure worker step ever runs. Full detail: `requirements-ledger.md`
+    TRU-03.
 independently confirmed findings; the missing PRD file is tracked as Blocker 1 in
 `assumptions-and-blockers.md` (now resolved) rather than here, since it blocked the
 programme rather than being a product defect.

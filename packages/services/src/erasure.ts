@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { and, asc, desc, eq, inArray, isNotNull, isNull, lt, lte, or, sql } from 'drizzle-orm';
 import { appendAuditEvent } from './audit';
 import { type Db, first, required, schema } from './db';
+import { incrementMaterialRevision, missionsSelectingDocument } from './material-revision';
 import { hasActiveLegalHold } from './retention';
 import type { BlobStore } from './storage';
 
@@ -504,6 +505,17 @@ async function finalizeVerifiedJob(
         verifiedStorageObjectIds.has(id),
       );
       if (documentFullyErased) {
+        // TRU-03 (Part 7 §4): "selected document version/removal" is
+        // material. Read who has it selected BEFORE the delete below --
+        // `selectedEvidence.documentId` cascades on `documents` deletion, so
+        // the rows this reads would already be gone afterward. The sibling
+        // ACCOUNT_DELETION path (the `else` branch here) needs no such call:
+        // `missions.applicantId` also cascades, so a mission that would need
+        // its revision bumped has already been deleted along with its
+        // applicant by the time this worker step ever runs.
+        for (const missionId of await missionsSelectingDocument(tx, job.documentId)) {
+          await incrementMaterialRevision(tx, missionId);
+        }
         await tx.delete(schema.documents).where(eq(schema.documents.id, job.documentId));
         await tx
           .delete(schema.storageObjects)
