@@ -420,6 +420,7 @@ describe('account deletion workflow', () => {
       actorAccountId: account.id,
       applicantId,
       reason: 'pending dispute',
+      reviewAt: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000),
       stepUpSatisfied: true,
     });
     expect(isOk(hold)).toBe(true);

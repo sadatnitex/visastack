@@ -448,6 +448,7 @@ describe('erasure outbox', () => {
         actorAccountId: account.id,
         applicantId,
         reason: 'mid-flight',
+        reviewAt: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000),
         stepUpSatisfied: true,
       });
       return result;

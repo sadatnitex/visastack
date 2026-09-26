@@ -1,5 +1,5 @@
 import { type Result, err, ok } from '@visastack/core';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, isNull, lt, or } from 'drizzle-orm';
 import { appendAuditEvent } from './audit';
 import { type Db, first, required, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
@@ -47,6 +47,14 @@ export async function hasActiveLegalHold(db: Db, applicantId: string): Promise<b
  * from a separate, unlocked pre-check): checking outside the lock would
  * leave the exact gap this fix closes — the applicant could be deleted
  * between an outside check and this insert.
+ *
+ * `reviewAt` is required (directive Part 7 §13: a hold "needs...
+ * review/expiry" and "cannot become indefinite convenience") and must be in
+ * the future -- a hold placed with a review date already past would be
+ * exactly the "indefinite convenience" the directive rules out. It is not
+ * an auto-expiry: reaching it never releases the hold on its own, it only
+ * makes the hold appear in `listLegalHoldsNeedingReview` so a compliance
+ * admin has to look at it again, not forget it.
  */
 export async function placeLegalHold(
   db: Db,
@@ -54,6 +62,7 @@ export async function placeLegalHold(
     readonly actorAccountId: string;
     readonly applicantId: string;
     readonly reason: string;
+    readonly reviewAt: Date;
     readonly stepUpSatisfied: boolean;
   },
 ): Promise<Result<LegalHold, ServiceError>> {
@@ -61,6 +70,9 @@ export async function placeLegalHold(
     return err(serviceError('step_up_required', 'placing a legal hold requires reauthentication'));
   }
   if (input.reason.trim().length === 0) return err(serviceError('invalid', 'a reason is required'));
+  if (input.reviewAt.getTime() <= Date.now()) {
+    return err(serviceError('invalid', 'the review date must be in the future'));
+  }
 
   return db.transaction(async (tx) => {
     const applicant = first(
@@ -81,6 +93,7 @@ export async function placeLegalHold(
             applicantId: input.applicantId,
             reason: input.reason.trim(),
             placedByAccountId: input.actorAccountId,
+            reviewAt: input.reviewAt,
           })
           .returning(),
       ),
@@ -162,12 +175,38 @@ export async function listActiveLegalHolds(db: Db): Promise<LegalHold[]> {
   return [...rows].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
 }
 
+/**
+ * Active holds needing a compliance admin's attention (directive Part 7
+ * §13: "cannot become indefinite convenience") -- either past their own
+ * review date, or (a hold placed before `reviewAt` existed) never given one
+ * at all. A missing review date is treated as needing attention just as
+ * much as a passed one, never silently excluded: `reviewAt IS NULL` would
+ * otherwise never satisfy a plain `reviewAt < now()` comparison and could
+ * sit unreviewed forever, exactly the outcome this exists to prevent.
+ */
+export async function listLegalHoldsNeedingReview(
+  db: Db,
+  now: Date = new Date(),
+): Promise<LegalHold[]> {
+  const rows = await db
+    .select()
+    .from(schema.legalHolds)
+    .where(
+      and(
+        eq(schema.legalHolds.active, true),
+        or(isNull(schema.legalHolds.reviewAt), lt(schema.legalHolds.reviewAt, now)),
+      ),
+    );
+  return [...rows].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+}
+
 export interface AccountLegalHold {
   readonly id: string;
   readonly applicantId: string;
   readonly applicantDisplayName: string;
   readonly reason: string;
   readonly placedAt: Date;
+  readonly reviewAt: Date | null;
 }
 
 /**
@@ -190,6 +229,7 @@ export async function listActiveLegalHoldsForAccount(
       applicantDisplayName: schema.applicants.displayName,
       reason: schema.legalHolds.reason,
       placedAt: schema.legalHolds.createdAt,
+      reviewAt: schema.legalHolds.reviewAt,
     })
     .from(schema.legalHolds)
     .innerJoin(schema.applicants, eq(schema.applicants.id, schema.legalHolds.applicantId))

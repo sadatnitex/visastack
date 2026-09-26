@@ -1356,13 +1356,30 @@ item gets its own requirements-ledger row once classified against the new direct
     - **Legal holds (§13):** placement/release/enforcement are real and
       race-safe at every purge/deletion choke point, and agencies
       structurally cannot place or influence a hold (`COMPLIANCE_ADMIN`-only,
-      a platform role no agency membership grants). Missing entirely: a
+      a platform role no agency membership grants). ~~Missing entirely: a
       review/expiry field (the schema has no `reviewAt`/`expiresAt` at all,
       so directive §13's own "cannot become indefinite convenience" has no
-      structural backstop), a structured authority/basis field (only a
-      free-text `reason`), scope granularity finer than the whole applicant,
-      and any user-facing what/why/who/next-review explanation when a
-      traveller's own deletion is blocked by one.
+      structural backstop)~~ **RESOLVED for new holds (Part 7 §13, chunk
+      pending PR):** new nullable `legalHolds.reviewAt`; `placeLegalHold`
+      now requires it and refuses a date not in the future. New
+      `listLegalHoldsNeedingReview` surfaces any active hold whose review
+      date has passed OR was never set (a pre-existing hold from before
+      this column existed cannot be given a fabricated date by the
+      migration, so it is treated as needing attention too, never silently
+      excluded) -- not yet wired into a scheduled notification, only an
+      on-demand query and the admin page's own badge (overdue in red, a
+      real date otherwise). The admin form now requires a review date to
+      place a hold at all. The traveller-facing hold explanation (privacy
+      page) now shows the real next-review date too, alongside the
+      applicant name and reason already added in PRV-03 chunk 2. Still
+      missing: a structured authority/basis field (only a free-text
+      `reason` -- the exact taxonomy of "authority/basis" categories is a
+      legal/compliance policy decision, not invented here), scope
+      granularity finer than the whole applicant, "who can access" in the
+      traveller-facing explanation (what/why/next-review are now real;
+      who-can-access would need a live grants query not yet built), and any
+      scheduled reminder when a hold becomes due (today it is discoverable,
+      not pushed).
     - **Export/portability (§14, PRV-04):** traveller self-export
       (`exportAccount`) and agency `bulkExport` are both real, authorized,
       and tested. Missing: original file bytes (only document *metadata*

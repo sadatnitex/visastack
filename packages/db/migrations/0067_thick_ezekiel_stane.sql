@@ -1,0 +1,1 @@
+ALTER TABLE "legal_holds" ADD COLUMN "review_at" timestamp with time zone;

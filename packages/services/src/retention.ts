@@ -20,6 +20,7 @@ export {
   listActiveLegalHolds,
   listActiveLegalHoldsForAccount,
   listLegalHolds,
+  listLegalHoldsNeedingReview,
   placeLegalHold,
   releaseLegalHold,
 } from './legal-hold';

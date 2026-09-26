@@ -207,6 +207,12 @@ export function LegalHoldForm({ applicants }: LegalHoldFormProps) {
           placeholder="Why the hold is placed"
         />
       </div>
+      <div className="field-row">
+        <label className="field-label" htmlFor="reviewAt">
+          Review by
+        </label>
+        <input id="reviewAt" name="reviewAt" type="date" required className="input" />
+      </div>
       <div>
         <button type="submit" className="btn btn-danger" disabled={pending}>
           {pending ? 'Placing…' : 'Place legal hold'}

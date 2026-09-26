@@ -16,6 +16,7 @@ import { runErasureWorker } from './erasure';
 import {
   documentsPastRetention,
   listActiveLegalHolds,
+  listLegalHoldsNeedingReview,
   placeLegalHold,
   purgeExpiredDocuments,
   releaseLegalHold,
@@ -30,6 +31,9 @@ import type {
 } from './storage';
 
 const migrationsFolder = fileURLToPath(new URL('../../db/migrations', import.meta.url));
+
+/** A comfortably future review date for tests that don't exercise the review-date logic itself. */
+const FUTURE_REVIEW = new Date(Date.now() + 90 * 24 * 60 * 60 * 1000);
 
 /** Deterministic in-memory blob store — no S3, no network. */
 class FakeBlobStore implements BlobStore {
@@ -100,6 +104,7 @@ describe('legal hold overrides deletion', () => {
       actorAccountId: officer,
       applicantId,
       reason: 'litigation X',
+      reviewAt: FUTURE_REVIEW,
       stepUpSatisfied: true,
     });
     expect(isOk(hold)).toBe(true);
@@ -148,6 +153,7 @@ describe('legal hold overrides deletion', () => {
       actorAccountId: officer,
       applicantId,
       reason: 'too late — applicant already deleted',
+      reviewAt: FUTURE_REVIEW,
       stepUpSatisfied: true,
     });
     expect(isErr(result)).toBe(true);
@@ -163,6 +169,7 @@ describe('legal hold overrides deletion', () => {
       actorAccountId: officer,
       applicantId,
       reason: 'audit',
+      reviewAt: FUTURE_REVIEW,
       stepUpSatisfied: true,
     });
     if (!isOk(hold)) throw new Error('hold');
@@ -185,6 +192,7 @@ describe('legal hold overrides deletion', () => {
       actorAccountId: officer,
       applicantId,
       reason: 'no reauth yet',
+      reviewAt: FUTURE_REVIEW,
       stepUpSatisfied: false,
     });
     expect(isErr(deniedPlace)).toBe(true);
@@ -195,6 +203,7 @@ describe('legal hold overrides deletion', () => {
       actorAccountId: officer,
       applicantId,
       reason: 'genuine hold',
+      reviewAt: FUTURE_REVIEW,
       stepUpSatisfied: true,
     });
     if (!isOk(hold)) throw new Error('hold');
@@ -207,6 +216,82 @@ describe('legal hold overrides deletion', () => {
     expect(isErr(deniedRelease)).toBe(true);
     if (isErr(deniedRelease)) expect(deniedRelease.error.code).toBe('step_up_required');
     expect(await listActiveLegalHolds(db)).toHaveLength(1); // still active
+  });
+
+  it('refuses to place a hold whose review date is not in the future (directive Part 7 §13: "cannot become indefinite convenience")', async () => {
+    const { applicantId } = await consentedApplicant(db, 'hold-past-review@example.com');
+    const officer = await operator(db, 'officer-past-review@example.com');
+
+    const pastReview = await placeLegalHold(db, {
+      actorAccountId: officer,
+      applicantId,
+      reason: 'invalid review date',
+      reviewAt: new Date(Date.now() - 1000),
+      stepUpSatisfied: true,
+    });
+    expect(isErr(pastReview)).toBe(true);
+    if (isErr(pastReview)) expect(pastReview.error.message).toContain('review date');
+    expect(await listActiveLegalHolds(db)).toHaveLength(0);
+  });
+
+  it('listLegalHoldsNeedingReview surfaces a hold past its review date and one with no review date at all, never one still comfortably in the future', async () => {
+    const officer = await operator(db, 'officer-needs-review@example.com');
+    const { applicantId: overdueApplicantId } = await consentedApplicant(
+      db,
+      'hold-overdue@example.com',
+    );
+    const { applicantId: freshApplicantId } = await consentedApplicant(
+      db,
+      'hold-fresh@example.com',
+    );
+
+    const overdue = await placeLegalHold(db, {
+      actorAccountId: officer,
+      applicantId: overdueApplicantId,
+      reason: 'overdue for review',
+      reviewAt: new Date(Date.now() + 1000), // valid (future) at placement time
+      stepUpSatisfied: true,
+    });
+    if (!isOk(overdue)) throw new Error('overdue hold');
+    // Simulate time passing: the review date placed in the future is now in the past.
+    await db
+      .update(schema.legalHolds)
+      .set({ reviewAt: new Date(Date.now() - 1000) })
+      .where(eq(schema.legalHolds.id, overdue.value.id));
+
+    const fresh = await placeLegalHold(db, {
+      actorAccountId: officer,
+      applicantId: freshApplicantId,
+      reason: 'reviewed recently, not due yet',
+      reviewAt: FUTURE_REVIEW,
+      stepUpSatisfied: true,
+    });
+    if (!isOk(fresh)) throw new Error('fresh hold');
+
+    // A hold placed before this column existed (or otherwise never given a
+    // review date) is just as much "needs review" as one whose date passed.
+    const { applicantId: legacyApplicantId } = await consentedApplicant(
+      db,
+      'hold-legacy@example.com',
+    );
+    const legacy = await placeLegalHold(db, {
+      actorAccountId: officer,
+      applicantId: legacyApplicantId,
+      reason: 'legacy hold',
+      reviewAt: FUTURE_REVIEW,
+      stepUpSatisfied: true,
+    });
+    if (!isOk(legacy)) throw new Error('legacy hold');
+    await db
+      .update(schema.legalHolds)
+      .set({ reviewAt: null })
+      .where(eq(schema.legalHolds.id, legacy.value.id));
+
+    const needingReview = await listLegalHoldsNeedingReview(db);
+    const needingReviewIds = needingReview.map((h) => h.id);
+    expect(needingReviewIds).toContain(overdue.value.id);
+    expect(needingReviewIds).toContain(legacy.value.id);
+    expect(needingReviewIds).not.toContain(fresh.value.id);
   });
 });
 
@@ -259,6 +344,7 @@ describe('retention purge', () => {
       actorAccountId: officer,
       applicantId,
       reason: 'hold',
+      reviewAt: FUTURE_REVIEW,
       stepUpSatisfied: true,
     });
     if (!isOk(hold)) throw new Error('hold');
@@ -409,6 +495,7 @@ describe('retention purge', () => {
       actorAccountId: officer,
       applicantId,
       reason: 'late hold',
+      reviewAt: FUTURE_REVIEW,
       stepUpSatisfied: true,
     });
     expect(isOk(hold)).toBe(true);
