@@ -1438,16 +1438,30 @@ item gets its own requirements-ledger row once classified against the new direct
       `SECURITY_ADMIN`-gated platform permissions, two new confirm-gated
       buttons on `/app/admin`), rather than shipping a third unreachable
       function.
-    - **Backup resurrection protection (§15):** no design or code exists at
-      all. The only "tombstone" concept in the codebase
-      (`accountDeletionRequests.accountId` surviving as `NULL` after
-      execution) is a live-database historical marker, unrelated to
-      replaying deletions/revocations against data resurrected by an actual
-      backup restore. `docs/operations/recovery.md`'s own restore drill
-      does not mention tombstones, revocations, memberships, or holds at
-      all. The directive's own bar here is comparatively low (a design, not
-      the full drill -- "actual full restore drill comes later") and is
-      still unmet.
+    - **Backup resurrection protection (§15):** ~~no design or code exists at
+      all~~. **RESOLVED, design only.** New
+      `docs/operations/backup-resurrection-reconciliation.md`: the threat
+      (a genuine disaster restore promoted to production silently brings
+      back anything deleted/revoked/deactivated after the restore point,
+      since Neon's point-in-time restore is this codebase's entire backup
+      mechanism and the restored branch reflects only that earlier moment),
+      the governing principle (reconciliation only ever tightens -- deleted
+      stays deleted, revoked stays revoked, a hold stays active even if the
+      restore predates it -- never the reverse), an exact table of every
+      audit event type that needs replaying (`ACCOUNT_DELETION_EXECUTED`,
+      `ERASURE_VERIFIED`, `GRANT_REVOKED`, `CONSENT_REVOKED`,
+      `MEMBERSHIP_DEACTIVATED`, `LEGAL_HOLD_PLACED`/`RELEASED`,
+      `PLATFORM_ROLE_REVOKED`, `ORGANIZATION_SUSPENDED`/`TERMINATED`,
+      `MISSION_RETENTION_PURGED`) against the action each one forces on the
+      restored branch, and the honest limit of the design: it requires the
+      pre-incident branch to still be reachable read-only, which is not
+      true for a total-project-loss scenario. `docs/operations/recovery.md`
+      cross-links it. The reconciliation tool itself (a script implementing
+      this table against two real branch connections, with tests) is a
+      separate, tracked implementation chunk -- deliberately not built in
+      the same pass as the design, matching the directive's own literal
+      ask here ("create...design," not "build the full drill" -- the same
+      §15 itself says "actual full restore drill comes later").
 
     Full detail: `docs/commercial-v1/privacy-data-map.md` §4 (summary,
     cross-referencing here rather than duplicating) and

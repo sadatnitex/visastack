@@ -34,6 +34,15 @@ by production monitoring, not by assertion.
 6. Record the measured RTO (start of drill → readiness green) and confirm it is
    within target. File the result; if over target, open a remediation task.
 
+## Backup resurrection protection
+
+A restore that is promoted to production (not merely a drill) must never
+bring back data or access that was legitimately removed after the restore
+point (master directive Part 7 §15). See
+`docs/operations/backup-resurrection-reconciliation.md` for the full
+reconciliation design and procedure; run it before reconnecting real users
+or workers to a promoted restore.
+
 ## Non-goals / invariants
 
 - Never restore production data into a preview/synthetic environment used for
