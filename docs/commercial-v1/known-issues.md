@@ -1264,6 +1264,84 @@ item gets its own requirements-ledger row once classified against the new direct
     but none has `apps/web` UI yet -- deferred intentionally to one combined
     UI chunk now that all three backends exist, the same backend-then-UI
     split TRU-02 already used.
+77. (Part 7 §§11-14, PRV-02/03/04) Retention, erasure UX, legal-hold
+    attributes, and export are each genuinely partial, per a dedicated
+    audit (2026-09-26) that read the actual code rather than trusting a
+    prior engagement's "genuinely complete" claim on
+    `commercial-readiness.ts`'s `retentionDeletionWorkflow` gate -- that
+    claim holds only for the narrow slice named below, not for the
+    directive's actual §11-§14 scope.
+    - **Retention (§11, PRV-02):** real and configurable for exactly one of
+      the eight named classes (`retention_policies`, per-`docType`) plus a
+      hardcoded (not admin-configurable) 24h abandoned-upload sweep. Missing:
+      invite-metadata 30d sweep (invitation rows accumulate indefinitely
+      past their 7-day acceptance-window expiry), OCR/export <=24h,
+      AI-cache <=30d (`aiExtractionRuns`' cache-hit lookup has no age
+      predicate at all), app-log 30d (governed by Vercel's own log
+      retention, not this codebase), closed-case 12mo+30d-notice (no
+      closure-triggered timer exists), and the inactive-account half of
+      "wallet original: until deletion/inactive-account policy" (no
+      `lastActiveAt` tracking exists). The "restricted security/audit
+      metadata: 12m" default is additionally structurally blocked today by
+      `audit_events`' own append-only/undeletable DB rules (SEC-04) -- built
+      deliberately for tamper-evidence, but it means no code path can purge
+      audit metadata after 12 months without first revisiting that rule, a
+      real tension to resolve, not just an unbuilt sweep.
+    - **Erasure workflow UX (§12, PRV-03):** the durable delete-then-verify
+      outbox itself (steps 7-8 of the directive's 8-step flow) is genuinely
+      solid, race-safe engineering (`docs/security/erasure-and-retention-boundary.md`).
+      The requester-facing flow around it is not: `apps/web/src/app/app/privacy/page.tsx`
+      offers a reason field and a confirm button, nothing else. Missing:
+      step 2 (no scope picker -- deletion is implicitly "everything"), step
+      3 (no preview of what will be deleted), step 4 (the "an active legal
+      hold blocks deletion" sentence is static copy, never queried against
+      the actual requester's own holds -- no what/why/who-can-access/
+      next-review detail), step 5 (export exists as a wholly separate card,
+      never offered as part of the deletion confirmation itself), step 6
+      (optional-processing consents are not revoked at request time, only
+      incidentally when the account row is finally deleted after the grace
+      window -- AI extraction/marketing can continue throughout). Backup
+      expiry target (<=90 days) has no tracking or enforcement of any kind.
+    - **Legal holds (§13):** placement/release/enforcement are real and
+      race-safe at every purge/deletion choke point, and agencies
+      structurally cannot place or influence a hold (`COMPLIANCE_ADMIN`-only,
+      a platform role no agency membership grants). Missing entirely: a
+      review/expiry field (the schema has no `reviewAt`/`expiresAt` at all,
+      so directive §13's own "cannot become indefinite convenience" has no
+      structural backstop), a structured authority/basis field (only a
+      free-text `reason`), scope granularity finer than the whole applicant,
+      and any user-facing what/why/who/next-review explanation when a
+      traveller's own deletion is blocked by one.
+    - **Export/portability (§14, PRV-04):** traveller self-export
+      (`exportAccount`) and agency `bulkExport` are both real, authorized,
+      and tested. Missing: original file bytes (only document *metadata*
+      rows are exported, never the actual bytes via `storageObjectId`), a
+      manifest of what was included/excluded, CSV (JSON only), and the
+      entire "large export" infrastructure the directive names (async
+      durable job, encrypted transient storage, 24h artifact lifetime, ZIP
+      path/traversal/duplicate/executable safety, access rechecked at
+      download) -- both export paths are synchronous, unbounded,
+      un-ZIPped in-memory responses today. Agency export is also
+      narrower than traveller export by design today (`bulkExport` returns
+      facts only, never documents or snapshots -- `known-issues.md`'s own
+      earlier note on this, cross-referenced here). "Agency termination"
+      rests on reversible `suspendOrganization`, not a true non-reversible
+      `CLOSED` status (that enum value is defined but no code path ever
+      sets it).
+    - **Backup resurrection protection (§15):** no design or code exists at
+      all. The only "tombstone" concept in the codebase
+      (`accountDeletionRequests.accountId` surviving as `NULL` after
+      execution) is a live-database historical marker, unrelated to
+      replaying deletions/revocations against data resurrected by an actual
+      backup restore. `docs/operations/recovery.md`'s own restore drill
+      does not mention tombstones, revocations, memberships, or holds at
+      all. The directive's own bar here is comparatively low (a design, not
+      the full drill -- "actual full restore drill comes later") and is
+      still unmet.
+
+    Full detail: `docs/commercial-v1/privacy-data-map.md` §4 (summary,
+    cross-referencing here rather than duplicating) and
+    `requirements-ledger.md` PRV-01/02/03/04.
 independently confirmed findings; the missing PRD file is tracked as Blocker 1 in
 `assumptions-and-blockers.md` (now resolved) rather than here, since it blocked the
 programme rather than being a product defect.
