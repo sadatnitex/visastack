@@ -283,6 +283,7 @@ export {
   setMembershipActive,
   setRequireDifferentReviewer,
   suspendOrganization,
+  terminateOrganization,
 } from './organizations';
 
 export {

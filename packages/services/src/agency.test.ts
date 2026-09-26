@@ -53,6 +53,7 @@ import {
   setMembershipActive,
   setRequireDifferentReviewer,
   suspendOrganization,
+  terminateOrganization,
 } from './organizations';
 import {
   addPackVersion,
@@ -1295,6 +1296,7 @@ describe('permissioned bulk export', () => {
     const suspended = await suspendOrganization(db, {
       reviewerAccountId: reviewer.value.id,
       organizationId: org.value.id,
+      stepUpSatisfied: true,
     });
     expect(isOk(suspended)).toBe(true);
 
@@ -1994,6 +1996,7 @@ describe("SHR-02: a suspended/closed organization loses standing everywhere orgG
     await suspendOrganization(db, {
       reviewerAccountId: reviewer.value.id,
       organizationId: org.value.id,
+      stepUpSatisfied: true,
     });
 
     // The grant itself is untouched (still ACTIVE, still accepted), the
@@ -2014,6 +2017,68 @@ describe("SHR-02: a suspended/closed organization loses standing everywhere orgG
     const requirements = await listMissionRequirementsForOrg(db, org.value.id, mission.value.id);
     expect(isErr(requirements)).toBe(true);
     if (isErr(requirements)) expect(requirements.error.code).toBe('forbidden');
+  });
+
+  it('orgGrantPermits denies once the organization is terminated (CLOSED), proving "removes agency access" is real, not just documented in this describe title', async () => {
+    const { account, applicantId } = await consentedApplicant(db, 'shr02-closed@example.com');
+    const mission = await createMission(db, {
+      actorAccountId: account.id,
+      applicantId,
+      title: 'M',
+    });
+    if (!isOk(mission)) throw new Error('mission');
+    const agentAcc = await provisionAccount(db, { email: 'shr02-closed-agent@acme.com' });
+    if (!isOk(agentAcc)) throw new Error('provision');
+    const org = await createOrganization(db, { actorAccountId: agentAcc.value.id, name: 'Acme' });
+    if (!isOk(org)) throw new Error('org');
+    await activateOrg(db, org.value.id);
+
+    const grant = await createGrant(db, {
+      actorAccountId: account.id,
+      applicantId,
+      recipientOrganizationId: org.value.id,
+      missionId: mission.value.id,
+      actions: ['MANAGE'],
+      purpose: 'collaboration',
+    });
+    if (!isOk(grant)) throw new Error('grant');
+    await acceptGrant(db, { actorAccountId: agentAcc.value.id, grantId: grant.value.id });
+
+    const assignedBefore = await assignMember(db, {
+      actorAccountId: agentAcc.value.id,
+      organizationId: org.value.id,
+      memberAccountId: agentAcc.value.id,
+      missionId: mission.value.id,
+    });
+    expect(isOk(assignedBefore)).toBe(true);
+
+    const reviewer = await provisionAccount(db, { email: 'shr02-closed-reviewer@example.com' });
+    if (!isOk(reviewer)) throw new Error('provision');
+    const terminated = await terminateOrganization(db, {
+      reviewerAccountId: reviewer.value.id,
+      organizationId: org.value.id,
+      stepUpSatisfied: true,
+    });
+    expect(isOk(terminated)).toBe(true);
+    if (isOk(terminated)) expect(terminated.value.status).toBe('CLOSED');
+
+    const assignedAfter = await assignMember(db, {
+      actorAccountId: agentAcc.value.id,
+      organizationId: org.value.id,
+      memberAccountId: agentAcc.value.id,
+      missionId: mission.value.id,
+    });
+    expect(isErr(assignedAfter)).toBe(true);
+    if (isErr(assignedAfter)) expect(assignedAfter.error.code).toBe('forbidden');
+
+    // "Traveller retains wallet" (PRD PRV-04): terminating the agency never
+    // touches the applicant's own profile at all.
+    const stillOwnedApplicant = await db
+      .select()
+      .from(schema.applicants)
+      .where(eq(schema.applicants.id, applicantId));
+    expect(stillOwnedApplicant).toHaveLength(1);
+    expect(stillOwnedApplicant[0]?.ownerAccountId).toBe(account.id);
   });
 });
 

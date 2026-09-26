@@ -158,6 +158,7 @@ describe('organizations — verification and membership', () => {
     const suspended = await suspendOrganization(db, {
       reviewerAccountId: admin.value.id,
       organizationId: org.value.id,
+      stepUpSatisfied: true,
     });
     expect(isOk(suspended)).toBe(true);
   });

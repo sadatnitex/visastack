@@ -16,6 +16,8 @@ import {
   revokeInvitation,
   revokePlatformRole,
   setRetentionPolicy,
+  suspendOrganization,
+  terminateOrganization,
 } from '@visastack/services';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
@@ -342,6 +344,79 @@ export async function reviewOrganizationAction(
       ok: true,
       message: decision === 'ACTIVE' ? 'Organization verified.' : 'Organization rejected.',
     } satisfies ActionState;
+  });
+  if (result.ok) revalidatePath('/app/admin');
+  return result;
+}
+
+/**
+ * Suspend an ACTIVE organization. Platform-admin only, step-up gated as
+ * "organization suspension" (master directive §7 "PR 5").
+ */
+export async function suspendOrganizationAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const organizationId = String(formData.get('organizationId') ?? '').trim();
+  if (organizationId.length === 0) return { ok: false, message: 'Missing organization id.' };
+  const result = await withSession(async ({ db, accountId, email }) => {
+    if (!(await hasPlatformPermission(db, { accountId, email }, 'ORGANIZATION_SUSPEND'))) {
+      return DENIED;
+    }
+    const stepUp = await tryEstablishStepUp(
+      { accountId, action: 'ORGANIZATION_SUSPEND', resourceId: organizationId },
+      '/app/admin',
+    );
+    if (stepUp.kind === 'not_configured') {
+      return { ok: false, message: STEP_UP_NOT_CONFIGURED_MESSAGE } satisfies ActionState;
+    }
+    if (stepUp.kind === 'reauth_required') redirect(stepUp.reauthUrl);
+    const suspended = await suspendOrganization(db, {
+      reviewerAccountId: accountId,
+      organizationId,
+      stepUpSatisfied: true,
+    });
+    if (!suspended.ok) return { ok: false, message: suspended.error.message } satisfies ActionState;
+    return { ok: true, message: 'Organization suspended.' } satisfies ActionState;
+  });
+  if (result.ok) revalidatePath('/app/admin');
+  return result;
+}
+
+/**
+ * Terminate an organization (master directive Part 7 §14, PRD PRV-04):
+ * permanent, removes platform access, the traveller's own wallet is
+ * untouched. Platform-admin only, step-up gated as "organization
+ * termination" -- legal from ACTIVE or SUSPENDED, matching
+ * `terminateOrganization`'s own precondition.
+ */
+export async function terminateOrganizationAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const organizationId = String(formData.get('organizationId') ?? '').trim();
+  if (organizationId.length === 0) return { ok: false, message: 'Missing organization id.' };
+  const result = await withSession(async ({ db, accountId, email }) => {
+    if (!(await hasPlatformPermission(db, { accountId, email }, 'ORGANIZATION_TERMINATE'))) {
+      return DENIED;
+    }
+    const stepUp = await tryEstablishStepUp(
+      { accountId, action: 'ORGANIZATION_TERMINATE', resourceId: organizationId },
+      '/app/admin',
+    );
+    if (stepUp.kind === 'not_configured') {
+      return { ok: false, message: STEP_UP_NOT_CONFIGURED_MESSAGE } satisfies ActionState;
+    }
+    if (stepUp.kind === 'reauth_required') redirect(stepUp.reauthUrl);
+    const terminated = await terminateOrganization(db, {
+      reviewerAccountId: accountId,
+      organizationId,
+      stepUpSatisfied: true,
+    });
+    if (!terminated.ok) {
+      return { ok: false, message: terminated.error.message } satisfies ActionState;
+    }
+    return { ok: true, message: 'Organization terminated.' } satisfies ActionState;
   });
   if (result.ok) revalidatePath('/app/admin');
   return result;
