@@ -61,7 +61,8 @@ export type NotificationEventType =
   | 'DOCUMENT_EXPIRY'
   | 'VERIFICATION_EXPIRY'
   | 'DOWNGRADE_SCHEDULED'
-  | 'DOWNGRADE_EXECUTED';
+  | 'DOWNGRADE_EXECUTED'
+  | 'CASE_RETENTION_NOTICE';
 
 /**
  * "Email content: neutral; minimal; authenticated deep link." / "Never

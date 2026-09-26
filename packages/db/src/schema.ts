@@ -583,6 +583,23 @@ export const missions = pgTable('missions', {
   // which one it actually is.
   manualMode: boolean('manual_mode').notNull().default(false),
   state: missionState('state').notNull().default('DRAFT'),
+  // PRV-02 (Part 7 §11): "closed case: initial proposed 12m with 30d
+  // notice." Set exactly once, by `transitionMission` (the only writer of
+  // `state`), the moment a mission reaches either terminal state -- CLOSED
+  // or CANCELLED, treated identically here since both mean "this case will
+  // never be worked again" (missions.ts's own TRANSITIONS map gives both an
+  // empty legal-move list; the directive names only "closed case" without
+  // splitting the two). Never touched again afterward: unlike `updatedAt`,
+  // which later case-detail edits (e.g. `updateMissionCaseDetails`) can
+  // still bump even on a closed mission, this column exists specifically so
+  // the retention clock is never accidentally reset by an unrelated write.
+  closedAt: timestamp('closed_at', { withTimezone: true }),
+  // Set once by the retention-notice sweep (`case-retention.ts`) the first
+  // time it processes a mission whose `closedAt` has crossed the configured
+  // notice threshold. Drives the later purge sweep's own "30 days after
+  // notice" clock; a compare-and-set on this being still null is what makes
+  // the notice sweep idempotent against re-running on the same mission.
+  retentionNoticeSentAt: timestamp('retention_notice_sent_at', { withTimezone: true }),
   // The published requirement pack version this mission is assembled against.
   // restrict, not cascade/set null: nothing deletes a pack version today
   // (Pack Studio is create/version-forward only), but a mission must never
