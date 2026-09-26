@@ -148,7 +148,7 @@ export type {
   RenderedPreview,
 } from './preview-rendering';
 
-export { type AccountExport, exportAccount } from './export';
+export { type AccountExport, type AccountExportManifest, exportAccount } from './export';
 
 export {
   type AccountLegalHold,

@@ -1383,13 +1383,21 @@ item gets its own requirements-ledger row once classified against the new direct
     - **Export/portability (§14, PRV-04):** traveller self-export
       (`exportAccount`) and agency `bulkExport` are both real, authorized,
       and tested. Missing: original file bytes (only document *metadata*
-      rows are exported, never the actual bytes via `storageObjectId`), a
-      manifest of what was included/excluded, CSV (JSON only), and the
+      rows are exported, never the actual bytes via `storageObjectId`), ~~a
+      manifest of what was included/excluded~~, CSV (JSON only), and the
       entire "large export" infrastructure the directive names (async
       durable job, encrypted transient storage, 24h artifact lifetime, ZIP
       path/traversal/duplicate/executable safety, access rechecked at
       download) -- both export paths are synchronous, unbounded,
-      un-ZIPped in-memory responses today. Agency export is also
+      un-ZIPped in-memory responses today. **RESOLVED for the traveller
+      export (Part 7 §14, Chunk 1):** new `AccountExportManifest` (real
+      counts derived from the export's own already-assembled data, an
+      `excludedByDesign` list, and a `knownGaps` list naming the original-
+      bytes and CSV gaps honestly) plus a new `consentHistory` field (the
+      full grant/revoke trail, not just current state -- closing the
+      directive's separate "consent/share history" line). Agency export
+      (`bulkExport`) was not touched in this chunk and has no manifest of
+      its own yet. Agency export is also
       narrower than traveller export by design today (`bulkExport` returns
       facts only, never documents or snapshots -- `known-issues.md`'s own
       earlier note on this, cross-referenced here). "Agency termination"

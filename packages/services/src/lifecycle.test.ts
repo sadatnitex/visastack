@@ -114,6 +114,10 @@ describe('account export', () => {
     expect(result.value.applicants[0]?.facts[0]?.versions).toHaveLength(1);
     expect(result.value.applicants[0]?.documents[0]?.versions).toHaveLength(1);
     expect(result.value.auditEvents.length).toBeGreaterThan(0);
+    // Directive Part 7 §14: "consent/share history" -- the full grant/revoke
+    // trail, not just current state.
+    expect(result.value.consentHistory.length).toBeGreaterThan(0);
+    expect(result.value.consentHistory[0]?.type).toBe('CORE_PROCESSING');
   });
 
   it('refuses to export another account', async () => {
@@ -126,6 +130,36 @@ describe('account export', () => {
     });
     expect(isErr(result)).toBe(true);
     if (isErr(result)) expect(result.error.code).toBe('forbidden');
+  });
+
+  it('manifest counts match the actual exported data exactly, and honestly lists known gaps (PRV-04, Part 7 §14: "manifest")', async () => {
+    const { account } = await seedFullAccount(db, 'exp-manifest@example.com');
+    const result = await exportAccount(db, { actorAccountId: account.id, accountId: account.id });
+    expect(isOk(result)).toBe(true);
+    if (!isOk(result)) return;
+
+    // seedFullAccount creates exactly: 1 applicant, 1 fact (1 version), 1
+    // document (1 version), 0 missions.
+    expect(result.value.manifest.counts).toMatchObject({
+      applicants: 1,
+      facts: 1,
+      factVersions: 1,
+      documents: 1,
+      documentVersions: 1,
+      missions: 0,
+      missionSnapshots: 0,
+    });
+    expect(result.value.manifest.counts.consentHistoryEntries).toBe(
+      result.value.consentHistory.length,
+    );
+    expect(result.value.manifest.counts.auditEvents).toBe(result.value.auditEvents.length);
+
+    // Never conflate a permanent, by-design exclusion with a genuine,
+    // temporary implementation gap -- both lists must be real and non-empty.
+    expect(result.value.manifest.excludedByDesign.length).toBeGreaterThan(0);
+    expect(result.value.manifest.knownGaps.map((g) => g.item)).toEqual(
+      expect.arrayContaining(['original document bytes', 'CSV format']),
+    );
   });
 });
 
