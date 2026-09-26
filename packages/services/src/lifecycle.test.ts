@@ -20,6 +20,7 @@ import {
 import { addDocumentVersion, registerDocument } from './documents';
 import { runErasureWorker } from './erasure';
 import { exportAccount } from './export';
+import { buildExportCsvTables } from './export-csv';
 import { placeLegalHold } from './legal-hold';
 import { createMission } from './missions';
 import { grantPlatformRole } from './platform-roles';
@@ -157,9 +158,42 @@ describe('account export', () => {
     // Never conflate a permanent, by-design exclusion with a genuine,
     // temporary implementation gap -- both lists must be real and non-empty.
     expect(result.value.manifest.excludedByDesign.length).toBeGreaterThan(0);
-    expect(result.value.manifest.knownGaps.map((g) => g.item)).toEqual(
-      expect.arrayContaining(['original document bytes', 'CSV format']),
+    // CSV format shipped in PRV-04 chunk 2 -- only the original document
+    // bytes (which need the directive's async export job) remain a gap.
+    expect(result.value.manifest.knownGaps.map((g) => g.item)).toEqual(['original document bytes']);
+  });
+
+  it('CSV tables mirror the manifest counts exactly, for every table the manifest counts (PRV-04, Part 7 §14: "readable JSON/CSV metadata")', async () => {
+    const { account } = await seedFullAccount(db, 'exp-csv@example.com');
+    const result = await exportAccount(db, { actorAccountId: account.id, accountId: account.id });
+    expect(isOk(result)).toBe(true);
+    if (!isOk(result)) return;
+
+    const tables = buildExportCsvTables(result.value);
+    const rowCount = (name: string) => tables.find((t) => t.name === name)?.rowCount;
+
+    expect(rowCount('applicants.csv')).toBe(result.value.manifest.counts.applicants);
+    expect(rowCount('facts.csv')).toBe(result.value.manifest.counts.facts);
+    expect(rowCount('fact_versions.csv')).toBe(result.value.manifest.counts.factVersions);
+    expect(rowCount('documents.csv')).toBe(result.value.manifest.counts.documents);
+    expect(rowCount('document_versions.csv')).toBe(result.value.manifest.counts.documentVersions);
+    expect(rowCount('missions.csv')).toBe(result.value.manifest.counts.missions);
+    expect(rowCount('mission_snapshots.csv')).toBe(result.value.manifest.counts.missionSnapshots);
+    expect(rowCount('grants_granted.csv')).toBe(result.value.manifest.counts.grantsGranted);
+    expect(rowCount('grants_received.csv')).toBe(result.value.manifest.counts.grantsReceived);
+    expect(rowCount('evidence_requests.csv')).toBe(result.value.manifest.counts.evidenceRequests);
+    expect(rowCount('ai_extraction_runs.csv')).toBe(result.value.manifest.counts.aiExtractionRuns);
+    expect(rowCount('audit_events.csv')).toBe(result.value.manifest.counts.auditEvents);
+    expect(rowCount('product_events.csv')).toBe(result.value.manifest.counts.productEvents);
+    expect(rowCount('consent_history.csv')).toBe(
+      result.value.manifest.counts.consentHistoryEntries,
     );
+
+    // A single-row table (the account's own current state) renders as a
+    // one-line-plus-header CSV, never an empty string.
+    const accountTable = tables.find((t) => t.name === 'account.csv');
+    expect(accountTable?.rowCount).toBe(1);
+    expect(accountTable?.csv).toContain(account.id);
   });
 });
 

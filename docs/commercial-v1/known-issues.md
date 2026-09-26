@@ -1384,7 +1384,7 @@ item gets its own requirements-ledger row once classified against the new direct
       (`exportAccount`) and agency `bulkExport` are both real, authorized,
       and tested. Missing: original file bytes (only document *metadata*
       rows are exported, never the actual bytes via `storageObjectId`), ~~a
-      manifest of what was included/excluded~~, CSV (JSON only), and the
+      manifest of what was included/excluded~~, ~~CSV (JSON only)~~, and the
       entire "large export" infrastructure the directive names (async
       durable job, encrypted transient storage, 24h artifact lifetime, ZIP
       path/traversal/duplicate/executable safety, access rechecked at
@@ -1395,9 +1395,16 @@ item gets its own requirements-ledger row once classified against the new direct
       `excludedByDesign` list, and a `knownGaps` list naming the original-
       bytes and CSV gaps honestly) plus a new `consentHistory` field (the
       full grant/revoke trail, not just current state -- closing the
-      directive's separate "consent/share history" line). Agency export
-      (`bulkExport`) was not touched in this chunk and has no manifest of
-      its own yet. Agency export is also
+      directive's separate "consent/share history" line). **RESOLVED for
+      the traveller export (Part 7 §14, Chunk 2):** `?format=csv` on the
+      same export route now returns a ZIP of one CSV table per entity kind,
+      rendered from the exact same already-assembled export data (never a
+      new query, so it cannot diverge from the JSON export or the
+      manifest's counts), plus a copy of `manifest.json` inside the ZIP so
+      a CSV-only download stays self-describing. Only original file bytes
+      remain a gap for the traveller export now. Agency export
+      (`bulkExport`) was not touched in either chunk and has no manifest or
+      CSV rendering of its own yet. Agency export is also
       narrower than traveller export by design today (`bulkExport` returns
       facts only, never documents or snapshots -- `known-issues.md`'s own
       earlier note on this, cross-referenced here). "Agency termination"

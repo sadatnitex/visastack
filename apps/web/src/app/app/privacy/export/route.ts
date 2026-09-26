@@ -1,13 +1,17 @@
 import { exportAccount } from '@visastack/services';
+import { buildExportZip } from '../../../../lib/export-csv';
 import { withSession } from '../../../../lib/session';
 import { STEP_UP_NOT_CONFIGURED_MESSAGE, tryEstablishStepUp } from '../../../../lib/step-up';
 
 /**
- * Self-service data export (Build Spec §13; PRD §2 — data portability).
+ * Self-service data export (Build Spec §13; PRD §2 - data portability;
+ * master directive Part 7 §14: "readable JSON/CSV metadata").
  *
  * Streams the signed-in account's complete, structured snapshot as a JSON
- * attachment. Authorization is enforced by `exportAccount` (self-only) after
- * `withSession` establishes the account from the WorkOS session.
+ * attachment by default, or as a ZIP of CSV tables plus the manifest when
+ * `?format=csv` is given. Authorization is enforced by `exportAccount`
+ * (self-only) after `withSession` establishes the account from the WorkOS
+ * session; both formats render the exact same underlying data.
  *
  * A full account snapshot (every applicant, document, profile fact, and the
  * audit trail) is exactly the kind of bulk, silent-exfiltration target a
@@ -18,6 +22,8 @@ import { STEP_UP_NOT_CONFIGURED_MESSAGE, tryEstablishStepUp } from '../../../../
 export const dynamic = 'force-dynamic';
 
 export async function GET(request: Request): Promise<Response> {
+  const wantsCsv = new URL(request.url).searchParams.get('format') === 'csv';
+
   const outcome = await withSession(async ({ db, accountId }) => {
     const stepUp = await tryEstablishStepUp(
       { accountId, action: 'ACCOUNT_EXPORT', resourceId: accountId },
@@ -39,8 +45,21 @@ export async function GET(request: Request): Promise<Response> {
   const snapshot = outcome.snapshot;
   if (!snapshot) return new Response('export failed', { status: 403 });
 
-  const body = JSON.stringify(snapshot, null, 2);
   const stamp = new Date().toISOString().slice(0, 10);
+
+  if (wantsCsv) {
+    const zipBytes = await buildExportZip(snapshot);
+    return new Response(zipBytes, {
+      status: 200,
+      headers: {
+        'Content-Type': 'application/zip',
+        'Content-Disposition': `attachment; filename="visastack-export-${stamp}.zip"`,
+        'Cache-Control': 'private, no-store',
+      },
+    });
+  }
+
+  const body = JSON.stringify(snapshot, null, 2);
   return new Response(body, {
     status: 200,
     headers: {

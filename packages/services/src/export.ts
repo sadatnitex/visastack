@@ -283,11 +283,6 @@ export async function exportAccount(
         reason:
           'document metadata (name, size, hash, scan result) is included for every version; the original file bytes themselves are not yet -- directive Part 7 §14 requires these delivered through a durable, ZIP-safe async export job, which does not exist yet (known-issues.md item 77)',
       },
-      {
-        item: 'CSV format',
-        reason:
-          'this export is JSON only today; a flat CSV rendering is not yet built (known-issues.md item 77)',
-      },
     ],
   };
 
