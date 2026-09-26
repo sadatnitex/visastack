@@ -5,6 +5,7 @@ import {
   computeReadiness,
   getApplicant,
   getEvidenceCandidates,
+  getLiveAcknowledgement,
   getMissionForOwner,
   getPack,
   getPackVersion,
@@ -47,6 +48,11 @@ export const dynamic = 'force-dynamic';
 
 const STATE_LABELS: Record<string, string> = {
   DRAFT: 'Draft',
+  INTAKE: 'Intake',
+  IN_REVIEW: 'In review',
+  AWAITING_APPLICANT: 'Awaiting applicant',
+  SUBMISSION_READY: 'Submission ready',
+  SUBMITTED: 'Submitted',
   IN_PROGRESS: 'In progress',
   READY_FOR_REVIEW: 'Ready for review',
   UNDER_REVIEW: 'Under review',
@@ -158,6 +164,7 @@ export default async function MissionPage({
       contributorRequests,
       notes,
       appointments,
+      liveAcknowledgement,
     ] = await Promise.all([
       mission.packVersionId ? computeReadiness(db, mission.id) : Promise.resolve(null),
       mission.packVersionId ? listRequirements(db, mission.packVersionId) : Promise.resolve([]),
@@ -180,6 +187,11 @@ export default async function MissionPage({
       listContributorRequests(db, { actorAccountId: accountId, missionId: mission.id }),
       listNotesForOwner(db, accountId, mission.id),
       listAppointments(db, accountId, mission.id),
+      // CAS-07 (Part 7 §6): whether this case currently has a live
+      // acknowledgement -- surfaced here so the SUBMISSION_READY gate
+      // (transitionMission) is legible before an owner clicks a button that
+      // would otherwise fail with no visible reason why.
+      getLiveAcknowledgement(db, mission.id),
     ]);
     const pack = packVersionRow ? await getPack(db, packVersionRow.packId) : undefined;
     // Case-readiness UI (directive §10): every requirement's richer RUL-04
@@ -254,6 +266,7 @@ export default async function MissionPage({
       mission,
       applicantName: applicant?.displayName ?? 'Applicant',
       applicantId: mission.applicantId,
+      liveAcknowledgedAt: liveAcknowledgement?.createdAt.toISOString() ?? null,
       readiness: readinessValue,
       requirementDetails,
       requiredHardGapCount,
@@ -350,6 +363,10 @@ export default async function MissionPage({
           <p className="muted" style={{ margin: '0.35rem 0 0' }}>
             {mission.destination ? `${mission.destination} · ` : ''}
             {STATE_LABELS[mission.state] ?? mission.state}
+            {' · '}
+            {data.liveAcknowledgedAt
+              ? `Acknowledged ${new Date(data.liveAcknowledgedAt).toLocaleDateString()}`
+              : 'Not yet acknowledged'}
           </p>
         </div>
         <SnapshotButton missionId={mission.id} />

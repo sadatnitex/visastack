@@ -63,8 +63,16 @@ interface SnapshotContent {
 
 // A snapshot taken once the mission has reached this stage of the reviewer
 // workflow is the application packet (Build Spec §4.5's "pack production"),
-// not just a working evidence capture.
-const PACKET_STATES: ReadonlySet<string> = new Set(['READY_TO_EXPORT', 'LOCKED', 'CLOSED']);
+// not just a working evidence capture. Includes CAS-07's canonical
+// late-stage states alongside the legacy ones -- the same "this is the
+// exportable/final content" moment, whichever vocabulary the mission uses.
+const PACKET_STATES: ReadonlySet<string> = new Set([
+  'READY_TO_EXPORT',
+  'LOCKED',
+  'CLOSED',
+  'SUBMISSION_READY',
+  'SUBMITTED',
+]);
 
 // RUL-04 (Part 6 §5) labels, matching the live mission page's own map. A
 // snapshot is a frozen historical view, never actionable, so unlike the live

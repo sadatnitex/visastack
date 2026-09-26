@@ -435,6 +435,13 @@
       "when": 1790313144537,
       "tag": "0061_illegal_scorpion",
       "breakpoints": true
+    },
+    {
+      "idx": 62,
+      "version": "7",
+      "when": 1790317961058,
+      "tag": "0062_worried_iron_fist",
+      "breakpoints": true
     }
   ]
 }

@@ -1221,12 +1221,17 @@ item gets its own requirements-ledger row once classified against the new direct
     this chunk:** part of (c) -- a case-workspace-WIDE "this case is dirty"
     banner (§5's own phrase) is NOT built; this chunk only labels an
     invalidated entry "Historical" within a single snapshot's own history
-    list, which is a real but narrower reading of §5. The wider banner is
-    deferred to CAS-07 on purpose: "invalidate submission-ready use" needs a
-    `SUBMISSION_READY` state to invalidate, and CAS-07 (canonical case
-    states) is NOT_STARTED, so there is nothing to wire "dirty" into yet.
-    Not verified in a live browser (sandbox limitation, same as every prior
-    UI chunk this session). Full detail: `requirements-ledger.md` TRU-02.
+    list, which is a real but narrower reading of §5. **Update (Part 7 §6,
+    CAS-07).** The wider banner's own prerequisite has since landed:
+    `SUBMISSION_READY` now exists and genuinely gates on a live
+    acknowledgement (`transitionMission`), and the mission page shows a
+    live-acknowledgement status line next to the state badge -- but a
+    dedicated, case-workspace-wide "dirty" banner distinct from that status
+    line was not itself built as part of CAS-07, so this specific gap
+    remains open, now for its own sake rather than for a missing
+    prerequisite. Not verified in a live browser (sandbox limitation, same
+    as every prior UI chunk this session). Full detail:
+    `requirements-ledger.md` TRU-02, CAS-07.
 independently confirmed findings; the missing PRD file is tracked as Blocker 1 in
 `assumptions-and-blockers.md` (now resolved) rather than here, since it blocked the
 programme rather than being a product defect.

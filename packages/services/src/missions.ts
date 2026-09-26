@@ -12,7 +12,7 @@ import { checkCaseCreationEntitlement } from './entitlement-enforcement';
 import { activeOrVerifiedErasureStorageObjectIds } from './erasure';
 import { type ServiceError, serviceError } from './errors';
 import { type StalenessClassification, classifyStaleness, parseDocumentDate } from './expiry';
-import { incrementMaterialRevision } from './material-revision';
+import { getLiveAcknowledgement, incrementMaterialRevision } from './material-revision';
 import { cancelQueuedNotificationsForResource } from './notifications';
 import { type PackRequirement, listRequirements } from './packs';
 import { recordProductEvent } from './product-events';
@@ -36,16 +36,39 @@ import {
 export type Mission = typeof schema.missions.$inferSelect;
 export type MissionSnapshot = typeof schema.missionSnapshots.$inferSelect;
 
-// Legal reviewer-workflow transitions (Build Spec §4.3).
+// Legal reviewer-workflow transitions (Build Spec §4.3; extended by CAS-07,
+// master directive Part 7 §6). Every legacy-only move (IN_PROGRESS through
+// LOCKED) is kept byte-for-byte unchanged from before CAS-07 -- additive
+// migration, never a rewrite -- with exactly one new bridge: LOCKED ->
+// SUBMISSION_READY, the one the directive names explicitly ("Legacy
+// locked: ... requires real acknowledgement for future submission-ready
+// claim"). DRAFT gains INTAKE as an additional legal next state, since it
+// is the one shared starting point between both vocabularies. SUBMITTED is
+// deliberately absent from every list below -- see CANONICAL_CASE_STATES's
+// own doc comment (packages/core/src/domain.ts) for why.
 const TRANSITIONS: Readonly<Record<MissionState, readonly MissionState[]>> = {
-  DRAFT: ['IN_PROGRESS', 'CANCELLED'],
+  DRAFT: ['INTAKE', 'IN_PROGRESS', 'CANCELLED'],
   IN_PROGRESS: ['READY_FOR_REVIEW', 'CANCELLED'],
   READY_FOR_REVIEW: ['UNDER_REVIEW', 'IN_PROGRESS', 'CANCELLED'],
   UNDER_REVIEW: ['READY_TO_EXPORT', 'IN_PROGRESS', 'CANCELLED'],
   READY_TO_EXPORT: ['LOCKED', 'IN_PROGRESS', 'CANCELLED'],
-  LOCKED: ['CLOSED'],
+  // SUBMISSION_READY is LEGAL here, but transitionMission additionally
+  // requires a live acknowledgement before actually allowing it (below) --
+  // "legal" and "currently permitted" are deliberately different questions.
+  LOCKED: ['CLOSED', 'SUBMISSION_READY'],
   CLOSED: [],
   CANCELLED: [],
+
+  // Canonical case states (CAS-07).
+  INTAKE: ['IN_REVIEW', 'CANCELLED'],
+  IN_REVIEW: ['AWAITING_APPLICANT', 'INTAKE', 'CANCELLED'],
+  AWAITING_APPLICANT: ['SUBMISSION_READY', 'IN_REVIEW', 'CANCELLED'],
+  // Same acknowledgement gate as LOCKED's own bridge above.
+  SUBMISSION_READY: ['CLOSED', 'IN_REVIEW', 'CANCELLED'],
+  // Not reachable via transitionMission today (see above); still a real,
+  // necessary entry (every MissionState needs one) describing what CAN
+  // happen once TRU-04 lands a mission here some other way.
+  SUBMITTED: ['CLOSED'],
 };
 
 async function ownedMission(
@@ -966,6 +989,25 @@ export async function transitionMission(
   const from = owned.value.state;
   if (!(TRANSITIONS[from] ?? []).includes(input.to)) {
     return err(serviceError('invalid', `illegal transition ${from} → ${input.to}`));
+  }
+  // CAS-07 (Part 7 §6): "Legacy locked: ... requires real acknowledgement
+  // for future submission-ready claim" -- applied uniformly to every path
+  // reaching SUBMISSION_READY, not just the legacy-LOCKED one, since
+  // "submission-ready" is meant to mean "acknowledged," closing the exact
+  // gap TRU-02 exists to close. getLiveAcknowledgement is by construction
+  // always for a still-current case state (TRU-03 auto-invalidates it the
+  // moment anything material changes), so "a live one exists" is already
+  // the complete check.
+  if (input.to === 'SUBMISSION_READY') {
+    const live = await getLiveAcknowledgement(db, input.missionId);
+    if (!live) {
+      return err(
+        serviceError(
+          'invalid',
+          'this case needs a live applicant acknowledgement before it can become submission-ready',
+        ),
+      );
+    }
   }
 
   return db.transaction(async (tx) => {

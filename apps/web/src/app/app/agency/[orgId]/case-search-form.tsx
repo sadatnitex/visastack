@@ -16,6 +16,11 @@
 
 export const STAGE_LABELS: Record<string, string> = {
   DRAFT: 'Draft',
+  INTAKE: 'Intake',
+  IN_REVIEW: 'In review',
+  AWAITING_APPLICANT: 'Awaiting applicant',
+  SUBMISSION_READY: 'Submission ready',
+  SUBMITTED: 'Submitted',
   IN_PROGRESS: 'In progress',
   READY_FOR_REVIEW: 'Ready for review',
   UNDER_REVIEW: 'Under review',

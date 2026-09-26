@@ -85,3 +85,33 @@ export async function missionsSelectingDocument(
     .where(eq(schema.selectedEvidence.documentId, documentId));
   return rows.map((r) => r.missionId);
 }
+
+/**
+ * The mission's current live acknowledgement, if any: the most recent
+ * ACKNOWLEDGED row not yet invalidated by a later material change (the
+ * `invalidatedAt` this same module's `incrementMaterialRevision` sets).
+ * Never REJECTED/CORRECTION_REQUESTED (those were never a valid green
+ * light). Lives here, not in `acknowledgements.ts`, specifically so
+ * `missions.ts` can call it too (CAS-07's own SUBMISSION_READY gate,
+ * master directive Part 7 §6) without a circular import:
+ * `acknowledgements.ts` already imports `getMissionForOwner` from
+ * `missions.ts`, so the reverse import would be a cycle.
+ * `acknowledgements.ts` re-exports this as its own API. Not owner-gated
+ * itself, since every caller so far already holds an owner-checked mission.
+ */
+export async function getLiveAcknowledgement(
+  db: Db,
+  missionId: string,
+): Promise<typeof schema.acknowledgements.$inferSelect | undefined> {
+  const rows = await db
+    .select()
+    .from(schema.acknowledgements)
+    .where(
+      and(
+        eq(schema.acknowledgements.missionId, missionId),
+        eq(schema.acknowledgements.decision, 'ACKNOWLEDGED'),
+      ),
+    );
+  const valid = rows.filter((row) => row.invalidatedAt === null);
+  return valid.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())[0];
+}
