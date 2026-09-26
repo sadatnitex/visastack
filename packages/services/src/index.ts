@@ -397,6 +397,13 @@ export {
 } from './submissions';
 
 export {
+  type MissionOutcome,
+  type RecordOutcomeInput,
+  listOutcomesForMission,
+  recordOutcome,
+} from './outcomes';
+
+export {
   type Pack,
   type PackRequirement,
   type PackVersion,

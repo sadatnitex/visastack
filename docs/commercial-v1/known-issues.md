@@ -1232,16 +1232,26 @@ item gets its own requirements-ledger row once classified against the new direct
     prerequisite. Not verified in a live browser (sandbox limitation, same
     as every prior UI chunk this session). Full detail:
     `requirements-ledger.md` TRU-02, CAS-07.
-76. (Part 7 §7/§8/§9) TRU-04's non-submission-report scope is not started:
+76. ~~(Part 7 §7/§8/§9) TRU-04's non-submission-report scope is not started:
     outcome (§8 -- APPROVED/REFUSED/WITHDRAWN/CANCELLED/OTHER, with official
     wording and agency interpretation kept in separate fields, never
     blended) and complaint/feedback (§9 -- a case complaint workflow with
     owner/status/history/resolution, plus private post-case feedback
     restricted to authorized quality users, with no public review/ranking in
-    V1) do not exist yet. The submission report itself (§7) is real
-    (`recordSubmission`, `requirements-ledger.md` TRU-04), but has no
-    `apps/web` UI yet -- deferred intentionally to a combined UI chunk once
-    outcome and complaint/feedback also exist, the same backend-then-UI
+    V1) do not exist yet.~~ **RESOLVED, partially (Part 7 §8, outcome).**
+    `recordOutcome`/`listOutcomesForMission` (`packages/services/src/outcomes.ts`,
+    migration `0064`) are real: every directive-named field, official
+    wording and agency interpretation as structurally separate columns,
+    optional evidence reusing the existing document vault rather than a new
+    storage path, no computed approval probability anywhere. Deliberately
+    does not touch `missions.state` -- an outcome is a fact about the world,
+    not a workflow position, and a case remaining open after a refusal (an
+    appeal) is a real scenario this chunk does not presume away. **Still
+    genuinely open:** complaint/feedback (§9) do not exist yet. The
+    submission report (§7, `recordSubmission`) and outcome (§8,
+    `recordOutcome`) are both real (`requirements-ledger.md` TRU-04), but
+    neither has `apps/web` UI yet -- deferred intentionally to a combined UI
+    chunk once complaint/feedback also exists, the same backend-then-UI
     split TRU-02 already used.
 independently confirmed findings; the missing PRD file is tracked as Blocker 1 in
 `assumptions-and-blockers.md` (now resolved) rather than here, since it blocked the
