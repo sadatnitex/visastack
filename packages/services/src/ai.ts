@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import type { FactStatus, ProposalType } from '@visastack/core';
 import { type Result, err, isOk, ok } from '@visastack/core';
-import { and, desc, eq, isNull, sql } from 'drizzle-orm';
+import { and, desc, eq, gte, isNull, sql } from 'drizzle-orm';
 import { getApplicant } from './applicants';
 import { appendAuditEvent } from './audit';
 import { hasConsent } from './consent';
@@ -159,10 +159,14 @@ async function latestParserVersion(db: Db, documentVersionId: string): Promise<s
  * version + parser version + prompt version + schema version + model +
  * reasoning configuration. Identical inputs under an identical configuration
  * always produce the same key, so a later request can find and reuse a
- * SUCCEEDED run instead of paying for the model call again — this is also
+ * SUCCEEDED run instead of paying for the model call again -- this is also
  * the duplicate-prevention mechanism the directive asks for separately:
  * re-running extraction on the very same document version under the same
- * config is, by definition, the same cache key.
+ * config is, by definition, the same cache key. "Reuse" is bounded by
+ * recency, not just by key match: `runExtraction`'s own cache lookup also
+ * requires the matching run to be within `cacheMaxAgeDays` (PRV-02, Part 7
+ * §11's "AI cache: <=30d later"), so an old match still triggers a fresh,
+ * billed extraction rather than being served forever.
  */
 const TASK_VERSION = 'field_extraction_v1';
 
@@ -213,7 +217,18 @@ export interface RunExtractionInput {
   readonly maxAttemptsPerDocument?: number;
   /** Refuse documents whose deterministic extraction reported more pages than this (env: AI_MAX_PAGES_PER_DOCUMENT). Unset = no cap. */
   readonly maxPagesPerDocument?: number;
+  /**
+   * PRV-02 (master directive Part 7 §11): "AI cache: <=30d later." A cache
+   * hit older than this is never served -- treated as a miss, so a fresh
+   * (correctly billed) extraction runs instead. Unlike the caps above,
+   * unset does NOT mean "no limit": it falls back to the 30-day default
+   * (`DEFAULT_CACHE_MAX_AGE_DAYS`), since the whole point is bounding how
+   * long extracted proposal data stays reachable, not an opt-in ceiling.
+   */
+  readonly cacheMaxAgeDays?: number;
 }
+
+const DEFAULT_CACHE_MAX_AGE_DAYS = 30;
 
 export type FieldProposalRow = typeof schema.fieldProposals.$inferSelect;
 
@@ -317,6 +332,8 @@ export async function runExtraction(
     const parserVersion = (await latestParserVersion(tx, input.documentVersionId)) ?? 'unknown';
     const cacheKey = computeCacheKey(contentHash, parserVersion, ai.cacheKeyComponents());
 
+    const cacheMaxAgeDays = input.cacheMaxAgeDays ?? DEFAULT_CACHE_MAX_AGE_DAYS;
+    const cacheCutoff = new Date(Date.now() - cacheMaxAgeDays * 24 * 60 * 60 * 1000);
     const cached = first(
       await tx
         .select()
@@ -325,6 +342,10 @@ export async function runExtraction(
           and(
             eq(schema.aiExtractionRuns.cacheKey, cacheKey),
             eq(schema.aiExtractionRuns.status, 'SUCCEEDED'),
+            // PRV-02 (Part 7 §11): "AI cache: <=30d later" -- a hit older
+            // than this is never served, so the next block below falls
+            // through to a genuine (correctly billed) extraction instead.
+            gte(schema.aiExtractionRuns.createdAt, cacheCutoff),
           ),
         )
         .orderBy(desc(schema.aiExtractionRuns.createdAt))

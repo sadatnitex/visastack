@@ -735,6 +735,127 @@ describe('AI Gateway — caching and schema version (master directive §7 "PR 9"
     expect(cacheHitEvents).toHaveLength(1);
   });
 
+  it('never serves a cache hit older than 30 days (PRV-02, Part 7 §11: "AI cache: <=30d later") -- runs and pays for a fresh extraction instead', async () => {
+    const { account, applicantId, versionId } = await seedVersion(db, 'ai-cache-stale@example.com');
+    await grantAiConsent(db, account.id);
+    const { ai, callCount } = countingStubAi();
+
+    const first = await runExtraction(db, ai, {
+      actorAccountId: account.id,
+      applicantId,
+      documentVersionId: versionId,
+      text: 'MRZ...',
+      budgetLimitUnits: 1000,
+    });
+    expect(isOk(first)).toBe(true);
+    if (!isOk(first)) return;
+    expect(callCount()).toBe(1);
+
+    const thirtyOneDaysAgo = new Date(Date.now() - 31 * 24 * 60 * 60 * 1000);
+    await db
+      .update(schema.aiExtractionRuns)
+      .set({ createdAt: thirtyOneDaysAgo })
+      .where(eq(schema.aiExtractionRuns.id, first.value.aiExtractionRunId));
+
+    const second = await runExtraction(db, ai, {
+      actorAccountId: account.id,
+      applicantId,
+      documentVersionId: versionId,
+      text: 'MRZ...',
+      budgetLimitUnits: 1000,
+    });
+    expect(isOk(second)).toBe(true);
+    if (!isOk(second)) return;
+    // The stale match was never served -- a genuinely new, billed call ran instead.
+    expect(callCount()).toBe(2);
+    expect(await totalAiCostUnits(db)).toBe(6);
+
+    const runs = await db
+      .select()
+      .from(schema.aiExtractionRuns)
+      .where(eq(schema.aiExtractionRuns.documentVersionId, versionId))
+      .orderBy(schema.aiExtractionRuns.createdAt);
+    expect(runs).toHaveLength(2);
+    expect(runs[1]?.costUnits).toBe(3);
+    expect(runs[1]?.servedFromCacheRunId).toBeNull();
+  });
+
+  it('serves a cache hit at exactly 29 days old (still within the default window)', async () => {
+    const { account, applicantId, versionId } = await seedVersion(
+      db,
+      'ai-cache-still-fresh@example.com',
+    );
+    await grantAiConsent(db, account.id);
+    const { ai, callCount } = countingStubAi();
+
+    const first = await runExtraction(db, ai, {
+      actorAccountId: account.id,
+      applicantId,
+      documentVersionId: versionId,
+      text: 'MRZ...',
+      budgetLimitUnits: 1000,
+    });
+    expect(isOk(first)).toBe(true);
+    if (!isOk(first)) return;
+
+    const twentyNineDaysAgo = new Date(Date.now() - 29 * 24 * 60 * 60 * 1000);
+    await db
+      .update(schema.aiExtractionRuns)
+      .set({ createdAt: twentyNineDaysAgo })
+      .where(eq(schema.aiExtractionRuns.id, first.value.aiExtractionRunId));
+
+    const second = await runExtraction(db, ai, {
+      actorAccountId: account.id,
+      applicantId,
+      documentVersionId: versionId,
+      text: 'MRZ...',
+      budgetLimitUnits: 1000,
+    });
+    expect(isOk(second)).toBe(true);
+    if (!isOk(second)) return;
+    expect(callCount()).toBe(1); // still served from cache -- never re-invoked
+    expect(await totalAiCostUnits(db)).toBe(3);
+  });
+
+  it('honors a caller-supplied cacheMaxAgeDays override', async () => {
+    const { account, applicantId, versionId } = await seedVersion(
+      db,
+      'ai-cache-custom-age@example.com',
+    );
+    await grantAiConsent(db, account.id);
+    const { ai, callCount } = countingStubAi();
+
+    const first = await runExtraction(db, ai, {
+      actorAccountId: account.id,
+      applicantId,
+      documentVersionId: versionId,
+      text: 'MRZ...',
+      budgetLimitUnits: 1000,
+      cacheMaxAgeDays: 1,
+    });
+    expect(isOk(first)).toBe(true);
+    if (!isOk(first)) return;
+
+    const twoDaysAgo = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000);
+    await db
+      .update(schema.aiExtractionRuns)
+      .set({ createdAt: twoDaysAgo })
+      .where(eq(schema.aiExtractionRuns.id, first.value.aiExtractionRunId));
+
+    const second = await runExtraction(db, ai, {
+      actorAccountId: account.id,
+      applicantId,
+      documentVersionId: versionId,
+      text: 'MRZ...',
+      budgetLimitUnits: 1000,
+      cacheMaxAgeDays: 1,
+    });
+    expect(isOk(second)).toBe(true);
+    if (!isOk(second)) return;
+    // A 1-day override means a 2-day-old match is already stale.
+    expect(callCount()).toBe(2);
+  });
+
   it('does not serve from cache when the document text changes (different content hash)', async () => {
     const { account, applicantId, versionId } = await seedVersion(db, 'ai-cache-miss@example.com');
     await grantAiConsent(db, account.id);
