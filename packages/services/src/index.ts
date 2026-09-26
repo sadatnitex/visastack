@@ -390,6 +390,13 @@ export {
 } from './acknowledgements';
 
 export {
+  type MissionSubmission,
+  type RecordSubmissionInput,
+  listSubmissionsForMission,
+  recordSubmission,
+} from './submissions';
+
+export {
   type Pack,
   type PackRequirement,
   type PackVersion,
