@@ -607,9 +607,11 @@ export {
 } from './ai';
 
 export {
+  type DeletionImpactSummary,
   type DeletionRequest,
   cancelAccountDeletion,
   executeAccountDeletion,
+  getDeletionImpactSummary,
   getPendingDeletion,
   listDueDeletions,
   requestAccountDeletion,

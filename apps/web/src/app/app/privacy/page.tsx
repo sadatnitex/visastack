@@ -1,5 +1,10 @@
 import type { ConsentType } from '@visastack/core';
-import { getPendingDeletion, listConsentHistory } from '@visastack/services';
+import {
+  getDeletionImpactSummary,
+  getPendingDeletion,
+  listActiveLegalHoldsForAccount,
+  listConsentHistory,
+} from '@visastack/services';
 import { withSession } from '../../../lib/session';
 import { DeletionPanel } from './deletion-panel';
 
@@ -25,9 +30,11 @@ function formatDateTime(iso: string): string {
 
 export default async function PrivacyPage() {
   const data = await withSession(async ({ db, accountId }) => {
-    const [history, pending] = await Promise.all([
+    const [history, pending, impact, holds] = await Promise.all([
       listConsentHistory(db, accountId),
       getPendingDeletion(db, accountId),
+      getDeletionImpactSummary(db, accountId),
+      listActiveLegalHoldsForAccount(db, accountId),
     ]);
     return {
       history: history.map((row) => ({
@@ -36,6 +43,8 @@ export default async function PrivacyPage() {
         at: (row.grantedAt ?? row.revokedAt ?? row.createdAt).toISOString(),
       })),
       scheduledFor: pending ? pending.scheduledFor.toISOString() : null,
+      impact,
+      holds: holds.map((h) => ({ ...h, placedAt: h.placedAt.toISOString() })),
     };
   });
 
@@ -74,7 +83,7 @@ export default async function PrivacyPage() {
             Deletion is reversible during a 7-day grace window, then permanent. Your audit trail is
             preserved and anonymized. An active legal hold blocks deletion until released.
           </p>
-          <DeletionPanel scheduledFor={data.scheduledFor} />
+          <DeletionPanel scheduledFor={data.scheduledFor} impact={data.impact} holds={data.holds} />
         </article>
       </div>
 

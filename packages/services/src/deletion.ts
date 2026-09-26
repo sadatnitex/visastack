@@ -1,5 +1,5 @@
 import { type ConsentType, type Result, err, ok } from '@visastack/core';
-import { and, eq, inArray, isNull, lte } from 'drizzle-orm';
+import { and, count, eq, inArray, isNull, lte } from 'drizzle-orm';
 import { appendAuditEvent } from './audit';
 import { getConsents } from './consent';
 import { type Db, first, isUniqueViolation, required, schema } from './db';
@@ -56,6 +56,67 @@ export async function getPendingDeletion(
   accountId: string,
 ): Promise<DeletionRequest | undefined> {
   return pendingRequest(db, accountId);
+}
+
+export interface DeletionImpactSummary {
+  /** Every applicant this account owns -- deletion is always whole-account, never partial (PRV-03, Part 7 §12 step 2: "identify scope"). */
+  readonly applicants: ReadonlyArray<{ readonly id: string; readonly displayName: string }>;
+  readonly missionCount: number;
+  readonly documentCount: number;
+  /** Platform-admin role grants that will be revoked (not silently orphaned), if any. */
+  readonly activePlatformRoleCount: number;
+  /** Notes authored on OTHER people's cases -- anonymized (author cleared), never deleted, since the note itself is shared collaborative history. */
+  readonly authoredMissionNoteCount: number;
+}
+
+/**
+ * What `executeAccountDeletion` actually touches for this account, mirrored
+ * here as a real, honest preview (PRV-03, Part 7 §12 step 3: "show affected
+ * data") rather than a generic "your account and data" sentence. Read-only;
+ * never itself a gate on whether deletion can proceed.
+ */
+export async function getDeletionImpactSummary(
+  db: Db,
+  accountId: string,
+): Promise<DeletionImpactSummary> {
+  const applicants = await db
+    .select({ id: schema.applicants.id, displayName: schema.applicants.displayName })
+    .from(schema.applicants)
+    .where(eq(schema.applicants.ownerAccountId, accountId));
+  const applicantIds = applicants.map((a) => a.id);
+
+  const [missionRow] =
+    applicantIds.length > 0
+      ? await db
+          .select({ n: count() })
+          .from(schema.missions)
+          .where(inArray(schema.missions.applicantId, applicantIds))
+      : [{ n: 0 }];
+  const [documentRow] =
+    applicantIds.length > 0
+      ? await db
+          .select({ n: count() })
+          .from(schema.documents)
+          .where(inArray(schema.documents.applicantId, applicantIds))
+      : [{ n: 0 }];
+  const [roleRow] = await db
+    .select({ n: count() })
+    .from(schema.platformRoles)
+    .where(
+      and(eq(schema.platformRoles.accountId, accountId), isNull(schema.platformRoles.revokedAt)),
+    );
+  const [noteRow] = await db
+    .select({ n: count() })
+    .from(schema.missionNotes)
+    .where(eq(schema.missionNotes.authorAccountId, accountId));
+
+  return {
+    applicants,
+    missionCount: missionRow?.n ?? 0,
+    documentCount: documentRow?.n ?? 0,
+    activePlatformRoleCount: roleRow?.n ?? 0,
+    authoredMissionNoteCount: noteRow?.n ?? 0,
+  };
 }
 
 /** PENDING requests whose grace window has elapsed — ready for `executeAccountDeletion`. */
