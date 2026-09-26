@@ -404,6 +404,26 @@ export {
 } from './outcomes';
 
 export {
+  type CaseComplaint,
+  type CaseComplaintEvent,
+  type UpdateComplaintStatusInput,
+  assignComplaintOwner,
+  fileComplaint,
+  listComplaintEvents,
+  listComplaintsForMission,
+  listComplaintsForQualityReview,
+  updateComplaintStatus,
+  withdrawOwnComplaint,
+} from './complaints';
+
+export {
+  type CaseFeedback,
+  listFeedbackForMission,
+  listFeedbackForQualityReview,
+  submitFeedback,
+} from './feedback';
+
+export {
   type Pack,
   type PackRequirement,
   type PackVersion,

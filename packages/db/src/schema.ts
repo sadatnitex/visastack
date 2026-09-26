@@ -121,11 +121,17 @@ export const erasureJobStatus = pgEnum('erasure_job_status', [
   'FAILED',
   'BLOCKED_BY_HOLD',
 ]);
+// QUALITY_ADMIN added for TRU-04 (Part 7 §9): "authorized quality users" is a
+// genuinely distinct concern from COMPLIANCE_ADMIN (legal/retention/holds) --
+// service-quality complaint handling and post-case feedback review, never
+// legal or security authority. Appended, not inserted, preserving the
+// original four values' order (CAS-07's own lesson on enum-migration safety).
 export const platformRole = pgEnum('platform_role', [
   'PLATFORM_OWNER',
   'SECURITY_ADMIN',
   'COMPLIANCE_ADMIN',
   'SUPPORT_ADMIN',
+  'QUALITY_ADMIN',
 ]);
 export const processingRunStatus = pgEnum('processing_run_status', [
   'RUNNING',
@@ -1805,6 +1811,95 @@ export const missionOutcomes = pgTable(
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [index('mission_outcomes_mission_idx').on(table.missionId)],
+);
+
+// TRU-04 (master directive Part 7 §9): "Case complaint: description; owner;
+// status; history; resolution." RESOLVED/CLOSED are terminal, mirroring
+// missionTaskStatus's own OPEN/IN_PROGRESS/terminal shape; IN_PROGRESS is an
+// optional, skippable waypoint the same way it is for tasks.
+export const caseComplaintStatus = pgEnum('case_complaint_status', [
+  'OPEN',
+  'IN_PROGRESS',
+  'RESOLVED',
+  'CLOSED',
+]);
+
+export const caseComplaints = pgTable(
+  'case_complaints',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    missionId: uuid('mission_id')
+      .notNull()
+      .references(() => missions.id, { onDelete: 'cascade' }),
+    // Who raised it -- the applicant/owner in every case this chunk builds
+    // (fileComplaint is owner-only), kept as its own column rather than
+    // reusing missions.applicantId's owner, since a complaint's filer is an
+    // account, not an applicant record.
+    filedByAccountId: uuid('filed_by_account_id')
+      .notNull()
+      .references(() => accounts.id, { onDelete: 'restrict' }),
+    description: text('description').notNull(),
+    status: caseComplaintStatus('status').notNull().default('OPEN'),
+    // "owner": who is CURRENTLY responsible for handling it -- distinct from
+    // filedByAccountId above. Nullable/set-null: an unassigned or
+    // since-deactivated owner never blocks the complaint's own lifecycle.
+    ownerAccountId: uuid('owner_account_id').references(() => accounts.id, {
+      onDelete: 'set null',
+    }),
+    // Required (enforced in the service layer) only when status becomes
+    // RESOLVED -- the directive's own separate "resolution" field, distinct
+    // from the mutable status column itself.
+    resolution: text('resolution'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index('case_complaints_mission_idx').on(table.missionId)],
+);
+
+// "history": an append-only transition log, modeled directly on
+// `billingStatusHistory`'s own established shape -- a first-class,
+// user-facing feature (what happened, when, by whom), not merely the
+// internal audit log (which exists for a different, security/compliance
+// purpose and is written alongside this, not instead of it).
+export const caseComplaintEvents = pgTable(
+  'case_complaint_events',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    complaintId: uuid('complaint_id')
+      .notNull()
+      .references(() => caseComplaints.id, { onDelete: 'cascade' }),
+    fromStatus: caseComplaintStatus('from_status'),
+    toStatus: caseComplaintStatus('to_status').notNull(),
+    actorAccountId: uuid('actor_account_id')
+      .notNull()
+      .references(() => accounts.id, { onDelete: 'restrict' }),
+    note: text('note'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index('case_complaint_events_complaint_idx').on(table.complaintId)],
+);
+
+// TRU-04 (master directive Part 7 §9): "Private post-case feedback: tied to
+// actual case; restricted authorized quality users." No rating/score column
+// -- the directive names only "feedback," and inventing a numeric score
+// edges toward the "ranking" concept the same sentence explicitly excludes
+// from V1. Deliberately no organizationId/agency-facing read path anywhere
+// in this schema or its service layer: an agency being reviewed must never
+// see feedback about its own service, only QUALITY_ADMIN platform staff.
+export const caseFeedback = pgTable(
+  'case_feedback',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    missionId: uuid('mission_id')
+      .notNull()
+      .references(() => missions.id, { onDelete: 'cascade' }),
+    submittedByAccountId: uuid('submitted_by_account_id')
+      .notNull()
+      .references(() => accounts.id, { onDelete: 'restrict' }),
+    comments: text('comments').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index('case_feedback_mission_idx').on(table.missionId)],
 );
 
 // --- Collaboration: assignments, notes, evidence requests (Build Spec §2; PRD §5)

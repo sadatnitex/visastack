@@ -1238,7 +1238,7 @@ item gets its own requirements-ledger row once classified against the new direct
     blended) and complaint/feedback (§9 -- a case complaint workflow with
     owner/status/history/resolution, plus private post-case feedback
     restricted to authorized quality users, with no public review/ranking in
-    V1) do not exist yet.~~ **RESOLVED, partially (Part 7 §8, outcome).**
+    V1) do not exist yet.~~ ~~**RESOLVED, partially (Part 7 §8, outcome).**
     `recordOutcome`/`listOutcomesForMission` (`packages/services/src/outcomes.ts`,
     migration `0064`) are real: every directive-named field, official
     wording and agency interpretation as structurally separate columns,
@@ -1247,11 +1247,22 @@ item gets its own requirements-ledger row once classified against the new direct
     does not touch `missions.state` -- an outcome is a fact about the world,
     not a workflow position, and a case remaining open after a refusal (an
     appeal) is a real scenario this chunk does not presume away. **Still
-    genuinely open:** complaint/feedback (§9) do not exist yet. The
-    submission report (§7, `recordSubmission`) and outcome (§8,
-    `recordOutcome`) are both real (`requirements-ledger.md` TRU-04), but
-    neither has `apps/web` UI yet -- deferred intentionally to a combined UI
-    chunk once complaint/feedback also exists, the same backend-then-UI
+    genuinely open:** complaint/feedback (§9) do not exist yet.~~ **RESOLVED
+    (Part 7 §9, complaint/feedback -- TRU-04 now backend-complete).**
+    `packages/services/src/complaints.ts`/`feedback.ts` (migration `0065`)
+    are real. Case complaint gets a genuine workflow (file/withdraw
+    owner-side; assign/update-status/triage-list gated behind a new
+    `QUALITY_ADMIN` platform role, since "authorized quality users" fit none
+    of the four existing roles) and a dedicated append-only history table
+    modeled on `billingStatusHistory`. Feedback is owner-submittable and
+    readable only by the submitter or a `QUALITY_ADMIN` -- structurally no
+    organization-facing read path exists anywhere, so the agency being
+    reviewed can never see it. No rating/score field (the directive names
+    only "feedback," and a score edges toward the same sentence's "no public
+    review/ranking" warning). The submission report (§7), outcome (§8), and
+    complaint/feedback (§9) are all real (`requirements-ledger.md` TRU-04),
+    but none has `apps/web` UI yet -- deferred intentionally to one combined
+    UI chunk now that all three backends exist, the same backend-then-UI
     split TRU-02 already used.
 independently confirmed findings; the missing PRD file is tracked as Blocker 1 in
 `assumptions-and-blockers.md` (now resolved) rather than here, since it blocked the
