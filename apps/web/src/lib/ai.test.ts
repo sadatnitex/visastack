@@ -21,6 +21,7 @@ const ENV_KEYS = [
   'AI_PER_DOCUMENT_LIMIT_USD',
   'AI_MAX_ATTEMPTS',
   'AI_MAX_PAGES_PER_DOCUMENT',
+  'AI_CACHE_MAX_AGE_DAYS',
 ] as const;
 const ORIGINAL: Record<string, string | undefined> = {};
 
@@ -100,29 +101,41 @@ describe('AI cost and volume caps — pilot defaults', () => {
     expect(aiMaxPagesPerDocument()).toBe(25);
   });
 
+  it('defaults the AI-cache max age to 30 days (PRV-02, Part 7 §11: "AI cache: <=30d later")', async () => {
+    const { aiCacheMaxAgeDays } = await import('./ai');
+    expect(aiCacheMaxAgeDays()).toBe(30);
+  });
+
   it('lets an administrator override every cap via env', async () => {
     setEnv('AI_PILOT_MONTHLY_HARD_LIMIT_USD', '5');
     setEnv('AI_PER_DOCUMENT_LIMIT_USD', '0.1');
     setEnv('AI_MAX_ATTEMPTS', '1');
     setEnv('AI_MAX_PAGES_PER_DOCUMENT', '2');
+    setEnv('AI_CACHE_MAX_AGE_DAYS', '7');
     const {
       aiBudgetLimitUnits,
       aiPerDocumentBudgetLimitUnits,
       aiMaxAttemptsPerDocument,
       aiMaxPagesPerDocument,
+      aiCacheMaxAgeDays,
     } = await import('./ai');
     expect(aiBudgetLimitUnits()).toBe(500_000);
     expect(aiPerDocumentBudgetLimitUnits()).toBe(10_000);
     expect(aiMaxAttemptsPerDocument()).toBe(1);
     expect(aiMaxPagesPerDocument()).toBe(2);
+    expect(aiCacheMaxAgeDays()).toBe(7);
   });
 
   it('ignores invalid overrides and keeps the safe pilot defaults', async () => {
     setEnv('AI_MAX_ATTEMPTS', 'not-a-number');
     setEnv('AI_MAX_PAGES_PER_DOCUMENT', '-5');
-    const { aiMaxAttemptsPerDocument, aiMaxPagesPerDocument } = await import('./ai');
+    setEnv('AI_CACHE_MAX_AGE_DAYS', '0');
+    const { aiMaxAttemptsPerDocument, aiMaxPagesPerDocument, aiCacheMaxAgeDays } = await import(
+      './ai'
+    );
     expect(aiMaxAttemptsPerDocument()).toBe(3);
     expect(aiMaxPagesPerDocument()).toBe(25);
+    expect(aiCacheMaxAgeDays()).toBe(30);
   });
 });
 

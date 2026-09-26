@@ -29,6 +29,7 @@ import { redirect } from 'next/navigation';
 import { after } from 'next/server';
 import {
   aiBudgetLimitUnits,
+  aiCacheMaxAgeDays,
   aiMaxAttemptsPerDocument,
   aiMaxPagesPerDocument,
   aiPerDocumentBudgetLimitUnits,
@@ -425,6 +426,7 @@ export async function runAiExtractionAction(
       perDocumentBudgetLimitUnits: aiPerDocumentBudgetLimitUnits(),
       maxAttemptsPerDocument: aiMaxAttemptsPerDocument(),
       maxPagesPerDocument: aiMaxPagesPerDocument(),
+      cacheMaxAgeDays: aiCacheMaxAgeDays(),
     });
     if (!run.ok) return { ok: false, message: run.error.message } satisfies ActionState;
     return {

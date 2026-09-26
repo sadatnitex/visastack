@@ -1281,8 +1281,21 @@ item gets its own requirements-ledger row once classified against the new direct
       30+ days past its own `expiresAt`, or one REVOKED 30+ days ago (never
       an ACCEPTED one, a legitimate historical record); wired into a new
       daily cron, `/api/jobs/process-abandoned-invitations`. Still missing:
-      OCR/export <=24h, AI-cache <=30d (`aiExtractionRuns`' cache-hit lookup
-      has no age predicate at all), app-log 30d (governed by Vercel's own
+      OCR/export <=24h (investigated, Part 7 §11 Chunk 3 -- not a simple
+      sweep: `extractionRuns.extractedText` is read on demand whenever a
+      user triggers AI extraction, which can happen days after upload, so a
+      naive 24h purge would silently and permanently break that action for
+      anyone who doesn't act within the window; the directive's own "where
+      possible" qualifier is read as license to hold this until a
+      re-extraction fallback exists, not to build something that breaks a
+      real feature), ~~AI-cache <=30d (`aiExtractionRuns`' cache-hit lookup
+      has no age predicate at all)~~ **RESOLVED (Part 7 §11, Chunk 3).**
+      `runExtraction`'s cache lookup now refuses to serve a match older than
+      `cacheMaxAgeDays` (default 30, env `AI_CACHE_MAX_AGE_DAYS`) -- a
+      behavior fix only, never a deletion: `aiExtractionRuns` rows are never
+      purged, since `totalAiCostUnits` sums them all-time for the platform
+      and per-document budget caps, and deleting old rows would silently
+      undercount real spend. app-log 30d (governed by Vercel's own
       log retention, not this codebase), ~~closed-case 12mo+30d-notice (no
       closure-triggered timer exists)~~ **PARTIALLY RESOLVED (Part 7 §11,
       Chunk 2, notice half only).** `missions.closedAt` now set once by

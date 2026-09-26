@@ -79,6 +79,10 @@ const DEFAULT_PER_DOCUMENT_BUDGET_USD = 0.5;
 // must still fail closed, the same way a blank QUOTA_* var does.
 const DEFAULT_MAX_ATTEMPTS_PER_DOCUMENT = 3;
 const DEFAULT_MAX_PAGES_PER_DOCUMENT = 25;
+// PRV-02 (master directive Part 7 §11): "AI cache: <=30d later" -- the
+// directive's own retention table calls this a proposed default, not an
+// immutable legal fact, hence env-overridable like every cap above.
+const DEFAULT_CACHE_MAX_AGE_DAYS = 30;
 
 /** Platform-wide pilot budget cap, in cost units (env: AI_PILOT_MONTHLY_HARD_LIMIT_USD). */
 export function aiBudgetLimitUnits(): number {
@@ -108,4 +112,9 @@ export function aiMaxAttemptsPerDocument(): number {
 /** Refuse documents longer than this many pages (env: AI_MAX_PAGES_PER_DOCUMENT). */
 export function aiMaxPagesPerDocument(): number {
   return readPositiveIntEnv('AI_MAX_PAGES_PER_DOCUMENT', DEFAULT_MAX_PAGES_PER_DOCUMENT);
+}
+
+/** Max age of a reusable cache hit, in days (env: AI_CACHE_MAX_AGE_DAYS). */
+export function aiCacheMaxAgeDays(): number {
+  return readPositiveIntEnv('AI_CACHE_MAX_AGE_DAYS', DEFAULT_CACHE_MAX_AGE_DAYS);
 }
