@@ -39,6 +39,7 @@ export const PLATFORM_ROLES: readonly PlatformRole[] = [
   'SECURITY_ADMIN',
   'COMPLIANCE_ADMIN',
   'SUPPORT_ADMIN',
+  'QUALITY_ADMIN',
 ];
 
 export interface PlatformAuthInput {
@@ -113,7 +114,9 @@ export type PlatformAction =
   | 'ORGANIZATION_REVIEW'
   | 'PROCESSING_JOB_RETRY'
   | 'ORPHAN_RECONCILE'
-  | 'PACK_MANAGE';
+  | 'PACK_MANAGE'
+  | 'COMPLAINT_MANAGE'
+  | 'FEEDBACK_VIEW';
 
 const ACTION_ROLES: Readonly<Record<PlatformAction, Exclude<PlatformRole, 'PLATFORM_OWNER'>>> = {
   RETENTION_POLICY_SET: 'COMPLIANCE_ADMIN',
@@ -125,6 +128,11 @@ const ACTION_ROLES: Readonly<Record<PlatformAction, Exclude<PlatformRole, 'PLATF
   PROCESSING_JOB_RETRY: 'SUPPORT_ADMIN',
   ORPHAN_RECONCILE: 'SUPPORT_ADMIN',
   PACK_MANAGE: 'SUPPORT_ADMIN',
+  // TRU-04 (Part 7 §9): "authorized quality users" -- a genuinely distinct
+  // concern from COMPLIANCE_ADMIN (legal/retention/holds), never overlapped
+  // with it, matching this table's own zero-overlap discipline.
+  COMPLAINT_MANAGE: 'QUALITY_ADMIN',
+  FEEDBACK_VIEW: 'QUALITY_ADMIN',
 };
 
 /**

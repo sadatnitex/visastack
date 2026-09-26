@@ -1,6 +1,6 @@
 import 'server-only';
 import { type Db, listMembershipsForAccount } from '@visastack/services';
-import { checkRecentAuth, getSignInUrl } from '@workos-inc/authkit-nextjs';
+import { checkRecentAuth } from '@workos-inc/authkit-nextjs';
 import { isPlatformAdmin } from './admin';
 
 /**
@@ -46,10 +46,21 @@ export type SessionAgeResult =
 
 /**
  * Fails closed toward MORE reauthentication, never less: a stale session
- * for the applicable max age returns a genuine WorkOS reauthentication URL
- * for the caller to redirect to, the same shape `establishStepUp` already
- * returns, so callers use the identical `redirect(result.reauthUrl)`
- * pattern.
+ * for the applicable max age returns a reauthentication URL for the caller
+ * to redirect to, the same shape `establishStepUp` already returns, so
+ * callers use the identical `redirect(result.reauthUrl)` pattern.
+ *
+ * Unlike `establishStepUp` (always called from a Server Action or Route
+ * Handler, where calling WorkOS's `getSignInUrl` directly is legal), this
+ * function's one caller -- `withSession` -- runs on every protected page's
+ * Server Component render. `getSignInUrl` sets a PKCE cookie as a side
+ * effect of computing the URL, which Next.js refuses outside a Server
+ * Action/Route Handler ("Cookies can only be modified in a Server Action or
+ * Route Handler" -- this genuinely happened in production once a session
+ * actually went stale during a page render). So the URL returned here is
+ * this app's own `/api/session-reauth` Route Handler, which makes the real
+ * `getSignInUrl` call in a context where that's legal, then forwards the
+ * browser on to WorkOS.
  */
 export async function enforceSessionAgeLimit(
   staffContext: boolean,
@@ -58,7 +69,7 @@ export async function enforceSessionAgeLimit(
   const maxAge = staffContext ? STAFF_MAX_SESSION_AGE_SECONDS : TRAVELLER_MAX_SESSION_AGE_SECONDS;
   const { isStale } = await checkRecentAuth({ maxAge });
   if (isStale) {
-    const reauthUrl = await getSignInUrl({ maxAge, returnTo });
+    const reauthUrl = `/api/session-reauth?maxAge=${maxAge}&returnTo=${encodeURIComponent(returnTo)}`;
     return { satisfied: false, reauthUrl };
   }
   return { satisfied: true };
