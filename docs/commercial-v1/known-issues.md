@@ -1320,18 +1320,30 @@ item gets its own requirements-ledger row once classified against the new direct
       outbox itself (steps 7-8 of the directive's 8-step flow) is genuinely
       solid, race-safe engineering (`docs/security/erasure-and-retention-boundary.md`).
       The requester-facing flow around it is not: `apps/web/src/app/app/privacy/page.tsx`
-      offers a reason field and a confirm button, nothing else. Missing:
+      offered a reason field and a confirm button, nothing else. ~~Missing:
       step 2 (no scope picker -- deletion is implicitly "everything"), step
-      3 (no preview of what will be deleted), ~~step 4 (the "an active legal
+      3 (no preview of what will be deleted)~~ **RESOLVED (Part 7 §12,
+      Chunk 2):** since deletion is always whole-account, never partial,
+      these two collapse into one accurate preview -- new
+      `getDeletionImpactSummary` mirrors `executeAccountDeletion`'s real
+      cascade (every owned applicant by name, mission count, document
+      count, any platform-role grant to be revoked, any cross-case note to
+      be anonymized) and the page renders it before the confirm button.
+      ~~step 4 (the "an active legal
       hold blocks deletion" sentence is static copy, never queried against
       the actual requester's own holds -- no what/why/who-can-access/
-      next-review detail)~~ **PARTIALLY RESOLVED (Part 7 §12, Chunk 1):**
+      next-review detail)~~ **RESOLVED (Part 7 §12, Chunks 1-2):**
       `requestAccountDeletion` now genuinely refuses upfront when any of the
       account's applicants has an active hold (previously only checked 7
-      days later, silently, at execution) -- the what/why/who-can-access/
-      next-review UI detail is still missing, tracked separately, step 5
+      days later, silently, at execution), and the page shows the real
+      applicant name, reason, and placement date instead of a generic
+      sentence, hiding the request form entirely rather than presenting a
+      control that would only fail. Still missing: a next-review date, since
+      the schema itself has none yet (see legal holds, below). ~~step 5
       (export exists as a wholly separate card,
-      never offered as part of the deletion confirmation itself), ~~step 6
+      never offered as part of the deletion confirmation itself)~~
+      **RESOLVED (Part 7 §12, Chunk 2):** the export link is now inlined
+      directly above the confirmation form. ~~step 6
       (optional-processing consents are not revoked at request time, only
       incidentally when the account row is finally deleted after the grace
       window -- AI extraction/marketing can continue throughout)~~

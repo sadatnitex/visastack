@@ -13,6 +13,7 @@ import type { Db } from './db';
 import {
   cancelAccountDeletion,
   executeAccountDeletion,
+  getDeletionImpactSummary,
   getPendingDeletion,
   requestAccountDeletion,
 } from './deletion';
@@ -20,6 +21,7 @@ import { addDocumentVersion, registerDocument } from './documents';
 import { runErasureWorker } from './erasure';
 import { exportAccount } from './export';
 import { placeLegalHold } from './legal-hold';
+import { createMission } from './missions';
 import { grantPlatformRole } from './platform-roles';
 import { editFact, registerFieldDefinition } from './profile';
 import type {
@@ -475,6 +477,73 @@ describe('account deletion workflow', () => {
     // "revoked" entries for consent types this account never granted.
     const after = await db.select().from(schema.consentRecords);
     expect(after).toHaveLength(1);
+  });
+
+  it('getDeletionImpactSummary reports the real applicants, missions, and documents this account owns (PRV-03, Part 7 §12 step 3)', async () => {
+    const { account, applicantId } = await seedFullAccount(db, 'del-preview@example.com');
+    const mission = await createMission(db, {
+      actorAccountId: account.id,
+      applicantId,
+      title: 'Trip',
+    });
+    expect(isOk(mission)).toBe(true);
+
+    const summary = await getDeletionImpactSummary(db, account.id);
+    expect(summary.applicants).toEqual([{ id: applicantId, displayName: 'Owner' }]);
+    expect(summary.missionCount).toBe(1);
+    expect(summary.documentCount).toBe(1);
+    expect(summary.activePlatformRoleCount).toBe(0);
+    expect(summary.authoredMissionNoteCount).toBe(0);
+  });
+
+  it("getDeletionImpactSummary counts an active platform-role grant and a note authored on someone else's case", async () => {
+    const { account, applicantId } = await seedFullAccount(db, 'del-preview-2@example.com');
+    const bootstrapAuth = {
+      accountId: account.id,
+      email: 'del-preview-2@example.com',
+      bootstrapEmails: ['del-preview-2@example.com'],
+    };
+    const granted = await grantPlatformRole(db, {
+      actor: bootstrapAuth,
+      targetAccountId: account.id,
+      role: 'SUPPORT_ADMIN',
+      reason: 'test',
+      stepUpSatisfied: true,
+    });
+    expect(isOk(granted)).toBe(true);
+
+    // A note this account authored, on a mission it does not itself own --
+    // collaborative history, anonymized (not deleted) by executeAccountDeletion.
+    const mission = await createMission(db, {
+      actorAccountId: account.id,
+      applicantId,
+      title: "Someone else's case",
+    });
+    expect(isOk(mission)).toBe(true);
+    if (!isOk(mission)) return;
+    await db.insert(schema.missionNotes).values({
+      missionId: mission.value.id,
+      authorAccountId: account.id,
+      body: 'internal note',
+    });
+
+    const summary = await getDeletionImpactSummary(db, account.id);
+    expect(summary.activePlatformRoleCount).toBe(1);
+    expect(summary.authoredMissionNoteCount).toBe(1);
+  });
+
+  it('getDeletionImpactSummary reports zero applicants/missions/documents for an account that owns none', async () => {
+    const provisioned = await provisionAccount(db, { email: 'del-preview-empty@example.com' });
+    if (!isOk(provisioned)) throw new Error('provision');
+
+    const summary = await getDeletionImpactSummary(db, provisioned.value.id);
+    expect(summary).toEqual({
+      applicants: [],
+      missionCount: 0,
+      documentCount: 0,
+      activePlatformRoleCount: 0,
+      authoredMissionNoteCount: 0,
+    });
   });
 });
 
