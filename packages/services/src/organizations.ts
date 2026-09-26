@@ -235,11 +235,25 @@ export async function reviewOrganization(
   });
 }
 
-/** Suspend an ACTIVE organization (platform-admin action). */
+/**
+ * Suspend an ACTIVE organization (platform-admin action). Step-up gated
+ * like `reviewOrganization` -- removing an agency's platform access is
+ * exactly the kind of consequential action a hijacked session should not
+ * be able to trigger with no further check.
+ */
 export async function suspendOrganization(
   db: Db,
-  input: { readonly reviewerAccountId: string; readonly organizationId: string },
+  input: {
+    readonly reviewerAccountId: string;
+    readonly organizationId: string;
+    readonly stepUpSatisfied: boolean;
+  },
 ): Promise<Result<Organization, ServiceError>> {
+  if (!input.stepUpSatisfied) {
+    return err(
+      serviceError('step_up_required', 'suspending an organization requires reauthentication'),
+    );
+  }
   const org = first(
     await db
       .select()
@@ -269,6 +283,83 @@ export async function suspendOrganization(
       result: 'ALLOWED',
       resourceType: 'organization',
       resourceId: updated.id,
+    });
+    return ok(updated);
+  });
+}
+
+/**
+ * Terminate an organization (platform-admin action; master directive Part 7
+ * §14, PRD PRV-04: "Terminating the agency removes its platform access
+ * while the traveller retains their wallet"). Distinct from
+ * `suspendOrganization` in exactly one way that matters: this is
+ * permanent -- there is no reactivation path back from CLOSED, matching
+ * "termination" rather than a temporary compliance hold. Legal from either
+ * ACTIVE or SUSPENDED (an org already suspended for cause can still be
+ * terminated outright); never from PENDING_VERIFICATION or REJECTED, since
+ * an org that never onboarded has nothing to terminate, and never from an
+ * already-CLOSED org (no re-termination).
+ *
+ * "Removes platform access": `orgGrantPermits` already denies ANY
+ * non-ACTIVE status "no standing at all" (the same check `suspendOrganization`
+ * already relies on) -- so flipping status to CLOSED is, by itself, the
+ * entire access-removal mechanism. Nothing else needs to change for that
+ * half of the requirement.
+ *
+ * "Traveller retains wallet": this function touches only the `organizations`
+ * row. It never reads or writes `applicants`, `facts`, or `documents` --
+ * traveller-owned tables that were never owned by the organization in the
+ * first place, so there is nothing here that could revoke them even by
+ * accident.
+ *
+ * Step-up gated like `suspendOrganization`/`reviewOrganization` -- a
+ * permanent, irreversible action deserves at least the same defense-in-depth
+ * as a reversible one.
+ */
+export async function terminateOrganization(
+  db: Db,
+  input: {
+    readonly reviewerAccountId: string;
+    readonly organizationId: string;
+    readonly stepUpSatisfied: boolean;
+  },
+): Promise<Result<Organization, ServiceError>> {
+  if (!input.stepUpSatisfied) {
+    return err(
+      serviceError('step_up_required', 'terminating an organization requires reauthentication'),
+    );
+  }
+  const org = first(
+    await db
+      .select()
+      .from(schema.organizations)
+      .where(eq(schema.organizations.id, input.organizationId))
+      .limit(1),
+  );
+  if (!org) return err(serviceError('not_found', 'organization not found'));
+  if (org.status !== 'ACTIVE' && org.status !== 'SUSPENDED') {
+    return err(serviceError('invalid', 'only an ACTIVE or SUSPENDED org can be terminated'));
+  }
+  return db.transaction(async (tx) => {
+    const updated = required(
+      first(
+        await tx
+          .update(schema.organizations)
+          .set({ status: 'CLOSED', updatedAt: new Date() })
+          .where(eq(schema.organizations.id, input.organizationId))
+          .returning(),
+      ),
+      'organization',
+    );
+    await appendAuditEvent(tx, {
+      eventType: 'ORGANIZATION_TERMINATED',
+      actorAccountId: input.reviewerAccountId,
+      action: 'MANAGE',
+      method: 'MANUAL',
+      result: 'ALLOWED',
+      resourceType: 'organization',
+      resourceId: updated.id,
+      metadata: { previousStatus: org.status },
     });
     return ok(updated);
   });

@@ -1421,10 +1421,23 @@ item gets its own requirements-ledger row once classified against the new direct
       CSV rendering of its own yet. Agency export is also
       narrower than traveller export by design today (`bulkExport` returns
       facts only, never documents or snapshots -- `known-issues.md`'s own
-      earlier note on this, cross-referenced here). "Agency termination"
+      earlier note on this, cross-referenced here). ~~"Agency termination"
       rests on reversible `suspendOrganization`, not a true non-reversible
       `CLOSED` status (that enum value is defined but no code path ever
-      sets it).
+      sets it).~~ **RESOLVED (Part 7 §14, Chunk 3).** New `terminateOrganization`
+      sets an ACTIVE or SUSPENDED org to `CLOSED`, permanently -- no
+      reactivation path exists, unlike suspension. `orgGrantPermits` already
+      denied any non-ACTIVE status "no standing at all," so the actual
+      access-removal mechanism needed zero changes; a new test now proves
+      this for CLOSED specifically (the codebase's SHR-02 test only ever
+      exercised SUSPENDED before, despite its own title's claim). Traveller
+      wallet data (applicants/facts/documents) is untouched by construction,
+      also now asserted by a test. Also discovered `suspendOrganization` had
+      no web-layer caller at all -- fixed by wiring both suspend and
+      terminate into the admin UI (two new step-up-gated actions, two new
+      `SECURITY_ADMIN`-gated platform permissions, two new confirm-gated
+      buttons on `/app/admin`), rather than shipping a third unreachable
+      function.
     - **Backup resurrection protection (§15):** no design or code exists at
       all. The only "tombstone" concept in the codebase
       (`accountDeletionRequests.accountId` surviving as `NULL` after

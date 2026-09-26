@@ -26,6 +26,8 @@ import { withSession } from '../../../lib/session';
 import { UsageMeter } from '../applicant/[id]/usage-meter';
 import {
   OrgReviewButtons,
+  OrgSuspendButton,
+  OrgTerminateButton,
   ReleaseHoldButton,
   RetryErasureJobButton,
   RetryJobButton,
@@ -693,6 +695,8 @@ export default async function AdminPage() {
                     tone: 'badge-neutral',
                   };
                   const pending = org.status === 'PENDING_VERIFICATION';
+                  const active = org.status === 'ACTIVE';
+                  const suspended = org.status === 'SUSPENDED';
                   return (
                     <div
                       className="row"
@@ -708,6 +712,10 @@ export default async function AdminPage() {
                       <span style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
                         <span className={`badge ${badge.tone}`}>{badge.label}</span>
                         {pending ? <OrgReviewButtons organizationId={org.id} /> : null}
+                        {active ? <OrgSuspendButton organizationId={org.id} /> : null}
+                        {active || suspended ? (
+                          <OrgTerminateButton organizationId={org.id} />
+                        ) : null}
                         {data.owner ? (
                           <Link
                             href={`/app/admin/organizations/${org.id}`}

@@ -9,6 +9,8 @@ import {
   reviewOrganizationAction,
   revokeInvitationAction,
   revokePlatformRoleAction,
+  suspendOrganizationAction,
+  terminateOrganizationAction,
 } from './actions';
 
 const INITIAL: ActionState = { ok: true, message: '' };
@@ -199,5 +201,67 @@ export function OrgReviewButtons({ organizationId }: { readonly organizationId: 
         </p>
       ) : null}
     </div>
+  );
+}
+
+export function OrgSuspendButton({ organizationId }: { readonly organizationId: string }) {
+  const [state, formAction, pending] = useActionState(suspendOrganizationAction, INITIAL);
+  return (
+    <form
+      action={formAction}
+      onSubmit={(e) => {
+        if (!window.confirm('Suspend this organization? It immediately loses all data access.')) {
+          e.preventDefault();
+        }
+      }}
+    >
+      <input type="hidden" name="organizationId" value={organizationId} />
+      <button
+        type="submit"
+        className="btn btn-secondary"
+        style={{ padding: '0.3rem 0.85rem', fontSize: '0.8rem' }}
+        disabled={pending}
+      >
+        {pending ? 'Suspending…' : 'Suspend'}
+      </button>
+      {state.message ? (
+        <p className={`field-msg ${state.ok ? 'field-msg-ok' : 'field-msg-err'}`}>
+          {state.message}
+        </p>
+      ) : null}
+    </form>
+  );
+}
+
+export function OrgTerminateButton({ organizationId }: { readonly organizationId: string }) {
+  const [state, formAction, pending] = useActionState(terminateOrganizationAction, INITIAL);
+  return (
+    <form
+      action={formAction}
+      onSubmit={(e) => {
+        if (
+          !window.confirm(
+            'Terminate this organization? This is permanent and cannot be reversed. Its platform access is removed immediately; traveller data is untouched.',
+          )
+        ) {
+          e.preventDefault();
+        }
+      }}
+    >
+      <input type="hidden" name="organizationId" value={organizationId} />
+      <button
+        type="submit"
+        className="btn btn-danger"
+        style={{ padding: '0.3rem 0.85rem', fontSize: '0.8rem' }}
+        disabled={pending}
+      >
+        {pending ? 'Terminating…' : 'Terminate'}
+      </button>
+      {state.message ? (
+        <p className={`field-msg ${state.ok ? 'field-msg-ok' : 'field-msg-err'}`}>
+          {state.message}
+        </p>
+      ) : null}
+    </form>
   );
 }

@@ -16,6 +16,7 @@ import {
   reviewOrganization,
   setMembershipActive,
   suspendOrganization,
+  terminateOrganization,
 } from './organizations';
 
 const migrationsFolder = fileURLToPath(new URL('../../db/migrations', import.meta.url));
@@ -161,6 +162,7 @@ describe('organizations — verification, membership, and the last-active-owner 
       const suspended = await suspendOrganization(db, {
         reviewerAccountId: reviewerId,
         organizationId: created.value.id,
+        stepUpSatisfied: true,
       });
       expect(isOk(suspended)).toBe(true);
       if (isOk(suspended)) expect(suspended.value.status).toBe('SUSPENDED');
@@ -172,8 +174,146 @@ describe('organizations — verification, membership, and the last-active-owner 
       const result = await suspendOrganization(db, {
         reviewerAccountId: reviewerId,
         organizationId: created.value.id,
+        stepUpSatisfied: true,
       });
       expect(isOk(result)).toBe(false);
+    });
+
+    it('refuses to suspend without step-up', async () => {
+      const created = await createOrganization(db, { actorAccountId: ownerId, name: 'Acme Visas' });
+      if (!isOk(created)) throw new Error('setup failed');
+      await reviewOrganization(db, {
+        reviewerAccountId: reviewerId,
+        organizationId: created.value.id,
+        decision: 'ACTIVE',
+        stepUpSatisfied: true,
+      });
+      const result = await suspendOrganization(db, {
+        reviewerAccountId: reviewerId,
+        organizationId: created.value.id,
+        stepUpSatisfied: false,
+      });
+      expect(isOk(result)).toBe(false);
+      if (isOk(result)) return;
+      expect(result.error.code).toBe('step_up_required');
+    });
+  });
+
+  describe('termination (master directive Part 7 §14, PRD PRV-04: "removes agency access")', () => {
+    it('terminates an ACTIVE organization', async () => {
+      const created = await createOrganization(db, { actorAccountId: ownerId, name: 'Acme Visas' });
+      if (!isOk(created)) throw new Error('setup failed');
+      await reviewOrganization(db, {
+        reviewerAccountId: reviewerId,
+        organizationId: created.value.id,
+        decision: 'ACTIVE',
+        stepUpSatisfied: true,
+      });
+      const terminated = await terminateOrganization(db, {
+        reviewerAccountId: reviewerId,
+        organizationId: created.value.id,
+        stepUpSatisfied: true,
+      });
+      expect(isOk(terminated)).toBe(true);
+      if (isOk(terminated)) expect(terminated.value.status).toBe('CLOSED');
+    });
+
+    it('refuses to terminate without step-up', async () => {
+      const created = await createOrganization(db, { actorAccountId: ownerId, name: 'Acme Visas' });
+      if (!isOk(created)) throw new Error('setup failed');
+      await reviewOrganization(db, {
+        reviewerAccountId: reviewerId,
+        organizationId: created.value.id,
+        decision: 'ACTIVE',
+        stepUpSatisfied: true,
+      });
+      const result = await terminateOrganization(db, {
+        reviewerAccountId: reviewerId,
+        organizationId: created.value.id,
+        stepUpSatisfied: false,
+      });
+      expect(isOk(result)).toBe(false);
+      if (isOk(result)) return;
+      expect(result.error.code).toBe('step_up_required');
+    });
+
+    it('terminates a SUSPENDED organization too -- termination is legal from either operating status', async () => {
+      const created = await createOrganization(db, { actorAccountId: ownerId, name: 'Acme Visas' });
+      if (!isOk(created)) throw new Error('setup failed');
+      await reviewOrganization(db, {
+        reviewerAccountId: reviewerId,
+        organizationId: created.value.id,
+        decision: 'ACTIVE',
+        stepUpSatisfied: true,
+      });
+      await suspendOrganization(db, {
+        reviewerAccountId: reviewerId,
+        organizationId: created.value.id,
+        stepUpSatisfied: true,
+      });
+      const terminated = await terminateOrganization(db, {
+        reviewerAccountId: reviewerId,
+        organizationId: created.value.id,
+        stepUpSatisfied: true,
+      });
+      expect(isOk(terminated)).toBe(true);
+      if (isOk(terminated)) expect(terminated.value.status).toBe('CLOSED');
+    });
+
+    it('refuses to terminate an org that never onboarded (still PENDING_VERIFICATION)', async () => {
+      const created = await createOrganization(db, { actorAccountId: ownerId, name: 'Acme Visas' });
+      if (!isOk(created)) throw new Error('setup failed');
+      const result = await terminateOrganization(db, {
+        reviewerAccountId: reviewerId,
+        organizationId: created.value.id,
+        stepUpSatisfied: true,
+      });
+      expect(isOk(result)).toBe(false);
+    });
+
+    it('refuses to re-terminate an already-CLOSED organization', async () => {
+      const created = await createOrganization(db, { actorAccountId: ownerId, name: 'Acme Visas' });
+      if (!isOk(created)) throw new Error('setup failed');
+      await reviewOrganization(db, {
+        reviewerAccountId: reviewerId,
+        organizationId: created.value.id,
+        decision: 'ACTIVE',
+        stepUpSatisfied: true,
+      });
+      await terminateOrganization(db, {
+        reviewerAccountId: reviewerId,
+        organizationId: created.value.id,
+        stepUpSatisfied: true,
+      });
+      const second = await terminateOrganization(db, {
+        reviewerAccountId: reviewerId,
+        organizationId: created.value.id,
+        stepUpSatisfied: true,
+      });
+      expect(isOk(second)).toBe(false);
+    });
+
+    it('records an audit event naming the organization’s status just before termination', async () => {
+      const created = await createOrganization(db, { actorAccountId: ownerId, name: 'Acme Visas' });
+      if (!isOk(created)) throw new Error('setup failed');
+      await reviewOrganization(db, {
+        reviewerAccountId: reviewerId,
+        organizationId: created.value.id,
+        decision: 'ACTIVE',
+        stepUpSatisfied: true,
+      });
+      await terminateOrganization(db, {
+        reviewerAccountId: reviewerId,
+        organizationId: created.value.id,
+        stepUpSatisfied: true,
+      });
+      const events = await db
+        .select()
+        .from(dbSchema.auditEvents)
+        .where(eq(dbSchema.auditEvents.eventType, 'ORGANIZATION_TERMINATED'));
+      expect(events).toHaveLength(1);
+      expect(events[0]?.actorAccountId).toBe(reviewerId);
+      expect(events[0]?.metadata).toMatchObject({ previousStatus: 'ACTIVE' });
     });
   });
 
