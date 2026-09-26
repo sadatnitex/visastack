@@ -213,6 +213,18 @@ export const acknowledgementDecision = pgEnum('acknowledgement_decision', [
   'REJECTED',
   'CORRECTION_REQUESTED',
 ]);
+// TRU-04 (master directive Part 7 §7): how the actor reports the case
+// actually reached its destination. Not exhaustive of every real-world
+// channel, but the ones this product can currently ask an actor to
+// attribute; OTHER covers everything else rather than blocking the record.
+export const missionSubmissionChannel = pgEnum('mission_submission_channel', [
+  'EMBASSY_PORTAL',
+  'EMAIL',
+  'IN_PERSON',
+  'COURIER',
+  'VISA_APPLICATION_CENTER',
+  'OTHER',
+]);
 // Commercial V1 Part 4 §11: "States: OPEN, IN_PROGRESS, DONE, CANCELLED."
 // IN_PROGRESS added after OPEN/DONE/CANCELLED already shipped (Part 3) --
 // additive only, matching this codebase's enum-migration discipline.
@@ -1685,6 +1697,56 @@ export const acknowledgements = pgTable(
   (table) => [
     index('acknowledgements_mission_idx').on(table.missionId),
     index('acknowledgements_snapshot_idx').on(table.snapshotId),
+  ],
+);
+
+// TRU-04 (master directive Part 7 §7): "Export/download does NOT mean
+// submitted." An attributable record of an ACTUAL external submission event
+// the actor is reporting -- never inferred from an export/download/snapshot
+// action itself, and never VisaStack claiming it observed an embassy action
+// (directive's own explicit warning). `snapshotId` IS "packet reference;
+// immutable packet ID" -- the directive's own two names for one thing a
+// missionSnapshot already is (see `snapshotMission`'s own doc comment,
+// "this snapshot IS the application packet"); no separate packet artifact is
+// invented here. Append-only like `acknowledgements`/`missionDecisions`:
+// deliberately NOT unique per mission, since a real correction cycle
+// (directive §5) can lead to a genuine resubmission later.
+export const missionSubmissions = pgTable(
+  'mission_submissions',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    missionId: uuid('mission_id')
+      .notNull()
+      .references(() => missions.id, { onDelete: 'cascade' }),
+    snapshotId: uuid('snapshot_id')
+      .notNull()
+      .references(() => missionSnapshots.id, { onDelete: 'restrict' }),
+    actorAccountId: uuid('actor_account_id')
+      .notNull()
+      .references(() => accounts.id, { onDelete: 'restrict' }),
+    channel: missionSubmissionChannel('channel').notNull(),
+    // "external report/source description": the actor's OWN account of how
+    // they know submission happened -- e.g. "Confirmation email from
+    // embassy portal, ref #12345." Required: an attributable report needs an
+    // actual description, not just a channel code.
+    externalReportDescription: text('external_report_description').notNull(),
+    // An optional short machine/human reference the external channel gave
+    // back (a confirmation number, a tracking code) -- distinct from the
+    // free-text description above, kept separate so a UI can show it as its
+    // own labelled field rather than parsing it back out of prose.
+    externalReference: text('external_reference'),
+    // When the actor reports the external submission actually happened --
+    // caller-supplied (not always "now": a case may be recorded after the
+    // fact) but never in the future (enforced in the service layer).
+    submittedAt: timestamp('submitted_at', { withTimezone: true }).notNull(),
+    // Same shape/reasoning as acknowledgements.authAssuranceContext: a
+    // server-built record of how step-up was satisfied, never caller input.
+    authAssuranceContext: jsonb('auth_assurance_context').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('mission_submissions_mission_idx').on(table.missionId),
+    index('mission_submissions_snapshot_idx').on(table.snapshotId),
   ],
 );
 

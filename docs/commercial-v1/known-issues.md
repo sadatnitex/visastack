@@ -1232,6 +1232,17 @@ item gets its own requirements-ledger row once classified against the new direct
     prerequisite. Not verified in a live browser (sandbox limitation, same
     as every prior UI chunk this session). Full detail:
     `requirements-ledger.md` TRU-02, CAS-07.
+76. (Part 7 §7/§8/§9) TRU-04's non-submission-report scope is not started:
+    outcome (§8 -- APPROVED/REFUSED/WITHDRAWN/CANCELLED/OTHER, with official
+    wording and agency interpretation kept in separate fields, never
+    blended) and complaint/feedback (§9 -- a case complaint workflow with
+    owner/status/history/resolution, plus private post-case feedback
+    restricted to authorized quality users, with no public review/ranking in
+    V1) do not exist yet. The submission report itself (§7) is real
+    (`recordSubmission`, `requirements-ledger.md` TRU-04), but has no
+    `apps/web` UI yet -- deferred intentionally to a combined UI chunk once
+    outcome and complaint/feedback also exist, the same backend-then-UI
+    split TRU-02 already used.
 independently confirmed findings; the missing PRD file is tracked as Blocker 1 in
 `assumptions-and-blockers.md` (now resolved) rather than here, since it blocked the
 programme rather than being a product defect.
