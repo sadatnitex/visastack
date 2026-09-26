@@ -225,6 +225,17 @@ export const missionSubmissionChannel = pgEnum('mission_submission_channel', [
   'VISA_APPLICATION_CENTER',
   'OTHER',
 ]);
+// TRU-04 (master directive Part 7 §8): the real-world result of a case,
+// distinct from `missions.state` (a workflow position, not a legal result) --
+// CANCELLED/WITHDRAWN appear on both because a case can end either way with
+// or without ever reaching a formal decision. Directive's own list, verbatim.
+export const missionOutcomeDecision = pgEnum('mission_outcome_decision', [
+  'APPROVED',
+  'REFUSED',
+  'WITHDRAWN',
+  'CANCELLED',
+  'OTHER',
+]);
 // Commercial V1 Part 4 §11: "States: OPEN, IN_PROGRESS, DONE, CANCELLED."
 // IN_PROGRESS added after OPEN/DONE/CANCELLED already shipped (Part 3) --
 // additive only, matching this codebase's enum-migration discipline.
@@ -1748,6 +1759,52 @@ export const missionSubmissions = pgTable(
     index('mission_submissions_mission_idx').on(table.missionId),
     index('mission_submissions_snapshot_idx').on(table.snapshotId),
   ],
+);
+
+// TRU-04 (master directive Part 7 §8): "Store: decision date; optional
+// restricted decision evidence; exact original wording where supplied;
+// separate agency interpretation. Do not blend agency interpretation into
+// official wording. No approval probability." Append-only like
+// `acknowledgements`/`missionSubmissions`: a case can legitimately have more
+// than one recorded outcome over its life (e.g. a refusal followed by a
+// later resubmission's approval), and history is never rewritten.
+export const missionOutcomes = pgTable(
+  'mission_outcomes',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    missionId: uuid('mission_id')
+      .notNull()
+      .references(() => missions.id, { onDelete: 'cascade' }),
+    decision: missionOutcomeDecision('decision').notNull(),
+    decisionDate: timestamp('decision_date', { withTimezone: true }).notNull(),
+    // "exact original wording where supplied": verbatim, untouched text from
+    // the actual decision communication -- never edited, summarized, or
+    // combined with agencyInterpretation below.
+    officialWording: text('official_wording'),
+    // "separate agency interpretation": a structurally distinct column, not
+    // a shared free-text field, so the two can never be blended (directive's
+    // own explicit warning) -- a reader always knows which one they're
+    // looking at.
+    agencyInterpretation: text('agency_interpretation'),
+    // "optional restricted decision evidence": reuses the existing evidence
+    // vault (documents.ts) rather than inventing a second file-storage path
+    // -- an outcome's supporting document (e.g. a scanned refusal letter) is
+    // ordinary applicant evidence. `set null`, not `restrict`: an outcome
+    // record is a historical fact worth keeping even if its one supporting
+    // document is later legitimately erased (retention/erasure workflow).
+    // "Restricted" is satisfied structurally: no function in this file
+    // exposes this to any wider audience than the same owner-only access
+    // every other mission function already requires.
+    evidenceDocumentId: uuid('evidence_document_id').references(() => documents.id, {
+      onDelete: 'set null',
+    }),
+    actorAccountId: uuid('actor_account_id')
+      .notNull()
+      .references(() => accounts.id, { onDelete: 'restrict' }),
+    authAssuranceContext: jsonb('auth_assurance_context').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index('mission_outcomes_mission_idx').on(table.missionId)],
 );
 
 // --- Collaboration: assignments, notes, evidence requests (Build Spec §2; PRD §5)
