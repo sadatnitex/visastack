@@ -14,9 +14,11 @@ import { hasActiveLegalHold } from './legal-hold';
  */
 
 export {
+  type AccountLegalHold,
   type LegalHold,
   hasActiveLegalHold,
   listActiveLegalHolds,
+  listActiveLegalHoldsForAccount,
   listLegalHolds,
   placeLegalHold,
   releaseLegalHold,

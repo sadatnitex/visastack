@@ -161,3 +161,39 @@ export async function listActiveLegalHolds(db: Db): Promise<LegalHold[]> {
   const rows = await db.select().from(schema.legalHolds).where(eq(schema.legalHolds.active, true));
   return [...rows].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
 }
+
+export interface AccountLegalHold {
+  readonly id: string;
+  readonly applicantId: string;
+  readonly applicantDisplayName: string;
+  readonly reason: string;
+  readonly placedAt: Date;
+}
+
+/**
+ * Every currently active legal hold across any applicant this account owns
+ * (PRV-03, master directive Part 7 §12 step 4: "show retained exceptions").
+ * The one place both `requestAccountDeletion`'s own pre-check and the
+ * privacy page's user-facing detail read from, so the enforcement and the
+ * explanation can never drift apart -- an account can own more than one
+ * applicant (self plus family members), so this is deliberately account-
+ * wide, not the single-applicant `hasActiveLegalHold`/`listLegalHolds` above.
+ */
+export async function listActiveLegalHoldsForAccount(
+  db: Db,
+  accountId: string,
+): Promise<readonly AccountLegalHold[]> {
+  return db
+    .select({
+      id: schema.legalHolds.id,
+      applicantId: schema.legalHolds.applicantId,
+      applicantDisplayName: schema.applicants.displayName,
+      reason: schema.legalHolds.reason,
+      placedAt: schema.legalHolds.createdAt,
+    })
+    .from(schema.legalHolds)
+    .innerJoin(schema.applicants, eq(schema.applicants.id, schema.legalHolds.applicantId))
+    .where(
+      and(eq(schema.applicants.ownerAccountId, accountId), eq(schema.legalHolds.active, true)),
+    );
+}

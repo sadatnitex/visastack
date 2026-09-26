@@ -8,7 +8,7 @@ import { migrate } from 'drizzle-orm/pglite/migrator';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { provisionAccount } from './accounts';
 import { createApplicant } from './applicants';
-import { listConsentHistory, setConsent } from './consent';
+import { getConsents, listConsentHistory, setConsent } from './consent';
 import type { Db } from './db';
 import {
   cancelAccountDeletion,
@@ -19,6 +19,7 @@ import {
 import { addDocumentVersion, registerDocument } from './documents';
 import { runErasureWorker } from './erasure';
 import { exportAccount } from './export';
+import { placeLegalHold } from './legal-hold';
 import { grantPlatformRole } from './platform-roles';
 import { editFact, registerFieldDefinition } from './profile';
 import type {
@@ -409,6 +410,71 @@ describe('account deletion workflow', () => {
 
     await cancelAccountDeletion(db, { actorAccountId: account.id, accountId: account.id });
     expect(await getPendingDeletion(db, account.id)).toBeUndefined();
+  });
+
+  it('refuses a deletion request while an active legal hold exists on any applicant this account owns (PRV-03, Part 7 §12 step 4)', async () => {
+    const { account, applicantId } = await seedFullAccount(db, 'del-hold@example.com');
+    const hold = await placeLegalHold(db, {
+      actorAccountId: account.id,
+      applicantId,
+      reason: 'pending dispute',
+      stepUpSatisfied: true,
+    });
+    expect(isOk(hold)).toBe(true);
+
+    const result = await requestAccountDeletion(db, {
+      actorAccountId: account.id,
+      accountId: account.id,
+    });
+    expect(isErr(result)).toBe(true);
+    if (isErr(result)) expect(result.error.message).toContain('legal hold');
+    // Never even got as far as opening a request.
+    expect(await getPendingDeletion(db, account.id)).toBeUndefined();
+  });
+
+  it('revokes every currently-granted optional-processing consent at request time, leaving CORE_PROCESSING untouched (PRV-03, Part 7 §12 step 6)', async () => {
+    const { account } = await seedFullAccount(db, 'del-consent@example.com');
+    for (const type of ['AI_EXTRACTION', 'SHARING', 'MARKETING', 'ISSUER_CONTACT'] as const) {
+      const granted = await setConsent(db, {
+        actorAccountId: account.id,
+        accountId: account.id,
+        type,
+        granted: true,
+      });
+      expect(isOk(granted)).toBe(true);
+    }
+
+    const req = await requestAccountDeletion(db, {
+      actorAccountId: account.id,
+      accountId: account.id,
+    });
+    expect(isOk(req)).toBe(true);
+
+    const consents = await getConsents(db, account.id);
+    expect(consents.CORE_PROCESSING).toBe(true);
+    expect(consents.AI_EXTRACTION).toBe(false);
+    expect(consents.SHARING).toBe(false);
+    expect(consents.MARKETING).toBe(false);
+    expect(consents.ISSUER_CONTACT).toBe(false);
+  });
+
+  it('never manufactures a revoke row for a consent type that was never granted', async () => {
+    const { account } = await seedFullAccount(db, 'del-consent-untouched@example.com');
+    // seedFullAccount only ever grants CORE_PROCESSING -- the other four
+    // consent types have zero rows at all before this request.
+    const before = await db.select().from(schema.consentRecords);
+    expect(before).toHaveLength(1);
+
+    const req = await requestAccountDeletion(db, {
+      actorAccountId: account.id,
+      accountId: account.id,
+    });
+    expect(isOk(req)).toBe(true);
+
+    // Still just the one original CORE_PROCESSING grant row -- no spurious
+    // "revoked" entries for consent types this account never granted.
+    const after = await db.select().from(schema.consentRecords);
+    expect(after).toHaveLength(1);
   });
 });
 
