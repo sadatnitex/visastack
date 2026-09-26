@@ -148,7 +148,8 @@ export type {
   RenderedPreview,
 } from './preview-rendering';
 
-export { type AccountExport, exportAccount } from './export';
+export { type AccountExport, type AccountExportManifest, exportAccount } from './export';
+export { type ExportCsvTable, buildExportCsvTables, rowsToCsv } from './export-csv';
 
 export {
   type AccountLegalHold,

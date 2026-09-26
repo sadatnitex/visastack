@@ -1,7 +1,7 @@
 import { type Result, err, ok } from '@visastack/core';
 import { eq, inArray, or } from 'drizzle-orm';
 import { appendAuditEvent } from './audit';
-import { getConsents } from './consent';
+import { type ConsentRecord, getConsents, listConsentHistory } from './consent';
 import { type Db, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
 
@@ -19,9 +19,41 @@ import { type ServiceError, serviceError } from './errors';
  * Self-service only; the export itself is audited.
  */
 
+/**
+ * PRV-04 (master directive Part 7 §14): "manifest" is its own named export
+ * requirement, distinct from the data itself -- an honest accounting of
+ * what this export actually contains, what is deliberately excluded (by
+ * design, permanent), and what is a genuine current gap (a known-issues.md
+ * item, expected to close later). Counts are derived from the very data
+ * already assembled below, never a separate query, so the manifest can
+ * never drift from what the export actually contains.
+ */
+export interface AccountExportManifest {
+  readonly counts: {
+    readonly applicants: number;
+    readonly facts: number;
+    readonly factVersions: number;
+    readonly documents: number;
+    readonly documentVersions: number;
+    readonly missions: number;
+    readonly missionSnapshots: number;
+    readonly grantsReceived: number;
+    readonly grantsGranted: number;
+    readonly evidenceRequests: number;
+    readonly aiExtractionRuns: number;
+    readonly auditEvents: number;
+    readonly productEvents: number;
+    readonly consentHistoryEntries: number;
+  };
+  readonly excludedByDesign: ReadonlyArray<{ readonly item: string; readonly reason: string }>;
+  readonly knownGaps: ReadonlyArray<{ readonly item: string; readonly reason: string }>;
+}
+
 export interface AccountExport {
   readonly account: typeof schema.accounts.$inferSelect;
   readonly consents: Awaited<ReturnType<typeof getConsents>>;
+  /** Full grant/revoke history, not just current state (directive Part 7 §14: "consent/share history"). */
+  readonly consentHistory: readonly ConsentRecord[];
   readonly memberships: ReadonlyArray<typeof schema.memberships.$inferSelect>;
   readonly assignments: ReadonlyArray<typeof schema.assignments.$inferSelect>;
   readonly grantsReceived: ReadonlyArray<typeof schema.grants.$inferSelect>;
@@ -52,6 +84,7 @@ export interface AccountExport {
   }>;
   readonly auditEvents: ReadonlyArray<typeof schema.auditEvents.$inferSelect>;
   readonly exportedAt: string;
+  readonly manifest: AccountExportManifest;
 }
 
 export async function exportAccount(
@@ -159,23 +192,30 @@ export async function exportAccount(
     }),
   );
 
-  const [memberships, assignments, grantsReceived, missionNotesAuthored, productEvents] =
-    await Promise.all([
-      db.select().from(schema.memberships).where(eq(schema.memberships.accountId, input.accountId)),
-      db
-        .select()
-        .from(schema.assignments)
-        .where(eq(schema.assignments.memberAccountId, input.accountId)),
-      db.select().from(schema.grants).where(eq(schema.grants.recipientAccountId, input.accountId)),
-      db
-        .select()
-        .from(schema.missionNotes)
-        .where(eq(schema.missionNotes.authorAccountId, input.accountId)),
-      db
-        .select()
-        .from(schema.productEvents)
-        .where(eq(schema.productEvents.accountId, input.accountId)),
-    ]);
+  const [
+    memberships,
+    assignments,
+    grantsReceived,
+    missionNotesAuthored,
+    productEvents,
+    consentHistory,
+  ] = await Promise.all([
+    db.select().from(schema.memberships).where(eq(schema.memberships.accountId, input.accountId)),
+    db
+      .select()
+      .from(schema.assignments)
+      .where(eq(schema.assignments.memberAccountId, input.accountId)),
+    db.select().from(schema.grants).where(eq(schema.grants.recipientAccountId, input.accountId)),
+    db
+      .select()
+      .from(schema.missionNotes)
+      .where(eq(schema.missionNotes.authorAccountId, input.accountId)),
+    db
+      .select()
+      .from(schema.productEvents)
+      .where(eq(schema.productEvents.accountId, input.accountId)),
+    listConsentHistory(db, input.accountId),
+  ]);
 
   const auditEvents = await db
     .select()
@@ -199,9 +239,57 @@ export async function exportAccount(
     });
   });
 
+  const manifest: AccountExportManifest = {
+    counts: {
+      applicants: applicants.length,
+      facts: applicants.reduce((n, a) => n + a.facts.length, 0),
+      factVersions: applicants.reduce(
+        (n, a) => n + a.facts.reduce((m, f) => m + f.versions.length, 0),
+        0,
+      ),
+      documents: applicants.reduce((n, a) => n + a.documents.length, 0),
+      documentVersions: applicants.reduce(
+        (n, a) => n + a.documents.reduce((m, d) => m + d.versions.length, 0),
+        0,
+      ),
+      missions: applicants.reduce((n, a) => n + a.missions.length, 0),
+      missionSnapshots: applicants.reduce(
+        (n, a) => n + a.missions.reduce((m, mi) => m + mi.snapshots.length, 0),
+        0,
+      ),
+      grantsReceived: grantsReceived.length,
+      grantsGranted: applicants.reduce((n, a) => n + a.grantsGranted.length, 0),
+      evidenceRequests: applicants.reduce((n, a) => n + a.evidenceRequests.length, 0),
+      aiExtractionRuns: applicants.reduce((n, a) => n + a.aiRuns.length, 0),
+      auditEvents: auditEvents.length,
+      productEvents: productEvents.length,
+      consentHistoryEntries: consentHistory.length,
+    },
+    excludedByDesign: [
+      {
+        item: "other people's restricted data",
+        reason:
+          "this export is self-service and scoped strictly to what this account owns, authored, or was granted access to -- another applicant, organization, or account's own records are never included, even for data this account can currently view through a share",
+      },
+      {
+        item: 'agency-internal notes about this account, written by someone else',
+        reason:
+          'missionNotesAuthored is scoped to notes THIS account authored; a note an agency wrote about this traveller, with a different author, is never included regardless of its visibility setting',
+      },
+    ],
+    knownGaps: [
+      {
+        item: 'original document bytes',
+        reason:
+          'document metadata (name, size, hash, scan result) is included for every version; the original file bytes themselves are not yet -- directive Part 7 §14 requires these delivered through a durable, ZIP-safe async export job, which does not exist yet (known-issues.md item 77)',
+      },
+    ],
+  };
+
   return ok({
     account,
     consents: await getConsents(db, input.accountId),
+    consentHistory,
     memberships,
     assignments,
     grantsReceived,
@@ -210,5 +298,6 @@ export async function exportAccount(
     applicants,
     auditEvents,
     exportedAt: new Date().toISOString(),
+    manifest,
   });
 }

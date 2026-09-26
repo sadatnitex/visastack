@@ -71,13 +71,18 @@ export default async function PrivacyPage() {
           <p className="card-kicker">Portability</p>
           <h2 className="card-title">Export your data</h2>
           <p className="card-body" style={{ marginBottom: '1.25rem' }}>
-            Download a complete, structured JSON snapshot of your account: identity, consents,
+            Download a complete, structured snapshot of your account: identity, consents,
             applicants, Master Profile facts with full history, document metadata, and your audit
             trail.
           </p>
-          <a href="/app/privacy/export" className="btn btn-primary" download>
-            Download export
-          </a>
+          <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap' }}>
+            <a href="/app/privacy/export" className="btn btn-primary" download>
+              Download export (JSON)
+            </a>
+            <a href="/app/privacy/export?format=csv" className="btn btn-secondary" download>
+              Download export (CSV/ZIP)
+            </a>
+          </div>
         </article>
 
         <article className="card">

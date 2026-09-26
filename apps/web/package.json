@@ -19,6 +19,7 @@
     "@visastack/i18n": "workspace:*",
     "@visastack/services": "workspace:*",
     "@workos-inc/authkit-nextjs": "^4.2.0",
+    "jszip": "^3.10.1",
     "next": "^15.5.24",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
