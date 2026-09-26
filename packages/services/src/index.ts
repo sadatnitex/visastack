@@ -827,6 +827,11 @@ export {
 } from './client-invitations';
 
 export {
+  type CaseRetentionNoticeSweepResult,
+  sweepCaseRetentionNotices,
+} from './case-retention';
+
+export {
   type BeginContributorSubmissionInput,
   type ContributorRequest,
   type ContributorRequestPreview,

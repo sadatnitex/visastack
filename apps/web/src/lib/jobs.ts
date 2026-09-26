@@ -5,6 +5,7 @@ import {
   type AbandonedClientInvitationSweepResult,
   type AbandonedOrganizationInvitationSweepResult,
   type AbandonedUploadSweepResult,
+  type CaseRetentionNoticeSweepResult,
   type ErasureWorkerResult,
   type IntakeWorkerResult,
   type NotificationWorkerResult,
@@ -20,6 +21,7 @@ import {
   sweepAbandonedClientInvitations,
   sweepAbandonedOrganizationInvitations,
   sweepAbandonedUploads,
+  sweepCaseRetentionNotices,
   sweepExpiryReminders,
   sweepTaskDeadlineReminders,
 } from '@visastack/services';
@@ -374,6 +376,36 @@ export async function triggerAbandonedClientInvitationSweep(
   } catch (error) {
     console.error('[triggerAbandonedClientInvitationSweep] sweep failed', error);
     return { checked: 0, deleted: 0 };
+  } finally {
+    await pool.end();
+  }
+}
+
+/**
+ * Sends the closed-case retention notice (directive Part 7 §11: "closed
+ * case: initial proposed 12m with 30d notice") on its own short-lived
+ * pooled connection, same rationale as the sweeps above. Notice only -- the
+ * corresponding purge sweep is a separate, later job.
+ */
+export async function triggerCaseRetentionNoticeSweep(
+  options: { readonly limit?: number } = {},
+): Promise<CaseRetentionNoticeSweepResult> {
+  const connectionString = resolveDatabaseUrl(process.env);
+  if (!connectionString) {
+    console.error('[triggerCaseRetentionNoticeSweep] database not configured');
+    return { checked: 0, notified: 0 };
+  }
+
+  const { db, pool } = createPooledDb(connectionString);
+  pool.on('error', (error) => {
+    console.error('[triggerCaseRetentionNoticeSweep] idle pool connection error', error);
+  });
+  try {
+    const handle = db as unknown as Parameters<typeof sweepCaseRetentionNotices>[0];
+    return await sweepCaseRetentionNotices(handle, options.limit);
+  } catch (error) {
+    console.error('[triggerCaseRetentionNoticeSweep] sweep failed', error);
+    return { checked: 0, notified: 0 };
   } finally {
     await pool.end();
   }

@@ -1010,12 +1010,22 @@ export async function transitionMission(
     }
   }
 
+  const isTerminal = input.to === 'CLOSED' || input.to === 'CANCELLED';
   return db.transaction(async (tx) => {
     const mission = required(
       first(
         await tx
           .update(schema.missions)
-          .set({ state: input.to, updatedAt: new Date() })
+          .set({
+            state: input.to,
+            updatedAt: new Date(),
+            // PRV-02 (Part 7 §11): set once, on first arrival at either
+            // terminal state. `TRANSITIONS[CLOSED] = TRANSITIONS[CANCELLED]
+            // = []` already makes a second arrival unreachable, but the
+            // explicit `isTerminal` guard documents the "set once" invariant
+            // here rather than leaning solely on that being true elsewhere.
+            ...(isTerminal ? { closedAt: new Date() } : {}),
+          })
           .where(eq(schema.missions.id, input.missionId))
           .returning(),
       ),

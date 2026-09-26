@@ -1283,10 +1283,21 @@ item gets its own requirements-ledger row once classified against the new direct
       daily cron, `/api/jobs/process-abandoned-invitations`. Still missing:
       OCR/export <=24h, AI-cache <=30d (`aiExtractionRuns`' cache-hit lookup
       has no age predicate at all), app-log 30d (governed by Vercel's own
-      log retention, not this codebase), closed-case 12mo+30d-notice (no
-      closure-triggered timer exists), and the inactive-account half of
-      "wallet original: until deletion/inactive-account policy" (no
-      `lastActiveAt` tracking exists). The "restricted security/audit
+      log retention, not this codebase), ~~closed-case 12mo+30d-notice (no
+      closure-triggered timer exists)~~ **PARTIALLY RESOLVED (Part 7 §11,
+      Chunk 2, notice half only).** `missions.closedAt` now set once by
+      `transitionMission` on first arrival at CLOSED or CANCELLED;
+      `sweepCaseRetentionNotices` sends a real in-app+email notice once a
+      case has been closed 12+ months (env-overridable), recorded on
+      `missions.retentionNoticeSentAt`; wired into a new daily cron,
+      `/api/jobs/process-case-retention-notices`. Still missing: the actual
+      PURGE 30 days after that notice -- deliberately not built in the same
+      chunk, since it deletes real data across roughly 7 case-scoped tables
+      (tasks, notes, assignments, grants, evidence requests/decisions,
+      snapshots) and needs its own careful scoping plus an explicit opt-in
+      gate before it can run destructively in production. And the
+      inactive-account half of "wallet original: until deletion/inactive-account
+      policy" (no `lastActiveAt` tracking exists). The "restricted security/audit
       metadata: 12m" default is additionally structurally blocked today by
       `audit_events`' own append-only/undeletable DB rules (SEC-04) -- built
       deliberately for tamper-evidence, but it means no code path can purge
