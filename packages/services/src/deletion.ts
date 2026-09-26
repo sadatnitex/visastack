@@ -1,10 +1,12 @@
-import { type Result, err, ok } from '@visastack/core';
+import { type ConsentType, type Result, err, ok } from '@visastack/core';
 import { and, eq, inArray, isNull, lte } from 'drizzle-orm';
 import { appendAuditEvent } from './audit';
+import { getConsents } from './consent';
 import { type Db, first, isUniqueViolation, required, schema } from './db';
 import type { StorageObject } from './documents';
 import { enqueueErasureJob } from './erasure';
 import { type ServiceError, serviceError } from './errors';
+import { listActiveLegalHoldsForAccount } from './legal-hold';
 
 /**
  * Account deletion workflow (Build Spec §13; PRD §2 — erasure).
@@ -19,6 +21,19 @@ import { type ServiceError, serviceError } from './errors';
 export type DeletionRequest = typeof schema.accountDeletionRequests.$inferSelect;
 
 const DEFAULT_GRACE_PERIOD_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+
+// PRV-03 (master directive Part 7 §12 step 6): "revoke/cancel optional
+// processing" at REQUEST time, not only incidentally when the account row
+// is finally removed after the grace window. CORE_PROCESSING is
+// deliberately excluded -- it is not optional, and the account still needs
+// to function (sign in, view this very page, cancel the request) throughout
+// the grace window.
+const OPTIONAL_PROCESSING_CONSENT_TYPES: readonly ConsentType[] = [
+  'AI_EXTRACTION',
+  'SHARING',
+  'MARKETING',
+  'ISSUER_CONTACT',
+];
 
 async function pendingRequest(db: Db, accountId: string): Promise<DeletionRequest | undefined> {
   return first(
@@ -73,6 +88,16 @@ export async function requestAccountDeletion(
   if (await pendingRequest(db, input.accountId)) {
     return err(serviceError('invalid', 'a deletion request is already pending'));
   }
+  // PRV-03 (Part 7 §12 step 4): fail fast and honestly, rather than letting
+  // the requester wait out the full grace window only for
+  // `executeAccountDeletion`'s own (still separately, correctly, and
+  // necessarily re-checked) hold recheck to silently refuse at day 7. This
+  // pre-check narrows the window; it does not replace that recheck, which
+  // remains the actual point of enforcement against a hold placed after
+  // this request is already pending.
+  if ((await listActiveLegalHoldsForAccount(db, input.accountId)).length > 0) {
+    return err(serviceError('invalid', 'an active legal hold blocks deletion'));
+  }
   const now = input.now ?? new Date();
   const scheduledFor = new Date(now.getTime() + (input.gracePeriodMs ?? DEFAULT_GRACE_PERIOD_MS));
 
@@ -100,6 +125,33 @@ export async function requestAccountDeletion(
         resourceId: input.accountId,
         metadata: { scheduledFor: scheduledFor.toISOString() },
       });
+
+      // Revoke every currently-granted optional-processing consent now,
+      // inline (not via consent.ts's own `setConsent`, which opens its own
+      // transaction) so this commits atomically with the request itself.
+      // Only a type that is actually granted gets a new row -- one already
+      // off stays untouched, so this never manufactures a spurious "revoked"
+      // entry in a consent history that never granted it in the first place.
+      const currentConsents = await getConsents(tx, input.accountId);
+      for (const type of OPTIONAL_PROCESSING_CONSENT_TYPES) {
+        if (!currentConsents[type]) continue;
+        await tx.insert(schema.consentRecords).values({
+          accountId: input.accountId,
+          type,
+          grantedAt: null,
+          revokedAt: now,
+        });
+        await appendAuditEvent(tx, {
+          eventType: 'CONSENT_REVOKED',
+          actorAccountId: input.accountId,
+          method: 'SYSTEM',
+          result: 'ALLOWED',
+          resourceType: 'consent',
+          resourceId: `${input.accountId}:${type}`,
+          metadata: { type, granted: false, reason: 'account_deletion_requested' },
+        });
+      }
+
       return ok(request);
     });
   } catch (error) {

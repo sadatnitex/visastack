@@ -1322,14 +1322,24 @@ item gets its own requirements-ledger row once classified against the new direct
       The requester-facing flow around it is not: `apps/web/src/app/app/privacy/page.tsx`
       offers a reason field and a confirm button, nothing else. Missing:
       step 2 (no scope picker -- deletion is implicitly "everything"), step
-      3 (no preview of what will be deleted), step 4 (the "an active legal
+      3 (no preview of what will be deleted), ~~step 4 (the "an active legal
       hold blocks deletion" sentence is static copy, never queried against
       the actual requester's own holds -- no what/why/who-can-access/
-      next-review detail), step 5 (export exists as a wholly separate card,
-      never offered as part of the deletion confirmation itself), step 6
+      next-review detail)~~ **PARTIALLY RESOLVED (Part 7 §12, Chunk 1):**
+      `requestAccountDeletion` now genuinely refuses upfront when any of the
+      account's applicants has an active hold (previously only checked 7
+      days later, silently, at execution) -- the what/why/who-can-access/
+      next-review UI detail is still missing, tracked separately, step 5
+      (export exists as a wholly separate card,
+      never offered as part of the deletion confirmation itself), ~~step 6
       (optional-processing consents are not revoked at request time, only
       incidentally when the account row is finally deleted after the grace
-      window -- AI extraction/marketing can continue throughout). Backup
+      window -- AI extraction/marketing can continue throughout)~~
+      **RESOLVED (Part 7 §12, Chunk 1):** AI_EXTRACTION/SHARING/MARKETING/
+      ISSUER_CONTACT are now revoked the moment deletion is requested, not
+      just incidentally at execution; CORE_PROCESSING is deliberately left
+      alone since the account still needs to function during the grace
+      window. Backup
       expiry target (<=90 days) has no tracking or enforcement of any kind.
     - **Legal holds (§13):** placement/release/enforcement are real and
       race-safe at every purge/deletion choke point, and agencies

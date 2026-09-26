@@ -151,6 +151,7 @@ export type {
 export { type AccountExport, exportAccount } from './export';
 
 export {
+  type AccountLegalHold,
   type LegalHold,
   type PurgeExpiredDocumentsResult,
   type RetentionPolicy,
@@ -158,6 +159,7 @@ export {
   getRetentionPolicies,
   hasActiveLegalHold,
   listActiveLegalHolds,
+  listActiveLegalHoldsForAccount,
   listLegalHolds,
   placeLegalHold,
   purgeExpiredDocuments,
