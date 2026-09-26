@@ -69,8 +69,14 @@ export async function placeLegalHoldAction(
 ): Promise<ActionState> {
   const applicantId = String(formData.get('applicantId') ?? '').trim();
   const reason = String(formData.get('reason') ?? '').trim();
+  const reviewAtRaw = String(formData.get('reviewAt') ?? '').trim();
   if (applicantId.length === 0) return { ok: false, message: 'Enter an applicant ID.' };
   if (reason.length === 0) return { ok: false, message: 'A reason is required.' };
+  if (reviewAtRaw.length === 0) return { ok: false, message: 'A review date is required.' };
+  const reviewAt = new Date(reviewAtRaw);
+  if (Number.isNaN(reviewAt.getTime())) {
+    return { ok: false, message: 'The review date is not valid.' };
+  }
 
   const result = await withSession(async ({ db, accountId, email }) => {
     if (!(await hasPlatformPermission(db, { accountId, email }, 'LEGAL_HOLD_PLACE'))) return DENIED;
@@ -86,6 +92,7 @@ export async function placeLegalHoldAction(
       actorAccountId: accountId,
       applicantId,
       reason,
+      reviewAt,
       stepUpSatisfied: true,
     });
     if (!held.ok) return { ok: false, message: held.error.message } satisfies ActionState;

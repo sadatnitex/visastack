@@ -463,6 +463,19 @@ export default async function AdminPage() {
                       <span className="muted" style={{ fontSize: '0.8rem' }}>
                         {h.reason}
                       </span>
+                      <span style={{ fontSize: '0.8rem' }}>
+                        {h.reviewAt === null ? (
+                          <span className="badge badge-danger">no review date set</span>
+                        ) : h.reviewAt.getTime() < Date.now() ? (
+                          <span className="badge badge-danger">
+                            review overdue since {h.reviewAt.toLocaleDateString()}
+                          </span>
+                        ) : (
+                          <span className="badge badge-neutral">
+                            review by {h.reviewAt.toLocaleDateString()}
+                          </span>
+                        )}
+                      </span>
                     </div>
                   ))}
                 </div>

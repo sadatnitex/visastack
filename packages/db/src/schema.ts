@@ -2327,6 +2327,15 @@ export const legalHolds = pgTable(
     }),
     active: boolean('active').notNull().default(true),
     releasedAt: timestamp('released_at', { withTimezone: true }),
+    // Directive Part 7 §13 ("Legal holds"): a hold "needs... review/expiry"
+    // and "cannot become indefinite convenience." Nullable rather than
+    // NOT NULL: a real pre-existing hold in production cannot be given a
+    // fabricated review date by this migration, so `placeLegalHold` (the
+    // service layer) requires it for every NEW hold going forward instead of
+    // the DB enforcing it retroactively. A hold with no review date set is
+    // treated as needing attention just as much as one whose date has
+    // passed (`listLegalHoldsNeedingReview`), never silently excluded.
+    reviewAt: timestamp('review_at', { withTimezone: true }),
     ...timestamps,
   },
   (table) => [index('legal_holds_applicant_idx').on(table.applicantId)],

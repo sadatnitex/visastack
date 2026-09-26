@@ -44,7 +44,11 @@ export default async function PrivacyPage() {
       })),
       scheduledFor: pending ? pending.scheduledFor.toISOString() : null,
       impact,
-      holds: holds.map((h) => ({ ...h, placedAt: h.placedAt.toISOString() })),
+      holds: holds.map((h) => ({
+        ...h,
+        placedAt: h.placedAt.toISOString(),
+        reviewAt: h.reviewAt ? h.reviewAt.toISOString() : null,
+      })),
     };
   });
 

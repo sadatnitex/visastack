@@ -161,6 +161,7 @@ export {
   listActiveLegalHolds,
   listActiveLegalHoldsForAccount,
   listLegalHolds,
+  listLegalHoldsNeedingReview,
   placeLegalHold,
   purgeExpiredDocuments,
   releaseLegalHold,
