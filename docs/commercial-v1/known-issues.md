@@ -1273,12 +1273,17 @@ item gets its own requirements-ledger row once classified against the new direct
     directive's actual §11-§14 scope.
     - **Retention (§11, PRV-02):** real and configurable for exactly one of
       the eight named classes (`retention_policies`, per-`docType`) plus a
-      hardcoded (not admin-configurable) 24h abandoned-upload sweep. Missing:
+      hardcoded (not admin-configurable) 24h abandoned-upload sweep. ~~Missing:
       invite-metadata 30d sweep (invitation rows accumulate indefinitely
-      past their 7-day acceptance-window expiry), OCR/export <=24h,
-      AI-cache <=30d (`aiExtractionRuns`' cache-hit lookup has no age
-      predicate at all), app-log 30d (governed by Vercel's own log
-      retention, not this codebase), closed-case 12mo+30d-notice (no
+      past their 7-day acceptance-window expiry)~~ **RESOLVED (Part 7 §11,
+      Chunk 1).** `sweepAbandonedOrganizationInvitations`/
+      `sweepAbandonedClientInvitations` now purge a PENDING invitation
+      30+ days past its own `expiresAt`, or one REVOKED 30+ days ago (never
+      an ACCEPTED one, a legitimate historical record); wired into a new
+      daily cron, `/api/jobs/process-abandoned-invitations`. Still missing:
+      OCR/export <=24h, AI-cache <=30d (`aiExtractionRuns`' cache-hit lookup
+      has no age predicate at all), app-log 30d (governed by Vercel's own
+      log retention, not this codebase), closed-case 12mo+30d-notice (no
       closure-triggered timer exists), and the inactive-account half of
       "wallet original: until deletion/inactive-account policy" (no
       `lastActiveAt` tracking exists). The "restricted security/audit

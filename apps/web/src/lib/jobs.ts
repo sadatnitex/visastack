@@ -2,6 +2,8 @@ import 'server-only';
 import { isOk } from '@visastack/core';
 import { createPooledDb, resolveDatabaseUrl } from '@visastack/db';
 import {
+  type AbandonedClientInvitationSweepResult,
+  type AbandonedOrganizationInvitationSweepResult,
   type AbandonedUploadSweepResult,
   type ErasureWorkerResult,
   type IntakeWorkerResult,
@@ -15,6 +17,8 @@ import {
   runErasureWorker,
   runIntakeWorker,
   runNotificationWorker,
+  sweepAbandonedClientInvitations,
+  sweepAbandonedOrganizationInvitations,
   sweepAbandonedUploads,
   sweepExpiryReminders,
   sweepTaskDeadlineReminders,
@@ -309,6 +313,67 @@ export async function triggerAbandonedUploadSweep(
   } catch (error) {
     console.error('[triggerAbandonedUploadSweep] sweep failed', error);
     return { checked: 0, cleaned: 0 };
+  } finally {
+    await pool.end();
+  }
+}
+
+/**
+ * Purges abandoned organization-invitation metadata (directive Part 7 §11:
+ * "abandoned invite metadata: 30d") on its own short-lived pooled
+ * connection, same rationale as the sweeps above.
+ */
+export async function triggerAbandonedOrganizationInvitationSweep(
+  options: { readonly limit?: number } = {},
+): Promise<AbandonedOrganizationInvitationSweepResult> {
+  const connectionString = resolveDatabaseUrl(process.env);
+  if (!connectionString) {
+    console.error('[triggerAbandonedOrganizationInvitationSweep] database not configured');
+    return { checked: 0, deleted: 0 };
+  }
+
+  const { db, pool } = createPooledDb(connectionString);
+  pool.on('error', (error) => {
+    console.error(
+      '[triggerAbandonedOrganizationInvitationSweep] idle pool connection error',
+      error,
+    );
+  });
+  try {
+    const handle = db as unknown as Parameters<typeof sweepAbandonedOrganizationInvitations>[0];
+    return await sweepAbandonedOrganizationInvitations(handle, options.limit);
+  } catch (error) {
+    console.error('[triggerAbandonedOrganizationInvitationSweep] sweep failed', error);
+    return { checked: 0, deleted: 0 };
+  } finally {
+    await pool.end();
+  }
+}
+
+/**
+ * Purges abandoned client-invitation metadata (directive Part 7 §11:
+ * "abandoned invite metadata: 30d") on its own short-lived pooled
+ * connection, same rationale as the sweeps above.
+ */
+export async function triggerAbandonedClientInvitationSweep(
+  options: { readonly limit?: number } = {},
+): Promise<AbandonedClientInvitationSweepResult> {
+  const connectionString = resolveDatabaseUrl(process.env);
+  if (!connectionString) {
+    console.error('[triggerAbandonedClientInvitationSweep] database not configured');
+    return { checked: 0, deleted: 0 };
+  }
+
+  const { db, pool } = createPooledDb(connectionString);
+  pool.on('error', (error) => {
+    console.error('[triggerAbandonedClientInvitationSweep] idle pool connection error', error);
+  });
+  try {
+    const handle = db as unknown as Parameters<typeof sweepAbandonedClientInvitations>[0];
+    return await sweepAbandonedClientInvitations(handle, options.limit);
+  } catch (error) {
+    console.error('[triggerAbandonedClientInvitationSweep] sweep failed', error);
+    return { checked: 0, deleted: 0 };
   } finally {
     await pool.end();
   }

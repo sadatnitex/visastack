@@ -14,6 +14,7 @@ import {
   listClientInvitations,
   previewClientInvitation,
   revokeClientInvitation,
+  sweepAbandonedClientInvitations,
 } from './client-invitations';
 import { setConsent } from './consent';
 import { type Db, schema as dbSchema } from './db';
@@ -557,6 +558,85 @@ describe('client invitations - agency invites a traveller as a new client (Comme
         organizationId: orgId,
       });
       expect(isErr(result)).toBe(true);
+    });
+  });
+
+  describe('sweepAbandonedClientInvitations (PRV-02, Part 7 §11: "abandoned invite metadata: 30d")', () => {
+    it('sweeps a PENDING invitation whose acceptance window expired 30+ days ago', async () => {
+      const created = await invite();
+      if (!isOk(created)) throw new Error('setup failed');
+      const thirtyOneDaysAgo = new Date(Date.now() - 31 * 24 * 60 * 60 * 1000);
+      await db
+        .update(dbSchema.clientInvitations)
+        .set({ expiresAt: thirtyOneDaysAgo })
+        .where(eq(dbSchema.clientInvitations.id, created.value.invitation.id));
+
+      const result = await sweepAbandonedClientInvitations(db);
+      expect(result).toEqual({ checked: 1, deleted: 1 });
+
+      const remaining = await db
+        .select()
+        .from(dbSchema.clientInvitations)
+        .where(eq(dbSchema.clientInvitations.id, created.value.invitation.id));
+      expect(remaining).toHaveLength(0);
+    });
+
+    it('does not sweep a PENDING invitation still within the 30-day grace window past its own expiry', async () => {
+      const created = await invite();
+      if (!isOk(created)) throw new Error('setup failed');
+      const tenDaysAgo = new Date(Date.now() - 10 * 24 * 60 * 60 * 1000);
+      await db
+        .update(dbSchema.clientInvitations)
+        .set({ expiresAt: tenDaysAgo })
+        .where(eq(dbSchema.clientInvitations.id, created.value.invitation.id));
+
+      const result = await sweepAbandonedClientInvitations(db);
+      expect(result).toEqual({ checked: 0, deleted: 0 });
+    });
+
+    it('sweeps an invitation REVOKED 30+ days ago', async () => {
+      const created = await invite();
+      if (!isOk(created)) throw new Error('setup failed');
+      const revoked = await revokeClientInvitation(db, {
+        actorAccountId: adminId,
+        organizationId: orgId,
+        invitationId: created.value.invitation.id,
+      });
+      expect(isOk(revoked)).toBe(true);
+      const thirtyOneDaysAgo = new Date(Date.now() - 31 * 24 * 60 * 60 * 1000);
+      await db
+        .update(dbSchema.clientInvitations)
+        .set({ revokedAt: thirtyOneDaysAgo })
+        .where(eq(dbSchema.clientInvitations.id, created.value.invitation.id));
+
+      const result = await sweepAbandonedClientInvitations(db);
+      expect(result).toEqual({ checked: 1, deleted: 1 });
+    });
+
+    it('never sweeps an ACCEPTED invitation, regardless of age -- it is a legitimate historical record, not abandoned metadata', async () => {
+      const created = await invite();
+      if (!isOk(created)) throw new Error('setup failed');
+      const travellerId = await consentedTraveller(db, 'traveller-sweep@example.com');
+      const accepted = await acceptClientInvitation(db, {
+        actorAccountId: travellerId,
+        rawToken: created.value.rawToken,
+        applicantChoice: { kind: 'new' },
+      });
+      expect(isOk(accepted)).toBe(true);
+      const oneYearAgo = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000);
+      await db
+        .update(dbSchema.clientInvitations)
+        .set({ expiresAt: oneYearAgo })
+        .where(eq(dbSchema.clientInvitations.id, created.value.invitation.id));
+
+      const result = await sweepAbandonedClientInvitations(db);
+      expect(result).toEqual({ checked: 0, deleted: 0 });
+
+      const remaining = await db
+        .select()
+        .from(dbSchema.clientInvitations)
+        .where(eq(dbSchema.clientInvitations.id, created.value.invitation.id));
+      expect(remaining).toHaveLength(1);
     });
   });
 });
