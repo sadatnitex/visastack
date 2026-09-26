@@ -795,6 +795,7 @@ export {
 
 export {
   type AcceptedOrganizationInvitation,
+  type AbandonedOrganizationInvitationSweepResult,
   type AcceptOrganizationInvitationInput,
   type CreatedOrganizationInvitation,
   type CreateOrganizationInvitationInput,
@@ -805,11 +806,13 @@ export {
   listOrganizationInvitations,
   previewOrganizationInvitation,
   revokeOrganizationInvitation,
+  sweepAbandonedOrganizationInvitations,
 } from './invitations';
 
 export {
   type AcceptClientInvitationInput,
   type AcceptedClientInvitation,
+  type AbandonedClientInvitationSweepResult,
   type ApplicantChoice,
   type ClientInvitation,
   type ClientInvitationPreview,
@@ -820,6 +823,7 @@ export {
   listClientInvitations,
   previewClientInvitation,
   revokeClientInvitation,
+  sweepAbandonedClientInvitations,
 } from './client-invitations';
 
 export {

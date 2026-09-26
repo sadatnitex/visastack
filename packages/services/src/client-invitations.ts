@@ -1,6 +1,6 @@
 import type { PermissionAction } from '@visastack/core';
 import { type Result, err, ok } from '@visastack/core';
-import { and, desc, eq } from 'drizzle-orm';
+import { and, desc, eq, lt, or } from 'drizzle-orm';
 import { assignMember, isActiveMember } from './agency';
 import { createApplicant, getApplicant } from './applicants';
 import { appendAuditEvent } from './audit';
@@ -413,4 +413,54 @@ export async function listClientInvitations(
     .where(eq(schema.clientInvitations.organizationId, input.organizationId))
     .orderBy(desc(schema.clientInvitations.createdAt));
   return ok(rows);
+}
+
+/**
+ * PRV-02 (master directive Part 7 §11: "abandoned invite metadata: 30d").
+ * The client-invitation sibling of `invitations.ts`'s
+ * `sweepAbandonedOrganizationInvitations` -- same reasoning throughout:
+ * PENDING past its own `expiresAt`, or explicitly REVOKED, either 30+ days
+ * ago; ACCEPTED is never swept (a legitimate historical record, not
+ * abandoned metadata); hard-deletes the row since nothing holds a real FK to
+ * it and the row's whole point is the invitee's own contact destination.
+ */
+const ABANDONED_INVITATION_AGE_MS = 30 * 24 * 60 * 60 * 1000;
+const DEFAULT_ABANDONED_INVITATION_SWEEP_LIMIT = 200;
+
+export interface AbandonedClientInvitationSweepResult {
+  readonly checked: number;
+  readonly deleted: number;
+}
+
+export async function sweepAbandonedClientInvitations(
+  db: Db,
+  limit = DEFAULT_ABANDONED_INVITATION_SWEEP_LIMIT,
+): Promise<AbandonedClientInvitationSweepResult> {
+  const cutoff = new Date(Date.now() - ABANDONED_INVITATION_AGE_MS);
+  const stale = await db
+    .select({ id: schema.clientInvitations.id })
+    .from(schema.clientInvitations)
+    .where(
+      or(
+        and(
+          eq(schema.clientInvitations.status, 'PENDING'),
+          lt(schema.clientInvitations.expiresAt, cutoff),
+        ),
+        and(
+          eq(schema.clientInvitations.status, 'REVOKED'),
+          lt(schema.clientInvitations.revokedAt, cutoff),
+        ),
+      ),
+    )
+    .limit(limit);
+
+  let deleted = 0;
+  for (const row of stale) {
+    const result = await db
+      .delete(schema.clientInvitations)
+      .where(eq(schema.clientInvitations.id, row.id))
+      .returning({ id: schema.clientInvitations.id });
+    if (result.length > 0) deleted++;
+  }
+  return { checked: stale.length, deleted };
 }

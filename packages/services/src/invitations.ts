@@ -1,6 +1,6 @@
 import type { MembershipRole } from '@visastack/core';
 import { type Result, err, ok } from '@visastack/core';
-import { and, desc, eq } from 'drizzle-orm';
+import { and, desc, eq, lt, or } from 'drizzle-orm';
 import { getAccountByEmail } from './accounts';
 import { appendAuditEvent } from './audit';
 import { type Db, first, required, schema } from './db';
@@ -343,4 +343,61 @@ export async function listOrganizationInvitations(
     .where(eq(schema.organizationInvitations.organizationId, input.organizationId))
     .orderBy(desc(schema.organizationInvitations.createdAt));
   return ok(rows);
+}
+
+/**
+ * PRV-02 (master directive Part 7 §11: "abandoned invite metadata: 30d").
+ * Purges an invitation once it can no longer be accepted and has sat in
+ * that terminal-but-unactioned state for 30+ days: PENDING past its own
+ * `expiresAt`, or explicitly REVOKED. An ACCEPTED invitation is never
+ * swept -- it succeeded, and its row is a legitimate historical record ("who
+ * invited whom, when"), not abandoned metadata the directive is naming.
+ * Hard-deletes the row: unlike `uploadIntents` (kept forever as an audit
+ * trail of infrastructure bookkeeping with no PII of its own), an
+ * invitation row's whole point is the invitee's own email address -- exactly
+ * the "metadata" the directive names for deletion once nothing further can
+ * happen to it. Schema-safe: nothing holds a real FK to an invitation row
+ * (an audit event references one only by loose `resourceType`/`resourceId`,
+ * the same already-established pattern every other deleted-but-audited row
+ * in this schema already uses).
+ */
+const ABANDONED_INVITATION_AGE_MS = 30 * 24 * 60 * 60 * 1000;
+const DEFAULT_ABANDONED_INVITATION_SWEEP_LIMIT = 200;
+
+export interface AbandonedOrganizationInvitationSweepResult {
+  readonly checked: number;
+  readonly deleted: number;
+}
+
+export async function sweepAbandonedOrganizationInvitations(
+  db: Db,
+  limit = DEFAULT_ABANDONED_INVITATION_SWEEP_LIMIT,
+): Promise<AbandonedOrganizationInvitationSweepResult> {
+  const cutoff = new Date(Date.now() - ABANDONED_INVITATION_AGE_MS);
+  const stale = await db
+    .select({ id: schema.organizationInvitations.id })
+    .from(schema.organizationInvitations)
+    .where(
+      or(
+        and(
+          eq(schema.organizationInvitations.status, 'PENDING'),
+          lt(schema.organizationInvitations.expiresAt, cutoff),
+        ),
+        and(
+          eq(schema.organizationInvitations.status, 'REVOKED'),
+          lt(schema.organizationInvitations.revokedAt, cutoff),
+        ),
+      ),
+    )
+    .limit(limit);
+
+  let deleted = 0;
+  for (const row of stale) {
+    const result = await db
+      .delete(schema.organizationInvitations)
+      .where(eq(schema.organizationInvitations.id, row.id))
+      .returning({ id: schema.organizationInvitations.id });
+    if (result.length > 0) deleted++;
+  }
+  return { checked: stale.length, deleted };
 }

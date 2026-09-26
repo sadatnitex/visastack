@@ -13,6 +13,7 @@ import {
   createOrganizationInvitation,
   listOrganizationInvitations,
   revokeOrganizationInvitation,
+  sweepAbandonedOrganizationInvitations,
 } from './invitations';
 import { createOrganization, isOrgAdmin } from './organizations';
 
@@ -361,6 +362,105 @@ describe('organization invitations - secure member invitations for a recipient w
         organizationId: orgId,
       });
       expect(isErr(result)).toBe(true);
+    });
+  });
+
+  describe('sweepAbandonedOrganizationInvitations (PRV-02, Part 7 §11: "abandoned invite metadata: 30d")', () => {
+    it('sweeps a PENDING invitation whose acceptance window expired 30+ days ago', async () => {
+      const invited = await createOrganizationInvitation(db, {
+        actorAccountId: ownerId,
+        organizationId: orgId,
+        email: 'long-abandoned@example.com',
+        role: 'REVIEWER',
+      });
+      if (!isOk(invited)) throw new Error('setup failed');
+      const thirtyOneDaysAgo = new Date(Date.now() - 31 * 24 * 60 * 60 * 1000);
+      await db
+        .update(dbSchema.organizationInvitations)
+        .set({ expiresAt: thirtyOneDaysAgo })
+        .where(eq(dbSchema.organizationInvitations.id, invited.value.invitation.id));
+
+      const result = await sweepAbandonedOrganizationInvitations(db);
+      expect(result).toEqual({ checked: 1, deleted: 1 });
+
+      const remaining = await db
+        .select()
+        .from(dbSchema.organizationInvitations)
+        .where(eq(dbSchema.organizationInvitations.id, invited.value.invitation.id));
+      expect(remaining).toHaveLength(0);
+    });
+
+    it('does not sweep a PENDING invitation still within the 30-day grace window past its own expiry', async () => {
+      const invited = await createOrganizationInvitation(db, {
+        actorAccountId: ownerId,
+        organizationId: orgId,
+        email: 'recently-expired@example.com',
+        role: 'REVIEWER',
+      });
+      if (!isOk(invited)) throw new Error('setup failed');
+      const tenDaysAgo = new Date(Date.now() - 10 * 24 * 60 * 60 * 1000);
+      await db
+        .update(dbSchema.organizationInvitations)
+        .set({ expiresAt: tenDaysAgo })
+        .where(eq(dbSchema.organizationInvitations.id, invited.value.invitation.id));
+
+      const result = await sweepAbandonedOrganizationInvitations(db);
+      expect(result).toEqual({ checked: 0, deleted: 0 });
+    });
+
+    it('sweeps an invitation REVOKED 30+ days ago', async () => {
+      const invited = await createOrganizationInvitation(db, {
+        actorAccountId: ownerId,
+        organizationId: orgId,
+        email: 'revoked-long-ago@example.com',
+        role: 'REVIEWER',
+      });
+      if (!isOk(invited)) throw new Error('setup failed');
+      const revoked = await revokeOrganizationInvitation(db, {
+        actorAccountId: ownerId,
+        organizationId: orgId,
+        invitationId: invited.value.invitation.id,
+      });
+      expect(isOk(revoked)).toBe(true);
+      const thirtyOneDaysAgo = new Date(Date.now() - 31 * 24 * 60 * 60 * 1000);
+      await db
+        .update(dbSchema.organizationInvitations)
+        .set({ revokedAt: thirtyOneDaysAgo })
+        .where(eq(dbSchema.organizationInvitations.id, invited.value.invitation.id));
+
+      const result = await sweepAbandonedOrganizationInvitations(db);
+      expect(result).toEqual({ checked: 1, deleted: 1 });
+    });
+
+    it('never sweeps an ACCEPTED invitation, regardless of age -- it is a legitimate historical record, not abandoned metadata', async () => {
+      const invited = await createOrganizationInvitation(db, {
+        actorAccountId: ownerId,
+        organizationId: orgId,
+        email: 'accepted-long-ago@example.com',
+        role: 'REVIEWER',
+      });
+      if (!isOk(invited)) throw new Error('setup failed');
+      const recipientId = await account(db, 'accepted-long-ago@example.com');
+      const accepted = await acceptOrganizationInvitation(db, {
+        actorAccountId: recipientId,
+        actorEmail: 'accepted-long-ago@example.com',
+        rawToken: invited.value.rawToken,
+      });
+      expect(isOk(accepted)).toBe(true);
+      const oneYearAgo = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000);
+      await db
+        .update(dbSchema.organizationInvitations)
+        .set({ expiresAt: oneYearAgo })
+        .where(eq(dbSchema.organizationInvitations.id, invited.value.invitation.id));
+
+      const result = await sweepAbandonedOrganizationInvitations(db);
+      expect(result).toEqual({ checked: 0, deleted: 0 });
+
+      const remaining = await db
+        .select()
+        .from(dbSchema.organizationInvitations)
+        .where(eq(dbSchema.organizationInvitations.id, invited.value.invitation.id));
+      expect(remaining).toHaveLength(1);
     });
   });
 });
