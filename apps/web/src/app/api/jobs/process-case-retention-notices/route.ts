@@ -4,8 +4,9 @@ import { triggerCaseRetentionNoticeSweep } from '../../../../lib/jobs';
  * Sends the closed-case retention notice (directive Part 7 §11: "closed
  * case: initial proposed 12m with 30d notice") once a case has been CLOSED
  * or CANCELLED for the configured threshold. Notice only -- this never
- * deletes anything; the corresponding purge job is separate and not yet
- * built. Configured as a Vercel Cron target (see `apps/web/vercel.json`);
+ * deletes anything; see `process-case-retention-purge` for the actual
+ * deletion, 30 days later. Configured as a Vercel Cron target (see
+ * `apps/web/vercel.json`);
  * Vercel signs cron-triggered requests with `Authorization: Bearer
  * $CRON_SECRET` when `CRON_SECRET` is set on the project, which this route
  * verifies. Fails closed (503) if the secret isn't configured -- never runs

@@ -834,7 +834,9 @@ export {
 
 export {
   type CaseRetentionNoticeSweepResult,
+  type CaseRetentionPurgeSweepResult,
   sweepCaseRetentionNotices,
+  sweepCaseRetentionPurge,
 } from './case-retention';
 
 export {

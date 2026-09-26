@@ -6,6 +6,7 @@ import {
   type AbandonedOrganizationInvitationSweepResult,
   type AbandonedUploadSweepResult,
   type CaseRetentionNoticeSweepResult,
+  type CaseRetentionPurgeSweepResult,
   type ErasureWorkerResult,
   type IntakeWorkerResult,
   type NotificationWorkerResult,
@@ -22,6 +23,7 @@ import {
   sweepAbandonedOrganizationInvitations,
   sweepAbandonedUploads,
   sweepCaseRetentionNotices,
+  sweepCaseRetentionPurge,
   sweepExpiryReminders,
   sweepTaskDeadlineReminders,
 } from '@visastack/services';
@@ -384,8 +386,9 @@ export async function triggerAbandonedClientInvitationSweep(
 /**
  * Sends the closed-case retention notice (directive Part 7 §11: "closed
  * case: initial proposed 12m with 30d notice") on its own short-lived
- * pooled connection, same rationale as the sweeps above. Notice only -- the
- * corresponding purge sweep is a separate, later job.
+ * pooled connection, same rationale as the sweeps above. Notice only -- see
+ * `triggerCaseRetentionPurgeSweep` below for the actual deletion, 30 days
+ * later.
  */
 export async function triggerCaseRetentionNoticeSweep(
   options: { readonly limit?: number } = {},
@@ -406,6 +409,37 @@ export async function triggerCaseRetentionNoticeSweep(
   } catch (error) {
     console.error('[triggerCaseRetentionNoticeSweep] sweep failed', error);
     return { checked: 0, notified: 0 };
+  } finally {
+    await pool.end();
+  }
+}
+
+/**
+ * Purges a closed case's records 30 days after its retention notice
+ * (directive Part 7 §11). Off by default -- `sweepCaseRetentionPurge` itself
+ * refuses to delete anything unless `CASE_RETENTION_PURGE_ENABLED` is
+ * literally "true" on this deployment, so this route/job existing does not
+ * by itself turn on real deletion.
+ */
+export async function triggerCaseRetentionPurgeSweep(
+  options: { readonly limit?: number } = {},
+): Promise<CaseRetentionPurgeSweepResult> {
+  const connectionString = resolveDatabaseUrl(process.env);
+  if (!connectionString) {
+    console.error('[triggerCaseRetentionPurgeSweep] database not configured');
+    return { enabled: false, checked: 0, purged: 0, skippedForHold: 0, skippedForComplaint: 0 };
+  }
+
+  const { db, pool } = createPooledDb(connectionString);
+  pool.on('error', (error) => {
+    console.error('[triggerCaseRetentionPurgeSweep] idle pool connection error', error);
+  });
+  try {
+    const handle = db as unknown as Parameters<typeof sweepCaseRetentionPurge>[0];
+    return await sweepCaseRetentionPurge(handle, options.limit);
+  } catch (error) {
+    console.error('[triggerCaseRetentionPurgeSweep] sweep failed', error);
+    return { enabled: false, checked: 0, purged: 0, skippedForHold: 0, skippedForComplaint: 0 };
   } finally {
     await pool.end();
   }

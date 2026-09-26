@@ -600,6 +600,24 @@ export const missions = pgTable('missions', {
   // notice" clock; a compare-and-set on this being still null is what makes
   // the notice sweep idempotent against re-running on the same mission.
   retentionNoticeSentAt: timestamp('retention_notice_sent_at', { withTimezone: true }),
+  // Set once by the purge sweep (`sweepCaseRetentionPurge`), 30 days after
+  // `retentionNoticeSentAt`: the moment this mission's own workflow content
+  // (notes, tasks, snapshots, assignments, evidence requests, etc. -- every
+  // table with a `mission_id` FK declared `onDelete: 'cascade'`) was deleted
+  // and the free-text/scheduling fields on this very row (title,
+  // destination, purpose, itineraryRef, jurisdiction, serviceCategory, the
+  // three date fields) were overwritten with a redaction placeholder. The
+  // row itself, and `missionOutcomes`/`missionSubmissions`/`caseComplaints`/
+  // `caseFeedback` rows still pointing at it, deliberately survive: those
+  // four are historical facts (a decision outcome, a filed complaint, post-
+  // case quality feedback) with their own oversight/accountability value
+  // independent of whether the case workspace itself is still useful to the
+  // traveller, and unlike every cascading child table their own `mission_id`
+  // is NOT NULL -- fully deleting this row would force deleting them too,
+  // which is not a call this codebase gets to make silently by convenience
+  // of the schema's own cascade wiring. Once set, this mission is excluded
+  // from all future purge sweeps (nothing left here to purge again).
+  purgedAt: timestamp('purged_at', { withTimezone: true }),
   // The published requirement pack version this mission is assembled against.
   // restrict, not cascade/set null: nothing deletes a pack version today
   // (Pack Studio is create/version-forward only), but a mission must never

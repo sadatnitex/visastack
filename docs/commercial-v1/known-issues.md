@@ -1303,13 +1303,27 @@ item gets its own requirements-ledger row once classified against the new direct
       `sweepCaseRetentionNotices` sends a real in-app+email notice once a
       case has been closed 12+ months (env-overridable), recorded on
       `missions.retentionNoticeSentAt`; wired into a new daily cron,
-      `/api/jobs/process-case-retention-notices`. Still missing: the actual
-      PURGE 30 days after that notice -- deliberately not built in the same
-      chunk, since it deletes real data across roughly 7 case-scoped tables
-      (tasks, notes, assignments, grants, evidence requests/decisions,
-      snapshots) and needs its own careful scoping plus an explicit opt-in
-      gate before it can run destructively in production. And the
-      inactive-account half of "wallet original: until deletion/inactive-account
+      `/api/jobs/process-case-retention-notices`. ~~Still missing: the actual
+      PURGE 30 days after that notice~~ **RESOLVED (Part 7 §11, Chunk 4).**
+      `sweepCaseRetentionPurge` deletes this mission's own workflow content
+      (notes, tasks, snapshots not still referenced by a preserved
+      submission, assignments, evidence requests/decisions, contributor
+      requests, selected evidence, decisions, appointments, generated
+      outputs, mission-scoped grants/notifications -- every one of these
+      already had `onDelete: 'cascade'` in the schema) and then REDACTS
+      (never deletes) the mission row itself: free-text/scheduling fields
+      overwritten with a fixed placeholder/null, a new `missions.purgedAt`
+      set. `mission_outcomes`, `mission_submissions`, `case_complaints`
+      (+ `case_complaint_events`), and `case_feedback` are deliberately
+      preserved as historical facts with their own oversight value (their
+      own `mission_id` is NOT NULL, so a genuinely deleted mission row would
+      have forced deleting them too, as an accident of the schema's cascade
+      wiring rather than a real decision). Off by default --
+      `CASE_RETENTION_PURGE_ENABLED` must be literally "true" to enable real
+      deletion; also skips a case with an active legal hold on its applicant
+      or an unresolved (OPEN/IN_PROGRESS) complaint, rechecked every run.
+      Wired into a new daily cron, `/api/jobs/process-case-retention-purge`.
+      And the inactive-account half of "wallet original: until deletion/inactive-account
       policy" (no `lastActiveAt` tracking exists). The "restricted security/audit
       metadata: 12m" default is additionally structurally blocked today by
       `audit_events`' own append-only/undeletable DB rules (SEC-04) -- built

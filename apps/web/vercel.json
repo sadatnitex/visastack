@@ -38,6 +38,10 @@
     {
       "path": "/api/jobs/process-case-retention-notices",
       "schedule": "20 4 * * *"
+    },
+    {
+      "path": "/api/jobs/process-case-retention-purge",
+      "schedule": "30 4 * * *"
     }
   ]
 }

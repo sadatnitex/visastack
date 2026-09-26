@@ -1,5 +1,7 @@
-import { and, eq, isNotNull, isNull, lte } from 'drizzle-orm';
+import { and, eq, inArray, isNotNull, isNull, lte, notInArray } from 'drizzle-orm';
+import { appendAuditEvent } from './audit';
 import { type Db, first, schema } from './db';
+import { hasActiveLegalHold } from './legal-hold';
 import { enqueueNotificationBothChannels } from './notifications';
 
 /**
@@ -111,4 +113,259 @@ export async function sweepCaseRetentionNotices(
     if (sent) notified++;
   }
   return { checked: due.length, notified };
+}
+
+/**
+ * Closed-case retention PURGE (PRV-02, master directive Part 7 §11), the
+ * second half deliberately deferred when the notice sweep above shipped:
+ * the notice text itself already promises "permanently deleted in 30 days,"
+ * so this sweep's grace period is not an independent choice -- it must
+ * match that promise exactly.
+ *
+ * Deletes this mission's own WORKFLOW content -- every case-scoped table
+ * whose `mission_id` FK is declared `onDelete: 'cascade'` in the schema
+ * (mission_snapshots, acknowledgements, assignments, mission_notes,
+ * evidence_requests (+ evidence_request_decisions), contributor_requests,
+ * selected_evidence, mission_decisions, mission_tasks, mission_appointments,
+ * generated_outputs, and any mission-scoped grant or notification) -- via
+ * explicit per-table deletes, then REDACTS (never deletes) the mission row
+ * itself: its free-text and scheduling fields are overwritten with a fixed
+ * placeholder/null, `purgedAt` is set, and the row otherwise survives.
+ *
+ * Deliberately NOT deleted, by explicit design rather than oversight:
+ * mission_outcomes, mission_submissions, case_complaints (+ its own
+ * case_complaint_events), and case_feedback. Each is a historical fact --
+ * a decision outcome, an external submission report, a filed complaint, a
+ * private post-case quality review -- with its own accountability/oversight
+ * value that does not expire just because the traveller-facing case
+ * workspace is no longer useful to the traveller, and each of these four
+ * tables' `mission_id` is NOT NULL (unlike every cascading table above), so
+ * they cannot survive a genuinely deleted mission row without their own
+ * schema change loosening that constraint -- not a call this sweep makes
+ * silently by convenience of the schema's cascade wiring. This is exactly
+ * why the mission row is redacted in place rather than deleted outright:
+ * these four tables need a still-valid `mission_id` to keep pointing at.
+ *
+ * `audit_events.mission_id` is deliberately a plain uuid, not an FK (see
+ * its own schema comment) -- untouched either way. The audit event appended
+ * before redaction, capturing the mission's pre-redaction identifying
+ * fields in `metadata`, is the durable record of exactly what this sweep
+ * removed.
+ *
+ * Purging real, irreversible case data is a materially different risk than
+ * sending a notice, so this sweep is OFF by default: `enabled` is only ever
+ * true when `CASE_RETENTION_PURGE_ENABLED` is literally the string
+ * "true" -- every other value, including unset, is a safe no-op.
+ *
+ * A mission is skipped (never purged, this run) if either:
+ * - its applicant has an active legal hold (Part 7 §13: a hold blocks
+ *   erasure; case data is exactly the kind of record a hold exists to
+ *   preserve, the same reasoning `requestAccountDeletion`'s own pre-check
+ *   already applies to whole-account deletion); or
+ * - it has an unresolved complaint (OPEN or IN_PROGRESS) -- purging the
+ *   workflow content the very case a dispute is about, while that dispute
+ *   is still open, would destroy context the complaint needs.
+ * Neither is a permanent exemption: both are rechecked on every sweep run,
+ * so a mission purges automatically once its hold is released or its
+ * complaint is resolved/closed, without any further action.
+ */
+const DEFAULT_CASE_RETENTION_PURGE_GRACE_DAYS = 30;
+const DEFAULT_CASE_RETENTION_PURGE_SWEEP_LIMIT = 200;
+const UNRESOLVED_COMPLAINT_STATUSES = ['OPEN', 'IN_PROGRESS'] as const;
+const PURGED_TITLE_PLACEHOLDER = '[case data purged]';
+
+function envRaw(
+  env: Readonly<Record<string, string | undefined>>,
+  name: string,
+): string | undefined {
+  return env[name];
+}
+
+function caseRetentionPurgeEnabled(
+  env: Readonly<Record<string, string | undefined>> = process.env,
+): boolean {
+  return envRaw(env, 'CASE_RETENTION_PURGE_ENABLED') === 'true';
+}
+
+function caseRetentionPurgeGraceDays(
+  env: Readonly<Record<string, string | undefined>> = process.env,
+): number {
+  return envInt(env, 'CASE_RETENTION_PURGE_GRACE_DAYS') ?? DEFAULT_CASE_RETENTION_PURGE_GRACE_DAYS;
+}
+
+export interface CaseRetentionPurgeSweepResult {
+  readonly enabled: boolean;
+  readonly checked: number;
+  readonly purged: number;
+  readonly skippedForHold: number;
+  readonly skippedForComplaint: number;
+}
+
+async function hasUnresolvedComplaint(db: Db, missionId: string): Promise<boolean> {
+  const rows = await db
+    .select({ id: schema.caseComplaints.id })
+    .from(schema.caseComplaints)
+    .where(
+      and(
+        eq(schema.caseComplaints.missionId, missionId),
+        inArray(schema.caseComplaints.status, UNRESOLVED_COMPLAINT_STATUSES),
+      ),
+    )
+    .limit(1);
+  return first(rows) !== undefined;
+}
+
+export async function sweepCaseRetentionPurge(
+  db: Db,
+  limit = DEFAULT_CASE_RETENTION_PURGE_SWEEP_LIMIT,
+): Promise<CaseRetentionPurgeSweepResult> {
+  if (!caseRetentionPurgeEnabled()) {
+    return { enabled: false, checked: 0, purged: 0, skippedForHold: 0, skippedForComplaint: 0 };
+  }
+  const graceDays = caseRetentionPurgeGraceDays();
+  const cutoff = new Date();
+  cutoff.setUTCDate(cutoff.getUTCDate() - graceDays);
+
+  const dueWhere = and(
+    isNotNull(schema.missions.retentionNoticeSentAt),
+    lte(schema.missions.retentionNoticeSentAt, cutoff),
+    isNull(schema.missions.purgedAt),
+  );
+
+  const due = await db
+    .select({
+      missionId: schema.missions.id,
+      applicantId: schema.missions.applicantId,
+      title: schema.missions.title,
+      state: schema.missions.state,
+      closedAt: schema.missions.closedAt,
+      retentionNoticeSentAt: schema.missions.retentionNoticeSentAt,
+    })
+    .from(schema.missions)
+    .where(dueWhere)
+    .limit(limit);
+
+  let purged = 0;
+  let skippedForHold = 0;
+  let skippedForComplaint = 0;
+
+  for (const row of due) {
+    if (await hasActiveLegalHold(db, row.applicantId)) {
+      skippedForHold++;
+      continue;
+    }
+    if (await hasUnresolvedComplaint(db, row.missionId)) {
+      skippedForComplaint++;
+      continue;
+    }
+
+    const didPurge = await db.transaction(async (tx) => {
+      // Lock and re-verify eligibility before acting -- the same
+      // "lock, recheck, then act" discipline `executeAccountDeletion` and
+      // `placeLegalHold` already use, so a hold or complaint that lands in
+      // the gap between the checks above and this transaction, or a
+      // concurrent sweep run, can never be raced past.
+      const locked = first(
+        await tx
+          .select({ id: schema.missions.id })
+          .from(schema.missions)
+          .where(and(eq(schema.missions.id, row.missionId), dueWhere))
+          .for('update')
+          .limit(1),
+      );
+      if (!locked) return false;
+      if (await hasActiveLegalHold(tx, row.applicantId)) return false;
+      if (await hasUnresolvedComplaint(tx, row.missionId)) return false;
+
+      await appendAuditEvent(tx, {
+        eventType: 'MISSION_RETENTION_PURGED',
+        action: 'MANAGE',
+        method: 'SYSTEM',
+        result: 'ALLOWED',
+        applicantId: row.applicantId,
+        missionId: row.missionId,
+        resourceType: 'mission',
+        resourceId: row.missionId,
+        reason: 'closed-case retention period elapsed',
+        metadata: {
+          title: row.title,
+          state: row.state,
+          closedAt: row.closedAt?.toISOString() ?? null,
+          retentionNoticeSentAt: row.retentionNoticeSentAt?.toISOString() ?? null,
+        },
+      });
+
+      // Workflow content only -- see this function's own doc comment for
+      // exactly which tables are (and are deliberately not) included here.
+      // A snapshot still referenced by a preserved mission_submissions row
+      // must survive too: that FK is NOT NULL + onDelete:'restrict' (a
+      // submission's own snapshotId is "the exact thing that was actually
+      // submitted," not an incidental link), so deleting it here would
+      // either violate the constraint or, worse, silently orphan the
+      // historical submission record this sweep exists to protect.
+      const referencedSnapshotRows = await tx
+        .select({ id: schema.missionSubmissions.snapshotId })
+        .from(schema.missionSubmissions)
+        .where(eq(schema.missionSubmissions.missionId, row.missionId));
+      const referencedSnapshotIds = referencedSnapshotRows.map((r) => r.id);
+      await tx
+        .delete(schema.missionSnapshots)
+        .where(
+          referencedSnapshotIds.length > 0
+            ? and(
+                eq(schema.missionSnapshots.missionId, row.missionId),
+                notInArray(schema.missionSnapshots.id, referencedSnapshotIds),
+              )
+            : eq(schema.missionSnapshots.missionId, row.missionId),
+        );
+      await tx
+        .delete(schema.acknowledgements)
+        .where(eq(schema.acknowledgements.missionId, row.missionId));
+      await tx.delete(schema.assignments).where(eq(schema.assignments.missionId, row.missionId));
+      await tx.delete(schema.missionNotes).where(eq(schema.missionNotes.missionId, row.missionId));
+      await tx
+        .delete(schema.evidenceRequests)
+        .where(eq(schema.evidenceRequests.missionId, row.missionId));
+      await tx
+        .delete(schema.contributorRequests)
+        .where(eq(schema.contributorRequests.missionId, row.missionId));
+      await tx
+        .delete(schema.selectedEvidence)
+        .where(eq(schema.selectedEvidence.missionId, row.missionId));
+      await tx
+        .delete(schema.missionDecisions)
+        .where(eq(schema.missionDecisions.missionId, row.missionId));
+      await tx.delete(schema.missionTasks).where(eq(schema.missionTasks.missionId, row.missionId));
+      await tx
+        .delete(schema.missionAppointments)
+        .where(eq(schema.missionAppointments.missionId, row.missionId));
+      await tx
+        .delete(schema.generatedOutputs)
+        .where(eq(schema.generatedOutputs.missionId, row.missionId));
+      await tx.delete(schema.grants).where(eq(schema.grants.missionId, row.missionId));
+      await tx
+        .delete(schema.notifications)
+        .where(eq(schema.notifications.missionId, row.missionId));
+
+      await tx
+        .update(schema.missions)
+        .set({
+          title: PURGED_TITLE_PLACEHOLDER,
+          destination: null,
+          purpose: null,
+          itineraryRef: null,
+          jurisdiction: null,
+          serviceCategory: null,
+          travelStartDate: null,
+          travelEndDate: null,
+          targetDeadline: null,
+          purgedAt: new Date(),
+        })
+        .where(eq(schema.missions.id, row.missionId));
+      return true;
+    });
+    if (didPurge) purged++;
+  }
+
+  return { enabled: true, checked: due.length, purged, skippedForHold, skippedForComplaint };
 }
