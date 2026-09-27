@@ -2367,6 +2367,13 @@ export const legalHolds = pgTable(
     // treated as needing attention just as much as one whose date has
     // passed (`listLegalHoldsNeedingReview`), never silently excluded.
     reviewAt: timestamp('review_at', { withTimezone: true }),
+    // Directive Part 7 §13 ("any scheduled reminder when a hold becomes
+    // due"). Nullable, and re-set on every reminder actually sent (not a
+    // one-time flag) -- a hold left unreviewed for months must keep nudging
+    // a compliance admin, not fall silent after a single unread email,
+    // which would recreate the exact "indefinite convenience" the review
+    // date itself exists to prevent.
+    lastReviewReminderAt: timestamp('last_review_reminder_at', { withTimezone: true }),
     ...timestamps,
   },
   (table) => [index('legal_holds_applicant_idx').on(table.applicantId)],

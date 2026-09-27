@@ -58,6 +58,10 @@
     {
       "path": "/api/jobs/process-account-export-expiry",
       "schedule": "10 5 * * *"
+    },
+    {
+      "path": "/api/jobs/process-legal-hold-reminders",
+      "schedule": "20 5 * * *"
     }
   ]
 }

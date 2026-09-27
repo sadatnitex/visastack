@@ -16,13 +16,16 @@ import { hasActiveLegalHold } from './legal-hold';
 export {
   type AccountLegalHold,
   type LegalHold,
+  type LegalHoldReminderSweepResult,
   hasActiveLegalHold,
+  legalHoldReminderIntervalDays,
   listActiveLegalHolds,
   listActiveLegalHoldsForAccount,
   listLegalHolds,
   listLegalHoldsNeedingReview,
   placeLegalHold,
   releaseLegalHold,
+  sweepLegalHoldReviewReminders,
 } from './legal-hold';
 
 export type RetentionPolicy = typeof schema.retentionPolicies.$inferSelect;

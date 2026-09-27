@@ -1485,6 +1485,32 @@ item gets its own requirements-ledger row once classified against the new direct
       who-can-access would need a live grants query not yet built), and any
       scheduled reminder when a hold becomes due (today it is discoverable,
       not pushed).
+      **RESOLVED (2026-09-27, Part 7 §13 -- who-can-access and scheduled
+      reminder).** New `accessibleTo` field on `AccountLegalHold`, reusing
+      `sharing.ts`'s own owner-facing `listAccessForApplicantDetailed`
+      (never a second, independently-maintained "who has access" query),
+      filtered to grants genuinely ACTIVE and unexpired right now -- a
+      paused or revoked grant no longer means real access and is correctly
+      excluded. The traveller-facing hold explanation (privacy page) now
+      shows this alongside what/why/next-review, closing all four of
+      directive §13's named explanation items. New `sweepLegalHoldReviewReminders`
+      pushes a real in-app+email reminder to every current COMPLIANCE_ADMIN
+      once a hold becomes overdue -- deliberately NOT a one-time notice like
+      the retention/inactivity sweeps: a hold review left ignored is still
+      the exact "indefinite convenience" §13 rules out, so this re-notifies
+      every `LEGAL_HOLD_REMINDER_INTERVAL_DAYS` (default 7) for as long as
+      the hold stays overdue, rather than firing once and going silent if
+      that message is missed. Every current COMPLIANCE_ADMIN is notified,
+      not just the original placer, since compliance is a shared platform
+      responsibility. New `legalHolds.lastReviewReminderAt` column (additive
+      migration). Wired into a new daily cron,
+      `/api/jobs/process-legal-hold-reminders`. 5 new tests (`legal-hold.test.ts`,
+      a new dedicated file for this module). Still open, deliberately not
+      attempted: a structured authority/basis taxonomy (legal/compliance
+      policy decision) and scope granularity finer than the whole applicant
+      (a real design question, its own follow-up chunk). Full
+      `@visastack/services` suite, repo-wide typecheck/lint, and production
+      build all clean.
     - **Export/portability (§14, PRV-04):** traveller self-export
       (`exportAccount`) and agency `bulkExport` are both real, authorized,
       and tested. Missing: original file bytes (only document *metadata*

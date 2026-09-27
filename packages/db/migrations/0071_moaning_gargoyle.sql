@@ -1,0 +1,1 @@
+ALTER TABLE "legal_holds" ADD COLUMN "last_review_reminder_at" timestamp with time zone;

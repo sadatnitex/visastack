@@ -3,6 +3,9 @@ import { and, eq, isNull, lt, or } from 'drizzle-orm';
 import { appendAuditEvent } from './audit';
 import { type Db, first, required, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
+import { enqueueNotificationBothChannels } from './notifications';
+import { listActivePlatformRoles } from './platform-roles';
+import { listAccessForApplicantDetailed } from './sharing';
 
 /**
  * Legal holds (Build Spec §13; PRD §5).
@@ -207,6 +210,8 @@ export interface AccountLegalHold {
   readonly reason: string;
   readonly placedAt: Date;
   readonly reviewAt: Date | null;
+  /** Directive Part 7 §13: "when retained, explain... who can access." Every account/organization with a genuinely current (ACTIVE, unexpired) grant on this applicant -- never a paused, revoked, or expired one, which no longer means real access. */
+  readonly accessibleTo: readonly string[];
 }
 
 /**
@@ -222,7 +227,7 @@ export async function listActiveLegalHoldsForAccount(
   db: Db,
   accountId: string,
 ): Promise<readonly AccountLegalHold[]> {
-  return db
+  const rows = await db
     .select({
       id: schema.legalHolds.id,
       applicantId: schema.legalHolds.applicantId,
@@ -236,4 +241,133 @@ export async function listActiveLegalHoldsForAccount(
     .where(
       and(eq(schema.applicants.ownerAccountId, accountId), eq(schema.legalHolds.active, true)),
     );
+
+  const now = Date.now();
+  return Promise.all(
+    rows.map(async (row) => {
+      // Reuses the exact grant-listing/recipient-resolution logic
+      // `sharing.ts`'s own owner-facing access view already uses -- never a
+      // second, independently-maintained "who has access" query that could
+      // drift from it. The ownership check inside is a genuine no-op here
+      // (this query's own join already proved `accountId` owns `applicantId`),
+      // not a redundant authorization gap.
+      const access = await listAccessForApplicantDetailed(db, accountId, row.applicantId);
+      const accessibleTo = access.ok
+        ? access.value
+            .filter(
+              (grant) =>
+                grant.status === 'ACTIVE' &&
+                (grant.expiryAt === null || grant.expiryAt.getTime() > now),
+            )
+            .map((grant) => grant.recipient.label)
+        : [];
+      return { ...row, accessibleTo };
+    }),
+  );
+}
+
+/** Variable-keyed env read (satisfies both TS index-signature and Biome rules). */
+function readEnv(name: string): string | undefined {
+  return process.env[name];
+}
+
+const DEFAULT_REMINDER_INTERVAL_DAYS = 7;
+
+/** How often an already-overdue hold gets re-reminded. Env-overridable like every other numeric default in this codebase. */
+export function legalHoldReminderIntervalDays(): number {
+  const raw = readEnv('LEGAL_HOLD_REMINDER_INTERVAL_DAYS');
+  const parsed = raw ? Number.parseInt(raw, 10) : Number.NaN;
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_REMINDER_INTERVAL_DAYS;
+}
+
+export interface LegalHoldReminderSweepResult {
+  readonly checked: number;
+  readonly notified: number;
+}
+
+/**
+ * Pushes a real reminder to every current COMPLIANCE_ADMIN once a hold
+ * becomes due for review (directive Part 7 §13: "any scheduled reminder
+ * when a hold becomes due" -- today, before this, it was discoverable via
+ * `listLegalHoldsNeedingReview` and the admin page's own badge, but never
+ * pushed). Deliberately NOT a one-time notice like `sweepCaseRetentionNotices`:
+ * a hold review left ignored is still the exact "indefinite convenience"
+ * directive §13 rules out, so this re-notifies every
+ * `legalHoldReminderIntervalDays()` for as long as the hold stays overdue,
+ * rather than firing once and going silent if that one message is missed.
+ * Every current COMPLIANCE_ADMIN is notified, not just the account that
+ * originally placed the hold -- compliance is a shared platform
+ * responsibility, and the original placer may no longer even hold the role.
+ */
+export async function sweepLegalHoldReviewReminders(
+  db: Db,
+  limit = 50,
+): Promise<LegalHoldReminderSweepResult> {
+  const intervalMs = legalHoldReminderIntervalDays() * 24 * 60 * 60 * 1000;
+  const now = new Date();
+
+  const needingReview = await listLegalHoldsNeedingReview(db, now);
+  const due = needingReview
+    .filter(
+      (hold) =>
+        !hold.lastReviewReminderAt ||
+        now.getTime() - hold.lastReviewReminderAt.getTime() >= intervalMs,
+    )
+    .slice(0, limit);
+  if (due.length === 0) return { checked: needingReview.length, notified: 0 };
+
+  const complianceAdmins = (await listActivePlatformRoles(db)).filter(
+    (grant) => grant.role === 'COMPLIANCE_ADMIN' && grant.accountId,
+  );
+
+  let notified = 0;
+  for (const hold of due) {
+    const sent = await db.transaction(async (tx) => {
+      // CAS against the exact value read above -- a safe no-op if a
+      // concurrent sweep already claimed this hold's reminder, same
+      // discipline every other sweep/worker in this codebase uses.
+      const updated = first(
+        await tx
+          .update(schema.legalHolds)
+          .set({ lastReviewReminderAt: now })
+          .where(
+            and(
+              eq(schema.legalHolds.id, hold.id),
+              hold.lastReviewReminderAt
+                ? eq(schema.legalHolds.lastReviewReminderAt, hold.lastReviewReminderAt)
+                : isNull(schema.legalHolds.lastReviewReminderAt),
+            ),
+          )
+          .returning({ id: schema.legalHolds.id }),
+      );
+      if (!updated) return false;
+
+      const applicant = first(
+        await tx
+          .select({ displayName: schema.applicants.displayName })
+          .from(schema.applicants)
+          .where(eq(schema.applicants.id, hold.applicantId))
+          .limit(1),
+      );
+      for (const admin of complianceAdmins) {
+        if (!admin.accountId) continue;
+        await enqueueNotificationBothChannels(tx, {
+          eventType: 'LEGAL_HOLD_REVIEW_REMINDER',
+          resourceId: hold.id,
+          recipientAccountId: admin.accountId,
+          applicantId: hold.applicantId,
+          payload: {
+            subject: 'Legal hold review overdue',
+            summary: hold.reviewAt
+              ? `The hold on ${applicant?.displayName ?? 'an applicant'} (reason: ${hold.reason}) was due for review on ${hold.reviewAt.toLocaleDateString()}.`
+              : `The hold on ${applicant?.displayName ?? 'an applicant'} (reason: ${hold.reason}) has never had a review date set.`,
+            deepLinkPath: '/app/admin',
+          },
+        });
+      }
+      return true;
+    });
+    if (sent) notified++;
+  }
+  return { checked: needingReview.length, notified };
 }
