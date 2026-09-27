@@ -8,6 +8,8 @@ import {
   type CaseRetentionNoticeSweepResult,
   type CaseRetentionPurgeSweepResult,
   type ErasureWorkerResult,
+  type InactiveAccountDeletionSweepResult,
+  type InactiveAccountNoticeSweepResult,
   type IntakeWorkerResult,
   type NotificationWorkerResult,
   type SweepResult,
@@ -25,6 +27,8 @@ import {
   sweepCaseRetentionNotices,
   sweepCaseRetentionPurge,
   sweepExpiryReminders,
+  sweepInactiveAccountDeletionRequests,
+  sweepInactiveAccountNotices,
   sweepTaskDeadlineReminders,
 } from '@visastack/services';
 import { resolveBaseUrl } from './base-url';
@@ -440,6 +444,69 @@ export async function triggerCaseRetentionPurgeSweep(
   } catch (error) {
     console.error('[triggerCaseRetentionPurgeSweep] sweep failed', error);
     return { enabled: false, checked: 0, purged: 0, skippedForHold: 0, skippedForComplaint: 0 };
+  } finally {
+    await pool.end();
+  }
+}
+
+/**
+ * Sends the inactive-account retention notice (directive Part 7 §11:
+ * "wallet original: until deletion/inactive-account policy") once an
+ * account has had no authenticated activity for the configured threshold.
+ * Notice only -- see `triggerInactiveAccountDeletionSweep` for the actual
+ * follow-up, 30 days later.
+ */
+export async function triggerInactiveAccountNoticeSweep(
+  options: { readonly limit?: number } = {},
+): Promise<InactiveAccountNoticeSweepResult> {
+  const connectionString = resolveDatabaseUrl(process.env);
+  if (!connectionString) {
+    console.error('[triggerInactiveAccountNoticeSweep] database not configured');
+    return { checked: 0, notified: 0 };
+  }
+
+  const { db, pool } = createPooledDb(connectionString);
+  pool.on('error', (error) => {
+    console.error('[triggerInactiveAccountNoticeSweep] idle pool connection error', error);
+  });
+  try {
+    const handle = db as unknown as Parameters<typeof sweepInactiveAccountNotices>[0];
+    return await sweepInactiveAccountNotices(handle, options.limit);
+  } catch (error) {
+    console.error('[triggerInactiveAccountNoticeSweep] sweep failed', error);
+    return { checked: 0, notified: 0 };
+  } finally {
+    await pool.end();
+  }
+}
+
+/**
+ * Opens a cancellable, system-initiated deletion request 30 days after the
+ * inactive-account notice above, if still genuinely inactive. Off by
+ * default -- `sweepInactiveAccountDeletionRequests` itself refuses to
+ * create anything unless `INACTIVE_ACCOUNT_DELETION_ENABLED` is literally
+ * "true" on this deployment. The request this creates is executed later by
+ * the existing `process-deletions` job, unchanged.
+ */
+export async function triggerInactiveAccountDeletionSweep(
+  options: { readonly limit?: number } = {},
+): Promise<InactiveAccountDeletionSweepResult> {
+  const connectionString = resolveDatabaseUrl(process.env);
+  if (!connectionString) {
+    console.error('[triggerInactiveAccountDeletionSweep] database not configured');
+    return { enabled: false, checked: 0, requested: 0, skipped: 0 };
+  }
+
+  const { db, pool } = createPooledDb(connectionString);
+  pool.on('error', (error) => {
+    console.error('[triggerInactiveAccountDeletionSweep] idle pool connection error', error);
+  });
+  try {
+    const handle = db as unknown as Parameters<typeof sweepInactiveAccountDeletionRequests>[0];
+    return await sweepInactiveAccountDeletionRequests(handle, options.limit);
+  } catch (error) {
+    console.error('[triggerInactiveAccountDeletionSweep] sweep failed', error);
+    return { enabled: false, checked: 0, requested: 0, skipped: 0 };
   } finally {
     await pool.end();
   }

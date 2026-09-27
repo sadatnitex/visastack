@@ -614,6 +614,47 @@ describe('account deletion workflow', () => {
       authoredMissionNoteCount: 0,
     });
   });
+
+  it('records ACCOUNT_DELETION_REQUESTED with method API by default, and SYSTEM only when explicitly requested (Part 7 §11 inactive-account policy)', async () => {
+    const { account: selfServiceAccount } = await seedFullAccount(db, 'del-method-api@example.com');
+    const apiReq = await requestAccountDeletion(db, {
+      actorAccountId: selfServiceAccount.id,
+      accountId: selfServiceAccount.id,
+    });
+    expect(isOk(apiReq)).toBe(true);
+    const apiEvents = await db
+      .select()
+      .from(schema.auditEvents)
+      .where(eq(schema.auditEvents.resourceId, selfServiceAccount.id));
+    const apiRequested = apiEvents.find((e) => e.eventType === 'ACCOUNT_DELETION_REQUESTED');
+    expect(apiRequested?.method).toBe('API');
+
+    const { account: systemAccount } = await seedFullAccount(db, 'del-method-system@example.com');
+    const systemReq = await requestAccountDeletion(db, {
+      actorAccountId: systemAccount.id,
+      accountId: systemAccount.id,
+      method: 'SYSTEM',
+      reason: 'inactive account policy: no activity for 12+ months',
+    });
+    expect(isOk(systemReq)).toBe(true);
+    const systemEvents = await db
+      .select()
+      .from(schema.auditEvents)
+      .where(eq(schema.auditEvents.resourceId, systemAccount.id));
+    const systemRequested = systemEvents.find((e) => e.eventType === 'ACCOUNT_DELETION_REQUESTED');
+    expect(systemRequested?.method).toBe('SYSTEM');
+
+    // A system-initiated request is a perfectly normal, cancellable pending
+    // request otherwise -- the privacy page's existing "cancel" flow applies
+    // unchanged, since the row carries no marker distinguishing how it was created.
+    if (!isOk(systemReq)) throw new Error('setup failed');
+    expect(systemReq.value.status).toBe('PENDING');
+    const cancelled = await cancelAccountDeletion(db, {
+      actorAccountId: systemAccount.id,
+      accountId: systemAccount.id,
+    });
+    expect(isOk(cancelled)).toBe(true);
+  });
 });
 
 describe('consent history', () => {

@@ -1,0 +1,2 @@
+ALTER TABLE "accounts" ADD COLUMN "last_active_at" timestamp with time zone DEFAULT now() NOT NULL;--> statement-breakpoint
+ALTER TABLE "accounts" ADD COLUMN "inactivity_notice_sent_at" timestamp with time zone;

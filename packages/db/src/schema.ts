@@ -288,6 +288,19 @@ export const accounts = pgTable('accounts', {
   workosUserId: text('workos_user_id').unique(),
   email: text('email').notNull().unique(),
   emailVerifiedAt: timestamp('email_verified_at', { withTimezone: true }),
+  // Inactive-account retention (Part 7 §11: "wallet original: until
+  // deletion/inactive-account policy"). Touched (throttled) on every
+  // authenticated request in `withSession` -- `defaultNow()` means every
+  // pre-existing account gets a fresh policy window from the moment this
+  // column is added, never treated as already-inactive on day one. Not
+  // itself a security/session-expiry control (see session-age.ts for that);
+  // this is retention-sweep bookkeeping only.
+  lastActiveAt: timestamp('last_active_at', { withTimezone: true }).notNull().defaultNow(),
+  // Set once by `sweepInactiveAccountNotices`, cleared the moment the
+  // account is next active -- so a later, separate inactivity period always
+  // gets its own fresh notice rather than immediately re-triggering
+  // deletion from a stale flag.
+  inactivityNoticeSentAt: timestamp('inactivity_notice_sent_at', { withTimezone: true }),
   ...timestamps,
 });
 

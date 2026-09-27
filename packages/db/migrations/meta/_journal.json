@@ -484,6 +484,13 @@
       "when": 1790453625379,
       "tag": "0068_smart_master_chief",
       "breakpoints": true
+    },
+    {
+      "idx": 69,
+      "version": "7",
+      "when": 1790489015727,
+      "tag": "0069_wooden_psylocke",
+      "breakpoints": true
     }
   ]
 }

@@ -141,6 +141,14 @@ export async function requestAccountDeletion(
     readonly reason?: string;
     readonly gracePeriodMs?: number;
     readonly now?: Date;
+    /**
+     * Audit method for the ACCOUNT_DELETION_REQUESTED event. Defaults to
+     * 'API' (a real person, through the privacy page) -- pass 'SYSTEM' only
+     * for a system-initiated request (e.g. `sweepInactiveAccountDeletionRequests`),
+     * so the audit trail never misrepresents a policy-triggered request as
+     * the account holder's own action. Every existing caller is unaffected.
+     */
+    readonly method?: 'API' | 'SYSTEM';
   },
 ): Promise<Result<DeletionRequest, ServiceError>> {
   if (input.actorAccountId !== input.accountId) {
@@ -180,7 +188,7 @@ export async function requestAccountDeletion(
       await appendAuditEvent(tx, {
         eventType: 'ACCOUNT_DELETION_REQUESTED',
         actorAccountId: input.accountId,
-        method: 'API',
+        method: input.method ?? 'API',
         result: 'ALLOWED',
         resourceType: 'account',
         resourceId: input.accountId,

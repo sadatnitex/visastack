@@ -42,6 +42,14 @@
     {
       "path": "/api/jobs/process-case-retention-purge",
       "schedule": "30 4 * * *"
+    },
+    {
+      "path": "/api/jobs/process-inactive-account-notices",
+      "schedule": "40 4 * * *"
+    },
+    {
+      "path": "/api/jobs/process-inactive-account-deletions",
+      "schedule": "50 4 * * *"
     }
   ]
 }

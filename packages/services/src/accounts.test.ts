@@ -6,7 +6,12 @@ import { eq } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/pglite';
 import { migrate } from 'drizzle-orm/pglite/migrator';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { getAccountByWorkosUserId, provisionAccount, reportUnboundAccounts } from './accounts';
+import {
+  getAccountByWorkosUserId,
+  provisionAccount,
+  reportUnboundAccounts,
+  touchAccountActivity,
+} from './accounts';
 import { createApplicant } from './applicants';
 import { setConsent } from './consent';
 import type { Db } from './db';
@@ -253,5 +258,68 @@ describe('reportUnboundAccounts — WorkOS ID migration dry run', () => {
       emailVerified: true,
     });
     expect(await reportUnboundAccounts(db)).toHaveLength(0);
+  });
+});
+
+describe('touchAccountActivity (Part 7 §11 inactive-account policy bookkeeping)', () => {
+  let db: Db;
+  let accountId: string;
+
+  beforeEach(async () => {
+    db = await freshDb();
+    const p = await provisionAccount(db, { email: 'active@example.com' });
+    if (!isOk(p)) throw new Error('provision');
+    accountId = p.value.id;
+  });
+
+  async function readAccount() {
+    const [account] = await db
+      .select()
+      .from(schema.accounts)
+      .where(eq(schema.accounts.id, accountId));
+    if (!account) throw new Error('account missing');
+    return account;
+  }
+
+  it('bumps lastActiveAt when the existing value is stale', async () => {
+    const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000);
+    await db
+      .update(schema.accounts)
+      .set({ lastActiveAt: twoHoursAgo })
+      .where(eq(schema.accounts.id, accountId));
+
+    const now = new Date();
+    await touchAccountActivity(db, accountId, now);
+
+    const account = await readAccount();
+    expect(account.lastActiveAt.getTime()).toBe(now.getTime());
+  });
+
+  it('is a no-op within the throttle window when there is no pending notice', async () => {
+    const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000);
+    await db
+      .update(schema.accounts)
+      .set({ lastActiveAt: tenMinutesAgo })
+      .where(eq(schema.accounts.id, accountId));
+
+    await touchAccountActivity(db, accountId, new Date());
+
+    const account = await readAccount();
+    expect(account.lastActiveAt.getTime()).toBe(tenMinutesAgo.getTime());
+  });
+
+  it('clears a pending inactivity notice immediately, even mid-throttle-window', async () => {
+    const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000);
+    await db
+      .update(schema.accounts)
+      .set({ lastActiveAt: tenMinutesAgo, inactivityNoticeSentAt: new Date() })
+      .where(eq(schema.accounts.id, accountId));
+
+    const now = new Date();
+    await touchAccountActivity(db, accountId, now);
+
+    const account = await readAccount();
+    expect(account.inactivityNoticeSentAt).toBeNull();
+    expect(account.lastActiveAt.getTime()).toBe(now.getTime());
   });
 });
