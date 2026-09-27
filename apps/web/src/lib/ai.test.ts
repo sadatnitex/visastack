@@ -22,6 +22,7 @@ const ENV_KEYS = [
   'AI_MAX_ATTEMPTS',
   'AI_MAX_PAGES_PER_DOCUMENT',
   'AI_CACHE_MAX_AGE_DAYS',
+  'AI_MAX_CONCURRENT_CALLS',
 ] as const;
 const ORIGINAL: Record<string, string | undefined> = {};
 
@@ -106,36 +107,49 @@ describe('AI cost and volume caps — pilot defaults', () => {
     expect(aiCacheMaxAgeDays()).toBe(30);
   });
 
+  it('defaults the platform-wide concurrency cap to 5 (Part 8 §11: "5 concurrent model calls platform-wide")', async () => {
+    const { aiMaxConcurrentCalls } = await import('./ai');
+    expect(aiMaxConcurrentCalls()).toBe(5);
+  });
+
   it('lets an administrator override every cap via env', async () => {
     setEnv('AI_PILOT_MONTHLY_HARD_LIMIT_USD', '5');
     setEnv('AI_PER_DOCUMENT_LIMIT_USD', '0.1');
     setEnv('AI_MAX_ATTEMPTS', '1');
     setEnv('AI_MAX_PAGES_PER_DOCUMENT', '2');
     setEnv('AI_CACHE_MAX_AGE_DAYS', '7');
+    setEnv('AI_MAX_CONCURRENT_CALLS', '2');
     const {
       aiBudgetLimitUnits,
       aiPerDocumentBudgetLimitUnits,
       aiMaxAttemptsPerDocument,
       aiMaxPagesPerDocument,
       aiCacheMaxAgeDays,
+      aiMaxConcurrentCalls,
     } = await import('./ai');
     expect(aiBudgetLimitUnits()).toBe(500_000);
     expect(aiPerDocumentBudgetLimitUnits()).toBe(10_000);
     expect(aiMaxAttemptsPerDocument()).toBe(1);
     expect(aiMaxPagesPerDocument()).toBe(2);
     expect(aiCacheMaxAgeDays()).toBe(7);
+    expect(aiMaxConcurrentCalls()).toBe(2);
   });
 
   it('ignores invalid overrides and keeps the safe pilot defaults', async () => {
     setEnv('AI_MAX_ATTEMPTS', 'not-a-number');
     setEnv('AI_MAX_PAGES_PER_DOCUMENT', '-5');
     setEnv('AI_CACHE_MAX_AGE_DAYS', '0');
-    const { aiMaxAttemptsPerDocument, aiMaxPagesPerDocument, aiCacheMaxAgeDays } = await import(
-      './ai'
-    );
+    setEnv('AI_MAX_CONCURRENT_CALLS', 'not-a-number');
+    const {
+      aiMaxAttemptsPerDocument,
+      aiMaxPagesPerDocument,
+      aiCacheMaxAgeDays,
+      aiMaxConcurrentCalls,
+    } = await import('./ai');
     expect(aiMaxAttemptsPerDocument()).toBe(3);
     expect(aiMaxPagesPerDocument()).toBe(25);
     expect(aiCacheMaxAgeDays()).toBe(30);
+    expect(aiMaxConcurrentCalls()).toBe(5);
   });
 });
 

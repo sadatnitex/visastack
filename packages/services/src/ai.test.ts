@@ -90,6 +90,33 @@ async function grantAiConsent(db: Db, accountId: string) {
   });
 }
 
+/**
+ * Directly inserts an IN_FLIGHT `ai_extraction_runs` row, standing in for
+ * another request's own reservation that is still genuinely mid-flight.
+ * PGlite fully serializes db.transaction() calls (see the note above the
+ * deliberately-absent race test below), so this is how this file simulates
+ * concurrent state it cannot produce through real interleaving.
+ */
+async function insertInFlightRun(
+  db: Db,
+  documentVersionId: string,
+  applicantId: string,
+  createdAt?: Date,
+): Promise<string> {
+  const [row] = await db
+    .insert(schema.aiExtractionRuns)
+    .values({
+      documentVersionId,
+      applicantId,
+      status: 'IN_FLIGHT',
+      modelVersion: 'unknown',
+      promptVersion: 'unknown',
+      ...(createdAt ? { createdAt } : {}),
+    })
+    .returning();
+  return (row as { id: string }).id;
+}
+
 const proposals: FieldProposal[] = [
   {
     type: 'NEW',
@@ -951,5 +978,140 @@ describe('AI Gateway — caching and schema version (master directive §7 "PR 9"
     });
     expect(isErr(second)).toBe(true);
     if (isErr(second)) expect(second.error.code).toBe('invalid');
+  });
+});
+
+describe('AI Gateway -- concurrency gate and budget-race safety (Part 8 §11)', () => {
+  let db: Db;
+  beforeEach(async () => {
+    db = await freshDb();
+  });
+
+  // NOTE: as with the advisory-lock tests above, a genuine Promise.all race
+  // is not possible in this suite (PGlite fully serializes db.transaction()
+  // calls), so every test below simulates "another call is genuinely
+  // mid-flight" via insertInFlightRun's direct row insert instead.
+
+  it('refuses to reserve a new call once the platform-wide concurrency cap is reached', async () => {
+    const { versionId: otherVersionId, applicantId: otherApplicantId } = await seedVersion(
+      db,
+      'ai-concurrency-other@example.com',
+    );
+    await insertInFlightRun(db, otherVersionId, otherApplicantId);
+
+    const { account, applicantId, versionId } = await seedVersion(db, 'ai-concurrency@example.com');
+    await grantAiConsent(db, account.id);
+
+    const result = await runExtraction(db, stubAi(), {
+      actorAccountId: account.id,
+      applicantId,
+      documentVersionId: versionId,
+      text: 'MRZ...',
+      budgetLimitUnits: 1000,
+      maxConcurrentCalls: 1,
+    });
+    expect(isErr(result)).toBe(true);
+    if (isErr(result)) expect(result.error.code).toBe('rate_limited');
+  });
+
+  it('still allows a new call through when the platform-wide in-flight count is under the concurrency cap', async () => {
+    const { versionId: otherVersionId, applicantId: otherApplicantId } = await seedVersion(
+      db,
+      'ai-concurrency-headroom-other@example.com',
+    );
+    await insertInFlightRun(db, otherVersionId, otherApplicantId);
+
+    const { account, applicantId, versionId } = await seedVersion(
+      db,
+      'ai-concurrency-headroom@example.com',
+    );
+    await grantAiConsent(db, account.id);
+
+    const result = await runExtraction(db, stubAi(), {
+      actorAccountId: account.id,
+      applicantId,
+      documentVersionId: versionId,
+      text: 'MRZ...',
+      budgetLimitUnits: 1000,
+      maxConcurrentCalls: 2,
+    });
+    expect(isOk(result)).toBe(true);
+  });
+
+  it('self-heals a stale IN_FLIGHT reservation (an abandoned call, e.g. a crashed process) instead of leaving it stuck forever', async () => {
+    const { versionId: staleVersionId, applicantId: staleApplicantId } = await seedVersion(
+      db,
+      'ai-stale-other@example.com',
+    );
+    const staleId = await insertInFlightRun(
+      db,
+      staleVersionId,
+      staleApplicantId,
+      new Date(Date.now() - 10 * 60 * 1000),
+    );
+
+    const { account, applicantId, versionId } = await seedVersion(db, 'ai-stale@example.com');
+    await grantAiConsent(db, account.id);
+
+    const result = await runExtraction(db, stubAi(), {
+      actorAccountId: account.id,
+      applicantId,
+      documentVersionId: versionId,
+      text: 'MRZ...',
+      budgetLimitUnits: 1000,
+      maxConcurrentCalls: 1,
+    });
+    // The stale reservation from 10 minutes ago no longer occupies the
+    // single available slot -- it was released before the concurrency count
+    // ran.
+    expect(isOk(result)).toBe(true);
+
+    const [stale] = await db
+      .select()
+      .from(schema.aiExtractionRuns)
+      .where(eq(schema.aiExtractionRuns.id, staleId));
+    expect(stale?.status).toBe('FAILED');
+    expect(stale?.errorCode).toBe('in_flight_expired');
+  });
+
+  it('reserves the worst historical cost for every in-flight call so concurrent calls cannot race the platform-wide budget', async () => {
+    const { account, applicantId, versionId } = await seedVersion(
+      db,
+      'ai-reserve-budget@example.com',
+    );
+    await grantAiConsent(db, account.id);
+
+    // Establish real evidence of what a call can cost (maxObservedCostUnits
+    // never invents a pricing estimate): one genuine paid run costing 3
+    // units.
+    const first = await runExtraction(db, stubAi(), {
+      actorAccountId: account.id,
+      applicantId,
+      documentVersionId: versionId,
+      text: 'MRZ...',
+      budgetLimitUnits: 1000,
+    });
+    expect(isOk(first)).toBe(true);
+
+    const { versionId: otherVersionId, applicantId: otherApplicantId } = await seedVersion(
+      db,
+      'ai-reserve-budget-other@example.com',
+    );
+    await insertInFlightRun(db, otherVersionId, otherApplicantId);
+
+    // Committed spend so far is only 3 -- comfortably under this limit of 7
+    // on its own. But one call is already reserved in flight, and this
+    // third call would be a second: reserving the worst historical cost (3)
+    // for each of the two pushes the projected total to 3 + 2*3 = 9, over
+    // the limit, so this is refused before it ever reaches the adapter.
+    const third = await runExtraction(db, stubAi(), {
+      actorAccountId: account.id,
+      applicantId,
+      documentVersionId: versionId,
+      text: 'a third, different document entirely',
+      budgetLimitUnits: 7,
+    });
+    expect(isErr(third)).toBe(true);
+    if (isErr(third)) expect(third.error.code).toBe('invalid');
   });
 });

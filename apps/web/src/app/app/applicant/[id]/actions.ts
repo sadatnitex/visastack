@@ -31,6 +31,7 @@ import {
   aiBudgetLimitUnits,
   aiCacheMaxAgeDays,
   aiMaxAttemptsPerDocument,
+  aiMaxConcurrentCalls,
   aiMaxPagesPerDocument,
   aiPerDocumentBudgetLimitUnits,
   createAiExtractor,
@@ -427,6 +428,7 @@ export async function runAiExtractionAction(
       maxAttemptsPerDocument: aiMaxAttemptsPerDocument(),
       maxPagesPerDocument: aiMaxPagesPerDocument(),
       cacheMaxAgeDays: aiCacheMaxAgeDays(),
+      maxConcurrentCalls: aiMaxConcurrentCalls(),
     });
     if (!run.ok) return { ok: false, message: run.error.message } satisfies ActionState;
     return {

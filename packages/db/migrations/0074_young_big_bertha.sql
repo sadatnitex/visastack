@@ -1,0 +1,1 @@
+ALTER TYPE "public"."ai_extraction_run_status" ADD VALUE 'IN_FLIGHT' BEFORE 'SUCCEEDED';

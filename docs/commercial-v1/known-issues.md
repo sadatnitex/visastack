@@ -1919,8 +1919,7 @@ item gets its own requirements-ledger row once classified against the new direct
     suggestion are already deterministic and working, per directive §2's own
     "support only" framing this is read as a scope boundary on what AI may
     ever do, not a mandate to add a redundant AI path where a deterministic
-    one already works); the reserve-then-reconcile budget redesign fixing
-    the concurrency-1 serialization above (AI-08); cache-key binding to a
+    one already works); cache-key binding to a
     config version once AI-02 exists (§12); cross-provider fallback (§13,
     not meaningful until a second provider exists); generalizing the
     existing eval harness (`packages/adapters/src/eval/`, already covering
@@ -1934,6 +1933,63 @@ item gets its own requirements-ledger row once classified against the new direct
     provider").
     Full detail: `requirements-ledger.md` AI-03/AI-08/AI-09,
     `docs/audits/ai-gateway-boundary-map.md`.
+    **Chunk 2 (this update) -- concurrency and budget-race safety (§11).**
+    Closed the concurrency-1 serialization bug flagged above: `runExtraction`
+    no longer holds either advisory lock across the outbound provider call.
+    It now splits into three phases -- RESERVE (a short, locked transaction
+    running every existing check, plus a new concurrency check, then
+    inserting an `IN_FLIGHT` marker row instead of calling the adapter),
+    CALL (the adapter call itself, with no transaction and no lock held),
+    and RECONCILE (a second, unlocked transaction updating that same row to
+    SUCCEEDED/FAILED with the real outcome). Genuinely concurrent AI calls
+    are possible for the first time, capped at a new platform-wide
+    `AI_MAX_CONCURRENT_CALLS` (default 5, directive §11's own named figure;
+    threaded through `apps/web/src/lib/ai.ts`'s `aiMaxConcurrentCalls()` to
+    the extraction server action). Directive §11 also requires "concurrent
+    calls may not race available budget" as part of the SAME mechanism, not
+    a separate one -- re-read after an initial, too-narrow plan would have
+    shipped concurrency without this, which would have been a real
+    directive violation, not a simplification. Closed it without inventing
+    a per-model pricing/token-estimation formula (real pricing data for
+    that does not exist in this codebase yet, and every existing budget test
+    is calibrated to the stub adapter's fixed `costUnits: 3`, which any
+    genuine worst-case token estimate would dwarf, breaking them for no
+    real gain): every budget check now also reserves `maxObservedCostUnits`
+    -- the highest `costUnits` any SUCCEEDED run has ever actually recorded,
+    platform-wide -- for every call currently `IN_FLIGHT`, including the one
+    about to be reserved. This is real evidence, never a guess: it starts at
+    0 before any call has ever completed and only ratchets up from genuine
+    recorded spend, deliberately coarser than a true per-call estimate but
+    sufficient to close the actual race (N concurrent calls can no longer
+    all pass the same check believing they are the only spender). A new
+    `releaseStaleInFlightCalls` self-heals a reservation whose own call
+    crashed or lost its connection mid-flight (5-minute grace period,
+    comfortably longer than the adapter's own 60s request timeout), so an
+    abandoned reservation cannot occupy a concurrency slot or inflate the
+    budget reservation forever. New `ai_extraction_runs` status value
+    `IN_FLIGHT` (additive `ALTER TYPE ... ADD VALUE`, migration `0074`).
+    **Still genuinely open, not this chunk's scope:** the directive's
+    literal "reserve conservative worst-case cost" via real per-model
+    pricing/token-count data (today's historical-evidence reservation is a
+    deliberately coarser stand-in, chosen specifically to avoid inventing an
+    uncalibrated formula); "uncertain timeout outcome: keep reservation
+    until reconciled" -- today, exactly as before this chunk, a timed-out
+    call is costed at 0 the instant it resolves, since there is no mechanism
+    yet to later confirm whether the provider actually processed and will
+    bill for it (this would need a way to query the provider's own status
+    for a given `providerRequestId` after the fact, which does not exist).
+    Neither gap is new; both pre-date this chunk and are simply now
+    precisely named rather than left implicit. 4 new tests (`ai.test.ts`'s
+    "concurrency gate and budget-race safety" suite, simulating a genuinely
+    in-flight call via a direct row insert -- PGlite fully serializes
+    `db.transaction()` calls, so, like every other lock-dependent fix in
+    this codebase, a real `Promise.all` race cannot be exercised here; see
+    `docs/security/durable-jobs-and-upload-integrity-boundary.md`'s
+    "PGlite testability" section). Full `@visastack/services` suite,
+    repo-wide typecheck/lint, and production build all clean.
+    Full detail: `requirements-ledger.md` AI-08/A24,
+    `docs/audits/ai-gateway-boundary-map.md`,
+    `docs/security/durable-jobs-and-upload-integrity-boundary.md`.
 independently confirmed findings; the missing PRD file is tracked as Blocker 1 in
 `assumptions-and-blockers.md` (now resolved) rather than here, since it blocked the
 programme rather than being a product defect.
