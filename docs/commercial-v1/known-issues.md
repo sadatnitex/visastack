@@ -1440,8 +1440,24 @@ item gets its own requirements-ledger row once classified against the new direct
       ISSUER_CONTACT are now revoked the moment deletion is requested, not
       just incidentally at execution; CORE_PROCESSING is deliberately left
       alone since the account still needs to function during the grace
-      window. Backup
-      expiry target (<=90 days) has no tracking or enforcement of any kind.
+      window.
+      **Investigated (2026-09-27): "backup expiry target <=90 days" is a
+      hosting-provider configuration, not an application code gap.**
+      The directive's own wording ("backup expiry target: <=90 days unless
+      approved narrower/other policy") describes the Neon Postgres project's
+      own point-in-time-recovery/backup retention window, not a table this
+      codebase writes to or a sweep it could run -- there is no code path
+      here, and could be none, that reaches into the database provider's own
+      backup subsystem to expire a backup (the exact same reasoning that
+      settled "app-log 30d" as N/A, except the resolution here cannot be
+      "already satisfied," since this session has no access to read or
+      change the connected Neon project's actual configured retention
+      window (no Neon API/dashboard tool is available in this sandbox,
+      mirroring IAM-01's identical MFA-toggle blocker). Tracked as an
+      operational pre-commercial-launch checklist item, not a code gap:
+      **the product owner must confirm/set the Neon project's backup
+      retention window to <=90 days (or record an approved narrower/other
+      policy) directly in the Neon dashboard.**
     - **Legal holds (§13):** placement/release/enforcement are real and
       race-safe at every purge/deletion choke point, and agencies
       structurally cannot place or influence a hold (`COMPLIANCE_ADMIN`-only,
