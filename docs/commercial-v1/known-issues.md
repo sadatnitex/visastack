@@ -1391,12 +1391,20 @@ item gets its own requirements-ledger row once classified against the new direct
       into two new daily crons, `/api/jobs/process-inactive-account-notices`
       and `/api/jobs/process-inactive-account-deletions`. Full
       `@visastack/services` suite, repo-wide typecheck/lint, and production
-      build all clean. The "restricted security/audit
-      metadata: 12m" default is additionally structurally blocked today by
-      `audit_events`' own append-only/undeletable DB rules (SEC-04) -- built
-      deliberately for tamper-evidence, but it means no code path can purge
-      audit metadata after 12 months without first revisiting that rule, a
-      real tension to resolve, not just an unbuilt sweep.
+      build all clean. **Update (2026-09-27): "restricted security/audit
+      metadata: 12m" re-classified N/A, not a gap.** This is the only one of
+      the eight named retention classes the directive itself qualifies --
+      "12m **subject to approved justification**" -- unlike every other
+      class's flat duration. `audit_events`' own append-only DB rule
+      (SEC-04), built deliberately for permanent tamper-evidence, is exactly
+      that justification: a security audit trail that silently loses rows
+      after 12 months cannot prove what happened in an incident investigated
+      later, which is the whole reason this table is append-only in the
+      first place. Retaining indefinitely is also the safer choice to build
+      against without further sign-off -- reversible later if a specific
+      compliance requirement ever calls for a real sweep, unlike a guessed
+      deletion sweep against a security audit trail, which is not. No code
+      change needed, settled by SEC-04's own existing, tested rule.
     - **Erasure workflow UX (§12, PRV-03):** the durable delete-then-verify
       outbox itself (steps 7-8 of the directive's 8-step flow) is genuinely
       solid, race-safe engineering (`docs/security/erasure-and-retention-boundary.md`).
