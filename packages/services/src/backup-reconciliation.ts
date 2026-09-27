@@ -5,6 +5,7 @@ import { purgeMissionUnconditionally } from './case-retention';
 import { getConsents } from './consent';
 import { type Db, first, schema } from './db';
 import { executeAccountDeletion } from './deletion';
+import { incrementMaterialRevision, missionsSelectingDocument } from './material-revision';
 
 /**
  * Backup resurrection reconciliation (master directive Part 7 §15). See
@@ -21,10 +22,10 @@ import { executeAccountDeletion } from './deletion';
  * in that same order to end up correct.
  *
  * Most rules here force a single already-existing row's status/flag column,
- * or insert a full row that is missing entirely. Account deletion and
- * case-retention purge are the two exceptions that reuse a complex,
- * multi-table cascading mechanism directly rather than hand-rolling it a
- * second time:
+ * or insert a full row that is missing entirely. Account deletion,
+ * case-retention purge, and document/storage-object erasure are the three
+ * exceptions that reuse or re-derive a more complex mechanism rather than
+ * hand-rolling a second cascade:
  *
  * - Account deletion calls `executeAccountDeletion` itself -- safe here
  *   specifically because the function's own precondition (a PENDING
@@ -46,12 +47,22 @@ import { executeAccountDeletion } from './deletion';
  *   own current hold/complaint state may be stale or have genuinely
  *   diverged. Reconciliation forces the exact end state that was already
  *   decided, nothing more.
- *
- * Document/version erasure replay is deliberately NOT covered here -- it
- * needs its own dedicated design (at least three independent enqueue
- * sources -- account deletion, case-retention purge, and a separate
- * manually-triggered per-document retention purge -- whose completion side
- * effects differ), tracked as a separate, later chunk.
+ * - Erasure (`ERASURE_VERIFIED`, `erasure.ts`) has exactly two enqueue
+ *   sources -- account deletion (a single, ungated storage-object delete)
+ *   and `retention.ts`'s `purgeExpiredDocuments` (gated behind every
+ *   sibling storage object a document ever referenced also reaching
+ *   VERIFIED, per `finalizeVerifiedJob`'s own completion check). Rather
+ *   than reconstructing that job-by-job gating state machine on the
+ *   restored branch, `forceErasureVerified` asks the one branch that
+ *   actually knows the ground truth -- OLD db, right now -- whether the
+ *   document is already gone there; if so, the full cascade genuinely
+ *   completed on the old branch at some point, so the identical end state
+ *   is forced onto NEW db. The underlying bytes are already gone for real
+ *   on both branches simultaneously by the time any of this runs -- Vercel
+ *   Blob's `del()` is external, never branched alongside Postgres -- so no
+ *   `erasureJobs` bookkeeping row is recreated on the restored branch at
+ *   all; that table is pure operational queue state, not the
+ *   privacy-relevant fact itself.
  *
  * Every forced change is itself audited on the NEW branch (method SYSTEM,
  * no actor -- this is a system process, not a person), so the restored
@@ -73,6 +84,7 @@ const RECONCILED_EVENT_TYPES = [
   'ORGANIZATION_TERMINATED',
   'ACCOUNT_DELETION_EXECUTED',
   'MISSION_RETENTION_PURGED',
+  'ERASURE_VERIFIED',
 ] as const;
 
 type ReconciledEventType = (typeof RECONCILED_EVENT_TYPES)[number];
@@ -87,6 +99,7 @@ export interface ReconciliationCounts {
   readonly organizationsForced: number;
   readonly accountsDeleted: number;
   readonly missionsPurged: number;
+  readonly erasuresVerified: number;
 }
 
 export interface ReconciliationError {
@@ -287,6 +300,100 @@ async function forceMissionRetentionPurged(newDb: Db, resourceId: string): Promi
   });
 }
 
+/**
+ * Unlike the two rules above, this does NOT recreate any erasure-worker
+ * bookkeeping (an `erasureJobs` row) on the restored branch -- see this
+ * module's own doc comment for why that is deliberate, not an oversight.
+ *
+ * `ACCOUNT_DELETION` reason: `finalizeVerifiedJob`'s real logic
+ * unconditionally deletes exactly the one `storageObjects` row, no sibling
+ * gating -- forced here identically.
+ *
+ * `RETENTION_PURGE` reason: the document id is never recoverable from the
+ * audit event's own columns (`auditEvents` has no such column), so this
+ * looks it up on `erasureJobs` on the OLD branch -- uniquely among the
+ * tables this reads, that one is designed to outlive the very domain rows
+ * it started from. Whether the full cascade (document + every sibling
+ * storage object) already completed is then answered by checking whether
+ * `documents` for that id still exists on OLD db right now: gone means the
+ * cascade genuinely finished there at some point, so the identical end
+ * state -- including bumping material revision for any mission on NEW db
+ * currently selecting this document as evidence, exactly like
+ * `finalizeVerifiedJob` itself does before tearing the document down -- is
+ * forced onto NEW db; still there means this individual sibling's own
+ * bytes are gone but the document was never fully erasure-verified even by
+ * the old branch's own final state, so NEW db is correctly left untouched
+ * too. Every other sibling event for the same document re-derives the same
+ * answer from the same static, read-only old-branch state, so re-running
+ * this (whether a second full reconciliation pass, or a later sibling
+ * event in the same run) is a clean no-op once the first one that actually
+ * forces the cascade has run.
+ */
+async function forceErasureVerified(
+  oldDb: Db,
+  newDb: Db,
+  resourceId: string,
+  metadata: unknown,
+): Promise<boolean> {
+  const reason = (metadata as { reason?: string } | null)?.reason;
+  if (reason === 'ACCOUNT_DELETION') {
+    const deleted = await newDb
+      .delete(schema.storageObjects)
+      .where(eq(schema.storageObjects.id, resourceId))
+      .returning({ id: schema.storageObjects.id });
+    return deleted.length > 0;
+  }
+  if (reason === 'RETENTION_PURGE') {
+    const job = first(
+      await oldDb
+        .select({ documentId: schema.erasureJobs.documentId })
+        .from(schema.erasureJobs)
+        .where(eq(schema.erasureJobs.storageObjectId, resourceId))
+        .limit(1),
+    );
+    if (!job?.documentId) {
+      throw new Error(
+        `no erasure job with a document id found on the old branch for storage object ${resourceId}`,
+      );
+    }
+    const documentId = job.documentId;
+    const stillLive = first(
+      await oldDb
+        .select({ id: schema.documents.id })
+        .from(schema.documents)
+        .where(eq(schema.documents.id, documentId))
+        .limit(1),
+    );
+    if (stillLive) return false;
+
+    const siblingStorageObjectIds = (
+      await oldDb
+        .select({ storageObjectId: schema.erasureJobs.storageObjectId })
+        .from(schema.erasureJobs)
+        .where(eq(schema.erasureJobs.documentId, documentId))
+    ).map((row) => row.storageObjectId);
+
+    return newDb.transaction(async (tx) => {
+      for (const missionId of await missionsSelectingDocument(tx, documentId)) {
+        await incrementMaterialRevision(tx, missionId);
+      }
+      const deletedDocuments = await tx
+        .delete(schema.documents)
+        .where(eq(schema.documents.id, documentId))
+        .returning({ id: schema.documents.id });
+      if (siblingStorageObjectIds.length > 0) {
+        await tx
+          .delete(schema.storageObjects)
+          .where(inArray(schema.storageObjects.id, siblingStorageObjectIds));
+      }
+      return deletedDocuments.length > 0;
+    });
+  }
+  throw new Error(
+    `unrecognized ERASURE_VERIFIED reason on storage object ${resourceId}: ${String(reason)}`,
+  );
+}
+
 /** Which counter and audit resourceType each event type drives, once applied. */
 const EVENT_META: Readonly<
   Record<
@@ -304,6 +411,7 @@ const EVENT_META: Readonly<
   ORGANIZATION_TERMINATED: { counter: 'organizationsForced', resourceType: 'organization' },
   ACCOUNT_DELETION_EXECUTED: { counter: 'accountsDeleted', resourceType: 'account' },
   MISSION_RETENTION_PURGED: { counter: 'missionsPurged', resourceType: 'mission' },
+  ERASURE_VERIFIED: { counter: 'erasuresVerified', resourceType: 'storage_object' },
 };
 
 async function applyEvent(oldDb: Db, newDb: Db, event: AuditEventRow): Promise<boolean> {
@@ -330,6 +438,8 @@ async function applyEvent(oldDb: Db, newDb: Db, event: AuditEventRow): Promise<b
       return forceAccountDeletionExecuted(newDb, resourceId, event.occurredAt);
     case 'MISSION_RETENTION_PURGED':
       return forceMissionRetentionPurged(newDb, resourceId);
+    case 'ERASURE_VERIFIED':
+      return forceErasureVerified(oldDb, newDb, resourceId, event.metadata);
     default:
       return false;
   }
@@ -361,6 +471,7 @@ export async function reconcileRestoredBranch(
     organizationsForced: 0,
     accountsDeleted: 0,
     missionsPurged: 0,
+    erasuresVerified: 0,
   };
   const errors: ReconciliationError[] = [];
   const mutableCounts = counts as {

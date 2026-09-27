@@ -131,54 +131,56 @@ intake/erasure/notification workers) to it:
 6. Only then reconnect application traffic and re-enable the Vercel cron
    jobs.
 
-## What this document does not cover yet
+## Implementation status
 
-This is the design the directive asks for. **Update: steps 3-4 of the
-table above are now partially implemented** as
-`reconcileRestoredBranch(oldDb, newDb, restorePoint)`
-(`packages/services/src/backup-reconciliation.ts`) - the 7 rows whose
-action is a single column flip on an existing row or inserting one missing
-row entirely (grant revocation, consent revocation, membership
-deactivation, legal hold placed/released, platform role revocation,
-organization suspension/termination), replayed in genuine global
-chronological order with each forced change itself audited on the restored
-branch, matching step 5 above. **Update: account deletion is now also
-covered**, by calling `executeAccountDeletion` directly with the original
-event's own timestamp as `now` - safe specifically because the function's
-one real precondition (a PENDING request whose grace window elapsed)
-naturally already holds: the request itself predates execution by the
-grace period (days), which dwarfs this codebase's <=5 minute RPO, so the
-PENDING row is essentially always already mirrored onto the restored
-branch by the time reconciliation runs.
+This is the design the directive asks for. Steps 3-4 of the table above are
+now fully implemented as `reconcileRestoredBranch(oldDb, newDb, restorePoint)`
+(`packages/services/src/backup-reconciliation.ts`), covering every row in
+the table -- all 10 event types replayed in genuine global chronological
+order, with each forced change itself audited on the restored branch,
+matching step 5 above. Most rows (grant revocation, consent revocation,
+membership deactivation, legal hold placed/released, platform role
+revocation, organization suspension/termination) are a single column flip
+on an existing row or inserting one missing row entirely. The remaining
+three reuse or re-derive a more complex mechanism instead of hand-rolling
+a second cascade:
 
-Still not covered, and tracked as separate, later chunks: document/version
-erasure and case-retention purge. Erasure turned out more involved on
-investigation than originally scoped here: `ERASURE_VERIFIED` has at least
-three independent enqueue sources in this codebase (account deletion,
-case-retention purge, and a separate manually-triggered per-document
-retention purge via `purgeExpiredDocuments`), each with different
-row-level completion side effects, and the underlying bytes live in
-external object storage that is NOT branched alongside Postgres - once
-verified deleted on the pre-incident branch, they are actually gone,
-shared by both branches, so reconciling this is about forcing the
-restored branch's OWN row state (erasure job status, document/storage-object
-rows) to reflect that reality, not re-running a real delete-and-verify
-round trip against the blob store. Case-retention purge needs the
-"purge one mission unconditionally" mechanism extracted out of
-`sweepCaseRetentionPurge` into its own reusable function first (the sweep
-itself re-checks eligibility - grace days, complaint status, legal
-hold - which are the wrong preconditions to recheck during reconciliation;
-what's needed is forcing the exact same end state the sweep already
-decided on when it ran on the pre-incident branch), shared between the
-sweep and the reconciliation replay so the two never drift apart.
+- **Account deletion** calls `executeAccountDeletion` directly with the
+  original event's own timestamp as `now` - safe specifically because the
+  function's one real precondition (a PENDING request whose grace window
+  elapsed) naturally already holds: the request itself predates execution
+  by the grace period (days), which dwarfs this codebase's <=5 minute RPO,
+  so the PENDING row is essentially always already mirrored onto the
+  restored branch by the time reconciliation runs.
+- **Case-retention purge** calls `purgeMissionUnconditionally`
+  (`case-retention.ts`), the unconditional purge mechanism extracted out
+  of `sweepCaseRetentionPurge` for exactly this reuse, shared between the
+  sweep and the reconciliation replay so the two can never drift apart.
+  Reconciliation does not call the sweep itself: the sweep's own
+  eligibility gate (grace days, complaint status, legal hold) re-checks
+  CURRENT state, the wrong precondition here - a `MISSION_RETENTION_PURGED`
+  event on the pre-incident branch is already proof the purge was
+  correctly decided there.
+- **Document/storage-object erasure** (`ERASURE_VERIFIED`) has exactly two
+  enqueue sources -- account deletion (a single, ungated storage-object
+  delete) and `retention.ts`'s `purgeExpiredDocuments` (gated behind every
+  sibling storage object a document ever referenced also reaching
+  VERIFIED). Rather than reconstructing that job-by-job gating state
+  machine on the restored branch, reconciliation asks the one branch that
+  actually knows the ground truth - the old branch, right now - whether
+  the document is already gone there; if so, the identical end state
+  (including bumping material revision for any mission on the restored
+  branch still selecting that document as evidence) is forced onto the
+  restored branch. The underlying bytes are already gone for real on both
+  branches simultaneously by the time this runs - Vercel Blob's `del()` is
+  external, never branched alongside Postgres - so no `erasureJobs`
+  bookkeeping row is recreated on the restored branch at all; that table
+  is pure operational queue state, not the privacy-relevant fact itself.
 
-Also not built yet: a CLI wrapper taking two real branch connection
-strings and a restore point and calling `reconcileRestoredBranch` (matching
+A CLI wrapper also exists: `packages/adapters/src/reconcile-restored-branch.ts`
+(`pnpm --filter @visastack/adapters reconcile:restored-branch`) takes two
+real branch connection strings and a restore point and calls
+`reconcileRestoredBranch` directly, matching
 `packages/adapters/src/backfill-protected-fields.ts`'s established
-operational-script shape) - today it is a tested library function an
-engineer can call from a one-off script, not yet a runbook command an
-operator can run directly. Until the two remaining rows and the CLI
-wrapper both exist, an operator carries out the remaining part of steps
-3-4 by hand for `ERASURE_VERIFIED` and `MISSION_RETENTION_PURGED`
-specifically, following the table's own event-type-to-action mapping
-exactly, with `psql` access to both branches.
+operational-script shape - a runbook command an operator can run directly,
+not merely a library function requiring a one-off script.
