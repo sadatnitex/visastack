@@ -2,7 +2,7 @@ import { fileURLToPath } from 'node:url';
 import { PGlite } from '@electric-sql/pglite';
 import { isOk } from '@visastack/core';
 import { schema } from '@visastack/db';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/pglite';
 import { migrate } from 'drizzle-orm/pglite/migrator';
 import { beforeEach, describe, expect, it } from 'vitest';
@@ -13,6 +13,8 @@ import { sweepCaseRetentionPurge } from './case-retention';
 import { setConsent } from './consent';
 import { type Db, first } from './db';
 import { executeAccountDeletion, requestAccountDeletion } from './deletion';
+import { addDocumentVersion, registerDocument } from './documents';
+import { enqueueErasureJob, runErasureWorker } from './erasure';
 import { placeLegalHold, releaseLegalHold } from './legal-hold';
 import { createMission, transitionMission } from './missions';
 import {
@@ -22,6 +24,30 @@ import {
   terminateOrganization,
 } from './organizations';
 import { grantPlatformRole, revokePlatformRole } from './platform-roles';
+import type {
+  BlobStore,
+  ListObjectsPage,
+  PutObjectInput,
+  StorageBucket,
+  StoredBytes,
+} from './storage';
+
+/** Minimal in-memory blob store -- just enough for a real `runErasureWorker` pass to succeed; no failure injection needed here (see erasure.test.ts for that). */
+class FakeBlobStore implements BlobStore {
+  private readonly objects = new Map<string, StoredBytes>();
+  async putObject(input: PutObjectInput): Promise<void> {
+    this.objects.set(input.objectKey, { contentType: input.contentType, bytes: input.bytes });
+  }
+  async getObject(objectKey: string): Promise<StoredBytes | undefined> {
+    return this.objects.get(objectKey);
+  }
+  async deleteObject(_bucket: StorageBucket, objectKey: string): Promise<void> {
+    this.objects.delete(objectKey);
+  }
+  async listObjectKeys(): Promise<ListObjectsPage> {
+    return { objectKeys: [...this.objects.keys()], cursor: undefined };
+  }
+}
 
 const migrationsFolder = fileURLToPath(new URL('../../db/migrations', import.meta.url));
 
@@ -782,5 +808,276 @@ describe('reconcileRestoredBranch (master directive Part 7 §15: backup resurrec
     const report = await reconcileRestoredBranch(oldDb, newDb, RESTORE_POINT);
     expect(report.counts.missionsPurged).toBe(0);
     expect(report.errors).toHaveLength(0);
+  });
+
+  it('forces the same storage-object delete for an ACCOUNT_DELETION-reason erasure, and a second run is a clean no-op', async () => {
+    const storage = new FakeBlobStore();
+    const [storageObject] = await oldDb
+      .insert(schema.storageObjects)
+      .values({
+        bucket: 'CLEAN',
+        objectKey: 'obj-account-deletion',
+        contentHash: 'deadbeef',
+        sizeBytes: 3,
+      })
+      .returning();
+    if (!storageObject) throw new Error('setup failed');
+    await mirrorRow(newDb, schema.storageObjects, storageObject);
+    await storage.putObject({
+      bucket: 'CLEAN',
+      objectKey: 'obj-account-deletion',
+      contentType: 'application/pdf',
+      bytes: new Uint8Array([1, 2, 3]),
+    });
+    await enqueueErasureJob(oldDb, {
+      reason: 'ACCOUNT_DELETION',
+      bucket: 'CLEAN',
+      objectKey: 'obj-account-deletion',
+      expectedHash: 'deadbeef',
+      storageObjectId: storageObject.id,
+    });
+    const workerResult = await runErasureWorker(oldDb, storage, { limit: 5 });
+    expect(workerResult).toEqual({ processed: 1, blocked: 0, failed: 0 });
+    await oldDb
+      .update(schema.auditEvents)
+      .set({ occurredAt: AFTER })
+      .where(eq(schema.auditEvents.eventType, 'ERASURE_VERIFIED'));
+
+    const report = await reconcileRestoredBranch(oldDb, newDb, RESTORE_POINT);
+    expect(report.counts.erasuresVerified).toBe(1);
+    expect(report.errors).toHaveLength(0);
+    expect(
+      await newDb
+        .select()
+        .from(schema.storageObjects)
+        .where(eq(schema.storageObjects.id, storageObject.id)),
+    ).toHaveLength(0);
+
+    const secondReport = await reconcileRestoredBranch(oldDb, newDb, RESTORE_POINT);
+    expect(secondReport.counts.erasuresVerified).toBe(0);
+    expect(secondReport.errors).toHaveLength(0);
+  });
+
+  it('forces the full document+sibling cascade for a fully-verified RETENTION_PURGE erasure, bumping material revision for a mission that still selects it, and a second run is a clean no-op', async () => {
+    const storage = new FakeBlobStore();
+    const owner = await seedAccount(oldDb, 'retention-purge-owner@example.com');
+    await mirrorRow(newDb, schema.accounts, owner);
+    const applicant = await seedApplicant(oldDb, owner.id);
+    await mirrorRow(newDb, schema.applicants, applicant);
+
+    const registered = await registerDocument(oldDb, {
+      actorAccountId: owner.id,
+      applicantId: applicant.id,
+      originalName: 'bank-statement.pdf',
+    });
+    if (!isOk(registered)) throw new Error('setup failed');
+    const documentId = registered.value.id;
+    await addDocumentVersion(oldDb, {
+      actorAccountId: owner.id,
+      documentId,
+      bucket: 'CLEAN',
+      objectKey: 'obj-retention-purge',
+    });
+    await storage.putObject({
+      bucket: 'CLEAN',
+      objectKey: 'obj-retention-purge',
+      contentType: 'application/pdf',
+      bytes: new Uint8Array([1]),
+    });
+    const documentRow = first(
+      await oldDb.select().from(schema.documents).where(eq(schema.documents.id, documentId)),
+    );
+    const versionRow = first(
+      await oldDb
+        .select()
+        .from(schema.documentVersions)
+        .where(eq(schema.documentVersions.documentId, documentId)),
+    );
+    const storageObject = first(
+      await oldDb
+        .select()
+        .from(schema.storageObjects)
+        .where(eq(schema.storageObjects.objectKey, 'obj-retention-purge')),
+    );
+    if (!documentRow || !versionRow || !storageObject) throw new Error('setup failed');
+    await mirrorRow(newDb, schema.documents, documentRow);
+    await mirrorRow(newDb, schema.storageObjects, storageObject);
+    await mirrorRow(newDb, schema.documentVersions, versionRow);
+
+    // A mission on the restored branch that currently selects this same
+    // document as evidence -- proves `forceErasureVerified` bumps material
+    // revision (mirroring `finalizeVerifiedJob`'s own real behavior) before
+    // tearing the document down, not just deleting rows blindly.
+    // createMission requires CORE_PROCESSING consent on whichever db it
+    // runs against -- seedApplicant already set this on oldDb, but this
+    // mission is deliberately created directly on newDb, so it needs its
+    // own consent record there too.
+    await setConsent(newDb, {
+      actorAccountId: owner.id,
+      accountId: owner.id,
+      type: 'CORE_PROCESSING',
+      granted: true,
+    });
+    const mission = await createMission(newDb, {
+      actorAccountId: owner.id,
+      applicantId: applicant.id,
+      title: 'Retention purge case',
+    });
+    if (!isOk(mission)) throw new Error('setup failed');
+    const missionBefore = first(
+      await newDb.select().from(schema.missions).where(eq(schema.missions.id, mission.value.id)),
+    );
+    if (!missionBefore) throw new Error('setup failed');
+    const [pack] = await newDb
+      .insert(schema.packs)
+      .values({ key: 'test.retention-purge', name: 'Test pack' })
+      .returning();
+    if (!pack) throw new Error('setup failed');
+    const [packVersion] = await newDb
+      .insert(schema.packVersions)
+      .values({ packId: pack.id, version: 1 })
+      .returning();
+    if (!packVersion) throw new Error('setup failed');
+    const [requirement] = await newDb
+      .insert(schema.packRequirements)
+      .values({
+        packVersionId: packVersion.id,
+        kind: 'DOCUMENT',
+        docType: 'bank_statement',
+        citation: 'test citation',
+      })
+      .returning();
+    if (!requirement) throw new Error('setup failed');
+    await newDb.insert(schema.selectedEvidence).values({
+      missionId: mission.value.id,
+      packRequirementId: requirement.id,
+      documentId,
+    });
+
+    await enqueueErasureJob(oldDb, {
+      reason: 'RETENTION_PURGE',
+      bucket: 'CLEAN',
+      objectKey: 'obj-retention-purge',
+      expectedHash: null,
+      storageObjectId: storageObject.id,
+      documentId,
+      applicantId: applicant.id,
+    });
+    const workerResult = await runErasureWorker(oldDb, storage, { limit: 5 });
+    expect(workerResult).toEqual({ processed: 1, blocked: 0, failed: 0 });
+    // Confirms the old branch's own erasure genuinely completed the full
+    // cascade (single sibling, so this one job's own verification is also
+    // the document's last) -- otherwise the no-op assertions below the
+    // second run would pass vacuously.
+    expect(
+      await oldDb.select().from(schema.documents).where(eq(schema.documents.id, documentId)),
+    ).toHaveLength(0);
+    await oldDb
+      .update(schema.auditEvents)
+      .set({ occurredAt: AFTER })
+      .where(eq(schema.auditEvents.eventType, 'ERASURE_VERIFIED'));
+
+    const report = await reconcileRestoredBranch(oldDb, newDb, RESTORE_POINT);
+    expect(report.counts.erasuresVerified).toBe(1);
+    expect(report.errors).toHaveLength(0);
+    expect(
+      await newDb.select().from(schema.documents).where(eq(schema.documents.id, documentId)),
+    ).toHaveLength(0);
+    expect(
+      await newDb
+        .select()
+        .from(schema.storageObjects)
+        .where(eq(schema.storageObjects.id, storageObject.id)),
+    ).toHaveLength(0);
+    const missionAfter = first(
+      await newDb.select().from(schema.missions).where(eq(schema.missions.id, mission.value.id)),
+    );
+    expect(missionAfter?.materialRevision).toBeGreaterThan(missionBefore.materialRevision);
+
+    const secondReport = await reconcileRestoredBranch(oldDb, newDb, RESTORE_POINT);
+    expect(secondReport.counts.erasuresVerified).toBe(0);
+    expect(secondReport.errors).toHaveLength(0);
+  });
+
+  it('leaves a RETENTION_PURGE-reason document and its storage objects untouched when the old branch itself never finished verifying every sibling', async () => {
+    const storage = new FakeBlobStore();
+    const owner = await seedAccount(oldDb, 'retention-purge-partial@example.com');
+    await mirrorRow(newDb, schema.accounts, owner);
+    const applicant = await seedApplicant(oldDb, owner.id);
+    await mirrorRow(newDb, schema.applicants, applicant);
+
+    const registered = await registerDocument(oldDb, {
+      actorAccountId: owner.id,
+      applicantId: applicant.id,
+      originalName: 'multi-version.pdf',
+    });
+    if (!isOk(registered)) throw new Error('setup failed');
+    const documentId = registered.value.id;
+    const objectKeys = ['obj-partial-1', 'obj-partial-2'];
+    for (const objectKey of objectKeys) {
+      await addDocumentVersion(oldDb, {
+        actorAccountId: owner.id,
+        documentId,
+        bucket: 'CLEAN',
+        objectKey,
+      });
+      await storage.putObject({
+        bucket: 'CLEAN',
+        objectKey,
+        contentType: 'application/pdf',
+        bytes: new Uint8Array([1]),
+      });
+    }
+    const documentRow = first(
+      await oldDb.select().from(schema.documents).where(eq(schema.documents.id, documentId)),
+    );
+    if (!documentRow) throw new Error('setup failed');
+    await mirrorRow(newDb, schema.documents, documentRow);
+    const storageObjectRows = await oldDb
+      .select()
+      .from(schema.storageObjects)
+      .where(inArray(schema.storageObjects.objectKey, objectKeys));
+    for (const object of storageObjectRows) await mirrorRow(newDb, schema.storageObjects, object);
+    const versionRows = await oldDb
+      .select()
+      .from(schema.documentVersions)
+      .where(eq(schema.documentVersions.documentId, documentId));
+    for (const version of versionRows) await mirrorRow(newDb, schema.documentVersions, version);
+    for (const object of storageObjectRows) {
+      await enqueueErasureJob(oldDb, {
+        reason: 'RETENTION_PURGE',
+        bucket: 'CLEAN',
+        objectKey: object.objectKey,
+        expectedHash: null,
+        storageObjectId: object.id,
+        documentId,
+        applicantId: applicant.id,
+      });
+    }
+
+    // Process strictly one of the two sibling jobs -- the document is
+    // deliberately still alive on the old branch itself, proving this test
+    // exercises the "not yet fully verified" path, not a vacuous no-op.
+    await runErasureWorker(oldDb, storage, { limit: 1 });
+    expect(
+      await oldDb.select().from(schema.documents).where(eq(schema.documents.id, documentId)),
+    ).toHaveLength(1);
+    await oldDb
+      .update(schema.auditEvents)
+      .set({ occurredAt: AFTER })
+      .where(eq(schema.auditEvents.eventType, 'ERASURE_VERIFIED'));
+
+    const report = await reconcileRestoredBranch(oldDb, newDb, RESTORE_POINT);
+    expect(report.counts.erasuresVerified).toBe(0);
+    expect(report.errors).toHaveLength(0);
+    expect(
+      await newDb.select().from(schema.documents).where(eq(schema.documents.id, documentId)),
+    ).toHaveLength(1);
+    expect(
+      await newDb
+        .select()
+        .from(schema.storageObjects)
+        .where(inArray(schema.storageObjects.objectKey, objectKeys)),
+    ).toHaveLength(2);
   });
 });

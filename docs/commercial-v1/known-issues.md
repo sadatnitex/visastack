@@ -1581,19 +1581,47 @@ item gets its own requirements-ledger row once classified against the new direct
       reconciliation. A purged mission that never existed on the restored
       branch at all is a clean no-op, never an error, proven by a
       dedicated test alongside the main replay-and-idempotency test (12
-      tests total now). **Deliberately still deferred, its own later
-      chunk:** `ERASURE_VERIFIED` replay. Investigation found this is not
-      a "reuse a cascading function" problem like the two rules above: at
-      least three independent enqueue sources exist in this codebase
-      (account deletion, case-retention purge, and a separate
-      manually-triggered per-document retention purge via
-      `purgeExpiredDocuments`), each with different row-level completion
-      side effects, and the underlying bytes live in external object
-      storage that is not branched alongside Postgres -- once verified
-      deleted on the pre-incident branch they are actually gone, shared by
-      both branches, so reconciling this is about forcing the restored
-      branch's own row state to reflect that reality, never re-running a
-      real delete-and-verify round trip against the blob store.
+      tests total now). **RESOLVED (2026-09-27), `ERASURE_VERIFIED`
+      replay.** A follow-up investigation corrected the earlier scoping
+      note above: case-retention (mission) purge does NOT touch erasure at
+      all -- it redacts the mission row in place and never calls
+      `enqueueErasureJob`, confirmed by reading `case-retention.ts` in
+      full (no import of, or call into, `erasure.ts` anywhere in it). There
+      are exactly two real enqueue sources, not three: account deletion (a
+      single, ungated storage-object delete) and `retention.ts`'s
+      `purgeExpiredDocuments` (gated behind every sibling storage object a
+      document ever referenced also reaching VERIFIED, per
+      `finalizeVerifiedJob`'s own completion check). Rather than
+      reconstructing that job-by-job gating state machine on the restored
+      branch, `forceErasureVerified` asks the one branch that actually
+      knows the ground truth -- the old branch, right now -- whether the
+      document is already gone there: gone means the full cascade
+      genuinely completed on the old branch at some point, so the
+      identical end state (including bumping material revision for any
+      mission on the restored branch still selecting that document as
+      evidence, exactly like `finalizeVerifiedJob` itself does before
+      tearing the document down) is forced onto the restored branch; still
+      there means this individual sibling's own bytes are gone but the
+      document was never fully erasure-verified even by the old branch's
+      own final state, so the restored branch is correctly left untouched
+      too. The underlying bytes are already gone for real on both branches
+      simultaneously by the time any of this runs -- Vercel Blob's
+      `del()` is external, never branched alongside Postgres -- so no
+      `erasureJobs` bookkeeping row is recreated on the restored branch at
+      all; that table is pure operational queue state, not the
+      privacy-relevant fact itself. The one place a document id needed
+      recovering from (the audit event carries no such column) is
+      `erasureJobs` on the OLD branch -- uniquely among the tables this
+      reads, that one is designed to outlive the very domain rows it
+      started from. 3 new tests: the simple account-deletion-reason branch
+      plus its own idempotent second run; the full document+sibling
+      cascade forced correctly, including the material-revision bump,
+      plus its own idempotent second run; and the critical safety property
+      that a document is left completely untouched when the old branch
+      itself never finished verifying every sibling. **All 10 reconciled
+      event types are now covered; backup resurrection reconciliation
+      (§15) is complete.** Full `@visastack/services` suite, repo-wide
+      typecheck/lint clean.
 
     Full detail: `docs/commercial-v1/privacy-data-map.md` §4 (summary,
     cross-referencing here rather than duplicating) and
