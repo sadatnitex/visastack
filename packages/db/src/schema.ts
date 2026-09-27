@@ -1409,8 +1409,19 @@ export const evidenceLocations = pgTable(
       .notNull()
       .references(() => fieldProposals.id, { onDelete: 'cascade' }),
     snippet: text('snippet').notNull(),
+    // Set only when `verified` is true (an exact substring match) -- never an
+    // approximate/normalized position, so a future highlight built from these
+    // is always honestly exact, never a guess.
     charStart: integer('char_start'),
     charEnd: integer('char_end'),
+    // Part 8 AI-04 (evidence grounding): whether this snippet was actually
+    // confirmed, server-side, as a verbatim exact substring of the document
+    // text the model was given -- not merely instructed by the prompt to be
+    // one. Null means never checked (a row from before this column existed,
+    // or -- for a cache-hit copy -- carried forward from the original run's
+    // own check); true/false is a real, computed answer, set once at
+    // insert time and never revised afterward.
+    verified: boolean('verified'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [index('evidence_locations_field_proposal_idx').on(table.fieldProposalId)],

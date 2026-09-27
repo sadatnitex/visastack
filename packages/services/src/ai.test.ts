@@ -1115,3 +1115,124 @@ describe('AI Gateway -- concurrency gate and budget-race safety (Part 8 §11)', 
     if (isErr(third)) expect(third.error.code).toBe('invalid');
   });
 });
+
+describe('AI Gateway -- evidence grounding (Part 8 AI-04)', () => {
+  let db: Db;
+  beforeEach(async () => {
+    db = await freshDb();
+  });
+
+  const MRZ_SNIPPET = 'L898902C36UTO7408122F1204159ZE184226B';
+
+  it('confirms and records the exact position of a genuinely verbatim evidence snippet', async () => {
+    const { account, applicantId, versionId } = await seedVersion(
+      db,
+      'ai-evidence-verified@example.com',
+    );
+    await grantAiConsent(db, account.id);
+    await registerFieldDefinition(db, { key: 'passport.number', dataType: 'string' });
+    const sourceText = `Passport MRZ: ${MRZ_SNIPPET} end of document`;
+
+    const run = await runExtraction(db, stubAi(), {
+      actorAccountId: account.id,
+      applicantId,
+      documentVersionId: versionId,
+      text: sourceText,
+      budgetLimitUnits: 10,
+    });
+    if (!isOk(run)) throw new Error('run failed');
+    const proposalId = run.value.proposals.find((p) => p.fieldKey === 'passport.number')
+      ?.id as string;
+
+    const evidence = await db
+      .select()
+      .from(schema.evidenceLocations)
+      .where(eq(schema.evidenceLocations.fieldProposalId, proposalId));
+    expect(evidence).toHaveLength(1);
+    expect(evidence[0]?.verified).toBe(true);
+    const expectedStart = sourceText.indexOf(MRZ_SNIPPET);
+    expect(evidence[0]?.charStart).toBe(expectedStart);
+    expect(evidence[0]?.charEnd).toBe(expectedStart + MRZ_SNIPPET.length);
+  });
+
+  it('flags a fabricated evidence snippet as unverified, without dropping the proposal', async () => {
+    const { account, applicantId, versionId } = await seedVersion(
+      db,
+      'ai-evidence-unverified@example.com',
+    );
+    await grantAiConsent(db, account.id);
+    await registerFieldDefinition(db, { key: 'passport.number', dataType: 'string' });
+    const fabricated: FieldProposal[] = [
+      {
+        type: 'NEW',
+        fieldKey: 'passport.number',
+        value: 'L898902C3',
+        confidence: 0.9,
+        evidenceSnippet: 'this exact phrase never appears anywhere in the source document',
+      },
+    ];
+
+    const run = await runExtraction(
+      db,
+      stubAi({ ok: true, result: { proposals: fabricated, usage } }),
+      {
+        actorAccountId: account.id,
+        applicantId,
+        documentVersionId: versionId,
+        text: `Passport MRZ: ${MRZ_SNIPPET}`,
+        budgetLimitUnits: 10,
+      },
+    );
+    if (!isOk(run)) throw new Error('run failed');
+    // Unverified evidence is a signal for the human reviewer, never a reason
+    // to silently drop an otherwise-structurally-valid proposal.
+    expect(run.value.proposals).toHaveLength(1);
+
+    const evidence = await db
+      .select()
+      .from(schema.evidenceLocations)
+      .where(eq(schema.evidenceLocations.fieldProposalId, run.value.proposals[0]?.id ?? ''));
+    expect(evidence).toHaveLength(1);
+    expect(evidence[0]?.verified).toBe(false);
+    expect(evidence[0]?.charStart).toBeNull();
+    expect(evidence[0]?.charEnd).toBeNull();
+  });
+
+  it('carries a verified evidence flag through a cache hit unchanged', async () => {
+    const { account, applicantId, versionId } = await seedVersion(
+      db,
+      'ai-evidence-cache@example.com',
+    );
+    await grantAiConsent(db, account.id);
+    await registerFieldDefinition(db, { key: 'passport.number', dataType: 'string' });
+    const { ai } = countingStubAi();
+    const sourceText = `Passport MRZ: ${MRZ_SNIPPET}`;
+
+    const first = await runExtraction(db, ai, {
+      actorAccountId: account.id,
+      applicantId,
+      documentVersionId: versionId,
+      text: sourceText,
+      budgetLimitUnits: 1000,
+    });
+    if (!isOk(first)) throw new Error('first run failed');
+
+    const second = await runExtraction(db, ai, {
+      actorAccountId: account.id,
+      applicantId,
+      documentVersionId: versionId,
+      text: sourceText,
+      budgetLimitUnits: 1000,
+    });
+    if (!isOk(second)) throw new Error('second run failed');
+
+    const cachedProposalId = second.value.proposals.find((p) => p.fieldKey === 'passport.number')
+      ?.id as string;
+    const evidence = await db
+      .select()
+      .from(schema.evidenceLocations)
+      .where(eq(schema.evidenceLocations.fieldProposalId, cachedProposalId));
+    expect(evidence).toHaveLength(1);
+    expect(evidence[0]?.verified).toBe(true);
+  });
+});

@@ -1990,6 +1990,37 @@ item gets its own requirements-ledger row once classified against the new direct
     Full detail: `requirements-ledger.md` AI-08/A24,
     `docs/audits/ai-gateway-boundary-map.md`,
     `docs/security/durable-jobs-and-upload-integrity-boundary.md`.
+    **Chunk 3 (this update) -- evidence grounding (AI-04).** The system
+    prompt already instructed the model to ground every value in "an exact,
+    verbatim substring copied from the document text," but nothing checked
+    that server-side -- a hallucinated or paraphrased citation would persist
+    identically to a genuine one, with no signal distinguishing them for the
+    human reviewer who is supposed to be able to trust the quote. Closed:
+    `runExtraction` now searches for each proposal's `evidenceSnippet` as an
+    exact substring of the deterministic text actually sent to the model,
+    recording `charStart`/`charEnd` and a new `evidence_locations.verified`
+    boolean on a match, `verified: false` (no position) otherwise. Never a
+    reason to drop the proposal itself -- an unverified citation is still
+    persisted and reviewable, just flagged, matching this codebase's
+    established "proposals are advisory, never silently resolved" pattern
+    (the same reasoning `approveProposal`'s CONFLICTED status already
+    applies to a disagreeing trusted value). Deliberately exact-match only,
+    no whitespace-normalized or fuzzy fallback: a false negative (a genuine
+    quote reformatted by OCR/whitespace differences) costs only a moment of
+    extra human scrutiny, while a false positive from a looser match would
+    wrongly badge a fabricated citation as confirmed -- the wrong failure
+    direction for a trust signal, and not worth inventing a normalization
+    scheme to avoid. Cache hits copy the original run's `verified`/position
+    forward unchanged, correct by construction since the cache key is bound
+    to the same content hash. New `apps/web` surfacing: the proposal review
+    card now shows an "Unverified quote" badge when the top evidence snippet
+    failed verification, so the signal actually reaches the person deciding
+    whether to approve. New `evidence_locations.verified` column (additive
+    migration `0075`). 3 new tests (`ai.test.ts`'s "evidence grounding"
+    suite). Full `@visastack/services` suite, repo-wide typecheck/lint, and
+    production build all clean. Not verified in a live browser (sandbox
+    limitation, same as every prior UI chunk this session).
+    Full detail: `requirements-ledger.md` AI-04.
 independently confirmed findings; the missing PRD file is tracked as Blocker 1 in
 `assumptions-and-blockers.md` (now resolved) rather than here, since it blocked the
 programme rather than being a product defect.

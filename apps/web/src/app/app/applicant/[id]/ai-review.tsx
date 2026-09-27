@@ -39,6 +39,12 @@ export function RunAiExtractionButton({
   );
 }
 
+export interface AiEvidenceViewModel {
+  readonly snippet: string;
+  /** null = never checked (predates AI-04's verification); true/false = a real, computed answer. */
+  readonly verified: boolean | null;
+}
+
 export interface AiProposalViewModel {
   readonly id: string;
   readonly type: string;
@@ -47,7 +53,7 @@ export interface AiProposalViewModel {
   /** 0-100. */
   readonly confidence: number;
   readonly rationale: string | null;
-  readonly evidenceSnippets: readonly string[];
+  readonly evidence: readonly AiEvidenceViewModel[];
 }
 
 /** A single PENDING AI field proposal awaiting an owner decision. */
@@ -91,9 +97,18 @@ export function AiProposalReview({
         </span>
         {proposal.rationale ? ` — ${proposal.rationale}` : ''}
       </p>
-      {proposal.evidenceSnippets.length > 0 ? (
+      {proposal.evidence.length > 0 ? (
         <p className="muted" style={{ fontSize: '0.75rem', marginBottom: '0.4rem' }}>
-          Evidence: <q>{proposal.evidenceSnippets[0]}</q>
+          Evidence: <q>{proposal.evidence[0]?.snippet}</q>
+          {proposal.evidence[0]?.verified === false ? (
+            <span
+              className="badge badge-warning"
+              style={{ marginLeft: '0.4rem' }}
+              title="This exact quote could not be confirmed in the source document text."
+            >
+              Unverified quote
+            </span>
+          ) : null}
         </p>
       ) : null}
       <form

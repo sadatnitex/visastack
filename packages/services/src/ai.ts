@@ -292,6 +292,34 @@ function computeCacheKey(
   return createHash('sha256').update(parts.join('|')).digest('hex');
 }
 
+export interface EvidenceLocationResult {
+  readonly charStart: number;
+  readonly charEnd: number;
+}
+
+/**
+ * AI-04 (evidence grounding): the system prompt instructs the model to
+ * ground every value in "an exact, verbatim substring copied from the
+ * document text," but nothing before this checked that -- a hallucinated or
+ * paraphrased citation would sail through with no server-side signal
+ * distinguishing it from a genuine one. An exact substring search is the
+ * deliberately simple, zero-false-positive check: if this returns a
+ * position, the snippet provably, byte-for-byte appears in the source text
+ * the model was given. Deliberately does NOT fall back to a
+ * whitespace-normalized or fuzzy match -- an unverified snippet is not
+ * dropped anywhere downstream (still persisted, still reviewable), so a
+ * false negative here (a genuine quote that differs only in whitespace/OCR
+ * artifacts) costs nothing but an extra moment of human scrutiny, while a
+ * false positive from a looser match could wrongly badge a fabricated
+ * citation as confirmed -- the wrong failure direction for a trust signal.
+ */
+function locateEvidenceSnippet(sourceText: string, snippet: string): EvidenceLocationResult | null {
+  if (!snippet) return null;
+  const charStart = sourceText.indexOf(snippet);
+  if (charStart === -1) return null;
+  return { charStart, charEnd: charStart + snippet.length };
+}
+
 async function latestPageCount(db: Db, documentVersionId: string): Promise<number | null> {
   const row = first(
     await db
@@ -607,6 +635,7 @@ export async function runExtraction(
             snippet: evidence.snippet,
             charStart: evidence.charStart,
             charEnd: evidence.charEnd,
+            verified: evidence.verified,
           });
         }
         savedProposals.push(saved);
@@ -771,9 +800,13 @@ export async function runExtraction(
         'field proposal',
       );
       if (proposal.evidenceSnippet) {
+        const located = locateEvidenceSnippet(input.text, proposal.evidenceSnippet);
         await tx.insert(schema.evidenceLocations).values({
           fieldProposalId: saved.id,
           snippet: proposal.evidenceSnippet,
+          charStart: located?.charStart ?? null,
+          charEnd: located?.charEnd ?? null,
+          verified: located !== null,
         });
       }
       savedProposals.push(saved);
