@@ -6,6 +6,7 @@ import type {
   AiExtractionPort,
   FieldProposal,
 } from '@visastack/services';
+import { withTimeout } from './timeout';
 
 /**
  * OpenAI Responses API adapter (master directive §8/§26 item 4, Release D):
@@ -27,7 +28,11 @@ const DEFAULT_PROMPT_VERSION = '2026-07-29-v1';
 /** Master directive §7 "PR 9": "initial reasoning effort low" — the pilot's required starting point, not just an operator-configurable option. */
 const DEFAULT_REASONING_EFFORT = 'low';
 const SCHEMA_VERSION = 'field_proposals_v1';
+/** Official host, a plain literal never influenced by any admin/config input (Part 8 §7: "built-in adapters: official provider host locked"). */
 const RESPONSES_URL = 'https://api.openai.com/v1/responses';
+/** Part 8 §11's named default request timeout. */
+const DEFAULT_TIMEOUT_MS = 60_000;
+const PROVIDER = 'openai';
 
 const SYSTEM_PROMPT = `You extract structured field proposals from a single immigration-applicant document for a human to review and approve. You are NOT authorized to write anything directly — every proposal you make will be reviewed by a person before it can change any record.
 
@@ -84,6 +89,8 @@ export interface OpenAiExtractionAdapterOptions {
    * opted in via the `OPENAI_STORE_RESPONSES` env contract knob.
    */
   readonly storeResponses?: boolean;
+  /** Part 8 §11's default is 60s; overridable (tests use a short value to prove the timeout path without a real 60s wait). */
+  readonly timeoutMs?: number;
   /** Injectable for testing; defaults to the global fetch. */
   readonly fetchImpl?: typeof fetch;
 }
@@ -95,6 +102,7 @@ export class OpenAiExtractionAdapter implements AiExtractionPort {
   private readonly projectId: string | undefined;
   private readonly reasoningEffort: string;
   private readonly storeResponses: boolean;
+  private readonly timeoutMs: number;
   private readonly fetchImpl: typeof fetch;
 
   constructor(options: OpenAiExtractionAdapterOptions) {
@@ -104,6 +112,7 @@ export class OpenAiExtractionAdapter implements AiExtractionPort {
     this.projectId = options.projectId;
     this.reasoningEffort = options.reasoningEffort ?? DEFAULT_REASONING_EFFORT;
     this.storeResponses = options.storeResponses ?? false;
+    this.timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
     this.fetchImpl = options.fetchImpl ?? fetch;
   }
 
@@ -117,46 +126,71 @@ export class OpenAiExtractionAdapter implements AiExtractionPort {
   }
 
   async extract(input: AiExtractionInput): Promise<AiExtractionOutcome> {
+    const startedAt = Date.now();
     let response: Response;
     try {
-      response = await this.fetchImpl(RESPONSES_URL, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${this.apiKey}`,
-          ...(this.projectId ? { 'OpenAI-Project': this.projectId } : {}),
-        },
-        body: JSON.stringify({
-          model: this.model,
-          store: this.storeResponses,
-          input: [
-            { role: 'developer', content: SYSTEM_PROMPT },
-            {
-              role: 'user',
-              content: `Allowed field keys (JSON array — use ONLY these, or UNMAPPED/UNCERTAIN): ${JSON.stringify(input.allowedFieldKeys)}\n\nDocument text:\n"""\n${input.text}\n"""`,
-            },
-          ],
-          reasoning: { effort: this.reasoningEffort },
-          text: {
-            format: {
-              type: 'json_schema',
-              name: 'field_proposals',
-              schema: PROPOSAL_SCHEMA,
-              strict: true,
-            },
+      response = await withTimeout(
+        this.fetchImpl(RESPONSES_URL, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${this.apiKey}`,
+            ...(this.projectId ? { 'OpenAI-Project': this.projectId } : {}),
           },
+          body: JSON.stringify({
+            model: this.model,
+            store: this.storeResponses,
+            input: [
+              { role: 'developer', content: SYSTEM_PROMPT },
+              {
+                role: 'user',
+                content: `Allowed field keys (JSON array - use ONLY these, or UNMAPPED/UNCERTAIN): ${JSON.stringify(input.allowedFieldKeys)}\n\nDocument text:\n"""\n${input.text}\n"""`,
+              },
+            ],
+            reasoning: { effort: this.reasoningEffort },
+            text: {
+              format: {
+                type: 'json_schema',
+                name: 'field_proposals',
+                schema: PROPOSAL_SCHEMA,
+                strict: true,
+              },
+            },
+          }),
         }),
-      });
+        this.timeoutMs,
+        'OpenAI Responses API call',
+      );
     } catch (error) {
+      const latencyMs = Date.now() - startedAt;
+      const timedOut = error instanceof Error && error.message.includes('timed out after');
       return {
         ok: false,
-        code: 'upstream_error',
+        code: timedOut ? 'timeout' : 'upstream_error',
         message: error instanceof Error ? error.message : 'network error calling OpenAI',
+        provider: PROVIDER,
+        latencyMs,
       };
     }
+    const latencyMs = Date.now() - startedAt;
 
+    if (response.status === 401 || response.status === 403) {
+      return {
+        ok: false,
+        code: 'auth_failed',
+        message: `OpenAI rejected the configured API key (status ${response.status})`,
+        provider: PROVIDER,
+        latencyMs,
+      };
+    }
     if (response.status === 429) {
-      return { ok: false, code: 'rate_limited', message: 'OpenAI rate limit exceeded' };
+      return {
+        ok: false,
+        code: 'rate_limited',
+        message: 'OpenAI rate limit exceeded',
+        provider: PROVIDER,
+        latencyMs,
+      };
     }
     if (!response.ok) {
       const body = await response.text().catch(() => '');
@@ -164,6 +198,8 @@ export class OpenAiExtractionAdapter implements AiExtractionPort {
         ok: false,
         code: 'upstream_error',
         message: `OpenAI responded ${response.status}: ${body.slice(0, 500)}`,
+        provider: PROVIDER,
+        latencyMs,
       };
     }
 
@@ -175,15 +211,31 @@ export class OpenAiExtractionAdapter implements AiExtractionPort {
         ok: false,
         code: 'invalid_response',
         message: 'OpenAI response was not valid JSON',
+        provider: PROVIDER,
+        latencyMs,
       };
     }
 
     const parsed = parseResponsesPayload(payload);
-    if (!parsed) {
+    if (parsed.kind === 'invalid') {
       return {
         ok: false,
         code: 'invalid_response',
         message: 'OpenAI response had an unexpected shape',
+        provider: PROVIDER,
+        latencyMs,
+      };
+    }
+    if (parsed.kind === 'refusal') {
+      return { ok: false, code: 'refused', message: parsed.message, provider: PROVIDER, latencyMs };
+    }
+    if (parsed.kind === 'truncated') {
+      return {
+        ok: false,
+        code: 'truncated',
+        message: 'OpenAI response was truncated before completing (max_output_tokens reached)',
+        provider: PROVIDER,
+        latencyMs,
       };
     }
 
@@ -204,9 +256,15 @@ export class OpenAiExtractionAdapter implements AiExtractionPort {
           // "Cost units" = tokens billed for this call — an honest, driftless
           // proxy for spend without hardcoding a dollar-per-token table here.
           costUnits: parsed.totalTokens,
+          inputUnits: parsed.inputTokens,
+          outputUnits: parsed.outputTokens,
+          cachedUnits: parsed.cachedTokens,
           modelVersion: this.model,
           promptVersion: this.promptVersion,
           schemaVersion: SCHEMA_VERSION,
+          provider: PROVIDER,
+          ...(parsed.responseId ? { providerRequestId: parsed.responseId } : {}),
+          latencyMs,
         },
       },
     };
@@ -222,6 +280,8 @@ function toProposalType(value: string): ProposalType {
 // Declared (non-index-signature) shapes for the untrusted response payload,
 // so narrowing reads as plain dot-access instead of bracket-indexed casts.
 interface RawResponsesPayload {
+  readonly id?: unknown;
+  readonly status?: unknown;
   readonly output_text?: unknown;
   readonly output?: unknown;
   readonly usage?: unknown;
@@ -231,9 +291,16 @@ interface RawOutputItem {
 }
 interface RawContentPart {
   readonly text?: unknown;
+  readonly refusal?: unknown;
 }
 interface RawUsage {
   readonly total_tokens?: unknown;
+  readonly input_tokens?: unknown;
+  readonly output_tokens?: unknown;
+  readonly input_tokens_details?: unknown;
+}
+interface RawInputTokensDetails {
+  readonly cached_tokens?: unknown;
 }
 interface RawBody {
   readonly proposals?: unknown;
@@ -243,22 +310,45 @@ interface RawProposal {
   readonly confidence?: unknown;
 }
 
-function parseResponsesPayload(
-  payload: unknown,
-): { proposals: JsonSchemaProposal[]; totalTokens: number } | undefined {
-  if (typeof payload !== 'object' || payload === null) return undefined;
-  const outputText = extractOutputText(payload as RawResponsesPayload);
-  if (outputText === undefined) return undefined;
+type ParsedResponsesPayload =
+  | {
+      readonly kind: 'proposals';
+      readonly proposals: JsonSchemaProposal[];
+      readonly totalTokens: number;
+      readonly inputTokens: number;
+      readonly outputTokens: number;
+      readonly cachedTokens: number;
+      readonly responseId?: string;
+    }
+  | { readonly kind: 'refusal'; readonly message: string }
+  | { readonly kind: 'truncated' }
+  | { readonly kind: 'invalid' };
+
+function parseResponsesPayload(payload: unknown): ParsedResponsesPayload {
+  if (typeof payload !== 'object' || payload === null) return { kind: 'invalid' };
+  const record = payload as RawResponsesPayload;
+
+  // A response cut off before completing (`max_output_tokens` reached) may
+  // still contain SOMETHING that happens to parse as JSON below -- but it
+  // was never actually finished, so it must never be trusted as a complete
+  // set of proposals (Part 8 §4's own named "truncation" failure mode).
+  if (record.status === 'incomplete') return { kind: 'truncated' };
+
+  const refusal = extractRefusal(record);
+  if (refusal !== undefined) return { kind: 'refusal', message: refusal };
+
+  const outputText = extractOutputText(record);
+  if (outputText === undefined) return { kind: 'invalid' };
 
   let body: unknown;
   try {
     body = JSON.parse(outputText);
   } catch {
-    return undefined;
+    return { kind: 'invalid' };
   }
-  if (typeof body !== 'object' || body === null) return undefined;
+  if (typeof body !== 'object' || body === null) return { kind: 'invalid' };
   const proposalsRaw = (body as RawBody).proposals;
-  if (!Array.isArray(proposalsRaw)) return undefined;
+  if (!Array.isArray(proposalsRaw)) return { kind: 'invalid' };
 
   const proposals = proposalsRaw.filter((p): p is JsonSchemaProposal => {
     if (typeof p !== 'object' || p === null) return false;
@@ -266,15 +356,27 @@ function parseResponsesPayload(
     return typeof candidate.type === 'string' && typeof candidate.confidence === 'number';
   });
 
-  const usage = (payload as RawResponsesPayload).usage;
-  const totalTokens =
-    typeof usage === 'object' &&
-    usage !== null &&
-    typeof (usage as RawUsage).total_tokens === 'number'
-      ? ((usage as RawUsage).total_tokens as number)
-      : 0;
+  const usage = record.usage;
+  const rawUsage = typeof usage === 'object' && usage !== null ? (usage as RawUsage) : undefined;
+  const totalTokens = typeof rawUsage?.total_tokens === 'number' ? rawUsage.total_tokens : 0;
+  const inputTokens = typeof rawUsage?.input_tokens === 'number' ? rawUsage.input_tokens : 0;
+  const outputTokens = typeof rawUsage?.output_tokens === 'number' ? rawUsage.output_tokens : 0;
+  const inputDetails =
+    typeof rawUsage?.input_tokens_details === 'object' && rawUsage.input_tokens_details !== null
+      ? (rawUsage.input_tokens_details as RawInputTokensDetails)
+      : undefined;
+  const cachedTokens =
+    typeof inputDetails?.cached_tokens === 'number' ? inputDetails.cached_tokens : 0;
 
-  return { proposals, totalTokens };
+  return {
+    kind: 'proposals',
+    proposals,
+    totalTokens,
+    inputTokens,
+    outputTokens,
+    cachedTokens,
+    ...(typeof record.id === 'string' ? { responseId: record.id } : {}),
+  };
 }
 
 /** The Responses API exposes a convenience `output_text`; fall back to walking `output`. */
@@ -289,6 +391,29 @@ function extractOutputText(record: RawResponsesPayload): string | undefined {
     for (const part of content as readonly RawContentPart[]) {
       if (typeof part === 'object' && part !== null && typeof part.text === 'string') {
         return part.text;
+      }
+    }
+  }
+  return undefined;
+}
+
+/**
+ * A structured-output refusal shows up as its own `refusal` string field on
+ * a content part -- a distinct, positive signal from OpenAI that the model
+ * declined to answer, never to be confused with a null/missing value or
+ * treated as just another `invalid_response` (Part 8 §4's own named
+ * "refusal" failure mode).
+ */
+function extractRefusal(record: RawResponsesPayload): string | undefined {
+  const output = record.output;
+  if (!Array.isArray(output)) return undefined;
+  for (const item of output as readonly RawOutputItem[]) {
+    if (typeof item !== 'object' || item === null) continue;
+    const content = item.content;
+    if (!Array.isArray(content)) continue;
+    for (const part of content as readonly RawContentPart[]) {
+      if (typeof part === 'object' && part !== null && typeof part.refusal === 'string') {
+        return part.refusal;
       }
     }
   }

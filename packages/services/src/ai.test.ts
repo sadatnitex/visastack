@@ -135,9 +135,14 @@ function countingStubAi(result: AiExtractionOutcome = { ok: true, result: { prop
 
 const usage = {
   costUnits: 3,
+  inputUnits: 2,
+  outputUnits: 1,
+  cachedUnits: 0,
   modelVersion: 'gpt-5.6-terra',
   promptVersion: 'p1',
   schemaVersion: 's1',
+  provider: 'openai',
+  latencyMs: 42,
 };
 
 describe('AI Gateway — proposals never silently mutate', () => {
