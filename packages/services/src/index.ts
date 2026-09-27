@@ -102,10 +102,13 @@ export {
   type FieldSensitivity,
   type ProtectedValue,
   type RevealValueInput,
+  buildAccountExportAad,
   buildFactVersionAad,
+  protectBytes,
   protectValue,
   requiresProtection,
   resetProtectedFieldKeyCacheForTests,
+  revealBytes,
   revealValue,
 } from './protected-fields';
 
@@ -151,6 +154,21 @@ export type {
 
 export { type AccountExport, type AccountExportManifest, exportAccount } from './export';
 export { type ExportCsvTable, buildExportCsvTables, rowsToCsv } from './export-csv';
+
+export {
+  type AccountExportArtifact,
+  type AccountExportExpirySweepResult,
+  type AccountExportJob,
+  type AccountExportPorts,
+  type AccountExportWorkerResult,
+  type ZipBundler,
+  accountExportArtifactHours,
+  enqueueAccountExportJob,
+  getAccountExportArtifact,
+  listAccountExportJobsForAccount,
+  runAccountExportWorker,
+  sweepExpiredAccountExportArtifacts,
+} from './account-export';
 
 export {
   type AccountLegalHold,

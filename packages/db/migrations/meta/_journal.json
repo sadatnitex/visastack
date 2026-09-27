@@ -491,6 +491,13 @@
       "when": 1790489015727,
       "tag": "0069_wooden_psylocke",
       "breakpoints": true
+    },
+    {
+      "idx": 70,
+      "version": "7",
+      "when": 1790505079121,
+      "tag": "0070_red_wendell_vaughn",
+      "breakpoints": true
     }
   ]
 }

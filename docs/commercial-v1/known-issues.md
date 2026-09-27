@@ -1491,7 +1491,56 @@ item gets its own requirements-ledger row once classified against the new direct
       new query, so it cannot diverge from the JSON export or the
       manifest's counts), plus a copy of `manifest.json` inside the ZIP so
       a CSV-only download stays self-describing. Only original file bytes
-      remain a gap for the traveller export now. Agency export
+      remain a gap for the traveller export now.
+      **Progress (Part 7 §14, Chunk 1 of 3 -- large-export job
+      infrastructure).** The directive's own "Large export" requirements
+      (async durable job, encrypted transient storage, max 24h artifact,
+      safe ZIP paths/names, no traversal/duplicates/executables, current
+      access rechecked at download) needed new infrastructure this codebase
+      had no equivalent of, so this is deliberately split into three chunks
+      rather than one: Chunk 1 (this update) builds the complete async job
+      lifecycle end to end -- proven at the service layer only, no HTTP
+      route or UI yet, matching the established backend-then-UI split
+      already used elsewhere in Part 7. New `accountExportJobs` table
+      (PENDING/CLAIMED/READY/FAILED/EXPIRED) with the same lease/claim/CAS/
+      backoff shape as `erasureJobs` (`enqueueAccountExportJob`,
+      `claimAccountExportJobs`, `processAccountExportJob`,
+      `runAccountExportWorker`, two new daily crons). A claimed job
+      assembles the SAME JSON+CSV export content the existing routes
+      already produce (no new query), ZIPs it via a new `ZipBundler` port
+      (`JszipBundler` in `packages/adapters`, mirroring the existing
+      `BlobStore`/`KeyManagementPort` hexagonal pattern), encrypts the
+      bytes with new `protectBytes`/`revealBytes` (generalizing SEC-03's
+      existing envelope-encryption primitive from strings to `Uint8Array`,
+      same data-key cache, same AAD-binding discipline -- a ciphertext
+      bound to one job's AAD fails closed if ever presented against another
+      job), and stores the result in the existing `BlobStore` (bucket
+      `CLEAN`) rather than a new storage mechanism. Fails closed, never
+      silently unencrypted, when no key-management port is configured. A
+      dedicated expiry sweep purges any artifact past its 24h (default,
+      env-overridable) window, and separately any whose owning account was
+      deleted mid-lifecycle -- `accountExportJobs.accountId` uses
+      `ON DELETE SET NULL` specifically so a mid-export account deletion
+      cannot orphan the encrypted blob outside the sweep's reach. The
+      blob's own object key is scoped by the per-claim `leaseOwner` token
+      (not just the job id), so a worker that loses its lease after writing
+      the blob but before committing READY can never delete a concurrent
+      winning attempt's own blob during its own cleanup. 14 new tests
+      (`account-export.ts`/`.test.ts`, plus 4 new `protectBytes`/
+      `revealBytes` tests in `protected-fields.test.ts`, including a
+      deliberately-invalid-UTF-8 byte sequence proving the byte path never
+      round-trips through string encoding). Full `@visastack/services`
+      suite, repo-wide typecheck/lint, and production build all clean.
+      Deliberately NOT yet done, tracked as Chunks 2-3: the actual original
+      document bytes this feature exists for (Chunk 2 -- joining
+      `storageObjects`, gating on `isDocumentVersionUsable`, safe
+      deduplicated ZIP entry naming), and the HTTP download route plus
+      privacy-page UI (Chunk 3 -- the access-recheck-at-download
+      requirement is already built as `getAccountExportArtifact`, just not
+      yet reachable over HTTP). `knownGaps` in the manifest is intentionally
+      left unchanged by this chunk -- it still names "original document
+      bytes" honestly, since this chunk's artifact does not yet contain
+      them. Agency export
       (`bulkExport`) was not touched in either chunk and has no manifest or
       CSV rendering of its own yet. Agency export is also
       narrower than traveller export by design today (`bulkExport` returns

@@ -2499,6 +2499,68 @@ export const erasureJobs = pgTable(
   ],
 );
 
+export const accountExportJobStatus = pgEnum('account_export_job_status', [
+  'PENDING',
+  'CLAIMED',
+  'READY',
+  'FAILED',
+  'EXPIRED',
+]);
+
+// --- Account export jobs (PRV-04, master directive Part 7 §14 "Large
+// export") ------------------------------------------------------------------
+// The async, durable counterpart to exportAccount's existing synchronous
+// JSON/CSV export -- bundles that same data (and, once a later chunk adds
+// it, original document bytes) into one encrypted artifact, held transiently
+// in the same BlobStore real documents use (bucket/objectKey below) for at
+// most ACCOUNT_EXPORT_ARTIFACT_HOURS. Mirrors erasureJobs' own lease/claim/
+// backoff shape closely, with two states erasure never needed: READY
+// (bundling and encryption complete, artifact downloadable until expiresAt)
+// and EXPIRED (was READY, now past expiresAt; bytes purged by the sweep).
+export const accountExportJobs = pgTable(
+  'account_export_jobs',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    // `set null`, not `cascade`: an account deleted while its own export job
+    // is still PENDING/CLAIMED/READY must not silently orphan the encrypted
+    // artifact this row is the only pointer to -- a cascade delete would
+    // remove the row, and with it the one pointer to the blob, before
+    // anything ever calls BlobStore.deleteObject on it. The expiry sweep
+    // (account-export.ts) treats a null accountId as immediately eligible
+    // for cleanup regardless of expiresAt, closing that gap without needing
+    // any change to account deletion itself.
+    accountId: uuid('account_id').references(() => accounts.id, { onDelete: 'set null' }),
+    status: accountExportJobStatus('status').notNull().default('PENDING'),
+    // Null until a worker actually produces the artifact (READY); denormalized
+    // onto the row like erasureJobs' own bucket/objectKey, for the same
+    // reason -- this row must remain fully actionable (and its own history
+    // fully readable) independent of anything else.
+    bucket: storageBucket('bucket'),
+    objectKey: text('object_key'),
+    // AES-256-GCM nonce/key-version for the artifact at objectKey, set
+    // together with it. Never the data key itself -- see
+    // packages/services/src/protected-fields.ts's protectBytes/revealBytes
+    // and its own envelope-encryption doc comment.
+    encryptionNonce: bytea('encryption_nonce'),
+    encryptionKeyVersion: text('encryption_key_version'),
+    attempts: integer('attempts').notNull().default(0),
+    maxAttempts: integer('max_attempts').notNull().default(5),
+    availableAt: timestamp('available_at', { withTimezone: true }).notNull().defaultNow(),
+    leaseOwner: text('lease_owner'),
+    leaseExpiresAt: timestamp('lease_expires_at', { withTimezone: true }),
+    claimedAt: timestamp('claimed_at', { withTimezone: true }),
+    readyAt: timestamp('ready_at', { withTimezone: true }),
+    expiresAt: timestamp('expires_at', { withTimezone: true }),
+    lastError: text('last_error'),
+    ...timestamps,
+  },
+  (table) => [
+    index('account_export_jobs_status_available_idx').on(table.status, table.availableAt),
+    index('account_export_jobs_account_idx').on(table.accountId),
+    index('account_export_jobs_status_expires_idx').on(table.status, table.expiresAt),
+  ],
+);
+
 // --- Platform administration (master directive §7 "PR 5") ------------------
 // Replaces an env-var allowlist (ADMIN_EMAILS) as the authority for
 // platform-level actions. Immutable and append-only: a grant is never

@@ -18,10 +18,13 @@ import {
   revealFactVersionValue,
 } from './profile';
 import {
+  buildAccountExportAad,
   buildFactVersionAad,
+  protectBytes,
   protectValue,
   requiresProtection,
   resetProtectedFieldKeyCacheForTests,
+  revealBytes,
   revealValue,
 } from './protected-fields';
 
@@ -166,6 +169,77 @@ describe('protected-fields — envelope encryption primitives', () => {
     await protectValue(db, port, 'two', aad2);
     const rows = await db.select().from(dbSchema.dataKeys);
     expect(rows.filter((r) => r.keyVersion === 'shared-v1')).toHaveLength(1);
+  });
+});
+
+describe('protected-fields - protectBytes/revealBytes (account export artifacts)', () => {
+  let db: Db;
+  beforeEach(async () => {
+    db = await freshDb();
+    resetProtectedFieldKeyCacheForTests();
+  });
+
+  it('round-trips arbitrary binary bytes, including ones that are not valid UTF-8', async () => {
+    const port = fakeKeyManagementPort();
+    const aad = buildAccountExportAad({ jobId: 'job-1' });
+    // 0xC0 0x80 is an overlong/invalid UTF-8 sequence - proves this path
+    // never round-trips through a string encoding the way protectValue does.
+    const original = new Uint8Array([0, 1, 2, 0xff, 0xc0, 0x80, 255, 254, 253]);
+    const protected_ = await protectBytes(db, port, original, aad);
+    expect(protected_.keyVersion).toBe('test-v1');
+
+    const revealed = await revealBytes(db, port, {
+      ciphertext: protected_.ciphertext,
+      nonce: protected_.nonce,
+      keyVersion: protected_.keyVersion,
+      aad,
+    });
+    expect(Buffer.from(revealed).equals(Buffer.from(original))).toBe(true);
+  });
+
+  it('round-trips a realistically-sized artifact (a few hundred KB)', async () => {
+    const port = fakeKeyManagementPort();
+    const aad = buildAccountExportAad({ jobId: 'job-large' });
+    const original = randomBytes(256 * 1024);
+    const protected_ = await protectBytes(db, port, original, aad);
+    const revealed = await revealBytes(db, port, {
+      ciphertext: protected_.ciphertext,
+      nonce: protected_.nonce,
+      keyVersion: protected_.keyVersion,
+      aad,
+    });
+    expect(Buffer.from(revealed).equals(original)).toBe(true);
+  });
+
+  it('fails to decrypt when the AAD does not match - a ciphertext copied onto a different export job', async () => {
+    const port = fakeKeyManagementPort();
+    const protected_ = await protectBytes(
+      db,
+      port,
+      new Uint8Array([1, 2, 3]),
+      buildAccountExportAad({ jobId: 'job-a' }),
+    );
+    await expect(
+      revealBytes(db, port, {
+        ciphertext: protected_.ciphertext,
+        nonce: protected_.nonce,
+        keyVersion: protected_.keyVersion,
+        aad: buildAccountExportAad({ jobId: 'job-b' }),
+      }),
+    ).rejects.toThrow();
+  });
+
+  it('shares the same data-key cache/table as protectValue - no separate key material is generated for bytes', async () => {
+    const port = fakeKeyManagementPort('shared-bytes-v1');
+    await protectValue(
+      db,
+      port,
+      'x',
+      buildFactVersionAad({ applicantId: 'a', factId: 'f', fieldKey: 'k', factVersionId: 'v' }),
+    );
+    await protectBytes(db, port, new Uint8Array([1]), buildAccountExportAad({ jobId: 'j' }));
+    const rows = await db.select().from(dbSchema.dataKeys);
+    expect(rows.filter((r) => r.keyVersion === 'shared-bytes-v1')).toHaveLength(1);
   });
 });
 

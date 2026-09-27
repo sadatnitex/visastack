@@ -1,10 +1,13 @@
 import 'server-only';
+import { JszipBundler } from '@visastack/adapters';
 import { isOk } from '@visastack/core';
 import { createPooledDb, resolveDatabaseUrl } from '@visastack/db';
 import {
   type AbandonedClientInvitationSweepResult,
   type AbandonedOrganizationInvitationSweepResult,
   type AbandonedUploadSweepResult,
+  type AccountExportExpirySweepResult,
+  type AccountExportWorkerResult,
   type CaseRetentionNoticeSweepResult,
   type CaseRetentionPurgeSweepResult,
   type ErasureWorkerResult,
@@ -18,6 +21,7 @@ import {
   executeScheduledDowngrade,
   listDueDeletions,
   listDueDowngrades,
+  runAccountExportWorker,
   runErasureWorker,
   runIntakeWorker,
   runNotificationWorker,
@@ -26,6 +30,7 @@ import {
   sweepAbandonedUploads,
   sweepCaseRetentionNotices,
   sweepCaseRetentionPurge,
+  sweepExpiredAccountExportArtifacts,
   sweepExpiryReminders,
   sweepInactiveAccountDeletionRequests,
   sweepInactiveAccountNotices,
@@ -36,6 +41,7 @@ import {
   createContentLimitsChecker,
   createDocumentConverter,
   createEmailPort,
+  createKeyManagementPort,
   createMalwareScanner,
   createObservabilityPort,
   createStorage,
@@ -115,6 +121,76 @@ export async function triggerErasureWorker(
   } catch (error) {
     console.error('[triggerErasureWorker] worker pass failed', error);
     return { processed: 0, blocked: 0, failed: 0 };
+  } finally {
+    await pool.end();
+  }
+}
+
+/**
+ * Runs the account export worker (PRV-04, master directive Part 7 §14
+ * "Large export") on its own short-lived pooled connection -- same
+ * rationale as `triggerErasureWorker` above. A missing key management port
+ * is not treated as a configuration error here (unlike the missing-database
+ * case): it is caught per-job, inside `runAccountExportWorker` itself, and
+ * recorded on that job's own `lastError` so it shows up wherever a future
+ * admin surface lists jobs needing attention, exactly like a permanently
+ * FAILED erasure job does today.
+ */
+export async function triggerAccountExportWorker(
+  options: { readonly limit?: number } = {},
+): Promise<AccountExportWorkerResult> {
+  const connectionString = resolveDatabaseUrl(process.env);
+  if (!connectionString) {
+    console.error('[triggerAccountExportWorker] database not configured');
+    return { ready: 0, failed: 0 };
+  }
+
+  const { db, pool } = createPooledDb(connectionString);
+  pool.on('error', (error) => {
+    console.error('[triggerAccountExportWorker] idle pool connection error', error);
+  });
+  try {
+    const handle = db as unknown as Parameters<typeof runAccountExportWorker>[0];
+    const ports = {
+      blobStore: createStorage(handle),
+      keyManagement: createKeyManagementPort(),
+      bundler: new JszipBundler(),
+    };
+    return await runAccountExportWorker(handle, ports, options);
+  } catch (error) {
+    console.error('[triggerAccountExportWorker] worker pass failed', error);
+    return { ready: 0, failed: 0 };
+  } finally {
+    await pool.end();
+  }
+}
+
+/**
+ * Purges account export artifacts past their 24h (default) expiry, and any
+ * whose owning account is already gone -- see `accountExportJobs.accountId`'s
+ * own schema comment for why the latter can't wait for the normal clock.
+ * Same short-lived-pooled-connection rationale as every worker above.
+ */
+export async function triggerAccountExportExpirySweep(
+  options: { readonly limit?: number } = {},
+): Promise<AccountExportExpirySweepResult> {
+  const connectionString = resolveDatabaseUrl(process.env);
+  if (!connectionString) {
+    console.error('[triggerAccountExportExpirySweep] database not configured');
+    return { expired: 0 };
+  }
+
+  const { db, pool } = createPooledDb(connectionString);
+  pool.on('error', (error) => {
+    console.error('[triggerAccountExportExpirySweep] idle pool connection error', error);
+  });
+  try {
+    const handle = db as unknown as Parameters<typeof sweepExpiredAccountExportArtifacts>[0];
+    const storage = createStorage(handle);
+    return await sweepExpiredAccountExportArtifacts(handle, storage, options.limit);
+  } catch (error) {
+    console.error('[triggerAccountExportExpirySweep] sweep pass failed', error);
+    return { expired: 0 };
   } finally {
     await pool.end();
   }
