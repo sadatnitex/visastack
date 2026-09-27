@@ -541,6 +541,7 @@ export {
 } from './notifications';
 
 export {
+  type ExpirySweepResult,
   type SweepResult,
   computeTaskDeadlineThreshold,
   sweepExpiryReminders,

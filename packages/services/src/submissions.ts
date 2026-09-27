@@ -1,5 +1,5 @@
 import { type Result, err, ok } from '@visastack/core';
-import { eq } from 'drizzle-orm';
+import { and, eq, isNotNull } from 'drizzle-orm';
 import { appendAuditEvent } from './audit';
 import { type Db, first, required, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
@@ -31,6 +31,14 @@ import { getMissionForOwner } from './missions';
  * the transition. This is directive §4's "final packet issuance must
  * recheck: current acknowledgement validity," applied to the one issuance
  * event that matters most.
+ *
+ * Also directly rechecks §4's "expiry" bullet here, synchronously, rather
+ * than relying only on the periodic sweep (`notification-sweep.ts`'s
+ * `sweepExpiryReminders`) that marks a case dirty once evidence expires:
+ * that sweep runs on its own cadence, so a document expiring minutes before
+ * a submission attempt could otherwise slip through before the next run.
+ * This is the actual, always-current gate; the sweep exists so the case
+ * shows as needing attention even before anyone attempts to submit.
  */
 
 export type MissionSubmission = typeof schema.missionSubmissions.$inferSelect;
@@ -103,6 +111,26 @@ export async function recordSubmission(
     const live = await getLiveAcknowledgement(tx, input.missionId);
     if (!live) {
       return err(serviceError('stale', 'this case has no current live acknowledgement to submit'));
+    }
+
+    const selectedDocumentExpiries = await tx
+      .select({ expiresAt: schema.documents.expiresAt })
+      .from(schema.selectedEvidence)
+      .innerJoin(schema.documents, eq(schema.documents.id, schema.selectedEvidence.documentId))
+      .where(
+        and(
+          eq(schema.selectedEvidence.missionId, input.missionId),
+          isNotNull(schema.documents.expiresAt),
+        ),
+      );
+    const now = Date.now();
+    if (selectedDocumentExpiries.some((row) => row.expiresAt && row.expiresAt.getTime() <= now)) {
+      return err(
+        serviceError(
+          'stale',
+          'selected evidence has expired and must be replaced before this case can be submitted',
+        ),
+      );
     }
 
     const record = required(
