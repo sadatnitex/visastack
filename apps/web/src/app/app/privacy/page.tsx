@@ -2,11 +2,13 @@ import type { ConsentType } from '@visastack/core';
 import {
   getDeletionImpactSummary,
   getPendingDeletion,
+  listAccountExportJobsForAccount,
   listActiveLegalHoldsForAccount,
   listConsentHistory,
 } from '@visastack/services';
 import { withSession } from '../../../lib/session';
 import { DeletionPanel } from './deletion-panel';
+import { LargeExportPanel } from './large-export-panel';
 
 export const dynamic = 'force-dynamic';
 
@@ -30,11 +32,12 @@ function formatDateTime(iso: string): string {
 
 export default async function PrivacyPage() {
   const data = await withSession(async ({ db, accountId }) => {
-    const [history, pending, impact, holds] = await Promise.all([
+    const [history, pending, impact, holds, exportJobs] = await Promise.all([
       listConsentHistory(db, accountId),
       getPendingDeletion(db, accountId),
       getDeletionImpactSummary(db, accountId),
       listActiveLegalHoldsForAccount(db, accountId),
+      listAccountExportJobsForAccount(db, accountId),
     ]);
     return {
       history: history.map((row) => ({
@@ -48,6 +51,14 @@ export default async function PrivacyPage() {
         ...h,
         placedAt: h.placedAt.toISOString(),
         reviewAt: h.reviewAt ? h.reviewAt.toISOString() : null,
+      })),
+      exportJobs: exportJobs.map((job) => ({
+        id: job.id,
+        status: job.status,
+        createdAt: job.createdAt.toISOString(),
+        readyAt: job.readyAt ? job.readyAt.toISOString() : null,
+        expiresAt: job.expiresAt ? job.expiresAt.toISOString() : null,
+        lastError: job.lastError,
       })),
     };
   });
@@ -83,6 +94,7 @@ export default async function PrivacyPage() {
               Download export (CSV/ZIP)
             </a>
           </div>
+          <LargeExportPanel jobs={data.exportJobs} />
         </article>
 
         <article className="card">
