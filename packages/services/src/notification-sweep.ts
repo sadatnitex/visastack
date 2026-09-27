@@ -1,6 +1,11 @@
 import { and, eq, isNotNull, isNull, or } from 'drizzle-orm';
 import { type Db, schema } from './db';
 import { classifyExpiry, getReminderThresholds } from './expiry';
+import {
+  getLiveAcknowledgement,
+  incrementMaterialRevision,
+  missionsSelectingDocument,
+} from './material-revision';
 import { enqueueNotificationBothChannels } from './notifications';
 
 /**
@@ -152,6 +157,11 @@ export async function sweepTaskDeadlineReminders(
 
 // --- Expiry reminder sweep --------------------------------------------------
 
+export interface ExpirySweepResult extends SweepResult {
+  /** Missions whose live acknowledgement was invalidated this run because selected evidence expired (directive Part 7 §5). */
+  readonly missionsDirtied: number;
+}
+
 /**
  * Walks every current (non-superseded) document with a known intrinsic
  * expiry and every issuer verification with its `validUntil`, and enqueues
@@ -159,12 +169,26 @@ export async function sweepTaskDeadlineReminders(
  * `classifyExpiry` decides the threshold; this sweep only decides whether
  * to enqueue it. "Unknown expiry remains unknown": a document with no
  * `expiresAt` is never visited here at all, never guessed at.
+ *
+ * Also directive Part 7 §5 ("If selected passport/evidence expires... mark
+ * case dirty and invalidate submission-ready use"): once a document's own
+ * classification reaches `expired` (not merely `reminder` -- this is a real,
+ * past-tense event, distinct from the countdown ladder above), every mission
+ * currently selecting it (`missionsSelectingDocument`) with a still-live
+ * acknowledgement has that acknowledgement invalidated via
+ * `incrementMaterialRevision`, the exact mechanism every other material
+ * change already uses. Self-limiting without a new tracking column: once
+ * invalidated, `getLiveAcknowledgement` returns nothing for that mission on
+ * every later run, so this becomes a no-op until someone re-acknowledges
+ * (over still-expired evidence, which the next run then correctly
+ * invalidates again) -- continuous enforcement for as long as the underlying
+ * defect persists, never a one-time flag that goes stale itself.
  */
 export async function sweepExpiryReminders(
   db: Db,
   now: Date,
   options: { readonly limit?: number } = {},
-): Promise<SweepResult> {
+): Promise<ExpirySweepResult> {
   const documentRows = await db
     .select({
       documentId: schema.documents.id,
@@ -182,10 +206,23 @@ export async function sweepExpiryReminders(
     .limit(options.limit ?? 200);
 
   let enqueued = 0;
+  let missionsDirtied = 0;
   for (const row of documentRows) {
     if (!row.expiresAt) continue;
     const thresholds = await getReminderThresholds(db, row.docType);
     const classification = classifyExpiry(row.expiresAt, now, thresholds);
+
+    if (classification.urgency === 'expired') {
+      for (const missionId of await missionsSelectingDocument(db, row.documentId)) {
+        const live = await getLiveAcknowledgement(db, missionId);
+        if (!live) continue;
+        await db.transaction(async (tx) => {
+          await incrementMaterialRevision(tx, missionId);
+        });
+        missionsDirtied++;
+      }
+    }
+
     if (classification.urgency !== 'reminder' || classification.thresholdCrossed === null) continue;
 
     await db.transaction(async (tx) => {
@@ -238,5 +275,5 @@ export async function sweepExpiryReminders(
     enqueued++;
   }
 
-  return { checked: documentRows.length + verificationRows.length, enqueued };
+  return { checked: documentRows.length + verificationRows.length, enqueued, missionsDirtied };
 }

@@ -11,6 +11,7 @@ import { decideAcknowledgement } from './acknowledgements';
 import { createApplicant } from './applicants';
 import { setConsent } from './consent';
 import type { Db } from './db';
+import { addDocumentVersion, registerDocument } from './documents';
 import {
   attachPackVersion,
   createMission,
@@ -68,6 +69,27 @@ async function publishedFieldPack(db: Db, actor: string): Promise<string> {
     packVersionId: version.value.id,
     kind: 'FIELD',
     fieldKey: 'passport.number',
+    citation: 'rule 1',
+  });
+  await approvePackVersion(db, { actorAccountId: actor, packVersionId: version.value.id });
+  await publishPackVersion(db, { actorAccountId: actor, packVersionId: version.value.id });
+  return version.value.id;
+}
+
+async function publishedDocumentPack(db: Db, actor: string): Promise<string> {
+  const pack = await createPack(db, {
+    actorAccountId: actor,
+    key: 'sub-doc.pack',
+    name: 'Sub Doc Pack',
+  });
+  if (!isOk(pack)) throw new Error('pack');
+  const version = await addPackVersion(db, { actorAccountId: actor, packId: pack.value.id });
+  if (!isOk(version)) throw new Error('version');
+  await addRequirement(db, {
+    actorAccountId: actor,
+    packVersionId: version.value.id,
+    kind: 'DOCUMENT',
+    docType: 'passport',
     citation: 'rule 1',
   });
   await approvePackVersion(db, { actorAccountId: actor, packVersionId: version.value.id });
@@ -142,6 +164,71 @@ describe('TRU-04 (Commercial V1 Part 7 §7): external submission report', () => 
       snapshotId: snap.value.id,
       factId: fact.value.fact.id,
     };
+  }
+
+  /** Drives a fresh mission to SUBMISSION_READY with a live acknowledgement over one selected DOCUMENT (rather than `setUp`'s fact) -- so its `expiresAt` can be manipulated afterward. */
+  async function setUpWithDocument(db: Db) {
+    const { account, applicantId } = await seed(db);
+    const packVersionId = await publishedDocumentPack(db, account.id);
+    const mission = await createMission(db, {
+      actorAccountId: account.id,
+      applicantId,
+      title: 'UK Visa',
+    });
+    if (!isOk(mission)) throw new Error('mission');
+    const missionId = mission.value.id;
+    await attachPackVersion(db, { actorAccountId: account.id, missionId, packVersionId });
+
+    const doc = await registerDocument(db, {
+      actorAccountId: account.id,
+      applicantId,
+      originalName: 'passport.pdf',
+      docType: 'passport',
+    });
+    if (!isOk(doc)) throw new Error('doc');
+    await addDocumentVersion(db, {
+      actorAccountId: account.id,
+      documentId: doc.value.id,
+      bucket: 'CLEAN',
+      objectKey: 'sub-doc-k',
+      safetyStatus: 'CLEAN',
+      processingStatus: 'AWAITING_REVIEW',
+    });
+
+    const requirements = await db
+      .select()
+      .from(schema.packRequirements)
+      .where(eq(schema.packRequirements.packVersionId, packVersionId));
+    const documentRequirementId = requirements[0]?.id;
+    if (!documentRequirementId) throw new Error('requirement');
+
+    const selected = await selectEvidence(db, {
+      actorAccountId: account.id,
+      missionId,
+      packRequirementId: documentRequirementId,
+      documentId: doc.value.id,
+    });
+    if (!isOk(selected)) throw new Error('select');
+
+    const snap = await snapshotMission(db, { actorAccountId: account.id, missionId });
+    if (!isOk(snap)) throw new Error('snapshot');
+
+    const ack = await decideAcknowledgement(db, {
+      actorAccountId: account.id,
+      missionId,
+      snapshotId: snap.value.id,
+      expectedSnapshotChecksum: snap.value.checksum,
+      decision: 'ACKNOWLEDGED',
+      stepUpSatisfied: true,
+    });
+    if (!isOk(ack)) throw new Error('acknowledge');
+
+    for (const to of ['INTAKE', 'IN_REVIEW', 'AWAITING_APPLICANT', 'SUBMISSION_READY'] as const) {
+      const moved = await transitionMission(db, { actorAccountId: account.id, missionId, to });
+      if (!isOk(moved)) throw new Error(`transition to ${to}`);
+    }
+
+    return { account, applicantId, missionId, documentId: doc.value.id };
   }
 
   it('records a submission report and moves a submission-ready case to SUBMITTED, referencing the live-acknowledged snapshot as the packet', async () => {
@@ -333,5 +420,46 @@ describe('TRU-04 (Commercial V1 Part 7 §7): external submission report', () => 
     const denied = await listSubmissionsForMission(db, stranger.value.id, missionId);
     expect(isErr(denied)).toBe(true);
     if (isErr(denied)) expect(denied.error.code).toBe('forbidden');
+  });
+
+  it('refuses submission when selected evidence expired after acknowledgement but before issuance (directive §4 "final packet issuance must recheck: expiry")', async () => {
+    const { account, missionId, documentId } = await setUpWithDocument(db);
+
+    // The document was clean and unexpired at acknowledgement time; it
+    // expires only now, in the gap between acknowledgement and this
+    // submission attempt -- exactly the race directive §4's explicit
+    // "recheck: ...expiry" bullet exists to close, distinct from and in
+    // addition to the acknowledgement-staleness check above.
+    await db
+      .update(schema.documents)
+      .set({ expiresAt: new Date(Date.now() - 1000) })
+      .where(eq(schema.documents.id, documentId));
+
+    const result = await recordSubmission(db, {
+      actorAccountId: account.id,
+      missionId,
+      channel: 'EMAIL',
+      externalReportDescription: 'Sent by email',
+      stepUpSatisfied: true,
+    });
+    expect(isErr(result)).toBe(true);
+    if (isErr(result)) expect(result.error.code).toBe('stale');
+
+    const mission = (
+      await db.select().from(schema.missions).where(eq(schema.missions.id, missionId))
+    )[0];
+    expect(mission?.state).toBe('SUBMISSION_READY');
+  });
+
+  it('succeeds when selected document evidence has not expired', async () => {
+    const { account, missionId } = await setUpWithDocument(db);
+    const result = await recordSubmission(db, {
+      actorAccountId: account.id,
+      missionId,
+      channel: 'EMAIL',
+      externalReportDescription: 'Sent by email',
+      stepUpSatisfied: true,
+    });
+    expect(isOk(result)).toBe(true);
   });
 });

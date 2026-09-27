@@ -1810,6 +1810,57 @@ item gets its own requirements-ledger row once classified against the new direct
     Full detail: `docs/commercial-v1/privacy-data-map.md` §4 (summary,
     cross-referencing here rather than duplicating) and
     `requirements-ledger.md` PRV-01/02/03/04.
+78. (Part 7 §§4-5, TRU-03) Found via a deliberate audit of what remains open in
+    Part 7 after item 77 closed (not a guess): item 74 above closed the
+    "acknowledgement invalidation" half of §4/§5 (any explicit material
+    mutation -- reselect, edit, new document version, erasure -- correctly
+    bumps `materialRevision` and invalidates the live acknowledgement, in the
+    same transaction). But a document's own `expiresAt` simply passing was
+    never such a trigger anywhere: it is not on §4's own "Material includes"
+    list (only "selected document version/removal" is), yet §5 states its own,
+    separate rule -- "If selected passport/evidence expires... mark case dirty
+    and invalidate submission-ready use" -- and §4 additionally lists "expiry"
+    as one of six things "final packet issuance must recheck," independent of
+    acknowledgement validity. Confirmed by reading every consumer directly:
+    `computeReadiness`'s own document-eligibility check already excludes an
+    expired document from satisfying a requirement going forward (correct, but
+    purely advisory -- a query-time answer nothing forces anyone to ask), and
+    `recordSubmission` (the one and only path to SUBMITTED) rechecked
+    acknowledgement liveness but nothing about expiry at all. Net effect: a
+    case fully acknowledged before its selected evidence expired could still
+    be reported SUBMITTED afterward, with nothing in the system ever flagging
+    it. **RESOLVED.** Two fixes, matching the directive's two separate
+    bullets: (1) `recordSubmission` now directly, synchronously rechecks every
+    selected document's `expiresAt` against the current instant before
+    allowing SUBMITTED -- the real, always-current gate, not dependent on any
+    sweep's cadence. (2) `sweepExpiryReminders` (`notification-sweep.ts`) now
+    also invalidates the live acknowledgement (via the existing
+    `incrementMaterialRevision`) of every mission currently selecting a
+    document that has genuinely expired, reusing `missionsSelectingDocument`
+    -- the proactive "mark case dirty" §5 asks for, so a case shows as needing
+    attention even before anyone attempts to submit. Self-limiting by
+    construction, no new tracking column: once invalidated,
+    `getLiveAcknowledgement` returns nothing for that mission on every later
+    sweep, so repeated runs are free no-ops until someone re-acknowledges over
+    still-expired evidence, which the next run then correctly invalidates
+    again -- continuous enforcement for as long as the underlying defect
+    persists. 4 new tests (`submissions.test.ts`, `notification-sweep.test.ts`).
+    **Also investigated and confirmed already satisfied by construction, not
+    gaps:** §4's "scan state" recheck (`isDocumentVersionUsable`'s
+    `safetyStatus !== CLEAN` gate applies at every eligibility computation a
+    selection could ever pass through; nothing in this codebase retroactively
+    downgrades an already-CLEAN version's safety status after the fact, so
+    nothing already selected could ever become unsafe later) and
+    "authorization" (`getMissionForOwner`'s strict, grant-blind, owner-only
+    check plus the step-up requirement, already `recordSubmission`'s own
+    gate). **Still open, lower confidence, deliberately not guessed at:**
+    §4's "grant" recheck -- no concrete mechanism in this codebase currently
+    conditions a submitted packet's disclosed content on a contributor grant
+    remaining valid at issuance time, and inventing a check against an
+    unconfirmed interpretation risks solving the wrong problem; flagging for a
+    dedicated look rather than silently dropping it. Full
+    `@visastack/services` suite, repo-wide typecheck/lint, and production
+    build all clean.
 independently confirmed findings; the missing PRD file is tracked as Blocker 1 in
 `assumptions-and-blockers.md` (now resolved) rather than here, since it blocked the
 programme rather than being a product defect.

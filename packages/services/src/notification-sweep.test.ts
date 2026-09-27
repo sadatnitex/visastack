@@ -7,16 +7,30 @@ import { drizzle } from 'drizzle-orm/pglite';
 import { migrate } from 'drizzle-orm/pglite/migrator';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { provisionAccount } from './accounts';
+import { decideAcknowledgement } from './acknowledgements';
 import { createApplicant } from './applicants';
 import { setConsent } from './consent';
 import type { Db } from './db';
 import { addDocumentVersion, registerDocument } from './documents';
-import { createMission, createTask } from './missions';
+import {
+  attachPackVersion,
+  createMission,
+  createTask,
+  selectEvidence,
+  snapshotMission,
+} from './missions';
 import {
   computeTaskDeadlineThreshold,
   sweepExpiryReminders,
   sweepTaskDeadlineReminders,
 } from './notification-sweep';
+import {
+  addPackVersion,
+  addRequirement,
+  approvePackVersion,
+  createPack,
+  publishPackVersion,
+} from './packs';
 
 const migrationsFolder = fileURLToPath(new URL('../../db/migrations', import.meta.url));
 
@@ -313,5 +327,128 @@ describe('sweepExpiryReminders', () => {
 
     const result = await sweepExpiryReminders(db, now);
     expect(result.enqueued).toBe(0);
+  });
+
+  /** A mission with one DOCUMENT requirement satisfied by, and acknowledged over, a document whose `expiresAt` can be set independently. */
+  async function seedAcknowledgedMissionOverDocument(
+    db: Db,
+    accountId: string,
+    applicantId: string,
+  ) {
+    const pack = await createPack(db, {
+      actorAccountId: accountId,
+      key: 'expiry-dirty.pack',
+      name: 'Expiry Dirty Pack',
+    });
+    if (!isOk(pack)) throw new Error('pack');
+    const version = await addPackVersion(db, { actorAccountId: accountId, packId: pack.value.id });
+    if (!isOk(version)) throw new Error('version');
+    const requirement = await addRequirement(db, {
+      actorAccountId: accountId,
+      packVersionId: version.value.id,
+      kind: 'DOCUMENT',
+      docType: 'passport',
+      citation: 'rule 1',
+    });
+    if (!isOk(requirement)) throw new Error('requirement');
+    await approvePackVersion(db, { actorAccountId: accountId, packVersionId: version.value.id });
+    await publishPackVersion(db, { actorAccountId: accountId, packVersionId: version.value.id });
+
+    const mission = await createMission(db, { actorAccountId: accountId, applicantId, title: 'M' });
+    if (!isOk(mission)) throw new Error('mission');
+    await attachPackVersion(db, {
+      actorAccountId: accountId,
+      missionId: mission.value.id,
+      packVersionId: version.value.id,
+    });
+
+    const documentId = await registerExpiringDocument(
+      db,
+      accountId,
+      applicantId,
+      new Date(Date.now() + 365 * DAY_MS),
+    );
+
+    const selected = await selectEvidence(db, {
+      actorAccountId: accountId,
+      missionId: mission.value.id,
+      packRequirementId: requirement.value.id,
+      documentId,
+    });
+    if (!isOk(selected)) throw new Error('select');
+
+    const snap = await snapshotMission(db, {
+      actorAccountId: accountId,
+      missionId: mission.value.id,
+    });
+    if (!isOk(snap)) throw new Error('snapshot');
+
+    const ack = await decideAcknowledgement(db, {
+      actorAccountId: accountId,
+      missionId: mission.value.id,
+      snapshotId: snap.value.id,
+      expectedSnapshotChecksum: snap.value.checksum,
+      decision: 'ACKNOWLEDGED',
+      stepUpSatisfied: true,
+    });
+    if (!isOk(ack)) throw new Error('acknowledge');
+
+    return { missionId: mission.value.id, documentId };
+  }
+
+  it("invalidates a mission's live acknowledgement once its selected document genuinely expires (directive Part 7 §5)", async () => {
+    const { account, applicantId } = await seedOwner(db, 'expiry-dirty-owner@example.com');
+    const { missionId, documentId } = await seedAcknowledgedMissionOverDocument(
+      db,
+      account.id,
+      applicantId,
+    );
+
+    const before = await db
+      .select()
+      .from(schema.acknowledgements)
+      .where(eq(schema.acknowledgements.missionId, missionId));
+    expect(before[0]?.invalidatedAt).toBeNull();
+
+    // Evidence expires only now, after acknowledgement.
+    await db
+      .update(schema.documents)
+      .set({ expiresAt: new Date(Date.now() - 2 * DAY_MS) })
+      .where(eq(schema.documents.id, documentId));
+
+    const result = await sweepExpiryReminders(db, new Date());
+    expect(result.missionsDirtied).toBe(1);
+
+    const after = await db
+      .select()
+      .from(schema.acknowledgements)
+      .where(eq(schema.acknowledgements.missionId, missionId));
+    expect(after[0]?.invalidatedAt).not.toBeNull();
+  });
+
+  it('does not re-dirty a mission on a later run once its acknowledgement is already invalidated -- self-limiting with no new bookkeeping', async () => {
+    const { account, applicantId } = await seedOwner(db, 'expiry-dirty-repeat@example.com');
+    const { missionId, documentId } = await seedAcknowledgedMissionOverDocument(
+      db,
+      account.id,
+      applicantId,
+    );
+    await db
+      .update(schema.documents)
+      .set({ expiresAt: new Date(Date.now() - 2 * DAY_MS) })
+      .where(eq(schema.documents.id, documentId));
+
+    const first = await sweepExpiryReminders(db, new Date());
+    expect(first.missionsDirtied).toBe(1);
+
+    const second = await sweepExpiryReminders(db, new Date());
+    expect(second.missionsDirtied).toBe(0);
+
+    // Still invalidated (not un-done), just not re-counted.
+    const rows = await db
+      .select()
+      .from(schema.acknowledgements)
+      .where(eq(schema.acknowledgements.missionId, missionId));
+    expect(rows[0]?.invalidatedAt).not.toBeNull();
   });
 });

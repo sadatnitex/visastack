@@ -11,6 +11,7 @@ import {
   type CaseRetentionNoticeSweepResult,
   type CaseRetentionPurgeSweepResult,
   type ErasureWorkerResult,
+  type ExpirySweepResult,
   type InactiveAccountDeletionSweepResult,
   type InactiveAccountNoticeSweepResult,
   type IntakeWorkerResult,
@@ -242,12 +243,13 @@ export async function triggerNotificationWorker(
  */
 export async function triggerNotificationSweeps(
   options: { readonly limit?: number } = {},
-): Promise<{ readonly tasks: SweepResult; readonly expiry: SweepResult }> {
+): Promise<{ readonly tasks: SweepResult; readonly expiry: ExpirySweepResult }> {
   const connectionString = resolveDatabaseUrl(process.env);
   const empty: SweepResult = { checked: 0, enqueued: 0 };
+  const emptyExpiry: ExpirySweepResult = { checked: 0, enqueued: 0, missionsDirtied: 0 };
   if (!connectionString) {
     console.error('[triggerNotificationSweeps] database not configured');
-    return { tasks: empty, expiry: empty };
+    return { tasks: empty, expiry: emptyExpiry };
   }
 
   const { db, pool } = createPooledDb(connectionString);
@@ -262,7 +264,7 @@ export async function triggerNotificationSweeps(
     return { tasks, expiry };
   } catch (error) {
     console.error('[triggerNotificationSweeps] sweep pass failed', error);
-    return { tasks: empty, expiry: empty };
+    return { tasks: empty, expiry: emptyExpiry };
   } finally {
     await pool.end();
   }
