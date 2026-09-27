@@ -8,6 +8,7 @@ import {
   claimInvitation,
   provisionAccount,
   releaseInvitationClaim,
+  touchAccountActivity,
 } from '@visastack/services';
 import { withAuth } from '@workos-inc/authkit-nextjs';
 import { redirect } from 'next/navigation';
@@ -164,6 +165,10 @@ export async function withSession<T>(
     });
     const sessionAge = await enforceSessionAgeLimit(staffContext, '/app');
     if (!sessionAge.satisfied) redirect(sessionAge.reauthUrl);
+
+    // Part 7 §11 inactive-account policy bookkeeping -- throttled to a no-op
+    // write on most requests, see touchAccountActivity's own doc comment.
+    await touchAccountActivity(handle, provisioned.value.id);
 
     return await fn({ db: handle, accountId: provisioned.value.id, email: user.email });
   } catch (error) {

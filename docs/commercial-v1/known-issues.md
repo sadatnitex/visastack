@@ -1326,8 +1326,40 @@ item gets its own requirements-ledger row once classified against the new direct
       deletion; also skips a case with an active legal hold on its applicant
       or an unresolved (OPEN/IN_PROGRESS) complaint, rechecked every run.
       Wired into a new daily cron, `/api/jobs/process-case-retention-purge`.
-      And the inactive-account half of "wallet original: until deletion/inactive-account
-      policy" (no `lastActiveAt` tracking exists). The "restricted security/audit
+      ~~And the inactive-account half of "wallet original: until deletion/
+      inactive-account policy" (no `lastActiveAt` tracking exists).~~
+      **RESOLVED (2026-09-27, Part 7 §11).** New `accounts.lastActiveAt`
+      (touched, throttled to roughly once per hour per account, by
+      `touchAccountActivity` on every authenticated request in
+      `withSession`) and `accounts.inactivityNoticeSentAt`. Mirrors the
+      closed-case shape exactly (same 12-month notice / 30-day
+      notice-to-action defaults, both env-overridable) since the directive
+      names no specific inactivity threshold of its own.
+      `sweepInactiveAccountNotices` sends a real notice once an account has
+      been inactive 12+ months; `sweepInactiveAccountDeletionRequests`,
+      30 days later if still genuinely inactive, opens a normal,
+      cancellable deletion request through the EXISTING self-service
+      machinery (`requestAccountDeletion`, extended with a new optional
+      `method: 'SYSTEM'` parameter so the audit trail never misrepresents a
+      policy-triggered request as the account holder's own action --
+      defaults to `'API'`, every existing caller unaffected) rather than
+      inventing a parallel deletion path. The request this creates is
+      indistinguishable in the database from a self-requested one, so the
+      privacy page's existing "pending deletion, cancel here" UI and the
+      existing `process-deletions` execution cron both apply completely
+      unchanged. `touchAccountActivity` clears `inactivityNoticeSentAt` the
+      moment the account is active again -- even mid-throttle-window, so a
+      user who signs back in during the 30-day window is taken out of the
+      at-risk state on their very first request, and a later, separate
+      inactivity period always gets its own fresh notice rather than
+      immediately re-triggering the next stage from a stale flag. Off by
+      default -- `INACTIVE_ACCOUNT_DELETION_ENABLED` must be literally
+      "true" to enable real request-creation, matching
+      `sweepCaseRetentionPurge`'s own safety gating. 11 new tests. Wired
+      into two new daily crons, `/api/jobs/process-inactive-account-notices`
+      and `/api/jobs/process-inactive-account-deletions`. Full
+      `@visastack/services` suite, repo-wide typecheck/lint, and production
+      build all clean. The "restricted security/audit
       metadata: 12m" default is additionally structurally blocked today by
       `audit_events`' own append-only/undeletable DB rules (SEC-04) -- built
       deliberately for tamper-evidence, but it means no code path can purge

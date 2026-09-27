@@ -58,6 +58,7 @@ export {
   getAccountByWorkosUserId,
   provisionAccount,
   reportUnboundAccounts,
+  touchAccountActivity,
 } from './accounts';
 
 export {
@@ -839,6 +840,13 @@ export {
   sweepCaseRetentionNotices,
   sweepCaseRetentionPurge,
 } from './case-retention';
+
+export {
+  type InactiveAccountDeletionSweepResult,
+  type InactiveAccountNoticeSweepResult,
+  sweepInactiveAccountDeletionRequests,
+  sweepInactiveAccountNotices,
+} from './account-retention';
 
 export {
   type ReconciliationCounts,

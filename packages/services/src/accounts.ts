@@ -1,5 +1,5 @@
 import { type Result, err, ok } from '@visastack/core';
-import { and, count, desc, eq, inArray, isNull } from 'drizzle-orm';
+import { and, count, desc, eq, inArray, isNotNull, isNull, lt, or } from 'drizzle-orm';
 import { appendAuditEvent } from './audit';
 import { type Db, first, isUniqueViolation, lockOnEmail, required, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
@@ -335,4 +335,39 @@ export async function reportUnboundAccounts(db: Db): Promise<readonly UnboundAcc
     createdAt: a.createdAt.toISOString(),
     applicantCount: byOwner.get(a.id) ?? 0,
   }));
+}
+
+/** Only re-touch a genuinely stale timestamp -- bounds write volume on every authenticated request to roughly one per hour per account. */
+const ACTIVITY_TOUCH_THROTTLE_MS = 60 * 60 * 1000;
+
+/**
+ * Records that this account is still active (Part 7 §11 inactive-account
+ * policy). Called from `withSession` on every authenticated request, but
+ * the WHERE clause makes the actual write conditional and race-free (no
+ * separate read-then-write): a request lands as a no-op unless either the
+ * last touch is over an hour old, or an inactivity notice is currently
+ * pending -- clearing that flag immediately on return, even mid-throttle-
+ * window, so a user who signs back in during the 30-day notice period is
+ * taken out of the at-risk state on their very first request, not up to an
+ * hour later. Never throws or blocks the request on failure to update --
+ * this is retention bookkeeping, not an auth gate.
+ */
+export async function touchAccountActivity(
+  db: Db,
+  accountId: string,
+  now: Date = new Date(),
+): Promise<void> {
+  const throttleThreshold = new Date(now.getTime() - ACTIVITY_TOUCH_THROTTLE_MS);
+  await db
+    .update(schema.accounts)
+    .set({ lastActiveAt: now, inactivityNoticeSentAt: null })
+    .where(
+      and(
+        eq(schema.accounts.id, accountId),
+        or(
+          lt(schema.accounts.lastActiveAt, throttleThreshold),
+          isNotNull(schema.accounts.inactivityNoticeSentAt),
+        ),
+      ),
+    );
 }

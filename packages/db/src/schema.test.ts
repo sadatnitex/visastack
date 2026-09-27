@@ -587,9 +587,17 @@ describe('migration 0024 on an already-populated database (Codex review, PR #65)
     const db = drizzle(client, { schema });
     await migrate(db, { migrationsFolder: priorFolder });
 
-    const account = one(
-      await db.insert(schema.accounts).values({ email: 'dup-owner@example.com' }).returning(),
-    );
+    // Raw SQL, not `db.insert(schema.accounts)`: the imported `schema`
+    // module already reflects the current shape (it's the same schema.ts
+    // this test file's other describe blocks use), so a drizzle-generated
+    // insert would reference columns -- e.g. last_active_at,
+    // inactivity_notice_sent_at -- that genuinely do not exist yet in this
+    // pre-0024 database. Same reasoning as the erasure_jobs raw insert
+    // below, in the migration 0025 test.
+    const accountInserted = await db.execute<{ id: string }>(sql`
+      insert into accounts (email) values ('dup-owner@example.com') returning id
+    `);
+    const account = { id: one(accountInserted.rows).id };
     const [first, second] = await db
       .insert(schema.platformRoles)
       .values([
