@@ -8,18 +8,25 @@ import {
   createTask,
   decideAppointment,
   decideTask,
+  fileComplaint,
   generateCoverLetter,
+  recordOutcome,
+  recordSubmission,
   revokeContributorRequest,
   selectEvidence,
   setMissionItineraryRef,
   snapshotMission,
+  submitFeedback,
   transitionMission,
   unselectEvidence,
   updateMissionCaseDetails,
+  withdrawOwnComplaint,
 } from '@visastack/services';
 import { revalidatePath } from 'next/cache';
+import { redirect } from 'next/navigation';
 import { resolveBaseUrl } from '../../../../lib/base-url';
 import { withSession } from '../../../../lib/session';
+import { STEP_UP_NOT_CONFIGURED_MESSAGE, tryEstablishStepUp } from '../../../../lib/step-up';
 
 /** Result surfaced back to the client for inline feedback. */
 export interface ActionState {
@@ -406,6 +413,181 @@ export async function revokeContributorRequestAction(
     });
     if (!revoked.ok) return { ok: false, message: revoked.error.message } satisfies ActionState;
     return { ok: true, message: 'Request revoked.' } satisfies ActionState;
+  });
+  if (result.ok) revalidatePath(`/app/mission/${missionId}`);
+  return result;
+}
+
+const OUTCOME_DECISIONS = ['APPROVED', 'REFUSED', 'WITHDRAWN', 'CANCELLED', 'OTHER'] as const;
+type OutcomeDecision = (typeof OUTCOME_DECISIONS)[number];
+function isOutcomeDecision(value: string): value is OutcomeDecision {
+  return (OUTCOME_DECISIONS as readonly string[]).includes(value);
+}
+
+/** Record a real-world case decision (TRU-04 §8) - a fact about the outcome, never a workflow position. */
+export async function recordOutcomeAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const missionId = String(formData.get('missionId') ?? '');
+  const decisionRaw = String(formData.get('decision') ?? '');
+  const decisionDateRaw = String(formData.get('decisionDate') ?? '').trim();
+  const officialWording = String(formData.get('officialWording') ?? '').trim();
+  const agencyInterpretation = String(formData.get('agencyInterpretation') ?? '').trim();
+  const evidenceDocumentId = String(formData.get('evidenceDocumentId') ?? '').trim();
+  if (missionId.length === 0 || !isOutcomeDecision(decisionRaw) || decisionDateRaw.length === 0) {
+    return { ok: false, message: 'A decision and decision date are required.' };
+  }
+  const decisionDate = new Date(decisionDateRaw);
+  if (Number.isNaN(decisionDate.getTime())) {
+    return { ok: false, message: 'Invalid decision date.' };
+  }
+
+  const result = await withSession(async ({ db, accountId }) => {
+    const stepUp = await tryEstablishStepUp(
+      { accountId, action: 'MISSION_OUTCOME', resourceId: missionId },
+      `/app/mission/${missionId}`,
+    );
+    if (stepUp.kind === 'not_configured') {
+      return { ok: false, message: STEP_UP_NOT_CONFIGURED_MESSAGE } satisfies ActionState;
+    }
+    if (stepUp.kind === 'reauth_required') redirect(stepUp.reauthUrl);
+
+    const recorded = await recordOutcome(db, {
+      actorAccountId: accountId,
+      missionId,
+      decision: decisionRaw,
+      decisionDate,
+      ...(officialWording.length > 0 ? { officialWording } : {}),
+      ...(agencyInterpretation.length > 0 ? { agencyInterpretation } : {}),
+      ...(evidenceDocumentId.length > 0 ? { evidenceDocumentId } : {}),
+      stepUpSatisfied: true,
+    });
+    if (!recorded.ok) return { ok: false, message: recorded.error.message } satisfies ActionState;
+    return { ok: true, message: 'Outcome recorded.' } satisfies ActionState;
+  });
+  if (result.ok) revalidatePath(`/app/mission/${missionId}`);
+  return result;
+}
+
+const SUBMISSION_CHANNELS = [
+  'EMBASSY_PORTAL',
+  'EMAIL',
+  'IN_PERSON',
+  'COURIER',
+  'VISA_APPLICATION_CENTER',
+  'OTHER',
+] as const;
+type SubmissionChannel = (typeof SUBMISSION_CHANNELS)[number];
+function isSubmissionChannel(value: string): value is SubmissionChannel {
+  return (SUBMISSION_CHANNELS as readonly string[]).includes(value);
+}
+
+/** Report that this case's live-acknowledged snapshot was actually submitted externally (TRU-04 §7) - the only path that ever moves a mission to SUBMITTED. */
+export async function recordSubmissionAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const missionId = String(formData.get('missionId') ?? '');
+  const channelRaw = String(formData.get('channel') ?? '');
+  const externalReportDescription = String(formData.get('externalReportDescription') ?? '').trim();
+  const externalReference = String(formData.get('externalReference') ?? '').trim();
+  const submittedAtRaw = String(formData.get('submittedAt') ?? '').trim();
+  if (
+    missionId.length === 0 ||
+    !isSubmissionChannel(channelRaw) ||
+    externalReportDescription.length === 0
+  ) {
+    return {
+      ok: false,
+      message: 'A channel and description of how this was submitted are required.',
+    };
+  }
+  let submittedAt: Date | undefined;
+  if (submittedAtRaw.length > 0) {
+    submittedAt = new Date(submittedAtRaw);
+    if (Number.isNaN(submittedAt.getTime()))
+      return { ok: false, message: 'Invalid submitted date.' };
+  }
+
+  const result = await withSession(async ({ db, accountId }) => {
+    const stepUp = await tryEstablishStepUp(
+      { accountId, action: 'MISSION_SUBMISSION', resourceId: missionId },
+      `/app/mission/${missionId}`,
+    );
+    if (stepUp.kind === 'not_configured') {
+      return { ok: false, message: STEP_UP_NOT_CONFIGURED_MESSAGE } satisfies ActionState;
+    }
+    if (stepUp.kind === 'reauth_required') redirect(stepUp.reauthUrl);
+
+    const recorded = await recordSubmission(db, {
+      actorAccountId: accountId,
+      missionId,
+      channel: channelRaw,
+      externalReportDescription,
+      ...(externalReference.length > 0 ? { externalReference } : {}),
+      ...(submittedAt ? { submittedAt } : {}),
+      stepUpSatisfied: true,
+    });
+    if (!recorded.ok) return { ok: false, message: recorded.error.message } satisfies ActionState;
+    return { ok: true, message: 'Submission report recorded.' } satisfies ActionState;
+  });
+  if (result.ok) revalidatePath(`/app/mission/${missionId}`);
+  return result;
+}
+
+/** File a case complaint (TRU-04 §9) - owner-only, no step-up (not a destructive/security-sensitive action). */
+export async function fileComplaintAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const missionId = String(formData.get('missionId') ?? '');
+  const description = String(formData.get('description') ?? '').trim();
+  if (missionId.length === 0 || description.length === 0) {
+    return { ok: false, message: 'Describe the complaint.' };
+  }
+  const result = await withSession(async ({ db, accountId }) => {
+    const filed = await fileComplaint(db, { actorAccountId: accountId, missionId, description });
+    if (!filed.ok) return { ok: false, message: filed.error.message } satisfies ActionState;
+    return { ok: true, message: 'Complaint filed.' } satisfies ActionState;
+  });
+  if (result.ok) revalidatePath(`/app/mission/${missionId}`);
+  return result;
+}
+
+/** Withdraw a complaint this same account filed, while it's still open or in progress. */
+export async function withdrawComplaintAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const missionId = String(formData.get('missionId') ?? '');
+  const complaintId = String(formData.get('complaintId') ?? '');
+  if (missionId.length === 0 || complaintId.length === 0) {
+    return { ok: false, message: 'Missing complaint.' };
+  }
+  const result = await withSession(async ({ db, accountId }) => {
+    const withdrawn = await withdrawOwnComplaint(db, { actorAccountId: accountId, complaintId });
+    if (!withdrawn.ok) return { ok: false, message: withdrawn.error.message } satisfies ActionState;
+    return { ok: true, message: 'Complaint withdrawn.' } satisfies ActionState;
+  });
+  if (result.ok) revalidatePath(`/app/mission/${missionId}`);
+  return result;
+}
+
+/** Submit private post-case feedback (TRU-04 §9) - never visible to the agency being reviewed, only the submitter and QUALITY_ADMIN staff. */
+export async function submitFeedbackAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const missionId = String(formData.get('missionId') ?? '');
+  const comments = String(formData.get('comments') ?? '').trim();
+  if (missionId.length === 0 || comments.length === 0) {
+    return { ok: false, message: 'Enter your feedback.' };
+  }
+  const result = await withSession(async ({ db, accountId }) => {
+    const submitted = await submitFeedback(db, { actorAccountId: accountId, missionId, comments });
+    if (!submitted.ok) return { ok: false, message: submitted.error.message } satisfies ActionState;
+    return { ok: true, message: 'Feedback submitted. Thank you.' } satisfies ActionState;
   });
   if (result.ok) revalidatePath(`/app/mission/${missionId}`);
   return result;

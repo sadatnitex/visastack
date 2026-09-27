@@ -18,7 +18,7 @@ import {
   totalAiCostUnits,
 } from '@visastack/services';
 import Link from 'next/link';
-import { isPlatformAdmin, isPlatformOwnerAccount } from '../../../lib/admin';
+import { hasPlatformPermission, isPlatformAdmin, isPlatformOwnerAccount } from '../../../lib/admin';
 import { aiBudgetLimitUnits, aiWarningLimitUnits, unitsToUsd } from '../../../lib/ai';
 import { evaluateCommercialReadiness } from '../../../lib/commercial-readiness';
 import { getDeploymentMode } from '../../../lib/deployment-mode';
@@ -43,6 +43,7 @@ const PLATFORM_ROLE_LABELS: Record<string, string> = {
   SECURITY_ADMIN: 'Security admin',
   COMPLIANCE_ADMIN: 'Compliance admin',
   SUPPORT_ADMIN: 'Support admin',
+  QUALITY_ADMIN: 'Quality admin',
 };
 
 export const dynamic = 'force-dynamic';
@@ -83,6 +84,7 @@ export default async function AdminPage() {
       auditEvents,
       aiCostUnits,
       invitations,
+      canManageComplaints,
     ] = await Promise.all([
       getRetentionPolicies(db),
       listActiveLegalHolds(db),
@@ -99,6 +101,7 @@ export default async function AdminPage() {
       listRecentAuditEvents(db, 50),
       totalAiCostUnits(db),
       listInvitations(db),
+      hasPlatformPermission(db, { accountId, email }, 'COMPLAINT_MANAGE'),
     ]);
     const deploymentMode = getDeploymentMode();
     // Finding #35 (post-programme defect register): the full commercial-
@@ -133,6 +136,7 @@ export default async function AdminPage() {
       deploymentMode,
       commercial,
       quota: loadUploadQuotaConfig(),
+      canManageComplaints,
     };
   });
 
@@ -153,9 +157,16 @@ export default async function AdminPage() {
           </p>
         </div>
         {data.admin ? (
-          <Link href="/app/admin/packs" className="btn btn-secondary">
-            Pack Studio
-          </Link>
+          <div style={{ display: 'flex', gap: '0.6rem' }}>
+            <Link href="/app/admin/packs" className="btn btn-secondary">
+              Pack Studio
+            </Link>
+            {data.canManageComplaints ? (
+              <Link href="/app/admin/complaints" className="btn btn-secondary">
+                Complaint triage
+              </Link>
+            ) : null}
+          </div>
         ) : null}
       </div>
 

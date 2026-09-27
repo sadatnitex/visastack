@@ -1217,11 +1217,11 @@ item gets its own requirements-ledger row once classified against the new direct
     status line in the org case workspace (`agency/[orgId]/page.tsx`,
     replacing CAS-02's own former "not yet tracked" placeholder), and
     `listAcknowledgementsForMission` backs the snapshot page's own
-    acknowledgement history list. **Still genuinely open, not resolved by
-    this chunk:** part of (c) -- a case-workspace-WIDE "this case is dirty"
+    acknowledgement history list. ~~Still genuinely open, not resolved by
+    this chunk: part of (c) -- a case-workspace-WIDE "this case is dirty"
     banner (§5's own phrase) is NOT built; this chunk only labels an
     invalidated entry "Historical" within a single snapshot's own history
-    list, which is a real but narrower reading of §5. **Update (Part 7 §6,
+    list, which is a real but narrower reading of §5.~~ **Update (Part 7 §6,
     CAS-07).** The wider banner's own prerequisite has since landed:
     `SUBMISSION_READY` now exists and genuinely gates on a live
     acknowledgement (`transitionMission`), and the mission page shows a
@@ -1229,8 +1229,16 @@ item gets its own requirements-ledger row once classified against the new direct
     dedicated, case-workspace-wide "dirty" banner distinct from that status
     line was not itself built as part of CAS-07, so this specific gap
     remains open, now for its own sake rather than for a missing
-    prerequisite. Not verified in a live browser (sandbox limitation, same
-    as every prior UI chunk this session). Full detail:
+    prerequisite. **RESOLVED (2026-09-27).** The main mission page now also
+    fetches `listAcknowledgementsForMission`'s full history (not just the
+    live one), so it can distinguish "never acknowledged" from "was
+    acknowledged, then a material edit invalidated it, with no new live
+    acknowledgement since" -- `getLiveAcknowledgement` alone renders
+    identically for both, which is exactly why this stayed open through
+    CAS-07. A `notice notice-warn` banner (matching the existing
+    `manualMode` notice's own pattern) now renders whenever that dirty
+    condition holds. Not verified in a live browser (sandbox limitation,
+    same as every prior UI chunk this session). Full detail:
     `requirements-ledger.md` TRU-02, CAS-07.
 76. ~~(Part 7 §7/§8/§9) TRU-04's non-submission-report scope is not started:
     outcome (§8 -- APPROVED/REFUSED/WITHDRAWN/CANCELLED/OTHER, with official
@@ -1259,11 +1267,35 @@ item gets its own requirements-ledger row once classified against the new direct
     organization-facing read path exists anywhere, so the agency being
     reviewed can never see it. No rating/score field (the directive names
     only "feedback," and a score edges toward the same sentence's "no public
-    review/ranking" warning). The submission report (§7), outcome (§8), and
+    review/ranking" warning). ~~The submission report (§7), outcome (§8), and
     complaint/feedback (§9) are all real (`requirements-ledger.md` TRU-04),
     but none has `apps/web` UI yet -- deferred intentionally to one combined
     UI chunk now that all three backends exist, the same backend-then-UI
-    split TRU-02 already used.
+    split TRU-02 already used.~~ **RESOLVED (2026-09-27, combined UI
+    chunk).** The mission page now carries all three: a submission-report
+    form (channel/description/reference/submitted-at), shown only once the
+    case reaches `SUBMISSION_READY`; an outcome form (decision/date/official
+    wording/agency interpretation, kept in separate fields as designed, plus
+    an optional evidence-document picker sourced from the same candidates
+    already computed for evidence selection); and a complaint panel
+    (file/withdraw, full status history) plus a feedback panel, gated to
+    once the case is `CLOSED`/`CANCELLED` per the directive's own
+    "post-case" framing. A new `apps/web/src/app/app/admin/complaints`
+    console (mirroring the `admin/organizations/[orgId]` dedicated-subpage
+    pattern, not a card bolted onto the already-large main admin page)
+    gives `QUALITY_ADMIN` staff the assign/status-transition/triage-list
+    surface, linked from the main admin page only when the signed-in
+    account actually holds `COMPLAINT_MANAGE` -- unauthorized staff never
+    see the link at all. Confirmed by construction (`complaints.ts`'s own
+    read functions) that no org-facing surface was added for any of the
+    three: an agency can never see its own case's outcome, complaint, or
+    feedback data, matching TRU-04's own confidentiality requirement. Also
+    fixed a pre-existing, unrelated small gap found while touching the admin
+    page: `PLATFORM_ROLE_LABELS` was missing a `QUALITY_ADMIN` entry, so a
+    granted role would have rendered as the raw enum string. Repo-wide
+    typecheck/lint and a production `apps/web` build all clean. Not verified
+    in a live browser (sandbox limitation, same as every prior UI chunk this
+    session).
 77. (Part 7 §§11-14, PRV-02/03/04) Retention, erasure UX, legal-hold
     attributes, and export are each genuinely partial, per a dedicated
     audit (2026-09-26) that read the actual code rather than trusting a
