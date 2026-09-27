@@ -363,7 +363,10 @@ export default async function ApplicantDocumentsPage({
                               value: proposal.value,
                               confidence: proposal.confidence,
                               rationale: proposal.rationale,
-                              evidenceSnippets: evidence.map((e) => e.snippet),
+                              evidence: evidence.map((e) => ({
+                                snippet: e.snippet,
+                                verified: e.verified,
+                              })),
                             }}
                           />
                         ))}

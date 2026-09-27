@@ -1,0 +1,1 @@
+ALTER TABLE "evidence_locations" ADD COLUMN "verified" boolean;
