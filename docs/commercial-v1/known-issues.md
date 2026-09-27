@@ -1295,8 +1295,11 @@ item gets its own requirements-ledger row once classified against the new direct
       behavior fix only, never a deletion: `aiExtractionRuns` rows are never
       purged, since `totalAiCostUnits` sums them all-time for the platform
       and per-document budget caps, and deleting old rows would silently
-      undercount real spend. app-log 30d (governed by Vercel's own
-      log retention, not this codebase), ~~closed-case 12mo+30d-notice (no
+      undercount real spend. ~~app-log 30d~~ **N/A, not a gap:** application
+      logs live in Vercel's own runtime log retention, not in any table this
+      codebase owns or queries -- there is no code path here that could
+      enforce or violate a 30d app-log retention, so this item is settled by
+      construction, not by a sweep. ~~closed-case 12mo+30d-notice (no
       closure-triggered timer exists)~~ **PARTIALLY RESOLVED (Part 7 §11,
       Chunk 2, notice half only).** `missions.closedAt` now set once by
       `transitionMission` on first arrival at CLOSED or CANCELLED;
