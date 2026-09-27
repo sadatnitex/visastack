@@ -11,6 +11,7 @@ import { createApplicant } from './applicants';
 import { reconcileRestoredBranch } from './backup-reconciliation';
 import { setConsent } from './consent';
 import { type Db, first } from './db';
+import { executeAccountDeletion, requestAccountDeletion } from './deletion';
 import { placeLegalHold, releaseLegalHold } from './legal-hold';
 import {
   createOrganization,
@@ -427,6 +428,59 @@ describe('reconcileRestoredBranch (master directive Part 7 §15: backup resurrec
       .from(schema.organizations)
       .where(eq(schema.organizations.id, created.value.id));
     expect(stillClosed?.status).toBe('CLOSED');
+  });
+
+  it('replays an executed account deletion by calling the real cascade, and a second run is a clean no-op', async () => {
+    const owner = await seedAccount(oldDb, 'delete-owner@example.com');
+    await mirrorRow(newDb, schema.accounts, owner);
+    const applicant = await seedApplicant(oldDb, owner.id);
+    await mirrorRow(newDb, schema.applicants, applicant);
+
+    // Requested well before the restore point (realistic: the grace window
+    // is measured in days, dwarfing this codebase's <=5 minute RPO), so the
+    // PENDING request is already mirrored onto newDb exactly as it is here --
+    // only the eventual EXECUTED transition needs reconciling.
+    const requested = await requestAccountDeletion(oldDb, {
+      actorAccountId: owner.id,
+      accountId: owner.id,
+      gracePeriodMs: AFTER.getTime() - BEFORE.getTime(),
+      now: BEFORE,
+    });
+    if (!isOk(requested)) throw new Error('deletion request failed');
+    const requestRow = first(
+      await oldDb
+        .select()
+        .from(schema.accountDeletionRequests)
+        .where(eq(schema.accountDeletionRequests.id, requested.value.id)),
+    );
+    if (!requestRow) throw new Error('setup');
+    await mirrorRow(newDb, schema.accountDeletionRequests, requestRow);
+
+    const executed = await executeAccountDeletion(oldDb, { accountId: owner.id, now: AFTER });
+    if (!isOk(executed)) throw new Error('execute failed');
+    await oldDb
+      .update(schema.auditEvents)
+      .set({ occurredAt: AFTER })
+      .where(eq(schema.auditEvents.eventType, 'ACCOUNT_DELETION_EXECUTED'));
+
+    const report = await reconcileRestoredBranch(oldDb, newDb, RESTORE_POINT);
+    expect(report.counts.accountsDeleted).toBe(1);
+    expect(report.errors).toHaveLength(0);
+
+    const remainingAccount = first(
+      await newDb.select().from(schema.accounts).where(eq(schema.accounts.id, owner.id)),
+    );
+    expect(remainingAccount).toBeUndefined();
+    const remainingApplicant = first(
+      await newDb.select().from(schema.applicants).where(eq(schema.applicants.id, applicant.id)),
+    );
+    expect(remainingApplicant).toBeUndefined();
+
+    // The account is already gone -- a second run must find nothing left to
+    // delete and report a clean no-op, never an error.
+    const secondReport = await reconcileRestoredBranch(oldDb, newDb, RESTORE_POINT);
+    expect(secondReport.counts.accountsDeleted).toBe(0);
+    expect(secondReport.errors).toHaveLength(0);
   });
 
   it('records one reconciliation-attributed audit event per forced change on the restored branch', async () => {
