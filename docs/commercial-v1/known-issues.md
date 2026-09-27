@@ -1540,7 +1540,46 @@ item gets its own requirements-ledger row once classified against the new direct
       yet reachable over HTTP). `knownGaps` in the manifest is intentionally
       left unchanged by this chunk -- it still names "original document
       bytes" honestly, since this chunk's artifact does not yet contain
-      them. Agency export
+      them.
+      **Progress (Part 7 §14, Chunk 2 of 3 -- real original document bytes).**
+      `processAccountExportJob`'s bundling step now includes every
+      currently-usable document version's real original bytes, gated by the
+      exact same `isDocumentVersionUsable` predicate `accessDocument`'s own
+      preview/download gate and `missions.ts`'s readiness computation
+      already enforce -- never a separate, looser rule invented for export,
+      so "no executables" holds by construction (a version that has not
+      cleared malware scanning can never appear here, since
+      `safetyStatus === 'CLEAN'` is one of that predicate's own conditions).
+      Every version is bundled, not just the latest per document, keeping
+      the ZIP's own file count consistent with the manifest's existing
+      `documentVersions` count (full history, matching the JSON export).
+      Names are built as `documents/<sanitized name> - v<versionNumber>.<ext>`;
+      `sanitizeNameComponent` (already used by the automatic-naming feature,
+      §11) strips path separators, `..`, and control characters before the
+      version/extension are appended, so a hostile `originalName` can never
+      escape the fixed `documents/` prefix ("safe paths; no traversal"),
+      proven by a dedicated test using `../../etc/passwd.pdf` as the
+      original name. A new `uniqueZipEntryName` guards the one remaining
+      collision case sanitizing alone cannot: two distinct documents whose
+      names happen to sanitize identically at the identical version number
+      ("no duplicates"), proven by a dedicated test. A version excluded for
+      not yet being usable, or because a sibling storage object already
+      erasure-verified, is recorded honestly by reason in a new
+      `documentBytes.excluded` list on the artifact's own manifest, rather
+      than silently shipping a smaller ZIP with no explanation --
+      `knownGaps` only drops "original document bytes" once the artifact
+      genuinely contains at least one real file (`documentBytes.included > 0`),
+      so an account with nothing yet usable still gets the honest gap
+      statement rather than a false all-clear. The `fakeBundler` test double
+      in `account-export.test.ts` was corrected at the same time: it
+      previously round-tripped file bytes through a lossy UTF-8 text decode,
+      harmless while only JSON/CSV text was ever bundled, but silently
+      corrupting for real document bytes -- now base64-encoded, proven by a
+      dedicated test using a deliberately-invalid-UTF-8 byte sequence. 4 new
+      tests. Still open, its own chunk: the HTTP download route plus
+      privacy-page UI (Chunk 3). Full `@visastack/services` suite,
+      repo-wide typecheck/lint, and production build all clean.
+      Agency export
       (`bulkExport`) was not touched in either chunk and has no manifest or
       CSV rendering of its own yet. Agency export is also
       narrower than traveller export by design today (`bulkExport` returns

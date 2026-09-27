@@ -157,10 +157,12 @@ export { type ExportCsvTable, buildExportCsvTables, rowsToCsv } from './export-c
 
 export {
   type AccountExportArtifact,
+  type AccountExportArtifactManifest,
   type AccountExportExpirySweepResult,
   type AccountExportJob,
   type AccountExportPorts,
   type AccountExportWorkerResult,
+  type DocumentBundleExclusion,
   type ZipBundler,
   accountExportArtifactHours,
   enqueueAccountExportJob,

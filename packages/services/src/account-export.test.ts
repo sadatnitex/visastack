@@ -19,6 +19,8 @@ import { provisionAccount } from './accounts';
 import { createApplicant } from './applicants';
 import { setConsent } from './consent';
 import { type Db, first } from './db';
+import { addDocumentVersion, registerDocument } from './documents';
+import { enqueueErasureJob } from './erasure';
 import type { KeyManagementPort } from './ports';
 import { resetProtectedFieldKeyCacheForTests } from './protected-fields';
 import type {
@@ -72,17 +74,22 @@ function fakeKeyManagementPort(keyVersion = 'export-test-v1'): KeyManagementPort
   };
 }
 
-/** A trivial, deterministic bundler - proves this module wires bytes through the injected port correctly without depending on a real ZIP library (packages/services stays free of one; see zip-bundler.ts in packages/adapters for the real one). */
+/** A trivial, deterministic bundler - proves this module wires bytes through the injected port correctly without depending on a real ZIP library (packages/services stays free of one; see zip-bundler.ts in packages/adapters for the real one). Base64-encodes rather than UTF-8-decoding each file's bytes, so it round-trips real (non-text) document bytes exactly - a lossy text decode would silently corrupt binary content long before any real ZIP library was involved. */
 function fakeBundler() {
   return {
     async build(files: ReadonlyArray<{ readonly name: string; readonly bytes: Uint8Array }>) {
       return new TextEncoder().encode(
         JSON.stringify(
-          files.map((f) => ({ name: f.name, text: new TextDecoder().decode(f.bytes) })),
+          files.map((f) => ({ name: f.name, base64: Buffer.from(f.bytes).toString('base64') })),
         ),
       );
     },
   };
+}
+
+/** Decodes one `fakeBundler` "zip" back into its files, for assertions. */
+function decodeFakeBundle(bytes: Uint8Array): Array<{ name: string; base64: string }> {
+  return JSON.parse(new TextDecoder().decode(bytes));
 }
 
 async function seedAccountWithApplicant(db: Db, email: string) {
@@ -163,13 +170,12 @@ describe('account export jobs (PRV-04, master directive Part 7 §14 "Large expor
     });
     expect(isOk(artifact)).toBe(true);
     if (!isOk(artifact)) return;
-    const files = JSON.parse(new TextDecoder().decode(artifact.value.bytes)) as Array<{
-      name: string;
-      text: string;
-    }>;
+    const files = decodeFakeBundle(artifact.value.bytes);
     const manifestFile = files.find((f) => f.name === 'manifest.json');
     expect(manifestFile).toBeDefined();
-    const manifest = JSON.parse(manifestFile?.text ?? '{}');
+    const manifest = JSON.parse(
+      Buffer.from(manifestFile?.base64 ?? '', 'base64').toString('utf-8'),
+    );
     expect(manifest.counts.applicants).toBe(1);
     expect(files.some((f) => f.name === 'applicants.csv')).toBe(true);
   });
@@ -317,5 +323,215 @@ describe('account export jobs (PRV-04, master directive Part 7 §14 "Large expor
       jobId: job.id,
     });
     expect(isOk(expired)).toBe(false);
+  });
+});
+
+describe('account export document bytes (Chunk 2 -- real original document bytes in the artifact)', () => {
+  let db: Db;
+  let storage: FakeBlobStore;
+  let ports: AccountExportPorts;
+
+  beforeEach(async () => {
+    db = await freshDb();
+    resetProtectedFieldKeyCacheForTests();
+    storage = new FakeBlobStore();
+    ports = { blobStore: storage, keyManagement: fakeKeyManagementPort(), bundler: fakeBundler() };
+  });
+
+  /** Runs the worker for this account and returns the resulting artifact's decoded files. */
+  async function exportAndDecode(accountId: string) {
+    await enqueueAccountExportJob(db, accountId);
+    await runAccountExportWorker(db, ports, { limit: 5 });
+    const job = first(
+      await db
+        .select()
+        .from(schema.accountExportJobs)
+        .where(eq(schema.accountExportJobs.accountId, accountId)),
+    );
+    if (!job) throw new Error('no job');
+    const artifact = await getAccountExportArtifact(db, ports, {
+      actorAccountId: accountId,
+      jobId: job.id,
+    });
+    if (!isOk(artifact)) throw new Error('artifact not ready');
+    return decodeFakeBundle(artifact.value.bytes);
+  }
+
+  function manifestOf(files: Array<{ name: string; base64: string }>) {
+    const manifestFile = files.find((f) => f.name === 'manifest.json');
+    if (!manifestFile) throw new Error('no manifest.json in artifact');
+    return JSON.parse(Buffer.from(manifestFile.base64, 'base64').toString('utf-8'));
+  }
+
+  it('bundles a usable document version’s real bytes under a safe, sanitized name, and closes the manifest’s known gap', async () => {
+    const { accountId, applicantId } = await seedAccountWithApplicant(
+      db,
+      'export-doc-bytes@example.com',
+    );
+    const doc = await registerDocument(db, {
+      actorAccountId: accountId,
+      applicantId,
+      originalName: '../../etc/passwd.pdf',
+      docType: 'passport',
+    });
+    if (!isOk(doc)) throw new Error('doc');
+    const version = await addDocumentVersion(db, {
+      actorAccountId: accountId,
+      documentId: doc.value.id,
+      bucket: 'CLEAN',
+      objectKey: 'doc-1',
+      safetyStatus: 'CLEAN',
+      processingStatus: 'AWAITING_REVIEW',
+    });
+    if (!isOk(version)) throw new Error('version');
+    // Deliberately not valid UTF-8, proving the bytes ride through unmodified rather than as decoded/re-encoded text.
+    const bytes = new Uint8Array([0x25, 0x50, 0x44, 0x46, 0xc0, 0x80, 0xff]);
+    await storage.putObject({
+      bucket: 'CLEAN',
+      objectKey: 'doc-1',
+      contentType: 'application/pdf',
+      bytes,
+    });
+
+    const files = await exportAndDecode(accountId);
+    const docFile = files.find((f) => f.name.startsWith('documents/'));
+    expect(docFile).toBeDefined();
+    // Flattened to a single safe segment - no traversal, no directory escape.
+    expect(docFile?.name).toBe('documents/etcpasswd - v1.pdf');
+    expect(Buffer.from(docFile?.base64 ?? '', 'base64')).toEqual(Buffer.from(bytes));
+
+    const manifest = manifestOf(files);
+    expect(manifest.documentBytes).toEqual({ included: 1, excluded: [] });
+    expect(
+      manifest.knownGaps.some((g: { item: string }) => g.item === 'original document bytes'),
+    ).toBe(false);
+  });
+
+  it('excludes a document version that has not yet cleared scanning, with an honest reason, never a silently smaller ZIP', async () => {
+    const { accountId, applicantId } = await seedAccountWithApplicant(
+      db,
+      'export-doc-unscanned@example.com',
+    );
+    const doc = await registerDocument(db, {
+      actorAccountId: accountId,
+      applicantId,
+      originalName: 'fresh-upload.pdf',
+      docType: 'passport',
+    });
+    if (!isOk(doc)) throw new Error('doc');
+    // No safetyStatus/processingStatus override: real defaults (PENDING/UPLOADING), matching a document still mid-pipeline.
+    const version = await addDocumentVersion(db, {
+      actorAccountId: accountId,
+      documentId: doc.value.id,
+      bucket: 'CLEAN',
+      objectKey: 'doc-unscanned',
+    });
+    if (!isOk(version)) throw new Error('version');
+    await storage.putObject({
+      bucket: 'CLEAN',
+      objectKey: 'doc-unscanned',
+      contentType: 'application/pdf',
+      bytes: new Uint8Array([1, 2, 3]),
+    });
+
+    const files = await exportAndDecode(accountId);
+    expect(files.some((f) => f.name.startsWith('documents/'))).toBe(false);
+
+    const manifest = manifestOf(files);
+    expect(manifest.documentBytes).toEqual({
+      included: 0,
+      excluded: [{ document: 'fresh-upload.pdf', version: 1, reason: 'not_yet_usable' }],
+    });
+    // Nothing was actually included, so the JSON export's own honest gap statement stays truthful.
+    expect(
+      manifest.knownGaps.some((g: { item: string }) => g.item === 'original document bytes'),
+    ).toBe(true);
+  });
+
+  it('excludes a document version whose storage has already been erasure-verified, even though its own row still looks clean', async () => {
+    const { accountId, applicantId } = await seedAccountWithApplicant(
+      db,
+      'export-doc-erased@example.com',
+    );
+    const doc = await registerDocument(db, {
+      actorAccountId: accountId,
+      applicantId,
+      originalName: 'erased.pdf',
+      docType: 'bank_statement',
+    });
+    if (!isOk(doc)) throw new Error('doc');
+    const version = await addDocumentVersion(db, {
+      actorAccountId: accountId,
+      documentId: doc.value.id,
+      bucket: 'CLEAN',
+      objectKey: 'doc-erased',
+      safetyStatus: 'CLEAN',
+      processingStatus: 'AWAITING_REVIEW',
+    });
+    if (!isOk(version)) throw new Error('version');
+    await storage.putObject({
+      bucket: 'CLEAN',
+      objectKey: 'doc-erased',
+      contentType: 'application/pdf',
+      bytes: new Uint8Array([9]),
+    });
+    const erasureJob = await enqueueErasureJob(db, {
+      reason: 'RETENTION_PURGE',
+      bucket: 'CLEAN',
+      objectKey: 'doc-erased',
+      expectedHash: null,
+      storageObjectId: version.value.storageObject.id,
+      documentId: doc.value.id,
+      applicantId,
+    });
+    await db
+      .update(schema.erasureJobs)
+      .set({ status: 'VERIFIED', deletionAttemptedAt: new Date(), completedAt: new Date() })
+      .where(eq(schema.erasureJobs.id, erasureJob.id));
+
+    const files = await exportAndDecode(accountId);
+    expect(files.some((f) => f.name.startsWith('documents/'))).toBe(false);
+    const manifest = manifestOf(files);
+    expect(manifest.documentBytes.excluded).toEqual([
+      { document: 'erased.pdf', version: 1, reason: 'not_yet_usable' },
+    ]);
+  });
+
+  it('deduplicates two documents that sanitize to the identical name and version number', async () => {
+    const { accountId, applicantId } = await seedAccountWithApplicant(
+      db,
+      'export-doc-dup@example.com',
+    );
+    for (const objectKey of ['dup-a', 'dup-b']) {
+      const doc = await registerDocument(db, {
+        actorAccountId: accountId,
+        applicantId,
+        originalName: 'Passport.pdf',
+        docType: 'passport',
+      });
+      if (!isOk(doc)) throw new Error('doc');
+      const version = await addDocumentVersion(db, {
+        actorAccountId: accountId,
+        documentId: doc.value.id,
+        bucket: 'CLEAN',
+        objectKey,
+        safetyStatus: 'CLEAN',
+        processingStatus: 'AWAITING_REVIEW',
+      });
+      if (!isOk(version)) throw new Error('version');
+      await storage.putObject({
+        bucket: 'CLEAN',
+        objectKey,
+        contentType: 'application/pdf',
+        bytes: new TextEncoder().encode(objectKey),
+      });
+    }
+
+    const files = await exportAndDecode(accountId);
+    const docFiles = files.filter((f) => f.name.startsWith('documents/'));
+    expect(docFiles).toHaveLength(2);
+    expect(new Set(docFiles.map((f) => f.name)).size).toBe(2); // genuinely distinct entry names
+    expect(docFiles.some((f) => f.name === 'documents/Passport - v1.pdf')).toBe(true);
+    expect(docFiles.some((f) => f.name === 'documents/Passport - v1 (2).pdf')).toBe(true);
   });
 });
