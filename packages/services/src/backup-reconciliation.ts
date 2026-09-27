@@ -1,6 +1,7 @@
 import { CONSENT_TYPES, type ConsentType, isOk } from '@visastack/core';
 import { and, asc, eq, gt, inArray, isNull, ne } from 'drizzle-orm';
 import { appendAuditEvent } from './audit';
+import { purgeMissionUnconditionally } from './case-retention';
 import { getConsents } from './consent';
 import { type Db, first, schema } from './db';
 import { executeAccountDeletion } from './deletion';
@@ -20,22 +21,37 @@ import { executeAccountDeletion } from './deletion';
  * in that same order to end up correct.
  *
  * Most rules here force a single already-existing row's status/flag column,
- * or insert a full row that is missing entirely. Account deletion is the one
- * exception that reuses a complex, multi-table cascading service function
- * directly (`executeAccountDeletion`) rather than hand-rolling its cascade a
- * second time -- safe here specifically because the function's own
- * precondition (a PENDING deletion request whose grace window has elapsed)
- * naturally already holds: the request itself is created long before
- * execution (a 30+ day grace window dwarfs this codebase's <=5 minute RPO),
- * so it is essentially always mirrored onto the restored branch already, and
- * calling the real function with the original event's own `occurredAt` as
- * `now` reproduces the exact same grace-window check that already passed on
- * the old branch. Document/version erasure and case-retention purge replay
- * are deliberately NOT covered here -- each needs its own dedicated design
- * (erasure in particular has at least three independent enqueue sources --
- * account deletion, case-retention purge, and a separate manually-triggered
- * per-document retention purge -- whose completion side effects differ),
- * tracked as separate, later chunks.
+ * or insert a full row that is missing entirely. Account deletion and
+ * case-retention purge are the two exceptions that reuse a complex,
+ * multi-table cascading mechanism directly rather than hand-rolling it a
+ * second time:
+ *
+ * - Account deletion calls `executeAccountDeletion` itself -- safe here
+ *   specifically because the function's own precondition (a PENDING
+ *   deletion request whose grace window has elapsed) naturally already
+ *   holds: the request is created long before execution (a 30+ day grace
+ *   window dwarfs this codebase's <=5 minute RPO), so it is essentially
+ *   always mirrored onto the restored branch already, and calling the real
+ *   function with the original event's own `occurredAt` as `now`
+ *   reproduces the exact same grace-window check that already passed on
+ *   the old branch.
+ * - Case-retention purge calls `purgeMissionUnconditionally`
+ *   (`case-retention.ts`) -- the unconditional purge mechanism extracted
+ *   out of `sweepCaseRetentionPurge` for exactly this reuse. Unlike account
+ *   deletion, reconciliation does NOT call the sweep itself: the sweep's
+ *   own eligibility gate (grace days, an active legal hold, an unresolved
+ *   complaint) is the wrong precondition to recheck here -- a
+ *   `MISSION_RETENTION_PURGED` event on the pre-incident branch is already
+ *   proof the purge was correctly decided there, and the restored branch's
+ *   own current hold/complaint state may be stale or have genuinely
+ *   diverged. Reconciliation forces the exact end state that was already
+ *   decided, nothing more.
+ *
+ * Document/version erasure replay is deliberately NOT covered here -- it
+ * needs its own dedicated design (at least three independent enqueue
+ * sources -- account deletion, case-retention purge, and a separate
+ * manually-triggered per-document retention purge -- whose completion side
+ * effects differ), tracked as a separate, later chunk.
  *
  * Every forced change is itself audited on the NEW branch (method SYSTEM,
  * no actor -- this is a system process, not a person), so the restored
@@ -56,6 +72,7 @@ const RECONCILED_EVENT_TYPES = [
   'ORGANIZATION_SUSPENDED',
   'ORGANIZATION_TERMINATED',
   'ACCOUNT_DELETION_EXECUTED',
+  'MISSION_RETENTION_PURGED',
 ] as const;
 
 type ReconciledEventType = (typeof RECONCILED_EVENT_TYPES)[number];
@@ -69,6 +86,7 @@ export interface ReconciliationCounts {
   readonly platformRolesRevoked: number;
   readonly organizationsForced: number;
   readonly accountsDeleted: number;
+  readonly missionsPurged: number;
 }
 
 export interface ReconciliationError {
@@ -230,6 +248,45 @@ async function forceAccountDeletionExecuted(
   return true;
 }
 
+/**
+ * Like account deletion above, reuses a complex cascading mechanism
+ * directly (`purgeMissionUnconditionally`) rather than hand-rolling it --
+ * but unlike account deletion, deliberately does NOT call the sweep that
+ * normally guards it (`sweepCaseRetentionPurge`): that sweep's own
+ * eligibility gate re-checks grace days, an active legal hold, and an
+ * unresolved complaint against CURRENT state, which is exactly wrong here
+ * -- the `MISSION_RETENTION_PURGED` event being replayed is already proof
+ * the purge was correctly decided on the old branch, and the restored
+ * branch's own hold/complaint state may be stale or have genuinely
+ * diverged since. Reads the mission's own pre-purge field values fresh
+ * from the restored branch (never from the old event's metadata) so the
+ * forced redaction reflects what is actually being redacted here. A
+ * missing mission (never existed on this branch) or one already purged
+ * (idempotent re-run) is a clean no-op, never an error.
+ */
+async function forceMissionRetentionPurged(newDb: Db, resourceId: string): Promise<boolean> {
+  return newDb.transaction(async (tx) => {
+    const mission = first(
+      await tx
+        .select({
+          missionId: schema.missions.id,
+          applicantId: schema.missions.applicantId,
+          title: schema.missions.title,
+          state: schema.missions.state,
+          closedAt: schema.missions.closedAt,
+          retentionNoticeSentAt: schema.missions.retentionNoticeSentAt,
+          purgedAt: schema.missions.purgedAt,
+        })
+        .from(schema.missions)
+        .where(eq(schema.missions.id, resourceId))
+        .limit(1),
+    );
+    if (!mission || mission.purgedAt) return false;
+    await purgeMissionUnconditionally(tx, mission, 'backup_resurrection_reconciliation');
+    return true;
+  });
+}
+
 /** Which counter and audit resourceType each event type drives, once applied. */
 const EVENT_META: Readonly<
   Record<
@@ -246,6 +303,7 @@ const EVENT_META: Readonly<
   ORGANIZATION_SUSPENDED: { counter: 'organizationsForced', resourceType: 'organization' },
   ORGANIZATION_TERMINATED: { counter: 'organizationsForced', resourceType: 'organization' },
   ACCOUNT_DELETION_EXECUTED: { counter: 'accountsDeleted', resourceType: 'account' },
+  MISSION_RETENTION_PURGED: { counter: 'missionsPurged', resourceType: 'mission' },
 };
 
 async function applyEvent(oldDb: Db, newDb: Db, event: AuditEventRow): Promise<boolean> {
@@ -270,6 +328,8 @@ async function applyEvent(oldDb: Db, newDb: Db, event: AuditEventRow): Promise<b
       return forceOrganizationStatus(newDb, resourceId, 'CLOSED');
     case 'ACCOUNT_DELETION_EXECUTED':
       return forceAccountDeletionExecuted(newDb, resourceId, event.occurredAt);
+    case 'MISSION_RETENTION_PURGED':
+      return forceMissionRetentionPurged(newDb, resourceId);
     default:
       return false;
   }
@@ -300,6 +360,7 @@ export async function reconcileRestoredBranch(
     platformRolesRevoked: 0,
     organizationsForced: 0,
     accountsDeleted: 0,
+    missionsPurged: 0,
   };
   const errors: ReconciliationError[] = [];
   const mutableCounts = counts as {
