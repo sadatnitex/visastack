@@ -2,9 +2,12 @@ import { randomUUID } from 'node:crypto';
 import { type Result, err, ok } from '@visastack/core';
 import { and, asc, eq, gt, inArray, isNull, lt, lte, or, sql } from 'drizzle-orm';
 import { type Db, first, required, schema } from './db';
+import { isDocumentVersionUsable } from './documents';
+import { activeOrVerifiedErasureStorageObjectIds } from './erasure';
 import { type ServiceError, serviceError } from './errors';
-import { exportAccount } from './export';
+import { type AccountExport, type AccountExportManifest, exportAccount } from './export';
 import { buildExportCsvTables } from './export-csv';
+import { extensionOf, sanitizeNameComponent } from './naming';
 import type { KeyManagementPort } from './ports';
 import { buildAccountExportAad, protectBytes, revealBytes } from './protected-fields';
 import type { BlobStore } from './storage';
@@ -20,16 +23,18 @@ import type { BlobStore } from './storage';
  * encryption complete, artifact downloadable until `expiresAt`) and EXPIRED
  * (was READY, now past `expiresAt`; bytes purged by the sweep below).
  *
- * Chunk 1 of this feature: the full job lifecycle (enqueue, claim, process,
- * retrieve, expire), producing a real, encrypted, transiently-stored
- * artifact - but bundling today's existing JSON manifest + CSV tables only,
- * the exact same content `exportAccount`'s synchronous route already
- * serves. Original document bytes (the actual point of "Large export") are
- * a separate, later chunk that only needs to change what `processExport`
- * bundles - the job lifecycle, encryption, storage, expiry, and retrieval
- * built here do not change. No HTTP route or UI exists yet either - this is
- * proven end-to-end at the service layer first, the same backend-then-UI
- * split this codebase has used throughout (e.g. TRU-02).
+ * Chunk 1 of this feature built the full job lifecycle (enqueue, claim,
+ * process, retrieve, expire), producing a real, encrypted, transiently-
+ * stored artifact bundling only the JSON manifest + CSV tables `exportAccount`'s
+ * synchronous route already serves. Chunk 2 (this update) adds the actual
+ * point of "Large export": every currently-usable document version's real
+ * original bytes, gated by the exact same `isDocumentVersionUsable`
+ * predicate the rest of the product already enforces (never a separate,
+ * looser export-only rule) and safely, deterministically named under
+ * `documents/` (see `collectDocumentFiles` below). No HTTP route or UI
+ * exists yet either - this is proven end-to-end at the service layer
+ * first, the same backend-then-UI split this codebase has used throughout
+ * (e.g. TRU-02).
  *
  * The artifact is encrypted with `protectBytes`/`revealBytes`
  * (`protected-fields.ts`) - the same envelope-encryption primitive SEC-03
@@ -197,6 +202,152 @@ async function failAccountExportJob(
   return updated.length > 0;
 }
 
+/** Why one document version's real bytes did not make it into the artifact - reported honestly in the artifact's own manifest rather than a silently smaller ZIP. */
+export interface DocumentBundleExclusion {
+  readonly document: string;
+  readonly version: number;
+  readonly reason: 'not_yet_usable' | 'bytes_missing';
+}
+
+interface DocumentBundleResult {
+  readonly files: ReadonlyArray<{ readonly name: string; readonly bytes: Uint8Array }>;
+  readonly included: number;
+  readonly excluded: readonly DocumentBundleExclusion[];
+}
+
+/** Strips a known trailing `.ext` from a name (case-insensitively) before it gets sanitized as a bare component - `document.originalName`/`approvedName` both already carry their own extension (see naming.ts's `buildProposedName`), and the caller appends `ext` back on separately, so leaving it in would double it (e.g. `Passport.pdf - v1.pdf`). */
+function stripKnownExtension(name: string, ext: string): string {
+  if (ext.length === 0) return name;
+  const suffix = `.${ext}`;
+  return name.toLowerCase().endsWith(suffix.toLowerCase()) ? name.slice(0, -suffix.length) : name;
+}
+
+/** Extends a fixed base name with a numeric suffix on collision, mirroring how a filesystem or archive tool would - proves "no duplicates" holds even when two documents sanitize to the identical name and version number. */
+function uniqueZipEntryName(used: Set<string>, base: string, ext: string): string {
+  const suffix = ext.length > 0 ? `.${ext}` : '';
+  let candidate = `${base}${suffix}`;
+  for (let n = 2; used.has(candidate); n++) {
+    candidate = `${base} (${n})${suffix}`;
+  }
+  used.add(candidate);
+  return candidate;
+}
+
+/**
+ * Bundles every currently-usable document version's real original bytes.
+ * Reuses `isDocumentVersionUsable` (documents.ts) - the exact same
+ * servability rule `accessDocument`'s own preview/download gate and
+ * `missions.ts`'s readiness computation already enforce, so this can never
+ * be a separate, looser (or stricter) definition of "usable" invented just
+ * for export. A version that has not yet cleared malware scanning can
+ * therefore never appear here either - "no executables" holds by
+ * construction, since `safetyStatus === 'CLEAN'` is one of that predicate's
+ * own three conditions, not a separate check added here.
+ *
+ * Names are built as `documents/<sanitized name> - v<versionNumber><ext>` -
+ * `sanitizeNameComponent` (naming.ts) already strips path separators,
+ * `..`, and control characters, so a hostile `originalName` can never
+ * escape the fixed `documents/` prefix ("safe paths; no traversal").
+ * `uniqueZipEntryName` guards the one remaining collision case
+ * `sanitizeNameComponent` cannot: two distinct documents whose names
+ * happen to sanitize identically at the identical version number.
+ *
+ * Every version is bundled, not just the latest per document, so the ZIP's
+ * own file count stays consistent with what the manifest already reports
+ * for `documentVersions` (full history, matching the JSON export).
+ */
+async function collectDocumentFiles(
+  db: Db,
+  blobStore: BlobStore,
+  exported: AccountExport,
+): Promise<DocumentBundleResult> {
+  const candidates = exported.applicants.flatMap((a) =>
+    a.documents.flatMap((d) => d.versions.map((version) => ({ version, document: d.document }))),
+  );
+  if (candidates.length === 0) return { files: [], included: 0, excluded: [] };
+
+  const storageObjectIds = candidates.map((c) => c.version.storageObjectId);
+  const [storageRows, erasedIds] = await Promise.all([
+    db
+      .select()
+      .from(schema.storageObjects)
+      .where(inArray(schema.storageObjects.id, storageObjectIds)),
+    activeOrVerifiedErasureStorageObjectIds(db, storageObjectIds),
+  ]);
+  const storageById = new Map(storageRows.map((row) => [row.id, row]));
+
+  const files: Array<{ name: string; bytes: Uint8Array }> = [];
+  const excluded: DocumentBundleExclusion[] = [];
+  const usedNames = new Set<string>();
+  let included = 0;
+
+  for (const { version, document } of candidates) {
+    const usable = isDocumentVersionUsable({
+      safetyStatus: version.safetyStatus,
+      processingStatus: version.processingStatus,
+      erased: erasedIds.has(version.storageObjectId),
+    });
+    if (!usable) {
+      excluded.push({
+        document: document.originalName,
+        version: version.versionNumber,
+        reason: 'not_yet_usable',
+      });
+      continue;
+    }
+    const storageObject = storageById.get(version.storageObjectId);
+    const stored = storageObject ? await blobStore.getObject(storageObject.objectKey) : undefined;
+    if (!stored) {
+      excluded.push({
+        document: document.originalName,
+        version: version.versionNumber,
+        reason: 'bytes_missing',
+      });
+      continue;
+    }
+    const ext = extensionOf(document.originalName)
+      .toLowerCase()
+      .replace(/[^a-z0-9]/g, '');
+    const rawName = document.approvedName ?? document.originalName;
+    const baseName = sanitizeNameComponent(stripKnownExtension(rawName, ext)) || 'document';
+    const name = uniqueZipEntryName(
+      usedNames,
+      `documents/${baseName} - v${version.versionNumber}`,
+      ext,
+    );
+    files.push({ name, bytes: stored.bytes });
+    included++;
+  }
+  return { files, included, excluded };
+}
+
+/** The manifest written into the artifact itself - not `AccountExport`'s own top-level `manifest` field verbatim. That one truthfully describes `exportAccount`'s synchronous JSON/CSV-only output; this one reflects what THIS artifact actually contains, including bytes. Never mutates the base manifest, which stays correct for its own separate caller (the JSON export route). */
+export interface AccountExportArtifactManifest extends AccountExportManifest {
+  readonly documentBytes: {
+    readonly included: number;
+    readonly excluded: readonly DocumentBundleExclusion[];
+  };
+}
+
+function buildArtifactManifest(
+  base: AccountExportManifest,
+  bundle: DocumentBundleResult,
+): AccountExportArtifactManifest {
+  // Only claim the gap is closed once this artifact genuinely contains at
+  // least one real file - an account with zero usable versions (none yet,
+  // or all currently excluded) gets no bytes either, so the base manifest's
+  // own honest statement stays correct rather than silently dropped.
+  const knownGaps =
+    bundle.included > 0
+      ? base.knownGaps.filter((gap) => gap.item !== 'original document bytes')
+      : base.knownGaps;
+  return {
+    ...base,
+    knownGaps,
+    documentBytes: { included: bundle.included, excluded: bundle.excluded },
+  };
+}
+
 type ProcessOutcome = 'ready' | 'skipped' | 'failed' | 'lost-lease';
 
 /**
@@ -241,14 +392,17 @@ async function processAccountExportJob(
     if (!exported.ok)
       throw new Error(`export failed (${exported.error.code}): ${exported.error.message}`);
 
+    const documentBundle = await collectDocumentFiles(db, ports.blobStore, exported.value);
+    const artifactManifest = buildArtifactManifest(exported.value.manifest, documentBundle);
     const files = [
       {
         name: 'manifest.json',
-        bytes: new TextEncoder().encode(JSON.stringify(exported.value.manifest, null, 2)),
+        bytes: new TextEncoder().encode(JSON.stringify(artifactManifest, null, 2)),
       },
       ...buildExportCsvTables(exported.value)
         .filter((table) => table.rowCount > 0)
         .map((table) => ({ name: table.name, bytes: new TextEncoder().encode(table.csv) })),
+      ...documentBundle.files,
     ];
     const zipBytes = await ports.bundler.build(files);
     const protectedArtifact = await protectBytes(
