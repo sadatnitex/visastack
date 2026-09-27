@@ -72,9 +72,18 @@ export async function placeLegalHoldAction(
   const applicantId = String(formData.get('applicantId') ?? '').trim();
   const reason = String(formData.get('reason') ?? '').trim();
   const reviewAtRaw = String(formData.get('reviewAt') ?? '').trim();
+  const scope = String(formData.get('scope') ?? 'applicant').trim();
+  const missionId = String(formData.get('missionId') ?? '').trim();
+  const documentId = String(formData.get('documentId') ?? '').trim();
   if (applicantId.length === 0) return { ok: false, message: 'Enter an applicant ID.' };
   if (reason.length === 0) return { ok: false, message: 'A reason is required.' };
   if (reviewAtRaw.length === 0) return { ok: false, message: 'A review date is required.' };
+  if (scope === 'mission' && missionId.length === 0) {
+    return { ok: false, message: 'Enter the mission ID to scope this hold to.' };
+  }
+  if (scope === 'document' && documentId.length === 0) {
+    return { ok: false, message: 'Enter the document ID to scope this hold to.' };
+  }
   const reviewAt = new Date(reviewAtRaw);
   if (Number.isNaN(reviewAt.getTime())) {
     return { ok: false, message: 'The review date is not valid.' };
@@ -96,6 +105,8 @@ export async function placeLegalHoldAction(
       reason,
       reviewAt,
       stepUpSatisfied: true,
+      ...(scope === 'mission' ? { missionId } : {}),
+      ...(scope === 'document' ? { documentId } : {}),
     });
     if (!held.ok) return { ok: false, message: held.error.message } satisfies ActionState;
     return { ok: true, message: 'Legal hold placed.' };

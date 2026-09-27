@@ -1505,12 +1505,31 @@ item gets its own requirements-ledger row once classified against the new direct
       responsibility. New `legalHolds.lastReviewReminderAt` column (additive
       migration). Wired into a new daily cron,
       `/api/jobs/process-legal-hold-reminders`. 5 new tests (`legal-hold.test.ts`,
-      a new dedicated file for this module). Still open, deliberately not
-      attempted: a structured authority/basis taxonomy (legal/compliance
-      policy decision) and scope granularity finer than the whole applicant
-      (a real design question, its own follow-up chunk). Full
-      `@visastack/services` suite, repo-wide typecheck/lint, and production
-      build all clean.
+      a new dedicated file for this module). Full `@visastack/services`
+      suite, repo-wide typecheck/lint, and production build all clean.
+      **RESOLVED (exact scope).** New optional, mutually-exclusive
+      `legalHolds.missionId`/`documentId` (both null stays applicant-wide,
+      the unchanged default). The actual data model was investigated before
+      building anything: documents are applicant-scoped and reused across
+      missions (the wallet model), while case-retention purge and document
+      retention/erasure are already two independent subsystems -- so the two
+      real narrower scopes are mission (new `missionBlockedByLegalHold`,
+      blocks that mission's own case-purge) and document (new
+      `documentBlockedByLegalHold`, blocks that document's own
+      retention/erasure). A mission-scoped hold also reaches every document
+      currently selected as that mission's evidence (reusing the existing
+      `missionsSelectingDocument` helper) -- without that, a held case's own
+      evidence could still silently expire via its own unrelated retention
+      clock. A document-scoped hold does not reach back into any mission:
+      case-purge never touches document bytes, so the document's own
+      protection is already complete without also freezing the mission.
+      Every call site (`case-retention.ts`, `retention.ts`, `erasure.ts`)
+      updated; `deletion.ts`'s account-deletion pre-check is unchanged on
+      purpose (any hold at any scope still blocks whole-account deletion).
+      Admin form gained a scope selector; the traveller-facing explanation
+      now states the real scope. 10 new tests. Still open, deliberately not
+      attempted: a structured authority/basis taxonomy (a legal/compliance
+      policy decision, not an engineering one).
     - **Export/portability (§14, PRV-04):** traveller self-export
       (`exportAccount`) and agency `bulkExport` are both real, authorized,
       and tested. Missing: original file bytes (only document *metadata*

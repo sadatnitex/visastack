@@ -3,7 +3,7 @@ import { and, asc, desc, eq, inArray, isNotNull, isNull, lt, lte, or, sql } from
 import { appendAuditEvent } from './audit';
 import { type Db, first, required, schema } from './db';
 import { incrementMaterialRevision, missionsSelectingDocument } from './material-revision';
-import { hasActiveLegalHold } from './retention';
+import { documentBlockedByLegalHold, hasActiveLegalHold } from './retention';
 import type { BlobStore } from './storage';
 
 /**
@@ -414,7 +414,17 @@ async function finalizeVerifiedJob(
         .where(eq(schema.applicants.id, job.applicantId))
         .for('update');
 
-      const held = await hasActiveLegalHold(tx, job.applicantId);
+      // A job created without a specific document (rare -- every real
+      // RETENTION_PURGE job retention.ts itself enqueues carries one) can
+      // only be checked against an applicant-wide hold; one carrying a
+      // document gets the full scope-aware check, which is a strict
+      // superset of that (see `documentBlockedByLegalHold`'s own comment).
+      const held = job.documentId
+        ? await documentBlockedByLegalHold(tx, {
+            applicantId: job.applicantId,
+            documentId: job.documentId,
+          })
+        : await hasActiveLegalHold(tx, job.applicantId);
       if (held) {
         const blocked = await blockOnHold(
           tx,
@@ -555,7 +565,12 @@ async function processErasureJob(
 ): Promise<ProcessOutcome> {
   try {
     if (job.reason === 'RETENTION_PURGE' && job.applicantId) {
-      const held = await hasActiveLegalHold(db, job.applicantId);
+      const held = job.documentId
+        ? await documentBlockedByLegalHold(db, {
+            applicantId: job.applicantId,
+            documentId: job.documentId,
+          })
+        : await hasActiveLegalHold(db, job.applicantId);
       if (held) {
         const blocked = await blockOnHold(
           db,

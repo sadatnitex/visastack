@@ -1,7 +1,7 @@
 import { and, eq, inArray, isNotNull, isNull, lte, notInArray } from 'drizzle-orm';
 import { appendAuditEvent } from './audit';
 import { type Db, first, schema } from './db';
-import { hasActiveLegalHold } from './legal-hold';
+import { missionBlockedByLegalHold } from './legal-hold';
 import { enqueueNotificationBothChannels } from './notifications';
 
 /**
@@ -369,7 +369,12 @@ export async function sweepCaseRetentionPurge(
   let skippedForComplaint = 0;
 
   for (const row of due) {
-    if (await hasActiveLegalHold(db, row.applicantId)) {
+    if (
+      await missionBlockedByLegalHold(db, {
+        applicantId: row.applicantId,
+        missionId: row.missionId,
+      })
+    ) {
       skippedForHold++;
       continue;
     }
@@ -393,7 +398,13 @@ export async function sweepCaseRetentionPurge(
           .limit(1),
       );
       if (!locked) return false;
-      if (await hasActiveLegalHold(tx, row.applicantId)) return false;
+      if (
+        await missionBlockedByLegalHold(tx, {
+          applicantId: row.applicantId,
+          missionId: row.missionId,
+        })
+      )
+        return false;
       if (await hasUnresolvedComplaint(tx, row.missionId)) return false;
 
       await purgeMissionUnconditionally(tx, row, 'closed-case retention period elapsed');
