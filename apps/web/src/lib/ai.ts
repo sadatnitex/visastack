@@ -79,6 +79,8 @@ const DEFAULT_PER_DOCUMENT_BUDGET_USD = 0.5;
 // must still fail closed, the same way a blank QUOTA_* var does.
 const DEFAULT_MAX_ATTEMPTS_PER_DOCUMENT = 3;
 const DEFAULT_MAX_PAGES_PER_DOCUMENT = 25;
+// Part 8 §11's own named default: "5 concurrent model calls platform-wide".
+const DEFAULT_MAX_CONCURRENT_CALLS = 5;
 // PRV-02 (master directive Part 7 §11): "AI cache: <=30d later" -- the
 // directive's own retention table calls this a proposed default, not an
 // immutable legal fact, hence env-overridable like every cap above.
@@ -117,4 +119,9 @@ export function aiMaxPagesPerDocument(): number {
 /** Max age of a reusable cache hit, in days (env: AI_CACHE_MAX_AGE_DAYS). */
 export function aiCacheMaxAgeDays(): number {
   return readPositiveIntEnv('AI_CACHE_MAX_AGE_DAYS', DEFAULT_CACHE_MAX_AGE_DAYS);
+}
+
+/** Most AI extraction calls allowed in flight platform-wide at once (env: AI_MAX_CONCURRENT_CALLS). */
+export function aiMaxConcurrentCalls(): number {
+  return readPositiveIntEnv('AI_MAX_CONCURRENT_CALLS', DEFAULT_MAX_CONCURRENT_CALLS);
 }

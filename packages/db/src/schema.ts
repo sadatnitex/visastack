@@ -270,7 +270,16 @@ export const fieldSensitivity = pgEnum('field_sensitivity', [
 ]);
 export const proposalType = pgEnum('proposal_type', PROPOSAL_TYPES);
 export const proposalStatus = pgEnum('proposal_status', ['PENDING', 'APPROVED', 'REJECTED']);
-export const aiExtractionRunStatus = pgEnum('ai_extraction_run_status', ['SUCCEEDED', 'FAILED']);
+// IN_FLIGHT (Part 8 §11: "5 concurrent model calls platform-wide") marks a
+// call genuinely in progress -- inserted before the outbound provider call,
+// resolved to SUCCEEDED/FAILED after it returns, so a platform-wide count
+// of IN_FLIGHT rows is a real concurrency gate that never requires holding
+// a lock for the call's own duration.
+export const aiExtractionRunStatus = pgEnum('ai_extraction_run_status', [
+  'IN_FLIGHT',
+  'SUCCEEDED',
+  'FAILED',
+]);
 
 // --- Shared timestamp columns ----------------------------------------------
 const timestamps = {
