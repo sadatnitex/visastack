@@ -10,13 +10,18 @@ import { provisionAccount } from './accounts';
 import { createApplicant } from './applicants';
 import { setConsent } from './consent';
 import { type Db, first } from './db';
+import { registerDocument } from './documents';
 import {
+  documentBlockedByLegalHold,
   legalHoldReminderIntervalDays,
   listActiveLegalHoldsForAccount,
+  missionBlockedByLegalHold,
   placeLegalHold,
   sweepLegalHoldReviewReminders,
 } from './legal-hold';
+import { createMission } from './missions';
 import { createOrganization, reviewOrganization } from './organizations';
+import { addPackVersion, addRequirement, createPack } from './packs';
 import { grantPlatformRole } from './platform-roles';
 import { acceptGrant, createGrant, pauseGrant, revokeGrant } from './sharing';
 
@@ -57,6 +62,51 @@ async function seedApplicant(db: Db, email: string) {
 /** A future date safely past `placeLegalHold`'s own "must be in the future" check. */
 function soon(): Date {
   return new Date(Date.now() + 60_000);
+}
+
+/** A mission with one document selected as its evidence for a requirement -- the minimal real `selectedEvidence` link `missionsSelectingDocument` (and so `documentBlockedByLegalHold`'s mission-reach) actually reads. Inserted directly rather than through `selectEvidence` itself: this only needs the FK targets to exist for real, not the full attach/approve/publish ceremony that service function's own authorization checks require. */
+async function seedMissionWithDocument(
+  db: Db,
+  accountId: string,
+  applicantId: string,
+  title: string,
+): Promise<{ missionId: string; documentId: string }> {
+  const pack = await createPack(db, {
+    actorAccountId: accountId,
+    key: `pack-${title.toLowerCase().replace(/\s+/g, '-')}`,
+    name: 'Test Pack',
+  });
+  if (!isOk(pack)) throw new Error('pack');
+  const version = await addPackVersion(db, { actorAccountId: accountId, packId: pack.value.id });
+  if (!isOk(version)) throw new Error('version');
+  const requirement = await addRequirement(db, {
+    actorAccountId: accountId,
+    packVersionId: version.value.id,
+    kind: 'DOCUMENT',
+    docType: 'bank_statement',
+    citation: 'rule 1',
+  });
+  if (!isOk(requirement)) throw new Error('requirement');
+
+  const mission = await createMission(db, { actorAccountId: accountId, applicantId, title });
+  if (!isOk(mission)) throw new Error('mission');
+
+  const doc = await registerDocument(db, {
+    actorAccountId: accountId,
+    applicantId,
+    originalName: 'evidence.pdf',
+    docType: 'bank_statement',
+  });
+  if (!isOk(doc)) throw new Error('doc');
+
+  await db.insert(schema.selectedEvidence).values({
+    missionId: mission.value.id,
+    packRequirementId: requirement.value.id,
+    documentId: doc.value.id,
+    selectedByAccountId: accountId,
+  });
+
+  return { missionId: mission.value.id, documentId: doc.value.id };
 }
 
 /** Independently verify a PENDING_VERIFICATION org (createGrant requires an ACTIVE recipient organization) - mirrors sharing.test.ts's own identical helper. */
@@ -278,5 +328,213 @@ describe('legal holds - scheduled review reminder (Part 7 §13)', () => {
 
     const result = await sweepLegalHoldReviewReminders(db);
     expect(result).toEqual({ checked: 1, notified: 1 });
+  });
+});
+
+describe('legal holds - exact scope (Part 7 §13)', () => {
+  let db: Db;
+  beforeEach(async () => {
+    db = await freshDb();
+  });
+
+  it('rejects a hold scoped to both a mission and a document', async () => {
+    const { accountId, applicantId } = await seedApplicant(db, 'both-scopes@example.com');
+    const { missionId, documentId } = await seedMissionWithDocument(
+      db,
+      accountId,
+      applicantId,
+      'Both scopes case',
+    );
+    const result = await placeLegalHold(db, {
+      actorAccountId: accountId,
+      applicantId,
+      reason: 'test',
+      reviewAt: soon(),
+      stepUpSatisfied: true,
+      missionId,
+      documentId,
+    });
+    expect(isOk(result)).toBe(false);
+  });
+
+  it('rejects a mission that does not belong to the given applicant', async () => {
+    const owner = await seedApplicant(db, 'scope-owner@example.com');
+    const stranger = await seedApplicant(db, 'scope-stranger@example.com');
+    const { missionId } = await seedMissionWithDocument(
+      db,
+      stranger.accountId,
+      stranger.applicantId,
+      'Stranger case',
+    );
+    const result = await placeLegalHold(db, {
+      actorAccountId: owner.accountId,
+      applicantId: owner.applicantId,
+      reason: 'test',
+      reviewAt: soon(),
+      stepUpSatisfied: true,
+      missionId,
+    });
+    expect(isOk(result)).toBe(false);
+  });
+
+  it('rejects a document that does not belong to the given applicant', async () => {
+    const owner = await seedApplicant(db, 'doc-scope-owner@example.com');
+    const stranger = await seedApplicant(db, 'doc-scope-stranger@example.com');
+    const { documentId } = await seedMissionWithDocument(
+      db,
+      stranger.accountId,
+      stranger.applicantId,
+      'Stranger doc case',
+    );
+    const result = await placeLegalHold(db, {
+      actorAccountId: owner.accountId,
+      applicantId: owner.applicantId,
+      reason: 'test',
+      reviewAt: soon(),
+      stepUpSatisfied: true,
+      documentId,
+    });
+    expect(isOk(result)).toBe(false);
+  });
+
+  describe('missionBlockedByLegalHold', () => {
+    it('an applicant-wide hold blocks every mission under that applicant', async () => {
+      const { accountId, applicantId } = await seedApplicant(
+        db,
+        'applicant-wide-mission@example.com',
+      );
+      const { missionId } = await seedMissionWithDocument(db, accountId, applicantId, 'Case A');
+      const placed = await placeLegalHold(db, {
+        actorAccountId: accountId,
+        applicantId,
+        reason: 'investigation',
+        reviewAt: soon(),
+        stepUpSatisfied: true,
+      });
+      expect(isOk(placed)).toBe(true);
+      expect(await missionBlockedByLegalHold(db, { applicantId, missionId })).toBe(true);
+    });
+
+    it('a mission-scoped hold blocks only that mission, not a sibling mission', async () => {
+      const { accountId, applicantId } = await seedApplicant(db, 'mission-scoped@example.com');
+      const held = await seedMissionWithDocument(db, accountId, applicantId, 'Held case');
+      const sibling = await seedMissionWithDocument(db, accountId, applicantId, 'Sibling case');
+      const placed = await placeLegalHold(db, {
+        actorAccountId: accountId,
+        applicantId,
+        reason: 'investigation',
+        reviewAt: soon(),
+        stepUpSatisfied: true,
+        missionId: held.missionId,
+      });
+      expect(isOk(placed)).toBe(true);
+      expect(await missionBlockedByLegalHold(db, { applicantId, missionId: held.missionId })).toBe(
+        true,
+      );
+      expect(
+        await missionBlockedByLegalHold(db, { applicantId, missionId: sibling.missionId }),
+      ).toBe(false);
+    });
+
+    it('a document-scoped hold never blocks any mission', async () => {
+      const { accountId, applicantId } = await seedApplicant(
+        db,
+        'doc-never-blocks-mission@example.com',
+      );
+      const { missionId, documentId } = await seedMissionWithDocument(
+        db,
+        accountId,
+        applicantId,
+        'Case with held document',
+      );
+      const placed = await placeLegalHold(db, {
+        actorAccountId: accountId,
+        applicantId,
+        reason: 'investigation',
+        reviewAt: soon(),
+        stepUpSatisfied: true,
+        documentId,
+      });
+      expect(isOk(placed)).toBe(true);
+      expect(await missionBlockedByLegalHold(db, { applicantId, missionId })).toBe(false);
+    });
+  });
+
+  describe('documentBlockedByLegalHold', () => {
+    it('an applicant-wide hold blocks every document under that applicant', async () => {
+      const { accountId, applicantId } = await seedApplicant(db, 'applicant-wide-doc@example.com');
+      const { documentId } = await seedMissionWithDocument(db, accountId, applicantId, 'Case B');
+      const placed = await placeLegalHold(db, {
+        actorAccountId: accountId,
+        applicantId,
+        reason: 'investigation',
+        reviewAt: soon(),
+        stepUpSatisfied: true,
+      });
+      expect(isOk(placed)).toBe(true);
+      expect(await documentBlockedByLegalHold(db, { applicantId, documentId })).toBe(true);
+    });
+
+    it('a document-scoped hold blocks only that document, not a sibling document', async () => {
+      const { accountId, applicantId } = await seedApplicant(db, 'document-scoped@example.com');
+      const held = await seedMissionWithDocument(db, accountId, applicantId, 'Held doc case');
+      const sibling = await seedMissionWithDocument(db, accountId, applicantId, 'Sibling doc case');
+      const placed = await placeLegalHold(db, {
+        actorAccountId: accountId,
+        applicantId,
+        reason: 'investigation',
+        reviewAt: soon(),
+        stepUpSatisfied: true,
+        documentId: held.documentId,
+      });
+      expect(isOk(placed)).toBe(true);
+      expect(
+        await documentBlockedByLegalHold(db, { applicantId, documentId: held.documentId }),
+      ).toBe(true);
+      expect(
+        await documentBlockedByLegalHold(db, { applicantId, documentId: sibling.documentId }),
+      ).toBe(false);
+    });
+
+    it('a mission-scoped hold blocks a document currently selected as evidence by that mission', async () => {
+      const { accountId, applicantId } = await seedApplicant(db, 'mission-reaches-doc@example.com');
+      const { missionId, documentId } = await seedMissionWithDocument(
+        db,
+        accountId,
+        applicantId,
+        'Case reaching its evidence',
+      );
+      const placed = await placeLegalHold(db, {
+        actorAccountId: accountId,
+        applicantId,
+        reason: 'investigation',
+        reviewAt: soon(),
+        stepUpSatisfied: true,
+        missionId,
+      });
+      expect(isOk(placed)).toBe(true);
+      expect(await documentBlockedByLegalHold(db, { applicantId, documentId })).toBe(true);
+    });
+
+    it('a mission-scoped hold does not block a document that mission never selected', async () => {
+      const { accountId, applicantId } = await seedApplicant(
+        db,
+        'mission-unrelated-doc@example.com',
+      );
+      const held = await seedMissionWithDocument(db, accountId, applicantId, 'Held case unrelated');
+      const unrelated = await seedMissionWithDocument(db, accountId, applicantId, 'Unrelated case');
+      const placed = await placeLegalHold(db, {
+        actorAccountId: accountId,
+        applicantId,
+        reason: 'investigation',
+        reviewAt: soon(),
+        stepUpSatisfied: true,
+        missionId: held.missionId,
+      });
+      expect(isOk(placed)).toBe(true);
+      expect(
+        await documentBlockedByLegalHold(db, { applicantId, documentId: unrelated.documentId }),
+      ).toBe(false);
+    });
   });
 });

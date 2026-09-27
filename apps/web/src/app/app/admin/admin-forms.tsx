@@ -1,6 +1,6 @@
 'use client';
 
-import { useActionState } from 'react';
+import { useActionState, useState } from 'react';
 import {
   type ActionState,
   createInvitationAction,
@@ -171,6 +171,7 @@ interface LegalHoldFormProps {
 
 export function LegalHoldForm({ applicants }: LegalHoldFormProps) {
   const [state, formAction, pending] = useActionState(placeLegalHoldAction, INITIAL);
+  const [scope, setScope] = useState<'applicant' | 'mission' | 'document'>('applicant');
   return (
     <form action={formAction} className="field-list">
       <div className="field-row">
@@ -213,6 +214,52 @@ export function LegalHoldForm({ applicants }: LegalHoldFormProps) {
         </label>
         <input id="reviewAt" name="reviewAt" type="date" required className="input" />
       </div>
+      <div className="field-row">
+        <label className="field-label" htmlFor="scope">
+          Scope
+        </label>
+        <select
+          id="scope"
+          name="scope"
+          className="input"
+          defaultValue="applicant"
+          onChange={(e) => setScope(e.target.value as 'applicant' | 'mission' | 'document')}
+        >
+          <option value="applicant">Whole applicant (default)</option>
+          <option value="mission">One mission only</option>
+          <option value="document">One document only</option>
+        </select>
+      </div>
+      {scope === 'mission' ? (
+        <div className="field-row">
+          <label className="field-label" htmlFor="missionId">
+            Mission ID
+          </label>
+          <input
+            id="missionId"
+            name="missionId"
+            type="text"
+            required
+            className="input"
+            placeholder="UUID, from the case's own page"
+          />
+        </div>
+      ) : null}
+      {scope === 'document' ? (
+        <div className="field-row">
+          <label className="field-label" htmlFor="documentId">
+            Document ID
+          </label>
+          <input
+            id="documentId"
+            name="documentId"
+            type="text"
+            required
+            className="input"
+            placeholder="UUID, from the document's own page"
+          />
+        </div>
+      ) : null}
       <div>
         <button type="submit" className="btn btn-danger" disabled={pending}>
           {pending ? 'Placing…' : 'Place legal hold'}

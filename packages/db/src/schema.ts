@@ -2352,6 +2352,16 @@ export const legalHolds = pgTable(
     applicantId: uuid('applicant_id')
       .notNull()
       .references(() => applicants.id, { onDelete: 'cascade' }),
+    // Directive Part 7 §13 ("Hold needs... exact scope"). Both null (the
+    // default) means applicant-wide, exactly today's only behavior. At most
+    // one of the two is ever set -- enforced by `placeLegalHold`, not a SQL
+    // CHECK constraint, matching this codebase's established preference for
+    // app-level invariants on nullable-alternative columns. `onDelete:
+    // 'cascade'` on both (rather than 'set null'): a hold whose target
+    // mission/document is gone must disappear with it, never silently
+    // widen into an applicant-wide hold it was never meant to be.
+    missionId: uuid('mission_id').references(() => missions.id, { onDelete: 'cascade' }),
+    documentId: uuid('document_id').references(() => documents.id, { onDelete: 'cascade' }),
     reason: text('reason').notNull(),
     placedByAccountId: uuid('placed_by_account_id').references(() => accounts.id, {
       onDelete: 'set null',
@@ -2376,7 +2386,11 @@ export const legalHolds = pgTable(
     lastReviewReminderAt: timestamp('last_review_reminder_at', { withTimezone: true }),
     ...timestamps,
   },
-  (table) => [index('legal_holds_applicant_idx').on(table.applicantId)],
+  (table) => [
+    index('legal_holds_applicant_idx').on(table.applicantId),
+    index('legal_holds_mission_idx').on(table.missionId),
+    index('legal_holds_document_idx').on(table.documentId),
+  ],
 );
 
 // Retention policy per document type: how long to keep before eligible purge.

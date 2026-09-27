@@ -23,6 +23,22 @@ interface AccountLegalHoldProps {
   readonly reviewAt: string | null;
   /** Directive Part 7 §13 "who can access": every account/organization with genuinely current access right now. */
   readonly accessibleTo: readonly string[];
+  /** Directive Part 7 §13 "exact scope": what the hold actually reaches. */
+  readonly scope:
+    | { readonly kind: 'applicant' }
+    | { readonly kind: 'mission'; readonly missionTitle: string }
+    | { readonly kind: 'document'; readonly documentName: string };
+}
+
+function scopeLabel(scope: AccountLegalHoldProps['scope']): string {
+  switch (scope.kind) {
+    case 'mission':
+      return `case "${scope.missionTitle}" only`;
+    case 'document':
+      return `document "${scope.documentName}" only`;
+    default:
+      return 'this whole profile';
+  }
 }
 
 interface DeletionPanelProps {
@@ -77,8 +93,8 @@ export function DeletionPanel({ scheduledFor, impact, holds }: DeletionPanelProp
         <ul style={{ margin: '0.6rem 0 0', paddingLeft: '1.2rem' }}>
           {holds.map((hold) => (
             <li key={hold.id} style={{ marginBottom: '0.35rem' }}>
-              <strong>{hold.applicantDisplayName}</strong> - {hold.reason} (placed{' '}
-              {formatDate(hold.placedAt)}, next review{' '}
+              <strong>{hold.applicantDisplayName}</strong> - {hold.reason}, scoped to{' '}
+              {scopeLabel(hold.scope)} (placed {formatDate(hold.placedAt)}, next review{' '}
               {hold.reviewAt ? formatDate(hold.reviewAt) : 'not yet scheduled'}, accessible to{' '}
               {hold.accessibleTo.length > 0 ? hold.accessibleTo.join(', ') : 'nobody right now'})
             </li>

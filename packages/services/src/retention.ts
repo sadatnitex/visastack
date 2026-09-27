@@ -4,7 +4,7 @@ import { appendAuditEvent } from './audit';
 import { type Db, first, required, schema } from './db';
 import { enqueueErasureJob } from './erasure';
 import { type ServiceError, serviceError } from './errors';
-import { hasActiveLegalHold } from './legal-hold';
+import { documentBlockedByLegalHold } from './legal-hold';
 
 /**
  * Retention (Build Spec §13; PRD §5) — how long a document type is kept
@@ -17,12 +17,15 @@ export {
   type AccountLegalHold,
   type LegalHold,
   type LegalHoldReminderSweepResult,
+  type LegalHoldScopeDescription,
+  documentBlockedByLegalHold,
   hasActiveLegalHold,
   legalHoldReminderIntervalDays,
   listActiveLegalHolds,
   listActiveLegalHoldsForAccount,
   listLegalHolds,
   listLegalHoldsNeedingReview,
+  missionBlockedByLegalHold,
   placeLegalHold,
   releaseLegalHold,
   sweepLegalHoldReviewReminders,
@@ -152,7 +155,10 @@ export async function purgeExpiredDocuments(
   let blockedByHold = 0;
   for (const document of expired) {
     await db.transaction(async (tx) => {
-      const held = await hasActiveLegalHold(tx, document.applicantId);
+      const held = await documentBlockedByLegalHold(tx, {
+        applicantId: document.applicantId,
+        documentId: document.id,
+      });
       if (held) {
         blockedByHold++;
         return;
