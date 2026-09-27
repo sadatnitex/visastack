@@ -2021,6 +2021,74 @@ item gets its own requirements-ledger row once classified against the new direct
     production build all clean. Not verified in a live browser (sandbox
     limitation, same as every prior UI chunk this session).
     Full detail: `requirements-ledger.md` AI-04.
+    **Chunk 4 (this update) -- admin-configurable AI provider settings
+    (AI-02/AI-06/AI-07).** Before this chunk, AI configuration was 100%
+    static env vars (`AI_ENABLED`, `OPENAI_API_KEY`, etc.) with no
+    admin-managed, versioned, auditable configuration at all -- the
+    directive's own §5 names a specific journey (choose provider, enter a
+    write-only key, choose/type a model, set limits, set a reviewed data
+    policy, save DRAFT, activate, rollback, emergency-disable) that simply
+    didn't exist. New `packages/services/src/ai-provider-config.ts` and
+    `ai_provider_configs` table (migration `0076`, additive): every row is a
+    full, immutable configuration snapshot -- "activating" never edits a row
+    in place, it flips which row currently holds ACTIVE (moving whatever
+    held it before to SUPERSEDED), so the complete history of what the
+    platform actually ran under is always reconstructable, the same
+    append-history discipline `fact_versions`/`billing_status_history`
+    already use. At most one row is ever ACTIVE at a time, enforced under a
+    fixed advisory lock (the same `ai.ts`/`uploads.ts` pattern already
+    proven for an identical platform-wide single-winner guarantee), proven
+    by a dedicated test showing two sequential activations never leave two
+    ACTIVE rows.
+    Built: `createDraftAiProviderConfig` (save DRAFT; the API key is
+    envelope-encrypted with the EXISTING `protectValue`/`revealValue`
+    AES-256-GCM primitive from `protected-fields.ts` -- the same mechanism
+    already protecting SENSITIVE/RESTRICTED profile fields, never a second
+    encryption scheme invented for this table -- plus a masked fingerprint,
+    e.g. `...9999`, for admin display); `activateAiProviderConfig` (atomic
+    switch; refuses a config whose data policy isn't approved or whose key
+    has already been revoked); `rollbackAiProviderConfig` (directive's own
+    "last eligible known-good only" -- takes no target id, walks history
+    newest-first among prior versions and skips any whose key has since been
+    revoked or whose data policy is no longer approved, i.e. "cannot
+    resurrect: revoked key; unapproved data policy," proven by two dedicated
+    tests that each plant an ineligible version in the way and confirm it is
+    correctly skipped); `emergencyDisableAiProviderConfig` (takes the
+    current ACTIVE out of service; nothing is auto-promoted, so the platform
+    runs no AI at all until an admin explicitly acts again);
+    `revokeAiProviderConfigKey` (one-way; also disables the config in the
+    same transaction if it happens to be the currently-ACTIVE one, so a
+    revoked key can never remain the platform's live credential even for a
+    moment); `getActiveAiProviderConfig`/`revealAiProviderApiKey` (the
+    read-side the gateway itself will consult); `listAiProviderConfigHistory`.
+    Authorization: a new `AI_SETTINGS_MANAGE` platform action, extending
+    `SECURITY_ADMIN` rather than inventing a sixth platform role --
+    credential/provider security is the same family as `SECURITY_ADMIN`'s
+    existing organization-review actions, not a new, non-overlapping concern
+    the way `QUALITY_ADMIN` was for complaints/feedback -- plus step-up,
+    mirroring `platform-roles.ts`'s own established
+    `canPerformPlatformAction` + `stepUpSatisfied` gate shape exactly, the
+    same "more defensive, checked inside the service" choice `complaints.ts`
+    already made for an identical no-web-UI-yet situation. 19 new tests
+    (`ai-provider-config.test.ts`), plus one added assertion to
+    `platform-roles.test.ts`'s own SECURITY_ADMIN concern-matrix test
+    proving the new action is included. Full `@visastack/services` suite,
+    repo-wide typecheck/lint clean.
+    **Deliberately not in this chunk, so it changes zero runtime behavior:**
+    nothing yet calls any of this from `createAiExtractor`/`runExtraction`
+    -- the live extraction path (still 100% env-var-driven) is completely
+    unchanged, so shipping this chunk carries no risk to it; the admin UI
+    (`apps/web` was not touched at all this chunk); the synthetic connection
+    test and task-evaluation runner §5 also names; "select tasks" (only one
+    AI task, field extraction, exists today, so there is nothing yet to
+    select between); the SSRF-hardening module (AI-07 §7, still correctly
+    deferred -- no custom-endpoint field exists in this schema either, only
+    a `provider`/`model` pair naming one of the built-in, host-locked
+    adapters). Each is its own future chunk, most obviously the next one
+    (wiring the kill-switch recheck and live config into the extraction
+    path itself, per Part 8 §5's "kill switch: rechecked immediately before
+    outbound call").
+    Full detail: `requirements-ledger.md` AI-02/AI-07/A22.
 independently confirmed findings; the missing PRD file is tracked as Blocker 1 in
 `assumptions-and-blockers.md` (now resolved) rather than here, since it blocked the
 programme rather than being a product defect.
