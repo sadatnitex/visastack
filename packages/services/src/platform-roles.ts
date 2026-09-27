@@ -118,7 +118,8 @@ export type PlatformAction =
   | 'ORPHAN_RECONCILE'
   | 'PACK_MANAGE'
   | 'COMPLAINT_MANAGE'
-  | 'FEEDBACK_VIEW';
+  | 'FEEDBACK_VIEW'
+  | 'AI_SETTINGS_MANAGE';
 
 const ACTION_ROLES: Readonly<Record<PlatformAction, Exclude<PlatformRole, 'PLATFORM_OWNER'>>> = {
   RETENTION_POLICY_SET: 'COMPLIANCE_ADMIN',
@@ -129,6 +130,11 @@ const ACTION_ROLES: Readonly<Record<PlatformAction, Exclude<PlatformRole, 'PLATF
   ORGANIZATION_REVIEW: 'SECURITY_ADMIN',
   ORGANIZATION_SUSPEND: 'SECURITY_ADMIN',
   ORGANIZATION_TERMINATE: 'SECURITY_ADMIN',
+  // Provider/model/API-key configuration is a credential-security concern,
+  // the same family as the other SECURITY_ADMIN actions above -- not a new,
+  // non-overlapping concern the way QUALITY_ADMIN was for complaints/
+  // feedback, so this extends SECURITY_ADMIN rather than adding a sixth role.
+  AI_SETTINGS_MANAGE: 'SECURITY_ADMIN',
   PROCESSING_JOB_RETRY: 'SUPPORT_ADMIN',
   ORPHAN_RECONCILE: 'SUPPORT_ADMIN',
   PACK_MANAGE: 'SUPPORT_ADMIN',

@@ -788,6 +788,9 @@ describe('platform roles — concern-scoped action matrix (finding #15)', () => 
       bootstrapEmails: [],
     };
     expect(await canPerformPlatformAction(db, securityAuth, 'ORGANIZATION_REVIEW')).toBe(true);
+    // Part 8 AI-02/AI-06: AI provider/credential configuration extends this
+    // same security concern, not a new overlapping one.
+    expect(await canPerformPlatformAction(db, securityAuth, 'AI_SETTINGS_MANAGE')).toBe(true);
     // Not compliance or support concerns.
     expect(await canPerformPlatformAction(db, securityAuth, 'RETENTION_POLICY_SET')).toBe(false);
     expect(await canPerformPlatformAction(db, securityAuth, 'LEGAL_HOLD_PLACE')).toBe(false);

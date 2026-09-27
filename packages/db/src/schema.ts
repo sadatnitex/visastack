@@ -1427,6 +1427,75 @@ export const evidenceLocations = pgTable(
   (table) => [index('evidence_locations_field_proposal_idx').on(table.fieldProposalId)],
 );
 
+// --- AI provider configuration (Part 8 §5/§6, AI-02/AI-06) -----------------
+// Every row is a full, immutable configuration snapshot -- "activating" never
+// edits a row in place, it flips which row currently holds ACTIVE (and moves
+// whatever held it before to SUPERSEDED), so the complete history of what the
+// platform actually ran under is always reconstructable, matching the same
+// append-history discipline as fact_versions/billing_status_history. At most
+// one row is ever ACTIVE at a time -- enforced in the service layer under an
+// advisory lock (packages/services/src/ai-provider-config.ts), the same
+// pattern uploads.ts/ai.ts already use for an identical
+// platform-wide-single-winner guarantee, not a database constraint.
+export const aiProviderConfigStatus = pgEnum('ai_provider_config_status', [
+  'DRAFT',
+  'ACTIVE',
+  'SUPERSEDED',
+  'DISABLED',
+]);
+
+export const aiProviderConfigs = pgTable(
+  'ai_provider_configs',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    status: aiProviderConfigStatus('status').notNull().default('DRAFT'),
+    provider: text('provider').notNull(),
+    // Free text, not an enum (Part 8 §3: "do not hardcode 'latest model'" --
+    // admin types/selects an account-accessible model id).
+    model: text('model').notNull(),
+    reasoningEffort: text('reasoning_effort'),
+    // Envelope-encrypted (packages/services/src/protected-fields.ts's
+    // existing protectValue/revealValue -- the same AES-256-GCM primitive
+    // already used for protected profile fields, never a second encryption
+    // scheme). Never the plaintext key.
+    apiKeyCiphertext: bytea('api_key_ciphertext').notNull(),
+    apiKeyNonce: bytea('api_key_nonce').notNull(),
+    apiKeyVersion: text('api_key_version').notNull(),
+    // Masked display only (e.g. last 4 characters) -- Part 8 §6 "masked
+    // fingerprint." Never enough to reconstruct the key.
+    apiKeyFingerprint: text('api_key_fingerprint').notNull(),
+    // Part 8 §6 "revocation." Set independently of `status`: a revoked key
+    // disqualifies this version from ever being rolled back to (Part 8 §5
+    // "cannot resurrect: revoked key") even if it was a perfectly good
+    // config otherwise.
+    keyRevokedAt: timestamp('key_revoked_at', { withTimezone: true }),
+    // Part 8 §5 "set reviewed data policy" -- a hard prerequisite for
+    // activation and for rollback eligibility ("cannot resurrect ...
+    // unapproved data policy"), not merely descriptive metadata.
+    dataPolicyApproved: boolean('data_policy_approved').notNull().default(false),
+    // Same six knobs apps/web/src/lib/ai.ts's env-var functions already
+    // expose -- versioned here instead of read from process.env once a
+    // config row is ACTIVE. budgetLimitUnits is deliberately required, no
+    // default: Part 8 §11 "budget unset: NOT unlimited," applied at
+    // creation time too, not just at runtime.
+    budgetLimitUnits: integer('budget_limit_units').notNull(),
+    perDocumentBudgetLimitUnits: integer('per_document_budget_limit_units'),
+    maxAttemptsPerDocument: integer('max_attempts_per_document'),
+    maxPagesPerDocument: integer('max_pages_per_document'),
+    cacheMaxAgeDays: integer('cache_max_age_days'),
+    maxConcurrentCalls: integer('max_concurrent_calls'),
+    notes: text('notes'),
+    createdByAccountId: uuid('created_by_account_id').references(() => accounts.id, {
+      onDelete: 'set null',
+    }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    activatedAt: timestamp('activated_at', { withTimezone: true }),
+    supersededAt: timestamp('superseded_at', { withTimezone: true }),
+    disabledAt: timestamp('disabled_at', { withTimezone: true }),
+  },
+  (table) => [index('ai_provider_configs_status_idx').on(table.status)],
+);
+
 // Recorded when approving a proposal would overwrite an already-trusted fact
 // value (APPLICANT_CONFIRMED/DOCUMENT_SUPPORTED/AGENCY_REVIEWED) with a
 // different one. The new version is still written (status CONFLICTED, never

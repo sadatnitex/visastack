@@ -638,6 +638,23 @@ export {
 } from './ai';
 
 export {
+  type ActivateAiProviderConfigInput,
+  type AiProviderConfig,
+  type CreateDraftAiProviderConfigInput,
+  type EmergencyDisableAiProviderConfigInput,
+  type RevokeAiProviderConfigKeyInput,
+  type RollbackAiProviderConfigInput,
+  activateAiProviderConfig,
+  createDraftAiProviderConfig,
+  emergencyDisableAiProviderConfig,
+  getActiveAiProviderConfig,
+  listAiProviderConfigHistory,
+  revealAiProviderApiKey,
+  revokeAiProviderConfigKey,
+  rollbackAiProviderConfig,
+} from './ai-provider-config';
+
+export {
   type DeletionImpactSummary,
   type DeletionRequest,
   cancelAccountDeletion,
