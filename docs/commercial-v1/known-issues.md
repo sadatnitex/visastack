@@ -1576,10 +1576,37 @@ item gets its own requirements-ledger row once classified against the new direct
       harmless while only JSON/CSV text was ever bundled, but silently
       corrupting for real document bytes -- now base64-encoded, proven by a
       dedicated test using a deliberately-invalid-UTF-8 byte sequence. 4 new
-      tests. Still open, its own chunk: the HTTP download route plus
-      privacy-page UI (Chunk 3). Full `@visastack/services` suite,
-      repo-wide typecheck/lint, and production build all clean.
-      Agency export
+      tests. Full `@visastack/services` suite, repo-wide typecheck/lint, and
+      production build all clean.
+      **Progress (Part 7 §14, Chunk 3 of 3 -- download route and UI,
+      large-export feature now complete).** New
+      `/app/privacy/large-export/[jobId]/download` route and a
+      `LargeExportPanel` on the privacy page close the remaining gap: a
+      "Request large export" button (`requestLargeExportAction`,
+      `enqueueAccountExportJob`, step-up gated the same way the existing
+      synchronous export already is -- a bulk export containing actual
+      document images is at least as attractive a silent-exfiltration
+      target as metadata alone) with the worker kicked immediately via
+      `after()` for near-instant turnaround, matching every other
+      opportunistically-triggered worker in this codebase; a status view
+      (Preparing/Download/Failed/Expired) driven by the existing
+      `listAccountExportJobsForAccount`; and the download route itself,
+      built on the already-existing `getAccountExportArtifact` (built in
+      Chunk 1) with no separate signed-token mechanism -- self-service
+      download needs no signed reference the way third-party document
+      access does, since the ambient WorkOS session already IS the one
+      authorization this artifact was ever generated for, and
+      `getAccountExportArtifact` re-verifies live ownership/status/expiry on
+      every call, satisfying "current access rechecked at download" without
+      re-requiring step-up a second time (design reasoning documented on the
+      route itself). Every failure mode (wrong account, not ready, expired,
+      no key management) collapses to a plain 404, never a distinguishing
+      error. Verified via repo-wide typecheck/lint and a production build
+      (no WorkOS staging credentials exist in this sandbox for a live
+      click-through, the same limitation noted on every UI chunk since Part
+      4). **The large-export feature (async job, encryption, expiry, real
+      document bytes, safe ZIP naming, download route, UI) is now
+      complete -- PRV-04/§14 has no further gaps.** Agency export
       (`bulkExport`) was not touched in either chunk and has no manifest or
       CSV rendering of its own yet. Agency export is also
       narrower than traveller export by design today (`bulkExport` returns
