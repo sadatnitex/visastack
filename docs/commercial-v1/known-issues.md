@@ -2089,6 +2089,61 @@ item gets its own requirements-ledger row once classified against the new direct
     path itself, per Part 8 §5's "kill switch: rechecked immediately before
     outbound call").
     Full detail: `requirements-ledger.md` AI-02/AI-07/A22.
+    **Chunk 5 (this update) -- the kill switch is now genuinely live
+    (AI-02).** Chunk 4 built the full DRAFT/ACTIVE/SUPERSEDED/DISABLED
+    lifecycle, but nothing yet consulted it at runtime -- activating,
+    disabling, or rolling back a configuration had zero effect on whether
+    AI extraction actually ran, since `createAiExtractor`/`runExtraction`
+    were still 100% env-var driven. Closed the "is dispatch allowed at all"
+    half of that gap: `runExtraction` gained an optional `killSwitchCheck`
+    callback, deliberately re-consulted at the START of phase 2 (immediately
+    before the outbound call), not folded into phase 1's earlier checks --
+    directive §5's own wording is explicit that the switch must be
+    "rechecked immediately before outbound call, including queued jobs,"
+    and checking only once, back at reservation time, would miss exactly
+    that case. A refusal synthesizes a `disabled` outcome (a new
+    `AiExtractionErrorCode` value) rather than ever invoking the real
+    adapter, then flows through the exact same FAILED-recording path an
+    ordinary adapter failure already uses.
+    New `isAiDispatchAllowed(db)` (`ai-provider-config.ts`) is the switch
+    itself: permissive on a fresh install where `ai_provider_configs` is
+    still empty (today's env-only behavior, completely unaffected), but the
+    instant a first row exists at all -- DRAFT or otherwise -- the table
+    becomes authoritative: dispatch is allowed only while a row is genuinely
+    ACTIVE. Without this distinction, `emergencyDisableAiProviderConfig`
+    would look meaningful while silently doing nothing once no ACTIVE row
+    existed. Wired into the one real call site,
+    `runAiExtractionAction` (`apps/web/src/app/app/applicant/[id]/actions.ts`),
+    as `killSwitchCheck: () => isAiDispatchAllowed(db)`.
+    A genuine design gap surfaced and fixed while writing this chunk's own
+    tests, not a pre-planned change: `rollbackAiProviderConfig` (built last
+    chunk) required a currently-ACTIVE row to roll back FROM, which meant it
+    could never recover from an emergency-disable at all -- nothing is
+    ACTIVE immediately after one, so rollback would always refuse right when
+    it is arguably needed most. Fixed by also treating DISABLED rows as
+    eligible rollback candidates (under the identical revoked-key/
+    unapproved-policy exclusions already in place) and letting the function
+    proceed with no currently-ACTIVE row at all. This is exactly the kind of
+    thing a thorough test pass is supposed to catch before it reaches
+    production, not after.
+    9 new tests (`ai.test.ts`'s "kill switch" suite: proceeds when allowed,
+    refuses without ever reaching the adapter when disabled, defaults to
+    allowed when unset; `ai-provider-config.test.ts`'s `isAiDispatchAllowed`
+    suite: fresh-install permissive, true once ACTIVE, false the instant any
+    row exists without one being ACTIVE, false after emergency-disable, true
+    again after a rollback -- plus the new emergency-disable-then-rollback
+    recovery test proving the fix above). Full `@visastack/services` suite,
+    repo-wide typecheck/lint, and production build all clean.
+    **Still deliberately deferred, its own future chunk:** which
+    adapter/model/API key/limits to actually dispatch WITH still comes 100%
+    from env vars, even once a DB config is genuinely ACTIVE -- only "is
+    dispatch allowed at all" is DB-authoritative so far. Making the adapter
+    itself DB-configurable (reading `getActiveAiProviderConfig`'s own
+    provider/model/decrypted key/limits instead of process.env, with a
+    graceful fallback while none is configured) is the natural next step,
+    and would make an activated config's provider/model choice actually take
+    effect rather than only its on/off state.
+    Full detail: `requirements-ledger.md` AI-02.
 independently confirmed findings; the missing PRD file is tracked as Blocker 1 in
 `assumptions-and-blockers.md` (now resolved) rather than here, since it blocked the
 programme rather than being a product defect.

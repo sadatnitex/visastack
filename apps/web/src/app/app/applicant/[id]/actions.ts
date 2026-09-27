@@ -14,6 +14,7 @@ import {
   findDuplicateVersions,
   getApplicant,
   getLatestExtractedText,
+  isAiDispatchAllowed,
   loadUploadQuotaConfig,
   mbLabel,
   previewDocument,
@@ -429,6 +430,7 @@ export async function runAiExtractionAction(
       maxPagesPerDocument: aiMaxPagesPerDocument(),
       cacheMaxAgeDays: aiCacheMaxAgeDays(),
       maxConcurrentCalls: aiMaxConcurrentCalls(),
+      killSwitchCheck: () => isAiDispatchAllowed(db),
     });
     if (!run.ok) return { ok: false, message: run.error.message } satisfies ActionState;
     return {

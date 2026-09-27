@@ -13,6 +13,7 @@ import {
   createDraftAiProviderConfig,
   emergencyDisableAiProviderConfig,
   getActiveAiProviderConfig,
+  isAiDispatchAllowed,
   listAiProviderConfigHistory,
   revealAiProviderApiKey,
   revokeAiProviderConfigKey,
@@ -356,11 +357,27 @@ describe('AI provider configuration — rollback (Part 8 §5: "last eligible kno
     if (isErr(rolledBack)) expect(rolledBack.error.code).toBe('invalid');
   });
 
-  it('refuses when there is no active configuration to roll back from', async () => {
+  it('refuses when there is no eligible configuration at all to roll back to', async () => {
     const actor = await seedSecurityAdmin(db);
     const result = await rollbackAiProviderConfig(db, { actor, stepUpSatisfied: true });
     expect(isErr(result)).toBe(true);
     if (isErr(result)) expect(result.error.code).toBe('invalid');
+  });
+
+  it('recovers from an emergency-disable directly -- nothing needs to be currently ACTIVE for rollback to work', async () => {
+    const actor = await seedSecurityAdmin(db);
+    const draft = await createDraftAiProviderConfig(db, draftInput(actor));
+    if (!isOk(draft)) throw new Error('draft failed');
+    await activateAiProviderConfig(db, { actor, stepUpSatisfied: true, configId: draft.value.id });
+    await emergencyDisableAiProviderConfig(db, { actor, stepUpSatisfied: true });
+    expect(await getActiveAiProviderConfig(db)).toBeUndefined();
+
+    const rolledBack = await rollbackAiProviderConfig(db, { actor, stepUpSatisfied: true });
+    expect(isOk(rolledBack)).toBe(true);
+    if (isOk(rolledBack)) {
+      expect(rolledBack.value.id).toBe(draft.value.id);
+      expect(rolledBack.value.status).toBe('ACTIVE');
+    }
   });
 });
 
@@ -463,5 +480,60 @@ describe('AI provider configuration — history (Part 8 §5)', () => {
     const refused = await listAiProviderConfigHistory(db, stranger);
     expect(isErr(refused)).toBe(true);
     if (isErr(refused)) expect(refused.error.code).toBe('forbidden');
+  });
+});
+
+describe('isAiDispatchAllowed -- the kill switch itself (Part 8 §5)', () => {
+  let db: Db;
+  beforeEach(async () => {
+    db = await freshDb();
+  });
+
+  it('is permissive on a fresh install where no admin has ever touched AI settings', async () => {
+    expect(await isAiDispatchAllowed(db)).toBe(true);
+  });
+
+  it('is true once a configuration is ACTIVE', async () => {
+    const actor = await seedSecurityAdmin(db);
+    const draft = await createDraftAiProviderConfig(db, draftInput(actor));
+    if (!isOk(draft)) throw new Error('draft failed');
+    await activateAiProviderConfig(db, { actor, stepUpSatisfied: true, configId: draft.value.id });
+    expect(await isAiDispatchAllowed(db)).toBe(true);
+  });
+
+  it('becomes authoritative (no longer permissive by default) the instant any row exists, even just a DRAFT', async () => {
+    const actor = await seedSecurityAdmin(db);
+    await createDraftAiProviderConfig(db, draftInput(actor));
+    // A DRAFT alone never affects dispatch -- but the table now has a row,
+    // so "nothing is ACTIVE" is a real refusal, not the fresh-install default.
+    expect(await isAiDispatchAllowed(db)).toBe(false);
+  });
+
+  it('is false after an emergency-disable -- the kill switch actually stops dispatch', async () => {
+    const actor = await seedSecurityAdmin(db);
+    const draft = await createDraftAiProviderConfig(db, draftInput(actor));
+    if (!isOk(draft)) throw new Error('draft failed');
+    await activateAiProviderConfig(db, { actor, stepUpSatisfied: true, configId: draft.value.id });
+    expect(await isAiDispatchAllowed(db)).toBe(true);
+
+    await emergencyDisableAiProviderConfig(db, { actor, stepUpSatisfied: true });
+    expect(await isAiDispatchAllowed(db)).toBe(false);
+  });
+
+  it('is true again after a rollback restores a prior eligible ACTIVE version', async () => {
+    const actor = await seedSecurityAdmin(db);
+    const first = await createDraftAiProviderConfig(db, draftInput(actor, { apiKey: 'sk-v1' }));
+    if (!isOk(first)) throw new Error('draft failed');
+    await activateAiProviderConfig(db, { actor, stepUpSatisfied: true, configId: first.value.id });
+    const second = await createDraftAiProviderConfig(db, draftInput(actor, { apiKey: 'sk-v2' }));
+    if (!isOk(second)) throw new Error('draft failed');
+    await activateAiProviderConfig(db, { actor, stepUpSatisfied: true, configId: second.value.id });
+
+    await emergencyDisableAiProviderConfig(db, { actor, stepUpSatisfied: true });
+    expect(await isAiDispatchAllowed(db)).toBe(false);
+
+    const rolledBack = await rollbackAiProviderConfig(db, { actor, stepUpSatisfied: true });
+    expect(isOk(rolledBack)).toBe(true);
+    expect(await isAiDispatchAllowed(db)).toBe(true);
   });
 });

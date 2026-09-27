@@ -83,7 +83,14 @@ export type AiExtractionErrorCode =
   | 'timeout'
   | 'auth_failed'
   | 'refused'
-  | 'truncated';
+  | 'truncated'
+  /**
+   * Part 8 §5 ("kill switch: rechecked immediately before outbound call").
+   * `runExtraction`'s own doing, never returned by an adapter -- synthesized
+   * when `killSwitchCheck` refuses right before the call would otherwise
+   * have been made, so the adapter is never actually invoked.
+   */
+  | 'disabled';
 
 export type AiExtractionOutcome =
   | { readonly ok: true; readonly result: AiExtractionResult }
@@ -367,6 +374,17 @@ export interface RunExtractionInput {
    * long extracted proposal data stays reachable, not an opt-in ceiling.
    */
   readonly cacheMaxAgeDays?: number;
+  /**
+   * Part 8 §5 ("kill switch: rechecked immediately before outbound call,
+   * including queued jobs"). Called once, right before the adapter is ever
+   * invoked (phase 2, after every phase-1 check has already passed and a
+   * slot has been reserved) -- resolving `false` skips the call entirely
+   * and records the run FAILED with `errorCode: 'disabled'`, exactly as if
+   * the call itself had refused, without ever reaching the adapter. Unset
+   * means no kill switch is wired up (dispatch is always allowed), matching
+   * every other optional check here.
+   */
+  readonly killSwitchCheck?: () => Promise<boolean>;
 }
 
 const DEFAULT_CACHE_MAX_AGE_DAYS = 30;
@@ -463,6 +481,15 @@ export interface RunExtractionSummary {
  * row whose own call crashed or lost its connection between reserving and
  * reconciling, so an abandoned reservation cannot occupy a slot (or inflate
  * the budget reservation above) forever.
+ *
+ * The optional `killSwitchCheck` (Part 8 §5) is deliberately re-consulted at
+ * the START of phase 2, not folded into phase 1's checks: a reservation made
+ * in phase 1 could otherwise sit for a while (queued behind
+ * `maxConcurrentCalls`, in a future world where phase 2 is itself queued)
+ * before phase 2 actually runs, and the directive's own wording is explicit
+ * that the switch must be rechecked "immediately before outbound call,
+ * including queued jobs" -- checking only once, back in phase 1, would miss
+ * exactly the case the directive is naming.
  *
  * None of the three guarantees above (per-document serialization,
  * platform-wide budget/concurrency serialization, or the reservation math
@@ -726,14 +753,23 @@ export async function runExtraction(
   if (reservation.kind === 'final') return reservation.outcome;
   const { runId, allowedFieldKeys, cacheKey } = reservation;
 
+  // Part 8 §5's kill switch, rechecked here -- immediately before the
+  // outbound call, after every phase-1 check already passed and a slot was
+  // already reserved -- rather than only once back in phase 1. A refusal
+  // synthesizes a `disabled` outcome instead of calling the adapter at all,
+  // so the same phase-3 FAILED-recording logic below handles it uniformly.
+  const killSwitchAllows = input.killSwitchCheck ? await input.killSwitchCheck() : true;
+
   // Deliberately outside any transaction and holding no lock -- this is the
   // whole fix: the outbound network call no longer blocks any other AI
   // extraction call platform-wide.
-  const outcome = await ai.extract({
-    documentVersionId: input.documentVersionId,
-    text: input.text,
-    allowedFieldKeys,
-  });
+  const outcome: AiExtractionOutcome = killSwitchAllows
+    ? await ai.extract({
+        documentVersionId: input.documentVersionId,
+        text: input.text,
+        allowedFieldKeys,
+      })
+    : { ok: false, code: 'disabled', message: 'AI extraction is currently disabled' };
 
   return db.transaction(async (tx) => {
     if (!outcome.ok) {
@@ -756,7 +792,12 @@ export async function runExtraction(
         resourceId: input.documentVersionId,
         metadata: { errorCode: outcome.code, aiExtractionRunId: runId },
       });
-      return err(serviceError('upstream_error', outcome.message));
+      // 'disabled' is a deliberate configuration state, not an upstream
+      // failure -- the same distinction budget-exhausted/attempt-limit
+      // refusals elsewhere in this function already make with 'invalid'.
+      return err(
+        serviceError(outcome.code === 'disabled' ? 'invalid' : 'upstream_error', outcome.message),
+      );
     }
 
     const { proposals, usage } = outcome.result;
