@@ -1473,13 +1473,38 @@ item gets its own requirements-ledger row once classified against the new direct
       audited on the new branch (`RECONCILIATION_<eventType>`, method
       `SYSTEM`), and a per-event failure (a hold whose applicant does not
       exist on the new branch either) is collected in the report rather
-      than aborting the run. Deliberately still deferred: replaying
-      `ACCOUNT_DELETION_EXECUTED`, `ERASURE_VERIFIED`, and
-      `MISSION_RETENTION_PURGED` needs to reuse their own complex,
-      multi-table cascading service functions, whose own preconditions (a
-      pending grace-window deletion request, an unresolved complaint check,
-      etc.) will not naturally hold during reconciliation -- a separate,
-      later chunk. A CLI wrapper (matching
+      than aborting the run. **Update: `ACCOUNT_DELETION_EXECUTED` replay
+      also now covered**, the one rule that reuses a complex, multi-table
+      cascading service function (`executeAccountDeletion`) directly rather
+      than a column flip -- safe specifically because its one real
+      precondition (a PENDING request whose grace window elapsed) naturally
+      already holds during reconciliation: the request predates execution
+      by the grace period (days), dwarfing this codebase's <=5 minute RPO,
+      so the PENDING row is essentially always already mirrored onto the
+      restored branch. Calling the real function with the original event's
+      own timestamp as `now` reproduces the identical grace-window check
+      that already passed once on the old branch; an already-deleted
+      account is a clean no-op on a second run, proven by a dedicated
+      idempotency test. Deliberately still deferred, each its own later
+      chunk: `ERASURE_VERIFIED` and `MISSION_RETENTION_PURGED` replay.
+      Erasure turned out more involved than originally scoped: investigation
+      found at least three independent enqueue sources in this codebase
+      (account deletion, case-retention purge, and a separate
+      manually-triggered per-document retention purge via
+      `purgeExpiredDocuments`), each with different row-level completion
+      side effects, and the underlying bytes live in external object
+      storage that is not branched alongside Postgres -- once verified
+      deleted on the pre-incident branch they are actually gone, shared by
+      both branches, so reconciling this is about forcing the restored
+      branch's own row state to reflect that reality, never re-running a
+      real delete-and-verify round trip. Case-retention purge replay needs
+      the "purge one mission unconditionally" mechanism extracted out of
+      `sweepCaseRetentionPurge` into its own reusable function first (the
+      sweep itself re-checks eligibility -- grace days, complaint status,
+      legal hold -- the wrong preconditions to recheck during
+      reconciliation, which instead needs to force the exact end state the
+      sweep already decided on when it ran on the pre-incident branch).
+      A CLI wrapper (matching
       `packages/adapters/src/backfill-protected-fields.ts`'s established
       operational-script shape: real DB connections, delegating all logic to
       this tested service function) is not built yet either -- today this is

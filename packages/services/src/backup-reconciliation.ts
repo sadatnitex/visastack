@@ -1,8 +1,9 @@
-import { CONSENT_TYPES, type ConsentType } from '@visastack/core';
+import { CONSENT_TYPES, type ConsentType, isOk } from '@visastack/core';
 import { and, asc, eq, gt, inArray, isNull, ne } from 'drizzle-orm';
 import { appendAuditEvent } from './audit';
 import { getConsents } from './consent';
 import { type Db, first, schema } from './db';
+import { executeAccountDeletion } from './deletion';
 
 /**
  * Backup resurrection reconciliation (master directive Part 7 §15). See
@@ -18,13 +19,23 @@ import { type Db, first, schema } from './db';
  * released, or an organization suspended then terminated, must be applied
  * in that same order to end up correct.
  *
- * This covers the "simple" rules only: forcing a single already-existing
- * row's status/flag column, or inserting a full row that is missing
- * entirely. Account deletion, document/version erasure, and case-retention
- * purge replay are deliberately NOT covered here -- each needs to reuse a
- * complex, multi-table cascading service function whose own preconditions
- * (a pending grace-window request, etc.) will not naturally hold during
- * reconciliation, and are tracked as a separate, later chunk.
+ * Most rules here force a single already-existing row's status/flag column,
+ * or insert a full row that is missing entirely. Account deletion is the one
+ * exception that reuses a complex, multi-table cascading service function
+ * directly (`executeAccountDeletion`) rather than hand-rolling its cascade a
+ * second time -- safe here specifically because the function's own
+ * precondition (a PENDING deletion request whose grace window has elapsed)
+ * naturally already holds: the request itself is created long before
+ * execution (a 30+ day grace window dwarfs this codebase's <=5 minute RPO),
+ * so it is essentially always mirrored onto the restored branch already, and
+ * calling the real function with the original event's own `occurredAt` as
+ * `now` reproduces the exact same grace-window check that already passed on
+ * the old branch. Document/version erasure and case-retention purge replay
+ * are deliberately NOT covered here -- each needs its own dedicated design
+ * (erasure in particular has at least three independent enqueue sources --
+ * account deletion, case-retention purge, and a separate manually-triggered
+ * per-document retention purge -- whose completion side effects differ),
+ * tracked as separate, later chunks.
  *
  * Every forced change is itself audited on the NEW branch (method SYSTEM,
  * no actor -- this is a system process, not a person), so the restored
@@ -44,6 +55,7 @@ const RECONCILED_EVENT_TYPES = [
   'PLATFORM_ROLE_REVOKED',
   'ORGANIZATION_SUSPENDED',
   'ORGANIZATION_TERMINATED',
+  'ACCOUNT_DELETION_EXECUTED',
 ] as const;
 
 type ReconciledEventType = (typeof RECONCILED_EVENT_TYPES)[number];
@@ -56,6 +68,7 @@ export interface ReconciliationCounts {
   readonly legalHoldsReleased: number;
   readonly platformRolesRevoked: number;
   readonly organizationsForced: number;
+  readonly accountsDeleted: number;
 }
 
 export interface ReconciliationError {
@@ -180,6 +193,43 @@ async function forceOrganizationStatus(
   return true;
 }
 
+/**
+ * Unlike every other rule above, this reuses `executeAccountDeletion` itself
+ * rather than hand-rolling its (large, carefully lock-ordered) cascade a
+ * second time -- exactly the design's own stated preference for "the effect
+ * is more than a single-column flip." Passing the original event's own
+ * `occurredAt` as `now` reproduces the identical grace-window check that
+ * already passed once on the old branch; a missing account (already deleted
+ * by an earlier reconciliation run, or never existed here) is a clean no-op,
+ * never an error -- matching every other rule's idempotency. Any OTHER
+ * refusal (no pending request, an active hold, sole-platform-owner) means
+ * the two branches have genuinely diverged in a way this function cannot
+ * safely force past -- surfaced as a real error rather than silently
+ * swallowed, exactly like a legal hold's missing applicant elsewhere in this
+ * file.
+ */
+async function forceAccountDeletionExecuted(
+  newDb: Db,
+  resourceId: string,
+  occurredAt: Date,
+): Promise<boolean> {
+  const stillExists = first(
+    await newDb
+      .select({ id: schema.accounts.id })
+      .from(schema.accounts)
+      .where(eq(schema.accounts.id, resourceId))
+      .limit(1),
+  );
+  if (!stillExists) return false;
+  const result = await executeAccountDeletion(newDb, { accountId: resourceId, now: occurredAt });
+  if (!isOk(result)) {
+    throw new Error(
+      `account deletion replay refused (${result.error.code}): ${result.error.message}`,
+    );
+  }
+  return true;
+}
+
 /** Which counter and audit resourceType each event type drives, once applied. */
 const EVENT_META: Readonly<
   Record<
@@ -195,6 +245,7 @@ const EVENT_META: Readonly<
   PLATFORM_ROLE_REVOKED: { counter: 'platformRolesRevoked', resourceType: 'platform_role' },
   ORGANIZATION_SUSPENDED: { counter: 'organizationsForced', resourceType: 'organization' },
   ORGANIZATION_TERMINATED: { counter: 'organizationsForced', resourceType: 'organization' },
+  ACCOUNT_DELETION_EXECUTED: { counter: 'accountsDeleted', resourceType: 'account' },
 };
 
 async function applyEvent(oldDb: Db, newDb: Db, event: AuditEventRow): Promise<boolean> {
@@ -217,6 +268,8 @@ async function applyEvent(oldDb: Db, newDb: Db, event: AuditEventRow): Promise<b
       return forceOrganizationStatus(newDb, resourceId, 'SUSPENDED');
     case 'ORGANIZATION_TERMINATED':
       return forceOrganizationStatus(newDb, resourceId, 'CLOSED');
+    case 'ACCOUNT_DELETION_EXECUTED':
+      return forceAccountDeletionExecuted(newDb, resourceId, event.occurredAt);
     default:
       return false;
   }
@@ -246,6 +299,7 @@ export async function reconcileRestoredBranch(
     legalHoldsReleased: 0,
     platformRolesRevoked: 0,
     organizationsForced: 0,
+    accountsDeleted: 0,
   };
   const errors: ReconciliationError[] = [];
   const mutableCounts = counts as {
