@@ -1520,10 +1520,39 @@ item gets its own requirements-ledger row once classified against the new direct
       own timestamp as `now` reproduces the identical grace-window check
       that already passed once on the old branch; an already-deleted
       account is a clean no-op on a second run, proven by a dedicated
-      idempotency test. Deliberately still deferred, each its own later
-      chunk: `ERASURE_VERIFIED` and `MISSION_RETENTION_PURGED` replay.
-      Erasure turned out more involved than originally scoped: investigation
-      found at least three independent enqueue sources in this codebase
+      idempotency test. **Update: a CLI wrapper now exists.** New
+      `packages/adapters/src/reconcile-restored-branch.ts` (`pnpm --filter
+      @visastack/adapters reconcile:restored-branch`), matching
+      `backfill-protected-fields.ts`'s established operational-script shape
+      exactly -- two required DB connection env vars
+      (`RECONCILE_OLD_DATABASE_URL`/`RECONCILE_NEW_DATABASE_URL`, distinct
+      from the shared `DATABASE_URL` candidates since both branches are
+      required simultaneously), a required `--restore-point=` flag, all
+      logic delegated to the tested `reconcileRestoredBranch` function,
+      prints the report, exits nonzero on any collected error. This is now
+      a runnable drill command, not just a library function. **Update:
+      `MISSION_RETENTION_PURGED` replay also now covered.** New
+      `purgeMissionUnconditionally` extracted out of
+      `sweepCaseRetentionPurge` (`case-retention.ts`) -- the audit-append,
+      per-table cascade delete, and mission-row redaction, with zero
+      eligibility checks of its own. The sweep now calls it only after its
+      own lock-and-recheck (grace days, complaint status, legal hold)
+      passes; reconciliation's own `forceMissionRetentionPurged` calls the
+      same function directly with no gating at all, since -- unlike the
+      sweep, which must decide eligibility fresh on every run -- forcing a
+      replay only needs to reproduce a decision already proven correct: the
+      old branch's own `MISSION_RETENTION_PURGED` audit event is that
+      proof. This is why mission-purge replay could not reuse the sweep
+      itself the way account-deletion replay reuses
+      `requestAccountDeletion` -- the sweep's eligibility recheck is
+      against CURRENT hold/complaint state, the wrong precondition for
+      reconciliation. A purged mission that never existed on the restored
+      branch at all is a clean no-op, never an error, proven by a
+      dedicated test alongside the main replay-and-idempotency test (12
+      tests total now). **Deliberately still deferred, its own later
+      chunk:** `ERASURE_VERIFIED` replay. Investigation found this is not
+      a "reuse a cascading function" problem like the two rules above: at
+      least three independent enqueue sources exist in this codebase
       (account deletion, case-retention purge, and a separate
       manually-triggered per-document retention purge via
       `purgeExpiredDocuments`), each with different row-level completion
@@ -1532,19 +1561,7 @@ item gets its own requirements-ledger row once classified against the new direct
       deleted on the pre-incident branch they are actually gone, shared by
       both branches, so reconciling this is about forcing the restored
       branch's own row state to reflect that reality, never re-running a
-      real delete-and-verify round trip. Case-retention purge replay needs
-      the "purge one mission unconditionally" mechanism extracted out of
-      `sweepCaseRetentionPurge` into its own reusable function first (the
-      sweep itself re-checks eligibility -- grace days, complaint status,
-      legal hold -- the wrong preconditions to recheck during
-      reconciliation, which instead needs to force the exact end state the
-      sweep already decided on when it ran on the pre-incident branch).
-      A CLI wrapper (matching
-      `packages/adapters/src/backfill-protected-fields.ts`'s established
-      operational-script shape: real DB connections, delegating all logic to
-      this tested service function) is not built yet either -- today this is
-      a library function with full test coverage, not yet a runnable drill
-      command.
+      real delete-and-verify round trip against the blob store.
 
     Full detail: `docs/commercial-v1/privacy-data-map.md` §4 (summary,
     cross-referencing here rather than duplicating) and

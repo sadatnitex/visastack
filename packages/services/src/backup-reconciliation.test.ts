@@ -9,10 +9,12 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { provisionAccount } from './accounts';
 import { createApplicant } from './applicants';
 import { reconcileRestoredBranch } from './backup-reconciliation';
+import { sweepCaseRetentionPurge } from './case-retention';
 import { setConsent } from './consent';
 import { type Db, first } from './db';
 import { executeAccountDeletion, requestAccountDeletion } from './deletion';
 import { placeLegalHold, releaseLegalHold } from './legal-hold';
+import { createMission, transitionMission } from './missions';
 import {
   createOrganization,
   reviewOrganization,
@@ -71,6 +73,14 @@ async function seedApplicant(
 const RESTORE_POINT = new Date('2026-01-01T00:00:00.000Z');
 const AFTER = new Date('2026-01-01T01:00:00.000Z');
 const BEFORE = new Date('2025-12-31T23:00:00.000Z');
+
+/** Indexes by a runtime variable, never a literal -- satisfies both TS4111 and Biome's useLiteralKeys. */
+function setEnv(name: string, value: string): void {
+  process.env[name] = value;
+}
+function unsetEnv(name: string): void {
+  delete process.env[name];
+}
 
 describe('reconcileRestoredBranch (master directive Part 7 §15: backup resurrection protection)', () => {
   let oldDb: Db;
@@ -605,5 +615,172 @@ describe('reconcileRestoredBranch (master directive Part 7 §15: backup resurrec
     expect(report.counts.grantsRevoked).toBe(1);
     expect(report.errors.length).toBeGreaterThan(0);
     expect(report.errors[0]?.eventType).toBe('LEGAL_HOLD_PLACED');
+  });
+
+  it('replays a mission retention purge by forcing the same redaction and cascade, and a second run is a clean no-op', async () => {
+    const owner = await seedAccount(oldDb, 'purge-owner@example.com');
+    await mirrorRow(newDb, schema.accounts, owner);
+    const applicant = await seedApplicant(oldDb, owner.id);
+    await mirrorRow(newDb, schema.applicants, applicant);
+
+    const created = await createMission(oldDb, {
+      actorAccountId: owner.id,
+      applicantId: applicant.id,
+      title: 'Closed case',
+    });
+    if (!isOk(created)) throw new Error('setup failed');
+    const missionId = created.value.id;
+    // Mirror the mission onto newDb BEFORE it is closed/purged on oldDb --
+    // simulating a restore point that predates the whole retention cycle.
+    const missionRow = first(
+      await oldDb.select().from(schema.missions).where(eq(schema.missions.id, missionId)),
+    );
+    if (!missionRow) throw new Error('setup failed');
+    await mirrorRow(newDb, schema.missions, missionRow);
+
+    // Workflow content that must be cascaded away on replay.
+    await oldDb.insert(schema.missionNotes).values({
+      missionId,
+      authorAccountId: owner.id,
+      body: 'a note',
+    });
+    const noteRow = first(
+      await oldDb
+        .select()
+        .from(schema.missionNotes)
+        .where(eq(schema.missionNotes.missionId, missionId)),
+    );
+    if (!noteRow) throw new Error('setup failed');
+    await mirrorRow(newDb, schema.missionNotes, noteRow);
+
+    // A historical fact that must survive on both branches regardless.
+    await oldDb.insert(schema.missionOutcomes).values({
+      missionId,
+      decision: 'REFUSED',
+      decisionDate: new Date(),
+      actorAccountId: owner.id,
+      authAssuranceContext: {},
+    });
+    const outcomeRow = first(
+      await oldDb
+        .select()
+        .from(schema.missionOutcomes)
+        .where(eq(schema.missionOutcomes.missionId, missionId)),
+    );
+    if (!outcomeRow) throw new Error('setup failed');
+    await mirrorRow(newDb, schema.missionOutcomes, outcomeRow);
+
+    const cancelled = await transitionMission(oldDb, {
+      actorAccountId: owner.id,
+      missionId,
+      to: 'CANCELLED',
+    });
+    expect(isOk(cancelled)).toBe(true);
+    const thirteenMonthsAgo = new Date();
+    thirteenMonthsAgo.setUTCMonth(thirteenMonthsAgo.getUTCMonth() - 13);
+    await oldDb
+      .update(schema.missions)
+      .set({ closedAt: thirteenMonthsAgo })
+      .where(eq(schema.missions.id, missionId));
+    const thirtyOneDaysAgo = new Date();
+    thirtyOneDaysAgo.setUTCDate(thirtyOneDaysAgo.getUTCDate() - 31);
+    await oldDb
+      .update(schema.missions)
+      .set({ retentionNoticeSentAt: thirtyOneDaysAgo })
+      .where(eq(schema.missions.id, missionId));
+
+    setEnv('CASE_RETENTION_PURGE_ENABLED', 'true');
+    try {
+      const purgeResult = await sweepCaseRetentionPurge(oldDb);
+      expect(purgeResult.purged).toBe(1);
+    } finally {
+      unsetEnv('CASE_RETENTION_PURGE_ENABLED');
+    }
+    await oldDb
+      .update(schema.auditEvents)
+      .set({ occurredAt: AFTER })
+      .where(eq(schema.auditEvents.eventType, 'MISSION_RETENTION_PURGED'));
+
+    const report = await reconcileRestoredBranch(oldDb, newDb, RESTORE_POINT);
+    expect(report.counts.missionsPurged).toBe(1);
+    expect(report.errors).toHaveLength(0);
+
+    const newMission = first(
+      await newDb.select().from(schema.missions).where(eq(schema.missions.id, missionId)),
+    );
+    expect(newMission?.title).toBe('[case data purged]');
+    expect(newMission?.destination).toBeNull();
+    expect(newMission?.purgedAt).not.toBeNull();
+
+    const newNotes = await newDb
+      .select()
+      .from(schema.missionNotes)
+      .where(eq(schema.missionNotes.missionId, missionId));
+    expect(newNotes).toHaveLength(0);
+    const newOutcomes = await newDb
+      .select()
+      .from(schema.missionOutcomes)
+      .where(eq(schema.missionOutcomes.missionId, missionId));
+    expect(newOutcomes).toHaveLength(1);
+
+    // Already purged -- a second run must find nothing left to do.
+    const secondReport = await reconcileRestoredBranch(oldDb, newDb, RESTORE_POINT);
+    expect(secondReport.counts.missionsPurged).toBe(0);
+    expect(secondReport.errors).toHaveLength(0);
+  });
+
+  it('is a clean no-op, never an error, when the purged mission never existed on the restored branch at all', async () => {
+    const owner = await seedAccount(oldDb, 'purge-missing-owner@example.com');
+    await mirrorRow(newDb, schema.accounts, owner);
+    const applicant = await seedApplicant(oldDb, owner.id);
+    await mirrorRow(newDb, schema.applicants, applicant);
+    // Deliberately never mirrored onto newDb -- simulating a mission created
+    // and fully purged entirely within the gap after the restore point.
+
+    const created = await createMission(oldDb, {
+      actorAccountId: owner.id,
+      applicantId: applicant.id,
+      title: 'Never-restored case',
+    });
+    if (!isOk(created)) throw new Error('setup failed');
+    const missionId = created.value.id;
+    const cancelled = await transitionMission(oldDb, {
+      actorAccountId: owner.id,
+      missionId,
+      to: 'CANCELLED',
+    });
+    expect(isOk(cancelled)).toBe(true);
+    const thirteenMonthsAgo = new Date();
+    thirteenMonthsAgo.setUTCMonth(thirteenMonthsAgo.getUTCMonth() - 13);
+    await oldDb
+      .update(schema.missions)
+      .set({ closedAt: thirteenMonthsAgo })
+      .where(eq(schema.missions.id, missionId));
+    const thirtyOneDaysAgo = new Date();
+    thirtyOneDaysAgo.setUTCDate(thirtyOneDaysAgo.getUTCDate() - 31);
+    await oldDb
+      .update(schema.missions)
+      .set({ retentionNoticeSentAt: thirtyOneDaysAgo })
+      .where(eq(schema.missions.id, missionId));
+
+    setEnv('CASE_RETENTION_PURGE_ENABLED', 'true');
+    try {
+      const purgeResult = await sweepCaseRetentionPurge(oldDb);
+      // Confirms there really is a MISSION_RETENTION_PURGED event to
+      // replay -- without this, the missingPurged assertion below would
+      // pass vacuously (nothing to reconcile) rather than proving the
+      // "mission missing on the restored branch" no-op path.
+      expect(purgeResult.purged).toBe(1);
+    } finally {
+      unsetEnv('CASE_RETENTION_PURGE_ENABLED');
+    }
+    await oldDb
+      .update(schema.auditEvents)
+      .set({ occurredAt: AFTER })
+      .where(eq(schema.auditEvents.eventType, 'MISSION_RETENTION_PURGED'));
+
+    const report = await reconcileRestoredBranch(oldDb, newDb, RESTORE_POINT);
+    expect(report.counts.missionsPurged).toBe(0);
+    expect(report.errors).toHaveLength(0);
   });
 });

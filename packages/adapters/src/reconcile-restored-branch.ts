@@ -18,12 +18,11 @@ import { reconcileRestoredBranch } from '@visastack/services';
  * `resolveDatabaseUrl` reads) because both connection strings are required
  * simultaneously, to two different branches, never interchangeable.
  *
- * Covers only the 7 rules `reconcileRestoredBranch` currently implements
- * (see its own doc comment) -- account deletion, consent/grant/membership/
- * legal-hold/platform-role/organization-status forcing. Erasure and
- * case-retention purge replay are not covered yet; the procedure doc's own
- * manual steps still apply for `ERASURE_VERIFIED` and
- * `MISSION_RETENTION_PURGED` until those land.
+ * Covers the 9 rules `reconcileRestoredBranch` currently implements (see its
+ * own doc comment) -- consent/grant/membership/legal-hold/platform-role/
+ * organization-status forcing, plus account deletion and case-retention
+ * purge replay. Erasure replay is not covered yet; the procedure doc's own
+ * manual steps still apply for `ERASURE_VERIFIED` until it lands.
  */
 
 function requireEnv(name: string): string {

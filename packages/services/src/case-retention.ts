@@ -215,6 +215,125 @@ async function hasUnresolvedComplaint(db: Db, missionId: string): Promise<boolea
   return first(rows) !== undefined;
 }
 
+export interface MissionForPurge {
+  readonly missionId: string;
+  readonly applicantId: string;
+  readonly title: string;
+  readonly state: string;
+  readonly closedAt: Date | null;
+  readonly retentionNoticeSentAt: Date | null;
+}
+
+/**
+ * The unconditional purge mechanism itself -- audits, then deletes this
+ * mission's workflow content and redacts the row, exactly as this module's
+ * own doc comment describes. Deliberately takes the mission's pre-purge
+ * field values as input rather than re-reading them, and performs NO
+ * eligibility checks (grace days, legal hold, unresolved complaint) of its
+ * own -- those are the caller's responsibility.
+ *
+ * Two callers: `sweepCaseRetentionPurge` below, which gates this behind its
+ * own lock-and-recheck eligibility gauntlet; and backup-resurrection
+ * reconciliation (`backup-reconciliation.ts`), which forces the exact same
+ * end state a `MISSION_RETENTION_PURGED` event on the pre-incident branch
+ * already proves was correctly decided there -- re-checking eligibility
+ * against the restored branch's own (possibly stale or divergent) hold/
+ * complaint state would be exactly the wrong precondition to apply during
+ * reconciliation. Never call this without ensuring eligibility was already
+ * established by one of those two paths.
+ */
+export async function purgeMissionUnconditionally(
+  db: Db,
+  mission: MissionForPurge,
+  reason: string,
+): Promise<void> {
+  await appendAuditEvent(db, {
+    eventType: 'MISSION_RETENTION_PURGED',
+    action: 'MANAGE',
+    method: 'SYSTEM',
+    result: 'ALLOWED',
+    applicantId: mission.applicantId,
+    missionId: mission.missionId,
+    resourceType: 'mission',
+    resourceId: mission.missionId,
+    reason,
+    metadata: {
+      title: mission.title,
+      state: mission.state,
+      closedAt: mission.closedAt?.toISOString() ?? null,
+      retentionNoticeSentAt: mission.retentionNoticeSentAt?.toISOString() ?? null,
+    },
+  });
+
+  // Workflow content only -- see this module's own doc comment for exactly
+  // which tables are (and are deliberately not) included here. A snapshot
+  // still referenced by a preserved mission_submissions row must survive
+  // too: that FK is NOT NULL + onDelete:'restrict' (a submission's own
+  // snapshotId is "the exact thing that was actually submitted," not an
+  // incidental link), so deleting it here would either violate the
+  // constraint or, worse, silently orphan the historical submission record
+  // this purge exists to protect.
+  const referencedSnapshotRows = await db
+    .select({ id: schema.missionSubmissions.snapshotId })
+    .from(schema.missionSubmissions)
+    .where(eq(schema.missionSubmissions.missionId, mission.missionId));
+  const referencedSnapshotIds = referencedSnapshotRows.map((r) => r.id);
+  await db
+    .delete(schema.missionSnapshots)
+    .where(
+      referencedSnapshotIds.length > 0
+        ? and(
+            eq(schema.missionSnapshots.missionId, mission.missionId),
+            notInArray(schema.missionSnapshots.id, referencedSnapshotIds),
+          )
+        : eq(schema.missionSnapshots.missionId, mission.missionId),
+    );
+  await db
+    .delete(schema.acknowledgements)
+    .where(eq(schema.acknowledgements.missionId, mission.missionId));
+  await db.delete(schema.assignments).where(eq(schema.assignments.missionId, mission.missionId));
+  await db.delete(schema.missionNotes).where(eq(schema.missionNotes.missionId, mission.missionId));
+  await db
+    .delete(schema.evidenceRequests)
+    .where(eq(schema.evidenceRequests.missionId, mission.missionId));
+  await db
+    .delete(schema.contributorRequests)
+    .where(eq(schema.contributorRequests.missionId, mission.missionId));
+  await db
+    .delete(schema.selectedEvidence)
+    .where(eq(schema.selectedEvidence.missionId, mission.missionId));
+  await db
+    .delete(schema.missionDecisions)
+    .where(eq(schema.missionDecisions.missionId, mission.missionId));
+  await db.delete(schema.missionTasks).where(eq(schema.missionTasks.missionId, mission.missionId));
+  await db
+    .delete(schema.missionAppointments)
+    .where(eq(schema.missionAppointments.missionId, mission.missionId));
+  await db
+    .delete(schema.generatedOutputs)
+    .where(eq(schema.generatedOutputs.missionId, mission.missionId));
+  await db.delete(schema.grants).where(eq(schema.grants.missionId, mission.missionId));
+  await db
+    .delete(schema.notifications)
+    .where(eq(schema.notifications.missionId, mission.missionId));
+
+  await db
+    .update(schema.missions)
+    .set({
+      title: PURGED_TITLE_PLACEHOLDER,
+      destination: null,
+      purpose: null,
+      itineraryRef: null,
+      jurisdiction: null,
+      serviceCategory: null,
+      travelStartDate: null,
+      travelEndDate: null,
+      targetDeadline: null,
+      purgedAt: new Date(),
+    })
+    .where(eq(schema.missions.id, mission.missionId));
+}
+
 export async function sweepCaseRetentionPurge(
   db: Db,
   limit = DEFAULT_CASE_RETENTION_PURGE_SWEEP_LIMIT,
@@ -277,91 +396,7 @@ export async function sweepCaseRetentionPurge(
       if (await hasActiveLegalHold(tx, row.applicantId)) return false;
       if (await hasUnresolvedComplaint(tx, row.missionId)) return false;
 
-      await appendAuditEvent(tx, {
-        eventType: 'MISSION_RETENTION_PURGED',
-        action: 'MANAGE',
-        method: 'SYSTEM',
-        result: 'ALLOWED',
-        applicantId: row.applicantId,
-        missionId: row.missionId,
-        resourceType: 'mission',
-        resourceId: row.missionId,
-        reason: 'closed-case retention period elapsed',
-        metadata: {
-          title: row.title,
-          state: row.state,
-          closedAt: row.closedAt?.toISOString() ?? null,
-          retentionNoticeSentAt: row.retentionNoticeSentAt?.toISOString() ?? null,
-        },
-      });
-
-      // Workflow content only -- see this function's own doc comment for
-      // exactly which tables are (and are deliberately not) included here.
-      // A snapshot still referenced by a preserved mission_submissions row
-      // must survive too: that FK is NOT NULL + onDelete:'restrict' (a
-      // submission's own snapshotId is "the exact thing that was actually
-      // submitted," not an incidental link), so deleting it here would
-      // either violate the constraint or, worse, silently orphan the
-      // historical submission record this sweep exists to protect.
-      const referencedSnapshotRows = await tx
-        .select({ id: schema.missionSubmissions.snapshotId })
-        .from(schema.missionSubmissions)
-        .where(eq(schema.missionSubmissions.missionId, row.missionId));
-      const referencedSnapshotIds = referencedSnapshotRows.map((r) => r.id);
-      await tx
-        .delete(schema.missionSnapshots)
-        .where(
-          referencedSnapshotIds.length > 0
-            ? and(
-                eq(schema.missionSnapshots.missionId, row.missionId),
-                notInArray(schema.missionSnapshots.id, referencedSnapshotIds),
-              )
-            : eq(schema.missionSnapshots.missionId, row.missionId),
-        );
-      await tx
-        .delete(schema.acknowledgements)
-        .where(eq(schema.acknowledgements.missionId, row.missionId));
-      await tx.delete(schema.assignments).where(eq(schema.assignments.missionId, row.missionId));
-      await tx.delete(schema.missionNotes).where(eq(schema.missionNotes.missionId, row.missionId));
-      await tx
-        .delete(schema.evidenceRequests)
-        .where(eq(schema.evidenceRequests.missionId, row.missionId));
-      await tx
-        .delete(schema.contributorRequests)
-        .where(eq(schema.contributorRequests.missionId, row.missionId));
-      await tx
-        .delete(schema.selectedEvidence)
-        .where(eq(schema.selectedEvidence.missionId, row.missionId));
-      await tx
-        .delete(schema.missionDecisions)
-        .where(eq(schema.missionDecisions.missionId, row.missionId));
-      await tx.delete(schema.missionTasks).where(eq(schema.missionTasks.missionId, row.missionId));
-      await tx
-        .delete(schema.missionAppointments)
-        .where(eq(schema.missionAppointments.missionId, row.missionId));
-      await tx
-        .delete(schema.generatedOutputs)
-        .where(eq(schema.generatedOutputs.missionId, row.missionId));
-      await tx.delete(schema.grants).where(eq(schema.grants.missionId, row.missionId));
-      await tx
-        .delete(schema.notifications)
-        .where(eq(schema.notifications.missionId, row.missionId));
-
-      await tx
-        .update(schema.missions)
-        .set({
-          title: PURGED_TITLE_PLACEHOLDER,
-          destination: null,
-          purpose: null,
-          itineraryRef: null,
-          jurisdiction: null,
-          serviceCategory: null,
-          travelStartDate: null,
-          travelEndDate: null,
-          targetDeadline: null,
-          purgedAt: new Date(),
-        })
-        .where(eq(schema.missions.id, row.missionId));
+      await purgeMissionUnconditionally(tx, row, 'closed-case retention period elapsed');
       return true;
     });
     if (didPurge) purged++;
