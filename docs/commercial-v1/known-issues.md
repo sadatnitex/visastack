@@ -1456,12 +1456,35 @@ item gets its own requirements-ledger row once classified against the new direct
       restored branch, and the honest limit of the design: it requires the
       pre-incident branch to still be reachable read-only, which is not
       true for a total-project-loss scenario. `docs/operations/recovery.md`
-      cross-links it. The reconciliation tool itself (a script implementing
-      this table against two real branch connections, with tests) is a
-      separate, tracked implementation chunk -- deliberately not built in
-      the same pass as the design, matching the directive's own literal
-      ask here ("create...design," not "build the full drill" -- the same
-      §15 itself says "actual full restore drill comes later").
+      cross-links it. **Reconciliation tool, partially built.** New
+      `reconcileRestoredBranch(oldDb, newDb, restorePoint)`
+      (`packages/services/src/backup-reconciliation.ts`) replays every
+      reconciliation-relevant audit event on the old branch, in the exact
+      global chronological order it actually happened (never per-type in
+      isolation -- a hold placed then released, or an org suspended then
+      terminated, must replay in that order to end up correct), as the
+      equivalent forcing action on the new branch. Covers the 7 "simple"
+      rules only -- a single column flip on an existing row, or inserting a
+      full row that is missing entirely: `GRANT_REVOKED`, `CONSENT_REVOKED`
+      (append-only -- inserts a new revoke record rather than mutating),
+      `MEMBERSHIP_DEACTIVATED`, `LEGAL_HOLD_PLACED`/`RELEASED`,
+      `PLATFORM_ROLE_REVOKED`, `ORGANIZATION_SUSPENDED`/`TERMINATED` (never
+      downgrades an already-`CLOSED` org). Every forced change is itself
+      audited on the new branch (`RECONCILIATION_<eventType>`, method
+      `SYSTEM`), and a per-event failure (a hold whose applicant does not
+      exist on the new branch either) is collected in the report rather
+      than aborting the run. Deliberately still deferred: replaying
+      `ACCOUNT_DELETION_EXECUTED`, `ERASURE_VERIFIED`, and
+      `MISSION_RETENTION_PURGED` needs to reuse their own complex,
+      multi-table cascading service functions, whose own preconditions (a
+      pending grace-window deletion request, an unresolved complaint check,
+      etc.) will not naturally hold during reconciliation -- a separate,
+      later chunk. A CLI wrapper (matching
+      `packages/adapters/src/backfill-protected-fields.ts`'s established
+      operational-script shape: real DB connections, delegating all logic to
+      this tested service function) is not built yet either -- today this is
+      a library function with full test coverage, not yet a runnable drill
+      command.
 
     Full detail: `docs/commercial-v1/privacy-data-map.md` §4 (summary,
     cross-referencing here rather than duplicating) and
