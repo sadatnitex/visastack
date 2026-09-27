@@ -12,15 +12,21 @@ import {
   isFactStatusEligible,
   legalTransitions,
   listAccessForApplicant,
+  listAcknowledgementsForMission,
   listAppointments,
+  listComplaintEvents,
+  listComplaintsForMission,
   listContributorRequests,
+  listFeedbackForMission,
   listGeneratedOutputs,
   listMissionSnapshots,
   listMissionsByItineraryRef,
   listNotesForOwner,
+  listOutcomesForMission,
   listPublishedPackVersions,
   listRequirements,
   listSelectedEvidence,
+  listSubmissionsForMission,
   listTasks,
 } from '@visastack/services';
 import Link from 'next/link';
@@ -35,6 +41,7 @@ import {
   LettersPanel,
   TasksPanel,
 } from './collaboration-panels';
+import { ComplaintPanel, FeedbackPanel } from './complaint-feedback-panel';
 import { ContributorRequestsPanel } from './contributor-requests-panel';
 import { composeSelectionCandidateKey } from './evidence-selection-key';
 import {
@@ -43,6 +50,8 @@ import {
   SnapshotButton,
   TransitionButtons,
 } from './mission-buttons';
+import { OutcomePanel } from './outcome-panel';
+import { SubmissionReportPanel } from './submission-report-panel';
 
 export const dynamic = 'force-dynamic';
 
@@ -165,6 +174,11 @@ export default async function MissionPage({
       notes,
       appointments,
       liveAcknowledgement,
+      allAcknowledgements,
+      outcomes,
+      submissions,
+      complaints,
+      feedback,
     ] = await Promise.all([
       mission.packVersionId ? computeReadiness(db, mission.id) : Promise.resolve(null),
       mission.packVersionId ? listRequirements(db, mission.packVersionId) : Promise.resolve([]),
@@ -192,7 +206,24 @@ export default async function MissionPage({
       // (transitionMission) is legible before an owner clicks a button that
       // would otherwise fail with no visible reason why.
       getLiveAcknowledgement(db, mission.id),
+      // Full history (not just the live one) so a "this case is dirty" banner
+      // can distinguish "never acknowledged" from "was acknowledged, then a
+      // material edit invalidated it, with no new live acknowledgement since"
+      // -- getLiveAcknowledgement alone renders identically for both.
+      listAcknowledgementsForMission(db, accountId, mission.id),
+      listOutcomesForMission(db, accountId, mission.id),
+      listSubmissionsForMission(db, accountId, mission.id),
+      listComplaintsForMission(db, accountId, mission.id),
+      listFeedbackForMission(db, accountId, mission.id),
     ]);
+    const complaintList = complaints.ok ? complaints.value : [];
+    const complaintEventsById = new Map(
+      await Promise.all(
+        complaintList.map(
+          async (c) => [c.id, await listComplaintEvents(db, accountId, c.id)] as const,
+        ),
+      ),
+    );
     const pack = packVersionRow ? await getPack(db, packVersionRow.packId) : undefined;
     // Case-readiness UI (directive §10): every requirement's richer RUL-04
     // state, joined back to its RUL-02 source-grounding fields (citation
@@ -237,6 +268,25 @@ export default async function MissionPage({
     const selfReviewed =
       access.ok &&
       !access.value.some((g) => g.recipientOrganizationId !== null && g.status === 'ACTIVE');
+    // "This case is dirty" (§5): was acknowledged at least once, that
+    // acknowledgement was later invalidated by a material edit, and no new
+    // live acknowledgement has replaced it since.
+    const isDirty =
+      allAcknowledgements.ok &&
+      !liveAcknowledgement &&
+      allAcknowledgements.value.some(
+        (a) => a.decision === 'ACKNOWLEDGED' && a.invalidatedAt !== null,
+      );
+    // Evidence picker for the outcome form -- every distinct document already
+    // surfaced as evidence-eligible for this mission, deduplicated (the same
+    // document can satisfy more than one requirement).
+    const evidenceOptionsById = new Map<string, string>();
+    for (const c of candidates.ok ? candidates.value : []) {
+      for (const d of c.documentCandidates) {
+        if (!evidenceOptionsById.has(d.documentId))
+          evidenceOptionsById.set(d.documentId, d.displayName);
+      }
+    }
     // Composite key (finding #33, post-programme defect register) - see
     // evidence-selection-key.ts's own doc comment.
     const selectionIdsByCandidate: Record<string, string> = {};
@@ -267,6 +317,55 @@ export default async function MissionPage({
       applicantName: applicant?.displayName ?? 'Applicant',
       applicantId: mission.applicantId,
       liveAcknowledgedAt: liveAcknowledgement?.createdAt.toISOString() ?? null,
+      isDirty,
+      evidenceOptions: [...evidenceOptionsById.entries()].map(([documentId, displayName]) => ({
+        documentId,
+        displayName,
+      })),
+      outcomes: outcomes.ok
+        ? outcomes.value.map((o) => ({
+            id: o.id,
+            decision: o.decision,
+            decisionDate: o.decisionDate.toISOString(),
+            officialWording: o.officialWording,
+            agencyInterpretation: o.agencyInterpretation,
+            createdAt: o.createdAt.toISOString(),
+          }))
+        : [],
+      submissions: submissions.ok
+        ? submissions.value.map((s) => ({
+            id: s.id,
+            channel: s.channel,
+            externalReportDescription: s.externalReportDescription,
+            externalReference: s.externalReference,
+            submittedAt: s.submittedAt.toISOString(),
+          }))
+        : [],
+      complaints: complaintList.map((c) => {
+        const events = complaintEventsById.get(c.id);
+        return {
+          id: c.id,
+          description: c.description,
+          status: c.status,
+          resolution: c.resolution,
+          createdAt: c.createdAt.toISOString(),
+          events: (events?.ok ? events.value : []).map((e) => ({
+            id: e.id,
+            fromStatus: e.fromStatus,
+            toStatus: e.toStatus,
+            note: e.note,
+            createdAt: e.createdAt.toISOString(),
+          })),
+        };
+      }),
+      feedback: feedback.ok
+        ? feedback.value.map((f) => ({
+            id: f.id,
+            comments: f.comments,
+            createdAt: f.createdAt.toISOString(),
+          }))
+        : [],
+      canSubmitFeedback: mission.state === 'CLOSED' || mission.state === 'CANCELLED',
       readiness: readinessValue,
       requirementDetails,
       requiredHardGapCount,
@@ -371,6 +470,14 @@ export default async function MissionPage({
         </div>
         <SnapshotButton missionId={mission.id} />
       </div>
+
+      {data.isDirty ? (
+        <div className="notice notice-warn" style={{ marginBottom: '1.5rem' }}>
+          <strong>This case has changed since it was last acknowledged.</strong> A material edit
+          invalidated the previous sign-off. Capture a new snapshot and acknowledge it again before
+          relying on this case as submission-ready.
+        </div>
+      ) : null}
 
       {mission.manualMode ? (
         <div className="notice notice-warn" style={{ marginBottom: '1.5rem' }}>
@@ -723,6 +830,28 @@ export default async function MissionPage({
             </div>
           )}
         </article>
+      </div>
+
+      <div className="grid" style={{ marginTop: '1.5rem' }}>
+        <SubmissionReportPanel
+          missionId={mission.id}
+          submissions={data.submissions}
+          eligible={mission.state === 'SUBMISSION_READY'}
+        />
+        <OutcomePanel
+          missionId={mission.id}
+          outcomes={data.outcomes}
+          evidenceOptions={data.evidenceOptions}
+        />
+      </div>
+
+      <div className="grid" style={{ marginTop: '1.5rem' }}>
+        <ComplaintPanel missionId={mission.id} complaints={data.complaints} />
+        <FeedbackPanel
+          missionId={mission.id}
+          feedback={data.feedback}
+          canSubmit={data.canSubmitFeedback}
+        />
       </div>
     </section>
   );
