@@ -841,6 +841,13 @@ export {
 } from './case-retention';
 
 export {
+  type ReconciliationCounts,
+  type ReconciliationError,
+  type ReconciliationReport,
+  reconcileRestoredBranch,
+} from './backup-reconciliation';
+
+export {
   type BeginContributorSubmissionInput,
   type ContributorRequest,
   type ContributorRequestPreview,

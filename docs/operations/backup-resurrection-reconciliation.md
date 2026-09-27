@@ -133,12 +133,29 @@ intake/erasure/notification workers) to it:
 
 ## What this document does not cover yet
 
-This is the design the directive asks for; the reconciliation tool itself
-(a script taking the two branch connection strings and the restore point,
-implementing the table above) is a separate, tracked implementation chunk,
-real engineering work (careful per-resource-type logic, tests simulating a
-genuine old/new branch pair) that deserves its own review, not something to
-fold into a design document. Until that tool exists, the procedure above is
-a documented manual runbook: an operator with `psql` access to both branches
-can carry out steps 3-4 by hand, following the table's own event-type-to-
-action mapping exactly.
+This is the design the directive asks for. **Update: steps 3-4 of the
+table above are now partially implemented** as
+`reconcileRestoredBranch(oldDb, newDb, restorePoint)`
+(`packages/services/src/backup-reconciliation.ts`) - the 7 rows whose
+action is a single column flip on an existing row or inserting one missing
+row entirely (grant revocation, consent revocation, membership
+deactivation, legal hold placed/released, platform role revocation,
+organization suspension/termination), replayed in genuine global
+chronological order with each forced change itself audited on the restored
+branch, matching step 5 above. Still not covered by that function, and
+tracked as a separate, later chunk: account deletion, document/version
+erasure, and case-retention purge (the three rows whose action reuses a
+complex, multi-table cascading service function rather than a column flip
+- each of those functions has its own preconditions, such as a pending
+grace-window request, that will not naturally hold during reconciliation
+and need dedicated handling, not a direct call). Also not built yet: a CLI
+wrapper taking two real branch connection strings and a restore point and
+calling this function (matching
+`packages/adapters/src/backfill-protected-fields.ts`'s established
+operational-script shape) - today `reconcileRestoredBranch` is a tested
+library function an engineer can call from a one-off script, not yet a
+runbook command an operator can run directly. Until the three deferred
+rows and the CLI wrapper both exist, an operator carries out the remaining
+part of steps 3-4 by hand for `ACCOUNT_DELETION_EXECUTED`, `ERASURE_VERIFIED`,
+and `MISSION_RETENTION_PURGED` specifically, following the table's own
+event-type-to-action mapping exactly, with `psql` access to both branches.
