@@ -163,4 +163,88 @@ describe('OpenAiExtractionAdapter', () => {
     if (outcome.ok) return;
     expect(outcome.code).toBe('invalid_response');
   });
+
+  it('reports timeout when the request exceeds the configured timeout, never hanging the caller', async () => {
+    const fetchImpl = vi.fn().mockImplementation(() => new Promise<Response>(() => {}));
+    const adapter = new OpenAiExtractionAdapter({ apiKey: 'sk-test', fetchImpl, timeoutMs: 20 });
+    const outcome = await adapter.extract(VALID_INPUT);
+    expect(outcome.ok).toBe(false);
+    if (outcome.ok) return;
+    expect(outcome.code).toBe('timeout');
+    expect(outcome.provider).toBe('openai');
+    expect(outcome.latencyMs).toBeGreaterThanOrEqual(20);
+  });
+
+  it('reports auth_failed (never generic upstream_error) on HTTP 401', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(jsonResponse(401, { error: 'invalid api key' }));
+    const adapter = new OpenAiExtractionAdapter({ apiKey: 'sk-bad', fetchImpl });
+    const outcome = await adapter.extract(VALID_INPUT);
+    expect(outcome.ok).toBe(false);
+    if (outcome.ok) return;
+    expect(outcome.code).toBe('auth_failed');
+  });
+
+  it('reports auth_failed on HTTP 403', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(jsonResponse(403, { error: 'forbidden' }));
+    const adapter = new OpenAiExtractionAdapter({ apiKey: 'sk-bad', fetchImpl });
+    const outcome = await adapter.extract(VALID_INPUT);
+    expect(outcome.ok).toBe(false);
+    if (outcome.ok) return;
+    expect(outcome.code).toBe('auth_failed');
+  });
+
+  it('reports refused (never a silent empty proposal set) when the model returns a structured-output refusal', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(
+      jsonResponse(200, {
+        output: [{ content: [{ refusal: 'I cannot process this request' }] }],
+      }),
+    );
+    const adapter = new OpenAiExtractionAdapter({ apiKey: 'sk-test', fetchImpl });
+    const outcome = await adapter.extract(VALID_INPUT);
+    expect(outcome.ok).toBe(false);
+    if (outcome.ok) return;
+    expect(outcome.code).toBe('refused');
+    expect(outcome.message).toContain('cannot process');
+  });
+
+  it('reports truncated (never trusts partial JSON as complete) when the response status is incomplete', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(
+      jsonResponse(200, {
+        status: 'incomplete',
+        incomplete_details: { reason: 'max_output_tokens' },
+        output_text: JSON.stringify({ proposals: [] }),
+        usage: { total_tokens: 100 },
+      }),
+    );
+    const adapter = new OpenAiExtractionAdapter({ apiKey: 'sk-test', fetchImpl });
+    const outcome = await adapter.extract(VALID_INPUT);
+    expect(outcome.ok).toBe(false);
+    if (outcome.ok) return;
+    expect(outcome.code).toBe('truncated');
+  });
+
+  it('captures the provider, provider request id, latency, and the input/output/cached token breakdown', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(
+      jsonResponse(200, {
+        id: 'resp_abc123',
+        output_text: JSON.stringify({ proposals: [] }),
+        usage: {
+          total_tokens: 150,
+          input_tokens: 100,
+          output_tokens: 50,
+          input_tokens_details: { cached_tokens: 20 },
+        },
+      }),
+    );
+    const adapter = new OpenAiExtractionAdapter({ apiKey: 'sk-test', fetchImpl });
+    const outcome = await adapter.extract(VALID_INPUT);
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+    expect(outcome.result.usage.provider).toBe('openai');
+    expect(outcome.result.usage.providerRequestId).toBe('resp_abc123');
+    expect(outcome.result.usage.inputUnits).toBe(100);
+    expect(outcome.result.usage.outputUnits).toBe(50);
+    expect(outcome.result.usage.cachedUnits).toBe(20);
+    expect(outcome.result.usage.latencyMs).toBeGreaterThanOrEqual(0);
+  });
 });

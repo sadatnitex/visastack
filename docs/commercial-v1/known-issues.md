@@ -1861,6 +1861,79 @@ item gets its own requirements-ledger row once classified against the new direct
     dedicated look rather than silently dropping it. Full
     `@visastack/services` suite, repo-wide typecheck/lint, and production
     build all clean.
+79. (Part 8, AI-03/AI-08/AI-09) Starting Part 8 (multi-provider AI gateway,
+    admin control, OCR, budgets, privacy, evaluation, rollback). Per the
+    directive's own §1 ("inspect the existing... EXTEND the canonical port;
+    do not create a separate parallel AI system"), investigated the existing
+    AI architecture in full before writing anything: exactly one
+    `AiExtractionPort`/one adapter (`OpenAiExtractionAdapter`)/one run ledger
+    (`ai_extraction_runs`)/one proposal-approval path (`approveProposal`,
+    already atomic: fact version + evidence link + audit event together) --
+    a genuinely mature pilot to extend, not a greenfield build. AI
+    configuration today is 100% env-var (no admin UI, no DB-backed config at
+    all); AI calls are fully synchronous (no job queue); the budget-check
+    advisory locks are held across the outbound provider HTTP call itself,
+    serializing every AI call platform-wide to concurrency 1 rather than the
+    directive's own named default of 5; no SSRF-hardening utility exists
+    anywhere in this codebase (immaterial today only because the one
+    existing adapter's endpoint is a hardcoded literal, never
+    admin-configurable).
+    **Chunk 1 (this update) -- gateway contract hardening.** `AiUsage`
+    widened with `provider`, `providerRequestId`, `inputUnits`/`outputUnits`/
+    `cachedUnits` (alongside the existing blended `costUnits`, unchanged for
+    budget enforcement), and `latencyMs`. `AiExtractionErrorCode` widened
+    from three codes to seven (`timeout`/`auth_failed`/`refused`/`truncated`
+    added), each its own explicit outcome rather than folded into generic
+    `upstream_error` -- directly matching directive §4's named failure-mode
+    list. `OpenAiExtractionAdapter` gained a request timeout (wrapping the
+    existing shared `withTimeout` helper at the directive's own 60s
+    default -- previously a hung call blocked indefinitely, holding a
+    database transaction and two advisory locks open the entire time),
+    401/403 classified `auth_failed`, the Responses API's own structured-
+    output `refusal` field and `status: 'incomplete'` (truncation) both now
+    explicitly detected rather than silently mis-parsed as ordinary
+    proposals. New `ai_extraction_runs` columns (`provider`,
+    `providerRequestId`, `inputUnits`, `outputUnits`, `cachedUnits`,
+    `latencyMs`; additive migration) capture this richer telemetry, all
+    nullable since a cache-hit row makes no new provider call and historical
+    rows predate these columns. Verified the exact current OpenAI Responses
+    API response shape (usage breakdown fields, `id`, `status`/
+    `incomplete_details`, content-part `refusal`) against live provider
+    documentation before relying on it, per directive §3's own "use latest
+    official documentation" instruction. 8 new tests
+    (`openai-extraction.test.ts`). Full `@visastack/services`/
+    `@visastack/adapters` suites, repo-wide typecheck/lint, and production
+    build all clean.
+    **Deliberately not in this chunk, each its own future chunk:** Gemini
+    and Anthropic adapters (AI-03); admin-configurable, versioned,
+    DRAFT/ACTIVE/rollback AI settings with KMS-backed secret storage
+    (AI-02/AI-07 -- the only close precedent, `retention_policies`, is a
+    flat current-value table with no version history, genuinely new
+    schema/service design, not an extension); the SSRF-hardening module
+    (AI-07 §7) -- deliberately deferred rather than speculatively built,
+    since it is only needed once a custom (non-built-in) endpoint field
+    actually exists in the admin UI, which Chunk 1-4 do not add; the two new
+    P0 AI tasks that do not already have a deterministic solution
+    ("possible inconsistency flag," "explanation of an already-determined
+    deterministic readiness gap" -- doc-type suggestion and filename
+    suggestion are already deterministic and working, per directive §2's own
+    "support only" framing this is read as a scope boundary on what AI may
+    ever do, not a mandate to add a redundant AI path where a deterministic
+    one already works); the reserve-then-reconcile budget redesign fixing
+    the concurrency-1 serialization above (AI-08); cache-key binding to a
+    config version once AI-02 exists (§12); cross-provider fallback (§13,
+    not meaningful until a second provider exists); generalizing the
+    existing eval harness (`packages/adapters/src/eval/`, already covering
+    all 13 directive-named document categories, but hardcoded to the OpenAI
+    adapter) to run against any `AiExtractionPort` (AI-10). Real live
+    evaluation runs against paid provider accounts remain BLOCKED regardless
+    of adapter completeness, same shape as every other "needs real external
+    credentials this sandbox cannot supply" item this session (IAM-01 MFA;
+    Neon backup retention) -- directive §14's own wording anticipates this
+    exactly ("adapter may be code-complete; but A19 remains BLOCKED for that
+    provider").
+    Full detail: `requirements-ledger.md` AI-03/AI-08/AI-09,
+    `docs/audits/ai-gateway-boundary-map.md`.
 independently confirmed findings; the missing PRD file is tracked as Blocker 1 in
 `assumptions-and-blockers.md` (now resolved) rather than here, since it blocked the
 programme rather than being a product defect.

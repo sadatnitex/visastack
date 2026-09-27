@@ -1311,6 +1311,18 @@ export const aiExtractionRuns = pgTable(
     // directive §7 "PR 9" cache-key components).
     schemaVersion: text('schema_version'),
     costUnits: integer('cost_units').notNull().default(0),
+    // Part 8 §4/§11 ("normalized gateway contract"/"spend accounting"):
+    // richer telemetry alongside the existing blended `costUnits`, which
+    // stays authoritative for budget enforcement unchanged. All nullable --
+    // a cache-hit row makes no new provider call at all (nothing to report
+    // beyond which provider originally produced the cached data), and a
+    // historical row predates these columns entirely.
+    provider: text('provider'),
+    providerRequestId: text('provider_request_id'),
+    inputUnits: integer('input_units'),
+    outputUnits: integer('output_units'),
+    cachedUnits: integer('cached_units'),
+    latencyMs: integer('latency_ms'),
     errorCode: text('error_code'),
     // sha256(contentHash|taskVersion|parserVersion|model|promptVersion|
     // schemaVersion|reasoningEffort) — set on every attempted run (even a

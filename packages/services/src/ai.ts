@@ -36,10 +36,21 @@ export interface FieldProposal {
 }
 
 export interface AiUsage {
+  /** Total billed units -- unchanged meaning, still what budget enforcement sums. */
   readonly costUnits: number;
+  /** Part 8 §11 ("track separately: input units; output; cached"). */
+  readonly inputUnits: number;
+  readonly outputUnits: number;
+  readonly cachedUnits: number;
   readonly modelVersion: string;
   readonly promptVersion: string;
   readonly schemaVersion: string;
+  /** Which adapter actually served this call -- Part 8 §4's "Result" list. */
+  readonly provider: string;
+  /** The provider's own request/response id, where the API exposes one. */
+  readonly providerRequestId?: string;
+  /** Wall-clock time for the provider round trip, in milliseconds. */
+  readonly latencyMs: number;
 }
 
 export interface AiExtractionResult {
@@ -55,11 +66,34 @@ export interface AiExtractionInput {
   readonly allowedFieldKeys: readonly string[];
 }
 
-export type AiExtractionErrorCode = 'upstream_error' | 'invalid_response' | 'rate_limited';
+/**
+ * Part 8 §4 ("explicitly handle: refusal; truncation; missing usage; schema
+ * failure; unsupported parameter; auth failure; rate limit; timeout").
+ * `timeout`/`auth_failed`/`refused`/`truncated` are each their own code
+ * (never folded into the generic `upstream_error`) specifically so a caller
+ * -- or a future admin-facing failure dashboard -- can tell "the network
+ * hung" apart from "the provider rejected the key" apart from "the model
+ * declined to answer" apart from "the model ran out of output budget
+ * mid-response," each of which needs a different operator response.
+ */
+export type AiExtractionErrorCode =
+  | 'upstream_error'
+  | 'invalid_response'
+  | 'rate_limited'
+  | 'timeout'
+  | 'auth_failed'
+  | 'refused'
+  | 'truncated';
 
 export type AiExtractionOutcome =
   | { readonly ok: true; readonly result: AiExtractionResult }
-  | { readonly ok: false; readonly code: AiExtractionErrorCode; readonly message: string };
+  | {
+      readonly ok: false;
+      readonly code: AiExtractionErrorCode;
+      readonly message: string;
+      readonly provider?: string;
+      readonly latencyMs?: number;
+    };
 
 export interface AiCacheKeyComponents {
   readonly model: string;
@@ -365,6 +399,10 @@ export async function runExtraction(
               promptVersion: cached.promptVersion,
               schemaVersion: cached.schemaVersion,
               costUnits: 0,
+              // Descriptive only (which provider originally produced this
+              // data) -- providerRequestId/latencyMs/the unit breakdown stay
+              // null: a cache hit makes no new provider call to report on.
+              provider: cached.provider,
               cacheKey,
               servedFromCacheRunId: cached.id,
             })
@@ -469,6 +507,8 @@ export async function runExtraction(
               modelVersion: 'unknown',
               promptVersion: 'unknown',
               costUnits: 0,
+              provider: outcome.provider ?? null,
+              latencyMs: outcome.latencyMs ?? null,
               errorCode: outcome.code,
             })
             .returning(),
@@ -502,6 +542,12 @@ export async function runExtraction(
             promptVersion: usage.promptVersion,
             schemaVersion: usage.schemaVersion,
             costUnits: usage.costUnits,
+            provider: usage.provider,
+            providerRequestId: usage.providerRequestId ?? null,
+            inputUnits: usage.inputUnits,
+            outputUnits: usage.outputUnits,
+            cachedUnits: usage.cachedUnits,
+            latencyMs: usage.latencyMs,
             cacheKey,
           })
           .returning(),
@@ -551,6 +597,8 @@ export async function runExtraction(
         proposals: savedProposals.length,
         costUnits: usage.costUnits,
         modelVersion: usage.modelVersion,
+        provider: usage.provider,
+        latencyMs: usage.latencyMs,
       },
     });
     await recordProductEvent(tx, {
