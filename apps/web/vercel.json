@@ -50,6 +50,14 @@
     {
       "path": "/api/jobs/process-inactive-account-deletions",
       "schedule": "50 4 * * *"
+    },
+    {
+      "path": "/api/jobs/process-account-exports",
+      "schedule": "0 5 * * *"
+    },
+    {
+      "path": "/api/jobs/process-account-export-expiry",
+      "schedule": "10 5 * * *"
     }
   ]
 }

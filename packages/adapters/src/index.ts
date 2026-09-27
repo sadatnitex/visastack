@@ -63,3 +63,5 @@ export {
   LocalEnvelopeKeyProvider,
   type LocalEnvelopeKeyProviderOptions,
 } from './key-management';
+
+export { JszipBundler } from './zip-bundler';

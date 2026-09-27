@@ -51,6 +51,11 @@ export function buildFactVersionAad(input: {
   return `visastack:fact_version:v1:${input.applicantId}:${input.factId}:${input.fieldKey}:${input.factVersionId}`;
 }
 
+/** The stable AAD for one account export job's artifact - binds the ciphertext to exactly this job, so it can never be replayed onto a different one. */
+export function buildAccountExportAad(input: { readonly jobId: string }): string {
+  return `visastack:account_export:v1:${input.jobId}`;
+}
+
 /** In-process cache of unwrapped data keys, by key version. Never written to disk/DB in plaintext. */
 const unwrappedKeyCache = new Map<string, Buffer>();
 
@@ -157,4 +162,50 @@ export async function revealValue(
   decipher.setAAD(Buffer.from(input.aad, 'utf8'));
   decipher.setAuthTag(tag);
   return Buffer.concat([decipher.update(body), decipher.final()]).toString('utf8');
+}
+
+/**
+ * Byte-shaped siblings of `protectValue`/`revealValue`, for a payload that
+ * is already binary (an export artifact's bytes) rather than a string field
+ * value - same envelope-encryption primitive, same data-key cache, same
+ * AES-256-GCM/AAD discipline, just no UTF-8 encode/decode at either end.
+ * GCM has no meaningful size ceiling at the scale this codebase's export
+ * artifacts operate at (spec allows tens of GB per key+nonce).
+ */
+export async function protectBytes(
+  db: Db,
+  port: KeyManagementPort,
+  value: Uint8Array,
+  aad: string,
+): Promise<ProtectedValue> {
+  const keyVersion = port.currentKeyVersion();
+  const dataKey = await getOrCreateDataKey(db, port, keyVersion);
+  const nonce = randomBytes(NONCE_LENGTH);
+  const cipher = createCipheriv('aes-256-gcm', dataKey, nonce);
+  cipher.setAAD(Buffer.from(aad, 'utf8'));
+  const ciphertext = Buffer.concat([
+    cipher.update(Buffer.from(value)),
+    cipher.final(),
+    cipher.getAuthTag(),
+  ]);
+  return { ciphertext, nonce, keyVersion };
+}
+
+/** Decrypt bytes protected by `protectBytes`. Same hard-failure-on-mismatch behavior as `revealValue`. */
+export async function revealBytes(
+  db: Db,
+  port: KeyManagementPort,
+  input: RevealValueInput,
+): Promise<Uint8Array> {
+  const dataKey = await getOrCreateDataKey(db, port, input.keyVersion);
+  const buf = Buffer.from(input.ciphertext);
+  if (buf.length < AUTH_TAG_LENGTH) {
+    throw new Error('protected value is too short to contain an auth tag');
+  }
+  const tag = buf.subarray(buf.length - AUTH_TAG_LENGTH);
+  const body = buf.subarray(0, buf.length - AUTH_TAG_LENGTH);
+  const decipher = createDecipheriv('aes-256-gcm', dataKey, Buffer.from(input.nonce));
+  decipher.setAAD(Buffer.from(input.aad, 'utf8'));
+  decipher.setAuthTag(tag);
+  return Buffer.concat([decipher.update(body), decipher.final()]);
 }
