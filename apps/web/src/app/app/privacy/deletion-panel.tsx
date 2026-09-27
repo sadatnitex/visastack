@@ -21,6 +21,8 @@ interface AccountLegalHoldProps {
   readonly placedAt: string;
   /** ISO date the hold is next due for compliance review, or null if none was set. */
   readonly reviewAt: string | null;
+  /** Directive Part 7 §13 "who can access": every account/organization with genuinely current access right now. */
+  readonly accessibleTo: readonly string[];
 }
 
 interface DeletionPanelProps {
@@ -77,7 +79,8 @@ export function DeletionPanel({ scheduledFor, impact, holds }: DeletionPanelProp
             <li key={hold.id} style={{ marginBottom: '0.35rem' }}>
               <strong>{hold.applicantDisplayName}</strong> - {hold.reason} (placed{' '}
               {formatDate(hold.placedAt)}, next review{' '}
-              {hold.reviewAt ? formatDate(hold.reviewAt) : 'not yet scheduled'})
+              {hold.reviewAt ? formatDate(hold.reviewAt) : 'not yet scheduled'}, accessible to{' '}
+              {hold.accessibleTo.length > 0 ? hold.accessibleTo.join(', ') : 'nobody right now'})
             </li>
           ))}
         </ul>

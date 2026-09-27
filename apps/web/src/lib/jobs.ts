@@ -14,6 +14,7 @@ import {
   type InactiveAccountDeletionSweepResult,
   type InactiveAccountNoticeSweepResult,
   type IntakeWorkerResult,
+  type LegalHoldReminderSweepResult,
   type NotificationWorkerResult,
   type SweepResult,
   applyEmailDeliveryEvent,
@@ -34,6 +35,7 @@ import {
   sweepExpiryReminders,
   sweepInactiveAccountDeletionRequests,
   sweepInactiveAccountNotices,
+  sweepLegalHoldReviewReminders,
   sweepTaskDeadlineReminders,
 } from '@visastack/services';
 import { resolveBaseUrl } from './base-url';
@@ -488,6 +490,39 @@ export async function triggerCaseRetentionNoticeSweep(
     return await sweepCaseRetentionNotices(handle, options.limit);
   } catch (error) {
     console.error('[triggerCaseRetentionNoticeSweep] sweep failed', error);
+    return { checked: 0, notified: 0 };
+  } finally {
+    await pool.end();
+  }
+}
+
+/**
+ * Pushes the legal-hold review reminder (directive Part 7 §13: "any
+ * scheduled reminder when a hold becomes due") on its own short-lived
+ * pooled connection -- same rationale as every other trigger function here.
+ * Unlike the one-time retention/inactivity notices above, this re-fires
+ * for as long as a hold stays overdue (see `sweepLegalHoldReviewReminders`'s
+ * own doc comment), so it is safe, and expected, to call on every scheduled
+ * sweep run indefinitely.
+ */
+export async function triggerLegalHoldReviewReminderSweep(
+  options: { readonly limit?: number } = {},
+): Promise<LegalHoldReminderSweepResult> {
+  const connectionString = resolveDatabaseUrl(process.env);
+  if (!connectionString) {
+    console.error('[triggerLegalHoldReviewReminderSweep] database not configured');
+    return { checked: 0, notified: 0 };
+  }
+
+  const { db, pool } = createPooledDb(connectionString);
+  pool.on('error', (error) => {
+    console.error('[triggerLegalHoldReviewReminderSweep] idle pool connection error', error);
+  });
+  try {
+    const handle = db as unknown as Parameters<typeof sweepLegalHoldReviewReminders>[0];
+    return await sweepLegalHoldReviewReminders(handle, options.limit);
+  } catch (error) {
+    console.error('[triggerLegalHoldReviewReminderSweep] sweep failed', error);
     return { checked: 0, notified: 0 };
   } finally {
     await pool.end();

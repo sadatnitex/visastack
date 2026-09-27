@@ -175,11 +175,13 @@ export {
 export {
   type AccountLegalHold,
   type LegalHold,
+  type LegalHoldReminderSweepResult,
   type PurgeExpiredDocumentsResult,
   type RetentionPolicy,
   documentsPastRetention,
   getRetentionPolicies,
   hasActiveLegalHold,
+  legalHoldReminderIntervalDays,
   listActiveLegalHolds,
   listActiveLegalHoldsForAccount,
   listLegalHolds,
@@ -188,6 +190,7 @@ export {
   purgeExpiredDocuments,
   releaseLegalHold,
   setRetentionPolicy,
+  sweepLegalHoldReviewReminders,
 } from './retention';
 
 export {
