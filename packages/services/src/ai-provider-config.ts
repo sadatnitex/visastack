@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { type Result, err, ok } from '@visastack/core';
-import { and, desc, eq, isNull, ne, sql } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNull, ne, sql } from 'drizzle-orm';
 import { appendAuditEvent } from './audit';
 import { type Db, first, required, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
@@ -256,11 +256,15 @@ export interface RollbackAiProviderConfigInput {
 
 /**
  * Part 8 §5 ("rollback: last eligible known-good only"). Takes no target id
- * -- the system finds it: walks history newest-first among SUPERSEDED
- * versions (excluding the one about to be replaced), skipping any whose key
- * has since been revoked or whose data policy is no longer approved ("cannot
+ * -- the system finds it: walks history newest-first among prior versions
+ * (SUPERSEDED *or* DISABLED -- deliberately not just SUPERSEDED, so this can
+ * also recover from an `emergencyDisableAiProviderConfig` call, arguably
+ * rollback's single most important use case), skipping any whose key has
+ * since been revoked or whose data policy is no longer approved ("cannot
  * resurrect: revoked key; unapproved data policy"), and promotes the first
- * one that is still genuinely safe to run.
+ * one that is still genuinely safe to run. Works whether or not anything is
+ * currently ACTIVE: after an emergency-disable nothing is, and rollback must
+ * still be able to recover without requiring a separate re-activation step.
  */
 export async function rollbackAiProviderConfig(
   db: Db,
@@ -288,22 +292,20 @@ export async function rollbackAiProviderConfig(
         .where(eq(schema.aiProviderConfigs.status, 'ACTIVE'))
         .limit(1),
     );
-    if (!currentActive) {
-      return err(serviceError('invalid', 'no active configuration to roll back from'));
-    }
 
+    const eligibleConditions = [
+      inArray(schema.aiProviderConfigs.status, ['SUPERSEDED', 'DISABLED']),
+      isNull(schema.aiProviderConfigs.keyRevokedAt),
+      eq(schema.aiProviderConfigs.dataPolicyApproved, true),
+    ];
+    if (currentActive) {
+      eligibleConditions.push(ne(schema.aiProviderConfigs.id, currentActive.id));
+    }
     const eligible = first(
       await tx
         .select()
         .from(schema.aiProviderConfigs)
-        .where(
-          and(
-            eq(schema.aiProviderConfigs.status, 'SUPERSEDED'),
-            ne(schema.aiProviderConfigs.id, currentActive.id),
-            isNull(schema.aiProviderConfigs.keyRevokedAt),
-            eq(schema.aiProviderConfigs.dataPolicyApproved, true),
-          ),
-        )
+        .where(and(...eligibleConditions))
         .orderBy(desc(schema.aiProviderConfigs.activatedAt))
         .limit(1),
     );
@@ -312,10 +314,12 @@ export async function rollbackAiProviderConfig(
     }
 
     const now = new Date();
-    await tx
-      .update(schema.aiProviderConfigs)
-      .set({ status: 'SUPERSEDED', supersededAt: now })
-      .where(eq(schema.aiProviderConfigs.id, currentActive.id));
+    if (currentActive) {
+      await tx
+        .update(schema.aiProviderConfigs)
+        .set({ status: 'SUPERSEDED', supersededAt: now })
+        .where(eq(schema.aiProviderConfigs.id, currentActive.id));
+    }
     const restored = required(
       first(
         await tx
@@ -333,7 +337,7 @@ export async function rollbackAiProviderConfig(
       result: 'ALLOWED',
       resourceType: 'ai_provider_config',
       resourceId: restored.id,
-      metadata: { rolledBackFromConfigId: currentActive.id },
+      metadata: { rolledBackFromConfigId: currentActive?.id ?? null },
     });
     return ok(restored);
   });
@@ -462,9 +466,11 @@ export async function revokeAiProviderConfigKey(
 
 /**
  * The one currently ACTIVE configuration, if any. No authorization check --
- * a platform-internal read the AI gateway itself will consult at runtime
- * (wiring deferred to a later chunk), the same trust level as `ai.ts`'s own
- * `totalAiCostUnits`.
+ * a platform-internal read the AI gateway itself consults at runtime (see
+ * `isAiDispatchAllowed` below), the same trust level as `ai.ts`'s own
+ * `totalAiCostUnits`. Choosing WHICH adapter/model/key to actually dispatch
+ * with from this row remains deferred to a later chunk -- today only the
+ * kill-switch question ("is dispatch allowed at all right now") consults it.
  */
 export async function getActiveAiProviderConfig(db: Db): Promise<AiProviderConfig | undefined> {
   return first(
@@ -474,6 +480,31 @@ export async function getActiveAiProviderConfig(db: Db): Promise<AiProviderConfi
       .where(eq(schema.aiProviderConfigs.status, 'ACTIVE'))
       .limit(1),
   );
+}
+
+/**
+ * Part 8 §5's kill switch, as a plain boolean: is AI extraction allowed to
+ * dispatch right now? `ai.ts`'s `runExtraction` consults this fresh,
+ * immediately before every outbound call (its own `killSwitchCheck`
+ * parameter), never cached.
+ *
+ * Before any admin has ever touched AI settings, `ai_provider_configs` is
+ * empty -- this stays permissive (today's 100%-env-var behavior, completely
+ * unaffected) rather than refusing every extraction on a fresh install that
+ * has never configured this table at all. The instant a first row exists
+ * (DRAFT or otherwise), the table becomes authoritative: dispatch is allowed
+ * only while a row is genuinely ACTIVE. Without this switch, `activate`
+ * would look meaningful while `emergencyDisableAiProviderConfig`/
+ * `rollbackAiProviderConfig` would silently do nothing at all once no ACTIVE
+ * row existed -- dispatch would keep right on working from stale env vars,
+ * defeating the entire point of an emergency disable.
+ */
+export async function isAiDispatchAllowed(db: Db): Promise<boolean> {
+  const anyConfigured = first(
+    await db.select({ id: schema.aiProviderConfigs.id }).from(schema.aiProviderConfigs).limit(1),
+  );
+  if (!anyConfigured) return true;
+  return (await getActiveAiProviderConfig(db)) !== undefined;
 }
 
 /**

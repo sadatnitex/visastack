@@ -648,6 +648,7 @@ export {
   createDraftAiProviderConfig,
   emergencyDisableAiProviderConfig,
   getActiveAiProviderConfig,
+  isAiDispatchAllowed,
   listAiProviderConfigHistory,
   revealAiProviderApiKey,
   revokeAiProviderConfigKey,

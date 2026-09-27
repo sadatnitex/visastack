@@ -1236,3 +1236,77 @@ describe('AI Gateway -- evidence grounding (Part 8 AI-04)', () => {
     expect(evidence[0]?.verified).toBe(true);
   });
 });
+
+describe('AI Gateway -- kill switch (Part 8 §5: "rechecked immediately before outbound call")', () => {
+  let db: Db;
+  beforeEach(async () => {
+    db = await freshDb();
+  });
+
+  it('proceeds normally when killSwitchCheck resolves true', async () => {
+    const { account, applicantId, versionId } = await seedVersion(
+      db,
+      'ai-killswitch-on@example.com',
+    );
+    await grantAiConsent(db, account.id);
+    const { ai, callCount } = countingStubAi();
+
+    const result = await runExtraction(db, ai, {
+      actorAccountId: account.id,
+      applicantId,
+      documentVersionId: versionId,
+      text: 'MRZ...',
+      budgetLimitUnits: 10,
+      killSwitchCheck: async () => true,
+    });
+    expect(isOk(result)).toBe(true);
+    expect(callCount()).toBe(1);
+  });
+
+  it('refuses without ever invoking the adapter when killSwitchCheck resolves false, recording a FAILED run with errorCode "disabled"', async () => {
+    const { account, applicantId, versionId } = await seedVersion(
+      db,
+      'ai-killswitch-off@example.com',
+    );
+    await grantAiConsent(db, account.id);
+    const { ai, callCount } = countingStubAi();
+
+    const result = await runExtraction(db, ai, {
+      actorAccountId: account.id,
+      applicantId,
+      documentVersionId: versionId,
+      text: 'MRZ...',
+      budgetLimitUnits: 10,
+      killSwitchCheck: async () => false,
+    });
+    expect(isErr(result)).toBe(true);
+    if (isErr(result)) expect(result.error.code).toBe('invalid');
+    // The whole point of rechecking before dispatch: the adapter itself is
+    // never reached once the switch says no.
+    expect(callCount()).toBe(0);
+
+    const runs = await db
+      .select()
+      .from(schema.aiExtractionRuns)
+      .where(eq(schema.aiExtractionRuns.documentVersionId, versionId));
+    expect(runs).toHaveLength(1);
+    expect(runs[0]?.status).toBe('FAILED');
+    expect(runs[0]?.errorCode).toBe('disabled');
+  });
+
+  it('defaults to allowing dispatch when no killSwitchCheck is provided at all', async () => {
+    const { account, applicantId, versionId } = await seedVersion(
+      db,
+      'ai-killswitch-unset@example.com',
+    );
+    await grantAiConsent(db, account.id);
+    const result = await runExtraction(db, stubAi(), {
+      actorAccountId: account.id,
+      applicantId,
+      documentVersionId: versionId,
+      text: 'MRZ...',
+      budgetLimitUnits: 10,
+    });
+    expect(isOk(result)).toBe(true);
+  });
+});
