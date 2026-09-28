@@ -1,4 +1,5 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import type { AiProviderConfig, Db, KeyManagementPort } from '@visastack/services';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
  * AI Gateway configuration (master directive §8/§21 cost controls, §7 "PR 6"
@@ -7,6 +8,31 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
  * configured" escape hatch, matching how packages/services/quotas.ts treats
  * its own blank QUOTA_* vars.
  */
+
+/**
+ * `resolveAiExtractor`'s own tests (below) mock only these three
+ * `@visastack/services` entry points -- the same "mock the boundary, run
+ * everything else for real" discipline `step-up.test.ts` already
+ * establishes for this package. Each function's OWN logic is already
+ * thoroughly covered by `packages/services/src/ai-provider-config.test.ts`
+ * (which runs against a real PGlite database, unavailable as a dependency
+ * here) -- these tests exist to prove `resolveAiExtractor`'s own
+ * orchestration (which world are we in, what adapter comes out) in
+ * isolation, not to re-prove the services layer's own correctness.
+ */
+const hasAnyAiProviderConfig = vi.fn();
+const getActiveAiProviderConfig = vi.fn();
+const revealAiProviderApiKey = vi.fn();
+
+vi.mock('@visastack/services', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@visastack/services')>();
+  return {
+    ...actual,
+    hasAnyAiProviderConfig: (...args: unknown[]) => hasAnyAiProviderConfig(...args),
+    getActiveAiProviderConfig: (...args: unknown[]) => getActiveAiProviderConfig(...args),
+    revealAiProviderApiKey: (...args: unknown[]) => revealAiProviderApiKey(...args),
+  };
+});
 
 const ENV_KEYS = [
   'AI_ENABLED',
@@ -201,5 +227,114 @@ describe('unitsToUsd — inverse of the internal USD-to-cost-units conversion', 
   it('reports zero spend as $0', async () => {
     const { unitsToUsd } = await import('./ai');
     expect(unitsToUsd(0)).toBe(0);
+  });
+});
+
+describe('resolveAiExtractor (Part 8 §5: the DB config becomes authoritative once touched)', () => {
+  const db = {} as unknown as Db;
+  const encryption = {} as unknown as KeyManagementPort;
+
+  function fakeConfig(overrides: Partial<AiProviderConfig> = {}): AiProviderConfig {
+    return {
+      id: 'config-1',
+      status: 'ACTIVE',
+      provider: 'openai',
+      model: 'gpt-5-db-configured',
+      reasoningEffort: null,
+      apiKeyCiphertext: Buffer.from('ciphertext'),
+      apiKeyNonce: Buffer.from('nonce'),
+      apiKeyVersion: 'v1',
+      apiKeyFingerprint: '...test',
+      keyRevokedAt: null,
+      dataPolicyApproved: true,
+      budgetLimitUnits: 2_000_000,
+      perDocumentBudgetLimitUnits: null,
+      maxAttemptsPerDocument: null,
+      maxPagesPerDocument: null,
+      cacheMaxAgeDays: null,
+      maxConcurrentCalls: null,
+      notes: null,
+      createdByAccountId: null,
+      createdAt: new Date(),
+      activatedAt: new Date(),
+      supersededAt: null,
+      disabledAt: null,
+      ...overrides,
+    };
+  }
+
+  beforeEach(() => {
+    hasAnyAiProviderConfig.mockReset();
+    getActiveAiProviderConfig.mockReset();
+    revealAiProviderApiKey.mockReset();
+  });
+
+  it('falls back to createAiExtractor (env-based) when no admin has ever configured AI settings', async () => {
+    hasAnyAiProviderConfig.mockResolvedValue(false);
+    setEnv('AI_ENABLED', 'true');
+    setEnv('OPENAI_API_KEY', 'sk-env-test');
+    const { resolveAiExtractor } = await import('./ai');
+
+    const extractor = await resolveAiExtractor(db, encryption);
+
+    expect(extractor).toBeDefined();
+    expect(getActiveAiProviderConfig).not.toHaveBeenCalled();
+    expect(revealAiProviderApiKey).not.toHaveBeenCalled();
+  });
+
+  it("builds the adapter from the ACTIVE DB config's own provider/model, ignoring env vars entirely", async () => {
+    hasAnyAiProviderConfig.mockResolvedValue(true);
+    getActiveAiProviderConfig.mockResolvedValue(
+      fakeConfig({ model: 'gpt-5-db-configured', reasoningEffort: 'high' }),
+    );
+    revealAiProviderApiKey.mockResolvedValue('sk-from-db');
+    // No env vars set at all (beforeEach clears them) -- proves this path never reads them.
+    const { resolveAiExtractor } = await import('./ai');
+
+    const extractor = await resolveAiExtractor(db, encryption);
+
+    expect(extractor).toBeDefined();
+    expect(extractor?.cacheKeyComponents().model).toBe('gpt-5-db-configured');
+    expect(extractor?.cacheKeyComponents().reasoningEffort).toBe('high');
+    expect(revealAiProviderApiKey).toHaveBeenCalledWith(
+      db,
+      encryption,
+      expect.objectContaining({ id: 'config-1' }),
+    );
+  });
+
+  it('returns undefined once any config exists but none is ACTIVE (kill switch engaged), even with env vars fully configured', async () => {
+    hasAnyAiProviderConfig.mockResolvedValue(true);
+    getActiveAiProviderConfig.mockResolvedValue(undefined);
+    setEnv('AI_ENABLED', 'true');
+    setEnv('OPENAI_API_KEY', 'sk-env-test');
+    const { resolveAiExtractor } = await import('./ai');
+
+    const extractor = await resolveAiExtractor(db, encryption);
+
+    expect(extractor).toBeUndefined();
+    expect(revealAiProviderApiKey).not.toHaveBeenCalled();
+  });
+
+  it('returns undefined for an ACTIVE config naming a provider this codebase has not implemented yet', async () => {
+    hasAnyAiProviderConfig.mockResolvedValue(true);
+    getActiveAiProviderConfig.mockResolvedValue(fakeConfig({ provider: 'anthropic' }));
+    const { resolveAiExtractor } = await import('./ai');
+
+    const extractor = await resolveAiExtractor(db, encryption);
+
+    expect(extractor).toBeUndefined();
+    expect(revealAiProviderApiKey).not.toHaveBeenCalled();
+  });
+
+  it('returns undefined when an ACTIVE openai config exists but no encryption port is available', async () => {
+    hasAnyAiProviderConfig.mockResolvedValue(true);
+    getActiveAiProviderConfig.mockResolvedValue(fakeConfig());
+    const { resolveAiExtractor } = await import('./ai');
+
+    const extractor = await resolveAiExtractor(db, undefined);
+
+    expect(extractor).toBeUndefined();
+    expect(revealAiProviderApiKey).not.toHaveBeenCalled();
   });
 });

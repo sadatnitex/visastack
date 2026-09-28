@@ -2144,6 +2144,68 @@ item gets its own requirements-ledger row once classified against the new direct
     and would make an activated config's provider/model choice actually take
     effect rather than only its on/off state.
     Full detail: `requirements-ledger.md` AI-02.
+    **Chunk 6 (this update) -- the adapter itself is now DB-configurable
+    (AI-02, the remaining half).** Chunk 5 closed "is dispatch allowed at
+    all" -- but which adapter, model, API key, and limits to actually
+    dispatch WITH still came 100% from env vars, even once a DB config was
+    genuinely ACTIVE, so activating a config with a different model had zero
+    effect on what actually ran. Closed by a new
+    `resolveAiExtractor(db, encryption)` in `apps/web/src/lib/ai.ts`, added
+    alongside the existing `createAiExtractor()` rather than replacing it:
+    on a fresh install where `ai_provider_configs` is still empty, it is
+    `createAiExtractor()` unchanged -- today's env-only behavior untouched.
+    The instant a first row exists at all, the DB becomes authoritative for
+    WHAT runs too, not just whether anything runs, mirroring
+    `isAiDispatchAllowed`'s identical "authoritative once touched" rule via
+    the same shared `hasAnyAiProviderConfig` check, so the two functions can
+    never disagree about which world is in effect. Once authoritative, it
+    builds an adapter from the ACTIVE row's own `model`/`reasoningEffort`
+    and decrypts its key via the existing `revealAiProviderApiKey`, and
+    returns `undefined` (never a silent fallback to stale env vars) when
+    nothing is genuinely ACTIVE, the ACTIVE config names a provider this
+    codebase hasn't implemented yet (only `openai` exists today), or no
+    encryption port is available to decrypt the key.
+    `createAiExtractor()` itself was deliberately left completely
+    unchanged: `commercial-readiness.ts`'s `productionOpenAiProjectReady()`
+    gate checks `OPENAI_PROJECT_ID` specifically, a concept with no
+    DB-config equivalent, so it should not be forced to become
+    DB/async-aware, and its own existing passing tests stay exactly as they
+    were. `storeResponses`/`projectId` also have no DB-config equivalent yet
+    (Part 8 §5's "set limits"/"set reviewed data policy" journey doesn't
+    cover them) -- `storeResponses` defaults to `false` (privacy
+    minimization) rather than inheriting whatever `OPENAI_STORE_RESPONSES`
+    happens to be set to.
+    Wired into the one real call site, `runAiExtractionAction`
+    (`apps/web/src/app/app/applicant/[id]/actions.ts`), replacing its
+    `createAiExtractor()` call with `resolveAiExtractor(db,
+    createKeyManagementPort())`.
+    `apps/web` has `@visastack/db` as a dependency but not
+    `@electric-sql/pglite`/`drizzle-orm` directly (unlike
+    `packages/services`), which ruled out a real-PGlite integration test for
+    `resolveAiExtractor` without a larger dependency-addition change out of
+    this chunk's scope. Used `vi.mock` with `importOriginal` instead --
+    mocking only the three `@visastack/services` entry points this function
+    calls and preserving everything else -- the same "mock the boundary, run
+    everything else for real" pattern `step-up.test.ts`/`providers.test.ts`
+    already establish for this package; each mocked function's OWN
+    correctness is already thoroughly covered by
+    `ai-provider-config.test.ts`'s real-PGlite suite, so these tests exist
+    only to prove `resolveAiExtractor`'s own orchestration. 5 new tests
+    (`ai.test.ts`): falls back to `createAiExtractor()` on a fresh install
+    and never touches the DB-read functions; builds the adapter from the
+    ACTIVE config's own model/reasoning-effort while ignoring env vars
+    entirely; returns undefined once any config exists but none is ACTIVE,
+    even with env vars fully configured; returns undefined for an ACTIVE
+    config naming an unimplemented provider; returns undefined when no
+    encryption port is available. Full `@visastack/services` suite,
+    repo-wide typecheck/lint, and production build all clean.
+    **Still deliberately deferred:** the admin UI for the full settings
+    journey; the synthetic connection test and task-evaluation runner §5
+    also names; Gemini/Anthropic adapters (AI-03); the SSRF-hardening module
+    (AI-07 §7, still blocked on a custom-endpoint field that doesn't exist
+    yet); OCR/scanned-evidence support (§9); generalizing the eval harness
+    beyond OpenAI-only (AI-10).
+    Full detail: `requirements-ledger.md` AI-02.
 independently confirmed findings; the missing PRD file is tracked as Blocker 1 in
 `assumptions-and-blockers.md` (now resolved) rather than here, since it blocked the
 programme rather than being a product defect.
