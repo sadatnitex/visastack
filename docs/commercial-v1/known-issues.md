@@ -3100,6 +3100,82 @@ item gets its own requirements-ledger row once classified against the new direct
     Full `@visastack/services` suite, repo-wide typecheck, and Biome all
     clean; `packages/adapters`/`apps/web` untouched this chunk.
     Full detail: `requirements-ledger.md` AI-05.
+    **Chunk 20 (this update) -- `runOcr` itself now exists: the actual OCR
+    execution function, the last piece named in this row's own remaining
+    scope besides the UI and the Anthropic/Gemini adapters.** Lives in
+    `packages/services/src/ai.ts` alongside `runExtraction`, not in
+    `ocr.ts`, so it can call the six shared budget/concurrency helpers
+    Chunk 19 generalized directly, without needing to export them past this
+    file's own boundary. Consent-gated on `AI_OCR` (proven distinct from
+    `AI_EXTRACTION` by a dedicated test: holding only the latter still
+    refuses). Same three-phase reserve/call/reconcile structure as
+    `runExtraction`, reusing the identical fixed platform-wide and
+    document-derived advisory lock keys -- an OCR call and an extraction
+    call on the same document, or platform-wide, genuinely serialize
+    against each other's reservation step, required for the shared budget
+    to be race-safe rather than merely summed correctly after the fact.
+    `imageBytes`/`contentType` are caller-supplied inputs (mirroring
+    `RunExtractionInput.text`, likewise caller-computed), not rendered
+    inside this function -- the caller runs `renderOcrSourceImage` first,
+    keeping `runOcr` itself pure DB-plus-adapter logic.
+    Deliberately simpler than `runExtraction` in two ways that are scope
+    decisions, not oversights: no `maxPagesPerDocument` check, since
+    `renderOcrSourceImage` already bounds every call to page 1 by
+    construction (a page-count reservation would be checking a number that
+    can only ever be 1); and no field-proposal/evidence step, since OCR's
+    whole output IS the `ocr_runs` row (extracted text plus review issues)
+    -- a later, separate step would run `runExtraction` over that text for
+    field proposals, reusing it unchanged.
+    OCR gets its own cache, closing a design question `ocr_runs.cache_key`'s
+    own column comment already committed to at Chunk 17
+    (`sha256(contentHash|model|promptVersion)`) but nothing had implemented
+    yet. `contentHash` is a hash of the actual rendered image bytes about to
+    be sent (computed fresh by `runOcr`), a deliberate choice over the
+    tempting shortcut of reusing `document_versions.sha256` -- that column
+    is caller-optional and can be null, while the rendered bytes handed to
+    this function are always present. Proven with two tests: an identical
+    second call is served from cache (adapter never invoked again, cost
+    zero) and a genuinely different image never collides (billed again).
+    OCR also gets its own attempt counter, `countOcrAttempts` -- deliberately
+    NOT shared with `countAiExtractionAttempts`, the identical reasoning
+    Chunk 19 already gave for why the shared ledger stops at spend and
+    concurrency and does not extend to attempts: two different actions a
+    caller invokes separately, each bounding its own retries.
+    Two small ripples outside `ai.ts`, both required for the run to be
+    fully observable, not just persisted: a new `AI_OCR_RUN` product-event
+    type (`product-events.ts`'s `PRODUCT_EVENT_TYPES` -- a plain TS array,
+    no migration needed) and its scorecard label in the admin page
+    (`apps/web/src/app/app/admin/page.tsx`'s `SCORECARD_LABELS`, typed as
+    `Record<ProductEventType, string>` so TypeScript itself would have
+    refused to compile with the new type left unlabeled -- confirmed by
+    the repo-wide typecheck passing only once the label was added). The
+    three new audit event types (`AI_OCR_RUN`/`AI_OCR_FAILED`/
+    `AI_OCR_CACHE_HIT`) needed no such change: `auditEvents.eventType` is
+    free text, the same reason none of `runExtraction`'s own event names
+    ever needed a migration either.
+    A real nullability bug caught while writing this, not shipped: `provider`/
+    `modelVersion`/`promptVersion` are NOT NULL on `ocr_runs` (unlike
+    `ai_extraction_runs`, whose nullable `provider` exists only to cover
+    historical pre-column rows `ocr_runs`, being new, has none of) -- a first
+    draft of the FAILED-path update copied `runExtraction`'s own
+    `outcome.provider ?? null` verbatim, which would have violated the NOT
+    NULL constraint the instant a synthesized `disabled` outcome (no
+    `provider` field at all) hit that path. Fixed to `outcome.provider ??
+    'unknown'`, the same placeholder the IN_FLIGHT insert already uses,
+    caught by deliberately re-checking each column's nullability against
+    the sibling table rather than assuming the pattern would transfer
+    unchanged.
+    10 new tests in `ai.test.ts`'s new `runOcr` suite (consent distinction,
+    persistence of text/review issues, failure recording, cache hit, cache
+    miss on different bytes, the attempt counter, the kill switch, shared-
+    budget exhaustion, authorization) alongside the pre-existing 35 (32
+    original plus Chunk 19's own 3), all 45 passing together -- full
+    `@visastack/services` suite (now 1063 tests) and full `apps/web` suite
+    (201/201) both clean, repo-wide typecheck and Biome clean.
+    Still deliberately deferred, unchanged from Chunk 14's original list:
+    `runOcr`'s triggering UI; review-issue surfacing to a human reviewer;
+    the Anthropic/Gemini OCR adapters.
+    Full detail: `requirements-ledger.md` AI-05.
 independently confirmed findings; the missing PRD file is tracked as Blocker 1 in
 `assumptions-and-blockers.md` (now resolved) rather than here, since it blocked the
 programme rather than being a product defect.

@@ -17,12 +17,14 @@ import {
   listPendingProposals,
   rejectProposal,
   runExtraction,
+  runOcr,
   totalAiCostUnits,
 } from './ai';
 import { createApplicant } from './applicants';
 import { setConsent } from './consent';
 import type { Db } from './db';
 import { addDocumentVersion, registerDocument } from './documents';
+import type { AiOcrOutcome, AiOcrPort, AiOcrUsage } from './ocr';
 import type { KeyManagementPort } from './ports';
 import { editFact, getCurrentFactVersion, registerFieldDefinition } from './profile';
 
@@ -1403,5 +1405,338 @@ describe('AI Gateway -- shared platform-wide budget with OCR (Part 8 Chunk 18/19
     });
     expect(isOk(result)).toBe(true);
     expect(await totalAiCostUnits(db)).toBe(53); // 50 (OCR) + 3 (this text-extraction call's real cost)
+  });
+});
+
+const ocrUsage: AiOcrUsage = {
+  costUnits: 4,
+  inputUnits: 3,
+  outputUnits: 1,
+  modelVersion: 'gpt-5.6-terra',
+  promptVersion: 'ocr-p1',
+  provider: 'openai',
+  latencyMs: 55,
+};
+
+function stubOcrAi(
+  result: AiOcrOutcome = {
+    ok: true,
+    result: { text: 'MRZ text here', reviewIssues: [], usage: ocrUsage },
+  },
+): AiOcrPort {
+  return {
+    async performOcr() {
+      return result;
+    },
+    cacheKeyComponents() {
+      return { model: 'gpt-5.6-terra', promptVersion: 'ocr-p1' };
+    },
+  };
+}
+
+/** Same shape as stubOcrAi, but counts real adapter invocations - for asserting a cache hit (or a kill-switch refusal) never calls it. */
+function countingStubOcrAi(
+  result: AiOcrOutcome = {
+    ok: true,
+    result: { text: 'MRZ text here', reviewIssues: [], usage: ocrUsage },
+  },
+): { ai: AiOcrPort; callCount: () => number } {
+  let calls = 0;
+  const ai: AiOcrPort = {
+    async performOcr() {
+      calls += 1;
+      return result;
+    },
+    cacheKeyComponents() {
+      return { model: 'gpt-5.6-terra', promptVersion: 'ocr-p1' };
+    },
+  };
+  return { ai, callCount: () => calls };
+}
+
+async function grantOcrConsent(db: Db, accountId: string) {
+  await setConsent(db, {
+    actorAccountId: accountId,
+    accountId,
+    type: 'AI_OCR',
+    granted: true,
+  });
+}
+
+describe('AI Gateway -- runOcr (Part 8 Chunk 20)', () => {
+  let db: Db;
+  beforeEach(async () => {
+    db = await freshDb();
+  });
+
+  const imageBytes = new TextEncoder().encode('fake-scanned-passport-page-1');
+
+  it('requires AI_OCR consent to run -- AI_EXTRACTION consent alone is not enough, since the two are genuinely distinct disclosures', async () => {
+    const { account, applicantId, versionId } = await seedVersion(db, 'ocr-consent@example.com');
+    await grantAiConsent(db, account.id); // AI_EXTRACTION only, deliberately not AI_OCR
+    const denied = await runOcr(db, stubOcrAi(), {
+      actorAccountId: account.id,
+      applicantId,
+      documentVersionId: versionId,
+      imageBytes,
+      contentType: 'image/png',
+      budgetLimitUnits: 100,
+    });
+    expect(isErr(denied)).toBe(true);
+    if (isErr(denied)) expect(denied.error.code).toBe('consent_required');
+  });
+
+  it('runs, persists extracted text and review issues directly on the run row, audits, and records a product event', async () => {
+    const { account, applicantId, versionId } = await seedVersion(db, 'ocr-run@example.com');
+    await grantOcrConsent(db, account.id);
+
+    const result = await runOcr(db, stubOcrAi(), {
+      actorAccountId: account.id,
+      applicantId,
+      documentVersionId: versionId,
+      imageBytes,
+      contentType: 'image/png',
+      budgetLimitUnits: 100,
+    });
+    expect(isOk(result)).toBe(true);
+    if (!isOk(result)) return;
+    expect(result.value.ocrRun.status).toBe('SUCCEEDED');
+    expect(result.value.ocrRun.extractedText).toBe('MRZ text here');
+    expect(result.value.ocrRun.reviewIssues).toEqual([]);
+    expect(result.value.ocrRun.costUnits).toBe(4);
+    expect(result.value.ocrRun.servedFromCacheRunId).toBeNull();
+
+    const productEvents = await db.select().from(schema.productEvents);
+    expect(productEvents.some((e) => e.eventType === 'AI_OCR_RUN')).toBe(true);
+  });
+
+  it('persists named review issues (directive §9: low_quality/ambiguous_date/unsupported_script/missing_text) exactly as the adapter reports them', async () => {
+    const { account, applicantId, versionId } = await seedVersion(
+      db,
+      'ocr-review-issues@example.com',
+    );
+    await grantOcrConsent(db, account.id);
+
+    const result = await runOcr(
+      db,
+      stubOcrAi({
+        ok: true,
+        result: { text: '', reviewIssues: ['low_quality', 'missing_text'], usage: ocrUsage },
+      }),
+      {
+        actorAccountId: account.id,
+        applicantId,
+        documentVersionId: versionId,
+        imageBytes,
+        contentType: 'image/png',
+        budgetLimitUnits: 100,
+      },
+    );
+    expect(isOk(result)).toBe(true);
+    if (!isOk(result)) return;
+    expect(result.value.ocrRun.reviewIssues).toEqual(['low_quality', 'missing_text']);
+  });
+
+  it('a failed adapter call is recorded FAILED with the real error code, never silently dropped', async () => {
+    const { account, applicantId, versionId } = await seedVersion(db, 'ocr-failed@example.com');
+    await grantOcrConsent(db, account.id);
+
+    const result = await runOcr(
+      db,
+      stubOcrAi({
+        ok: false,
+        code: 'rate_limited',
+        message: 'too many requests',
+        provider: 'openai',
+        latencyMs: 12,
+      }),
+      {
+        actorAccountId: account.id,
+        applicantId,
+        documentVersionId: versionId,
+        imageBytes,
+        contentType: 'image/png',
+        budgetLimitUnits: 100,
+      },
+    );
+    expect(isErr(result)).toBe(true);
+    if (isErr(result)) expect(result.error.code).toBe('upstream_error');
+
+    const rows = await db
+      .select()
+      .from(schema.ocrRuns)
+      .where(eq(schema.ocrRuns.documentVersionId, versionId));
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.status).toBe('FAILED');
+    expect(rows[0]?.errorCode).toBe('rate_limited');
+    expect(rows[0]?.provider).toBe('openai'); // never null -- ocr_runs.provider is NOT NULL
+  });
+
+  it('a second identical call is served from cache -- same cache key, adapter never invoked again, cost is zero', async () => {
+    const { account, applicantId, versionId } = await seedVersion(db, 'ocr-cache-hit@example.com');
+    await grantOcrConsent(db, account.id);
+    const { ai, callCount } = countingStubOcrAi();
+
+    const first = await runOcr(db, ai, {
+      actorAccountId: account.id,
+      applicantId,
+      documentVersionId: versionId,
+      imageBytes,
+      contentType: 'image/png',
+      budgetLimitUnits: 100,
+    });
+    expect(isOk(first)).toBe(true);
+    expect(callCount()).toBe(1);
+
+    const second = await runOcr(db, ai, {
+      actorAccountId: account.id,
+      applicantId,
+      documentVersionId: versionId,
+      imageBytes,
+      contentType: 'image/png',
+      budgetLimitUnits: 100,
+    });
+    expect(isOk(second)).toBe(true);
+    if (!isOk(second)) return;
+    expect(callCount()).toBe(1); // still 1 -- the adapter was never invoked a second time
+    expect(second.value.ocrRun.costUnits).toBe(0);
+    expect(second.value.ocrRun.servedFromCacheRunId).not.toBeNull();
+    expect(second.value.ocrRun.extractedText).toBe('MRZ text here');
+  });
+
+  it('different image bytes never collide in the cache -- a second, genuinely different scan is billed again', async () => {
+    const { account, applicantId, versionId } = await seedVersion(db, 'ocr-cache-miss@example.com');
+    await grantOcrConsent(db, account.id);
+    const { ai, callCount } = countingStubOcrAi();
+
+    await runOcr(db, ai, {
+      actorAccountId: account.id,
+      applicantId,
+      documentVersionId: versionId,
+      imageBytes,
+      contentType: 'image/png',
+      budgetLimitUnits: 100,
+    });
+    const second = await runOcr(db, ai, {
+      actorAccountId: account.id,
+      applicantId,
+      documentVersionId: versionId,
+      imageBytes: new TextEncoder().encode('a-genuinely-different-scanned-page'),
+      contentType: 'image/png',
+      budgetLimitUnits: 100,
+    });
+    expect(isOk(second)).toBe(true);
+    if (!isOk(second)) return;
+    expect(callCount()).toBe(2);
+    expect(second.value.ocrRun.servedFromCacheRunId).toBeNull();
+  });
+
+  it('OCR has its own attempt counter, separate from countAiExtractionAttempts -- exhausting it refuses further genuine OCR calls on the same document', async () => {
+    const { account, applicantId, versionId } = await seedVersion(db, 'ocr-attempts@example.com');
+    await grantOcrConsent(db, account.id);
+
+    // Two genuinely different (never-cached) calls exhaust a limit of 2.
+    await runOcr(db, stubOcrAi(), {
+      actorAccountId: account.id,
+      applicantId,
+      documentVersionId: versionId,
+      imageBytes: new TextEncoder().encode('scan-a'),
+      contentType: 'image/png',
+      budgetLimitUnits: 100,
+      maxAttemptsPerDocument: 2,
+    });
+    await runOcr(db, stubOcrAi(), {
+      actorAccountId: account.id,
+      applicantId,
+      documentVersionId: versionId,
+      imageBytes: new TextEncoder().encode('scan-b'),
+      contentType: 'image/png',
+      budgetLimitUnits: 100,
+      maxAttemptsPerDocument: 2,
+    });
+    const third = await runOcr(db, stubOcrAi(), {
+      actorAccountId: account.id,
+      applicantId,
+      documentVersionId: versionId,
+      imageBytes: new TextEncoder().encode('scan-c'),
+      contentType: 'image/png',
+      budgetLimitUnits: 100,
+      maxAttemptsPerDocument: 2,
+    });
+    expect(isErr(third)).toBe(true);
+    if (isErr(third)) expect(third.error.code).toBe('invalid');
+  });
+
+  it('the kill switch, rechecked immediately before dispatch, refuses the call without ever invoking the adapter', async () => {
+    const { account, applicantId, versionId } = await seedVersion(db, 'ocr-killswitch@example.com');
+    await grantOcrConsent(db, account.id);
+    const { ai, callCount } = countingStubOcrAi();
+
+    const result = await runOcr(db, ai, {
+      actorAccountId: account.id,
+      applicantId,
+      documentVersionId: versionId,
+      imageBytes,
+      contentType: 'image/png',
+      budgetLimitUnits: 100,
+      killSwitchCheck: async () => false,
+    });
+    expect(isErr(result)).toBe(true);
+    if (isErr(result)) expect(result.error.code).toBe('invalid');
+    expect(callCount()).toBe(0);
+
+    const rows = await db
+      .select()
+      .from(schema.ocrRuns)
+      .where(eq(schema.ocrRuns.documentVersionId, versionId));
+    expect(rows[0]?.status).toBe('FAILED');
+    expect(rows[0]?.errorCode).toBe('disabled');
+    expect(rows[0]?.provider).toBe('unknown'); // no provider on a synthesized disabled outcome -- never null
+  });
+
+  it('refuses once the shared platform-wide budget is exhausted -- the same ledger runExtraction reads', async () => {
+    const seeded = await seedVersion(db, 'ocr-budget-seed@example.com');
+    await grantOcrConsent(db, seeded.account.id);
+    const seedCall = await runOcr(db, stubOcrAi(), {
+      actorAccountId: seeded.account.id,
+      applicantId: seeded.applicantId,
+      documentVersionId: seeded.versionId,
+      imageBytes,
+      contentType: 'image/png',
+      budgetLimitUnits: 100,
+    });
+    expect(isOk(seedCall)).toBe(true); // real cost 4; totalAiCostUnits and worstCase are now both 4
+
+    const { account, applicantId, versionId } = await seedVersion(db, 'ocr-budget@example.com');
+    await grantOcrConsent(db, account.id);
+    const result = await runOcr(db, stubOcrAi(), {
+      actorAccountId: account.id,
+      applicantId,
+      documentVersionId: versionId,
+      imageBytes: new TextEncoder().encode('a-different-document-scan'),
+      contentType: 'image/png',
+      // totalAiCostUnits(4) + (0 in-flight + 1) * worstCase(4) = 8 >= 4.
+      budgetLimitUnits: 4,
+    });
+    expect(isErr(result)).toBe(true);
+    if (isErr(result)) expect(result.error.code).toBe('invalid');
+  });
+
+  it('is not authorized for an applicant the actor does not own', async () => {
+    const owner = await seedVersion(db, 'ocr-owner@example.com');
+    const stranger = await provisionAccount(db, { email: 'ocr-stranger@example.com' });
+    if (!isOk(stranger)) throw new Error('provision');
+    await grantOcrConsent(db, owner.account.id);
+
+    const result = await runOcr(db, stubOcrAi(), {
+      actorAccountId: stranger.value.id,
+      applicantId: owner.applicantId,
+      documentVersionId: owner.versionId,
+      imageBytes,
+      contentType: 'image/png',
+      budgetLimitUnits: 100,
+    });
+    expect(isErr(result)).toBe(true);
+    if (isErr(result)) expect(result.error.code).toBe('forbidden');
   });
 });
