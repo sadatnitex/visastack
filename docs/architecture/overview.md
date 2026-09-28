@@ -3,6 +3,15 @@
 > This overview is reconstructed from the PRD Coverage Audit v1.1 and will
 > be reconciled clause-by-clause against the 3-page PRD and Build
 > Specification as they are imported. Where they disagree, they win.
+>
+> The layering and dependency rules below are unchanged and still accurate.
+> The system-context diagram and "core domain concepts" predate the
+> Commercial V1 programme (`docs/roadmap/commercial-v1-implementation-directive.md`)
+> and do not yet show everything Parts 4-8 added - billing/plans, the rules
+> engine, public trust, agency case collaboration, the admin-managed
+> multi-provider AI Gateway, and OCR chief among them. For the current,
+> per-requirement state of all of that, see
+> [`docs/commercial-v1/requirements-ledger.md`](../commercial-v1/requirements-ledger.md).
 
 ## System context
 

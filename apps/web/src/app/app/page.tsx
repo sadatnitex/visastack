@@ -20,6 +20,7 @@ export const dynamic = 'force-dynamic';
 const CONSENT_MESSAGE_KEYS: Record<ConsentType, MessageKey> = {
   CORE_PROCESSING: 'consent.core.title',
   AI_EXTRACTION: 'consent.ai.title',
+  AI_OCR: 'consent.ocr.title',
   SHARING: 'consent.sharing.title',
   MARKETING: 'consent.marketing.title',
   ISSUER_CONTACT: 'consent.issuerContact.title',

@@ -1,0 +1,1 @@
+ALTER TYPE "public"."consent_type" ADD VALUE 'AI_OCR' BEFORE 'SHARING';

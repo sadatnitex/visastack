@@ -15,6 +15,7 @@ export const dynamic = 'force-dynamic';
 const CONSENT_LABELS: Record<ConsentType, string> = {
   CORE_PROCESSING: 'Core processing',
   AI_EXTRACTION: 'AI extraction',
+  AI_OCR: 'AI OCR',
   SHARING: 'Sharing',
   MARKETING: 'Marketing',
   ISSUER_CONTACT: 'Issuer contact',

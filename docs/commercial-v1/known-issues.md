@@ -2793,6 +2793,90 @@ item gets its own requirements-ledger row once classified against the new direct
     all clean; `apps/web` untouched this chunk so its own production build
     was not re-run (its typecheck was, transitively, and passed).
     Full detail: `requirements-ledger.md` AI-05.
+    **Chunk 15 (this update) -- OCR's own consent type now exists, resolving
+    Chunk 14's own explicitly-flagged open question.** That question was put
+    to the user rather than assumed: does OCR need its own consent, distinct
+    from the existing `AI_EXTRACTION` consent? Reasoning mirrors Chunk 14's
+    own architecture-fork writeup -- consenting to `AI_EXTRACTION` today
+    authorizes sending a document's already-extracted TEXT off-server for
+    field proposals; OCR instead sends the raw image BYTES of a
+    scanned/photographed document off-server so a vision-capable model can
+    read them, a materially larger disclosure than text alone. The user
+    chose a new, distinct consent type.
+    New `AI_OCR` added to `CONSENT_TYPES` (`packages/core/src/domain.ts`),
+    positioned directly after `AI_EXTRACTION`, with a doc-comment addition
+    explaining the distinction above -- following the exact precedent
+    `ISSUER_CONTACT`'s own comment already set for adding a narrowly-scoped
+    new consent purpose. Because `CONSENT_TYPES` is wired directly into a
+    real Postgres enum (`packages/db/src/schema.ts`'s
+    `pgEnum('consent_type', CONSENT_TYPES)`), this required a genuine
+    additive migration, not just a TypeScript-level change -- generated via
+    `drizzle-kit generate` rather than hand-written, the same tooling-first
+    approach used for every schema change this session: migration `0077`
+    (`ALTER TYPE "public"."consent_type" ADD VALUE 'AI_OCR' BEFORE
+    'SHARING'`), mirroring migration `0074`'s identical
+    `ai_extraction_run_status` addition of `IN_FLIGHT` from earlier in Part
+    8.
+    `packages/services/src/consent.ts` (`getConsents`, `hasConsent`,
+    `setConsent`, `listConsentHistory`) and
+    `packages/services/src/backup-reconciliation.ts`'s `forceConsentRevoked`
+    needed zero code changes -- both were already fully generic over
+    `ConsentType`, so `AI_OCR` is usable through them automatically. The
+    applicant-facing consent-granting card (`apps/web/src/app/app/page.tsx`)
+    is likewise already generic (it maps over `CONSENT_TYPES` and renders one
+    row per type via the existing, fully-generic `ConsentButton`), so it
+    gained a new row with zero structural change -- only its
+    `CONSENT_MESSAGE_KEYS` lookup map needed the one new entry
+    (`AI_OCR: 'consent.ocr.title'`). New bilingual message key added to
+    `packages/i18n/src/messages.ts` (English "AI OCR consent"; Bangla "এআই
+    ওসিআর সম্মতি", transliterating "OCR" the same way "AI" itself is already
+    transliterated as "এআই" in this same catalog for the sibling
+    `consent.ai.title` key -- there is no established single-word Bangla
+    translation for "Optical Character Recognition" in this codebase to
+    follow instead). The consent-history page
+    (`apps/web/src/app/app/privacy/page.tsx`) needed its own separate
+    `CONSENT_LABELS` map extended too (`AI_OCR: 'AI OCR'`), since it is a
+    second, independent exhaustive `Record<ConsentType, string>` rather than
+    a consumer of the i18n catalog.
+    One real, non-cosmetic gap was found and closed while auditing every
+    `AI_EXTRACTION` reference for a needed parallel: `deletion.ts`'s
+    `OPTIONAL_PROCESSING_CONSENT_TYPES` (PRV-03, Part 7 §12 step 6 -- every
+    currently-granted OPTIONAL consent is auto-revoked the moment an account
+    deletion request is opened, not only incidentally once the account is
+    finally removed after the grace window) had not yet been told about
+    `AI_OCR`. Left as-is, a granted `AI_OCR` consent would have stayed
+    silently active for the full 7-day grace window after a deletion
+    request -- the exact gap this array exists to close for every other
+    optional consent. Added `AI_OCR` to that array, and extended
+    `lifecycle.test.ts`'s own PRV-03 test (which exhaustively iterates and
+    asserts every optional-processing consent type) to grant, then assert
+    the auto-revoke of, `AI_OCR` alongside the other four. Two call sites
+    that reference `AI_EXTRACTION` specifically were confirmed genuinely out
+    of scope for this chunk and deliberately left untouched: `ai.ts`'s own
+    `runExtraction` consent gate (text-extraction's existing gate, unrelated
+    to OCR, which is not wired into any live call site yet) and
+    `applicant/[id]/documents/page.tsx`'s `hasConsent(..., 'AI_EXTRACTION')`
+    read (gates existing text-extraction UI only).
+    **Deliberately NOT in this chunk, matching Chunk 14's own "contract
+    first, wire later" discipline:** actually consent-GATING any OCR call
+    (there is still no live OCR call site to gate -- that is Chunk 14's own
+    already-named deferred item, wiring OCR into
+    `DeterministicTextExtractor`/the intake pipeline); every other item
+    Chunk 14 already deferred remains deferred (a `resolveOcrAdapter`, OCR
+    cost/budget accounting, review-issue surfacing to a human reviewer,
+    Anthropic/Gemini OCR adapters, real live-credentialed verification).
+    Verified: `drizzle-kit generate` produced (never hand-written) migration
+    `0077` and its matching snapshot/journal entries; full `@visastack/core`,
+    `@visastack/i18n`, and `@visastack/db` suites all clean (the last
+    including its own "applies the migration and round-trips" and "rejects
+    an invalid enum value at the database level" tests, directly exercising
+    the new enum value end-to-end against real PGlite-backed Postgres); the
+    targeted `@visastack/services` consent/deletion/erasure/
+    backup-reconciliation tests and the full suite both clean; the full
+    `apps/web` suite (195/195) and a clean production build both clean
+    (`apps/web` genuinely touched this chunk, unlike Chunk 14); repo-wide
+    typecheck and Biome both clean.
+    Full detail: `requirements-ledger.md` AI-05.
 independently confirmed findings; the missing PRD file is tracked as Blocker 1 in
 `assumptions-and-blockers.md` (now resolved) rather than here, since it blocked the
 programme rather than being a product defect.
