@@ -1771,3 +1771,324 @@ describe('AI Gateway -- runOcr (Part 8 Chunk 20)', () => {
     expect(await getLatestOcrRun(db, versionId)).toBeUndefined();
   });
 });
+
+/** A second stub adapter with a genuinely different cache-key model, standing in for a designated fallback provider. */
+function fallbackStubAi(
+  result: AiExtractionOutcome = {
+    ok: true,
+    result: {
+      proposals,
+      usage: { ...usage, provider: 'anthropic', modelVersion: 'claude-sonnet-5' },
+    },
+  },
+): AiExtractionPort {
+  return {
+    async extract() {
+      return result;
+    },
+    cacheKeyComponents() {
+      return { model: 'claude-sonnet-5', promptVersion: 'p1', schemaVersion: 's1' };
+    },
+  };
+}
+
+function fallbackStubOcrAi(
+  result: AiOcrOutcome = {
+    ok: true,
+    result: {
+      text: 'MRZ text from fallback',
+      reviewIssues: [],
+      usage: { ...ocrUsage, provider: 'anthropic', modelVersion: 'claude-sonnet-5' },
+    },
+  },
+): AiOcrPort {
+  return {
+    async performOcr() {
+      return result;
+    },
+    cacheKeyComponents() {
+      return { model: 'claude-sonnet-5', promptVersion: 'ocr-p1' };
+    },
+  };
+}
+
+describe('AI Gateway -- cross-provider fallback (Part 8 §13, Chunk 25)', () => {
+  let db: Db;
+  beforeEach(async () => {
+    db = await freshDb();
+  });
+
+  it("triggers the fallback adapter on a timeout, writing a second row linked via triggeredByRunId, and returns the fallback adapter's own outcome", async () => {
+    const { account, applicantId, versionId } = await seedVersion(
+      db,
+      'fallback-timeout@example.com',
+    );
+    await grantAiConsent(db, account.id);
+
+    const result = await runExtraction(
+      db,
+      stubAi({ ok: false, code: 'timeout', message: 'timed out' }),
+      {
+        actorAccountId: account.id,
+        applicantId,
+        documentVersionId: versionId,
+        text: 'MRZ text',
+        budgetLimitUnits: 100,
+        fallback: { ai: fallbackStubAi() },
+      },
+    );
+    expect(isOk(result)).toBe(true);
+    if (!isOk(result)) return;
+
+    const rows = await db
+      .select()
+      .from(schema.aiExtractionRuns)
+      .where(eq(schema.aiExtractionRuns.documentVersionId, versionId));
+    expect(rows).toHaveLength(2);
+    const primaryRow = rows.find((r) => r.status === 'FAILED');
+    const fallbackRow = rows.find((r) => r.status === 'SUCCEEDED');
+    expect(primaryRow?.errorCode).toBe('timeout');
+    expect(fallbackRow?.triggeredByRunId).toBe(primaryRow?.id);
+    expect(fallbackRow?.provider).toBe('anthropic');
+    expect(result.value.aiExtractionRunId).toBe(fallbackRow?.id);
+  });
+
+  it('triggers the fallback adapter on rate_limited, the other directive-named recoverable code', async () => {
+    const { account, applicantId, versionId } = await seedVersion(
+      db,
+      'fallback-rate-limited@example.com',
+    );
+    await grantAiConsent(db, account.id);
+
+    const result = await runExtraction(
+      db,
+      stubAi({ ok: false, code: 'rate_limited', message: 'too many requests' }),
+      {
+        actorAccountId: account.id,
+        applicantId,
+        documentVersionId: versionId,
+        text: 'MRZ text',
+        budgetLimitUnits: 100,
+        fallback: { ai: fallbackStubAi() },
+      },
+    );
+    expect(isOk(result)).toBe(true);
+
+    const rows = await db
+      .select()
+      .from(schema.aiExtractionRuns)
+      .where(eq(schema.aiExtractionRuns.documentVersionId, versionId));
+    expect(rows).toHaveLength(2);
+  });
+
+  it('never triggers the fallback on a refused outcome -- Part 8 §13: never "shop for a desired answer" after a refusal', async () => {
+    const { account, applicantId, versionId } = await seedVersion(
+      db,
+      'fallback-refused@example.com',
+    );
+    await grantAiConsent(db, account.id);
+    const { ai: fallback, callCount } = countingStubAi();
+
+    const result = await runExtraction(
+      db,
+      stubAi({ ok: false, code: 'refused', message: 'the model declined' }),
+      {
+        actorAccountId: account.id,
+        applicantId,
+        documentVersionId: versionId,
+        text: 'MRZ text',
+        budgetLimitUnits: 100,
+        fallback: { ai: fallback },
+      },
+    );
+    expect(isErr(result)).toBe(true);
+    expect(callCount()).toBe(0);
+
+    const rows = await db
+      .select()
+      .from(schema.aiExtractionRuns)
+      .where(eq(schema.aiExtractionRuns.documentVersionId, versionId));
+    expect(rows).toHaveLength(1);
+  });
+
+  it.each([
+    ['auth_failed', 'the key is bad'],
+    ['invalid_response', 'unparseable'],
+    ['truncated', 'ran out of budget'],
+    ['disabled', 'AI extraction is currently disabled'],
+  ] as const)(
+    'never triggers the fallback on a non-recoverable %s outcome',
+    async (code, message) => {
+      const { account, applicantId, versionId } = await seedVersion(
+        db,
+        `fallback-non-recoverable-${code}@example.com`,
+      );
+      await grantAiConsent(db, account.id);
+      const { ai: fallback, callCount } = countingStubAi();
+
+      await runExtraction(db, stubAi({ ok: false, code, message }), {
+        actorAccountId: account.id,
+        applicantId,
+        documentVersionId: versionId,
+        text: 'MRZ text',
+        budgetLimitUnits: 100,
+        fallback: { ai: fallback },
+      });
+      expect(callCount()).toBe(0);
+    },
+  );
+
+  it('never attempts a fallback when none was given, even on an otherwise-recoverable timeout -- unchanged default behavior', async () => {
+    const { account, applicantId, versionId } = await seedVersion(
+      db,
+      'fallback-not-given@example.com',
+    );
+    await grantAiConsent(db, account.id);
+
+    const result = await runExtraction(
+      db,
+      stubAi({ ok: false, code: 'timeout', message: 'timed out' }),
+      {
+        actorAccountId: account.id,
+        applicantId,
+        documentVersionId: versionId,
+        text: 'MRZ text',
+        budgetLimitUnits: 100,
+      },
+    );
+    expect(isErr(result)).toBe(true);
+
+    const rows = await db
+      .select()
+      .from(schema.aiExtractionRuns)
+      .where(eq(schema.aiExtractionRuns.documentVersionId, versionId));
+    expect(rows).toHaveLength(1);
+  });
+
+  it("returns the fallback's own FAILED result, with no third attempt, when the fallback also fails", async () => {
+    const { account, applicantId, versionId } = await seedVersion(
+      db,
+      'fallback-also-fails@example.com',
+    );
+    await grantAiConsent(db, account.id);
+
+    const result = await runExtraction(
+      db,
+      stubAi({ ok: false, code: 'timeout', message: 'timed out' }),
+      {
+        actorAccountId: account.id,
+        applicantId,
+        documentVersionId: versionId,
+        text: 'MRZ text',
+        budgetLimitUnits: 100,
+        fallback: {
+          ai: fallbackStubAi({ ok: false, code: 'timeout', message: 'fallback also timed out' }),
+        },
+      },
+    );
+    expect(isErr(result)).toBe(true);
+
+    const rows = await db
+      .select()
+      .from(schema.aiExtractionRuns)
+      .where(eq(schema.aiExtractionRuns.documentVersionId, versionId));
+    expect(rows).toHaveLength(2);
+    expect(rows.every((r) => r.status === 'FAILED')).toBe(true);
+  });
+
+  it('the fallback attempt is refused once the SAME attempt limit is already reached -- it composes with existing caps, not a separate budget', async () => {
+    const { account, applicantId, versionId } = await seedVersion(
+      db,
+      'fallback-attempt-cap@example.com',
+    );
+    await grantAiConsent(db, account.id);
+    // Exhaust the (shared) attempt cap of 1 with a prior FAILED run first.
+    await runExtraction(db, stubAi({ ok: false, code: 'auth_failed', message: 'bad key' }), {
+      actorAccountId: account.id,
+      applicantId,
+      documentVersionId: versionId,
+      text: 'MRZ text',
+      budgetLimitUnits: 100,
+      maxAttemptsPerDocument: 1,
+    });
+
+    const { ai: fallback, callCount } = countingStubAi();
+    const result = await runExtraction(
+      db,
+      stubAi({ ok: false, code: 'timeout', message: 'timed out' }),
+      {
+        actorAccountId: account.id,
+        applicantId,
+        documentVersionId: versionId,
+        text: 'MRZ text',
+        budgetLimitUnits: 100,
+        maxAttemptsPerDocument: 1,
+        fallback: { ai: fallback },
+      },
+    );
+    expect(isErr(result)).toBe(true);
+    if (isErr(result)) expect(result.error.message).toContain('attempt limit');
+    expect(callCount()).toBe(0);
+  });
+
+  it('OCR: triggers the fallback adapter on a timeout, writing a second ocr_runs row linked via triggeredByRunId', async () => {
+    const { account, applicantId, versionId } = await seedVersion(
+      db,
+      'fallback-ocr-timeout@example.com',
+    );
+    await grantOcrConsent(db, account.id);
+    const imageBytes = new TextEncoder().encode('fake-scanned-passport-page-1');
+
+    const result = await runOcr(
+      db,
+      stubOcrAi({ ok: false, code: 'timeout', message: 'timed out' }),
+      {
+        actorAccountId: account.id,
+        applicantId,
+        documentVersionId: versionId,
+        imageBytes,
+        contentType: 'image/png',
+        budgetLimitUnits: 100,
+        fallback: { ai: fallbackStubOcrAi() },
+      },
+    );
+    expect(isOk(result)).toBe(true);
+    if (!isOk(result)) return;
+    expect(result.value.ocrRun.provider).toBe('anthropic');
+    expect(result.value.ocrRun.extractedText).toBe('MRZ text from fallback');
+
+    const rows = await db
+      .select()
+      .from(schema.ocrRuns)
+      .where(eq(schema.ocrRuns.documentVersionId, versionId));
+    expect(rows).toHaveLength(2);
+    const primaryRow = rows.find((r) => r.status === 'FAILED');
+    expect(rows.find((r) => r.status === 'SUCCEEDED')?.triggeredByRunId).toBe(primaryRow?.id);
+  });
+
+  it('OCR: never triggers the fallback on a refused outcome', async () => {
+    const { account, applicantId, versionId } = await seedVersion(
+      db,
+      'fallback-ocr-refused@example.com',
+    );
+    await grantOcrConsent(db, account.id);
+    const imageBytes = new TextEncoder().encode('fake-scanned-passport-page-1');
+    const { ai: fallback, callCount } = countingStubOcrAi();
+
+    const result = await runOcr(
+      db,
+      stubOcrAi({ ok: false, code: 'refused', message: 'the model declined' }),
+      {
+        actorAccountId: account.id,
+        applicantId,
+        documentVersionId: versionId,
+        imageBytes,
+        contentType: 'image/png',
+        budgetLimitUnits: 100,
+        fallback: { ai: fallback },
+      },
+    );
+    expect(isErr(result)).toBe(true);
+    expect(callCount()).toBe(0);
+  });
+});

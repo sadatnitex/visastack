@@ -7,7 +7,13 @@ import { appendAuditEvent } from './audit';
 import { hasConsent } from './consent';
 import { type Db, first, required, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
-import type { AiOcrCacheKeyComponents, AiOcrContentType, AiOcrOutcome, AiOcrPort } from './ocr';
+import type {
+  AiOcrCacheKeyComponents,
+  AiOcrContentType,
+  AiOcrErrorCode,
+  AiOcrOutcome,
+  AiOcrPort,
+} from './ocr';
 import type { KeyManagementPort } from './ports';
 import { recordProductEvent } from './product-events';
 import { type EditFactResult, editFact, getCurrentFactVersion } from './profile';
@@ -520,6 +526,13 @@ export interface RunExtractionInput {
    * every other optional check here.
    */
   readonly killSwitchCheck?: () => Promise<boolean>;
+  /**
+   * Part 8 §13 (cross-provider fallback), OFF (undefined) by default. See
+   * `runExtraction`'s own doc comment for the full triggering/eligibility
+   * rules -- this function only ever dispatches to it, never decides
+   * whether it was correct to provide.
+   */
+  readonly fallback?: { readonly ai: AiExtractionPort };
 }
 
 const DEFAULT_CACHE_MAX_AGE_DAYS = 30;
@@ -639,6 +652,20 @@ export interface RunExtractionSummary {
  * which is standard, well-established behavior, not something this
  * codebase is inventing. See `ai.test.ts`'s note above the (deliberately
  * absent) race test for how this was confirmed rather than assumed.
+ *
+ * Cross-provider fallback (Part 8 §13, `input.fallback`): when the primary
+ * call's outcome is a directive-named RECOVERABLE failure (`timeout` or
+ * `rate_limited` only -- never `refused`, which would be exactly the "shop
+ * for a desired answer" the directive forbids, and never `auth_failed`/
+ * `invalid_response`/`disabled` either, matching "do not retry: auth
+ * failure; invalid input; consent denial"), phases 1-3 run a SECOND time
+ * against `input.fallback.ai`, writing their own `ai_extraction_runs` row
+ * with `triggeredByRunId` pointing back at the primary row. This function
+ * trusts whatever adapter it is given for `input.fallback.ai` without
+ * re-checking eligibility itself -- the caller (`resolveAiExtractor`,
+ * apps/web) is responsible for only ever populating it once the fallback
+ * config's own eligibility (data policy approved, key not revoked, a
+ * genuinely different provider) has been freshly re-verified.
  */
 type ExtractionReservation =
   | { readonly kind: 'final'; readonly outcome: Result<RunExtractionSummary, ServiceError> }
@@ -649,21 +676,22 @@ type ExtractionReservation =
       readonly cacheKey: string;
     };
 
-export async function runExtraction(
+/**
+ * Phase 1 (RESERVE), factored out of `runExtraction` so it can run a second
+ * time for a cross-provider fallback attempt without duplicating any of its
+ * own checks -- see `runExtraction`'s own doc comment ("Cross-provider
+ * fallback") for why every check here composes correctly for a fallback
+ * call for free. `triggeredByRunId`, set only for a fallback attempt, links
+ * whatever row this reservation creates back to the primary row that
+ * triggered it.
+ */
+async function reserveExtractionSlot(
   db: Db,
   ai: AiExtractionPort,
   input: RunExtractionInput,
-): Promise<Result<RunExtractionSummary, ServiceError>> {
-  const applicant = await getApplicant(db, input.applicantId);
-  if (!applicant) return err(serviceError('not_found', 'applicant not found'));
-  if (applicant.ownerAccountId !== input.actorAccountId) {
-    return err(serviceError('forbidden', 'not authorized to run extraction for this applicant'));
-  }
-  if (!(await hasConsent(db, applicant.ownerAccountId, 'AI_EXTRACTION'))) {
-    return err(serviceError('consent_required', 'AI_EXTRACTION consent is required'));
-  }
-
-  const reservation = await db.transaction(async (tx): Promise<ExtractionReservation> => {
+  triggeredByRunId?: string,
+): Promise<ExtractionReservation> {
+  return db.transaction(async (tx): Promise<ExtractionReservation> => {
     // Fixed key, acquired first (and held for this whole phase-1
     // transaction, same as the per-document lock below): serializes the
     // platform-wide budget/concurrency check-and-reserve step against every
@@ -758,6 +786,7 @@ export async function runExtraction(
               provider: cached.provider,
               cacheKey,
               servedFromCacheRunId: cached.id,
+              ...(triggeredByRunId ? { triggeredByRunId } : {}),
             })
             .returning(),
         ),
@@ -876,6 +905,7 @@ export async function runExtraction(
             status: 'IN_FLIGHT',
             modelVersion: 'unknown',
             promptVersion: 'unknown',
+            ...(triggeredByRunId ? { triggeredByRunId } : {}),
           })
           .returning(),
       ),
@@ -884,10 +914,27 @@ export async function runExtraction(
 
     return { kind: 'proceed', runId: run.id, allowedFieldKeys, cacheKey };
   });
+}
 
-  if (reservation.kind === 'final') return reservation.outcome;
-  const { runId, allowedFieldKeys, cacheKey } = reservation;
+interface ExtractionDispatchResult {
+  /** Raw adapter outcome, so a caller can inspect its error code to decide whether to attempt a fallback. */
+  readonly outcome: AiExtractionOutcome;
+  readonly result: Result<RunExtractionSummary, ServiceError>;
+}
 
+/**
+ * Phases 2 (CALL) and 3 (RECONCILE), factored out for the identical reason
+ * as `reserveExtractionSlot` -- reused unchanged for a fallback attempt
+ * against a different `ai`/`runId`/`allowedFieldKeys`/`cacheKey`.
+ */
+async function dispatchAndReconcile(
+  db: Db,
+  ai: AiExtractionPort,
+  input: RunExtractionInput,
+  runId: string,
+  allowedFieldKeys: readonly string[],
+  cacheKey: string,
+): Promise<ExtractionDispatchResult> {
   // Part 8 §5's kill switch, rechecked here -- immediately before the
   // outbound call, after every phase-1 check already passed and a slot was
   // already reserved -- rather than only once back in phase 1. A refusal
@@ -906,7 +953,7 @@ export async function runExtraction(
       })
     : { ok: false, code: 'disabled', message: 'AI extraction is currently disabled' };
 
-  return db.transaction(async (tx) => {
+  const result = await db.transaction(async (tx) => {
     if (!outcome.ok) {
       await tx
         .update(schema.aiExtractionRuns)
@@ -1012,6 +1059,63 @@ export async function runExtraction(
 
     return ok({ aiExtractionRunId: runId, proposals: savedProposals });
   });
+  return { outcome, result };
+}
+
+/** Part 8 §13: only these two directive-named codes ever justify a fallback attempt -- see the doc comment on `runExtraction` below ("Cross-provider fallback") for the full reasoning. */
+function isRecoverableForFallback(code: AiExtractionErrorCode): boolean {
+  return code === 'timeout' || code === 'rate_limited';
+}
+
+export async function runExtraction(
+  db: Db,
+  ai: AiExtractionPort,
+  input: RunExtractionInput,
+): Promise<Result<RunExtractionSummary, ServiceError>> {
+  const applicant = await getApplicant(db, input.applicantId);
+  if (!applicant) return err(serviceError('not_found', 'applicant not found'));
+  if (applicant.ownerAccountId !== input.actorAccountId) {
+    return err(serviceError('forbidden', 'not authorized to run extraction for this applicant'));
+  }
+  if (!(await hasConsent(db, applicant.ownerAccountId, 'AI_EXTRACTION'))) {
+    return err(serviceError('consent_required', 'AI_EXTRACTION consent is required'));
+  }
+
+  const reservation = await reserveExtractionSlot(db, ai, input);
+  if (reservation.kind === 'final') return reservation.outcome;
+
+  const primary = await dispatchAndReconcile(
+    db,
+    ai,
+    input,
+    reservation.runId,
+    reservation.allowedFieldKeys,
+    reservation.cacheKey,
+  );
+  if (primary.outcome.ok) return primary.result;
+  if (!input.fallback || !isRecoverableForFallback(primary.outcome.code)) return primary.result;
+
+  // Cross-provider fallback (Part 8 §13): the primary row above is already
+  // fully reconciled to FAILED, so this second reservation is an honest,
+  // independent check against the current (now primary-free) ledger state,
+  // not a race against it -- see `runExtraction`'s own doc comment.
+  const fallbackReservation = await reserveExtractionSlot(
+    db,
+    input.fallback.ai,
+    input,
+    reservation.runId,
+  );
+  if (fallbackReservation.kind === 'final') return fallbackReservation.outcome;
+
+  const fallback = await dispatchAndReconcile(
+    db,
+    input.fallback.ai,
+    input,
+    fallbackReservation.runId,
+    fallbackReservation.allowedFieldKeys,
+    fallbackReservation.cacheKey,
+  );
+  return fallback.result;
 }
 
 export interface RunOcrInput {
@@ -1029,6 +1133,8 @@ export interface RunOcrInput {
   readonly maxConcurrentCalls?: number;
   readonly cacheMaxAgeDays?: number;
   readonly killSwitchCheck?: () => Promise<boolean>;
+  /** Part 8 §13 (cross-provider fallback) -- see `runExtraction`'s own doc comment for the full triggering/eligibility rules, mirrored unchanged for OCR. */
+  readonly fallback?: { readonly ai: AiOcrPort };
 }
 
 export type OcrRunRow = typeof schema.ocrRuns.$inferSelect;
@@ -1079,22 +1185,18 @@ type OcrReservation =
  *   only ever be 1.
  * - No `allowedFieldKeys` -- OCR produces raw text, not field proposals;
  *   there is no registry to constrain it against at this stage.
+ *
+ * Cross-provider fallback (Part 8 §13, `input.fallback`): identical
+ * triggering/eligibility rules to `runExtraction`'s own -- see that
+ * function's doc comment for the full reasoning, not repeated here.
  */
-export async function runOcr(
+async function reserveOcrSlot(
   db: Db,
   ai: AiOcrPort,
   input: RunOcrInput,
-): Promise<Result<RunOcrSummary, ServiceError>> {
-  const applicant = await getApplicant(db, input.applicantId);
-  if (!applicant) return err(serviceError('not_found', 'applicant not found'));
-  if (applicant.ownerAccountId !== input.actorAccountId) {
-    return err(serviceError('forbidden', 'not authorized to run OCR for this applicant'));
-  }
-  if (!(await hasConsent(db, applicant.ownerAccountId, 'AI_OCR'))) {
-    return err(serviceError('consent_required', 'AI_OCR consent is required'));
-  }
-
-  const reservation = await db.transaction(async (tx): Promise<OcrReservation> => {
+  triggeredByRunId?: string,
+): Promise<OcrReservation> {
+  return db.transaction(async (tx): Promise<OcrReservation> => {
     // Same fixed platform-wide key and same document-derived key
     // `runExtraction` locks -- see this function's own doc comment for why
     // that cross-function serialization is required, not incidental.
@@ -1163,6 +1265,7 @@ export async function runOcr(
               costUnits: 0,
               cacheKey,
               servedFromCacheRunId: cached.id,
+              ...(triggeredByRunId ? { triggeredByRunId } : {}),
             })
             .returning(),
         ),
@@ -1218,6 +1321,7 @@ export async function runOcr(
             provider: 'unknown',
             modelVersion: 'unknown',
             promptVersion: 'unknown',
+            ...(triggeredByRunId ? { triggeredByRunId } : {}),
           })
           .returning(),
       ),
@@ -1226,10 +1330,22 @@ export async function runOcr(
 
     return { kind: 'proceed', runId: run.id, cacheKey };
   });
+}
 
-  if (reservation.kind === 'final') return reservation.outcome;
-  const { runId, cacheKey } = reservation;
+interface OcrDispatchResult {
+  /** Raw adapter outcome, so a caller can inspect its error code to decide whether to attempt a fallback. */
+  readonly outcome: AiOcrOutcome;
+  readonly result: Result<RunOcrSummary, ServiceError>;
+}
 
+/** Phases 2 (CALL) and 3 (RECONCILE), factored out for the identical reason as `reserveOcrSlot` -- reused unchanged for a fallback attempt. */
+async function dispatchAndReconcileOcr(
+  db: Db,
+  ai: AiOcrPort,
+  input: RunOcrInput,
+  runId: string,
+  cacheKey: string,
+): Promise<OcrDispatchResult> {
   // Part 8 §5's kill switch, rechecked here exactly as `runExtraction`
   // rechecks it -- immediately before the outbound call, after every phase-1
   // check already passed and a slot was already reserved.
@@ -1243,7 +1359,7 @@ export async function runOcr(
       })
     : { ok: false, code: 'disabled', message: 'AI OCR is currently disabled' };
 
-  return db.transaction(async (tx) => {
+  const result = await db.transaction(async (tx) => {
     if (!outcome.ok) {
       await tx
         .update(schema.ocrRuns)
@@ -1323,6 +1439,55 @@ export async function runOcr(
 
     return ok({ ocrRun: run });
   });
+  return { outcome, result };
+}
+
+/** Part 8 §13: identical rule to `isRecoverableForFallback` above, mirrored for OCR's own error-code type. */
+function isOcrRecoverableForFallback(code: AiOcrErrorCode): boolean {
+  return code === 'timeout' || code === 'rate_limited';
+}
+
+export async function runOcr(
+  db: Db,
+  ai: AiOcrPort,
+  input: RunOcrInput,
+): Promise<Result<RunOcrSummary, ServiceError>> {
+  const applicant = await getApplicant(db, input.applicantId);
+  if (!applicant) return err(serviceError('not_found', 'applicant not found'));
+  if (applicant.ownerAccountId !== input.actorAccountId) {
+    return err(serviceError('forbidden', 'not authorized to run OCR for this applicant'));
+  }
+  if (!(await hasConsent(db, applicant.ownerAccountId, 'AI_OCR'))) {
+    return err(serviceError('consent_required', 'AI_OCR consent is required'));
+  }
+
+  const reservation = await reserveOcrSlot(db, ai, input);
+  if (reservation.kind === 'final') return reservation.outcome;
+
+  const primary = await dispatchAndReconcileOcr(
+    db,
+    ai,
+    input,
+    reservation.runId,
+    reservation.cacheKey,
+  );
+  if (primary.outcome.ok) return primary.result;
+  if (!input.fallback || !isOcrRecoverableForFallback(primary.outcome.code)) return primary.result;
+
+  // Cross-provider fallback (Part 8 §13) -- see `runExtraction`'s own doc
+  // comment for why this second reservation is an honest, independent check
+  // rather than a race against the (already fully reconciled) primary.
+  const fallbackReservation = await reserveOcrSlot(db, input.fallback.ai, input, reservation.runId);
+  if (fallbackReservation.kind === 'final') return fallbackReservation.outcome;
+
+  const fallback = await dispatchAndReconcileOcr(
+    db,
+    input.fallback.ai,
+    input,
+    fallbackReservation.runId,
+    fallbackReservation.cacheKey,
+  );
+  return fallback.result;
 }
 
 /**

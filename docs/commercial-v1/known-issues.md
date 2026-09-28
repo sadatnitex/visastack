@@ -3360,6 +3360,35 @@ item gets its own requirements-ledger row once classified against the new direct
     reservation line items); the admin UI for designating a fallback; and
     the document/review-page UI surfacing that a fallback actually fired
     (directive §13's own "visible in UI").
+    **Chunk 25 (2026-09-28, AI-09) -- the fallback-triggering execution logic
+    itself now exists in `runExtraction`/`runOcr`.** Both functions' phase 1
+    (RESERVE) and phases 2-3 (CALL/RECONCILE) were factored into standalone
+    functions so each can run a second time against a designated fallback
+    adapter with zero duplicated logic -- every existing check (budget,
+    per-document budget, page cap, cache lookup, attempt cap, concurrency
+    cap) composes correctly for a fallback call for free. A genuine design
+    insight: since the primary row is always fully reconciled before a
+    fallback reservation ever begins, the two calls are sequential from the
+    ledger's own perspective, never concurrent, so directive §11's "reserve
+    against retries; configured fallback" is satisfied by honest sequential
+    accounting through the same existing reservation math -- no separate
+    doubled-reservation calculation was needed after all, closing Chunk 24's
+    own open question. Fallback triggers on exactly the two directive-named
+    recoverable codes, `timeout`/`rate_limited`; every other code (`refused`,
+    `auth_failed`, `invalid_response`, `truncated`, `disabled`) deliberately
+    never triggers it, satisfying both of directive §13's explicit rules in
+    one gate: "do not retry" on auth/invalid-input/consent-denial, and never
+    "shop for a desired answer" after a refusal. "Circuit breaker," §13's
+    third named recoverable trigger, still has no implementation. A
+    successful fallback run links back to the primary's row via
+    `triggeredByRunId` (Chunk 24), and the returned summary reflects the
+    fallback row while the primary stays in the ledger as a fully audited
+    FAILED attempt. 12 new tests in `ai.test.ts`. Full `@visastack/services`
+    suite, repo-wide typecheck, and Biome all clean. Deliberately still
+    deferred, so this chunk carries zero runtime risk (nothing yet populates
+    the new `fallback` field): `resolveAiExtractor`/`resolveOcrAdapter`
+    actually building and passing one; the admin UI for designating a
+    fallback; and the document/review-page UI surfacing that one fired.
     Full detail: `requirements-ledger.md` AI-09.
 independently confirmed findings; the missing PRD file is tracked as Blocker 1 in
 `assumptions-and-blockers.md` (now resolved) rather than here, since it blocked the
