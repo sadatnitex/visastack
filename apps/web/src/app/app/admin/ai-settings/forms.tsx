@@ -19,12 +19,15 @@ function StatusMessage({ state }: { readonly state: ActionState }) {
   );
 }
 
-// Only the OpenAI adapter is implemented today (AI-03: additional providers
-// not yet built) -- a select with this one real option, rather than free
-// text, avoids a stray typo (e.g. "OpenAI") silently saving a draft that can
-// never actually be activated, since the gateway's own provider match is
+// Only OpenAI and Anthropic adapters are implemented today (AI-03: Gemini
+// not yet built) -- a select with only real options, rather than free text,
+// avoids a stray typo (e.g. "OpenAI") silently saving a draft that can never
+// actually be activated, since the gateway's own provider match is
 // case-sensitive.
-const PROVIDER_OPTIONS = [{ value: 'openai', label: 'OpenAI' }] as const;
+const PROVIDER_OPTIONS = [
+  { value: 'openai', label: 'OpenAI' },
+  { value: 'anthropic', label: 'Anthropic (Claude)' },
+] as const;
 
 const REASONING_EFFORT_OPTIONS = [
   { value: '', label: 'Use model default' },

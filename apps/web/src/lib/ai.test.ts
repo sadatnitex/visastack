@@ -374,15 +374,38 @@ describe('resolveAiExtractor (Part 8 §5: the DB config becomes authoritative on
     expect(revealAiProviderApiKey).not.toHaveBeenCalled();
   });
 
-  it('returns undefined for an ACTIVE config naming a provider this codebase has not implemented yet', async () => {
+  it('returns undefined for an ACTIVE config naming a provider this codebase has not implemented yet (Gemini, AI-03)', async () => {
     hasAnyAiProviderConfig.mockResolvedValue(true);
-    getActiveAiProviderConfig.mockResolvedValue(fakeConfig({ provider: 'anthropic' }));
+    getActiveAiProviderConfig.mockResolvedValue(fakeConfig({ provider: 'gemini' }));
     const { resolveAiExtractor } = await import('./ai');
 
     const extractor = await resolveAiExtractor(db, encryption);
 
     expect(extractor).toBeUndefined();
     expect(revealAiProviderApiKey).not.toHaveBeenCalled();
+  });
+
+  it("builds an AnthropicExtractionAdapter from the ACTIVE config's own provider/model when provider is 'anthropic'", async () => {
+    hasAnyAiProviderConfig.mockResolvedValue(true);
+    getActiveAiProviderConfig.mockResolvedValue(
+      fakeConfig({ provider: 'anthropic', model: 'claude-opus-5-5', reasoningEffort: 'high' }),
+    );
+    revealAiProviderApiKey.mockResolvedValue('sk-ant-from-db');
+    const { resolveAiExtractor } = await import('./ai');
+
+    const resolved = await resolveAiExtractor(db, encryption);
+
+    expect(resolved).toBeDefined();
+    expect(resolved?.ai.cacheKeyComponents().model).toBe('claude-opus-5-5');
+    // Claude has no reasoning-effort dial (see AnthropicExtractionAdapter's
+    // own doc comment) -- its cache key never claims to depend on one, even
+    // though the config row carries a value for the field.
+    expect(resolved?.ai.cacheKeyComponents().reasoningEffort).toBeUndefined();
+    expect(revealAiProviderApiKey).toHaveBeenCalledWith(
+      db,
+      encryption,
+      expect.objectContaining({ id: 'config-1', provider: 'anthropic' }),
+    );
   });
 
   it('returns undefined when an ACTIVE openai config exists but no encryption port is available', async () => {

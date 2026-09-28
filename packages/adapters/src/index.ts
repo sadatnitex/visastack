@@ -52,6 +52,11 @@ export {
   type OpenAiExtractionAdapterOptions,
 } from './openai-extraction';
 
+export {
+  AnthropicExtractionAdapter,
+  type AnthropicExtractionAdapterOptions,
+} from './anthropic-extraction';
+
 export { NullEmailPort, ResendEmailPort, type ResendEmailPortOptions } from './email';
 export { type SvixWebhookHeaders, verifyResendWebhookSignature } from './resend-webhook';
 
