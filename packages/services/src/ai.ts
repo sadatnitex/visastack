@@ -126,25 +126,56 @@ function toPersistedConfidence(confidence: number): number {
   return Math.max(0, Math.min(100, Math.round(confidence * 100)));
 }
 
-/** The durable, platform-wide AI spend so far — the cost ledger IS this sum. */
+/**
+ * The durable, platform-wide AI spend so far -- the cost ledger IS this sum.
+ * Sums `ai_extraction_runs` AND `ocr_runs` together (Part 8 Chunk 18's own
+ * user-confirmed decision): both bill through the same admin-configured
+ * provider/API key in reality -- one bill, one budget -- so "platform-wide
+ * spend" means every AI Gateway task combined, not text extraction alone.
+ * The admin dashboard's own spend meter (`apps/web/src/app/app/admin/
+ * page.tsx`) calls this function directly, so it picks up true combined
+ * spend automatically once OCR calls exist, with no separate change needed
+ * there.
+ */
 export async function totalAiCostUnits(db: Db): Promise<number> {
-  const row = first(
-    await db
-      .select({ total: sql<string>`coalesce(sum(${schema.aiExtractionRuns.costUnits}), 0)` })
-      .from(schema.aiExtractionRuns),
-  );
-  return Number(row?.total ?? 0);
+  const [extraction, ocr] = await Promise.all([
+    first(
+      await db
+        .select({ total: sql<string>`coalesce(sum(${schema.aiExtractionRuns.costUnits}), 0)` })
+        .from(schema.aiExtractionRuns),
+    ),
+    first(
+      await db
+        .select({ total: sql<string>`coalesce(sum(${schema.ocrRuns.costUnits}), 0)` })
+        .from(schema.ocrRuns),
+    ),
+  ]);
+  return Number(extraction?.total ?? 0) + Number(ocr?.total ?? 0);
 }
 
-/** The durable AI spend so far for one specific document (per-document cap). */
+/**
+ * The durable AI spend so far for one specific document (per-document cap),
+ * combined across `ai_extraction_runs` and `ocr_runs` for the identical
+ * reason `totalAiCostUnits` is -- a per-document cap exists to bound how
+ * much any single document can cost, a concern that applies the same way
+ * regardless of which AI Gateway task the spend came from.
+ */
 export async function documentAiCostUnits(db: Db, documentVersionId: string): Promise<number> {
-  const row = first(
-    await db
-      .select({ total: sql<string>`coalesce(sum(${schema.aiExtractionRuns.costUnits}), 0)` })
-      .from(schema.aiExtractionRuns)
-      .where(eq(schema.aiExtractionRuns.documentVersionId, documentVersionId)),
-  );
-  return Number(row?.total ?? 0);
+  const [extraction, ocr] = await Promise.all([
+    first(
+      await db
+        .select({ total: sql<string>`coalesce(sum(${schema.aiExtractionRuns.costUnits}), 0)` })
+        .from(schema.aiExtractionRuns)
+        .where(eq(schema.aiExtractionRuns.documentVersionId, documentVersionId)),
+    ),
+    first(
+      await db
+        .select({ total: sql<string>`coalesce(sum(${schema.ocrRuns.costUnits}), 0)` })
+        .from(schema.ocrRuns)
+        .where(eq(schema.ocrRuns.documentVersionId, documentVersionId)),
+    ),
+  ]);
+  return Number(extraction?.total ?? 0) + Number(ocr?.total ?? 0);
 }
 
 /**
@@ -160,6 +191,13 @@ export async function documentAiCostUnits(db: Db, documentVersionId: string): Pr
  * `servedFromCacheRunId`-set rows makes repeat cache hits free in both
  * senses — cost and attempt budget — leaving the limit to gate only
  * genuinely new (uncached) invocations, which is what it exists to bound.
+ *
+ * Deliberately `ai_extraction_runs`-only, unlike the cost/concurrency
+ * helpers below -- an attempt limit bounds retries of a SPECIFIC task on a
+ * document, not overall spend. Sharing this counter with `ocr_runs` would
+ * wrongly block a document's first-ever OCR attempt just because text
+ * extraction had already exhausted its own attempt budget on that same
+ * document, two genuinely different actions a caller invokes separately.
  */
 export async function countAiExtractionAttempts(
   db: Db,
@@ -188,43 +226,76 @@ export async function countAiExtractionAttempts(
  * timeout (60s default, `DEFAULT_TIMEOUT_MS` in openai-extraction.ts) so a
  * call that is genuinely still in flight is never prematurely released out
  * from under itself.
+ *
+ * Releases stale rows in BOTH `ai_extraction_runs` and `ocr_runs` -- an
+ * abandoned OCR reservation would otherwise occupy a platform-wide
+ * concurrency slot exactly as permanently as a stale text-extraction one.
  */
 const IN_FLIGHT_STALE_MS = 5 * 60 * 1000;
 
 async function releaseStaleInFlightCalls(db: Db): Promise<void> {
   const cutoff = new Date(Date.now() - IN_FLIGHT_STALE_MS);
-  await db
-    .update(schema.aiExtractionRuns)
-    .set({ status: 'FAILED', errorCode: 'in_flight_expired' })
-    .where(
-      and(
-        eq(schema.aiExtractionRuns.status, 'IN_FLIGHT'),
-        lt(schema.aiExtractionRuns.createdAt, cutoff),
+  await Promise.all([
+    db
+      .update(schema.aiExtractionRuns)
+      .set({ status: 'FAILED', errorCode: 'in_flight_expired' })
+      .where(
+        and(
+          eq(schema.aiExtractionRuns.status, 'IN_FLIGHT'),
+          lt(schema.aiExtractionRuns.createdAt, cutoff),
+        ),
       ),
-    );
+    db
+      .update(schema.ocrRuns)
+      .set({ status: 'FAILED', errorCode: 'in_flight_expired' })
+      .where(and(eq(schema.ocrRuns.status, 'IN_FLIGHT'), lt(schema.ocrRuns.createdAt, cutoff))),
+  ]);
 }
 
-/** How many calls are genuinely in progress right now, platform-wide -- the concurrency gate IS this count. */
+/**
+ * How many calls are genuinely in progress right now, platform-wide -- the
+ * concurrency gate IS this count. Counts BOTH `ai_extraction_runs` and
+ * `ocr_runs` (Part 8 Chunk 18's shared-cap decision): a provider-side
+ * concurrent-request limit is a property of the account making the calls,
+ * not of which AI Gateway task each call happens to be for.
+ */
 async function countInFlightCalls(db: Db): Promise<number> {
-  const rows = await db
-    .select({ id: schema.aiExtractionRuns.id })
-    .from(schema.aiExtractionRuns)
-    .where(eq(schema.aiExtractionRuns.status, 'IN_FLIGHT'));
-  return rows.length;
+  const [extractionRows, ocrRows] = await Promise.all([
+    db
+      .select({ id: schema.aiExtractionRuns.id })
+      .from(schema.aiExtractionRuns)
+      .where(eq(schema.aiExtractionRuns.status, 'IN_FLIGHT')),
+    db
+      .select({ id: schema.ocrRuns.id })
+      .from(schema.ocrRuns)
+      .where(eq(schema.ocrRuns.status, 'IN_FLIGHT')),
+  ]);
+  return extractionRows.length + ocrRows.length;
 }
 
 /** Same as `countInFlightCalls`, scoped to one document -- the per-document budget check's own concurrency exposure. */
 async function countInFlightCallsForDocument(db: Db, documentVersionId: string): Promise<number> {
-  const rows = await db
-    .select({ id: schema.aiExtractionRuns.id })
-    .from(schema.aiExtractionRuns)
-    .where(
-      and(
-        eq(schema.aiExtractionRuns.status, 'IN_FLIGHT'),
-        eq(schema.aiExtractionRuns.documentVersionId, documentVersionId),
+  const [extractionRows, ocrRows] = await Promise.all([
+    db
+      .select({ id: schema.aiExtractionRuns.id })
+      .from(schema.aiExtractionRuns)
+      .where(
+        and(
+          eq(schema.aiExtractionRuns.status, 'IN_FLIGHT'),
+          eq(schema.aiExtractionRuns.documentVersionId, documentVersionId),
+        ),
       ),
-    );
-  return rows.length;
+    db
+      .select({ id: schema.ocrRuns.id })
+      .from(schema.ocrRuns)
+      .where(
+        and(
+          eq(schema.ocrRuns.status, 'IN_FLIGHT'),
+          eq(schema.ocrRuns.documentVersionId, documentVersionId),
+        ),
+      ),
+  ]);
+  return extractionRows.length + ocrRows.length;
 }
 
 /**
@@ -237,15 +308,29 @@ async function countInFlightCallsForDocument(db: Db, documentVersionId: string):
  * coarser than a true per-call estimate, which would need real per-model
  * pricing/token-count data this codebase does not have yet (a separate,
  * larger gap; see the doc comment on `runExtraction`).
+ *
+ * Takes the max across BOTH `ai_extraction_runs` and `ocr_runs` -- OCR and
+ * text-extraction calls can genuinely cost different amounts (image tokens
+ * vs. text tokens), and using the higher of the two observed maximums is
+ * still a safe, conservative reservation for either kind of in-flight call,
+ * never an under-estimate.
  */
 async function maxObservedCostUnits(db: Db): Promise<number> {
-  const row = first(
-    await db
-      .select({ max: sql<string>`coalesce(max(${schema.aiExtractionRuns.costUnits}), 0)` })
-      .from(schema.aiExtractionRuns)
-      .where(eq(schema.aiExtractionRuns.status, 'SUCCEEDED')),
-  );
-  return Number(row?.max ?? 0);
+  const [extraction, ocr] = await Promise.all([
+    first(
+      await db
+        .select({ max: sql<string>`coalesce(max(${schema.aiExtractionRuns.costUnits}), 0)` })
+        .from(schema.aiExtractionRuns)
+        .where(eq(schema.aiExtractionRuns.status, 'SUCCEEDED')),
+    ),
+    first(
+      await db
+        .select({ max: sql<string>`coalesce(max(${schema.ocrRuns.costUnits}), 0)` })
+        .from(schema.ocrRuns)
+        .where(eq(schema.ocrRuns.status, 'SUCCEEDED')),
+    ),
+  ]);
+  return Math.max(Number(extraction?.max ?? 0), Number(ocr?.max ?? 0));
 }
 
 /** The deterministic parser version that produced this document's text (a cache-key component). */

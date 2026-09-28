@@ -13,6 +13,7 @@ import {
   type AiExtractionPort,
   type FieldProposal,
   approveProposal,
+  documentAiCostUnits,
   listPendingProposals,
   rejectProposal,
   runExtraction,
@@ -1308,5 +1309,99 @@ describe('AI Gateway -- kill switch (Part 8 §5: "rechecked immediately before o
       budgetLimitUnits: 10,
     });
     expect(isOk(result)).toBe(true);
+  });
+});
+
+describe('AI Gateway -- shared platform-wide budget with OCR (Part 8 Chunk 18/19)', () => {
+  let db: Db;
+  beforeEach(async () => {
+    db = await freshDb();
+  });
+
+  async function seedOcrRun(
+    documentVersionId: string,
+    applicantId: string,
+    costUnits: number,
+    status: 'SUCCEEDED' | 'IN_FLIGHT' | 'FAILED' = 'SUCCEEDED',
+  ) {
+    await db.insert(schema.ocrRuns).values({
+      documentVersionId,
+      applicantId,
+      status,
+      provider: 'openai',
+      modelVersion: 'test-model',
+      promptVersion: 'test-v1',
+      costUnits,
+    });
+  }
+
+  it("totalAiCostUnits sums ai_extraction_runs AND ocr_runs together -- OCR spend counts against the same platform-wide cap text extraction does (the user's own shared-cap decision)", async () => {
+    const { account, applicantId, versionId } = await seedVersion(
+      db,
+      'shared-budget-total@example.com',
+    );
+    await grantAiConsent(db, account.id);
+    await runExtraction(db, stubAi(), {
+      actorAccountId: account.id,
+      applicantId,
+      documentVersionId: versionId,
+      text: 'MRZ text one',
+      budgetLimitUnits: 100,
+    });
+    expect(await totalAiCostUnits(db)).toBe(3); // stubAi's own fixed per-call cost
+
+    await seedOcrRun(versionId, applicantId, 7);
+
+    expect(await totalAiCostUnits(db)).toBe(10); // 3 (text extraction) + 7 (OCR), combined
+  });
+
+  it('documentAiCostUnits sums both tables scoped to one document, for the identical shared-cap reason', async () => {
+    const { account, applicantId, versionId } = await seedVersion(
+      db,
+      'shared-budget-document@example.com',
+    );
+    const other = await seedVersion(db, 'shared-budget-other-doc@example.com');
+    await grantAiConsent(db, account.id);
+    await runExtraction(db, stubAi(), {
+      actorAccountId: account.id,
+      applicantId,
+      documentVersionId: versionId,
+      text: 'MRZ text two',
+      budgetLimitUnits: 100,
+    });
+    await seedOcrRun(versionId, applicantId, 5);
+    // A different document's own OCR spend must never leak into this document's total.
+    await seedOcrRun(other.versionId, other.applicantId, 999);
+
+    expect(await documentAiCostUnits(db, versionId)).toBe(8); // 3 (text extraction) + 5 (OCR)
+  });
+
+  it('a SUCCEEDED text-extraction call still runs even once ocr_runs alone holds real spend -- proves the union query genuinely reads ocr_runs, not just an empty table by construction', async () => {
+    const { account, applicantId, versionId } = await seedVersion(
+      db,
+      'shared-budget-ocr-only@example.com',
+    );
+    await seedOcrRun(versionId, applicantId, 50);
+    expect(await totalAiCostUnits(db)).toBe(50);
+    expect(await documentAiCostUnits(db, versionId)).toBe(50);
+
+    await grantAiConsent(db, account.id);
+    // Budget headroom set comfortably above 100, not 100 itself: phase 1's
+    // own worst-case reservation (maxObservedCostUnits) now also reads
+    // ocr_runs, so it reserves 50 (this seeded OCR row's own cost) for this
+    // call even though it will actually only end up costing 3 -- proof the
+    // union genuinely feeds the reservation math too, not just the display
+    // sum. totalAiCostUnits(50) + (0 in-flight + 1) * worstCase(50) = 100
+    // would exhaust an exact 100-unit budget before ever reaching the
+    // adapter.
+    const result = await runExtraction(db, stubAi(), {
+      actorAccountId: account.id,
+      applicantId,
+      documentVersionId: versionId,
+      text: 'MRZ text three',
+      budgetLimitUnits: 200,
+    });
+    expect(isOk(result)).toBe(true);
+    expect(await totalAiCostUnits(db)).toBe(53); // 50 (OCR) + 3 (this text-extraction call's real cost)
   });
 });

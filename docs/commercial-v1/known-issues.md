@@ -3032,6 +3032,74 @@ item gets its own requirements-ledger row once classified against the new direct
     Verified: full `@visastack/services` suite clean; repo-wide typecheck
     and Biome clean; `packages/adapters`/`apps/web` untouched this chunk.
     Full detail: `requirements-ledger.md` AI-05.
+    **Chunk 19 (this update) -- the platform-wide AI Gateway budget/
+    concurrency ledger is now genuinely shared between text extraction and
+    OCR, implementing the decision Chunk 18 recorded but did not yet
+    enforce.** Scoped narrowly on purpose: generalizes the six shared
+    accounting helpers in `packages/services/src/ai.ts` to read across BOTH
+    `ai_extraction_runs` and `ocr_runs`, but does not yet build the actual
+    `runOcr` execution function that would write to `ocr_runs` for the
+    first time -- that remains the next chunk, now with a correctly-shared
+    foundation already in place to build on rather than retrofit later.
+    Went through each of the six helpers individually rather than applying
+    one blanket rule, since "shared" does not mean the same thing for every
+    one of them:
+    - `totalAiCostUnits`/`documentAiCostUnits` (platform-wide and
+      per-document spend) -- summed across both tables. This is the literal
+      decision the user made: both bill through the same admin-configured
+      provider/API key in reality, one bill, so "spend" means combined
+      spend. The admin dashboard's own spend meter
+      (`apps/web/src/app/app/admin/page.tsx`) calls `totalAiCostUnits`
+      directly, so it now shows true combined spend automatically, with no
+      separate change needed there.
+    - `countInFlightCalls`/`countInFlightCallsForDocument` (platform-wide
+      and per-document concurrency) -- counted across both tables. A
+      provider-side concurrent-request limit is a property of the ACCOUNT
+      making the calls, not of which AI Gateway task each individual call
+      happens to be for, so this follows the same reasoning as the spend
+      caps even though the user was not separately asked about it.
+    - `maxObservedCostUnits` (worst-case per-call reservation) -- takes the
+      MAX across both tables. OCR and text-extraction calls can genuinely
+      cost different amounts (image tokens vs. text tokens); using the
+      higher of the two observed maximums stays conservative for either
+      kind of in-flight call, never an under-estimate.
+    - `releaseStaleInFlightCalls` (self-healing abandoned reservations) --
+      releases stale rows in both tables, for the same reason as the
+      concurrency counts: an abandoned OCR reservation would otherwise
+      occupy a shared concurrency slot exactly as permanently as a stale
+      text-extraction one.
+    - `countAiExtractionAttempts` (per-document attempt limit) --
+      deliberately left `ai_extraction_runs`-only, the one helper NOT
+      generalized. An attempt limit bounds retries of a SPECIFIC task on a
+      document, not overall spend; sharing it would wrongly block a
+      document's first-ever OCR attempt just because text extraction had
+      already exhausted its own attempt budget on that same document --
+      two genuinely different actions a caller invokes separately, unlike
+      spend and concurrency which are properties of the shared provider
+      relationship itself.
+    - The cache-hit lookup (a separate mechanism entirely, keyed by
+      `ai_extraction_runs.cacheKey`) was already untouched by any of this
+      and stays that way -- OCR's own future cache lookup will query
+      `ocr_runs` on its own terms, since the two cache keys have
+      structurally different components.
+    Verified this is a genuine no-op for existing behavior, not just
+    "should be": ran `ai.test.ts`'s full existing 32-test suite completely
+    UNCHANGED before writing any new test, and it passed 100% -- proof the
+    refactor doesn't alter `runExtraction`'s behavior while `ocr_runs`
+    stays empty (today's reality, since nothing writes to it yet). Then
+    added 3 new tests proving the union genuinely works: `totalAiCostUnits`
+    and `documentAiCostUnits` correctly sum a directly-seeded `ocr_runs`
+    row alongside real `ai_extraction_runs` spend (including a
+    tenant-isolation-style check that a DIFFERENT document's OCR spend
+    never leaks into another document's own total); and a third test that
+    incidentally proves `maxObservedCostUnits`'s own union behavior too --
+    a real text-extraction call only succeeded once its budget had
+    headroom for a worst-case RESERVATION based on the seeded OCR row's
+    own (higher) historical cost, not just the raw spend total, which is
+    exactly the conservative-reservation behavior intended.
+    Full `@visastack/services` suite, repo-wide typecheck, and Biome all
+    clean; `packages/adapters`/`apps/web` untouched this chunk.
+    Full detail: `requirements-ledger.md` AI-05.
 independently confirmed findings; the missing PRD file is tracked as Blocker 1 in
 `assumptions-and-blockers.md` (now resolved) rather than here, since it blocked the
 programme rather than being a product defect.
