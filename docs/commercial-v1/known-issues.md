@@ -3302,6 +3302,26 @@ item gets its own requirements-ledger row once classified against the new direct
     complete; only real-credential live verification remains, tracked as a
     standing BLOCKER rather than a code gap).
     Full detail: `requirements-ledger.md` AI-05.
+    **Chunk 23 (2026-09-28, AI-06) -- multi-provider/multi-tenant data-boundary
+    re-verified, closing this row.** Re-read `AnthropicExtractionAdapter.extract()`
+    and `GeminiExtractionAdapter.extract()` in full against the exact boundary
+    already proven for `OpenAiExtractionAdapter`: both construct their outbound
+    request body using only `input.text` (Build Spec §6's own deterministically-
+    extracted, size-capped text) and `input.allowedFieldKeys` --
+    `input.documentVersionId`, the only other `AiExtractionInput` field, is never
+    referenced in either adapter's request construction. The boundary is
+    structural, not merely observed: `AiExtractionInput` itself carries no bytes
+    field, so no code path through this port could send raw file bytes even by
+    accident. `allowedFieldKeys` traced to its source (`runExtraction`,
+    `schema.fieldDefinitions`) and confirmed genuinely platform-wide -- the table
+    carries no account/org/tenant foreign key, only global canonical field-key
+    metadata, so nothing tenant-specific enters the payload either. Both adapters
+    already carry their own dedicated test asserting this exact boundary
+    (`anthropic-extraction.test.ts`/`gemini-extraction.test.ts`, mirroring
+    `openai-extraction.test.ts`'s own established "never raw file bytes" test),
+    so the guarantee is CI-enforced going forward, not merely true today. No code
+    change needed -- a genuine re-verification that found no gap.
+    Full detail: `requirements-ledger.md` AI-06.
 independently confirmed findings; the missing PRD file is tracked as Blocker 1 in
 `assumptions-and-blockers.md` (now resolved) rather than here, since it blocked the
 programme rather than being a product defect.
