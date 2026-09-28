@@ -57,6 +57,8 @@ export {
   type AnthropicExtractionAdapterOptions,
 } from './anthropic-extraction';
 
+export { GeminiExtractionAdapter, type GeminiExtractionAdapterOptions } from './gemini-extraction';
+
 export { NullEmailPort, ResendEmailPort, type ResendEmailPortOptions } from './email';
 export { type SvixWebhookHeaders, verifyResendWebhookSignature } from './resend-webhook';
 

@@ -374,15 +374,38 @@ describe('resolveAiExtractor (Part 8 §5: the DB config becomes authoritative on
     expect(revealAiProviderApiKey).not.toHaveBeenCalled();
   });
 
-  it('returns undefined for an ACTIVE config naming a provider this codebase has not implemented yet (Gemini, AI-03)', async () => {
+  it('returns undefined for an ACTIVE config naming a provider this codebase does not implement', async () => {
     hasAnyAiProviderConfig.mockResolvedValue(true);
-    getActiveAiProviderConfig.mockResolvedValue(fakeConfig({ provider: 'gemini' }));
+    getActiveAiProviderConfig.mockResolvedValue(fakeConfig({ provider: 'mistral' }));
     const { resolveAiExtractor } = await import('./ai');
 
     const extractor = await resolveAiExtractor(db, encryption);
 
     expect(extractor).toBeUndefined();
     expect(revealAiProviderApiKey).not.toHaveBeenCalled();
+  });
+
+  it("builds a GeminiExtractionAdapter from the ACTIVE config's own provider/model when provider is 'gemini'", async () => {
+    hasAnyAiProviderConfig.mockResolvedValue(true);
+    getActiveAiProviderConfig.mockResolvedValue(
+      fakeConfig({ provider: 'gemini', model: 'gemini-3.8-flash', reasoningEffort: 'high' }),
+    );
+    revealAiProviderApiKey.mockResolvedValue('AIza-from-db');
+    const { resolveAiExtractor } = await import('./ai');
+
+    const resolved = await resolveAiExtractor(db, encryption);
+
+    expect(resolved).toBeDefined();
+    expect(resolved?.ai.cacheKeyComponents().model).toBe('gemini-3.8-flash');
+    // Gemini has no reasoning-effort dial (see GeminiExtractionAdapter's own
+    // doc comment) -- its cache key never claims to depend on one, even
+    // though the config row carries a value for the field.
+    expect(resolved?.ai.cacheKeyComponents().reasoningEffort).toBeUndefined();
+    expect(revealAiProviderApiKey).toHaveBeenCalledWith(
+      db,
+      encryption,
+      expect.objectContaining({ id: 'config-1', provider: 'gemini' }),
+    );
   });
 
   it("builds an AnthropicExtractionAdapter from the ACTIVE config's own provider/model when provider is 'anthropic'", async () => {

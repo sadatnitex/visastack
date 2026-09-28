@@ -1,5 +1,9 @@
 import 'server-only';
-import { AnthropicExtractionAdapter, OpenAiExtractionAdapter } from '@visastack/adapters';
+import {
+  AnthropicExtractionAdapter,
+  GeminiExtractionAdapter,
+  OpenAiExtractionAdapter,
+} from '@visastack/adapters';
 import {
   type AiExtractionPort,
   type AiProviderConfig,
@@ -74,13 +78,13 @@ export interface ResolvedAiExtractor {
 /**
  * Every provider this codebase can actually dispatch to via a DB config
  * (Part 8 §3: "ship production adapters for OpenAI API; Google Gemini API;
- * Anthropic Claude API" -- Gemini remains unbuilt, tracked in AI-03). Checked
- * BEFORE `revealAiProviderApiKey` runs (below), not after building the
- * adapter -- an unimplemented provider must never pay for a real KMS decrypt
- * of a key it is never going to use. Keep this set and `buildAdapterForConfig`'s
- * own switch in sync when a new provider ships.
+ * Anthropic Claude API" -- all three now implemented). Checked BEFORE
+ * `revealAiProviderApiKey` runs (below), not after building the adapter --
+ * an unimplemented provider must never pay for a real KMS decrypt of a key
+ * it is never going to use. Keep this set and `buildAdapterForConfig`'s own
+ * switch in sync when a new provider ships.
  */
-const IMPLEMENTED_PROVIDERS: ReadonlySet<string> = new Set(['openai', 'anthropic']);
+const IMPLEMENTED_PROVIDERS: ReadonlySet<string> = new Set(['openai', 'anthropic', 'gemini']);
 
 function buildAdapterForConfig(config: AiProviderConfig, apiKey: string): AiExtractionPort {
   const shared = {
@@ -94,6 +98,8 @@ function buildAdapterForConfig(config: AiProviderConfig, apiKey: string): AiExtr
       return new OpenAiExtractionAdapter(shared);
     case 'anthropic':
       return new AnthropicExtractionAdapter(shared);
+    case 'gemini':
+      return new GeminiExtractionAdapter(shared);
     default:
       // Unreachable in practice: resolveAiExtractor only calls this once
       // IMPLEMENTED_PROVIDERS.has(config.provider) is already true. Throwing
