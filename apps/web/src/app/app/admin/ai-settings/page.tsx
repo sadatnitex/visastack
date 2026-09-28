@@ -13,6 +13,7 @@ import {
   EmergencyDisableButton,
   RevokeKeyButton,
   RollbackConfigButton,
+  TestConnectionButton,
 } from './forms';
 
 export const dynamic = 'force-dynamic';
@@ -118,6 +119,11 @@ export default async function AiSettingsPage() {
               config.dataPolicyApproved &&
               config.keyRevokedAt === null;
             const canRevoke = config.keyRevokedAt === null;
+            // A revoked key is fully retired ("cannot resurrect: revoked
+            // key") -- otherwise testing is useful at every other status:
+            // before activating a DRAFT, or to re-check an ACTIVE/SUPERSEDED/
+            // DISABLED version's credentials still round-trip.
+            const canTest = config.keyRevokedAt === null;
             return (
               <article className="card" key={config.id}>
                 <div className="toolbar" style={{ marginBottom: '1rem', alignItems: 'center' }}>
@@ -202,8 +208,9 @@ export default async function AiSettingsPage() {
                     </span>
                   </div>
                 </div>
-                {canActivate || canRevoke ? (
+                {canTest || canActivate || canRevoke ? (
                   <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1rem' }}>
+                    {canTest ? <TestConnectionButton configId={config.id} /> : null}
                     {canActivate ? <ActivateConfigButton configId={config.id} /> : null}
                     {canRevoke ? <RevokeKeyButton configId={config.id} /> : null}
                   </div>

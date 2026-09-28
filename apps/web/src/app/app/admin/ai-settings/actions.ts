@@ -5,16 +5,26 @@ import {
   activateAiProviderConfig,
   createDraftAiProviderConfig,
   emergencyDisableAiProviderConfig,
+  getAiProviderConfigById,
+  recordAiProviderConfigTest,
   revokeAiProviderConfigKey,
   rollbackAiProviderConfig,
 } from '@visastack/services';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { bootstrapAdminEmails, hasPlatformPermission } from '../../../../lib/admin';
-import { usdToUnits } from '../../../../lib/ai';
+import { resolveTestAdapter, usdToUnits } from '../../../../lib/ai';
 import { createKeyManagementPort } from '../../../../lib/providers';
 import { withSession } from '../../../../lib/session';
 import { STEP_UP_NOT_CONFIGURED_MESSAGE, tryEstablishStepUp } from '../../../../lib/step-up';
+
+// Fixed, synthetic content only -- the directive's own explicit instruction
+// for this journey step ("do not use customer documents"). Any provider
+// response (or none at all) is fine; this only proves the configured
+// credentials and network path actually work end to end.
+const SYNTHETIC_TEST_DOCUMENT_TEXT =
+  'This is a synthetic connectivity test for the VisaStack AI Gateway admin console. It is not a real document and does not describe a real person. Respond with no field proposals.';
+const SYNTHETIC_TEST_ALLOWED_FIELD_KEYS = ['fullName'] as const;
 
 /** Result surfaced back to the client for inline feedback. */
 export interface ActionState {
@@ -250,4 +260,74 @@ export async function revokeAiProviderConfigKeyAction(
   });
   if (result.ok) revalidatePath(AI_SETTINGS_PATH);
   return result;
+}
+
+/**
+ * Synthetic connection test against one specific configuration's own
+ * credentials -- never a customer document (Part 8 §5 / J15's own admin
+ * journey: "config OpenAI; test; activate"). Works on a DRAFT before it is
+ * ever activated, which is the whole point: an admin can prove a key/model
+ * pair actually round-trips before ever letting it touch live traffic.
+ * Deliberately bypasses `runExtraction`'s budget/cache/kill-switch machinery
+ * and never writes to `ai_extraction_runs` -- this is a smoke test, not a
+ * billable extraction. Security-admin + step-up gated, like every other
+ * action here; the outcome is always recorded as an audit event regardless of
+ * whether the test itself succeeded, so a failed credential is never silently
+ * unlogged.
+ */
+export async function testAiProviderConfigAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const configId = String(formData.get('configId') ?? '').trim();
+  if (configId.length === 0) return { ok: false, message: 'Missing configuration id.' };
+
+  return withSession(async ({ db, accountId, email }) => {
+    if (!(await hasPlatformPermission(db, { accountId, email }, 'AI_SETTINGS_MANAGE'))) {
+      return DENIED;
+    }
+    const config = await getAiProviderConfigById(db, actor(accountId, email), configId);
+    if (!config.ok) return { ok: false, message: config.error.message } satisfies ActionState;
+
+    const stepUp = await tryEstablishStepUp(
+      { accountId, action: 'AI_SETTINGS_TEST_CONNECTION', resourceId: configId },
+      AI_SETTINGS_PATH,
+    );
+    if (stepUp.kind === 'not_configured') {
+      return { ok: false, message: STEP_UP_NOT_CONFIGURED_MESSAGE } satisfies ActionState;
+    }
+    if (stepUp.kind === 'reauth_required') redirect(stepUp.reauthUrl);
+
+    const encryption = createKeyManagementPort();
+    if (!encryption) {
+      return {
+        ok: false,
+        message:
+          'Encryption is not configured in this environment (KMS_LOCAL_MASTER_KEY_BASE64 unset).',
+      } satisfies ActionState;
+    }
+    const adapter = await resolveTestAdapter(db, encryption, config.value);
+    if (!adapter) {
+      return {
+        ok: false,
+        message: `The "${config.value.provider}" provider is not supported by this deployment.`,
+      } satisfies ActionState;
+    }
+
+    const outcome = await adapter.extract({
+      documentVersionId: 'connection-test',
+      text: SYNTHETIC_TEST_DOCUMENT_TEXT,
+      allowedFieldKeys: SYNTHETIC_TEST_ALLOWED_FIELD_KEYS,
+    });
+    const message = outcome.ok
+      ? `Connection succeeded (${outcome.result.usage.latencyMs}ms).`
+      : `Connection failed: ${outcome.code} -- ${outcome.message}`;
+    await recordAiProviderConfigTest(db, {
+      actor: actor(accountId, email),
+      configId,
+      ok: outcome.ok,
+      message,
+    });
+    return { ok: outcome.ok, message } satisfies ActionState;
+  });
 }
