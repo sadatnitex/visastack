@@ -21,17 +21,19 @@ import {
   registerDocumentWithVersion,
   registerFieldDefinition,
   rejectProposal,
+  renderOcrSourceImage,
   reserveUpload,
   runExtraction,
+  runOcr,
   setDocumentDate,
 } from '@visastack/services';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { after } from 'next/server';
-import { resolveAiExtractor } from '../../../../lib/ai';
+import { resolveAiExtractor, resolveOcrAdapter } from '../../../../lib/ai';
 import { triggerIntakeWorker } from '../../../../lib/jobs';
 import { profileField } from '../../../../lib/profile-fields';
-import { createKeyManagementPort } from '../../../../lib/providers';
+import { createKeyManagementPort, createPreviewRenderer } from '../../../../lib/providers';
 import { withSession } from '../../../../lib/session';
 import { createStorage } from '../../../../lib/storage';
 
@@ -428,6 +430,63 @@ export async function runAiExtractionAction(
     return {
       ok: true,
       message: `AI extraction proposed ${run.value.proposals.length} field(s) for review.`,
+    } satisfies ActionState;
+  });
+
+  if (result.ok) revalidatePath(`/app/applicant/${applicantId}`, 'layout');
+  return result;
+}
+
+/**
+ * Run AI OCR over a document (Part 8 §9). Consent-gated on AI_OCR
+ * (distinct from AI_EXTRACTION - mirrors runAiExtractionAction's own shape
+ * exactly, but renders the source image first, since runOcr takes bytes as
+ * an input rather than fetching them itself). The extracted text and any
+ * review issues are persisted on the run row and shown on the page via
+ * getLatestOcrRun, not returned through this action directly.
+ */
+export async function runOcrAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  const applicantId = String(formData.get('applicantId') ?? '');
+  const documentVersionId = String(formData.get('documentVersionId') ?? '');
+
+  const result = await withSession(async ({ db, accountId }) => {
+    if (!(await assertOwned(db, accountId, applicantId))) {
+      return { ok: false, message: 'Not authorized.' } satisfies ActionState;
+    }
+    const resolved = await resolveOcrAdapter(db, createKeyManagementPort());
+    if (!resolved) {
+      return { ok: false, message: 'AI OCR is not configured.' } satisfies ActionState;
+    }
+    const rendered = await renderOcrSourceImage(
+      db,
+      createStorage(db),
+      createPreviewRenderer(),
+      documentVersionId,
+    );
+    if (!rendered.ok) {
+      return { ok: false, message: rendered.message } satisfies ActionState;
+    }
+    const run = await runOcr(db, resolved.ai, {
+      actorAccountId: accountId,
+      applicantId,
+      documentVersionId,
+      imageBytes: rendered.imageBytes,
+      contentType: rendered.contentType,
+      budgetLimitUnits: resolved.limits.budgetLimitUnits,
+      perDocumentBudgetLimitUnits: resolved.limits.perDocumentBudgetLimitUnits,
+      maxAttemptsPerDocument: resolved.limits.maxAttemptsPerDocument,
+      cacheMaxAgeDays: resolved.limits.cacheMaxAgeDays,
+      maxConcurrentCalls: resolved.limits.maxConcurrentCalls,
+      killSwitchCheck: () => isAiDispatchAllowed(db),
+    });
+    if (!run.ok) return { ok: false, message: run.error.message } satisfies ActionState;
+    const issueCount = run.value.ocrRun.reviewIssues?.length ?? 0;
+    return {
+      ok: true,
+      message:
+        issueCount > 0
+          ? `OCR completed, but flagged ${issueCount} review issue(s) - check the extracted text below.`
+          : 'OCR completed successfully.',
     } satisfies ActionState;
   });
 

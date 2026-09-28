@@ -3,6 +3,7 @@ import {
   type DocumentLifecycleStatus,
   classifyExpiry,
   getApplicantEvidenceBytes,
+  getLatestOcrRun,
   getWalletView,
   hasConsent,
   isServableProcessingState,
@@ -12,11 +13,11 @@ import {
   loadUploadQuotaConfig,
 } from '@visastack/services';
 import Link from 'next/link';
-import { createAiExtractor } from '../../../../../lib/ai';
+import { createAiExtractor, isOcrConfigured } from '../../../../../lib/ai';
 import { getLocale } from '../../../../../lib/locale';
 import { withSession } from '../../../../../lib/session';
 import { previewDocumentAction, setDocumentDateAction } from '../actions';
-import { AiProposalReview, RunAiExtractionButton } from '../ai-review';
+import { AiProposalReview, OcrResultView, RunAiExtractionButton, RunOcrButton } from '../ai-review';
 import { DocumentUploader } from '../document-uploader';
 import { NameReview } from '../name-review';
 import { UsageMeter } from '../usage-meter';
@@ -82,15 +83,25 @@ export default async function ApplicantDocumentsPage({
   const t = createTranslator(locale);
 
   const data = await withSession(async ({ db, accountId }) => {
-    const [documents, coreGranted, aiGranted, evidenceBytes, pendingProposals, wallet] =
-      await Promise.all([
-        listDocumentsDetailed(db, accountId, id),
-        hasConsent(db, accountId, 'CORE_PROCESSING'),
-        hasConsent(db, accountId, 'AI_EXTRACTION'),
-        getApplicantEvidenceBytes(db, id),
-        listPendingProposals(db, id),
-        getWalletView(db, { actorAccountId: accountId, applicantId: id }),
-      ]);
+    const [
+      documents,
+      coreGranted,
+      aiGranted,
+      ocrGranted,
+      ocrConfigured,
+      evidenceBytes,
+      pendingProposals,
+      wallet,
+    ] = await Promise.all([
+      listDocumentsDetailed(db, accountId, id),
+      hasConsent(db, accountId, 'CORE_PROCESSING'),
+      hasConsent(db, accountId, 'AI_EXTRACTION'),
+      hasConsent(db, accountId, 'AI_OCR'),
+      isOcrConfigured(db),
+      getApplicantEvidenceBytes(db, id),
+      listPendingProposals(db, id),
+      getWalletView(db, { actorAccountId: accountId, applicantId: id }),
+    ]);
     const documentRows = documents.ok ? documents.value : [];
     // EVI-05: issuer confirmations, per document. There is no batch
     // reader yet (document counts per applicant are small), so this fans
@@ -101,16 +112,28 @@ export default async function ApplicantDocumentsPage({
     const issuerVerifications = new Map(
       documentRows.map((doc, i) => [doc.id, issuerVerificationLists[i] ?? []] as const),
     );
+    // Same fan-out shape as issuerVerifications above -- the most recent
+    // successful OCR run per document, for display (Part 8 §9's own "show
+    // ... as review issues" requirement).
+    const ocrRunLists = await Promise.all(
+      documentRows.map((doc) =>
+        doc.latestVersionId ? getLatestOcrRun(db, doc.latestVersionId) : undefined,
+      ),
+    );
+    const ocrRuns = new Map(documentRows.map((doc, i) => [doc.id, ocrRunLists[i]] as const));
     return {
       documents: documentRows,
       coreGranted,
       aiGranted,
       aiConfigured: Boolean(createAiExtractor()),
+      ocrGranted,
+      ocrConfigured,
       evidenceBytes,
       pendingProposals,
       quota: loadUploadQuotaConfig(),
       wallet: new Map((wallet.ok ? wallet.value : []).map((w) => [w.document.id, w])),
       issuerVerifications,
+      ocrRuns,
     };
   });
 
@@ -150,6 +173,16 @@ export default async function ApplicantDocumentsPage({
                 Grant <strong>AI extraction</strong> consent from <Link href="/app">Home</Link> to
                 get automatic field suggestions from your documents — every suggestion still
                 requires your explicit approval before it changes your profile.
+              </p>
+            </div>
+          ) : null}
+
+          {data.ocrConfigured && !data.ocrGranted ? (
+            <div className="card" style={{ marginBottom: '1.5rem' }}>
+              <p className="card-body">
+                Grant <strong>AI OCR</strong> consent from <Link href="/app">Home</Link> to read
+                text from scanned or photographed documents - this sends the document's image, a
+                larger disclosure than AI extraction's text-only sharing.
               </p>
             </div>
           ) : null}
@@ -370,6 +403,28 @@ export default async function ApplicantDocumentsPage({
                             }}
                           />
                         ))}
+                      </>
+                    );
+                  })()}
+                  {(() => {
+                    if (!data.ocrConfigured || !data.ocrGranted || !doc.classification) return null;
+                    const versionId = doc.latestVersionId;
+                    if (!versionId) return null;
+                    const latestRun = data.ocrRuns.get(doc.id);
+                    return (
+                      <>
+                        {/* Same core-processing gate as AI extraction above - new OCR
+                            is new processing, but an already-completed run's own
+                            result remains viewable regardless. */}
+                        {data.coreGranted ? (
+                          <RunOcrButton applicantId={id} documentVersionId={versionId} />
+                        ) : null}
+                        {latestRun ? (
+                          <OcrResultView
+                            text={latestRun.extractedText ?? ''}
+                            reviewIssues={latestRun.reviewIssues ?? []}
+                          />
+                        ) : null}
                       </>
                     );
                   })()}

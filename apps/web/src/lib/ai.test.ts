@@ -535,7 +535,7 @@ describe('resolveAiExtractor (Part 8 §5: the DB config becomes authoritative on
     });
   });
 
-  describe('resolveOcrAdapter -- the OCR adapter for a live call, reusing the ACTIVE text-extraction config (Part 8 §9 / Chunk 14)', () => {
+  describe('resolveOcrAdapter -- the OCR adapter (and shared limits) for a live call, reusing the ACTIVE text-extraction config (Part 8 §9 / Chunk 14, limits added Chunk 21)', () => {
     beforeEach(() => {
       hasAnyAiProviderConfig.mockReset();
       getActiveAiProviderConfig.mockReset();
@@ -546,23 +546,26 @@ describe('resolveAiExtractor (Part 8 §5: the DB config becomes authoritative on
       hasAnyAiProviderConfig.mockResolvedValue(false);
       const { resolveOcrAdapter } = await import('./ai');
 
-      const adapter = await resolveOcrAdapter(db, encryption);
+      const resolved = await resolveOcrAdapter(db, encryption);
 
-      expect(adapter).toBeUndefined();
+      expect(resolved).toBeUndefined();
       expect(getActiveAiProviderConfig).not.toHaveBeenCalled();
       expect(revealAiProviderApiKey).not.toHaveBeenCalled();
     });
 
-    it('builds an OpenAiOcrAdapter from the SAME ACTIVE config resolveAiExtractor itself reads', async () => {
+    it('builds an OpenAiOcrAdapter, plus the SAME limits resolveAiExtractor would compute, from the SAME ACTIVE config', async () => {
       hasAnyAiProviderConfig.mockResolvedValue(true);
-      getActiveAiProviderConfig.mockResolvedValue(fakeConfig({ model: 'gpt-5-db-configured' }));
+      getActiveAiProviderConfig.mockResolvedValue(
+        fakeConfig({ model: 'gpt-5-db-configured', budgetLimitUnits: 555_000 }),
+      );
       revealAiProviderApiKey.mockResolvedValue('sk-from-db');
       const { resolveOcrAdapter } = await import('./ai');
 
-      const adapter = await resolveOcrAdapter(db, encryption);
+      const resolved = await resolveOcrAdapter(db, encryption);
 
-      expect(adapter).toBeDefined();
-      expect(adapter?.cacheKeyComponents().model).toBe('gpt-5-db-configured');
+      expect(resolved).toBeDefined();
+      expect(resolved?.ai.cacheKeyComponents().model).toBe('gpt-5-db-configured');
+      expect(resolved?.limits.budgetLimitUnits).toBe(555_000);
       expect(revealAiProviderApiKey).toHaveBeenCalledWith(
         db,
         encryption,
@@ -575,9 +578,9 @@ describe('resolveAiExtractor (Part 8 §5: the DB config becomes authoritative on
       getActiveAiProviderConfig.mockResolvedValue(undefined);
       const { resolveOcrAdapter } = await import('./ai');
 
-      const adapter = await resolveOcrAdapter(db, encryption);
+      const resolved = await resolveOcrAdapter(db, encryption);
 
-      expect(adapter).toBeUndefined();
+      expect(resolved).toBeUndefined();
       expect(revealAiProviderApiKey).not.toHaveBeenCalled();
     });
 
@@ -586,9 +589,9 @@ describe('resolveAiExtractor (Part 8 §5: the DB config becomes authoritative on
       getActiveAiProviderConfig.mockResolvedValue(fakeConfig({ provider: 'gemini' }));
       const { resolveOcrAdapter } = await import('./ai');
 
-      const adapter = await resolveOcrAdapter(db, encryption);
+      const resolved = await resolveOcrAdapter(db, encryption);
 
-      expect(adapter).toBeUndefined();
+      expect(resolved).toBeUndefined();
       expect(revealAiProviderApiKey).not.toHaveBeenCalled();
     });
 
@@ -597,9 +600,9 @@ describe('resolveAiExtractor (Part 8 §5: the DB config becomes authoritative on
       getActiveAiProviderConfig.mockResolvedValue(fakeConfig({ provider: 'anthropic' }));
       const { resolveOcrAdapter } = await import('./ai');
 
-      const adapter = await resolveOcrAdapter(db, encryption);
+      const resolved = await resolveOcrAdapter(db, encryption);
 
-      expect(adapter).toBeUndefined();
+      expect(resolved).toBeUndefined();
       expect(revealAiProviderApiKey).not.toHaveBeenCalled();
     });
 
@@ -608,10 +611,51 @@ describe('resolveAiExtractor (Part 8 §5: the DB config becomes authoritative on
       getActiveAiProviderConfig.mockResolvedValue(fakeConfig());
       const { resolveOcrAdapter } = await import('./ai');
 
-      const adapter = await resolveOcrAdapter(db, undefined);
+      const resolved = await resolveOcrAdapter(db, undefined);
 
-      expect(adapter).toBeUndefined();
+      expect(resolved).toBeUndefined();
       expect(revealAiProviderApiKey).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('isOcrConfigured -- cheap display gate, no KMS decrypt (Part 8 §9, Chunk 21)', () => {
+    beforeEach(() => {
+      hasAnyAiProviderConfig.mockReset();
+      getActiveAiProviderConfig.mockReset();
+      revealAiProviderApiKey.mockReset();
+    });
+
+    it('is false when no admin has ever configured AI settings', async () => {
+      hasAnyAiProviderConfig.mockResolvedValue(false);
+      const { isOcrConfigured } = await import('./ai');
+
+      expect(await isOcrConfigured(db)).toBe(false);
+      expect(getActiveAiProviderConfig).not.toHaveBeenCalled();
+    });
+
+    it('is true for an ACTIVE openai config, without ever decrypting the key', async () => {
+      hasAnyAiProviderConfig.mockResolvedValue(true);
+      getActiveAiProviderConfig.mockResolvedValue(fakeConfig());
+      const { isOcrConfigured } = await import('./ai');
+
+      expect(await isOcrConfigured(db)).toBe(true);
+      expect(revealAiProviderApiKey).not.toHaveBeenCalled();
+    });
+
+    it('is false for an ACTIVE gemini config -- matches resolveOcrAdapter exactly, never disagreeing about availability', async () => {
+      hasAnyAiProviderConfig.mockResolvedValue(true);
+      getActiveAiProviderConfig.mockResolvedValue(fakeConfig({ provider: 'gemini' }));
+      const { isOcrConfigured } = await import('./ai');
+
+      expect(await isOcrConfigured(db)).toBe(false);
+    });
+
+    it('is false once any config exists but none is ACTIVE (kill switch engaged)', async () => {
+      hasAnyAiProviderConfig.mockResolvedValue(true);
+      getActiveAiProviderConfig.mockResolvedValue(undefined);
+      const { isOcrConfigured } = await import('./ai');
+
+      expect(await isOcrConfigured(db)).toBe(false);
     });
   });
 });

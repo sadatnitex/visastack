@@ -206,38 +206,65 @@ function buildOcrAdapterForConfig(config: AiProviderConfig, apiKey: string): AiO
   }
 }
 
+export interface ResolvedOcrAdapter {
+  readonly ai: AiOcrPort;
+  readonly limits: AiLimits;
+}
+
 /**
- * The OCR adapter a live OCR call should use, built from the SAME ACTIVE
- * `ai_provider_configs` row `resolveAiExtractor` reads (Part 8 Chunk 14: OCR
- * deliberately reuses the existing, admin-configured AI Gateway provider
- * rather than a second, independently-configured OCR component). Unlike
- * `resolveAiExtractor`, there is no env-var fallback path here -- OCR is
- * Commercial-V1-native and was never env-var-configurable the way text
- * extraction historically was, so an install with no `ai_provider_configs`
- * row at all simply has no OCR available, full stop (the manual-entry path
- * is always the fallback, per Part 8 §9's own "manual entry always
- * available" requirement). Returns `undefined` -- never a throw -- for
- * every fail-closed case `resolveAiExtractor` itself already treats that
- * way: no config touched yet, nothing genuinely ACTIVE, an ACTIVE config
- * naming a provider with no OCR adapter (`IMPLEMENTED_OCR_PROVIDERS`, a
- * SEPARATE, smaller set than text extraction's own -- an ACTIVE Gemini or
- * Anthropic config is real for text extraction but not yet for OCR), or no
- * encryption port available. Deliberately returns the bare adapter only,
- * not `{ai, limits}` the way `resolveAiExtractor` does -- OCR's own
- * cost/budget accounting (its own ledger, or folded into the existing
- * `ai_extraction_runs` table) is still an open question (`known-issues.md`
- * item 79, Part 8 Chunk 14), not yet decided, so this function does not
- * prejudge it by attaching a `limits` shape nothing yet enforces.
+ * The OCR adapter (and its governing limits) a live OCR call should use,
+ * built from the SAME ACTIVE `ai_provider_configs` row `resolveAiExtractor`
+ * reads (Part 8 Chunk 14: OCR deliberately reuses the existing,
+ * admin-configured AI Gateway provider rather than a second,
+ * independently-configured OCR component). Unlike `resolveAiExtractor`,
+ * there is no env-var fallback path here -- OCR is Commercial-V1-native and
+ * was never env-var-configurable the way text extraction historically was,
+ * so an install with no `ai_provider_configs` row at all simply has no OCR
+ * available, full stop (the manual-entry path is always the fallback, per
+ * Part 8 §9's own "manual entry always available" requirement). Returns
+ * `undefined` -- never a throw -- for every fail-closed case
+ * `resolveAiExtractor` itself already treats that way: no config touched
+ * yet, nothing genuinely ACTIVE, an ACTIVE config naming a provider with no
+ * OCR adapter (`IMPLEMENTED_OCR_PROVIDERS`, a SEPARATE, smaller set than
+ * text extraction's own -- an ACTIVE Gemini or Anthropic config is real for
+ * text extraction but not yet for OCR), or no encryption port available.
+ *
+ * `limits` come from the identical `limitsFromConfig`/`resolveAiLimits`
+ * machinery `resolveAiExtractor` itself uses, never a second, separately
+ * computed set of numbers -- Part 8 Chunk 18's own user-confirmed decision
+ * was that OCR shares the SAME platform-wide budget/concurrency ledger as
+ * text extraction (implemented in `packages/services/src/ai.ts`'s shared
+ * accounting helpers), so the two adapters must also resolve to the exact
+ * same limit values, not independently-drifting ones. This function
+ * originally returned the bare adapter only, before that decision existed;
+ * now that it does, returning `{ai, limits}` keeps this the same shape as
+ * `resolveAiExtractor` rather than leaving two different resolver
+ * conventions for what are now symmetric concerns.
  */
 export async function resolveOcrAdapter(
   db: Db,
   encryption: KeyManagementPort | undefined,
-): Promise<AiOcrPort | undefined> {
+): Promise<ResolvedOcrAdapter | undefined> {
   if (!(await hasAnyAiProviderConfig(db))) return undefined;
   const config = await getActiveAiProviderConfig(db);
   if (!config || !encryption || !IMPLEMENTED_OCR_PROVIDERS.has(config.provider)) return undefined;
   const apiKey = await revealAiProviderApiKey(db, encryption, config);
-  return buildOcrAdapterForConfig(config, apiKey);
+  return { ai: buildOcrAdapterForConfig(config, apiKey), limits: limitsFromConfig(config) };
+}
+
+/**
+ * Cheap "is OCR available at all" check for display gates (e.g. the
+ * applicant document page deciding whether to show a "Run OCR" trigger) --
+ * no KMS decrypt, unlike `resolveOcrAdapter` itself, since a page only needs
+ * to know whether to SHOW the option, not to actually build a working
+ * adapter. Shares `resolveOcrAdapter`'s identical fail-closed provider
+ * check so the two can never disagree about whether OCR is genuinely
+ * available.
+ */
+export async function isOcrConfigured(db: Db): Promise<boolean> {
+  if (!(await hasAnyAiProviderConfig(db))) return false;
+  const config = await getActiveAiProviderConfig(db);
+  return Boolean(config && IMPLEMENTED_OCR_PROVIDERS.has(config.provider));
 }
 
 /**
