@@ -107,7 +107,8 @@ export async function resolveAiExtractor(
  */
 const APPROX_USD_PER_MILLION_TOKENS = 10;
 
-function usdToUnits(usd: number): number {
+/** Exported for the AI Gateway admin UI, so a USD figure typed into the settings form converts to cost units the same way the env-var caps above do -- one conversion, never a second invented scheme. */
+export function usdToUnits(usd: number): number {
   return Math.round((usd / APPROX_USD_PER_MILLION_TOKENS) * 1_000_000);
 }
 

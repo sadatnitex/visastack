@@ -2206,6 +2206,93 @@ item gets its own requirements-ledger row once classified against the new direct
     yet); OCR/scanned-evidence support (§9); generalizing the eval harness
     beyond OpenAI-only (AI-10).
     Full detail: `requirements-ledger.md` AI-02.
+    **Chunk 7 (this update) -- the admin UI for the settings journey now
+    exists (AI-02, the last major piece of this row).** Every prior chunk
+    built the backend lifecycle (create/activate/rollback/emergency-disable/
+    revoke, the kill switch, the DB-configurable adapter); nothing yet let an
+    admin actually reach any of it except by calling service functions
+    directly. New route `/app/admin/ai-settings`
+    (`apps/web/src/app/app/admin/ai-settings/{page,actions,forms}.tsx`),
+    gated on `hasPlatformPermission(..., 'AI_SETTINGS_MANAGE')` (the
+    dedicated-sub-page convention `complaints/`/`organizations/[orgId]/`
+    already use, not the broader `isPlatformAdmin`), linked from the main
+    admin page next to Pack Studio/Complaint triage. All five mutating
+    actions (`createDraftAiProviderConfigAction`,
+    `activateAiProviderConfigAction`, `rollbackAiProviderConfigAction`,
+    `emergencyDisableAiProviderConfigAction`,
+    `revokeAiProviderConfigKeyAction`) follow the exact
+    `hasPlatformPermission` -> `tryEstablishStepUp` -> service-call ->
+    `Result`-to-`ActionState` pipeline `grantPlatformRoleAction`/
+    `placeLegalHoldAction` (`admin/actions.ts`) already establish, since
+    every one of these five service functions is itself step-up-gated; each
+    of the five carries a distinct step-up `action` id
+    (`AI_SETTINGS_CREATE_DRAFT`/`_ACTIVATE`/`_ROLLBACK`/
+    `_EMERGENCY_DISABLE`/`_REVOKE_KEY`) so a stale WorkOS session prompts
+    reauthentication for exactly the mutation being attempted. Rollback and
+    emergency-disable take no target id (the service's own design -- they
+    always act on "whatever is currently ACTIVE") and reuse
+    `purgeExpiredDocumentsAction`'s identical fixed `'platform-wide'`
+    step-up-resource convention for an equivalent no-target-id, platform-wide
+    mutation.
+    The create-draft form collects everything `createDraftAiProviderConfig`
+    accepts -- provider (a `<select>` with only the one real `openai` option
+    today, deliberately not free text, so a stray case-typo like "OpenAI"
+    can never silently save a draft the gateway's case-sensitive provider
+    match would refuse to ever activate), model, an OpenAI-style reasoning
+    effort selector, a write-only `type="password"` API key field (a
+    genuinely new UI pattern -- no prior page in this codebase has ever
+    collected a raw secret), the Part 8 §5 data-policy-reviewed attestation
+    checkbox, and the same six budget/limit knobs
+    `apps/web/src/lib/ai.ts`'s own env-var functions already expose --
+    `usdToUnits` (previously private to that file) is now exported so the
+    admin form's USD inputs convert to the ledger's cost-unit scale with the
+    exact same approximate formula the env-var path already uses, rather
+    than inventing a second one. The history list renders every version as
+    its own card (`packs/[packId]/page.tsx`'s established versioned-snapshot
+    layout), showing only the masked `apiKeyFingerprint` -- never a
+    decrypted key, matching `revealAiProviderApiKey`'s own doc comment that
+    it must stay gateway-internal -- with Activate/Revoke buttons rendered
+    only when that row's own status makes the action legal (a DRAFT with an
+    approved policy and an unrevoked key can activate; any row with an
+    unrevoked key can have its key revoked), mirroring the service layer's
+    own preconditions exactly so a doomed click can never appear in the UI.
+    `getActiveAiProviderConfig` (no permission check of its own, by design)
+    is deliberately never called from this page; "what's active" is instead
+    derived from the already-gated `listAiProviderConfigHistory` result, so
+    every value this page displays passed through one authorized read path.
+    Matched existing convention throughout rather than inventing new
+    patterns, confirmed by a dedicated research pass first: no component/
+    form library, modal, or central nav-config exists anywhere in this
+    codebase, so this page is hand-rolled CSS classes + native `<form>` +
+    `useActionState`, `window.confirm` for destructive actions, and an
+    inline `<Link>` added next to the other admin sub-page buttons --
+    identical to every other admin surface. No i18n wiring (no admin page in
+    this codebase uses `@visastack/i18n`; that remains a Part 9 concern, not
+    an oversight here).
+    Two things explicitly NOT done in this chunk, stated plainly rather than
+    left implicit: (1) the six limit fields the create-draft form collects
+    (budget, per-document budget, max attempts, max pages, cache age, max
+    concurrent calls) are persisted on the row exactly as the schema and
+    service layer already support, but nothing at runtime reads them yet --
+    `ai.ts`'s own `aiBudgetLimitUnits`/`aiMaxAttemptsPerDocument`/etc. remain
+    100% env-var-driven even once a config is ACTIVE, exactly like the
+    adapter/model/key gap Chunk 6 closed for provider/model/key specifically;
+    wiring these six into runtime enforcement is its own future chunk. (2) no
+    unit tests were added for the new `actions.ts` -- confirmed first that
+    zero of this codebase's 21 existing `actions.ts` files have a dedicated
+    test file (they wrap `withSession`'s real WorkOS auth + DB pool, which
+    nothing in this codebase unit-tests directly), so adding one here would
+    invent a new pattern rather than follow one; the service-layer functions
+    every action calls are already fully covered by
+    `ai-provider-config.test.ts`. Not verified in a live browser (sandbox
+    limitation: no `WORKOS_API_KEY`/`WORKOS_CLIENT_ID`/`DATABASE_URL`
+    configured here, same limitation noted on every prior UI chunk this
+    session) -- verified instead via a clean repo-wide typecheck, a clean
+    `apps/web` production build (the new `/app/admin/ai-settings` route
+    compiles and appears in the build manifest), the full `apps/web` test
+    suite (184/184, including `ai.test.ts`'s existing coverage of the now-
+    exported `usdToUnits`), and Biome clean.
+    Full detail: `requirements-ledger.md` AI-02.
 independently confirmed findings; the missing PRD file is tracked as Blocker 1 in
 `assumptions-and-blockers.md` (now resolved) rather than here, since it blocked the
 programme rather than being a product defect.
