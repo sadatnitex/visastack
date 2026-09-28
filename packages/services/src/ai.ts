@@ -7,20 +7,29 @@ import { appendAuditEvent } from './audit';
 import { hasConsent } from './consent';
 import { type Db, first, required, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
+import type { AiOcrCacheKeyComponents, AiOcrContentType, AiOcrOutcome, AiOcrPort } from './ocr';
 import type { KeyManagementPort } from './ports';
 import { recordProductEvent } from './product-events';
 import { type EditFactResult, editFact, getCurrentFactVersion } from './profile';
 
 /**
  * AI Gateway (Build Spec §8; master directive §8/§26 item 4): extraction
- * produces field PROPOSALS — never silent writes. Extraction requires
+ * produces field PROPOSALS - never silent writes. Extraction requires
  * AI_EXTRACTION consent and respects a durable, platform-wide cost budget
- * (the sum of every recorded `ai_extraction_runs` row — not an in-memory
+ * (the sum of every recorded `ai_extraction_runs` row - not an in-memory
  * counter that resets every request). A proposal only enters the Master
  * Profile through an explicit, atomic approval that reuses the manual-edit
  * machinery (immutable version, full provenance, unknown fields rejected).
  * The concrete model provider (OpenAI Responses API, `gpt-5.6-terra`) sits
  * behind `AiExtractionPort`.
+ *
+ * `runOcr` (Part 8 §9) lives in this same file, not `ocr.ts`, so it can
+ * share the budget/concurrency accounting helpers below directly: OCR and
+ * extraction bill through the same admin-configured provider relationship
+ * and the same platform-wide ledger, so their enforcement logic stays
+ * co-located rather than split across a public export boundary. `ocr.ts`
+ * itself stays scoped to the `AiOcrPort` contract and the bytes-preparation
+ * step (`renderOcrSourceImage`), the parts that are genuinely OCR-only.
  */
 
 export interface FieldProposal {
@@ -216,6 +225,29 @@ export async function countAiExtractionAttempts(
 }
 
 /**
+ * How many times OCR has genuinely been invoked (paid or failed) for one
+ * document -- the OCR-specific mirror of `countAiExtractionAttempts` right
+ * above, with the identical cache-hit exclusion and the identical reason it
+ * is its own, separate counter rather than a shared one: an attempt limit
+ * bounds retries of a SPECIFIC task on a document, not overall spend, and
+ * OCR and text extraction are genuinely different actions a caller invokes
+ * separately -- the same reasoning `countAiExtractionAttempts`'s own doc
+ * comment gives for why it, in turn, is not folded into `ocr_runs`.
+ */
+export async function countOcrAttempts(db: Db, documentVersionId: string): Promise<number> {
+  const rows = await db
+    .select({ id: schema.ocrRuns.id })
+    .from(schema.ocrRuns)
+    .where(
+      and(
+        eq(schema.ocrRuns.documentVersionId, documentVersionId),
+        isNull(schema.ocrRuns.servedFromCacheRunId),
+      ),
+    );
+  return rows.length;
+}
+
+/**
  * Self-healing for `IN_FLIGHT` reservations (Part 8 §11's concurrency gate):
  * a row is inserted BEFORE the outbound provider call and only updated to
  * SUCCEEDED/FAILED after it returns (see `runExtraction`), so a process that
@@ -381,6 +413,24 @@ function computeCacheKey(
     cacheKeyComponents.schemaVersion,
     cacheKeyComponents.reasoningEffort ?? '',
   ];
+  return createHash('sha256').update(parts.join('|')).digest('hex');
+}
+
+/**
+ * OCR's own cache key -- `ocr_runs.cache_key`'s own doc comment:
+ * `sha256(contentHash|model|promptVersion)`, deliberately simpler than
+ * `computeCacheKey` above since OCR has no parser/schema-version or
+ * reasoning-effort dial to fold in. `contentHash` here is a hash of the
+ * actual rendered image bytes about to be sent (computed by `runOcr`
+ * itself), mirroring `runExtraction`'s own "hash of the exact content about
+ * to be sent" choice -- not `document_versions.sha256`, which is a
+ * caller-optional column that can be null.
+ */
+function computeOcrCacheKey(
+  contentHash: string,
+  cacheKeyComponents: AiOcrCacheKeyComponents,
+): string {
+  const parts = [contentHash, cacheKeyComponents.model, cacheKeyComponents.promptVersion];
   return createHash('sha256').update(parts.join('|')).digest('hex');
 }
 
@@ -961,6 +1011,317 @@ export async function runExtraction(
     });
 
     return ok({ aiExtractionRunId: runId, proposals: savedProposals });
+  });
+}
+
+export interface RunOcrInput {
+  readonly actorAccountId: string;
+  readonly applicantId: string;
+  readonly documentVersionId: string;
+  /** Already-rendered bytes (`renderOcrSourceImage`'s own output) -- mirrors `RunExtractionInput.text`, which is likewise caller-supplied, not computed inside this function. */
+  readonly imageBytes: Uint8Array;
+  readonly contentType: AiOcrContentType;
+  /** Same shared, platform-wide budget `runExtraction` enforces (Part 8 Chunk 18/19) -- pass the identical resolved value both call sites use. */
+  readonly budgetLimitUnits: number;
+  readonly perDocumentBudgetLimitUnits?: number;
+  /** OCR's own attempt counter (`countOcrAttempts`), never `countAiExtractionAttempts` -- see that function's doc comment. */
+  readonly maxAttemptsPerDocument?: number;
+  readonly maxConcurrentCalls?: number;
+  readonly cacheMaxAgeDays?: number;
+  readonly killSwitchCheck?: () => Promise<boolean>;
+}
+
+export type OcrRunRow = typeof schema.ocrRuns.$inferSelect;
+
+export interface RunOcrSummary {
+  readonly ocrRun: OcrRunRow;
+}
+
+type OcrReservation =
+  | { readonly kind: 'final'; readonly outcome: Result<RunOcrSummary, ServiceError> }
+  | { readonly kind: 'proceed'; readonly runId: string; readonly cacheKey: string };
+
+/**
+ * Run AI OCR over a document's already-rendered image bytes, persisting the
+ * result directly onto its own `ocr_runs` row. Unlike `runExtraction`, there
+ * is no field-proposal/evidence machinery here -- OCR's whole output IS the
+ * row (extracted text plus review issues); a later, separate step would run
+ * `runExtraction` over that text to get field proposals, reusing it
+ * unchanged, not this function.
+ *
+ * Consent-gated on `AI_OCR`, deliberately distinct from `AI_EXTRACTION`
+ * (raw image bytes are a materially larger disclosure than derived text).
+ * Budget/concurrency-guarded against the SAME durable, shared ledger
+ * `runExtraction` uses (Part 8 Chunk 18/19's own user-confirmed shared-cap
+ * decision): every helper this function calls (`totalAiCostUnits`,
+ * `countInFlightCalls`, `maxObservedCostUnits`, `releaseStaleInFlightCalls`,
+ * ...) already reads across both `ai_extraction_runs` AND `ocr_runs`, so
+ * there is no separate accounting path to keep in sync. Both advisory locks
+ * below are the SAME fixed/derived keys `runExtraction` takes, so an OCR
+ * call and an extraction call on the same document (or platform-wide)
+ * genuinely serialize against each other's reservation step, not merely
+ * against their own kind -- required for the shared budget to actually be
+ * race-safe, not just summed correctly after the fact.
+ *
+ * Same three-phase reserve/call/reconcile structure as `runExtraction`, for
+ * the identical reasons (see that function's own doc comment for the full
+ * rationale, not repeated here): phase 1 is a short, locked transaction that
+ * checks budget/concurrency/attempts and either serves a cache hit or
+ * reserves an `IN_FLIGHT` row; phase 2 is the unlocked outbound call; phase 3
+ * is a fresh, unlocked transaction that reconciles the result.
+ *
+ * Deliberately simpler than `runExtraction` in ways that are scope
+ * decisions, not oversights:
+ * - No `maxPagesPerDocument` cap -- `renderOcrSourceImage` already bounds
+ *   every call to page 1 of the source document by construction (its own
+ *   doc comment: "only page 1 of a multi-page scanned PDF"), so a
+ *   page-count reservation check here would be checking a number that can
+ *   only ever be 1.
+ * - No `allowedFieldKeys` -- OCR produces raw text, not field proposals;
+ *   there is no registry to constrain it against at this stage.
+ */
+export async function runOcr(
+  db: Db,
+  ai: AiOcrPort,
+  input: RunOcrInput,
+): Promise<Result<RunOcrSummary, ServiceError>> {
+  const applicant = await getApplicant(db, input.applicantId);
+  if (!applicant) return err(serviceError('not_found', 'applicant not found'));
+  if (applicant.ownerAccountId !== input.actorAccountId) {
+    return err(serviceError('forbidden', 'not authorized to run OCR for this applicant'));
+  }
+  if (!(await hasConsent(db, applicant.ownerAccountId, 'AI_OCR'))) {
+    return err(serviceError('consent_required', 'AI_OCR consent is required'));
+  }
+
+  const reservation = await db.transaction(async (tx): Promise<OcrReservation> => {
+    // Same fixed platform-wide key and same document-derived key
+    // `runExtraction` locks -- see this function's own doc comment for why
+    // that cross-function serialization is required, not incidental.
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext('visastack:ai-platform-budget'))`);
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${input.documentVersionId}))`);
+
+    await releaseStaleInFlightCalls(tx);
+
+    const worstCase = await maxObservedCostUnits(tx);
+    const inFlightPlatform = await countInFlightCalls(tx);
+
+    const used = (await totalAiCostUnits(tx)) + (inFlightPlatform + 1) * worstCase;
+    if (used >= input.budgetLimitUnits) {
+      return { kind: 'final', outcome: err(serviceError('invalid', 'AI budget exhausted')) };
+    }
+    if (input.perDocumentBudgetLimitUnits !== undefined) {
+      const inFlightDocument = await countInFlightCallsForDocument(tx, input.documentVersionId);
+      const documentUsed =
+        (await documentAiCostUnits(tx, input.documentVersionId)) +
+        (inFlightDocument + 1) * worstCase;
+      if (documentUsed >= input.perDocumentBudgetLimitUnits) {
+        return {
+          kind: 'final',
+          outcome: err(serviceError('invalid', 'AI budget exhausted for this document')),
+        };
+      }
+    }
+
+    const contentHash = createHash('sha256').update(input.imageBytes).digest('hex');
+    const cacheKey = computeOcrCacheKey(contentHash, ai.cacheKeyComponents());
+
+    const cacheMaxAgeDays = input.cacheMaxAgeDays ?? DEFAULT_CACHE_MAX_AGE_DAYS;
+    const cacheCutoff = new Date(Date.now() - cacheMaxAgeDays * 24 * 60 * 60 * 1000);
+    const cached = first(
+      await tx
+        .select()
+        .from(schema.ocrRuns)
+        .where(
+          and(
+            eq(schema.ocrRuns.cacheKey, cacheKey),
+            eq(schema.ocrRuns.status, 'SUCCEEDED'),
+            // PRV-02 (Part 7 §11): "AI cache: <=30d later" -- same rule
+            // `runExtraction` applies, an old match falls through to a
+            // genuine (correctly billed) OCR call instead of being served.
+            gte(schema.ocrRuns.createdAt, cacheCutoff),
+          ),
+        )
+        .orderBy(desc(schema.ocrRuns.createdAt))
+        .limit(1),
+    );
+
+    if (cached) {
+      const run = required(
+        first(
+          await tx
+            .insert(schema.ocrRuns)
+            .values({
+              documentVersionId: input.documentVersionId,
+              applicantId: input.applicantId,
+              status: 'SUCCEEDED',
+              provider: cached.provider,
+              modelVersion: cached.modelVersion,
+              promptVersion: cached.promptVersion,
+              extractedText: cached.extractedText,
+              reviewIssues: cached.reviewIssues,
+              costUnits: 0,
+              cacheKey,
+              servedFromCacheRunId: cached.id,
+            })
+            .returning(),
+        ),
+        'ocr run',
+      );
+      await appendAuditEvent(tx, {
+        eventType: 'AI_OCR_CACHE_HIT',
+        actorAccountId: input.actorAccountId,
+        method: 'DOCUMENT',
+        result: 'ALLOWED',
+        applicantId: input.applicantId,
+        resourceType: 'document_version',
+        resourceId: input.documentVersionId,
+        metadata: { ocrRunId: run.id, servedFromCacheRunId: cached.id, cacheKey },
+      });
+      return { kind: 'final', outcome: ok({ ocrRun: run }) };
+    }
+
+    // Only reached on a genuine cache MISS -- same ordering rationale as
+    // `runExtraction`'s own identically-placed attempt-limit check: a cache
+    // hit costs nothing, so the attempt gate must not see this request until
+    // it is known to actually need a genuine, billable invocation.
+    if (input.maxAttemptsPerDocument !== undefined) {
+      const attempts = await countOcrAttempts(tx, input.documentVersionId);
+      if (attempts >= input.maxAttemptsPerDocument) {
+        return {
+          kind: 'final',
+          outcome: err(serviceError('invalid', 'OCR attempt limit reached for this document')),
+        };
+      }
+    }
+
+    if (input.maxConcurrentCalls !== undefined && inFlightPlatform >= input.maxConcurrentCalls) {
+      return {
+        kind: 'final',
+        outcome: err(
+          serviceError(
+            'rate_limited',
+            'too many AI calls in flight platform-wide; try again shortly',
+          ),
+        ),
+      };
+    }
+
+    const run = required(
+      first(
+        await tx
+          .insert(schema.ocrRuns)
+          .values({
+            documentVersionId: input.documentVersionId,
+            applicantId: input.applicantId,
+            status: 'IN_FLIGHT',
+            provider: 'unknown',
+            modelVersion: 'unknown',
+            promptVersion: 'unknown',
+          })
+          .returning(),
+      ),
+      'ocr run',
+    );
+
+    return { kind: 'proceed', runId: run.id, cacheKey };
+  });
+
+  if (reservation.kind === 'final') return reservation.outcome;
+  const { runId, cacheKey } = reservation;
+
+  // Part 8 §5's kill switch, rechecked here exactly as `runExtraction`
+  // rechecks it -- immediately before the outbound call, after every phase-1
+  // check already passed and a slot was already reserved.
+  const killSwitchAllows = input.killSwitchCheck ? await input.killSwitchCheck() : true;
+
+  const outcome: AiOcrOutcome = killSwitchAllows
+    ? await ai.performOcr({
+        documentVersionId: input.documentVersionId,
+        imageBytes: input.imageBytes,
+        contentType: input.contentType,
+      })
+    : { ok: false, code: 'disabled', message: 'AI OCR is currently disabled' };
+
+  return db.transaction(async (tx) => {
+    if (!outcome.ok) {
+      await tx
+        .update(schema.ocrRuns)
+        .set({
+          status: 'FAILED',
+          // `provider`/`modelVersion`/`promptVersion` are NOT NULL on
+          // `ocr_runs` (unlike `ai_extraction_runs`, where they are nullable
+          // for historical pre-column rows -- `ocr_runs` has none, so it
+          // never needed that escape hatch): a synthesized `disabled`
+          // outcome carries no `provider` at all, so this falls back to the
+          // same 'unknown' placeholder the IN_FLIGHT insert above already
+          // used, never null.
+          provider: outcome.provider ?? 'unknown',
+          latencyMs: outcome.latencyMs ?? null,
+          errorCode: outcome.code,
+        })
+        .where(eq(schema.ocrRuns.id, runId));
+      await appendAuditEvent(tx, {
+        eventType: 'AI_OCR_FAILED',
+        actorAccountId: input.actorAccountId,
+        method: 'DOCUMENT',
+        result: 'ALLOWED',
+        applicantId: input.applicantId,
+        resourceType: 'document_version',
+        resourceId: input.documentVersionId,
+        metadata: { errorCode: outcome.code, ocrRunId: runId },
+      });
+      return err(
+        serviceError(outcome.code === 'disabled' ? 'invalid' : 'upstream_error', outcome.message),
+      );
+    }
+
+    const { text, reviewIssues, usage } = outcome.result;
+
+    const run = required(
+      first(
+        await tx
+          .update(schema.ocrRuns)
+          .set({
+            status: 'SUCCEEDED',
+            provider: usage.provider,
+            modelVersion: usage.modelVersion,
+            promptVersion: usage.promptVersion,
+            extractedText: text,
+            reviewIssues,
+            costUnits: usage.costUnits,
+            providerRequestId: usage.providerRequestId ?? null,
+            inputUnits: usage.inputUnits,
+            outputUnits: usage.outputUnits,
+            latencyMs: usage.latencyMs,
+            cacheKey,
+          })
+          .where(eq(schema.ocrRuns.id, runId))
+          .returning(),
+      ),
+      'ocr run',
+    );
+
+    await appendAuditEvent(tx, {
+      eventType: 'AI_OCR_RUN',
+      actorAccountId: input.actorAccountId,
+      method: 'DOCUMENT',
+      result: 'ALLOWED',
+      applicantId: input.applicantId,
+      resourceType: 'document_version',
+      resourceId: input.documentVersionId,
+      metadata: {
+        ocrRunId: runId,
+        costUnits: usage.costUnits,
+        modelVersion: usage.modelVersion,
+        provider: usage.provider,
+        latencyMs: usage.latencyMs,
+        reviewIssues,
+      },
+    });
+    await recordProductEvent(tx, { eventType: 'AI_OCR_RUN', accountId: input.actorAccountId });
+
+    return ok({ ocrRun: run });
   });
 }
 
