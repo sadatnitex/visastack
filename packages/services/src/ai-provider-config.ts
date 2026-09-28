@@ -553,3 +553,64 @@ export async function listAiProviderConfigHistory(
   const rows = await db.select().from(schema.aiProviderConfigs);
   return ok([...rows].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()));
 }
+
+/**
+ * SECURITY_ADMIN-only: a single configuration by id, for the admin UI's
+ * "test connection" action (Part 8 §5 -- J15's own admin flow: "config
+ * OpenAI; test; activate"). The gateway itself only ever needs the ACTIVE
+ * row (`getActiveAiProviderConfig`); testing needs to reach a specific
+ * DRAFT before it is ever activated, which that function can never return.
+ */
+export async function getAiProviderConfigById(
+  db: Db,
+  actor: PlatformAuthInput,
+  configId: string,
+): Promise<Result<AiProviderConfig, ServiceError>> {
+  if (!(await canPerformPlatformAction(db, actor, 'AI_SETTINGS_MANAGE'))) {
+    return err(serviceError('forbidden', 'security-admin permission is required'));
+  }
+  const config = first(
+    await db
+      .select()
+      .from(schema.aiProviderConfigs)
+      .where(eq(schema.aiProviderConfigs.id, configId))
+      .limit(1),
+  );
+  if (!config) return err(serviceError('not_found', 'configuration not found'));
+  return ok(config);
+}
+
+export interface RecordAiProviderConfigTestInput {
+  readonly actor: PlatformAuthInput;
+  readonly configId: string;
+  readonly ok: boolean;
+  readonly message: string;
+}
+
+/**
+ * Records the outcome of an admin-triggered synthetic connection test as an
+ * audit event (Part 8 §16: "record external API test request IDs without
+ * sensitive content"). The real provider call this records happens in
+ * `apps/web` (the composition root with adapter access, which this package
+ * deliberately never depends on) -- this only logs what already happened,
+ * it is never itself an authorization decision: the caller must already
+ * have confirmed `AI_SETTINGS_MANAGE` + step-up (via `getAiProviderConfigById`
+ * and its own step-up check) before ever making the real call this records,
+ * so `result` here is always `ALLOWED` -- whether the TEST ITSELF succeeded
+ * or failed lives in `metadata`, not `result` (which is reserved for the
+ * authorization decision, not the operation's own outcome).
+ */
+export async function recordAiProviderConfigTest(
+  db: Db,
+  input: RecordAiProviderConfigTestInput,
+): Promise<void> {
+  await appendAuditEvent(db, {
+    eventType: 'AI_PROVIDER_CONFIG_TESTED',
+    actorAccountId: input.actor.accountId,
+    method: 'MANUAL',
+    result: 'ALLOWED',
+    resourceType: 'ai_provider_config',
+    resourceId: input.configId,
+    metadata: { ok: input.ok, message: input.message },
+  });
+}

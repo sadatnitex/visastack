@@ -2500,6 +2500,59 @@ item gets its own requirements-ledger row once classified against the new direct
     real live evaluation runs against all three paid provider accounts,
     BLOCKED regardless of adapter completeness for the reason stated above.
     Full detail: `requirements-ledger.md` AI-03.
+    **Chunk 11 (this update) -- the synthetic connection test now exists,
+    closing the "test" step of J15's own named admin journey ("config
+    OpenAI; test; activate") left open since Chunk 7.** Two new
+    SECURITY_ADMIN-only functions in `ai-provider-config.ts`:
+    `getAiProviderConfigById` (fetches one configuration row by id -- the
+    gateway's existing `getActiveAiProviderConfig` can only ever return the
+    ACTIVE row, but testing must reach a specific DRAFT before it is ever
+    activated) and `recordAiProviderConfigTest` (writes a single
+    `AI_PROVIDER_CONFIG_TESTED` audit event). A deliberate distinction
+    reasoned through explicitly while writing this chunk: `result` on that
+    event is always `ALLOWED`, never `DENIED`, even when the connection test
+    itself failed -- `result` is this codebase's own reserved field for the
+    AUTHORIZATION decision (was the actor allowed to attempt this at all),
+    which by construction already succeeded before the real call was ever
+    made; whether the test itself succeeded or failed lives in `metadata`
+    instead, alongside a short, non-sensitive message.
+    `apps/web/src/lib/ai.ts` gained a new `resolveTestAdapter` function,
+    mirroring `resolveAiExtractor`'s fail-closed rules (an unimplemented
+    provider or a
+    missing encryption port returns undefined, never a throw) but taking the
+    caller's already-fetched config row directly instead of reading whatever
+    is ACTIVE, and returning no `limits` at all -- a synthetic test never
+    touches `runExtraction`'s budget, cache, or kill-switch machinery, and
+    never writes a row to `ai_extraction_runs`, since it is not a billable
+    extraction run. The new `testAiProviderConfigAction`
+    (`ai-settings/actions.ts`) is gated exactly like every other action on
+    this page (SECURITY_ADMIN + step-up, a new distinct
+    `AI_SETTINGS_TEST_CONNECTION` step-up action id) and calls the resolved
+    adapter's `.extract()` directly against fixed, synthetic content, never a
+    customer document -- the directive's own explicit instruction for this
+    exact step. A new `TestConnectionButton` (`ai-settings/forms.tsx`) is
+    available on any configuration row whose key has not been revoked (the
+    same eligibility bar `RevokeKeyButton` itself already uses), including a
+    DRAFT that has never been activated, matching J15's own ordering; unlike
+    activate/rollback/disable/revoke it needs no confirmation dialog, since
+    it changes no configuration state at all.
+    Distinguished on purpose from the directive's OTHER named §5 mechanism,
+    the task-evaluation runner (running the full existing eval harness
+    against a candidate config before activation) -- that one depends on
+    AI-10 (generalizing the harness beyond OpenAI-only) landing first, so it
+    is correctly sequenced as its own later chunk, not bundled into this one.
+    5 new tests in `ai-provider-config.test.ts` (`getAiProviderConfigById`'s
+    happy/forbidden/not-found paths; `recordAiProviderConfigTest`'s audit
+    event verified by reading it back with `listRecentAuditEvents`, on both a
+    successful and a failed synthetic test outcome), 4 new tests in
+    `ai.test.ts` (`resolveTestAdapter` building directly from a DRAFT config
+    without ever consulting the ACTIVE row, building the matching adapter for
+    a non-OpenAI provider, and its two fail-closed paths). Full
+    `@visastack/services` suite (30/30 in `ai-provider-config.test.ts`),
+    full `apps/web` suite (195/195), repo-wide typecheck, Biome, and
+    production build all clean.
+    Only the task-evaluation runner (§5) now remains of AI-02's originally
+    named admin-journey scope. Full detail: `requirements-ledger.md` AI-02.
 independently confirmed findings; the missing PRD file is tracked as Blocker 1 in
 `assumptions-and-blockers.md` (now resolved) rather than here, since it blocked the
 programme rather than being a product defect.

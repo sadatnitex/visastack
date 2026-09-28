@@ -481,4 +481,57 @@ describe('resolveAiExtractor (Part 8 §5: the DB config becomes authoritative on
       expect(limits.budgetLimitUnits).toBe(2_000_000);
     });
   });
+
+  describe('resolveTestAdapter -- adapter for an admin "test connection" action against one specific config row (Part 8 §5 / J15: "config OpenAI; test; activate")', () => {
+    it('builds an adapter directly from a DRAFT config, never consulting the ACTIVE row', async () => {
+      revealAiProviderApiKey.mockResolvedValue('sk-from-db');
+      const { resolveTestAdapter } = await import('./ai');
+
+      const adapter = await resolveTestAdapter(
+        db,
+        encryption,
+        fakeConfig({ status: 'DRAFT', model: 'gpt-5-draft' }),
+      );
+
+      expect(adapter).toBeDefined();
+      expect(adapter?.cacheKeyComponents().model).toBe('gpt-5-draft');
+      expect(hasAnyAiProviderConfig).not.toHaveBeenCalled();
+      expect(getActiveAiProviderConfig).not.toHaveBeenCalled();
+    });
+
+    it('builds the matching adapter for a non-OpenAI provider (gemini)', async () => {
+      revealAiProviderApiKey.mockResolvedValue('AIza-from-db');
+      const { resolveTestAdapter } = await import('./ai');
+
+      const adapter = await resolveTestAdapter(
+        db,
+        encryption,
+        fakeConfig({ status: 'DRAFT', provider: 'gemini', model: 'gemini-3.8-flash' }),
+      );
+
+      expect(adapter?.cacheKeyComponents().model).toBe('gemini-3.8-flash');
+    });
+
+    it('returns undefined for an unimplemented provider, without ever decrypting the key', async () => {
+      const { resolveTestAdapter } = await import('./ai');
+
+      const adapter = await resolveTestAdapter(
+        db,
+        encryption,
+        fakeConfig({ status: 'DRAFT', provider: 'mistral' }),
+      );
+
+      expect(adapter).toBeUndefined();
+      expect(revealAiProviderApiKey).not.toHaveBeenCalled();
+    });
+
+    it('returns undefined when no encryption port is available', async () => {
+      const { resolveTestAdapter } = await import('./ai');
+
+      const adapter = await resolveTestAdapter(db, undefined, fakeConfig({ status: 'DRAFT' }));
+
+      expect(adapter).toBeUndefined();
+      expect(revealAiProviderApiKey).not.toHaveBeenCalled();
+    });
+  });
 });

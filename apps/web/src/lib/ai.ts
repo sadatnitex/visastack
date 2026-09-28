@@ -159,6 +159,29 @@ export async function resolveAiExtractor(
 }
 
 /**
+ * The adapter an admin-triggered synthetic connection test should use against
+ * a SPECIFIC config row (Part 8 §5 / J15's own admin journey: "config OpenAI;
+ * test; activate" -- testing happens BEFORE a config is ever ACTIVE, so this
+ * takes the config the caller already fetched by id via
+ * `getAiProviderConfigById`, never the active one `resolveAiExtractor` reads).
+ * Mirrors that function's fail-closed rules -- an unimplemented provider or a
+ * missing encryption port returns undefined, never a throw -- but deliberately
+ * has no `limits`/budget return value: a synthetic test never touches
+ * `runExtraction`'s budget, cache, or kill-switch machinery, since it is not a
+ * billable extraction run (directive's own instruction: "do not use customer
+ * documents").
+ */
+export async function resolveTestAdapter(
+  db: Db,
+  encryption: KeyManagementPort | undefined,
+  config: AiProviderConfig,
+): Promise<AiExtractionPort | undefined> {
+  if (!encryption || !IMPLEMENTED_PROVIDERS.has(config.provider)) return undefined;
+  const apiKey = await revealAiProviderApiKey(db, encryption, config);
+  return buildAdapterForConfig(config, apiKey);
+}
+
+/**
  * Very rough $/1M-token blended rate used ONLY to translate the
  * operator-facing USD budget knobs (env contract, below) into the
  * token-based "cost units" the service layer's durable ledger tracks

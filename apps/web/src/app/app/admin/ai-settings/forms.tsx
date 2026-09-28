@@ -8,6 +8,7 @@ import {
   emergencyDisableAiProviderConfigAction,
   revokeAiProviderConfigKeyAction,
   rollbackAiProviderConfigAction,
+  testAiProviderConfigAction,
 } from './actions';
 
 const INITIAL: ActionState = { ok: true, message: '' };
@@ -196,6 +197,33 @@ export function CreateDraftConfigForm() {
         </button>
         <StatusMessage state={state} />
       </div>
+    </form>
+  );
+}
+
+/**
+ * Synthetic connection test (Part 8 §5 / J15's own admin journey: "config
+ * OpenAI; test; activate") -- fires a real, minimal call against this
+ * configuration's own credentials using fixed synthetic content, never a
+ * customer document. Safe on a DRAFT (the whole point: prove a key/model pair
+ * works before it can ever touch live traffic) or any other status, so unlike
+ * activate/rollback/disable/revoke this needs no confirmation dialog -- it
+ * changes no configuration state.
+ */
+export function TestConnectionButton({ configId }: { readonly configId: string }) {
+  const [state, formAction, pending] = useActionState(testAiProviderConfigAction, INITIAL);
+  return (
+    <form action={formAction}>
+      <input type="hidden" name="configId" value={configId} />
+      <button
+        type="submit"
+        className="btn btn-secondary"
+        style={{ padding: '0.3rem 0.85rem', fontSize: '0.8rem' }}
+        disabled={pending}
+      >
+        {pending ? 'Testing…' : 'Test connection'}
+      </button>
+      <StatusMessage state={state} />
     </form>
   );
 }

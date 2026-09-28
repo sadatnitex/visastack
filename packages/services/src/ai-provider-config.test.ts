@@ -13,12 +13,15 @@ import {
   createDraftAiProviderConfig,
   emergencyDisableAiProviderConfig,
   getActiveAiProviderConfig,
+  getAiProviderConfigById,
   isAiDispatchAllowed,
   listAiProviderConfigHistory,
+  recordAiProviderConfigTest,
   revealAiProviderApiKey,
   revokeAiProviderConfigKey,
   rollbackAiProviderConfig,
 } from './ai-provider-config';
+import { listRecentAuditEvents } from './audit';
 import type { Db } from './db';
 import { grantPlatformRole } from './platform-roles';
 import type { KeyManagementPort } from './ports';
@@ -535,5 +538,98 @@ describe('isAiDispatchAllowed -- the kill switch itself (Part 8 §5)', () => {
     const rolledBack = await rollbackAiProviderConfig(db, { actor, stepUpSatisfied: true });
     expect(isOk(rolledBack)).toBe(true);
     expect(await isAiDispatchAllowed(db)).toBe(true);
+  });
+});
+
+describe('getAiProviderConfigById (Part 8 §5 -- the admin "test connection" journey)', () => {
+  let db: Db;
+  beforeEach(async () => {
+    db = await freshDb();
+  });
+
+  it('returns a DRAFT config by id for a SECURITY_ADMIN, before it is ever activated', async () => {
+    const actor = await seedSecurityAdmin(db);
+    const created = await createDraftAiProviderConfig(
+      db,
+      draftInput(actor, { apiKey: 'sk-draft' }),
+    );
+    if (!isOk(created)) throw new Error('draft failed');
+
+    const found = await getAiProviderConfigById(db, actor, created.value.id);
+    expect(isOk(found)).toBe(true);
+    if (isOk(found)) {
+      expect(found.value.id).toBe(created.value.id);
+      expect(found.value.status).toBe('DRAFT');
+    }
+  });
+
+  it('refuses a stranger without SECURITY_ADMIN permission', async () => {
+    const actor = await seedSecurityAdmin(db);
+    const created = await createDraftAiProviderConfig(db, draftInput(actor));
+    if (!isOk(created)) throw new Error('draft failed');
+
+    const stranger = await seedStranger(db);
+    const refused = await getAiProviderConfigById(db, stranger, created.value.id);
+    expect(isErr(refused)).toBe(true);
+    if (isErr(refused)) expect(refused.error.code).toBe('forbidden');
+  });
+
+  it('returns not_found for a nonexistent id', async () => {
+    const actor = await seedSecurityAdmin(db);
+    const missing = await getAiProviderConfigById(
+      db,
+      actor,
+      '00000000-0000-0000-0000-000000000000',
+    );
+    expect(isErr(missing)).toBe(true);
+    if (isErr(missing)) expect(missing.error.code).toBe('not_found');
+  });
+});
+
+describe('recordAiProviderConfigTest (Part 8 §16 -- audit external test calls without sensitive content)', () => {
+  let db: Db;
+  beforeEach(async () => {
+    db = await freshDb();
+  });
+
+  it('records a successful synthetic connection test as an ALLOWED audit event', async () => {
+    const actor = await seedSecurityAdmin(db);
+    const created = await createDraftAiProviderConfig(db, draftInput(actor));
+    if (!isOk(created)) throw new Error('draft failed');
+
+    await recordAiProviderConfigTest(db, {
+      actor,
+      configId: created.value.id,
+      ok: true,
+      message: 'connection succeeded',
+    });
+
+    const events = await listRecentAuditEvents(db);
+    const event = events.find((entry) => entry.eventType === 'AI_PROVIDER_CONFIG_TESTED');
+    expect(event).toBeDefined();
+    expect(event?.result).toBe('ALLOWED');
+    expect(event?.actorAccountId).toBe(actor.accountId);
+    expect(event?.resourceType).toBe('ai_provider_config');
+    expect(event?.resourceId).toBe(created.value.id);
+    expect(event?.metadata).toEqual({ ok: true, message: 'connection succeeded' });
+  });
+
+  it('still records ALLOWED (the authorization outcome) even when the test itself failed', async () => {
+    const actor = await seedSecurityAdmin(db);
+    const created = await createDraftAiProviderConfig(db, draftInput(actor));
+    if (!isOk(created)) throw new Error('draft failed');
+
+    await recordAiProviderConfigTest(db, {
+      actor,
+      configId: created.value.id,
+      ok: false,
+      message: 'upstream_error: 500',
+    });
+
+    const events = await listRecentAuditEvents(db);
+    const event = events.find((entry) => entry.eventType === 'AI_PROVIDER_CONFIG_TESTED');
+    expect(event).toBeDefined();
+    expect(event?.result).toBe('ALLOWED');
+    expect(event?.metadata).toEqual({ ok: false, message: 'upstream_error: 500' });
   });
 });
