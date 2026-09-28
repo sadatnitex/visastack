@@ -637,6 +637,18 @@ export {
   totalAiCostUnits,
 } from './ai';
 
+export type {
+  AiOcrCacheKeyComponents,
+  AiOcrContentType,
+  AiOcrErrorCode,
+  AiOcrInput,
+  AiOcrOutcome,
+  AiOcrPort,
+  AiOcrResult,
+  AiOcrUsage,
+  OcrReviewIssueCode,
+} from './ocr';
+
 export {
   type ActivateAiProviderConfigInput,
   type AiProviderConfig,
