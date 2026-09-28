@@ -500,11 +500,23 @@ export async function getActiveAiProviderConfig(db: Db): Promise<AiProviderConfi
  * defeating the entire point of an emergency disable.
  */
 export async function isAiDispatchAllowed(db: Db): Promise<boolean> {
+  if (!(await hasAnyAiProviderConfig(db))) return true;
+  return (await getActiveAiProviderConfig(db)) !== undefined;
+}
+
+/**
+ * Whether an admin has ever touched AI settings at all -- true the instant a
+ * single row exists in `ai_provider_configs`, DRAFT or otherwise. Shared by
+ * `isAiDispatchAllowed` above and by `apps/web/src/lib/ai.ts`'s
+ * `resolveAiExtractor`, which both need the identical "has the DB config
+ * system been engaged with at all, or is this still a fresh install" answer
+ * before deciding whether the DB or the legacy env vars are authoritative.
+ */
+export async function hasAnyAiProviderConfig(db: Db): Promise<boolean> {
   const anyConfigured = first(
     await db.select({ id: schema.aiProviderConfigs.id }).from(schema.aiProviderConfigs).limit(1),
   );
-  if (!anyConfigured) return true;
-  return (await getActiveAiProviderConfig(db)) !== undefined;
+  return anyConfigured !== undefined;
 }
 
 /**

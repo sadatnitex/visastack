@@ -1,6 +1,13 @@
 import 'server-only';
 import { OpenAiExtractionAdapter } from '@visastack/adapters';
-import type { AiExtractionPort } from '@visastack/services';
+import {
+  type AiExtractionPort,
+  type Db,
+  type KeyManagementPort,
+  getActiveAiProviderConfig,
+  hasAnyAiProviderConfig,
+  revealAiProviderApiKey,
+} from '@visastack/services';
 
 /** Variable-keyed env read (satisfies both TS index-signature and Biome rules). */
 function readEnv(name: string): string | undefined {
@@ -46,6 +53,47 @@ export function createAiExtractor(): AiExtractionPort | undefined {
     ...(reasoningEffort ? { reasoningEffort } : {}),
     storeResponses: readEnv('OPENAI_STORE_RESPONSES') === 'true',
   });
+}
+
+/**
+ * The adapter a live extraction call should actually use (Part 8 §5:
+ * once an admin has ever engaged with AI Settings at all, the DB becomes
+ * authoritative for what runs, not just whether anything runs -- see
+ * `isAiDispatchAllowed`'s identical "has the table ever been touched" rule,
+ * which this mirrors so the two functions can never disagree about which
+ * world we're in).
+ *
+ * On a fresh install where `ai_provider_configs` is still empty, this is
+ * `createAiExtractor()` unchanged -- today's 100% env-var behavior,
+ * completely unaffected. The instant a first row exists, only a genuinely
+ * ACTIVE config can produce an adapter here, and only for the one provider
+ * this codebase actually implements (`openai`) with a working encryption
+ * port to decrypt its key -- anything else (nothing ACTIVE, an
+ * unimplemented provider, no KMS configured) returns undefined rather than
+ * silently falling back to stale env vars, matching the kill switch's own
+ * fail-closed posture once the DB path is in play.
+ *
+ * `storeResponses`/`projectId` have no DB-config equivalent yet (Part 8 §5's
+ * "set limits"/"set reviewed data policy" journey doesn't cover them) --
+ * `storeResponses` defaults to `false` (privacy minimization) rather than
+ * inheriting whatever `OPENAI_STORE_RESPONSES` happens to be set to.
+ */
+export async function resolveAiExtractor(
+  db: Db,
+  encryption: KeyManagementPort | undefined,
+): Promise<AiExtractionPort | undefined> {
+  if (await hasAnyAiProviderConfig(db)) {
+    const config = await getActiveAiProviderConfig(db);
+    if (!config || config.provider !== 'openai' || !encryption) return undefined;
+    const apiKey = await revealAiProviderApiKey(db, encryption, config);
+    return new OpenAiExtractionAdapter({
+      apiKey,
+      model: config.model,
+      ...(config.reasoningEffort ? { reasoningEffort: config.reasoningEffort } : {}),
+      storeResponses: false,
+    });
+  }
+  return createAiExtractor();
 }
 
 /**

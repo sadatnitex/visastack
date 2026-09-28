@@ -35,7 +35,7 @@ import {
   aiMaxConcurrentCalls,
   aiMaxPagesPerDocument,
   aiPerDocumentBudgetLimitUnits,
-  createAiExtractor,
+  resolveAiExtractor,
 } from '../../../../lib/ai';
 import { triggerIntakeWorker } from '../../../../lib/jobs';
 import { profileField } from '../../../../lib/profile-fields';
@@ -408,7 +408,7 @@ export async function runAiExtractionAction(
     if (!(await assertOwned(db, accountId, applicantId))) {
       return { ok: false, message: 'Not authorized.' } satisfies ActionState;
     }
-    const ai = createAiExtractor();
+    const ai = await resolveAiExtractor(db, createKeyManagementPort());
     if (!ai) {
       return { ok: false, message: 'AI extraction is not configured.' } satisfies ActionState;
     }
