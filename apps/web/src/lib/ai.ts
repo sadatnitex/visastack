@@ -2,6 +2,7 @@ import 'server-only';
 import { OpenAiExtractionAdapter } from '@visastack/adapters';
 import {
   type AiExtractionPort,
+  type AiProviderConfig,
   type Db,
   type KeyManagementPort,
   getActiveAiProviderConfig,
@@ -55,23 +56,44 @@ export function createAiExtractor(): AiExtractionPort | undefined {
   });
 }
 
+/** The six operational caps below, resolved from whichever source currently governs them (env vars, or an ACTIVE DB config's own columns). */
+export interface AiLimits {
+  readonly budgetLimitUnits: number;
+  readonly perDocumentBudgetLimitUnits: number;
+  readonly maxAttemptsPerDocument: number;
+  readonly maxPagesPerDocument: number;
+  readonly cacheMaxAgeDays: number;
+  readonly maxConcurrentCalls: number;
+}
+
+export interface ResolvedAiExtractor {
+  readonly ai: AiExtractionPort;
+  readonly limits: AiLimits;
+}
+
 /**
- * The adapter a live extraction call should actually use (Part 8 §5:
- * once an admin has ever engaged with AI Settings at all, the DB becomes
- * authoritative for what runs, not just whether anything runs -- see
- * `isAiDispatchAllowed`'s identical "has the table ever been touched" rule,
- * which this mirrors so the two functions can never disagree about which
- * world we're in).
+ * The adapter (and its governing limits) a live extraction call should
+ * actually use (Part 8 §5: once an admin has ever engaged with AI Settings
+ * at all, the DB becomes authoritative for what runs, not just whether
+ * anything runs -- see `isAiDispatchAllowed`'s identical "has the table ever
+ * been touched" rule, which this mirrors so the two functions can never
+ * disagree about which world we're in).
  *
  * On a fresh install where `ai_provider_configs` is still empty, this is
- * `createAiExtractor()` unchanged -- today's 100% env-var behavior,
- * completely unaffected. The instant a first row exists, only a genuinely
- * ACTIVE config can produce an adapter here, and only for the one provider
- * this codebase actually implements (`openai`) with a working encryption
- * port to decrypt its key -- anything else (nothing ACTIVE, an
- * unimplemented provider, no KMS configured) returns undefined rather than
- * silently falling back to stale env vars, matching the kill switch's own
- * fail-closed posture once the DB path is in play.
+ * `createAiExtractor()` unchanged plus the six env-var limit functions below
+ * -- today's 100% env-var behavior, completely unaffected. The instant a
+ * first row exists, only a genuinely ACTIVE config can produce an adapter
+ * here, and only for the one provider this codebase actually implements
+ * (`openai`) with a working encryption port to decrypt its key -- anything
+ * else (nothing ACTIVE, an unimplemented provider, no KMS configured)
+ * returns undefined rather than silently falling back to stale env vars,
+ * matching the kill switch's own fail-closed posture once the DB path is in
+ * play. When it does resolve, its `limits` come from that SAME config row
+ * (never a second, separately-timed read) -- each of the five optional
+ * columns falls back to its own env-var default individually when NULL on
+ * that row, since Part 8 §5's admin form lets an operator leave any of them
+ * unset; `budgetLimitUnits` alone is never NULL (the schema requires it at
+ * creation).
  *
  * `storeResponses`/`projectId` have no DB-config equivalent yet (Part 8 §5's
  * "set limits"/"set reviewed data policy" journey doesn't cover them) --
@@ -81,19 +103,21 @@ export function createAiExtractor(): AiExtractionPort | undefined {
 export async function resolveAiExtractor(
   db: Db,
   encryption: KeyManagementPort | undefined,
-): Promise<AiExtractionPort | undefined> {
+): Promise<ResolvedAiExtractor | undefined> {
   if (await hasAnyAiProviderConfig(db)) {
     const config = await getActiveAiProviderConfig(db);
     if (!config || config.provider !== 'openai' || !encryption) return undefined;
     const apiKey = await revealAiProviderApiKey(db, encryption, config);
-    return new OpenAiExtractionAdapter({
+    const ai = new OpenAiExtractionAdapter({
       apiKey,
       model: config.model,
       ...(config.reasoningEffort ? { reasoningEffort: config.reasoningEffort } : {}),
       storeResponses: false,
     });
+    return { ai, limits: limitsFromConfig(config) };
   }
-  return createAiExtractor();
+  const ai = createAiExtractor();
+  return ai ? { ai, limits: limitsFromConfig(undefined) } : undefined;
 }
 
 /**
@@ -173,4 +197,31 @@ export function aiCacheMaxAgeDays(): number {
 /** Most AI extraction calls allowed in flight platform-wide at once (env: AI_MAX_CONCURRENT_CALLS). */
 export function aiMaxConcurrentCalls(): number {
   return readPositiveIntEnv('AI_MAX_CONCURRENT_CALLS', DEFAULT_MAX_CONCURRENT_CALLS);
+}
+
+/** `config` is `undefined` on a fresh install; each field otherwise falls back to its own env-var default individually when NULL on that row (an admin may leave any of the five optional limits unset). */
+function limitsFromConfig(config: AiProviderConfig | undefined): AiLimits {
+  return {
+    budgetLimitUnits: config?.budgetLimitUnits ?? aiBudgetLimitUnits(),
+    perDocumentBudgetLimitUnits:
+      config?.perDocumentBudgetLimitUnits ?? aiPerDocumentBudgetLimitUnits(),
+    maxAttemptsPerDocument: config?.maxAttemptsPerDocument ?? aiMaxAttemptsPerDocument(),
+    maxPagesPerDocument: config?.maxPagesPerDocument ?? aiMaxPagesPerDocument(),
+    cacheMaxAgeDays: config?.cacheMaxAgeDays ?? aiCacheMaxAgeDays(),
+    maxConcurrentCalls: config?.maxConcurrentCalls ?? aiMaxConcurrentCalls(),
+  };
+}
+
+/**
+ * Read-only view of the six operational limits currently in effect --
+ * for admin display (e.g. the platform-admin spend meter) where no adapter
+ * is being built, so `resolveAiExtractor`'s own single-config-read discipline
+ * doesn't apply. Shares the identical "authoritative once touched" rule (via
+ * the same `hasAnyAiProviderConfig` check) so a display value can never
+ * silently disagree with what `resolveAiExtractor` actually dispatched with
+ * moments earlier.
+ */
+export async function resolveAiLimits(db: Db): Promise<AiLimits> {
+  if (!(await hasAnyAiProviderConfig(db))) return limitsFromConfig(undefined);
+  return limitsFromConfig(await getActiveAiProviderConfig(db));
 }

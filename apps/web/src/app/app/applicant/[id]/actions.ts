@@ -28,15 +28,7 @@ import {
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { after } from 'next/server';
-import {
-  aiBudgetLimitUnits,
-  aiCacheMaxAgeDays,
-  aiMaxAttemptsPerDocument,
-  aiMaxConcurrentCalls,
-  aiMaxPagesPerDocument,
-  aiPerDocumentBudgetLimitUnits,
-  resolveAiExtractor,
-} from '../../../../lib/ai';
+import { resolveAiExtractor } from '../../../../lib/ai';
 import { triggerIntakeWorker } from '../../../../lib/jobs';
 import { profileField } from '../../../../lib/profile-fields';
 import { createKeyManagementPort } from '../../../../lib/providers';
@@ -408,8 +400,8 @@ export async function runAiExtractionAction(
     if (!(await assertOwned(db, accountId, applicantId))) {
       return { ok: false, message: 'Not authorized.' } satisfies ActionState;
     }
-    const ai = await resolveAiExtractor(db, createKeyManagementPort());
-    if (!ai) {
+    const resolved = await resolveAiExtractor(db, createKeyManagementPort());
+    if (!resolved) {
       return { ok: false, message: 'AI extraction is not configured.' } satisfies ActionState;
     }
     const text = await getLatestExtractedText(db, documentVersionId);
@@ -419,17 +411,17 @@ export async function runAiExtractionAction(
         message: 'No extracted text available yet for this document.',
       } satisfies ActionState;
     }
-    const run = await runExtraction(db, ai, {
+    const run = await runExtraction(db, resolved.ai, {
       actorAccountId: accountId,
       applicantId,
       documentVersionId,
       text,
-      budgetLimitUnits: aiBudgetLimitUnits(),
-      perDocumentBudgetLimitUnits: aiPerDocumentBudgetLimitUnits(),
-      maxAttemptsPerDocument: aiMaxAttemptsPerDocument(),
-      maxPagesPerDocument: aiMaxPagesPerDocument(),
-      cacheMaxAgeDays: aiCacheMaxAgeDays(),
-      maxConcurrentCalls: aiMaxConcurrentCalls(),
+      budgetLimitUnits: resolved.limits.budgetLimitUnits,
+      perDocumentBudgetLimitUnits: resolved.limits.perDocumentBudgetLimitUnits,
+      maxAttemptsPerDocument: resolved.limits.maxAttemptsPerDocument,
+      maxPagesPerDocument: resolved.limits.maxPagesPerDocument,
+      cacheMaxAgeDays: resolved.limits.cacheMaxAgeDays,
+      maxConcurrentCalls: resolved.limits.maxConcurrentCalls,
       killSwitchCheck: () => isAiDispatchAllowed(db),
     });
     if (!run.ok) return { ok: false, message: run.error.message } satisfies ActionState;

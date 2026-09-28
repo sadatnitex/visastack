@@ -2293,6 +2293,47 @@ item gets its own requirements-ledger row once classified against the new direct
     suite (184/184, including `ai.test.ts`'s existing coverage of the now-
     exported `usdToUnits`), and Biome clean.
     Full detail: `requirements-ledger.md` AI-02.
+    **Chunk 8 (this update) -- the six persisted limit fields now actually
+    govern dispatch (AI-02, closing the gap named at the end of Chunks 6/7).**
+    The create-draft form (Chunk 7) already collected and persisted budget,
+    per-document budget, max attempts, max pages, cache age, and max
+    concurrent calls onto each `ai_provider_configs` row, but nothing at
+    runtime read them back -- `ai.ts`'s six env-var cap functions stayed
+    100% authoritative even once a config was genuinely ACTIVE, so
+    activating a config with a tighter or looser budget had zero real
+    effect. Traced every call site of those six functions first (only two:
+    `runAiExtractionAction`'s `runExtraction(...)` call, and the admin
+    dashboard's AI-spend meter -- both already inside a `withSession`
+    callback with `db` in scope, so the blast radius was exactly these two
+    reads, not a wide sync-to-async cascade). `resolveAiExtractor` (`ai.ts`)
+    now returns `{ ai, limits }` instead of a bare adapter: the SAME ACTIVE
+    config row it already fetches to build the adapter is reused to resolve
+    `limits` too (never a second, separately-timed query, which would risk
+    the adapter and its limits coming from two different rows if an admin
+    activated/rolled back between reads). Each of the five optional columns
+    (all but `budgetLimitUnits`, which the schema requires) falls back to
+    its own env-var default individually when NULL on that row, since an
+    admin may leave any of them unset when creating a draft. New
+    `resolveAiLimits(db)` gives the same resolution as a standalone,
+    read-only call for display contexts with no adapter to build (the admin
+    spend meter), sharing the identical `hasAnyAiProviderConfig`
+    "authoritative once touched" rule so a displayed number can never
+    silently disagree with what dispatch actually used moments earlier.
+    `runAiExtractionAction` (`apps/web/src/app/app/applicant/[id]/actions.ts`)
+    now reads `resolved.limits.*` instead of calling the six env functions
+    directly, removing that import entirely. The admin dashboard's AI
+    Gateway spend meter now shows the ACTIVE config's own budget as its cap
+    once one exists (previously always the env-var figure regardless of
+    what was ACTIVE); its warning threshold stays env-var-only since the
+    schema has no per-configuration warning column -- stated in the page's
+    own copy, not left implicit. 8 new/updated tests in `ai.test.ts`
+    (`resolveAiExtractor`'s limits resolved from a fresh install, from an
+    ACTIVE config with every optional column NULL falling back individually,
+    and from an ACTIVE config with every column set; a new
+    `resolveAiLimits` describe block covering the same three states for the
+    read-only path). Full `apps/web` suite (189/189), repo-wide typecheck,
+    Biome, and production build all clean.
+    Full detail: `requirements-ledger.md` AI-02.
 independently confirmed findings; the missing PRD file is tracked as Blocker 1 in
 `assumptions-and-blockers.md` (now resolved) rather than here, since it blocked the
 programme rather than being a product defect.

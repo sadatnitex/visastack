@@ -275,11 +275,22 @@ describe('resolveAiExtractor (Part 8 §5: the DB config becomes authoritative on
     setEnv('OPENAI_API_KEY', 'sk-env-test');
     const { resolveAiExtractor } = await import('./ai');
 
-    const extractor = await resolveAiExtractor(db, encryption);
+    const resolved = await resolveAiExtractor(db, encryption);
 
-    expect(extractor).toBeDefined();
+    expect(resolved).toBeDefined();
     expect(getActiveAiProviderConfig).not.toHaveBeenCalled();
     expect(revealAiProviderApiKey).not.toHaveBeenCalled();
+    // The pilot env-var defaults (no overrides set) -- proves the fresh-
+    // install path resolves limits from env vars, matching the "AI cost and
+    // volume caps" describe block's own established defaults above.
+    expect(resolved?.limits).toEqual({
+      budgetLimitUnits: 2_000_000,
+      perDocumentBudgetLimitUnits: 50_000,
+      maxAttemptsPerDocument: 3,
+      maxPagesPerDocument: 25,
+      cacheMaxAgeDays: 30,
+      maxConcurrentCalls: 5,
+    });
   });
 
   it("builds the adapter from the ACTIVE DB config's own provider/model, ignoring env vars entirely", async () => {
@@ -291,16 +302,63 @@ describe('resolveAiExtractor (Part 8 §5: the DB config becomes authoritative on
     // No env vars set at all (beforeEach clears them) -- proves this path never reads them.
     const { resolveAiExtractor } = await import('./ai');
 
-    const extractor = await resolveAiExtractor(db, encryption);
+    const resolved = await resolveAiExtractor(db, encryption);
 
-    expect(extractor).toBeDefined();
-    expect(extractor?.cacheKeyComponents().model).toBe('gpt-5-db-configured');
-    expect(extractor?.cacheKeyComponents().reasoningEffort).toBe('high');
+    expect(resolved).toBeDefined();
+    expect(resolved?.ai.cacheKeyComponents().model).toBe('gpt-5-db-configured');
+    expect(resolved?.ai.cacheKeyComponents().reasoningEffort).toBe('high');
     expect(revealAiProviderApiKey).toHaveBeenCalledWith(
       db,
       encryption,
       expect.objectContaining({ id: 'config-1' }),
     );
+  });
+
+  it("resolves limits from the ACTIVE config's own columns, falling back to pilot env defaults per-field when a column is NULL", async () => {
+    hasAnyAiProviderConfig.mockResolvedValue(true);
+    getActiveAiProviderConfig.mockResolvedValue(
+      fakeConfig({ budgetLimitUnits: 999_000 }), // every other limit column left null (fakeConfig's own default)
+    );
+    revealAiProviderApiKey.mockResolvedValue('sk-from-db');
+    const { resolveAiExtractor } = await import('./ai');
+
+    const resolved = await resolveAiExtractor(db, encryption);
+
+    expect(resolved?.limits).toEqual({
+      budgetLimitUnits: 999_000, // the ACTIVE row's own required column
+      perDocumentBudgetLimitUnits: 50_000, // null on the row -> pilot env default
+      maxAttemptsPerDocument: 3,
+      maxPagesPerDocument: 25,
+      cacheMaxAgeDays: 30,
+      maxConcurrentCalls: 5,
+    });
+  });
+
+  it("resolves every limit from the ACTIVE config's own columns when none are NULL", async () => {
+    hasAnyAiProviderConfig.mockResolvedValue(true);
+    getActiveAiProviderConfig.mockResolvedValue(
+      fakeConfig({
+        budgetLimitUnits: 999_000,
+        perDocumentBudgetLimitUnits: 12_000,
+        maxAttemptsPerDocument: 7,
+        maxPagesPerDocument: 40,
+        cacheMaxAgeDays: 3,
+        maxConcurrentCalls: 9,
+      }),
+    );
+    revealAiProviderApiKey.mockResolvedValue('sk-from-db');
+    const { resolveAiExtractor } = await import('./ai');
+
+    const resolved = await resolveAiExtractor(db, encryption);
+
+    expect(resolved?.limits).toEqual({
+      budgetLimitUnits: 999_000,
+      perDocumentBudgetLimitUnits: 12_000,
+      maxAttemptsPerDocument: 7,
+      maxPagesPerDocument: 40,
+      cacheMaxAgeDays: 3,
+      maxConcurrentCalls: 9,
+    });
   });
 
   it('returns undefined once any config exists but none is ACTIVE (kill switch engaged), even with env vars fully configured', async () => {
@@ -336,5 +394,45 @@ describe('resolveAiExtractor (Part 8 §5: the DB config becomes authoritative on
 
     expect(extractor).toBeUndefined();
     expect(revealAiProviderApiKey).not.toHaveBeenCalled();
+  });
+
+  describe('resolveAiLimits -- read-only view of the currently governing caps, for admin display', () => {
+    it('returns the pilot env defaults on a fresh install', async () => {
+      hasAnyAiProviderConfig.mockResolvedValue(false);
+      const { resolveAiLimits } = await import('./ai');
+
+      const limits = await resolveAiLimits(db);
+
+      expect(limits).toEqual({
+        budgetLimitUnits: 2_000_000,
+        perDocumentBudgetLimitUnits: 50_000,
+        maxAttemptsPerDocument: 3,
+        maxPagesPerDocument: 25,
+        cacheMaxAgeDays: 30,
+        maxConcurrentCalls: 5,
+      });
+      expect(getActiveAiProviderConfig).not.toHaveBeenCalled();
+    });
+
+    it("returns the ACTIVE config's own budget, ignoring env vars entirely", async () => {
+      hasAnyAiProviderConfig.mockResolvedValue(true);
+      getActiveAiProviderConfig.mockResolvedValue(fakeConfig({ budgetLimitUnits: 999_000 }));
+      setEnv('AI_PILOT_MONTHLY_HARD_LIMIT_USD', '5');
+      const { resolveAiLimits } = await import('./ai');
+
+      const limits = await resolveAiLimits(db);
+
+      expect(limits.budgetLimitUnits).toBe(999_000);
+    });
+
+    it('falls back to the pilot env defaults once any config exists but none is ACTIVE (kill switch engaged) -- there is no more specific number to show', async () => {
+      hasAnyAiProviderConfig.mockResolvedValue(true);
+      getActiveAiProviderConfig.mockResolvedValue(undefined);
+      const { resolveAiLimits } = await import('./ai');
+
+      const limits = await resolveAiLimits(db);
+
+      expect(limits.budgetLimitUnits).toBe(2_000_000);
+    });
   });
 });

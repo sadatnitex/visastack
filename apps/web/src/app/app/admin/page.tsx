@@ -19,7 +19,7 @@ import {
 } from '@visastack/services';
 import Link from 'next/link';
 import { hasPlatformPermission, isPlatformAdmin, isPlatformOwnerAccount } from '../../../lib/admin';
-import { aiBudgetLimitUnits, aiWarningLimitUnits, unitsToUsd } from '../../../lib/ai';
+import { aiWarningLimitUnits, resolveAiLimits, unitsToUsd } from '../../../lib/ai';
 import { evaluateCommercialReadiness } from '../../../lib/commercial-readiness';
 import { getDeploymentMode } from '../../../lib/deployment-mode';
 import { withSession } from '../../../lib/session';
@@ -86,6 +86,7 @@ export default async function AdminPage() {
       invitations,
       canManageComplaints,
       canManageAiSettings,
+      aiLimits,
     ] = await Promise.all([
       getRetentionPolicies(db),
       listActiveLegalHolds(db),
@@ -104,6 +105,7 @@ export default async function AdminPage() {
       listInvitations(db),
       hasPlatformPermission(db, { accountId, email }, 'COMPLAINT_MANAGE'),
       hasPlatformPermission(db, { accountId, email }, 'AI_SETTINGS_MANAGE'),
+      resolveAiLimits(db),
     ]);
     const deploymentMode = getDeploymentMode();
     // Finding #35 (post-programme defect register): the full commercial-
@@ -140,6 +142,7 @@ export default async function AdminPage() {
       quota: loadUploadQuotaConfig(),
       canManageComplaints,
       canManageAiSettings,
+      aiLimits,
     };
   });
 
@@ -634,11 +637,14 @@ export default async function AdminPage() {
             <p className="card-body" style={{ marginBottom: '1.25rem' }}>
               Lifetime-to-date spend against the configured pilot cap (never resets automatically —
               raising the limit is a deliberate operator action, not a monthly rollover). A cache
-              hit costs nothing and does not add to this total.
+              hit costs nothing and does not add to this total. The cap shown here is whichever
+              currently governs dispatch -- an ACTIVE AI Gateway configuration's own budget once one
+              exists, environment variables otherwise; the warning threshold has no
+              per-configuration equivalent yet and always comes from the environment.
             </p>
             {(() => {
               const usedUsd = unitsToUsd(data.aiCostUnits);
-              const limitUsd = unitsToUsd(aiBudgetLimitUnits());
+              const limitUsd = unitsToUsd(data.aiLimits.budgetLimitUnits);
               const warnUsd = unitsToUsd(aiWarningLimitUnits());
               const fraction = limitUsd > 0 ? Math.min(1, usedUsd / limitUsd) : 0;
               const tone =
