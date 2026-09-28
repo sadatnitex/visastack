@@ -16,6 +16,7 @@ import {
   getAiProviderConfigById,
   isAiDispatchAllowed,
   listAiProviderConfigHistory,
+  recordAiProviderConfigEvaluation,
   recordAiProviderConfigTest,
   revealAiProviderApiKey,
   revokeAiProviderConfigKey,
@@ -631,5 +632,76 @@ describe('recordAiProviderConfigTest (Part 8 §16 -- audit external test calls w
     expect(event).toBeDefined();
     expect(event?.result).toBe('ALLOWED');
     expect(event?.metadata).toEqual({ ok: false, message: 'upstream_error: 500' });
+  });
+});
+
+describe('recordAiProviderConfigEvaluation (Part 8 §5 -- the admin "run task evaluation" journey step)', () => {
+  let db: Db;
+  beforeEach(async () => {
+    db = await freshDb();
+  });
+
+  function evaluationInput(
+    actor: Awaited<ReturnType<typeof seedSecurityAdmin>>,
+    configId: string,
+    overrides?: Partial<{ passed: boolean; anyCaseErrored: boolean }>,
+  ) {
+    return {
+      actor,
+      configId,
+      passed: overrides?.passed ?? true,
+      caseCount: 13,
+      precision: 0.92,
+      recall: 0.81,
+      hallucinationRate: 0.02,
+      evidenceAccuracy: 0.95,
+      promptInjectionResisted: true,
+      anyCaseErrored: overrides?.anyCaseErrored ?? false,
+      totalCostUnits: 39,
+    };
+  }
+
+  it('records a passing task evaluation as an ALLOWED audit event carrying the full aggregate report', async () => {
+    const actor = await seedSecurityAdmin(db);
+    const created = await createDraftAiProviderConfig(db, draftInput(actor));
+    if (!isOk(created)) throw new Error('draft failed');
+
+    await recordAiProviderConfigEvaluation(db, evaluationInput(actor, created.value.id));
+
+    const events = await listRecentAuditEvents(db);
+    const event = events.find((entry) => entry.eventType === 'AI_PROVIDER_CONFIG_EVALUATED');
+    expect(event).toBeDefined();
+    expect(event?.result).toBe('ALLOWED');
+    expect(event?.actorAccountId).toBe(actor.accountId);
+    expect(event?.resourceType).toBe('ai_provider_config');
+    expect(event?.resourceId).toBe(created.value.id);
+    expect(event?.metadata).toEqual({
+      passed: true,
+      caseCount: 13,
+      precision: 0.92,
+      recall: 0.81,
+      hallucinationRate: 0.02,
+      evidenceAccuracy: 0.95,
+      promptInjectionResisted: true,
+      anyCaseErrored: false,
+      totalCostUnits: 39,
+    });
+  });
+
+  it('still records ALLOWED (the authorization outcome) even when the evaluation itself failed thresholds', async () => {
+    const actor = await seedSecurityAdmin(db);
+    const created = await createDraftAiProviderConfig(db, draftInput(actor));
+    if (!isOk(created)) throw new Error('draft failed');
+
+    await recordAiProviderConfigEvaluation(
+      db,
+      evaluationInput(actor, created.value.id, { passed: false, anyCaseErrored: true }),
+    );
+
+    const events = await listRecentAuditEvents(db);
+    const event = events.find((entry) => entry.eventType === 'AI_PROVIDER_CONFIG_EVALUATED');
+    expect(event).toBeDefined();
+    expect(event?.result).toBe('ALLOWED');
+    expect(event?.metadata).toMatchObject({ passed: false, anyCaseErrored: true });
   });
 });

@@ -614,3 +614,59 @@ export async function recordAiProviderConfigTest(
     metadata: { ok: input.ok, message: input.message },
   });
 }
+
+export interface RecordAiProviderConfigEvaluationInput {
+  readonly actor: PlatformAuthInput;
+  readonly configId: string;
+  readonly passed: boolean;
+  readonly caseCount: number;
+  readonly precision: number;
+  readonly recall: number;
+  readonly hallucinationRate: number;
+  readonly evidenceAccuracy: number;
+  readonly promptInjectionResisted: boolean;
+  readonly anyCaseErrored: boolean;
+  readonly totalCostUnits: number;
+}
+
+/**
+ * Records the outcome of an admin-triggered task evaluation as an audit
+ * event (Part 8 §5: "run task evaluation" -- the admin journey's own named
+ * step distinct from "run synthetic connection test," heavier-weight since
+ * it runs the full eval harness dataset rather than one synthetic call).
+ * Same audit-event shape and reasoning as `recordAiProviderConfigTest`
+ * immediately above: the real evaluation run happens in `apps/web` (the
+ * composition root with adapter and eval-harness access, which this package
+ * deliberately never depends on) -- this only logs what already happened.
+ * `result` is always `ALLOWED` for the identical reason `recordAiProviderConfigTest`
+ * documents (the caller has already confirmed `AI_SETTINGS_MANAGE` + step-up
+ * before ever running the real evaluation this records); whether the
+ * evaluation itself PASSED lives in `metadata`, never in `result`.
+ * `metadata` carries only the aggregate numeric report (never individual
+ * case proposals or document text) -- the same "audit without sensitive
+ * content" posture Part 8 §16 already established for the connection test.
+ */
+export async function recordAiProviderConfigEvaluation(
+  db: Db,
+  input: RecordAiProviderConfigEvaluationInput,
+): Promise<void> {
+  await appendAuditEvent(db, {
+    eventType: 'AI_PROVIDER_CONFIG_EVALUATED',
+    actorAccountId: input.actor.accountId,
+    method: 'MANUAL',
+    result: 'ALLOWED',
+    resourceType: 'ai_provider_config',
+    resourceId: input.configId,
+    metadata: {
+      passed: input.passed,
+      caseCount: input.caseCount,
+      precision: input.precision,
+      recall: input.recall,
+      hallucinationRate: input.hallucinationRate,
+      evidenceAccuracy: input.evidenceAccuracy,
+      promptInjectionResisted: input.promptInjectionResisted,
+      anyCaseErrored: input.anyCaseErrored,
+      totalCostUnits: input.totalCostUnits,
+    },
+  });
+}

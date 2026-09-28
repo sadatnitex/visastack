@@ -2612,6 +2612,105 @@ item gets its own requirements-ledger row once classified against the new direct
     shape directive §14 itself names ("adapter may be code-complete; but A19
     remains BLOCKED for that provider").
     Full detail: `requirements-ledger.md` AI-10.
+    **Chunk 13 (this update) -- the task-evaluation runner now exists,
+    closing the last of AI-02's originally named admin-journey scope.**
+    Part 8 §5 names "run task evaluation" as its own distinct admin step,
+    separate from "run synthetic connection test": one synthetic call versus
+    the full 13-case eval harness dataset. This chunk was correctly
+    sequenced after AI-10 (closed in Chunk 12), since it depends directly on
+    the harness being callable against an arbitrary already-built adapter,
+    not just OpenAI's.
+    New `runEvaluationSuite` (`packages/adapters/src/eval/harness.ts`) is
+    the shared case-by-case loop extracted once a second real caller needed
+    it: the standalone CLI script (`run.ts`) and this chunk's new admin
+    action both run the identical dataset against an already-built adapter
+    and need the identical aggregate report back. `run.ts` was refactored to
+    call this shared function (its own per-case console output preserved via
+    an optional callback parameter) rather than duplicating the loop --
+    confirmed behavior-preserving by re-running its own typecheck (it has no
+    dedicated test file, unchanged from every prior chunk that touched it).
+    `runEvaluationSuite`/`AggregateReport`/`CaseScore`/`passesThresholds`/
+    `PASS_THRESHOLDS` are now exported from `packages/adapters/src/index.ts`
+    -- the eval harness's dataset/scoring internals were never part of this
+    package's public API before, since only the CLI script needed them.
+    New SECURITY_ADMIN-only `recordAiProviderConfigEvaluation`
+    (`ai-provider-config.ts`), the identical shape and reasoning as Chunk
+    11's `recordAiProviderConfigTest`: `result` is always `ALLOWED` (the
+    caller has already confirmed permission + step-up before the real
+    evaluation run this records), whether the evaluation itself PASSED lives
+    in `metadata`, which carries only the aggregate numeric report -- case
+    count, precision, recall, hallucination rate, evidence accuracy, prompt-
+    injection resistance, whether any case errored, total cost units -- never
+    individual case proposals or document text, matching Part 8 §16's
+    "without sensitive content" posture the connection test already
+    established.
+    The new `runAiProviderConfigEvaluationAction` (`ai-settings/actions.ts`)
+    is gated exactly like the connection test (SECURITY_ADMIN + step-up, a
+    new distinct `AI_SETTINGS_RUN_EVALUATION` step-up action id) and, like
+    it, never touches `runExtraction`'s budget/cache/kill-switch machinery
+    and never writes to `ai_extraction_runs` -- an evaluation run is not a
+    billable extraction, and every case uses the harness's own fixed
+    synthetic documents, never a customer document. A real operational risk
+    was reasoned through and closed before this shipped, not left implicit:
+    13 sequential real provider calls, each individually capable of taking
+    up to the adapter's own 60s timeout, would not reliably complete within
+    a platform's default execution window. `ai-settings/page.tsx` now
+    exports `maxDuration = 300`, following this codebase's own established
+    convention for genuinely long-running server-side work (the
+    `/api/jobs/*` sweep routes already do the same, at 60s -- this action's
+    own worst-case is considerably larger, hence the higher figure); if the
+    actual deployment's plan caps lower, Vercel clamps to that ceiling
+    itself rather than erroring, so asking for more than might be honored is
+    safe.
+    A new `RunEvaluationButton` sits between `TestConnectionButton` and
+    `ActivateConfigButton` in the admin UI, matching J15's own "config;
+    test; activate" ordering (task evaluation being the journey's other
+    named pre-activation step); same eligibility bar as the connection test
+    (key not revoked), and the same "no confirmation dialog, changes no
+    configuration state" reasoning, though its own label names the case
+    count up front since it makes many more real provider calls than the
+    connection test's single one.
+    A genuine interpretive question was reasoned through explicitly, not
+    assumed: §5 also states "Prior active version remains until replacement
+    passes," immediately after the admin-journey bullet list that includes
+    "run task evaluation." Read as a HARD gate (activation mechanically
+    requires a stored passing evaluation), every deployment would need to
+    burn real paid provider credits before ever activating anything, in
+    every environment forever -- and J15's own acceptance-test sequence
+    ("config OpenAI; test; activate; Gemini; Claude; rollback...") does not
+    include a required evaluation step between "test" and "activate" either.
+    Read instead as describing the eligibility checks `activateAiProviderConfig`
+    already enforces atomically (data policy approved, key not revoked --
+    the prior ACTIVE row is provably untouched unless and until those pass,
+    which was already true before this chunk), "task evaluation" is an
+    available admin TOOL exactly like the connection test, not a mechanically
+    enforced prerequisite. This chunk implements the latter reading;
+    revisit if a future directive re-read or explicit user instruction says
+    otherwise.
+    5 new tests (`harness.test.ts`, a stub-adapter-based proof of
+    `runEvaluationSuite`'s own orchestration -- call count, per-case
+    argument shape, error aggregation, callback invocation -- deliberately
+    not re-proving `scoring.ts`'s own already-thorough scoring-correctness
+    coverage), 2 new tests in `ai-provider-config.test.ts`
+    (`recordAiProviderConfigEvaluation`'s audit-event shape on both a
+    passing and a failing evaluation outcome). No dedicated test file for
+    the new admin action, matching this codebase's established precedent
+    (identical reasoning to Chunk 11's `testAiProviderConfigAction`). Full
+    `@visastack/adapters` suite (216 passing, 2 pre-existing live-ClamAV
+    skips), full `@visastack/services` suite, full `apps/web` suite
+    (195/195), repo-wide typecheck, Biome, and production build all clean.
+    **Part 8 §5's entire originally-named admin journey is now
+    code-complete: choose provider, enter key, choose model, set limits, set
+    reviewed data policy, save DRAFT, run synthetic connection test, run
+    task evaluation, activate, rollback, emergency-disable.** Still
+    remaining for Part 8 as a whole: the SSRF-hardening module (AI-07 §7,
+    still blocked on a custom-endpoint field that doesn't exist); expanding
+    the eval dataset toward the directive's ">=50 representative
+    documents/pages per task set" target (today's 13 cases, one per
+    category); OCR/scanned-evidence support (§9); real live evaluation runs
+    against all three paid provider accounts, BLOCKED regardless of code
+    completeness (no real API key for any provider in this sandbox).
+    Full detail: `requirements-ledger.md` AI-02.
 independently confirmed findings; the missing PRD file is tracked as Blocker 1 in
 `assumptions-and-blockers.md` (now resolved) rather than here, since it blocked the
 programme rather than being a product defect.

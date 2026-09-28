@@ -59,6 +59,18 @@ export {
 
 export { GeminiExtractionAdapter, type GeminiExtractionAdapterOptions } from './gemini-extraction';
 
+export {
+  type EvaluationCaseCallback,
+  type EvaluationSuiteResult,
+  runEvaluationSuite,
+} from './eval/harness';
+export {
+  type AggregateReport,
+  type CaseScore,
+  PASS_THRESHOLDS,
+  passesThresholds,
+} from './eval/scoring';
+
 export { NullEmailPort, ResendEmailPort, type ResendEmailPortOptions } from './email';
 export { type SvixWebhookHeaders, verifyResendWebhookSignature } from './resend-webhook';
 
