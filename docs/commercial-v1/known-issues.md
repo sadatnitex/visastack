@@ -2553,6 +2553,65 @@ item gets its own requirements-ledger row once classified against the new direct
     production build all clean.
     Only the task-evaluation runner (§5) now remains of AI-02's originally
     named admin-journey scope. Full detail: `requirements-ledger.md` AI-02.
+    **Chunk 12 (this update) -- the evaluation harness
+    (`packages/adapters/src/eval/`) is now provider-generic, closing AI-10's
+    own "generalizing the eval harness beyond OpenAI-only" gap.** Investigated
+    the harness
+    first rather than assuming scope: `dataset.ts` (the 13 directive-named
+    document categories) and `scoring.ts` (precision/recall/hallucination/
+    evidence-accuracy/prompt-injection scoring) were ALREADY fully
+    provider-agnostic -- both operate purely on the generic
+    `AiExtractionPort`/`FieldProposal` shape every adapter shares, with zero
+    OpenAI-specific code. Only `run.ts`'s own adapter-construction switch was
+    ever OpenAI-only, so this chunk touched exactly that one file.
+    `run.ts` now reads a new `AI_EVAL_PROVIDER` env var (`openai` by default,
+    preserving every existing invocation's behavior unchanged), and builds
+    the matching real adapter from that provider's own env contract:
+    `ANTHROPIC_API_KEY`/`ANTHROPIC_MODEL_PRIMARY` for Anthropic,
+    `GEMINI_API_KEY`/`GEMINI_MODEL_PRIMARY` for Gemini -- new env var names
+    introduced specifically for this standalone CLI script, never added to
+    the root `.env.example` (that file documents the DEPLOYED APP's own
+    runtime contract, which stays OpenAI-only forever per Chunk 9/10's own
+    reasoning; this eval tool is a separate, manually-invoked dev/CI script
+    that has never been part of that contract). Directive §14 itself treats
+    each provider as needing its OWN pass/fail verdict ("each provider must
+    pass... all three real adapters must eventually be live-tested"), not one
+    combined score, so this deliberately runs exactly one provider per
+    invocation -- an operator (or a future CI matrix) runs it three times,
+    once per provider, each producing its own independent
+    `[ai-eval:<provider>] PASS`/`FAIL` report, matching J15's own "config
+    OpenAI; test; activate; Gemini; Claude" journey rather than inventing a
+    combined-score scheme the directive never asks for.
+    The missing-credentials skip path (exit 0, "NOT pilot-verified," never a
+    hard failure) is preserved exactly, now per-provider: an unset
+    `ANTHROPIC_API_KEY`/`GEMINI_API_KEY` skips cleanly with a message naming
+    which var is missing, the same honesty pattern this script has always
+    used for `OPENAI_API_KEY`.
+    No test file was added for `run.ts` itself, matching this codebase's own
+    established precedent for a real-credential-requiring CLI script (Part 8
+    AI-02 Chunk 7's own reasoning for `actions.ts`: "confirmed zero of this
+    codebase's existing files of this shape have one, since they wrap real
+    external access" -- `run.ts` has had zero tests since it was first built
+    in Chunk 1, for the identical reason, and this chunk's own new logic
+    (`resolveProvider`/`buildAdapter`) is a small, directly-reviewed switch
+    over three literal cases, not independently complex business logic).
+    Verified instead via a clean repo-wide typecheck, a clean Biome check,
+    and the full `@visastack/adapters` suite (211 passing, 2 pre-existing
+    live-ClamAV skips -- unchanged, since no test file changed). CI never
+    invokes this script at all (confirmed via a repo-wide search of
+    `.github/workflows/`), so this chunk carries zero CI-behavior risk.
+    **Deliberately NOT in this chunk, and still open:** the directive's own
+    ">=50 representative documents/pages per task set" target (today's
+    dataset has 13 cases total, one per directive-named category, not 50+
+    PER category -- a large, separate content-authoring effort, not a
+    generalization task); the task-evaluation runner itself (§5, gating
+    activation on an eval run -- still correctly sequenced as its own later
+    chunk now that its AI-10 dependency is closed); and real live-credentialed
+    runs against all three providers, still structurally BLOCKED in this
+    sandbox (no real API key for any of the three providers), the identical
+    shape directive §14 itself names ("adapter may be code-complete; but A19
+    remains BLOCKED for that provider").
+    Full detail: `requirements-ledger.md` AI-10.
 independently confirmed findings; the missing PRD file is tracked as Blocker 1 in
 `assumptions-and-blockers.md` (now resolved) rather than here, since it blocked the
 programme rather than being a product defect.
