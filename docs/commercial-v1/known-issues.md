@@ -2417,6 +2417,89 @@ item gets its own requirements-ledger row once classified against the new direct
     and task-evaluation runner (§5); OCR/scanned-evidence support (§9);
     generalizing the eval harness beyond OpenAI-only (AI-10).
     Full detail: `requirements-ledger.md` AI-03.
+    **Chunk 10 (this update) -- the Gemini adapter now exists, closing the
+    last of the three directive-named providers (AI-03).** Unlike the
+    Anthropic adapter, this one's protocol details were verified against
+    live Google documentation/ecosystem sources at implementation time
+    rather than assumed from the other two adapters' shape (the directive's
+    own §3 instruction) -- `ai.google.dev` itself is blocked by this
+    sandbox's own egress policy, so verification used web search of its
+    indexed content and current community/SDK sources instead of a direct
+    fetch, a materially weaker verification than a live docs fetch would
+    give and flagged as such in the adapter's own doc comment.
+    New `packages/adapters/src/gemini-extraction.ts`'s
+    `GeminiExtractionAdapter`, structurally parallel to the other two
+    (same `AiExtractionPort` contract, same privacy-minimization
+    discipline), calling `generativelanguage.googleapis.com`'s real
+    `generateContent` endpoint with the `x-goog-api-key` header (not a
+    bearer token, and not the key as a URL query parameter, which would leak
+    it into access logs). Structured output via Gemini's own native
+    `responseMimeType: "application/json"` + `responseSchema` --
+    architecturally closer to OpenAI's real structured-output mechanism than
+    Anthropic's forced-tool-use workaround, since Gemini has a genuine JSON
+    response mode. A real, verified (not guessed) known limitation shaped
+    the schema's own design: `responseSchema`'s documented `nullable: true`
+    keyword has real-world reports of causing HTTP 400s in practice, so this
+    adapter never sets it -- the four optional proposal fields are simply
+    left out of the schema's `required` array instead, and the response is
+    parsed defensively regardless of whether a given run omits, nulls, or
+    strings each one, exactly the same "never trust the payload" posture the
+    other two adapters already apply for their own reasons.
+    Another verified (not assumed) protocol difference: unlike OpenAI's/
+    Anthropic's clean 401/403 auth failures, an invalid Gemini API key comes
+    back as a plain HTTP 400 with `error.message` containing "API key not
+    valid" -- this exact, documented signature is checked to classify it as
+    `auth_failed`, distinguished from an ordinary malformed-request 400
+    (invalid model name, etc.) which correctly stays `upstream_error`; a
+    dedicated test proves both cases land on the right code rather than
+    collapsing an invalid-key 400 into the generic bucket. Refusal detection
+    covers both `promptFeedback.blockReason` (the whole prompt blocked
+    before any candidate is generated -- no candidate to inspect at all) and
+    any candidate `finishReason` other than `STOP` (SAFETY, RECITATION,
+    PROHIBITED_CONTENT, and any future content-filter reason this adapter
+    doesn't yet name individually, caught by treating anything non-normal as
+    a refusal rather than enumerating every possible value). `finishReason:
+    "MAX_TOKENS"` is `truncated`, checked before the refusal path.
+    Two more known limitations recorded rather than guessed at, the same
+    shape `AnthropicExtractionAdapter` already established: `storeResponses`
+    (no per-call retention toggle on this endpoint either) and
+    `reasoningEffort` (Gemini's own "thinking" models take a token budget via
+    `generationConfig.thinkingConfig`, a different mechanism, deliberately
+    not mapped in this first version) are both accepted for interface-shape
+    parity but are currently no-ops.
+    Wired into `resolveAiExtractor`/`buildAdapterForConfig`
+    (`apps/web/src/lib/ai.ts`) as a third case in the existing switch, and
+    into `IMPLEMENTED_PROVIDERS`; the admin UI's provider select
+    (`ai-settings/forms.tsx`) now offers all three providers, still a closed
+    set. The `ai.test.ts` test that used `gemini` as its
+    "provider not implemented yet" example was updated to use a clearly
+    fictional provider name instead, since that example is no longer true;
+    a new test proves `resolveAiExtractor` builds a real
+    `GeminiExtractionAdapter` from an ACTIVE `gemini` config.
+    18 new tests (`gemini-extraction.test.ts`, mirroring the other two
+    adapters' own coverage plus the two Gemini-specific cases above: the
+    401/400-API-key-invalid distinction, the schema-never-nullable proof,
+    the whole-prompt-block case, and the any-non-normal-finishReason
+    refusal), plus 2 new/updated tests in `ai.test.ts`. Full
+    `@visastack/adapters` suite (211 passing, 2 pre-existing live-ClamAV
+    skips -- one transient single-test timing-margin flake was observed and
+    reproduced as pre-existing on the already-merged Anthropic adapter's own
+    identical timeout test under the same full-suite load, not a regression
+    from this chunk), full `apps/web` suite (191/191), repo-wide typecheck,
+    Biome, and production build all clean.
+    Real live-API verification against Gemini's actual endpoint remains
+    BLOCKED regardless of adapter completeness -- no `GEMINI_API_KEY` exists
+    in this sandbox, the identical shape directive §14 itself names and the
+    same as both other adapters' own live-verification status here.
+    **Part 8's own named provider trio is now code-complete: OpenAI,
+    Anthropic, and Gemini all have production adapters.** Still remaining
+    for Part 8 as a whole: the SSRF-hardening module (AI-07 §7, still
+    blocked on a custom-endpoint field that doesn't exist); the synthetic
+    connection test and task-evaluation runner (§5); OCR/scanned-evidence
+    support (§9); generalizing the eval harness beyond OpenAI-only (AI-10);
+    real live evaluation runs against all three paid provider accounts,
+    BLOCKED regardless of adapter completeness for the reason stated above.
+    Full detail: `requirements-ledger.md` AI-03.
 independently confirmed findings; the missing PRD file is tracked as Blocker 1 in
 `assumptions-and-blockers.md` (now resolved) rather than here, since it blocked the
 programme rather than being a product defect.
