@@ -2877,6 +2877,57 @@ item gets its own requirements-ledger row once classified against the new direct
     (`apps/web` genuinely touched this chunk, unlike Chunk 14); repo-wide
     typecheck and Biome both clean.
     Full detail: `requirements-ledger.md` AI-05.
+    **Chunk 16 (this update) -- `resolveOcrAdapter` now exists
+    (`apps/web/src/lib/ai.ts`), the OCR-specific analogue of
+    `resolveAiExtractor`.** First re-examined `intake.ts`'s own automatic
+    deterministic pipeline (`processIntake`) to decide where OCR should
+    actually be invoked from, rather than assuming. That pipeline is
+    heavily concurrency-hardened (lease fencing, CAS transitions across
+    several Codex-review rounds) and runs unconditionally on every upload
+    with zero consent-gating, since deterministic parsing is local and
+    free. `runExtraction` (AI field-proposal extraction, `ai.ts`) is
+    deliberately NOT part of that automatic pipeline -- it is a separate,
+    explicitly-triggered, consent-gated, budget-tracked action a human
+    initiates once a document already sits in AWAITING_REVIEW. OCR sends
+    raw image bytes externally, an even larger disclosure than text-based
+    field extraction, and reuses the identical admin-managed provider/
+    budget/kill-switch apparatus `runExtraction` itself is gated by -- so
+    consistency with that existing, already-approved precedent (not a new
+    judgment call) puts OCR in the same category: a future explicit action
+    mirroring `runExtraction`'s own shape, never folded into
+    `processIntake`. This chunk does not modify `intake.ts` at all.
+    `resolveOcrAdapter(db, encryption)` mirrors `resolveAiExtractor`'s
+    "authoritative once touched" rule and reads the exact SAME ACTIVE
+    `ai_provider_configs` row (no separate OCR configuration surface,
+    per Chunk 14's own reuse decision), but has no env-var fallback branch
+    at all -- OCR is Commercial-V1-native and was never env-var-configurable
+    the way text extraction historically was, so an install with no config
+    row simply has no OCR available (the manual-entry path is always the
+    fallback, per directive §9). A new, separate
+    `IMPLEMENTED_OCR_PROVIDERS` set (`{'openai'}` only, smaller than text
+    extraction's three-provider set) means an ACTIVE Gemini or Anthropic
+    config -- real for text extraction -- correctly yields no OCR adapter
+    yet. Deliberately returns the bare `AiOcrPort` only, not `{ai, limits}`
+    the way `resolveAiExtractor` does: OCR's own cost/budget accounting
+    (its own ledger vs. folding into `ai_extraction_runs`) is still an open
+    question from Chunk 14, so this function does not prejudge it by
+    attaching a `limits` shape nothing yet enforces. 6 new tests in
+    `ai.test.ts`, mirroring `resolveAiExtractor`'s own test shape (no
+    config, ACTIVE config builds the adapter, kill-switch-engaged,
+    unimplemented provider x2, no encryption port).
+    **Still nothing calls this function** -- zero runtime risk, matching
+    Chunk 14's own discipline. Deliberately deferred, tracked here and in
+    `requirements-ledger.md` AI-05: the actual OCR execution flow (a
+    `runOcr`-equivalent of `runExtraction`, itself consent-gated on
+    `AI_OCR`, budget-tracked, audited, and fetching real image bytes from
+    storage); the OCR-triggering UI (a button once a document reaches
+    AWAITING_REVIEW with an OCR-eligible failure code); OCR cost/budget
+    accounting; review-issue surfacing to a human reviewer; Anthropic/
+    Gemini OCR adapters; real live-credentialed verification.
+    Verified: full `apps/web` suite (201/201), repo-wide typecheck, Biome,
+    and a clean production build all clean; `packages/services` untouched
+    this chunk.
+    Full detail: `requirements-ledger.md` AI-05.
 independently confirmed findings; the missing PRD file is tracked as Blocker 1 in
 `assumptions-and-blockers.md` (now resolved) rather than here, since it blocked the
 programme rather than being a product defect.
