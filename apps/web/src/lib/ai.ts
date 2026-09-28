@@ -1,5 +1,5 @@
 import 'server-only';
-import { OpenAiExtractionAdapter } from '@visastack/adapters';
+import { AnthropicExtractionAdapter, OpenAiExtractionAdapter } from '@visastack/adapters';
 import {
   type AiExtractionPort,
   type AiProviderConfig,
@@ -72,6 +72,40 @@ export interface ResolvedAiExtractor {
 }
 
 /**
+ * Every provider this codebase can actually dispatch to via a DB config
+ * (Part 8 §3: "ship production adapters for OpenAI API; Google Gemini API;
+ * Anthropic Claude API" -- Gemini remains unbuilt, tracked in AI-03). Checked
+ * BEFORE `revealAiProviderApiKey` runs (below), not after building the
+ * adapter -- an unimplemented provider must never pay for a real KMS decrypt
+ * of a key it is never going to use. Keep this set and `buildAdapterForConfig`'s
+ * own switch in sync when a new provider ships.
+ */
+const IMPLEMENTED_PROVIDERS: ReadonlySet<string> = new Set(['openai', 'anthropic']);
+
+function buildAdapterForConfig(config: AiProviderConfig, apiKey: string): AiExtractionPort {
+  const shared = {
+    apiKey,
+    model: config.model,
+    ...(config.reasoningEffort ? { reasoningEffort: config.reasoningEffort } : {}),
+    storeResponses: false,
+  };
+  switch (config.provider) {
+    case 'openai':
+      return new OpenAiExtractionAdapter(shared);
+    case 'anthropic':
+      return new AnthropicExtractionAdapter(shared);
+    default:
+      // Unreachable in practice: resolveAiExtractor only calls this once
+      // IMPLEMENTED_PROVIDERS.has(config.provider) is already true. Throwing
+      // rather than silently defaulting to some adapter guards against the
+      // two ever drifting apart (a provider added to one but not the other)
+      // actually dispatching to the WRONG provider's API with the wrong
+      // provider's just-decrypted key.
+      throw new Error(`buildAdapterForConfig: unhandled provider "${config.provider}"`);
+  }
+}
+
+/**
  * The adapter (and its governing limits) a live extraction call should
  * actually use (Part 8 §5: once an admin has ever engaged with AI Settings
  * at all, the DB becomes authoritative for what runs, not just whether
@@ -81,24 +115,28 @@ export interface ResolvedAiExtractor {
  *
  * On a fresh install where `ai_provider_configs` is still empty, this is
  * `createAiExtractor()` unchanged plus the six env-var limit functions below
- * -- today's 100% env-var behavior, completely unaffected. The instant a
- * first row exists, only a genuinely ACTIVE config can produce an adapter
- * here, and only for the one provider this codebase actually implements
- * (`openai`) with a working encryption port to decrypt its key -- anything
- * else (nothing ACTIVE, an unimplemented provider, no KMS configured)
- * returns undefined rather than silently falling back to stale env vars,
- * matching the kill switch's own fail-closed posture once the DB path is in
- * play. When it does resolve, its `limits` come from that SAME config row
- * (never a second, separately-timed read) -- each of the five optional
- * columns falls back to its own env-var default individually when NULL on
- * that row, since Part 8 §5's admin form lets an operator leave any of them
- * unset; `budgetLimitUnits` alone is never NULL (the schema requires it at
- * creation).
+ * -- today's 100% env-var behavior, completely unaffected (and still
+ * OpenAI-only: the env-var fallback path predates the DB config system and
+ * was never extended to other providers, since it exists only to cover a
+ * fresh install that has not yet engaged with AI Settings at all). The
+ * instant a first row exists, only a genuinely ACTIVE config naming an
+ * implemented provider (`buildAdapterForConfig`, above) can produce an
+ * adapter here, with a working encryption port to decrypt its key --
+ * anything else (nothing ACTIVE, an unimplemented provider, no KMS
+ * configured) returns undefined rather than silently falling back to stale
+ * env vars, matching the kill switch's own fail-closed posture once the DB
+ * path is in play. When it does resolve, its `limits` come from that SAME
+ * config row (never a second, separately-timed read) -- each of the five
+ * optional columns falls back to its own env-var default individually when
+ * NULL on that row, since Part 8 §5's admin form lets an operator leave any
+ * of them unset; `budgetLimitUnits` alone is never NULL (the schema requires
+ * it at creation).
  *
  * `storeResponses`/`projectId` have no DB-config equivalent yet (Part 8 §5's
  * "set limits"/"set reviewed data policy" journey doesn't cover them) --
  * `storeResponses` defaults to `false` (privacy minimization) rather than
- * inheriting whatever `OPENAI_STORE_RESPONSES` happens to be set to.
+ * inheriting whatever `OPENAI_STORE_RESPONSES` happens to be set to, and
+ * `projectId` is OpenAI-specific so `buildAdapterForConfig` never passes it.
  */
 export async function resolveAiExtractor(
   db: Db,
@@ -106,15 +144,9 @@ export async function resolveAiExtractor(
 ): Promise<ResolvedAiExtractor | undefined> {
   if (await hasAnyAiProviderConfig(db)) {
     const config = await getActiveAiProviderConfig(db);
-    if (!config || config.provider !== 'openai' || !encryption) return undefined;
+    if (!config || !encryption || !IMPLEMENTED_PROVIDERS.has(config.provider)) return undefined;
     const apiKey = await revealAiProviderApiKey(db, encryption, config);
-    const ai = new OpenAiExtractionAdapter({
-      apiKey,
-      model: config.model,
-      ...(config.reasoningEffort ? { reasoningEffort: config.reasoningEffort } : {}),
-      storeResponses: false,
-    });
-    return { ai, limits: limitsFromConfig(config) };
+    return { ai: buildAdapterForConfig(config, apiKey), limits: limitsFromConfig(config) };
   }
   const ai = createAiExtractor();
   return ai ? { ai, limits: limitsFromConfig(undefined) } : undefined;

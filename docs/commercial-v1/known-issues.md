@@ -2334,6 +2334,89 @@ item gets its own requirements-ledger row once classified against the new direct
     read-only path). Full `apps/web` suite (189/189), repo-wide typecheck,
     Biome, and production build all clean.
     Full detail: `requirements-ledger.md` AI-02.
+    **Chunk 9 (this update) -- the Anthropic Claude adapter now exists
+    (AI-03, the first of the two remaining providers).** Checked the
+    directive's own §3 requirement first rather than assuming: it names all
+    three providers as required ("ship production adapters for OpenAI API;
+    Google Gemini API; Anthropic Claude API"), and §16's own checkpoint reply
+    format requires a PASS/BLOCKED line for each of the three by name, so
+    "multi-provider" was never optional scope. New
+    `packages/adapters/src/anthropic-extraction.ts`'s
+    `AnthropicExtractionAdapter`, structurally parallel to
+    `OpenAiExtractionAdapter` (same `AiExtractionPort` contract, same
+    privacy-minimization discipline -- only the deterministic text and
+    allowed field keys are ever sent, never raw file bytes) but built against
+    Anthropic's actual Messages API rather than assumed to look like OpenAI's:
+    structured output via a FORCED tool call (`tool_choice: {type: "tool",
+    ...}`), since the Messages API has no `json_schema`/`strict` response-
+    format equivalent -- Claude's tool-use schema-following is best-effort,
+    not hard-enforced, recorded as a known limitation per §3's own
+    requirement to record one. Refusal detection covers both an explicit
+    `stop_reason: "refusal"` and the case forced tool_choice would make
+    structurally unusual but not impossible: a normal-looking stop that
+    nonetheless produced no tool_use block at all, i.e. the model declined to
+    comply despite being required to call the tool -- both surfaced as a
+    positive `refused` outcome, never silently treated as zero proposals.
+    `stop_reason: "max_tokens"` is `truncated`, checked before the refusal
+    path so a cut-off response is never misread as a decline. Two more known
+    limitations recorded in the adapter's own doc comment rather than
+    silently guessed at: `storeResponses` (no per-call Messages API retention
+    toggle exists, unlike OpenAI's `store` flag) and `reasoningEffort` (no
+    "low/medium/high" dial equivalent -- Claude's own "extended thinking" is
+    a token-budget mechanism, a different concept, deliberately not mapped in
+    this first version to keep the core extraction path simple and reliable)
+    are both accepted on the adapter for interface-shape parity but are
+    currently no-ops.
+    Wired into `resolveAiExtractor` (`apps/web/src/lib/ai.ts`): the single
+    `config.provider !== 'openai'` check became a small `buildAdapterForConfig`
+    switch plus an `IMPLEMENTED_PROVIDERS` set, checked BEFORE
+    `revealAiProviderApiKey` runs, not after -- an unimplemented provider
+    (Gemini, until it ships) must never pay for a real KMS decrypt of a key
+    it will never use. A real ordering bug surfaced and fixed while writing
+    this chunk's own tests, not a pre-planned change: the first version of
+    this refactor called `revealAiProviderApiKey` unconditionally before
+    checking whether the provider was actually implemented, which a test
+    expecting the decrypt to never happen for a `gemini` config caught
+    immediately. `buildAdapterForConfig`'s own `default` branch throws
+    (rather than silently falling back to some adapter) if ever called for a
+    provider `IMPLEMENTED_PROVIDERS` didn't already exclude -- an invariant
+    violation from the two drifting out of sync should fail loudly, never
+    silently misroute a decrypted key to the wrong provider's API. The admin
+    UI's provider `<select>` (`ai-settings/forms.tsx`) now offers Anthropic
+    alongside OpenAI, still a closed set rather than free text, so a
+    Gemini/unimplemented-provider typo still can't silently save an
+    undispatchable draft. `createAiExtractor()` (the env-var fallback path)
+    stays OpenAI-only, unchanged, on purpose -- it exists only to cover a
+    fresh install that has never touched AI Settings at all, and Part 8 §5's
+    own admin-journey walkthrough starts with OpenAI before ever mentioning
+    Gemini/Claude, so extending the env contract to other providers would add
+    a whole new set of env vars for a path the DB config system is meant to
+    supersede anyway.
+    16 new tests (`anthropic-extraction.test.ts`, mirroring
+    `openai-extraction.test.ts`'s own coverage: well-formed tool-use parsing,
+    model/maxTokens overrides, the reasoningEffort/storeResponses no-op
+    proof, type coercion, rate-limited/upstream-error/network-failure/
+    invalid-response/timeout/auth-failed/truncated/both refusal shapes,
+    and usage/latency/message-id capture), plus 2 new/updated tests in
+    `ai.test.ts` (the previously-unimplemented-provider example changed from
+    `anthropic` to `gemini`, since it is no longer true of the former; a new
+    test proving `resolveAiExtractor` builds a real
+    `AnthropicExtractionAdapter` from an ACTIVE `anthropic` config, and that
+    its cache key never claims a reasoning-effort dependency it doesn't
+    actually have). Full `@visastack/adapters` suite (193 passing, 2
+    pre-existing live-ClamAV skips), full `apps/web` suite (190/190),
+    repo-wide typecheck, Biome, and production build all clean.
+    Real live-API verification against Anthropic's actual endpoint remains
+    BLOCKED regardless of adapter completeness -- no `ANTHROPIC_API_KEY`
+    exists in this sandbox, the same "adapter may be code-complete; but A19
+    remains BLOCKED for that provider" shape directive §14 itself names, and
+    identical to OpenAI's own adapter never having been live-verified here
+    either. **Still remaining:** the Gemini adapter (the other named
+    provider); the SSRF-hardening module (AI-07 §7, still blocked on a
+    custom-endpoint field that doesn't exist); the synthetic connection test
+    and task-evaluation runner (§5); OCR/scanned-evidence support (§9);
+    generalizing the eval harness beyond OpenAI-only (AI-10).
+    Full detail: `requirements-ledger.md` AI-03.
 independently confirmed findings; the missing PRD file is tracked as Blocker 1 in
 `assumptions-and-blockers.md` (now resolved) rather than here, since it blocked the
 programme rather than being a product defect.
