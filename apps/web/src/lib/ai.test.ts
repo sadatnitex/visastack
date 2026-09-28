@@ -584,20 +584,47 @@ describe('resolveAiExtractor (Part 8 §5: the DB config becomes authoritative on
       expect(revealAiProviderApiKey).not.toHaveBeenCalled();
     });
 
-    it("returns undefined for an ACTIVE gemini config -- real for text extraction, but OCR's own implemented-provider set is smaller", async () => {
+    it("builds a GeminiOcrAdapter for an ACTIVE gemini config -- OCR's own implemented-provider set now matches text extraction's", async () => {
       hasAnyAiProviderConfig.mockResolvedValue(true);
-      getActiveAiProviderConfig.mockResolvedValue(fakeConfig({ provider: 'gemini' }));
+      getActiveAiProviderConfig.mockResolvedValue(
+        fakeConfig({ provider: 'gemini', model: 'gemini-3.5-flash' }),
+      );
+      revealAiProviderApiKey.mockResolvedValue('AIza-from-db');
       const { resolveOcrAdapter } = await import('./ai');
 
       const resolved = await resolveOcrAdapter(db, encryption);
 
-      expect(resolved).toBeUndefined();
-      expect(revealAiProviderApiKey).not.toHaveBeenCalled();
+      expect(resolved).toBeDefined();
+      expect(resolved?.ai.cacheKeyComponents().model).toBe('gemini-3.5-flash');
+      expect(revealAiProviderApiKey).toHaveBeenCalledWith(
+        db,
+        encryption,
+        expect.objectContaining({ id: 'config-1' }),
+      );
     });
 
-    it('returns undefined for an ACTIVE anthropic config, for the identical reason', async () => {
+    it('builds an AnthropicOcrAdapter for an ACTIVE anthropic config, for the identical reason', async () => {
       hasAnyAiProviderConfig.mockResolvedValue(true);
-      getActiveAiProviderConfig.mockResolvedValue(fakeConfig({ provider: 'anthropic' }));
+      getActiveAiProviderConfig.mockResolvedValue(
+        fakeConfig({ provider: 'anthropic', model: 'claude-sonnet-5' }),
+      );
+      revealAiProviderApiKey.mockResolvedValue('sk-ant-from-db');
+      const { resolveOcrAdapter } = await import('./ai');
+
+      const resolved = await resolveOcrAdapter(db, encryption);
+
+      expect(resolved).toBeDefined();
+      expect(resolved?.ai.cacheKeyComponents().model).toBe('claude-sonnet-5');
+      expect(revealAiProviderApiKey).toHaveBeenCalledWith(
+        db,
+        encryption,
+        expect.objectContaining({ id: 'config-1' }),
+      );
+    });
+
+    it('returns undefined for an ACTIVE config naming a genuinely unimplemented provider, without ever decrypting the key', async () => {
+      hasAnyAiProviderConfig.mockResolvedValue(true);
+      getActiveAiProviderConfig.mockResolvedValue(fakeConfig({ provider: 'mistral' }));
       const { resolveOcrAdapter } = await import('./ai');
 
       const resolved = await resolveOcrAdapter(db, encryption);
@@ -642,9 +669,17 @@ describe('resolveAiExtractor (Part 8 §5: the DB config becomes authoritative on
       expect(revealAiProviderApiKey).not.toHaveBeenCalled();
     });
 
-    it('is false for an ACTIVE gemini config -- matches resolveOcrAdapter exactly, never disagreeing about availability', async () => {
+    it('is true for an ACTIVE gemini config -- matches resolveOcrAdapter exactly, never disagreeing about availability', async () => {
       hasAnyAiProviderConfig.mockResolvedValue(true);
       getActiveAiProviderConfig.mockResolvedValue(fakeConfig({ provider: 'gemini' }));
+      const { isOcrConfigured } = await import('./ai');
+
+      expect(await isOcrConfigured(db)).toBe(true);
+    });
+
+    it('is false for an ACTIVE config naming a genuinely unimplemented provider', async () => {
+      hasAnyAiProviderConfig.mockResolvedValue(true);
+      getActiveAiProviderConfig.mockResolvedValue(fakeConfig({ provider: 'mistral' }));
       const { isOcrConfigured } = await import('./ai');
 
       expect(await isOcrConfigured(db)).toBe(false);
