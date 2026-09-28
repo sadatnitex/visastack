@@ -3242,6 +3242,66 @@ item gets its own requirements-ledger row once classified against the new direct
     verified. Not verified in a live browser (sandbox limitation, same as
     every prior UI chunk this session).
     Full detail: `requirements-ledger.md` AI-05.
+    **Chunk 22 (this update) -- the Anthropic and Gemini OCR adapters now
+    exist, closing AI-05's entire originally-named scope.** New
+    `packages/adapters/src/anthropic-ocr.ts`'s `AnthropicOcrAdapter` and
+    `packages/adapters/src/gemini-ocr.ts`'s `GeminiOcrAdapter`, structurally
+    parallel to `OpenAiOcrAdapter` and to each provider's own existing
+    text-extraction adapter -- same endpoint, same structured-output
+    mechanism, same timeout/error-classification shape -- but each sends a
+    vision content part instead of text, since OCR has no
+    deterministically-extracted text to send in the first place. Verified
+    against live current documentation before writing either adapter, not
+    assumed from the sibling text adapters' own shape: Anthropic's vision
+    format (`https://platform.claude.com/docs/en/build-with-claude/vision`,
+    a live fetch -- the legacy `docs.anthropic.com` host is blocked by this
+    sandbox's egress policy, the same limitation the original text adapter
+    already recorded) confirmed the `{type: "image", source: {type:
+    "base64", media_type, data}}` content block, placed before the
+    accompanying text block per the docs' own "images before text"
+    guidance, coexisting in the same request as `tools`/`tool_choice`
+    exactly as the text-only adapter already uses them. Gemini's vision
+    format (`ai.google.dev` itself blocked, so verified via web search of
+    its indexed content -- the same materially weaker verification the
+    existing `GeminiExtractionAdapter` already flags for itself) confirmed
+    `{inlineData: {mimeType, data}}` as an additional `part` alongside the
+    text part; camelCase was chosen over an indexed snake_case variant for
+    consistency with this exact request body's own already-established
+    camelCase style (`generationConfig`, `responseMimeType`,
+    `systemInstruction`), protobuf-JSON's documented canonical field
+    naming, and because protobuf-JSON deserialization commonly accepts
+    snake_case only as an input alias, never as the authoritative name.
+    Both new adapters reuse the identical OCR system prompt and
+    `OcrReviewIssueCode` set `OpenAiOcrAdapter` already established, so all
+    three providers produce directive-comparable output for the same
+    document. Wired into `buildOcrAdapterForConfig`/`IMPLEMENTED_OCR_PROVIDERS`
+    (`apps/web/src/lib/ai.ts`), which now matches `IMPLEMENTED_PROVIDERS`'s
+    own three-provider set exactly -- an ACTIVE config for any of the three
+    directive-named providers now yields a working OCR adapter, not just
+    OpenAI. Two of `resolveOcrAdapter`'s/`isOcrConfigured`'s own existing
+    tests, written when only OpenAI was implemented, asserted `gemini`/
+    `anthropic` configs yielded no OCR adapter -- now genuinely false, so
+    both were updated to assert the opposite (an adapter IS built, with the
+    right model in its cache-key components) rather than merely deleted,
+    preserving the "does the implemented-provider set actually gate
+    correctly" coverage with a real unimplemented-provider case
+    (`mistral`) added in its place. 37 new tests across
+    `anthropic-ocr.test.ts` (17) and `gemini-ocr.test.ts` (20), mirroring
+    each provider's own existing text-adapter test suite combined with
+    `openai-ocr.test.ts`'s own OCR-specific coverage (review-issue
+    filtering, truncation, refusal). Full `@visastack/adapters` suite, full
+    `apps/web` suite, repo-wide typecheck, Biome, and a clean production
+    build all verified. Real live-credentialed verification against either
+    provider's actual vision endpoint remains BLOCKED regardless of adapter
+    completeness (no real API keys in this sandbox for any provider), the
+    identical shape directive §14 itself anticipates for every adapter this
+    session. **AI-05's entire originally-named scope (contract, OpenAI
+    baseline, consent, resolver, ledger, budget sharing, execution,
+    triggering UI, and now all three providers) is now code-complete --
+    row moves to DONE**, matching AI-03's own identical final status (code-
+    complete; only real-credential live verification remains, tracked as a
+    standing BLOCKER rather than a code gap).
+    Full detail: `requirements-ledger.md` AI-05.
 independently confirmed findings; the missing PRD file is tracked as Blocker 1 in
 `assumptions-and-blockers.md` (now resolved) rather than here, since it blocked the
 programme rather than being a product defect.

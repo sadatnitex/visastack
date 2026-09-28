@@ -1,7 +1,9 @@
 import 'server-only';
 import {
   AnthropicExtractionAdapter,
+  AnthropicOcrAdapter,
   GeminiExtractionAdapter,
+  GeminiOcrAdapter,
   OpenAiExtractionAdapter,
   OpenAiOcrAdapter,
 } from '@visastack/adapters';
@@ -186,18 +188,22 @@ export async function resolveTestAdapter(
 /**
  * Providers with a real OCR adapter (Part 8 §9), separate from
  * `IMPLEMENTED_PROVIDERS` above -- OCR reuses the same admin-configured AI
- * Gateway provider/key (Part 8 Chunk 14's own architecture decision), but
- * only OpenAI has an `AiOcrPort` implementation so far, matching the
- * baseline-first precedent the text-extraction adapters themselves
- * followed. Keep this set and `buildOcrAdapterForConfig`'s own switch in
- * sync when an Anthropic or Gemini OCR adapter ships.
+ * Gateway provider/key (Part 8 Chunk 14's own architecture decision). All
+ * three directive-named providers now have an `AiOcrPort` implementation,
+ * matching `IMPLEMENTED_PROVIDERS`'s own now-complete set. Keep this set and
+ * `buildOcrAdapterForConfig`'s own switch in sync if a fourth provider ever
+ * ships.
  */
-const IMPLEMENTED_OCR_PROVIDERS: ReadonlySet<string> = new Set(['openai']);
+const IMPLEMENTED_OCR_PROVIDERS: ReadonlySet<string> = new Set(['openai', 'anthropic', 'gemini']);
 
 function buildOcrAdapterForConfig(config: AiProviderConfig, apiKey: string): AiOcrPort {
   switch (config.provider) {
     case 'openai':
       return new OpenAiOcrAdapter({ apiKey, model: config.model, storeResponses: false });
+    case 'anthropic':
+      return new AnthropicOcrAdapter({ apiKey, model: config.model, storeResponses: false });
+    case 'gemini':
+      return new GeminiOcrAdapter({ apiKey, model: config.model, storeResponses: false });
     default:
       // Unreachable in practice: resolveOcrAdapter only calls this once
       // IMPLEMENTED_OCR_PROVIDERS.has(config.provider) is already true --

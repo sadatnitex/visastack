@@ -61,6 +61,10 @@ export { GeminiExtractionAdapter, type GeminiExtractionAdapterOptions } from './
 
 export { OpenAiOcrAdapter, type OpenAiOcrAdapterOptions } from './openai-ocr';
 
+export { AnthropicOcrAdapter, type AnthropicOcrAdapterOptions } from './anthropic-ocr';
+
+export { GeminiOcrAdapter, type GeminiOcrAdapterOptions } from './gemini-ocr';
+
 export {
   type EvaluationCaseCallback,
   type EvaluationSuiteResult,
