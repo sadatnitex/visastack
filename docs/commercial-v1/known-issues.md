@@ -2978,6 +2978,60 @@ item gets its own requirements-ledger row once classified against the new direct
     `packages/services` and `apps/web` untouched this chunk, so neither's
     own suite/build was re-run.
     Full detail: `requirements-ledger.md` AI-05.
+    **Chunk 18 (this update) -- `renderOcrSourceImage`, the bytes-preparation
+    step between a document version and the image bytes `AiOcrPort` needs.**
+    Started scoping the actual `runOcr` execution flow (the last major piece
+    before OCR is genuinely wired live) and found a real gap before writing
+    any budget/consent logic: `AiOcrInput` requires `image/png`/`image/jpeg`
+    bytes, but a document version can be a scanned PDF, a photographed JPEG,
+    or anything else the vault accepts -- nothing yet turned the former into
+    the latter. Rather than write new PDF-rasterization code, found and
+    reused `PreviewRendererPort` (`packages/adapters/src/preview-renderer.ts`,
+    built for EVI-02/EVI-06 document previews): it already rasterizes a
+    scanned PDF's page 1 to PNG via `unpdf`/`@napi-rs/canvas` (the same
+    pdfjs renderer Firefox ships) and already re-encodes a raw PNG/JPEG
+    upload by decode-and-redraw, stripping EXIF/ICC metadata and any
+    polyglot-appended bytes -- exactly the "active content stripped"
+    guarantee OCR independently wants (never sending a provider more than
+    the visible pixels). Reusing already-shipped, already-security-reviewed
+    infrastructure here is safer than inventing a second rasterization path.
+    New `renderOcrSourceImage(db, blobStore, previewRenderer,
+    documentVersionId)` (`packages/services/src/ocr.ts`, alongside the
+    existing `AiOcrPort` contract): loads the document version's storage
+    object, fetches its bytes via `BlobStore.getObject`, renders via
+    `PreviewRendererPort.render`, and returns either the clean PNG/JPEG
+    bytes or one of five explicit failure codes
+    (`document_version_not_found`/`storage_object_missing`/
+    `object_bytes_missing`/`unsupported_format`/`render_failed`) -- the last
+    a defensive guard against the renderer's own "always PNG" contract
+    silently changing, never trusted blindly. Only page 1 of a multi-page
+    scanned PDF, matching the renderer's own existing "preview thumbnail"
+    scope; multi-page OCR remains a separate, larger, still-open gap.
+    A real product decision was resolved before this chunk, put to the user
+    rather than assumed: does OCR spend count against the same platform-wide
+    AI Gateway budget cap as text extraction, or get its own? Both draw on
+    the same admin-configured provider/API key in reality (one bill), and
+    the directive's own language frames "a durable platform-wide cost
+    budget" as one concept, not per-task ones -- but an admin could
+    reasonably want OCR usage walled off from a cap sized for text
+    extraction alone, so this was not assumed either way. **User chose a
+    shared cap.** This chunk does not yet implement that budget check (still
+    deferred to the `runOcr` function itself); recorded here so the decision
+    is not silently re-litigated or forgotten when that function is written.
+    6 new tests (`ocr.test.ts`, the first test file for this module),
+    covering every failure code plus both success shapes (scanned PDF,
+    direct JPEG upload), using a real PGlite-backed document version and
+    fake `BlobStore`/`PreviewRendererPort` implementations.
+    **Deliberately NOT in this chunk, so it carries zero runtime risk --
+    nothing calls this function outside its own tests yet:** the actual
+    `runOcr` service function (consent-gated on `AI_OCR`, enforcing the
+    now-decided shared budget cap across both `ai_extraction_runs` and
+    `ocr_runs`, calling `resolveOcrAdapter` + this new function, persisting
+    into `ocr_runs`); its triggering UI; review-issue surfacing to a human
+    reviewer; Anthropic/Gemini OCR adapters.
+    Verified: full `@visastack/services` suite clean; repo-wide typecheck
+    and Biome clean; `packages/adapters`/`apps/web` untouched this chunk.
+    Full detail: `requirements-ledger.md` AI-05.
 independently confirmed findings; the missing PRD file is tracked as Blocker 1 in
 `assumptions-and-blockers.md` (now resolved) rather than here, since it blocked the
 programme rather than being a product defect.

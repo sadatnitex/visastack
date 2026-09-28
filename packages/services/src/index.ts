@@ -637,16 +637,19 @@ export {
   totalAiCostUnits,
 } from './ai';
 
-export type {
-  AiOcrCacheKeyComponents,
-  AiOcrContentType,
-  AiOcrErrorCode,
-  AiOcrInput,
-  AiOcrOutcome,
-  AiOcrPort,
-  AiOcrResult,
-  AiOcrUsage,
-  OcrReviewIssueCode,
+export {
+  type AiOcrCacheKeyComponents,
+  type AiOcrContentType,
+  type AiOcrErrorCode,
+  type AiOcrInput,
+  type AiOcrOutcome,
+  type AiOcrPort,
+  type AiOcrResult,
+  type AiOcrUsage,
+  type OcrReviewIssueCode,
+  type OcrSourceImageErrorCode,
+  type OcrSourceImageOutcome,
+  renderOcrSourceImage,
 } from './ocr';
 
 export {
