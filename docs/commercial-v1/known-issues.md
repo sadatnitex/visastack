@@ -2928,6 +2928,56 @@ item gets its own requirements-ledger row once classified against the new direct
     and a clean production build all clean; `packages/services` untouched
     this chunk.
     Full detail: `requirements-ledger.md` AI-05.
+    **Chunk 17 (this update) -- a new `ocr_runs` table, resolving Chunk
+    14's own explicitly-flagged "own ledger vs. fold into
+    `ai_extraction_runs`" question.** Examined both existing candidate
+    tables before deciding, rather than picking either arbitrarily.
+    `extraction_runs` (deterministic parsing) has the right OUTPUT shape
+    (`extractedText`) but its `processingRunId` foreign key ties it
+    one-to-one to a single automatic-pipeline pass (`processingRuns`) --
+    OCR is a later, separate, explicitly-triggered action (per Chunk 16's
+    own reasoning), not part of that pipeline run, so reusing this table
+    would mean fabricating a synthetic `processingRuns` row purely to
+    satisfy a foreign key that was never meant to describe a manual
+    action. `ai_extraction_runs` (field-proposal AI calls) has the right
+    USAGE-TRACKING shape (`costUnits`/`provider`/`latencyMs`/`cacheKey`)
+    but its cache key is composed from `parserVersion`/`schemaVersion`/
+    `reasoningEffort`, none of which apply to OCR
+    (`AiOcrCacheKeyComponents` is just `{model, promptVersion}`), and it
+    has nowhere to store the extracted text or the four review-issue
+    signals directive §9 names. Neither table fits without stretching its
+    own meaning, so a new table is the union of what OCR actually needs:
+    `ai_extraction_runs`'s own usage-tracking columns plus
+    `extraction_runs`'s own text-output shape, plus a `reviewIssues`
+    column. This was a technical-fit determination, not a subjective
+    product tradeoff, so it did not need to go back to the user the way
+    Chunk 14's own architecture fork did.
+    New `packages/db/src/schema.ts` `ocrRuns` table and `ocr_run_status`
+    enum (`IN_FLIGHT`/`SUCCEEDED`/`FAILED`, identical shape to
+    `ai_extraction_run_status`), migration `0078`
+    (`drizzle-kit generate`-produced, matching every prior schema chunk's
+    own tooling-first discipline). `applicantId` is denormalized onto the
+    table for the identical reason `ai_extraction_runs` already carries
+    it -- audit/reporting queries that would otherwise need a join through
+    documentVersions -> documents -> applicantId every time.
+    **Deliberately NOT in this chunk, so it carries zero runtime risk --
+    nothing writes to this table yet:** the actual `runOcr` service
+    function (a `runExtraction`-equivalent: consent-gated on `AI_OCR`,
+    budget-tracked, fetching real image bytes from storage, calling
+    `resolveOcrAdapter`, persisting the result here); its triggering UI;
+    OCR's own budget-limit knobs (whether it shares `runExtraction`'s
+    existing per-document/platform budget or gets its own, still open);
+    review-issue surfacing to a human reviewer; Anthropic/Gemini OCR
+    adapters.
+    Verified: `drizzle-kit generate` produced (never hand-written)
+    migration `0078` and its matching snapshot/journal entries; full
+    `@visastack/db` suite clean (including its own "applies the migration
+    and round-trips" and "rejects an invalid enum value at the database
+    level" tests, directly exercising the new table/enum against real
+    PGlite-backed Postgres); repo-wide typecheck and Biome both clean;
+    `packages/services` and `apps/web` untouched this chunk, so neither's
+    own suite/build was re-run.
+    Full detail: `requirements-ledger.md` AI-05.
 independently confirmed findings; the missing PRD file is tracked as Blocker 1 in
 `assumptions-and-blockers.md` (now resolved) rather than here, since it blocked the
 programme rather than being a product defect.
