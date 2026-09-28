@@ -2711,6 +2711,88 @@ item gets its own requirements-ledger row once classified against the new direct
     against all three paid provider accounts, BLOCKED regardless of code
     completeness (no real API key for any provider in this sandbox).
     Full detail: `requirements-ledger.md` AI-02.
+    **Chunk 14 (this update) -- OCR/scanned-evidence support (AI-05, Part 8
+    §9) begins, with its own contract-first chunk, mirroring exactly how the
+    multi-provider adapter rollout itself started (Chunk 1: widen the
+    contract with zero runtime risk, wire it into a live path only later).**
+    Read §9 fresh rather than assuming scope: "For image/scanned PDF: use
+    approved OCR component OR configured evaluated vision model," with
+    explicit bounds (pages/resolution/size -- already satisfied by EVI-01's
+    existing `BuiltinContentLimitsChecker`, unchanged), named review signals
+    (low quality; ambiguous date; unsupported script; missing text), a
+    manual-entry-always-available escape hatch, and an explicit
+    "do not market universal OCR" constraint.
+    A genuine architecture fork existed here and was put to the user rather
+    than assumed, since it reverses a boundary every single AI Gateway chunk
+    this session has held as a point of pride: `AiExtractionPort`'s own
+    "never send raw file bytes, text only" privacy-minimization discipline.
+    OCR fundamentally has no text to extract FROM -- an image's bytes must
+    leave the server by design, to somewhere. The two options directive §9
+    itself allows: (a) reuse the existing, admin-configured AI Gateway
+    providers (§5) by extending them with image input, or (b) a wholly
+    separate, independently-configured OCR component/service. The user chose
+    (a) -- reuse the existing providers -- so no new dependency or second
+    admin-configuration surface is introduced; the tradeoff is that the
+    admin's already-chosen text-extraction provider also becomes an
+    image-receiving provider for OCR, a materially bigger data-sharing
+    posture for that same relationship, made explicit and deliberate rather
+    than silently implied.
+    New `packages/services/src/ocr.ts` (`AiOcrPort`, `AiOcrInput`,
+    `AiOcrResult`, `AiOcrUsage`, `AiOcrOutcome`, `AiOcrErrorCode`,
+    `OcrReviewIssueCode`) -- structurally parallel to `AiExtractionPort` in
+    `ai.ts` (same seven-way explicit failure-mode discipline: never a
+    generic bucket), but deliberately its OWN file and its OWN port, not an
+    optional image field bolted onto `AiExtractionPort` -- a caller must
+    explicitly opt into this different data-sharing posture, never get it by
+    accident through a field that happens to be set. `OcrReviewIssueCode` is
+    a set (`readonly OcrReviewIssueCode[]`), not four separate booleans,
+    since more than one genuinely can co-occur (a low-quality scan that is
+    ALSO ambiguous about its date).
+    New `packages/adapters/src/openai-ocr.ts`'s `OpenAiOcrAdapter` --
+    structurally parallel to `OpenAiExtractionAdapter` (same Responses API
+    endpoint, same `json_schema`/`strict` structured output, same
+    timeout/error-classification shape, same defensive "never trust the
+    payload" parsing discipline) but sends an actual image content part
+    (`input_image`, a base64 data URI -- never a publicly-fetchable URL,
+    which would leak the image outside this exact request) instead of
+    deterministically-extracted text. Verification note: unlike the Gemini
+    adapter's own live-verified protocol quirks, this adapter's multimodal
+    input shape was built from training-data knowledge, judged reasonably
+    reliable and stable for the same reason the original OpenAI/Anthropic
+    text adapters were (a mature, well-documented, long-stable part of the
+    Responses API) -- flagged here rather than silently assumed to be
+    equally strong evidence as a live-verified detail.
+    Only OpenAI is implemented in this chunk, matching the multi-provider
+    text-adapter rollout's own precedent of always shipping the baseline
+    provider first (Anthropic/Gemini OCR adapters are each their own future
+    chunk, not attempted here).
+    **Deliberately NOT in this chunk, so it carries zero runtime risk --
+    nothing here is called by any existing code path yet:** wiring into
+    `DeterministicTextExtractor`/the intake pipeline (when exactly OCR
+    should fire as a fallback for an image-shaped or scanned-with-no-text-
+    layer document); whether OCR needs its own, stricter consent distinct
+    from the existing `AI_EXTRACTION` consent (a real, undecided question --
+    raw image bytes leaving the server is a materially different act than
+    text-only field extraction, and this needs its own deliberate answer,
+    not an assumed one); a `resolveOcrAdapter`-style function in
+    `apps/web/src/lib/ai.ts` (mirroring `resolveTestAdapter`) to actually
+    build this adapter from an ACTIVE DB config; cost/budget accounting for
+    OCR calls (its own ledger entry, or folded into the existing
+    `ai_extraction_runs` table -- undecided); surfacing the four review-issue
+    signals to an actual human reviewer (UI work, not started); Anthropic and
+    Gemini OCR adapters; real live-credentialed verification against any
+    provider's actual vision endpoint, structurally BLOCKED in this sandbox
+    exactly like every other adapter this session (no real API key for any
+    provider).
+    17 new tests (`openai-ocr.test.ts`, mirroring `openai-extraction.test.ts`'s
+    own coverage exactly, plus two OCR-specific cases: the base64-data-URI
+    image content part is sent correctly, and an out-of-enum review-issue
+    value from the model is filtered out rather than trusted). Full
+    `@visastack/adapters` suite (233 passing, 2 pre-existing live-ClamAV
+    skips), full `@visastack/services` suite, repo-wide typecheck, and Biome
+    all clean; `apps/web` untouched this chunk so its own production build
+    was not re-run (its typecheck was, transitively, and passed).
+    Full detail: `requirements-ledger.md` AI-05.
 independently confirmed findings; the missing PRD file is tracked as Blocker 1 in
 `assumptions-and-blockers.md` (now resolved) rather than here, since it blocked the
 programme rather than being a product defect.
