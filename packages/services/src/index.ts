@@ -635,6 +635,7 @@ export {
   countAiExtractionAttempts,
   countOcrAttempts,
   documentAiCostUnits,
+  getLatestOcrRun,
   listPendingProposals,
   rejectProposal,
   runExtraction,

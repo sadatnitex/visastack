@@ -3176,6 +3176,72 @@ item gets its own requirements-ledger row once classified against the new direct
     `runOcr`'s triggering UI; review-issue surfacing to a human reviewer;
     the Anthropic/Gemini OCR adapters.
     Full detail: `requirements-ledger.md` AI-05.
+    **Chunk 21 (this update) -- `runOcr`'s triggering UI now exists, and
+    review issues are shown, closing this row's entire originally-named
+    scope except the Anthropic/Gemini OCR adapters.** New `runOcrAction`
+    (`apps/web/src/app/app/applicant/[id]/actions.ts`), mirroring
+    `runAiExtractionAction`'s own shape exactly: owner-authorization check,
+    resolve the OCR adapter, run the operation, revalidate on success.
+    Genuinely different in one place, not by oversight: `runOcr` takes
+    already-rendered `imageBytes` as an input (like `runExtraction` takes
+    already-extracted `text`), so the action calls `renderOcrSourceImage`
+    itself first, using the same `createStorage`/`createPreviewRenderer`
+    factories the existing preview route already uses -- no new bytes-prep
+    code, only new wiring of pieces that already existed.
+    Closed the design question `resolveOcrAdapter`'s own doc comment had
+    flagged as "not yet decided" back at Chunk 14: since the shared-cap
+    decision now exists and is implemented (Chunks 18-19), `resolveOcrAdapter`
+    now returns `{ai, limits}` -- the identical shape `resolveAiExtractor`
+    already returns, built from the identical `limitsFromConfig` machinery,
+    so the two adapters can never resolve to different numbers for what is
+    now one shared ledger. A new, cheap `isOcrConfigured(db)` gives the
+    document page a display check with no KMS decrypt, mirroring
+    `resolveOcrAdapter`'s own fail-closed provider logic exactly so the two
+    can never disagree about availability.
+    New `getLatestOcrRun` (`ai.ts`) mirrors `getLatestExtractedText`'s own
+    shape (`intake.ts`) but returns the full row, not just text -- directive
+    §9's literal requirement is to "show low quality; ambiguous date;
+    unsupported script; missing text as review issues" alongside the
+    extracted text, not the text alone.
+    New UI: `RunOcrButton` (`ai-review.tsx`), gated identically to
+    `RunAiExtractionButton` (core-processing consent for new processing,
+    AI_OCR consent -- distinct from AI_EXTRACTION -- for the feature itself,
+    a classification existing on the document, OCR genuinely configured);
+    `OcrResultView` shows the most recent successful run's extracted text
+    and a badge per review-issue code, with short human-readable labels for
+    directive §9's own four named signals. The document page's existing
+    AI-extraction consent banner gained a sibling for AI_OCR, wording its
+    own larger-disclosure distinction explicitly rather than reusing the
+    extraction banner's copy unchanged.
+    A real scope boundary drawn deliberately, not from time pressure: no
+    content-type ("is this actually a scanned image/PDF") auto-detection
+    gates the button's visibility. `storage_objects` has no content-type
+    column -- it lives only in blob-store object metadata, fetched via
+    `BlobStore.getObject`, which returns the object's bytes alongside it, not
+    a cheap headers-only read -- so detecting this for every document on a
+    list page would mean fetching every document's bytes just to decide
+    whether to show a button, a cost this chunk declined to add. The button
+    shows whenever OCR is otherwise available; running it against a
+    non-image document still works structurally (the renderer either
+    produces a usable image or a honest `unsupported_format` refusal), it is
+    simply not pre-filtered by file type. "Review-issue surfacing to a human
+    reviewer" turned out, on rereading directive §9's literal text, to mean
+    displaying the issues at all (done here), not a separate
+    reviewer-role workflow -- no such role or queue is named anywhere in §9,
+    so none was invented.
+    No dedicated tests for `actions.ts`/`ai-review.tsx`/`page.tsx` (matches
+    established precedent: zero of this codebase's `actions.ts` files have
+    one, since they wrap `withSession`'s real WorkOS auth; `page.tsx` files
+    are verified via typecheck/build, not unit tests, the same as every
+    prior UI chunk this session). 2 new tests for `getLatestOcrRun`
+    (`ai.test.ts`, services); `resolveOcrAdapter`'s existing 6 tests updated
+    for its new `{ai, limits}` return shape, plus 4 new tests for
+    `isOcrConfigured` (`apps/web/src/lib/ai.test.ts`). Full
+    `@visastack/services` suite (1065 tests), full `apps/web` suite (205
+    tests), repo-wide typecheck, Biome, and a clean production build all
+    verified. Not verified in a live browser (sandbox limitation, same as
+    every prior UI chunk this session).
+    Full detail: `requirements-ledger.md` AI-05.
 independently confirmed findings; the missing PRD file is tracked as Blocker 1 in
 `assumptions-and-blockers.md` (now resolved) rather than here, since it blocked the
 programme rather than being a product defect.

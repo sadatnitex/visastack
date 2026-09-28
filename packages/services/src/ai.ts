@@ -1325,6 +1325,32 @@ export async function runOcr(
   });
 }
 
+/**
+ * The most recent SUCCEEDED OCR run for a document version, for display.
+ * Mirrors `getLatestExtractedText`'s own shape (`intake.ts`), but returns
+ * the FULL row rather than just the text: Part 8 §9's own requirement is to
+ * "show ... as review issues" alongside the text, not the text alone, so a
+ * caller needs `reviewIssues` too, not just `extractedText`.
+ */
+export async function getLatestOcrRun(
+  db: Db,
+  documentVersionId: string,
+): Promise<OcrRunRow | undefined> {
+  return first(
+    await db
+      .select()
+      .from(schema.ocrRuns)
+      .where(
+        and(
+          eq(schema.ocrRuns.documentVersionId, documentVersionId),
+          eq(schema.ocrRuns.status, 'SUCCEEDED'),
+        ),
+      )
+      .orderBy(desc(schema.ocrRuns.createdAt))
+      .limit(1),
+  );
+}
+
 const TRUSTED_FACT_STATUSES: readonly FactStatus[] = [
   'APPLICANT_CONFIRMED',
   'DOCUMENT_SUPPORTED',

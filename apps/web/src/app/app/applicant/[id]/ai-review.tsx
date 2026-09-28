@@ -2,7 +2,12 @@
 
 import { useActionState, useState } from 'react';
 import { profileField } from '../../../../lib/profile-fields';
-import { type ActionState, decideProposalAction, runAiExtractionAction } from './actions';
+import {
+  type ActionState,
+  decideProposalAction,
+  runAiExtractionAction,
+  runOcrAction,
+} from './actions';
 
 const INITIAL: ActionState = { ok: true, message: '' };
 
@@ -35,6 +40,103 @@ export function RunAiExtractionButton({
           {state.message}
         </p>
       ) : null}
+    </div>
+  );
+}
+
+/** Directive §9's own named review signals, given short human-readable labels. */
+const REVIEW_ISSUE_LABELS: Record<string, string> = {
+  low_quality: 'Low image quality',
+  ambiguous_date: 'Ambiguous date',
+  unsupported_script: 'Unsupported script',
+  missing_text: 'No legible text found',
+};
+
+/** Manually trigger AI OCR for one document (image/scanned PDF) - a separate, larger disclosure than AI extraction, so its own explicit action. */
+export function RunOcrButton({
+  applicantId,
+  documentVersionId,
+}: {
+  readonly applicantId: string;
+  readonly documentVersionId: string;
+}) {
+  const [state, formAction, pending] = useActionState(runOcrAction, INITIAL);
+
+  return (
+    <div style={{ marginTop: '0.35rem' }}>
+      <form action={formAction} style={{ display: 'inline' }}>
+        <input type="hidden" name="applicantId" value={applicantId} />
+        <input type="hidden" name="documentVersionId" value={documentVersionId} />
+        <button
+          type="submit"
+          className="btn btn-secondary"
+          style={{ padding: '0.3rem 0.9rem', fontSize: '0.8rem' }}
+          disabled={pending}
+        >
+          {pending ? 'Running OCR…' : 'Run OCR'}
+        </button>
+      </form>
+      {state.message ? (
+        <p className={`field-msg ${state.ok ? 'field-msg-ok' : 'field-msg-err'}`}>
+          {state.message}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+/**
+ * Directive §9: "show low quality; ambiguous date; unsupported script;
+ * missing text as review issues" - a plain, read-only display of the most
+ * recent successful OCR run for one document. Manual entry from the
+ * extracted text into the profile still goes through the normal Master
+ * Profile fields; this view does not attempt to auto-map OCR'd text into
+ * field proposals (that would mean re-running text extraction over it via
+ * runExtraction, a separate, later action, not this one).
+ */
+export function OcrResultView({
+  text,
+  reviewIssues,
+}: {
+  readonly text: string;
+  readonly reviewIssues: readonly string[];
+}) {
+  return (
+    <div
+      className="card"
+      style={{
+        padding: '0.85rem',
+        marginTop: '0.5rem',
+        background: 'var(--bg-subtle)',
+        border: '1px solid var(--hairline-soft)',
+      }}
+    >
+      {reviewIssues.length > 0 ? (
+        <p style={{ marginBottom: '0.4rem' }}>
+          {reviewIssues.map((issue) => (
+            <span key={issue} className="badge badge-warning" style={{ marginRight: '0.35rem' }}>
+              {REVIEW_ISSUE_LABELS[issue] ?? issue}
+            </span>
+          ))}
+        </p>
+      ) : null}
+      {text ? (
+        <p
+          className="muted"
+          style={{
+            fontSize: '0.8rem',
+            whiteSpace: 'pre-wrap',
+            maxHeight: '10rem',
+            overflowY: 'auto',
+          }}
+        >
+          {text}
+        </p>
+      ) : (
+        <p className="muted" style={{ fontSize: '0.8rem' }}>
+          No legible text was found.
+        </p>
+      )}
     </div>
   );
 }

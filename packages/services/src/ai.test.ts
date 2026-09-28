@@ -14,6 +14,7 @@ import {
   type FieldProposal,
   approveProposal,
   documentAiCostUnits,
+  getLatestOcrRun,
   listPendingProposals,
   rejectProposal,
   runExtraction,
@@ -1738,5 +1739,35 @@ describe('AI Gateway -- runOcr (Part 8 Chunk 20)', () => {
     });
     expect(isErr(result)).toBe(true);
     if (isErr(result)) expect(result.error.code).toBe('forbidden');
+  });
+
+  it('getLatestOcrRun returns the full row (text and review issues), not just text -- for display', async () => {
+    const { account, applicantId, versionId } = await seedVersion(db, 'ocr-latest-run@example.com');
+    await grantOcrConsent(db, account.id);
+    await runOcr(
+      db,
+      stubOcrAi({
+        ok: true,
+        result: { text: 'passport MRZ line', reviewIssues: ['ambiguous_date'], usage: ocrUsage },
+      }),
+      {
+        actorAccountId: account.id,
+        applicantId,
+        documentVersionId: versionId,
+        imageBytes,
+        contentType: 'image/png',
+        budgetLimitUnits: 100,
+      },
+    );
+
+    const latest = await getLatestOcrRun(db, versionId);
+    expect(latest?.extractedText).toBe('passport MRZ line');
+    expect(latest?.reviewIssues).toEqual(['ambiguous_date']);
+    expect(latest?.status).toBe('SUCCEEDED');
+  });
+
+  it('getLatestOcrRun returns undefined when no OCR run has ever succeeded for this document', async () => {
+    const { versionId } = await seedVersion(db, 'ocr-latest-run-none@example.com');
+    expect(await getLatestOcrRun(db, versionId)).toBeUndefined();
   });
 });
