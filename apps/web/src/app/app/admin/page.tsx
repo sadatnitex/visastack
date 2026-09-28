@@ -85,6 +85,7 @@ export default async function AdminPage() {
       aiCostUnits,
       invitations,
       canManageComplaints,
+      canManageAiSettings,
     ] = await Promise.all([
       getRetentionPolicies(db),
       listActiveLegalHolds(db),
@@ -102,6 +103,7 @@ export default async function AdminPage() {
       totalAiCostUnits(db),
       listInvitations(db),
       hasPlatformPermission(db, { accountId, email }, 'COMPLAINT_MANAGE'),
+      hasPlatformPermission(db, { accountId, email }, 'AI_SETTINGS_MANAGE'),
     ]);
     const deploymentMode = getDeploymentMode();
     // Finding #35 (post-programme defect register): the full commercial-
@@ -137,6 +139,7 @@ export default async function AdminPage() {
       commercial,
       quota: loadUploadQuotaConfig(),
       canManageComplaints,
+      canManageAiSettings,
     };
   });
 
@@ -164,6 +167,11 @@ export default async function AdminPage() {
             {data.canManageComplaints ? (
               <Link href="/app/admin/complaints" className="btn btn-secondary">
                 Complaint triage
+              </Link>
+            ) : null}
+            {data.canManageAiSettings ? (
+              <Link href="/app/admin/ai-settings" className="btn btn-secondary">
+                AI Gateway
               </Link>
             ) : null}
           </div>
