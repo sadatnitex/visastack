@@ -30,6 +30,7 @@ const DEFAULT_GRACE_PERIOD_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 // the grace window.
 const OPTIONAL_PROCESSING_CONSENT_TYPES: readonly ConsentType[] = [
   'AI_EXTRACTION',
+  'AI_OCR',
   'SHARING',
   'MARKETING',
   'ISSUER_CONTACT',

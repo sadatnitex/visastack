@@ -148,11 +148,19 @@ export type DocumentState = (typeof DOCUMENT_STATES)[number];
  * bank, a university) to verify a fact or document on the applicant's
  * behalf is its own optional purpose, independent of SHARING (which only
  * governs an agency VIEWING the applicant's existing records, never
- * authorizes reaching out to a third party about them).
+ * authorizes reaching out to a third party about them). `AI_OCR`
+ * (Commercial V1 Part 8 §9): consenting to `AI_EXTRACTION` authorizes
+ * sending a document's already-extracted TEXT off-server for field
+ * proposals; OCR on a scanned/image document instead sends the raw image
+ * BYTES off-server so a vision-capable model can read them, a materially
+ * larger disclosure than text alone. Kept as its own purpose so an
+ * applicant can allow text-based extraction without also allowing their
+ * original document images to leave the server, and vice versa.
  */
 export const CONSENT_TYPES = [
   'CORE_PROCESSING',
   'AI_EXTRACTION',
+  'AI_OCR',
   'SHARING',
   'MARKETING',
   'ISSUER_CONTACT',

@@ -15,6 +15,7 @@ export const DEFAULT_LOCALE: Locale = 'en';
 export const EN = {
   'consent.core.title': 'Core processing consent',
   'consent.ai.title': 'AI extraction consent',
+  'consent.ocr.title': 'AI OCR consent',
   'consent.sharing.title': 'Sharing consent',
   'consent.marketing.title': 'Marketing consent',
   'consent.issuerContact.title': 'Issuer contact consent',
@@ -70,6 +71,7 @@ export type MessageKey = keyof typeof EN;
 export const BN: Partial<Record<MessageKey, string>> = {
   'consent.core.title': 'মূল প্রক্রিয়াকরণ সম্মতি',
   'consent.ai.title': 'এআই নিষ্কাশন সম্মতি',
+  'consent.ocr.title': 'এআই ওসিআর সম্মতি',
   'consent.sharing.title': 'শেয়ারিং সম্মতি',
   'consent.marketing.title': 'মার্কেটিং সম্মতি',
   'consent.issuerContact.title': 'ইস্যুকারী যোগাযোগ সম্মতি',

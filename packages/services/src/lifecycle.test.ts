@@ -505,7 +505,13 @@ describe('account deletion workflow', () => {
 
   it('revokes every currently-granted optional-processing consent at request time, leaving CORE_PROCESSING untouched (PRV-03, Part 7 §12 step 6)', async () => {
     const { account } = await seedFullAccount(db, 'del-consent@example.com');
-    for (const type of ['AI_EXTRACTION', 'SHARING', 'MARKETING', 'ISSUER_CONTACT'] as const) {
+    for (const type of [
+      'AI_EXTRACTION',
+      'AI_OCR',
+      'SHARING',
+      'MARKETING',
+      'ISSUER_CONTACT',
+    ] as const) {
       const granted = await setConsent(db, {
         actorAccountId: account.id,
         accountId: account.id,
@@ -524,6 +530,7 @@ describe('account deletion workflow', () => {
     const consents = await getConsents(db, account.id);
     expect(consents.CORE_PROCESSING).toBe(true);
     expect(consents.AI_EXTRACTION).toBe(false);
+    expect(consents.AI_OCR).toBe(false);
     expect(consents.SHARING).toBe(false);
     expect(consents.MARKETING).toBe(false);
     expect(consents.ISSUER_CONTACT).toBe(false);
