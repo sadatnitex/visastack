@@ -253,6 +253,8 @@ describe('resolveAiExtractor (Part 8 §5: the DB config becomes authoritative on
       maxPagesPerDocument: null,
       cacheMaxAgeDays: null,
       maxConcurrentCalls: null,
+      fallbackEnabled: false,
+      fallbackProviderConfigId: null,
       notes: null,
       createdByAccountId: null,
       createdAt: new Date(),

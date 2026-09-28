@@ -94,9 +94,12 @@ const encryption = fakeKeyManagementPort();
 
 interface DraftOverrides {
   readonly apiKey?: string;
+  readonly provider?: string;
   readonly dataPolicyApproved?: boolean;
   readonly budgetLimitUnits?: number;
   readonly notes?: string;
+  readonly fallbackEnabled?: boolean;
+  readonly fallbackProviderConfigId?: string;
 }
 
 function draftInput(
@@ -106,13 +109,17 @@ function draftInput(
   return {
     actor,
     stepUpSatisfied: true,
-    provider: 'openai',
+    provider: overrides?.provider ?? 'openai',
     model: 'gpt-5.6-terra',
     apiKey: overrides?.apiKey ?? 'sk-test-1234',
     encryption,
     dataPolicyApproved: overrides?.dataPolicyApproved ?? true,
     budgetLimitUnits: overrides?.budgetLimitUnits ?? 2_000_000,
     ...(overrides?.notes ? { notes: overrides.notes } : {}),
+    ...(overrides?.fallbackEnabled ? { fallbackEnabled: true } : {}),
+    ...(overrides?.fallbackProviderConfigId
+      ? { fallbackProviderConfigId: overrides.fallbackProviderConfigId }
+      : {}),
   };
 }
 
@@ -287,6 +294,212 @@ describe('AI provider configuration — activation (Part 8 §5)', () => {
     });
     expect(isErr(withoutStepUp)).toBe(true);
     if (isErr(withoutStepUp)) expect(withoutStepUp.error.code).toBe('step_up_required');
+  });
+});
+
+describe('AI provider configuration - cross-provider fallback designation (Part 8 §13)', () => {
+  let db: Db;
+  beforeEach(async () => {
+    db = await freshDb();
+  });
+
+  it('defaults to fallback disabled and no target when not specified', async () => {
+    const actor = await seedSecurityAdmin(db);
+    const draft = await createDraftAiProviderConfig(db, draftInput(actor));
+    if (!isOk(draft)) throw new Error('draft failed');
+    expect(draft.value.fallbackEnabled).toBe(false);
+    expect(draft.value.fallbackProviderConfigId).toBeNull();
+  });
+
+  it('persists fallbackEnabled and fallbackProviderConfigId when given', async () => {
+    const actor = await seedSecurityAdmin(db);
+    const target = await createDraftAiProviderConfig(db, draftInput(actor, { provider: 'gemini' }));
+    if (!isOk(target)) throw new Error('draft failed');
+    const draft = await createDraftAiProviderConfig(
+      db,
+      draftInput(actor, { fallbackEnabled: true, fallbackProviderConfigId: target.value.id }),
+    );
+    expect(isOk(draft)).toBe(true);
+    if (!isOk(draft)) return;
+    expect(draft.value.fallbackEnabled).toBe(true);
+    expect(draft.value.fallbackProviderConfigId).toBe(target.value.id);
+  });
+
+  it('refuses to create a DRAFT with fallback enabled but no fallback target selected', async () => {
+    const actor = await seedSecurityAdmin(db);
+    const draft = await createDraftAiProviderConfig(
+      db,
+      draftInput(actor, { fallbackEnabled: true }),
+    );
+    expect(isErr(draft)).toBe(true);
+    if (isErr(draft)) expect(draft.error.code).toBe('invalid');
+  });
+
+  it('activates fine with a fallback target that is SUPERSEDED, not ACTIVE -- the single-winner invariant means the target can never itself be the current ACTIVE row', async () => {
+    const actor = await seedSecurityAdmin(db);
+    const openaiDraft = await createDraftAiProviderConfig(
+      db,
+      draftInput(actor, { provider: 'openai' }),
+    );
+    if (!isOk(openaiDraft)) throw new Error('draft failed');
+    await activateAiProviderConfig(db, {
+      actor,
+      stepUpSatisfied: true,
+      configId: openaiDraft.value.id,
+    });
+    const anthropicDraft = await createDraftAiProviderConfig(
+      db,
+      draftInput(actor, { provider: 'anthropic', apiKey: 'sk-ant-second' }),
+    );
+    if (!isOk(anthropicDraft)) throw new Error('draft failed');
+    await activateAiProviderConfig(db, {
+      actor,
+      stepUpSatisfied: true,
+      configId: anthropicDraft.value.id,
+    });
+    // openaiDraft is now SUPERSEDED (anthropicDraft superseded it above).
+    const [supersededRow] = await db
+      .select()
+      .from(schema.aiProviderConfigs)
+      .where(eq(schema.aiProviderConfigs.id, openaiDraft.value.id));
+    expect(supersededRow?.status).toBe('SUPERSEDED');
+
+    const geminiDraft = await createDraftAiProviderConfig(
+      db,
+      draftInput(actor, {
+        provider: 'gemini',
+        apiKey: 'sk-gem-third',
+        fallbackEnabled: true,
+        fallbackProviderConfigId: openaiDraft.value.id,
+      }),
+    );
+    if (!isOk(geminiDraft)) throw new Error('draft failed');
+    const activated = await activateAiProviderConfig(db, {
+      actor,
+      stepUpSatisfied: true,
+      configId: geminiDraft.value.id,
+    });
+    expect(isOk(activated)).toBe(true);
+    if (!isOk(activated)) return;
+    expect(activated.value.fallbackProviderConfigId).toBe(openaiDraft.value.id);
+  });
+
+  it('refuses to activate when the fallback target uses the same provider as the config itself', async () => {
+    const actor = await seedSecurityAdmin(db);
+    const target = await createDraftAiProviderConfig(db, draftInput(actor, { provider: 'openai' }));
+    if (!isOk(target)) throw new Error('draft failed');
+    const draft = await createDraftAiProviderConfig(
+      db,
+      draftInput(actor, {
+        provider: 'openai',
+        apiKey: 'sk-second-openai',
+        fallbackEnabled: true,
+        fallbackProviderConfigId: target.value.id,
+      }),
+    );
+    if (!isOk(draft)) throw new Error('draft failed');
+    const result = await activateAiProviderConfig(db, {
+      actor,
+      stepUpSatisfied: true,
+      configId: draft.value.id,
+    });
+    expect(isErr(result)).toBe(true);
+    if (isErr(result)) expect(result.error.code).toBe('invalid');
+  });
+
+  it("refuses to activate when the fallback target's data policy is not approved", async () => {
+    const actor = await seedSecurityAdmin(db);
+    const target = await createDraftAiProviderConfig(
+      db,
+      draftInput(actor, { provider: 'anthropic', dataPolicyApproved: false }),
+    );
+    if (!isOk(target)) throw new Error('draft failed');
+    const draft = await createDraftAiProviderConfig(
+      db,
+      draftInput(actor, {
+        provider: 'openai',
+        fallbackEnabled: true,
+        fallbackProviderConfigId: target.value.id,
+      }),
+    );
+    if (!isOk(draft)) throw new Error('draft failed');
+    const result = await activateAiProviderConfig(db, {
+      actor,
+      stepUpSatisfied: true,
+      configId: draft.value.id,
+    });
+    expect(isErr(result)).toBe(true);
+    if (isErr(result)) expect(result.error.code).toBe('invalid');
+  });
+
+  it("refuses to activate when the fallback target's key has been revoked", async () => {
+    const actor = await seedSecurityAdmin(db);
+    const target = await createDraftAiProviderConfig(
+      db,
+      draftInput(actor, { provider: 'anthropic' }),
+    );
+    if (!isOk(target)) throw new Error('draft failed');
+    const revoked = await revokeAiProviderConfigKey(db, {
+      actor,
+      stepUpSatisfied: true,
+      configId: target.value.id,
+    });
+    expect(isOk(revoked)).toBe(true);
+
+    const draft = await createDraftAiProviderConfig(
+      db,
+      draftInput(actor, {
+        provider: 'openai',
+        fallbackEnabled: true,
+        fallbackProviderConfigId: target.value.id,
+      }),
+    );
+    if (!isOk(draft)) throw new Error('draft failed');
+    const result = await activateAiProviderConfig(db, {
+      actor,
+      stepUpSatisfied: true,
+      configId: draft.value.id,
+    });
+    expect(isErr(result)).toBe(true);
+    if (isErr(result)) expect(result.error.code).toBe('invalid');
+  });
+
+  it('refuses to activate when the fallback target no longer exists', async () => {
+    const actor = await seedSecurityAdmin(db);
+    const draft = await createDraftAiProviderConfig(
+      db,
+      draftInput(actor, {
+        provider: 'openai',
+        fallbackEnabled: true,
+        fallbackProviderConfigId: '00000000-0000-0000-0000-000000000000',
+      }),
+    );
+    if (!isOk(draft)) throw new Error('draft failed');
+    const result = await activateAiProviderConfig(db, {
+      actor,
+      stepUpSatisfied: true,
+      configId: draft.value.id,
+    });
+    expect(isErr(result)).toBe(true);
+    if (isErr(result)) expect(result.error.code).toBe('invalid');
+  });
+
+  it('refuses to activate a row with fallback enabled but no target, even if that inconsistent state was reached by direct write rather than createDraftAiProviderConfig (defense in depth)', async () => {
+    const actor = await seedSecurityAdmin(db);
+    const draft = await createDraftAiProviderConfig(db, draftInput(actor, { provider: 'openai' }));
+    if (!isOk(draft)) throw new Error('draft failed');
+    await db
+      .update(schema.aiProviderConfigs)
+      .set({ fallbackEnabled: true })
+      .where(eq(schema.aiProviderConfigs.id, draft.value.id));
+
+    const result = await activateAiProviderConfig(db, {
+      actor,
+      stepUpSatisfied: true,
+      configId: draft.value.id,
+    });
+    expect(isErr(result)).toBe(true);
+    if (isErr(result)) expect(result.error.code).toBe('invalid');
   });
 });
 

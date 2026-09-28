@@ -3322,6 +3322,45 @@ item gets its own requirements-ledger row once classified against the new direct
     so the guarantee is CI-enforced going forward, not merely true today. No code
     change needed -- a genuine re-verification that found no gap.
     Full detail: `requirements-ledger.md` AI-06.
+    **Chunk 24 (2026-09-28, AI-09) -- cross-provider fallback designation now
+    exists (schema + admin config validation); execution/UI still to come.**
+    Now genuinely actionable now that AI-03/AI-05/AI-06 are all DONE (all
+    three providers exist for both extraction and OCR). Migration `0079`
+    adds `fallbackEnabled`/`fallbackProviderConfigId` to `ai_provider_configs`
+    and `triggeredByRunId` to both `ai_extraction_runs` and `ocr_runs`. A
+    real architectural constraint shaped the design: `activateAiProviderConfig`
+    already enforces a genuinely platform-wide single-winner ACTIVE invariant
+    (queried with no provider filter), so a fallback target can never itself
+    be the current ACTIVE row -- it is necessarily some other status, and
+    eligibility is checked by content (data policy approved, key not
+    revoked, a genuinely different provider) rather than by status.
+    `activateAiProviderConfig` re-verifies this bar fresh at activation time,
+    never trusting it permanently from whenever the fallback pointer was set.
+    `rollbackAiProviderConfig` is deliberately NOT gated on fallback
+    eligibility -- reasoned through, not overlooked: rollback's job is
+    restoring a known-good PRIMARY fast during an incident, and a stale
+    fallback pointer degrades safely at future dispatch-time re-check rather
+    than ever risking dispatch to an ineligible provider, so gating rollback
+    on it would only cost reliability for no safety benefit. Both new
+    run-table columns are deliberately not real FK constraints (bare `uuid`,
+    matching `servedFromCacheRunId`'s own established convention), and
+    fallback is deliberately single-hop only, so no cycle detection is
+    needed anywhere in this design. 9 new tests (`ai-provider-config.test.ts`).
+    Full `@visastack/db` suite, full `@visastack/services` suite, repo-wide
+    typecheck, and Biome all clean. Deliberately deferred, so this chunk
+    carries zero runtime risk (nothing yet reads either new column): the
+    actual fallback-triggering logic in `runExtraction`/`runOcr` (recoverable
+    codes limited to directive §13's own literal `timeout`/`rate_limited`;
+    "circuit breaker," the list's third named trigger, is deliberately not
+    built this chunk since it is a materially separate, substantial feature
+    not yet justified without real production traffic to tune it against);
+    `resolveAiExtractor`/`resolveOcrAdapter` gaining fallback-adapter
+    resolution; doubling the budget reservation when fallback is enabled
+    (directive §11 lists "retries" and "configured fallback" as separate
+    reservation line items); the admin UI for designating a fallback; and
+    the document/review-page UI surfacing that a fallback actually fired
+    (directive §13's own "visible in UI").
+    Full detail: `requirements-ledger.md` AI-09.
 independently confirmed findings; the missing PRD file is tracked as Blocker 1 in
 `assumptions-and-blockers.md` (now resolved) rather than here, since it blocked the
 programme rather than being a product defect.

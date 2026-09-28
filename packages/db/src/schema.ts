@@ -1344,12 +1344,20 @@ export const aiExtractionRuns = pgTable(
     // Set only when this run reused a prior run's proposals instead of
     // calling the model — the audit trail always shows real cost either way.
     servedFromCacheRunId: uuid('served_from_cache_run_id'),
+    // Part 8 §13 (cross-provider fallback): set only on a row created
+    // because an earlier row (this field's value) failed with a recoverable
+    // code and a designated fallback provider was dispatched in response --
+    // never a real FK (matches servedFromCacheRunId's own convention just
+    // above), and always exactly one hop (a fallback's own fallback, if it
+    // has one, is never chased) so no cycle handling is needed.
+    triggeredByRunId: uuid('triggered_by_run_id'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
     index('ai_extraction_runs_document_version_idx').on(table.documentVersionId),
     index('ai_extraction_runs_applicant_idx').on(table.applicantId),
     index('ai_extraction_runs_cache_key_idx').on(table.cacheKey),
+    index('ai_extraction_runs_triggered_by_idx').on(table.triggeredByRunId),
   ],
 );
 
@@ -1399,12 +1407,17 @@ export const ocrRuns = pgTable(
     // version or reasoning-effort dial to fold in.
     cacheKey: text('cache_key'),
     servedFromCacheRunId: uuid('served_from_cache_run_id'),
+    // Part 8 §13 (cross-provider fallback): same meaning and the same
+    // deliberately-not-a-real-FK, always-one-hop shape as
+    // aiExtractionRuns.triggeredByRunId above.
+    triggeredByRunId: uuid('triggered_by_run_id'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
     index('ocr_runs_document_version_idx').on(table.documentVersionId),
     index('ocr_runs_applicant_idx').on(table.applicantId),
     index('ocr_runs_cache_key_idx').on(table.cacheKey),
+    index('ocr_runs_triggered_by_idx').on(table.triggeredByRunId),
   ],
 );
 
@@ -1541,6 +1554,24 @@ export const aiProviderConfigs = pgTable(
     maxPagesPerDocument: integer('max_pages_per_document'),
     cacheMaxAgeDays: integer('cache_max_age_days'),
     maxConcurrentCalls: integer('max_concurrent_calls'),
+    // Part 8 §13 ("cross-provider fallback... OFF by default"). Persisted on
+    // each versioned row like the six budget/limit knobs above, not a
+    // separate mutable setting -- fallback preference is part of what
+    // "activating" this row commits to.
+    fallbackEnabled: boolean('fallback_enabled').notNull().default(false),
+    // Which OTHER config row to fall back to. Deliberately NOT a real FK
+    // constraint (bare uuid, matching servedFromCacheRunId's established
+    // convention on ai_extraction_runs/ocr_runs) and deliberately NOT
+    // required to itself be ACTIVE -- with only ever one ACTIVE row
+    // platform-wide (this table's own single-winner invariant, enforced in
+    // ai-provider-config.ts), a fallback target is necessarily some OTHER
+    // status (most naturally the config this row just superseded, or a
+    // still-DRAFT alternative kept on hand). "Already passed the same
+    // privacy/task/budget gates" (Part 8 §13) is re-verified live against
+    // the pointed-to row at both activation and dispatch time, never assumed
+    // permanently true from this pointer alone, since the pointed-to row's
+    // own dataPolicyApproved/keyRevokedAt can still change afterward.
+    fallbackProviderConfigId: uuid('fallback_provider_config_id'),
     notes: text('notes'),
     createdByAccountId: uuid('created_by_account_id').references(() => accounts.id, {
       onDelete: 'set null',
