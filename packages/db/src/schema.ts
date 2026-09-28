@@ -281,6 +281,8 @@ export const aiExtractionRunStatus = pgEnum('ai_extraction_run_status', [
   'FAILED',
 ]);
 
+export const ocrRunStatus = pgEnum('ocr_run_status', ['IN_FLIGHT', 'SUCCEEDED', 'FAILED']);
+
 // --- Shared timestamp columns ----------------------------------------------
 const timestamps = {
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
@@ -1348,6 +1350,61 @@ export const aiExtractionRuns = pgTable(
     index('ai_extraction_runs_document_version_idx').on(table.documentVersionId),
     index('ai_extraction_runs_applicant_idx').on(table.applicantId),
     index('ai_extraction_runs_cache_key_idx').on(table.cacheKey),
+  ],
+);
+
+// OCR runs (Part 8 §9), a deliberately SEPARATE table from both tables above
+// -- neither fits without stretching its own meaning. `extraction_runs`
+// (deterministic parsing) has the right OUTPUT shape (extractedText) but its
+// `processingRunId` FK is tied one-to-one to a single automatic-pipeline
+// pass (`processingRuns`), and OCR is a later, separate, explicitly-
+// triggered action, not part of that pipeline run. `ai_extraction_runs`
+// (field-proposal AI calls) has the right USAGE-TRACKING shape (costUnits/
+// provider/latencyMs/cacheKey) but its cache key is composed from
+// parserVersion/schemaVersion/reasoningEffort, none of which apply to OCR
+// (AiOcrCacheKeyComponents is just {model, promptVersion}), and it has
+// nowhere to put the extracted text or the four review-issue signals
+// (low_quality/ambiguous_date/unsupported_script/missing_text, directive
+// §9's own named signals). This table is the union of what OCR actually
+// needs: `ai_extraction_runs`'s own usage-tracking columns plus
+// `extraction_runs`'s own text-output shape, plus `reviewIssues`.
+// `applicantId` is denormalized here for the identical reason
+// `ai_extraction_runs` already carries it -- audit/reporting queries that
+// would otherwise need a join through documentVersions -> documents ->
+// applicantId every time.
+export const ocrRuns = pgTable(
+  'ocr_runs',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    documentVersionId: uuid('document_version_id')
+      .notNull()
+      .references(() => documentVersions.id, { onDelete: 'cascade' }),
+    applicantId: uuid('applicant_id')
+      .notNull()
+      .references(() => applicants.id, { onDelete: 'cascade' }),
+    status: ocrRunStatus('status').notNull(),
+    provider: text('provider').notNull(),
+    modelVersion: text('model_version').notNull(),
+    promptVersion: text('prompt_version').notNull(),
+    extractedText: text('extracted_text'),
+    reviewIssues: jsonb('review_issues').$type<readonly string[]>(),
+    costUnits: integer('cost_units').notNull().default(0),
+    inputUnits: integer('input_units'),
+    outputUnits: integer('output_units'),
+    providerRequestId: text('provider_request_id'),
+    latencyMs: integer('latency_ms'),
+    errorCode: text('error_code'),
+    // sha256(contentHash|model|promptVersion) -- simpler than
+    // ai_extraction_runs's own cache key since OCR has no parser/schema
+    // version or reasoning-effort dial to fold in.
+    cacheKey: text('cache_key'),
+    servedFromCacheRunId: uuid('served_from_cache_run_id'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('ocr_runs_document_version_idx').on(table.documentVersionId),
+    index('ocr_runs_applicant_idx').on(table.applicantId),
+    index('ocr_runs_cache_key_idx').on(table.cacheKey),
   ],
 );
 
