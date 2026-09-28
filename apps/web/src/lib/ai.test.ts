@@ -534,4 +534,84 @@ describe('resolveAiExtractor (Part 8 §5: the DB config becomes authoritative on
       expect(revealAiProviderApiKey).not.toHaveBeenCalled();
     });
   });
+
+  describe('resolveOcrAdapter -- the OCR adapter for a live call, reusing the ACTIVE text-extraction config (Part 8 §9 / Chunk 14)', () => {
+    beforeEach(() => {
+      hasAnyAiProviderConfig.mockReset();
+      getActiveAiProviderConfig.mockReset();
+      revealAiProviderApiKey.mockReset();
+    });
+
+    it('returns undefined when no admin has ever configured AI settings -- there is no env-var OCR fallback', async () => {
+      hasAnyAiProviderConfig.mockResolvedValue(false);
+      const { resolveOcrAdapter } = await import('./ai');
+
+      const adapter = await resolveOcrAdapter(db, encryption);
+
+      expect(adapter).toBeUndefined();
+      expect(getActiveAiProviderConfig).not.toHaveBeenCalled();
+      expect(revealAiProviderApiKey).not.toHaveBeenCalled();
+    });
+
+    it('builds an OpenAiOcrAdapter from the SAME ACTIVE config resolveAiExtractor itself reads', async () => {
+      hasAnyAiProviderConfig.mockResolvedValue(true);
+      getActiveAiProviderConfig.mockResolvedValue(fakeConfig({ model: 'gpt-5-db-configured' }));
+      revealAiProviderApiKey.mockResolvedValue('sk-from-db');
+      const { resolveOcrAdapter } = await import('./ai');
+
+      const adapter = await resolveOcrAdapter(db, encryption);
+
+      expect(adapter).toBeDefined();
+      expect(adapter?.cacheKeyComponents().model).toBe('gpt-5-db-configured');
+      expect(revealAiProviderApiKey).toHaveBeenCalledWith(
+        db,
+        encryption,
+        expect.objectContaining({ id: 'config-1' }),
+      );
+    });
+
+    it('returns undefined once any config exists but none is ACTIVE (kill switch engaged)', async () => {
+      hasAnyAiProviderConfig.mockResolvedValue(true);
+      getActiveAiProviderConfig.mockResolvedValue(undefined);
+      const { resolveOcrAdapter } = await import('./ai');
+
+      const adapter = await resolveOcrAdapter(db, encryption);
+
+      expect(adapter).toBeUndefined();
+      expect(revealAiProviderApiKey).not.toHaveBeenCalled();
+    });
+
+    it("returns undefined for an ACTIVE gemini config -- real for text extraction, but OCR's own implemented-provider set is smaller", async () => {
+      hasAnyAiProviderConfig.mockResolvedValue(true);
+      getActiveAiProviderConfig.mockResolvedValue(fakeConfig({ provider: 'gemini' }));
+      const { resolveOcrAdapter } = await import('./ai');
+
+      const adapter = await resolveOcrAdapter(db, encryption);
+
+      expect(adapter).toBeUndefined();
+      expect(revealAiProviderApiKey).not.toHaveBeenCalled();
+    });
+
+    it('returns undefined for an ACTIVE anthropic config, for the identical reason', async () => {
+      hasAnyAiProviderConfig.mockResolvedValue(true);
+      getActiveAiProviderConfig.mockResolvedValue(fakeConfig({ provider: 'anthropic' }));
+      const { resolveOcrAdapter } = await import('./ai');
+
+      const adapter = await resolveOcrAdapter(db, encryption);
+
+      expect(adapter).toBeUndefined();
+      expect(revealAiProviderApiKey).not.toHaveBeenCalled();
+    });
+
+    it('returns undefined when an ACTIVE openai config exists but no encryption port is available', async () => {
+      hasAnyAiProviderConfig.mockResolvedValue(true);
+      getActiveAiProviderConfig.mockResolvedValue(fakeConfig());
+      const { resolveOcrAdapter } = await import('./ai');
+
+      const adapter = await resolveOcrAdapter(db, undefined);
+
+      expect(adapter).toBeUndefined();
+      expect(revealAiProviderApiKey).not.toHaveBeenCalled();
+    });
+  });
 });
