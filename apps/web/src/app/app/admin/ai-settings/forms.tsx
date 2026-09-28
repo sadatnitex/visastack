@@ -8,6 +8,7 @@ import {
   emergencyDisableAiProviderConfigAction,
   revokeAiProviderConfigKeyAction,
   rollbackAiProviderConfigAction,
+  runAiProviderConfigEvaluationAction,
   testAiProviderConfigAction,
 } from './actions';
 
@@ -222,6 +223,34 @@ export function TestConnectionButton({ configId }: { readonly configId: string }
         disabled={pending}
       >
         {pending ? 'Testing…' : 'Test connection'}
+      </button>
+      <StatusMessage state={state} />
+    </form>
+  );
+}
+
+/**
+ * Task evaluation (Part 8 §5 / J15's own admin journey: "config OpenAI; test;
+ * activate" -- this is the journey's OTHER named step, "run task
+ * evaluation," heavier than the connection test above since it runs the full
+ * 13-case eval harness dataset against this configuration's own credentials,
+ * never a customer document. Same "no confirmation dialog" reasoning as
+ * `TestConnectionButton` -- it changes no configuration state -- but the
+ * label names the case count up front, since this makes many more real
+ * provider calls than a connection test's single one.
+ */
+export function RunEvaluationButton({ configId }: { readonly configId: string }) {
+  const [state, formAction, pending] = useActionState(runAiProviderConfigEvaluationAction, INITIAL);
+  return (
+    <form action={formAction}>
+      <input type="hidden" name="configId" value={configId} />
+      <button
+        type="submit"
+        className="btn btn-secondary"
+        style={{ padding: '0.3rem 0.85rem', fontSize: '0.8rem' }}
+        disabled={pending}
+      >
+        {pending ? 'Evaluating…' : 'Run evaluation (13 cases)'}
       </button>
       <StatusMessage state={state} />
     </form>

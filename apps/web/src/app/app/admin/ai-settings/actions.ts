@@ -1,11 +1,13 @@
 'use server';
 
+import { passesThresholds, runEvaluationSuite } from '@visastack/adapters';
 import {
   type PlatformAuthInput,
   activateAiProviderConfig,
   createDraftAiProviderConfig,
   emergencyDisableAiProviderConfig,
   getAiProviderConfigById,
+  recordAiProviderConfigEvaluation,
   recordAiProviderConfigTest,
   revokeAiProviderConfigKey,
   rollbackAiProviderConfig,
@@ -329,5 +331,83 @@ export async function testAiProviderConfigAction(
       message,
     });
     return { ok: outcome.ok, message } satisfies ActionState;
+  });
+}
+
+/**
+ * Task evaluation against one specific configuration's own credentials --
+ * the admin journey's OTHER named §5 step, distinct from and heavier than
+ * the synthetic connection test above: runs the full 13-case eval harness
+ * dataset (`@visastack/adapters`'s `runEvaluationSuite`, shared with the
+ * standalone `pnpm --filter @visastack/adapters eval` CLI script, Part 8
+ * AI-10) rather than one synthetic call, and reports the same
+ * precision/recall/hallucination/evidence-accuracy/prompt-injection
+ * thresholds that script checks. Like the connection test, this never
+ * touches `runExtraction`'s budget/cache/kill-switch machinery and never
+ * writes to `ai_extraction_runs` -- an evaluation run is not a billable
+ * extraction, and every case here uses the harness's own fixed synthetic
+ * documents, never a customer document. Security-admin + step-up gated
+ * (a distinct `AI_SETTINGS_RUN_EVALUATION` step-up action id); the outcome
+ * is always recorded as an audit event, pass or fail.
+ */
+export async function runAiProviderConfigEvaluationAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const configId = String(formData.get('configId') ?? '').trim();
+  if (configId.length === 0) return { ok: false, message: 'Missing configuration id.' };
+
+  return withSession(async ({ db, accountId, email }) => {
+    if (!(await hasPlatformPermission(db, { accountId, email }, 'AI_SETTINGS_MANAGE'))) {
+      return DENIED;
+    }
+    const config = await getAiProviderConfigById(db, actor(accountId, email), configId);
+    if (!config.ok) return { ok: false, message: config.error.message } satisfies ActionState;
+
+    const stepUp = await tryEstablishStepUp(
+      { accountId, action: 'AI_SETTINGS_RUN_EVALUATION', resourceId: configId },
+      AI_SETTINGS_PATH,
+    );
+    if (stepUp.kind === 'not_configured') {
+      return { ok: false, message: STEP_UP_NOT_CONFIGURED_MESSAGE } satisfies ActionState;
+    }
+    if (stepUp.kind === 'reauth_required') redirect(stepUp.reauthUrl);
+
+    const encryption = createKeyManagementPort();
+    if (!encryption) {
+      return {
+        ok: false,
+        message:
+          'Encryption is not configured in this environment (KMS_LOCAL_MASTER_KEY_BASE64 unset).',
+      } satisfies ActionState;
+    }
+    const adapter = await resolveTestAdapter(db, encryption, config.value);
+    if (!adapter) {
+      return {
+        ok: false,
+        message: `The "${config.value.provider}" provider is not supported by this deployment.`,
+      } satisfies ActionState;
+    }
+
+    const { report, scores } = await runEvaluationSuite(adapter);
+    const passed = passesThresholds(report);
+    const message = passed
+      ? `Evaluation PASSED (${scores.length} cases; precision ${(report.precision * 100).toFixed(1)}%, recall ${(report.recall * 100).toFixed(1)}%, hallucination ${(report.hallucinationRate * 100).toFixed(1)}%, evidence ${(report.evidenceAccuracy * 100).toFixed(1)}%).`
+      : `Evaluation FAILED (${scores.length} cases; precision ${(report.precision * 100).toFixed(1)}%, recall ${(report.recall * 100).toFixed(1)}%, hallucination ${(report.hallucinationRate * 100).toFixed(1)}%, evidence ${(report.evidenceAccuracy * 100).toFixed(1)}%${report.anyCaseErrored ? '; one or more cases errored' : ''}${report.promptInjectionResisted ? '' : '; prompt injection NOT resisted'}).`;
+
+    await recordAiProviderConfigEvaluation(db, {
+      actor: actor(accountId, email),
+      configId,
+      passed,
+      caseCount: scores.length,
+      precision: report.precision,
+      recall: report.recall,
+      hallucinationRate: report.hallucinationRate,
+      evidenceAccuracy: report.evidenceAccuracy,
+      promptInjectionResisted: report.promptInjectionResisted,
+      anyCaseErrored: report.anyCaseErrored,
+      totalCostUnits: report.totalCostUnits,
+    });
+    return { ok: passed, message } satisfies ActionState;
   });
 }

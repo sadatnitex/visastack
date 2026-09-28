@@ -13,10 +13,21 @@ import {
   EmergencyDisableButton,
   RevokeKeyButton,
   RollbackConfigButton,
+  RunEvaluationButton,
   TestConnectionButton,
 } from './forms';
 
 export const dynamic = 'force-dynamic';
+// The "run task evaluation" action below makes up to 13 sequential real
+// provider calls (the full eval harness dataset, one call per case), each
+// individually capped at the adapter's own 60s timeout -- a platform
+// default execution window (well under a minute on most deployment tiers)
+// would not survive a normal run, let alone a slow one. This codebase's
+// other genuinely long-running server-side work (the /api/jobs/* sweep
+// routes) already uses the same `maxDuration` export for the identical
+// reason; if this deployment's plan caps lower than the value below, Vercel
+// itself clamps to that ceiling rather than erroring.
+export const maxDuration = 300;
 
 const STATUS_BADGE: Record<AiProviderConfig['status'], { label: string; tone: string }> = {
   DRAFT: { label: 'Draft', tone: 'badge-neutral' },
@@ -124,6 +135,9 @@ export default async function AiSettingsPage() {
             // before activating a DRAFT, or to re-check an ACTIVE/SUPERSEDED/
             // DISABLED version's credentials still round-trip.
             const canTest = config.keyRevokedAt === null;
+            // Same eligibility bar as the connection test -- a revoked key
+            // has nothing left to evaluate.
+            const canEvaluate = config.keyRevokedAt === null;
             return (
               <article className="card" key={config.id}>
                 <div className="toolbar" style={{ marginBottom: '1rem', alignItems: 'center' }}>
@@ -208,9 +222,12 @@ export default async function AiSettingsPage() {
                     </span>
                   </div>
                 </div>
-                {canTest || canActivate || canRevoke ? (
-                  <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1rem' }}>
+                {canTest || canEvaluate || canActivate || canRevoke ? (
+                  <div
+                    style={{ display: 'flex', gap: '0.5rem', marginTop: '1rem', flexWrap: 'wrap' }}
+                  >
                     {canTest ? <TestConnectionButton configId={config.id} /> : null}
+                    {canEvaluate ? <RunEvaluationButton configId={config.id} /> : null}
                     {canActivate ? <ActivateConfigButton configId={config.id} /> : null}
                     {canRevoke ? <RevokeKeyButton configId={config.id} /> : null}
                   </div>

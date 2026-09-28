@@ -34,8 +34,9 @@ import type { AiExtractionPort } from '@visastack/services';
 import { AnthropicExtractionAdapter } from '../anthropic-extraction';
 import { GeminiExtractionAdapter } from '../gemini-extraction';
 import { OpenAiExtractionAdapter } from '../openai-extraction';
-import { EVAL_ALLOWED_FIELD_KEYS, EVAL_CASES } from './dataset';
-import { type CaseScore, aggregate, errorCaseScore, passesThresholds, scoreCase } from './scoring';
+import { EVAL_CASES } from './dataset';
+import { runEvaluationSuite } from './harness';
+import { passesThresholds } from './scoring';
 
 const EVAL_PROVIDERS = ['openai', 'anthropic', 'gemini'] as const;
 type EvalProvider = (typeof EVAL_PROVIDERS)[number];
@@ -120,39 +121,18 @@ async function main(): Promise<void> {
     `${logPrefix} Running ${EVAL_CASES.length} cases against ${adapter.cacheKeyComponents().model}...`,
   );
 
-  const scores: CaseScore[] = [];
-  for (const evalCase of EVAL_CASES) {
-    const startedAt = Date.now();
-    const outcome = await adapter.extract({
-      documentVersionId: `eval-${evalCase.id}`,
-      text: evalCase.documentText,
-      allowedFieldKeys: EVAL_ALLOWED_FIELD_KEYS as unknown as string[],
-    });
-    const latencyMs = Date.now() - startedAt;
-
+  const { report } = await runEvaluationSuite(adapter, (evalCase, outcome, score) => {
     if (!outcome.ok) {
       log(`${logPrefix} ${evalCase.id}: ADAPTER ERROR (${outcome.code}) -- ${outcome.message}`);
-      scores.push(errorCaseScore(evalCase, latencyMs));
-      continue;
+      return;
     }
-
-    const score = scoreCase(
-      evalCase,
-      outcome.result.proposals,
-      outcome.result.usage.costUnits,
-      latencyMs,
-      EVAL_ALLOWED_FIELD_KEYS as unknown as string[],
-    );
-    scores.push(score);
     log(
       `${logPrefix} ${evalCase.id} (${evalCase.category}): ` +
         `tp=${score.truePositives} fp=${score.falsePositives} fn=${score.falseNegatives} ` +
         `hallucinations=${score.hallucinations} evidenceMismatches=${score.evidenceMismatches} ` +
-        `unsupported=${score.unsupportedFieldProposals} cost=${score.costUnits} latency=${latencyMs}ms`,
+        `unsupported=${score.unsupportedFieldProposals} cost=${score.costUnits} latency=${score.latencyMs}ms`,
     );
-  }
-
-  const report = aggregate(scores);
+  });
   log('');
   log(`${logPrefix} === Aggregate report ===`);
   log(`  Field precision:          ${(report.precision * 100).toFixed(1)}%`);
