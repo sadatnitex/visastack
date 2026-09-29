@@ -422,3 +422,106 @@ describe('OpenAiExtractionAdapter.explain (Part 8 AI-01 item 5)', () => {
     expect(explainComponents.schemaVersion).not.toBe(classifyComponents.schemaVersion);
   });
 });
+
+const INCONSISTENCY_INPUT = {
+  documentVersionId: 'doc-version-1',
+  text: 'Name: Anna Marie Eriksson. DOB: 1990-04-02.',
+  profileFacts: [{ fieldKey: 'applicant.givenNames', value: 'Anna Maria' }],
+};
+
+describe('OpenAiExtractionAdapter.checkConsistency (Part 8 AI-01 item 4)', () => {
+  it('parses a well-formed structured-output response into flags', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(
+      jsonResponse(200, {
+        output_text: JSON.stringify({
+          flags: [
+            {
+              description: 'Given names differ between the document and the profile',
+              confidence: 0.7,
+              rationale: '"Marie" on the document vs. "Maria" on file',
+            },
+          ],
+        }),
+        usage: { total_tokens: 30 },
+      }),
+    );
+    const adapter = new OpenAiExtractionAdapter({ apiKey: 'sk-test', fetchImpl });
+    const outcome = await adapter.checkConsistency(INCONSISTENCY_INPUT);
+
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+    expect(outcome.result.flags).toHaveLength(1);
+    expect(outcome.result.flags[0]?.description).toContain('Given names differ');
+    expect(outcome.result.flags[0]?.confidence).toBe(0.7);
+    expect(outcome.result.usage.costUnits).toBe(30);
+    expect(outcome.result.usage.schemaVersion).toBe('inconsistency_flags_v1');
+    // A distinct prompt version from every other task's own -- cached independently.
+    expect(outcome.result.usage.promptVersion).not.toBe('2026-07-29-v1');
+
+    const [, requestInit] = fetchImpl.mock.calls[0] as [string, RequestInit];
+    const body = JSON.parse(requestInit.body as string);
+    expect(JSON.stringify(body)).toContain('Anna Maria');
+    expect(body.text.format.name).toBe('inconsistency_flags');
+  });
+
+  it('reports zero flags as a genuine, valid, good outcome', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(
+      jsonResponse(200, {
+        output_text: JSON.stringify({ flags: [] }),
+        usage: { total_tokens: 10 },
+      }),
+    );
+    const adapter = new OpenAiExtractionAdapter({ apiKey: 'sk-test', fetchImpl });
+    const outcome = await adapter.checkConsistency(INCONSISTENCY_INPUT);
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+    expect(outcome.result.flags).toHaveLength(0);
+  });
+
+  it('reports refused when the model declines via the structured-output refusal field', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(
+      jsonResponse(200, {
+        output: [{ content: [{ refusal: 'cannot help with this' }] }],
+      }),
+    );
+    const adapter = new OpenAiExtractionAdapter({ apiKey: 'sk-test', fetchImpl });
+    const outcome = await adapter.checkConsistency(INCONSISTENCY_INPUT);
+    expect(outcome.ok).toBe(false);
+    if (outcome.ok) return;
+    expect(outcome.code).toBe('refused');
+  });
+
+  it('reports truncated when the response was cut off before completing', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(
+      jsonResponse(200, {
+        status: 'incomplete',
+        output_text: JSON.stringify({ flags: [] }),
+      }),
+    );
+    const adapter = new OpenAiExtractionAdapter({ apiKey: 'sk-test', fetchImpl });
+    const outcome = await adapter.checkConsistency(INCONSISTENCY_INPUT);
+    expect(outcome.ok).toBe(false);
+    if (outcome.ok) return;
+    expect(outcome.code).toBe('truncated');
+  });
+
+  it('reports auth_failed on HTTP 401', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(jsonResponse(401, { error: 'bad key' }));
+    const adapter = new OpenAiExtractionAdapter({ apiKey: 'sk-test', fetchImpl });
+    const outcome = await adapter.checkConsistency(INCONSISTENCY_INPUT);
+    expect(outcome.ok).toBe(false);
+    if (outcome.ok) return;
+    expect(outcome.code).toBe('auth_failed');
+  });
+
+  it("inconsistencyCacheKeyComponents never collides with any other port's own cache-key method", () => {
+    const adapter = new OpenAiExtractionAdapter({ apiKey: 'sk-test' });
+    const extractionComponents = adapter.cacheKeyComponents();
+    const classifyComponents = adapter.classifyCacheKeyComponents();
+    const explainComponents = adapter.explainCacheKeyComponents();
+    const inconsistencyComponents = adapter.inconsistencyCacheKeyComponents();
+    expect(inconsistencyComponents.schemaVersion).not.toBe(extractionComponents.schemaVersion);
+    expect(inconsistencyComponents.schemaVersion).not.toBe(classifyComponents.schemaVersion);
+    expect(inconsistencyComponents.schemaVersion).not.toBe(explainComponents.schemaVersion);
+  });
+});

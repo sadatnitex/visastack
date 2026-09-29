@@ -15,18 +15,24 @@ import {
   type AiExplainPort,
   type AiExtractionOutcome,
   type AiExtractionPort,
+  type AiInconsistencyOutcome,
+  type AiInconsistencyPort,
   type FieldProposal,
+  acknowledgeInconsistencyFlag,
   approveDocumentTypeProposal,
   approveProposal,
+  dismissInconsistencyFlag,
   documentAiCostUnits,
   explainReadinessGap,
   getLatestOcrRun,
   listPendingDocumentTypeProposals,
+  listPendingInconsistencyFlags,
   listPendingProposals,
   rejectDocumentTypeProposal,
   rejectProposal,
   runClassification,
   runExtraction,
+  runInconsistencyCheck,
   runOcr,
   totalAiCostUnits,
 } from './ai';
@@ -2784,5 +2790,430 @@ describe('AI Gateway -- readiness-gap explanation (Part 8 AI-01 item 5)', () => 
       budgetLimitUnits: 1000,
     });
     expect(await totalAiCostUnits(db)).toBe(explainUsage.costUnits);
+  });
+});
+
+const inconsistencyUsage = {
+  costUnits: 4,
+  inputUnits: 3,
+  outputUnits: 1,
+  cachedUnits: 0,
+  modelVersion: 'gpt-5.6-terra',
+  promptVersion: 'inconsistency-p1',
+  schemaVersion: 'inconsistency-s1',
+  provider: 'openai',
+  latencyMs: 12,
+};
+
+const oneFlag = [
+  {
+    description: 'The document spells the given name "Mohammed" but the profile has "Mohammad".',
+    confidence: 0.7,
+    rationale: 'Name spelling differs between document and profile.',
+  },
+];
+
+function stubInconsistencyAi(
+  result: AiInconsistencyOutcome = {
+    ok: true,
+    result: { flags: oneFlag, usage: inconsistencyUsage },
+  },
+): AiInconsistencyPort {
+  return {
+    async checkConsistency() {
+      return result;
+    },
+    inconsistencyCacheKeyComponents() {
+      return {
+        model: 'gpt-5.6-terra',
+        promptVersion: 'inconsistency-p1',
+        schemaVersion: 'inconsistency-s1',
+      };
+    },
+  };
+}
+
+function countingStubInconsistencyAi(
+  result: AiInconsistencyOutcome = {
+    ok: true,
+    result: { flags: oneFlag, usage: inconsistencyUsage },
+  },
+): { ai: AiInconsistencyPort; callCount: () => number } {
+  let calls = 0;
+  const ai: AiInconsistencyPort = {
+    async checkConsistency() {
+      calls += 1;
+      return result;
+    },
+    inconsistencyCacheKeyComponents() {
+      return {
+        model: 'gpt-5.6-terra',
+        promptVersion: 'inconsistency-p1',
+        schemaVersion: 'inconsistency-s1',
+      };
+    },
+  };
+  return { ai, callCount: () => calls };
+}
+
+describe('AI Gateway -- possible inconsistency flag (Part 8 AI-01 item 4)', () => {
+  let db: Db;
+  beforeEach(async () => {
+    db = await freshDb();
+  });
+
+  it('produces a PENDING flag when the model finds a possible contradiction', async () => {
+    const { account, applicantId, versionId } = await seedVersion(
+      db,
+      'inconsist-basic@example.com',
+    );
+    await grantAiConsent(db, account.id);
+
+    const result = await runInconsistencyCheck(db, stubInconsistencyAi(), {
+      actorAccountId: account.id,
+      applicantId,
+      documentVersionId: versionId,
+      text: 'Name: Mohammed Rahman',
+      budgetLimitUnits: 1000,
+    });
+    expect(isOk(result)).toBe(true);
+    if (!isOk(result)) return;
+    expect(result.value.flags).toHaveLength(1);
+    expect(result.value.flags[0]?.status).toBe('PENDING');
+
+    const pending = await listPendingInconsistencyFlags(db, applicantId);
+    expect(pending).toHaveLength(1);
+  });
+
+  it('sends the current TRUSTED profile facts alongside the document text', async () => {
+    const { account, applicantId, versionId } = await seedVersion(
+      db,
+      'inconsist-facts@example.com',
+    );
+    await grantAiConsent(db, account.id);
+    await registerFieldDefinition(db, { key: 'applicant.givenName', dataType: 'string' });
+    const edited = await editFact(db, {
+      actorAccountId: account.id,
+      applicantId,
+      fieldKey: 'applicant.givenName',
+      value: 'Mohammad',
+      status: 'APPLICANT_CONFIRMED',
+    });
+    expect(isOk(edited)).toBe(true);
+
+    let receivedFacts: readonly { fieldKey: string; value: string }[] = [];
+    const ai: AiInconsistencyPort = {
+      async checkConsistency(input) {
+        receivedFacts = input.profileFacts;
+        return { ok: true, result: { flags: [], usage: inconsistencyUsage } };
+      },
+      inconsistencyCacheKeyComponents() {
+        return {
+          model: 'gpt-5.6-terra',
+          promptVersion: 'inconsistency-p1',
+          schemaVersion: 'inconsistency-s1',
+        };
+      },
+    };
+
+    await runInconsistencyCheck(db, ai, {
+      actorAccountId: account.id,
+      applicantId,
+      documentVersionId: versionId,
+      text: 'Name: Mohammed Rahman',
+      budgetLimitUnits: 1000,
+    });
+    expect(receivedFacts).toEqual([{ fieldKey: 'applicant.givenName', value: 'Mohammad' }]);
+  });
+
+  it('never sends a SENSITIVE/RESTRICTED field value, even when one is set and TRUSTED', async () => {
+    const { account, applicantId, versionId } = await seedVersion(
+      db,
+      'inconsist-protected@example.com',
+    );
+    await grantAiConsent(db, account.id);
+    await registerFieldDefinition(db, {
+      key: 'applicant.nationalId',
+      dataType: 'string',
+      sensitivity: 'RESTRICTED',
+    });
+    const edited = await editFact(db, {
+      actorAccountId: account.id,
+      applicantId,
+      fieldKey: 'applicant.nationalId',
+      value: 'SECRET-ID-123',
+      status: 'APPLICANT_CONFIRMED',
+      encryption: fakeKeyManagementPort(),
+    });
+    expect(isOk(edited)).toBe(true);
+
+    let receivedFacts: readonly { fieldKey: string; value: string }[] = [];
+    const ai: AiInconsistencyPort = {
+      async checkConsistency(input) {
+        receivedFacts = input.profileFacts;
+        return { ok: true, result: { flags: [], usage: inconsistencyUsage } };
+      },
+      inconsistencyCacheKeyComponents() {
+        return {
+          model: 'gpt-5.6-terra',
+          promptVersion: 'inconsistency-p1',
+          schemaVersion: 'inconsistency-s1',
+        };
+      },
+    };
+
+    await runInconsistencyCheck(db, ai, {
+      actorAccountId: account.id,
+      applicantId,
+      documentVersionId: versionId,
+      text: 'irrelevant',
+      budgetLimitUnits: 1000,
+    });
+    expect(receivedFacts.find((f) => f.fieldKey === 'applicant.nationalId')).toBeUndefined();
+    expect(JSON.stringify(receivedFacts)).not.toContain('SECRET-ID-123');
+  });
+
+  it('requires AI_EXTRACTION consent', async () => {
+    const { account, applicantId, versionId } = await seedVersion(
+      db,
+      'inconsist-consent@example.com',
+    );
+
+    const result = await runInconsistencyCheck(db, stubInconsistencyAi(), {
+      actorAccountId: account.id,
+      applicantId,
+      documentVersionId: versionId,
+      text: 'irrelevant',
+      budgetLimitUnits: 1000,
+    });
+    expect(isErr(result)).toBe(true);
+    if (isErr(result)) expect(result.error.code).toBe('consent_required');
+  });
+
+  it('fails closed once the platform-wide budget is exhausted', async () => {
+    const { account, applicantId, versionId } = await seedVersion(
+      db,
+      'inconsist-budget@example.com',
+    );
+    await grantAiConsent(db, account.id);
+
+    const result = await runInconsistencyCheck(db, stubInconsistencyAi(), {
+      actorAccountId: account.id,
+      applicantId,
+      documentVersionId: versionId,
+      text: 'irrelevant',
+      budgetLimitUnits: 0,
+    });
+    expect(isErr(result)).toBe(true);
+  });
+
+  it('produces zero flags -- and that is a genuine, valid, good outcome', async () => {
+    const { account, applicantId, versionId } = await seedVersion(
+      db,
+      'inconsist-clean@example.com',
+    );
+    await grantAiConsent(db, account.id);
+
+    const result = await runInconsistencyCheck(
+      db,
+      stubInconsistencyAi({ ok: true, result: { flags: [], usage: inconsistencyUsage } }),
+      {
+        actorAccountId: account.id,
+        applicantId,
+        documentVersionId: versionId,
+        text: 'Name: Mohammad Rahman',
+        budgetLimitUnits: 1000,
+      },
+    );
+    expect(isOk(result)).toBe(true);
+    if (isOk(result)) expect(result.value.flags).toHaveLength(0);
+  });
+
+  it('a second identical check (same text and same facts) is served from cache, at zero cost, without invoking the adapter again', async () => {
+    const { account, applicantId, versionId } = await seedVersion(
+      db,
+      'inconsist-cache@example.com',
+    );
+    await grantAiConsent(db, account.id);
+    const { ai, callCount } = countingStubInconsistencyAi();
+
+    const first = await runInconsistencyCheck(db, ai, {
+      actorAccountId: account.id,
+      applicantId,
+      documentVersionId: versionId,
+      text: 'Name: Mohammed Rahman',
+      budgetLimitUnits: 1000,
+    });
+    expect(isOk(first)).toBe(true);
+
+    const second = await runInconsistencyCheck(db, ai, {
+      actorAccountId: account.id,
+      applicantId,
+      documentVersionId: versionId,
+      text: 'Name: Mohammed Rahman',
+      budgetLimitUnits: 1000,
+    });
+    expect(isOk(second)).toBe(true);
+    if (isOk(second)) expect(second.value.flags).toHaveLength(1);
+    expect(callCount()).toBe(1);
+  });
+
+  it('does NOT serve from cache once the profile facts have changed, even for the identical document text', async () => {
+    const { account, applicantId, versionId } = await seedVersion(
+      db,
+      'inconsist-cache-stale@example.com',
+    );
+    await grantAiConsent(db, account.id);
+    await registerFieldDefinition(db, { key: 'applicant.givenName', dataType: 'string' });
+    const { ai, callCount } = countingStubInconsistencyAi();
+
+    await runInconsistencyCheck(db, ai, {
+      actorAccountId: account.id,
+      applicantId,
+      documentVersionId: versionId,
+      text: 'Name: Mohammed Rahman',
+      budgetLimitUnits: 1000,
+    });
+    expect(callCount()).toBe(1);
+
+    // The applicant corrects their profile between the two checks.
+    await editFact(db, {
+      actorAccountId: account.id,
+      applicantId,
+      fieldKey: 'applicant.givenName',
+      value: 'Mohammed',
+      status: 'APPLICANT_CONFIRMED',
+    });
+
+    await runInconsistencyCheck(db, ai, {
+      actorAccountId: account.id,
+      applicantId,
+      documentVersionId: versionId,
+      text: 'Name: Mohammed Rahman',
+      budgetLimitUnits: 1000,
+    });
+    expect(callCount()).toBe(2);
+  });
+
+  it('a failed adapter call is recorded FAILED with the real error code, never silently dropped', async () => {
+    const { account, applicantId, versionId } = await seedVersion(db, 'inconsist-fail@example.com');
+    await grantAiConsent(db, account.id);
+
+    const result = await runInconsistencyCheck(
+      db,
+      stubInconsistencyAi({ ok: false, code: 'upstream_error', message: 'boom' }),
+      {
+        actorAccountId: account.id,
+        applicantId,
+        documentVersionId: versionId,
+        text: 'irrelevant',
+        budgetLimitUnits: 1000,
+      },
+    );
+    expect(isErr(result)).toBe(true);
+  });
+
+  it('the kill switch, rechecked immediately before dispatch, refuses the call without ever invoking the adapter', async () => {
+    const { account, applicantId, versionId } = await seedVersion(
+      db,
+      'inconsist-killswitch@example.com',
+    );
+    await grantAiConsent(db, account.id);
+    const { ai, callCount } = countingStubInconsistencyAi();
+
+    const result = await runInconsistencyCheck(db, ai, {
+      actorAccountId: account.id,
+      applicantId,
+      documentVersionId: versionId,
+      text: 'irrelevant',
+      budgetLimitUnits: 1000,
+      killSwitchCheck: async () => false,
+    });
+    expect(isErr(result)).toBe(true);
+    expect(callCount()).toBe(0);
+  });
+
+  it('enforces its own attempt limit independently of every other task', async () => {
+    const { account, applicantId, versionId } = await seedVersion(
+      db,
+      'inconsist-attempts@example.com',
+    );
+    await grantAiConsent(db, account.id);
+    const failing = stubInconsistencyAi({ ok: false, code: 'upstream_error', message: 'boom' });
+
+    const first = await runInconsistencyCheck(db, failing, {
+      actorAccountId: account.id,
+      applicantId,
+      documentVersionId: versionId,
+      text: 'irrelevant',
+      budgetLimitUnits: 1000,
+      maxAttemptsPerDocument: 1,
+    });
+    expect(isErr(first)).toBe(true);
+
+    const second = await runInconsistencyCheck(db, failing, {
+      actorAccountId: account.id,
+      applicantId,
+      documentVersionId: versionId,
+      text: 'irrelevant',
+      budgetLimitUnits: 1000,
+      maxAttemptsPerDocument: 1,
+    });
+    expect(isErr(second)).toBe(true);
+    if (isErr(second)) expect(second.error.message).toContain('attempt limit');
+  });
+
+  it('acknowledging a flag marks it ACKNOWLEDGED and writes nothing else', async () => {
+    const { account, applicantId, versionId } = await seedVersion(
+      db,
+      'inconsist-acknowledge@example.com',
+    );
+    await grantAiConsent(db, account.id);
+
+    const run = await runInconsistencyCheck(db, stubInconsistencyAi(), {
+      actorAccountId: account.id,
+      applicantId,
+      documentVersionId: versionId,
+      text: 'Name: Mohammed Rahman',
+      budgetLimitUnits: 1000,
+    });
+    if (!isOk(run) || run.value.flags.length === 0) throw new Error('expected a flag');
+
+    const acknowledged = await acknowledgeInconsistencyFlag(db, {
+      actorAccountId: account.id,
+      flagId: run.value.flags[0]?.id ?? '',
+    });
+    expect(isOk(acknowledged)).toBe(true);
+    if (isOk(acknowledged)) expect(acknowledged.value.status).toBe('ACKNOWLEDGED');
+    // Never touches the facts table -- purely advisory.
+    expect(await db.select().from(schema.facts)).toHaveLength(0);
+  });
+
+  it('dismissing a flag marks it DISMISSED', async () => {
+    const { account, applicantId, versionId } = await seedVersion(
+      db,
+      'inconsist-dismiss@example.com',
+    );
+    await grantAiConsent(db, account.id);
+
+    const run = await runInconsistencyCheck(db, stubInconsistencyAi(), {
+      actorAccountId: account.id,
+      applicantId,
+      documentVersionId: versionId,
+      text: 'Name: Mohammed Rahman',
+      budgetLimitUnits: 1000,
+    });
+    if (!isOk(run) || run.value.flags.length === 0) throw new Error('expected a flag');
+
+    const dismissed = await dismissInconsistencyFlag(db, {
+      actorAccountId: account.id,
+      flagId: run.value.flags[0]?.id ?? '',
+      reason: 'legitimate spelling variation',
+    });
+    expect(isOk(dismissed)).toBe(true);
+    if (isOk(dismissed)) expect(dismissed.value.status).toBe('DISMISSED');
+
+    const pending = await listPendingInconsistencyFlags(db, applicantId);
+    expect(pending).toHaveLength(0);
   });
 });

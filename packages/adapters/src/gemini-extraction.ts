@@ -10,6 +10,10 @@ import type {
   AiExtractionInput,
   AiExtractionOutcome,
   AiExtractionPort,
+  AiInconsistencyFlag,
+  AiInconsistencyInput,
+  AiInconsistencyOutcome,
+  AiInconsistencyPort,
   FieldProposal,
 } from '@visastack/services';
 import { withTimeout } from './timeout';
@@ -86,6 +90,9 @@ const CLASSIFY_SCHEMA_VERSION = 'document_classification_v1';
 /** Part 8 AI-01 item 5 -- tracked independently of extraction's/classification's own prompt/schema version. */
 const EXPLAIN_PROMPT_VERSION = '2026-09-29-v1';
 const EXPLAIN_SCHEMA_VERSION = 'readiness_gap_explanation_v1';
+/** Part 8 AI-01 item 4 -- tracked independently of every other task's own prompt/schema version. */
+const INCONSISTENCY_PROMPT_VERSION = '2026-09-29-v1';
+const INCONSISTENCY_SCHEMA_VERSION = 'inconsistency_flags_v1';
 /** Official host, a plain literal never influenced by any admin/config input (Part 8 §7: "built-in adapters: official provider host locked"). */
 const API_BASE_URL = 'https://generativelanguage.googleapis.com/v1beta/models';
 /** Part 8 §11's named default request timeout. */
@@ -139,6 +146,37 @@ const EXPLAIN_RESPONSE_SCHEMA = {
   required: ['explanation'],
 } as const;
 
+/** Part 8 AI-01 item 4: compares a document against the applicant's OWN already-confirmed profile facts -- never a second document, never a re-determination of correctness. */
+const INCONSISTENCY_SYSTEM_PROMPT = `You compare a single immigration-applicant document's text against that same applicant's own already-confirmed profile facts, looking for genuine possible contradictions a human should review. You are NOT deciding which side (the document or the profile) is correct -- only flagging where they seem to disagree.
+
+Rules:
+- Only flag a GENUINE apparent contradiction (e.g. a name, date, or number that conflicts) -- never a mere absence, omission, or a fact the profile simply doesn't cover.
+- Never invent a profile fact or a document detail that isn't actually given to you.
+- "confidence" is your genuine calibrated probability (0.0-1.0) that this is a real contradiction, not a fixed number.
+- If you find no genuine contradictions, return an empty "flags" array -- this is the common, correct outcome.`;
+
+// Deliberately no `nullable: true` (see class doc comment's own "known
+// limitation") -- "rationale" is simply left out of `required`, letting the
+// model omit it, exactly like the other two schemas above.
+const INCONSISTENCY_RESPONSE_SCHEMA = {
+  type: 'object',
+  properties: {
+    flags: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          description: { type: 'string' },
+          confidence: { type: 'number' },
+          rationale: { type: 'string' },
+        },
+        required: ['description', 'confidence'],
+      },
+    },
+  },
+  required: ['flags'],
+} as const;
+
 interface JsonProposal {
   readonly type: string;
   readonly fieldKey?: string | null;
@@ -187,7 +225,9 @@ export interface GeminiExtractionAdapterOptions {
   readonly fetchImpl?: typeof fetch;
 }
 
-export class GeminiExtractionAdapter implements AiExtractionPort, AiClassifyPort, AiExplainPort {
+export class GeminiExtractionAdapter
+  implements AiExtractionPort, AiClassifyPort, AiExplainPort, AiInconsistencyPort
+{
   private readonly apiKey: string;
   private readonly model: string;
   private readonly promptVersion: string;
@@ -654,6 +694,158 @@ export class GeminiExtractionAdapter implements AiExtractionPort, AiClassifyPort
       },
     };
   }
+
+  inconsistencyCacheKeyComponents(): AiCacheKeyComponents {
+    return {
+      model: this.model,
+      promptVersion: INCONSISTENCY_PROMPT_VERSION,
+      schemaVersion: INCONSISTENCY_SCHEMA_VERSION,
+    };
+  }
+
+  async checkConsistency(input: AiInconsistencyInput): Promise<AiInconsistencyOutcome> {
+    const startedAt = Date.now();
+    let response: Response;
+    try {
+      response = await withTimeout(
+        this.fetchImpl(`${API_BASE_URL}/${this.model}:generateContent`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-goog-api-key': this.apiKey,
+          },
+          body: JSON.stringify({
+            systemInstruction: { parts: [{ text: INCONSISTENCY_SYSTEM_PROMPT }] },
+            contents: [
+              {
+                role: 'user',
+                parts: [
+                  {
+                    text: `Applicant's own confirmed profile facts (JSON array of fieldKey/value pairs): ${JSON.stringify(input.profileFacts)}\n\nDocument text:\n"""\n${input.text}\n"""`,
+                  },
+                ],
+              },
+            ],
+            generationConfig: {
+              responseMimeType: 'application/json',
+              responseSchema: INCONSISTENCY_RESPONSE_SCHEMA,
+            },
+          }),
+        }),
+        this.timeoutMs,
+        'Gemini generateContent API call (inconsistency check)',
+      );
+    } catch (error) {
+      const latencyMs = Date.now() - startedAt;
+      const timedOut = error instanceof Error && error.message.includes('timed out after');
+      return {
+        ok: false,
+        code: timedOut ? 'timeout' : 'upstream_error',
+        message: error instanceof Error ? error.message : 'network error calling Gemini',
+        provider: PROVIDER,
+        latencyMs,
+      };
+    }
+    const latencyMs = Date.now() - startedAt;
+
+    if (response.status === 401 || response.status === 403) {
+      return {
+        ok: false,
+        code: 'auth_failed',
+        message: `Gemini rejected the configured API key (status ${response.status})`,
+        provider: PROVIDER,
+        latencyMs,
+      };
+    }
+    if (response.status === 429) {
+      return {
+        ok: false,
+        code: 'rate_limited',
+        message: 'Gemini rate limit exceeded',
+        provider: PROVIDER,
+        latencyMs,
+      };
+    }
+    if (!response.ok) {
+      const body = await response.text().catch(() => '');
+      if (response.status === 400 && body.includes('API key not valid')) {
+        return {
+          ok: false,
+          code: 'auth_failed',
+          message: 'Gemini rejected the configured API key (status 400: API key not valid)',
+          provider: PROVIDER,
+          latencyMs,
+        };
+      }
+      return {
+        ok: false,
+        code: 'upstream_error',
+        message: `Gemini responded ${response.status}: ${body.slice(0, 500)}`,
+        provider: PROVIDER,
+        latencyMs,
+      };
+    }
+
+    let payload: unknown;
+    try {
+      payload = await response.json();
+    } catch {
+      return {
+        ok: false,
+        code: 'invalid_response',
+        message: 'Gemini response was not valid JSON',
+        provider: PROVIDER,
+        latencyMs,
+      };
+    }
+
+    const parsed = parseInconsistencyGenerateContentPayload(payload);
+    if (parsed.kind === 'invalid') {
+      return {
+        ok: false,
+        code: 'invalid_response',
+        message: 'Gemini response had an unexpected shape',
+        provider: PROVIDER,
+        latencyMs,
+      };
+    }
+    if (parsed.kind === 'refusal') {
+      return { ok: false, code: 'refused', message: parsed.message, provider: PROVIDER, latencyMs };
+    }
+    if (parsed.kind === 'truncated') {
+      return {
+        ok: false,
+        code: 'truncated',
+        message: 'Gemini response was truncated before completing (MAX_TOKENS reached)',
+        provider: PROVIDER,
+        latencyMs,
+      };
+    }
+
+    const flags: AiInconsistencyFlag[] = parsed.flags.map((f) => ({
+      description: f.description,
+      confidence: f.confidence,
+      ...(f.rationale ? { rationale: f.rationale } : {}),
+    }));
+
+    return {
+      ok: true,
+      result: {
+        flags,
+        usage: {
+          costUnits: parsed.totalTokens,
+          inputUnits: parsed.inputTokens,
+          outputUnits: parsed.outputTokens,
+          cachedUnits: parsed.cachedTokens,
+          modelVersion: this.model,
+          promptVersion: INCONSISTENCY_PROMPT_VERSION,
+          schemaVersion: INCONSISTENCY_SCHEMA_VERSION,
+          provider: PROVIDER,
+          latencyMs,
+        },
+      },
+    };
+  }
 }
 
 function toProposalType(value: string): ProposalType {
@@ -974,4 +1166,102 @@ function parseExplanationGenerateContentPayload(
     outputTokens,
     cachedTokens,
   };
+}
+
+interface JsonFlag {
+  readonly description: string;
+  readonly confidence: number;
+  readonly rationale?: string | null;
+}
+
+interface RawInconsistencyBody {
+  readonly flags?: unknown;
+}
+interface RawFlag {
+  readonly description?: unknown;
+  readonly confidence?: unknown;
+}
+
+type ParsedInconsistencyGenerateContentPayload =
+  | {
+      readonly kind: 'flags';
+      readonly flags: JsonFlag[];
+      readonly totalTokens: number;
+      readonly inputTokens: number;
+      readonly outputTokens: number;
+      readonly cachedTokens: number;
+    }
+  | { readonly kind: 'refusal'; readonly message: string }
+  | { readonly kind: 'truncated' }
+  | { readonly kind: 'invalid' };
+
+/** Structurally mirrors `parseExplanationGenerateContentPayload` above -- same candidate/finish-reason/block-reason detection, a differently-shaped JSON body. */
+function parseInconsistencyGenerateContentPayload(
+  payload: unknown,
+): ParsedInconsistencyGenerateContentPayload {
+  if (typeof payload !== 'object' || payload === null) return { kind: 'invalid' };
+  const record = payload as RawGenerateContentPayload;
+
+  const candidates = Array.isArray(record.candidates)
+    ? (record.candidates as RawCandidate[])
+    : undefined;
+  const candidate = candidates?.[0];
+
+  if (!candidate) {
+    const feedback =
+      typeof record.promptFeedback === 'object' && record.promptFeedback !== null
+        ? (record.promptFeedback as RawPromptFeedback)
+        : undefined;
+    if (typeof feedback?.blockReason === 'string') {
+      return { kind: 'refusal', message: `Gemini blocked the prompt: ${feedback.blockReason}` };
+    }
+    return { kind: 'invalid' };
+  }
+
+  if (candidate.finishReason === 'MAX_TOKENS') return { kind: 'truncated' };
+
+  const finishReason = typeof candidate.finishReason === 'string' ? candidate.finishReason : 'STOP';
+  if (!NORMAL_FINISH_REASONS.has(finishReason)) {
+    return { kind: 'refusal', message: `Gemini declined to complete normally: ${finishReason}` };
+  }
+
+  const content =
+    typeof candidate.content === 'object' && candidate.content !== null
+      ? (candidate.content as RawContent)
+      : undefined;
+  const parts = Array.isArray(content?.parts) ? (content.parts as RawPart[]) : undefined;
+  const text = parts?.find((part) => typeof part.text === 'string')?.text;
+  if (typeof text !== 'string') return { kind: 'invalid' };
+
+  let body: unknown;
+  try {
+    body = JSON.parse(text);
+  } catch {
+    return { kind: 'invalid' };
+  }
+  if (typeof body !== 'object' || body === null) return { kind: 'invalid' };
+  const flagsRaw = (body as RawInconsistencyBody).flags;
+  if (!Array.isArray(flagsRaw)) return { kind: 'invalid' };
+
+  const flags = flagsRaw.filter((f): f is JsonFlag => {
+    if (typeof f !== 'object' || f === null) return false;
+    const candidateFlag = f as RawFlag;
+    return (
+      typeof candidateFlag.description === 'string' && typeof candidateFlag.confidence === 'number'
+    );
+  });
+
+  const usage =
+    typeof record.usageMetadata === 'object' && record.usageMetadata !== null
+      ? (record.usageMetadata as RawUsageMetadata)
+      : undefined;
+  const inputTokens = typeof usage?.promptTokenCount === 'number' ? usage.promptTokenCount : 0;
+  const outputTokens =
+    typeof usage?.candidatesTokenCount === 'number' ? usage.candidatesTokenCount : 0;
+  const totalTokens =
+    typeof usage?.totalTokenCount === 'number' ? usage.totalTokenCount : inputTokens + outputTokens;
+  const cachedTokens =
+    typeof usage?.cachedContentTokenCount === 'number' ? usage.cachedContentTokenCount : 0;
+
+  return { kind: 'flags', flags, totalTokens, inputTokens, outputTokens, cachedTokens };
 }

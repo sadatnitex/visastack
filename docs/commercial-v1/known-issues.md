@@ -3568,6 +3568,107 @@ item gets its own requirements-ledger row once classified against the new direct
     `apps/web` suite: 230/230 (`ai.test.ts` alone: 70/70, 7 new). Repo-wide
     typecheck, a clean production build (`/app/mission/[id]` route grew
     7.46 kB -> 7.65 kB, reflecting the new UI), and Biome all verified.
+    **Chunk 31 (2026-09-29, AI-01) -- possible inconsistency flag, item 4 of
+    Part 8 §2, the last remaining P0 AI Gateway task.** Compares one
+    document's deterministically-extracted text against the applicant's OWN
+    already-confirmed profile facts, looking for genuine apparent
+    contradictions -- never a second document, never a re-determination of
+    which side (document or profile) is actually correct; a returned flag
+    is purely "a human should look," nothing more. A new `AiInconsistencyPort`
+    (`checkConsistency`/`inconsistencyCacheKeyComponents`, again a
+    deliberately non-colliding method name) -- the same three adapter
+    classes now `implements AiExtractionPort, AiClassifyPort, AiExplainPort,
+    AiInconsistencyPort` on one instance, extending the canonical port a
+    fourth time rather than a fourth parallel system. New
+    `ai_inconsistency_runs`/`document_inconsistency_flags` tables, mirroring
+    `ai_classification_runs`/`document_type_proposals`'s own
+    separate-table-per-task precedent (never a shared table with a
+    discriminator column) so its own attempt counter
+    (`countAiInconsistencyAttempts`) stays independent of every other
+    task's.
+
+    Consent-gated on `AI_EXTRACTION` (the same tier classification already
+    uses -- reasoned as not a materially larger disclosure than sending
+    document text alone, since the profile facts sent are the applicant's
+    own, already on file) and document/applicant-scoped like classification
+    -- genuinely different from item 5's explanation task, which has no
+    consent gate and no document scoping at all. All 6 platform-wide ledger
+    functions (`totalAiCostUnits`/`documentAiCostUnits`/
+    `maxObservedCostUnits`/`releaseStaleInFlightCalls`/`countInFlightCalls`/
+    `countInFlightCallsForDocument`) extended with a fifth arm, since this
+    task -- unlike explanation -- is document-scoped and needs the
+    per-document budget/concurrency machinery too.
+
+    A new private `currentTrustedProfileFacts` helper (joins
+    `facts`/`fieldDefinitions`/`factVersions`) sends only TRUSTED-status
+    facts, and -- critically -- SENSITIVE/RESTRICTED field values are
+    excluded by construction, not by an added filter: `factVersions.value`
+    (the plaintext column) is structurally only ever populated for
+    STANDARD-sensitivity rows in the first place, since a protected field's
+    real value lives solely in `valueCiphertext` (packages/services/src/
+    profile.ts's own existing encryption discipline) -- filtering on
+    non-null `value` therefore excludes every protected field with no
+    separate `fieldDefinitions.sensitivity` join needed at all. Proven, not
+    just asserted: a dedicated test registers a RESTRICTED-sensitivity
+    field, writes it via `editFact` with a real encryption port, and
+    asserts both that it never appears in the adapter's received
+    `profileFacts` input AND that the raw outbound request JSON never
+    contains the secret plaintext value anywhere.
+
+    The cache key breaks from every prior task's own content-hash-only
+    convention: `computeInconsistencyCacheKey` folds in a hash of the
+    profile-facts snapshot itself, alongside the usual content hash and
+    adapter cache-key components, because the correct answer here genuinely
+    depends on both inputs -- a result computed against now-corrected facts
+    must never be silently re-served once the applicant fixes their
+    profile. Proven by a dedicated test (`does NOT serve from cache once
+    the profile facts have changed`) that edits a fact between two
+    otherwise-identical calls and asserts the adapter's call count goes
+    from 1 to 2, never staying at 1 the way every other task's own
+    content-only cache key would. Output is a free-text `description` (plus
+    numeric `confidence` and an optional `rationale`) rather than a rigid
+    `factKey`/`documentValue`/`profileValue` structure -- a genuine
+    inconsistency (e.g. a middle name appearing on a document but nowhere
+    in the profile) does not always map cleanly onto any single canonical
+    field, and forcing a rigid shape would either silently drop real
+    findings or invite the model to invent a field mapping that does not
+    exist.
+
+    Purely advisory, matching item 5's own framing: `acknowledgeInconsistencyFlag`/
+    `dismissInconsistencyFlag` (both routed through a shared private
+    `decideInconsistencyFlag` helper) only ever update the flag's own
+    `status`/`decidedByAccountId`/`decidedAt` columns -- neither ever
+    writes to the Master Profile or the document, proven by a dedicated
+    test asserting zero rows are touched in `schema.facts` after an
+    acknowledge. `listPendingInconsistencyFlags` gives the applicant-scoped
+    review queue, mirroring `listPendingDocumentTypeProposals`'s identical
+    shape.
+
+    `resolveAiInconsistencyChecker`/`isInconsistencyConfigured`
+    (`apps/web/src/lib/ai.ts`) reuse `buildAdapterForConfig` unchanged, its
+    return type widened a third time to `AiExtractionPort & AiClassifyPort
+    & AiExplainPort & AiInconsistencyPort`. `runInconsistencyCheckAction`/
+    `decideInconsistencyFlagAction` (applicant `actions.ts`) mirror
+    `runClassificationAction`/`decideClassificationProposalAction`'s own
+    shape exactly. New `RunInconsistencyCheckButton`/
+    `InconsistencyFlagReview` (`ai-review.tsx`) wired into the documents
+    page's per-document loop alongside the existing extraction/
+    classification/OCR triggers, gated on the same `AI_EXTRACTION` consent
+    (`data.aiGranted`) classification already uses.
+
+    This closes out all five of Part 8 §2's required P0 AI tasks --
+    AI-01 moves to DONE. No cross-provider fallback wiring yet for
+    classification/explanation/inconsistency-check (Part 8 §13) --
+    deliberately deferred, matching every other task's own precedent of
+    shipping core capability before fallback wiring. Full
+    `packages/services` suite: `ai.test.ts` alone 93/93 (13 new). Full
+    `packages/adapters` targeted suite: 100/100 across the three provider
+    test files (18 new -- adapter-level `checkConsistency()` parsing/
+    refusal/truncation/auth/cache-key-collision-avoidance tests, not just
+    service-layer stub coverage). Full `apps/web` suite: `ai.test.ts` alone
+    77/77 (7 new). Repo-wide typecheck and Biome both verified clean; not
+    verified in a live browser (sandbox limitation, same as every prior UI
+    chunk this session).
 independently confirmed findings; the missing PRD file is tracked as Blocker 1 in
 `assumptions-and-blockers.md` (now resolved) rather than here, since it blocked the
 programme rather than being a product defect.

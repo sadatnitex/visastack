@@ -11,6 +11,7 @@ import {
   type AiClassifyPort,
   type AiExplainPort,
   type AiExtractionPort,
+  type AiInconsistencyPort,
   type AiOcrPort,
   type AiProviderConfig,
   type Db,
@@ -96,17 +97,18 @@ export interface ResolvedAiExtractor {
 const IMPLEMENTED_PROVIDERS: ReadonlySet<string> = new Set(['openai', 'anthropic', 'gemini']);
 
 /**
- * Returns `AiExtractionPort & AiClassifyPort & AiExplainPort`, not just
- * `AiExtractionPort` -- every case below is one of the three adapter
- * classes that Chunk C (Part 8 AI-01 items 2 and 5) wired to implement ALL
- * THREE ports on the same instance, so `resolveAiClassifier`/
- * `resolveAiExplainer` both reuse this SAME function unchanged rather than
- * duplicating an equivalent construction switch per task.
+ * Returns `AiExtractionPort & AiClassifyPort & AiExplainPort &
+ * AiInconsistencyPort`, not just `AiExtractionPort` -- every case below is
+ * one of the three adapter classes that Part 8 AI-01 (items 2, 5, and 4)
+ * wired to implement ALL FOUR ports on the same instance, so
+ * `resolveAiClassifier`/`resolveAiExplainer`/`resolveAiInconsistencyChecker`
+ * all reuse this SAME function unchanged rather than duplicating an
+ * equivalent construction switch per task.
  */
 function buildAdapterForConfig(
   config: AiProviderConfig,
   apiKey: string,
-): AiExtractionPort & AiClassifyPort & AiExplainPort {
+): AiExtractionPort & AiClassifyPort & AiExplainPort & AiInconsistencyPort {
   const shared = {
     apiKey,
     model: config.model,
@@ -296,6 +298,29 @@ export async function resolveAiExplainer(
   return { ai: buildAdapterForConfig(config, apiKey), limits: limitsFromConfig(config) };
 }
 
+export interface ResolvedAiInconsistencyChecker {
+  readonly ai: AiInconsistencyPort;
+  readonly limits: AiLimits;
+}
+
+/**
+ * The inconsistency-check adapter (and its governing limits) a live
+ * possible-inconsistency-flag call should use (Part 8 AI-01 item 4) --
+ * reuses `buildAdapterForConfig` unchanged, the identical reasoning
+ * `resolveAiClassifier`/`resolveAiExplainer`'s own doc comments give. No
+ * env-var-only fallback path, for the identical reason those two have none.
+ */
+export async function resolveAiInconsistencyChecker(
+  db: Db,
+  encryption: KeyManagementPort | undefined,
+): Promise<ResolvedAiInconsistencyChecker | undefined> {
+  if (!(await hasAnyAiProviderConfig(db))) return undefined;
+  const config = await getActiveAiProviderConfig(db);
+  if (!config || !encryption || !IMPLEMENTED_PROVIDERS.has(config.provider)) return undefined;
+  const apiKey = await revealAiProviderApiKey(db, encryption, config);
+  return { ai: buildAdapterForConfig(config, apiKey), limits: limitsFromConfig(config) };
+}
+
 /**
  * Providers with a real OCR adapter (Part 8 §9), separate from
  * `IMPLEMENTED_PROVIDERS` above -- OCR reuses the same admin-configured AI
@@ -416,6 +441,13 @@ export async function isClassificationConfigured(db: Db): Promise<boolean> {
 
 /** Cheap "is AI readiness-gap explanation available" check (Part 8 AI-01 item 5) -- mirrors `isClassificationConfigured`'s identical shape (same `IMPLEMENTED_PROVIDERS` set), named separately for a reader's clarity at the call site. */
 export async function isExplanationConfigured(db: Db): Promise<boolean> {
+  if (!(await hasAnyAiProviderConfig(db))) return false;
+  const config = await getActiveAiProviderConfig(db);
+  return Boolean(config && IMPLEMENTED_PROVIDERS.has(config.provider));
+}
+
+/** Cheap "is AI inconsistency checking available" check (Part 8 AI-01 item 4) -- mirrors `isClassificationConfigured`/`isExplanationConfigured`'s identical shape (same `IMPLEMENTED_PROVIDERS` set), named separately for a reader's clarity at the call site. */
+export async function isInconsistencyConfigured(db: Db): Promise<boolean> {
   if (!(await hasAnyAiProviderConfig(db))) return false;
   const config = await getActiveAiProviderConfig(db);
   return Boolean(config && IMPLEMENTED_PROVIDERS.has(config.provider));

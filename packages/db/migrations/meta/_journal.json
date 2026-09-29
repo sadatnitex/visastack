@@ -575,6 +575,13 @@
       "when": 1790686316654,
       "tag": "0081_goofy_blue_marvel",
       "breakpoints": true
+    },
+    {
+      "idx": 82,
+      "version": "7",
+      "when": 1790695205641,
+      "tag": "0082_fuzzy_masked_marvel",
+      "breakpoints": true
     }
   ]
 }

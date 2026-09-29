@@ -57,6 +57,7 @@ const SCORECARD_LABELS: Record<ProductEventType, string> = {
   AI_EXTRACTION_RUN: 'AI extractions run',
   AI_OCR_RUN: 'AI OCR runs',
   AI_CLASSIFICATION_RUN: 'AI classifications run',
+  AI_INCONSISTENCY_RUN: 'AI inconsistency checks run',
 };
 
 const ORG_STATUS: Record<string, { label: string; tone: string }> = {

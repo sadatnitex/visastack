@@ -269,6 +269,16 @@ export const fieldSensitivity = pgEnum('field_sensitivity', [
   'RESTRICTED',
 ]);
 export const proposalType = pgEnum('proposal_type', PROPOSAL_TYPES);
+// Part 8 AI-01 item 4 ("possible inconsistency flag") -- deliberately its
+// own small enum, not `proposalStatus`: nothing here is ever "approved"
+// (there is no value to write anywhere), only acknowledged (the reviewer
+// has seen it and will act manually, outside this system) or dismissed (a
+// false positive, e.g. a legitimate name-spelling variation).
+export const inconsistencyFlagStatus = pgEnum('inconsistency_flag_status', [
+  'PENDING',
+  'ACKNOWLEDGED',
+  'DISMISSED',
+]);
 export const proposalStatus = pgEnum('proposal_status', ['PENDING', 'APPROVED', 'REJECTED']);
 // Part 8 AI-01 item 2 ("document type suggestion"): distinguishes a
 // `document_classifications` row the deterministic keyword/MRZ classifier
@@ -1117,6 +1127,94 @@ export const aiExplanationRuns = pgTable(
   (table) => [
     index('ai_explanation_runs_pack_requirement_idx').on(table.packRequirementId),
     index('ai_explanation_runs_cache_key_idx').on(table.cacheKey),
+  ],
+);
+
+// Part 8 AI-01 item 4 ("possible inconsistency flag") -- an exact structural
+// mirror of `ai_classification_runs` (same usage-tracking columns, same
+// status enum, same cache-key convention, same document/applicant scoping),
+// kept as its own table for the identical reason every other AI Gateway task
+// has its own: `countAiInconsistencyAttempts`'s own attempt limit must stay
+// independent of every other task's.
+export const aiInconsistencyRuns = pgTable(
+  'ai_inconsistency_runs',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    documentVersionId: uuid('document_version_id')
+      .notNull()
+      .references(() => documentVersions.id, { onDelete: 'cascade' }),
+    applicantId: uuid('applicant_id')
+      .notNull()
+      .references(() => applicants.id, { onDelete: 'cascade' }),
+    status: aiExtractionRunStatus('status').notNull(),
+    modelVersion: text('model_version').notNull(),
+    promptVersion: text('prompt_version').notNull(),
+    schemaVersion: text('schema_version'),
+    costUnits: integer('cost_units').notNull().default(0),
+    provider: text('provider'),
+    providerRequestId: text('provider_request_id'),
+    inputUnits: integer('input_units'),
+    outputUnits: integer('output_units'),
+    cachedUnits: integer('cached_units'),
+    latencyMs: integer('latency_ms'),
+    errorCode: text('error_code'),
+    // sha256(contentHash|profileFactsHash|...) -- unlike every other task's
+    // cache key, this one must also fold in a hash of the profile facts
+    // snapshot sent alongside the document text (see `runInconsistencyCheck`'s
+    // own doc comment): the correct answer depends on BOTH, and a stale
+    // cache hit computed against facts the applicant has since corrected
+    // would silently re-serve a flag about a contradiction that no longer
+    // exists.
+    cacheKey: text('cache_key'),
+    servedFromCacheRunId: uuid('served_from_cache_run_id'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('ai_inconsistency_runs_document_version_idx').on(table.documentVersionId),
+    index('ai_inconsistency_runs_applicant_idx').on(table.applicantId),
+    index('ai_inconsistency_runs_cache_key_idx').on(table.cacheKey),
+  ],
+);
+
+// One possible inconsistency the model noticed between a document's text and
+// the applicant's own already-confirmed profile facts -- advisory only, like
+// every other AI Gateway proposal/flag: never a fact write, never a
+// consequential DB write of any kind (directive's own "No: ... direct
+// consequential DB writes by model"). Deliberately free-text `description`
+// rather than a structured factKey/documentValue/profileValue triple --
+// the inconsistency the model notices may not cleanly map to any single
+// canonical field (e.g. "a middle name appears on this document but nowhere
+// in the profile"), so forcing a rigid shape would either drop real findings
+// or invite the model to invent a field mapping that does not exist.
+export const documentInconsistencyFlags = pgTable(
+  'document_inconsistency_flags',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    aiInconsistencyRunId: uuid('ai_inconsistency_run_id')
+      .notNull()
+      .references(() => aiInconsistencyRuns.id, { onDelete: 'cascade' }),
+    documentVersionId: uuid('document_version_id')
+      .notNull()
+      .references(() => documentVersions.id, { onDelete: 'cascade' }),
+    applicantId: uuid('applicant_id')
+      .notNull()
+      .references(() => applicants.id, { onDelete: 'cascade' }),
+    description: text('description').notNull(),
+    confidence: integer('confidence').notNull(), // 0-100
+    rationale: text('rationale'),
+    status: inconsistencyFlagStatus('status').notNull().default('PENDING'),
+    decidedByAccountId: uuid('decided_by_account_id').references(() => accounts.id, {
+      onDelete: 'set null',
+    }),
+    decidedAt: timestamp('decided_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('document_inconsistency_flags_document_version_idx').on(table.documentVersionId),
+    index('document_inconsistency_flags_applicant_status_idx').on(
+      table.applicantId,
+      table.status,
+    ),
   ],
 );
 

@@ -471,3 +471,108 @@ describe('AnthropicExtractionAdapter.explain (Part 8 AI-01 item 5)', () => {
     expect(explainComponents.schemaVersion).not.toBe(classifyComponents.schemaVersion);
   });
 });
+
+const INCONSISTENCY_INPUT = {
+  documentVersionId: 'doc-version-1',
+  text: 'Name: Anna Marie Eriksson. DOB: 1990-04-02.',
+  profileFacts: [{ fieldKey: 'applicant.givenNames', value: 'Anna Maria' }],
+};
+
+describe('AnthropicExtractionAdapter.checkConsistency (Part 8 AI-01 item 4)', () => {
+  it('parses a well-formed forced tool-use response into flags', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(
+      jsonResponse(200, {
+        stop_reason: 'tool_use',
+        content: [
+          {
+            type: 'tool_use',
+            input: {
+              flags: [
+                {
+                  description: 'Given names differ between the document and the profile',
+                  confidence: 0.7,
+                  rationale: '"Marie" on the document vs. "Maria" on file',
+                },
+              ],
+            },
+          },
+        ],
+        usage: { input_tokens: 15, output_tokens: 15 },
+      }),
+    );
+    const adapter = new AnthropicExtractionAdapter({ apiKey: 'sk-ant-test', fetchImpl });
+    const outcome = await adapter.checkConsistency(INCONSISTENCY_INPUT);
+
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+    expect(outcome.result.flags).toHaveLength(1);
+    expect(outcome.result.flags[0]?.description).toContain('Given names differ');
+    expect(outcome.result.usage.schemaVersion).toBe('inconsistency_flags_v1');
+
+    const [, requestInit] = fetchImpl.mock.calls[0] as [string, RequestInit];
+    const body = JSON.parse(requestInit.body as string);
+    expect(body.tool_choice.name).toBe('submit_inconsistency_flags');
+    expect(JSON.stringify(body)).toContain('Anna Maria');
+  });
+
+  it('reports zero flags as a genuine, valid, good outcome', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(
+      jsonResponse(200, {
+        stop_reason: 'tool_use',
+        content: [{ type: 'tool_use', input: { flags: [] } }],
+        usage: { input_tokens: 8, output_tokens: 2 },
+      }),
+    );
+    const adapter = new AnthropicExtractionAdapter({ apiKey: 'sk-ant-test', fetchImpl });
+    const outcome = await adapter.checkConsistency(INCONSISTENCY_INPUT);
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+    expect(outcome.result.flags).toHaveLength(0);
+  });
+
+  it('reports refused when the model declines to call the forced tool', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(
+      jsonResponse(200, {
+        stop_reason: 'end_turn',
+        content: [{ type: 'text', text: 'I cannot help with this' }],
+        usage: { input_tokens: 5, output_tokens: 5 },
+      }),
+    );
+    const adapter = new AnthropicExtractionAdapter({ apiKey: 'sk-ant-test', fetchImpl });
+    const outcome = await adapter.checkConsistency(INCONSISTENCY_INPUT);
+    expect(outcome.ok).toBe(false);
+    if (outcome.ok) return;
+    expect(outcome.code).toBe('refused');
+  });
+
+  it('reports truncated when max_tokens was reached', async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValue(jsonResponse(200, { stop_reason: 'max_tokens', content: [] }));
+    const adapter = new AnthropicExtractionAdapter({ apiKey: 'sk-ant-test', fetchImpl });
+    const outcome = await adapter.checkConsistency(INCONSISTENCY_INPUT);
+    expect(outcome.ok).toBe(false);
+    if (outcome.ok) return;
+    expect(outcome.code).toBe('truncated');
+  });
+
+  it('reports auth_failed on HTTP 401', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(jsonResponse(401, { error: 'bad key' }));
+    const adapter = new AnthropicExtractionAdapter({ apiKey: 'sk-ant-test', fetchImpl });
+    const outcome = await adapter.checkConsistency(INCONSISTENCY_INPUT);
+    expect(outcome.ok).toBe(false);
+    if (outcome.ok) return;
+    expect(outcome.code).toBe('auth_failed');
+  });
+
+  it("inconsistencyCacheKeyComponents never collides with any other port's own cache-key method", () => {
+    const adapter = new AnthropicExtractionAdapter({ apiKey: 'sk-ant-test' });
+    const extractionComponents = adapter.cacheKeyComponents();
+    const classifyComponents = adapter.classifyCacheKeyComponents();
+    const explainComponents = adapter.explainCacheKeyComponents();
+    const inconsistencyComponents = adapter.inconsistencyCacheKeyComponents();
+    expect(inconsistencyComponents.schemaVersion).not.toBe(extractionComponents.schemaVersion);
+    expect(inconsistencyComponents.schemaVersion).not.toBe(classifyComponents.schemaVersion);
+    expect(inconsistencyComponents.schemaVersion).not.toBe(explainComponents.schemaVersion);
+  });
+});

@@ -10,6 +10,7 @@ import {
   listDocumentsDetailed,
   listIssuerVerificationsForDocument,
   listPendingDocumentTypeProposals,
+  listPendingInconsistencyFlags,
   listPendingProposals,
   loadUploadQuotaConfig,
 } from '@visastack/services';
@@ -17,6 +18,7 @@ import Link from 'next/link';
 import {
   createAiExtractor,
   isClassificationConfigured,
+  isInconsistencyConfigured,
   isOcrConfigured,
 } from '../../../../../lib/ai';
 import { getLocale } from '../../../../../lib/locale';
@@ -25,9 +27,11 @@ import { previewDocumentAction, setDocumentDateAction } from '../actions';
 import {
   AiProposalReview,
   DocumentTypeProposalReview,
+  InconsistencyFlagReview,
   OcrResultView,
   RunAiExtractionButton,
   RunClassificationButton,
+  RunInconsistencyCheckButton,
   RunOcrButton,
 } from '../ai-review';
 import { DocumentUploader } from '../document-uploader';
@@ -102,9 +106,11 @@ export default async function ApplicantDocumentsPage({
       ocrGranted,
       ocrConfigured,
       classificationConfigured,
+      inconsistencyConfigured,
       evidenceBytes,
       pendingProposals,
       pendingClassificationProposals,
+      pendingInconsistencyFlags,
       wallet,
     ] = await Promise.all([
       listDocumentsDetailed(db, accountId, id),
@@ -113,9 +119,11 @@ export default async function ApplicantDocumentsPage({
       hasConsent(db, accountId, 'AI_OCR'),
       isOcrConfigured(db),
       isClassificationConfigured(db),
+      isInconsistencyConfigured(db),
       getApplicantEvidenceBytes(db, id),
       listPendingProposals(db, id),
       listPendingDocumentTypeProposals(db, id),
+      listPendingInconsistencyFlags(db, id),
       getWalletView(db, { actorAccountId: accountId, applicantId: id }),
     ]);
     const documentRows = documents.ok ? documents.value : [];
@@ -145,9 +153,11 @@ export default async function ApplicantDocumentsPage({
       ocrGranted,
       ocrConfigured,
       classificationConfigured,
+      inconsistencyConfigured,
       evidenceBytes,
       pendingProposals,
       pendingClassificationProposals,
+      pendingInconsistencyFlags,
       quota: loadUploadQuotaConfig(),
       wallet: new Map((wallet.ok ? wallet.value : []).map((w) => [w.document.id, w])),
       issuerVerifications,
@@ -483,6 +493,42 @@ export default async function ApplicantDocumentsPage({
                             usedFallback={latestRun.triggeredByRunId !== null}
                           />
                         ) : null}
+                      </>
+                    );
+                  })()}
+                  {(() => {
+                    // Part 8 AI-01 item 4: same AI_EXTRACTION consent gate as
+                    // extraction/classification above -- the check sends the
+                    // document's own text plus the applicant's already-
+                    // confirmed TRUSTED profile facts, never a second document.
+                    if (!data.inconsistencyConfigured || !data.aiGranted || !doc.classification) {
+                      return null;
+                    }
+                    const versionId = doc.latestVersionId;
+                    if (!versionId) return null;
+                    const flagsForDoc = data.pendingInconsistencyFlags.filter(
+                      (f) => f.documentVersionId === versionId,
+                    );
+                    return (
+                      <>
+                        {data.coreGranted ? (
+                          <RunInconsistencyCheckButton
+                            applicantId={id}
+                            documentVersionId={versionId}
+                          />
+                        ) : null}
+                        {flagsForDoc.map((flag) => (
+                          <InconsistencyFlagReview
+                            key={flag.id}
+                            applicantId={id}
+                            flag={{
+                              id: flag.id,
+                              description: flag.description,
+                              confidence: flag.confidence,
+                              rationale: flag.rationale,
+                            }}
+                          />
+                        ))}
                       </>
                     );
                   })()}

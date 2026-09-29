@@ -5,9 +5,11 @@ import type { ApplicantId } from '@visastack/core';
 import type { Actor, Db } from '@visastack/services';
 import type { AddDocumentVersionResult } from '@visastack/services';
 import {
+  acknowledgeInconsistencyFlag,
   approveDocumentTypeProposal,
   approveProposal,
   decideDocumentName,
+  dismissInconsistencyFlag,
   editFact,
   enqueueIntakeJob,
   failUpload,
@@ -27,13 +29,19 @@ import {
   reserveUpload,
   runClassification,
   runExtraction,
+  runInconsistencyCheck,
   runOcr,
   setDocumentDate,
 } from '@visastack/services';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { after } from 'next/server';
-import { resolveAiClassifier, resolveAiExtractor, resolveOcrAdapter } from '../../../../lib/ai';
+import {
+  resolveAiClassifier,
+  resolveAiExtractor,
+  resolveAiInconsistencyChecker,
+  resolveOcrAdapter,
+} from '../../../../lib/ai';
 import { triggerIntakeWorker } from '../../../../lib/jobs';
 import { profileField } from '../../../../lib/profile-fields';
 import { createKeyManagementPort, createPreviewRenderer } from '../../../../lib/providers';
@@ -640,6 +648,100 @@ export async function decideProposalAction(
         approved.value.version.status === 'CONFLICTED'
           ? 'Approved, but this conflicts with an already-confirmed value — flagged for review.'
           : 'Proposal approved and saved to the profile.',
+    } satisfies ActionState;
+  });
+
+  if (result.ok) revalidatePath(`/app/applicant/${applicantId}`, 'layout');
+  return result;
+}
+
+/**
+ * Run an AI possible-inconsistency check (Part 8 AI-01 item 4). Reuses the
+ * same deterministically-extracted text the extraction/classification
+ * actions read (`getLatestExtractedText`) -- `runInconsistencyCheck` itself
+ * fetches the applicant's own TRUSTED profile facts and never a second
+ * document, so this action passes only the document text.
+ */
+export async function runInconsistencyCheckAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const applicantId = String(formData.get('applicantId') ?? '');
+  const documentVersionId = String(formData.get('documentVersionId') ?? '');
+
+  const result = await withSession(async ({ db, accountId }) => {
+    if (!(await assertOwned(db, accountId, applicantId))) {
+      return { ok: false, message: 'Not authorized.' } satisfies ActionState;
+    }
+    const resolved = await resolveAiInconsistencyChecker(db, createKeyManagementPort());
+    if (!resolved) {
+      return {
+        ok: false,
+        message: 'AI inconsistency checking is not configured.',
+      } satisfies ActionState;
+    }
+    const text = await getLatestExtractedText(db, documentVersionId);
+    if (!text) {
+      return {
+        ok: false,
+        message: 'No extracted text available yet for this document.',
+      } satisfies ActionState;
+    }
+    const run = await runInconsistencyCheck(db, resolved.ai, {
+      actorAccountId: accountId,
+      applicantId,
+      documentVersionId,
+      text,
+      budgetLimitUnits: resolved.limits.budgetLimitUnits,
+      perDocumentBudgetLimitUnits: resolved.limits.perDocumentBudgetLimitUnits,
+      maxAttemptsPerDocument: resolved.limits.maxAttemptsPerDocument,
+      maxPagesPerDocument: resolved.limits.maxPagesPerDocument,
+      cacheMaxAgeDays: resolved.limits.cacheMaxAgeDays,
+      maxConcurrentCalls: resolved.limits.maxConcurrentCalls,
+      killSwitchCheck: () => isAiDispatchAllowed(db),
+    });
+    if (!run.ok) return { ok: false, message: run.error.message } satisfies ActionState;
+    return {
+      ok: true,
+      message:
+        run.value.flags.length > 0
+          ? `AI found ${run.value.flags.length} possible inconsistency(ies) to review.`
+          : 'AI inconsistency check ran and found nothing to flag.',
+    } satisfies ActionState;
+  });
+
+  if (result.ok) revalidatePath(`/app/applicant/${applicantId}`, 'layout');
+  return result;
+}
+
+/**
+ * Decide a PENDING AI inconsistency flag (Part 8 AI-01 item 4): acknowledge
+ * or dismiss. Purely advisory -- neither decision ever writes to the
+ * Master Profile (see `acknowledgeInconsistencyFlag`'s own doc comment).
+ */
+export async function decideInconsistencyFlagAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const applicantId = String(formData.get('applicantId') ?? '');
+  const flagId = String(formData.get('flagId') ?? '');
+  const decision = String(formData.get('flagAction') ?? '');
+
+  if (decision !== 'acknowledge' && decision !== 'dismiss') {
+    return { ok: false, message: 'Unknown action.' };
+  }
+
+  const result = await withSession(async ({ db, accountId }) => {
+    if (!(await assertOwned(db, accountId, applicantId))) {
+      return { ok: false, message: 'Not authorized.' } satisfies ActionState;
+    }
+    const decided = await (decision === 'acknowledge'
+      ? acknowledgeInconsistencyFlag(db, { actorAccountId: accountId, flagId })
+      : dismissInconsistencyFlag(db, { actorAccountId: accountId, flagId }));
+    if (!decided.ok) return { ok: false, message: decided.error.message } satisfies ActionState;
+    return {
+      ok: true,
+      message: decision === 'acknowledge' ? 'Flag acknowledged.' : 'Flag dismissed.',
     } satisfies ActionState;
   });
 

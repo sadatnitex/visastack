@@ -236,6 +236,51 @@ export interface AiExplainPort {
   explainCacheKeyComponents(): AiCacheKeyComponents;
 }
 
+/**
+ * Part 8 AI-01 item 4 ("possible inconsistency flag"), the fourth and last
+ * port extending the canonical AI Gateway. Compares one document's
+ * deterministically-extracted text against the applicant's OWN
+ * already-confirmed (TRUSTED-status, STANDARD-sensitivity) profile facts --
+ * never a second document, never protected/sensitive field values, and
+ * never a re-determination of any fact's correctness. Purely advisory: even
+ * a returned flag never implies which side (document or profile) is
+ * actually wrong, only that a human should look.
+ */
+export interface AiInconsistencyInput {
+  readonly documentVersionId: string;
+  readonly text: string;
+  readonly profileFacts: readonly { readonly fieldKey: string; readonly value: string }[];
+}
+
+export interface AiInconsistencyFlag {
+  readonly description: string;
+  /** 0..1 model confidence; persisted as 0-100 to match the rest of the schema. */
+  readonly confidence: number;
+  readonly rationale?: string;
+}
+
+export interface AiInconsistencyResult {
+  /** Empty is a genuine, common, good outcome -- "found nothing" -- mirroring `runExtraction`'s own empty-proposals convention. */
+  readonly flags: readonly AiInconsistencyFlag[];
+  readonly usage: AiUsage;
+}
+
+export type AiInconsistencyOutcome =
+  | { readonly ok: true; readonly result: AiInconsistencyResult }
+  | {
+      readonly ok: false;
+      readonly code: AiExtractionErrorCode;
+      readonly message: string;
+      readonly provider?: string;
+      readonly latencyMs?: number;
+    };
+
+export interface AiInconsistencyPort {
+  checkConsistency(input: AiInconsistencyInput): Promise<AiInconsistencyOutcome>;
+  /** Deliberately its own name, not shared with any other port's cache-key method -- same collision-avoidance reasoning as `AiClassifyPort`'s own. */
+  inconsistencyCacheKeyComponents(): AiCacheKeyComponents;
+}
+
 function toPersistedConfidence(confidence: number): number {
   return Math.max(0, Math.min(100, Math.round(confidence * 100)));
 }
@@ -253,7 +298,7 @@ function toPersistedConfidence(confidence: number): number {
  * with no separate change needed there.
  */
 export async function totalAiCostUnits(db: Db): Promise<number> {
-  const [extraction, ocr, classification, explanation] = await Promise.all([
+  const [extraction, ocr, classification, explanation, inconsistency] = await Promise.all([
     first(
       await db
         .select({ total: sql<string>`coalesce(sum(${schema.aiExtractionRuns.costUnits}), 0)` })
@@ -278,12 +323,20 @@ export async function totalAiCostUnits(db: Db): Promise<number> {
         })
         .from(schema.aiExplanationRuns),
     ),
+    first(
+      await db
+        .select({
+          total: sql<string>`coalesce(sum(${schema.aiInconsistencyRuns.costUnits}), 0)`,
+        })
+        .from(schema.aiInconsistencyRuns),
+    ),
   ]);
   return (
     Number(extraction?.total ?? 0) +
     Number(ocr?.total ?? 0) +
     Number(classification?.total ?? 0) +
-    Number(explanation?.total ?? 0)
+    Number(explanation?.total ?? 0) +
+    Number(inconsistency?.total ?? 0)
   );
 }
 
@@ -296,7 +349,7 @@ export async function totalAiCostUnits(db: Db): Promise<number> {
  * the spend came from.
  */
 export async function documentAiCostUnits(db: Db, documentVersionId: string): Promise<number> {
-  const [extraction, ocr, classification] = await Promise.all([
+  const [extraction, ocr, classification, inconsistency] = await Promise.all([
     first(
       await db
         .select({ total: sql<string>`coalesce(sum(${schema.aiExtractionRuns.costUnits}), 0)` })
@@ -317,9 +370,20 @@ export async function documentAiCostUnits(db: Db, documentVersionId: string): Pr
         .from(schema.aiClassificationRuns)
         .where(eq(schema.aiClassificationRuns.documentVersionId, documentVersionId)),
     ),
+    first(
+      await db
+        .select({
+          total: sql<string>`coalesce(sum(${schema.aiInconsistencyRuns.costUnits}), 0)`,
+        })
+        .from(schema.aiInconsistencyRuns)
+        .where(eq(schema.aiInconsistencyRuns.documentVersionId, documentVersionId)),
+    ),
   ]);
   return (
-    Number(extraction?.total ?? 0) + Number(ocr?.total ?? 0) + Number(classification?.total ?? 0)
+    Number(extraction?.total ?? 0) +
+    Number(ocr?.total ?? 0) +
+    Number(classification?.total ?? 0) +
+    Number(inconsistency?.total ?? 0)
   );
 }
 
@@ -407,6 +471,23 @@ export async function countAiClassificationAttempts(
   return rows.length;
 }
 
+/** How many times an inconsistency check has genuinely been invoked for one document -- the inconsistency-specific mirror of `countAiClassificationAttempts`, same cache-hit exclusion, same reason it is its own independent counter. */
+export async function countAiInconsistencyAttempts(
+  db: Db,
+  documentVersionId: string,
+): Promise<number> {
+  const rows = await db
+    .select({ id: schema.aiInconsistencyRuns.id })
+    .from(schema.aiInconsistencyRuns)
+    .where(
+      and(
+        eq(schema.aiInconsistencyRuns.documentVersionId, documentVersionId),
+        isNull(schema.aiInconsistencyRuns.servedFromCacheRunId),
+      ),
+    );
+  return rows.length;
+}
+
 /**
  * Self-healing for `IN_FLIGHT` reservations (Part 8 §11's concurrency gate):
  * a row is inserted BEFORE the outbound provider call and only updated to
@@ -459,6 +540,15 @@ async function releaseStaleInFlightCalls(db: Db): Promise<void> {
           lt(schema.aiExplanationRuns.createdAt, cutoff),
         ),
       ),
+    db
+      .update(schema.aiInconsistencyRuns)
+      .set({ status: 'FAILED', errorCode: 'in_flight_expired' })
+      .where(
+        and(
+          eq(schema.aiInconsistencyRuns.status, 'IN_FLIGHT'),
+          lt(schema.aiInconsistencyRuns.createdAt, cutoff),
+        ),
+      ),
   ]);
 }
 
@@ -470,32 +560,41 @@ async function releaseStaleInFlightCalls(db: Db): Promise<void> {
  * not of which AI Gateway task each call happens to be for.
  */
 async function countInFlightCalls(db: Db): Promise<number> {
-  const [extractionRows, ocrRows, classificationRows, explanationRows] = await Promise.all([
-    db
-      .select({ id: schema.aiExtractionRuns.id })
-      .from(schema.aiExtractionRuns)
-      .where(eq(schema.aiExtractionRuns.status, 'IN_FLIGHT')),
-    db
-      .select({ id: schema.ocrRuns.id })
-      .from(schema.ocrRuns)
-      .where(eq(schema.ocrRuns.status, 'IN_FLIGHT')),
-    db
-      .select({ id: schema.aiClassificationRuns.id })
-      .from(schema.aiClassificationRuns)
-      .where(eq(schema.aiClassificationRuns.status, 'IN_FLIGHT')),
-    db
-      .select({ id: schema.aiExplanationRuns.id })
-      .from(schema.aiExplanationRuns)
-      .where(eq(schema.aiExplanationRuns.status, 'IN_FLIGHT')),
-  ]);
+  const [extractionRows, ocrRows, classificationRows, explanationRows, inconsistencyRows] =
+    await Promise.all([
+      db
+        .select({ id: schema.aiExtractionRuns.id })
+        .from(schema.aiExtractionRuns)
+        .where(eq(schema.aiExtractionRuns.status, 'IN_FLIGHT')),
+      db
+        .select({ id: schema.ocrRuns.id })
+        .from(schema.ocrRuns)
+        .where(eq(schema.ocrRuns.status, 'IN_FLIGHT')),
+      db
+        .select({ id: schema.aiClassificationRuns.id })
+        .from(schema.aiClassificationRuns)
+        .where(eq(schema.aiClassificationRuns.status, 'IN_FLIGHT')),
+      db
+        .select({ id: schema.aiExplanationRuns.id })
+        .from(schema.aiExplanationRuns)
+        .where(eq(schema.aiExplanationRuns.status, 'IN_FLIGHT')),
+      db
+        .select({ id: schema.aiInconsistencyRuns.id })
+        .from(schema.aiInconsistencyRuns)
+        .where(eq(schema.aiInconsistencyRuns.status, 'IN_FLIGHT')),
+    ]);
   return (
-    extractionRows.length + ocrRows.length + classificationRows.length + explanationRows.length
+    extractionRows.length +
+    ocrRows.length +
+    classificationRows.length +
+    explanationRows.length +
+    inconsistencyRows.length
   );
 }
 
 /** Same as `countInFlightCalls`, scoped to one document -- the per-document budget check's own concurrency exposure. */
 async function countInFlightCallsForDocument(db: Db, documentVersionId: string): Promise<number> {
-  const [extractionRows, ocrRows, classificationRows] = await Promise.all([
+  const [extractionRows, ocrRows, classificationRows, inconsistencyRows] = await Promise.all([
     db
       .select({ id: schema.aiExtractionRuns.id })
       .from(schema.aiExtractionRuns)
@@ -523,8 +622,19 @@ async function countInFlightCallsForDocument(db: Db, documentVersionId: string):
           eq(schema.aiClassificationRuns.documentVersionId, documentVersionId),
         ),
       ),
+    db
+      .select({ id: schema.aiInconsistencyRuns.id })
+      .from(schema.aiInconsistencyRuns)
+      .where(
+        and(
+          eq(schema.aiInconsistencyRuns.status, 'IN_FLIGHT'),
+          eq(schema.aiInconsistencyRuns.documentVersionId, documentVersionId),
+        ),
+      ),
   ]);
-  return extractionRows.length + ocrRows.length + classificationRows.length;
+  return (
+    extractionRows.length + ocrRows.length + classificationRows.length + inconsistencyRows.length
+  );
 }
 
 /**
@@ -545,7 +655,7 @@ async function countInFlightCallsForDocument(db: Db, documentVersionId: string):
  * never an under-estimate.
  */
 async function maxObservedCostUnits(db: Db): Promise<number> {
-  const [extraction, ocr, classification, explanation] = await Promise.all([
+  const [extraction, ocr, classification, explanation, inconsistency] = await Promise.all([
     first(
       await db
         .select({ max: sql<string>`coalesce(max(${schema.aiExtractionRuns.costUnits}), 0)` })
@@ -574,12 +684,21 @@ async function maxObservedCostUnits(db: Db): Promise<number> {
         .from(schema.aiExplanationRuns)
         .where(eq(schema.aiExplanationRuns.status, 'SUCCEEDED')),
     ),
+    first(
+      await db
+        .select({
+          max: sql<string>`coalesce(max(${schema.aiInconsistencyRuns.costUnits}), 0)`,
+        })
+        .from(schema.aiInconsistencyRuns)
+        .where(eq(schema.aiInconsistencyRuns.status, 'SUCCEEDED')),
+    ),
   ]);
   return Math.max(
     Number(extraction?.max ?? 0),
     Number(ocr?.max ?? 0),
     Number(classification?.max ?? 0),
     Number(explanation?.max ?? 0),
+    Number(inconsistency?.max ?? 0),
   );
 }
 
@@ -2907,4 +3026,541 @@ export async function getLatestExplanationForRequirement(
       .orderBy(desc(schema.aiExplanationRuns.createdAt))
       .limit(1),
   );
+}
+
+// --- AI-assisted inconsistency flagging (Part 8 AI-01 item 4) -------------
+//
+// Advisory only, exactly like extraction/classification: `runInconsistencyCheck`
+// never writes a fact, never resolves a conflict, and never implies which
+// side (document or profile) is actually correct -- only that a human
+// should look. Co-located here for the identical shared-budget-ledger
+// reason `runOcr`'s own doc comment gives.
+const INCONSISTENCY_TASK_VERSION = 'inconsistency_flag_v1';
+
+/**
+ * Every CURRENTLY TRUSTED, STANDARD-sensitivity profile fact for this
+ * applicant -- the context sent alongside a document's text so the model can
+ * spot a possible contradiction. Deliberately excludes SENSITIVE/RESTRICTED
+ * fields: `fact_versions.value` is only ever populated (non-null) for
+ * STANDARD-sensitivity rows in the first place (a protected row's real value
+ * lives only in `valueCiphertext`, per that column's own doc comment), so
+ * filtering on a non-null `value` already excludes every protected field
+ * with no separate sensitivity join needed -- this task never sends a
+ * SENSITIVE/RESTRICTED value to a model, a materially larger disclosure than
+ * AI_EXTRACTION consent already covers.
+ */
+async function currentTrustedProfileFacts(
+  db: Db,
+  applicantId: string,
+): Promise<readonly { readonly fieldKey: string; readonly value: string }[]> {
+  const rows = await db
+    .select({
+      fieldKey: schema.fieldDefinitions.key,
+      value: schema.factVersions.value,
+      status: schema.factVersions.status,
+    })
+    .from(schema.facts)
+    .innerJoin(
+      schema.fieldDefinitions,
+      eq(schema.facts.fieldDefinitionId, schema.fieldDefinitions.id),
+    )
+    .innerJoin(schema.factVersions, eq(schema.facts.currentVersionId, schema.factVersions.id))
+    .where(eq(schema.facts.applicantId, applicantId));
+  return rows
+    .filter(
+      (r): r is typeof r & { value: string } =>
+        r.value !== null && TRUSTED_FACT_STATUSES.includes(r.status),
+    )
+    .map((r) => ({ fieldKey: r.fieldKey, value: r.value }));
+}
+
+/**
+ * Cache key for an inconsistency check -- unlike every other task's, this
+ * folds in a hash of the PROFILE FACTS snapshot alongside the document
+ * content hash (see `ai_inconsistency_runs.cacheKey`'s own schema doc
+ * comment for why both matter): the correct answer genuinely depends on
+ * both, and a stale cache hit computed against facts the applicant has
+ * since corrected would silently re-serve a flag about a contradiction that
+ * no longer exists.
+ */
+function computeInconsistencyCacheKey(
+  contentHash: string,
+  profileFacts: readonly { readonly fieldKey: string; readonly value: string }[],
+  cacheKeyComponents: AiCacheKeyComponents,
+): string {
+  const factsHash = createHash('sha256')
+    .update(
+      [...profileFacts]
+        .map((f) => `${f.fieldKey}=${f.value}`)
+        .sort()
+        .join('|'),
+    )
+    .digest('hex');
+  const parts = [
+    contentHash,
+    factsHash,
+    INCONSISTENCY_TASK_VERSION,
+    cacheKeyComponents.model,
+    cacheKeyComponents.promptVersion,
+    cacheKeyComponents.schemaVersion,
+    cacheKeyComponents.reasoningEffort ?? '',
+  ];
+  return createHash('sha256').update(parts.join('|')).digest('hex');
+}
+
+export type DocumentInconsistencyFlagRow = typeof schema.documentInconsistencyFlags.$inferSelect;
+
+export interface RunInconsistencyCheckInput {
+  readonly actorAccountId: string;
+  readonly applicantId: string;
+  readonly documentVersionId: string;
+  readonly text: string;
+  readonly budgetLimitUnits: number;
+  readonly perDocumentBudgetLimitUnits?: number;
+  readonly maxAttemptsPerDocument?: number;
+  readonly maxPagesPerDocument?: number;
+  readonly maxConcurrentCalls?: number;
+  readonly cacheMaxAgeDays?: number;
+  readonly killSwitchCheck?: () => Promise<boolean>;
+}
+
+export interface RunInconsistencyCheckSummary {
+  readonly aiInconsistencyRunId: string;
+  readonly flags: readonly DocumentInconsistencyFlagRow[];
+}
+
+type InconsistencyReservation =
+  | { readonly kind: 'final'; readonly outcome: Result<RunInconsistencyCheckSummary, ServiceError> }
+  | {
+      readonly kind: 'proceed';
+      readonly runId: string;
+      readonly profileFacts: readonly { readonly fieldKey: string; readonly value: string }[];
+      readonly cacheKey: string;
+    };
+
+/** Phase 1 (RESERVE) -- structurally mirrors `reserveExtractionSlot`; see that function's own doc comment (on `runExtraction`) for the full reasoning behind every check and lock here. */
+async function reserveInconsistencySlot(
+  db: Db,
+  ai: AiInconsistencyPort,
+  input: RunInconsistencyCheckInput,
+): Promise<InconsistencyReservation> {
+  return db.transaction(async (tx): Promise<InconsistencyReservation> => {
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext('visastack:ai-platform-budget'))`);
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${input.documentVersionId}))`);
+
+    await releaseStaleInFlightCalls(tx);
+
+    const worstCase = await maxObservedCostUnits(tx);
+    const inFlightPlatform = await countInFlightCalls(tx);
+
+    const used = (await totalAiCostUnits(tx)) + (inFlightPlatform + 1) * worstCase;
+    if (used >= input.budgetLimitUnits) {
+      return { kind: 'final', outcome: err(serviceError('invalid', 'AI budget exhausted')) };
+    }
+    if (input.perDocumentBudgetLimitUnits !== undefined) {
+      const inFlightDocument = await countInFlightCallsForDocument(tx, input.documentVersionId);
+      const documentUsed =
+        (await documentAiCostUnits(tx, input.documentVersionId)) +
+        (inFlightDocument + 1) * worstCase;
+      if (documentUsed >= input.perDocumentBudgetLimitUnits) {
+        return {
+          kind: 'final',
+          outcome: err(serviceError('invalid', 'AI budget exhausted for this document')),
+        };
+      }
+    }
+    if (input.maxPagesPerDocument !== undefined) {
+      const pageCount = await latestPageCount(tx, input.documentVersionId);
+      if (pageCount !== null && pageCount > input.maxPagesPerDocument) {
+        return {
+          kind: 'final',
+          outcome: err(
+            serviceError(
+              'invalid',
+              'document exceeds the configured page limit for AI inconsistency checking',
+            ),
+          ),
+        };
+      }
+    }
+
+    const profileFacts = await currentTrustedProfileFacts(tx, input.applicantId);
+    const contentHash = createHash('sha256').update(input.text).digest('hex');
+    const cacheKey = computeInconsistencyCacheKey(
+      contentHash,
+      profileFacts,
+      ai.inconsistencyCacheKeyComponents(),
+    );
+
+    const cacheMaxAgeDays = input.cacheMaxAgeDays ?? DEFAULT_CACHE_MAX_AGE_DAYS;
+    const cacheCutoff = new Date(Date.now() - cacheMaxAgeDays * 24 * 60 * 60 * 1000);
+    const cached = first(
+      await tx
+        .select()
+        .from(schema.aiInconsistencyRuns)
+        .where(
+          and(
+            eq(schema.aiInconsistencyRuns.cacheKey, cacheKey),
+            eq(schema.aiInconsistencyRuns.status, 'SUCCEEDED'),
+            gte(schema.aiInconsistencyRuns.createdAt, cacheCutoff),
+          ),
+        )
+        .orderBy(desc(schema.aiInconsistencyRuns.createdAt))
+        .limit(1),
+    );
+
+    if (cached) {
+      const run = required(
+        first(
+          await tx
+            .insert(schema.aiInconsistencyRuns)
+            .values({
+              documentVersionId: input.documentVersionId,
+              applicantId: input.applicantId,
+              status: 'SUCCEEDED',
+              modelVersion: cached.modelVersion,
+              promptVersion: cached.promptVersion,
+              schemaVersion: cached.schemaVersion,
+              costUnits: 0,
+              provider: cached.provider,
+              cacheKey,
+              servedFromCacheRunId: cached.id,
+            })
+            .returning(),
+        ),
+        'ai inconsistency run',
+      );
+      const sourceFlags = await tx
+        .select()
+        .from(schema.documentInconsistencyFlags)
+        .where(eq(schema.documentInconsistencyFlags.aiInconsistencyRunId, cached.id));
+      const savedFlags: DocumentInconsistencyFlagRow[] = [];
+      for (const source of sourceFlags) {
+        savedFlags.push(
+          required(
+            first(
+              await tx
+                .insert(schema.documentInconsistencyFlags)
+                .values({
+                  aiInconsistencyRunId: run.id,
+                  documentVersionId: input.documentVersionId,
+                  applicantId: input.applicantId,
+                  description: source.description,
+                  confidence: source.confidence,
+                  rationale: source.rationale,
+                })
+                .returning(),
+            ),
+            'document inconsistency flag',
+          ),
+        );
+      }
+      await appendAuditEvent(tx, {
+        eventType: 'AI_INCONSISTENCY_CACHE_HIT',
+        actorAccountId: input.actorAccountId,
+        method: 'DOCUMENT',
+        result: 'ALLOWED',
+        applicantId: input.applicantId,
+        resourceType: 'document_version',
+        resourceId: input.documentVersionId,
+        metadata: { aiInconsistencyRunId: run.id, servedFromCacheRunId: cached.id, cacheKey },
+      });
+      return {
+        kind: 'final',
+        outcome: ok({ aiInconsistencyRunId: run.id, flags: savedFlags }),
+      };
+    }
+
+    if (input.maxAttemptsPerDocument !== undefined) {
+      const attempts = await countAiInconsistencyAttempts(tx, input.documentVersionId);
+      if (attempts >= input.maxAttemptsPerDocument) {
+        return {
+          kind: 'final',
+          outcome: err(
+            serviceError(
+              'invalid',
+              'AI inconsistency check attempt limit reached for this document',
+            ),
+          ),
+        };
+      }
+    }
+
+    if (input.maxConcurrentCalls !== undefined && inFlightPlatform >= input.maxConcurrentCalls) {
+      return {
+        kind: 'final',
+        outcome: err(
+          serviceError(
+            'rate_limited',
+            'too many AI calls in flight platform-wide; try again shortly',
+          ),
+        ),
+      };
+    }
+
+    const run = required(
+      first(
+        await tx
+          .insert(schema.aiInconsistencyRuns)
+          .values({
+            documentVersionId: input.documentVersionId,
+            applicantId: input.applicantId,
+            status: 'IN_FLIGHT',
+            modelVersion: 'unknown',
+            promptVersion: 'unknown',
+          })
+          .returning(),
+      ),
+      'ai inconsistency run',
+    );
+
+    return { kind: 'proceed', runId: run.id, profileFacts, cacheKey };
+  });
+}
+
+interface InconsistencyDispatchResult {
+  readonly outcome: AiInconsistencyOutcome;
+  readonly result: Result<RunInconsistencyCheckSummary, ServiceError>;
+}
+
+/** Phases 2 (CALL) and 3 (RECONCILE) -- structurally mirrors `dispatchAndReconcile`. */
+async function dispatchAndReconcileInconsistency(
+  db: Db,
+  ai: AiInconsistencyPort,
+  input: RunInconsistencyCheckInput,
+  runId: string,
+  profileFacts: readonly { readonly fieldKey: string; readonly value: string }[],
+  cacheKey: string,
+): Promise<InconsistencyDispatchResult> {
+  const killSwitchAllows = input.killSwitchCheck ? await input.killSwitchCheck() : true;
+
+  const outcome: AiInconsistencyOutcome = killSwitchAllows
+    ? await ai.checkConsistency({
+        documentVersionId: input.documentVersionId,
+        text: input.text,
+        profileFacts,
+      })
+    : { ok: false, code: 'disabled', message: 'AI inconsistency checking is currently disabled' };
+
+  const result = await db.transaction(async (tx) => {
+    if (!outcome.ok) {
+      await tx
+        .update(schema.aiInconsistencyRuns)
+        .set({
+          status: 'FAILED',
+          provider: outcome.provider ?? null,
+          latencyMs: outcome.latencyMs ?? null,
+          errorCode: outcome.code,
+        })
+        .where(eq(schema.aiInconsistencyRuns.id, runId));
+      await appendAuditEvent(tx, {
+        eventType: 'AI_INCONSISTENCY_FAILED',
+        actorAccountId: input.actorAccountId,
+        method: 'DOCUMENT',
+        result: 'ALLOWED',
+        applicantId: input.applicantId,
+        resourceType: 'document_version',
+        resourceId: input.documentVersionId,
+        metadata: { errorCode: outcome.code, aiInconsistencyRunId: runId },
+      });
+      return err(
+        serviceError(outcome.code === 'disabled' ? 'invalid' : 'upstream_error', outcome.message),
+      );
+    }
+
+    const { flags, usage } = outcome.result;
+
+    await tx
+      .update(schema.aiInconsistencyRuns)
+      .set({
+        status: 'SUCCEEDED',
+        modelVersion: usage.modelVersion,
+        promptVersion: usage.promptVersion,
+        schemaVersion: usage.schemaVersion,
+        costUnits: usage.costUnits,
+        provider: usage.provider,
+        providerRequestId: usage.providerRequestId ?? null,
+        inputUnits: usage.inputUnits,
+        outputUnits: usage.outputUnits,
+        cachedUnits: usage.cachedUnits,
+        latencyMs: usage.latencyMs,
+        cacheKey,
+      })
+      .where(eq(schema.aiInconsistencyRuns.id, runId));
+
+    const savedFlags: DocumentInconsistencyFlagRow[] = [];
+    for (const flag of flags) {
+      savedFlags.push(
+        required(
+          first(
+            await tx
+              .insert(schema.documentInconsistencyFlags)
+              .values({
+                aiInconsistencyRunId: runId,
+                documentVersionId: input.documentVersionId,
+                applicantId: input.applicantId,
+                description: flag.description,
+                confidence: toPersistedConfidence(flag.confidence),
+                rationale: flag.rationale ?? null,
+              })
+              .returning(),
+          ),
+          'document inconsistency flag',
+        ),
+      );
+    }
+
+    await appendAuditEvent(tx, {
+      eventType: 'AI_INCONSISTENCY_RUN',
+      actorAccountId: input.actorAccountId,
+      method: 'DOCUMENT',
+      result: 'ALLOWED',
+      applicantId: input.applicantId,
+      resourceType: 'document_version',
+      resourceId: input.documentVersionId,
+      metadata: {
+        aiInconsistencyRunId: runId,
+        flagsRaised: savedFlags.length,
+        costUnits: usage.costUnits,
+        modelVersion: usage.modelVersion,
+        provider: usage.provider,
+        latencyMs: usage.latencyMs,
+      },
+    });
+    await recordProductEvent(tx, {
+      eventType: 'AI_INCONSISTENCY_RUN',
+      accountId: input.actorAccountId,
+    });
+
+    return ok({ aiInconsistencyRunId: runId, flags: savedFlags });
+  });
+  return { outcome, result };
+}
+
+/**
+ * Check one document's deterministically-extracted text against the
+ * applicant's own current TRUSTED, STANDARD-sensitivity profile facts for
+ * possible contradictions (Part 8 AI-01 item 4) -- never a second document,
+ * never a re-determination of any fact's correctness, and never a write to
+ * anything but this task's own advisory flag rows. Consent-gated on
+ * AI_EXTRACTION -- the same tier extraction/classification already use, not
+ * a materially larger disclosure than either (document text plus the
+ * applicant's own already-confirmed, non-protected field values).
+ */
+export async function runInconsistencyCheck(
+  db: Db,
+  ai: AiInconsistencyPort,
+  input: RunInconsistencyCheckInput,
+): Promise<Result<RunInconsistencyCheckSummary, ServiceError>> {
+  const applicant = await getApplicant(db, input.applicantId);
+  if (!applicant) return err(serviceError('not_found', 'applicant not found'));
+  if (applicant.ownerAccountId !== input.actorAccountId) {
+    return err(
+      serviceError('forbidden', 'not authorized to run an inconsistency check for this applicant'),
+    );
+  }
+  if (!(await hasConsent(db, applicant.ownerAccountId, 'AI_EXTRACTION'))) {
+    return err(serviceError('consent_required', 'AI_EXTRACTION consent is required'));
+  }
+
+  const reservation = await reserveInconsistencySlot(db, ai, input);
+  if (reservation.kind === 'final') return reservation.outcome;
+
+  const dispatched = await dispatchAndReconcileInconsistency(
+    db,
+    ai,
+    input,
+    reservation.runId,
+    reservation.profileFacts,
+    reservation.cacheKey,
+  );
+  return dispatched.result;
+}
+
+export interface DecideInconsistencyFlagInput {
+  readonly actorAccountId: string;
+  readonly flagId: string;
+  readonly reason?: string;
+}
+
+/** Mark a PENDING flag ACKNOWLEDGED (the reviewer has seen it and will act, if at all, outside this system) -- never a fact write, matching this task's own purely-advisory framing. */
+export async function acknowledgeInconsistencyFlag(
+  db: Db,
+  input: DecideInconsistencyFlagInput,
+): Promise<Result<DocumentInconsistencyFlagRow, ServiceError>> {
+  return decideInconsistencyFlag(db, input, 'ACKNOWLEDGED', 'AI_INCONSISTENCY_FLAG_ACKNOWLEDGED');
+}
+
+/** Mark a PENDING flag DISMISSED (a false positive, e.g. a legitimate name-spelling variation). */
+export async function dismissInconsistencyFlag(
+  db: Db,
+  input: DecideInconsistencyFlagInput,
+): Promise<Result<DocumentInconsistencyFlagRow, ServiceError>> {
+  return decideInconsistencyFlag(db, input, 'DISMISSED', 'AI_INCONSISTENCY_FLAG_DISMISSED');
+}
+
+async function decideInconsistencyFlag(
+  db: Db,
+  input: DecideInconsistencyFlagInput,
+  status: 'ACKNOWLEDGED' | 'DISMISSED',
+  auditEventType: string,
+): Promise<Result<DocumentInconsistencyFlagRow, ServiceError>> {
+  const flag = first(
+    await db
+      .select()
+      .from(schema.documentInconsistencyFlags)
+      .where(eq(schema.documentInconsistencyFlags.id, input.flagId))
+      .limit(1),
+  );
+  if (!flag) return err(serviceError('not_found', 'flag not found'));
+  if (flag.status !== 'PENDING') {
+    return err(serviceError('invalid', 'this flag has already been decided'));
+  }
+
+  const applicant = await getApplicant(db, flag.applicantId);
+  if (!applicant) return err(serviceError('not_found', 'applicant not found'));
+  if (applicant.ownerAccountId !== input.actorAccountId) {
+    return err(serviceError('forbidden', 'not authorized to decide this flag'));
+  }
+
+  return db.transaction(async (tx) => {
+    const updated = required(
+      first(
+        await tx
+          .update(schema.documentInconsistencyFlags)
+          .set({ status, decidedByAccountId: input.actorAccountId, decidedAt: new Date() })
+          .where(eq(schema.documentInconsistencyFlags.id, input.flagId))
+          .returning(),
+      ),
+      'document inconsistency flag',
+    );
+    await appendAuditEvent(tx, {
+      eventType: auditEventType,
+      actorAccountId: input.actorAccountId,
+      method: 'MANUAL',
+      result: 'ALLOWED',
+      applicantId: flag.applicantId,
+      resourceType: 'document_inconsistency_flag',
+      resourceId: flag.id,
+      metadata: { description: flag.description, reason: input.reason },
+    });
+    return ok(updated);
+  });
+}
+
+/** Pending inconsistency flags for an applicant (the review queue), newest first -- mirrors `listPendingProposals`'s identical shape/contract. */
+export async function listPendingInconsistencyFlags(
+  db: Db,
+  applicantId: string,
+): Promise<DocumentInconsistencyFlagRow[]> {
+  return db
+    .select()
+    .from(schema.documentInconsistencyFlags)
+    .where(
+      and(
+        eq(schema.documentInconsistencyFlags.applicantId, applicantId),
+        eq(schema.documentInconsistencyFlags.status, 'PENDING'),
+      ),
+    )
+    .orderBy(desc(schema.documentInconsistencyFlags.createdAt));
 }

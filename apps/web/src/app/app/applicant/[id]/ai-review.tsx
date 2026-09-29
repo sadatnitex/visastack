@@ -5,9 +5,11 @@ import { profileField } from '../../../../lib/profile-fields';
 import {
   type ActionState,
   decideClassificationProposalAction,
+  decideInconsistencyFlagAction,
   decideProposalAction,
   runAiExtractionAction,
   runClassificationAction,
+  runInconsistencyCheckAction,
   runOcrAction,
 } from './actions';
 
@@ -302,6 +304,117 @@ export function RunClassificationButton({
           disabled={pending}
         >
           {pending ? 'Asking AI to suggest a type…' : 'Suggest document type with AI'}
+        </button>
+      </form>
+      {state.message ? (
+        <p className={`field-msg ${state.ok ? 'field-msg-ok' : 'field-msg-err'}`}>
+          {state.message}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+/** Manually trigger an AI possible-inconsistency check (Part 8 AI-01 item 4) -- compares this document against the applicant's own already-confirmed profile facts. */
+export function RunInconsistencyCheckButton({
+  applicantId,
+  documentVersionId,
+}: {
+  readonly applicantId: string;
+  readonly documentVersionId: string;
+}) {
+  const [state, formAction, pending] = useActionState(runInconsistencyCheckAction, INITIAL);
+
+  return (
+    <div style={{ marginTop: '0.35rem' }}>
+      <form action={formAction} style={{ display: 'inline' }}>
+        <input type="hidden" name="applicantId" value={applicantId} />
+        <input type="hidden" name="documentVersionId" value={documentVersionId} />
+        <button
+          type="submit"
+          className="btn btn-secondary"
+          style={{ padding: '0.3rem 0.9rem', fontSize: '0.8rem' }}
+          disabled={pending}
+        >
+          {pending ? 'Checking for inconsistencies…' : 'Check for inconsistencies with AI'}
+        </button>
+      </form>
+      {state.message ? (
+        <p className={`field-msg ${state.ok ? 'field-msg-ok' : 'field-msg-err'}`}>
+          {state.message}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+export interface InconsistencyFlagViewModel {
+  readonly id: string;
+  readonly description: string;
+  /** 0-100. */
+  readonly confidence: number;
+  readonly rationale: string | null;
+}
+
+/**
+ * A PENDING AI possible-inconsistency flag awaiting a human decision (Part 8
+ * AI-01 item 4). Purely advisory: neither acknowledging nor dismissing ever
+ * writes to the Master Profile or the document, so unlike `AiProposalReview`/
+ * `DocumentTypeProposalReview` there is no `canApprove`/CORE_PROCESSING gate
+ * here -- the flag never implies which side (document or profile) is wrong,
+ * only that a human should look.
+ */
+export function InconsistencyFlagReview({
+  applicantId,
+  flag,
+}: {
+  readonly applicantId: string;
+  readonly flag: InconsistencyFlagViewModel;
+}) {
+  const [state, formAction, pending] = useActionState(decideInconsistencyFlagAction, INITIAL);
+
+  return (
+    <div
+      className="card"
+      style={{
+        padding: '0.85rem',
+        marginTop: '0.5rem',
+        background: 'var(--bg-subtle)',
+        border: '1px solid var(--hairline-soft)',
+      }}
+    >
+      <p className="muted" style={{ fontSize: '0.75rem', marginBottom: '0.4rem' }}>
+        <span className="badge badge-warning">
+          Possible inconsistency ({flag.confidence}% confidence)
+        </span>{' '}
+        {flag.description}
+        {flag.rationale ? ` - ${flag.rationale}` : ''}
+      </p>
+      <form
+        action={formAction}
+        style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}
+      >
+        <input type="hidden" name="applicantId" value={applicantId} />
+        <input type="hidden" name="flagId" value={flag.id} />
+        <button
+          type="submit"
+          name="flagAction"
+          value="acknowledge"
+          className="btn btn-primary"
+          style={{ padding: '0.35rem 0.9rem', fontSize: '0.8rem' }}
+          disabled={pending}
+        >
+          {pending ? 'Saving…' : 'Acknowledge'}
+        </button>
+        <button
+          type="submit"
+          name="flagAction"
+          value="dismiss"
+          className="btn btn-secondary"
+          style={{ padding: '0.35rem 0.9rem', fontSize: '0.8rem' }}
+          disabled={pending}
+        >
+          Dismiss
         </button>
       </form>
       {state.message ? (
