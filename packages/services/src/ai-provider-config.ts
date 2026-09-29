@@ -540,6 +540,32 @@ export async function getActiveAiProviderConfig(db: Db): Promise<AiProviderConfi
 }
 
 /**
+ * Part 8 §13 (cross-provider fallback): a single configuration by id, with
+ * the SAME "no authorization check, platform-internal read" trust level as
+ * `getActiveAiProviderConfig` just above -- consulted by `resolveAiExtractor`/
+ * `resolveOcrAdapter` (apps/web) to re-verify a designated fallback target's
+ * LIVE eligibility at the exact moment it might actually be dispatched to,
+ * on behalf of whatever document-owner request is already otherwise
+ * authorized, never a SECURITY_ADMIN action in its own right. Deliberately
+ * separate from `getAiProviderConfigById` below, which stays actor-gated for
+ * the admin UI's own "test a specific config" journey -- this one is
+ * intentionally narrow (a fallback-target lookup only) rather than a
+ * general-purpose escape hatch around that gate.
+ */
+export async function getAiProviderConfigForFallback(
+  db: Db,
+  configId: string,
+): Promise<AiProviderConfig | undefined> {
+  return first(
+    await db
+      .select()
+      .from(schema.aiProviderConfigs)
+      .where(eq(schema.aiProviderConfigs.id, configId))
+      .limit(1),
+  );
+}
+
+/**
  * Part 8 §5's kill switch, as a plain boolean: is AI extraction allowed to
  * dispatch right now? `ai.ts`'s `runExtraction` consults this fresh,
  * immediately before every outbound call (its own `killSwitchCheck`

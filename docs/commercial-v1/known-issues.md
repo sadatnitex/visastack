@@ -3390,6 +3390,27 @@ item gets its own requirements-ledger row once classified against the new direct
     actually building and passing one; the admin UI for designating a
     fallback; and the document/review-page UI surfacing that one fired.
     Full detail: `requirements-ledger.md` AI-09.
+    **Chunk 26 (2026-09-29, AI-09) -- fallback is now genuinely live end to
+    end.** New `getAiProviderConfigForFallback` (unauthenticated, like
+    `getActiveAiProviderConfig`, since it is a platform-internal read on
+    behalf of an already-authorized request, never a SECURITY_ADMIN action
+    in its own right -- kept separate from the actor-gated
+    `getAiProviderConfigById` rather than loosening that gate).
+    `resolveAiExtractor`/`resolveOcrAdapter` each gained a `resolveFallback*`
+    helper that re-verifies the ACTIVE config's designated target LIVE at
+    resolve time (different provider, data policy approved, key not
+    revoked, an implemented adapter) -- never trusting the pointer as
+    permanent from whenever activation first validated it, since the
+    target's own key-revoked state can change afterward. `runAiExtractionAction`/
+    `runOcrAction` now forward the resolved fallback straight into
+    `runExtraction`/`runOcr`'s own input. The full chain -- admin designates
+    a fallback, resolver re-verifies and builds it live, execution logic
+    dispatches to it on a recoverable failure -- is genuinely wired end to
+    end, modulo the admin UI to designate one through the browser (the
+    service-layer validation already accepts it) and the review-page UI
+    surfacing that one fired. 10 new tests. Full `@visastack/services`
+    suite, full `apps/web` suite, repo-wide typecheck, a clean production
+    build, and Biome all verified.
 independently confirmed findings; the missing PRD file is tracked as Blocker 1 in
 `assumptions-and-blockers.md` (now resolved) rather than here, since it blocked the
 programme rather than being a product defect.

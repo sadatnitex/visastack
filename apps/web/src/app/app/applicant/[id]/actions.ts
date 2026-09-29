@@ -425,6 +425,7 @@ export async function runAiExtractionAction(
       cacheMaxAgeDays: resolved.limits.cacheMaxAgeDays,
       maxConcurrentCalls: resolved.limits.maxConcurrentCalls,
       killSwitchCheck: () => isAiDispatchAllowed(db),
+      ...(resolved.fallback ? { fallback: resolved.fallback } : {}),
     });
     if (!run.ok) return { ok: false, message: run.error.message } satisfies ActionState;
     return {
@@ -478,6 +479,7 @@ export async function runOcrAction(_prev: ActionState, formData: FormData): Prom
       cacheMaxAgeDays: resolved.limits.cacheMaxAgeDays,
       maxConcurrentCalls: resolved.limits.maxConcurrentCalls,
       killSwitchCheck: () => isAiDispatchAllowed(db),
+      ...(resolved.fallback ? { fallback: resolved.fallback } : {}),
     });
     if (!run.ok) return { ok: false, message: run.error.message } satisfies ActionState;
     const issueCount = run.value.ocrRun.reviewIssues?.length ?? 0;

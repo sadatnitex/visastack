@@ -14,6 +14,7 @@ import {
   type Db,
   type KeyManagementPort,
   getActiveAiProviderConfig,
+  getAiProviderConfigForFallback,
   hasAnyAiProviderConfig,
   revealAiProviderApiKey,
 } from '@visastack/services';
@@ -77,6 +78,8 @@ export interface AiLimits {
 export interface ResolvedAiExtractor {
   readonly ai: AiExtractionPort;
   readonly limits: AiLimits;
+  /** Part 8 §13 (cross-provider fallback). Present only when the ACTIVE config has fallback enabled and its designated target is currently eligible -- see `resolveFallbackExtractor`'s own doc comment for the live re-verification this performs. */
+  readonly fallback?: { readonly ai: AiExtractionPort };
 }
 
 /**
@@ -148,6 +151,37 @@ function buildAdapterForConfig(config: AiProviderConfig, apiKey: string): AiExtr
  * inheriting whatever `OPENAI_STORE_RESPONSES` happens to be set to, and
  * `projectId` is OpenAI-specific so `buildAdapterForConfig` never passes it.
  */
+/**
+ * Part 8 §13 (cross-provider fallback): re-verifies the ACTIVE config's
+ * designated fallback target LIVE, at the exact moment it might actually be
+ * dispatched to -- never trusting `fallbackProviderConfigId` as a permanent
+ * fact from whenever `activateAiProviderConfig` first checked it, since the
+ * target's own `keyRevokedAt` can change afterward (`revokeAiProviderConfigKey`
+ * is a mutation on an existing row, unlike everything else on a config,
+ * which is set once and never edited). The genuinely-different-provider and
+ * data-policy checks are re-run too even though activation already enforced
+ * them -- defense in depth costs nothing here, and this is exactly the
+ * boundary directive §13 names ("provider already passed same privacy/task/
+ * budget gates"). Returns undefined (never a throw) for every ineligible
+ * case, exactly like every other fail-closed check in this file -- a
+ * fallback that can no longer be trusted simply does not exist as far as
+ * the caller is concerned, it is never worth degrading to anyway.
+ */
+async function resolveFallbackExtractor(
+  db: Db,
+  encryption: KeyManagementPort,
+  primary: AiProviderConfig,
+): Promise<{ ai: AiExtractionPort } | undefined> {
+  if (!primary.fallbackEnabled || !primary.fallbackProviderConfigId) return undefined;
+  const target = await getAiProviderConfigForFallback(db, primary.fallbackProviderConfigId);
+  if (!target) return undefined;
+  if (target.provider === primary.provider) return undefined;
+  if (!target.dataPolicyApproved || target.keyRevokedAt !== null) return undefined;
+  if (!IMPLEMENTED_PROVIDERS.has(target.provider)) return undefined;
+  const apiKey = await revealAiProviderApiKey(db, encryption, target);
+  return { ai: buildAdapterForConfig(target, apiKey) };
+}
+
 export async function resolveAiExtractor(
   db: Db,
   encryption: KeyManagementPort | undefined,
@@ -156,7 +190,12 @@ export async function resolveAiExtractor(
     const config = await getActiveAiProviderConfig(db);
     if (!config || !encryption || !IMPLEMENTED_PROVIDERS.has(config.provider)) return undefined;
     const apiKey = await revealAiProviderApiKey(db, encryption, config);
-    return { ai: buildAdapterForConfig(config, apiKey), limits: limitsFromConfig(config) };
+    const fallback = await resolveFallbackExtractor(db, encryption, config);
+    return {
+      ai: buildAdapterForConfig(config, apiKey),
+      limits: limitsFromConfig(config),
+      ...(fallback ? { fallback } : {}),
+    };
   }
   const ai = createAiExtractor();
   return ai ? { ai, limits: limitsFromConfig(undefined) } : undefined;
@@ -215,6 +254,8 @@ function buildOcrAdapterForConfig(config: AiProviderConfig, apiKey: string): AiO
 export interface ResolvedOcrAdapter {
   readonly ai: AiOcrPort;
   readonly limits: AiLimits;
+  /** Part 8 §13 (cross-provider fallback), mirroring `ResolvedAiExtractor`'s own field exactly. */
+  readonly fallback?: { readonly ai: AiOcrPort };
 }
 
 /**
@@ -247,6 +288,22 @@ export interface ResolvedOcrAdapter {
  * `resolveAiExtractor` rather than leaving two different resolver
  * conventions for what are now symmetric concerns.
  */
+/** Part 8 §13 (cross-provider fallback), mirroring `resolveFallbackExtractor`'s own live re-verification exactly, for OCR's own separate (smaller) implemented-provider set. */
+async function resolveFallbackOcrAdapter(
+  db: Db,
+  encryption: KeyManagementPort,
+  primary: AiProviderConfig,
+): Promise<{ ai: AiOcrPort } | undefined> {
+  if (!primary.fallbackEnabled || !primary.fallbackProviderConfigId) return undefined;
+  const target = await getAiProviderConfigForFallback(db, primary.fallbackProviderConfigId);
+  if (!target) return undefined;
+  if (target.provider === primary.provider) return undefined;
+  if (!target.dataPolicyApproved || target.keyRevokedAt !== null) return undefined;
+  if (!IMPLEMENTED_OCR_PROVIDERS.has(target.provider)) return undefined;
+  const apiKey = await revealAiProviderApiKey(db, encryption, target);
+  return { ai: buildOcrAdapterForConfig(target, apiKey) };
+}
+
 export async function resolveOcrAdapter(
   db: Db,
   encryption: KeyManagementPort | undefined,
@@ -255,7 +312,12 @@ export async function resolveOcrAdapter(
   const config = await getActiveAiProviderConfig(db);
   if (!config || !encryption || !IMPLEMENTED_OCR_PROVIDERS.has(config.provider)) return undefined;
   const apiKey = await revealAiProviderApiKey(db, encryption, config);
-  return { ai: buildOcrAdapterForConfig(config, apiKey), limits: limitsFromConfig(config) };
+  const fallback = await resolveFallbackOcrAdapter(db, encryption, config);
+  return {
+    ai: buildOcrAdapterForConfig(config, apiKey),
+    limits: limitsFromConfig(config),
+    ...(fallback ? { fallback } : {}),
+  };
 }
 
 /**

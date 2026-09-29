@@ -14,6 +14,7 @@ import {
   emergencyDisableAiProviderConfig,
   getActiveAiProviderConfig,
   getAiProviderConfigById,
+  getAiProviderConfigForFallback,
   isAiDispatchAllowed,
   listAiProviderConfigHistory,
   recordAiProviderConfigEvaluation,
@@ -916,5 +917,30 @@ describe('recordAiProviderConfigEvaluation (Part 8 §5 -- the admin "run task ev
     expect(event).toBeDefined();
     expect(event?.result).toBe('ALLOWED');
     expect(event?.metadata).toMatchObject({ passed: false, anyCaseErrored: true });
+  });
+});
+
+describe('getAiProviderConfigForFallback (Part 8 §13 -- an unauthenticated, platform-internal read)', () => {
+  let db: Db;
+  beforeEach(async () => {
+    db = await freshDb();
+  });
+
+  it('returns a config by id with no actor/permission check, unlike getAiProviderConfigById', async () => {
+    const actor = await seedSecurityAdmin(db);
+    const draft = await createDraftAiProviderConfig(
+      db,
+      draftInput(actor, { provider: 'anthropic' }),
+    );
+    if (!isOk(draft)) throw new Error('draft failed');
+
+    const found = await getAiProviderConfigForFallback(db, draft.value.id);
+    expect(found?.id).toBe(draft.value.id);
+    expect(found?.provider).toBe('anthropic');
+  });
+
+  it('returns undefined for a non-existent id', async () => {
+    const found = await getAiProviderConfigForFallback(db, '00000000-0000-0000-0000-000000000000');
+    expect(found).toBeUndefined();
   });
 });

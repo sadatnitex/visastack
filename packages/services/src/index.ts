@@ -672,6 +672,7 @@ export {
   emergencyDisableAiProviderConfig,
   getActiveAiProviderConfig,
   getAiProviderConfigById,
+  getAiProviderConfigForFallback,
   hasAnyAiProviderConfig,
   isAiDispatchAllowed,
   listAiProviderConfigHistory,
