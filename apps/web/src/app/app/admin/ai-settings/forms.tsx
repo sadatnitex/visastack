@@ -1,5 +1,6 @@
 'use client';
 
+import type { AiProviderConfig } from '@visastack/services';
 import { useActionState } from 'react';
 import {
   type ActionState,
@@ -38,8 +39,25 @@ const REASONING_EFFORT_OPTIONS = [
   { value: 'high', label: 'High' },
 ] as const;
 
-/** Save a new DRAFT configuration. Has no effect on live traffic until activated. */
-export function CreateDraftConfigForm() {
+/**
+ * Save a new DRAFT configuration. Has no effect on live traffic until activated.
+ *
+ * `existingConfigs` populates the fallback dropdown (Part 8 §13) -- every
+ * configuration ever created, any status, since a fallback target need not
+ * be ACTIVE (it commonly is not: the platform's own single-winner ACTIVE
+ * invariant means a fallback target is necessarily some other status, most
+ * naturally the config this new one might one day supersede). The real
+ * eligibility gate (different provider, data policy approved, key not
+ * revoked) is enforced server-side at activation time
+ * (`activateAiProviderConfig`), not here -- a DRAFT is inert either way, the
+ * same "loose at save time, hard-gated at activation" discipline every
+ * other field on this form already follows.
+ */
+export function CreateDraftConfigForm({
+  existingConfigs,
+}: {
+  readonly existingConfigs: readonly AiProviderConfig[];
+}) {
   const [state, formAction, pending] = useActionState(createDraftAiProviderConfigAction, INITIAL);
   return (
     <form action={formAction} className="field-list">
@@ -185,6 +203,33 @@ export function CreateDraftConfigForm() {
           className="input"
           placeholder="e.g. 5"
         />
+      </div>
+      <label className="check">
+        <input type="checkbox" name="fallbackEnabled" />
+        <span>
+          Enable cross-provider fallback (Part 8 §13): if this configuration&rsquo;s call times out
+          or is rate-limited, automatically retry once against the fallback configuration below.
+          Never used after a refusal, an authentication failure, or any other non-recoverable
+          outcome.
+        </span>
+      </label>
+      <div className="field-row">
+        <label className="field-label" htmlFor="fallbackProviderConfigId">
+          Fallback configuration (optional)
+        </label>
+        <select
+          id="fallbackProviderConfigId"
+          name="fallbackProviderConfigId"
+          className="input"
+          defaultValue=""
+        >
+          <option value="">None</option>
+          {existingConfigs.map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.provider} / {c.model} -- {c.status}
+            </option>
+          ))}
+        </select>
       </div>
       <div className="field-row">
         <label className="field-label" htmlFor="notes">

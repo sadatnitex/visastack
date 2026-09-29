@@ -118,7 +118,7 @@ export default async function AiSettingsPage() {
           The API key is write-only: it is encrypted immediately and never shown again, only a
           masked fingerprint.
         </p>
-        <CreateDraftConfigForm />
+        <CreateDraftConfigForm existingConfigs={data.history} />
       </article>
 
       {data.history.length > 0 ? (
@@ -138,6 +138,13 @@ export default async function AiSettingsPage() {
             // Same eligibility bar as the connection test -- a revoked key
             // has nothing left to evaluate.
             const canEvaluate = config.keyRevokedAt === null;
+            // Part 8 §13: the target need not be ACTIVE (it commonly is not
+            // -- the platform's own single-winner invariant means it is
+            // necessarily some other status), so this looks it up by id
+            // across the FULL history list, not just active/eligible rows.
+            const fallbackTarget = config.fallbackEnabled
+              ? data.history.find((c) => c.id === config.fallbackProviderConfigId)
+              : undefined;
             return (
               <article className="card" key={config.id}>
                 <div className="toolbar" style={{ marginBottom: '1rem', alignItems: 'center' }}>
@@ -213,6 +220,16 @@ export default async function AiSettingsPage() {
                     <div className="row">
                       <span className="row-key">Key revoked</span>
                       <span className="row-val">{config.keyRevokedAt.toLocaleString()}</span>
+                    </div>
+                  ) : null}
+                  {config.fallbackEnabled ? (
+                    <div className="row">
+                      <span className="row-key">Fallback</span>
+                      <span className="row-val">
+                        {fallbackTarget
+                          ? `${fallbackTarget.provider} / ${fallbackTarget.model}`
+                          : 'Configured target no longer exists'}
+                      </span>
                     </div>
                   ) : null}
                   <div className="row">

@@ -3411,6 +3411,20 @@ item gets its own requirements-ledger row once classified against the new direct
     surfacing that one fired. 10 new tests. Full `@visastack/services`
     suite, full `apps/web` suite, repo-wide typecheck, a clean production
     build, and Biome all verified.
+    **Chunk 27 (2026-09-29, AI-09) -- the admin UI for designating a
+    fallback now exists.** `CreateDraftConfigForm` gained an "Enable
+    cross-provider fallback" checkbox plus a dropdown populated from the
+    FULL configuration history (every status, not just ACTIVE/DRAFT) --
+    deliberate, since the platform's single-winner ACTIVE invariant means a
+    fallback target is necessarily some other status, most naturally the
+    config a new activation will one day supersede. The real eligibility
+    gate stays entirely server-side at activation time (Chunk 24's own
+    validation, unchanged); the form never duplicates it client-side. Each
+    history card now shows a "Fallback" row naming the target's
+    provider/model when enabled. No dedicated tests, matching this
+    codebase's established precedent that none of its `actions.ts` files
+    have one. Full `apps/web` suite, repo-wide typecheck, a clean
+    production build, and Biome all verified.
 independently confirmed findings; the missing PRD file is tracked as Blocker 1 in
 `assumptions-and-blockers.md` (now resolved) rather than here, since it blocked the
 programme rather than being a product defect.
