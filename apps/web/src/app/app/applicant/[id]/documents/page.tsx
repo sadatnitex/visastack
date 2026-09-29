@@ -423,6 +423,7 @@ export default async function ApplicantDocumentsPage({
                           <OcrResultView
                             text={latestRun.extractedText ?? ''}
                             reviewIssues={latestRun.reviewIssues ?? []}
+                            usedFallback={latestRun.triggeredByRunId !== null}
                           />
                         ) : null}
                       </>

@@ -97,9 +97,12 @@ export function RunOcrButton({
 export function OcrResultView({
   text,
   reviewIssues,
+  usedFallback,
 }: {
   readonly text: string;
   readonly reviewIssues: readonly string[];
+  /** Part 8 §13 ("visible in UI"): true when this run's own `triggeredByRunId` is set -- it exists only because an earlier attempt against the primary provider recoverably failed (timeout/rate-limited) and this run is the fallback that actually succeeded. */
+  readonly usedFallback?: boolean;
 }) {
   return (
     <div
@@ -111,6 +114,16 @@ export function OcrResultView({
         border: '1px solid var(--hairline-soft)',
       }}
     >
+      {usedFallback ? (
+        <p style={{ marginBottom: '0.4rem' }}>
+          <span
+            className="badge badge-neutral"
+            title="The primary provider timed out or was rate-limited; this result came from the configured fallback provider instead (Part 8 §13)."
+          >
+            Fallback provider used
+          </span>
+        </p>
+      ) : null}
       {reviewIssues.length > 0 ? (
         <p style={{ marginBottom: '0.4rem' }}>
           {reviewIssues.map((issue) => (

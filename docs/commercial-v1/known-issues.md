@@ -3425,6 +3425,19 @@ item gets its own requirements-ledger row once classified against the new direct
     codebase's established precedent that none of its `actions.ts` files
     have one. Full `apps/web` suite, repo-wide typecheck, a clean
     production build, and Biome all verified.
+    **Chunk 28 (2026-09-29, AI-09) -- OCR's review page now shows when a
+    fallback fired, closing §13's "visible in UI" for OCR.** `OcrResultView`
+    gained a `usedFallback` prop rendered as a "Fallback provider used"
+    badge; `documents/page.tsx` passes `latestRun.triggeredByRunId !==
+    null` straight through -- zero new queries, since the already-fetched
+    run row already carries that column. Deliberately scoped to OCR only:
+    its review surface already fetches the full run row it displays, so
+    this was free; extraction's UI is proposal-centric with no existing
+    per-run fetch to thread through, so the identical indicator there needs
+    a genuinely new run-lookup query, left as its own smaller follow-up
+    rather than rushed in. No dedicated tests, matching established
+    precedent for `ai-review.tsx`/`page.tsx`. Full `apps/web` suite,
+    repo-wide typecheck, a clean production build, and Biome all verified.
 independently confirmed findings; the missing PRD file is tracked as Blocker 1 in
 `assumptions-and-blockers.md` (now resolved) rather than here, since it blocked the
 programme rather than being a product defect.
