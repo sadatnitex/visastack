@@ -938,4 +938,92 @@ describe('resolveAiExtractor (Part 8 §5: the DB config becomes authoritative on
       expect(await isClassificationConfigured(db)).toBe(false);
     });
   });
+
+  describe('resolveAiExplainer -- the explain adapter (and shared limits) for a live call, reusing the ACTIVE config (Part 8 AI-01 item 5)', () => {
+    beforeEach(() => {
+      hasAnyAiProviderConfig.mockReset();
+      getActiveAiProviderConfig.mockReset();
+      revealAiProviderApiKey.mockReset();
+    });
+
+    it('is undefined when no admin has ever configured AI settings -- no env-var fallback path', async () => {
+      hasAnyAiProviderConfig.mockResolvedValue(false);
+      const { resolveAiExplainer } = await import('./ai');
+
+      const resolved = await resolveAiExplainer(db, encryption);
+
+      expect(resolved).toBeUndefined();
+      expect(getActiveAiProviderConfig).not.toHaveBeenCalled();
+    });
+
+    it("builds the adapter from the ACTIVE DB config's own provider/model, via the SAME explainCacheKeyComponents an extraction adapter also exposes", async () => {
+      hasAnyAiProviderConfig.mockResolvedValue(true);
+      getActiveAiProviderConfig.mockResolvedValue(fakeConfig({ model: 'gpt-5-db-configured' }));
+      revealAiProviderApiKey.mockResolvedValue('sk-from-db');
+      const { resolveAiExplainer } = await import('./ai');
+
+      const resolved = await resolveAiExplainer(db, encryption);
+
+      expect(resolved).toBeDefined();
+      expect(resolved?.ai.explainCacheKeyComponents().model).toBe('gpt-5-db-configured');
+      expect(revealAiProviderApiKey).toHaveBeenCalledWith(
+        db,
+        encryption,
+        expect.objectContaining({ id: 'config-1' }),
+      );
+    });
+
+    it('is undefined for an ACTIVE config naming a genuinely unimplemented provider', async () => {
+      hasAnyAiProviderConfig.mockResolvedValue(true);
+      getActiveAiProviderConfig.mockResolvedValue(fakeConfig({ provider: 'mistral' }));
+      const { resolveAiExplainer } = await import('./ai');
+
+      const resolved = await resolveAiExplainer(db, encryption);
+      expect(resolved).toBeUndefined();
+      expect(revealAiProviderApiKey).not.toHaveBeenCalled();
+    });
+
+    it('is undefined without a working encryption port, even with a genuinely ACTIVE config', async () => {
+      hasAnyAiProviderConfig.mockResolvedValue(true);
+      getActiveAiProviderConfig.mockResolvedValue(fakeConfig());
+      const { resolveAiExplainer } = await import('./ai');
+
+      const resolved = await resolveAiExplainer(db, undefined);
+      expect(resolved).toBeUndefined();
+      expect(revealAiProviderApiKey).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('isExplanationConfigured -- cheap display gate, no KMS decrypt (Part 8 AI-01 item 5)', () => {
+    beforeEach(() => {
+      hasAnyAiProviderConfig.mockReset();
+      getActiveAiProviderConfig.mockReset();
+      revealAiProviderApiKey.mockReset();
+    });
+
+    it('is false when no admin has ever configured AI settings', async () => {
+      hasAnyAiProviderConfig.mockResolvedValue(false);
+      const { isExplanationConfigured } = await import('./ai');
+
+      expect(await isExplanationConfigured(db)).toBe(false);
+      expect(getActiveAiProviderConfig).not.toHaveBeenCalled();
+    });
+
+    it('is true for an ACTIVE openai config, without ever decrypting the key', async () => {
+      hasAnyAiProviderConfig.mockResolvedValue(true);
+      getActiveAiProviderConfig.mockResolvedValue(fakeConfig());
+      const { isExplanationConfigured } = await import('./ai');
+
+      expect(await isExplanationConfigured(db)).toBe(true);
+      expect(revealAiProviderApiKey).not.toHaveBeenCalled();
+    });
+
+    it('is false for an ACTIVE config naming a genuinely unimplemented provider', async () => {
+      hasAnyAiProviderConfig.mockResolvedValue(true);
+      getActiveAiProviderConfig.mockResolvedValue(fakeConfig({ provider: 'mistral' }));
+      const { isExplanationConfigured } = await import('./ai');
+
+      expect(await isExplanationConfigured(db)).toBe(false);
+    });
+  });
 });

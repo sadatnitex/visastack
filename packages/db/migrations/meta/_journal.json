@@ -568,6 +568,13 @@
       "when": 1790684038039,
       "tag": "0080_fixed_master_mold",
       "breakpoints": true
+    },
+    {
+      "idx": 81,
+      "version": "7",
+      "when": 1790686316654,
+      "tag": "0081_goofy_blue_marvel",
+      "breakpoints": true
     }
   ]
 }

@@ -4,6 +4,9 @@ import type {
   AiClassifyInput,
   AiClassifyOutcome,
   AiClassifyPort,
+  AiExplainInput,
+  AiExplainOutcome,
+  AiExplainPort,
   AiExtractionInput,
   AiExtractionOutcome,
   AiExtractionPort,
@@ -34,6 +37,9 @@ const SCHEMA_VERSION = 'field_proposals_v1';
 /** Part 8 AI-01 item 2 -- a separate prompt/schema version from extraction's own, tracked independently since the two tasks evolve on their own schedules. */
 const CLASSIFY_PROMPT_VERSION = '2026-09-29-v1';
 const CLASSIFY_SCHEMA_VERSION = 'document_classification_v1';
+/** Part 8 AI-01 item 5 -- tracked independently of extraction's/classification's own prompt/schema version. */
+const EXPLAIN_PROMPT_VERSION = '2026-09-29-v1';
+const EXPLAIN_SCHEMA_VERSION = 'readiness_gap_explanation_v1';
 /** Official host, a plain literal never influenced by any admin/config input (Part 8 §7: "built-in adapters: official provider host locked"). */
 const RESPONSES_URL = 'https://api.openai.com/v1/responses';
 /** Part 8 §11's named default request timeout. */
@@ -64,6 +70,24 @@ const CLASSIFY_RESPONSE_SCHEMA = {
     rationale: { type: ['string', 'null'] },
   },
   required: ['suggestedType', 'confidence', 'rationale'],
+  additionalProperties: false,
+} as const;
+
+/** Part 8 AI-01 item 5: explains an ALREADY-DETERMINED gap -- never a second opinion on whether it applies, which stays entirely deterministic (`computeReadiness`, packages/services/src/missions.ts). */
+const EXPLAIN_SYSTEM_PROMPT = `You explain, in plain, empathetic language, why a single already-determined visa-application requirement gap matters. The determination itself was already made deterministically before you were called -- you are NOT deciding whether the requirement is met, only explaining what it means in plain words, grounded in the citation you are given.
+
+Rules:
+- Write 2-4 sentences, plain language, addressed directly to the applicant ("you").
+- Never invent facts about the applicant's own situation -- you were given none.
+- Never state or imply a probability of approval or rejection.
+- Ground every claim in the given citation text; do not invent legal consequences beyond what it implies.`;
+
+const EXPLAIN_RESPONSE_SCHEMA = {
+  type: 'object',
+  properties: {
+    explanation: { type: 'string' },
+  },
+  required: ['explanation'],
   additionalProperties: false,
 } as const;
 
@@ -120,7 +144,7 @@ export interface OpenAiExtractionAdapterOptions {
   readonly fetchImpl?: typeof fetch;
 }
 
-export class OpenAiExtractionAdapter implements AiExtractionPort, AiClassifyPort {
+export class OpenAiExtractionAdapter implements AiExtractionPort, AiClassifyPort, AiExplainPort {
   private readonly apiKey: string;
   private readonly model: string;
   private readonly promptVersion: string;
@@ -439,6 +463,149 @@ export class OpenAiExtractionAdapter implements AiExtractionPort, AiClassifyPort
       },
     };
   }
+
+  explainCacheKeyComponents(): AiCacheKeyComponents {
+    return {
+      model: this.model,
+      promptVersion: EXPLAIN_PROMPT_VERSION,
+      schemaVersion: EXPLAIN_SCHEMA_VERSION,
+      reasoningEffort: this.reasoningEffort,
+    };
+  }
+
+  async explain(input: AiExplainInput): Promise<AiExplainOutcome> {
+    const startedAt = Date.now();
+    let response: Response;
+    try {
+      response = await withTimeout(
+        this.fetchImpl(RESPONSES_URL, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${this.apiKey}`,
+            ...(this.projectId ? { 'OpenAI-Project': this.projectId } : {}),
+          },
+          body: JSON.stringify({
+            model: this.model,
+            store: this.storeResponses,
+            input: [
+              { role: 'developer', content: EXPLAIN_SYSTEM_PROMPT },
+              {
+                role: 'user',
+                content: `Requirement kind: ${input.requirementKind}\nRequirement: ${input.requirementKey}\nStatus: ${input.state === 'CRITICAL_GAP' ? 'required and not yet met' : 'optional and not yet met'}\nCitation: """\n${input.citation}\n"""`,
+              },
+            ],
+            reasoning: { effort: this.reasoningEffort },
+            text: {
+              format: {
+                type: 'json_schema',
+                name: 'readiness_gap_explanation',
+                schema: EXPLAIN_RESPONSE_SCHEMA,
+                strict: true,
+              },
+            },
+          }),
+        }),
+        this.timeoutMs,
+        'OpenAI Responses API call (explanation)',
+      );
+    } catch (error) {
+      const latencyMs = Date.now() - startedAt;
+      const timedOut = error instanceof Error && error.message.includes('timed out after');
+      return {
+        ok: false,
+        code: timedOut ? 'timeout' : 'upstream_error',
+        message: error instanceof Error ? error.message : 'network error calling OpenAI',
+        provider: PROVIDER,
+        latencyMs,
+      };
+    }
+    const latencyMs = Date.now() - startedAt;
+
+    if (response.status === 401 || response.status === 403) {
+      return {
+        ok: false,
+        code: 'auth_failed',
+        message: `OpenAI rejected the configured API key (status ${response.status})`,
+        provider: PROVIDER,
+        latencyMs,
+      };
+    }
+    if (response.status === 429) {
+      return {
+        ok: false,
+        code: 'rate_limited',
+        message: 'OpenAI rate limit exceeded',
+        provider: PROVIDER,
+        latencyMs,
+      };
+    }
+    if (!response.ok) {
+      const body = await response.text().catch(() => '');
+      return {
+        ok: false,
+        code: 'upstream_error',
+        message: `OpenAI responded ${response.status}: ${body.slice(0, 500)}`,
+        provider: PROVIDER,
+        latencyMs,
+      };
+    }
+
+    let payload: unknown;
+    try {
+      payload = await response.json();
+    } catch {
+      return {
+        ok: false,
+        code: 'invalid_response',
+        message: 'OpenAI response was not valid JSON',
+        provider: PROVIDER,
+        latencyMs,
+      };
+    }
+
+    const parsed = parseExplanationPayload(payload);
+    if (parsed.kind === 'invalid') {
+      return {
+        ok: false,
+        code: 'invalid_response',
+        message: 'OpenAI response had an unexpected shape',
+        provider: PROVIDER,
+        latencyMs,
+      };
+    }
+    if (parsed.kind === 'refusal') {
+      return { ok: false, code: 'refused', message: parsed.message, provider: PROVIDER, latencyMs };
+    }
+    if (parsed.kind === 'truncated') {
+      return {
+        ok: false,
+        code: 'truncated',
+        message: 'OpenAI response was truncated before completing (max_output_tokens reached)',
+        provider: PROVIDER,
+        latencyMs,
+      };
+    }
+
+    return {
+      ok: true,
+      result: {
+        explanation: parsed.explanation,
+        usage: {
+          costUnits: parsed.totalTokens,
+          inputUnits: parsed.inputTokens,
+          outputUnits: parsed.outputTokens,
+          cachedUnits: parsed.cachedTokens,
+          modelVersion: this.model,
+          promptVersion: EXPLAIN_PROMPT_VERSION,
+          schemaVersion: EXPLAIN_SCHEMA_VERSION,
+          provider: PROVIDER,
+          ...(parsed.responseId ? { providerRequestId: parsed.responseId } : {}),
+          latencyMs,
+        },
+      },
+    };
+  }
 }
 
 function toProposalType(value: string): ProposalType {
@@ -613,6 +780,70 @@ function parseClassificationPayload(payload: unknown): ParsedClassificationPaylo
     suggestedType,
     confidence: candidate.confidence,
     ...(typeof candidate.rationale === 'string' ? { rationale: candidate.rationale } : {}),
+    totalTokens,
+    inputTokens,
+    outputTokens,
+    cachedTokens,
+    ...(typeof record.id === 'string' ? { responseId: record.id } : {}),
+  };
+}
+
+interface RawExplanationBody {
+  readonly explanation?: unknown;
+}
+
+type ParsedExplanationPayload =
+  | {
+      readonly kind: 'explanation';
+      readonly explanation: string;
+      readonly totalTokens: number;
+      readonly inputTokens: number;
+      readonly outputTokens: number;
+      readonly cachedTokens: number;
+      readonly responseId?: string;
+    }
+  | { readonly kind: 'refusal'; readonly message: string }
+  | { readonly kind: 'truncated' }
+  | { readonly kind: 'invalid' };
+
+/** Reuses `extractOutputText`/`extractRefusal` below unchanged, the same way `parseClassificationPayload` does. */
+function parseExplanationPayload(payload: unknown): ParsedExplanationPayload {
+  if (typeof payload !== 'object' || payload === null) return { kind: 'invalid' };
+  const record = payload as RawResponsesPayload;
+
+  if (record.status === 'incomplete') return { kind: 'truncated' };
+
+  const refusal = extractRefusal(record);
+  if (refusal !== undefined) return { kind: 'refusal', message: refusal };
+
+  const outputText = extractOutputText(record);
+  if (outputText === undefined) return { kind: 'invalid' };
+
+  let body: unknown;
+  try {
+    body = JSON.parse(outputText);
+  } catch {
+    return { kind: 'invalid' };
+  }
+  if (typeof body !== 'object' || body === null) return { kind: 'invalid' };
+  const candidate = body as RawExplanationBody;
+  if (typeof candidate.explanation !== 'string') return { kind: 'invalid' };
+
+  const usage = record.usage;
+  const rawUsage = typeof usage === 'object' && usage !== null ? (usage as RawUsage) : undefined;
+  const totalTokens = typeof rawUsage?.total_tokens === 'number' ? rawUsage.total_tokens : 0;
+  const inputTokens = typeof rawUsage?.input_tokens === 'number' ? rawUsage.input_tokens : 0;
+  const outputTokens = typeof rawUsage?.output_tokens === 'number' ? rawUsage.output_tokens : 0;
+  const inputDetails =
+    typeof rawUsage?.input_tokens_details === 'object' && rawUsage.input_tokens_details !== null
+      ? (rawUsage.input_tokens_details as RawInputTokensDetails)
+      : undefined;
+  const cachedTokens =
+    typeof inputDetails?.cached_tokens === 'number' ? inputDetails.cached_tokens : 0;
+
+  return {
+    kind: 'explanation',
+    explanation: candidate.explanation,
     totalTokens,
     inputTokens,
     outputTokens,

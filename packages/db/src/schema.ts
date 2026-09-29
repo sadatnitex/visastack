@@ -1076,6 +1076,50 @@ export const documentTypeProposals = pgTable(
   ],
 );
 
+// Part 8 AI-01 item 5 ("explanation of an ALREADY-DETERMINED deterministic
+// readiness gap"). Deliberately NO applicantId/documentVersionId column,
+// unlike every other AI Gateway run table -- the input this task sends the
+// model (a pack requirement's kind/citation/RUL-04 state) is pack-level
+// policy content, identical for every mission using that requirement, never
+// an applicant's own document/profile data. That also means no consent gate
+// applies (there is no personal disclosure to consent to) and the cache key
+// is content-based, so the SAME explanation is naturally reused across every
+// mission/applicant hitting the identical requirement+state combination.
+// Unlike extraction/classification, there is no separate proposal table
+// either: an explanation is advisory TEXT with no consequential write of its
+// own to approve (directive's own "No: ... direct consequential DB writes by
+// model" -- this never writes anything else), so the result is stored
+// directly on the SUCCEEDED run row.
+export const aiExplanationRuns = pgTable(
+  'ai_explanation_runs',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    packRequirementId: uuid('pack_requirement_id')
+      .notNull()
+      .references(() => packRequirements.id, { onDelete: 'cascade' }),
+    status: aiExtractionRunStatus('status').notNull(),
+    modelVersion: text('model_version').notNull(),
+    promptVersion: text('prompt_version').notNull(),
+    schemaVersion: text('schema_version'),
+    costUnits: integer('cost_units').notNull().default(0),
+    provider: text('provider'),
+    providerRequestId: text('provider_request_id'),
+    inputUnits: integer('input_units'),
+    outputUnits: integer('output_units'),
+    cachedUnits: integer('cached_units'),
+    latencyMs: integer('latency_ms'),
+    errorCode: text('error_code'),
+    cacheKey: text('cache_key'),
+    servedFromCacheRunId: uuid('served_from_cache_run_id'),
+    explanation: text('explanation'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('ai_explanation_runs_pack_requirement_idx').on(table.packRequirementId),
+    index('ai_explanation_runs_cache_key_idx').on(table.cacheKey),
+  ],
+);
+
 // Immutable filename-proposal history at the logical-document level (naming
 // never touches the opaque storage key or `originalName` — master directive
 // §11/§21E). A version starts PENDING; a human decision (accept

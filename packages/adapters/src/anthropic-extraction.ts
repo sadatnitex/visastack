@@ -4,6 +4,9 @@ import type {
   AiClassifyInput,
   AiClassifyOutcome,
   AiClassifyPort,
+  AiExplainInput,
+  AiExplainOutcome,
+  AiExplainPort,
   AiExtractionInput,
   AiExtractionOutcome,
   AiExtractionPort,
@@ -58,6 +61,10 @@ const SCHEMA_VERSION = 'field_proposals_v1';
 const CLASSIFY_PROMPT_VERSION = '2026-09-29-v1';
 const CLASSIFY_SCHEMA_VERSION = 'document_classification_v1';
 const CLASSIFY_TOOL_NAME = 'submit_document_classification';
+/** Part 8 AI-01 item 5 -- tracked independently of extraction's/classification's own prompt/schema version. */
+const EXPLAIN_PROMPT_VERSION = '2026-09-29-v1';
+const EXPLAIN_SCHEMA_VERSION = 'readiness_gap_explanation_v1';
+const EXPLAIN_TOOL_NAME = 'submit_readiness_gap_explanation';
 /** Official host, a plain literal never influenced by any admin/config input (Part 8 §7: "built-in adapters: official provider host locked"). */
 const MESSAGES_URL = 'https://api.anthropic.com/v1/messages';
 const ANTHROPIC_VERSION = '2023-06-01';
@@ -94,6 +101,24 @@ const CLASSIFY_INPUT_SCHEMA = {
     rationale: { type: ['string', 'null'] },
   },
   required: ['suggestedType', 'confidence', 'rationale'],
+} as const;
+
+/** Part 8 AI-01 item 5: explains an ALREADY-DETERMINED gap -- never a second opinion on whether it applies, which stays entirely deterministic (`computeReadiness`, packages/services/src/missions.ts). */
+const EXPLAIN_SYSTEM_PROMPT = `You explain, in plain, empathetic language, why a single already-determined visa-application requirement gap matters. The determination itself was already made deterministically before you were called -- you are NOT deciding whether the requirement is met, only explaining what it means in plain words, grounded in the citation you are given.
+
+Rules:
+- Write 2-4 sentences, plain language, addressed directly to the applicant ("you").
+- Never invent facts about the applicant's own situation -- you were given none.
+- Never state or imply a probability of approval or rejection.
+- Ground every claim in the given citation text; do not invent legal consequences beyond what it implies.
+- You must always respond by calling the ${EXPLAIN_TOOL_NAME} tool -- never with plain text.`;
+
+const EXPLAIN_INPUT_SCHEMA = {
+  type: 'object',
+  properties: {
+    explanation: { type: 'string' },
+  },
+  required: ['explanation'],
 } as const;
 
 interface ToolProposal {
@@ -142,7 +167,7 @@ export interface AnthropicExtractionAdapterOptions {
   readonly fetchImpl?: typeof fetch;
 }
 
-export class AnthropicExtractionAdapter implements AiExtractionPort, AiClassifyPort {
+export class AnthropicExtractionAdapter implements AiExtractionPort, AiClassifyPort, AiExplainPort {
   private readonly apiKey: string;
   private readonly model: string;
   private readonly promptVersion: string;
@@ -451,6 +476,147 @@ export class AnthropicExtractionAdapter implements AiExtractionPort, AiClassifyP
       },
     };
   }
+
+  explainCacheKeyComponents(): AiCacheKeyComponents {
+    return {
+      model: this.model,
+      promptVersion: EXPLAIN_PROMPT_VERSION,
+      schemaVersion: EXPLAIN_SCHEMA_VERSION,
+    };
+  }
+
+  async explain(input: AiExplainInput): Promise<AiExplainOutcome> {
+    const startedAt = Date.now();
+    let response: Response;
+    try {
+      response = await withTimeout(
+        this.fetchImpl(MESSAGES_URL, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-api-key': this.apiKey,
+            'anthropic-version': ANTHROPIC_VERSION,
+          },
+          body: JSON.stringify({
+            model: this.model,
+            max_tokens: this.maxTokens,
+            system: EXPLAIN_SYSTEM_PROMPT,
+            messages: [
+              {
+                role: 'user',
+                content: `Requirement kind: ${input.requirementKind}\nRequirement: ${input.requirementKey}\nStatus: ${input.state === 'CRITICAL_GAP' ? 'required and not yet met' : 'optional and not yet met'}\nCitation: """\n${input.citation}\n"""`,
+              },
+            ],
+            tools: [
+              {
+                name: EXPLAIN_TOOL_NAME,
+                description: 'Submit the plain-language explanation for this readiness gap.',
+                input_schema: EXPLAIN_INPUT_SCHEMA,
+              },
+            ],
+            tool_choice: { type: 'tool', name: EXPLAIN_TOOL_NAME },
+          }),
+        }),
+        this.timeoutMs,
+        'Anthropic Messages API call (explanation)',
+      );
+    } catch (error) {
+      const latencyMs = Date.now() - startedAt;
+      const timedOut = error instanceof Error && error.message.includes('timed out after');
+      return {
+        ok: false,
+        code: timedOut ? 'timeout' : 'upstream_error',
+        message: error instanceof Error ? error.message : 'network error calling Anthropic',
+        provider: PROVIDER,
+        latencyMs,
+      };
+    }
+    const latencyMs = Date.now() - startedAt;
+
+    if (response.status === 401 || response.status === 403) {
+      return {
+        ok: false,
+        code: 'auth_failed',
+        message: `Anthropic rejected the configured API key (status ${response.status})`,
+        provider: PROVIDER,
+        latencyMs,
+      };
+    }
+    if (response.status === 429) {
+      return {
+        ok: false,
+        code: 'rate_limited',
+        message: 'Anthropic rate limit exceeded',
+        provider: PROVIDER,
+        latencyMs,
+      };
+    }
+    if (!response.ok) {
+      const body = await response.text().catch(() => '');
+      return {
+        ok: false,
+        code: 'upstream_error',
+        message: `Anthropic responded ${response.status}: ${body.slice(0, 500)}`,
+        provider: PROVIDER,
+        latencyMs,
+      };
+    }
+
+    let payload: unknown;
+    try {
+      payload = await response.json();
+    } catch {
+      return {
+        ok: false,
+        code: 'invalid_response',
+        message: 'Anthropic response was not valid JSON',
+        provider: PROVIDER,
+        latencyMs,
+      };
+    }
+
+    const parsed = parseExplanationMessagesPayload(payload);
+    if (parsed.kind === 'invalid') {
+      return {
+        ok: false,
+        code: 'invalid_response',
+        message: 'Anthropic response had an unexpected shape',
+        provider: PROVIDER,
+        latencyMs,
+      };
+    }
+    if (parsed.kind === 'refusal') {
+      return { ok: false, code: 'refused', message: parsed.message, provider: PROVIDER, latencyMs };
+    }
+    if (parsed.kind === 'truncated') {
+      return {
+        ok: false,
+        code: 'truncated',
+        message: 'Anthropic response was truncated before completing (max_tokens reached)',
+        provider: PROVIDER,
+        latencyMs,
+      };
+    }
+
+    return {
+      ok: true,
+      result: {
+        explanation: parsed.explanation,
+        usage: {
+          costUnits: parsed.totalTokens,
+          inputUnits: parsed.inputTokens,
+          outputUnits: parsed.outputTokens,
+          cachedUnits: parsed.cachedTokens,
+          modelVersion: this.model,
+          promptVersion: EXPLAIN_PROMPT_VERSION,
+          schemaVersion: EXPLAIN_SCHEMA_VERSION,
+          provider: PROVIDER,
+          ...(parsed.messageId ? { providerRequestId: parsed.messageId } : {}),
+          latencyMs,
+        },
+      },
+    };
+  }
 }
 
 function toProposalType(value: string): ProposalType {
@@ -633,6 +799,74 @@ function parseClassificationMessagesPayload(payload: unknown): ParsedClassificat
     suggestedType,
     confidence: candidate.confidence,
     ...(typeof candidate.rationale === 'string' ? { rationale: candidate.rationale } : {}),
+    totalTokens: inputTokens + outputTokens,
+    inputTokens,
+    outputTokens,
+    cachedTokens,
+    ...(typeof record.id === 'string' ? { messageId: record.id } : {}),
+  };
+}
+
+interface RawExplanationToolInput {
+  readonly explanation?: unknown;
+}
+
+type ParsedExplanationMessagesPayload =
+  | {
+      readonly kind: 'explanation';
+      readonly explanation: string;
+      readonly totalTokens: number;
+      readonly inputTokens: number;
+      readonly outputTokens: number;
+      readonly cachedTokens: number;
+      readonly messageId?: string;
+    }
+  | { readonly kind: 'refusal'; readonly message: string }
+  | { readonly kind: 'truncated' }
+  | { readonly kind: 'invalid' };
+
+/** Structurally mirrors `parseClassificationMessagesPayload` above -- same tool-use/refusal/truncation detection, a differently-shaped tool input. */
+function parseExplanationMessagesPayload(payload: unknown): ParsedExplanationMessagesPayload {
+  if (typeof payload !== 'object' || payload === null) return { kind: 'invalid' };
+  const record = payload as RawMessagesPayload;
+
+  if (record.stop_reason === 'max_tokens') return { kind: 'truncated' };
+
+  const content = Array.isArray(record.content) ? (record.content as RawContentBlock[]) : undefined;
+  if (!content) return { kind: 'invalid' };
+
+  const toolUse = content.find(
+    (block) => typeof block === 'object' && block !== null && block.type === 'tool_use',
+  );
+
+  if (record.stop_reason === 'refusal' || !toolUse) {
+    const textBlock = content.find(
+      (block) => typeof block === 'object' && block !== null && typeof block.text === 'string',
+    );
+    return {
+      kind: 'refusal',
+      message:
+        typeof textBlock?.text === 'string' && textBlock.text.length > 0
+          ? textBlock.text
+          : 'Anthropic declined to call the required tool',
+    };
+  }
+
+  const toolInput = toolUse.input;
+  if (typeof toolInput !== 'object' || toolInput === null) return { kind: 'invalid' };
+  const candidate = toolInput as RawExplanationToolInput;
+  if (typeof candidate.explanation !== 'string') return { kind: 'invalid' };
+
+  const usage = record.usage;
+  const rawUsage = typeof usage === 'object' && usage !== null ? (usage as RawUsage) : undefined;
+  const inputTokens = typeof rawUsage?.input_tokens === 'number' ? rawUsage.input_tokens : 0;
+  const outputTokens = typeof rawUsage?.output_tokens === 'number' ? rawUsage.output_tokens : 0;
+  const cachedTokens =
+    typeof rawUsage?.cache_read_input_tokens === 'number' ? rawUsage.cache_read_input_tokens : 0;
+
+  return {
+    kind: 'explanation',
+    explanation: candidate.explanation,
     totalTokens: inputTokens + outputTokens,
     inputTokens,
     outputTokens,

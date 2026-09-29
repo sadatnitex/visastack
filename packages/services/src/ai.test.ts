@@ -11,12 +11,15 @@ import { provisionAccount } from './accounts';
 import {
   type AiClassifyOutcome,
   type AiClassifyPort,
+  type AiExplainOutcome,
+  type AiExplainPort,
   type AiExtractionOutcome,
   type AiExtractionPort,
   type FieldProposal,
   approveDocumentTypeProposal,
   approveProposal,
   documentAiCostUnits,
+  explainReadinessGap,
   getLatestOcrRun,
   listPendingDocumentTypeProposals,
   listPendingProposals,
@@ -2556,5 +2559,230 @@ describe('AI Gateway -- document type classification (Part 8 AI-01 item 2)', () 
     });
     expect(isErr(second)).toBe(true);
     if (isErr(second)) expect(second.error.message).toContain('attempt limit');
+  });
+});
+
+const explainUsage = {
+  costUnits: 1,
+  inputUnits: 1,
+  outputUnits: 1,
+  cachedUnits: 0,
+  modelVersion: 'gpt-5.6-terra',
+  promptVersion: 'explain-p1',
+  schemaVersion: 'explain-s1',
+  provider: 'openai',
+  latencyMs: 10,
+};
+
+function stubExplainAi(
+  result: AiExplainOutcome = {
+    ok: true,
+    result: { explanation: 'A bank statement proves ongoing funds.', usage: explainUsage },
+  },
+): AiExplainPort {
+  return {
+    async explain() {
+      return result;
+    },
+    explainCacheKeyComponents() {
+      return { model: 'gpt-5.6-terra', promptVersion: 'explain-p1', schemaVersion: 'explain-s1' };
+    },
+  };
+}
+
+function countingStubExplainAi(
+  result: AiExplainOutcome = {
+    ok: true,
+    result: { explanation: 'A bank statement proves ongoing funds.', usage: explainUsage },
+  },
+): { ai: AiExplainPort; callCount: () => number } {
+  let calls = 0;
+  const ai: AiExplainPort = {
+    async explain() {
+      calls += 1;
+      return result;
+    },
+    explainCacheKeyComponents() {
+      return { model: 'gpt-5.6-terra', promptVersion: 'explain-p1', schemaVersion: 'explain-s1' };
+    },
+  };
+  return { ai, callCount: () => calls };
+}
+
+/** Seeds a minimal packs -> packVersions -> packRequirements chain, bypassing the full pack-authoring service layer (irrelevant to these tests) -- returns the requirement's id. */
+async function seedPackRequirement(
+  db: Db,
+  overrides: { readonly citation?: string; readonly optional?: boolean } = {},
+): Promise<string> {
+  const [pack] = await db
+    .insert(schema.packs)
+    .values({ key: `test-pack-${randomBytes(8).toString('hex')}`, name: 'Test Pack' })
+    .returning();
+  const [version] = await db
+    .insert(schema.packVersions)
+    .values({ packId: (pack as { id: string }).id, version: 1 })
+    .returning();
+  const [requirement] = await db
+    .insert(schema.packRequirements)
+    .values({
+      packVersionId: (version as { id: string }).id,
+      kind: 'DOCUMENT',
+      docType: 'BANK_STATEMENT',
+      citation: overrides.citation ?? 'Route guide §4.2: proof of funds required.',
+      optional: overrides.optional ?? false,
+    })
+    .returning();
+  return (requirement as { id: string }).id;
+}
+
+describe('AI Gateway -- readiness-gap explanation (Part 8 AI-01 item 5)', () => {
+  let db: Db;
+  beforeEach(async () => {
+    db = await freshDb();
+  });
+
+  it('produces an explanation grounded in the requirement citation', async () => {
+    const packRequirementId = await seedPackRequirement(db);
+    const result = await explainReadinessGap(db, stubExplainAi(), {
+      packRequirementId,
+      requirementKind: 'DOCUMENT',
+      requirementKey: 'BANK_STATEMENT',
+      state: 'CRITICAL_GAP',
+      citation: 'Route guide §4.2: proof of funds required.',
+      optional: false,
+      budgetLimitUnits: 1000,
+    });
+    expect(isOk(result)).toBe(true);
+    if (isOk(result)) expect(result.value.explanation).toContain('bank statement');
+  });
+
+  it('requires no consent -- no applicant-specific data is ever sent', async () => {
+    const packRequirementId = await seedPackRequirement(db);
+    // Deliberately no setConsent call anywhere in this test -- proves the
+    // call succeeds without any consent grant existing at all.
+    const result = await explainReadinessGap(db, stubExplainAi(), {
+      packRequirementId,
+      requirementKind: 'DOCUMENT',
+      requirementKey: 'BANK_STATEMENT',
+      state: 'CRITICAL_GAP',
+      citation: 'Route guide §4.2: proof of funds required.',
+      optional: false,
+      budgetLimitUnits: 1000,
+    });
+    expect(isOk(result)).toBe(true);
+  });
+
+  it('fails closed once the platform-wide budget is exhausted', async () => {
+    const packRequirementId = await seedPackRequirement(db);
+    const result = await explainReadinessGap(db, stubExplainAi(), {
+      packRequirementId,
+      requirementKind: 'DOCUMENT',
+      requirementKey: 'BANK_STATEMENT',
+      state: 'CRITICAL_GAP',
+      citation: 'Route guide §4.2: proof of funds required.',
+      optional: false,
+      budgetLimitUnits: 0,
+    });
+    expect(isErr(result)).toBe(true);
+  });
+
+  it('a second identical gap (same kind/key/state/citation) is served from cache, at zero cost, without invoking the adapter again', async () => {
+    const requirementA = await seedPackRequirement(db);
+    const requirementB = await seedPackRequirement(db); // a DIFFERENT requirement row, identical content
+    const { ai, callCount } = countingStubExplainAi();
+    const shared = {
+      requirementKind: 'DOCUMENT' as const,
+      requirementKey: 'BANK_STATEMENT',
+      state: 'CRITICAL_GAP' as const,
+      citation: 'Route guide §4.2: proof of funds required.',
+      optional: false,
+      budgetLimitUnits: 1000,
+    };
+
+    const first = await explainReadinessGap(db, ai, { packRequirementId: requirementA, ...shared });
+    expect(isOk(first)).toBe(true);
+
+    const second = await explainReadinessGap(db, ai, {
+      packRequirementId: requirementB,
+      ...shared,
+    });
+    expect(isOk(second)).toBe(true);
+    if (isOk(second))
+      expect(second.value.explanation).toBe(first.ok ? first.value.explanation : '');
+    expect(callCount()).toBe(1);
+  });
+
+  it('does not serve from cache when the citation text differs, even for the identical requirement key/state', async () => {
+    const requirementA = await seedPackRequirement(db, { citation: 'Citation A' });
+    const requirementB = await seedPackRequirement(db, { citation: 'Citation B' });
+    const { ai, callCount } = countingStubExplainAi();
+    const shared = {
+      requirementKind: 'DOCUMENT' as const,
+      requirementKey: 'BANK_STATEMENT',
+      state: 'CRITICAL_GAP' as const,
+      optional: false,
+      budgetLimitUnits: 1000,
+    };
+
+    await explainReadinessGap(db, ai, {
+      packRequirementId: requirementA,
+      citation: 'Citation A',
+      ...shared,
+    });
+    await explainReadinessGap(db, ai, {
+      packRequirementId: requirementB,
+      citation: 'Citation B',
+      ...shared,
+    });
+    expect(callCount()).toBe(2);
+  });
+
+  it('a failed adapter call is recorded FAILED with the real error code, never silently dropped', async () => {
+    const packRequirementId = await seedPackRequirement(db);
+    const result = await explainReadinessGap(
+      db,
+      stubExplainAi({ ok: false, code: 'upstream_error', message: 'boom' }),
+      {
+        packRequirementId,
+        requirementKind: 'DOCUMENT',
+        requirementKey: 'BANK_STATEMENT',
+        state: 'CRITICAL_GAP',
+        citation: 'Route guide §4.2: proof of funds required.',
+        optional: false,
+        budgetLimitUnits: 1000,
+      },
+    );
+    expect(isErr(result)).toBe(true);
+  });
+
+  it('the kill switch, rechecked immediately before dispatch, refuses the call without ever invoking the adapter', async () => {
+    const packRequirementId = await seedPackRequirement(db);
+    const { ai, callCount } = countingStubExplainAi();
+    const result = await explainReadinessGap(db, ai, {
+      packRequirementId,
+      requirementKind: 'DOCUMENT',
+      requirementKey: 'BANK_STATEMENT',
+      state: 'CRITICAL_GAP',
+      citation: 'Route guide §4.2: proof of funds required.',
+      optional: false,
+      budgetLimitUnits: 1000,
+      killSwitchCheck: async () => false,
+    });
+    expect(isErr(result)).toBe(true);
+    expect(callCount()).toBe(0);
+  });
+
+  it('counts against the SAME shared platform-wide budget extraction/OCR/classification already share', async () => {
+    const packRequirementId = await seedPackRequirement(db);
+    await explainReadinessGap(db, stubExplainAi(), {
+      packRequirementId,
+      requirementKind: 'DOCUMENT',
+      requirementKey: 'BANK_STATEMENT',
+      state: 'CRITICAL_GAP',
+      citation: 'Route guide §4.2: proof of funds required.',
+      optional: false,
+      budgetLimitUnits: 1000,
+    });
+    expect(await totalAiCostUnits(db)).toBe(explainUsage.costUnits);
   });
 });

@@ -193,6 +193,49 @@ export interface AiClassifyPort {
   classifyCacheKeyComponents(): AiCacheKeyComponents;
 }
 
+/**
+ * Part 8 AI-01 item 5 ("explanation of an ALREADY-DETERMINED deterministic
+ * readiness gap"). A third genuinely separate port, for the same reason
+ * `AiClassifyPort` is: the input/output shape differs from both extraction
+ * and classification. Scoped to only the two RUL-04 states
+ * (`packages/services/src/missions.ts`'s own `RequirementResultState`) that
+ * actually mean "requirement not met" -- CRITICAL_GAP (required) and
+ * ATTENTION (optional) -- never CONFLICTING/EXPIRING_STALE/UNVERIFIED, which
+ * are richer states describing a DIFFERENT kind of problem than a missing
+ * requirement, out of this task's literal "a gap" scope. Deliberately no
+ * applicant-specific data in the input at all -- see `ai_explanation_runs`'s
+ * own doc comment in schema.ts for why that means no consent gate applies
+ * either.
+ */
+export interface AiExplainInput {
+  readonly requirementKind: 'FIELD' | 'DOCUMENT';
+  readonly requirementKey: string;
+  readonly state: 'CRITICAL_GAP' | 'ATTENTION';
+  readonly citation: string;
+  readonly optional: boolean;
+}
+
+export interface AiExplainResult {
+  readonly explanation: string;
+  readonly usage: AiUsage;
+}
+
+export type AiExplainOutcome =
+  | { readonly ok: true; readonly result: AiExplainResult }
+  | {
+      readonly ok: false;
+      readonly code: AiExtractionErrorCode;
+      readonly message: string;
+      readonly provider?: string;
+      readonly latencyMs?: number;
+    };
+
+export interface AiExplainPort {
+  explain(input: AiExplainInput): Promise<AiExplainOutcome>;
+  /** Deliberately NOT named `cacheKeyComponents`/`classifyCacheKeyComponents` -- same collision-avoidance reasoning as `AiClassifyPort`'s own. */
+  explainCacheKeyComponents(): AiCacheKeyComponents;
+}
+
 function toPersistedConfidence(confidence: number): number {
   return Math.max(0, Math.min(100, Math.round(confidence * 100)));
 }
@@ -210,7 +253,7 @@ function toPersistedConfidence(confidence: number): number {
  * with no separate change needed there.
  */
 export async function totalAiCostUnits(db: Db): Promise<number> {
-  const [extraction, ocr, classification] = await Promise.all([
+  const [extraction, ocr, classification, explanation] = await Promise.all([
     first(
       await db
         .select({ total: sql<string>`coalesce(sum(${schema.aiExtractionRuns.costUnits}), 0)` })
@@ -228,9 +271,19 @@ export async function totalAiCostUnits(db: Db): Promise<number> {
         })
         .from(schema.aiClassificationRuns),
     ),
+    first(
+      await db
+        .select({
+          total: sql<string>`coalesce(sum(${schema.aiExplanationRuns.costUnits}), 0)`,
+        })
+        .from(schema.aiExplanationRuns),
+    ),
   ]);
   return (
-    Number(extraction?.total ?? 0) + Number(ocr?.total ?? 0) + Number(classification?.total ?? 0)
+    Number(extraction?.total ?? 0) +
+    Number(ocr?.total ?? 0) +
+    Number(classification?.total ?? 0) +
+    Number(explanation?.total ?? 0)
   );
 }
 
@@ -397,6 +450,15 @@ async function releaseStaleInFlightCalls(db: Db): Promise<void> {
           lt(schema.aiClassificationRuns.createdAt, cutoff),
         ),
       ),
+    db
+      .update(schema.aiExplanationRuns)
+      .set({ status: 'FAILED', errorCode: 'in_flight_expired' })
+      .where(
+        and(
+          eq(schema.aiExplanationRuns.status, 'IN_FLIGHT'),
+          lt(schema.aiExplanationRuns.createdAt, cutoff),
+        ),
+      ),
   ]);
 }
 
@@ -408,7 +470,7 @@ async function releaseStaleInFlightCalls(db: Db): Promise<void> {
  * not of which AI Gateway task each call happens to be for.
  */
 async function countInFlightCalls(db: Db): Promise<number> {
-  const [extractionRows, ocrRows, classificationRows] = await Promise.all([
+  const [extractionRows, ocrRows, classificationRows, explanationRows] = await Promise.all([
     db
       .select({ id: schema.aiExtractionRuns.id })
       .from(schema.aiExtractionRuns)
@@ -421,8 +483,14 @@ async function countInFlightCalls(db: Db): Promise<number> {
       .select({ id: schema.aiClassificationRuns.id })
       .from(schema.aiClassificationRuns)
       .where(eq(schema.aiClassificationRuns.status, 'IN_FLIGHT')),
+    db
+      .select({ id: schema.aiExplanationRuns.id })
+      .from(schema.aiExplanationRuns)
+      .where(eq(schema.aiExplanationRuns.status, 'IN_FLIGHT')),
   ]);
-  return extractionRows.length + ocrRows.length + classificationRows.length;
+  return (
+    extractionRows.length + ocrRows.length + classificationRows.length + explanationRows.length
+  );
 }
 
 /** Same as `countInFlightCalls`, scoped to one document -- the per-document budget check's own concurrency exposure. */
@@ -477,7 +545,7 @@ async function countInFlightCallsForDocument(db: Db, documentVersionId: string):
  * never an under-estimate.
  */
 async function maxObservedCostUnits(db: Db): Promise<number> {
-  const [extraction, ocr, classification] = await Promise.all([
+  const [extraction, ocr, classification, explanation] = await Promise.all([
     first(
       await db
         .select({ max: sql<string>`coalesce(max(${schema.aiExtractionRuns.costUnits}), 0)` })
@@ -498,11 +566,20 @@ async function maxObservedCostUnits(db: Db): Promise<number> {
         .from(schema.aiClassificationRuns)
         .where(eq(schema.aiClassificationRuns.status, 'SUCCEEDED')),
     ),
+    first(
+      await db
+        .select({
+          max: sql<string>`coalesce(max(${schema.aiExplanationRuns.costUnits}), 0)`,
+        })
+        .from(schema.aiExplanationRuns)
+        .where(eq(schema.aiExplanationRuns.status, 'SUCCEEDED')),
+    ),
   ]);
   return Math.max(
     Number(extraction?.max ?? 0),
     Number(ocr?.max ?? 0),
     Number(classification?.max ?? 0),
+    Number(explanation?.max ?? 0),
   );
 }
 
@@ -2545,4 +2622,289 @@ export async function listPendingProposals(
     result.push({ proposal, evidence });
   }
   return result;
+}
+
+// --- AI-assisted readiness-gap explanation (Part 8 AI-01 item 5) ----------
+//
+// Read-only: `explainReadinessGap` writes only its own `ai_explanation_runs`
+// row, never anything else -- there is no proposal/approval step, since an
+// explanation is advisory TEXT with no consequential write of its own to
+// decide on (directive's own "No: ... direct consequential DB writes by
+// model"). Co-located here for the same shared-budget-ledger reason
+// `runOcr`'s own doc comment already gives for OCR.
+const EXPLAIN_TASK_VERSION = 'readiness_gap_explanation_v1';
+
+function computeExplanationCacheKey(
+  input: AiExplainInput,
+  components: AiCacheKeyComponents,
+): string {
+  const parts = [
+    EXPLAIN_TASK_VERSION,
+    input.requirementKind,
+    input.requirementKey,
+    input.state,
+    input.citation,
+    String(input.optional),
+    components.model,
+    components.promptVersion,
+    components.schemaVersion,
+    components.reasoningEffort ?? '',
+  ];
+  return createHash('sha256').update(parts.join('|')).digest('hex');
+}
+
+export interface RunExplanationInput extends AiExplainInput {
+  readonly packRequirementId: string;
+  readonly budgetLimitUnits: number;
+  readonly maxConcurrentCalls?: number;
+  readonly cacheMaxAgeDays?: number;
+  readonly killSwitchCheck?: () => Promise<boolean>;
+}
+
+export type AiExplanationRunRow = typeof schema.aiExplanationRuns.$inferSelect;
+
+export interface RunExplanationSummary {
+  readonly aiExplanationRunId: string;
+  readonly explanation: string;
+}
+
+type ExplanationReservation =
+  | { readonly kind: 'final'; readonly outcome: Result<RunExplanationSummary, ServiceError> }
+  | { readonly kind: 'proceed'; readonly runId: string; readonly cacheKey: string };
+
+/**
+ * Phase 1 (RESERVE) -- structurally mirrors `reserveExtractionSlot`, minus
+ * every per-document/per-applicant check (attempt cap, per-document budget,
+ * page cap): none apply to a task that is not scoped to a document at all.
+ * Still takes the SAME platform-wide budget/concurrency lock, since real
+ * spend and a real provider-side concurrency limit apply regardless.
+ */
+async function reserveExplanationSlot(
+  db: Db,
+  ai: AiExplainPort,
+  input: RunExplanationInput,
+): Promise<ExplanationReservation> {
+  return db.transaction(async (tx): Promise<ExplanationReservation> => {
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext('visastack:ai-platform-budget'))`);
+
+    await releaseStaleInFlightCalls(tx);
+
+    const worstCase = await maxObservedCostUnits(tx);
+    const inFlightPlatform = await countInFlightCalls(tx);
+
+    const used = (await totalAiCostUnits(tx)) + (inFlightPlatform + 1) * worstCase;
+    if (used >= input.budgetLimitUnits) {
+      return { kind: 'final', outcome: err(serviceError('invalid', 'AI budget exhausted')) };
+    }
+
+    const cacheKey = computeExplanationCacheKey(input, ai.explainCacheKeyComponents());
+    const cacheMaxAgeDays = input.cacheMaxAgeDays ?? DEFAULT_CACHE_MAX_AGE_DAYS;
+    const cacheCutoff = new Date(Date.now() - cacheMaxAgeDays * 24 * 60 * 60 * 1000);
+    const cached = first(
+      await tx
+        .select()
+        .from(schema.aiExplanationRuns)
+        .where(
+          and(
+            eq(schema.aiExplanationRuns.cacheKey, cacheKey),
+            eq(schema.aiExplanationRuns.status, 'SUCCEEDED'),
+            gte(schema.aiExplanationRuns.createdAt, cacheCutoff),
+          ),
+        )
+        .orderBy(desc(schema.aiExplanationRuns.createdAt))
+        .limit(1),
+    );
+
+    if (cached) {
+      const run = required(
+        first(
+          await tx
+            .insert(schema.aiExplanationRuns)
+            .values({
+              packRequirementId: input.packRequirementId,
+              status: 'SUCCEEDED',
+              modelVersion: cached.modelVersion,
+              promptVersion: cached.promptVersion,
+              schemaVersion: cached.schemaVersion,
+              costUnits: 0,
+              provider: cached.provider,
+              cacheKey,
+              servedFromCacheRunId: cached.id,
+              explanation: cached.explanation,
+            })
+            .returning(),
+        ),
+        'ai explanation run',
+      );
+      return {
+        kind: 'final',
+        outcome: ok({ aiExplanationRunId: run.id, explanation: run.explanation ?? '' }),
+      };
+    }
+
+    if (input.maxConcurrentCalls !== undefined && inFlightPlatform >= input.maxConcurrentCalls) {
+      return {
+        kind: 'final',
+        outcome: err(
+          serviceError(
+            'rate_limited',
+            'too many AI calls in flight platform-wide; try again shortly',
+          ),
+        ),
+      };
+    }
+
+    const run = required(
+      first(
+        await tx
+          .insert(schema.aiExplanationRuns)
+          .values({
+            packRequirementId: input.packRequirementId,
+            status: 'IN_FLIGHT',
+            modelVersion: 'unknown',
+            promptVersion: 'unknown',
+          })
+          .returning(),
+      ),
+      'ai explanation run',
+    );
+
+    return { kind: 'proceed', runId: run.id, cacheKey };
+  });
+}
+
+interface ExplanationDispatchResult {
+  readonly outcome: AiExplainOutcome;
+  readonly result: Result<RunExplanationSummary, ServiceError>;
+}
+
+/** Phases 2 (CALL) and 3 (RECONCILE) -- structurally mirrors `dispatchAndReconcile`. */
+async function dispatchAndReconcileExplanation(
+  db: Db,
+  ai: AiExplainPort,
+  input: RunExplanationInput,
+  runId: string,
+  cacheKey: string,
+): Promise<ExplanationDispatchResult> {
+  const killSwitchAllows = input.killSwitchCheck ? await input.killSwitchCheck() : true;
+
+  const outcome: AiExplainOutcome = killSwitchAllows
+    ? await ai.explain(input)
+    : { ok: false, code: 'disabled', message: 'AI explanation is currently disabled' };
+
+  const result = await db.transaction(async (tx) => {
+    if (!outcome.ok) {
+      await tx
+        .update(schema.aiExplanationRuns)
+        .set({
+          status: 'FAILED',
+          provider: outcome.provider ?? null,
+          latencyMs: outcome.latencyMs ?? null,
+          errorCode: outcome.code,
+        })
+        .where(eq(schema.aiExplanationRuns.id, runId));
+      await appendAuditEvent(tx, {
+        eventType: 'AI_EXPLANATION_FAILED',
+        actorAccountId: null,
+        method: 'SYSTEM',
+        result: 'ALLOWED',
+        applicantId: null,
+        resourceType: 'pack_requirement',
+        resourceId: input.packRequirementId,
+        metadata: { errorCode: outcome.code, aiExplanationRunId: runId },
+      });
+      return err(
+        serviceError(outcome.code === 'disabled' ? 'invalid' : 'upstream_error', outcome.message),
+      );
+    }
+
+    const { explanation, usage } = outcome.result;
+
+    await tx
+      .update(schema.aiExplanationRuns)
+      .set({
+        status: 'SUCCEEDED',
+        modelVersion: usage.modelVersion,
+        promptVersion: usage.promptVersion,
+        schemaVersion: usage.schemaVersion,
+        costUnits: usage.costUnits,
+        provider: usage.provider,
+        providerRequestId: usage.providerRequestId ?? null,
+        inputUnits: usage.inputUnits,
+        outputUnits: usage.outputUnits,
+        cachedUnits: usage.cachedUnits,
+        latencyMs: usage.latencyMs,
+        cacheKey,
+        explanation,
+      })
+      .where(eq(schema.aiExplanationRuns.id, runId));
+
+    await appendAuditEvent(tx, {
+      eventType: 'AI_EXPLANATION_RUN',
+      actorAccountId: null,
+      method: 'SYSTEM',
+      result: 'ALLOWED',
+      applicantId: null,
+      resourceType: 'pack_requirement',
+      resourceId: input.packRequirementId,
+      metadata: {
+        aiExplanationRunId: runId,
+        costUnits: usage.costUnits,
+        modelVersion: usage.modelVersion,
+        provider: usage.provider,
+        latencyMs: usage.latencyMs,
+      },
+    });
+
+    return ok({ aiExplanationRunId: runId, explanation });
+  });
+  return { outcome, result };
+}
+
+/**
+ * Explain an already-determined deterministic readiness gap (Part 8 AI-01
+ * item 5) in plain language, grounded in the requirement's own citation --
+ * never a new determination of readiness itself, which remains entirely
+ * `computeReadiness`'s (`missions.ts`) job. No consent gate (see
+ * `AiExplainInput`'s own doc comment: no applicant-specific data is ever
+ * sent), and no ownership check here either -- the caller (the web action)
+ * is responsible for verifying the actor may view whichever mission surfaced
+ * this `packRequirementId`'s CURRENT state before ever calling this.
+ */
+export async function explainReadinessGap(
+  db: Db,
+  ai: AiExplainPort,
+  input: RunExplanationInput,
+): Promise<Result<RunExplanationSummary, ServiceError>> {
+  const reservation = await reserveExplanationSlot(db, ai, input);
+  if (reservation.kind === 'final') return reservation.outcome;
+
+  const dispatched = await dispatchAndReconcileExplanation(
+    db,
+    ai,
+    input,
+    reservation.runId,
+    reservation.cacheKey,
+  );
+  return dispatched.result;
+}
+
+/** The most recent successful explanation generated for this specific pack requirement, for display -- mirrors `getLatestOcrRun`'s identical shape. */
+export async function getLatestExplanationForRequirement(
+  db: Db,
+  packRequirementId: string,
+): Promise<AiExplanationRunRow | undefined> {
+  return first(
+    await db
+      .select()
+      .from(schema.aiExplanationRuns)
+      .where(
+        and(
+          eq(schema.aiExplanationRuns.packRequirementId, packRequirementId),
+          eq(schema.aiExplanationRuns.status, 'SUCCEEDED'),
+        ),
+      )
+      .orderBy(desc(schema.aiExplanationRuns.createdAt))
+      .limit(1),
+  );
 }

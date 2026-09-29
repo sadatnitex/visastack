@@ -3495,16 +3495,79 @@ item gets its own requirements-ledger row once classified against the new direct
     deferred, matching AI-09's own precedent of shipping a task's core
     capability before its fallback wiring.
 
-    Still deliberately unstarted: AI-01 items 4 (possible inconsistency
-    flag) and 5 (explanation of an already-determined deterministic
-    readiness gap, which would read `computeReadiness`'s own
-    `MissingRequirement`/`RequirementResultSummary` types from
-    `missions.ts`) -- both materially separate features, left for their own
-    chunks. Full `packages/services` suite: 1101/1101 (13 new). Full
-    `packages/adapters` targeted suite: 67/67 (18 new). Full `apps/web`
-    suite: 215/215 (`ai.test.ts` alone: 63/63, 8 new). Repo-wide typecheck,
-    a clean production build (`/app/applicant/[id]/documents` route grew
-    2.56 kB -> 2.81 kB, reflecting the new UI), and Biome all verified.
+    Still deliberately unstarted at this point: AI-01 items 4 (possible
+    inconsistency flag) and 5 (explanation of an already-determined
+    deterministic readiness gap) -- both materially separate features, left
+    for their own chunks. Full `packages/services` suite: 1101/1101 (13
+    new). Full `packages/adapters` targeted suite: 67/67 (18 new). Full
+    `apps/web` suite: 215/215 (`ai.test.ts` alone: 63/63, 8 new). Repo-wide
+    typecheck, a clean production build (`/app/applicant/[id]/documents`
+    route grew 2.56 kB -> 2.81 kB, reflecting the new UI), and Biome all
+    verified.
+    **Chunk 30 (2026-09-29, AI-01) -- explanation of an already-determined
+    deterministic readiness gap, item 5 of Part 8 §2, the last of the four
+    task types beyond plain extraction.** Reads `computeReadiness`'s own
+    `RequirementResultSummary` (`missions.ts`) plus the underlying
+    `packRequirements` row's citation -- never a second determination of
+    readiness itself, which stays entirely deterministic; this task only
+    ever explains a gap already decided. A new `AiExplainPort`
+    (`explain`/`explainCacheKeyComponents`, again a deliberately
+    non-colliding method name) -- the same three adapter classes now
+    `implements AiExtractionPort, AiClassifyPort, AiExplainPort` on one
+    instance, extending the canonical port a third time rather than a third
+    parallel system. Scoped to exactly the two RUL-04 states meaning
+    "requirement not met" (CRITICAL_GAP, ATTENTION), never
+    CONFLICTING/EXPIRING_STALE/UNVERIFIED, which describe a different kind
+    of problem outside this task's literal "a gap" wording.
+
+    Genuinely different shape from items 2/3's own `ai_classification_runs`:
+    the new `ai_explanation_runs` table has NO applicant/document scoping at
+    all -- the input sent to the model (a pack requirement's kind, RUL-04
+    state, and citation) is pack-level policy content, identical for every
+    mission that hits the same requirement in the same state, never an
+    applicant's own document or profile data. That fact does double duty:
+    no `AI_EXTRACTION` consent gate applies (there is no personal
+    disclosure to consent to, confirmed by a test that calls the export
+    with no consent grant in the database at all), and the cache key is
+    content-based rather than document-based, so the SAME explanation is
+    naturally reused across every mission/applicant hitting the identical
+    requirement+state+citation combination -- a test seeds two DIFFERENT
+    pack requirement rows with identical content and confirms the adapter
+    is invoked only once. `totalAiCostUnits`/`maxObservedCostUnits`/
+    `countInFlightCalls`/`releaseStaleInFlightCalls` extended with a fourth
+    arm so explanation spend counts against the same shared platform-wide
+    ledger every other AI Gateway task already shares; deliberately NOT
+    extended into `documentAiCostUnits`/`countInFlightCallsForDocument`,
+    since neither concept applies to a task with no document to scope
+    against.
+
+    `resolveAiExplainer` (`apps/web/src/lib/ai.ts`) reuses
+    `buildAdapterForConfig` unchanged, its return type widened a second
+    time to `AiExtractionPort & AiClassifyPort & AiExplainPort`.
+    `explainReadinessGapAction` (mission `actions.ts`) never trusts a
+    client-supplied state or citation -- it re-derives both from a fresh
+    `computeReadiness` call plus the pack requirement's own row on every
+    invocation, so the explanation is always grounded in the CURRENT,
+    server-verified determination. A new `readiness-gap-explain.tsx`
+    (`ExplainGapButton`) wired into the mission page's requirement-row loop,
+    shown only for CRITICAL_GAP/ATTENTION rows, displaying the most recent
+    explanation already on file (`getLatestExplanationForRequirement`) plus
+    a button to generate or refresh one -- no approve/reject workflow,
+    since an explanation is read-only advisory text with no consequential
+    write of its own (directive's own "No: ... direct consequential DB
+    writes by model").
+
+    This closes out all five of Part 8 §2's required P0 AI tasks except
+    item 4 (possible inconsistency flag), the one remaining unstarted task
+    in AI-01. No cross-provider fallback wiring yet for explanation either
+    (Part 8 §13) -- deliberately deferred, matching every other task's own
+    precedent of shipping core capability before fallback wiring. Full
+    `packages/services` suite: 1109/1109 (8 new). Full `packages/adapters`
+    targeted suite: 82/82 (15 new -- adapter-level `explain()` parsing/
+    error-mapping tests, not just the service-layer stub coverage). Full
+    `apps/web` suite: 230/230 (`ai.test.ts` alone: 70/70, 7 new). Repo-wide
+    typecheck, a clean production build (`/app/mission/[id]` route grew
+    7.46 kB -> 7.65 kB, reflecting the new UI), and Biome all verified.
 independently confirmed findings; the missing PRD file is tracked as Blocker 1 in
 `assumptions-and-blockers.md` (now resolved) rather than here, since it blocked the
 programme rather than being a product defect.

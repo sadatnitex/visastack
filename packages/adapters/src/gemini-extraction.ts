@@ -4,6 +4,9 @@ import type {
   AiClassifyInput,
   AiClassifyOutcome,
   AiClassifyPort,
+  AiExplainInput,
+  AiExplainOutcome,
+  AiExplainPort,
   AiExtractionInput,
   AiExtractionOutcome,
   AiExtractionPort,
@@ -80,6 +83,9 @@ const SCHEMA_VERSION = 'field_proposals_v1';
 /** Part 8 AI-01 item 2 -- tracked independently of extraction's own prompt/schema version, matching the other two adapters' identical separation. */
 const CLASSIFY_PROMPT_VERSION = '2026-09-29-v1';
 const CLASSIFY_SCHEMA_VERSION = 'document_classification_v1';
+/** Part 8 AI-01 item 5 -- tracked independently of extraction's/classification's own prompt/schema version. */
+const EXPLAIN_PROMPT_VERSION = '2026-09-29-v1';
+const EXPLAIN_SCHEMA_VERSION = 'readiness_gap_explanation_v1';
 /** Official host, a plain literal never influenced by any admin/config input (Part 8 §7: "built-in adapters: official provider host locked"). */
 const API_BASE_URL = 'https://generativelanguage.googleapis.com/v1beta/models';
 /** Part 8 §11's named default request timeout. */
@@ -114,6 +120,23 @@ const CLASSIFY_RESPONSE_SCHEMA = {
     rationale: { type: 'string' },
   },
   required: ['confidence'],
+} as const;
+
+/** Part 8 AI-01 item 5: explains an ALREADY-DETERMINED gap -- never a second opinion on whether it applies, which stays entirely deterministic (`computeReadiness`, packages/services/src/missions.ts). */
+const EXPLAIN_SYSTEM_PROMPT = `You explain, in plain, empathetic language, why a single already-determined visa-application requirement gap matters. The determination itself was already made deterministically before you were called -- you are NOT deciding whether the requirement is met, only explaining what it means in plain words, grounded in the citation you are given.
+
+Rules:
+- Write 2-4 sentences, plain language, addressed directly to the applicant ("you").
+- Never invent facts about the applicant's own situation -- you were given none.
+- Never state or imply a probability of approval or rejection.
+- Ground every claim in the given citation text; do not invent legal consequences beyond what it implies.`;
+
+const EXPLAIN_RESPONSE_SCHEMA = {
+  type: 'object',
+  properties: {
+    explanation: { type: 'string' },
+  },
+  required: ['explanation'],
 } as const;
 
 interface JsonProposal {
@@ -164,7 +187,7 @@ export interface GeminiExtractionAdapterOptions {
   readonly fetchImpl?: typeof fetch;
 }
 
-export class GeminiExtractionAdapter implements AiExtractionPort, AiClassifyPort {
+export class GeminiExtractionAdapter implements AiExtractionPort, AiClassifyPort, AiExplainPort {
   private readonly apiKey: string;
   private readonly model: string;
   private readonly promptVersion: string;
@@ -485,6 +508,152 @@ export class GeminiExtractionAdapter implements AiExtractionPort, AiClassifyPort
       },
     };
   }
+
+  explainCacheKeyComponents(): AiCacheKeyComponents {
+    return {
+      model: this.model,
+      promptVersion: EXPLAIN_PROMPT_VERSION,
+      schemaVersion: EXPLAIN_SCHEMA_VERSION,
+    };
+  }
+
+  async explain(input: AiExplainInput): Promise<AiExplainOutcome> {
+    const startedAt = Date.now();
+    let response: Response;
+    try {
+      response = await withTimeout(
+        this.fetchImpl(`${API_BASE_URL}/${this.model}:generateContent`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-goog-api-key': this.apiKey,
+          },
+          body: JSON.stringify({
+            systemInstruction: { parts: [{ text: EXPLAIN_SYSTEM_PROMPT }] },
+            contents: [
+              {
+                role: 'user',
+                parts: [
+                  {
+                    text: `Requirement kind: ${input.requirementKind}\nRequirement: ${input.requirementKey}\nStatus: ${input.state === 'CRITICAL_GAP' ? 'required and not yet met' : 'optional and not yet met'}\nCitation: """\n${input.citation}\n"""`,
+                  },
+                ],
+              },
+            ],
+            generationConfig: {
+              responseMimeType: 'application/json',
+              responseSchema: EXPLAIN_RESPONSE_SCHEMA,
+            },
+          }),
+        }),
+        this.timeoutMs,
+        'Gemini generateContent API call (explanation)',
+      );
+    } catch (error) {
+      const latencyMs = Date.now() - startedAt;
+      const timedOut = error instanceof Error && error.message.includes('timed out after');
+      return {
+        ok: false,
+        code: timedOut ? 'timeout' : 'upstream_error',
+        message: error instanceof Error ? error.message : 'network error calling Gemini',
+        provider: PROVIDER,
+        latencyMs,
+      };
+    }
+    const latencyMs = Date.now() - startedAt;
+
+    if (response.status === 401 || response.status === 403) {
+      return {
+        ok: false,
+        code: 'auth_failed',
+        message: `Gemini rejected the configured API key (status ${response.status})`,
+        provider: PROVIDER,
+        latencyMs,
+      };
+    }
+    if (response.status === 429) {
+      return {
+        ok: false,
+        code: 'rate_limited',
+        message: 'Gemini rate limit exceeded',
+        provider: PROVIDER,
+        latencyMs,
+      };
+    }
+    if (!response.ok) {
+      const body = await response.text().catch(() => '');
+      if (response.status === 400 && body.includes('API key not valid')) {
+        return {
+          ok: false,
+          code: 'auth_failed',
+          message: 'Gemini rejected the configured API key (status 400: API key not valid)',
+          provider: PROVIDER,
+          latencyMs,
+        };
+      }
+      return {
+        ok: false,
+        code: 'upstream_error',
+        message: `Gemini responded ${response.status}: ${body.slice(0, 500)}`,
+        provider: PROVIDER,
+        latencyMs,
+      };
+    }
+
+    let payload: unknown;
+    try {
+      payload = await response.json();
+    } catch {
+      return {
+        ok: false,
+        code: 'invalid_response',
+        message: 'Gemini response was not valid JSON',
+        provider: PROVIDER,
+        latencyMs,
+      };
+    }
+
+    const parsed = parseExplanationGenerateContentPayload(payload);
+    if (parsed.kind === 'invalid') {
+      return {
+        ok: false,
+        code: 'invalid_response',
+        message: 'Gemini response had an unexpected shape',
+        provider: PROVIDER,
+        latencyMs,
+      };
+    }
+    if (parsed.kind === 'refusal') {
+      return { ok: false, code: 'refused', message: parsed.message, provider: PROVIDER, latencyMs };
+    }
+    if (parsed.kind === 'truncated') {
+      return {
+        ok: false,
+        code: 'truncated',
+        message: 'Gemini response was truncated before completing (MAX_TOKENS reached)',
+        provider: PROVIDER,
+        latencyMs,
+      };
+    }
+
+    return {
+      ok: true,
+      result: {
+        explanation: parsed.explanation,
+        usage: {
+          costUnits: parsed.totalTokens,
+          inputUnits: parsed.inputTokens,
+          outputUnits: parsed.outputTokens,
+          cachedUnits: parsed.cachedTokens,
+          modelVersion: this.model,
+          promptVersion: EXPLAIN_PROMPT_VERSION,
+          schemaVersion: EXPLAIN_SCHEMA_VERSION,
+          provider: PROVIDER,
+          latencyMs,
+        },
+      },
+    };
+  }
 }
 
 function toProposalType(value: string): ProposalType {
@@ -713,6 +882,93 @@ function parseClassificationGenerateContentPayload(
     suggestedType,
     confidence: candidateBody.confidence,
     ...(typeof candidateBody.rationale === 'string' ? { rationale: candidateBody.rationale } : {}),
+    totalTokens,
+    inputTokens,
+    outputTokens,
+    cachedTokens,
+  };
+}
+
+interface RawExplanationBody {
+  readonly explanation?: unknown;
+}
+
+type ParsedExplanationGenerateContentPayload =
+  | {
+      readonly kind: 'explanation';
+      readonly explanation: string;
+      readonly totalTokens: number;
+      readonly inputTokens: number;
+      readonly outputTokens: number;
+      readonly cachedTokens: number;
+    }
+  | { readonly kind: 'refusal'; readonly message: string }
+  | { readonly kind: 'truncated' }
+  | { readonly kind: 'invalid' };
+
+/** Structurally mirrors `parseClassificationGenerateContentPayload` above -- same candidate/finish-reason/block-reason detection, a differently-shaped JSON body. */
+function parseExplanationGenerateContentPayload(
+  payload: unknown,
+): ParsedExplanationGenerateContentPayload {
+  if (typeof payload !== 'object' || payload === null) return { kind: 'invalid' };
+  const record = payload as RawGenerateContentPayload;
+
+  const candidates = Array.isArray(record.candidates)
+    ? (record.candidates as RawCandidate[])
+    : undefined;
+  const candidate = candidates?.[0];
+
+  if (!candidate) {
+    const feedback =
+      typeof record.promptFeedback === 'object' && record.promptFeedback !== null
+        ? (record.promptFeedback as RawPromptFeedback)
+        : undefined;
+    if (typeof feedback?.blockReason === 'string') {
+      return { kind: 'refusal', message: `Gemini blocked the prompt: ${feedback.blockReason}` };
+    }
+    return { kind: 'invalid' };
+  }
+
+  if (candidate.finishReason === 'MAX_TOKENS') return { kind: 'truncated' };
+
+  const finishReason = typeof candidate.finishReason === 'string' ? candidate.finishReason : 'STOP';
+  if (!NORMAL_FINISH_REASONS.has(finishReason)) {
+    return { kind: 'refusal', message: `Gemini declined to complete normally: ${finishReason}` };
+  }
+
+  const content =
+    typeof candidate.content === 'object' && candidate.content !== null
+      ? (candidate.content as RawContent)
+      : undefined;
+  const parts = Array.isArray(content?.parts) ? (content.parts as RawPart[]) : undefined;
+  const text = parts?.find((part) => typeof part.text === 'string')?.text;
+  if (typeof text !== 'string') return { kind: 'invalid' };
+
+  let body: unknown;
+  try {
+    body = JSON.parse(text);
+  } catch {
+    return { kind: 'invalid' };
+  }
+  if (typeof body !== 'object' || body === null) return { kind: 'invalid' };
+  const candidateBody = body as RawExplanationBody;
+  if (typeof candidateBody.explanation !== 'string') return { kind: 'invalid' };
+
+  const usage =
+    typeof record.usageMetadata === 'object' && record.usageMetadata !== null
+      ? (record.usageMetadata as RawUsageMetadata)
+      : undefined;
+  const inputTokens = typeof usage?.promptTokenCount === 'number' ? usage.promptTokenCount : 0;
+  const outputTokens =
+    typeof usage?.candidatesTokenCount === 'number' ? usage.candidatesTokenCount : 0;
+  const totalTokens =
+    typeof usage?.totalTokenCount === 'number' ? usage.totalTokenCount : inputTokens + outputTokens;
+  const cachedTokens =
+    typeof usage?.cachedContentTokenCount === 'number' ? usage.cachedContentTokenCount : 0;
+
+  return {
+    kind: 'explanation',
+    explanation: candidateBody.explanation,
     totalTokens,
     inputTokens,
     outputTokens,

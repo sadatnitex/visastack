@@ -9,6 +9,7 @@ import {
 } from '@visastack/adapters';
 import {
   type AiClassifyPort,
+  type AiExplainPort,
   type AiExtractionPort,
   type AiOcrPort,
   type AiProviderConfig,
@@ -95,16 +96,17 @@ export interface ResolvedAiExtractor {
 const IMPLEMENTED_PROVIDERS: ReadonlySet<string> = new Set(['openai', 'anthropic', 'gemini']);
 
 /**
- * Returns `AiExtractionPort & AiClassifyPort`, not just `AiExtractionPort`
- * -- every case below is one of the three adapter classes that Chunk C
- * (Part 8 AI-01 item 2) wired to implement BOTH ports on the same instance,
- * so `resolveAiClassifier` reuses this SAME function unchanged rather than
- * duplicating an equivalent construction switch for classification.
+ * Returns `AiExtractionPort & AiClassifyPort & AiExplainPort`, not just
+ * `AiExtractionPort` -- every case below is one of the three adapter
+ * classes that Chunk C (Part 8 AI-01 items 2 and 5) wired to implement ALL
+ * THREE ports on the same instance, so `resolveAiClassifier`/
+ * `resolveAiExplainer` both reuse this SAME function unchanged rather than
+ * duplicating an equivalent construction switch per task.
  */
 function buildAdapterForConfig(
   config: AiProviderConfig,
   apiKey: string,
-): AiExtractionPort & AiClassifyPort {
+): AiExtractionPort & AiClassifyPort & AiExplainPort {
   const shared = {
     apiKey,
     model: config.model,
@@ -271,6 +273,29 @@ export async function resolveAiClassifier(
   return { ai: buildAdapterForConfig(config, apiKey), limits: limitsFromConfig(config) };
 }
 
+export interface ResolvedAiExplainer {
+  readonly ai: AiExplainPort;
+  readonly limits: AiLimits;
+}
+
+/**
+ * The explain adapter (and its governing limits) a live readiness-gap
+ * explanation call should use (Part 8 AI-01 item 5) -- reuses
+ * `buildAdapterForConfig` unchanged, the identical reasoning
+ * `resolveAiClassifier`'s own doc comment gives. No env-var-only fallback
+ * path, for the identical reason `resolveAiClassifier` has none.
+ */
+export async function resolveAiExplainer(
+  db: Db,
+  encryption: KeyManagementPort | undefined,
+): Promise<ResolvedAiExplainer | undefined> {
+  if (!(await hasAnyAiProviderConfig(db))) return undefined;
+  const config = await getActiveAiProviderConfig(db);
+  if (!config || !encryption || !IMPLEMENTED_PROVIDERS.has(config.provider)) return undefined;
+  const apiKey = await revealAiProviderApiKey(db, encryption, config);
+  return { ai: buildAdapterForConfig(config, apiKey), limits: limitsFromConfig(config) };
+}
+
 /**
  * Providers with a real OCR adapter (Part 8 §9), separate from
  * `IMPLEMENTED_PROVIDERS` above -- OCR reuses the same admin-configured AI
@@ -384,6 +409,13 @@ export async function isOcrConfigured(db: Db): Promise<boolean> {
 
 /** Cheap "is AI classification available" check for page rendering (Part 8 AI-01 item 2) -- mirrors `isOcrConfigured`'s identical shape, never decrypting a key just to show a boolean. */
 export async function isClassificationConfigured(db: Db): Promise<boolean> {
+  if (!(await hasAnyAiProviderConfig(db))) return false;
+  const config = await getActiveAiProviderConfig(db);
+  return Boolean(config && IMPLEMENTED_PROVIDERS.has(config.provider));
+}
+
+/** Cheap "is AI readiness-gap explanation available" check (Part 8 AI-01 item 5) -- mirrors `isClassificationConfigured`'s identical shape (same `IMPLEMENTED_PROVIDERS` set), named separately for a reader's clarity at the call site. */
+export async function isExplanationConfigured(db: Db): Promise<boolean> {
   if (!(await hasAnyAiProviderConfig(db))) return false;
   const config = await getActiveAiProviderConfig(db);
   return Boolean(config && IMPLEMENTED_PROVIDERS.has(config.provider));
