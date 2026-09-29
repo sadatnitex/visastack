@@ -1,6 +1,9 @@
 import { PROPOSAL_TYPES, type ProposalType } from '@visastack/core';
 import type {
   AiCacheKeyComponents,
+  AiClassifyInput,
+  AiClassifyOutcome,
+  AiClassifyPort,
   AiExtractionInput,
   AiExtractionOutcome,
   AiExtractionPort,
@@ -51,6 +54,10 @@ import { withTimeout } from './timeout';
 const DEFAULT_MODEL = 'claude-sonnet-5';
 const DEFAULT_PROMPT_VERSION = '2026-09-28-v1';
 const SCHEMA_VERSION = 'field_proposals_v1';
+/** Part 8 AI-01 item 2 -- tracked independently of extraction's own prompt/schema version, matching `OpenAiExtractionAdapter`'s identical separation. */
+const CLASSIFY_PROMPT_VERSION = '2026-09-29-v1';
+const CLASSIFY_SCHEMA_VERSION = 'document_classification_v1';
+const CLASSIFY_TOOL_NAME = 'submit_document_classification';
 /** Official host, a plain literal never influenced by any admin/config input (Part 8 §7: "built-in adapters: official provider host locked"). */
 const MESSAGES_URL = 'https://api.anthropic.com/v1/messages';
 const ANTHROPIC_VERSION = '2023-06-01';
@@ -69,6 +76,25 @@ Rules:
 - "confidence" is your genuine calibrated probability (0.0-1.0) that the value is correct, not a fixed number.
 - If the document contains no extractable fields at all, call the tool with an empty "proposals" array.
 - You must always respond by calling the ${TOOL_NAME} tool -- never with plain text.`;
+
+/** Part 8 AI-01 item 2: a deterministic rules-based classifier already handles the confident cases; this prompt only ever runs on a genuine gap it left. */
+const CLASSIFY_SYSTEM_PROMPT = `You suggest a document type for a single immigration-applicant document that a deterministic rules-based classifier could not confidently resolve. A human will review your suggestion before it is ever recorded anywhere -- you are NOT authorized to write anything directly.
+
+Rules:
+- Only suggest a type from the provided allowed list. If you are not reasonably confident, or the document does not genuinely match any allowed type, set "suggestedType" to null -- never guess.
+- "confidence" is your genuine calibrated probability (0.0-1.0) that the suggested type is correct, not a fixed number.
+- "rationale" should briefly explain what in the text supports your suggestion (or why you could not decide, if "suggestedType" is null).
+- You must always respond by calling the ${CLASSIFY_TOOL_NAME} tool -- never with plain text.`;
+
+const CLASSIFY_INPUT_SCHEMA = {
+  type: 'object',
+  properties: {
+    suggestedType: { type: ['string', 'null'] },
+    confidence: { type: 'number' },
+    rationale: { type: ['string', 'null'] },
+  },
+  required: ['suggestedType', 'confidence', 'rationale'],
+} as const;
 
 interface ToolProposal {
   readonly type: string;
@@ -116,7 +142,7 @@ export interface AnthropicExtractionAdapterOptions {
   readonly fetchImpl?: typeof fetch;
 }
 
-export class AnthropicExtractionAdapter implements AiExtractionPort {
+export class AnthropicExtractionAdapter implements AiExtractionPort, AiClassifyPort {
   private readonly apiKey: string;
   private readonly model: string;
   private readonly promptVersion: string;
@@ -282,6 +308,149 @@ export class AnthropicExtractionAdapter implements AiExtractionPort {
       },
     };
   }
+
+  classifyCacheKeyComponents(): AiCacheKeyComponents {
+    return {
+      model: this.model,
+      promptVersion: CLASSIFY_PROMPT_VERSION,
+      schemaVersion: CLASSIFY_SCHEMA_VERSION,
+    };
+  }
+
+  async classify(input: AiClassifyInput): Promise<AiClassifyOutcome> {
+    const startedAt = Date.now();
+    let response: Response;
+    try {
+      response = await withTimeout(
+        this.fetchImpl(MESSAGES_URL, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-api-key': this.apiKey,
+            'anthropic-version': ANTHROPIC_VERSION,
+          },
+          body: JSON.stringify({
+            model: this.model,
+            max_tokens: this.maxTokens,
+            system: CLASSIFY_SYSTEM_PROMPT,
+            messages: [
+              {
+                role: 'user',
+                content: `Allowed document types (JSON array - use ONLY these, or null): ${JSON.stringify(input.allowedTypes)}\n\nDocument text:\n"""\n${input.text}\n"""`,
+              },
+            ],
+            tools: [
+              {
+                name: CLASSIFY_TOOL_NAME,
+                description: 'Submit the suggested document type for this document.',
+                input_schema: CLASSIFY_INPUT_SCHEMA,
+              },
+            ],
+            tool_choice: { type: 'tool', name: CLASSIFY_TOOL_NAME },
+          }),
+        }),
+        this.timeoutMs,
+        'Anthropic Messages API call (classification)',
+      );
+    } catch (error) {
+      const latencyMs = Date.now() - startedAt;
+      const timedOut = error instanceof Error && error.message.includes('timed out after');
+      return {
+        ok: false,
+        code: timedOut ? 'timeout' : 'upstream_error',
+        message: error instanceof Error ? error.message : 'network error calling Anthropic',
+        provider: PROVIDER,
+        latencyMs,
+      };
+    }
+    const latencyMs = Date.now() - startedAt;
+
+    if (response.status === 401 || response.status === 403) {
+      return {
+        ok: false,
+        code: 'auth_failed',
+        message: `Anthropic rejected the configured API key (status ${response.status})`,
+        provider: PROVIDER,
+        latencyMs,
+      };
+    }
+    if (response.status === 429) {
+      return {
+        ok: false,
+        code: 'rate_limited',
+        message: 'Anthropic rate limit exceeded',
+        provider: PROVIDER,
+        latencyMs,
+      };
+    }
+    if (!response.ok) {
+      const body = await response.text().catch(() => '');
+      return {
+        ok: false,
+        code: 'upstream_error',
+        message: `Anthropic responded ${response.status}: ${body.slice(0, 500)}`,
+        provider: PROVIDER,
+        latencyMs,
+      };
+    }
+
+    let payload: unknown;
+    try {
+      payload = await response.json();
+    } catch {
+      return {
+        ok: false,
+        code: 'invalid_response',
+        message: 'Anthropic response was not valid JSON',
+        provider: PROVIDER,
+        latencyMs,
+      };
+    }
+
+    const parsed = parseClassificationMessagesPayload(payload);
+    if (parsed.kind === 'invalid') {
+      return {
+        ok: false,
+        code: 'invalid_response',
+        message: 'Anthropic response had an unexpected shape',
+        provider: PROVIDER,
+        latencyMs,
+      };
+    }
+    if (parsed.kind === 'refusal') {
+      return { ok: false, code: 'refused', message: parsed.message, provider: PROVIDER, latencyMs };
+    }
+    if (parsed.kind === 'truncated') {
+      return {
+        ok: false,
+        code: 'truncated',
+        message: 'Anthropic response was truncated before completing (max_tokens reached)',
+        provider: PROVIDER,
+        latencyMs,
+      };
+    }
+
+    return {
+      ok: true,
+      result: {
+        suggestedType: parsed.suggestedType,
+        confidence: parsed.confidence,
+        ...(parsed.rationale ? { rationale: parsed.rationale } : {}),
+        usage: {
+          costUnits: parsed.totalTokens,
+          inputUnits: parsed.inputTokens,
+          outputUnits: parsed.outputTokens,
+          cachedUnits: parsed.cachedTokens,
+          modelVersion: this.model,
+          promptVersion: CLASSIFY_PROMPT_VERSION,
+          schemaVersion: CLASSIFY_SCHEMA_VERSION,
+          provider: PROVIDER,
+          ...(parsed.messageId ? { providerRequestId: parsed.messageId } : {}),
+          latencyMs,
+        },
+      },
+    };
+  }
 }
 
 function toProposalType(value: string): ProposalType {
@@ -388,6 +557,82 @@ function parseMessagesPayload(payload: unknown): ParsedMessagesPayload {
   return {
     kind: 'proposals',
     proposals,
+    totalTokens: inputTokens + outputTokens,
+    inputTokens,
+    outputTokens,
+    cachedTokens,
+    ...(typeof record.id === 'string' ? { messageId: record.id } : {}),
+  };
+}
+
+interface RawClassificationToolInput {
+  readonly suggestedType?: unknown;
+  readonly confidence?: unknown;
+  readonly rationale?: unknown;
+}
+
+type ParsedClassificationMessagesPayload =
+  | {
+      readonly kind: 'classification';
+      readonly suggestedType: string | null;
+      readonly confidence: number;
+      readonly rationale?: string;
+      readonly totalTokens: number;
+      readonly inputTokens: number;
+      readonly outputTokens: number;
+      readonly cachedTokens: number;
+      readonly messageId?: string;
+    }
+  | { readonly kind: 'refusal'; readonly message: string }
+  | { readonly kind: 'truncated' }
+  | { readonly kind: 'invalid' };
+
+/** Structurally mirrors `parseMessagesPayload` above -- same tool-use/refusal/truncation detection, a differently-shaped tool input. */
+function parseClassificationMessagesPayload(payload: unknown): ParsedClassificationMessagesPayload {
+  if (typeof payload !== 'object' || payload === null) return { kind: 'invalid' };
+  const record = payload as RawMessagesPayload;
+
+  if (record.stop_reason === 'max_tokens') return { kind: 'truncated' };
+
+  const content = Array.isArray(record.content) ? (record.content as RawContentBlock[]) : undefined;
+  if (!content) return { kind: 'invalid' };
+
+  const toolUse = content.find(
+    (block) => typeof block === 'object' && block !== null && block.type === 'tool_use',
+  );
+
+  if (record.stop_reason === 'refusal' || !toolUse) {
+    const textBlock = content.find(
+      (block) => typeof block === 'object' && block !== null && typeof block.text === 'string',
+    );
+    return {
+      kind: 'refusal',
+      message:
+        typeof textBlock?.text === 'string' && textBlock.text.length > 0
+          ? textBlock.text
+          : 'Anthropic declined to call the required tool',
+    };
+  }
+
+  const toolInput = toolUse.input;
+  if (typeof toolInput !== 'object' || toolInput === null) return { kind: 'invalid' };
+  const candidate = toolInput as RawClassificationToolInput;
+  if (typeof candidate.confidence !== 'number') return { kind: 'invalid' };
+  const suggestedType =
+    typeof candidate.suggestedType === 'string' ? candidate.suggestedType : null;
+
+  const usage = record.usage;
+  const rawUsage = typeof usage === 'object' && usage !== null ? (usage as RawUsage) : undefined;
+  const inputTokens = typeof rawUsage?.input_tokens === 'number' ? rawUsage.input_tokens : 0;
+  const outputTokens = typeof rawUsage?.output_tokens === 'number' ? rawUsage.output_tokens : 0;
+  const cachedTokens =
+    typeof rawUsage?.cache_read_input_tokens === 'number' ? rawUsage.cache_read_input_tokens : 0;
+
+  return {
+    kind: 'classification',
+    suggestedType,
+    confidence: candidate.confidence,
+    ...(typeof candidate.rationale === 'string' ? { rationale: candidate.rationale } : {}),
     totalTokens: inputTokens + outputTokens,
     inputTokens,
     outputTokens,

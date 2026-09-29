@@ -9,14 +9,20 @@ import { migrate } from 'drizzle-orm/pglite/migrator';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { provisionAccount } from './accounts';
 import {
+  type AiClassifyOutcome,
+  type AiClassifyPort,
   type AiExtractionOutcome,
   type AiExtractionPort,
   type FieldProposal,
+  approveDocumentTypeProposal,
   approveProposal,
   documentAiCostUnits,
   getLatestOcrRun,
+  listPendingDocumentTypeProposals,
   listPendingProposals,
+  rejectDocumentTypeProposal,
   rejectProposal,
+  runClassification,
   runExtraction,
   runOcr,
   totalAiCostUnits,
@@ -2090,5 +2096,465 @@ describe('AI Gateway -- cross-provider fallback (Part 8 §13, Chunk 25)', () => 
     );
     expect(isErr(result)).toBe(true);
     expect(callCount()).toBe(0);
+  });
+});
+
+const classifyUsage = {
+  costUnits: 2,
+  inputUnits: 1,
+  outputUnits: 1,
+  cachedUnits: 0,
+  modelVersion: 'gpt-5.6-terra',
+  promptVersion: 'classify-p1',
+  schemaVersion: 'classify-s1',
+  provider: 'openai',
+  latencyMs: 20,
+};
+
+function stubClassifyAi(
+  result: AiClassifyOutcome = {
+    ok: true,
+    result: {
+      suggestedType: 'BANK_STATEMENT',
+      confidence: 0.9,
+      rationale: 'looks like one',
+      usage: classifyUsage,
+    },
+  },
+): AiClassifyPort {
+  return {
+    async classify() {
+      return result;
+    },
+    classifyCacheKeyComponents() {
+      return { model: 'gpt-5.6-terra', promptVersion: 'classify-p1', schemaVersion: 'classify-s1' };
+    },
+  };
+}
+
+function countingStubClassifyAi(
+  result: AiClassifyOutcome = {
+    ok: true,
+    result: {
+      suggestedType: 'BANK_STATEMENT',
+      confidence: 0.9,
+      rationale: 'looks like one',
+      usage: classifyUsage,
+    },
+  },
+): { ai: AiClassifyPort; callCount: () => number } {
+  let calls = 0;
+  const ai: AiClassifyPort = {
+    async classify() {
+      calls += 1;
+      return result;
+    },
+    classifyCacheKeyComponents() {
+      return { model: 'gpt-5.6-terra', promptVersion: 'classify-p1', schemaVersion: 'classify-s1' };
+    },
+  };
+  return { ai, callCount: () => calls };
+}
+
+/** Inserts a COMPLETED processingRuns row plus a SUCCEEDED extractionRuns row for it -- the deterministic prerequisite `approveDocumentTypeProposal` looks up to satisfy `document_classifications.extraction_run_id`'s FK. */
+async function seedExtractionRun(db: Db, versionId: string): Promise<void> {
+  const [run] = await db
+    .insert(schema.processingRuns)
+    .values({ documentVersionId: versionId, pipelineVersion: '1.0.0', status: 'COMPLETED' })
+    .returning();
+  await db.insert(schema.extractionRuns).values({
+    processingRunId: (run as { id: string }).id,
+    documentVersionId: versionId,
+    parserName: 'test',
+    parserVersion: '1.0.0',
+    status: 'SUCCEEDED',
+    extractedText: 'some deterministically-extracted text',
+  });
+}
+
+describe('AI Gateway -- document type classification (Part 8 AI-01 item 2)', () => {
+  let db: Db;
+  beforeEach(async () => {
+    db = await freshDb();
+  });
+
+  it('produces a PENDING document-type proposal on a genuine gap', async () => {
+    const { account, applicantId, versionId } = await seedVersion(db, 'classify-basic@example.com');
+    await grantAiConsent(db, account.id);
+    await seedExtractionRun(db, versionId);
+
+    const result = await runClassification(db, stubClassifyAi(), {
+      actorAccountId: account.id,
+      applicantId,
+      documentVersionId: versionId,
+      text: 'statement of account, opening balance, closing balance',
+      budgetLimitUnits: 1000,
+    });
+    expect(isOk(result)).toBe(true);
+    if (!isOk(result)) return;
+    expect(result.value.proposal?.suggestedType).toBe('BANK_STATEMENT');
+    expect(result.value.proposal?.status).toBe('PENDING');
+
+    const pending = await listPendingDocumentTypeProposals(db, applicantId);
+    expect(pending).toHaveLength(1);
+  });
+
+  it('refuses to run when the deterministic classifier already reached a confident result', async () => {
+    const { account, applicantId, versionId } = await seedVersion(
+      db,
+      'classify-already-confident@example.com',
+    );
+    await grantAiConsent(db, account.id);
+    await seedExtractionRun(db, versionId);
+    const [existingRun] = await db
+      .select()
+      .from(schema.extractionRuns)
+      .where(eq(schema.extractionRuns.documentVersionId, versionId));
+    await db.insert(schema.documentClassifications).values({
+      extractionRunId: (existingRun as { id: string }).id,
+      documentVersionId: versionId,
+      classifiedType: 'PASSPORT',
+      confidence: 100,
+      reviewRequired: false,
+      rationale: 'valid TD3 MRZ',
+    });
+
+    const result = await runClassification(db, stubClassifyAi(), {
+      actorAccountId: account.id,
+      applicantId,
+      documentVersionId: versionId,
+      text: 'irrelevant',
+      budgetLimitUnits: 1000,
+    });
+    expect(isErr(result)).toBe(true);
+  });
+
+  it('runs when the deterministic classifier left reviewRequired true, even with a non-null type', async () => {
+    const { account, applicantId, versionId } = await seedVersion(
+      db,
+      'classify-review-required@example.com',
+    );
+    await grantAiConsent(db, account.id);
+    await seedExtractionRun(db, versionId);
+    const [existingRun] = await db
+      .select()
+      .from(schema.extractionRuns)
+      .where(eq(schema.extractionRuns.documentVersionId, versionId));
+    await db.insert(schema.documentClassifications).values({
+      extractionRunId: (existingRun as { id: string }).id,
+      documentVersionId: versionId,
+      classifiedType: null,
+      confidence: 40,
+      reviewRequired: true,
+      rationale: 'below threshold',
+    });
+
+    const result = await runClassification(db, stubClassifyAi(), {
+      actorAccountId: account.id,
+      applicantId,
+      documentVersionId: versionId,
+      text: 'statement of account, opening balance, closing balance',
+      budgetLimitUnits: 1000,
+    });
+    expect(isOk(result)).toBe(true);
+  });
+
+  it('refuses to run a second time while a suggestion is already pending', async () => {
+    const { account, applicantId, versionId } = await seedVersion(
+      db,
+      'classify-already-pending@example.com',
+    );
+    await grantAiConsent(db, account.id);
+    await seedExtractionRun(db, versionId);
+
+    const first = await runClassification(db, stubClassifyAi(), {
+      actorAccountId: account.id,
+      applicantId,
+      documentVersionId: versionId,
+      text: 'statement of account, opening balance, closing balance',
+      budgetLimitUnits: 1000,
+    });
+    expect(isOk(first)).toBe(true);
+
+    const second = await runClassification(db, stubClassifyAi(), {
+      actorAccountId: account.id,
+      applicantId,
+      documentVersionId: versionId,
+      text: 'statement of account, opening balance, closing balance',
+      budgetLimitUnits: 1000,
+    });
+    expect(isErr(second)).toBe(true);
+  });
+
+  it('requires AI_EXTRACTION consent', async () => {
+    const { account, applicantId, versionId } = await seedVersion(
+      db,
+      'classify-consent@example.com',
+    );
+    await seedExtractionRun(db, versionId);
+
+    const result = await runClassification(db, stubClassifyAi(), {
+      actorAccountId: account.id,
+      applicantId,
+      documentVersionId: versionId,
+      text: 'irrelevant',
+      budgetLimitUnits: 1000,
+    });
+    expect(isErr(result)).toBe(true);
+    if (isErr(result)) expect(result.error.code).toBe('consent_required');
+  });
+
+  it('fails closed once the platform-wide budget is exhausted', async () => {
+    const { account, applicantId, versionId } = await seedVersion(
+      db,
+      'classify-budget@example.com',
+    );
+    await grantAiConsent(db, account.id);
+    await seedExtractionRun(db, versionId);
+
+    const result = await runClassification(db, stubClassifyAi(), {
+      actorAccountId: account.id,
+      applicantId,
+      documentVersionId: versionId,
+      text: 'irrelevant',
+      budgetLimitUnits: 0,
+    });
+    expect(isErr(result)).toBe(true);
+  });
+
+  it('never writes a proposal when the model itself could not confidently classify', async () => {
+    const { account, applicantId, versionId } = await seedVersion(db, 'classify-null@example.com');
+    await grantAiConsent(db, account.id);
+    await seedExtractionRun(db, versionId);
+
+    const result = await runClassification(
+      db,
+      stubClassifyAi({
+        ok: true,
+        result: { suggestedType: null, confidence: 0.2, usage: classifyUsage },
+      }),
+      {
+        actorAccountId: account.id,
+        applicantId,
+        documentVersionId: versionId,
+        text: 'ambiguous text',
+        budgetLimitUnits: 1000,
+      },
+    );
+    expect(isOk(result)).toBe(true);
+    if (isOk(result)) expect(result.value.proposal).toBeNull();
+  });
+
+  it('never writes a proposal for a type outside the allowed vocabulary', async () => {
+    const { account, applicantId, versionId } = await seedVersion(
+      db,
+      'classify-outofvocab@example.com',
+    );
+    await grantAiConsent(db, account.id);
+    await seedExtractionRun(db, versionId);
+
+    const result = await runClassification(
+      db,
+      stubClassifyAi({
+        ok: true,
+        result: { suggestedType: 'DRIVERS_LICENSE', confidence: 0.9, usage: classifyUsage },
+      }),
+      {
+        actorAccountId: account.id,
+        applicantId,
+        documentVersionId: versionId,
+        text: 'some text',
+        budgetLimitUnits: 1000,
+      },
+    );
+    expect(isOk(result)).toBe(true);
+    if (isOk(result)) expect(result.value.proposal).toBeNull();
+  });
+
+  it('a cache hit never calls the adapter again and still produces a proposal', async () => {
+    const { account, applicantId, versionId } = await seedVersion(
+      db,
+      'classify-cache-a@example.com',
+    );
+    await grantAiConsent(db, account.id);
+    await seedExtractionRun(db, versionId);
+    const { ai, callCount } = countingStubClassifyAi();
+
+    const first = await runClassification(db, ai, {
+      actorAccountId: account.id,
+      applicantId,
+      documentVersionId: versionId,
+      text: 'statement of account, opening balance, closing balance',
+      budgetLimitUnits: 1000,
+    });
+    expect(isOk(first)).toBe(true);
+    if (isOk(first) && first.value.proposal) {
+      await rejectDocumentTypeProposal(db, {
+        actorAccountId: account.id,
+        proposalId: first.value.proposal.id,
+      });
+    }
+
+    const {
+      account: account2,
+      applicantId: applicantId2,
+      versionId: versionId2,
+    } = await seedVersion(db, 'classify-cache-b@example.com');
+    await grantAiConsent(db, account2.id);
+    await seedExtractionRun(db, versionId2);
+
+    const second = await runClassification(db, ai, {
+      actorAccountId: account2.id,
+      applicantId: applicantId2,
+      documentVersionId: versionId2,
+      text: 'statement of account, opening balance, closing balance',
+      budgetLimitUnits: 1000,
+    });
+    expect(isOk(second)).toBe(true);
+    if (isOk(second)) expect(second.value.proposal?.suggestedType).toBe('BANK_STATEMENT');
+    expect(callCount()).toBe(1);
+  });
+
+  it('approving a proposal writes an AI_APPROVED classification, fills docType, and proposes a name', async () => {
+    const { account, applicantId, versionId } = await seedVersion(
+      db,
+      'classify-approve@example.com',
+    );
+    await grantAiConsent(db, account.id);
+    await seedExtractionRun(db, versionId);
+
+    const run = await runClassification(db, stubClassifyAi(), {
+      actorAccountId: account.id,
+      applicantId,
+      documentVersionId: versionId,
+      text: 'statement of account, opening balance, closing balance',
+      budgetLimitUnits: 1000,
+    });
+    expect(isOk(run)).toBe(true);
+    if (!isOk(run) || !run.value.proposal) throw new Error('expected a proposal');
+
+    const approved = await approveDocumentTypeProposal(db, {
+      actorAccountId: account.id,
+      proposalId: run.value.proposal.id,
+    });
+    expect(isOk(approved)).toBe(true);
+    if (!isOk(approved)) return;
+    expect(approved.value.status).toBe('APPROVED');
+    expect(approved.value.classificationId).not.toBeNull();
+
+    const [classification] = await db
+      .select()
+      .from(schema.documentClassifications)
+      .where(eq(schema.documentClassifications.documentVersionId, versionId));
+    expect((classification as { source: string }).source).toBe('AI_APPROVED');
+    expect((classification as { classifiedType: string }).classifiedType).toBe('BANK_STATEMENT');
+
+    const [doc] = await db
+      .select()
+      .from(schema.documents)
+      .where(eq(schema.documents.applicantId, applicantId));
+    expect((doc as { docType: string | null }).docType).toBe('BANK_STATEMENT');
+
+    const [nameVersion] = await db
+      .select()
+      .from(schema.documentNameVersions)
+      .where(eq(schema.documentNameVersions.documentId, (doc as { id: string }).id));
+    expect(nameVersion).toBeDefined();
+  });
+
+  it('approving never overwrites an already-set docType', async () => {
+    const { account, applicantId, versionId } = await seedVersion(
+      db,
+      'classify-approve-preserve@example.com',
+    );
+    await grantAiConsent(db, account.id);
+    await seedExtractionRun(db, versionId);
+    await db
+      .update(schema.documents)
+      .set({ docType: 'SOMETHING_ELSE' })
+      .where(eq(schema.documents.applicantId, applicantId));
+
+    const run = await runClassification(db, stubClassifyAi(), {
+      actorAccountId: account.id,
+      applicantId,
+      documentVersionId: versionId,
+      text: 'statement of account, opening balance, closing balance',
+      budgetLimitUnits: 1000,
+    });
+    if (!isOk(run) || !run.value.proposal) throw new Error('expected a proposal');
+
+    await approveDocumentTypeProposal(db, {
+      actorAccountId: account.id,
+      proposalId: run.value.proposal.id,
+    });
+
+    const [doc] = await db
+      .select()
+      .from(schema.documents)
+      .where(eq(schema.documents.applicantId, applicantId));
+    expect((doc as { docType: string | null }).docType).toBe('SOMETHING_ELSE');
+  });
+
+  it('rejecting a proposal marks it REJECTED and writes no classification row', async () => {
+    const { account, applicantId, versionId } = await seedVersion(
+      db,
+      'classify-reject@example.com',
+    );
+    await grantAiConsent(db, account.id);
+    await seedExtractionRun(db, versionId);
+
+    const run = await runClassification(db, stubClassifyAi(), {
+      actorAccountId: account.id,
+      applicantId,
+      documentVersionId: versionId,
+      text: 'statement of account, opening balance, closing balance',
+      budgetLimitUnits: 1000,
+    });
+    if (!isOk(run) || !run.value.proposal) throw new Error('expected a proposal');
+
+    const rejected = await rejectDocumentTypeProposal(db, {
+      actorAccountId: account.id,
+      proposalId: run.value.proposal.id,
+      reason: 'looks wrong',
+    });
+    expect(isOk(rejected)).toBe(true);
+    if (isOk(rejected)) expect(rejected.value.status).toBe('REJECTED');
+
+    const classifications = await db
+      .select()
+      .from(schema.documentClassifications)
+      .where(eq(schema.documentClassifications.documentVersionId, versionId));
+    expect(classifications).toHaveLength(0);
+  });
+
+  it('enforces its own attempt limit independently of the extraction attempt counter', async () => {
+    const { account, applicantId, versionId } = await seedVersion(
+      db,
+      'classify-attempts@example.com',
+    );
+    await grantAiConsent(db, account.id);
+    await seedExtractionRun(db, versionId);
+
+    const failing = stubClassifyAi({ ok: false, code: 'upstream_error', message: 'boom' });
+    const first = await runClassification(db, failing, {
+      actorAccountId: account.id,
+      applicantId,
+      documentVersionId: versionId,
+      text: 'statement of account, opening balance, closing balance',
+      budgetLimitUnits: 1000,
+      maxAttemptsPerDocument: 1,
+    });
+    expect(isErr(first)).toBe(true);
+
+    const second = await runClassification(db, failing, {
+      actorAccountId: account.id,
+      applicantId,
+      documentVersionId: versionId,
+      text: 'statement of account, opening balance, closing balance',
+      budgetLimitUnits: 1000,
+      maxAttemptsPerDocument: 1,
+    });
+    expect(isErr(second)).toBe(true);
+    if (isErr(second)) expect(second.error.message).toContain('attempt limit');
   });
 });

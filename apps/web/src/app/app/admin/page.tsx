@@ -56,6 +56,7 @@ const SCORECARD_LABELS: Record<ProductEventType, string> = {
   GRANT_CREATED: 'Grants created',
   AI_EXTRACTION_RUN: 'AI extractions run',
   AI_OCR_RUN: 'AI OCR runs',
+  AI_CLASSIFICATION_RUN: 'AI classifications run',
 };
 
 const ORG_STATUS: Record<string, { label: string; tone: string }> = {

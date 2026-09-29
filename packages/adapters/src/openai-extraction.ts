@@ -1,6 +1,9 @@
 import { PROPOSAL_TYPES, type ProposalType } from '@visastack/core';
 import type {
   AiCacheKeyComponents,
+  AiClassifyInput,
+  AiClassifyOutcome,
+  AiClassifyPort,
   AiExtractionInput,
   AiExtractionOutcome,
   AiExtractionPort,
@@ -28,6 +31,9 @@ const DEFAULT_PROMPT_VERSION = '2026-07-29-v1';
 /** Master directive §7 "PR 9": "initial reasoning effort low" — the pilot's required starting point, not just an operator-configurable option. */
 const DEFAULT_REASONING_EFFORT = 'low';
 const SCHEMA_VERSION = 'field_proposals_v1';
+/** Part 8 AI-01 item 2 -- a separate prompt/schema version from extraction's own, tracked independently since the two tasks evolve on their own schedules. */
+const CLASSIFY_PROMPT_VERSION = '2026-09-29-v1';
+const CLASSIFY_SCHEMA_VERSION = 'document_classification_v1';
 /** Official host, a plain literal never influenced by any admin/config input (Part 8 §7: "built-in adapters: official provider host locked"). */
 const RESPONSES_URL = 'https://api.openai.com/v1/responses';
 /** Part 8 §11's named default request timeout. */
@@ -41,6 +47,25 @@ Rules:
 - Never invent a value that isn't actually present in the given text. Every proposal's "evidenceSnippet" must be an exact, verbatim substring copied from the document text that supports the value.
 - "confidence" is your genuine calibrated probability (0.0-1.0) that the value is correct, not a fixed number.
 - If the document contains no extractable fields at all, return an empty "proposals" array.`;
+
+/** Part 8 AI-01 item 2: a deterministic rules-based classifier already handles the confident cases; this prompt only ever runs on a genuine gap it left. */
+const CLASSIFY_SYSTEM_PROMPT = `You suggest a document type for a single immigration-applicant document that a deterministic rules-based classifier could not confidently resolve. A human will review your suggestion before it is ever recorded anywhere -- you are NOT authorized to write anything directly.
+
+Rules:
+- Only suggest a type from the provided allowed list. If you are not reasonably confident, or the document does not genuinely match any allowed type, set "suggestedType" to null -- never guess.
+- "confidence" is your genuine calibrated probability (0.0-1.0) that the suggested type is correct, not a fixed number.
+- "rationale" should briefly explain what in the text supports your suggestion (or why you could not decide, if "suggestedType" is null).`;
+
+const CLASSIFY_RESPONSE_SCHEMA = {
+  type: 'object',
+  properties: {
+    suggestedType: { type: ['string', 'null'] },
+    confidence: { type: 'number' },
+    rationale: { type: ['string', 'null'] },
+  },
+  required: ['suggestedType', 'confidence', 'rationale'],
+  additionalProperties: false,
+} as const;
 
 interface JsonSchemaProposal {
   readonly type: string;
@@ -95,7 +120,7 @@ export interface OpenAiExtractionAdapterOptions {
   readonly fetchImpl?: typeof fetch;
 }
 
-export class OpenAiExtractionAdapter implements AiExtractionPort {
+export class OpenAiExtractionAdapter implements AiExtractionPort, AiClassifyPort {
   private readonly apiKey: string;
   private readonly model: string;
   private readonly promptVersion: string;
@@ -269,6 +294,151 @@ export class OpenAiExtractionAdapter implements AiExtractionPort {
       },
     };
   }
+
+  classifyCacheKeyComponents(): AiCacheKeyComponents {
+    return {
+      model: this.model,
+      promptVersion: CLASSIFY_PROMPT_VERSION,
+      schemaVersion: CLASSIFY_SCHEMA_VERSION,
+      reasoningEffort: this.reasoningEffort,
+    };
+  }
+
+  async classify(input: AiClassifyInput): Promise<AiClassifyOutcome> {
+    const startedAt = Date.now();
+    let response: Response;
+    try {
+      response = await withTimeout(
+        this.fetchImpl(RESPONSES_URL, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${this.apiKey}`,
+            ...(this.projectId ? { 'OpenAI-Project': this.projectId } : {}),
+          },
+          body: JSON.stringify({
+            model: this.model,
+            store: this.storeResponses,
+            input: [
+              { role: 'developer', content: CLASSIFY_SYSTEM_PROMPT },
+              {
+                role: 'user',
+                content: `Allowed document types (JSON array - use ONLY these, or null): ${JSON.stringify(input.allowedTypes)}\n\nDocument text:\n"""\n${input.text}\n"""`,
+              },
+            ],
+            reasoning: { effort: this.reasoningEffort },
+            text: {
+              format: {
+                type: 'json_schema',
+                name: 'document_classification',
+                schema: CLASSIFY_RESPONSE_SCHEMA,
+                strict: true,
+              },
+            },
+          }),
+        }),
+        this.timeoutMs,
+        'OpenAI Responses API call (classification)',
+      );
+    } catch (error) {
+      const latencyMs = Date.now() - startedAt;
+      const timedOut = error instanceof Error && error.message.includes('timed out after');
+      return {
+        ok: false,
+        code: timedOut ? 'timeout' : 'upstream_error',
+        message: error instanceof Error ? error.message : 'network error calling OpenAI',
+        provider: PROVIDER,
+        latencyMs,
+      };
+    }
+    const latencyMs = Date.now() - startedAt;
+
+    if (response.status === 401 || response.status === 403) {
+      return {
+        ok: false,
+        code: 'auth_failed',
+        message: `OpenAI rejected the configured API key (status ${response.status})`,
+        provider: PROVIDER,
+        latencyMs,
+      };
+    }
+    if (response.status === 429) {
+      return {
+        ok: false,
+        code: 'rate_limited',
+        message: 'OpenAI rate limit exceeded',
+        provider: PROVIDER,
+        latencyMs,
+      };
+    }
+    if (!response.ok) {
+      const body = await response.text().catch(() => '');
+      return {
+        ok: false,
+        code: 'upstream_error',
+        message: `OpenAI responded ${response.status}: ${body.slice(0, 500)}`,
+        provider: PROVIDER,
+        latencyMs,
+      };
+    }
+
+    let payload: unknown;
+    try {
+      payload = await response.json();
+    } catch {
+      return {
+        ok: false,
+        code: 'invalid_response',
+        message: 'OpenAI response was not valid JSON',
+        provider: PROVIDER,
+        latencyMs,
+      };
+    }
+
+    const parsed = parseClassificationPayload(payload);
+    if (parsed.kind === 'invalid') {
+      return {
+        ok: false,
+        code: 'invalid_response',
+        message: 'OpenAI response had an unexpected shape',
+        provider: PROVIDER,
+        latencyMs,
+      };
+    }
+    if (parsed.kind === 'refusal') {
+      return { ok: false, code: 'refused', message: parsed.message, provider: PROVIDER, latencyMs };
+    }
+    if (parsed.kind === 'truncated') {
+      return {
+        ok: false,
+        code: 'truncated',
+        message: 'OpenAI response was truncated before completing (max_output_tokens reached)',
+        provider: PROVIDER,
+        latencyMs,
+      };
+    }
+
+    return {
+      ok: true,
+      result: {
+        suggestedType: parsed.suggestedType,
+        confidence: parsed.confidence,
+        ...(parsed.rationale ? { rationale: parsed.rationale } : {}),
+        usage: {
+          costUnits: parsed.totalTokens,
+          inputUnits: parsed.inputTokens,
+          outputUnits: parsed.outputTokens,
+          cachedUnits: parsed.cachedTokens,
+          modelVersion: this.model,
+          promptVersion: CLASSIFY_PROMPT_VERSION,
+          schemaVersion: CLASSIFY_SCHEMA_VERSION,
+          provider: PROVIDER,
+          ...(parsed.responseId ? { providerRequestId: parsed.responseId } : {}),
+          latencyMs,
+        },
+      },
+    };
+  }
 }
 
 function toProposalType(value: string): ProposalType {
@@ -371,6 +541,78 @@ function parseResponsesPayload(payload: unknown): ParsedResponsesPayload {
   return {
     kind: 'proposals',
     proposals,
+    totalTokens,
+    inputTokens,
+    outputTokens,
+    cachedTokens,
+    ...(typeof record.id === 'string' ? { responseId: record.id } : {}),
+  };
+}
+
+interface RawClassificationBody {
+  readonly suggestedType?: unknown;
+  readonly confidence?: unknown;
+  readonly rationale?: unknown;
+}
+
+type ParsedClassificationPayload =
+  | {
+      readonly kind: 'classification';
+      readonly suggestedType: string | null;
+      readonly confidence: number;
+      readonly rationale?: string;
+      readonly totalTokens: number;
+      readonly inputTokens: number;
+      readonly outputTokens: number;
+      readonly cachedTokens: number;
+      readonly responseId?: string;
+    }
+  | { readonly kind: 'refusal'; readonly message: string }
+  | { readonly kind: 'truncated' }
+  | { readonly kind: 'invalid' };
+
+/** Reuses `extractOutputText`/`extractRefusal` below unchanged -- both are already generic over `RawResponsesPayload`, not proposal-shaped. */
+function parseClassificationPayload(payload: unknown): ParsedClassificationPayload {
+  if (typeof payload !== 'object' || payload === null) return { kind: 'invalid' };
+  const record = payload as RawResponsesPayload;
+
+  if (record.status === 'incomplete') return { kind: 'truncated' };
+
+  const refusal = extractRefusal(record);
+  if (refusal !== undefined) return { kind: 'refusal', message: refusal };
+
+  const outputText = extractOutputText(record);
+  if (outputText === undefined) return { kind: 'invalid' };
+
+  let body: unknown;
+  try {
+    body = JSON.parse(outputText);
+  } catch {
+    return { kind: 'invalid' };
+  }
+  if (typeof body !== 'object' || body === null) return { kind: 'invalid' };
+  const candidate = body as RawClassificationBody;
+  if (typeof candidate.confidence !== 'number') return { kind: 'invalid' };
+  const suggestedType =
+    typeof candidate.suggestedType === 'string' ? candidate.suggestedType : null;
+
+  const usage = record.usage;
+  const rawUsage = typeof usage === 'object' && usage !== null ? (usage as RawUsage) : undefined;
+  const totalTokens = typeof rawUsage?.total_tokens === 'number' ? rawUsage.total_tokens : 0;
+  const inputTokens = typeof rawUsage?.input_tokens === 'number' ? rawUsage.input_tokens : 0;
+  const outputTokens = typeof rawUsage?.output_tokens === 'number' ? rawUsage.output_tokens : 0;
+  const inputDetails =
+    typeof rawUsage?.input_tokens_details === 'object' && rawUsage.input_tokens_details !== null
+      ? (rawUsage.input_tokens_details as RawInputTokensDetails)
+      : undefined;
+  const cachedTokens =
+    typeof inputDetails?.cached_tokens === 'number' ? inputDetails.cached_tokens : 0;
+
+  return {
+    kind: 'classification',
+    suggestedType,
+    confidence: candidate.confidence,
+    ...(typeof candidate.rationale === 'string' ? { rationale: candidate.rationale } : {}),
     totalTokens,
     inputTokens,
     outputTokens,

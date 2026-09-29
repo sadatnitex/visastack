@@ -3438,6 +3438,73 @@ item gets its own requirements-ledger row once classified against the new direct
     rather than rushed in. No dedicated tests, matching established
     precedent for `ai-review.tsx`/`page.tsx`. Full `apps/web` suite,
     repo-wide typecheck, a clean production build, and Biome all verified.
+    **Chunk 29 (2026-09-29, AI-01) -- document type suggestion, item 2 of
+    Part 8 §2's five required P0 AI tasks (corrected cross-reference: the
+    task list lives in §2, not §11 as the ledger previously cited).**
+    Investigated per directive §1 first: `classification.ts`'s existing
+    deterministic classifier (`classifyDocumentText`) already runs during
+    intake and already triggers `buildProposedName`/`proposeDocumentName`
+    (satisfying item 3, "safe filename/name suggestion") whenever it reaches
+    a confident result -- so this AI task exists ONLY to fill the gap when
+    the deterministic system could not (`classifiedType === null` or
+    `reviewRequired === true`), never to contradict or second-guess a
+    confident deterministic result. New `ai_classification_runs`/
+    `document_type_proposals` tables (migration `0080`) -- a deliberately
+    SEPARATE table from `ai_extraction_runs`, matching `ocr_runs`'s own
+    established precedent, specifically so the classification attempt limit
+    (`countAiClassificationAttempts`) stays independent of the extraction
+    one, the same reasoning that already justifies `countOcrAttempts`'s own
+    separation. `documentClassifications` gained a `source`
+    (`DETERMINISTIC`/`AI_APPROVED`) column so an AI-approved row is never
+    confused with a deterministic one, for audit/provenance.
+
+    New `AiClassifyPort` (`classify`/`classifyCacheKeyComponents`,
+    deliberately NOT sharing `AiExtractionPort`'s own `cacheKeyComponents`
+    name -- a single class implementing both could never return two
+    different schema versions from one same-named, same-signature method).
+    The THREE EXISTING extraction adapter classes
+    (`OpenAiExtractionAdapter`/`AnthropicExtractionAdapter`/
+    `GeminiExtractionAdapter`) now also `implements AiClassifyPort` --
+    literally extending the canonical port/adapters per directive §1, no new
+    adapter classes at all. `runClassification`/
+    `approveDocumentTypeProposal`/`rejectDocumentTypeProposal` added to
+    `ai.ts` (co-located with `runExtraction`/`runOcr` for the identical
+    shared-budget-ledger reason that file's own doc comment already gives);
+    `totalAiCostUnits`/`documentAiCostUnits`/`maxObservedCostUnits`/
+    `countInFlightCalls`/`countInFlightCallsForDocument`/
+    `releaseStaleInFlightCalls` all extended with a third arm so the
+    platform-wide budget/concurrency ledger covers classification exactly
+    the way it already covers extraction and OCR together. Approving a
+    proposal reuses the EXACT SAME downstream effects the deterministic path
+    already has (`documents.docType`, the naming-proposal trigger) --
+    genuinely satisfying item 3 through reuse rather than a second naming
+    implementation.
+
+    `resolveAiClassifier` (`apps/web/src/lib/ai.ts`) reuses
+    `buildAdapterForConfig` unchanged, its return type widened to
+    `AiExtractionPort & AiClassifyPort` rather than duplicating an
+    equivalent construction switch. No env-var-only fallback path (unlike
+    `resolveAiExtractor`'s own `createAiExtractor()` branch) -- classification
+    is a Commercial-V1-native capability with no legacy env-var-configurable
+    predecessor to preserve behavior for. `runClassificationAction`/
+    `decideClassificationProposalAction` added to `actions.ts`;
+    `RunClassificationButton`/`DocumentTypeProposalReview` added to
+    `ai-review.tsx`; `documents/page.tsx` shows the trigger/review UI only
+    on a genuine deterministic gap with no proposal already pending. No
+    cross-provider fallback wiring yet (Part 8 §13) -- deliberately
+    deferred, matching AI-09's own precedent of shipping a task's core
+    capability before its fallback wiring.
+
+    Still deliberately unstarted: AI-01 items 4 (possible inconsistency
+    flag) and 5 (explanation of an already-determined deterministic
+    readiness gap, which would read `computeReadiness`'s own
+    `MissingRequirement`/`RequirementResultSummary` types from
+    `missions.ts`) -- both materially separate features, left for their own
+    chunks. Full `packages/services` suite: 1101/1101 (13 new). Full
+    `packages/adapters` targeted suite: 67/67 (18 new). Full `apps/web`
+    suite: 215/215 (`ai.test.ts` alone: 63/63, 8 new). Repo-wide typecheck,
+    a clean production build (`/app/applicant/[id]/documents` route grew
+    2.56 kB -> 2.81 kB, reflecting the new UI), and Biome all verified.
 independently confirmed findings; the missing PRD file is tracked as Blocker 1 in
 `assumptions-and-blockers.md` (now resolved) rather than here, since it blocked the
 programme rather than being a product defect.

@@ -286,3 +286,105 @@ describe('AnthropicExtractionAdapter', () => {
     expect(outcome.result.usage.latencyMs).toBeGreaterThanOrEqual(0);
   });
 });
+
+const CLASSIFY_INPUT = {
+  documentVersionId: 'doc-version-1',
+  text: 'statement of account, opening balance, closing balance',
+  allowedTypes: ['PASSPORT', 'BANK_STATEMENT', 'EMPLOYMENT_CERTIFICATE'],
+};
+
+describe('AnthropicExtractionAdapter.classify (Part 8 AI-01 item 2)', () => {
+  it('parses a well-formed forced tool-use response into a suggestion', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(
+      jsonResponse(200, {
+        stop_reason: 'tool_use',
+        content: [
+          {
+            type: 'tool_use',
+            input: {
+              suggestedType: 'BANK_STATEMENT',
+              confidence: 0.85,
+              rationale: 'mentions opening and closing balance',
+            },
+          },
+        ],
+        usage: { input_tokens: 10, output_tokens: 10 },
+      }),
+    );
+    const adapter = new AnthropicExtractionAdapter({ apiKey: 'sk-ant-test', fetchImpl });
+    const outcome = await adapter.classify(CLASSIFY_INPUT);
+
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+    expect(outcome.result.suggestedType).toBe('BANK_STATEMENT');
+    expect(outcome.result.confidence).toBe(0.85);
+    expect(outcome.result.usage.schemaVersion).toBe('document_classification_v1');
+
+    const [, requestInit] = fetchImpl.mock.calls[0] as [string, RequestInit];
+    const body = JSON.parse(requestInit.body as string);
+    expect(body.tool_choice.name).toBe('submit_document_classification');
+    expect(JSON.stringify(body)).toContain('BANK_STATEMENT');
+  });
+
+  it('reports a null suggestedType as a genuine "could not classify", not an error', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(
+      jsonResponse(200, {
+        stop_reason: 'tool_use',
+        content: [
+          {
+            type: 'tool_use',
+            input: { suggestedType: null, confidence: 0.1, rationale: 'unclear' },
+          },
+        ],
+        usage: { input_tokens: 5, output_tokens: 5 },
+      }),
+    );
+    const adapter = new AnthropicExtractionAdapter({ apiKey: 'sk-ant-test', fetchImpl });
+    const outcome = await adapter.classify(CLASSIFY_INPUT);
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+    expect(outcome.result.suggestedType).toBeNull();
+  });
+
+  it('reports refused when the model declines to call the forced tool', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(
+      jsonResponse(200, {
+        stop_reason: 'end_turn',
+        content: [{ type: 'text', text: 'I cannot help with this' }],
+        usage: { input_tokens: 5, output_tokens: 5 },
+      }),
+    );
+    const adapter = new AnthropicExtractionAdapter({ apiKey: 'sk-ant-test', fetchImpl });
+    const outcome = await adapter.classify(CLASSIFY_INPUT);
+    expect(outcome.ok).toBe(false);
+    if (outcome.ok) return;
+    expect(outcome.code).toBe('refused');
+  });
+
+  it('reports truncated when max_tokens was reached', async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValue(jsonResponse(200, { stop_reason: 'max_tokens', content: [] }));
+    const adapter = new AnthropicExtractionAdapter({ apiKey: 'sk-ant-test', fetchImpl });
+    const outcome = await adapter.classify(CLASSIFY_INPUT);
+    expect(outcome.ok).toBe(false);
+    if (outcome.ok) return;
+    expect(outcome.code).toBe('truncated');
+  });
+
+  it('reports auth_failed on HTTP 403', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(jsonResponse(403, { error: 'bad key' }));
+    const adapter = new AnthropicExtractionAdapter({ apiKey: 'sk-ant-test', fetchImpl });
+    const outcome = await adapter.classify(CLASSIFY_INPUT);
+    expect(outcome.ok).toBe(false);
+    if (outcome.ok) return;
+    expect(outcome.code).toBe('auth_failed');
+  });
+
+  it("classifyCacheKeyComponents never collides with extract()'s own cacheKeyComponents", () => {
+    const adapter = new AnthropicExtractionAdapter({ apiKey: 'sk-ant-test' });
+    const extractionComponents = adapter.cacheKeyComponents();
+    const classifyComponents = adapter.classifyCacheKeyComponents();
+    expect(classifyComponents.schemaVersion).not.toBe(extractionComponents.schemaVersion);
+  });
+});

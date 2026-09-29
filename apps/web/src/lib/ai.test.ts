@@ -840,4 +840,102 @@ describe('resolveAiExtractor (Part 8 §5: the DB config becomes authoritative on
       expect(await isOcrConfigured(db)).toBe(false);
     });
   });
+
+  describe('resolveAiClassifier -- the classify adapter (and shared limits) for a live call, reusing the ACTIVE config (Part 8 AI-01 item 2)', () => {
+    beforeEach(() => {
+      hasAnyAiProviderConfig.mockReset();
+      getActiveAiProviderConfig.mockReset();
+      revealAiProviderApiKey.mockReset();
+    });
+
+    it('is undefined when no admin has ever configured AI settings -- no env-var fallback path, unlike resolveAiExtractor', async () => {
+      hasAnyAiProviderConfig.mockResolvedValue(false);
+      const { resolveAiClassifier } = await import('./ai');
+
+      const resolved = await resolveAiClassifier(db, encryption);
+
+      expect(resolved).toBeUndefined();
+      expect(getActiveAiProviderConfig).not.toHaveBeenCalled();
+    });
+
+    it("builds the adapter from the ACTIVE DB config's own provider/model, via the SAME classifyCacheKeyComponents an extraction adapter also exposes", async () => {
+      hasAnyAiProviderConfig.mockResolvedValue(true);
+      getActiveAiProviderConfig.mockResolvedValue(fakeConfig({ model: 'gpt-5-db-configured' }));
+      revealAiProviderApiKey.mockResolvedValue('sk-from-db');
+      const { resolveAiClassifier } = await import('./ai');
+
+      const resolved = await resolveAiClassifier(db, encryption);
+
+      expect(resolved).toBeDefined();
+      expect(resolved?.ai.classifyCacheKeyComponents().model).toBe('gpt-5-db-configured');
+      expect(revealAiProviderApiKey).toHaveBeenCalledWith(
+        db,
+        encryption,
+        expect.objectContaining({ id: 'config-1' }),
+      );
+    });
+
+    it("resolves limits from the ACTIVE config's own columns, the identical machinery resolveAiExtractor uses", async () => {
+      hasAnyAiProviderConfig.mockResolvedValue(true);
+      getActiveAiProviderConfig.mockResolvedValue(fakeConfig({ budgetLimitUnits: 999_000 }));
+      revealAiProviderApiKey.mockResolvedValue('sk-from-db');
+      const { resolveAiClassifier } = await import('./ai');
+
+      const resolved = await resolveAiClassifier(db, encryption);
+      expect(resolved?.limits.budgetLimitUnits).toBe(999_000);
+    });
+
+    it('is undefined for an ACTIVE config naming a genuinely unimplemented provider', async () => {
+      hasAnyAiProviderConfig.mockResolvedValue(true);
+      getActiveAiProviderConfig.mockResolvedValue(fakeConfig({ provider: 'mistral' }));
+      const { resolveAiClassifier } = await import('./ai');
+
+      const resolved = await resolveAiClassifier(db, encryption);
+      expect(resolved).toBeUndefined();
+      expect(revealAiProviderApiKey).not.toHaveBeenCalled();
+    });
+
+    it('is undefined without a working encryption port, even with a genuinely ACTIVE config', async () => {
+      hasAnyAiProviderConfig.mockResolvedValue(true);
+      getActiveAiProviderConfig.mockResolvedValue(fakeConfig());
+      const { resolveAiClassifier } = await import('./ai');
+
+      const resolved = await resolveAiClassifier(db, undefined);
+      expect(resolved).toBeUndefined();
+      expect(revealAiProviderApiKey).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('isClassificationConfigured -- cheap display gate, no KMS decrypt (Part 8 AI-01 item 2)', () => {
+    beforeEach(() => {
+      hasAnyAiProviderConfig.mockReset();
+      getActiveAiProviderConfig.mockReset();
+      revealAiProviderApiKey.mockReset();
+    });
+
+    it('is false when no admin has ever configured AI settings', async () => {
+      hasAnyAiProviderConfig.mockResolvedValue(false);
+      const { isClassificationConfigured } = await import('./ai');
+
+      expect(await isClassificationConfigured(db)).toBe(false);
+      expect(getActiveAiProviderConfig).not.toHaveBeenCalled();
+    });
+
+    it('is true for an ACTIVE openai config, without ever decrypting the key', async () => {
+      hasAnyAiProviderConfig.mockResolvedValue(true);
+      getActiveAiProviderConfig.mockResolvedValue(fakeConfig());
+      const { isClassificationConfigured } = await import('./ai');
+
+      expect(await isClassificationConfigured(db)).toBe(true);
+      expect(revealAiProviderApiKey).not.toHaveBeenCalled();
+    });
+
+    it('is false for an ACTIVE config naming a genuinely unimplemented provider', async () => {
+      hasAnyAiProviderConfig.mockResolvedValue(true);
+      getActiveAiProviderConfig.mockResolvedValue(fakeConfig({ provider: 'mistral' }));
+      const { isClassificationConfigured } = await import('./ai');
+
+      expect(await isClassificationConfigured(db)).toBe(false);
+    });
+  });
 });

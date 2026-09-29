@@ -270,6 +270,15 @@ export const fieldSensitivity = pgEnum('field_sensitivity', [
 ]);
 export const proposalType = pgEnum('proposal_type', PROPOSAL_TYPES);
 export const proposalStatus = pgEnum('proposal_status', ['PENDING', 'APPROVED', 'REJECTED']);
+// Part 8 AI-01 item 2 ("document type suggestion"): distinguishes a
+// `document_classifications` row the deterministic keyword/MRZ classifier
+// produced from one a human approved from an AI suggestion
+// (`document_type_proposals`, below) -- never a quality signal, purely
+// provenance, so a reviewer or auditor can always tell which system decided.
+export const classificationSource = pgEnum('classification_source', [
+  'DETERMINISTIC',
+  'AI_APPROVED',
+]);
 // IN_FLIGHT (Part 8 §11: "5 concurrent model calls platform-wide") marks a
 // call genuinely in progress -- inserted before the outbound provider call,
 // resolved to SUCCEEDED/FAILED after it returns, so a platform-wide count
@@ -968,9 +977,103 @@ export const documentClassifications = pgTable(
     confidence: integer('confidence').notNull(), // 0-100
     reviewRequired: boolean('review_required').notNull().default(true),
     rationale: text('rationale'),
+    // Part 8 AI-01 item 2: defaults DETERMINISTIC for both new rows from
+    // classification.ts and every pre-existing row (a straightforward
+    // additive backfill) -- set to AI_APPROVED only by decideDocumentTypeProposal
+    // (packages/services/src/classification-ai.ts) once a human approves an
+    // AI suggestion the deterministic classifier itself could not resolve.
+    source: classificationSource('source').notNull().default('DETERMINISTIC'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [index('document_classifications_document_version_idx').on(table.documentVersionId)],
+);
+
+// Part 8 AI-01 item 2 ("document type suggestion"): a deliberately SEPARATE
+// table from `ai_extraction_runs`, matching `ocr_runs`'s own precedent one
+// table up -- a per-task attempt limit (`countAiExtractionAttempts`'s own
+// doc comment: "genuinely different actions a caller invokes separately")
+// must stay independent per task, which is far cleaner with its own table
+// than a shared one plus a discriminator every attempt/cache query would
+// then need to filter by. Otherwise an exact structural mirror of
+// `ai_extraction_runs`: same usage-tracking columns, same status enum, same
+// cache-key convention. No `triggeredByRunId` yet (Part 8 §13 cross-provider
+// fallback) -- deliberately deferred; this task type does not wire fallback
+// in its first cut, so the column would sit unused until it does.
+export const aiClassificationRuns = pgTable(
+  'ai_classification_runs',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    documentVersionId: uuid('document_version_id')
+      .notNull()
+      .references(() => documentVersions.id, { onDelete: 'cascade' }),
+    applicantId: uuid('applicant_id')
+      .notNull()
+      .references(() => applicants.id, { onDelete: 'cascade' }),
+    status: aiExtractionRunStatus('status').notNull(),
+    modelVersion: text('model_version').notNull(),
+    promptVersion: text('prompt_version').notNull(),
+    schemaVersion: text('schema_version'),
+    costUnits: integer('cost_units').notNull().default(0),
+    provider: text('provider'),
+    providerRequestId: text('provider_request_id'),
+    inputUnits: integer('input_units'),
+    outputUnits: integer('output_units'),
+    cachedUnits: integer('cached_units'),
+    latencyMs: integer('latency_ms'),
+    errorCode: text('error_code'),
+    cacheKey: text('cache_key'),
+    servedFromCacheRunId: uuid('served_from_cache_run_id'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('ai_classification_runs_document_version_idx').on(table.documentVersionId),
+    index('ai_classification_runs_applicant_idx').on(table.applicantId),
+    index('ai_classification_runs_cache_key_idx').on(table.cacheKey),
+  ],
+);
+
+// An AI-suggested document type from a single classification run -- the
+// `document_classifications` analogue of `field_proposals`, structured the
+// same "advisory only, a human must decide" way: never written to
+// `document_classifications` directly, only `decideDocumentTypeProposal`
+// (on approval) can turn one into a real, AI_APPROVED classification row,
+// reusing the exact same downstream effects (`documents.docType`, the
+// naming-proposal trigger) the deterministic path already has.
+export const documentTypeProposals = pgTable(
+  'document_type_proposals',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    aiClassificationRunId: uuid('ai_classification_run_id')
+      .notNull()
+      .references(() => aiClassificationRuns.id, { onDelete: 'cascade' }),
+    documentVersionId: uuid('document_version_id')
+      .notNull()
+      .references(() => documentVersions.id, { onDelete: 'cascade' }),
+    applicantId: uuid('applicant_id')
+      .notNull()
+      .references(() => applicants.id, { onDelete: 'cascade' }),
+    // Free text, matching `document_classifications.classified_type`'s own
+    // rationale -- validity against the controlled vocabulary is a
+    // service-layer concern (classification.ts), not a DB constraint.
+    suggestedType: text('suggested_type').notNull(),
+    confidence: integer('confidence').notNull(), // 0-100
+    rationale: text('rationale'),
+    status: proposalStatus('status').notNull().default('PENDING'),
+    decidedByAccountId: uuid('decided_by_account_id').references(() => accounts.id, {
+      onDelete: 'set null',
+    }),
+    decidedAt: timestamp('decided_at', { withTimezone: true }),
+    // Set once approved and written as a document_classifications row (mirrors
+    // field_proposals.factVersionId's identical "set only on approval" shape).
+    classificationId: uuid('classification_id').references(() => documentClassifications.id, {
+      onDelete: 'set null',
+    }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('document_type_proposals_document_version_idx').on(table.documentVersionId),
+    index('document_type_proposals_applicant_status_idx').on(table.applicantId, table.status),
+  ],
 );
 
 // Immutable filename-proposal history at the logical-document level (naming

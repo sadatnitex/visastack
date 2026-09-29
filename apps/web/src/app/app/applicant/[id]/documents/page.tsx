@@ -9,15 +9,27 @@ import {
   isServableProcessingState,
   listDocumentsDetailed,
   listIssuerVerificationsForDocument,
+  listPendingDocumentTypeProposals,
   listPendingProposals,
   loadUploadQuotaConfig,
 } from '@visastack/services';
 import Link from 'next/link';
-import { createAiExtractor, isOcrConfigured } from '../../../../../lib/ai';
+import {
+  createAiExtractor,
+  isClassificationConfigured,
+  isOcrConfigured,
+} from '../../../../../lib/ai';
 import { getLocale } from '../../../../../lib/locale';
 import { withSession } from '../../../../../lib/session';
 import { previewDocumentAction, setDocumentDateAction } from '../actions';
-import { AiProposalReview, OcrResultView, RunAiExtractionButton, RunOcrButton } from '../ai-review';
+import {
+  AiProposalReview,
+  DocumentTypeProposalReview,
+  OcrResultView,
+  RunAiExtractionButton,
+  RunClassificationButton,
+  RunOcrButton,
+} from '../ai-review';
 import { DocumentUploader } from '../document-uploader';
 import { NameReview } from '../name-review';
 import { UsageMeter } from '../usage-meter';
@@ -89,8 +101,10 @@ export default async function ApplicantDocumentsPage({
       aiGranted,
       ocrGranted,
       ocrConfigured,
+      classificationConfigured,
       evidenceBytes,
       pendingProposals,
+      pendingClassificationProposals,
       wallet,
     ] = await Promise.all([
       listDocumentsDetailed(db, accountId, id),
@@ -98,8 +112,10 @@ export default async function ApplicantDocumentsPage({
       hasConsent(db, accountId, 'AI_EXTRACTION'),
       hasConsent(db, accountId, 'AI_OCR'),
       isOcrConfigured(db),
+      isClassificationConfigured(db),
       getApplicantEvidenceBytes(db, id),
       listPendingProposals(db, id),
+      listPendingDocumentTypeProposals(db, id),
       getWalletView(db, { actorAccountId: accountId, applicantId: id }),
     ]);
     const documentRows = documents.ok ? documents.value : [];
@@ -128,8 +144,10 @@ export default async function ApplicantDocumentsPage({
       aiConfigured: Boolean(createAiExtractor()),
       ocrGranted,
       ocrConfigured,
+      classificationConfigured,
       evidenceBytes,
       pendingProposals,
+      pendingClassificationProposals,
       quota: loadUploadQuotaConfig(),
       wallet: new Map((wallet.ok ? wallet.value : []).map((w) => [w.document.id, w])),
       issuerVerifications,
@@ -403,6 +421,45 @@ export default async function ApplicantDocumentsPage({
                             }}
                           />
                         ))}
+                      </>
+                    );
+                  })()}
+                  {(() => {
+                    // Part 8 AI-01 item 2: shown only on a genuine deterministic
+                    // gap (no classification yet reached, or one reached but not
+                    // confident) -- never offered once a confident deterministic
+                    // (or already-approved AI) classification already exists.
+                    if (!data.classificationConfigured || !data.aiGranted || !doc.classification) {
+                      return null;
+                    }
+                    if (
+                      doc.classification.classifiedType !== null &&
+                      !doc.classification.reviewRequired
+                    ) {
+                      return null;
+                    }
+                    const versionId = doc.latestVersionId;
+                    if (!versionId) return null;
+                    const classificationProposal = data.pendingClassificationProposals.find(
+                      (p) => p.documentVersionId === versionId,
+                    );
+                    return (
+                      <>
+                        {data.coreGranted && !classificationProposal ? (
+                          <RunClassificationButton applicantId={id} documentVersionId={versionId} />
+                        ) : null}
+                        {classificationProposal ? (
+                          <DocumentTypeProposalReview
+                            applicantId={id}
+                            canApprove={data.coreGranted}
+                            proposal={{
+                              id: classificationProposal.id,
+                              suggestedType: classificationProposal.suggestedType,
+                              confidence: classificationProposal.confidence,
+                              rationale: classificationProposal.rationale,
+                            }}
+                          />
+                        ) : null}
                       </>
                     );
                   })()}

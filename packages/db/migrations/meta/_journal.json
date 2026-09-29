@@ -561,6 +561,13 @@
       "when": 1790619716252,
       "tag": "0079_friendly_tomorrow_man",
       "breakpoints": true
+    },
+    {
+      "idx": 80,
+      "version": "7",
+      "when": 1790684038039,
+      "tag": "0080_fixed_master_mold",
+      "breakpoints": true
     }
   ]
 }

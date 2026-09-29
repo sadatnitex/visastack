@@ -1,6 +1,9 @@
 import { PROPOSAL_TYPES, type ProposalType } from '@visastack/core';
 import type {
   AiCacheKeyComponents,
+  AiClassifyInput,
+  AiClassifyOutcome,
+  AiClassifyPort,
   AiExtractionInput,
   AiExtractionOutcome,
   AiExtractionPort,
@@ -74,6 +77,9 @@ import { withTimeout } from './timeout';
 const DEFAULT_MODEL = 'gemini-3.5-flash';
 const DEFAULT_PROMPT_VERSION = '2026-09-28-v1';
 const SCHEMA_VERSION = 'field_proposals_v1';
+/** Part 8 AI-01 item 2 -- tracked independently of extraction's own prompt/schema version, matching the other two adapters' identical separation. */
+const CLASSIFY_PROMPT_VERSION = '2026-09-29-v1';
+const CLASSIFY_SCHEMA_VERSION = 'document_classification_v1';
 /** Official host, a plain literal never influenced by any admin/config input (Part 8 §7: "built-in adapters: official provider host locked"). */
 const API_BASE_URL = 'https://generativelanguage.googleapis.com/v1beta/models';
 /** Part 8 §11's named default request timeout. */
@@ -87,6 +93,28 @@ Rules:
 - Never invent a value that isn't actually present in the given text. Every proposal's "evidenceSnippet" must be an exact, verbatim substring copied from the document text that supports the value.
 - "confidence" is your genuine calibrated probability (0.0-1.0) that the value is correct, not a fixed number.
 - If the document contains no extractable fields at all, return an empty "proposals" array.`;
+
+/** Part 8 AI-01 item 2: a deterministic rules-based classifier already handles the confident cases; this prompt only ever runs on a genuine gap it left. */
+const CLASSIFY_SYSTEM_PROMPT = `You suggest a document type for a single immigration-applicant document that a deterministic rules-based classifier could not confidently resolve. A human will review your suggestion before it is ever recorded anywhere -- you are NOT authorized to write anything directly.
+
+Rules:
+- Only suggest a type from the provided allowed list. If you are not reasonably confident, or the document does not genuinely match any allowed type, omit "suggestedType" entirely -- never guess.
+- "confidence" is your genuine calibrated probability (0.0-1.0) that the suggested type is correct, not a fixed number.
+- "rationale" should briefly explain what in the text supports your suggestion (or why you could not decide, if you omitted "suggestedType").`;
+
+// Deliberately no `nullable: true` (see class doc comment's own "known
+// limitation") -- `suggestedType`/`rationale` are simply left out of
+// `required`, letting the model omit them, exactly like the extraction
+// schema's own fieldKey/value/rationale/evidenceSnippet above.
+const CLASSIFY_RESPONSE_SCHEMA = {
+  type: 'object',
+  properties: {
+    suggestedType: { type: 'string' },
+    confidence: { type: 'number' },
+    rationale: { type: 'string' },
+  },
+  required: ['confidence'],
+} as const;
 
 interface JsonProposal {
   readonly type: string;
@@ -136,7 +164,7 @@ export interface GeminiExtractionAdapterOptions {
   readonly fetchImpl?: typeof fetch;
 }
 
-export class GeminiExtractionAdapter implements AiExtractionPort {
+export class GeminiExtractionAdapter implements AiExtractionPort, AiClassifyPort {
   private readonly apiKey: string;
   private readonly model: string;
   private readonly promptVersion: string;
@@ -309,6 +337,154 @@ export class GeminiExtractionAdapter implements AiExtractionPort {
       },
     };
   }
+
+  classifyCacheKeyComponents(): AiCacheKeyComponents {
+    return {
+      model: this.model,
+      promptVersion: CLASSIFY_PROMPT_VERSION,
+      schemaVersion: CLASSIFY_SCHEMA_VERSION,
+    };
+  }
+
+  async classify(input: AiClassifyInput): Promise<AiClassifyOutcome> {
+    const startedAt = Date.now();
+    let response: Response;
+    try {
+      response = await withTimeout(
+        this.fetchImpl(`${API_BASE_URL}/${this.model}:generateContent`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-goog-api-key': this.apiKey,
+          },
+          body: JSON.stringify({
+            systemInstruction: { parts: [{ text: CLASSIFY_SYSTEM_PROMPT }] },
+            contents: [
+              {
+                role: 'user',
+                parts: [
+                  {
+                    text: `Allowed document types (JSON array - use ONLY these, or omit "suggestedType"): ${JSON.stringify(input.allowedTypes)}\n\nDocument text:\n"""\n${input.text}\n"""`,
+                  },
+                ],
+              },
+            ],
+            generationConfig: {
+              responseMimeType: 'application/json',
+              responseSchema: CLASSIFY_RESPONSE_SCHEMA,
+            },
+          }),
+        }),
+        this.timeoutMs,
+        'Gemini generateContent API call (classification)',
+      );
+    } catch (error) {
+      const latencyMs = Date.now() - startedAt;
+      const timedOut = error instanceof Error && error.message.includes('timed out after');
+      return {
+        ok: false,
+        code: timedOut ? 'timeout' : 'upstream_error',
+        message: error instanceof Error ? error.message : 'network error calling Gemini',
+        provider: PROVIDER,
+        latencyMs,
+      };
+    }
+    const latencyMs = Date.now() - startedAt;
+
+    if (response.status === 401 || response.status === 403) {
+      return {
+        ok: false,
+        code: 'auth_failed',
+        message: `Gemini rejected the configured API key (status ${response.status})`,
+        provider: PROVIDER,
+        latencyMs,
+      };
+    }
+    if (response.status === 429) {
+      return {
+        ok: false,
+        code: 'rate_limited',
+        message: 'Gemini rate limit exceeded',
+        provider: PROVIDER,
+        latencyMs,
+      };
+    }
+    if (!response.ok) {
+      const body = await response.text().catch(() => '');
+      if (response.status === 400 && body.includes('API key not valid')) {
+        return {
+          ok: false,
+          code: 'auth_failed',
+          message: 'Gemini rejected the configured API key (status 400: API key not valid)',
+          provider: PROVIDER,
+          latencyMs,
+        };
+      }
+      return {
+        ok: false,
+        code: 'upstream_error',
+        message: `Gemini responded ${response.status}: ${body.slice(0, 500)}`,
+        provider: PROVIDER,
+        latencyMs,
+      };
+    }
+
+    let payload: unknown;
+    try {
+      payload = await response.json();
+    } catch {
+      return {
+        ok: false,
+        code: 'invalid_response',
+        message: 'Gemini response was not valid JSON',
+        provider: PROVIDER,
+        latencyMs,
+      };
+    }
+
+    const parsed = parseClassificationGenerateContentPayload(payload);
+    if (parsed.kind === 'invalid') {
+      return {
+        ok: false,
+        code: 'invalid_response',
+        message: 'Gemini response had an unexpected shape',
+        provider: PROVIDER,
+        latencyMs,
+      };
+    }
+    if (parsed.kind === 'refusal') {
+      return { ok: false, code: 'refused', message: parsed.message, provider: PROVIDER, latencyMs };
+    }
+    if (parsed.kind === 'truncated') {
+      return {
+        ok: false,
+        code: 'truncated',
+        message: 'Gemini response was truncated before completing (MAX_TOKENS reached)',
+        provider: PROVIDER,
+        latencyMs,
+      };
+    }
+
+    return {
+      ok: true,
+      result: {
+        suggestedType: parsed.suggestedType,
+        confidence: parsed.confidence,
+        ...(parsed.rationale ? { rationale: parsed.rationale } : {}),
+        usage: {
+          costUnits: parsed.totalTokens,
+          inputUnits: parsed.inputTokens,
+          outputUnits: parsed.outputTokens,
+          cachedUnits: parsed.cachedTokens,
+          modelVersion: this.model,
+          promptVersion: CLASSIFY_PROMPT_VERSION,
+          schemaVersion: CLASSIFY_SCHEMA_VERSION,
+          provider: PROVIDER,
+          latencyMs,
+        },
+      },
+    };
+  }
 }
 
 function toProposalType(value: string): ProposalType {
@@ -447,4 +623,99 @@ function parseGenerateContentPayload(payload: unknown): ParsedGenerateContentPay
     typeof usage?.cachedContentTokenCount === 'number' ? usage.cachedContentTokenCount : 0;
 
   return { kind: 'proposals', proposals, totalTokens, inputTokens, outputTokens, cachedTokens };
+}
+
+interface RawClassificationBody {
+  readonly suggestedType?: unknown;
+  readonly confidence?: unknown;
+  readonly rationale?: unknown;
+}
+
+type ParsedClassificationGenerateContentPayload =
+  | {
+      readonly kind: 'classification';
+      readonly suggestedType: string | null;
+      readonly confidence: number;
+      readonly rationale?: string;
+      readonly totalTokens: number;
+      readonly inputTokens: number;
+      readonly outputTokens: number;
+      readonly cachedTokens: number;
+    }
+  | { readonly kind: 'refusal'; readonly message: string }
+  | { readonly kind: 'truncated' }
+  | { readonly kind: 'invalid' };
+
+/** Structurally mirrors `parseGenerateContentPayload` above -- same candidate/finish-reason/block-reason detection, a differently-shaped JSON body. */
+function parseClassificationGenerateContentPayload(
+  payload: unknown,
+): ParsedClassificationGenerateContentPayload {
+  if (typeof payload !== 'object' || payload === null) return { kind: 'invalid' };
+  const record = payload as RawGenerateContentPayload;
+
+  const candidates = Array.isArray(record.candidates)
+    ? (record.candidates as RawCandidate[])
+    : undefined;
+  const candidate = candidates?.[0];
+
+  if (!candidate) {
+    const feedback =
+      typeof record.promptFeedback === 'object' && record.promptFeedback !== null
+        ? (record.promptFeedback as RawPromptFeedback)
+        : undefined;
+    if (typeof feedback?.blockReason === 'string') {
+      return { kind: 'refusal', message: `Gemini blocked the prompt: ${feedback.blockReason}` };
+    }
+    return { kind: 'invalid' };
+  }
+
+  if (candidate.finishReason === 'MAX_TOKENS') return { kind: 'truncated' };
+
+  const finishReason = typeof candidate.finishReason === 'string' ? candidate.finishReason : 'STOP';
+  if (!NORMAL_FINISH_REASONS.has(finishReason)) {
+    return { kind: 'refusal', message: `Gemini declined to complete normally: ${finishReason}` };
+  }
+
+  const content =
+    typeof candidate.content === 'object' && candidate.content !== null
+      ? (candidate.content as RawContent)
+      : undefined;
+  const parts = Array.isArray(content?.parts) ? (content.parts as RawPart[]) : undefined;
+  const text = parts?.find((part) => typeof part.text === 'string')?.text;
+  if (typeof text !== 'string') return { kind: 'invalid' };
+
+  let body: unknown;
+  try {
+    body = JSON.parse(text);
+  } catch {
+    return { kind: 'invalid' };
+  }
+  if (typeof body !== 'object' || body === null) return { kind: 'invalid' };
+  const candidateBody = body as RawClassificationBody;
+  if (typeof candidateBody.confidence !== 'number') return { kind: 'invalid' };
+  const suggestedType =
+    typeof candidateBody.suggestedType === 'string' ? candidateBody.suggestedType : null;
+
+  const usage =
+    typeof record.usageMetadata === 'object' && record.usageMetadata !== null
+      ? (record.usageMetadata as RawUsageMetadata)
+      : undefined;
+  const inputTokens = typeof usage?.promptTokenCount === 'number' ? usage.promptTokenCount : 0;
+  const outputTokens =
+    typeof usage?.candidatesTokenCount === 'number' ? usage.candidatesTokenCount : 0;
+  const totalTokens =
+    typeof usage?.totalTokenCount === 'number' ? usage.totalTokenCount : inputTokens + outputTokens;
+  const cachedTokens =
+    typeof usage?.cachedContentTokenCount === 'number' ? usage.cachedContentTokenCount : 0;
+
+  return {
+    kind: 'classification',
+    suggestedType,
+    confidence: candidateBody.confidence,
+    ...(typeof candidateBody.rationale === 'string' ? { rationale: candidateBody.rationale } : {}),
+    totalTokens,
+    inputTokens,
+    outputTokens,
+    cachedTokens,
+  };
 }

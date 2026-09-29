@@ -248,3 +248,98 @@ describe('OpenAiExtractionAdapter', () => {
     expect(outcome.result.usage.latencyMs).toBeGreaterThanOrEqual(0);
   });
 });
+
+const CLASSIFY_INPUT = {
+  documentVersionId: 'doc-version-1',
+  text: 'statement of account, opening balance, closing balance',
+  allowedTypes: ['PASSPORT', 'BANK_STATEMENT', 'EMPLOYMENT_CERTIFICATE'],
+};
+
+describe('OpenAiExtractionAdapter.classify (Part 8 AI-01 item 2)', () => {
+  it('parses a well-formed structured-output response into a suggestion', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(
+      jsonResponse(200, {
+        output_text: JSON.stringify({
+          suggestedType: 'BANK_STATEMENT',
+          confidence: 0.85,
+          rationale: 'mentions opening and closing balance',
+        }),
+        usage: { total_tokens: 20 },
+      }),
+    );
+    const adapter = new OpenAiExtractionAdapter({ apiKey: 'sk-test', fetchImpl });
+    const outcome = await adapter.classify(CLASSIFY_INPUT);
+
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+    expect(outcome.result.suggestedType).toBe('BANK_STATEMENT');
+    expect(outcome.result.confidence).toBe(0.85);
+    expect(outcome.result.usage.costUnits).toBe(20);
+    expect(outcome.result.usage.schemaVersion).toBe('document_classification_v1');
+    // A distinct prompt version from extract()'s own -- the two tasks are cached independently.
+    expect(outcome.result.usage.promptVersion).not.toBe('2026-07-29-v1');
+
+    const [, requestInit] = fetchImpl.mock.calls[0] as [string, RequestInit];
+    const body = JSON.parse(requestInit.body as string);
+    expect(JSON.stringify(body)).toContain('BANK_STATEMENT');
+    expect(body.text.format.name).toBe('document_classification');
+  });
+
+  it('reports a null suggestedType as a genuine "could not classify", not an error', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(
+      jsonResponse(200, {
+        output_text: JSON.stringify({ suggestedType: null, confidence: 0.1, rationale: 'unclear' }),
+        usage: { total_tokens: 5 },
+      }),
+    );
+    const adapter = new OpenAiExtractionAdapter({ apiKey: 'sk-test', fetchImpl });
+    const outcome = await adapter.classify(CLASSIFY_INPUT);
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+    expect(outcome.result.suggestedType).toBeNull();
+  });
+
+  it('reports refused when the model declines via the structured-output refusal field', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(
+      jsonResponse(200, {
+        output: [{ content: [{ refusal: 'cannot help with this' }] }],
+      }),
+    );
+    const adapter = new OpenAiExtractionAdapter({ apiKey: 'sk-test', fetchImpl });
+    const outcome = await adapter.classify(CLASSIFY_INPUT);
+    expect(outcome.ok).toBe(false);
+    if (outcome.ok) return;
+    expect(outcome.code).toBe('refused');
+  });
+
+  it('reports truncated when the response was cut off before completing', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(
+      jsonResponse(200, {
+        status: 'incomplete',
+        output_text: JSON.stringify({ suggestedType: null, confidence: 0, rationale: null }),
+      }),
+    );
+    const adapter = new OpenAiExtractionAdapter({ apiKey: 'sk-test', fetchImpl });
+    const outcome = await adapter.classify(CLASSIFY_INPUT);
+    expect(outcome.ok).toBe(false);
+    if (outcome.ok) return;
+    expect(outcome.code).toBe('truncated');
+  });
+
+  it('reports auth_failed on HTTP 401', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(jsonResponse(401, { error: 'bad key' }));
+    const adapter = new OpenAiExtractionAdapter({ apiKey: 'sk-test', fetchImpl });
+    const outcome = await adapter.classify(CLASSIFY_INPUT);
+    expect(outcome.ok).toBe(false);
+    if (outcome.ok) return;
+    expect(outcome.code).toBe('auth_failed');
+  });
+
+  it("classifyCacheKeyComponents never collides with extract()'s own cacheKeyComponents", () => {
+    const adapter = new OpenAiExtractionAdapter({ apiKey: 'sk-test' });
+    const extractionComponents = adapter.cacheKeyComponents();
+    const classifyComponents = adapter.classifyCacheKeyComponents();
+    expect(classifyComponents.schemaVersion).not.toBe(extractionComponents.schemaVersion);
+    expect(classifyComponents.promptVersion).not.toBe(extractionComponents.promptVersion);
+  });
+});

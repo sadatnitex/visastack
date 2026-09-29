@@ -5,6 +5,7 @@ import type { ApplicantId } from '@visastack/core';
 import type { Actor, Db } from '@visastack/services';
 import type { AddDocumentVersionResult } from '@visastack/services';
 import {
+  approveDocumentTypeProposal,
   approveProposal,
   decideDocumentName,
   editFact,
@@ -20,9 +21,11 @@ import {
   previewDocument,
   registerDocumentWithVersion,
   registerFieldDefinition,
+  rejectDocumentTypeProposal,
   rejectProposal,
   renderOcrSourceImage,
   reserveUpload,
+  runClassification,
   runExtraction,
   runOcr,
   setDocumentDate,
@@ -30,7 +33,7 @@ import {
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { after } from 'next/server';
-import { resolveAiExtractor, resolveOcrAdapter } from '../../../../lib/ai';
+import { resolveAiClassifier, resolveAiExtractor, resolveOcrAdapter } from '../../../../lib/ai';
 import { triggerIntakeWorker } from '../../../../lib/jobs';
 import { profileField } from '../../../../lib/profile-fields';
 import { createKeyManagementPort, createPreviewRenderer } from '../../../../lib/providers';
@@ -489,6 +492,107 @@ export async function runOcrAction(_prev: ActionState, formData: FormData): Prom
         issueCount > 0
           ? `OCR completed, but flagged ${issueCount} review issue(s) - check the extracted text below.`
           : 'OCR completed successfully.',
+    } satisfies ActionState;
+  });
+
+  if (result.ok) revalidatePath(`/app/applicant/${applicantId}`, 'layout');
+  return result;
+}
+
+/**
+ * Run AI document-type classification (Part 8 AI-01 item 2). Reuses the same
+ * deterministically-extracted text `runAiExtractionAction` reads
+ * (`getLatestExtractedText`) -- `runClassification` itself refuses to run at
+ * all unless the deterministic classifier (`classification.ts`) left a
+ * genuine gap, so this action never needs to check that here.
+ */
+export async function runClassificationAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const applicantId = String(formData.get('applicantId') ?? '');
+  const documentVersionId = String(formData.get('documentVersionId') ?? '');
+
+  const result = await withSession(async ({ db, accountId }) => {
+    if (!(await assertOwned(db, accountId, applicantId))) {
+      return { ok: false, message: 'Not authorized.' } satisfies ActionState;
+    }
+    const resolved = await resolveAiClassifier(db, createKeyManagementPort());
+    if (!resolved) {
+      return { ok: false, message: 'AI classification is not configured.' } satisfies ActionState;
+    }
+    const text = await getLatestExtractedText(db, documentVersionId);
+    if (!text) {
+      return {
+        ok: false,
+        message: 'No extracted text available yet for this document.',
+      } satisfies ActionState;
+    }
+    const run = await runClassification(db, resolved.ai, {
+      actorAccountId: accountId,
+      applicantId,
+      documentVersionId,
+      text,
+      budgetLimitUnits: resolved.limits.budgetLimitUnits,
+      perDocumentBudgetLimitUnits: resolved.limits.perDocumentBudgetLimitUnits,
+      maxAttemptsPerDocument: resolved.limits.maxAttemptsPerDocument,
+      maxPagesPerDocument: resolved.limits.maxPagesPerDocument,
+      cacheMaxAgeDays: resolved.limits.cacheMaxAgeDays,
+      maxConcurrentCalls: resolved.limits.maxConcurrentCalls,
+      killSwitchCheck: () => isAiDispatchAllowed(db),
+    });
+    if (!run.ok) return { ok: false, message: run.error.message } satisfies ActionState;
+    return {
+      ok: true,
+      message: run.value.proposal
+        ? `AI suggested a document type: ${run.value.proposal.suggestedType} - review below.`
+        : 'AI classification ran, but could not confidently suggest a document type.',
+    } satisfies ActionState;
+  });
+
+  if (result.ok) revalidatePath(`/app/applicant/${applicantId}`, 'layout');
+  return result;
+}
+
+/**
+ * Decide a PENDING AI document-type suggestion (Part 8 AI-01 item 2):
+ * approve or reject. Never applied silently -- approving reuses the exact
+ * same downstream effects (`documents.docType`, naming proposal) the
+ * deterministic classification path already has (see
+ * `approveDocumentTypeProposal`'s own doc comment).
+ */
+export async function decideClassificationProposalAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const applicantId = String(formData.get('applicantId') ?? '');
+  const proposalId = String(formData.get('proposalId') ?? '');
+  const decision = String(formData.get('proposalAction') ?? '');
+
+  if (decision !== 'approve' && decision !== 'reject') {
+    return { ok: false, message: 'Unknown action.' };
+  }
+
+  const result = await withSession(async ({ db, accountId }) => {
+    if (!(await assertOwned(db, accountId, applicantId))) {
+      return { ok: false, message: 'Not authorized.' } satisfies ActionState;
+    }
+    if (decision === 'reject') {
+      const rejected = await rejectDocumentTypeProposal(db, {
+        actorAccountId: accountId,
+        proposalId,
+      });
+      if (!rejected.ok) return { ok: false, message: rejected.error.message } satisfies ActionState;
+      return { ok: true, message: 'Suggestion rejected.' } satisfies ActionState;
+    }
+    const approved = await approveDocumentTypeProposal(db, {
+      actorAccountId: accountId,
+      proposalId,
+    });
+    if (!approved.ok) return { ok: false, message: approved.error.message } satisfies ActionState;
+    return {
+      ok: true,
+      message: 'Document type approved and saved.',
     } satisfies ActionState;
   });
 

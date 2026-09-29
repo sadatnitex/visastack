@@ -8,6 +8,7 @@ import {
   OpenAiOcrAdapter,
 } from '@visastack/adapters';
 import {
+  type AiClassifyPort,
   type AiExtractionPort,
   type AiOcrPort,
   type AiProviderConfig,
@@ -93,7 +94,17 @@ export interface ResolvedAiExtractor {
  */
 const IMPLEMENTED_PROVIDERS: ReadonlySet<string> = new Set(['openai', 'anthropic', 'gemini']);
 
-function buildAdapterForConfig(config: AiProviderConfig, apiKey: string): AiExtractionPort {
+/**
+ * Returns `AiExtractionPort & AiClassifyPort`, not just `AiExtractionPort`
+ * -- every case below is one of the three adapter classes that Chunk C
+ * (Part 8 AI-01 item 2) wired to implement BOTH ports on the same instance,
+ * so `resolveAiClassifier` reuses this SAME function unchanged rather than
+ * duplicating an equivalent construction switch for classification.
+ */
+function buildAdapterForConfig(
+  config: AiProviderConfig,
+  apiKey: string,
+): AiExtractionPort & AiClassifyPort {
   const shared = {
     apiKey,
     model: config.model,
@@ -224,6 +235,42 @@ export async function resolveTestAdapter(
   return buildAdapterForConfig(config, apiKey);
 }
 
+export interface ResolvedAiClassifier {
+  readonly ai: AiClassifyPort;
+  readonly limits: AiLimits;
+}
+
+/**
+ * The classify adapter (and its governing limits) a live document-type
+ * classification call should use (Part 8 AI-01 item 2), built from the SAME
+ * ACTIVE `ai_provider_configs` row `resolveAiExtractor` reads -- reuses
+ * `buildAdapterForConfig` unchanged (see its own doc comment) since every
+ * implemented provider's adapter class satisfies both ports already.
+ *
+ * Deliberately no env-var-only fallback path (unlike `resolveAiExtractor`'s
+ * own `createAiExtractor()` branch): classification is a Commercial-V1-native
+ * capability introduced well after the DB-config system already existed, so
+ * there is no legacy env-var-configurable predecessor to preserve behavior
+ * for. An install with no `ai_provider_configs` row at all simply has no AI
+ * classification available -- the deterministic classifier
+ * (`classification.ts`) and manual entry remain fully functional regardless,
+ * matching Part 8's own "manual core must remain functional with AI
+ * disabled" requirement.
+ *
+ * No cross-provider fallback field yet (Part 8 §13) -- deliberately deferred,
+ * matching `runClassification`'s own doc comment.
+ */
+export async function resolveAiClassifier(
+  db: Db,
+  encryption: KeyManagementPort | undefined,
+): Promise<ResolvedAiClassifier | undefined> {
+  if (!(await hasAnyAiProviderConfig(db))) return undefined;
+  const config = await getActiveAiProviderConfig(db);
+  if (!config || !encryption || !IMPLEMENTED_PROVIDERS.has(config.provider)) return undefined;
+  const apiKey = await revealAiProviderApiKey(db, encryption, config);
+  return { ai: buildAdapterForConfig(config, apiKey), limits: limitsFromConfig(config) };
+}
+
 /**
  * Providers with a real OCR adapter (Part 8 §9), separate from
  * `IMPLEMENTED_PROVIDERS` above -- OCR reuses the same admin-configured AI
@@ -333,6 +380,13 @@ export async function isOcrConfigured(db: Db): Promise<boolean> {
   if (!(await hasAnyAiProviderConfig(db))) return false;
   const config = await getActiveAiProviderConfig(db);
   return Boolean(config && IMPLEMENTED_OCR_PROVIDERS.has(config.provider));
+}
+
+/** Cheap "is AI classification available" check for page rendering (Part 8 AI-01 item 2) -- mirrors `isOcrConfigured`'s identical shape, never decrypting a key just to show a boolean. */
+export async function isClassificationConfigured(db: Db): Promise<boolean> {
+  if (!(await hasAnyAiProviderConfig(db))) return false;
+  const config = await getActiveAiProviderConfig(db);
+  return Boolean(config && IMPLEMENTED_PROVIDERS.has(config.provider));
 }
 
 /**

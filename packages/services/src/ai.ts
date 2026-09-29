@@ -4,9 +4,12 @@ import { type Result, err, isOk, ok } from '@visastack/core';
 import { and, desc, eq, gte, isNull, lt, sql } from 'drizzle-orm';
 import { getApplicant } from './applicants';
 import { appendAuditEvent } from './audit';
+import { CLASSIFIABLE_DOCUMENT_TYPES } from './classification';
 import { hasConsent } from './consent';
 import { type Db, first, required, schema } from './db';
+import { proposeDocumentName } from './document-naming';
 import { type ServiceError, serviceError } from './errors';
+import { buildProposedName, extensionOf } from './naming';
 import type {
   AiOcrCacheKeyComponents,
   AiOcrContentType,
@@ -137,23 +140,77 @@ export interface AiExtractionPort {
   cacheKeyComponents(): AiCacheKeyComponents;
 }
 
+/**
+ * Part 8 AI-01 item 2 ("document type suggestion"). A genuinely separate
+ * port from `AiExtractionPort` -- NOT a bolted-on optional method -- so a
+ * provider adapter class can implement it independently (Chunk C wires the
+ * three existing extraction adapter classes to also `implements
+ * AiClassifyPort`, letting them share credentials/config/timeout handling
+ * without coupling the two interfaces themselves). Input is deliberately
+ * the same SHAPE as `AiExtractionInput` (already deterministically-extracted
+ * text, never raw file bytes) -- classification reuses `AI_EXTRACTION`
+ * consent for exactly that reason, never a new consent type: this is not a
+ * materially larger disclosure than field extraction already is.
+ */
+export interface AiClassifyInput {
+  readonly documentVersionId: string;
+  readonly text: string;
+  /** The canonical document-type vocabulary (`classification.ts`'s own `CLASSIFIABLE_DOCUMENT_TYPES`); the model cannot invent others. */
+  readonly allowedTypes: readonly string[];
+}
+
+export interface AiClassifyResult {
+  /** null when the model also could not confidently classify -- never a guess, mirrors `ClassificationResult.classifiedType`'s own convention. */
+  readonly suggestedType: string | null;
+  /** 0..1 model confidence; persisted as 0-100 to match the rest of the schema. */
+  readonly confidence: number;
+  readonly rationale?: string;
+  readonly usage: AiUsage;
+}
+
+export type AiClassifyOutcome =
+  | { readonly ok: true; readonly result: AiClassifyResult }
+  | {
+      readonly ok: false;
+      readonly code: AiExtractionErrorCode;
+      readonly message: string;
+      readonly provider?: string;
+      readonly latencyMs?: number;
+    };
+
+export interface AiClassifyPort {
+  classify(input: AiClassifyInput): Promise<AiClassifyOutcome>;
+  /**
+   * Deliberately NOT named `cacheKeyComponents` -- Chunk C wires the three
+   * existing extraction adapter classes to also `implements AiClassifyPort`,
+   * and a same-named, same-signature method on both interfaces would force
+   * one implementation to serve both, unable to ever return two DIFFERENT
+   * schema versions for two genuinely different tasks. Otherwise reuses
+   * `AiCacheKeyComponents` unchanged (`reasoningEffort` stays optional) --
+   * classification's cache key is computed the identical way `runExtraction`'s
+   * own is.
+   */
+  classifyCacheKeyComponents(): AiCacheKeyComponents;
+}
+
 function toPersistedConfidence(confidence: number): number {
   return Math.max(0, Math.min(100, Math.round(confidence * 100)));
 }
 
 /**
  * The durable, platform-wide AI spend so far -- the cost ledger IS this sum.
- * Sums `ai_extraction_runs` AND `ocr_runs` together (Part 8 Chunk 18's own
- * user-confirmed decision): both bill through the same admin-configured
- * provider/API key in reality -- one bill, one budget -- so "platform-wide
- * spend" means every AI Gateway task combined, not text extraction alone.
- * The admin dashboard's own spend meter (`apps/web/src/app/app/admin/
- * page.tsx`) calls this function directly, so it picks up true combined
- * spend automatically once OCR calls exist, with no separate change needed
- * there.
+ * Sums `ai_extraction_runs`, `ocr_runs`, AND `ai_classification_runs`
+ * together (Part 8 Chunk 18's own user-confirmed decision, extended for
+ * AI-01's classification task the same way): all three bill through the
+ * same admin-configured provider/API key in reality -- one bill, one
+ * budget -- so "platform-wide spend" means every AI Gateway task combined,
+ * never just one task alone. The admin dashboard's own spend meter
+ * (`apps/web/src/app/app/admin/page.tsx`) calls this function directly, so
+ * it picks up true combined spend automatically as new tasks are added,
+ * with no separate change needed there.
  */
 export async function totalAiCostUnits(db: Db): Promise<number> {
-  const [extraction, ocr] = await Promise.all([
+  const [extraction, ocr, classification] = await Promise.all([
     first(
       await db
         .select({ total: sql<string>`coalesce(sum(${schema.aiExtractionRuns.costUnits}), 0)` })
@@ -164,19 +221,29 @@ export async function totalAiCostUnits(db: Db): Promise<number> {
         .select({ total: sql<string>`coalesce(sum(${schema.ocrRuns.costUnits}), 0)` })
         .from(schema.ocrRuns),
     ),
+    first(
+      await db
+        .select({
+          total: sql<string>`coalesce(sum(${schema.aiClassificationRuns.costUnits}), 0)`,
+        })
+        .from(schema.aiClassificationRuns),
+    ),
   ]);
-  return Number(extraction?.total ?? 0) + Number(ocr?.total ?? 0);
+  return (
+    Number(extraction?.total ?? 0) + Number(ocr?.total ?? 0) + Number(classification?.total ?? 0)
+  );
 }
 
 /**
  * The durable AI spend so far for one specific document (per-document cap),
- * combined across `ai_extraction_runs` and `ocr_runs` for the identical
- * reason `totalAiCostUnits` is -- a per-document cap exists to bound how
- * much any single document can cost, a concern that applies the same way
- * regardless of which AI Gateway task the spend came from.
+ * combined across `ai_extraction_runs`, `ocr_runs`, AND
+ * `ai_classification_runs` for the identical reason `totalAiCostUnits` is --
+ * a per-document cap exists to bound how much any single document can cost,
+ * a concern that applies the same way regardless of which AI Gateway task
+ * the spend came from.
  */
 export async function documentAiCostUnits(db: Db, documentVersionId: string): Promise<number> {
-  const [extraction, ocr] = await Promise.all([
+  const [extraction, ocr, classification] = await Promise.all([
     first(
       await db
         .select({ total: sql<string>`coalesce(sum(${schema.aiExtractionRuns.costUnits}), 0)` })
@@ -189,8 +256,18 @@ export async function documentAiCostUnits(db: Db, documentVersionId: string): Pr
         .from(schema.ocrRuns)
         .where(eq(schema.ocrRuns.documentVersionId, documentVersionId)),
     ),
+    first(
+      await db
+        .select({
+          total: sql<string>`coalesce(sum(${schema.aiClassificationRuns.costUnits}), 0)`,
+        })
+        .from(schema.aiClassificationRuns)
+        .where(eq(schema.aiClassificationRuns.documentVersionId, documentVersionId)),
+    ),
   ]);
-  return Number(extraction?.total ?? 0) + Number(ocr?.total ?? 0);
+  return (
+    Number(extraction?.total ?? 0) + Number(ocr?.total ?? 0) + Number(classification?.total ?? 0)
+  );
 }
 
 /**
@@ -254,6 +331,30 @@ export async function countOcrAttempts(db: Db, documentVersionId: string): Promi
 }
 
 /**
+ * How many times AI classification has genuinely been invoked for one
+ * document -- the classification-specific mirror of `countAiExtractionAttempts`/
+ * `countOcrAttempts`, same cache-hit exclusion, same reason it is its own
+ * counter rather than shared with either: a document exhausting its
+ * extraction (or OCR) attempt budget must never also block its first-ever
+ * classification attempt, a genuinely different action invoked separately.
+ */
+export async function countAiClassificationAttempts(
+  db: Db,
+  documentVersionId: string,
+): Promise<number> {
+  const rows = await db
+    .select({ id: schema.aiClassificationRuns.id })
+    .from(schema.aiClassificationRuns)
+    .where(
+      and(
+        eq(schema.aiClassificationRuns.documentVersionId, documentVersionId),
+        isNull(schema.aiClassificationRuns.servedFromCacheRunId),
+      ),
+    );
+  return rows.length;
+}
+
+/**
  * Self-healing for `IN_FLIGHT` reservations (Part 8 §11's concurrency gate):
  * a row is inserted BEFORE the outbound provider call and only updated to
  * SUCCEEDED/FAILED after it returns (see `runExtraction`), so a process that
@@ -287,6 +388,15 @@ async function releaseStaleInFlightCalls(db: Db): Promise<void> {
       .update(schema.ocrRuns)
       .set({ status: 'FAILED', errorCode: 'in_flight_expired' })
       .where(and(eq(schema.ocrRuns.status, 'IN_FLIGHT'), lt(schema.ocrRuns.createdAt, cutoff))),
+    db
+      .update(schema.aiClassificationRuns)
+      .set({ status: 'FAILED', errorCode: 'in_flight_expired' })
+      .where(
+        and(
+          eq(schema.aiClassificationRuns.status, 'IN_FLIGHT'),
+          lt(schema.aiClassificationRuns.createdAt, cutoff),
+        ),
+      ),
   ]);
 }
 
@@ -298,7 +408,7 @@ async function releaseStaleInFlightCalls(db: Db): Promise<void> {
  * not of which AI Gateway task each call happens to be for.
  */
 async function countInFlightCalls(db: Db): Promise<number> {
-  const [extractionRows, ocrRows] = await Promise.all([
+  const [extractionRows, ocrRows, classificationRows] = await Promise.all([
     db
       .select({ id: schema.aiExtractionRuns.id })
       .from(schema.aiExtractionRuns)
@@ -307,13 +417,17 @@ async function countInFlightCalls(db: Db): Promise<number> {
       .select({ id: schema.ocrRuns.id })
       .from(schema.ocrRuns)
       .where(eq(schema.ocrRuns.status, 'IN_FLIGHT')),
+    db
+      .select({ id: schema.aiClassificationRuns.id })
+      .from(schema.aiClassificationRuns)
+      .where(eq(schema.aiClassificationRuns.status, 'IN_FLIGHT')),
   ]);
-  return extractionRows.length + ocrRows.length;
+  return extractionRows.length + ocrRows.length + classificationRows.length;
 }
 
 /** Same as `countInFlightCalls`, scoped to one document -- the per-document budget check's own concurrency exposure. */
 async function countInFlightCallsForDocument(db: Db, documentVersionId: string): Promise<number> {
-  const [extractionRows, ocrRows] = await Promise.all([
+  const [extractionRows, ocrRows, classificationRows] = await Promise.all([
     db
       .select({ id: schema.aiExtractionRuns.id })
       .from(schema.aiExtractionRuns)
@@ -332,8 +446,17 @@ async function countInFlightCallsForDocument(db: Db, documentVersionId: string):
           eq(schema.ocrRuns.documentVersionId, documentVersionId),
         ),
       ),
+    db
+      .select({ id: schema.aiClassificationRuns.id })
+      .from(schema.aiClassificationRuns)
+      .where(
+        and(
+          eq(schema.aiClassificationRuns.status, 'IN_FLIGHT'),
+          eq(schema.aiClassificationRuns.documentVersionId, documentVersionId),
+        ),
+      ),
   ]);
-  return extractionRows.length + ocrRows.length;
+  return extractionRows.length + ocrRows.length + classificationRows.length;
 }
 
 /**
@@ -354,7 +477,7 @@ async function countInFlightCallsForDocument(db: Db, documentVersionId: string):
  * never an under-estimate.
  */
 async function maxObservedCostUnits(db: Db): Promise<number> {
-  const [extraction, ocr] = await Promise.all([
+  const [extraction, ocr, classification] = await Promise.all([
     first(
       await db
         .select({ max: sql<string>`coalesce(max(${schema.aiExtractionRuns.costUnits}), 0)` })
@@ -367,8 +490,20 @@ async function maxObservedCostUnits(db: Db): Promise<number> {
         .from(schema.ocrRuns)
         .where(eq(schema.ocrRuns.status, 'SUCCEEDED')),
     ),
+    first(
+      await db
+        .select({
+          max: sql<string>`coalesce(max(${schema.aiClassificationRuns.costUnits}), 0)`,
+        })
+        .from(schema.aiClassificationRuns)
+        .where(eq(schema.aiClassificationRuns.status, 'SUCCEEDED')),
+    ),
   ]);
-  return Math.max(Number(extraction?.max ?? 0), Number(ocr?.max ?? 0));
+  return Math.max(
+    Number(extraction?.max ?? 0),
+    Number(ocr?.max ?? 0),
+    Number(classification?.max ?? 0),
+  );
 }
 
 /** The deterministic parser version that produced this document's text (a cache-key component). */
@@ -1116,6 +1251,633 @@ export async function runExtraction(
     fallbackReservation.cacheKey,
   );
   return fallback.result;
+}
+
+// --- AI-assisted document type classification (Part 8 AI-01 item 2) -------
+//
+// Advisory only, exactly like field extraction: `runClassification` never
+// writes `document_classifications` directly, only a PENDING
+// `document_type_proposals` row a human must decide on
+// (`approveDocumentTypeProposal`/`rejectDocumentTypeProposal`). Shares the
+// SAME platform-wide budget ledger, advisory locks, and AI_EXTRACTION
+// consent gate `runExtraction` uses (this file's own doc comment explains
+// why OCR lives here rather than in a separate file -- classification is
+// co-located for the identical reason). Deliberately its OWN run table
+// (`ai_classification_runs`) rather than folded into `ai_extraction_runs`
+// with a discriminator -- `countAiExtractionAttempts`'s own doc comment
+// already establishes that a per-task attempt limit must stay independent
+// per task, which a shared table would need a filter on every query to
+// preserve; a dedicated table gets that for free, matching `ocr_runs`'s own
+// precedent one table up. No cross-provider fallback yet (Part 8 §13) --
+// deliberately deferred, matching AI-09's own precedent of shipping a task's
+// core capability before its fallback wiring.
+export type DocumentTypeProposalRow = typeof schema.documentTypeProposals.$inferSelect;
+
+export interface RunClassificationInput {
+  readonly actorAccountId: string;
+  readonly applicantId: string;
+  readonly documentVersionId: string;
+  readonly text: string;
+  readonly budgetLimitUnits: number;
+  readonly perDocumentBudgetLimitUnits?: number;
+  readonly maxAttemptsPerDocument?: number;
+  readonly maxPagesPerDocument?: number;
+  readonly maxConcurrentCalls?: number;
+  readonly cacheMaxAgeDays?: number;
+  readonly killSwitchCheck?: () => Promise<boolean>;
+}
+
+export interface RunClassificationSummary {
+  readonly aiClassificationRunId: string;
+  /** Null when the model also could not confidently classify -- nothing for a human to review, exactly like extraction's own empty-proposals case. */
+  readonly proposal: DocumentTypeProposalRow | null;
+}
+
+type ClassificationReservation =
+  | { readonly kind: 'final'; readonly outcome: Result<RunClassificationSummary, ServiceError> }
+  | {
+      readonly kind: 'proceed';
+      readonly runId: string;
+      readonly allowedTypes: readonly string[];
+      readonly cacheKey: string;
+    };
+
+/** Phase 1 (RESERVE) -- structurally mirrors `reserveExtractionSlot`; see that function's own doc comment (on `runExtraction`) for the full reasoning behind every check and lock here. */
+async function reserveClassificationSlot(
+  db: Db,
+  ai: AiClassifyPort,
+  input: RunClassificationInput,
+): Promise<ClassificationReservation> {
+  return db.transaction(async (tx): Promise<ClassificationReservation> => {
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext('visastack:ai-platform-budget'))`);
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${input.documentVersionId}))`);
+
+    await releaseStaleInFlightCalls(tx);
+
+    const worstCase = await maxObservedCostUnits(tx);
+    const inFlightPlatform = await countInFlightCalls(tx);
+
+    const used = (await totalAiCostUnits(tx)) + (inFlightPlatform + 1) * worstCase;
+    if (used >= input.budgetLimitUnits) {
+      return { kind: 'final', outcome: err(serviceError('invalid', 'AI budget exhausted')) };
+    }
+    if (input.perDocumentBudgetLimitUnits !== undefined) {
+      const inFlightDocument = await countInFlightCallsForDocument(tx, input.documentVersionId);
+      const documentUsed =
+        (await documentAiCostUnits(tx, input.documentVersionId)) +
+        (inFlightDocument + 1) * worstCase;
+      if (documentUsed >= input.perDocumentBudgetLimitUnits) {
+        return {
+          kind: 'final',
+          outcome: err(serviceError('invalid', 'AI budget exhausted for this document')),
+        };
+      }
+    }
+    if (input.maxPagesPerDocument !== undefined) {
+      const pageCount = await latestPageCount(tx, input.documentVersionId);
+      if (pageCount !== null && pageCount > input.maxPagesPerDocument) {
+        return {
+          kind: 'final',
+          outcome: err(
+            serviceError(
+              'invalid',
+              'document exceeds the configured page limit for AI classification',
+            ),
+          ),
+        };
+      }
+    }
+
+    const allowedTypes = CLASSIFIABLE_DOCUMENT_TYPES;
+    const contentHash = createHash('sha256').update(input.text).digest('hex');
+    const parserVersion = (await latestParserVersion(tx, input.documentVersionId)) ?? 'unknown';
+    const cacheKey = computeCacheKey(contentHash, parserVersion, ai.classifyCacheKeyComponents());
+
+    const cacheMaxAgeDays = input.cacheMaxAgeDays ?? DEFAULT_CACHE_MAX_AGE_DAYS;
+    const cacheCutoff = new Date(Date.now() - cacheMaxAgeDays * 24 * 60 * 60 * 1000);
+    const cached = first(
+      await tx
+        .select()
+        .from(schema.aiClassificationRuns)
+        .where(
+          and(
+            eq(schema.aiClassificationRuns.cacheKey, cacheKey),
+            eq(schema.aiClassificationRuns.status, 'SUCCEEDED'),
+            gte(schema.aiClassificationRuns.createdAt, cacheCutoff),
+          ),
+        )
+        .orderBy(desc(schema.aiClassificationRuns.createdAt))
+        .limit(1),
+    );
+
+    if (cached) {
+      const run = required(
+        first(
+          await tx
+            .insert(schema.aiClassificationRuns)
+            .values({
+              documentVersionId: input.documentVersionId,
+              applicantId: input.applicantId,
+              status: 'SUCCEEDED',
+              modelVersion: cached.modelVersion,
+              promptVersion: cached.promptVersion,
+              schemaVersion: cached.schemaVersion,
+              costUnits: 0,
+              provider: cached.provider,
+              cacheKey,
+              servedFromCacheRunId: cached.id,
+            })
+            .returning(),
+        ),
+        'ai classification run',
+      );
+      const sourceProposal = first(
+        await tx
+          .select()
+          .from(schema.documentTypeProposals)
+          .where(eq(schema.documentTypeProposals.aiClassificationRunId, cached.id)),
+      );
+      let savedProposal: DocumentTypeProposalRow | null = null;
+      if (sourceProposal) {
+        savedProposal = required(
+          first(
+            await tx
+              .insert(schema.documentTypeProposals)
+              .values({
+                aiClassificationRunId: run.id,
+                documentVersionId: input.documentVersionId,
+                applicantId: input.applicantId,
+                suggestedType: sourceProposal.suggestedType,
+                confidence: sourceProposal.confidence,
+                rationale: sourceProposal.rationale,
+              })
+              .returning(),
+          ),
+          'document type proposal',
+        );
+      }
+      await appendAuditEvent(tx, {
+        eventType: 'AI_CLASSIFICATION_CACHE_HIT',
+        actorAccountId: input.actorAccountId,
+        method: 'DOCUMENT',
+        result: 'ALLOWED',
+        applicantId: input.applicantId,
+        resourceType: 'document_version',
+        resourceId: input.documentVersionId,
+        metadata: { aiClassificationRunId: run.id, servedFromCacheRunId: cached.id, cacheKey },
+      });
+      return {
+        kind: 'final',
+        outcome: ok({ aiClassificationRunId: run.id, proposal: savedProposal }),
+      };
+    }
+
+    if (input.maxAttemptsPerDocument !== undefined) {
+      const attempts = await countAiClassificationAttempts(tx, input.documentVersionId);
+      if (attempts >= input.maxAttemptsPerDocument) {
+        return {
+          kind: 'final',
+          outcome: err(
+            serviceError('invalid', 'AI classification attempt limit reached for this document'),
+          ),
+        };
+      }
+    }
+
+    if (input.maxConcurrentCalls !== undefined && inFlightPlatform >= input.maxConcurrentCalls) {
+      return {
+        kind: 'final',
+        outcome: err(
+          serviceError(
+            'rate_limited',
+            'too many AI classification calls in flight platform-wide; try again shortly',
+          ),
+        ),
+      };
+    }
+
+    const run = required(
+      first(
+        await tx
+          .insert(schema.aiClassificationRuns)
+          .values({
+            documentVersionId: input.documentVersionId,
+            applicantId: input.applicantId,
+            status: 'IN_FLIGHT',
+            modelVersion: 'unknown',
+            promptVersion: 'unknown',
+          })
+          .returning(),
+      ),
+      'ai classification run',
+    );
+
+    return { kind: 'proceed', runId: run.id, allowedTypes, cacheKey };
+  });
+}
+
+interface ClassificationDispatchResult {
+  readonly outcome: AiClassifyOutcome;
+  readonly result: Result<RunClassificationSummary, ServiceError>;
+}
+
+/** Phases 2 (CALL) and 3 (RECONCILE) -- structurally mirrors `dispatchAndReconcile`. */
+async function dispatchAndReconcileClassification(
+  db: Db,
+  ai: AiClassifyPort,
+  input: RunClassificationInput,
+  runId: string,
+  allowedTypes: readonly string[],
+  cacheKey: string,
+): Promise<ClassificationDispatchResult> {
+  const killSwitchAllows = input.killSwitchCheck ? await input.killSwitchCheck() : true;
+
+  const outcome: AiClassifyOutcome = killSwitchAllows
+    ? await ai.classify({
+        documentVersionId: input.documentVersionId,
+        text: input.text,
+        allowedTypes,
+      })
+    : { ok: false, code: 'disabled', message: 'AI classification is currently disabled' };
+
+  const result = await db.transaction(async (tx) => {
+    if (!outcome.ok) {
+      await tx
+        .update(schema.aiClassificationRuns)
+        .set({
+          status: 'FAILED',
+          provider: outcome.provider ?? null,
+          latencyMs: outcome.latencyMs ?? null,
+          errorCode: outcome.code,
+        })
+        .where(eq(schema.aiClassificationRuns.id, runId));
+      await appendAuditEvent(tx, {
+        eventType: 'AI_CLASSIFICATION_FAILED',
+        actorAccountId: input.actorAccountId,
+        method: 'DOCUMENT',
+        result: 'ALLOWED',
+        applicantId: input.applicantId,
+        resourceType: 'document_version',
+        resourceId: input.documentVersionId,
+        metadata: { errorCode: outcome.code, aiClassificationRunId: runId },
+      });
+      return err(
+        serviceError(outcome.code === 'disabled' ? 'invalid' : 'upstream_error', outcome.message),
+      );
+    }
+
+    const { suggestedType, confidence, rationale, usage } = outcome.result;
+
+    await tx
+      .update(schema.aiClassificationRuns)
+      .set({
+        status: 'SUCCEEDED',
+        modelVersion: usage.modelVersion,
+        promptVersion: usage.promptVersion,
+        schemaVersion: usage.schemaVersion,
+        costUnits: usage.costUnits,
+        provider: usage.provider,
+        providerRequestId: usage.providerRequestId ?? null,
+        inputUnits: usage.inputUnits,
+        outputUnits: usage.outputUnits,
+        cachedUnits: usage.cachedUnits,
+        latencyMs: usage.latencyMs,
+        cacheKey,
+      })
+      .where(eq(schema.aiClassificationRuns.id, runId));
+
+    // No proposal row when the model also could not confidently classify, or
+    // named a type outside the allowed vocabulary (never trusted blindly,
+    // exactly like extraction's own UNMAPPED/UNCERTAIN handling) -- nothing
+    // for a human to review either way.
+    let savedProposal: DocumentTypeProposalRow | null = null;
+    if (suggestedType && allowedTypes.includes(suggestedType)) {
+      savedProposal = required(
+        first(
+          await tx
+            .insert(schema.documentTypeProposals)
+            .values({
+              aiClassificationRunId: runId,
+              documentVersionId: input.documentVersionId,
+              applicantId: input.applicantId,
+              suggestedType,
+              confidence: toPersistedConfidence(confidence),
+              rationale: rationale ?? null,
+            })
+            .returning(),
+        ),
+        'document type proposal',
+      );
+    }
+
+    await appendAuditEvent(tx, {
+      eventType: 'AI_CLASSIFICATION_RUN',
+      actorAccountId: input.actorAccountId,
+      method: 'DOCUMENT',
+      result: 'ALLOWED',
+      applicantId: input.applicantId,
+      resourceType: 'document_version',
+      resourceId: input.documentVersionId,
+      metadata: {
+        aiClassificationRunId: runId,
+        proposed: savedProposal !== null,
+        costUnits: usage.costUnits,
+        modelVersion: usage.modelVersion,
+        provider: usage.provider,
+        latencyMs: usage.latencyMs,
+      },
+    });
+    await recordProductEvent(tx, {
+      eventType: 'AI_CLASSIFICATION_RUN',
+      accountId: input.actorAccountId,
+    });
+
+    return ok({ aiClassificationRunId: runId, proposal: savedProposal });
+  });
+  return { outcome, result };
+}
+
+/**
+ * Run AI document-type classification (Part 8 AI-01 item 2), persisting an
+ * advisory proposal WITHOUT mutating `document_classifications`. Refuses to
+ * run at all when the deterministic classifier (`classification.ts`) already
+ * reached a confident result, or when a suggestion is already pending review
+ * for this document -- this task exists to fill a genuine deterministic gap,
+ * never to second-guess or duplicate it.
+ */
+export async function runClassification(
+  db: Db,
+  ai: AiClassifyPort,
+  input: RunClassificationInput,
+): Promise<Result<RunClassificationSummary, ServiceError>> {
+  const applicant = await getApplicant(db, input.applicantId);
+  if (!applicant) return err(serviceError('not_found', 'applicant not found'));
+  if (applicant.ownerAccountId !== input.actorAccountId) {
+    return err(
+      serviceError('forbidden', 'not authorized to run classification for this applicant'),
+    );
+  }
+  if (!(await hasConsent(db, applicant.ownerAccountId, 'AI_EXTRACTION'))) {
+    return err(serviceError('consent_required', 'AI_EXTRACTION consent is required'));
+  }
+
+  const existing = first(
+    await db
+      .select({
+        classifiedType: schema.documentClassifications.classifiedType,
+        reviewRequired: schema.documentClassifications.reviewRequired,
+      })
+      .from(schema.documentClassifications)
+      .where(eq(schema.documentClassifications.documentVersionId, input.documentVersionId))
+      .orderBy(desc(schema.documentClassifications.createdAt))
+      .limit(1),
+  );
+  if (existing && existing.classifiedType !== null && !existing.reviewRequired) {
+    return err(
+      serviceError('invalid', 'this document already has a confident deterministic classification'),
+    );
+  }
+  const pending = first(
+    await db
+      .select({ id: schema.documentTypeProposals.id })
+      .from(schema.documentTypeProposals)
+      .where(
+        and(
+          eq(schema.documentTypeProposals.documentVersionId, input.documentVersionId),
+          eq(schema.documentTypeProposals.status, 'PENDING'),
+        ),
+      )
+      .limit(1),
+  );
+  if (pending) {
+    return err(serviceError('invalid', 'a classification suggestion is already pending review'));
+  }
+
+  const reservation = await reserveClassificationSlot(db, ai, input);
+  if (reservation.kind === 'final') return reservation.outcome;
+
+  const dispatched = await dispatchAndReconcileClassification(
+    db,
+    ai,
+    input,
+    reservation.runId,
+    reservation.allowedTypes,
+    reservation.cacheKey,
+  );
+  return dispatched.result;
+}
+
+export interface ApproveDocumentTypeProposalInput {
+  readonly actorAccountId: string;
+  readonly proposalId: string;
+}
+
+/**
+ * Approve an AI document-type suggestion: writes a new, AI_APPROVED
+ * `document_classifications` row (never overwriting the proposal's own
+ * record, and never touching a deterministic row), then reuses the EXACT
+ * SAME downstream effects the deterministic path gets at intake time
+ * (`intake.ts`'s own `runExtractionStep`) -- filling `documents.docType`
+ * only if still null, and triggering a naming proposal via the identical
+ * `buildProposedName`/`proposeDocumentName` machinery. An AI-approved
+ * classification is never treated any differently from a deterministic one
+ * by either downstream system, satisfying AI-01 item 3 ("safe filename/name
+ * suggestion") through reuse rather than a second naming implementation.
+ */
+export async function approveDocumentTypeProposal(
+  db: Db,
+  input: ApproveDocumentTypeProposalInput,
+): Promise<Result<DocumentTypeProposalRow, ServiceError>> {
+  const proposal = first(
+    await db
+      .select()
+      .from(schema.documentTypeProposals)
+      .where(eq(schema.documentTypeProposals.id, input.proposalId))
+      .limit(1),
+  );
+  if (!proposal) return err(serviceError('not_found', 'proposal not found'));
+  if (proposal.status !== 'PENDING') {
+    return err(serviceError('invalid', 'this proposal has already been decided'));
+  }
+
+  const applicant = await getApplicant(db, proposal.applicantId);
+  if (!applicant) return err(serviceError('not_found', 'applicant not found'));
+  if (applicant.ownerAccountId !== input.actorAccountId) {
+    return err(serviceError('forbidden', 'not authorized to decide this proposal'));
+  }
+
+  const document = required(
+    first(
+      await db
+        .select({
+          id: schema.documents.id,
+          originalName: schema.documents.originalName,
+          docType: schema.documents.docType,
+        })
+        .from(schema.documents)
+        .innerJoin(
+          schema.documentVersions,
+          eq(schema.documentVersions.documentId, schema.documents.id),
+        )
+        .where(eq(schema.documentVersions.id, proposal.documentVersionId))
+        .limit(1),
+    ),
+    'document',
+  );
+
+  const extractionRun = required(
+    first(
+      await db
+        .select({ id: schema.extractionRuns.id })
+        .from(schema.extractionRuns)
+        .where(
+          and(
+            eq(schema.extractionRuns.documentVersionId, proposal.documentVersionId),
+            eq(schema.extractionRuns.status, 'SUCCEEDED'),
+          ),
+        )
+        .orderBy(desc(schema.extractionRuns.createdAt))
+        .limit(1),
+    ),
+    'extraction run',
+  );
+
+  return db.transaction(async (tx) => {
+    const classification = required(
+      first(
+        await tx
+          .insert(schema.documentClassifications)
+          .values({
+            extractionRunId: extractionRun.id,
+            documentVersionId: proposal.documentVersionId,
+            classifiedType: proposal.suggestedType,
+            confidence: proposal.confidence,
+            reviewRequired: false,
+            rationale: proposal.rationale,
+            source: 'AI_APPROVED',
+          })
+          .returning(),
+      ),
+      'document classification',
+    );
+
+    const updated = required(
+      first(
+        await tx
+          .update(schema.documentTypeProposals)
+          .set({
+            status: 'APPROVED',
+            decidedByAccountId: input.actorAccountId,
+            decidedAt: new Date(),
+            classificationId: classification.id,
+          })
+          .where(eq(schema.documentTypeProposals.id, input.proposalId))
+          .returning(),
+      ),
+      'document type proposal',
+    );
+
+    if (!document.docType) {
+      await tx
+        .update(schema.documents)
+        .set({ docType: proposal.suggestedType })
+        .where(eq(schema.documents.id, document.id));
+    }
+    const proposedName = buildProposedName({
+      classifiedType: proposal.suggestedType,
+      primarySubject: applicant.displayName ?? 'Unknown',
+      extension: extensionOf(document.originalName),
+    });
+    await proposeDocumentName(tx, { documentId: document.id, proposedName });
+
+    await appendAuditEvent(tx, {
+      eventType: 'AI_CLASSIFICATION_PROPOSAL_APPROVED',
+      actorAccountId: input.actorAccountId,
+      method: 'MANUAL',
+      result: 'ALLOWED',
+      applicantId: proposal.applicantId,
+      resourceType: 'document_type_proposal',
+      resourceId: proposal.id,
+      metadata: { suggestedType: proposal.suggestedType, classificationId: classification.id },
+    });
+
+    return ok(updated);
+  });
+}
+
+export interface RejectDocumentTypeProposalInput {
+  readonly actorAccountId: string;
+  readonly proposalId: string;
+  readonly reason?: string;
+}
+
+/** Reject a PENDING document-type suggestion -- no classification written, just a recorded decision. */
+export async function rejectDocumentTypeProposal(
+  db: Db,
+  input: RejectDocumentTypeProposalInput,
+): Promise<Result<DocumentTypeProposalRow, ServiceError>> {
+  const proposal = first(
+    await db
+      .select()
+      .from(schema.documentTypeProposals)
+      .where(eq(schema.documentTypeProposals.id, input.proposalId))
+      .limit(1),
+  );
+  if (!proposal) return err(serviceError('not_found', 'proposal not found'));
+  if (proposal.status !== 'PENDING') {
+    return err(serviceError('invalid', 'this proposal has already been decided'));
+  }
+
+  const applicant = await getApplicant(db, proposal.applicantId);
+  if (!applicant) return err(serviceError('not_found', 'applicant not found'));
+  if (applicant.ownerAccountId !== input.actorAccountId) {
+    return err(serviceError('forbidden', 'not authorized to decide this proposal'));
+  }
+
+  return db.transaction(async (tx) => {
+    const updated = required(
+      first(
+        await tx
+          .update(schema.documentTypeProposals)
+          .set({
+            status: 'REJECTED',
+            decidedByAccountId: input.actorAccountId,
+            decidedAt: new Date(),
+          })
+          .where(eq(schema.documentTypeProposals.id, input.proposalId))
+          .returning(),
+      ),
+      'document type proposal',
+    );
+    await appendAuditEvent(tx, {
+      eventType: 'AI_CLASSIFICATION_PROPOSAL_REJECTED',
+      actorAccountId: input.actorAccountId,
+      method: 'MANUAL',
+      result: 'ALLOWED',
+      applicantId: proposal.applicantId,
+      resourceType: 'document_type_proposal',
+      resourceId: proposal.id,
+      metadata: { suggestedType: proposal.suggestedType, reason: input.reason },
+    });
+    return ok(updated);
+  });
+}
+
+/** Pending document-type suggestions for an applicant (the review queue), newest first -- mirrors `listPendingProposals`'s identical shape/contract. */
+export async function listPendingDocumentTypeProposals(
+  db: Db,
+  applicantId: string,
+): Promise<DocumentTypeProposalRow[]> {
+  return db
+    .select()
+    .from(schema.documentTypeProposals)
+    .where(
+      and(
+        eq(schema.documentTypeProposals.applicantId, applicantId),
+        eq(schema.documentTypeProposals.status, 'PENDING'),
+      ),
+    )
+    .orderBy(desc(schema.documentTypeProposals.createdAt));
 }
 
 export interface RunOcrInput {
