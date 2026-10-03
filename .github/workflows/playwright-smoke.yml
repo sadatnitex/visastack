@@ -7,6 +7,9 @@ name: Playwright Deploy Smoke
 # existed but was never referenced by any workflow, so it could not fail a
 # build (docs/audits/post-programme-defect-register.md finding #24) — wired
 # in here alongside the existing no-secret-auth.spec.ts.
+# browser-security.spec.ts (Commercial V1 SEC-02: the Content-Security-Policy is
+# served, is enforced, and the app still works under it) is listed by name for
+# the same reason: a spec no workflow names cannot fail a build.
 on:
   deployment_status:
 
@@ -50,7 +53,7 @@ jobs:
         working-directory: apps/web
         env:
           PLAYWRIGHT_BASE_URL: ${{ github.event.deployment_status.environment_url || github.event.deployment_status.target_url }}
-        run: npx playwright test no-secret-auth.spec.ts ux-public.spec.ts
+        run: npx playwright test no-secret-auth.spec.ts ux-public.spec.ts browser-security.spec.ts
 
       - name: Upload Playwright report
         if: always()

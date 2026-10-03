@@ -3792,6 +3792,219 @@ item gets its own requirements-ledger row once classified against the new direct
     files clean, typecheck 7/7, production build clean with the new cron
     route in the manifest (rebuilt after the `addMemberAction` change), web
     suite re-run after it too.
+
+    **Chunk 34 (2026-10-03, SEC-02, Part 9 chunk 2) -- site-wide
+    Content-Security-Policy, the browser-security list checked item by item,
+    and two defects the checking found.** `apps/web/next.config.mjs` had
+    carried a comment promising a CSP "in Phase 6" and shipped none. Now
+    every page response in a production build carries one, built per request
+    in `apps/web/src/middleware.ts` (policy in `lib/csp.ts`): scripts run only
+    with this request's nonce, plus scripts those nonced scripts load
+    (`'strict-dynamic'`, which is how the Next runtime loads its chunks and
+    which also makes `'self'` useless as a script source in current browsers,
+    so a same-origin upload at `/api/blob/[key]` cannot be one); no
+    `'unsafe-inline'` or `'unsafe-eval'` for script; everything else same
+    origin or none; `frame-ancestors 'none'`; `form-action` limited to self,
+    the canonical app origin and WorkOS (a step-up Server Action answers with
+    a redirect to WorkOS, which Chromium also checks against `form-action`);
+    violations posted to a new `/api/csp-report` that logs one line each, with
+    no query string, no script sample (for a Next page that is a slice of the
+    render payload, i.e. user data) and identifiers in the path templated out.
+    Two optional env vars (`.env.example`): `CSP_MODE=report-only` serves the
+    same policy without enforcing it, the rollback if a page is found blocked,
+    and `CSP_FORM_ACTION_EXTRA` adds a WorkOS custom AuthKit domain. Applied in
+    production builds only, since the dev server needs `'unsafe-eval'`.
+
+    How it was built, and why it is shaped this way. A nonce only works if
+    Next sees it on the REQUEST: Next reads it back out of the request's
+    policy header and stamps it on the inline scripts it renders, so setting
+    the header on the response alone would have left the app's own scripts
+    blocked. The installed AuthKit builds its forwarded request headers from
+    the request it is handed (`partitionAuthkitHeaders`), so the middleware
+    wraps the unchanged `authkitMiddleware`, hands it a copy of the request
+    that already carries the policy, and sets the policy on the response. That
+    copy is built from the URL and headers with NO body: constructing it from
+    the original request consumed the stream a Server Action still needs
+    (proven, not assumed: building it the other way makes a test fail).
+    Every page is dynamic today (the root layout reads the session, `next
+    build` prerenders nothing, checked in the manifest), which a per-request
+    nonce requires; a future statically generated page would ship a stale
+    nonce and be blocked, noted in `lib/csp.ts`.
+
+    The old matcher listed only the AuthKit routes, but the policy has to ride
+    on `/trust` and the not-found page too, and `/trust` must stay AuthKit-free
+    so a public page survives a WorkOS outage. So the matcher is now broad and
+    `lib/authkit-paths.ts` keeps the AuthKit set exactly where it was. "Exactly"
+    was tested against Next's own compilation of the ORIGINAL matcher
+    (including the decoded-path retry and the `/_next/data`, `.json`/`.rsc`,
+    trailing-slash and `/index` variants Next admits) over 2000+ generated
+    paths, both directions; four mutations (drop a route, stop decoding,
+    add `/trust`, ignore the `.rsc` stripping below) each fail it. Probing 33
+    paths against the old and the new running servers is what found a gap the
+    first version of that test could not: Next's adapter strips a trailing
+    `.rsc` from the URL before the middleware sees it, so a segment-prefetch
+    URL such as `/app.segments/x.segment.rsc` arrives as
+    `/app.segments/x.segment`, which the first predicate no longer recognised
+    (the old server redirected it to WorkOS, the new one answered 404). The
+    predicate now accounts for that and the test feeds it the normalized URL
+    the way Next does; after the fix the two servers agree on every probed
+    path but one, `/app/%2e%2e/trust`, where the URL parser collapses the dot
+    segment before the middleware sees it, so AuthKit no longer redirects what
+    is a 404 either way. The predicate also covers a few doubly suffixed
+    nonsense paths (`/status.json.rsc`) that the old matcher did not: more
+    AuthKit, never less. No probed path reached a protected page without
+    AuthKit, and `withAuth()` throws outside the middleware, so a miss would
+    fail closed with a 500 rather than serve anything.
+
+    Real-browser verification (Chromium 141, local production build, 27
+    Playwright tests, 14 of which drive the browser): the app hydrates, a
+    client-side navigation completes without a full page load, and a Server
+    Action (the language switch) runs under the policy with no violation on
+    `/`, `/status` and the not-found page; every inline script on
+    a page carries the nonce from that page's own header, and the nonce differs
+    per request; and each attack class is refused: parser-inserted markup
+    carrying a script and an inline handler, an inline handler, a `javascript:`
+    URL, `eval` and `new Function`, a request to a third-party origin, a
+    third-party image, a form post to a third party, and a `<base>` tag.
+    Two of my own first-draft browser tests were wrong, not the policy, and
+    were rewritten rather than loosened: a script created through the DOM is
+    trusted by `'strict-dynamic'` by design (the realistic attack is injected
+    markup, which the parser inserts), and `eval` run inside the test
+    driver's own call is exempt from the page's rule (it must run from a page
+    script, on a timer). To show the spec detects a policy that is served but
+    not enforced, the same build was run with `CSP_MODE=report-only`: 15 of
+    the 27 tests fail (the header checks, the nonce checks and every
+    enforcement check, which assert the browser's `disposition` is `enforce`,
+    not merely that something was reported). The existing public specs
+    (accessibility, responsive, keyboard, language switch, not-found) pass
+    under the policy too, 8 of 8.
+
+    Defects found by doing this. (1) The not-found page's `<Link href="/app">`
+    prefetches `/app`, which answers a signed-out visitor with a redirect to
+    WorkOS; the browser refuses to follow that off-site from a script request.
+    That was already failing before the policy (a CORS failure, logged as
+    "Failed to fetch RSC payload"); the policy turned it into a violation and,
+    in Playwright, a request that never settles. The landing page and the nav
+    already use a plain anchor for exactly this; the not-found page now does
+    too. (2) The locale cookie carried no flags: now HttpOnly (nothing in the
+    app reads `document.cookie`), SameSite=Lax, Secure in production. (3)
+    Author-typed pack links were rendered as `<a href>` with no scheme check at
+    all: a requirement's `sourceUrl`, and a route's `officialChannelUrl` (the
+    "where to actually apply" button) and `officialReportingUrl` on the public
+    trust page. React 19 and the new policy both stop a `javascript:` link from
+    running, but a `data:`, `file:` or plain-text value still became a link.
+    `packages/services/src/external-url.ts` (`isHttpUrl`, `safeHttpUrl`) now
+    rejects anything but an absolute http(s) URL when a pack author saves one,
+    and the pages refuse to link a stored value that is not one, which also
+    covers rows saved before this check. The trust page's guard is covered by
+    a render test (the first TSX test in the web app, hence the one-line
+    `esbuild: { jsx: 'automatic' }` in `vitest.config.ts`); the mission page's
+    one `sourceHref` is covered by the helper's tests and typecheck only.
+
+    The directive's Part 9 section 6 list, checked item by item (evidence in
+    parentheses; "verified" means read in source or exercised, not assumed):
+    HTTPS enforcement (HSTS `max-age=63072000; includeSubDomains; preload`
+    served on every page, asserted by the browser-security spec; the redirect
+    from http itself is Vercel's edge and unverified here). Secure/HttpOnly/
+    SameSite cookies (the WorkOS session and PKCE cookies: read in AuthKit's
+    `cookie.js`, HttpOnly always, SameSite Lax unless overridden, Secure when
+    the redirect URI is https or unset; the locale cookie: fixed above and
+    tested). CSRF/origin controls for mutations (every mutation is a Server
+    Action except one signed webhook; Next compares the request's `Origin` to
+    its host and aborts on mismatch, read in `action-handler.js`, and
+    `serverActions.allowedOrigins` is not set, so it is same-origin only; a
+    request with NO `Origin` header is not rejected by that check, so the
+    protection for such a request is the SameSite=Lax session cookie). Redirect
+    allowlist (`/api/session-reauth` accepts only a same-origin relative
+    `returnTo`, already unit-tested, and AuthKit's callback takes only the
+    pathname and query from `returnTo` and always keeps its own host, read in
+    `authkit-callback-route.js`). CSP and frame restrictions (this chunk, plus
+    `X-Frame-Options: DENY`). Referrer-Policy, permissions policy, nosniff
+    (already served; now asserted per page by the browser-security spec).
+    No-store for protected pages (AuthKit's middleware sets `Cache-Control:
+    no-store` and `Vary: Cookie` whenever a request carries a session, read in
+    `applyCacheSecurityHeaders`; unauthenticated dynamic pages get Next's
+    `private, no-cache, no-store`, observed on `/status`) and bytes (all seven
+    routes that serve a file set `private, no-store` themselves: blob, both
+    exports, the large-export download, the pack manifest, the appointment
+    calendar file and the case snapshot download, read in source; only the
+    blob route's is asserted by its own test). No PII in query strings
+    (every query parameter the app builds was enumerated: `reauth`, `maxAge`,
+    `returnTo` as a relative path, `tab`, `format`, `preview_error`,
+    `date_error`, `auth_error`, and the signed-blob parameters; none is an
+    email, name or document number. The one secret-bearing parameter is the
+    invitation `token` in three emailed accept links: a bearer token in a URL
+    is inherent to emailed links, mitigated by the Referrer-Policy, and the new
+    report endpoint never logs a query string; its expiry and single-use
+    behavior were built in Part 4 and not re-verified here). Sanitize
+    filenames (stored object keys are `randomUUID()`, never a user name;
+    download `Content-Disposition` is built by a tested sanitizer;
+    `sanitizeNameComponent` cleans proposed names). Sanitize notes, AI output
+    and pack content, no untrusted HTML (there is no `dangerouslySetInnerHTML`,
+    `innerHTML` or `document.write` anywhere in `apps/web`, so React's escaping
+    covers every one; pack links fixed above). No sensitive localStorage, no
+    sensitive service-worker cache (no `localStorage`, `sessionStorage` or
+    `serviceWorker` use anywhere in `apps/web`). No third-party session replay
+    (no third-party script exists, and the policy now makes adding one fail
+    closed).
+
+    **Honestly NOT done or NOT verified, so SEC-02 stays IN_PROGRESS:**
+    SIGNED-IN pages were not browser-verified under the policy. The sandbox has
+    no WorkOS credentials or database, so `/app/**` cannot render here; the
+    evidence for them is a static audit (no frame, object, media, canvas,
+    `<style>`, `<script>` or font element in `apps/web`; no client-side
+    `fetch`; three `<img>` elements, all for the organization logo, whose URL is
+    minted against the canonical origin, which `img-src` and `form-action`
+    therefore include; no CSS `url()`), plus the fact that every page shares
+    the root layout, the Next runtime and the same header. The safety net is
+    deliberate: `CSP_MODE=report-only` for a rollback, and the violation log.
+    First thing to do after deploying: sign in on the preview, open a few
+    pages and a form, and search the runtime log for `[csp-violation]`. The two
+    `/app` redirect tests in `e2e/no-secret-auth.spec.ts` could not run in the
+    sandbox (the browser cannot tunnel to `api.workos.com`; the 307 to WorkOS
+    itself was confirmed with curl), so CI on the preview is their check, as it
+    always was. On Vercel previews the toolbar's own script may still be
+    refused (browsers that honor `'strict-dynamic'` ignore the host allowance
+    Vercel documents for it); that costs the preview-comments overlay and
+    nothing else, and `VERCEL_PREVIEW_FEEDBACK_ENABLED=0` removes it. A
+    signed-in user whose session has expired and who clicks a `<Link>` into
+    `/app` still gets the router's failed off-site fetch (sign-in completes by
+    full navigation, as before), now also one violation line; Chrome reports
+    the ORIGINAL same-origin URL as the blocked one for a blocked redirect, so
+    that line looks odd (`connect-src`, blocked origin = the app itself).
+    `style-src` keeps `'unsafe-inline'`, because React inline style attributes
+    are used throughout and a nonce cannot cover an attribute; Trusted Types
+    was not attempted; `upgrade-insecure-requests` was left out because HSTS
+    and the edge redirect already cover it and it would break a plain-http
+    local run. A WorkOS custom AuthKit domain is unknowable from here and must
+    be added to `CSP_FORM_ACTION_EXTRA` if one is configured (it only matters
+    for a form submitted before the page has hydrated). Login and recovery rate
+    limiting, the missing network dimension and the unmeasured thresholds from
+    Chunk 33 are unchanged.
+
+    Verified locally: `apps/web` suite 402/402 across 26 files (237 before
+    this chunk; new: policy builder 55, middleware 26, AuthKit path parity 28,
+    report parsing 24, report endpoint 19, locale cookie 5, trust page render
+    8). `@visastack/services` suite 1204/1204 across 61 files, run in full to
+    completion this time (1171 before; new: external-url helper 29, pack URL
+    validation 4). Mutation checks, each restored byte-for-byte afterwards: the
+    middleware tests catch five (no policy on the request, hand AuthKit the
+    original request, build the copy from the original request, keep the
+    opposite header, no policy on the response); the path parity tests catch
+    four; the report endpoint tests catch three (no body cap, no throttle, no
+    content-type check) and the cookie tests one; the pack tests catch
+    validation switched off, and the trust page tests catch the render guards
+    switched off (7 of 8 fail). Repo-wide Biome 528 files clean, typecheck 7/7,
+    production build clean (the build still prints the `unpdf` and three
+    `@workos-inc/node` Edge Runtime warnings, which a clean CI build from
+    before this chunk prints too). Local Playwright: 35/35 on the enforced
+    build (browser security 27, public UX 8), and 37 of 39 with
+    `no-secret-auth.spec.ts` added, the two failures being the `/app` redirect
+    specs that need the sandbox to reach `api.workos.com`. A note for whoever
+    reruns it here: this sandbox's Chromium 141 does not match the
+    Playwright's expected build, so the run used a throwaway config pointing
+    at `/opt/pw-browsers/chromium` with `--no-sandbox`; that file is not
+    committed.
 independently confirmed findings; the missing PRD file is tracked as Blocker 1 in
 `assumptions-and-blockers.md` (now resolved) rather than here, since it blocked the
 programme rather than being a product defect.

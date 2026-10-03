@@ -29,6 +29,7 @@ import {
   listSelectedEvidence,
   listSubmissionsForMission,
   listTasks,
+  safeHttpUrl,
 } from '@visastack/services';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
@@ -637,6 +638,7 @@ export default async function MissionPage({
                       const label =
                         r.kind === 'FIELD' ? (profileField(r.key)?.label ?? r.key) : r.key;
                       const sourceLine = [r.publisher, r.sourceTitle].filter(Boolean).join(' · ');
+                      const sourceHref = safeHttpUrl(r.sourceUrl);
                       return (
                         <div
                           className="row"
@@ -682,10 +684,10 @@ export default async function MissionPage({
                               {r.observedDate
                                 ? ` · as of ${new Date(r.observedDate).toLocaleDateString()}`
                                 : ''}
-                              {r.sourceUrl ? (
+                              {sourceHref ? (
                                 <>
                                   {' · '}
-                                  <a href={r.sourceUrl} target="_blank" rel="noreferrer">
+                                  <a href={sourceHref} target="_blank" rel="noreferrer">
                                     source
                                   </a>
                                 </>

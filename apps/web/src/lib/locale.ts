@@ -9,6 +9,23 @@ import { cookies } from 'next/headers';
  */
 export const LOCALE_COOKIE = 'visastack_locale';
 
+/**
+ * Attributes for the locale cookie (directive Part 9 section 6: Secure,
+ * HttpOnly and SameSite "as appropriate"). Only the server reads it, so
+ * scripts never need to and cannot; `Lax` keeps it off cross-site
+ * sub-requests while still arriving on a normal top-level visit. `Secure` is
+ * production-only because a plain-http local server would drop the cookie.
+ */
+export function localeCookieOptions(secure: boolean) {
+  return {
+    path: '/',
+    maxAge: 60 * 60 * 24 * 365,
+    httpOnly: true,
+    sameSite: 'lax' as const,
+    secure,
+  };
+}
+
 /** Read the visitor's locale preference, defaulting to English. */
 export async function getLocale(): Promise<Locale> {
   const store = await cookies();

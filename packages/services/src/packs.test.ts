@@ -207,6 +207,62 @@ describe('Pack Studio - coverage model, rule conditions, and source grounding (R
     expect(pack.value.authoritative).toBe(false);
   });
 
+  it('refuses a requirement source URL that is not an absolute http(s) link, and stores nothing', async () => {
+    const pack = await createPack(db, { actorAccountId: actor, key: 'url.bad', name: 'URL Bad' });
+    if (!isOk(pack)) throw new Error('pack');
+    const version = await addPackVersion(db, { actorAccountId: actor, packId: pack.value.id });
+    if (!isOk(version)) throw new Error('version');
+
+    for (const sourceUrl of [
+      'javascript:alert(1)',
+      'data:text/html,<script>alert(1)</script>',
+      '/relative/path',
+      'www.gov.uk/no-scheme',
+      'see the official website',
+    ]) {
+      const result = await addRequirement(db, {
+        actorAccountId: actor,
+        packVersionId: version.value.id,
+        kind: 'FIELD',
+        fieldKey: 'passport_expiry',
+        citation: 'UK Immigration Rules Appendix V 4.2',
+        sourceUrl,
+      });
+      expect(isErr(result), sourceUrl).toBe(true);
+      if (isErr(result)) {
+        expect(result.error.code).toBe('invalid');
+        expect(result.error.message).toBe('sourceUrl must be an http or https URL');
+      }
+    }
+    const stored = await db
+      .select()
+      .from(schema.packRequirements)
+      .where(eq(schema.packRequirements.packVersionId, version.value.id));
+    expect(stored).toEqual([]);
+  });
+
+  it('still accepts an http(s) source URL, and a requirement with no source URL at all', async () => {
+    const pack = await createPack(db, { actorAccountId: actor, key: 'url.ok', name: 'URL OK' });
+    if (!isOk(pack)) throw new Error('pack');
+    const version = await addPackVersion(db, { actorAccountId: actor, packId: pack.value.id });
+    if (!isOk(version)) throw new Error('version');
+    for (const sourceUrl of [
+      'https://www.gov.uk/standard-visitor',
+      'http://example.org/x',
+      undefined,
+    ]) {
+      const result = await addRequirement(db, {
+        actorAccountId: actor,
+        packVersionId: version.value.id,
+        kind: 'FIELD',
+        fieldKey: 'passport_expiry',
+        citation: 'UK Immigration Rules Appendix V 4.2',
+        ...(sourceUrl !== undefined ? { sourceUrl } : {}),
+      });
+      expect(isOk(result), String(sourceUrl)).toBe(true);
+    }
+  });
+
   it('stores a valid rule condition and source-grounding fields on a requirement, and records its author', async () => {
     const pack = await createPack(db, { actorAccountId: actor, key: 'cond.ok', name: 'Cond OK' });
     if (!isOk(pack)) throw new Error('pack');
@@ -762,6 +818,59 @@ describe('Pack Studio - Public Trust Lite (RUL-06)', () => {
     if (!isOk(trusted)) throw new Error('trusted');
     return { packId, packKey, versionId };
   }
+
+  it('setPublicTrustContent refuses an official channel or reporting URL that is not http(s), and changes nothing', async () => {
+    const { versionId } = await draftAuthoritative('trust.badurl');
+    const seeded = await setPublicTrustContent(db, {
+      actorAccountId: actor,
+      packVersionId: versionId,
+      officialChannelUrl: 'https://www.gov.uk/apply-uk-visa',
+      officialReportingUrl: 'https://www.gov.uk/report-immigration-crime',
+    });
+    expect(isOk(seeded)).toBe(true);
+
+    const cases = [
+      { officialChannelUrl: 'javascript:alert(1)', label: 'official channel URL' },
+      { officialChannelUrl: 'data:text/html,x', label: 'official channel URL' },
+      { officialReportingUrl: 'javascript:alert(1)', label: 'official reporting URL' },
+      { officialReportingUrl: '/just/a/path', label: 'official reporting URL' },
+    ] as const;
+    for (const { label, ...fields } of cases) {
+      const result = await setPublicTrustContent(db, {
+        actorAccountId: actor,
+        packVersionId: versionId,
+        ...fields,
+      });
+      expect(isErr(result), JSON.stringify(fields)).toBe(true);
+      if (isErr(result)) {
+        expect(result.error.code).toBe('invalid');
+        expect(result.error.message).toBe(`${label} must be an http or https URL`);
+      }
+    }
+    const [row] = await db
+      .select()
+      .from(schema.packVersions)
+      .where(eq(schema.packVersions.id, versionId));
+    expect(row?.officialChannelUrl).toBe('https://www.gov.uk/apply-uk-visa');
+    expect(row?.officialReportingUrl).toBe('https://www.gov.uk/report-immigration-crime');
+  });
+
+  it('setPublicTrustContent still lets an author clear a URL with a blank value', async () => {
+    const { versionId } = await draftAuthoritative('trust.clearurl');
+    const seeded = await setPublicTrustContent(db, {
+      actorAccountId: actor,
+      packVersionId: versionId,
+      officialChannelUrl: 'https://www.gov.uk/apply-uk-visa',
+    });
+    expect(isOk(seeded)).toBe(true);
+    const cleared = await setPublicTrustContent(db, {
+      actorAccountId: actor,
+      packVersionId: versionId,
+      officialChannelUrl: '   ',
+    });
+    expect(isOk(cleared)).toBe(true);
+    if (isOk(cleared)) expect(cleared.value.officialChannelUrl).toBeNull();
+  });
 
   it('setPublicTrustContent updates only the fields provided, leaving the rest untouched', async () => {
     const { versionId } = await draftAuthoritative('trust.partial');
