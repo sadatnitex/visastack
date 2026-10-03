@@ -4,8 +4,12 @@ import { useActionState, useState } from 'react';
 import { profileField } from '../../../../lib/profile-fields';
 import {
   type ActionState,
+  decideClassificationProposalAction,
+  decideInconsistencyFlagAction,
   decideProposalAction,
   runAiExtractionAction,
+  runClassificationAction,
+  runInconsistencyCheckAction,
   runOcrAction,
 } from './actions';
 
@@ -97,9 +101,12 @@ export function RunOcrButton({
 export function OcrResultView({
   text,
   reviewIssues,
+  usedFallback,
 }: {
   readonly text: string;
   readonly reviewIssues: readonly string[];
+  /** Part 8 §13 ("visible in UI"): true when this run's own `triggeredByRunId` is set -- it exists only because an earlier attempt against the primary provider recoverably failed (timeout/rate-limited) and this run is the fallback that actually succeeded. */
+  readonly usedFallback?: boolean;
 }) {
   return (
     <div
@@ -111,6 +118,16 @@ export function OcrResultView({
         border: '1px solid var(--hairline-soft)',
       }}
     >
+      {usedFallback ? (
+        <p style={{ marginBottom: '0.4rem' }}>
+          <span
+            className="badge badge-neutral"
+            title="The primary provider timed out or was rate-limited; this result came from the configured fallback provider instead (Part 8 §13)."
+          >
+            Fallback provider used
+          </span>
+        </p>
+      ) : null}
       {reviewIssues.length > 0 ? (
         <p style={{ marginBottom: '0.4rem' }}>
           {reviewIssues.map((issue) => (
@@ -245,6 +262,231 @@ export function AiProposalReview({
             {proposal.value ?? '(no value)'}
           </span>
         )}
+        <button
+          type="submit"
+          name="proposalAction"
+          value="reject"
+          className="btn btn-secondary"
+          style={{ padding: '0.35rem 0.9rem', fontSize: '0.8rem' }}
+          disabled={pending}
+        >
+          Reject
+        </button>
+      </form>
+      {state.message ? (
+        <p className={`field-msg ${state.ok ? 'field-msg-ok' : 'field-msg-err'}`}>
+          {state.message}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+/** Manually trigger AI document-type classification (Part 8 AI-01 item 2) -- shown only when the deterministic classifier itself left a genuine gap. */
+export function RunClassificationButton({
+  applicantId,
+  documentVersionId,
+}: {
+  readonly applicantId: string;
+  readonly documentVersionId: string;
+}) {
+  const [state, formAction, pending] = useActionState(runClassificationAction, INITIAL);
+
+  return (
+    <div style={{ marginTop: '0.35rem' }}>
+      <form action={formAction} style={{ display: 'inline' }}>
+        <input type="hidden" name="applicantId" value={applicantId} />
+        <input type="hidden" name="documentVersionId" value={documentVersionId} />
+        <button
+          type="submit"
+          className="btn btn-secondary"
+          style={{ padding: '0.3rem 0.9rem', fontSize: '0.8rem' }}
+          disabled={pending}
+        >
+          {pending ? 'Asking AI to suggest a type…' : 'Suggest document type with AI'}
+        </button>
+      </form>
+      {state.message ? (
+        <p className={`field-msg ${state.ok ? 'field-msg-ok' : 'field-msg-err'}`}>
+          {state.message}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+/** Manually trigger an AI possible-inconsistency check (Part 8 AI-01 item 4) -- compares this document against the applicant's own already-confirmed profile facts. */
+export function RunInconsistencyCheckButton({
+  applicantId,
+  documentVersionId,
+}: {
+  readonly applicantId: string;
+  readonly documentVersionId: string;
+}) {
+  const [state, formAction, pending] = useActionState(runInconsistencyCheckAction, INITIAL);
+
+  return (
+    <div style={{ marginTop: '0.35rem' }}>
+      <form action={formAction} style={{ display: 'inline' }}>
+        <input type="hidden" name="applicantId" value={applicantId} />
+        <input type="hidden" name="documentVersionId" value={documentVersionId} />
+        <button
+          type="submit"
+          className="btn btn-secondary"
+          style={{ padding: '0.3rem 0.9rem', fontSize: '0.8rem' }}
+          disabled={pending}
+        >
+          {pending ? 'Checking for inconsistencies…' : 'Check for inconsistencies with AI'}
+        </button>
+      </form>
+      {state.message ? (
+        <p className={`field-msg ${state.ok ? 'field-msg-ok' : 'field-msg-err'}`}>
+          {state.message}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+export interface InconsistencyFlagViewModel {
+  readonly id: string;
+  readonly description: string;
+  /** 0-100. */
+  readonly confidence: number;
+  readonly rationale: string | null;
+}
+
+/**
+ * A PENDING AI possible-inconsistency flag awaiting a human decision (Part 8
+ * AI-01 item 4). Purely advisory: neither acknowledging nor dismissing ever
+ * writes to the Master Profile or the document, so unlike `AiProposalReview`/
+ * `DocumentTypeProposalReview` there is no `canApprove`/CORE_PROCESSING gate
+ * here -- the flag never implies which side (document or profile) is wrong,
+ * only that a human should look.
+ */
+export function InconsistencyFlagReview({
+  applicantId,
+  flag,
+}: {
+  readonly applicantId: string;
+  readonly flag: InconsistencyFlagViewModel;
+}) {
+  const [state, formAction, pending] = useActionState(decideInconsistencyFlagAction, INITIAL);
+
+  return (
+    <div
+      className="card"
+      style={{
+        padding: '0.85rem',
+        marginTop: '0.5rem',
+        background: 'var(--bg-subtle)',
+        border: '1px solid var(--hairline-soft)',
+      }}
+    >
+      <p className="muted" style={{ fontSize: '0.75rem', marginBottom: '0.4rem' }}>
+        <span className="badge badge-warning">
+          Possible inconsistency ({flag.confidence}% confidence)
+        </span>{' '}
+        {flag.description}
+        {flag.rationale ? ` - ${flag.rationale}` : ''}
+      </p>
+      <form
+        action={formAction}
+        style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}
+      >
+        <input type="hidden" name="applicantId" value={applicantId} />
+        <input type="hidden" name="flagId" value={flag.id} />
+        <button
+          type="submit"
+          name="flagAction"
+          value="acknowledge"
+          className="btn btn-primary"
+          style={{ padding: '0.35rem 0.9rem', fontSize: '0.8rem' }}
+          disabled={pending}
+        >
+          {pending ? 'Saving…' : 'Acknowledge'}
+        </button>
+        <button
+          type="submit"
+          name="flagAction"
+          value="dismiss"
+          className="btn btn-secondary"
+          style={{ padding: '0.35rem 0.9rem', fontSize: '0.8rem' }}
+          disabled={pending}
+        >
+          Dismiss
+        </button>
+      </form>
+      {state.message ? (
+        <p className={`field-msg ${state.ok ? 'field-msg-ok' : 'field-msg-err'}`}>
+          {state.message}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+export interface DocumentTypeProposalViewModel {
+  readonly id: string;
+  readonly suggestedType: string;
+  readonly confidence: number;
+  readonly rationale: string | null;
+}
+
+/**
+ * A PENDING AI document-type suggestion awaiting a human decision (Part 8
+ * AI-01 item 2). No edit-before-approve field, unlike `AiProposalReview` --
+ * a document type is a single suggested value, not a free-text field value,
+ * so the only choices are approve-as-suggested or reject. Approving reuses
+ * the exact same downstream naming-proposal trigger the deterministic path
+ * already has (`approveDocumentTypeProposal`).
+ */
+export function DocumentTypeProposalReview({
+  applicantId,
+  proposal,
+  canApprove,
+}: {
+  readonly applicantId: string;
+  readonly proposal: DocumentTypeProposalViewModel;
+  /** Same CORE_PROCESSING gate `AiProposalReview`'s own `canApprove` documents -- approving writes `documents.docType` and a naming proposal. */
+  readonly canApprove: boolean;
+}) {
+  const [state, formAction, pending] = useActionState(decideClassificationProposalAction, INITIAL);
+
+  return (
+    <div
+      className="card"
+      style={{
+        padding: '0.85rem',
+        marginTop: '0.5rem',
+        background: 'var(--bg-subtle)',
+        border: '1px solid var(--hairline-soft)',
+      }}
+    >
+      <p className="muted" style={{ fontSize: '0.75rem', marginBottom: '0.4rem' }}>
+        <span className="badge badge-neutral">
+          AI suggests: {proposal.suggestedType} ({proposal.confidence}% confidence)
+        </span>
+        {proposal.rationale ? ` - ${proposal.rationale}` : ''}
+      </p>
+      <form
+        action={formAction}
+        style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}
+      >
+        <input type="hidden" name="applicantId" value={applicantId} />
+        <input type="hidden" name="proposalId" value={proposal.id} />
+        {canApprove ? (
+          <button
+            type="submit"
+            name="proposalAction"
+            value="approve"
+            className="btn btn-primary"
+            style={{ padding: '0.35rem 0.9rem', fontSize: '0.8rem' }}
+            disabled={pending}
+          >
+            {pending ? 'Saving…' : 'Approve'}
+          </button>
+        ) : null}
         <button
           type="submit"
           name="proposalAction"

@@ -346,3 +346,322 @@ describe('GeminiExtractionAdapter', () => {
     expect(outcome.result.usage.latencyMs).toBeGreaterThanOrEqual(0);
   });
 });
+
+const CLASSIFY_INPUT = {
+  documentVersionId: 'doc-version-1',
+  text: 'statement of account, opening balance, closing balance',
+  allowedTypes: ['PASSPORT', 'BANK_STATEMENT', 'EMPLOYMENT_CERTIFICATE'],
+};
+
+describe('GeminiExtractionAdapter.classify (Part 8 AI-01 item 2)', () => {
+  it('parses a well-formed JSON-mode response into a suggestion', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(
+      jsonResponse(200, {
+        candidates: [
+          {
+            content: {
+              parts: [
+                {
+                  text: JSON.stringify({
+                    suggestedType: 'BANK_STATEMENT',
+                    confidence: 0.85,
+                    rationale: 'mentions opening and closing balance',
+                  }),
+                },
+              ],
+            },
+            finishReason: 'STOP',
+          },
+        ],
+        usageMetadata: { promptTokenCount: 10, candidatesTokenCount: 10, totalTokenCount: 20 },
+      }),
+    );
+    const adapter = new GeminiExtractionAdapter({ apiKey: 'AIza-test', fetchImpl });
+    const outcome = await adapter.classify(CLASSIFY_INPUT);
+
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+    expect(outcome.result.suggestedType).toBe('BANK_STATEMENT');
+    expect(outcome.result.confidence).toBe(0.85);
+    expect(outcome.result.usage.schemaVersion).toBe('document_classification_v1');
+
+    const [, requestInit] = fetchImpl.mock.calls[0] as [string, RequestInit];
+    const body = JSON.parse(requestInit.body as string);
+    expect(body.generationConfig.responseSchema.required).toEqual(['confidence']);
+    expect(JSON.stringify(body)).toContain('BANK_STATEMENT');
+  });
+
+  it('reports a null suggestedType when the model omits it entirely', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(
+      jsonResponse(200, {
+        candidates: [
+          {
+            content: { parts: [{ text: JSON.stringify({ confidence: 0.1 }) }] },
+            finishReason: 'STOP',
+          },
+        ],
+        usageMetadata: {},
+      }),
+    );
+    const adapter = new GeminiExtractionAdapter({ apiKey: 'AIza-test', fetchImpl });
+    const outcome = await adapter.classify(CLASSIFY_INPUT);
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+    expect(outcome.result.suggestedType).toBeNull();
+  });
+
+  it('reports refused on a non-normal finish reason', async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValue(
+        jsonResponse(200, { candidates: [{ content: { parts: [] }, finishReason: 'SAFETY' }] }),
+      );
+    const adapter = new GeminiExtractionAdapter({ apiKey: 'AIza-test', fetchImpl });
+    const outcome = await adapter.classify(CLASSIFY_INPUT);
+    expect(outcome.ok).toBe(false);
+    if (outcome.ok) return;
+    expect(outcome.code).toBe('refused');
+  });
+
+  it('reports truncated when MAX_TOKENS was reached', async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValue(
+        jsonResponse(200, { candidates: [{ content: { parts: [] }, finishReason: 'MAX_TOKENS' }] }),
+      );
+    const adapter = new GeminiExtractionAdapter({ apiKey: 'AIza-test', fetchImpl });
+    const outcome = await adapter.classify(CLASSIFY_INPUT);
+    expect(outcome.ok).toBe(false);
+    if (outcome.ok) return;
+    expect(outcome.code).toBe('truncated');
+  });
+
+  it('reports auth_failed on the documented "API key not valid" HTTP 400 shape', async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValue(
+        new Response(JSON.stringify({ error: { message: 'API key not valid' } }), { status: 400 }),
+      );
+    const adapter = new GeminiExtractionAdapter({ apiKey: 'AIza-test', fetchImpl });
+    const outcome = await adapter.classify(CLASSIFY_INPUT);
+    expect(outcome.ok).toBe(false);
+    if (outcome.ok) return;
+    expect(outcome.code).toBe('auth_failed');
+  });
+
+  it("classifyCacheKeyComponents never collides with extract()'s own cacheKeyComponents", () => {
+    const adapter = new GeminiExtractionAdapter({ apiKey: 'AIza-test' });
+    const extractionComponents = adapter.cacheKeyComponents();
+    const classifyComponents = adapter.classifyCacheKeyComponents();
+    expect(classifyComponents.schemaVersion).not.toBe(extractionComponents.schemaVersion);
+  });
+});
+
+const EXPLAIN_INPUT = {
+  requirementKind: 'DOCUMENT' as const,
+  requirementKey: 'BANK_STATEMENT',
+  state: 'CRITICAL_GAP' as const,
+  citation: 'Route guide §4.2: proof of funds required.',
+  optional: false,
+};
+
+describe('GeminiExtractionAdapter.explain (Part 8 AI-01 item 5)', () => {
+  it('parses a well-formed JSON-mode response into an explanation', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(
+      jsonResponse(200, {
+        candidates: [
+          {
+            content: {
+              parts: [
+                {
+                  text: JSON.stringify({
+                    explanation:
+                      'You need a recent bank statement to show you can support your trip.',
+                  }),
+                },
+              ],
+            },
+            finishReason: 'STOP',
+          },
+        ],
+        usageMetadata: { promptTokenCount: 10, candidatesTokenCount: 10, totalTokenCount: 20 },
+      }),
+    );
+    const adapter = new GeminiExtractionAdapter({ apiKey: 'AIza-test', fetchImpl });
+    const outcome = await adapter.explain(EXPLAIN_INPUT);
+
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+    expect(outcome.result.explanation).toContain('bank statement');
+    expect(outcome.result.usage.schemaVersion).toBe('readiness_gap_explanation_v1');
+
+    const [, requestInit] = fetchImpl.mock.calls[0] as [string, RequestInit];
+    const body = JSON.parse(requestInit.body as string);
+    expect(JSON.stringify(body)).toContain('Route guide');
+  });
+
+  it('reports refused on a non-normal finish reason', async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValue(
+        jsonResponse(200, { candidates: [{ content: { parts: [] }, finishReason: 'SAFETY' }] }),
+      );
+    const adapter = new GeminiExtractionAdapter({ apiKey: 'AIza-test', fetchImpl });
+    const outcome = await adapter.explain(EXPLAIN_INPUT);
+    expect(outcome.ok).toBe(false);
+    if (outcome.ok) return;
+    expect(outcome.code).toBe('refused');
+  });
+
+  it('reports truncated when MAX_TOKENS was reached', async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValue(
+        jsonResponse(200, { candidates: [{ content: { parts: [] }, finishReason: 'MAX_TOKENS' }] }),
+      );
+    const adapter = new GeminiExtractionAdapter({ apiKey: 'AIza-test', fetchImpl });
+    const outcome = await adapter.explain(EXPLAIN_INPUT);
+    expect(outcome.ok).toBe(false);
+    if (outcome.ok) return;
+    expect(outcome.code).toBe('truncated');
+  });
+
+  it('reports auth_failed on the documented "API key not valid" HTTP 400 shape', async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValue(
+        new Response(JSON.stringify({ error: { message: 'API key not valid' } }), { status: 400 }),
+      );
+    const adapter = new GeminiExtractionAdapter({ apiKey: 'AIza-test', fetchImpl });
+    const outcome = await adapter.explain(EXPLAIN_INPUT);
+    expect(outcome.ok).toBe(false);
+    if (outcome.ok) return;
+    expect(outcome.code).toBe('auth_failed');
+  });
+
+  it("explainCacheKeyComponents never collides with extract()'s or classify()'s own cache-key methods", () => {
+    const adapter = new GeminiExtractionAdapter({ apiKey: 'AIza-test' });
+    const extractionComponents = adapter.cacheKeyComponents();
+    const classifyComponents = adapter.classifyCacheKeyComponents();
+    const explainComponents = adapter.explainCacheKeyComponents();
+    expect(explainComponents.schemaVersion).not.toBe(extractionComponents.schemaVersion);
+    expect(explainComponents.schemaVersion).not.toBe(classifyComponents.schemaVersion);
+  });
+});
+
+const INCONSISTENCY_INPUT = {
+  documentVersionId: 'doc-version-1',
+  text: 'Name: Anna Marie Eriksson. DOB: 1990-04-02.',
+  profileFacts: [{ fieldKey: 'applicant.givenNames', value: 'Anna Maria' }],
+};
+
+describe('GeminiExtractionAdapter.checkConsistency (Part 8 AI-01 item 4)', () => {
+  it('parses a well-formed JSON-mode response into flags', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(
+      jsonResponse(200, {
+        candidates: [
+          {
+            content: {
+              parts: [
+                {
+                  text: JSON.stringify({
+                    flags: [
+                      {
+                        description: 'Given names differ between the document and the profile',
+                        confidence: 0.7,
+                        rationale: '"Marie" on the document vs. "Maria" on file',
+                      },
+                    ],
+                  }),
+                },
+              ],
+            },
+            finishReason: 'STOP',
+          },
+        ],
+        usageMetadata: { promptTokenCount: 12, candidatesTokenCount: 12, totalTokenCount: 24 },
+      }),
+    );
+    const adapter = new GeminiExtractionAdapter({ apiKey: 'AIza-test', fetchImpl });
+    const outcome = await adapter.checkConsistency(INCONSISTENCY_INPUT);
+
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+    expect(outcome.result.flags).toHaveLength(1);
+    expect(outcome.result.flags[0]?.description).toContain('Given names differ');
+    expect(outcome.result.usage.schemaVersion).toBe('inconsistency_flags_v1');
+
+    const [, requestInit] = fetchImpl.mock.calls[0] as [string, RequestInit];
+    const body = JSON.parse(requestInit.body as string);
+    expect(JSON.stringify(body)).toContain('Anna Maria');
+  });
+
+  it('reports zero flags as a genuine, valid, good outcome', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(
+      jsonResponse(200, {
+        candidates: [
+          {
+            content: { parts: [{ text: JSON.stringify({ flags: [] }) }] },
+            finishReason: 'STOP',
+          },
+        ],
+        usageMetadata: { promptTokenCount: 8, candidatesTokenCount: 2, totalTokenCount: 10 },
+      }),
+    );
+    const adapter = new GeminiExtractionAdapter({ apiKey: 'AIza-test', fetchImpl });
+    const outcome = await adapter.checkConsistency(INCONSISTENCY_INPUT);
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+    expect(outcome.result.flags).toHaveLength(0);
+  });
+
+  it('reports refused on a non-normal finish reason', async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValue(
+        jsonResponse(200, { candidates: [{ content: { parts: [] }, finishReason: 'SAFETY' }] }),
+      );
+    const adapter = new GeminiExtractionAdapter({ apiKey: 'AIza-test', fetchImpl });
+    const outcome = await adapter.checkConsistency(INCONSISTENCY_INPUT);
+    expect(outcome.ok).toBe(false);
+    if (outcome.ok) return;
+    expect(outcome.code).toBe('refused');
+  });
+
+  it('reports truncated when MAX_TOKENS was reached', async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValue(
+        jsonResponse(200, { candidates: [{ content: { parts: [] }, finishReason: 'MAX_TOKENS' }] }),
+      );
+    const adapter = new GeminiExtractionAdapter({ apiKey: 'AIza-test', fetchImpl });
+    const outcome = await adapter.checkConsistency(INCONSISTENCY_INPUT);
+    expect(outcome.ok).toBe(false);
+    if (outcome.ok) return;
+    expect(outcome.code).toBe('truncated');
+  });
+
+  it('reports auth_failed on the documented "API key not valid" HTTP 400 shape', async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValue(
+        new Response(JSON.stringify({ error: { message: 'API key not valid' } }), { status: 400 }),
+      );
+    const adapter = new GeminiExtractionAdapter({ apiKey: 'AIza-test', fetchImpl });
+    const outcome = await adapter.checkConsistency(INCONSISTENCY_INPUT);
+    expect(outcome.ok).toBe(false);
+    if (outcome.ok) return;
+    expect(outcome.code).toBe('auth_failed');
+  });
+
+  it("inconsistencyCacheKeyComponents never collides with any other port's own cache-key method", () => {
+    const adapter = new GeminiExtractionAdapter({ apiKey: 'AIza-test' });
+    const extractionComponents = adapter.cacheKeyComponents();
+    const classifyComponents = adapter.classifyCacheKeyComponents();
+    const explainComponents = adapter.explainCacheKeyComponents();
+    const inconsistencyComponents = adapter.inconsistencyCacheKeyComponents();
+    expect(inconsistencyComponents.schemaVersion).not.toBe(extractionComponents.schemaVersion);
+    expect(inconsistencyComponents.schemaVersion).not.toBe(classifyComponents.schemaVersion);
+    expect(inconsistencyComponents.schemaVersion).not.toBe(explainComponents.schemaVersion);
+  });
+});

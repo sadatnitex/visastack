@@ -21,6 +21,8 @@ export const PRODUCT_EVENT_TYPES = [
   'GRANT_CREATED',
   'AI_EXTRACTION_RUN',
   'AI_OCR_RUN',
+  'AI_CLASSIFICATION_RUN',
+  'AI_INCONSISTENCY_RUN',
 ] as const;
 
 export type ProductEventType = (typeof PRODUCT_EVENT_TYPES)[number];

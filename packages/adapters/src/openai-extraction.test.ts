@@ -248,3 +248,280 @@ describe('OpenAiExtractionAdapter', () => {
     expect(outcome.result.usage.latencyMs).toBeGreaterThanOrEqual(0);
   });
 });
+
+const CLASSIFY_INPUT = {
+  documentVersionId: 'doc-version-1',
+  text: 'statement of account, opening balance, closing balance',
+  allowedTypes: ['PASSPORT', 'BANK_STATEMENT', 'EMPLOYMENT_CERTIFICATE'],
+};
+
+describe('OpenAiExtractionAdapter.classify (Part 8 AI-01 item 2)', () => {
+  it('parses a well-formed structured-output response into a suggestion', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(
+      jsonResponse(200, {
+        output_text: JSON.stringify({
+          suggestedType: 'BANK_STATEMENT',
+          confidence: 0.85,
+          rationale: 'mentions opening and closing balance',
+        }),
+        usage: { total_tokens: 20 },
+      }),
+    );
+    const adapter = new OpenAiExtractionAdapter({ apiKey: 'sk-test', fetchImpl });
+    const outcome = await adapter.classify(CLASSIFY_INPUT);
+
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+    expect(outcome.result.suggestedType).toBe('BANK_STATEMENT');
+    expect(outcome.result.confidence).toBe(0.85);
+    expect(outcome.result.usage.costUnits).toBe(20);
+    expect(outcome.result.usage.schemaVersion).toBe('document_classification_v1');
+    // A distinct prompt version from extract()'s own -- the two tasks are cached independently.
+    expect(outcome.result.usage.promptVersion).not.toBe('2026-07-29-v1');
+
+    const [, requestInit] = fetchImpl.mock.calls[0] as [string, RequestInit];
+    const body = JSON.parse(requestInit.body as string);
+    expect(JSON.stringify(body)).toContain('BANK_STATEMENT');
+    expect(body.text.format.name).toBe('document_classification');
+  });
+
+  it('reports a null suggestedType as a genuine "could not classify", not an error', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(
+      jsonResponse(200, {
+        output_text: JSON.stringify({ suggestedType: null, confidence: 0.1, rationale: 'unclear' }),
+        usage: { total_tokens: 5 },
+      }),
+    );
+    const adapter = new OpenAiExtractionAdapter({ apiKey: 'sk-test', fetchImpl });
+    const outcome = await adapter.classify(CLASSIFY_INPUT);
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+    expect(outcome.result.suggestedType).toBeNull();
+  });
+
+  it('reports refused when the model declines via the structured-output refusal field', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(
+      jsonResponse(200, {
+        output: [{ content: [{ refusal: 'cannot help with this' }] }],
+      }),
+    );
+    const adapter = new OpenAiExtractionAdapter({ apiKey: 'sk-test', fetchImpl });
+    const outcome = await adapter.classify(CLASSIFY_INPUT);
+    expect(outcome.ok).toBe(false);
+    if (outcome.ok) return;
+    expect(outcome.code).toBe('refused');
+  });
+
+  it('reports truncated when the response was cut off before completing', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(
+      jsonResponse(200, {
+        status: 'incomplete',
+        output_text: JSON.stringify({ suggestedType: null, confidence: 0, rationale: null }),
+      }),
+    );
+    const adapter = new OpenAiExtractionAdapter({ apiKey: 'sk-test', fetchImpl });
+    const outcome = await adapter.classify(CLASSIFY_INPUT);
+    expect(outcome.ok).toBe(false);
+    if (outcome.ok) return;
+    expect(outcome.code).toBe('truncated');
+  });
+
+  it('reports auth_failed on HTTP 401', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(jsonResponse(401, { error: 'bad key' }));
+    const adapter = new OpenAiExtractionAdapter({ apiKey: 'sk-test', fetchImpl });
+    const outcome = await adapter.classify(CLASSIFY_INPUT);
+    expect(outcome.ok).toBe(false);
+    if (outcome.ok) return;
+    expect(outcome.code).toBe('auth_failed');
+  });
+
+  it("classifyCacheKeyComponents never collides with extract()'s own cacheKeyComponents", () => {
+    const adapter = new OpenAiExtractionAdapter({ apiKey: 'sk-test' });
+    const extractionComponents = adapter.cacheKeyComponents();
+    const classifyComponents = adapter.classifyCacheKeyComponents();
+    expect(classifyComponents.schemaVersion).not.toBe(extractionComponents.schemaVersion);
+    expect(classifyComponents.promptVersion).not.toBe(extractionComponents.promptVersion);
+  });
+});
+
+const EXPLAIN_INPUT = {
+  requirementKind: 'DOCUMENT' as const,
+  requirementKey: 'BANK_STATEMENT',
+  state: 'CRITICAL_GAP' as const,
+  citation: 'Route guide §4.2: proof of funds required.',
+  optional: false,
+};
+
+describe('OpenAiExtractionAdapter.explain (Part 8 AI-01 item 5)', () => {
+  it('parses a well-formed structured-output response into an explanation', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(
+      jsonResponse(200, {
+        output_text: JSON.stringify({
+          explanation: 'You need a recent bank statement to show you can support your trip.',
+        }),
+        usage: { total_tokens: 15 },
+      }),
+    );
+    const adapter = new OpenAiExtractionAdapter({ apiKey: 'sk-test', fetchImpl });
+    const outcome = await adapter.explain(EXPLAIN_INPUT);
+
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+    expect(outcome.result.explanation).toContain('bank statement');
+    expect(outcome.result.usage.schemaVersion).toBe('readiness_gap_explanation_v1');
+    expect(outcome.result.usage.promptVersion).not.toBe('2026-07-29-v1');
+
+    const [, requestInit] = fetchImpl.mock.calls[0] as [string, RequestInit];
+    const body = JSON.parse(requestInit.body as string);
+    expect(JSON.stringify(body)).toContain('Route guide');
+    expect(body.text.format.name).toBe('readiness_gap_explanation');
+  });
+
+  it('reports refused when the model declines via the structured-output refusal field', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(
+      jsonResponse(200, {
+        output: [{ content: [{ refusal: 'cannot help with this' }] }],
+      }),
+    );
+    const adapter = new OpenAiExtractionAdapter({ apiKey: 'sk-test', fetchImpl });
+    const outcome = await adapter.explain(EXPLAIN_INPUT);
+    expect(outcome.ok).toBe(false);
+    if (outcome.ok) return;
+    expect(outcome.code).toBe('refused');
+  });
+
+  it('reports truncated when the response was cut off before completing', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(
+      jsonResponse(200, {
+        status: 'incomplete',
+        output_text: JSON.stringify({ explanation: '' }),
+      }),
+    );
+    const adapter = new OpenAiExtractionAdapter({ apiKey: 'sk-test', fetchImpl });
+    const outcome = await adapter.explain(EXPLAIN_INPUT);
+    expect(outcome.ok).toBe(false);
+    if (outcome.ok) return;
+    expect(outcome.code).toBe('truncated');
+  });
+
+  it('reports rate_limited on HTTP 429', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(jsonResponse(429, { error: 'slow down' }));
+    const adapter = new OpenAiExtractionAdapter({ apiKey: 'sk-test', fetchImpl });
+    const outcome = await adapter.explain(EXPLAIN_INPUT);
+    expect(outcome.ok).toBe(false);
+    if (outcome.ok) return;
+    expect(outcome.code).toBe('rate_limited');
+  });
+
+  it("explainCacheKeyComponents never collides with extract()'s or classify()'s own cache-key methods", () => {
+    const adapter = new OpenAiExtractionAdapter({ apiKey: 'sk-test' });
+    const extractionComponents = adapter.cacheKeyComponents();
+    const classifyComponents = adapter.classifyCacheKeyComponents();
+    const explainComponents = adapter.explainCacheKeyComponents();
+    expect(explainComponents.schemaVersion).not.toBe(extractionComponents.schemaVersion);
+    expect(explainComponents.schemaVersion).not.toBe(classifyComponents.schemaVersion);
+  });
+});
+
+const INCONSISTENCY_INPUT = {
+  documentVersionId: 'doc-version-1',
+  text: 'Name: Anna Marie Eriksson. DOB: 1990-04-02.',
+  profileFacts: [{ fieldKey: 'applicant.givenNames', value: 'Anna Maria' }],
+};
+
+describe('OpenAiExtractionAdapter.checkConsistency (Part 8 AI-01 item 4)', () => {
+  it('parses a well-formed structured-output response into flags', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(
+      jsonResponse(200, {
+        output_text: JSON.stringify({
+          flags: [
+            {
+              description: 'Given names differ between the document and the profile',
+              confidence: 0.7,
+              rationale: '"Marie" on the document vs. "Maria" on file',
+            },
+          ],
+        }),
+        usage: { total_tokens: 30 },
+      }),
+    );
+    const adapter = new OpenAiExtractionAdapter({ apiKey: 'sk-test', fetchImpl });
+    const outcome = await adapter.checkConsistency(INCONSISTENCY_INPUT);
+
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+    expect(outcome.result.flags).toHaveLength(1);
+    expect(outcome.result.flags[0]?.description).toContain('Given names differ');
+    expect(outcome.result.flags[0]?.confidence).toBe(0.7);
+    expect(outcome.result.usage.costUnits).toBe(30);
+    expect(outcome.result.usage.schemaVersion).toBe('inconsistency_flags_v1');
+    // A distinct prompt version from every other task's own -- cached independently.
+    expect(outcome.result.usage.promptVersion).not.toBe('2026-07-29-v1');
+
+    const [, requestInit] = fetchImpl.mock.calls[0] as [string, RequestInit];
+    const body = JSON.parse(requestInit.body as string);
+    expect(JSON.stringify(body)).toContain('Anna Maria');
+    expect(body.text.format.name).toBe('inconsistency_flags');
+  });
+
+  it('reports zero flags as a genuine, valid, good outcome', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(
+      jsonResponse(200, {
+        output_text: JSON.stringify({ flags: [] }),
+        usage: { total_tokens: 10 },
+      }),
+    );
+    const adapter = new OpenAiExtractionAdapter({ apiKey: 'sk-test', fetchImpl });
+    const outcome = await adapter.checkConsistency(INCONSISTENCY_INPUT);
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+    expect(outcome.result.flags).toHaveLength(0);
+  });
+
+  it('reports refused when the model declines via the structured-output refusal field', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(
+      jsonResponse(200, {
+        output: [{ content: [{ refusal: 'cannot help with this' }] }],
+      }),
+    );
+    const adapter = new OpenAiExtractionAdapter({ apiKey: 'sk-test', fetchImpl });
+    const outcome = await adapter.checkConsistency(INCONSISTENCY_INPUT);
+    expect(outcome.ok).toBe(false);
+    if (outcome.ok) return;
+    expect(outcome.code).toBe('refused');
+  });
+
+  it('reports truncated when the response was cut off before completing', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(
+      jsonResponse(200, {
+        status: 'incomplete',
+        output_text: JSON.stringify({ flags: [] }),
+      }),
+    );
+    const adapter = new OpenAiExtractionAdapter({ apiKey: 'sk-test', fetchImpl });
+    const outcome = await adapter.checkConsistency(INCONSISTENCY_INPUT);
+    expect(outcome.ok).toBe(false);
+    if (outcome.ok) return;
+    expect(outcome.code).toBe('truncated');
+  });
+
+  it('reports auth_failed on HTTP 401', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(jsonResponse(401, { error: 'bad key' }));
+    const adapter = new OpenAiExtractionAdapter({ apiKey: 'sk-test', fetchImpl });
+    const outcome = await adapter.checkConsistency(INCONSISTENCY_INPUT);
+    expect(outcome.ok).toBe(false);
+    if (outcome.ok) return;
+    expect(outcome.code).toBe('auth_failed');
+  });
+
+  it("inconsistencyCacheKeyComponents never collides with any other port's own cache-key method", () => {
+    const adapter = new OpenAiExtractionAdapter({ apiKey: 'sk-test' });
+    const extractionComponents = adapter.cacheKeyComponents();
+    const classifyComponents = adapter.classifyCacheKeyComponents();
+    const explainComponents = adapter.explainCacheKeyComponents();
+    const inconsistencyComponents = adapter.inconsistencyCacheKeyComponents();
+    expect(inconsistencyComponents.schemaVersion).not.toBe(extractionComponents.schemaVersion);
+    expect(inconsistencyComponents.schemaVersion).not.toBe(classifyComponents.schemaVersion);
+    expect(inconsistencyComponents.schemaVersion).not.toBe(explainComponents.schemaVersion);
+  });
+});

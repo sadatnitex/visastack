@@ -63,6 +63,10 @@ export interface CreateDraftAiProviderConfigInput {
   readonly maxPagesPerDocument?: number;
   readonly cacheMaxAgeDays?: number;
   readonly maxConcurrentCalls?: number;
+  /** Part 8 §13 ("cross-provider fallback... OFF by default"). Omitted/false unless the admin explicitly opts in. */
+  readonly fallbackEnabled?: boolean;
+  /** Required when `fallbackEnabled` is true; deeper eligibility (exists, different provider, still approved/not revoked) is checked at activation time, not here -- a DRAFT is inert either way. */
+  readonly fallbackProviderConfigId?: string;
   readonly notes?: string;
 }
 
@@ -93,6 +97,11 @@ export async function createDraftAiProviderConfig(
   }
   if (!(input.budgetLimitUnits > 0)) {
     return err(serviceError('invalid', 'a positive budget limit is required'));
+  }
+  if (input.fallbackEnabled && !input.fallbackProviderConfigId) {
+    return err(
+      serviceError('invalid', 'a fallback configuration must be selected to enable fallback'),
+    );
   }
 
   return db.transaction(async (tx) => {
@@ -138,6 +147,10 @@ export async function createDraftAiProviderConfig(
             ...(input.maxConcurrentCalls !== undefined
               ? { maxConcurrentCalls: input.maxConcurrentCalls }
               : {}),
+            ...(input.fallbackEnabled ? { fallbackEnabled: true } : {}),
+            ...(input.fallbackProviderConfigId
+              ? { fallbackProviderConfigId: input.fallbackProviderConfigId }
+              : {}),
             ...(input.notes ? { notes: input.notes } : {}),
             createdByAccountId: input.actor.accountId,
           })
@@ -170,6 +183,18 @@ export interface ActivateAiProviderConfigInput {
  * revoked -- the same eligibility bar `rollbackAiProviderConfig` enforces,
  * applied here too so activation and rollback can never disagree about what
  * counts as safe to run.
+ *
+ * When `fallbackEnabled`, also verifies the designated fallback target NOW
+ * (Part 8 §13: "provider already passed same privacy/task/budget gates"),
+ * not just that it looked eligible whenever it was picked -- the same
+ * dataPolicyApproved/keyRevokedAt bar as the row being activated itself, and
+ * a genuinely different provider (a same-provider "fallback" would share
+ * whatever outage or key problem took the primary down, defeating the whole
+ * point of a *cross-provider* fallback). This table's own single-winner
+ * invariant means the fallback target can never itself be the current ACTIVE
+ * row -- it is necessarily some other status (most naturally the config this
+ * activation is about to supersede, or a still-DRAFT alternative kept on
+ * hand), so status is deliberately not checked here, only eligibility.
  */
 export async function activateAiProviderConfig(
   db: Db,
@@ -206,6 +231,38 @@ export async function activateAiProviderConfig(
     }
     if (target.keyRevokedAt !== null) {
       return err(serviceError('invalid', "this configuration's key has been revoked"));
+    }
+    if (target.fallbackEnabled) {
+      if (!target.fallbackProviderConfigId) {
+        return err(
+          serviceError('invalid', 'a fallback configuration must be selected to enable fallback'),
+        );
+      }
+      const fallbackTarget = first(
+        await tx
+          .select()
+          .from(schema.aiProviderConfigs)
+          .where(eq(schema.aiProviderConfigs.id, target.fallbackProviderConfigId))
+          .limit(1),
+      );
+      if (!fallbackTarget) {
+        return err(
+          serviceError('invalid', 'the designated fallback configuration no longer exists'),
+        );
+      }
+      if (fallbackTarget.provider === target.provider) {
+        return err(
+          serviceError('invalid', 'the fallback configuration must use a different provider'),
+        );
+      }
+      if (!fallbackTarget.dataPolicyApproved) {
+        return err(
+          serviceError('invalid', "the fallback configuration's data policy must be approved"),
+        );
+      }
+      if (fallbackTarget.keyRevokedAt !== null) {
+        return err(serviceError('invalid', "the fallback configuration's key has been revoked"));
+      }
     }
 
     const currentActive = first(
@@ -478,6 +535,32 @@ export async function getActiveAiProviderConfig(db: Db): Promise<AiProviderConfi
       .select()
       .from(schema.aiProviderConfigs)
       .where(eq(schema.aiProviderConfigs.status, 'ACTIVE'))
+      .limit(1),
+  );
+}
+
+/**
+ * Part 8 §13 (cross-provider fallback): a single configuration by id, with
+ * the SAME "no authorization check, platform-internal read" trust level as
+ * `getActiveAiProviderConfig` just above -- consulted by `resolveAiExtractor`/
+ * `resolveOcrAdapter` (apps/web) to re-verify a designated fallback target's
+ * LIVE eligibility at the exact moment it might actually be dispatched to,
+ * on behalf of whatever document-owner request is already otherwise
+ * authorized, never a SECURITY_ADMIN action in its own right. Deliberately
+ * separate from `getAiProviderConfigById` below, which stays actor-gated for
+ * the admin UI's own "test a specific config" journey -- this one is
+ * intentionally narrow (a fallback-target lookup only) rather than a
+ * general-purpose escape hatch around that gate.
+ */
+export async function getAiProviderConfigForFallback(
+  db: Db,
+  configId: string,
+): Promise<AiProviderConfig | undefined> {
+  return first(
+    await db
+      .select()
+      .from(schema.aiProviderConfigs)
+      .where(eq(schema.aiProviderConfigs.id, configId))
       .limit(1),
   );
 }

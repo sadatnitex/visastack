@@ -9,15 +9,30 @@ import { migrate } from 'drizzle-orm/pglite/migrator';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { provisionAccount } from './accounts';
 import {
+  type AiClassifyOutcome,
+  type AiClassifyPort,
+  type AiExplainOutcome,
+  type AiExplainPort,
   type AiExtractionOutcome,
   type AiExtractionPort,
+  type AiInconsistencyOutcome,
+  type AiInconsistencyPort,
   type FieldProposal,
+  acknowledgeInconsistencyFlag,
+  approveDocumentTypeProposal,
   approveProposal,
+  dismissInconsistencyFlag,
   documentAiCostUnits,
+  explainReadinessGap,
   getLatestOcrRun,
+  listPendingDocumentTypeProposals,
+  listPendingInconsistencyFlags,
   listPendingProposals,
+  rejectDocumentTypeProposal,
   rejectProposal,
+  runClassification,
   runExtraction,
+  runInconsistencyCheck,
   runOcr,
   totalAiCostUnits,
 } from './ai';
@@ -1769,5 +1784,1436 @@ describe('AI Gateway -- runOcr (Part 8 Chunk 20)', () => {
   it('getLatestOcrRun returns undefined when no OCR run has ever succeeded for this document', async () => {
     const { versionId } = await seedVersion(db, 'ocr-latest-run-none@example.com');
     expect(await getLatestOcrRun(db, versionId)).toBeUndefined();
+  });
+});
+
+/** A second stub adapter with a genuinely different cache-key model, standing in for a designated fallback provider. */
+function fallbackStubAi(
+  result: AiExtractionOutcome = {
+    ok: true,
+    result: {
+      proposals,
+      usage: { ...usage, provider: 'anthropic', modelVersion: 'claude-sonnet-5' },
+    },
+  },
+): AiExtractionPort {
+  return {
+    async extract() {
+      return result;
+    },
+    cacheKeyComponents() {
+      return { model: 'claude-sonnet-5', promptVersion: 'p1', schemaVersion: 's1' };
+    },
+  };
+}
+
+function fallbackStubOcrAi(
+  result: AiOcrOutcome = {
+    ok: true,
+    result: {
+      text: 'MRZ text from fallback',
+      reviewIssues: [],
+      usage: { ...ocrUsage, provider: 'anthropic', modelVersion: 'claude-sonnet-5' },
+    },
+  },
+): AiOcrPort {
+  return {
+    async performOcr() {
+      return result;
+    },
+    cacheKeyComponents() {
+      return { model: 'claude-sonnet-5', promptVersion: 'ocr-p1' };
+    },
+  };
+}
+
+describe('AI Gateway -- cross-provider fallback (Part 8 §13, Chunk 25)', () => {
+  let db: Db;
+  beforeEach(async () => {
+    db = await freshDb();
+  });
+
+  it("triggers the fallback adapter on a timeout, writing a second row linked via triggeredByRunId, and returns the fallback adapter's own outcome", async () => {
+    const { account, applicantId, versionId } = await seedVersion(
+      db,
+      'fallback-timeout@example.com',
+    );
+    await grantAiConsent(db, account.id);
+
+    const result = await runExtraction(
+      db,
+      stubAi({ ok: false, code: 'timeout', message: 'timed out' }),
+      {
+        actorAccountId: account.id,
+        applicantId,
+        documentVersionId: versionId,
+        text: 'MRZ text',
+        budgetLimitUnits: 100,
+        fallback: { ai: fallbackStubAi() },
+      },
+    );
+    expect(isOk(result)).toBe(true);
+    if (!isOk(result)) return;
+
+    const rows = await db
+      .select()
+      .from(schema.aiExtractionRuns)
+      .where(eq(schema.aiExtractionRuns.documentVersionId, versionId));
+    expect(rows).toHaveLength(2);
+    const primaryRow = rows.find((r) => r.status === 'FAILED');
+    const fallbackRow = rows.find((r) => r.status === 'SUCCEEDED');
+    expect(primaryRow?.errorCode).toBe('timeout');
+    expect(fallbackRow?.triggeredByRunId).toBe(primaryRow?.id);
+    expect(fallbackRow?.provider).toBe('anthropic');
+    expect(result.value.aiExtractionRunId).toBe(fallbackRow?.id);
+  });
+
+  it('triggers the fallback adapter on rate_limited, the other directive-named recoverable code', async () => {
+    const { account, applicantId, versionId } = await seedVersion(
+      db,
+      'fallback-rate-limited@example.com',
+    );
+    await grantAiConsent(db, account.id);
+
+    const result = await runExtraction(
+      db,
+      stubAi({ ok: false, code: 'rate_limited', message: 'too many requests' }),
+      {
+        actorAccountId: account.id,
+        applicantId,
+        documentVersionId: versionId,
+        text: 'MRZ text',
+        budgetLimitUnits: 100,
+        fallback: { ai: fallbackStubAi() },
+      },
+    );
+    expect(isOk(result)).toBe(true);
+
+    const rows = await db
+      .select()
+      .from(schema.aiExtractionRuns)
+      .where(eq(schema.aiExtractionRuns.documentVersionId, versionId));
+    expect(rows).toHaveLength(2);
+  });
+
+  it('never triggers the fallback on a refused outcome -- Part 8 §13: never "shop for a desired answer" after a refusal', async () => {
+    const { account, applicantId, versionId } = await seedVersion(
+      db,
+      'fallback-refused@example.com',
+    );
+    await grantAiConsent(db, account.id);
+    const { ai: fallback, callCount } = countingStubAi();
+
+    const result = await runExtraction(
+      db,
+      stubAi({ ok: false, code: 'refused', message: 'the model declined' }),
+      {
+        actorAccountId: account.id,
+        applicantId,
+        documentVersionId: versionId,
+        text: 'MRZ text',
+        budgetLimitUnits: 100,
+        fallback: { ai: fallback },
+      },
+    );
+    expect(isErr(result)).toBe(true);
+    expect(callCount()).toBe(0);
+
+    const rows = await db
+      .select()
+      .from(schema.aiExtractionRuns)
+      .where(eq(schema.aiExtractionRuns.documentVersionId, versionId));
+    expect(rows).toHaveLength(1);
+  });
+
+  it.each([
+    ['auth_failed', 'the key is bad'],
+    ['invalid_response', 'unparseable'],
+    ['truncated', 'ran out of budget'],
+    ['disabled', 'AI extraction is currently disabled'],
+  ] as const)(
+    'never triggers the fallback on a non-recoverable %s outcome',
+    async (code, message) => {
+      const { account, applicantId, versionId } = await seedVersion(
+        db,
+        `fallback-non-recoverable-${code}@example.com`,
+      );
+      await grantAiConsent(db, account.id);
+      const { ai: fallback, callCount } = countingStubAi();
+
+      await runExtraction(db, stubAi({ ok: false, code, message }), {
+        actorAccountId: account.id,
+        applicantId,
+        documentVersionId: versionId,
+        text: 'MRZ text',
+        budgetLimitUnits: 100,
+        fallback: { ai: fallback },
+      });
+      expect(callCount()).toBe(0);
+    },
+  );
+
+  it('never attempts a fallback when none was given, even on an otherwise-recoverable timeout -- unchanged default behavior', async () => {
+    const { account, applicantId, versionId } = await seedVersion(
+      db,
+      'fallback-not-given@example.com',
+    );
+    await grantAiConsent(db, account.id);
+
+    const result = await runExtraction(
+      db,
+      stubAi({ ok: false, code: 'timeout', message: 'timed out' }),
+      {
+        actorAccountId: account.id,
+        applicantId,
+        documentVersionId: versionId,
+        text: 'MRZ text',
+        budgetLimitUnits: 100,
+      },
+    );
+    expect(isErr(result)).toBe(true);
+
+    const rows = await db
+      .select()
+      .from(schema.aiExtractionRuns)
+      .where(eq(schema.aiExtractionRuns.documentVersionId, versionId));
+    expect(rows).toHaveLength(1);
+  });
+
+  it("returns the fallback's own FAILED result, with no third attempt, when the fallback also fails", async () => {
+    const { account, applicantId, versionId } = await seedVersion(
+      db,
+      'fallback-also-fails@example.com',
+    );
+    await grantAiConsent(db, account.id);
+
+    const result = await runExtraction(
+      db,
+      stubAi({ ok: false, code: 'timeout', message: 'timed out' }),
+      {
+        actorAccountId: account.id,
+        applicantId,
+        documentVersionId: versionId,
+        text: 'MRZ text',
+        budgetLimitUnits: 100,
+        fallback: {
+          ai: fallbackStubAi({ ok: false, code: 'timeout', message: 'fallback also timed out' }),
+        },
+      },
+    );
+    expect(isErr(result)).toBe(true);
+
+    const rows = await db
+      .select()
+      .from(schema.aiExtractionRuns)
+      .where(eq(schema.aiExtractionRuns.documentVersionId, versionId));
+    expect(rows).toHaveLength(2);
+    expect(rows.every((r) => r.status === 'FAILED')).toBe(true);
+  });
+
+  it('the fallback attempt is refused once the SAME attempt limit is already reached -- it composes with existing caps, not a separate budget', async () => {
+    const { account, applicantId, versionId } = await seedVersion(
+      db,
+      'fallback-attempt-cap@example.com',
+    );
+    await grantAiConsent(db, account.id);
+    // Exhaust the (shared) attempt cap of 1 with a prior FAILED run first.
+    await runExtraction(db, stubAi({ ok: false, code: 'auth_failed', message: 'bad key' }), {
+      actorAccountId: account.id,
+      applicantId,
+      documentVersionId: versionId,
+      text: 'MRZ text',
+      budgetLimitUnits: 100,
+      maxAttemptsPerDocument: 1,
+    });
+
+    const { ai: fallback, callCount } = countingStubAi();
+    const result = await runExtraction(
+      db,
+      stubAi({ ok: false, code: 'timeout', message: 'timed out' }),
+      {
+        actorAccountId: account.id,
+        applicantId,
+        documentVersionId: versionId,
+        text: 'MRZ text',
+        budgetLimitUnits: 100,
+        maxAttemptsPerDocument: 1,
+        fallback: { ai: fallback },
+      },
+    );
+    expect(isErr(result)).toBe(true);
+    if (isErr(result)) expect(result.error.message).toContain('attempt limit');
+    expect(callCount()).toBe(0);
+  });
+
+  it('OCR: triggers the fallback adapter on a timeout, writing a second ocr_runs row linked via triggeredByRunId', async () => {
+    const { account, applicantId, versionId } = await seedVersion(
+      db,
+      'fallback-ocr-timeout@example.com',
+    );
+    await grantOcrConsent(db, account.id);
+    const imageBytes = new TextEncoder().encode('fake-scanned-passport-page-1');
+
+    const result = await runOcr(
+      db,
+      stubOcrAi({ ok: false, code: 'timeout', message: 'timed out' }),
+      {
+        actorAccountId: account.id,
+        applicantId,
+        documentVersionId: versionId,
+        imageBytes,
+        contentType: 'image/png',
+        budgetLimitUnits: 100,
+        fallback: { ai: fallbackStubOcrAi() },
+      },
+    );
+    expect(isOk(result)).toBe(true);
+    if (!isOk(result)) return;
+    expect(result.value.ocrRun.provider).toBe('anthropic');
+    expect(result.value.ocrRun.extractedText).toBe('MRZ text from fallback');
+
+    const rows = await db
+      .select()
+      .from(schema.ocrRuns)
+      .where(eq(schema.ocrRuns.documentVersionId, versionId));
+    expect(rows).toHaveLength(2);
+    const primaryRow = rows.find((r) => r.status === 'FAILED');
+    expect(rows.find((r) => r.status === 'SUCCEEDED')?.triggeredByRunId).toBe(primaryRow?.id);
+  });
+
+  it('OCR: never triggers the fallback on a refused outcome', async () => {
+    const { account, applicantId, versionId } = await seedVersion(
+      db,
+      'fallback-ocr-refused@example.com',
+    );
+    await grantOcrConsent(db, account.id);
+    const imageBytes = new TextEncoder().encode('fake-scanned-passport-page-1');
+    const { ai: fallback, callCount } = countingStubOcrAi();
+
+    const result = await runOcr(
+      db,
+      stubOcrAi({ ok: false, code: 'refused', message: 'the model declined' }),
+      {
+        actorAccountId: account.id,
+        applicantId,
+        documentVersionId: versionId,
+        imageBytes,
+        contentType: 'image/png',
+        budgetLimitUnits: 100,
+        fallback: { ai: fallback },
+      },
+    );
+    expect(isErr(result)).toBe(true);
+    expect(callCount()).toBe(0);
+  });
+});
+
+const classifyUsage = {
+  costUnits: 2,
+  inputUnits: 1,
+  outputUnits: 1,
+  cachedUnits: 0,
+  modelVersion: 'gpt-5.6-terra',
+  promptVersion: 'classify-p1',
+  schemaVersion: 'classify-s1',
+  provider: 'openai',
+  latencyMs: 20,
+};
+
+function stubClassifyAi(
+  result: AiClassifyOutcome = {
+    ok: true,
+    result: {
+      suggestedType: 'BANK_STATEMENT',
+      confidence: 0.9,
+      rationale: 'looks like one',
+      usage: classifyUsage,
+    },
+  },
+): AiClassifyPort {
+  return {
+    async classify() {
+      return result;
+    },
+    classifyCacheKeyComponents() {
+      return { model: 'gpt-5.6-terra', promptVersion: 'classify-p1', schemaVersion: 'classify-s1' };
+    },
+  };
+}
+
+function countingStubClassifyAi(
+  result: AiClassifyOutcome = {
+    ok: true,
+    result: {
+      suggestedType: 'BANK_STATEMENT',
+      confidence: 0.9,
+      rationale: 'looks like one',
+      usage: classifyUsage,
+    },
+  },
+): { ai: AiClassifyPort; callCount: () => number } {
+  let calls = 0;
+  const ai: AiClassifyPort = {
+    async classify() {
+      calls += 1;
+      return result;
+    },
+    classifyCacheKeyComponents() {
+      return { model: 'gpt-5.6-terra', promptVersion: 'classify-p1', schemaVersion: 'classify-s1' };
+    },
+  };
+  return { ai, callCount: () => calls };
+}
+
+/** Inserts a COMPLETED processingRuns row plus a SUCCEEDED extractionRuns row for it -- the deterministic prerequisite `approveDocumentTypeProposal` looks up to satisfy `document_classifications.extraction_run_id`'s FK. */
+async function seedExtractionRun(db: Db, versionId: string): Promise<void> {
+  const [run] = await db
+    .insert(schema.processingRuns)
+    .values({ documentVersionId: versionId, pipelineVersion: '1.0.0', status: 'COMPLETED' })
+    .returning();
+  await db.insert(schema.extractionRuns).values({
+    processingRunId: (run as { id: string }).id,
+    documentVersionId: versionId,
+    parserName: 'test',
+    parserVersion: '1.0.0',
+    status: 'SUCCEEDED',
+    extractedText: 'some deterministically-extracted text',
+  });
+}
+
+describe('AI Gateway -- document type classification (Part 8 AI-01 item 2)', () => {
+  let db: Db;
+  beforeEach(async () => {
+    db = await freshDb();
+  });
+
+  it('produces a PENDING document-type proposal on a genuine gap', async () => {
+    const { account, applicantId, versionId } = await seedVersion(db, 'classify-basic@example.com');
+    await grantAiConsent(db, account.id);
+    await seedExtractionRun(db, versionId);
+
+    const result = await runClassification(db, stubClassifyAi(), {
+      actorAccountId: account.id,
+      applicantId,
+      documentVersionId: versionId,
+      text: 'statement of account, opening balance, closing balance',
+      budgetLimitUnits: 1000,
+    });
+    expect(isOk(result)).toBe(true);
+    if (!isOk(result)) return;
+    expect(result.value.proposal?.suggestedType).toBe('BANK_STATEMENT');
+    expect(result.value.proposal?.status).toBe('PENDING');
+
+    const pending = await listPendingDocumentTypeProposals(db, applicantId);
+    expect(pending).toHaveLength(1);
+  });
+
+  it('refuses to run when the deterministic classifier already reached a confident result', async () => {
+    const { account, applicantId, versionId } = await seedVersion(
+      db,
+      'classify-already-confident@example.com',
+    );
+    await grantAiConsent(db, account.id);
+    await seedExtractionRun(db, versionId);
+    const [existingRun] = await db
+      .select()
+      .from(schema.extractionRuns)
+      .where(eq(schema.extractionRuns.documentVersionId, versionId));
+    await db.insert(schema.documentClassifications).values({
+      extractionRunId: (existingRun as { id: string }).id,
+      documentVersionId: versionId,
+      classifiedType: 'PASSPORT',
+      confidence: 100,
+      reviewRequired: false,
+      rationale: 'valid TD3 MRZ',
+    });
+
+    const result = await runClassification(db, stubClassifyAi(), {
+      actorAccountId: account.id,
+      applicantId,
+      documentVersionId: versionId,
+      text: 'irrelevant',
+      budgetLimitUnits: 1000,
+    });
+    expect(isErr(result)).toBe(true);
+  });
+
+  it('runs when the deterministic classifier left reviewRequired true, even with a non-null type', async () => {
+    const { account, applicantId, versionId } = await seedVersion(
+      db,
+      'classify-review-required@example.com',
+    );
+    await grantAiConsent(db, account.id);
+    await seedExtractionRun(db, versionId);
+    const [existingRun] = await db
+      .select()
+      .from(schema.extractionRuns)
+      .where(eq(schema.extractionRuns.documentVersionId, versionId));
+    await db.insert(schema.documentClassifications).values({
+      extractionRunId: (existingRun as { id: string }).id,
+      documentVersionId: versionId,
+      classifiedType: null,
+      confidence: 40,
+      reviewRequired: true,
+      rationale: 'below threshold',
+    });
+
+    const result = await runClassification(db, stubClassifyAi(), {
+      actorAccountId: account.id,
+      applicantId,
+      documentVersionId: versionId,
+      text: 'statement of account, opening balance, closing balance',
+      budgetLimitUnits: 1000,
+    });
+    expect(isOk(result)).toBe(true);
+  });
+
+  it('refuses to run a second time while a suggestion is already pending', async () => {
+    const { account, applicantId, versionId } = await seedVersion(
+      db,
+      'classify-already-pending@example.com',
+    );
+    await grantAiConsent(db, account.id);
+    await seedExtractionRun(db, versionId);
+
+    const first = await runClassification(db, stubClassifyAi(), {
+      actorAccountId: account.id,
+      applicantId,
+      documentVersionId: versionId,
+      text: 'statement of account, opening balance, closing balance',
+      budgetLimitUnits: 1000,
+    });
+    expect(isOk(first)).toBe(true);
+
+    const second = await runClassification(db, stubClassifyAi(), {
+      actorAccountId: account.id,
+      applicantId,
+      documentVersionId: versionId,
+      text: 'statement of account, opening balance, closing balance',
+      budgetLimitUnits: 1000,
+    });
+    expect(isErr(second)).toBe(true);
+  });
+
+  it('requires AI_EXTRACTION consent', async () => {
+    const { account, applicantId, versionId } = await seedVersion(
+      db,
+      'classify-consent@example.com',
+    );
+    await seedExtractionRun(db, versionId);
+
+    const result = await runClassification(db, stubClassifyAi(), {
+      actorAccountId: account.id,
+      applicantId,
+      documentVersionId: versionId,
+      text: 'irrelevant',
+      budgetLimitUnits: 1000,
+    });
+    expect(isErr(result)).toBe(true);
+    if (isErr(result)) expect(result.error.code).toBe('consent_required');
+  });
+
+  it('fails closed once the platform-wide budget is exhausted', async () => {
+    const { account, applicantId, versionId } = await seedVersion(
+      db,
+      'classify-budget@example.com',
+    );
+    await grantAiConsent(db, account.id);
+    await seedExtractionRun(db, versionId);
+
+    const result = await runClassification(db, stubClassifyAi(), {
+      actorAccountId: account.id,
+      applicantId,
+      documentVersionId: versionId,
+      text: 'irrelevant',
+      budgetLimitUnits: 0,
+    });
+    expect(isErr(result)).toBe(true);
+  });
+
+  it('never writes a proposal when the model itself could not confidently classify', async () => {
+    const { account, applicantId, versionId } = await seedVersion(db, 'classify-null@example.com');
+    await grantAiConsent(db, account.id);
+    await seedExtractionRun(db, versionId);
+
+    const result = await runClassification(
+      db,
+      stubClassifyAi({
+        ok: true,
+        result: { suggestedType: null, confidence: 0.2, usage: classifyUsage },
+      }),
+      {
+        actorAccountId: account.id,
+        applicantId,
+        documentVersionId: versionId,
+        text: 'ambiguous text',
+        budgetLimitUnits: 1000,
+      },
+    );
+    expect(isOk(result)).toBe(true);
+    if (isOk(result)) expect(result.value.proposal).toBeNull();
+  });
+
+  it('never writes a proposal for a type outside the allowed vocabulary', async () => {
+    const { account, applicantId, versionId } = await seedVersion(
+      db,
+      'classify-outofvocab@example.com',
+    );
+    await grantAiConsent(db, account.id);
+    await seedExtractionRun(db, versionId);
+
+    const result = await runClassification(
+      db,
+      stubClassifyAi({
+        ok: true,
+        result: { suggestedType: 'DRIVERS_LICENSE', confidence: 0.9, usage: classifyUsage },
+      }),
+      {
+        actorAccountId: account.id,
+        applicantId,
+        documentVersionId: versionId,
+        text: 'some text',
+        budgetLimitUnits: 1000,
+      },
+    );
+    expect(isOk(result)).toBe(true);
+    if (isOk(result)) expect(result.value.proposal).toBeNull();
+  });
+
+  it('a cache hit never calls the adapter again and still produces a proposal', async () => {
+    const { account, applicantId, versionId } = await seedVersion(
+      db,
+      'classify-cache-a@example.com',
+    );
+    await grantAiConsent(db, account.id);
+    await seedExtractionRun(db, versionId);
+    const { ai, callCount } = countingStubClassifyAi();
+
+    const first = await runClassification(db, ai, {
+      actorAccountId: account.id,
+      applicantId,
+      documentVersionId: versionId,
+      text: 'statement of account, opening balance, closing balance',
+      budgetLimitUnits: 1000,
+    });
+    expect(isOk(first)).toBe(true);
+    if (isOk(first) && first.value.proposal) {
+      await rejectDocumentTypeProposal(db, {
+        actorAccountId: account.id,
+        proposalId: first.value.proposal.id,
+      });
+    }
+
+    const {
+      account: account2,
+      applicantId: applicantId2,
+      versionId: versionId2,
+    } = await seedVersion(db, 'classify-cache-b@example.com');
+    await grantAiConsent(db, account2.id);
+    await seedExtractionRun(db, versionId2);
+
+    const second = await runClassification(db, ai, {
+      actorAccountId: account2.id,
+      applicantId: applicantId2,
+      documentVersionId: versionId2,
+      text: 'statement of account, opening balance, closing balance',
+      budgetLimitUnits: 1000,
+    });
+    expect(isOk(second)).toBe(true);
+    if (isOk(second)) expect(second.value.proposal?.suggestedType).toBe('BANK_STATEMENT');
+    expect(callCount()).toBe(1);
+  });
+
+  it('approving a proposal writes an AI_APPROVED classification, fills docType, and proposes a name', async () => {
+    const { account, applicantId, versionId } = await seedVersion(
+      db,
+      'classify-approve@example.com',
+    );
+    await grantAiConsent(db, account.id);
+    await seedExtractionRun(db, versionId);
+
+    const run = await runClassification(db, stubClassifyAi(), {
+      actorAccountId: account.id,
+      applicantId,
+      documentVersionId: versionId,
+      text: 'statement of account, opening balance, closing balance',
+      budgetLimitUnits: 1000,
+    });
+    expect(isOk(run)).toBe(true);
+    if (!isOk(run) || !run.value.proposal) throw new Error('expected a proposal');
+
+    const approved = await approveDocumentTypeProposal(db, {
+      actorAccountId: account.id,
+      proposalId: run.value.proposal.id,
+    });
+    expect(isOk(approved)).toBe(true);
+    if (!isOk(approved)) return;
+    expect(approved.value.status).toBe('APPROVED');
+    expect(approved.value.classificationId).not.toBeNull();
+
+    const [classification] = await db
+      .select()
+      .from(schema.documentClassifications)
+      .where(eq(schema.documentClassifications.documentVersionId, versionId));
+    expect((classification as { source: string }).source).toBe('AI_APPROVED');
+    expect((classification as { classifiedType: string }).classifiedType).toBe('BANK_STATEMENT');
+
+    const [doc] = await db
+      .select()
+      .from(schema.documents)
+      .where(eq(schema.documents.applicantId, applicantId));
+    expect((doc as { docType: string | null }).docType).toBe('BANK_STATEMENT');
+
+    const [nameVersion] = await db
+      .select()
+      .from(schema.documentNameVersions)
+      .where(eq(schema.documentNameVersions.documentId, (doc as { id: string }).id));
+    expect(nameVersion).toBeDefined();
+  });
+
+  it('approving never overwrites an already-set docType', async () => {
+    const { account, applicantId, versionId } = await seedVersion(
+      db,
+      'classify-approve-preserve@example.com',
+    );
+    await grantAiConsent(db, account.id);
+    await seedExtractionRun(db, versionId);
+    await db
+      .update(schema.documents)
+      .set({ docType: 'SOMETHING_ELSE' })
+      .where(eq(schema.documents.applicantId, applicantId));
+
+    const run = await runClassification(db, stubClassifyAi(), {
+      actorAccountId: account.id,
+      applicantId,
+      documentVersionId: versionId,
+      text: 'statement of account, opening balance, closing balance',
+      budgetLimitUnits: 1000,
+    });
+    if (!isOk(run) || !run.value.proposal) throw new Error('expected a proposal');
+
+    await approveDocumentTypeProposal(db, {
+      actorAccountId: account.id,
+      proposalId: run.value.proposal.id,
+    });
+
+    const [doc] = await db
+      .select()
+      .from(schema.documents)
+      .where(eq(schema.documents.applicantId, applicantId));
+    expect((doc as { docType: string | null }).docType).toBe('SOMETHING_ELSE');
+  });
+
+  it('rejecting a proposal marks it REJECTED and writes no classification row', async () => {
+    const { account, applicantId, versionId } = await seedVersion(
+      db,
+      'classify-reject@example.com',
+    );
+    await grantAiConsent(db, account.id);
+    await seedExtractionRun(db, versionId);
+
+    const run = await runClassification(db, stubClassifyAi(), {
+      actorAccountId: account.id,
+      applicantId,
+      documentVersionId: versionId,
+      text: 'statement of account, opening balance, closing balance',
+      budgetLimitUnits: 1000,
+    });
+    if (!isOk(run) || !run.value.proposal) throw new Error('expected a proposal');
+
+    const rejected = await rejectDocumentTypeProposal(db, {
+      actorAccountId: account.id,
+      proposalId: run.value.proposal.id,
+      reason: 'looks wrong',
+    });
+    expect(isOk(rejected)).toBe(true);
+    if (isOk(rejected)) expect(rejected.value.status).toBe('REJECTED');
+
+    const classifications = await db
+      .select()
+      .from(schema.documentClassifications)
+      .where(eq(schema.documentClassifications.documentVersionId, versionId));
+    expect(classifications).toHaveLength(0);
+  });
+
+  it('enforces its own attempt limit independently of the extraction attempt counter', async () => {
+    const { account, applicantId, versionId } = await seedVersion(
+      db,
+      'classify-attempts@example.com',
+    );
+    await grantAiConsent(db, account.id);
+    await seedExtractionRun(db, versionId);
+
+    const failing = stubClassifyAi({ ok: false, code: 'upstream_error', message: 'boom' });
+    const first = await runClassification(db, failing, {
+      actorAccountId: account.id,
+      applicantId,
+      documentVersionId: versionId,
+      text: 'statement of account, opening balance, closing balance',
+      budgetLimitUnits: 1000,
+      maxAttemptsPerDocument: 1,
+    });
+    expect(isErr(first)).toBe(true);
+
+    const second = await runClassification(db, failing, {
+      actorAccountId: account.id,
+      applicantId,
+      documentVersionId: versionId,
+      text: 'statement of account, opening balance, closing balance',
+      budgetLimitUnits: 1000,
+      maxAttemptsPerDocument: 1,
+    });
+    expect(isErr(second)).toBe(true);
+    if (isErr(second)) expect(second.error.message).toContain('attempt limit');
+  });
+});
+
+const explainUsage = {
+  costUnits: 1,
+  inputUnits: 1,
+  outputUnits: 1,
+  cachedUnits: 0,
+  modelVersion: 'gpt-5.6-terra',
+  promptVersion: 'explain-p1',
+  schemaVersion: 'explain-s1',
+  provider: 'openai',
+  latencyMs: 10,
+};
+
+function stubExplainAi(
+  result: AiExplainOutcome = {
+    ok: true,
+    result: { explanation: 'A bank statement proves ongoing funds.', usage: explainUsage },
+  },
+): AiExplainPort {
+  return {
+    async explain() {
+      return result;
+    },
+    explainCacheKeyComponents() {
+      return { model: 'gpt-5.6-terra', promptVersion: 'explain-p1', schemaVersion: 'explain-s1' };
+    },
+  };
+}
+
+function countingStubExplainAi(
+  result: AiExplainOutcome = {
+    ok: true,
+    result: { explanation: 'A bank statement proves ongoing funds.', usage: explainUsage },
+  },
+): { ai: AiExplainPort; callCount: () => number } {
+  let calls = 0;
+  const ai: AiExplainPort = {
+    async explain() {
+      calls += 1;
+      return result;
+    },
+    explainCacheKeyComponents() {
+      return { model: 'gpt-5.6-terra', promptVersion: 'explain-p1', schemaVersion: 'explain-s1' };
+    },
+  };
+  return { ai, callCount: () => calls };
+}
+
+/** Seeds a minimal packs -> packVersions -> packRequirements chain, bypassing the full pack-authoring service layer (irrelevant to these tests) -- returns the requirement's id. */
+async function seedPackRequirement(
+  db: Db,
+  overrides: { readonly citation?: string; readonly optional?: boolean } = {},
+): Promise<string> {
+  const [pack] = await db
+    .insert(schema.packs)
+    .values({ key: `test-pack-${randomBytes(8).toString('hex')}`, name: 'Test Pack' })
+    .returning();
+  const [version] = await db
+    .insert(schema.packVersions)
+    .values({ packId: (pack as { id: string }).id, version: 1 })
+    .returning();
+  const [requirement] = await db
+    .insert(schema.packRequirements)
+    .values({
+      packVersionId: (version as { id: string }).id,
+      kind: 'DOCUMENT',
+      docType: 'BANK_STATEMENT',
+      citation: overrides.citation ?? 'Route guide §4.2: proof of funds required.',
+      optional: overrides.optional ?? false,
+    })
+    .returning();
+  return (requirement as { id: string }).id;
+}
+
+describe('AI Gateway -- readiness-gap explanation (Part 8 AI-01 item 5)', () => {
+  let db: Db;
+  beforeEach(async () => {
+    db = await freshDb();
+  });
+
+  it('produces an explanation grounded in the requirement citation', async () => {
+    const packRequirementId = await seedPackRequirement(db);
+    const result = await explainReadinessGap(db, stubExplainAi(), {
+      packRequirementId,
+      requirementKind: 'DOCUMENT',
+      requirementKey: 'BANK_STATEMENT',
+      state: 'CRITICAL_GAP',
+      citation: 'Route guide §4.2: proof of funds required.',
+      optional: false,
+      budgetLimitUnits: 1000,
+    });
+    expect(isOk(result)).toBe(true);
+    if (isOk(result)) expect(result.value.explanation).toContain('bank statement');
+  });
+
+  it('requires no consent -- no applicant-specific data is ever sent', async () => {
+    const packRequirementId = await seedPackRequirement(db);
+    // Deliberately no setConsent call anywhere in this test -- proves the
+    // call succeeds without any consent grant existing at all.
+    const result = await explainReadinessGap(db, stubExplainAi(), {
+      packRequirementId,
+      requirementKind: 'DOCUMENT',
+      requirementKey: 'BANK_STATEMENT',
+      state: 'CRITICAL_GAP',
+      citation: 'Route guide §4.2: proof of funds required.',
+      optional: false,
+      budgetLimitUnits: 1000,
+    });
+    expect(isOk(result)).toBe(true);
+  });
+
+  it('fails closed once the platform-wide budget is exhausted', async () => {
+    const packRequirementId = await seedPackRequirement(db);
+    const result = await explainReadinessGap(db, stubExplainAi(), {
+      packRequirementId,
+      requirementKind: 'DOCUMENT',
+      requirementKey: 'BANK_STATEMENT',
+      state: 'CRITICAL_GAP',
+      citation: 'Route guide §4.2: proof of funds required.',
+      optional: false,
+      budgetLimitUnits: 0,
+    });
+    expect(isErr(result)).toBe(true);
+  });
+
+  it('a second identical gap (same kind/key/state/citation) is served from cache, at zero cost, without invoking the adapter again', async () => {
+    const requirementA = await seedPackRequirement(db);
+    const requirementB = await seedPackRequirement(db); // a DIFFERENT requirement row, identical content
+    const { ai, callCount } = countingStubExplainAi();
+    const shared = {
+      requirementKind: 'DOCUMENT' as const,
+      requirementKey: 'BANK_STATEMENT',
+      state: 'CRITICAL_GAP' as const,
+      citation: 'Route guide §4.2: proof of funds required.',
+      optional: false,
+      budgetLimitUnits: 1000,
+    };
+
+    const first = await explainReadinessGap(db, ai, { packRequirementId: requirementA, ...shared });
+    expect(isOk(first)).toBe(true);
+
+    const second = await explainReadinessGap(db, ai, {
+      packRequirementId: requirementB,
+      ...shared,
+    });
+    expect(isOk(second)).toBe(true);
+    if (isOk(second))
+      expect(second.value.explanation).toBe(first.ok ? first.value.explanation : '');
+    expect(callCount()).toBe(1);
+  });
+
+  it('does not serve from cache when the citation text differs, even for the identical requirement key/state', async () => {
+    const requirementA = await seedPackRequirement(db, { citation: 'Citation A' });
+    const requirementB = await seedPackRequirement(db, { citation: 'Citation B' });
+    const { ai, callCount } = countingStubExplainAi();
+    const shared = {
+      requirementKind: 'DOCUMENT' as const,
+      requirementKey: 'BANK_STATEMENT',
+      state: 'CRITICAL_GAP' as const,
+      optional: false,
+      budgetLimitUnits: 1000,
+    };
+
+    await explainReadinessGap(db, ai, {
+      packRequirementId: requirementA,
+      citation: 'Citation A',
+      ...shared,
+    });
+    await explainReadinessGap(db, ai, {
+      packRequirementId: requirementB,
+      citation: 'Citation B',
+      ...shared,
+    });
+    expect(callCount()).toBe(2);
+  });
+
+  it('a failed adapter call is recorded FAILED with the real error code, never silently dropped', async () => {
+    const packRequirementId = await seedPackRequirement(db);
+    const result = await explainReadinessGap(
+      db,
+      stubExplainAi({ ok: false, code: 'upstream_error', message: 'boom' }),
+      {
+        packRequirementId,
+        requirementKind: 'DOCUMENT',
+        requirementKey: 'BANK_STATEMENT',
+        state: 'CRITICAL_GAP',
+        citation: 'Route guide §4.2: proof of funds required.',
+        optional: false,
+        budgetLimitUnits: 1000,
+      },
+    );
+    expect(isErr(result)).toBe(true);
+  });
+
+  it('the kill switch, rechecked immediately before dispatch, refuses the call without ever invoking the adapter', async () => {
+    const packRequirementId = await seedPackRequirement(db);
+    const { ai, callCount } = countingStubExplainAi();
+    const result = await explainReadinessGap(db, ai, {
+      packRequirementId,
+      requirementKind: 'DOCUMENT',
+      requirementKey: 'BANK_STATEMENT',
+      state: 'CRITICAL_GAP',
+      citation: 'Route guide §4.2: proof of funds required.',
+      optional: false,
+      budgetLimitUnits: 1000,
+      killSwitchCheck: async () => false,
+    });
+    expect(isErr(result)).toBe(true);
+    expect(callCount()).toBe(0);
+  });
+
+  it('counts against the SAME shared platform-wide budget extraction/OCR/classification already share', async () => {
+    const packRequirementId = await seedPackRequirement(db);
+    await explainReadinessGap(db, stubExplainAi(), {
+      packRequirementId,
+      requirementKind: 'DOCUMENT',
+      requirementKey: 'BANK_STATEMENT',
+      state: 'CRITICAL_GAP',
+      citation: 'Route guide §4.2: proof of funds required.',
+      optional: false,
+      budgetLimitUnits: 1000,
+    });
+    expect(await totalAiCostUnits(db)).toBe(explainUsage.costUnits);
+  });
+});
+
+const inconsistencyUsage = {
+  costUnits: 4,
+  inputUnits: 3,
+  outputUnits: 1,
+  cachedUnits: 0,
+  modelVersion: 'gpt-5.6-terra',
+  promptVersion: 'inconsistency-p1',
+  schemaVersion: 'inconsistency-s1',
+  provider: 'openai',
+  latencyMs: 12,
+};
+
+const oneFlag = [
+  {
+    description: 'The document spells the given name "Mohammed" but the profile has "Mohammad".',
+    confidence: 0.7,
+    rationale: 'Name spelling differs between document and profile.',
+  },
+];
+
+function stubInconsistencyAi(
+  result: AiInconsistencyOutcome = {
+    ok: true,
+    result: { flags: oneFlag, usage: inconsistencyUsage },
+  },
+): AiInconsistencyPort {
+  return {
+    async checkConsistency() {
+      return result;
+    },
+    inconsistencyCacheKeyComponents() {
+      return {
+        model: 'gpt-5.6-terra',
+        promptVersion: 'inconsistency-p1',
+        schemaVersion: 'inconsistency-s1',
+      };
+    },
+  };
+}
+
+function countingStubInconsistencyAi(
+  result: AiInconsistencyOutcome = {
+    ok: true,
+    result: { flags: oneFlag, usage: inconsistencyUsage },
+  },
+): { ai: AiInconsistencyPort; callCount: () => number } {
+  let calls = 0;
+  const ai: AiInconsistencyPort = {
+    async checkConsistency() {
+      calls += 1;
+      return result;
+    },
+    inconsistencyCacheKeyComponents() {
+      return {
+        model: 'gpt-5.6-terra',
+        promptVersion: 'inconsistency-p1',
+        schemaVersion: 'inconsistency-s1',
+      };
+    },
+  };
+  return { ai, callCount: () => calls };
+}
+
+describe('AI Gateway -- possible inconsistency flag (Part 8 AI-01 item 4)', () => {
+  let db: Db;
+  beforeEach(async () => {
+    db = await freshDb();
+  });
+
+  it('produces a PENDING flag when the model finds a possible contradiction', async () => {
+    const { account, applicantId, versionId } = await seedVersion(
+      db,
+      'inconsist-basic@example.com',
+    );
+    await grantAiConsent(db, account.id);
+
+    const result = await runInconsistencyCheck(db, stubInconsistencyAi(), {
+      actorAccountId: account.id,
+      applicantId,
+      documentVersionId: versionId,
+      text: 'Name: Mohammed Rahman',
+      budgetLimitUnits: 1000,
+    });
+    expect(isOk(result)).toBe(true);
+    if (!isOk(result)) return;
+    expect(result.value.flags).toHaveLength(1);
+    expect(result.value.flags[0]?.status).toBe('PENDING');
+
+    const pending = await listPendingInconsistencyFlags(db, applicantId);
+    expect(pending).toHaveLength(1);
+  });
+
+  it('sends the current TRUSTED profile facts alongside the document text', async () => {
+    const { account, applicantId, versionId } = await seedVersion(
+      db,
+      'inconsist-facts@example.com',
+    );
+    await grantAiConsent(db, account.id);
+    await registerFieldDefinition(db, { key: 'applicant.givenName', dataType: 'string' });
+    const edited = await editFact(db, {
+      actorAccountId: account.id,
+      applicantId,
+      fieldKey: 'applicant.givenName',
+      value: 'Mohammad',
+      status: 'APPLICANT_CONFIRMED',
+    });
+    expect(isOk(edited)).toBe(true);
+
+    let receivedFacts: readonly { fieldKey: string; value: string }[] = [];
+    const ai: AiInconsistencyPort = {
+      async checkConsistency(input) {
+        receivedFacts = input.profileFacts;
+        return { ok: true, result: { flags: [], usage: inconsistencyUsage } };
+      },
+      inconsistencyCacheKeyComponents() {
+        return {
+          model: 'gpt-5.6-terra',
+          promptVersion: 'inconsistency-p1',
+          schemaVersion: 'inconsistency-s1',
+        };
+      },
+    };
+
+    await runInconsistencyCheck(db, ai, {
+      actorAccountId: account.id,
+      applicantId,
+      documentVersionId: versionId,
+      text: 'Name: Mohammed Rahman',
+      budgetLimitUnits: 1000,
+    });
+    expect(receivedFacts).toEqual([{ fieldKey: 'applicant.givenName', value: 'Mohammad' }]);
+  });
+
+  it('never sends a SENSITIVE/RESTRICTED field value, even when one is set and TRUSTED', async () => {
+    const { account, applicantId, versionId } = await seedVersion(
+      db,
+      'inconsist-protected@example.com',
+    );
+    await grantAiConsent(db, account.id);
+    await registerFieldDefinition(db, {
+      key: 'applicant.nationalId',
+      dataType: 'string',
+      sensitivity: 'RESTRICTED',
+    });
+    const edited = await editFact(db, {
+      actorAccountId: account.id,
+      applicantId,
+      fieldKey: 'applicant.nationalId',
+      value: 'SECRET-ID-123',
+      status: 'APPLICANT_CONFIRMED',
+      encryption: fakeKeyManagementPort(),
+    });
+    expect(isOk(edited)).toBe(true);
+
+    let receivedFacts: readonly { fieldKey: string; value: string }[] = [];
+    const ai: AiInconsistencyPort = {
+      async checkConsistency(input) {
+        receivedFacts = input.profileFacts;
+        return { ok: true, result: { flags: [], usage: inconsistencyUsage } };
+      },
+      inconsistencyCacheKeyComponents() {
+        return {
+          model: 'gpt-5.6-terra',
+          promptVersion: 'inconsistency-p1',
+          schemaVersion: 'inconsistency-s1',
+        };
+      },
+    };
+
+    await runInconsistencyCheck(db, ai, {
+      actorAccountId: account.id,
+      applicantId,
+      documentVersionId: versionId,
+      text: 'irrelevant',
+      budgetLimitUnits: 1000,
+    });
+    expect(receivedFacts.find((f) => f.fieldKey === 'applicant.nationalId')).toBeUndefined();
+    expect(JSON.stringify(receivedFacts)).not.toContain('SECRET-ID-123');
+  });
+
+  it('requires AI_EXTRACTION consent', async () => {
+    const { account, applicantId, versionId } = await seedVersion(
+      db,
+      'inconsist-consent@example.com',
+    );
+
+    const result = await runInconsistencyCheck(db, stubInconsistencyAi(), {
+      actorAccountId: account.id,
+      applicantId,
+      documentVersionId: versionId,
+      text: 'irrelevant',
+      budgetLimitUnits: 1000,
+    });
+    expect(isErr(result)).toBe(true);
+    if (isErr(result)) expect(result.error.code).toBe('consent_required');
+  });
+
+  it('fails closed once the platform-wide budget is exhausted', async () => {
+    const { account, applicantId, versionId } = await seedVersion(
+      db,
+      'inconsist-budget@example.com',
+    );
+    await grantAiConsent(db, account.id);
+
+    const result = await runInconsistencyCheck(db, stubInconsistencyAi(), {
+      actorAccountId: account.id,
+      applicantId,
+      documentVersionId: versionId,
+      text: 'irrelevant',
+      budgetLimitUnits: 0,
+    });
+    expect(isErr(result)).toBe(true);
+  });
+
+  it('produces zero flags -- and that is a genuine, valid, good outcome', async () => {
+    const { account, applicantId, versionId } = await seedVersion(
+      db,
+      'inconsist-clean@example.com',
+    );
+    await grantAiConsent(db, account.id);
+
+    const result = await runInconsistencyCheck(
+      db,
+      stubInconsistencyAi({ ok: true, result: { flags: [], usage: inconsistencyUsage } }),
+      {
+        actorAccountId: account.id,
+        applicantId,
+        documentVersionId: versionId,
+        text: 'Name: Mohammad Rahman',
+        budgetLimitUnits: 1000,
+      },
+    );
+    expect(isOk(result)).toBe(true);
+    if (isOk(result)) expect(result.value.flags).toHaveLength(0);
+  });
+
+  it('a second identical check (same text and same facts) is served from cache, at zero cost, without invoking the adapter again', async () => {
+    const { account, applicantId, versionId } = await seedVersion(
+      db,
+      'inconsist-cache@example.com',
+    );
+    await grantAiConsent(db, account.id);
+    const { ai, callCount } = countingStubInconsistencyAi();
+
+    const first = await runInconsistencyCheck(db, ai, {
+      actorAccountId: account.id,
+      applicantId,
+      documentVersionId: versionId,
+      text: 'Name: Mohammed Rahman',
+      budgetLimitUnits: 1000,
+    });
+    expect(isOk(first)).toBe(true);
+
+    const second = await runInconsistencyCheck(db, ai, {
+      actorAccountId: account.id,
+      applicantId,
+      documentVersionId: versionId,
+      text: 'Name: Mohammed Rahman',
+      budgetLimitUnits: 1000,
+    });
+    expect(isOk(second)).toBe(true);
+    if (isOk(second)) expect(second.value.flags).toHaveLength(1);
+    expect(callCount()).toBe(1);
+  });
+
+  it('does NOT serve from cache once the profile facts have changed, even for the identical document text', async () => {
+    const { account, applicantId, versionId } = await seedVersion(
+      db,
+      'inconsist-cache-stale@example.com',
+    );
+    await grantAiConsent(db, account.id);
+    await registerFieldDefinition(db, { key: 'applicant.givenName', dataType: 'string' });
+    const { ai, callCount } = countingStubInconsistencyAi();
+
+    await runInconsistencyCheck(db, ai, {
+      actorAccountId: account.id,
+      applicantId,
+      documentVersionId: versionId,
+      text: 'Name: Mohammed Rahman',
+      budgetLimitUnits: 1000,
+    });
+    expect(callCount()).toBe(1);
+
+    // The applicant corrects their profile between the two checks.
+    await editFact(db, {
+      actorAccountId: account.id,
+      applicantId,
+      fieldKey: 'applicant.givenName',
+      value: 'Mohammed',
+      status: 'APPLICANT_CONFIRMED',
+    });
+
+    await runInconsistencyCheck(db, ai, {
+      actorAccountId: account.id,
+      applicantId,
+      documentVersionId: versionId,
+      text: 'Name: Mohammed Rahman',
+      budgetLimitUnits: 1000,
+    });
+    expect(callCount()).toBe(2);
+  });
+
+  it('a failed adapter call is recorded FAILED with the real error code, never silently dropped', async () => {
+    const { account, applicantId, versionId } = await seedVersion(db, 'inconsist-fail@example.com');
+    await grantAiConsent(db, account.id);
+
+    const result = await runInconsistencyCheck(
+      db,
+      stubInconsistencyAi({ ok: false, code: 'upstream_error', message: 'boom' }),
+      {
+        actorAccountId: account.id,
+        applicantId,
+        documentVersionId: versionId,
+        text: 'irrelevant',
+        budgetLimitUnits: 1000,
+      },
+    );
+    expect(isErr(result)).toBe(true);
+  });
+
+  it('the kill switch, rechecked immediately before dispatch, refuses the call without ever invoking the adapter', async () => {
+    const { account, applicantId, versionId } = await seedVersion(
+      db,
+      'inconsist-killswitch@example.com',
+    );
+    await grantAiConsent(db, account.id);
+    const { ai, callCount } = countingStubInconsistencyAi();
+
+    const result = await runInconsistencyCheck(db, ai, {
+      actorAccountId: account.id,
+      applicantId,
+      documentVersionId: versionId,
+      text: 'irrelevant',
+      budgetLimitUnits: 1000,
+      killSwitchCheck: async () => false,
+    });
+    expect(isErr(result)).toBe(true);
+    expect(callCount()).toBe(0);
+  });
+
+  it('enforces its own attempt limit independently of every other task', async () => {
+    const { account, applicantId, versionId } = await seedVersion(
+      db,
+      'inconsist-attempts@example.com',
+    );
+    await grantAiConsent(db, account.id);
+    const failing = stubInconsistencyAi({ ok: false, code: 'upstream_error', message: 'boom' });
+
+    const first = await runInconsistencyCheck(db, failing, {
+      actorAccountId: account.id,
+      applicantId,
+      documentVersionId: versionId,
+      text: 'irrelevant',
+      budgetLimitUnits: 1000,
+      maxAttemptsPerDocument: 1,
+    });
+    expect(isErr(first)).toBe(true);
+
+    const second = await runInconsistencyCheck(db, failing, {
+      actorAccountId: account.id,
+      applicantId,
+      documentVersionId: versionId,
+      text: 'irrelevant',
+      budgetLimitUnits: 1000,
+      maxAttemptsPerDocument: 1,
+    });
+    expect(isErr(second)).toBe(true);
+    if (isErr(second)) expect(second.error.message).toContain('attempt limit');
+  });
+
+  it('acknowledging a flag marks it ACKNOWLEDGED and writes nothing else', async () => {
+    const { account, applicantId, versionId } = await seedVersion(
+      db,
+      'inconsist-acknowledge@example.com',
+    );
+    await grantAiConsent(db, account.id);
+
+    const run = await runInconsistencyCheck(db, stubInconsistencyAi(), {
+      actorAccountId: account.id,
+      applicantId,
+      documentVersionId: versionId,
+      text: 'Name: Mohammed Rahman',
+      budgetLimitUnits: 1000,
+    });
+    if (!isOk(run) || run.value.flags.length === 0) throw new Error('expected a flag');
+
+    const acknowledged = await acknowledgeInconsistencyFlag(db, {
+      actorAccountId: account.id,
+      flagId: run.value.flags[0]?.id ?? '',
+    });
+    expect(isOk(acknowledged)).toBe(true);
+    if (isOk(acknowledged)) expect(acknowledged.value.status).toBe('ACKNOWLEDGED');
+    // Never touches the facts table -- purely advisory.
+    expect(await db.select().from(schema.facts)).toHaveLength(0);
+  });
+
+  it('dismissing a flag marks it DISMISSED', async () => {
+    const { account, applicantId, versionId } = await seedVersion(
+      db,
+      'inconsist-dismiss@example.com',
+    );
+    await grantAiConsent(db, account.id);
+
+    const run = await runInconsistencyCheck(db, stubInconsistencyAi(), {
+      actorAccountId: account.id,
+      applicantId,
+      documentVersionId: versionId,
+      text: 'Name: Mohammed Rahman',
+      budgetLimitUnits: 1000,
+    });
+    if (!isOk(run) || run.value.flags.length === 0) throw new Error('expected a flag');
+
+    const dismissed = await dismissInconsistencyFlag(db, {
+      actorAccountId: account.id,
+      flagId: run.value.flags[0]?.id ?? '',
+      reason: 'legitimate spelling variation',
+    });
+    expect(isOk(dismissed)).toBe(true);
+    if (isOk(dismissed)) expect(dismissed.value.status).toBe('DISMISSED');
+
+    const pending = await listPendingInconsistencyFlags(db, applicantId);
+    expect(pending).toHaveLength(0);
   });
 });

@@ -73,6 +73,20 @@ const KEYWORD_RULES: readonly KeywordRule[] = [
 ];
 
 /**
+ * Every document type this platform's deterministic classifier can ever
+ * produce (Part 8 AI-01 item 2, "document type suggestion") -- PASSPORT is
+ * MRZ-derived rather than a `KEYWORD_RULES` entry, so it is named explicitly
+ * rather than derived from that list alone. The AI classify port's own
+ * allowed-type list (`ai.ts`) reads from this SAME export, so the model is
+ * never able to propose a type this deterministic system could not itself
+ * have produced, and the two vocabularies can never silently drift apart.
+ */
+export const CLASSIFIABLE_DOCUMENT_TYPES: readonly string[] = [
+  'PASSPORT',
+  ...KEYWORD_RULES.map((rule) => rule.type),
+];
+
+/**
  * Classify extracted document text. Passport detection is fully deterministic
  * (a valid TD3 MRZ with matching ICAO check digits) — everything else is a
  * confidence-scored keyword match that must clear `CONFIDENCE_THRESHOLD` or

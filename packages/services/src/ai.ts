@@ -4,10 +4,19 @@ import { type Result, err, isOk, ok } from '@visastack/core';
 import { and, desc, eq, gte, isNull, lt, sql } from 'drizzle-orm';
 import { getApplicant } from './applicants';
 import { appendAuditEvent } from './audit';
+import { CLASSIFIABLE_DOCUMENT_TYPES } from './classification';
 import { hasConsent } from './consent';
 import { type Db, first, required, schema } from './db';
+import { proposeDocumentName } from './document-naming';
 import { type ServiceError, serviceError } from './errors';
-import type { AiOcrCacheKeyComponents, AiOcrContentType, AiOcrOutcome, AiOcrPort } from './ocr';
+import { buildProposedName, extensionOf } from './naming';
+import type {
+  AiOcrCacheKeyComponents,
+  AiOcrContentType,
+  AiOcrErrorCode,
+  AiOcrOutcome,
+  AiOcrPort,
+} from './ocr';
 import type { KeyManagementPort } from './ports';
 import { recordProductEvent } from './product-events';
 import { type EditFactResult, editFact, getCurrentFactVersion } from './profile';
@@ -131,23 +140,165 @@ export interface AiExtractionPort {
   cacheKeyComponents(): AiCacheKeyComponents;
 }
 
+/**
+ * Part 8 AI-01 item 2 ("document type suggestion"). A genuinely separate
+ * port from `AiExtractionPort` -- NOT a bolted-on optional method -- so a
+ * provider adapter class can implement it independently (Chunk C wires the
+ * three existing extraction adapter classes to also `implements
+ * AiClassifyPort`, letting them share credentials/config/timeout handling
+ * without coupling the two interfaces themselves). Input is deliberately
+ * the same SHAPE as `AiExtractionInput` (already deterministically-extracted
+ * text, never raw file bytes) -- classification reuses `AI_EXTRACTION`
+ * consent for exactly that reason, never a new consent type: this is not a
+ * materially larger disclosure than field extraction already is.
+ */
+export interface AiClassifyInput {
+  readonly documentVersionId: string;
+  readonly text: string;
+  /** The canonical document-type vocabulary (`classification.ts`'s own `CLASSIFIABLE_DOCUMENT_TYPES`); the model cannot invent others. */
+  readonly allowedTypes: readonly string[];
+}
+
+export interface AiClassifyResult {
+  /** null when the model also could not confidently classify -- never a guess, mirrors `ClassificationResult.classifiedType`'s own convention. */
+  readonly suggestedType: string | null;
+  /** 0..1 model confidence; persisted as 0-100 to match the rest of the schema. */
+  readonly confidence: number;
+  readonly rationale?: string;
+  readonly usage: AiUsage;
+}
+
+export type AiClassifyOutcome =
+  | { readonly ok: true; readonly result: AiClassifyResult }
+  | {
+      readonly ok: false;
+      readonly code: AiExtractionErrorCode;
+      readonly message: string;
+      readonly provider?: string;
+      readonly latencyMs?: number;
+    };
+
+export interface AiClassifyPort {
+  classify(input: AiClassifyInput): Promise<AiClassifyOutcome>;
+  /**
+   * Deliberately NOT named `cacheKeyComponents` -- Chunk C wires the three
+   * existing extraction adapter classes to also `implements AiClassifyPort`,
+   * and a same-named, same-signature method on both interfaces would force
+   * one implementation to serve both, unable to ever return two DIFFERENT
+   * schema versions for two genuinely different tasks. Otherwise reuses
+   * `AiCacheKeyComponents` unchanged (`reasoningEffort` stays optional) --
+   * classification's cache key is computed the identical way `runExtraction`'s
+   * own is.
+   */
+  classifyCacheKeyComponents(): AiCacheKeyComponents;
+}
+
+/**
+ * Part 8 AI-01 item 5 ("explanation of an ALREADY-DETERMINED deterministic
+ * readiness gap"). A third genuinely separate port, for the same reason
+ * `AiClassifyPort` is: the input/output shape differs from both extraction
+ * and classification. Scoped to only the two RUL-04 states
+ * (`packages/services/src/missions.ts`'s own `RequirementResultState`) that
+ * actually mean "requirement not met" -- CRITICAL_GAP (required) and
+ * ATTENTION (optional) -- never CONFLICTING/EXPIRING_STALE/UNVERIFIED, which
+ * are richer states describing a DIFFERENT kind of problem than a missing
+ * requirement, out of this task's literal "a gap" scope. Deliberately no
+ * applicant-specific data in the input at all -- see `ai_explanation_runs`'s
+ * own doc comment in schema.ts for why that means no consent gate applies
+ * either.
+ */
+export interface AiExplainInput {
+  readonly requirementKind: 'FIELD' | 'DOCUMENT';
+  readonly requirementKey: string;
+  readonly state: 'CRITICAL_GAP' | 'ATTENTION';
+  readonly citation: string;
+  readonly optional: boolean;
+}
+
+export interface AiExplainResult {
+  readonly explanation: string;
+  readonly usage: AiUsage;
+}
+
+export type AiExplainOutcome =
+  | { readonly ok: true; readonly result: AiExplainResult }
+  | {
+      readonly ok: false;
+      readonly code: AiExtractionErrorCode;
+      readonly message: string;
+      readonly provider?: string;
+      readonly latencyMs?: number;
+    };
+
+export interface AiExplainPort {
+  explain(input: AiExplainInput): Promise<AiExplainOutcome>;
+  /** Deliberately NOT named `cacheKeyComponents`/`classifyCacheKeyComponents` -- same collision-avoidance reasoning as `AiClassifyPort`'s own. */
+  explainCacheKeyComponents(): AiCacheKeyComponents;
+}
+
+/**
+ * Part 8 AI-01 item 4 ("possible inconsistency flag"), the fourth and last
+ * port extending the canonical AI Gateway. Compares one document's
+ * deterministically-extracted text against the applicant's OWN
+ * already-confirmed (TRUSTED-status, STANDARD-sensitivity) profile facts --
+ * never a second document, never protected/sensitive field values, and
+ * never a re-determination of any fact's correctness. Purely advisory: even
+ * a returned flag never implies which side (document or profile) is
+ * actually wrong, only that a human should look.
+ */
+export interface AiInconsistencyInput {
+  readonly documentVersionId: string;
+  readonly text: string;
+  readonly profileFacts: readonly { readonly fieldKey: string; readonly value: string }[];
+}
+
+export interface AiInconsistencyFlag {
+  readonly description: string;
+  /** 0..1 model confidence; persisted as 0-100 to match the rest of the schema. */
+  readonly confidence: number;
+  readonly rationale?: string;
+}
+
+export interface AiInconsistencyResult {
+  /** Empty is a genuine, common, good outcome -- "found nothing" -- mirroring `runExtraction`'s own empty-proposals convention. */
+  readonly flags: readonly AiInconsistencyFlag[];
+  readonly usage: AiUsage;
+}
+
+export type AiInconsistencyOutcome =
+  | { readonly ok: true; readonly result: AiInconsistencyResult }
+  | {
+      readonly ok: false;
+      readonly code: AiExtractionErrorCode;
+      readonly message: string;
+      readonly provider?: string;
+      readonly latencyMs?: number;
+    };
+
+export interface AiInconsistencyPort {
+  checkConsistency(input: AiInconsistencyInput): Promise<AiInconsistencyOutcome>;
+  /** Deliberately its own name, not shared with any other port's cache-key method -- same collision-avoidance reasoning as `AiClassifyPort`'s own. */
+  inconsistencyCacheKeyComponents(): AiCacheKeyComponents;
+}
+
 function toPersistedConfidence(confidence: number): number {
   return Math.max(0, Math.min(100, Math.round(confidence * 100)));
 }
 
 /**
  * The durable, platform-wide AI spend so far -- the cost ledger IS this sum.
- * Sums `ai_extraction_runs` AND `ocr_runs` together (Part 8 Chunk 18's own
- * user-confirmed decision): both bill through the same admin-configured
- * provider/API key in reality -- one bill, one budget -- so "platform-wide
- * spend" means every AI Gateway task combined, not text extraction alone.
- * The admin dashboard's own spend meter (`apps/web/src/app/app/admin/
- * page.tsx`) calls this function directly, so it picks up true combined
- * spend automatically once OCR calls exist, with no separate change needed
- * there.
+ * Sums `ai_extraction_runs`, `ocr_runs`, AND `ai_classification_runs`
+ * together (Part 8 Chunk 18's own user-confirmed decision, extended for
+ * AI-01's classification task the same way): all three bill through the
+ * same admin-configured provider/API key in reality -- one bill, one
+ * budget -- so "platform-wide spend" means every AI Gateway task combined,
+ * never just one task alone. The admin dashboard's own spend meter
+ * (`apps/web/src/app/app/admin/page.tsx`) calls this function directly, so
+ * it picks up true combined spend automatically as new tasks are added,
+ * with no separate change needed there.
  */
 export async function totalAiCostUnits(db: Db): Promise<number> {
-  const [extraction, ocr] = await Promise.all([
+  const [extraction, ocr, classification, explanation, inconsistency] = await Promise.all([
     first(
       await db
         .select({ total: sql<string>`coalesce(sum(${schema.aiExtractionRuns.costUnits}), 0)` })
@@ -158,19 +309,47 @@ export async function totalAiCostUnits(db: Db): Promise<number> {
         .select({ total: sql<string>`coalesce(sum(${schema.ocrRuns.costUnits}), 0)` })
         .from(schema.ocrRuns),
     ),
+    first(
+      await db
+        .select({
+          total: sql<string>`coalesce(sum(${schema.aiClassificationRuns.costUnits}), 0)`,
+        })
+        .from(schema.aiClassificationRuns),
+    ),
+    first(
+      await db
+        .select({
+          total: sql<string>`coalesce(sum(${schema.aiExplanationRuns.costUnits}), 0)`,
+        })
+        .from(schema.aiExplanationRuns),
+    ),
+    first(
+      await db
+        .select({
+          total: sql<string>`coalesce(sum(${schema.aiInconsistencyRuns.costUnits}), 0)`,
+        })
+        .from(schema.aiInconsistencyRuns),
+    ),
   ]);
-  return Number(extraction?.total ?? 0) + Number(ocr?.total ?? 0);
+  return (
+    Number(extraction?.total ?? 0) +
+    Number(ocr?.total ?? 0) +
+    Number(classification?.total ?? 0) +
+    Number(explanation?.total ?? 0) +
+    Number(inconsistency?.total ?? 0)
+  );
 }
 
 /**
  * The durable AI spend so far for one specific document (per-document cap),
- * combined across `ai_extraction_runs` and `ocr_runs` for the identical
- * reason `totalAiCostUnits` is -- a per-document cap exists to bound how
- * much any single document can cost, a concern that applies the same way
- * regardless of which AI Gateway task the spend came from.
+ * combined across `ai_extraction_runs`, `ocr_runs`, AND
+ * `ai_classification_runs` for the identical reason `totalAiCostUnits` is --
+ * a per-document cap exists to bound how much any single document can cost,
+ * a concern that applies the same way regardless of which AI Gateway task
+ * the spend came from.
  */
 export async function documentAiCostUnits(db: Db, documentVersionId: string): Promise<number> {
-  const [extraction, ocr] = await Promise.all([
+  const [extraction, ocr, classification, inconsistency] = await Promise.all([
     first(
       await db
         .select({ total: sql<string>`coalesce(sum(${schema.aiExtractionRuns.costUnits}), 0)` })
@@ -183,8 +362,29 @@ export async function documentAiCostUnits(db: Db, documentVersionId: string): Pr
         .from(schema.ocrRuns)
         .where(eq(schema.ocrRuns.documentVersionId, documentVersionId)),
     ),
+    first(
+      await db
+        .select({
+          total: sql<string>`coalesce(sum(${schema.aiClassificationRuns.costUnits}), 0)`,
+        })
+        .from(schema.aiClassificationRuns)
+        .where(eq(schema.aiClassificationRuns.documentVersionId, documentVersionId)),
+    ),
+    first(
+      await db
+        .select({
+          total: sql<string>`coalesce(sum(${schema.aiInconsistencyRuns.costUnits}), 0)`,
+        })
+        .from(schema.aiInconsistencyRuns)
+        .where(eq(schema.aiInconsistencyRuns.documentVersionId, documentVersionId)),
+    ),
   ]);
-  return Number(extraction?.total ?? 0) + Number(ocr?.total ?? 0);
+  return (
+    Number(extraction?.total ?? 0) +
+    Number(ocr?.total ?? 0) +
+    Number(classification?.total ?? 0) +
+    Number(inconsistency?.total ?? 0)
+  );
 }
 
 /**
@@ -248,6 +448,47 @@ export async function countOcrAttempts(db: Db, documentVersionId: string): Promi
 }
 
 /**
+ * How many times AI classification has genuinely been invoked for one
+ * document -- the classification-specific mirror of `countAiExtractionAttempts`/
+ * `countOcrAttempts`, same cache-hit exclusion, same reason it is its own
+ * counter rather than shared with either: a document exhausting its
+ * extraction (or OCR) attempt budget must never also block its first-ever
+ * classification attempt, a genuinely different action invoked separately.
+ */
+export async function countAiClassificationAttempts(
+  db: Db,
+  documentVersionId: string,
+): Promise<number> {
+  const rows = await db
+    .select({ id: schema.aiClassificationRuns.id })
+    .from(schema.aiClassificationRuns)
+    .where(
+      and(
+        eq(schema.aiClassificationRuns.documentVersionId, documentVersionId),
+        isNull(schema.aiClassificationRuns.servedFromCacheRunId),
+      ),
+    );
+  return rows.length;
+}
+
+/** How many times an inconsistency check has genuinely been invoked for one document -- the inconsistency-specific mirror of `countAiClassificationAttempts`, same cache-hit exclusion, same reason it is its own independent counter. */
+export async function countAiInconsistencyAttempts(
+  db: Db,
+  documentVersionId: string,
+): Promise<number> {
+  const rows = await db
+    .select({ id: schema.aiInconsistencyRuns.id })
+    .from(schema.aiInconsistencyRuns)
+    .where(
+      and(
+        eq(schema.aiInconsistencyRuns.documentVersionId, documentVersionId),
+        isNull(schema.aiInconsistencyRuns.servedFromCacheRunId),
+      ),
+    );
+  return rows.length;
+}
+
+/**
  * Self-healing for `IN_FLIGHT` reservations (Part 8 §11's concurrency gate):
  * a row is inserted BEFORE the outbound provider call and only updated to
  * SUCCEEDED/FAILED after it returns (see `runExtraction`), so a process that
@@ -281,6 +522,33 @@ async function releaseStaleInFlightCalls(db: Db): Promise<void> {
       .update(schema.ocrRuns)
       .set({ status: 'FAILED', errorCode: 'in_flight_expired' })
       .where(and(eq(schema.ocrRuns.status, 'IN_FLIGHT'), lt(schema.ocrRuns.createdAt, cutoff))),
+    db
+      .update(schema.aiClassificationRuns)
+      .set({ status: 'FAILED', errorCode: 'in_flight_expired' })
+      .where(
+        and(
+          eq(schema.aiClassificationRuns.status, 'IN_FLIGHT'),
+          lt(schema.aiClassificationRuns.createdAt, cutoff),
+        ),
+      ),
+    db
+      .update(schema.aiExplanationRuns)
+      .set({ status: 'FAILED', errorCode: 'in_flight_expired' })
+      .where(
+        and(
+          eq(schema.aiExplanationRuns.status, 'IN_FLIGHT'),
+          lt(schema.aiExplanationRuns.createdAt, cutoff),
+        ),
+      ),
+    db
+      .update(schema.aiInconsistencyRuns)
+      .set({ status: 'FAILED', errorCode: 'in_flight_expired' })
+      .where(
+        and(
+          eq(schema.aiInconsistencyRuns.status, 'IN_FLIGHT'),
+          lt(schema.aiInconsistencyRuns.createdAt, cutoff),
+        ),
+      ),
   ]);
 }
 
@@ -292,22 +560,41 @@ async function releaseStaleInFlightCalls(db: Db): Promise<void> {
  * not of which AI Gateway task each call happens to be for.
  */
 async function countInFlightCalls(db: Db): Promise<number> {
-  const [extractionRows, ocrRows] = await Promise.all([
-    db
-      .select({ id: schema.aiExtractionRuns.id })
-      .from(schema.aiExtractionRuns)
-      .where(eq(schema.aiExtractionRuns.status, 'IN_FLIGHT')),
-    db
-      .select({ id: schema.ocrRuns.id })
-      .from(schema.ocrRuns)
-      .where(eq(schema.ocrRuns.status, 'IN_FLIGHT')),
-  ]);
-  return extractionRows.length + ocrRows.length;
+  const [extractionRows, ocrRows, classificationRows, explanationRows, inconsistencyRows] =
+    await Promise.all([
+      db
+        .select({ id: schema.aiExtractionRuns.id })
+        .from(schema.aiExtractionRuns)
+        .where(eq(schema.aiExtractionRuns.status, 'IN_FLIGHT')),
+      db
+        .select({ id: schema.ocrRuns.id })
+        .from(schema.ocrRuns)
+        .where(eq(schema.ocrRuns.status, 'IN_FLIGHT')),
+      db
+        .select({ id: schema.aiClassificationRuns.id })
+        .from(schema.aiClassificationRuns)
+        .where(eq(schema.aiClassificationRuns.status, 'IN_FLIGHT')),
+      db
+        .select({ id: schema.aiExplanationRuns.id })
+        .from(schema.aiExplanationRuns)
+        .where(eq(schema.aiExplanationRuns.status, 'IN_FLIGHT')),
+      db
+        .select({ id: schema.aiInconsistencyRuns.id })
+        .from(schema.aiInconsistencyRuns)
+        .where(eq(schema.aiInconsistencyRuns.status, 'IN_FLIGHT')),
+    ]);
+  return (
+    extractionRows.length +
+    ocrRows.length +
+    classificationRows.length +
+    explanationRows.length +
+    inconsistencyRows.length
+  );
 }
 
 /** Same as `countInFlightCalls`, scoped to one document -- the per-document budget check's own concurrency exposure. */
 async function countInFlightCallsForDocument(db: Db, documentVersionId: string): Promise<number> {
-  const [extractionRows, ocrRows] = await Promise.all([
+  const [extractionRows, ocrRows, classificationRows, inconsistencyRows] = await Promise.all([
     db
       .select({ id: schema.aiExtractionRuns.id })
       .from(schema.aiExtractionRuns)
@@ -326,8 +613,28 @@ async function countInFlightCallsForDocument(db: Db, documentVersionId: string):
           eq(schema.ocrRuns.documentVersionId, documentVersionId),
         ),
       ),
+    db
+      .select({ id: schema.aiClassificationRuns.id })
+      .from(schema.aiClassificationRuns)
+      .where(
+        and(
+          eq(schema.aiClassificationRuns.status, 'IN_FLIGHT'),
+          eq(schema.aiClassificationRuns.documentVersionId, documentVersionId),
+        ),
+      ),
+    db
+      .select({ id: schema.aiInconsistencyRuns.id })
+      .from(schema.aiInconsistencyRuns)
+      .where(
+        and(
+          eq(schema.aiInconsistencyRuns.status, 'IN_FLIGHT'),
+          eq(schema.aiInconsistencyRuns.documentVersionId, documentVersionId),
+        ),
+      ),
   ]);
-  return extractionRows.length + ocrRows.length;
+  return (
+    extractionRows.length + ocrRows.length + classificationRows.length + inconsistencyRows.length
+  );
 }
 
 /**
@@ -348,7 +655,7 @@ async function countInFlightCallsForDocument(db: Db, documentVersionId: string):
  * never an under-estimate.
  */
 async function maxObservedCostUnits(db: Db): Promise<number> {
-  const [extraction, ocr] = await Promise.all([
+  const [extraction, ocr, classification, explanation, inconsistency] = await Promise.all([
     first(
       await db
         .select({ max: sql<string>`coalesce(max(${schema.aiExtractionRuns.costUnits}), 0)` })
@@ -361,8 +668,38 @@ async function maxObservedCostUnits(db: Db): Promise<number> {
         .from(schema.ocrRuns)
         .where(eq(schema.ocrRuns.status, 'SUCCEEDED')),
     ),
+    first(
+      await db
+        .select({
+          max: sql<string>`coalesce(max(${schema.aiClassificationRuns.costUnits}), 0)`,
+        })
+        .from(schema.aiClassificationRuns)
+        .where(eq(schema.aiClassificationRuns.status, 'SUCCEEDED')),
+    ),
+    first(
+      await db
+        .select({
+          max: sql<string>`coalesce(max(${schema.aiExplanationRuns.costUnits}), 0)`,
+        })
+        .from(schema.aiExplanationRuns)
+        .where(eq(schema.aiExplanationRuns.status, 'SUCCEEDED')),
+    ),
+    first(
+      await db
+        .select({
+          max: sql<string>`coalesce(max(${schema.aiInconsistencyRuns.costUnits}), 0)`,
+        })
+        .from(schema.aiInconsistencyRuns)
+        .where(eq(schema.aiInconsistencyRuns.status, 'SUCCEEDED')),
+    ),
   ]);
-  return Math.max(Number(extraction?.max ?? 0), Number(ocr?.max ?? 0));
+  return Math.max(
+    Number(extraction?.max ?? 0),
+    Number(ocr?.max ?? 0),
+    Number(classification?.max ?? 0),
+    Number(explanation?.max ?? 0),
+    Number(inconsistency?.max ?? 0),
+  );
 }
 
 /** The deterministic parser version that produced this document's text (a cache-key component). */
@@ -520,6 +857,13 @@ export interface RunExtractionInput {
    * every other optional check here.
    */
   readonly killSwitchCheck?: () => Promise<boolean>;
+  /**
+   * Part 8 §13 (cross-provider fallback), OFF (undefined) by default. See
+   * `runExtraction`'s own doc comment for the full triggering/eligibility
+   * rules -- this function only ever dispatches to it, never decides
+   * whether it was correct to provide.
+   */
+  readonly fallback?: { readonly ai: AiExtractionPort };
 }
 
 const DEFAULT_CACHE_MAX_AGE_DAYS = 30;
@@ -639,6 +983,20 @@ export interface RunExtractionSummary {
  * which is standard, well-established behavior, not something this
  * codebase is inventing. See `ai.test.ts`'s note above the (deliberately
  * absent) race test for how this was confirmed rather than assumed.
+ *
+ * Cross-provider fallback (Part 8 §13, `input.fallback`): when the primary
+ * call's outcome is a directive-named RECOVERABLE failure (`timeout` or
+ * `rate_limited` only -- never `refused`, which would be exactly the "shop
+ * for a desired answer" the directive forbids, and never `auth_failed`/
+ * `invalid_response`/`disabled` either, matching "do not retry: auth
+ * failure; invalid input; consent denial"), phases 1-3 run a SECOND time
+ * against `input.fallback.ai`, writing their own `ai_extraction_runs` row
+ * with `triggeredByRunId` pointing back at the primary row. This function
+ * trusts whatever adapter it is given for `input.fallback.ai` without
+ * re-checking eligibility itself -- the caller (`resolveAiExtractor`,
+ * apps/web) is responsible for only ever populating it once the fallback
+ * config's own eligibility (data policy approved, key not revoked, a
+ * genuinely different provider) has been freshly re-verified.
  */
 type ExtractionReservation =
   | { readonly kind: 'final'; readonly outcome: Result<RunExtractionSummary, ServiceError> }
@@ -649,21 +1007,22 @@ type ExtractionReservation =
       readonly cacheKey: string;
     };
 
-export async function runExtraction(
+/**
+ * Phase 1 (RESERVE), factored out of `runExtraction` so it can run a second
+ * time for a cross-provider fallback attempt without duplicating any of its
+ * own checks -- see `runExtraction`'s own doc comment ("Cross-provider
+ * fallback") for why every check here composes correctly for a fallback
+ * call for free. `triggeredByRunId`, set only for a fallback attempt, links
+ * whatever row this reservation creates back to the primary row that
+ * triggered it.
+ */
+async function reserveExtractionSlot(
   db: Db,
   ai: AiExtractionPort,
   input: RunExtractionInput,
-): Promise<Result<RunExtractionSummary, ServiceError>> {
-  const applicant = await getApplicant(db, input.applicantId);
-  if (!applicant) return err(serviceError('not_found', 'applicant not found'));
-  if (applicant.ownerAccountId !== input.actorAccountId) {
-    return err(serviceError('forbidden', 'not authorized to run extraction for this applicant'));
-  }
-  if (!(await hasConsent(db, applicant.ownerAccountId, 'AI_EXTRACTION'))) {
-    return err(serviceError('consent_required', 'AI_EXTRACTION consent is required'));
-  }
-
-  const reservation = await db.transaction(async (tx): Promise<ExtractionReservation> => {
+  triggeredByRunId?: string,
+): Promise<ExtractionReservation> {
+  return db.transaction(async (tx): Promise<ExtractionReservation> => {
     // Fixed key, acquired first (and held for this whole phase-1
     // transaction, same as the per-document lock below): serializes the
     // platform-wide budget/concurrency check-and-reserve step against every
@@ -758,6 +1117,7 @@ export async function runExtraction(
               provider: cached.provider,
               cacheKey,
               servedFromCacheRunId: cached.id,
+              ...(triggeredByRunId ? { triggeredByRunId } : {}),
             })
             .returning(),
         ),
@@ -876,6 +1236,7 @@ export async function runExtraction(
             status: 'IN_FLIGHT',
             modelVersion: 'unknown',
             promptVersion: 'unknown',
+            ...(triggeredByRunId ? { triggeredByRunId } : {}),
           })
           .returning(),
       ),
@@ -884,10 +1245,27 @@ export async function runExtraction(
 
     return { kind: 'proceed', runId: run.id, allowedFieldKeys, cacheKey };
   });
+}
 
-  if (reservation.kind === 'final') return reservation.outcome;
-  const { runId, allowedFieldKeys, cacheKey } = reservation;
+interface ExtractionDispatchResult {
+  /** Raw adapter outcome, so a caller can inspect its error code to decide whether to attempt a fallback. */
+  readonly outcome: AiExtractionOutcome;
+  readonly result: Result<RunExtractionSummary, ServiceError>;
+}
 
+/**
+ * Phases 2 (CALL) and 3 (RECONCILE), factored out for the identical reason
+ * as `reserveExtractionSlot` -- reused unchanged for a fallback attempt
+ * against a different `ai`/`runId`/`allowedFieldKeys`/`cacheKey`.
+ */
+async function dispatchAndReconcile(
+  db: Db,
+  ai: AiExtractionPort,
+  input: RunExtractionInput,
+  runId: string,
+  allowedFieldKeys: readonly string[],
+  cacheKey: string,
+): Promise<ExtractionDispatchResult> {
   // Part 8 §5's kill switch, rechecked here -- immediately before the
   // outbound call, after every phase-1 check already passed and a slot was
   // already reserved -- rather than only once back in phase 1. A refusal
@@ -906,7 +1284,7 @@ export async function runExtraction(
       })
     : { ok: false, code: 'disabled', message: 'AI extraction is currently disabled' };
 
-  return db.transaction(async (tx) => {
+  const result = await db.transaction(async (tx) => {
     if (!outcome.ok) {
       await tx
         .update(schema.aiExtractionRuns)
@@ -1012,6 +1390,690 @@ export async function runExtraction(
 
     return ok({ aiExtractionRunId: runId, proposals: savedProposals });
   });
+  return { outcome, result };
+}
+
+/** Part 8 §13: only these two directive-named codes ever justify a fallback attempt -- see the doc comment on `runExtraction` below ("Cross-provider fallback") for the full reasoning. */
+function isRecoverableForFallback(code: AiExtractionErrorCode): boolean {
+  return code === 'timeout' || code === 'rate_limited';
+}
+
+export async function runExtraction(
+  db: Db,
+  ai: AiExtractionPort,
+  input: RunExtractionInput,
+): Promise<Result<RunExtractionSummary, ServiceError>> {
+  const applicant = await getApplicant(db, input.applicantId);
+  if (!applicant) return err(serviceError('not_found', 'applicant not found'));
+  if (applicant.ownerAccountId !== input.actorAccountId) {
+    return err(serviceError('forbidden', 'not authorized to run extraction for this applicant'));
+  }
+  if (!(await hasConsent(db, applicant.ownerAccountId, 'AI_EXTRACTION'))) {
+    return err(serviceError('consent_required', 'AI_EXTRACTION consent is required'));
+  }
+
+  const reservation = await reserveExtractionSlot(db, ai, input);
+  if (reservation.kind === 'final') return reservation.outcome;
+
+  const primary = await dispatchAndReconcile(
+    db,
+    ai,
+    input,
+    reservation.runId,
+    reservation.allowedFieldKeys,
+    reservation.cacheKey,
+  );
+  if (primary.outcome.ok) return primary.result;
+  if (!input.fallback || !isRecoverableForFallback(primary.outcome.code)) return primary.result;
+
+  // Cross-provider fallback (Part 8 §13): the primary row above is already
+  // fully reconciled to FAILED, so this second reservation is an honest,
+  // independent check against the current (now primary-free) ledger state,
+  // not a race against it -- see `runExtraction`'s own doc comment.
+  const fallbackReservation = await reserveExtractionSlot(
+    db,
+    input.fallback.ai,
+    input,
+    reservation.runId,
+  );
+  if (fallbackReservation.kind === 'final') return fallbackReservation.outcome;
+
+  const fallback = await dispatchAndReconcile(
+    db,
+    input.fallback.ai,
+    input,
+    fallbackReservation.runId,
+    fallbackReservation.allowedFieldKeys,
+    fallbackReservation.cacheKey,
+  );
+  return fallback.result;
+}
+
+// --- AI-assisted document type classification (Part 8 AI-01 item 2) -------
+//
+// Advisory only, exactly like field extraction: `runClassification` never
+// writes `document_classifications` directly, only a PENDING
+// `document_type_proposals` row a human must decide on
+// (`approveDocumentTypeProposal`/`rejectDocumentTypeProposal`). Shares the
+// SAME platform-wide budget ledger, advisory locks, and AI_EXTRACTION
+// consent gate `runExtraction` uses (this file's own doc comment explains
+// why OCR lives here rather than in a separate file -- classification is
+// co-located for the identical reason). Deliberately its OWN run table
+// (`ai_classification_runs`) rather than folded into `ai_extraction_runs`
+// with a discriminator -- `countAiExtractionAttempts`'s own doc comment
+// already establishes that a per-task attempt limit must stay independent
+// per task, which a shared table would need a filter on every query to
+// preserve; a dedicated table gets that for free, matching `ocr_runs`'s own
+// precedent one table up. No cross-provider fallback yet (Part 8 §13) --
+// deliberately deferred, matching AI-09's own precedent of shipping a task's
+// core capability before its fallback wiring.
+export type DocumentTypeProposalRow = typeof schema.documentTypeProposals.$inferSelect;
+
+export interface RunClassificationInput {
+  readonly actorAccountId: string;
+  readonly applicantId: string;
+  readonly documentVersionId: string;
+  readonly text: string;
+  readonly budgetLimitUnits: number;
+  readonly perDocumentBudgetLimitUnits?: number;
+  readonly maxAttemptsPerDocument?: number;
+  readonly maxPagesPerDocument?: number;
+  readonly maxConcurrentCalls?: number;
+  readonly cacheMaxAgeDays?: number;
+  readonly killSwitchCheck?: () => Promise<boolean>;
+}
+
+export interface RunClassificationSummary {
+  readonly aiClassificationRunId: string;
+  /** Null when the model also could not confidently classify -- nothing for a human to review, exactly like extraction's own empty-proposals case. */
+  readonly proposal: DocumentTypeProposalRow | null;
+}
+
+type ClassificationReservation =
+  | { readonly kind: 'final'; readonly outcome: Result<RunClassificationSummary, ServiceError> }
+  | {
+      readonly kind: 'proceed';
+      readonly runId: string;
+      readonly allowedTypes: readonly string[];
+      readonly cacheKey: string;
+    };
+
+/** Phase 1 (RESERVE) -- structurally mirrors `reserveExtractionSlot`; see that function's own doc comment (on `runExtraction`) for the full reasoning behind every check and lock here. */
+async function reserveClassificationSlot(
+  db: Db,
+  ai: AiClassifyPort,
+  input: RunClassificationInput,
+): Promise<ClassificationReservation> {
+  return db.transaction(async (tx): Promise<ClassificationReservation> => {
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext('visastack:ai-platform-budget'))`);
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${input.documentVersionId}))`);
+
+    await releaseStaleInFlightCalls(tx);
+
+    const worstCase = await maxObservedCostUnits(tx);
+    const inFlightPlatform = await countInFlightCalls(tx);
+
+    const used = (await totalAiCostUnits(tx)) + (inFlightPlatform + 1) * worstCase;
+    if (used >= input.budgetLimitUnits) {
+      return { kind: 'final', outcome: err(serviceError('invalid', 'AI budget exhausted')) };
+    }
+    if (input.perDocumentBudgetLimitUnits !== undefined) {
+      const inFlightDocument = await countInFlightCallsForDocument(tx, input.documentVersionId);
+      const documentUsed =
+        (await documentAiCostUnits(tx, input.documentVersionId)) +
+        (inFlightDocument + 1) * worstCase;
+      if (documentUsed >= input.perDocumentBudgetLimitUnits) {
+        return {
+          kind: 'final',
+          outcome: err(serviceError('invalid', 'AI budget exhausted for this document')),
+        };
+      }
+    }
+    if (input.maxPagesPerDocument !== undefined) {
+      const pageCount = await latestPageCount(tx, input.documentVersionId);
+      if (pageCount !== null && pageCount > input.maxPagesPerDocument) {
+        return {
+          kind: 'final',
+          outcome: err(
+            serviceError(
+              'invalid',
+              'document exceeds the configured page limit for AI classification',
+            ),
+          ),
+        };
+      }
+    }
+
+    const allowedTypes = CLASSIFIABLE_DOCUMENT_TYPES;
+    const contentHash = createHash('sha256').update(input.text).digest('hex');
+    const parserVersion = (await latestParserVersion(tx, input.documentVersionId)) ?? 'unknown';
+    const cacheKey = computeCacheKey(contentHash, parserVersion, ai.classifyCacheKeyComponents());
+
+    const cacheMaxAgeDays = input.cacheMaxAgeDays ?? DEFAULT_CACHE_MAX_AGE_DAYS;
+    const cacheCutoff = new Date(Date.now() - cacheMaxAgeDays * 24 * 60 * 60 * 1000);
+    const cached = first(
+      await tx
+        .select()
+        .from(schema.aiClassificationRuns)
+        .where(
+          and(
+            eq(schema.aiClassificationRuns.cacheKey, cacheKey),
+            eq(schema.aiClassificationRuns.status, 'SUCCEEDED'),
+            gte(schema.aiClassificationRuns.createdAt, cacheCutoff),
+          ),
+        )
+        .orderBy(desc(schema.aiClassificationRuns.createdAt))
+        .limit(1),
+    );
+
+    if (cached) {
+      const run = required(
+        first(
+          await tx
+            .insert(schema.aiClassificationRuns)
+            .values({
+              documentVersionId: input.documentVersionId,
+              applicantId: input.applicantId,
+              status: 'SUCCEEDED',
+              modelVersion: cached.modelVersion,
+              promptVersion: cached.promptVersion,
+              schemaVersion: cached.schemaVersion,
+              costUnits: 0,
+              provider: cached.provider,
+              cacheKey,
+              servedFromCacheRunId: cached.id,
+            })
+            .returning(),
+        ),
+        'ai classification run',
+      );
+      const sourceProposal = first(
+        await tx
+          .select()
+          .from(schema.documentTypeProposals)
+          .where(eq(schema.documentTypeProposals.aiClassificationRunId, cached.id)),
+      );
+      let savedProposal: DocumentTypeProposalRow | null = null;
+      if (sourceProposal) {
+        savedProposal = required(
+          first(
+            await tx
+              .insert(schema.documentTypeProposals)
+              .values({
+                aiClassificationRunId: run.id,
+                documentVersionId: input.documentVersionId,
+                applicantId: input.applicantId,
+                suggestedType: sourceProposal.suggestedType,
+                confidence: sourceProposal.confidence,
+                rationale: sourceProposal.rationale,
+              })
+              .returning(),
+          ),
+          'document type proposal',
+        );
+      }
+      await appendAuditEvent(tx, {
+        eventType: 'AI_CLASSIFICATION_CACHE_HIT',
+        actorAccountId: input.actorAccountId,
+        method: 'DOCUMENT',
+        result: 'ALLOWED',
+        applicantId: input.applicantId,
+        resourceType: 'document_version',
+        resourceId: input.documentVersionId,
+        metadata: { aiClassificationRunId: run.id, servedFromCacheRunId: cached.id, cacheKey },
+      });
+      return {
+        kind: 'final',
+        outcome: ok({ aiClassificationRunId: run.id, proposal: savedProposal }),
+      };
+    }
+
+    if (input.maxAttemptsPerDocument !== undefined) {
+      const attempts = await countAiClassificationAttempts(tx, input.documentVersionId);
+      if (attempts >= input.maxAttemptsPerDocument) {
+        return {
+          kind: 'final',
+          outcome: err(
+            serviceError('invalid', 'AI classification attempt limit reached for this document'),
+          ),
+        };
+      }
+    }
+
+    if (input.maxConcurrentCalls !== undefined && inFlightPlatform >= input.maxConcurrentCalls) {
+      return {
+        kind: 'final',
+        outcome: err(
+          serviceError(
+            'rate_limited',
+            'too many AI classification calls in flight platform-wide; try again shortly',
+          ),
+        ),
+      };
+    }
+
+    const run = required(
+      first(
+        await tx
+          .insert(schema.aiClassificationRuns)
+          .values({
+            documentVersionId: input.documentVersionId,
+            applicantId: input.applicantId,
+            status: 'IN_FLIGHT',
+            modelVersion: 'unknown',
+            promptVersion: 'unknown',
+          })
+          .returning(),
+      ),
+      'ai classification run',
+    );
+
+    return { kind: 'proceed', runId: run.id, allowedTypes, cacheKey };
+  });
+}
+
+interface ClassificationDispatchResult {
+  readonly outcome: AiClassifyOutcome;
+  readonly result: Result<RunClassificationSummary, ServiceError>;
+}
+
+/** Phases 2 (CALL) and 3 (RECONCILE) -- structurally mirrors `dispatchAndReconcile`. */
+async function dispatchAndReconcileClassification(
+  db: Db,
+  ai: AiClassifyPort,
+  input: RunClassificationInput,
+  runId: string,
+  allowedTypes: readonly string[],
+  cacheKey: string,
+): Promise<ClassificationDispatchResult> {
+  const killSwitchAllows = input.killSwitchCheck ? await input.killSwitchCheck() : true;
+
+  const outcome: AiClassifyOutcome = killSwitchAllows
+    ? await ai.classify({
+        documentVersionId: input.documentVersionId,
+        text: input.text,
+        allowedTypes,
+      })
+    : { ok: false, code: 'disabled', message: 'AI classification is currently disabled' };
+
+  const result = await db.transaction(async (tx) => {
+    if (!outcome.ok) {
+      await tx
+        .update(schema.aiClassificationRuns)
+        .set({
+          status: 'FAILED',
+          provider: outcome.provider ?? null,
+          latencyMs: outcome.latencyMs ?? null,
+          errorCode: outcome.code,
+        })
+        .where(eq(schema.aiClassificationRuns.id, runId));
+      await appendAuditEvent(tx, {
+        eventType: 'AI_CLASSIFICATION_FAILED',
+        actorAccountId: input.actorAccountId,
+        method: 'DOCUMENT',
+        result: 'ALLOWED',
+        applicantId: input.applicantId,
+        resourceType: 'document_version',
+        resourceId: input.documentVersionId,
+        metadata: { errorCode: outcome.code, aiClassificationRunId: runId },
+      });
+      return err(
+        serviceError(outcome.code === 'disabled' ? 'invalid' : 'upstream_error', outcome.message),
+      );
+    }
+
+    const { suggestedType, confidence, rationale, usage } = outcome.result;
+
+    await tx
+      .update(schema.aiClassificationRuns)
+      .set({
+        status: 'SUCCEEDED',
+        modelVersion: usage.modelVersion,
+        promptVersion: usage.promptVersion,
+        schemaVersion: usage.schemaVersion,
+        costUnits: usage.costUnits,
+        provider: usage.provider,
+        providerRequestId: usage.providerRequestId ?? null,
+        inputUnits: usage.inputUnits,
+        outputUnits: usage.outputUnits,
+        cachedUnits: usage.cachedUnits,
+        latencyMs: usage.latencyMs,
+        cacheKey,
+      })
+      .where(eq(schema.aiClassificationRuns.id, runId));
+
+    // No proposal row when the model also could not confidently classify, or
+    // named a type outside the allowed vocabulary (never trusted blindly,
+    // exactly like extraction's own UNMAPPED/UNCERTAIN handling) -- nothing
+    // for a human to review either way.
+    let savedProposal: DocumentTypeProposalRow | null = null;
+    if (suggestedType && allowedTypes.includes(suggestedType)) {
+      savedProposal = required(
+        first(
+          await tx
+            .insert(schema.documentTypeProposals)
+            .values({
+              aiClassificationRunId: runId,
+              documentVersionId: input.documentVersionId,
+              applicantId: input.applicantId,
+              suggestedType,
+              confidence: toPersistedConfidence(confidence),
+              rationale: rationale ?? null,
+            })
+            .returning(),
+        ),
+        'document type proposal',
+      );
+    }
+
+    await appendAuditEvent(tx, {
+      eventType: 'AI_CLASSIFICATION_RUN',
+      actorAccountId: input.actorAccountId,
+      method: 'DOCUMENT',
+      result: 'ALLOWED',
+      applicantId: input.applicantId,
+      resourceType: 'document_version',
+      resourceId: input.documentVersionId,
+      metadata: {
+        aiClassificationRunId: runId,
+        proposed: savedProposal !== null,
+        costUnits: usage.costUnits,
+        modelVersion: usage.modelVersion,
+        provider: usage.provider,
+        latencyMs: usage.latencyMs,
+      },
+    });
+    await recordProductEvent(tx, {
+      eventType: 'AI_CLASSIFICATION_RUN',
+      accountId: input.actorAccountId,
+    });
+
+    return ok({ aiClassificationRunId: runId, proposal: savedProposal });
+  });
+  return { outcome, result };
+}
+
+/**
+ * Run AI document-type classification (Part 8 AI-01 item 2), persisting an
+ * advisory proposal WITHOUT mutating `document_classifications`. Refuses to
+ * run at all when the deterministic classifier (`classification.ts`) already
+ * reached a confident result, or when a suggestion is already pending review
+ * for this document -- this task exists to fill a genuine deterministic gap,
+ * never to second-guess or duplicate it.
+ */
+export async function runClassification(
+  db: Db,
+  ai: AiClassifyPort,
+  input: RunClassificationInput,
+): Promise<Result<RunClassificationSummary, ServiceError>> {
+  const applicant = await getApplicant(db, input.applicantId);
+  if (!applicant) return err(serviceError('not_found', 'applicant not found'));
+  if (applicant.ownerAccountId !== input.actorAccountId) {
+    return err(
+      serviceError('forbidden', 'not authorized to run classification for this applicant'),
+    );
+  }
+  if (!(await hasConsent(db, applicant.ownerAccountId, 'AI_EXTRACTION'))) {
+    return err(serviceError('consent_required', 'AI_EXTRACTION consent is required'));
+  }
+
+  const existing = first(
+    await db
+      .select({
+        classifiedType: schema.documentClassifications.classifiedType,
+        reviewRequired: schema.documentClassifications.reviewRequired,
+      })
+      .from(schema.documentClassifications)
+      .where(eq(schema.documentClassifications.documentVersionId, input.documentVersionId))
+      .orderBy(desc(schema.documentClassifications.createdAt))
+      .limit(1),
+  );
+  if (existing && existing.classifiedType !== null && !existing.reviewRequired) {
+    return err(
+      serviceError('invalid', 'this document already has a confident deterministic classification'),
+    );
+  }
+  const pending = first(
+    await db
+      .select({ id: schema.documentTypeProposals.id })
+      .from(schema.documentTypeProposals)
+      .where(
+        and(
+          eq(schema.documentTypeProposals.documentVersionId, input.documentVersionId),
+          eq(schema.documentTypeProposals.status, 'PENDING'),
+        ),
+      )
+      .limit(1),
+  );
+  if (pending) {
+    return err(serviceError('invalid', 'a classification suggestion is already pending review'));
+  }
+
+  const reservation = await reserveClassificationSlot(db, ai, input);
+  if (reservation.kind === 'final') return reservation.outcome;
+
+  const dispatched = await dispatchAndReconcileClassification(
+    db,
+    ai,
+    input,
+    reservation.runId,
+    reservation.allowedTypes,
+    reservation.cacheKey,
+  );
+  return dispatched.result;
+}
+
+export interface ApproveDocumentTypeProposalInput {
+  readonly actorAccountId: string;
+  readonly proposalId: string;
+}
+
+/**
+ * Approve an AI document-type suggestion: writes a new, AI_APPROVED
+ * `document_classifications` row (never overwriting the proposal's own
+ * record, and never touching a deterministic row), then reuses the EXACT
+ * SAME downstream effects the deterministic path gets at intake time
+ * (`intake.ts`'s own `runExtractionStep`) -- filling `documents.docType`
+ * only if still null, and triggering a naming proposal via the identical
+ * `buildProposedName`/`proposeDocumentName` machinery. An AI-approved
+ * classification is never treated any differently from a deterministic one
+ * by either downstream system, satisfying AI-01 item 3 ("safe filename/name
+ * suggestion") through reuse rather than a second naming implementation.
+ */
+export async function approveDocumentTypeProposal(
+  db: Db,
+  input: ApproveDocumentTypeProposalInput,
+): Promise<Result<DocumentTypeProposalRow, ServiceError>> {
+  const proposal = first(
+    await db
+      .select()
+      .from(schema.documentTypeProposals)
+      .where(eq(schema.documentTypeProposals.id, input.proposalId))
+      .limit(1),
+  );
+  if (!proposal) return err(serviceError('not_found', 'proposal not found'));
+  if (proposal.status !== 'PENDING') {
+    return err(serviceError('invalid', 'this proposal has already been decided'));
+  }
+
+  const applicant = await getApplicant(db, proposal.applicantId);
+  if (!applicant) return err(serviceError('not_found', 'applicant not found'));
+  if (applicant.ownerAccountId !== input.actorAccountId) {
+    return err(serviceError('forbidden', 'not authorized to decide this proposal'));
+  }
+
+  const document = required(
+    first(
+      await db
+        .select({
+          id: schema.documents.id,
+          originalName: schema.documents.originalName,
+          docType: schema.documents.docType,
+        })
+        .from(schema.documents)
+        .innerJoin(
+          schema.documentVersions,
+          eq(schema.documentVersions.documentId, schema.documents.id),
+        )
+        .where(eq(schema.documentVersions.id, proposal.documentVersionId))
+        .limit(1),
+    ),
+    'document',
+  );
+
+  const extractionRun = required(
+    first(
+      await db
+        .select({ id: schema.extractionRuns.id })
+        .from(schema.extractionRuns)
+        .where(
+          and(
+            eq(schema.extractionRuns.documentVersionId, proposal.documentVersionId),
+            eq(schema.extractionRuns.status, 'SUCCEEDED'),
+          ),
+        )
+        .orderBy(desc(schema.extractionRuns.createdAt))
+        .limit(1),
+    ),
+    'extraction run',
+  );
+
+  return db.transaction(async (tx) => {
+    const classification = required(
+      first(
+        await tx
+          .insert(schema.documentClassifications)
+          .values({
+            extractionRunId: extractionRun.id,
+            documentVersionId: proposal.documentVersionId,
+            classifiedType: proposal.suggestedType,
+            confidence: proposal.confidence,
+            reviewRequired: false,
+            rationale: proposal.rationale,
+            source: 'AI_APPROVED',
+          })
+          .returning(),
+      ),
+      'document classification',
+    );
+
+    const updated = required(
+      first(
+        await tx
+          .update(schema.documentTypeProposals)
+          .set({
+            status: 'APPROVED',
+            decidedByAccountId: input.actorAccountId,
+            decidedAt: new Date(),
+            classificationId: classification.id,
+          })
+          .where(eq(schema.documentTypeProposals.id, input.proposalId))
+          .returning(),
+      ),
+      'document type proposal',
+    );
+
+    if (!document.docType) {
+      await tx
+        .update(schema.documents)
+        .set({ docType: proposal.suggestedType })
+        .where(eq(schema.documents.id, document.id));
+    }
+    const proposedName = buildProposedName({
+      classifiedType: proposal.suggestedType,
+      primarySubject: applicant.displayName ?? 'Unknown',
+      extension: extensionOf(document.originalName),
+    });
+    await proposeDocumentName(tx, { documentId: document.id, proposedName });
+
+    await appendAuditEvent(tx, {
+      eventType: 'AI_CLASSIFICATION_PROPOSAL_APPROVED',
+      actorAccountId: input.actorAccountId,
+      method: 'MANUAL',
+      result: 'ALLOWED',
+      applicantId: proposal.applicantId,
+      resourceType: 'document_type_proposal',
+      resourceId: proposal.id,
+      metadata: { suggestedType: proposal.suggestedType, classificationId: classification.id },
+    });
+
+    return ok(updated);
+  });
+}
+
+export interface RejectDocumentTypeProposalInput {
+  readonly actorAccountId: string;
+  readonly proposalId: string;
+  readonly reason?: string;
+}
+
+/** Reject a PENDING document-type suggestion -- no classification written, just a recorded decision. */
+export async function rejectDocumentTypeProposal(
+  db: Db,
+  input: RejectDocumentTypeProposalInput,
+): Promise<Result<DocumentTypeProposalRow, ServiceError>> {
+  const proposal = first(
+    await db
+      .select()
+      .from(schema.documentTypeProposals)
+      .where(eq(schema.documentTypeProposals.id, input.proposalId))
+      .limit(1),
+  );
+  if (!proposal) return err(serviceError('not_found', 'proposal not found'));
+  if (proposal.status !== 'PENDING') {
+    return err(serviceError('invalid', 'this proposal has already been decided'));
+  }
+
+  const applicant = await getApplicant(db, proposal.applicantId);
+  if (!applicant) return err(serviceError('not_found', 'applicant not found'));
+  if (applicant.ownerAccountId !== input.actorAccountId) {
+    return err(serviceError('forbidden', 'not authorized to decide this proposal'));
+  }
+
+  return db.transaction(async (tx) => {
+    const updated = required(
+      first(
+        await tx
+          .update(schema.documentTypeProposals)
+          .set({
+            status: 'REJECTED',
+            decidedByAccountId: input.actorAccountId,
+            decidedAt: new Date(),
+          })
+          .where(eq(schema.documentTypeProposals.id, input.proposalId))
+          .returning(),
+      ),
+      'document type proposal',
+    );
+    await appendAuditEvent(tx, {
+      eventType: 'AI_CLASSIFICATION_PROPOSAL_REJECTED',
+      actorAccountId: input.actorAccountId,
+      method: 'MANUAL',
+      result: 'ALLOWED',
+      applicantId: proposal.applicantId,
+      resourceType: 'document_type_proposal',
+      resourceId: proposal.id,
+      metadata: { suggestedType: proposal.suggestedType, reason: input.reason },
+    });
+    return ok(updated);
+  });
+}
+
+/** Pending document-type suggestions for an applicant (the review queue), newest first -- mirrors `listPendingProposals`'s identical shape/contract. */
+export async function listPendingDocumentTypeProposals(
+  db: Db,
+  applicantId: string,
+): Promise<DocumentTypeProposalRow[]> {
+  return db
+    .select()
+    .from(schema.documentTypeProposals)
+    .where(
+      and(
+        eq(schema.documentTypeProposals.applicantId, applicantId),
+        eq(schema.documentTypeProposals.status, 'PENDING'),
+      ),
+    )
+    .orderBy(desc(schema.documentTypeProposals.createdAt));
 }
 
 export interface RunOcrInput {
@@ -1029,6 +2091,8 @@ export interface RunOcrInput {
   readonly maxConcurrentCalls?: number;
   readonly cacheMaxAgeDays?: number;
   readonly killSwitchCheck?: () => Promise<boolean>;
+  /** Part 8 §13 (cross-provider fallback) -- see `runExtraction`'s own doc comment for the full triggering/eligibility rules, mirrored unchanged for OCR. */
+  readonly fallback?: { readonly ai: AiOcrPort };
 }
 
 export type OcrRunRow = typeof schema.ocrRuns.$inferSelect;
@@ -1079,22 +2143,18 @@ type OcrReservation =
  *   only ever be 1.
  * - No `allowedFieldKeys` -- OCR produces raw text, not field proposals;
  *   there is no registry to constrain it against at this stage.
+ *
+ * Cross-provider fallback (Part 8 §13, `input.fallback`): identical
+ * triggering/eligibility rules to `runExtraction`'s own -- see that
+ * function's doc comment for the full reasoning, not repeated here.
  */
-export async function runOcr(
+async function reserveOcrSlot(
   db: Db,
   ai: AiOcrPort,
   input: RunOcrInput,
-): Promise<Result<RunOcrSummary, ServiceError>> {
-  const applicant = await getApplicant(db, input.applicantId);
-  if (!applicant) return err(serviceError('not_found', 'applicant not found'));
-  if (applicant.ownerAccountId !== input.actorAccountId) {
-    return err(serviceError('forbidden', 'not authorized to run OCR for this applicant'));
-  }
-  if (!(await hasConsent(db, applicant.ownerAccountId, 'AI_OCR'))) {
-    return err(serviceError('consent_required', 'AI_OCR consent is required'));
-  }
-
-  const reservation = await db.transaction(async (tx): Promise<OcrReservation> => {
+  triggeredByRunId?: string,
+): Promise<OcrReservation> {
+  return db.transaction(async (tx): Promise<OcrReservation> => {
     // Same fixed platform-wide key and same document-derived key
     // `runExtraction` locks -- see this function's own doc comment for why
     // that cross-function serialization is required, not incidental.
@@ -1163,6 +2223,7 @@ export async function runOcr(
               costUnits: 0,
               cacheKey,
               servedFromCacheRunId: cached.id,
+              ...(triggeredByRunId ? { triggeredByRunId } : {}),
             })
             .returning(),
         ),
@@ -1218,6 +2279,7 @@ export async function runOcr(
             provider: 'unknown',
             modelVersion: 'unknown',
             promptVersion: 'unknown',
+            ...(triggeredByRunId ? { triggeredByRunId } : {}),
           })
           .returning(),
       ),
@@ -1226,10 +2288,22 @@ export async function runOcr(
 
     return { kind: 'proceed', runId: run.id, cacheKey };
   });
+}
 
-  if (reservation.kind === 'final') return reservation.outcome;
-  const { runId, cacheKey } = reservation;
+interface OcrDispatchResult {
+  /** Raw adapter outcome, so a caller can inspect its error code to decide whether to attempt a fallback. */
+  readonly outcome: AiOcrOutcome;
+  readonly result: Result<RunOcrSummary, ServiceError>;
+}
 
+/** Phases 2 (CALL) and 3 (RECONCILE), factored out for the identical reason as `reserveOcrSlot` -- reused unchanged for a fallback attempt. */
+async function dispatchAndReconcileOcr(
+  db: Db,
+  ai: AiOcrPort,
+  input: RunOcrInput,
+  runId: string,
+  cacheKey: string,
+): Promise<OcrDispatchResult> {
   // Part 8 §5's kill switch, rechecked here exactly as `runExtraction`
   // rechecks it -- immediately before the outbound call, after every phase-1
   // check already passed and a slot was already reserved.
@@ -1243,7 +2317,7 @@ export async function runOcr(
       })
     : { ok: false, code: 'disabled', message: 'AI OCR is currently disabled' };
 
-  return db.transaction(async (tx) => {
+  const result = await db.transaction(async (tx) => {
     if (!outcome.ok) {
       await tx
         .update(schema.ocrRuns)
@@ -1323,6 +2397,55 @@ export async function runOcr(
 
     return ok({ ocrRun: run });
   });
+  return { outcome, result };
+}
+
+/** Part 8 §13: identical rule to `isRecoverableForFallback` above, mirrored for OCR's own error-code type. */
+function isOcrRecoverableForFallback(code: AiOcrErrorCode): boolean {
+  return code === 'timeout' || code === 'rate_limited';
+}
+
+export async function runOcr(
+  db: Db,
+  ai: AiOcrPort,
+  input: RunOcrInput,
+): Promise<Result<RunOcrSummary, ServiceError>> {
+  const applicant = await getApplicant(db, input.applicantId);
+  if (!applicant) return err(serviceError('not_found', 'applicant not found'));
+  if (applicant.ownerAccountId !== input.actorAccountId) {
+    return err(serviceError('forbidden', 'not authorized to run OCR for this applicant'));
+  }
+  if (!(await hasConsent(db, applicant.ownerAccountId, 'AI_OCR'))) {
+    return err(serviceError('consent_required', 'AI_OCR consent is required'));
+  }
+
+  const reservation = await reserveOcrSlot(db, ai, input);
+  if (reservation.kind === 'final') return reservation.outcome;
+
+  const primary = await dispatchAndReconcileOcr(
+    db,
+    ai,
+    input,
+    reservation.runId,
+    reservation.cacheKey,
+  );
+  if (primary.outcome.ok) return primary.result;
+  if (!input.fallback || !isOcrRecoverableForFallback(primary.outcome.code)) return primary.result;
+
+  // Cross-provider fallback (Part 8 §13) -- see `runExtraction`'s own doc
+  // comment for why this second reservation is an honest, independent check
+  // rather than a race against the (already fully reconciled) primary.
+  const fallbackReservation = await reserveOcrSlot(db, input.fallback.ai, input, reservation.runId);
+  if (fallbackReservation.kind === 'final') return fallbackReservation.outcome;
+
+  const fallback = await dispatchAndReconcileOcr(
+    db,
+    input.fallback.ai,
+    input,
+    fallbackReservation.runId,
+    fallbackReservation.cacheKey,
+  );
+  return fallback.result;
 }
 
 /**
@@ -1618,4 +2741,826 @@ export async function listPendingProposals(
     result.push({ proposal, evidence });
   }
   return result;
+}
+
+// --- AI-assisted readiness-gap explanation (Part 8 AI-01 item 5) ----------
+//
+// Read-only: `explainReadinessGap` writes only its own `ai_explanation_runs`
+// row, never anything else -- there is no proposal/approval step, since an
+// explanation is advisory TEXT with no consequential write of its own to
+// decide on (directive's own "No: ... direct consequential DB writes by
+// model"). Co-located here for the same shared-budget-ledger reason
+// `runOcr`'s own doc comment already gives for OCR.
+const EXPLAIN_TASK_VERSION = 'readiness_gap_explanation_v1';
+
+function computeExplanationCacheKey(
+  input: AiExplainInput,
+  components: AiCacheKeyComponents,
+): string {
+  const parts = [
+    EXPLAIN_TASK_VERSION,
+    input.requirementKind,
+    input.requirementKey,
+    input.state,
+    input.citation,
+    String(input.optional),
+    components.model,
+    components.promptVersion,
+    components.schemaVersion,
+    components.reasoningEffort ?? '',
+  ];
+  return createHash('sha256').update(parts.join('|')).digest('hex');
+}
+
+export interface RunExplanationInput extends AiExplainInput {
+  readonly packRequirementId: string;
+  readonly budgetLimitUnits: number;
+  readonly maxConcurrentCalls?: number;
+  readonly cacheMaxAgeDays?: number;
+  readonly killSwitchCheck?: () => Promise<boolean>;
+}
+
+export type AiExplanationRunRow = typeof schema.aiExplanationRuns.$inferSelect;
+
+export interface RunExplanationSummary {
+  readonly aiExplanationRunId: string;
+  readonly explanation: string;
+}
+
+type ExplanationReservation =
+  | { readonly kind: 'final'; readonly outcome: Result<RunExplanationSummary, ServiceError> }
+  | { readonly kind: 'proceed'; readonly runId: string; readonly cacheKey: string };
+
+/**
+ * Phase 1 (RESERVE) -- structurally mirrors `reserveExtractionSlot`, minus
+ * every per-document/per-applicant check (attempt cap, per-document budget,
+ * page cap): none apply to a task that is not scoped to a document at all.
+ * Still takes the SAME platform-wide budget/concurrency lock, since real
+ * spend and a real provider-side concurrency limit apply regardless.
+ */
+async function reserveExplanationSlot(
+  db: Db,
+  ai: AiExplainPort,
+  input: RunExplanationInput,
+): Promise<ExplanationReservation> {
+  return db.transaction(async (tx): Promise<ExplanationReservation> => {
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext('visastack:ai-platform-budget'))`);
+
+    await releaseStaleInFlightCalls(tx);
+
+    const worstCase = await maxObservedCostUnits(tx);
+    const inFlightPlatform = await countInFlightCalls(tx);
+
+    const used = (await totalAiCostUnits(tx)) + (inFlightPlatform + 1) * worstCase;
+    if (used >= input.budgetLimitUnits) {
+      return { kind: 'final', outcome: err(serviceError('invalid', 'AI budget exhausted')) };
+    }
+
+    const cacheKey = computeExplanationCacheKey(input, ai.explainCacheKeyComponents());
+    const cacheMaxAgeDays = input.cacheMaxAgeDays ?? DEFAULT_CACHE_MAX_AGE_DAYS;
+    const cacheCutoff = new Date(Date.now() - cacheMaxAgeDays * 24 * 60 * 60 * 1000);
+    const cached = first(
+      await tx
+        .select()
+        .from(schema.aiExplanationRuns)
+        .where(
+          and(
+            eq(schema.aiExplanationRuns.cacheKey, cacheKey),
+            eq(schema.aiExplanationRuns.status, 'SUCCEEDED'),
+            gte(schema.aiExplanationRuns.createdAt, cacheCutoff),
+          ),
+        )
+        .orderBy(desc(schema.aiExplanationRuns.createdAt))
+        .limit(1),
+    );
+
+    if (cached) {
+      const run = required(
+        first(
+          await tx
+            .insert(schema.aiExplanationRuns)
+            .values({
+              packRequirementId: input.packRequirementId,
+              status: 'SUCCEEDED',
+              modelVersion: cached.modelVersion,
+              promptVersion: cached.promptVersion,
+              schemaVersion: cached.schemaVersion,
+              costUnits: 0,
+              provider: cached.provider,
+              cacheKey,
+              servedFromCacheRunId: cached.id,
+              explanation: cached.explanation,
+            })
+            .returning(),
+        ),
+        'ai explanation run',
+      );
+      return {
+        kind: 'final',
+        outcome: ok({ aiExplanationRunId: run.id, explanation: run.explanation ?? '' }),
+      };
+    }
+
+    if (input.maxConcurrentCalls !== undefined && inFlightPlatform >= input.maxConcurrentCalls) {
+      return {
+        kind: 'final',
+        outcome: err(
+          serviceError(
+            'rate_limited',
+            'too many AI calls in flight platform-wide; try again shortly',
+          ),
+        ),
+      };
+    }
+
+    const run = required(
+      first(
+        await tx
+          .insert(schema.aiExplanationRuns)
+          .values({
+            packRequirementId: input.packRequirementId,
+            status: 'IN_FLIGHT',
+            modelVersion: 'unknown',
+            promptVersion: 'unknown',
+          })
+          .returning(),
+      ),
+      'ai explanation run',
+    );
+
+    return { kind: 'proceed', runId: run.id, cacheKey };
+  });
+}
+
+interface ExplanationDispatchResult {
+  readonly outcome: AiExplainOutcome;
+  readonly result: Result<RunExplanationSummary, ServiceError>;
+}
+
+/** Phases 2 (CALL) and 3 (RECONCILE) -- structurally mirrors `dispatchAndReconcile`. */
+async function dispatchAndReconcileExplanation(
+  db: Db,
+  ai: AiExplainPort,
+  input: RunExplanationInput,
+  runId: string,
+  cacheKey: string,
+): Promise<ExplanationDispatchResult> {
+  const killSwitchAllows = input.killSwitchCheck ? await input.killSwitchCheck() : true;
+
+  const outcome: AiExplainOutcome = killSwitchAllows
+    ? await ai.explain(input)
+    : { ok: false, code: 'disabled', message: 'AI explanation is currently disabled' };
+
+  const result = await db.transaction(async (tx) => {
+    if (!outcome.ok) {
+      await tx
+        .update(schema.aiExplanationRuns)
+        .set({
+          status: 'FAILED',
+          provider: outcome.provider ?? null,
+          latencyMs: outcome.latencyMs ?? null,
+          errorCode: outcome.code,
+        })
+        .where(eq(schema.aiExplanationRuns.id, runId));
+      await appendAuditEvent(tx, {
+        eventType: 'AI_EXPLANATION_FAILED',
+        actorAccountId: null,
+        method: 'SYSTEM',
+        result: 'ALLOWED',
+        applicantId: null,
+        resourceType: 'pack_requirement',
+        resourceId: input.packRequirementId,
+        metadata: { errorCode: outcome.code, aiExplanationRunId: runId },
+      });
+      return err(
+        serviceError(outcome.code === 'disabled' ? 'invalid' : 'upstream_error', outcome.message),
+      );
+    }
+
+    const { explanation, usage } = outcome.result;
+
+    await tx
+      .update(schema.aiExplanationRuns)
+      .set({
+        status: 'SUCCEEDED',
+        modelVersion: usage.modelVersion,
+        promptVersion: usage.promptVersion,
+        schemaVersion: usage.schemaVersion,
+        costUnits: usage.costUnits,
+        provider: usage.provider,
+        providerRequestId: usage.providerRequestId ?? null,
+        inputUnits: usage.inputUnits,
+        outputUnits: usage.outputUnits,
+        cachedUnits: usage.cachedUnits,
+        latencyMs: usage.latencyMs,
+        cacheKey,
+        explanation,
+      })
+      .where(eq(schema.aiExplanationRuns.id, runId));
+
+    await appendAuditEvent(tx, {
+      eventType: 'AI_EXPLANATION_RUN',
+      actorAccountId: null,
+      method: 'SYSTEM',
+      result: 'ALLOWED',
+      applicantId: null,
+      resourceType: 'pack_requirement',
+      resourceId: input.packRequirementId,
+      metadata: {
+        aiExplanationRunId: runId,
+        costUnits: usage.costUnits,
+        modelVersion: usage.modelVersion,
+        provider: usage.provider,
+        latencyMs: usage.latencyMs,
+      },
+    });
+
+    return ok({ aiExplanationRunId: runId, explanation });
+  });
+  return { outcome, result };
+}
+
+/**
+ * Explain an already-determined deterministic readiness gap (Part 8 AI-01
+ * item 5) in plain language, grounded in the requirement's own citation --
+ * never a new determination of readiness itself, which remains entirely
+ * `computeReadiness`'s (`missions.ts`) job. No consent gate (see
+ * `AiExplainInput`'s own doc comment: no applicant-specific data is ever
+ * sent), and no ownership check here either -- the caller (the web action)
+ * is responsible for verifying the actor may view whichever mission surfaced
+ * this `packRequirementId`'s CURRENT state before ever calling this.
+ */
+export async function explainReadinessGap(
+  db: Db,
+  ai: AiExplainPort,
+  input: RunExplanationInput,
+): Promise<Result<RunExplanationSummary, ServiceError>> {
+  const reservation = await reserveExplanationSlot(db, ai, input);
+  if (reservation.kind === 'final') return reservation.outcome;
+
+  const dispatched = await dispatchAndReconcileExplanation(
+    db,
+    ai,
+    input,
+    reservation.runId,
+    reservation.cacheKey,
+  );
+  return dispatched.result;
+}
+
+/** The most recent successful explanation generated for this specific pack requirement, for display -- mirrors `getLatestOcrRun`'s identical shape. */
+export async function getLatestExplanationForRequirement(
+  db: Db,
+  packRequirementId: string,
+): Promise<AiExplanationRunRow | undefined> {
+  return first(
+    await db
+      .select()
+      .from(schema.aiExplanationRuns)
+      .where(
+        and(
+          eq(schema.aiExplanationRuns.packRequirementId, packRequirementId),
+          eq(schema.aiExplanationRuns.status, 'SUCCEEDED'),
+        ),
+      )
+      .orderBy(desc(schema.aiExplanationRuns.createdAt))
+      .limit(1),
+  );
+}
+
+// --- AI-assisted inconsistency flagging (Part 8 AI-01 item 4) -------------
+//
+// Advisory only, exactly like extraction/classification: `runInconsistencyCheck`
+// never writes a fact, never resolves a conflict, and never implies which
+// side (document or profile) is actually correct -- only that a human
+// should look. Co-located here for the identical shared-budget-ledger
+// reason `runOcr`'s own doc comment gives.
+const INCONSISTENCY_TASK_VERSION = 'inconsistency_flag_v1';
+
+/**
+ * Every CURRENTLY TRUSTED, STANDARD-sensitivity profile fact for this
+ * applicant -- the context sent alongside a document's text so the model can
+ * spot a possible contradiction. Deliberately excludes SENSITIVE/RESTRICTED
+ * fields: `fact_versions.value` is only ever populated (non-null) for
+ * STANDARD-sensitivity rows in the first place (a protected row's real value
+ * lives only in `valueCiphertext`, per that column's own doc comment), so
+ * filtering on a non-null `value` already excludes every protected field
+ * with no separate sensitivity join needed -- this task never sends a
+ * SENSITIVE/RESTRICTED value to a model, a materially larger disclosure than
+ * AI_EXTRACTION consent already covers.
+ */
+async function currentTrustedProfileFacts(
+  db: Db,
+  applicantId: string,
+): Promise<readonly { readonly fieldKey: string; readonly value: string }[]> {
+  const rows = await db
+    .select({
+      fieldKey: schema.fieldDefinitions.key,
+      value: schema.factVersions.value,
+      status: schema.factVersions.status,
+    })
+    .from(schema.facts)
+    .innerJoin(
+      schema.fieldDefinitions,
+      eq(schema.facts.fieldDefinitionId, schema.fieldDefinitions.id),
+    )
+    .innerJoin(schema.factVersions, eq(schema.facts.currentVersionId, schema.factVersions.id))
+    .where(eq(schema.facts.applicantId, applicantId));
+  return rows
+    .filter(
+      (r): r is typeof r & { value: string } =>
+        r.value !== null && TRUSTED_FACT_STATUSES.includes(r.status),
+    )
+    .map((r) => ({ fieldKey: r.fieldKey, value: r.value }));
+}
+
+/**
+ * Cache key for an inconsistency check -- unlike every other task's, this
+ * folds in a hash of the PROFILE FACTS snapshot alongside the document
+ * content hash (see `ai_inconsistency_runs.cacheKey`'s own schema doc
+ * comment for why both matter): the correct answer genuinely depends on
+ * both, and a stale cache hit computed against facts the applicant has
+ * since corrected would silently re-serve a flag about a contradiction that
+ * no longer exists.
+ */
+function computeInconsistencyCacheKey(
+  contentHash: string,
+  profileFacts: readonly { readonly fieldKey: string; readonly value: string }[],
+  cacheKeyComponents: AiCacheKeyComponents,
+): string {
+  const factsHash = createHash('sha256')
+    .update(
+      [...profileFacts]
+        .map((f) => `${f.fieldKey}=${f.value}`)
+        .sort()
+        .join('|'),
+    )
+    .digest('hex');
+  const parts = [
+    contentHash,
+    factsHash,
+    INCONSISTENCY_TASK_VERSION,
+    cacheKeyComponents.model,
+    cacheKeyComponents.promptVersion,
+    cacheKeyComponents.schemaVersion,
+    cacheKeyComponents.reasoningEffort ?? '',
+  ];
+  return createHash('sha256').update(parts.join('|')).digest('hex');
+}
+
+export type DocumentInconsistencyFlagRow = typeof schema.documentInconsistencyFlags.$inferSelect;
+
+export interface RunInconsistencyCheckInput {
+  readonly actorAccountId: string;
+  readonly applicantId: string;
+  readonly documentVersionId: string;
+  readonly text: string;
+  readonly budgetLimitUnits: number;
+  readonly perDocumentBudgetLimitUnits?: number;
+  readonly maxAttemptsPerDocument?: number;
+  readonly maxPagesPerDocument?: number;
+  readonly maxConcurrentCalls?: number;
+  readonly cacheMaxAgeDays?: number;
+  readonly killSwitchCheck?: () => Promise<boolean>;
+}
+
+export interface RunInconsistencyCheckSummary {
+  readonly aiInconsistencyRunId: string;
+  readonly flags: readonly DocumentInconsistencyFlagRow[];
+}
+
+type InconsistencyReservation =
+  | { readonly kind: 'final'; readonly outcome: Result<RunInconsistencyCheckSummary, ServiceError> }
+  | {
+      readonly kind: 'proceed';
+      readonly runId: string;
+      readonly profileFacts: readonly { readonly fieldKey: string; readonly value: string }[];
+      readonly cacheKey: string;
+    };
+
+/** Phase 1 (RESERVE) -- structurally mirrors `reserveExtractionSlot`; see that function's own doc comment (on `runExtraction`) for the full reasoning behind every check and lock here. */
+async function reserveInconsistencySlot(
+  db: Db,
+  ai: AiInconsistencyPort,
+  input: RunInconsistencyCheckInput,
+): Promise<InconsistencyReservation> {
+  return db.transaction(async (tx): Promise<InconsistencyReservation> => {
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext('visastack:ai-platform-budget'))`);
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${input.documentVersionId}))`);
+
+    await releaseStaleInFlightCalls(tx);
+
+    const worstCase = await maxObservedCostUnits(tx);
+    const inFlightPlatform = await countInFlightCalls(tx);
+
+    const used = (await totalAiCostUnits(tx)) + (inFlightPlatform + 1) * worstCase;
+    if (used >= input.budgetLimitUnits) {
+      return { kind: 'final', outcome: err(serviceError('invalid', 'AI budget exhausted')) };
+    }
+    if (input.perDocumentBudgetLimitUnits !== undefined) {
+      const inFlightDocument = await countInFlightCallsForDocument(tx, input.documentVersionId);
+      const documentUsed =
+        (await documentAiCostUnits(tx, input.documentVersionId)) +
+        (inFlightDocument + 1) * worstCase;
+      if (documentUsed >= input.perDocumentBudgetLimitUnits) {
+        return {
+          kind: 'final',
+          outcome: err(serviceError('invalid', 'AI budget exhausted for this document')),
+        };
+      }
+    }
+    if (input.maxPagesPerDocument !== undefined) {
+      const pageCount = await latestPageCount(tx, input.documentVersionId);
+      if (pageCount !== null && pageCount > input.maxPagesPerDocument) {
+        return {
+          kind: 'final',
+          outcome: err(
+            serviceError(
+              'invalid',
+              'document exceeds the configured page limit for AI inconsistency checking',
+            ),
+          ),
+        };
+      }
+    }
+
+    const profileFacts = await currentTrustedProfileFacts(tx, input.applicantId);
+    const contentHash = createHash('sha256').update(input.text).digest('hex');
+    const cacheKey = computeInconsistencyCacheKey(
+      contentHash,
+      profileFacts,
+      ai.inconsistencyCacheKeyComponents(),
+    );
+
+    const cacheMaxAgeDays = input.cacheMaxAgeDays ?? DEFAULT_CACHE_MAX_AGE_DAYS;
+    const cacheCutoff = new Date(Date.now() - cacheMaxAgeDays * 24 * 60 * 60 * 1000);
+    const cached = first(
+      await tx
+        .select()
+        .from(schema.aiInconsistencyRuns)
+        .where(
+          and(
+            eq(schema.aiInconsistencyRuns.cacheKey, cacheKey),
+            eq(schema.aiInconsistencyRuns.status, 'SUCCEEDED'),
+            gte(schema.aiInconsistencyRuns.createdAt, cacheCutoff),
+          ),
+        )
+        .orderBy(desc(schema.aiInconsistencyRuns.createdAt))
+        .limit(1),
+    );
+
+    if (cached) {
+      const run = required(
+        first(
+          await tx
+            .insert(schema.aiInconsistencyRuns)
+            .values({
+              documentVersionId: input.documentVersionId,
+              applicantId: input.applicantId,
+              status: 'SUCCEEDED',
+              modelVersion: cached.modelVersion,
+              promptVersion: cached.promptVersion,
+              schemaVersion: cached.schemaVersion,
+              costUnits: 0,
+              provider: cached.provider,
+              cacheKey,
+              servedFromCacheRunId: cached.id,
+            })
+            .returning(),
+        ),
+        'ai inconsistency run',
+      );
+      const sourceFlags = await tx
+        .select()
+        .from(schema.documentInconsistencyFlags)
+        .where(eq(schema.documentInconsistencyFlags.aiInconsistencyRunId, cached.id));
+      const savedFlags: DocumentInconsistencyFlagRow[] = [];
+      for (const source of sourceFlags) {
+        savedFlags.push(
+          required(
+            first(
+              await tx
+                .insert(schema.documentInconsistencyFlags)
+                .values({
+                  aiInconsistencyRunId: run.id,
+                  documentVersionId: input.documentVersionId,
+                  applicantId: input.applicantId,
+                  description: source.description,
+                  confidence: source.confidence,
+                  rationale: source.rationale,
+                })
+                .returning(),
+            ),
+            'document inconsistency flag',
+          ),
+        );
+      }
+      await appendAuditEvent(tx, {
+        eventType: 'AI_INCONSISTENCY_CACHE_HIT',
+        actorAccountId: input.actorAccountId,
+        method: 'DOCUMENT',
+        result: 'ALLOWED',
+        applicantId: input.applicantId,
+        resourceType: 'document_version',
+        resourceId: input.documentVersionId,
+        metadata: { aiInconsistencyRunId: run.id, servedFromCacheRunId: cached.id, cacheKey },
+      });
+      return {
+        kind: 'final',
+        outcome: ok({ aiInconsistencyRunId: run.id, flags: savedFlags }),
+      };
+    }
+
+    if (input.maxAttemptsPerDocument !== undefined) {
+      const attempts = await countAiInconsistencyAttempts(tx, input.documentVersionId);
+      if (attempts >= input.maxAttemptsPerDocument) {
+        return {
+          kind: 'final',
+          outcome: err(
+            serviceError(
+              'invalid',
+              'AI inconsistency check attempt limit reached for this document',
+            ),
+          ),
+        };
+      }
+    }
+
+    if (input.maxConcurrentCalls !== undefined && inFlightPlatform >= input.maxConcurrentCalls) {
+      return {
+        kind: 'final',
+        outcome: err(
+          serviceError(
+            'rate_limited',
+            'too many AI calls in flight platform-wide; try again shortly',
+          ),
+        ),
+      };
+    }
+
+    const run = required(
+      first(
+        await tx
+          .insert(schema.aiInconsistencyRuns)
+          .values({
+            documentVersionId: input.documentVersionId,
+            applicantId: input.applicantId,
+            status: 'IN_FLIGHT',
+            modelVersion: 'unknown',
+            promptVersion: 'unknown',
+          })
+          .returning(),
+      ),
+      'ai inconsistency run',
+    );
+
+    return { kind: 'proceed', runId: run.id, profileFacts, cacheKey };
+  });
+}
+
+interface InconsistencyDispatchResult {
+  readonly outcome: AiInconsistencyOutcome;
+  readonly result: Result<RunInconsistencyCheckSummary, ServiceError>;
+}
+
+/** Phases 2 (CALL) and 3 (RECONCILE) -- structurally mirrors `dispatchAndReconcile`. */
+async function dispatchAndReconcileInconsistency(
+  db: Db,
+  ai: AiInconsistencyPort,
+  input: RunInconsistencyCheckInput,
+  runId: string,
+  profileFacts: readonly { readonly fieldKey: string; readonly value: string }[],
+  cacheKey: string,
+): Promise<InconsistencyDispatchResult> {
+  const killSwitchAllows = input.killSwitchCheck ? await input.killSwitchCheck() : true;
+
+  const outcome: AiInconsistencyOutcome = killSwitchAllows
+    ? await ai.checkConsistency({
+        documentVersionId: input.documentVersionId,
+        text: input.text,
+        profileFacts,
+      })
+    : { ok: false, code: 'disabled', message: 'AI inconsistency checking is currently disabled' };
+
+  const result = await db.transaction(async (tx) => {
+    if (!outcome.ok) {
+      await tx
+        .update(schema.aiInconsistencyRuns)
+        .set({
+          status: 'FAILED',
+          provider: outcome.provider ?? null,
+          latencyMs: outcome.latencyMs ?? null,
+          errorCode: outcome.code,
+        })
+        .where(eq(schema.aiInconsistencyRuns.id, runId));
+      await appendAuditEvent(tx, {
+        eventType: 'AI_INCONSISTENCY_FAILED',
+        actorAccountId: input.actorAccountId,
+        method: 'DOCUMENT',
+        result: 'ALLOWED',
+        applicantId: input.applicantId,
+        resourceType: 'document_version',
+        resourceId: input.documentVersionId,
+        metadata: { errorCode: outcome.code, aiInconsistencyRunId: runId },
+      });
+      return err(
+        serviceError(outcome.code === 'disabled' ? 'invalid' : 'upstream_error', outcome.message),
+      );
+    }
+
+    const { flags, usage } = outcome.result;
+
+    await tx
+      .update(schema.aiInconsistencyRuns)
+      .set({
+        status: 'SUCCEEDED',
+        modelVersion: usage.modelVersion,
+        promptVersion: usage.promptVersion,
+        schemaVersion: usage.schemaVersion,
+        costUnits: usage.costUnits,
+        provider: usage.provider,
+        providerRequestId: usage.providerRequestId ?? null,
+        inputUnits: usage.inputUnits,
+        outputUnits: usage.outputUnits,
+        cachedUnits: usage.cachedUnits,
+        latencyMs: usage.latencyMs,
+        cacheKey,
+      })
+      .where(eq(schema.aiInconsistencyRuns.id, runId));
+
+    const savedFlags: DocumentInconsistencyFlagRow[] = [];
+    for (const flag of flags) {
+      savedFlags.push(
+        required(
+          first(
+            await tx
+              .insert(schema.documentInconsistencyFlags)
+              .values({
+                aiInconsistencyRunId: runId,
+                documentVersionId: input.documentVersionId,
+                applicantId: input.applicantId,
+                description: flag.description,
+                confidence: toPersistedConfidence(flag.confidence),
+                rationale: flag.rationale ?? null,
+              })
+              .returning(),
+          ),
+          'document inconsistency flag',
+        ),
+      );
+    }
+
+    await appendAuditEvent(tx, {
+      eventType: 'AI_INCONSISTENCY_RUN',
+      actorAccountId: input.actorAccountId,
+      method: 'DOCUMENT',
+      result: 'ALLOWED',
+      applicantId: input.applicantId,
+      resourceType: 'document_version',
+      resourceId: input.documentVersionId,
+      metadata: {
+        aiInconsistencyRunId: runId,
+        flagsRaised: savedFlags.length,
+        costUnits: usage.costUnits,
+        modelVersion: usage.modelVersion,
+        provider: usage.provider,
+        latencyMs: usage.latencyMs,
+      },
+    });
+    await recordProductEvent(tx, {
+      eventType: 'AI_INCONSISTENCY_RUN',
+      accountId: input.actorAccountId,
+    });
+
+    return ok({ aiInconsistencyRunId: runId, flags: savedFlags });
+  });
+  return { outcome, result };
+}
+
+/**
+ * Check one document's deterministically-extracted text against the
+ * applicant's own current TRUSTED, STANDARD-sensitivity profile facts for
+ * possible contradictions (Part 8 AI-01 item 4) -- never a second document,
+ * never a re-determination of any fact's correctness, and never a write to
+ * anything but this task's own advisory flag rows. Consent-gated on
+ * AI_EXTRACTION -- the same tier extraction/classification already use, not
+ * a materially larger disclosure than either (document text plus the
+ * applicant's own already-confirmed, non-protected field values).
+ */
+export async function runInconsistencyCheck(
+  db: Db,
+  ai: AiInconsistencyPort,
+  input: RunInconsistencyCheckInput,
+): Promise<Result<RunInconsistencyCheckSummary, ServiceError>> {
+  const applicant = await getApplicant(db, input.applicantId);
+  if (!applicant) return err(serviceError('not_found', 'applicant not found'));
+  if (applicant.ownerAccountId !== input.actorAccountId) {
+    return err(
+      serviceError('forbidden', 'not authorized to run an inconsistency check for this applicant'),
+    );
+  }
+  if (!(await hasConsent(db, applicant.ownerAccountId, 'AI_EXTRACTION'))) {
+    return err(serviceError('consent_required', 'AI_EXTRACTION consent is required'));
+  }
+
+  const reservation = await reserveInconsistencySlot(db, ai, input);
+  if (reservation.kind === 'final') return reservation.outcome;
+
+  const dispatched = await dispatchAndReconcileInconsistency(
+    db,
+    ai,
+    input,
+    reservation.runId,
+    reservation.profileFacts,
+    reservation.cacheKey,
+  );
+  return dispatched.result;
+}
+
+export interface DecideInconsistencyFlagInput {
+  readonly actorAccountId: string;
+  readonly flagId: string;
+  readonly reason?: string;
+}
+
+/** Mark a PENDING flag ACKNOWLEDGED (the reviewer has seen it and will act, if at all, outside this system) -- never a fact write, matching this task's own purely-advisory framing. */
+export async function acknowledgeInconsistencyFlag(
+  db: Db,
+  input: DecideInconsistencyFlagInput,
+): Promise<Result<DocumentInconsistencyFlagRow, ServiceError>> {
+  return decideInconsistencyFlag(db, input, 'ACKNOWLEDGED', 'AI_INCONSISTENCY_FLAG_ACKNOWLEDGED');
+}
+
+/** Mark a PENDING flag DISMISSED (a false positive, e.g. a legitimate name-spelling variation). */
+export async function dismissInconsistencyFlag(
+  db: Db,
+  input: DecideInconsistencyFlagInput,
+): Promise<Result<DocumentInconsistencyFlagRow, ServiceError>> {
+  return decideInconsistencyFlag(db, input, 'DISMISSED', 'AI_INCONSISTENCY_FLAG_DISMISSED');
+}
+
+async function decideInconsistencyFlag(
+  db: Db,
+  input: DecideInconsistencyFlagInput,
+  status: 'ACKNOWLEDGED' | 'DISMISSED',
+  auditEventType: string,
+): Promise<Result<DocumentInconsistencyFlagRow, ServiceError>> {
+  const flag = first(
+    await db
+      .select()
+      .from(schema.documentInconsistencyFlags)
+      .where(eq(schema.documentInconsistencyFlags.id, input.flagId))
+      .limit(1),
+  );
+  if (!flag) return err(serviceError('not_found', 'flag not found'));
+  if (flag.status !== 'PENDING') {
+    return err(serviceError('invalid', 'this flag has already been decided'));
+  }
+
+  const applicant = await getApplicant(db, flag.applicantId);
+  if (!applicant) return err(serviceError('not_found', 'applicant not found'));
+  if (applicant.ownerAccountId !== input.actorAccountId) {
+    return err(serviceError('forbidden', 'not authorized to decide this flag'));
+  }
+
+  return db.transaction(async (tx) => {
+    const updated = required(
+      first(
+        await tx
+          .update(schema.documentInconsistencyFlags)
+          .set({ status, decidedByAccountId: input.actorAccountId, decidedAt: new Date() })
+          .where(eq(schema.documentInconsistencyFlags.id, input.flagId))
+          .returning(),
+      ),
+      'document inconsistency flag',
+    );
+    await appendAuditEvent(tx, {
+      eventType: auditEventType,
+      actorAccountId: input.actorAccountId,
+      method: 'MANUAL',
+      result: 'ALLOWED',
+      applicantId: flag.applicantId,
+      resourceType: 'document_inconsistency_flag',
+      resourceId: flag.id,
+      metadata: { description: flag.description, reason: input.reason },
+    });
+    return ok(updated);
+  });
+}
+
+/** Pending inconsistency flags for an applicant (the review queue), newest first -- mirrors `listPendingProposals`'s identical shape/contract. */
+export async function listPendingInconsistencyFlags(
+  db: Db,
+  applicantId: string,
+): Promise<DocumentInconsistencyFlagRow[]> {
+  return db
+    .select()
+    .from(schema.documentInconsistencyFlags)
+    .where(
+      and(
+        eq(schema.documentInconsistencyFlags.applicantId, applicantId),
+        eq(schema.documentInconsistencyFlags.status, 'PENDING'),
+      ),
+    )
+    .orderBy(desc(schema.documentInconsistencyFlags.createdAt));
 }

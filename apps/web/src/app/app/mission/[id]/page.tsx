@@ -5,6 +5,7 @@ import {
   computeReadiness,
   getApplicant,
   getEvidenceCandidates,
+  getLatestExplanationForRequirement,
   getLiveAcknowledgement,
   getMissionForOwner,
   getPack,
@@ -31,6 +32,7 @@ import {
 } from '@visastack/services';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { isExplanationConfigured } from '../../../../lib/ai';
 import { getLocale } from '../../../../lib/locale';
 import { profileField } from '../../../../lib/profile-fields';
 import { withSession } from '../../../../lib/session';
@@ -51,6 +53,7 @@ import {
   TransitionButtons,
 } from './mission-buttons';
 import { OutcomePanel } from './outcome-panel';
+import { ExplainGapButton } from './readiness-gap-explain';
 import { SubmissionReportPanel } from './submission-report-panel';
 
 export const dynamic = 'force-dynamic';
@@ -179,6 +182,7 @@ export default async function MissionPage({
       submissions,
       complaints,
       feedback,
+      explanationConfigured,
     ] = await Promise.all([
       mission.packVersionId ? computeReadiness(db, mission.id) : Promise.resolve(null),
       mission.packVersionId ? listRequirements(db, mission.packVersionId) : Promise.resolve([]),
@@ -215,6 +219,7 @@ export default async function MissionPage({
       listSubmissionsForMission(db, accountId, mission.id),
       listComplaintsForMission(db, accountId, mission.id),
       listFeedbackForMission(db, accountId, mission.id),
+      isExplanationConfigured(db),
     ]);
     const complaintList = complaints.ok ? complaints.value : [];
     const complaintEventsById = new Map(
@@ -252,6 +257,22 @@ export default async function MissionPage({
       .sort(
         (a, b) => REQUIREMENT_STATE_META[a.state].order - REQUIREMENT_STATE_META[b.state].order,
       );
+    // Part 8 AI-01 item 5: the most recent AI explanation on file for each
+    // genuine gap row (CRITICAL_GAP/ATTENTION only, the two states this task
+    // covers) -- same fan-out shape as issuerVerifications/ocrRuns elsewhere
+    // in this codebase's own document-list pages.
+    const explanationEntries = await Promise.all(
+      requirementDetails
+        .filter((r) => r.state === 'CRITICAL_GAP' || r.state === 'ATTENTION')
+        .map(
+          async (r) =>
+            [
+              r.packRequirementId,
+              await getLatestExplanationForRequirement(db, r.packRequirementId),
+            ] as const,
+        ),
+    );
+    const explanationsByRequirement = new Map(explanationEntries);
     const requiredHardGapCount = requirementDetails.filter(
       (r) =>
         !r.optional &&
@@ -370,6 +391,8 @@ export default async function MissionPage({
       requirementDetails,
       requiredHardGapCount,
       requiredUnverifiedCount,
+      explanationConfigured,
+      explanationsByRequirement,
       packInfo: pack
         ? {
             name: pack.name,
@@ -676,6 +699,17 @@ export default async function MissionPage({
                             >
                               Source currently unreachable - under review
                             </span>
+                          ) : null}
+                          {data.explanationConfigured &&
+                          (r.state === 'CRITICAL_GAP' || r.state === 'ATTENTION') ? (
+                            <ExplainGapButton
+                              missionId={data.mission.id}
+                              packRequirementId={r.packRequirementId}
+                              explanation={
+                                data.explanationsByRequirement.get(r.packRequirementId)
+                                  ?.explanation ?? null
+                              }
+                            />
                           ) : null}
                         </div>
                       );

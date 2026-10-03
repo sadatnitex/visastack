@@ -3,13 +3,18 @@
 import type { MissionState } from '@visastack/core';
 import {
   attachPackVersion,
+  computeReadiness,
   createAppointment,
   createContributorRequest,
   createTask,
   decideAppointment,
   decideTask,
+  explainReadinessGap,
   fileComplaint,
   generateCoverLetter,
+  getMissionForOwner,
+  isAiDispatchAllowed,
+  listRequirements,
   recordOutcome,
   recordSubmission,
   revokeContributorRequest,
@@ -24,7 +29,9 @@ import {
 } from '@visastack/services';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
+import { resolveAiExplainer } from '../../../../lib/ai';
 import { resolveBaseUrl } from '../../../../lib/base-url';
+import { createKeyManagementPort } from '../../../../lib/providers';
 import { withSession } from '../../../../lib/session';
 import { STEP_UP_NOT_CONFIGURED_MESSAGE, tryEstablishStepUp } from '../../../../lib/step-up';
 
@@ -608,6 +615,83 @@ export async function generateLetterAction(
       message: `Letter version ${output.value.version} generated.`,
     } satisfies ActionState;
   });
+  if (result.ok) revalidatePath(`/app/mission/${missionId}`);
+  return result;
+}
+
+/**
+ * Explain an already-determined readiness gap in plain language (Part 8
+ * AI-01 item 5). Never trusts a client-supplied state/citation -- re-derives
+ * both from a fresh `computeReadiness` call plus the pack requirement's own
+ * row, exactly like the mission page's own read path, so the explanation is
+ * always grounded in the CURRENT, server-verified determination, never a
+ * stale or spoofed one. Refuses (mirroring the page's own gating) unless the
+ * gap is genuinely CRITICAL_GAP or ATTENTION -- the only two states this
+ * task covers (see `AiExplainInput`'s own doc comment in ai.ts).
+ */
+export async function explainReadinessGapAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const missionId = String(formData.get('missionId') ?? '');
+  const packRequirementId = String(formData.get('packRequirementId') ?? '');
+  if (missionId.length === 0 || packRequirementId.length === 0) {
+    return { ok: false, message: 'Missing mission or requirement.' };
+  }
+
+  const result = await withSession(async ({ db, accountId }) => {
+    const mission = await getMissionForOwner(db, accountId, missionId);
+    if (!mission.ok) return { ok: false, message: mission.error.message } satisfies ActionState;
+    if (!mission.value.packVersionId) {
+      return {
+        ok: false,
+        message: 'This mission has no attached pack version.',
+      } satisfies ActionState;
+    }
+
+    const [readiness, requirements] = await Promise.all([
+      computeReadiness(db, missionId),
+      listRequirements(db, mission.value.packVersionId),
+    ]);
+    if (!readiness.ok) return { ok: false, message: readiness.error.message } satisfies ActionState;
+
+    const current = readiness.value.requirementResults.find(
+      (r) => r.packRequirementId === packRequirementId,
+    );
+    const requirementRow = requirements.find((r) => r.id === packRequirementId);
+    if (!current || !requirementRow) {
+      return { ok: false, message: 'Requirement not found on this mission.' } satisfies ActionState;
+    }
+    if (current.state !== 'CRITICAL_GAP' && current.state !== 'ATTENTION') {
+      return {
+        ok: false,
+        message: 'This requirement is no longer in a gap state -- nothing to explain.',
+      } satisfies ActionState;
+    }
+
+    const resolved = await resolveAiExplainer(db, createKeyManagementPort());
+    if (!resolved) {
+      return { ok: false, message: 'AI explanation is not configured.' } satisfies ActionState;
+    }
+
+    const explained = await explainReadinessGap(db, resolved.ai, {
+      packRequirementId,
+      requirementKind: current.kind,
+      requirementKey: current.key,
+      state: current.state,
+      citation: requirementRow.citation,
+      optional: current.optional,
+      budgetLimitUnits: resolved.limits.budgetLimitUnits,
+      maxConcurrentCalls: resolved.limits.maxConcurrentCalls,
+      cacheMaxAgeDays: resolved.limits.cacheMaxAgeDays,
+      killSwitchCheck: () => isAiDispatchAllowed(db),
+    });
+    if (!explained.ok) {
+      return { ok: false, message: explained.error.message } satisfies ActionState;
+    }
+    return { ok: true, message: 'Explanation ready below.' } satisfies ActionState;
+  });
+
   if (result.ok) revalidatePath(`/app/mission/${missionId}`);
   return result;
 }

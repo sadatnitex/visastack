@@ -5,8 +5,11 @@ import type { ApplicantId } from '@visastack/core';
 import type { Actor, Db } from '@visastack/services';
 import type { AddDocumentVersionResult } from '@visastack/services';
 import {
+  acknowledgeInconsistencyFlag,
+  approveDocumentTypeProposal,
   approveProposal,
   decideDocumentName,
+  dismissInconsistencyFlag,
   editFact,
   enqueueIntakeJob,
   failUpload,
@@ -20,17 +23,25 @@ import {
   previewDocument,
   registerDocumentWithVersion,
   registerFieldDefinition,
+  rejectDocumentTypeProposal,
   rejectProposal,
   renderOcrSourceImage,
   reserveUpload,
+  runClassification,
   runExtraction,
+  runInconsistencyCheck,
   runOcr,
   setDocumentDate,
 } from '@visastack/services';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { after } from 'next/server';
-import { resolveAiExtractor, resolveOcrAdapter } from '../../../../lib/ai';
+import {
+  resolveAiClassifier,
+  resolveAiExtractor,
+  resolveAiInconsistencyChecker,
+  resolveOcrAdapter,
+} from '../../../../lib/ai';
 import { triggerIntakeWorker } from '../../../../lib/jobs';
 import { profileField } from '../../../../lib/profile-fields';
 import { createKeyManagementPort, createPreviewRenderer } from '../../../../lib/providers';
@@ -425,6 +436,7 @@ export async function runAiExtractionAction(
       cacheMaxAgeDays: resolved.limits.cacheMaxAgeDays,
       maxConcurrentCalls: resolved.limits.maxConcurrentCalls,
       killSwitchCheck: () => isAiDispatchAllowed(db),
+      ...(resolved.fallback ? { fallback: resolved.fallback } : {}),
     });
     if (!run.ok) return { ok: false, message: run.error.message } satisfies ActionState;
     return {
@@ -478,6 +490,7 @@ export async function runOcrAction(_prev: ActionState, formData: FormData): Prom
       cacheMaxAgeDays: resolved.limits.cacheMaxAgeDays,
       maxConcurrentCalls: resolved.limits.maxConcurrentCalls,
       killSwitchCheck: () => isAiDispatchAllowed(db),
+      ...(resolved.fallback ? { fallback: resolved.fallback } : {}),
     });
     if (!run.ok) return { ok: false, message: run.error.message } satisfies ActionState;
     const issueCount = run.value.ocrRun.reviewIssues?.length ?? 0;
@@ -487,6 +500,107 @@ export async function runOcrAction(_prev: ActionState, formData: FormData): Prom
         issueCount > 0
           ? `OCR completed, but flagged ${issueCount} review issue(s) - check the extracted text below.`
           : 'OCR completed successfully.',
+    } satisfies ActionState;
+  });
+
+  if (result.ok) revalidatePath(`/app/applicant/${applicantId}`, 'layout');
+  return result;
+}
+
+/**
+ * Run AI document-type classification (Part 8 AI-01 item 2). Reuses the same
+ * deterministically-extracted text `runAiExtractionAction` reads
+ * (`getLatestExtractedText`) -- `runClassification` itself refuses to run at
+ * all unless the deterministic classifier (`classification.ts`) left a
+ * genuine gap, so this action never needs to check that here.
+ */
+export async function runClassificationAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const applicantId = String(formData.get('applicantId') ?? '');
+  const documentVersionId = String(formData.get('documentVersionId') ?? '');
+
+  const result = await withSession(async ({ db, accountId }) => {
+    if (!(await assertOwned(db, accountId, applicantId))) {
+      return { ok: false, message: 'Not authorized.' } satisfies ActionState;
+    }
+    const resolved = await resolveAiClassifier(db, createKeyManagementPort());
+    if (!resolved) {
+      return { ok: false, message: 'AI classification is not configured.' } satisfies ActionState;
+    }
+    const text = await getLatestExtractedText(db, documentVersionId);
+    if (!text) {
+      return {
+        ok: false,
+        message: 'No extracted text available yet for this document.',
+      } satisfies ActionState;
+    }
+    const run = await runClassification(db, resolved.ai, {
+      actorAccountId: accountId,
+      applicantId,
+      documentVersionId,
+      text,
+      budgetLimitUnits: resolved.limits.budgetLimitUnits,
+      perDocumentBudgetLimitUnits: resolved.limits.perDocumentBudgetLimitUnits,
+      maxAttemptsPerDocument: resolved.limits.maxAttemptsPerDocument,
+      maxPagesPerDocument: resolved.limits.maxPagesPerDocument,
+      cacheMaxAgeDays: resolved.limits.cacheMaxAgeDays,
+      maxConcurrentCalls: resolved.limits.maxConcurrentCalls,
+      killSwitchCheck: () => isAiDispatchAllowed(db),
+    });
+    if (!run.ok) return { ok: false, message: run.error.message } satisfies ActionState;
+    return {
+      ok: true,
+      message: run.value.proposal
+        ? `AI suggested a document type: ${run.value.proposal.suggestedType} - review below.`
+        : 'AI classification ran, but could not confidently suggest a document type.',
+    } satisfies ActionState;
+  });
+
+  if (result.ok) revalidatePath(`/app/applicant/${applicantId}`, 'layout');
+  return result;
+}
+
+/**
+ * Decide a PENDING AI document-type suggestion (Part 8 AI-01 item 2):
+ * approve or reject. Never applied silently -- approving reuses the exact
+ * same downstream effects (`documents.docType`, naming proposal) the
+ * deterministic classification path already has (see
+ * `approveDocumentTypeProposal`'s own doc comment).
+ */
+export async function decideClassificationProposalAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const applicantId = String(formData.get('applicantId') ?? '');
+  const proposalId = String(formData.get('proposalId') ?? '');
+  const decision = String(formData.get('proposalAction') ?? '');
+
+  if (decision !== 'approve' && decision !== 'reject') {
+    return { ok: false, message: 'Unknown action.' };
+  }
+
+  const result = await withSession(async ({ db, accountId }) => {
+    if (!(await assertOwned(db, accountId, applicantId))) {
+      return { ok: false, message: 'Not authorized.' } satisfies ActionState;
+    }
+    if (decision === 'reject') {
+      const rejected = await rejectDocumentTypeProposal(db, {
+        actorAccountId: accountId,
+        proposalId,
+      });
+      if (!rejected.ok) return { ok: false, message: rejected.error.message } satisfies ActionState;
+      return { ok: true, message: 'Suggestion rejected.' } satisfies ActionState;
+    }
+    const approved = await approveDocumentTypeProposal(db, {
+      actorAccountId: accountId,
+      proposalId,
+    });
+    if (!approved.ok) return { ok: false, message: approved.error.message } satisfies ActionState;
+    return {
+      ok: true,
+      message: 'Document type approved and saved.',
     } satisfies ActionState;
   });
 
@@ -534,6 +648,100 @@ export async function decideProposalAction(
         approved.value.version.status === 'CONFLICTED'
           ? 'Approved, but this conflicts with an already-confirmed value — flagged for review.'
           : 'Proposal approved and saved to the profile.',
+    } satisfies ActionState;
+  });
+
+  if (result.ok) revalidatePath(`/app/applicant/${applicantId}`, 'layout');
+  return result;
+}
+
+/**
+ * Run an AI possible-inconsistency check (Part 8 AI-01 item 4). Reuses the
+ * same deterministically-extracted text the extraction/classification
+ * actions read (`getLatestExtractedText`) -- `runInconsistencyCheck` itself
+ * fetches the applicant's own TRUSTED profile facts and never a second
+ * document, so this action passes only the document text.
+ */
+export async function runInconsistencyCheckAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const applicantId = String(formData.get('applicantId') ?? '');
+  const documentVersionId = String(formData.get('documentVersionId') ?? '');
+
+  const result = await withSession(async ({ db, accountId }) => {
+    if (!(await assertOwned(db, accountId, applicantId))) {
+      return { ok: false, message: 'Not authorized.' } satisfies ActionState;
+    }
+    const resolved = await resolveAiInconsistencyChecker(db, createKeyManagementPort());
+    if (!resolved) {
+      return {
+        ok: false,
+        message: 'AI inconsistency checking is not configured.',
+      } satisfies ActionState;
+    }
+    const text = await getLatestExtractedText(db, documentVersionId);
+    if (!text) {
+      return {
+        ok: false,
+        message: 'No extracted text available yet for this document.',
+      } satisfies ActionState;
+    }
+    const run = await runInconsistencyCheck(db, resolved.ai, {
+      actorAccountId: accountId,
+      applicantId,
+      documentVersionId,
+      text,
+      budgetLimitUnits: resolved.limits.budgetLimitUnits,
+      perDocumentBudgetLimitUnits: resolved.limits.perDocumentBudgetLimitUnits,
+      maxAttemptsPerDocument: resolved.limits.maxAttemptsPerDocument,
+      maxPagesPerDocument: resolved.limits.maxPagesPerDocument,
+      cacheMaxAgeDays: resolved.limits.cacheMaxAgeDays,
+      maxConcurrentCalls: resolved.limits.maxConcurrentCalls,
+      killSwitchCheck: () => isAiDispatchAllowed(db),
+    });
+    if (!run.ok) return { ok: false, message: run.error.message } satisfies ActionState;
+    return {
+      ok: true,
+      message:
+        run.value.flags.length > 0
+          ? `AI found ${run.value.flags.length} possible inconsistency(ies) to review.`
+          : 'AI inconsistency check ran and found nothing to flag.',
+    } satisfies ActionState;
+  });
+
+  if (result.ok) revalidatePath(`/app/applicant/${applicantId}`, 'layout');
+  return result;
+}
+
+/**
+ * Decide a PENDING AI inconsistency flag (Part 8 AI-01 item 4): acknowledge
+ * or dismiss. Purely advisory -- neither decision ever writes to the
+ * Master Profile (see `acknowledgeInconsistencyFlag`'s own doc comment).
+ */
+export async function decideInconsistencyFlagAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const applicantId = String(formData.get('applicantId') ?? '');
+  const flagId = String(formData.get('flagId') ?? '');
+  const decision = String(formData.get('flagAction') ?? '');
+
+  if (decision !== 'acknowledge' && decision !== 'dismiss') {
+    return { ok: false, message: 'Unknown action.' };
+  }
+
+  const result = await withSession(async ({ db, accountId }) => {
+    if (!(await assertOwned(db, accountId, applicantId))) {
+      return { ok: false, message: 'Not authorized.' } satisfies ActionState;
+    }
+    const decided = await (decision === 'acknowledge'
+      ? acknowledgeInconsistencyFlag(db, { actorAccountId: accountId, flagId })
+      : dismissInconsistencyFlag(db, { actorAccountId: accountId, flagId }));
+    if (!decided.ok) return { ok: false, message: decided.error.message } satisfies ActionState;
+    return {
+      ok: true,
+      message: decision === 'acknowledge' ? 'Flag acknowledged.' : 'Flag dismissed.',
     } satisfies ActionState;
   });
 

@@ -10,7 +10,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
  */
 
 /**
- * `resolveAiExtractor`'s own tests (below) mock only these three
+ * `resolveAiExtractor`'s own tests (below) mock only these four
  * `@visastack/services` entry points -- the same "mock the boundary, run
  * everything else for real" discipline `step-up.test.ts` already
  * establishes for this package. Each function's OWN logic is already
@@ -23,6 +23,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 const hasAnyAiProviderConfig = vi.fn();
 const getActiveAiProviderConfig = vi.fn();
 const revealAiProviderApiKey = vi.fn();
+const getAiProviderConfigForFallback = vi.fn();
 
 vi.mock('@visastack/services', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@visastack/services')>();
@@ -31,6 +32,7 @@ vi.mock('@visastack/services', async (importOriginal) => {
     hasAnyAiProviderConfig: (...args: unknown[]) => hasAnyAiProviderConfig(...args),
     getActiveAiProviderConfig: (...args: unknown[]) => getActiveAiProviderConfig(...args),
     revealAiProviderApiKey: (...args: unknown[]) => revealAiProviderApiKey(...args),
+    getAiProviderConfigForFallback: (...args: unknown[]) => getAiProviderConfigForFallback(...args),
   };
 });
 
@@ -253,6 +255,8 @@ describe('resolveAiExtractor (Part 8 §5: the DB config becomes authoritative on
       maxPagesPerDocument: null,
       cacheMaxAgeDays: null,
       maxConcurrentCalls: null,
+      fallbackEnabled: false,
+      fallbackProviderConfigId: null,
       notes: null,
       createdByAccountId: null,
       createdAt: new Date(),
@@ -267,6 +271,7 @@ describe('resolveAiExtractor (Part 8 §5: the DB config becomes authoritative on
     hasAnyAiProviderConfig.mockReset();
     getActiveAiProviderConfig.mockReset();
     revealAiProviderApiKey.mockReset();
+    getAiProviderConfigForFallback.mockReset();
   });
 
   it('falls back to createAiExtractor (env-based) when no admin has ever configured AI settings', async () => {
@@ -482,6 +487,109 @@ describe('resolveAiExtractor (Part 8 §5: the DB config becomes authoritative on
     });
   });
 
+  describe('cross-provider fallback (Part 8 §13)', () => {
+    it('resolves no fallback when the ACTIVE config has fallbackEnabled false (the default)', async () => {
+      hasAnyAiProviderConfig.mockResolvedValue(true);
+      getActiveAiProviderConfig.mockResolvedValue(fakeConfig());
+      revealAiProviderApiKey.mockResolvedValue('sk-from-db');
+      const { resolveAiExtractor } = await import('./ai');
+
+      const resolved = await resolveAiExtractor(db, encryption);
+      expect(resolved?.fallback).toBeUndefined();
+      expect(getAiProviderConfigForFallback).not.toHaveBeenCalled();
+    });
+
+    it('resolves a fallback adapter, live-re-verified, when fallback is enabled and the target is eligible', async () => {
+      hasAnyAiProviderConfig.mockResolvedValue(true);
+      getActiveAiProviderConfig.mockResolvedValue(
+        fakeConfig({
+          provider: 'openai',
+          fallbackEnabled: true,
+          fallbackProviderConfigId: 'fallback-1',
+        }),
+      );
+      getAiProviderConfigForFallback.mockResolvedValue(
+        fakeConfig({ id: 'fallback-1', provider: 'anthropic', dataPolicyApproved: true }),
+      );
+      revealAiProviderApiKey.mockResolvedValue('sk-either-key');
+      const { resolveAiExtractor } = await import('./ai');
+
+      const resolved = await resolveAiExtractor(db, encryption);
+      expect(resolved?.fallback).toBeDefined();
+      expect(getAiProviderConfigForFallback).toHaveBeenCalledWith(db, 'fallback-1');
+    });
+
+    it('resolves no fallback when the designated target no longer exists', async () => {
+      hasAnyAiProviderConfig.mockResolvedValue(true);
+      getActiveAiProviderConfig.mockResolvedValue(
+        fakeConfig({ fallbackEnabled: true, fallbackProviderConfigId: 'missing' }),
+      );
+      getAiProviderConfigForFallback.mockResolvedValue(undefined);
+      revealAiProviderApiKey.mockResolvedValue('sk-from-db');
+      const { resolveAiExtractor } = await import('./ai');
+
+      const resolved = await resolveAiExtractor(db, encryption);
+      expect(resolved?.fallback).toBeUndefined();
+    });
+
+    it('resolves no fallback when the target uses the SAME provider as the primary -- defense in depth even though activation already enforced this', async () => {
+      hasAnyAiProviderConfig.mockResolvedValue(true);
+      getActiveAiProviderConfig.mockResolvedValue(
+        fakeConfig({
+          provider: 'openai',
+          fallbackEnabled: true,
+          fallbackProviderConfigId: 'same-provider',
+        }),
+      );
+      getAiProviderConfigForFallback.mockResolvedValue(
+        fakeConfig({ id: 'same-provider', provider: 'openai' }),
+      );
+      revealAiProviderApiKey.mockResolvedValue('sk-from-db');
+      const { resolveAiExtractor } = await import('./ai');
+
+      const resolved = await resolveAiExtractor(db, encryption);
+      expect(resolved?.fallback).toBeUndefined();
+    });
+
+    it("resolves no fallback when the target's key has since been revoked -- re-checked live, never trusted from whenever the pointer was set", async () => {
+      hasAnyAiProviderConfig.mockResolvedValue(true);
+      getActiveAiProviderConfig.mockResolvedValue(
+        fakeConfig({
+          provider: 'openai',
+          fallbackEnabled: true,
+          fallbackProviderConfigId: 'revoked',
+        }),
+      );
+      getAiProviderConfigForFallback.mockResolvedValue(
+        fakeConfig({ id: 'revoked', provider: 'anthropic', keyRevokedAt: new Date() }),
+      );
+      revealAiProviderApiKey.mockResolvedValue('sk-from-db');
+      const { resolveAiExtractor } = await import('./ai');
+
+      const resolved = await resolveAiExtractor(db, encryption);
+      expect(resolved?.fallback).toBeUndefined();
+    });
+
+    it('resolves no fallback when the target names a provider with no implemented adapter', async () => {
+      hasAnyAiProviderConfig.mockResolvedValue(true);
+      getActiveAiProviderConfig.mockResolvedValue(
+        fakeConfig({
+          provider: 'openai',
+          fallbackEnabled: true,
+          fallbackProviderConfigId: 'unimplemented',
+        }),
+      );
+      getAiProviderConfigForFallback.mockResolvedValue(
+        fakeConfig({ id: 'unimplemented', provider: 'mistral' }),
+      );
+      revealAiProviderApiKey.mockResolvedValue('sk-from-db');
+      const { resolveAiExtractor } = await import('./ai');
+
+      const resolved = await resolveAiExtractor(db, encryption);
+      expect(resolved?.fallback).toBeUndefined();
+    });
+  });
+
   describe('resolveTestAdapter -- adapter for an admin "test connection" action against one specific config row (Part 8 §5 / J15: "config OpenAI; test; activate")', () => {
     it('builds an adapter directly from a DRAFT config, never consulting the ACTIVE row', async () => {
       revealAiProviderApiKey.mockResolvedValue('sk-from-db');
@@ -540,6 +648,7 @@ describe('resolveAiExtractor (Part 8 §5: the DB config becomes authoritative on
       hasAnyAiProviderConfig.mockReset();
       getActiveAiProviderConfig.mockReset();
       revealAiProviderApiKey.mockReset();
+      getAiProviderConfigForFallback.mockReset();
     });
 
     it('returns undefined when no admin has ever configured AI settings -- there is no env-var OCR fallback', async () => {
@@ -643,6 +752,44 @@ describe('resolveAiExtractor (Part 8 §5: the DB config becomes authoritative on
       expect(resolved).toBeUndefined();
       expect(revealAiProviderApiKey).not.toHaveBeenCalled();
     });
+
+    it('resolves a live-re-verified fallback OCR adapter when enabled and eligible, mirroring resolveAiExtractor exactly (Part 8 §13)', async () => {
+      hasAnyAiProviderConfig.mockResolvedValue(true);
+      getActiveAiProviderConfig.mockResolvedValue(
+        fakeConfig({
+          provider: 'openai',
+          fallbackEnabled: true,
+          fallbackProviderConfigId: 'fallback-ocr-1',
+        }),
+      );
+      getAiProviderConfigForFallback.mockResolvedValue(
+        fakeConfig({ id: 'fallback-ocr-1', provider: 'gemini', dataPolicyApproved: true }),
+      );
+      revealAiProviderApiKey.mockResolvedValue('sk-either-key');
+      const { resolveOcrAdapter } = await import('./ai');
+
+      const resolved = await resolveOcrAdapter(db, encryption);
+      expect(resolved?.fallback).toBeDefined();
+    });
+
+    it('resolves no fallback OCR adapter when the target has since had its key revoked', async () => {
+      hasAnyAiProviderConfig.mockResolvedValue(true);
+      getActiveAiProviderConfig.mockResolvedValue(
+        fakeConfig({
+          provider: 'openai',
+          fallbackEnabled: true,
+          fallbackProviderConfigId: 'revoked-ocr',
+        }),
+      );
+      getAiProviderConfigForFallback.mockResolvedValue(
+        fakeConfig({ id: 'revoked-ocr', provider: 'anthropic', keyRevokedAt: new Date() }),
+      );
+      revealAiProviderApiKey.mockResolvedValue('sk-from-db');
+      const { resolveOcrAdapter } = await import('./ai');
+
+      const resolved = await resolveOcrAdapter(db, encryption);
+      expect(resolved?.fallback).toBeUndefined();
+    });
   });
 
   describe('isOcrConfigured -- cheap display gate, no KMS decrypt (Part 8 §9, Chunk 21)', () => {
@@ -691,6 +838,280 @@ describe('resolveAiExtractor (Part 8 §5: the DB config becomes authoritative on
       const { isOcrConfigured } = await import('./ai');
 
       expect(await isOcrConfigured(db)).toBe(false);
+    });
+  });
+
+  describe('resolveAiClassifier -- the classify adapter (and shared limits) for a live call, reusing the ACTIVE config (Part 8 AI-01 item 2)', () => {
+    beforeEach(() => {
+      hasAnyAiProviderConfig.mockReset();
+      getActiveAiProviderConfig.mockReset();
+      revealAiProviderApiKey.mockReset();
+    });
+
+    it('is undefined when no admin has ever configured AI settings -- no env-var fallback path, unlike resolveAiExtractor', async () => {
+      hasAnyAiProviderConfig.mockResolvedValue(false);
+      const { resolveAiClassifier } = await import('./ai');
+
+      const resolved = await resolveAiClassifier(db, encryption);
+
+      expect(resolved).toBeUndefined();
+      expect(getActiveAiProviderConfig).not.toHaveBeenCalled();
+    });
+
+    it("builds the adapter from the ACTIVE DB config's own provider/model, via the SAME classifyCacheKeyComponents an extraction adapter also exposes", async () => {
+      hasAnyAiProviderConfig.mockResolvedValue(true);
+      getActiveAiProviderConfig.mockResolvedValue(fakeConfig({ model: 'gpt-5-db-configured' }));
+      revealAiProviderApiKey.mockResolvedValue('sk-from-db');
+      const { resolveAiClassifier } = await import('./ai');
+
+      const resolved = await resolveAiClassifier(db, encryption);
+
+      expect(resolved).toBeDefined();
+      expect(resolved?.ai.classifyCacheKeyComponents().model).toBe('gpt-5-db-configured');
+      expect(revealAiProviderApiKey).toHaveBeenCalledWith(
+        db,
+        encryption,
+        expect.objectContaining({ id: 'config-1' }),
+      );
+    });
+
+    it("resolves limits from the ACTIVE config's own columns, the identical machinery resolveAiExtractor uses", async () => {
+      hasAnyAiProviderConfig.mockResolvedValue(true);
+      getActiveAiProviderConfig.mockResolvedValue(fakeConfig({ budgetLimitUnits: 999_000 }));
+      revealAiProviderApiKey.mockResolvedValue('sk-from-db');
+      const { resolveAiClassifier } = await import('./ai');
+
+      const resolved = await resolveAiClassifier(db, encryption);
+      expect(resolved?.limits.budgetLimitUnits).toBe(999_000);
+    });
+
+    it('is undefined for an ACTIVE config naming a genuinely unimplemented provider', async () => {
+      hasAnyAiProviderConfig.mockResolvedValue(true);
+      getActiveAiProviderConfig.mockResolvedValue(fakeConfig({ provider: 'mistral' }));
+      const { resolveAiClassifier } = await import('./ai');
+
+      const resolved = await resolveAiClassifier(db, encryption);
+      expect(resolved).toBeUndefined();
+      expect(revealAiProviderApiKey).not.toHaveBeenCalled();
+    });
+
+    it('is undefined without a working encryption port, even with a genuinely ACTIVE config', async () => {
+      hasAnyAiProviderConfig.mockResolvedValue(true);
+      getActiveAiProviderConfig.mockResolvedValue(fakeConfig());
+      const { resolveAiClassifier } = await import('./ai');
+
+      const resolved = await resolveAiClassifier(db, undefined);
+      expect(resolved).toBeUndefined();
+      expect(revealAiProviderApiKey).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('isClassificationConfigured -- cheap display gate, no KMS decrypt (Part 8 AI-01 item 2)', () => {
+    beforeEach(() => {
+      hasAnyAiProviderConfig.mockReset();
+      getActiveAiProviderConfig.mockReset();
+      revealAiProviderApiKey.mockReset();
+    });
+
+    it('is false when no admin has ever configured AI settings', async () => {
+      hasAnyAiProviderConfig.mockResolvedValue(false);
+      const { isClassificationConfigured } = await import('./ai');
+
+      expect(await isClassificationConfigured(db)).toBe(false);
+      expect(getActiveAiProviderConfig).not.toHaveBeenCalled();
+    });
+
+    it('is true for an ACTIVE openai config, without ever decrypting the key', async () => {
+      hasAnyAiProviderConfig.mockResolvedValue(true);
+      getActiveAiProviderConfig.mockResolvedValue(fakeConfig());
+      const { isClassificationConfigured } = await import('./ai');
+
+      expect(await isClassificationConfigured(db)).toBe(true);
+      expect(revealAiProviderApiKey).not.toHaveBeenCalled();
+    });
+
+    it('is false for an ACTIVE config naming a genuinely unimplemented provider', async () => {
+      hasAnyAiProviderConfig.mockResolvedValue(true);
+      getActiveAiProviderConfig.mockResolvedValue(fakeConfig({ provider: 'mistral' }));
+      const { isClassificationConfigured } = await import('./ai');
+
+      expect(await isClassificationConfigured(db)).toBe(false);
+    });
+  });
+
+  describe('resolveAiExplainer -- the explain adapter (and shared limits) for a live call, reusing the ACTIVE config (Part 8 AI-01 item 5)', () => {
+    beforeEach(() => {
+      hasAnyAiProviderConfig.mockReset();
+      getActiveAiProviderConfig.mockReset();
+      revealAiProviderApiKey.mockReset();
+    });
+
+    it('is undefined when no admin has ever configured AI settings -- no env-var fallback path', async () => {
+      hasAnyAiProviderConfig.mockResolvedValue(false);
+      const { resolveAiExplainer } = await import('./ai');
+
+      const resolved = await resolveAiExplainer(db, encryption);
+
+      expect(resolved).toBeUndefined();
+      expect(getActiveAiProviderConfig).not.toHaveBeenCalled();
+    });
+
+    it("builds the adapter from the ACTIVE DB config's own provider/model, via the SAME explainCacheKeyComponents an extraction adapter also exposes", async () => {
+      hasAnyAiProviderConfig.mockResolvedValue(true);
+      getActiveAiProviderConfig.mockResolvedValue(fakeConfig({ model: 'gpt-5-db-configured' }));
+      revealAiProviderApiKey.mockResolvedValue('sk-from-db');
+      const { resolveAiExplainer } = await import('./ai');
+
+      const resolved = await resolveAiExplainer(db, encryption);
+
+      expect(resolved).toBeDefined();
+      expect(resolved?.ai.explainCacheKeyComponents().model).toBe('gpt-5-db-configured');
+      expect(revealAiProviderApiKey).toHaveBeenCalledWith(
+        db,
+        encryption,
+        expect.objectContaining({ id: 'config-1' }),
+      );
+    });
+
+    it('is undefined for an ACTIVE config naming a genuinely unimplemented provider', async () => {
+      hasAnyAiProviderConfig.mockResolvedValue(true);
+      getActiveAiProviderConfig.mockResolvedValue(fakeConfig({ provider: 'mistral' }));
+      const { resolveAiExplainer } = await import('./ai');
+
+      const resolved = await resolveAiExplainer(db, encryption);
+      expect(resolved).toBeUndefined();
+      expect(revealAiProviderApiKey).not.toHaveBeenCalled();
+    });
+
+    it('is undefined without a working encryption port, even with a genuinely ACTIVE config', async () => {
+      hasAnyAiProviderConfig.mockResolvedValue(true);
+      getActiveAiProviderConfig.mockResolvedValue(fakeConfig());
+      const { resolveAiExplainer } = await import('./ai');
+
+      const resolved = await resolveAiExplainer(db, undefined);
+      expect(resolved).toBeUndefined();
+      expect(revealAiProviderApiKey).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('isExplanationConfigured -- cheap display gate, no KMS decrypt (Part 8 AI-01 item 5)', () => {
+    beforeEach(() => {
+      hasAnyAiProviderConfig.mockReset();
+      getActiveAiProviderConfig.mockReset();
+      revealAiProviderApiKey.mockReset();
+    });
+
+    it('is false when no admin has ever configured AI settings', async () => {
+      hasAnyAiProviderConfig.mockResolvedValue(false);
+      const { isExplanationConfigured } = await import('./ai');
+
+      expect(await isExplanationConfigured(db)).toBe(false);
+      expect(getActiveAiProviderConfig).not.toHaveBeenCalled();
+    });
+
+    it('is true for an ACTIVE openai config, without ever decrypting the key', async () => {
+      hasAnyAiProviderConfig.mockResolvedValue(true);
+      getActiveAiProviderConfig.mockResolvedValue(fakeConfig());
+      const { isExplanationConfigured } = await import('./ai');
+
+      expect(await isExplanationConfigured(db)).toBe(true);
+      expect(revealAiProviderApiKey).not.toHaveBeenCalled();
+    });
+
+    it('is false for an ACTIVE config naming a genuinely unimplemented provider', async () => {
+      hasAnyAiProviderConfig.mockResolvedValue(true);
+      getActiveAiProviderConfig.mockResolvedValue(fakeConfig({ provider: 'mistral' }));
+      const { isExplanationConfigured } = await import('./ai');
+
+      expect(await isExplanationConfigured(db)).toBe(false);
+    });
+  });
+
+  describe('resolveAiInconsistencyChecker -- the inconsistency-check adapter (and shared limits) for a live call, reusing the ACTIVE config (Part 8 AI-01 item 4)', () => {
+    beforeEach(() => {
+      hasAnyAiProviderConfig.mockReset();
+      getActiveAiProviderConfig.mockReset();
+      revealAiProviderApiKey.mockReset();
+    });
+
+    it('is undefined when no admin has ever configured AI settings -- no env-var fallback path', async () => {
+      hasAnyAiProviderConfig.mockResolvedValue(false);
+      const { resolveAiInconsistencyChecker } = await import('./ai');
+
+      const resolved = await resolveAiInconsistencyChecker(db, encryption);
+
+      expect(resolved).toBeUndefined();
+      expect(getActiveAiProviderConfig).not.toHaveBeenCalled();
+    });
+
+    it("builds the adapter from the ACTIVE DB config's own provider/model, via the SAME inconsistencyCacheKeyComponents an extraction adapter also exposes", async () => {
+      hasAnyAiProviderConfig.mockResolvedValue(true);
+      getActiveAiProviderConfig.mockResolvedValue(fakeConfig({ model: 'gpt-5-db-configured' }));
+      revealAiProviderApiKey.mockResolvedValue('sk-from-db');
+      const { resolveAiInconsistencyChecker } = await import('./ai');
+
+      const resolved = await resolveAiInconsistencyChecker(db, encryption);
+
+      expect(resolved).toBeDefined();
+      expect(resolved?.ai.inconsistencyCacheKeyComponents().model).toBe('gpt-5-db-configured');
+      expect(revealAiProviderApiKey).toHaveBeenCalledWith(
+        db,
+        encryption,
+        expect.objectContaining({ id: 'config-1' }),
+      );
+    });
+
+    it('is undefined for an ACTIVE config naming a genuinely unimplemented provider', async () => {
+      hasAnyAiProviderConfig.mockResolvedValue(true);
+      getActiveAiProviderConfig.mockResolvedValue(fakeConfig({ provider: 'mistral' }));
+      const { resolveAiInconsistencyChecker } = await import('./ai');
+
+      const resolved = await resolveAiInconsistencyChecker(db, encryption);
+      expect(resolved).toBeUndefined();
+      expect(revealAiProviderApiKey).not.toHaveBeenCalled();
+    });
+
+    it('is undefined without a working encryption port, even with a genuinely ACTIVE config', async () => {
+      hasAnyAiProviderConfig.mockResolvedValue(true);
+      getActiveAiProviderConfig.mockResolvedValue(fakeConfig());
+      const { resolveAiInconsistencyChecker } = await import('./ai');
+
+      const resolved = await resolveAiInconsistencyChecker(db, undefined);
+      expect(resolved).toBeUndefined();
+      expect(revealAiProviderApiKey).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('isInconsistencyConfigured -- cheap display gate, no KMS decrypt (Part 8 AI-01 item 4)', () => {
+    beforeEach(() => {
+      hasAnyAiProviderConfig.mockReset();
+      getActiveAiProviderConfig.mockReset();
+      revealAiProviderApiKey.mockReset();
+    });
+
+    it('is false when no admin has ever configured AI settings', async () => {
+      hasAnyAiProviderConfig.mockResolvedValue(false);
+      const { isInconsistencyConfigured } = await import('./ai');
+
+      expect(await isInconsistencyConfigured(db)).toBe(false);
+      expect(getActiveAiProviderConfig).not.toHaveBeenCalled();
+    });
+
+    it('is true for an ACTIVE openai config, without ever decrypting the key', async () => {
+      hasAnyAiProviderConfig.mockResolvedValue(true);
+      getActiveAiProviderConfig.mockResolvedValue(fakeConfig());
+      const { isInconsistencyConfigured } = await import('./ai');
+
+      expect(await isInconsistencyConfigured(db)).toBe(true);
+      expect(revealAiProviderApiKey).not.toHaveBeenCalled();
+    });
+
+    it('is false for an ACTIVE config naming a genuinely unimplemented provider', async () => {
+      hasAnyAiProviderConfig.mockResolvedValue(true);
+      getActiveAiProviderConfig.mockResolvedValue(fakeConfig({ provider: 'mistral' }));
+      const { isInconsistencyConfigured } = await import('./ai');
+
+      expect(await isInconsistencyConfigured(db)).toBe(false);
     });
   });
 });

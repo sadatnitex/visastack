@@ -77,12 +77,17 @@ export async function createDraftAiProviderConfigAction(
   const maxPagesPerDocument = parsePositiveInt(formData.get('maxPagesPerDocument'));
   const cacheMaxAgeDays = parsePositiveInt(formData.get('cacheMaxAgeDays'));
   const maxConcurrentCalls = parsePositiveInt(formData.get('maxConcurrentCalls'));
+  const fallbackEnabled = formData.get('fallbackEnabled') === 'on';
+  const fallbackProviderConfigId = String(formData.get('fallbackProviderConfigId') ?? '').trim();
 
   if (provider.length === 0) return { ok: false, message: 'Choose a provider.' };
   if (model.length === 0) return { ok: false, message: 'Enter a model.' };
   if (apiKey.length === 0) return { ok: false, message: 'Enter an API key.' };
   if (budgetLimitUsd === undefined) {
     return { ok: false, message: 'Enter a positive monthly budget in USD.' };
+  }
+  if (fallbackEnabled && fallbackProviderConfigId.length === 0) {
+    return { ok: false, message: 'Choose a fallback configuration to enable fallback.' };
   }
 
   const result = await withSession(async ({ db, accountId, email }) => {
@@ -123,6 +128,8 @@ export async function createDraftAiProviderConfigAction(
       ...(maxPagesPerDocument !== undefined ? { maxPagesPerDocument } : {}),
       ...(cacheMaxAgeDays !== undefined ? { cacheMaxAgeDays } : {}),
       ...(maxConcurrentCalls !== undefined ? { maxConcurrentCalls } : {}),
+      ...(fallbackEnabled ? { fallbackEnabled: true } : {}),
+      ...(fallbackProviderConfigId ? { fallbackProviderConfigId } : {}),
       ...(notes ? { notes } : {}),
     });
     if (!draft.ok) return { ok: false, message: draft.error.message } satisfies ActionState;

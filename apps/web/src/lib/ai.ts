@@ -8,12 +8,16 @@ import {
   OpenAiOcrAdapter,
 } from '@visastack/adapters';
 import {
+  type AiClassifyPort,
+  type AiExplainPort,
   type AiExtractionPort,
+  type AiInconsistencyPort,
   type AiOcrPort,
   type AiProviderConfig,
   type Db,
   type KeyManagementPort,
   getActiveAiProviderConfig,
+  getAiProviderConfigForFallback,
   hasAnyAiProviderConfig,
   revealAiProviderApiKey,
 } from '@visastack/services';
@@ -77,6 +81,8 @@ export interface AiLimits {
 export interface ResolvedAiExtractor {
   readonly ai: AiExtractionPort;
   readonly limits: AiLimits;
+  /** Part 8 §13 (cross-provider fallback). Present only when the ACTIVE config has fallback enabled and its designated target is currently eligible -- see `resolveFallbackExtractor`'s own doc comment for the live re-verification this performs. */
+  readonly fallback?: { readonly ai: AiExtractionPort };
 }
 
 /**
@@ -90,7 +96,19 @@ export interface ResolvedAiExtractor {
  */
 const IMPLEMENTED_PROVIDERS: ReadonlySet<string> = new Set(['openai', 'anthropic', 'gemini']);
 
-function buildAdapterForConfig(config: AiProviderConfig, apiKey: string): AiExtractionPort {
+/**
+ * Returns `AiExtractionPort & AiClassifyPort & AiExplainPort &
+ * AiInconsistencyPort`, not just `AiExtractionPort` -- every case below is
+ * one of the three adapter classes that Part 8 AI-01 (items 2, 5, and 4)
+ * wired to implement ALL FOUR ports on the same instance, so
+ * `resolveAiClassifier`/`resolveAiExplainer`/`resolveAiInconsistencyChecker`
+ * all reuse this SAME function unchanged rather than duplicating an
+ * equivalent construction switch per task.
+ */
+function buildAdapterForConfig(
+  config: AiProviderConfig,
+  apiKey: string,
+): AiExtractionPort & AiClassifyPort & AiExplainPort & AiInconsistencyPort {
   const shared = {
     apiKey,
     model: config.model,
@@ -148,6 +166,37 @@ function buildAdapterForConfig(config: AiProviderConfig, apiKey: string): AiExtr
  * inheriting whatever `OPENAI_STORE_RESPONSES` happens to be set to, and
  * `projectId` is OpenAI-specific so `buildAdapterForConfig` never passes it.
  */
+/**
+ * Part 8 §13 (cross-provider fallback): re-verifies the ACTIVE config's
+ * designated fallback target LIVE, at the exact moment it might actually be
+ * dispatched to -- never trusting `fallbackProviderConfigId` as a permanent
+ * fact from whenever `activateAiProviderConfig` first checked it, since the
+ * target's own `keyRevokedAt` can change afterward (`revokeAiProviderConfigKey`
+ * is a mutation on an existing row, unlike everything else on a config,
+ * which is set once and never edited). The genuinely-different-provider and
+ * data-policy checks are re-run too even though activation already enforced
+ * them -- defense in depth costs nothing here, and this is exactly the
+ * boundary directive §13 names ("provider already passed same privacy/task/
+ * budget gates"). Returns undefined (never a throw) for every ineligible
+ * case, exactly like every other fail-closed check in this file -- a
+ * fallback that can no longer be trusted simply does not exist as far as
+ * the caller is concerned, it is never worth degrading to anyway.
+ */
+async function resolveFallbackExtractor(
+  db: Db,
+  encryption: KeyManagementPort,
+  primary: AiProviderConfig,
+): Promise<{ ai: AiExtractionPort } | undefined> {
+  if (!primary.fallbackEnabled || !primary.fallbackProviderConfigId) return undefined;
+  const target = await getAiProviderConfigForFallback(db, primary.fallbackProviderConfigId);
+  if (!target) return undefined;
+  if (target.provider === primary.provider) return undefined;
+  if (!target.dataPolicyApproved || target.keyRevokedAt !== null) return undefined;
+  if (!IMPLEMENTED_PROVIDERS.has(target.provider)) return undefined;
+  const apiKey = await revealAiProviderApiKey(db, encryption, target);
+  return { ai: buildAdapterForConfig(target, apiKey) };
+}
+
 export async function resolveAiExtractor(
   db: Db,
   encryption: KeyManagementPort | undefined,
@@ -156,7 +205,12 @@ export async function resolveAiExtractor(
     const config = await getActiveAiProviderConfig(db);
     if (!config || !encryption || !IMPLEMENTED_PROVIDERS.has(config.provider)) return undefined;
     const apiKey = await revealAiProviderApiKey(db, encryption, config);
-    return { ai: buildAdapterForConfig(config, apiKey), limits: limitsFromConfig(config) };
+    const fallback = await resolveFallbackExtractor(db, encryption, config);
+    return {
+      ai: buildAdapterForConfig(config, apiKey),
+      limits: limitsFromConfig(config),
+      ...(fallback ? { fallback } : {}),
+    };
   }
   const ai = createAiExtractor();
   return ai ? { ai, limits: limitsFromConfig(undefined) } : undefined;
@@ -183,6 +237,88 @@ export async function resolveTestAdapter(
   if (!encryption || !IMPLEMENTED_PROVIDERS.has(config.provider)) return undefined;
   const apiKey = await revealAiProviderApiKey(db, encryption, config);
   return buildAdapterForConfig(config, apiKey);
+}
+
+export interface ResolvedAiClassifier {
+  readonly ai: AiClassifyPort;
+  readonly limits: AiLimits;
+}
+
+/**
+ * The classify adapter (and its governing limits) a live document-type
+ * classification call should use (Part 8 AI-01 item 2), built from the SAME
+ * ACTIVE `ai_provider_configs` row `resolveAiExtractor` reads -- reuses
+ * `buildAdapterForConfig` unchanged (see its own doc comment) since every
+ * implemented provider's adapter class satisfies both ports already.
+ *
+ * Deliberately no env-var-only fallback path (unlike `resolveAiExtractor`'s
+ * own `createAiExtractor()` branch): classification is a Commercial-V1-native
+ * capability introduced well after the DB-config system already existed, so
+ * there is no legacy env-var-configurable predecessor to preserve behavior
+ * for. An install with no `ai_provider_configs` row at all simply has no AI
+ * classification available -- the deterministic classifier
+ * (`classification.ts`) and manual entry remain fully functional regardless,
+ * matching Part 8's own "manual core must remain functional with AI
+ * disabled" requirement.
+ *
+ * No cross-provider fallback field yet (Part 8 §13) -- deliberately deferred,
+ * matching `runClassification`'s own doc comment.
+ */
+export async function resolveAiClassifier(
+  db: Db,
+  encryption: KeyManagementPort | undefined,
+): Promise<ResolvedAiClassifier | undefined> {
+  if (!(await hasAnyAiProviderConfig(db))) return undefined;
+  const config = await getActiveAiProviderConfig(db);
+  if (!config || !encryption || !IMPLEMENTED_PROVIDERS.has(config.provider)) return undefined;
+  const apiKey = await revealAiProviderApiKey(db, encryption, config);
+  return { ai: buildAdapterForConfig(config, apiKey), limits: limitsFromConfig(config) };
+}
+
+export interface ResolvedAiExplainer {
+  readonly ai: AiExplainPort;
+  readonly limits: AiLimits;
+}
+
+/**
+ * The explain adapter (and its governing limits) a live readiness-gap
+ * explanation call should use (Part 8 AI-01 item 5) -- reuses
+ * `buildAdapterForConfig` unchanged, the identical reasoning
+ * `resolveAiClassifier`'s own doc comment gives. No env-var-only fallback
+ * path, for the identical reason `resolveAiClassifier` has none.
+ */
+export async function resolveAiExplainer(
+  db: Db,
+  encryption: KeyManagementPort | undefined,
+): Promise<ResolvedAiExplainer | undefined> {
+  if (!(await hasAnyAiProviderConfig(db))) return undefined;
+  const config = await getActiveAiProviderConfig(db);
+  if (!config || !encryption || !IMPLEMENTED_PROVIDERS.has(config.provider)) return undefined;
+  const apiKey = await revealAiProviderApiKey(db, encryption, config);
+  return { ai: buildAdapterForConfig(config, apiKey), limits: limitsFromConfig(config) };
+}
+
+export interface ResolvedAiInconsistencyChecker {
+  readonly ai: AiInconsistencyPort;
+  readonly limits: AiLimits;
+}
+
+/**
+ * The inconsistency-check adapter (and its governing limits) a live
+ * possible-inconsistency-flag call should use (Part 8 AI-01 item 4) --
+ * reuses `buildAdapterForConfig` unchanged, the identical reasoning
+ * `resolveAiClassifier`/`resolveAiExplainer`'s own doc comments give. No
+ * env-var-only fallback path, for the identical reason those two have none.
+ */
+export async function resolveAiInconsistencyChecker(
+  db: Db,
+  encryption: KeyManagementPort | undefined,
+): Promise<ResolvedAiInconsistencyChecker | undefined> {
+  if (!(await hasAnyAiProviderConfig(db))) return undefined;
+  const config = await getActiveAiProviderConfig(db);
+  if (!config || !encryption || !IMPLEMENTED_PROVIDERS.has(config.provider)) return undefined;
+  const apiKey = await revealAiProviderApiKey(db, encryption, config);
+  return { ai: buildAdapterForConfig(config, apiKey), limits: limitsFromConfig(config) };
 }
 
 /**
@@ -215,6 +351,8 @@ function buildOcrAdapterForConfig(config: AiProviderConfig, apiKey: string): AiO
 export interface ResolvedOcrAdapter {
   readonly ai: AiOcrPort;
   readonly limits: AiLimits;
+  /** Part 8 §13 (cross-provider fallback), mirroring `ResolvedAiExtractor`'s own field exactly. */
+  readonly fallback?: { readonly ai: AiOcrPort };
 }
 
 /**
@@ -247,6 +385,22 @@ export interface ResolvedOcrAdapter {
  * `resolveAiExtractor` rather than leaving two different resolver
  * conventions for what are now symmetric concerns.
  */
+/** Part 8 §13 (cross-provider fallback), mirroring `resolveFallbackExtractor`'s own live re-verification exactly, for OCR's own separate (smaller) implemented-provider set. */
+async function resolveFallbackOcrAdapter(
+  db: Db,
+  encryption: KeyManagementPort,
+  primary: AiProviderConfig,
+): Promise<{ ai: AiOcrPort } | undefined> {
+  if (!primary.fallbackEnabled || !primary.fallbackProviderConfigId) return undefined;
+  const target = await getAiProviderConfigForFallback(db, primary.fallbackProviderConfigId);
+  if (!target) return undefined;
+  if (target.provider === primary.provider) return undefined;
+  if (!target.dataPolicyApproved || target.keyRevokedAt !== null) return undefined;
+  if (!IMPLEMENTED_OCR_PROVIDERS.has(target.provider)) return undefined;
+  const apiKey = await revealAiProviderApiKey(db, encryption, target);
+  return { ai: buildOcrAdapterForConfig(target, apiKey) };
+}
+
 export async function resolveOcrAdapter(
   db: Db,
   encryption: KeyManagementPort | undefined,
@@ -255,7 +409,12 @@ export async function resolveOcrAdapter(
   const config = await getActiveAiProviderConfig(db);
   if (!config || !encryption || !IMPLEMENTED_OCR_PROVIDERS.has(config.provider)) return undefined;
   const apiKey = await revealAiProviderApiKey(db, encryption, config);
-  return { ai: buildOcrAdapterForConfig(config, apiKey), limits: limitsFromConfig(config) };
+  const fallback = await resolveFallbackOcrAdapter(db, encryption, config);
+  return {
+    ai: buildOcrAdapterForConfig(config, apiKey),
+    limits: limitsFromConfig(config),
+    ...(fallback ? { fallback } : {}),
+  };
 }
 
 /**
@@ -271,6 +430,27 @@ export async function isOcrConfigured(db: Db): Promise<boolean> {
   if (!(await hasAnyAiProviderConfig(db))) return false;
   const config = await getActiveAiProviderConfig(db);
   return Boolean(config && IMPLEMENTED_OCR_PROVIDERS.has(config.provider));
+}
+
+/** Cheap "is AI classification available" check for page rendering (Part 8 AI-01 item 2) -- mirrors `isOcrConfigured`'s identical shape, never decrypting a key just to show a boolean. */
+export async function isClassificationConfigured(db: Db): Promise<boolean> {
+  if (!(await hasAnyAiProviderConfig(db))) return false;
+  const config = await getActiveAiProviderConfig(db);
+  return Boolean(config && IMPLEMENTED_PROVIDERS.has(config.provider));
+}
+
+/** Cheap "is AI readiness-gap explanation available" check (Part 8 AI-01 item 5) -- mirrors `isClassificationConfigured`'s identical shape (same `IMPLEMENTED_PROVIDERS` set), named separately for a reader's clarity at the call site. */
+export async function isExplanationConfigured(db: Db): Promise<boolean> {
+  if (!(await hasAnyAiProviderConfig(db))) return false;
+  const config = await getActiveAiProviderConfig(db);
+  return Boolean(config && IMPLEMENTED_PROVIDERS.has(config.provider));
+}
+
+/** Cheap "is AI inconsistency checking available" check (Part 8 AI-01 item 4) -- mirrors `isClassificationConfigured`/`isExplanationConfigured`'s identical shape (same `IMPLEMENTED_PROVIDERS` set), named separately for a reader's clarity at the call site. */
+export async function isInconsistencyConfigured(db: Db): Promise<boolean> {
+  if (!(await hasAnyAiProviderConfig(db))) return false;
+  const config = await getActiveAiProviderConfig(db);
+  return Boolean(config && IMPLEMENTED_PROVIDERS.has(config.provider));
 }
 
 /**

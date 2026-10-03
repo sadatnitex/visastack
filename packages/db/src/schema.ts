@@ -269,7 +269,26 @@ export const fieldSensitivity = pgEnum('field_sensitivity', [
   'RESTRICTED',
 ]);
 export const proposalType = pgEnum('proposal_type', PROPOSAL_TYPES);
+// Part 8 AI-01 item 4 ("possible inconsistency flag") -- deliberately its
+// own small enum, not `proposalStatus`: nothing here is ever "approved"
+// (there is no value to write anywhere), only acknowledged (the reviewer
+// has seen it and will act manually, outside this system) or dismissed (a
+// false positive, e.g. a legitimate name-spelling variation).
+export const inconsistencyFlagStatus = pgEnum('inconsistency_flag_status', [
+  'PENDING',
+  'ACKNOWLEDGED',
+  'DISMISSED',
+]);
 export const proposalStatus = pgEnum('proposal_status', ['PENDING', 'APPROVED', 'REJECTED']);
+// Part 8 AI-01 item 2 ("document type suggestion"): distinguishes a
+// `document_classifications` row the deterministic keyword/MRZ classifier
+// produced from one a human approved from an AI suggestion
+// (`document_type_proposals`, below) -- never a quality signal, purely
+// provenance, so a reviewer or auditor can always tell which system decided.
+export const classificationSource = pgEnum('classification_source', [
+  'DETERMINISTIC',
+  'AI_APPROVED',
+]);
 // IN_FLIGHT (Part 8 §11: "5 concurrent model calls platform-wide") marks a
 // call genuinely in progress -- inserted before the outbound provider call,
 // resolved to SUCCEEDED/FAILED after it returns, so a platform-wide count
@@ -968,9 +987,232 @@ export const documentClassifications = pgTable(
     confidence: integer('confidence').notNull(), // 0-100
     reviewRequired: boolean('review_required').notNull().default(true),
     rationale: text('rationale'),
+    // Part 8 AI-01 item 2: defaults DETERMINISTIC for both new rows from
+    // classification.ts and every pre-existing row (a straightforward
+    // additive backfill) -- set to AI_APPROVED only by decideDocumentTypeProposal
+    // (packages/services/src/classification-ai.ts) once a human approves an
+    // AI suggestion the deterministic classifier itself could not resolve.
+    source: classificationSource('source').notNull().default('DETERMINISTIC'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [index('document_classifications_document_version_idx').on(table.documentVersionId)],
+);
+
+// Part 8 AI-01 item 2 ("document type suggestion"): a deliberately SEPARATE
+// table from `ai_extraction_runs`, matching `ocr_runs`'s own precedent one
+// table up -- a per-task attempt limit (`countAiExtractionAttempts`'s own
+// doc comment: "genuinely different actions a caller invokes separately")
+// must stay independent per task, which is far cleaner with its own table
+// than a shared one plus a discriminator every attempt/cache query would
+// then need to filter by. Otherwise an exact structural mirror of
+// `ai_extraction_runs`: same usage-tracking columns, same status enum, same
+// cache-key convention. No `triggeredByRunId` yet (Part 8 §13 cross-provider
+// fallback) -- deliberately deferred; this task type does not wire fallback
+// in its first cut, so the column would sit unused until it does.
+export const aiClassificationRuns = pgTable(
+  'ai_classification_runs',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    documentVersionId: uuid('document_version_id')
+      .notNull()
+      .references(() => documentVersions.id, { onDelete: 'cascade' }),
+    applicantId: uuid('applicant_id')
+      .notNull()
+      .references(() => applicants.id, { onDelete: 'cascade' }),
+    status: aiExtractionRunStatus('status').notNull(),
+    modelVersion: text('model_version').notNull(),
+    promptVersion: text('prompt_version').notNull(),
+    schemaVersion: text('schema_version'),
+    costUnits: integer('cost_units').notNull().default(0),
+    provider: text('provider'),
+    providerRequestId: text('provider_request_id'),
+    inputUnits: integer('input_units'),
+    outputUnits: integer('output_units'),
+    cachedUnits: integer('cached_units'),
+    latencyMs: integer('latency_ms'),
+    errorCode: text('error_code'),
+    cacheKey: text('cache_key'),
+    servedFromCacheRunId: uuid('served_from_cache_run_id'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('ai_classification_runs_document_version_idx').on(table.documentVersionId),
+    index('ai_classification_runs_applicant_idx').on(table.applicantId),
+    index('ai_classification_runs_cache_key_idx').on(table.cacheKey),
+  ],
+);
+
+// An AI-suggested document type from a single classification run -- the
+// `document_classifications` analogue of `field_proposals`, structured the
+// same "advisory only, a human must decide" way: never written to
+// `document_classifications` directly, only `decideDocumentTypeProposal`
+// (on approval) can turn one into a real, AI_APPROVED classification row,
+// reusing the exact same downstream effects (`documents.docType`, the
+// naming-proposal trigger) the deterministic path already has.
+export const documentTypeProposals = pgTable(
+  'document_type_proposals',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    aiClassificationRunId: uuid('ai_classification_run_id')
+      .notNull()
+      .references(() => aiClassificationRuns.id, { onDelete: 'cascade' }),
+    documentVersionId: uuid('document_version_id')
+      .notNull()
+      .references(() => documentVersions.id, { onDelete: 'cascade' }),
+    applicantId: uuid('applicant_id')
+      .notNull()
+      .references(() => applicants.id, { onDelete: 'cascade' }),
+    // Free text, matching `document_classifications.classified_type`'s own
+    // rationale -- validity against the controlled vocabulary is a
+    // service-layer concern (classification.ts), not a DB constraint.
+    suggestedType: text('suggested_type').notNull(),
+    confidence: integer('confidence').notNull(), // 0-100
+    rationale: text('rationale'),
+    status: proposalStatus('status').notNull().default('PENDING'),
+    decidedByAccountId: uuid('decided_by_account_id').references(() => accounts.id, {
+      onDelete: 'set null',
+    }),
+    decidedAt: timestamp('decided_at', { withTimezone: true }),
+    // Set once approved and written as a document_classifications row (mirrors
+    // field_proposals.factVersionId's identical "set only on approval" shape).
+    classificationId: uuid('classification_id').references(() => documentClassifications.id, {
+      onDelete: 'set null',
+    }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('document_type_proposals_document_version_idx').on(table.documentVersionId),
+    index('document_type_proposals_applicant_status_idx').on(table.applicantId, table.status),
+  ],
+);
+
+// Part 8 AI-01 item 5 ("explanation of an ALREADY-DETERMINED deterministic
+// readiness gap"). Deliberately NO applicantId/documentVersionId column,
+// unlike every other AI Gateway run table -- the input this task sends the
+// model (a pack requirement's kind/citation/RUL-04 state) is pack-level
+// policy content, identical for every mission using that requirement, never
+// an applicant's own document/profile data. That also means no consent gate
+// applies (there is no personal disclosure to consent to) and the cache key
+// is content-based, so the SAME explanation is naturally reused across every
+// mission/applicant hitting the identical requirement+state combination.
+// Unlike extraction/classification, there is no separate proposal table
+// either: an explanation is advisory TEXT with no consequential write of its
+// own to approve (directive's own "No: ... direct consequential DB writes by
+// model" -- this never writes anything else), so the result is stored
+// directly on the SUCCEEDED run row.
+export const aiExplanationRuns = pgTable(
+  'ai_explanation_runs',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    packRequirementId: uuid('pack_requirement_id')
+      .notNull()
+      .references(() => packRequirements.id, { onDelete: 'cascade' }),
+    status: aiExtractionRunStatus('status').notNull(),
+    modelVersion: text('model_version').notNull(),
+    promptVersion: text('prompt_version').notNull(),
+    schemaVersion: text('schema_version'),
+    costUnits: integer('cost_units').notNull().default(0),
+    provider: text('provider'),
+    providerRequestId: text('provider_request_id'),
+    inputUnits: integer('input_units'),
+    outputUnits: integer('output_units'),
+    cachedUnits: integer('cached_units'),
+    latencyMs: integer('latency_ms'),
+    errorCode: text('error_code'),
+    cacheKey: text('cache_key'),
+    servedFromCacheRunId: uuid('served_from_cache_run_id'),
+    explanation: text('explanation'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('ai_explanation_runs_pack_requirement_idx').on(table.packRequirementId),
+    index('ai_explanation_runs_cache_key_idx').on(table.cacheKey),
+  ],
+);
+
+// Part 8 AI-01 item 4 ("possible inconsistency flag") -- an exact structural
+// mirror of `ai_classification_runs` (same usage-tracking columns, same
+// status enum, same cache-key convention, same document/applicant scoping),
+// kept as its own table for the identical reason every other AI Gateway task
+// has its own: `countAiInconsistencyAttempts`'s own attempt limit must stay
+// independent of every other task's.
+export const aiInconsistencyRuns = pgTable(
+  'ai_inconsistency_runs',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    documentVersionId: uuid('document_version_id')
+      .notNull()
+      .references(() => documentVersions.id, { onDelete: 'cascade' }),
+    applicantId: uuid('applicant_id')
+      .notNull()
+      .references(() => applicants.id, { onDelete: 'cascade' }),
+    status: aiExtractionRunStatus('status').notNull(),
+    modelVersion: text('model_version').notNull(),
+    promptVersion: text('prompt_version').notNull(),
+    schemaVersion: text('schema_version'),
+    costUnits: integer('cost_units').notNull().default(0),
+    provider: text('provider'),
+    providerRequestId: text('provider_request_id'),
+    inputUnits: integer('input_units'),
+    outputUnits: integer('output_units'),
+    cachedUnits: integer('cached_units'),
+    latencyMs: integer('latency_ms'),
+    errorCode: text('error_code'),
+    // sha256(contentHash|profileFactsHash|...) -- unlike every other task's
+    // cache key, this one must also fold in a hash of the profile facts
+    // snapshot sent alongside the document text (see `runInconsistencyCheck`'s
+    // own doc comment): the correct answer depends on BOTH, and a stale
+    // cache hit computed against facts the applicant has since corrected
+    // would silently re-serve a flag about a contradiction that no longer
+    // exists.
+    cacheKey: text('cache_key'),
+    servedFromCacheRunId: uuid('served_from_cache_run_id'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('ai_inconsistency_runs_document_version_idx').on(table.documentVersionId),
+    index('ai_inconsistency_runs_applicant_idx').on(table.applicantId),
+    index('ai_inconsistency_runs_cache_key_idx').on(table.cacheKey),
+  ],
+);
+
+// One possible inconsistency the model noticed between a document's text and
+// the applicant's own already-confirmed profile facts -- advisory only, like
+// every other AI Gateway proposal/flag: never a fact write, never a
+// consequential DB write of any kind (directive's own "No: ... direct
+// consequential DB writes by model"). Deliberately free-text `description`
+// rather than a structured factKey/documentValue/profileValue triple --
+// the inconsistency the model notices may not cleanly map to any single
+// canonical field (e.g. "a middle name appears on this document but nowhere
+// in the profile"), so forcing a rigid shape would either drop real findings
+// or invite the model to invent a field mapping that does not exist.
+export const documentInconsistencyFlags = pgTable(
+  'document_inconsistency_flags',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    aiInconsistencyRunId: uuid('ai_inconsistency_run_id')
+      .notNull()
+      .references(() => aiInconsistencyRuns.id, { onDelete: 'cascade' }),
+    documentVersionId: uuid('document_version_id')
+      .notNull()
+      .references(() => documentVersions.id, { onDelete: 'cascade' }),
+    applicantId: uuid('applicant_id')
+      .notNull()
+      .references(() => applicants.id, { onDelete: 'cascade' }),
+    description: text('description').notNull(),
+    confidence: integer('confidence').notNull(), // 0-100
+    rationale: text('rationale'),
+    status: inconsistencyFlagStatus('status').notNull().default('PENDING'),
+    decidedByAccountId: uuid('decided_by_account_id').references(() => accounts.id, {
+      onDelete: 'set null',
+    }),
+    decidedAt: timestamp('decided_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('document_inconsistency_flags_document_version_idx').on(table.documentVersionId),
+    index('document_inconsistency_flags_applicant_status_idx').on(table.applicantId, table.status),
+  ],
 );
 
 // Immutable filename-proposal history at the logical-document level (naming
@@ -1344,12 +1586,20 @@ export const aiExtractionRuns = pgTable(
     // Set only when this run reused a prior run's proposals instead of
     // calling the model — the audit trail always shows real cost either way.
     servedFromCacheRunId: uuid('served_from_cache_run_id'),
+    // Part 8 §13 (cross-provider fallback): set only on a row created
+    // because an earlier row (this field's value) failed with a recoverable
+    // code and a designated fallback provider was dispatched in response --
+    // never a real FK (matches servedFromCacheRunId's own convention just
+    // above), and always exactly one hop (a fallback's own fallback, if it
+    // has one, is never chased) so no cycle handling is needed.
+    triggeredByRunId: uuid('triggered_by_run_id'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
     index('ai_extraction_runs_document_version_idx').on(table.documentVersionId),
     index('ai_extraction_runs_applicant_idx').on(table.applicantId),
     index('ai_extraction_runs_cache_key_idx').on(table.cacheKey),
+    index('ai_extraction_runs_triggered_by_idx').on(table.triggeredByRunId),
   ],
 );
 
@@ -1399,12 +1649,17 @@ export const ocrRuns = pgTable(
     // version or reasoning-effort dial to fold in.
     cacheKey: text('cache_key'),
     servedFromCacheRunId: uuid('served_from_cache_run_id'),
+    // Part 8 §13 (cross-provider fallback): same meaning and the same
+    // deliberately-not-a-real-FK, always-one-hop shape as
+    // aiExtractionRuns.triggeredByRunId above.
+    triggeredByRunId: uuid('triggered_by_run_id'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
     index('ocr_runs_document_version_idx').on(table.documentVersionId),
     index('ocr_runs_applicant_idx').on(table.applicantId),
     index('ocr_runs_cache_key_idx').on(table.cacheKey),
+    index('ocr_runs_triggered_by_idx').on(table.triggeredByRunId),
   ],
 );
 
@@ -1541,6 +1796,24 @@ export const aiProviderConfigs = pgTable(
     maxPagesPerDocument: integer('max_pages_per_document'),
     cacheMaxAgeDays: integer('cache_max_age_days'),
     maxConcurrentCalls: integer('max_concurrent_calls'),
+    // Part 8 §13 ("cross-provider fallback... OFF by default"). Persisted on
+    // each versioned row like the six budget/limit knobs above, not a
+    // separate mutable setting -- fallback preference is part of what
+    // "activating" this row commits to.
+    fallbackEnabled: boolean('fallback_enabled').notNull().default(false),
+    // Which OTHER config row to fall back to. Deliberately NOT a real FK
+    // constraint (bare uuid, matching servedFromCacheRunId's established
+    // convention on ai_extraction_runs/ocr_runs) and deliberately NOT
+    // required to itself be ACTIVE -- with only ever one ACTIVE row
+    // platform-wide (this table's own single-winner invariant, enforced in
+    // ai-provider-config.ts), a fallback target is necessarily some OTHER
+    // status (most naturally the config this row just superseded, or a
+    // still-DRAFT alternative kept on hand). "Already passed the same
+    // privacy/task/budget gates" (Part 8 §13) is re-verified live against
+    // the pointed-to row at both activation and dispatch time, never assumed
+    // permanently true from this pointer alone, since the pointed-to row's
+    // own dataPolicyApproved/keyRevokedAt can still change afterward.
+    fallbackProviderConfigId: uuid('fallback_provider_config_id'),
     notes: text('notes'),
     createdByAccountId: uuid('created_by_account_id').references(() => accounts.id, {
       onDelete: 'set null',

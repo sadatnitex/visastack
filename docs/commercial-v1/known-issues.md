@@ -3322,6 +3322,380 @@ item gets its own requirements-ledger row once classified against the new direct
     so the guarantee is CI-enforced going forward, not merely true today. No code
     change needed -- a genuine re-verification that found no gap.
     Full detail: `requirements-ledger.md` AI-06.
+    **Chunk 24 (2026-09-28, AI-09) -- cross-provider fallback designation now
+    exists (schema + admin config validation); execution/UI still to come.**
+    Now genuinely actionable now that AI-03/AI-05/AI-06 are all DONE (all
+    three providers exist for both extraction and OCR). Migration `0079`
+    adds `fallbackEnabled`/`fallbackProviderConfigId` to `ai_provider_configs`
+    and `triggeredByRunId` to both `ai_extraction_runs` and `ocr_runs`. A
+    real architectural constraint shaped the design: `activateAiProviderConfig`
+    already enforces a genuinely platform-wide single-winner ACTIVE invariant
+    (queried with no provider filter), so a fallback target can never itself
+    be the current ACTIVE row -- it is necessarily some other status, and
+    eligibility is checked by content (data policy approved, key not
+    revoked, a genuinely different provider) rather than by status.
+    `activateAiProviderConfig` re-verifies this bar fresh at activation time,
+    never trusting it permanently from whenever the fallback pointer was set.
+    `rollbackAiProviderConfig` is deliberately NOT gated on fallback
+    eligibility -- reasoned through, not overlooked: rollback's job is
+    restoring a known-good PRIMARY fast during an incident, and a stale
+    fallback pointer degrades safely at future dispatch-time re-check rather
+    than ever risking dispatch to an ineligible provider, so gating rollback
+    on it would only cost reliability for no safety benefit. Both new
+    run-table columns are deliberately not real FK constraints (bare `uuid`,
+    matching `servedFromCacheRunId`'s own established convention), and
+    fallback is deliberately single-hop only, so no cycle detection is
+    needed anywhere in this design. 9 new tests (`ai-provider-config.test.ts`).
+    Full `@visastack/db` suite, full `@visastack/services` suite, repo-wide
+    typecheck, and Biome all clean. Deliberately deferred, so this chunk
+    carries zero runtime risk (nothing yet reads either new column): the
+    actual fallback-triggering logic in `runExtraction`/`runOcr` (recoverable
+    codes limited to directive §13's own literal `timeout`/`rate_limited`;
+    "circuit breaker," the list's third named trigger, is deliberately not
+    built this chunk since it is a materially separate, substantial feature
+    not yet justified without real production traffic to tune it against);
+    `resolveAiExtractor`/`resolveOcrAdapter` gaining fallback-adapter
+    resolution; doubling the budget reservation when fallback is enabled
+    (directive §11 lists "retries" and "configured fallback" as separate
+    reservation line items); the admin UI for designating a fallback; and
+    the document/review-page UI surfacing that a fallback actually fired
+    (directive §13's own "visible in UI").
+    **Chunk 25 (2026-09-28, AI-09) -- the fallback-triggering execution logic
+    itself now exists in `runExtraction`/`runOcr`.** Both functions' phase 1
+    (RESERVE) and phases 2-3 (CALL/RECONCILE) were factored into standalone
+    functions so each can run a second time against a designated fallback
+    adapter with zero duplicated logic -- every existing check (budget,
+    per-document budget, page cap, cache lookup, attempt cap, concurrency
+    cap) composes correctly for a fallback call for free. A genuine design
+    insight: since the primary row is always fully reconciled before a
+    fallback reservation ever begins, the two calls are sequential from the
+    ledger's own perspective, never concurrent, so directive §11's "reserve
+    against retries; configured fallback" is satisfied by honest sequential
+    accounting through the same existing reservation math -- no separate
+    doubled-reservation calculation was needed after all, closing Chunk 24's
+    own open question. Fallback triggers on exactly the two directive-named
+    recoverable codes, `timeout`/`rate_limited`; every other code (`refused`,
+    `auth_failed`, `invalid_response`, `truncated`, `disabled`) deliberately
+    never triggers it, satisfying both of directive §13's explicit rules in
+    one gate: "do not retry" on auth/invalid-input/consent-denial, and never
+    "shop for a desired answer" after a refusal. "Circuit breaker," §13's
+    third named recoverable trigger, still has no implementation. A
+    successful fallback run links back to the primary's row via
+    `triggeredByRunId` (Chunk 24), and the returned summary reflects the
+    fallback row while the primary stays in the ledger as a fully audited
+    FAILED attempt. 12 new tests in `ai.test.ts`. Full `@visastack/services`
+    suite, repo-wide typecheck, and Biome all clean. Deliberately still
+    deferred, so this chunk carries zero runtime risk (nothing yet populates
+    the new `fallback` field): `resolveAiExtractor`/`resolveOcrAdapter`
+    actually building and passing one; the admin UI for designating a
+    fallback; and the document/review-page UI surfacing that one fired.
+    Full detail: `requirements-ledger.md` AI-09.
+    **Chunk 26 (2026-09-29, AI-09) -- fallback is now genuinely live end to
+    end.** New `getAiProviderConfigForFallback` (unauthenticated, like
+    `getActiveAiProviderConfig`, since it is a platform-internal read on
+    behalf of an already-authorized request, never a SECURITY_ADMIN action
+    in its own right -- kept separate from the actor-gated
+    `getAiProviderConfigById` rather than loosening that gate).
+    `resolveAiExtractor`/`resolveOcrAdapter` each gained a `resolveFallback*`
+    helper that re-verifies the ACTIVE config's designated target LIVE at
+    resolve time (different provider, data policy approved, key not
+    revoked, an implemented adapter) -- never trusting the pointer as
+    permanent from whenever activation first validated it, since the
+    target's own key-revoked state can change afterward. `runAiExtractionAction`/
+    `runOcrAction` now forward the resolved fallback straight into
+    `runExtraction`/`runOcr`'s own input. The full chain -- admin designates
+    a fallback, resolver re-verifies and builds it live, execution logic
+    dispatches to it on a recoverable failure -- is genuinely wired end to
+    end, modulo the admin UI to designate one through the browser (the
+    service-layer validation already accepts it) and the review-page UI
+    surfacing that one fired. 10 new tests. Full `@visastack/services`
+    suite, full `apps/web` suite, repo-wide typecheck, a clean production
+    build, and Biome all verified.
+    **Chunk 27 (2026-09-29, AI-09) -- the admin UI for designating a
+    fallback now exists.** `CreateDraftConfigForm` gained an "Enable
+    cross-provider fallback" checkbox plus a dropdown populated from the
+    FULL configuration history (every status, not just ACTIVE/DRAFT) --
+    deliberate, since the platform's single-winner ACTIVE invariant means a
+    fallback target is necessarily some other status, most naturally the
+    config a new activation will one day supersede. The real eligibility
+    gate stays entirely server-side at activation time (Chunk 24's own
+    validation, unchanged); the form never duplicates it client-side. Each
+    history card now shows a "Fallback" row naming the target's
+    provider/model when enabled. No dedicated tests, matching this
+    codebase's established precedent that none of its `actions.ts` files
+    have one. Full `apps/web` suite, repo-wide typecheck, a clean
+    production build, and Biome all verified.
+    **Chunk 28 (2026-09-29, AI-09) -- OCR's review page now shows when a
+    fallback fired, closing §13's "visible in UI" for OCR.** `OcrResultView`
+    gained a `usedFallback` prop rendered as a "Fallback provider used"
+    badge; `documents/page.tsx` passes `latestRun.triggeredByRunId !==
+    null` straight through -- zero new queries, since the already-fetched
+    run row already carries that column. Deliberately scoped to OCR only:
+    its review surface already fetches the full run row it displays, so
+    this was free; extraction's UI is proposal-centric with no existing
+    per-run fetch to thread through, so the identical indicator there needs
+    a genuinely new run-lookup query, left as its own smaller follow-up
+    rather than rushed in. No dedicated tests, matching established
+    precedent for `ai-review.tsx`/`page.tsx`. Full `apps/web` suite,
+    repo-wide typecheck, a clean production build, and Biome all verified.
+    **Chunk 29 (2026-09-29, AI-01) -- document type suggestion, item 2 of
+    Part 8 §2's five required P0 AI tasks (corrected cross-reference: the
+    task list lives in §2, not §11 as the ledger previously cited).**
+    Investigated per directive §1 first: `classification.ts`'s existing
+    deterministic classifier (`classifyDocumentText`) already runs during
+    intake and already triggers `buildProposedName`/`proposeDocumentName`
+    (satisfying item 3, "safe filename/name suggestion") whenever it reaches
+    a confident result -- so this AI task exists ONLY to fill the gap when
+    the deterministic system could not (`classifiedType === null` or
+    `reviewRequired === true`), never to contradict or second-guess a
+    confident deterministic result. New `ai_classification_runs`/
+    `document_type_proposals` tables (migration `0080`) -- a deliberately
+    SEPARATE table from `ai_extraction_runs`, matching `ocr_runs`'s own
+    established precedent, specifically so the classification attempt limit
+    (`countAiClassificationAttempts`) stays independent of the extraction
+    one, the same reasoning that already justifies `countOcrAttempts`'s own
+    separation. `documentClassifications` gained a `source`
+    (`DETERMINISTIC`/`AI_APPROVED`) column so an AI-approved row is never
+    confused with a deterministic one, for audit/provenance.
+
+    New `AiClassifyPort` (`classify`/`classifyCacheKeyComponents`,
+    deliberately NOT sharing `AiExtractionPort`'s own `cacheKeyComponents`
+    name -- a single class implementing both could never return two
+    different schema versions from one same-named, same-signature method).
+    The THREE EXISTING extraction adapter classes
+    (`OpenAiExtractionAdapter`/`AnthropicExtractionAdapter`/
+    `GeminiExtractionAdapter`) now also `implements AiClassifyPort` --
+    literally extending the canonical port/adapters per directive §1, no new
+    adapter classes at all. `runClassification`/
+    `approveDocumentTypeProposal`/`rejectDocumentTypeProposal` added to
+    `ai.ts` (co-located with `runExtraction`/`runOcr` for the identical
+    shared-budget-ledger reason that file's own doc comment already gives);
+    `totalAiCostUnits`/`documentAiCostUnits`/`maxObservedCostUnits`/
+    `countInFlightCalls`/`countInFlightCallsForDocument`/
+    `releaseStaleInFlightCalls` all extended with a third arm so the
+    platform-wide budget/concurrency ledger covers classification exactly
+    the way it already covers extraction and OCR together. Approving a
+    proposal reuses the EXACT SAME downstream effects the deterministic path
+    already has (`documents.docType`, the naming-proposal trigger) --
+    genuinely satisfying item 3 through reuse rather than a second naming
+    implementation.
+
+    `resolveAiClassifier` (`apps/web/src/lib/ai.ts`) reuses
+    `buildAdapterForConfig` unchanged, its return type widened to
+    `AiExtractionPort & AiClassifyPort` rather than duplicating an
+    equivalent construction switch. No env-var-only fallback path (unlike
+    `resolveAiExtractor`'s own `createAiExtractor()` branch) -- classification
+    is a Commercial-V1-native capability with no legacy env-var-configurable
+    predecessor to preserve behavior for. `runClassificationAction`/
+    `decideClassificationProposalAction` added to `actions.ts`;
+    `RunClassificationButton`/`DocumentTypeProposalReview` added to
+    `ai-review.tsx`; `documents/page.tsx` shows the trigger/review UI only
+    on a genuine deterministic gap with no proposal already pending. No
+    cross-provider fallback wiring yet (Part 8 §13) -- deliberately
+    deferred, matching AI-09's own precedent of shipping a task's core
+    capability before its fallback wiring.
+
+    Still deliberately unstarted at this point: AI-01 items 4 (possible
+    inconsistency flag) and 5 (explanation of an already-determined
+    deterministic readiness gap) -- both materially separate features, left
+    for their own chunks. Full `packages/services` suite: 1101/1101 (13
+    new). Full `packages/adapters` targeted suite: 67/67 (18 new). Full
+    `apps/web` suite: 215/215 (`ai.test.ts` alone: 63/63, 8 new). Repo-wide
+    typecheck, a clean production build (`/app/applicant/[id]/documents`
+    route grew 2.56 kB -> 2.81 kB, reflecting the new UI), and Biome all
+    verified.
+    **Chunk 30 (2026-09-29, AI-01) -- explanation of an already-determined
+    deterministic readiness gap, item 5 of Part 8 §2, the last of the four
+    task types beyond plain extraction.** Reads `computeReadiness`'s own
+    `RequirementResultSummary` (`missions.ts`) plus the underlying
+    `packRequirements` row's citation -- never a second determination of
+    readiness itself, which stays entirely deterministic; this task only
+    ever explains a gap already decided. A new `AiExplainPort`
+    (`explain`/`explainCacheKeyComponents`, again a deliberately
+    non-colliding method name) -- the same three adapter classes now
+    `implements AiExtractionPort, AiClassifyPort, AiExplainPort` on one
+    instance, extending the canonical port a third time rather than a third
+    parallel system. Scoped to exactly the two RUL-04 states meaning
+    "requirement not met" (CRITICAL_GAP, ATTENTION), never
+    CONFLICTING/EXPIRING_STALE/UNVERIFIED, which describe a different kind
+    of problem outside this task's literal "a gap" wording.
+
+    Genuinely different shape from items 2/3's own `ai_classification_runs`:
+    the new `ai_explanation_runs` table has NO applicant/document scoping at
+    all -- the input sent to the model (a pack requirement's kind, RUL-04
+    state, and citation) is pack-level policy content, identical for every
+    mission that hits the same requirement in the same state, never an
+    applicant's own document or profile data. That fact does double duty:
+    no `AI_EXTRACTION` consent gate applies (there is no personal
+    disclosure to consent to, confirmed by a test that calls the export
+    with no consent grant in the database at all), and the cache key is
+    content-based rather than document-based, so the SAME explanation is
+    naturally reused across every mission/applicant hitting the identical
+    requirement+state+citation combination -- a test seeds two DIFFERENT
+    pack requirement rows with identical content and confirms the adapter
+    is invoked only once. `totalAiCostUnits`/`maxObservedCostUnits`/
+    `countInFlightCalls`/`releaseStaleInFlightCalls` extended with a fourth
+    arm so explanation spend counts against the same shared platform-wide
+    ledger every other AI Gateway task already shares; deliberately NOT
+    extended into `documentAiCostUnits`/`countInFlightCallsForDocument`,
+    since neither concept applies to a task with no document to scope
+    against.
+
+    `resolveAiExplainer` (`apps/web/src/lib/ai.ts`) reuses
+    `buildAdapterForConfig` unchanged, its return type widened a second
+    time to `AiExtractionPort & AiClassifyPort & AiExplainPort`.
+    `explainReadinessGapAction` (mission `actions.ts`) never trusts a
+    client-supplied state or citation -- it re-derives both from a fresh
+    `computeReadiness` call plus the pack requirement's own row on every
+    invocation, so the explanation is always grounded in the CURRENT,
+    server-verified determination. A new `readiness-gap-explain.tsx`
+    (`ExplainGapButton`) wired into the mission page's requirement-row loop,
+    shown only for CRITICAL_GAP/ATTENTION rows, displaying the most recent
+    explanation already on file (`getLatestExplanationForRequirement`) plus
+    a button to generate or refresh one -- no approve/reject workflow,
+    since an explanation is read-only advisory text with no consequential
+    write of its own (directive's own "No: ... direct consequential DB
+    writes by model").
+
+    This closes out all five of Part 8 §2's required P0 AI tasks except
+    item 4 (possible inconsistency flag), the one remaining unstarted task
+    in AI-01. No cross-provider fallback wiring yet for explanation either
+    (Part 8 §13) -- deliberately deferred, matching every other task's own
+    precedent of shipping core capability before fallback wiring. Full
+    `packages/services` suite: 1109/1109 (8 new). Full `packages/adapters`
+    targeted suite: 82/82 (15 new -- adapter-level `explain()` parsing/
+    error-mapping tests, not just the service-layer stub coverage). Full
+    `apps/web` suite: 230/230 (`ai.test.ts` alone: 70/70, 7 new). Repo-wide
+    typecheck, a clean production build (`/app/mission/[id]` route grew
+    7.46 kB -> 7.65 kB, reflecting the new UI), and Biome all verified.
+    **Chunk 31 (2026-09-29, AI-01) -- possible inconsistency flag, item 4 of
+    Part 8 §2, the last remaining P0 AI Gateway task.** Compares one
+    document's deterministically-extracted text against the applicant's OWN
+    already-confirmed profile facts, looking for genuine apparent
+    contradictions -- never a second document, never a re-determination of
+    which side (document or profile) is actually correct; a returned flag
+    is purely "a human should look," nothing more. A new `AiInconsistencyPort`
+    (`checkConsistency`/`inconsistencyCacheKeyComponents`, again a
+    deliberately non-colliding method name) -- the same three adapter
+    classes now `implements AiExtractionPort, AiClassifyPort, AiExplainPort,
+    AiInconsistencyPort` on one instance, extending the canonical port a
+    fourth time rather than a fourth parallel system. New
+    `ai_inconsistency_runs`/`document_inconsistency_flags` tables, mirroring
+    `ai_classification_runs`/`document_type_proposals`'s own
+    separate-table-per-task precedent (never a shared table with a
+    discriminator column) so its own attempt counter
+    (`countAiInconsistencyAttempts`) stays independent of every other
+    task's.
+
+    Consent-gated on `AI_EXTRACTION` (the same tier classification already
+    uses -- reasoned as not a materially larger disclosure than sending
+    document text alone, since the profile facts sent are the applicant's
+    own, already on file) and document/applicant-scoped like classification
+    -- genuinely different from item 5's explanation task, which has no
+    consent gate and no document scoping at all. All 6 platform-wide ledger
+    functions (`totalAiCostUnits`/`documentAiCostUnits`/
+    `maxObservedCostUnits`/`releaseStaleInFlightCalls`/`countInFlightCalls`/
+    `countInFlightCallsForDocument`) extended with a fifth arm, since this
+    task -- unlike explanation -- is document-scoped and needs the
+    per-document budget/concurrency machinery too.
+
+    A new private `currentTrustedProfileFacts` helper (joins
+    `facts`/`fieldDefinitions`/`factVersions`) sends only TRUSTED-status
+    facts, and -- critically -- SENSITIVE/RESTRICTED field values are
+    excluded by construction, not by an added filter: `factVersions.value`
+    (the plaintext column) is structurally only ever populated for
+    STANDARD-sensitivity rows in the first place, since a protected field's
+    real value lives solely in `valueCiphertext` (packages/services/src/
+    profile.ts's own existing encryption discipline) -- filtering on
+    non-null `value` therefore excludes every protected field with no
+    separate `fieldDefinitions.sensitivity` join needed at all. Proven, not
+    just asserted: a dedicated test registers a RESTRICTED-sensitivity
+    field, writes it via `editFact` with a real encryption port, and
+    asserts both that it never appears in the adapter's received
+    `profileFacts` input AND that the raw outbound request JSON never
+    contains the secret plaintext value anywhere.
+
+    The cache key breaks from every prior task's own content-hash-only
+    convention: `computeInconsistencyCacheKey` folds in a hash of the
+    profile-facts snapshot itself, alongside the usual content hash and
+    adapter cache-key components, because the correct answer here genuinely
+    depends on both inputs -- a result computed against now-corrected facts
+    must never be silently re-served once the applicant fixes their
+    profile. Proven by a dedicated test (`does NOT serve from cache once
+    the profile facts have changed`) that edits a fact between two
+    otherwise-identical calls and asserts the adapter's call count goes
+    from 1 to 2, never staying at 1 the way every other task's own
+    content-only cache key would. Output is a free-text `description` (plus
+    numeric `confidence` and an optional `rationale`) rather than a rigid
+    `factKey`/`documentValue`/`profileValue` structure -- a genuine
+    inconsistency (e.g. a middle name appearing on a document but nowhere
+    in the profile) does not always map cleanly onto any single canonical
+    field, and forcing a rigid shape would either silently drop real
+    findings or invite the model to invent a field mapping that does not
+    exist.
+
+    Purely advisory, matching item 5's own framing: `acknowledgeInconsistencyFlag`/
+    `dismissInconsistencyFlag` (both routed through a shared private
+    `decideInconsistencyFlag` helper) only ever update the flag's own
+    `status`/`decidedByAccountId`/`decidedAt` columns -- neither ever
+    writes to the Master Profile or the document, proven by a dedicated
+    test asserting zero rows are touched in `schema.facts` after an
+    acknowledge. `listPendingInconsistencyFlags` gives the applicant-scoped
+    review queue, mirroring `listPendingDocumentTypeProposals`'s identical
+    shape.
+
+    `resolveAiInconsistencyChecker`/`isInconsistencyConfigured`
+    (`apps/web/src/lib/ai.ts`) reuse `buildAdapterForConfig` unchanged, its
+    return type widened a third time to `AiExtractionPort & AiClassifyPort
+    & AiExplainPort & AiInconsistencyPort`. `runInconsistencyCheckAction`/
+    `decideInconsistencyFlagAction` (applicant `actions.ts`) mirror
+    `runClassificationAction`/`decideClassificationProposalAction`'s own
+    shape exactly. New `RunInconsistencyCheckButton`/
+    `InconsistencyFlagReview` (`ai-review.tsx`) wired into the documents
+    page's per-document loop alongside the existing extraction/
+    classification/OCR triggers, gated on the same `AI_EXTRACTION` consent
+    (`data.aiGranted`) classification already uses.
+
+    This closes out all five of Part 8 §2's required P0 AI tasks --
+    AI-01 moves to DONE. No cross-provider fallback wiring yet for
+    classification/explanation/inconsistency-check (Part 8 §13) --
+    deliberately deferred, matching every other task's own precedent of
+    shipping core capability before fallback wiring. Full
+    `packages/services` suite: `ai.test.ts` alone 93/93 (13 new). Full
+    `packages/adapters` targeted suite: 100/100 across the three provider
+    test files (18 new -- adapter-level `checkConsistency()` parsing/
+    refusal/truncation/auth/cache-key-collision-avoidance tests, not just
+    service-layer stub coverage). Full `apps/web` suite: `ai.test.ts` alone
+    77/77 (7 new). Repo-wide typecheck and Biome both verified clean; not
+    verified in a live browser (sandbox limitation, same as every prior UI
+    chunk this session).
+    **Chunk 32 (2026-10-03, SEC-07) -- first real CI signal in days, and the
+    two genuine defects it surfaced.** The multi-day GitHub Actions outage
+    (jobs dying in ~2s with `runner_id: 0`) cleared; a one-time re-run of
+    PR #157's CI got a real runner for the first time since 2026-09-28 and
+    failed at "Audit production dependencies" (which also skipped lint,
+    build, typecheck and test behind it). Two separate problems, both fixed:
+    (1) A NEW advisory set (published after Part 1's clean audit) hit
+    `undici` via `@vercel/blob`: GHSA-rfgv-xxqx-mfg5 (high), GHSA-3wwx-pv8p-q78v
+    (moderate), GHSA-r53p-7pc4-xj5r (low), all fixed at undici >=6.28.1. The
+    root `pnpm.overrides` floor (set to >=6.28.0 in Part 1) was raised to
+    >=6.28.1 <7.0.0 (keeping the <7 ceiling: `@vercel/blob` declares
+    `^6.23.0`); the lockfile diff is exactly undici 6.28.0 -> 6.29.0 and
+    nothing else. `pnpm audit --prod`: 0 known vulnerabilities, reproduced
+    failing before and passing after. (2) Unformatted `packages/db` files
+    that CI's `pnpm run lint` (`biome check .`) would have rejected: the
+    `0079`-`0082` drizzle snapshots, `_journal.json`, and `schema.ts`.
+    Cause, stated plainly: earlier chunks ran Biome only on the touched
+    services/adapters/web TypeScript files and never on `packages/db`'s
+    generated JSON or `schema.ts`, and the outage was hiding the gap. Fixed
+    with formatting only, proven not to change meaning (the four existing
+    JSON files parse to identical objects versus HEAD; `schema.ts` differs by
+    one expression collapsed onto one line). Standing rule going forward:
+    after any `db:generate`, run Biome over `packages/db/migrations/meta` and
+    `schema.ts`, and run repo-wide `biome check .` (what CI runs), not just
+    touched files, before every push. Verified locally: repo-wide Biome 511
+    files clean, typecheck 7/7, adapters 321 passed (2 pre-existing skips),
+    db 29 passed (1 pre-existing skip), production build clean.
 independently confirmed findings; the missing PRD file is tracked as Blocker 1 in
 `assumptions-and-blockers.md` (now resolved) rather than here, since it blocked the
 programme rather than being a product defect.

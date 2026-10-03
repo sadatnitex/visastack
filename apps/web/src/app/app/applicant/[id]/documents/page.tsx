@@ -9,15 +9,31 @@ import {
   isServableProcessingState,
   listDocumentsDetailed,
   listIssuerVerificationsForDocument,
+  listPendingDocumentTypeProposals,
+  listPendingInconsistencyFlags,
   listPendingProposals,
   loadUploadQuotaConfig,
 } from '@visastack/services';
 import Link from 'next/link';
-import { createAiExtractor, isOcrConfigured } from '../../../../../lib/ai';
+import {
+  createAiExtractor,
+  isClassificationConfigured,
+  isInconsistencyConfigured,
+  isOcrConfigured,
+} from '../../../../../lib/ai';
 import { getLocale } from '../../../../../lib/locale';
 import { withSession } from '../../../../../lib/session';
 import { previewDocumentAction, setDocumentDateAction } from '../actions';
-import { AiProposalReview, OcrResultView, RunAiExtractionButton, RunOcrButton } from '../ai-review';
+import {
+  AiProposalReview,
+  DocumentTypeProposalReview,
+  InconsistencyFlagReview,
+  OcrResultView,
+  RunAiExtractionButton,
+  RunClassificationButton,
+  RunInconsistencyCheckButton,
+  RunOcrButton,
+} from '../ai-review';
 import { DocumentUploader } from '../document-uploader';
 import { NameReview } from '../name-review';
 import { UsageMeter } from '../usage-meter';
@@ -89,8 +105,12 @@ export default async function ApplicantDocumentsPage({
       aiGranted,
       ocrGranted,
       ocrConfigured,
+      classificationConfigured,
+      inconsistencyConfigured,
       evidenceBytes,
       pendingProposals,
+      pendingClassificationProposals,
+      pendingInconsistencyFlags,
       wallet,
     ] = await Promise.all([
       listDocumentsDetailed(db, accountId, id),
@@ -98,8 +118,12 @@ export default async function ApplicantDocumentsPage({
       hasConsent(db, accountId, 'AI_EXTRACTION'),
       hasConsent(db, accountId, 'AI_OCR'),
       isOcrConfigured(db),
+      isClassificationConfigured(db),
+      isInconsistencyConfigured(db),
       getApplicantEvidenceBytes(db, id),
       listPendingProposals(db, id),
+      listPendingDocumentTypeProposals(db, id),
+      listPendingInconsistencyFlags(db, id),
       getWalletView(db, { actorAccountId: accountId, applicantId: id }),
     ]);
     const documentRows = documents.ok ? documents.value : [];
@@ -128,8 +152,12 @@ export default async function ApplicantDocumentsPage({
       aiConfigured: Boolean(createAiExtractor()),
       ocrGranted,
       ocrConfigured,
+      classificationConfigured,
+      inconsistencyConfigured,
       evidenceBytes,
       pendingProposals,
+      pendingClassificationProposals,
+      pendingInconsistencyFlags,
       quota: loadUploadQuotaConfig(),
       wallet: new Map((wallet.ok ? wallet.value : []).map((w) => [w.document.id, w])),
       issuerVerifications,
@@ -407,6 +435,45 @@ export default async function ApplicantDocumentsPage({
                     );
                   })()}
                   {(() => {
+                    // Part 8 AI-01 item 2: shown only on a genuine deterministic
+                    // gap (no classification yet reached, or one reached but not
+                    // confident) -- never offered once a confident deterministic
+                    // (or already-approved AI) classification already exists.
+                    if (!data.classificationConfigured || !data.aiGranted || !doc.classification) {
+                      return null;
+                    }
+                    if (
+                      doc.classification.classifiedType !== null &&
+                      !doc.classification.reviewRequired
+                    ) {
+                      return null;
+                    }
+                    const versionId = doc.latestVersionId;
+                    if (!versionId) return null;
+                    const classificationProposal = data.pendingClassificationProposals.find(
+                      (p) => p.documentVersionId === versionId,
+                    );
+                    return (
+                      <>
+                        {data.coreGranted && !classificationProposal ? (
+                          <RunClassificationButton applicantId={id} documentVersionId={versionId} />
+                        ) : null}
+                        {classificationProposal ? (
+                          <DocumentTypeProposalReview
+                            applicantId={id}
+                            canApprove={data.coreGranted}
+                            proposal={{
+                              id: classificationProposal.id,
+                              suggestedType: classificationProposal.suggestedType,
+                              confidence: classificationProposal.confidence,
+                              rationale: classificationProposal.rationale,
+                            }}
+                          />
+                        ) : null}
+                      </>
+                    );
+                  })()}
+                  {(() => {
                     if (!data.ocrConfigured || !data.ocrGranted || !doc.classification) return null;
                     const versionId = doc.latestVersionId;
                     if (!versionId) return null;
@@ -423,8 +490,45 @@ export default async function ApplicantDocumentsPage({
                           <OcrResultView
                             text={latestRun.extractedText ?? ''}
                             reviewIssues={latestRun.reviewIssues ?? []}
+                            usedFallback={latestRun.triggeredByRunId !== null}
                           />
                         ) : null}
+                      </>
+                    );
+                  })()}
+                  {(() => {
+                    // Part 8 AI-01 item 4: same AI_EXTRACTION consent gate as
+                    // extraction/classification above -- the check sends the
+                    // document's own text plus the applicant's already-
+                    // confirmed TRUSTED profile facts, never a second document.
+                    if (!data.inconsistencyConfigured || !data.aiGranted || !doc.classification) {
+                      return null;
+                    }
+                    const versionId = doc.latestVersionId;
+                    if (!versionId) return null;
+                    const flagsForDoc = data.pendingInconsistencyFlags.filter(
+                      (f) => f.documentVersionId === versionId,
+                    );
+                    return (
+                      <>
+                        {data.coreGranted ? (
+                          <RunInconsistencyCheckButton
+                            applicantId={id}
+                            documentVersionId={versionId}
+                          />
+                        ) : null}
+                        {flagsForDoc.map((flag) => (
+                          <InconsistencyFlagReview
+                            key={flag.id}
+                            applicantId={id}
+                            flag={{
+                              id: flag.id,
+                              description: flag.description,
+                              confidence: flag.confidence,
+                              rationale: flag.rationale,
+                            }}
+                          />
+                        ))}
                       </>
                     );
                   })()}
