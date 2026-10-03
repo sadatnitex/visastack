@@ -2,18 +2,16 @@
 
 import type { MembershipRole } from '@visastack/core';
 import {
-  addMembership,
+  addMemberByEmail,
   addNote,
   assignMember,
   cancelEvidenceRequest,
   createAppointmentForOrg,
   createClientInvitation,
-  createOrganizationInvitation,
   createTaskForOrg,
   decideAppointmentForOrg,
   decideEvidenceResponse,
   decideTaskForOrg,
-  getAccountByEmail,
   listSelectedEvidenceForOrg,
   recordIssuerVerification,
   recordMissionDecision,
@@ -248,26 +246,21 @@ export async function addMemberAction(
   if (memberEmail.length === 0) return { ok: false, message: 'Enter a member email.' };
 
   const result = await withSession(async ({ db, accountId }) => {
-    const account = await getAccountByEmail(db, memberEmail);
-    if (account) {
-      const added = await addMembership(db, {
-        actorAccountId: accountId,
-        organizationId,
-        accountId: account.id,
-        role,
-      });
-      if (!added.ok) return { ok: false, message: added.error.message } satisfies ActionState;
-      return { ok: true, message: `${memberEmail} added as ${role}.` } satisfies ActionState;
-    }
-
-    const invited = await createOrganizationInvitation(db, {
+    // Authorization, the rate limit and the "is this email registered?"
+    // lookup all happen inside the service, in that order. Looking the account
+    // up here first (as this action used to) made registration answerable
+    // before any permission or limit check.
+    const outcome = await addMemberByEmail(db, {
       actorAccountId: accountId,
       organizationId,
       email: memberEmail,
       role,
     });
-    if (!invited.ok) return { ok: false, message: invited.error.message } satisfies ActionState;
-    const acceptUrl = `${resolveBaseUrl()}/app/invitations/accept?token=${invited.value.rawToken}`;
+    if (!outcome.ok) return { ok: false, message: outcome.error.message } satisfies ActionState;
+    if (outcome.value.kind === 'added') {
+      return { ok: true, message: `${memberEmail} added as ${role}.` } satisfies ActionState;
+    }
+    const acceptUrl = `${resolveBaseUrl()}/app/invitations/accept?token=${outcome.value.rawToken}`;
     return {
       ok: true,
       message: `No account yet for ${memberEmail}. Share this link (expires in 7 days): ${acceptUrl}`,

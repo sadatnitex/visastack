@@ -3721,11 +3721,30 @@ item gets its own requirements-ledger row once classified against the new direct
     with two low-volume limits but not with this many, so a
     `pruneExpiredRateLimitBuckets` and a daily `/api/jobs/process-rate-limit-prune`
     cron (24h retention against a 1h longest window) were added; no schema
-    change, so no migration. (2) The org-invitation "this email already has
-    an account" refusal is an account-enumeration oracle (an admin could
-    probe which emails are registered at any speed), so that limit is
-    deliberately placed BEFORE the lookup, with a test that a refused call
-    never reveals registration. (3) The explanation task carried no actor,
+    change, so no migration. (2) "Is this email registered?" was answerable
+    at any speed, and a limit inside `createOrganizationInvitation` alone did
+    not close it: the web action `addMemberAction` looked the account up
+    FIRST, before any authorization or limit, then branched (registered:
+    added immediately; unregistered: invitation). Even with the limit, once
+    an actor's invitation bucket was spent a registered email would still be
+    ADDED while an unregistered one was refused, so registration stayed
+    answerable (just inverted). The branching now lives in a new service,
+    `addMemberByEmail`, which authorizes, then limits, then looks up, with one
+    shared allowance and exactly one unit per call whichever branch it takes;
+    the action is a thin wrapper. A non-admin gets an identical refusal for a
+    registered and an unregistered email, a limited admin gets an identical
+    refusal for both and the registered account is NOT silently added, and an
+    authorized admin under the limit still learns the outcome (they must know
+    whether there is a link to share), now only at the limited rate and with
+    an audited side effect. Residual, stated plainly: this bounds the oracle
+    for authorized admins, it does not remove it; removing it would change
+    the product (for example always handing back a link and creating
+    membership only on acceptance), which is a product decision, not a
+    hardening one. Related: the organization bucket is keyed on a
+    caller-supplied id, so every limited path authorizes BEFORE charging it,
+    or anyone could burn another organization's allowance (tested). A
+    mutation check (look up before limiting) makes 2 of the 8 new
+    `addMemberByEmail` tests fail. (3) The explanation task carried no actor,
     so `RunExplanationInput` now requires `actorAccountId` (its one
     production caller and ten test call sites were updated). (4) The two
     export routes would have reported a rate-limit refusal as
@@ -3760,15 +3779,19 @@ item gets its own requirements-ledger row once classified against the new direct
     cron needs `CRON_SECRET` (already required by the other fifteen) and
     brings `vercel.json` to 16 crons.
 
-    Verified locally: 41 new tests (org invitations 6, client invitations 5,
-    uploads 5, account export 3, bulk export 4, rate-limit module 8, AI
-    Gateway 10); full `@visastack/services` suite 1163 across 60 files, all
-    passing (baseline was 1122). The full run was cut off by a tooling time
-    limit at 47 of 60 files with no failures, so the 13 files that had not
-    finished were run separately (13/13 passing, 103 tests) rather than
-    calling the cut-off run green. Web suite 237/237, repo-wide Biome 513
+    Verified locally: 49 new tests (org invitations 6 plus 8 for
+    `addMemberByEmail`, client invitations 5, uploads 5, account export 3,
+    bulk export 4, rate-limit module 8, AI Gateway 10). The full
+    `@visastack/services` suite was last run in full at 1163 tests across 60
+    files, all passing (baseline 1122), BEFORE `addMemberByEmail` and its 8
+    tests were added; that run was cut off by a tooling time limit at 47 of
+    60 files with no failures, so the 13 unfinished files were run separately
+    (13/13 passing, 103 tests) rather than calling the cut-off run green.
+    Since then the four test files that touch the refactored invitation code
+    were re-run (122/122 passing). Web suite 237/237, repo-wide Biome 513
     files clean, typecheck 7/7, production build clean with the new cron
-    route in the manifest.
+    route in the manifest (rebuilt after the `addMemberAction` change), web
+    suite re-run after it too.
 independently confirmed findings; the missing PRD file is tracked as Blocker 1 in
 `assumptions-and-blockers.md` (now resolved) rather than here, since it blocked the
 programme rather than being a product defect.

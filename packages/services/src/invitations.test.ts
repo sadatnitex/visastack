@@ -10,6 +10,7 @@ import { provisionAccount } from './accounts';
 import { type Db, schema as dbSchema } from './db';
 import {
   acceptOrganizationInvitation,
+  addMemberByEmail,
   createOrganizationInvitation,
   listOrganizationInvitations,
   revokeOrganizationInvitation,
@@ -160,6 +161,130 @@ describe('organization invitations - secure member invitations for a recipient w
       if (isOk(result)) throw new Error('expected a refusal');
       expect(result.error.message).toContain('invitation');
       expect(result.error.message).not.toContain('org_invitation');
+    });
+  });
+
+  describe('addMemberByEmail (Part 9 SEC-02: authorize, then limit, then look up)', () => {
+    const addByEmail = (actorAccountId: string, email: string, organizationId = orgId) =>
+      addMemberByEmail(db, { actorAccountId, organizationId, email, role: 'CASE_MANAGER' });
+
+    async function memberRows(accountId: string) {
+      return db
+        .select()
+        .from(dbSchema.memberships)
+        .where(eq(dbSchema.memberships.accountId, accountId));
+    }
+
+    it('adds an existing account immediately', async () => {
+      const existingId = await account(db, 'existing@example.com');
+
+      const result = await addByEmail(ownerId, 'Existing@Example.com');
+
+      expect(isOk(result)).toBe(true);
+      if (!isOk(result)) return;
+      expect(result.value.kind).toBe('added');
+      expect(await memberRows(existingId)).toHaveLength(1);
+    });
+
+    it('mints a single-use invitation for an email with no account', async () => {
+      const result = await addByEmail(ownerId, 'nobody@example.com');
+
+      expect(isOk(result)).toBe(true);
+      if (!isOk(result) || result.value.kind !== 'invited')
+        throw new Error('expected an invitation');
+      expect(result.value.rawToken.length).toBeGreaterThan(20);
+      expect(result.value.invitation.status).toBe('PENDING');
+    });
+
+    it('a non-admin is forbidden identically whether or not the email is registered (no oracle for outsiders)', async () => {
+      await account(db, 'registered@example.com');
+      const outsiderId = await account(db, 'outsider@example.com');
+
+      const forRegistered = await addByEmail(outsiderId, 'registered@example.com');
+      const forUnregistered = await addByEmail(outsiderId, 'unregistered@example.com');
+
+      expect(isErr(forRegistered) && forRegistered.error.code).toBe('forbidden');
+      expect(isErr(forUnregistered) && forUnregistered.error.code).toBe('forbidden');
+      expect(isErr(forRegistered) && isErr(forUnregistered) && forRegistered.error.message).toBe(
+        isErr(forUnregistered) ? forUnregistered.error.message : undefined,
+      );
+    });
+
+    it('once the actor is limited, a REGISTERED email is refused and not added, exactly like an unregistered one (the oracle is closed for both branches)', async () => {
+      const registeredId = await account(db, 'registered@example.com');
+      await exhaustRateLimit(
+        db,
+        ownerId,
+        'org_invitation.create',
+        RATE_LIMITS.ORG_INVITATION_CREATE,
+      );
+
+      const forRegistered = await addByEmail(ownerId, 'registered@example.com');
+      const forUnregistered = await addByEmail(ownerId, 'unregistered@example.com');
+
+      expect(isErr(forRegistered) && forRegistered.error.code).toBe('rate_limited');
+      expect(isErr(forUnregistered) && forUnregistered.error.code).toBe('rate_limited');
+      // Indistinguishable to the caller, and the registered account was NOT silently added.
+      expect(isErr(forRegistered) && forRegistered.error.message).toBe(
+        isErr(forUnregistered) ? forUnregistered.error.message : undefined,
+      );
+      expect(await memberRows(registeredId)).toHaveLength(0);
+    });
+
+    it('costs exactly one unit per call whichever branch it takes (the invite branch is not charged twice)', async () => {
+      await account(db, 'registered@example.com');
+
+      await addByEmail(ownerId, 'registered@example.com');
+      await addByEmail(ownerId, 'unregistered@example.com');
+
+      const [actorBucket] = await db
+        .select()
+        .from(dbSchema.rateLimitBuckets)
+        .where(eq(dbSchema.rateLimitBuckets.subjectId, ownerId));
+      const [orgBucket] = await db
+        .select()
+        .from(dbSchema.rateLimitBuckets)
+        .where(eq(dbSchema.rateLimitBuckets.subjectId, orgId));
+      expect(actorBucket?.count).toBe(2);
+      expect(orgBucket?.count).toBe(2);
+    });
+
+    it("an unauthorized caller never spends the target organization's bucket (the org bucket is keyed on a caller-supplied id)", async () => {
+      const outsiderId = await account(db, 'outsider@example.com');
+
+      const refused = await addByEmail(outsiderId, 'whoever@example.com');
+      expect(isErr(refused) && refused.error.code).toBe('forbidden');
+
+      const orgBuckets = await db
+        .select()
+        .from(dbSchema.rateLimitBuckets)
+        .where(eq(dbSchema.rateLimitBuckets.subjectId, orgId));
+      expect(orgBuckets).toHaveLength(0);
+    });
+
+    it('createOrganizationInvitation likewise never lets a non-admin spend the organization bucket', async () => {
+      const outsiderId = await account(db, 'outsider2@example.com');
+
+      const refused = await createOrganizationInvitation(db, {
+        actorAccountId: outsiderId,
+        organizationId: orgId,
+        email: 'whoever@example.com',
+        role: 'CASE_MANAGER',
+      });
+      expect(isErr(refused) && refused.error.code).toBe('forbidden');
+
+      const orgBuckets = await db
+        .select()
+        .from(dbSchema.rateLimitBuckets)
+        .where(eq(dbSchema.rateLimitBuckets.subjectId, orgId));
+      expect(orgBuckets).toHaveLength(0);
+    });
+
+    it('an empty email is invalid and costs nothing', async () => {
+      const result = await addByEmail(ownerId, '   ');
+
+      expect(isErr(result) && result.error.code).toBe('invalid');
+      expect(await db.select().from(dbSchema.rateLimitBuckets)).toHaveLength(0);
     });
   });
 
