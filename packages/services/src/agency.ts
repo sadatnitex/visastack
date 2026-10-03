@@ -21,7 +21,7 @@ import {
 } from './notifications';
 import { getOrganization, isOrgAdmin } from './organizations';
 import { type PackRequirement, listRequirements } from './packs';
-import { RATE_LIMITS, checkRateLimit } from './rate-limit';
+import { RATE_LIMITS, checkRateLimit, checkRateLimits } from './rate-limit';
 import { loadGrantsForPolicy } from './sharing';
 
 /**
@@ -2200,6 +2200,20 @@ export async function bulkExport(
   if (!org || org.status !== 'ACTIVE') {
     return err(serviceError('forbidden', 'this organization is not active'));
   }
+
+  // Actor first, then the organization's shared bucket: several admins of one
+  // organization must not be able to multiply the export rate between them.
+  const rateLimit = await checkRateLimits(db, [
+    {
+      input: { subjectId: input.actorAccountId, action: 'bulk.export', label: 'export' },
+      config: RATE_LIMITS.BULK_EXPORT,
+    },
+    {
+      input: { subjectId: input.organizationId, action: 'bulk.export.org', label: 'export' },
+      config: RATE_LIMITS.BULK_EXPORT_ORG,
+    },
+  ]);
+  if (!rateLimit.allowed) return err(serviceError('rate_limited', rateLimit.reason));
 
   // Candidate applicants: those with any grant naming this org, bounded.
   const grantRows = await db

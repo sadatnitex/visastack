@@ -32,7 +32,7 @@ export async function GET(request: Request): Promise<Response> {
     if (stepUp.kind === 'not_configured') return { notConfigured: true } as const;
     if (stepUp.kind === 'reauth_required') return { redirect: stepUp.reauthUrl } as const;
     const result = await exportAccount(db, { actorAccountId: accountId, accountId });
-    return { snapshot: result.ok ? result.value : null } as const;
+    return { result } as const;
   });
 
   if ('notConfigured' in outcome) {
@@ -42,8 +42,20 @@ export async function GET(request: Request): Promise<Response> {
     });
   }
   if ('redirect' in outcome) return Response.redirect(outcome.redirect, 302);
-  const snapshot = outcome.snapshot;
-  if (!snapshot) return new Response('export failed', { status: 403 });
+  const result = outcome.result;
+  if (!result.ok) {
+    // A rate-limit refusal is not a permission failure: telling the user they
+    // are "forbidden" would send them hunting for a consent or role problem
+    // that does not exist. 429 says what actually happened.
+    if (result.error.code === 'rate_limited') {
+      return new Response(result.error.message, {
+        status: 429,
+        headers: { 'Cache-Control': 'private, no-store' },
+      });
+    }
+    return new Response('export failed', { status: 403 });
+  }
+  const snapshot = result.value;
 
   const stamp = new Date().toISOString().slice(0, 10);
 

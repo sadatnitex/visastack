@@ -23,6 +23,7 @@ import {
   executeScheduledDowngrade,
   listDueDeletions,
   listDueDowngrades,
+  pruneExpiredRateLimitBuckets,
   runAccountExportWorker,
   runErasureWorker,
   runIntakeWorker,
@@ -620,6 +621,34 @@ export async function triggerInactiveAccountDeletionSweep(
   } catch (error) {
     console.error('[triggerInactiveAccountDeletionSweep] sweep failed', error);
     return { enabled: false, checked: 0, requested: 0, skipped: 0 };
+  } finally {
+    await pool.end();
+  }
+}
+
+/**
+ * Deletes rate-limit counters whose window ended more than 24 hours ago
+ * (Part 9 SEC-02). Counters are only ever read for their own window, and
+ * nothing else removed them, so without this the table would grow with every
+ * new limit. Same short-lived-pooled-connection rationale as the sweeps above.
+ */
+export async function triggerRateLimitPrune(): Promise<{ readonly pruned: number }> {
+  const connectionString = resolveDatabaseUrl(process.env);
+  if (!connectionString) {
+    console.error('[triggerRateLimitPrune] database not configured');
+    return { pruned: 0 };
+  }
+
+  const { db, pool } = createPooledDb(connectionString);
+  pool.on('error', (error) => {
+    console.error('[triggerRateLimitPrune] idle pool connection error', error);
+  });
+  try {
+    const handle = db as unknown as Parameters<typeof pruneExpiredRateLimitBuckets>[0];
+    return { pruned: await pruneExpiredRateLimitBuckets(handle) };
+  } catch (error) {
+    console.error('[triggerRateLimitPrune] prune failed', error);
+    return { pruned: 0 };
   } finally {
     await pool.end();
   }

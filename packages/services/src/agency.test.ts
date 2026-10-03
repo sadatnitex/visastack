@@ -64,6 +64,7 @@ import {
 } from './packs';
 import { editFact, registerFieldDefinition } from './profile';
 import { RATE_LIMITS } from './rate-limit';
+import { exhaustRateLimit } from './rate-limit.test-support';
 import { acceptGrant, createGrant, pauseGrant, revokeGrant } from './sharing';
 
 const migrationsFolder = fileURLToPath(new URL('../../db/migrations', import.meta.url));
@@ -1328,6 +1329,65 @@ describe('permissioned bulk export', () => {
     });
     expect(isErr(result)).toBe(true);
     if (isErr(result)) expect(result.error.code).toBe('forbidden');
+  });
+
+  describe('rate limiting (Part 9 SEC-02)', () => {
+    async function activeOrgWithAdmin(email: string): Promise<{ adminId: string; orgId: string }> {
+      const admin = await provisionAccount(db, { email });
+      if (!isOk(admin)) throw new Error('provision');
+      const org = await createOrganization(db, { actorAccountId: admin.value.id, name: 'Acme' });
+      if (!isOk(org)) throw new Error('org');
+      await activateOrg(db, org.value.id);
+      return { adminId: admin.value.id, orgId: org.value.id };
+    }
+    const exportAs = (actorAccountId: string, organizationId: string) =>
+      bulkExport(db, { actorAccountId, organizationId, purpose: 'bulk', stepUpSatisfied: true });
+
+    it('refuses with rate_limited once the actor has hit their bulk-export limit', async () => {
+      const { adminId, orgId } = await activeOrgWithAdmin('rl-bulk-actor@acme.com');
+      await exhaustRateLimit(db, adminId, 'bulk.export', RATE_LIMITS.BULK_EXPORT);
+
+      const result = await exportAs(adminId, orgId);
+
+      expect(isErr(result)).toBe(true);
+      if (isOk(result)) return;
+      expect(result.error.code).toBe('rate_limited');
+      expect(result.error.message).toContain('export');
+    });
+
+    it("refuses once the ORGANIZATION's shared bucket is full, even though this actor is under their own limit", async () => {
+      const { adminId, orgId } = await activeOrgWithAdmin('rl-bulk-org@acme.com');
+      await exhaustRateLimit(db, orgId, 'bulk.export.org', RATE_LIMITS.BULK_EXPORT_ORG);
+
+      const result = await exportAs(adminId, orgId);
+
+      expect(isErr(result) && result.error.code).toBe('rate_limited');
+    });
+
+    it("a refused actor does not spend the organization's shared bucket", async () => {
+      const { adminId, orgId } = await activeOrgWithAdmin('rl-bulk-short@acme.com');
+      await exhaustRateLimit(db, adminId, 'bulk.export', RATE_LIMITS.BULK_EXPORT);
+
+      const refused = await exportAs(adminId, orgId);
+      expect(isErr(refused) && refused.error.code).toBe('rate_limited');
+
+      const orgBuckets = await db
+        .select()
+        .from(schema.rateLimitBuckets)
+        .where(eq(schema.rateLimitBuckets.subjectId, orgId));
+      expect(orgBuckets).toHaveLength(0);
+    });
+
+    it('authorization comes first: a non-member with an exhausted bucket still gets forbidden', async () => {
+      const { orgId } = await activeOrgWithAdmin('rl-bulk-auth@acme.com');
+      const stranger = await provisionAccount(db, { email: 'rl-bulk-stranger@example.com' });
+      if (!isOk(stranger)) throw new Error('provision');
+      await exhaustRateLimit(db, stranger.value.id, 'bulk.export', RATE_LIMITS.BULK_EXPORT);
+
+      const result = await exportAs(stranger.value.id, orgId);
+
+      expect(isErr(result) && result.error.code).toBe('forbidden');
+    });
   });
 });
 

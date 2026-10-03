@@ -3695,7 +3695,103 @@ item gets its own requirements-ledger row once classified against the new direct
     `schema.ts`, and run repo-wide `biome check .` (what CI runs), not just
     touched files, before every push. Verified locally: repo-wide Biome 511
     files clean, typecheck 7/7, adapters 321 passed (2 pre-existing skips),
-    db 29 passed (1 pre-existing skip), production build clean.
+    db 29 passed (1 pre-existing skip), production build clean. Confirmed
+    on real CI afterwards (run 37097787574, commit b58e4a5): audit, lint,
+    build, typecheck and the full test suite all passed, and PR #157 was
+    squash-merged to main as b6403df.
+    **Chunk 33 (2026-10-03, SEC-02, Part 9 chunk 1) -- rate limits on the
+    five unprotected flows, plus the prune they required.** A Part 9 audit
+    claimed only 2 of the 7 flows the directive names (login/recovery,
+    invitation, upload, sharing, export, AI) were rate-limited. Re-verified
+    directly rather than trusted: exactly two call sites existed
+    (`sharing.ts` grant creation, `agency.ts` evidence request). Now added,
+    all in the service layer (the established pattern), keyed on the
+    authenticated actor: organization invitations and client invitations
+    (each also with a second, organization-wide bucket, the directive's
+    "actor + org" dimensions), upload reservation, account export, agency
+    bulk export (actor + organization), and all five AI Gateway tasks through
+    ONE shared per-actor bucket so splitting abuse across tasks does not
+    multiply the allowance. A new `checkRateLimits` checks buckets in order
+    and short-circuits: a refused actor never touches the organization's
+    shared bucket, so one abusive admin cannot drain the rest of their
+    organization's allowance (proven by test, not assumed).
+
+    Four things found while doing it, each fixed: (1) `rate_limit_buckets`
+    had no pruning at all (its only delete was account erasure), tolerable
+    with two low-volume limits but not with this many, so a
+    `pruneExpiredRateLimitBuckets` and a daily `/api/jobs/process-rate-limit-prune`
+    cron (24h retention against a 1h longest window) were added; no schema
+    change, so no migration. (2) "Is this email registered?" was answerable
+    at any speed, and a limit inside `createOrganizationInvitation` alone did
+    not close it: the web action `addMemberAction` looked the account up
+    FIRST, before any authorization or limit, then branched (registered:
+    added immediately; unregistered: invitation). Even with the limit, once
+    an actor's invitation bucket was spent a registered email would still be
+    ADDED while an unregistered one was refused, so registration stayed
+    answerable (just inverted). The branching now lives in a new service,
+    `addMemberByEmail`, which authorizes, then limits, then looks up, with one
+    shared allowance and exactly one unit per call whichever branch it takes;
+    the action is a thin wrapper. A non-admin gets an identical refusal for a
+    registered and an unregistered email, a limited admin gets an identical
+    refusal for both and the registered account is NOT silently added, and an
+    authorized admin under the limit still learns the outcome (they must know
+    whether there is a link to share), now only at the limited rate and with
+    an audited side effect. Residual, stated plainly: this bounds the oracle
+    for authorized admins, it does not remove it; removing it would change
+    the product (for example always handing back a link and creating
+    membership only on acceptance), which is a product decision, not a
+    hardening one. Related: the organization bucket is keyed on a
+    caller-supplied id, so every limited path authorizes BEFORE charging it,
+    or anyone could burn another organization's allowance (tested). A
+    mutation check (look up before limiting) makes 2 of the 8 new
+    `addMemberByEmail` tests fail. (3) The explanation task carried no actor,
+    so `RunExplanationInput` now requires `actorAccountId` (its one
+    production caller and ten test call sites were updated). (4) The two
+    export routes would have reported a rate-limit refusal as
+    `403 export failed`, sending users hunting for a permission problem that
+    does not exist, so they now return 429. The refusal text uses a
+    plain-language label ("invitation", "upload", "export", "AI") and never
+    the internal action name, per Part 9 §1; existing callers keep their
+    original message byte-for-byte. Authorization, consent and the cheap
+    no-op refusals all run BEFORE the limit, so an unauthorized caller or a
+    harmless repeat click neither learns anything from nor spends the
+    allowance; the cross-provider fallback attempt inside one run is not
+    counted a second time (all three proven).
+
+    Test method worth recording: limits are proven by seeding a counter
+    exactly at its limit (`rate-limit.test-support.ts`, seeding both the
+    current and next window so a window-boundary straddle cannot flake)
+    rather than looping hundreds of real calls through the in-memory
+    database. A mutation check against the ORIGINAL `invitations.ts` showed
+    4 of the 6 new tests failing as they should; the other 2 passed
+    vacuously, so both were strengthened to assert the refusal itself.
+
+    **Honestly NOT done, so SEC-02 stays IN_PROGRESS:** site-wide
+    Content-Security-Policy is still missing (next Part 9 chunk); login and
+    account recovery are hosted by WorkOS, so the app cannot rate-limit them,
+    and WorkOS's own brute-force/bot protection settings are UNVERIFIED from
+    this repo; no network/IP dimension exists for unauthenticated endpoints,
+    deliberately, because a database write per unauthenticated request would
+    itself be an amplification vector, so that belongs at the edge (Vercel
+    Firewall rules), also unverified here; and every threshold is an
+    UNMEASURED pilot default (nothing here is derived from observed
+    traffic), to be tuned by Part 9's load work. One deployment note: the new
+    cron needs `CRON_SECRET` (already required by the other fifteen) and
+    brings `vercel.json` to 16 crons.
+
+    Verified locally: 49 new tests (org invitations 6 plus 8 for
+    `addMemberByEmail`, client invitations 5, uploads 5, account export 3,
+    bulk export 4, rate-limit module 8, AI Gateway 10). The full
+    `@visastack/services` suite was last run in full at 1163 tests across 60
+    files, all passing (baseline 1122), BEFORE `addMemberByEmail` and its 8
+    tests were added; that run was cut off by a tooling time limit at 47 of
+    60 files with no failures, so the 13 unfinished files were run separately
+    (13/13 passing, 103 tests) rather than calling the cut-off run green.
+    Since then the four test files that touch the refactored invitation code
+    were re-run (122/122 passing). Web suite 237/237, repo-wide Biome 513
+    files clean, typecheck 7/7, production build clean with the new cron
+    route in the manifest (rebuilt after the `addMemberAction` change), web
+    suite re-run after it too.
 independently confirmed findings; the missing PRD file is tracked as Blocker 1 in
 `assumptions-and-blockers.md` (now resolved) rather than here, since it blocked the
 programme rather than being a product defect.

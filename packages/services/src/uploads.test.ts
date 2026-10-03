@@ -11,6 +11,8 @@ import { createApplicant } from './applicants';
 import { setConsent } from './consent';
 import type { Db } from './db';
 import { addDocumentVersion, registerDocument } from './documents';
+import { RATE_LIMITS } from './rate-limit';
+import { exhaustRateLimit } from './rate-limit.test-support';
 import type { BlobStore } from './storage';
 import { failUpload, finalizeUpload, reserveUpload, sweepAbandonedUploads } from './uploads';
 
@@ -89,6 +91,88 @@ const tightConfig = {
   maxPdfPages: 50,
   maxImageMegapixels: 40,
 };
+
+describe('reserveUpload - rate limiting (Part 9 SEC-02)', () => {
+  let db: Db;
+  beforeEach(async () => {
+    db = await freshDb();
+  });
+
+  it('refuses with rate_limited once the account has hit its upload limit, and reserves nothing', async () => {
+    const { accountId, applicantId } = await seedApplicantWithEvidence(
+      db,
+      'limited@example.com',
+      [],
+    );
+    await exhaustRateLimit(db, accountId, 'upload.reserve', RATE_LIMITS.UPLOAD_RESERVE);
+
+    const result = await reserveUpload(db, { accountId, applicantId, sizeBytes: MB }, tightConfig);
+
+    expect(isErr(result)).toBe(true);
+    if (isOk(result)) return;
+    expect(result.error.code).toBe('rate_limited');
+    expect(await db.select().from(schema.uploadIntents)).toHaveLength(0);
+  });
+
+  it('an oversized file is rejected on size first and does not spend the allowance', async () => {
+    const { accountId, applicantId } = await seedApplicantWithEvidence(db, 'big@example.com', []);
+
+    const result = await reserveUpload(
+      db,
+      { accountId, applicantId, sizeBytes: 6 * MB },
+      { ...tightConfig, maxUploadBytes: 5 * MB },
+    );
+
+    expect(isErr(result) && result.error.code).not.toBe('rate_limited');
+    expect(
+      await db
+        .select()
+        .from(schema.rateLimitBuckets)
+        .where(eq(schema.rateLimitBuckets.subjectId, accountId)),
+    ).toHaveLength(0);
+  });
+
+  it('counts each reservation attempt against the account (not just finished uploads)', async () => {
+    const { accountId, applicantId } = await seedApplicantWithEvidence(
+      db,
+      'counted@example.com',
+      [],
+    );
+
+    await reserveUpload(db, { accountId, applicantId, sizeBytes: MB }, tightConfig);
+    await reserveUpload(db, { accountId, applicantId, sizeBytes: MB }, tightConfig);
+
+    const [bucket] = await db
+      .select()
+      .from(schema.rateLimitBuckets)
+      .where(eq(schema.rateLimitBuckets.subjectId, accountId));
+    expect(bucket?.action).toBe('upload.reserve');
+    expect(bucket?.count).toBe(2);
+  });
+
+  it("another account's uploads are unaffected by this account being limited", async () => {
+    const limited = await seedApplicantWithEvidence(db, 'limited@example.com', []);
+    const other = await seedApplicantWithEvidence(db, 'other@example.com', []);
+    await exhaustRateLimit(db, limited.accountId, 'upload.reserve', RATE_LIMITS.UPLOAD_RESERVE);
+
+    const refused = await reserveUpload(db, { ...limited, sizeBytes: MB }, tightConfig);
+    expect(isErr(refused) && refused.error.code).toBe('rate_limited');
+    const allowed = await reserveUpload(db, { ...other, sizeBytes: MB }, tightConfig);
+
+    expect(isOk(allowed)).toBe(true);
+  });
+
+  it('explains the refusal in plain language, never naming the internal action', async () => {
+    const { accountId, applicantId } = await seedApplicantWithEvidence(db, 'msg@example.com', []);
+    await exhaustRateLimit(db, accountId, 'upload.reserve', RATE_LIMITS.UPLOAD_RESERVE);
+
+    const result = await reserveUpload(db, { accountId, applicantId, sizeBytes: MB }, tightConfig);
+
+    if (isOk(result)) throw new Error('expected a refusal');
+    expect(result.error.message).toContain('upload');
+    expect(result.error.message).not.toContain('upload.reserve');
+  });
+});
 
 describe('reserveUpload — atomic quota reservation (master directive §7 "PR 6")', () => {
   let db: Db;

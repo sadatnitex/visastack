@@ -675,6 +675,7 @@ export async function explainReadinessGapAction(
     }
 
     const explained = await explainReadinessGap(db, resolved.ai, {
+      actorAccountId: accountId,
       packRequirementId,
       requirementKind: current.kind,
       requirementKey: current.key,

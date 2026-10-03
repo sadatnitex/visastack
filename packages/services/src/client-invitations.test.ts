@@ -19,6 +19,8 @@ import {
 import { setConsent } from './consent';
 import { type Db, schema as dbSchema } from './db';
 import { addMembership, createOrganization, reviewOrganization } from './organizations';
+import { RATE_LIMITS } from './rate-limit';
+import { exhaustRateLimit } from './rate-limit.test-support';
 
 const migrationsFolder = fileURLToPath(new URL('../../db/migrations', import.meta.url));
 
@@ -111,6 +113,83 @@ describe('client invitations - agency invites a traveller as a new client (Comme
       requestedRoute: overrides?.requestedRoute ?? 'US B1/B2 business visa',
     });
   }
+
+  describe('rate limiting (Part 9 SEC-02)', () => {
+    it('refuses with rate_limited once the actor has hit their client-invitation limit, and creates nothing', async () => {
+      await exhaustRateLimit(
+        db,
+        adminId,
+        'client_invitation.create',
+        RATE_LIMITS.CLIENT_INVITATION_CREATE,
+      );
+
+      const result = await invite();
+
+      expect(isErr(result)).toBe(true);
+      if (isOk(result)) return;
+      expect(result.error.code).toBe('rate_limited');
+      expect(await db.select().from(dbSchema.clientInvitations)).toHaveLength(0);
+    });
+
+    it("refuses once the ORGANIZATION's shared bucket is full, even though this actor is under their own limit", async () => {
+      await exhaustRateLimit(
+        db,
+        orgId,
+        'client_invitation.create.org',
+        RATE_LIMITS.CLIENT_INVITATION_CREATE_ORG,
+      );
+
+      const result = await invite();
+
+      expect(isErr(result) && result.error.code).toBe('rate_limited');
+    });
+
+    it("a refused actor does not spend the organization's shared bucket", async () => {
+      await exhaustRateLimit(
+        db,
+        adminId,
+        'client_invitation.create',
+        RATE_LIMITS.CLIENT_INVITATION_CREATE,
+      );
+
+      const refused = await invite();
+      expect(isErr(refused) && refused.error.code).toBe('rate_limited');
+
+      const orgBuckets = await db
+        .select()
+        .from(dbSchema.rateLimitBuckets)
+        .where(eq(dbSchema.rateLimitBuckets.subjectId, orgId));
+      expect(orgBuckets).toHaveLength(0);
+    });
+
+    it('authorization is checked before the limit: a non-admin with an exhausted bucket still gets forbidden, not rate_limited', async () => {
+      await exhaustRateLimit(
+        db,
+        caseOwnerId,
+        'client_invitation.create',
+        RATE_LIMITS.CLIENT_INVITATION_CREATE,
+      );
+
+      const result = await invite({ actorAccountId: caseOwnerId });
+
+      expect(isErr(result) && result.error.code).toBe('forbidden');
+    });
+
+    it('explains the refusal in plain language, never naming the internal action', async () => {
+      await exhaustRateLimit(
+        db,
+        adminId,
+        'client_invitation.create',
+        RATE_LIMITS.CLIENT_INVITATION_CREATE,
+      );
+
+      const result = await invite();
+
+      if (isOk(result)) throw new Error('expected a refusal');
+      expect(result.error.message).toContain('invitation');
+      expect(result.error.message).not.toContain('client_invitation');
+    });
+  });
 
   describe('createClientInvitation', () => {
     it('creates a PENDING invitation and returns a raw token that is never the stored value', async () => {

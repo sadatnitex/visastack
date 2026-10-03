@@ -7,7 +7,8 @@ import { type Db, first, required, schema } from './db';
 import { checkInvitationEntitlement, checkSeatEntitlement } from './entitlement-enforcement';
 import { type ServiceError, serviceError } from './errors';
 import { generateInvitationToken, hashInvitationToken } from './invitation-tokens';
-import { isOrgAdmin } from './organizations';
+import { addMembership, isOrgAdmin } from './organizations';
+import { RATE_LIMITS, checkRateLimits } from './rate-limit';
 
 /**
  * Secure organization member invitations (Commercial V1 Part 4 §5): lets an
@@ -46,27 +47,42 @@ export interface CreatedOrganizationInvitation {
   readonly rawToken: string;
 }
 
-/** Invite someone by email who has no VisaStack account yet (org OWNER/ADMIN only). */
-export async function createOrganizationInvitation(
+/**
+ * The invitation rate limit: actor first, then the organization's shared
+ * bucket (see `checkRateLimits`). Shared by every path that can reveal or act
+ * on whether an email is registered, so they all spend the SAME allowance.
+ * Callers must have authorized the actor for this organization first: the
+ * organization bucket is keyed on a caller-supplied id, so charging it before
+ * authorization would let anyone burn another organization's allowance.
+ */
+async function invitationRateLimitRefusal(
+  db: Db,
+  actorAccountId: string,
+  organizationId: string,
+): Promise<ServiceError | undefined> {
+  const decision = await checkRateLimits(db, [
+    {
+      input: { subjectId: actorAccountId, action: 'org_invitation.create', label: 'invitation' },
+      config: RATE_LIMITS.ORG_INVITATION_CREATE,
+    },
+    {
+      input: {
+        subjectId: organizationId,
+        action: 'org_invitation.create.org',
+        label: 'invitation',
+      },
+      config: RATE_LIMITS.ORG_INVITATION_CREATE_ORG,
+    },
+  ]);
+  return decision.allowed ? undefined : serviceError('rate_limited', decision.reason);
+}
+
+/** Mint and persist a fresh invitation for an already-authorized, already-rate-limited, normalized email. */
+async function issueOrganizationInvitation(
   db: Db,
   input: CreateOrganizationInvitationInput,
+  email: string,
 ): Promise<Result<CreatedOrganizationInvitation, ServiceError>> {
-  if (!(await isOrgAdmin(db, input.actorAccountId, input.organizationId))) {
-    return err(serviceError('forbidden', 'only an org OWNER/ADMIN can invite members'));
-  }
-  const email = input.email.trim().toLowerCase();
-  if (email.length === 0) return err(serviceError('invalid', 'email is required'));
-
-  const existingAccount = await getAccountByEmail(db, email);
-  if (existingAccount) {
-    return err(
-      serviceError(
-        'invalid',
-        'this email already has a VisaStack account; add them as a member directly instead',
-      ),
-    );
-  }
-
   const rawToken = generateInvitationToken();
   const tokenHash = hashInvitationToken(rawToken);
   const expiresAt = new Date(Date.now() + DEFAULT_EXPIRY_DAYS * 24 * 60 * 60 * 1000);
@@ -120,6 +136,101 @@ export async function createOrganizationInvitation(
       metadata: { organizationId: input.organizationId, role: input.role },
     });
     return ok({ invitation, rawToken });
+  });
+}
+
+/** Invite someone by email who has no VisaStack account yet (org OWNER/ADMIN only). */
+export async function createOrganizationInvitation(
+  db: Db,
+  input: CreateOrganizationInvitationInput,
+): Promise<Result<CreatedOrganizationInvitation, ServiceError>> {
+  if (!(await isOrgAdmin(db, input.actorAccountId, input.organizationId))) {
+    return err(serviceError('forbidden', 'only an org OWNER/ADMIN can invite members'));
+  }
+  const email = input.email.trim().toLowerCase();
+  if (email.length === 0) return err(serviceError('invalid', 'email is required'));
+
+  // Checked BEFORE the account lookup below, deliberately: that lookup tells
+  // the caller whether an email is already registered, an account-enumeration
+  // oracle an org admin could otherwise probe at any speed.
+  const rateLimited = await invitationRateLimitRefusal(
+    db,
+    input.actorAccountId,
+    input.organizationId,
+  );
+  if (rateLimited) return err(rateLimited);
+
+  const existingAccount = await getAccountByEmail(db, email);
+  if (existingAccount) {
+    return err(
+      serviceError(
+        'invalid',
+        'this email already has a VisaStack account; add them as a member directly instead',
+      ),
+    );
+  }
+
+  return issueOrganizationInvitation(db, input, email);
+}
+
+export type AddMemberByEmailOutcome =
+  | { readonly kind: 'added'; readonly membership: Membership }
+  | {
+      readonly kind: 'invited';
+      readonly invitation: OrganizationInvitation;
+      readonly rawToken: string;
+    };
+
+/**
+ * Add a member by email (org OWNER/ADMIN only): an existing account joins
+ * immediately, anyone else gets a secure single-use invitation.
+ *
+ * This used to live in the web action, which looked the account up FIRST and
+ * then branched, before any authorization or rate limit. That made "is this
+ * email registered?" answerable at any speed, and even after an invitation
+ * limit existed it stayed answerable: a registered email would still be
+ * ADDED while an unregistered one was refused. Doing the whole flow here, in
+ * the order authorize, then limit, then look up, closes it for both branches
+ * with one shared allowance (a call costs exactly one unit whichever way it
+ * goes). An authorized admin still learns the outcome (they need to know
+ * whether there is a link to share), but only at the limited rate and with an
+ * audited side effect, not freely.
+ */
+export async function addMemberByEmail(
+  db: Db,
+  input: CreateOrganizationInvitationInput,
+): Promise<Result<AddMemberByEmailOutcome, ServiceError>> {
+  if (!(await isOrgAdmin(db, input.actorAccountId, input.organizationId))) {
+    return err(serviceError('forbidden', 'only an org OWNER/ADMIN can add members'));
+  }
+  const email = input.email.trim().toLowerCase();
+  if (email.length === 0) return err(serviceError('invalid', 'email is required'));
+
+  const rateLimited = await invitationRateLimitRefusal(
+    db,
+    input.actorAccountId,
+    input.organizationId,
+  );
+  if (rateLimited) return err(rateLimited);
+
+  const existingAccount = await getAccountByEmail(db, email);
+  if (existingAccount) {
+    const added = await addMembership(db, {
+      actorAccountId: input.actorAccountId,
+      organizationId: input.organizationId,
+      accountId: existingAccount.id,
+      role: input.role,
+    });
+    if (!added.ok) return err(added.error);
+    return ok({ kind: 'added', membership: added.value });
+  }
+
+  const invited = await issueOrganizationInvitation(db, input, email);
+  if (!invited.ok) return err(invited.error);
+  return ok({
+    kind: 'invited',
+    invitation: invited.value.invitation,
+    rawToken: invited.value.rawToken,
   });
 }
 
