@@ -1,7 +1,7 @@
 import { randomBytes } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { PGlite } from '@electric-sql/pglite';
-import { isErr, isOk } from '@visastack/core';
+import { type Result, isErr, isOk } from '@visastack/core';
 import { schema } from '@visastack/db';
 import { eq } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/pglite';
@@ -40,9 +40,12 @@ import { createApplicant } from './applicants';
 import { setConsent } from './consent';
 import type { Db } from './db';
 import { addDocumentVersion, registerDocument } from './documents';
+import type { ServiceError } from './errors';
 import type { AiOcrOutcome, AiOcrPort, AiOcrUsage } from './ocr';
 import type { KeyManagementPort } from './ports';
 import { editFact, getCurrentFactVersion, registerFieldDefinition } from './profile';
+import { RATE_LIMITS } from './rate-limit';
+import { exhaustRateLimit } from './rate-limit.test-support';
 
 const migrationsFolder = fileURLToPath(new URL('../../db/migrations', import.meta.url));
 
@@ -2568,6 +2571,9 @@ describe('AI Gateway -- document type classification (Part 8 AI-01 item 2)', () 
   });
 });
 
+/** Explanation is not applicant-scoped, so there is no real account behind it; any stable string works as the rate-limit subject. */
+const EXPLAIN_ACTOR = 'explain-test-actor';
+
 const explainUsage = {
   costUnits: 1,
   inputUnits: 1,
@@ -2650,6 +2656,7 @@ describe('AI Gateway -- readiness-gap explanation (Part 8 AI-01 item 5)', () => 
   it('produces an explanation grounded in the requirement citation', async () => {
     const packRequirementId = await seedPackRequirement(db);
     const result = await explainReadinessGap(db, stubExplainAi(), {
+      actorAccountId: EXPLAIN_ACTOR,
       packRequirementId,
       requirementKind: 'DOCUMENT',
       requirementKey: 'BANK_STATEMENT',
@@ -2667,6 +2674,7 @@ describe('AI Gateway -- readiness-gap explanation (Part 8 AI-01 item 5)', () => 
     // Deliberately no setConsent call anywhere in this test -- proves the
     // call succeeds without any consent grant existing at all.
     const result = await explainReadinessGap(db, stubExplainAi(), {
+      actorAccountId: EXPLAIN_ACTOR,
       packRequirementId,
       requirementKind: 'DOCUMENT',
       requirementKey: 'BANK_STATEMENT',
@@ -2681,6 +2689,7 @@ describe('AI Gateway -- readiness-gap explanation (Part 8 AI-01 item 5)', () => 
   it('fails closed once the platform-wide budget is exhausted', async () => {
     const packRequirementId = await seedPackRequirement(db);
     const result = await explainReadinessGap(db, stubExplainAi(), {
+      actorAccountId: EXPLAIN_ACTOR,
       packRequirementId,
       requirementKind: 'DOCUMENT',
       requirementKey: 'BANK_STATEMENT',
@@ -2705,10 +2714,15 @@ describe('AI Gateway -- readiness-gap explanation (Part 8 AI-01 item 5)', () => 
       budgetLimitUnits: 1000,
     };
 
-    const first = await explainReadinessGap(db, ai, { packRequirementId: requirementA, ...shared });
+    const first = await explainReadinessGap(db, ai, {
+      actorAccountId: EXPLAIN_ACTOR,
+      packRequirementId: requirementA,
+      ...shared,
+    });
     expect(isOk(first)).toBe(true);
 
     const second = await explainReadinessGap(db, ai, {
+      actorAccountId: EXPLAIN_ACTOR,
       packRequirementId: requirementB,
       ...shared,
     });
@@ -2731,11 +2745,13 @@ describe('AI Gateway -- readiness-gap explanation (Part 8 AI-01 item 5)', () => 
     };
 
     await explainReadinessGap(db, ai, {
+      actorAccountId: EXPLAIN_ACTOR,
       packRequirementId: requirementA,
       citation: 'Citation A',
       ...shared,
     });
     await explainReadinessGap(db, ai, {
+      actorAccountId: EXPLAIN_ACTOR,
       packRequirementId: requirementB,
       citation: 'Citation B',
       ...shared,
@@ -2749,6 +2765,7 @@ describe('AI Gateway -- readiness-gap explanation (Part 8 AI-01 item 5)', () => 
       db,
       stubExplainAi({ ok: false, code: 'upstream_error', message: 'boom' }),
       {
+        actorAccountId: EXPLAIN_ACTOR,
         packRequirementId,
         requirementKind: 'DOCUMENT',
         requirementKey: 'BANK_STATEMENT',
@@ -2765,6 +2782,7 @@ describe('AI Gateway -- readiness-gap explanation (Part 8 AI-01 item 5)', () => 
     const packRequirementId = await seedPackRequirement(db);
     const { ai, callCount } = countingStubExplainAi();
     const result = await explainReadinessGap(db, ai, {
+      actorAccountId: EXPLAIN_ACTOR,
       packRequirementId,
       requirementKind: 'DOCUMENT',
       requirementKey: 'BANK_STATEMENT',
@@ -2781,6 +2799,7 @@ describe('AI Gateway -- readiness-gap explanation (Part 8 AI-01 item 5)', () => 
   it('counts against the SAME shared platform-wide budget extraction/OCR/classification already share', async () => {
     const packRequirementId = await seedPackRequirement(db);
     await explainReadinessGap(db, stubExplainAi(), {
+      actorAccountId: EXPLAIN_ACTOR,
       packRequirementId,
       requirementKind: 'DOCUMENT',
       requirementKey: 'BANK_STATEMENT',
@@ -3215,5 +3234,217 @@ describe('AI Gateway -- possible inconsistency flag (Part 8 AI-01 item 4)', () =
 
     const pending = await listPendingInconsistencyFlags(db, applicantId);
     expect(pending).toHaveLength(0);
+  });
+});
+
+describe('AI Gateway -- one per-actor rate limit shared across all five tasks (Part 9 SEC-02)', () => {
+  let db: Db;
+  beforeEach(async () => {
+    db = await freshDb();
+  });
+
+  async function aiBucketCount(subjectId: string): Promise<number | undefined> {
+    const [row] = await db
+      .select()
+      .from(schema.rateLimitBuckets)
+      .where(eq(schema.rateLimitBuckets.subjectId, subjectId));
+    return row?.count;
+  }
+
+  /** Each task's own run function, wired to a counting adapter so a refusal can prove no provider call happened. */
+  const tasks = {
+    extraction: async (
+      db: Db,
+      ctx: { accountId: string; applicantId: string; versionId: string },
+    ) => {
+      const { ai, callCount } = countingStubAi();
+      await grantAiConsent(db, ctx.accountId);
+      const result = await runExtraction(db, ai, {
+        actorAccountId: ctx.accountId,
+        applicantId: ctx.applicantId,
+        documentVersionId: ctx.versionId,
+        text: 'MRZ...',
+        budgetLimitUnits: 1000,
+      });
+      return { result: result as Result<unknown, ServiceError>, callCount };
+    },
+    ocr: async (db: Db, ctx: { accountId: string; applicantId: string; versionId: string }) => {
+      const { ai, callCount } = countingStubOcrAi();
+      await grantOcrConsent(db, ctx.accountId);
+      const result = await runOcr(db, ai, {
+        actorAccountId: ctx.accountId,
+        applicantId: ctx.applicantId,
+        documentVersionId: ctx.versionId,
+        imageBytes: new TextEncoder().encode('fake-scan'),
+        contentType: 'image/png',
+        budgetLimitUnits: 1000,
+      });
+      return { result: result as Result<unknown, ServiceError>, callCount };
+    },
+    classification: async (
+      db: Db,
+      ctx: { accountId: string; applicantId: string; versionId: string },
+    ) => {
+      const { ai, callCount } = countingStubClassifyAi();
+      await grantAiConsent(db, ctx.accountId);
+      const result = await runClassification(db, ai, {
+        actorAccountId: ctx.accountId,
+        applicantId: ctx.applicantId,
+        documentVersionId: ctx.versionId,
+        text: 'statement of account, opening balance, closing balance',
+        budgetLimitUnits: 1000,
+      });
+      return { result: result as Result<unknown, ServiceError>, callCount };
+    },
+    explanation: async (db: Db, ctx: { accountId: string }) => {
+      const { ai, callCount } = countingStubExplainAi();
+      const packRequirementId = await seedPackRequirement(db);
+      const result = await explainReadinessGap(db, ai, {
+        actorAccountId: ctx.accountId,
+        packRequirementId,
+        requirementKind: 'DOCUMENT',
+        requirementKey: 'BANK_STATEMENT',
+        state: 'CRITICAL_GAP',
+        citation: 'Route guide §4.2: proof of funds required.',
+        optional: false,
+        budgetLimitUnits: 1000,
+      });
+      return { result: result as Result<unknown, ServiceError>, callCount };
+    },
+    inconsistency: async (
+      db: Db,
+      ctx: { accountId: string; applicantId: string; versionId: string },
+    ) => {
+      const { ai, callCount } = countingStubInconsistencyAi();
+      await grantAiConsent(db, ctx.accountId);
+      const result = await runInconsistencyCheck(db, ai, {
+        actorAccountId: ctx.accountId,
+        applicantId: ctx.applicantId,
+        documentVersionId: ctx.versionId,
+        text: 'Name: Mohammed Rahman',
+        budgetLimitUnits: 1000,
+      });
+      return { result: result as Result<unknown, ServiceError>, callCount };
+    },
+  } as const;
+
+  for (const name of Object.keys(tasks) as (keyof typeof tasks)[]) {
+    it(`${name}: refuses with rate_limited once the actor's shared AI bucket is full, never calling the provider or spending budget`, async () => {
+      const { account, applicantId, versionId } = await seedVersion(db, `rl-${name}@example.com`);
+      await exhaustRateLimit(db, account.id, 'ai.run', RATE_LIMITS.AI_RUN);
+
+      const { result, callCount } = await tasks[name](db, {
+        accountId: account.id,
+        applicantId,
+        versionId,
+      });
+
+      expect(isErr(result)).toBe(true);
+      if (isOk(result)) return;
+      expect(result.error.code).toBe('rate_limited');
+      expect(result.error.message).toContain('AI');
+      expect(result.error.message).not.toContain('ai.run');
+      expect(callCount()).toBe(0);
+      expect(await totalAiCostUnits(db)).toBe(0);
+    });
+  }
+
+  it('is ONE bucket across tasks: an extraction and an OCR run by the same actor both count against the same counter', async () => {
+    const { account, applicantId, versionId } = await seedVersion(db, 'rl-shared@example.com');
+    const ctx = { accountId: account.id, applicantId, versionId };
+
+    expect(isOk((await tasks.extraction(db, ctx)).result)).toBe(true);
+    expect(isOk((await tasks.ocr(db, ctx)).result)).toBe(true);
+
+    expect(await aiBucketCount(account.id)).toBe(2);
+  });
+
+  it("another actor's AI runs are unaffected by this actor being limited", async () => {
+    const limited = await seedVersion(db, 'rl-limited@example.com');
+    const other = await seedVersion(db, 'rl-other@example.com');
+    await exhaustRateLimit(db, limited.account.id, 'ai.run', RATE_LIMITS.AI_RUN);
+
+    const refused = await tasks.extraction(db, {
+      accountId: limited.account.id,
+      applicantId: limited.applicantId,
+      versionId: limited.versionId,
+    });
+    expect(isErr(refused.result) && refused.result.error.code).toBe('rate_limited');
+    const allowed = await tasks.extraction(db, {
+      accountId: other.account.id,
+      applicantId: other.applicantId,
+      versionId: other.versionId,
+    });
+
+    expect(isOk(allowed.result)).toBe(true);
+  });
+
+  it('consent is checked before the limit: no consent still gets consent_required, and spends nothing', async () => {
+    const { account, applicantId, versionId } = await seedVersion(db, 'rl-noconsent@example.com');
+    await exhaustRateLimit(db, account.id, 'ai.run', RATE_LIMITS.AI_RUN);
+
+    const denied = await runExtraction(db, stubAi(), {
+      actorAccountId: account.id,
+      applicantId,
+      documentVersionId: versionId,
+      text: 'MRZ...',
+      budgetLimitUnits: 1000,
+    });
+
+    expect(isErr(denied) && denied.error.code).toBe('consent_required');
+  });
+
+  it('classification no-op refusals ("already confident") do not spend the allowance', async () => {
+    const { account, applicantId, versionId } = await seedVersion(
+      db,
+      'rl-classify-noop@example.com',
+    );
+    await grantAiConsent(db, account.id);
+    await seedExtractionRun(db, versionId);
+    const [existingRun] = await db
+      .select()
+      .from(schema.extractionRuns)
+      .where(eq(schema.extractionRuns.documentVersionId, versionId));
+    await db.insert(schema.documentClassifications).values({
+      extractionRunId: (existingRun as { id: string }).id,
+      documentVersionId: versionId,
+      classifiedType: 'PASSPORT',
+      confidence: 100,
+      reviewRequired: false,
+      rationale: 'valid TD3 MRZ',
+    });
+
+    const result = await runClassification(db, stubClassifyAi(), {
+      actorAccountId: account.id,
+      applicantId,
+      documentVersionId: versionId,
+      text: 'anything',
+      budgetLimitUnits: 1000,
+    });
+
+    expect(isErr(result) && result.error.code).toBe('invalid');
+    expect(await aiBucketCount(account.id)).toBeUndefined();
+  });
+
+  it('a cross-provider fallback inside one run is NOT counted a second time', async () => {
+    const { account, applicantId, versionId } = await seedVersion(db, 'rl-fallback@example.com');
+    await grantAiConsent(db, account.id);
+
+    const result = await runExtraction(
+      db,
+      stubAi({ ok: false, code: 'timeout', message: 'timed out' }),
+      {
+        actorAccountId: account.id,
+        applicantId,
+        documentVersionId: versionId,
+        text: 'MRZ text',
+        budgetLimitUnits: 1000,
+        fallback: { ai: fallbackStubAi() },
+      },
+    );
+
+    expect(isOk(result)).toBe(true);
+    // Two real provider attempts (primary + fallback) happened, but one user action: one count.
+    expect(await aiBucketCount(account.id)).toBe(1);
   });
 });

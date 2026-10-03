@@ -9,6 +9,7 @@ import { type ServiceError, serviceError } from './errors';
 import { generateInvitationToken, hashInvitationToken } from './invitation-tokens';
 import { createMission } from './missions';
 import { isOrgAdmin } from './organizations';
+import { RATE_LIMITS, checkRateLimits } from './rate-limit';
 import { acceptGrant, createGrant } from './sharing';
 
 /**
@@ -87,6 +88,26 @@ export async function createClientInvitation(
   if (contactDestination.length === 0) {
     return err(serviceError('invalid', 'a contact destination is required'));
   }
+
+  const rateLimit = await checkRateLimits(db, [
+    {
+      input: {
+        subjectId: input.actorAccountId,
+        action: 'client_invitation.create',
+        label: 'invitation',
+      },
+      config: RATE_LIMITS.CLIENT_INVITATION_CREATE,
+    },
+    {
+      input: {
+        subjectId: input.organizationId,
+        action: 'client_invitation.create.org',
+        label: 'invitation',
+      },
+      config: RATE_LIMITS.CLIENT_INVITATION_CREATE_ORG,
+    },
+  ]);
+  if (!rateLimit.allowed) return err(serviceError('rate_limited', rateLimit.reason));
 
   const rawToken = generateInvitationToken();
   const tokenHash = hashInvitationToken(rawToken);

@@ -4,6 +4,7 @@ import { appendAuditEvent } from './audit';
 import { type ConsentRecord, getConsents, listConsentHistory } from './consent';
 import { type Db, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
+import { RATE_LIMITS, checkRateLimit } from './rate-limit';
 
 /**
  * Account data export (Build Spec §13; PRD §2 — data portability; master
@@ -98,6 +99,16 @@ export async function exportAccount(
     await db.select().from(schema.accounts).where(eq(schema.accounts.id, input.accountId)).limit(1)
   )[0];
   if (!account) return err(serviceError('not_found', 'account not found'));
+
+  // A full account snapshot is the heaviest read in the product; it is already
+  // step-up gated (apps/web), this additionally bounds how often one account
+  // can trigger it.
+  const rateLimit = await checkRateLimit(
+    db,
+    { subjectId: input.actorAccountId, action: 'account.export', label: 'export' },
+    RATE_LIMITS.ACCOUNT_EXPORT,
+  );
+  if (!rateLimit.allowed) return err(serviceError('rate_limited', rateLimit.reason));
 
   const applicantRows = await db
     .select()

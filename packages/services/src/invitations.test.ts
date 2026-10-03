@@ -16,6 +16,8 @@ import {
   sweepAbandonedOrganizationInvitations,
 } from './invitations';
 import { createOrganization, isOrgAdmin } from './organizations';
+import { RATE_LIMITS } from './rate-limit';
+import { exhaustRateLimit } from './rate-limit.test-support';
 
 const migrationsFolder = fileURLToPath(new URL('../../db/migrations', import.meta.url));
 
@@ -43,6 +45,122 @@ describe('organization invitations - secure member invitations for a recipient w
     const created = await createOrganization(db, { actorAccountId: ownerId, name: 'Acme Visas' });
     if (!isOk(created)) throw new Error('org setup failed');
     orgId = created.value.id;
+  });
+
+  describe('rate limiting (Part 9 SEC-02)', () => {
+    const invite = (actorAccountId: string, organizationId: string, email: string) =>
+      createOrganizationInvitation(db, {
+        actorAccountId,
+        organizationId,
+        email,
+        role: 'CASE_MANAGER',
+      });
+
+    it('refuses with rate_limited once the actor has hit their invitation limit, and creates nothing', async () => {
+      await exhaustRateLimit(
+        db,
+        ownerId,
+        'org_invitation.create',
+        RATE_LIMITS.ORG_INVITATION_CREATE,
+      );
+
+      const result = await invite(ownerId, orgId, 'blocked@example.com');
+
+      expect(isErr(result)).toBe(true);
+      if (isOk(result)) return;
+      expect(result.error.code).toBe('rate_limited');
+      expect(await db.select().from(dbSchema.organizationInvitations)).toHaveLength(0);
+    });
+
+    it("refuses once the ORGANIZATION's shared bucket is full, even though this actor is under their own limit", async () => {
+      await exhaustRateLimit(
+        db,
+        orgId,
+        'org_invitation.create.org',
+        RATE_LIMITS.ORG_INVITATION_CREATE_ORG,
+      );
+
+      const result = await invite(ownerId, orgId, 'blocked@example.com');
+
+      expect(isErr(result)).toBe(true);
+      if (isOk(result)) return;
+      expect(result.error.code).toBe('rate_limited');
+    });
+
+    it("a refused actor does not spend the organization's shared bucket (one abusive admin cannot drain the rest of the org)", async () => {
+      await exhaustRateLimit(
+        db,
+        ownerId,
+        'org_invitation.create',
+        RATE_LIMITS.ORG_INVITATION_CREATE,
+      );
+
+      const refused = await invite(ownerId, orgId, 'blocked@example.com');
+      // Without this, the assertion below would also pass if nothing were limited at all.
+      expect(isErr(refused) && refused.error.code).toBe('rate_limited');
+
+      const orgBuckets = await db
+        .select()
+        .from(dbSchema.rateLimitBuckets)
+        .where(eq(dbSchema.rateLimitBuckets.subjectId, orgId));
+      expect(orgBuckets).toHaveLength(0);
+    });
+
+    it('limits the account-exists probe too: a refused call never reveals whether an email is already registered', async () => {
+      await account(db, 'already-registered@example.com');
+      await exhaustRateLimit(
+        db,
+        ownerId,
+        'org_invitation.create',
+        RATE_LIMITS.ORG_INVITATION_CREATE,
+      );
+
+      const result = await invite(ownerId, orgId, 'already-registered@example.com');
+
+      expect(isErr(result)).toBe(true);
+      if (isOk(result)) return;
+      // rate_limited, NOT the "already has a VisaStack account" refusal that would leak registration.
+      expect(result.error.code).toBe('rate_limited');
+      expect(result.error.message).not.toContain('account');
+    });
+
+    it("another organization's admin is unaffected by this actor being limited", async () => {
+      await exhaustRateLimit(
+        db,
+        ownerId,
+        'org_invitation.create',
+        RATE_LIMITS.ORG_INVITATION_CREATE,
+      );
+      const otherOwner = await account(db, 'other-owner@agency.example');
+      const otherOrg = await createOrganization(db, {
+        actorAccountId: otherOwner,
+        name: 'Other Agency',
+      });
+      if (!isOk(otherOrg)) throw new Error('org setup failed');
+
+      // The limited actor really is refused (so this is not vacuous)...
+      const limited = await invite(ownerId, orgId, 'blocked@example.com');
+      expect(isErr(limited) && limited.error.code).toBe('rate_limited');
+      // ...while an unrelated actor in an unrelated organization is not.
+      const result = await invite(otherOwner, otherOrg.value.id, 'fine@example.com');
+
+      expect(isOk(result)).toBe(true);
+    });
+
+    it('explains the refusal in plain language, never naming the internal action', async () => {
+      await exhaustRateLimit(
+        db,
+        ownerId,
+        'org_invitation.create',
+        RATE_LIMITS.ORG_INVITATION_CREATE,
+      );
+
+      const result = await invite(ownerId, orgId, 'blocked@example.com');
+
+      if (isOk(result)) throw new Error('expected a refusal');
+      expect(result.error.message).toContain('invitation');
+      expect(result.error.message).not.toContain('org_invitation');
+    });
   });
 
   describe('createOrganizationInvitation', () => {

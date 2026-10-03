@@ -61,7 +61,16 @@ export async function GET(
   }
   if ('redirect' in outcome) return Response.redirect(outcome.redirect, 302);
   const result = outcome.result;
-  if (!result.ok) return new Response(`export failed: ${result.error.message}`, { status: 403 });
+  if (!result.ok) {
+    // See the account export route: a rate-limit refusal is a 429, not a 403.
+    if (result.error.code === 'rate_limited') {
+      return new Response(result.error.message, {
+        status: 429,
+        headers: { 'Cache-Control': 'private, no-store' },
+      });
+    }
+    return new Response(`export failed: ${result.error.message}`, { status: 403 });
+  }
 
   const body = JSON.stringify(
     { organizationId: orgId, purpose, applicants: result.value },

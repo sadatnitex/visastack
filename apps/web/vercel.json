@@ -62,6 +62,10 @@
     {
       "path": "/api/jobs/process-legal-hold-reminders",
       "schedule": "20 5 * * *"
+    },
+    {
+      "path": "/api/jobs/process-rate-limit-prune",
+      "schedule": "30 5 * * *"
     }
   ]
 }

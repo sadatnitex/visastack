@@ -20,6 +20,7 @@ import type {
 import type { KeyManagementPort } from './ports';
 import { recordProductEvent } from './product-events';
 import { type EditFactResult, editFact, getCurrentFactVersion } from './profile';
+import { RATE_LIMITS, checkRateLimit } from './rate-limit';
 
 /**
  * AI Gateway (Build Spec §8; master directive §8/§26 item 4): extraction
@@ -283,6 +284,28 @@ export interface AiInconsistencyPort {
 
 function toPersistedConfidence(confidence: number): number {
   return Math.max(0, Math.min(100, Math.round(confidence * 100)));
+}
+
+/**
+ * Anti-automation limit shared by all five AI Gateway tasks (Part 9 §6:
+ * "Rate-limit: ... AI"). The budget, attempt and concurrency caps below bound
+ * SPEND; this bounds how fast one account can drive those paths at all (a
+ * script cycling many documents stays inside every per-document cap yet still
+ * hammers the provider). One bucket per actor across every task, so splitting
+ * the same abuse across tasks does not multiply the allowance. Called once per
+ * user-initiated run, before any reservation, and never again for the
+ * cross-provider fallback attempt inside that same run.
+ */
+async function aiRateLimitRefusal(
+  db: Db,
+  actorAccountId: string,
+): Promise<ServiceError | undefined> {
+  const decision = await checkRateLimit(
+    db,
+    { subjectId: actorAccountId, action: 'ai.run', label: 'AI' },
+    RATE_LIMITS.AI_RUN,
+  );
+  return decision.allowed ? undefined : serviceError('rate_limited', decision.reason);
 }
 
 /**
@@ -1412,6 +1435,9 @@ export async function runExtraction(
     return err(serviceError('consent_required', 'AI_EXTRACTION consent is required'));
   }
 
+  const rateLimited = await aiRateLimitRefusal(db, input.actorAccountId);
+  if (rateLimited) return err(rateLimited);
+
   const reservation = await reserveExtractionSlot(db, ai, input);
   if (reservation.kind === 'final') return reservation.outcome;
 
@@ -1848,6 +1874,12 @@ export async function runClassification(
   if (pending) {
     return err(serviceError('invalid', 'a classification suggestion is already pending review'));
   }
+
+  // After the no-op refusals above on purpose: re-clicking on an already
+  // classified or already pending document spends nothing, so it must not
+  // burn the actor's allowance either.
+  const rateLimited = await aiRateLimitRefusal(db, input.actorAccountId);
+  if (rateLimited) return err(rateLimited);
 
   const reservation = await reserveClassificationSlot(db, ai, input);
   if (reservation.kind === 'final') return reservation.outcome;
@@ -2419,6 +2451,9 @@ export async function runOcr(
     return err(serviceError('consent_required', 'AI_OCR consent is required'));
   }
 
+  const rateLimited = await aiRateLimitRefusal(db, input.actorAccountId);
+  if (rateLimited) return err(rateLimited);
+
   const reservation = await reserveOcrSlot(db, ai, input);
   if (reservation.kind === 'final') return reservation.outcome;
 
@@ -2773,6 +2808,12 @@ function computeExplanationCacheKey(
 }
 
 export interface RunExplanationInput extends AiExplainInput {
+  /**
+   * Who is asking. Explanation is not applicant- or document-scoped (so there is
+   * no ownership or consent check keyed on this), but it still spends provider
+   * budget, so the caller needs an identity to rate-limit against (Part 9 §6).
+   */
+  readonly actorAccountId: string;
   readonly packRequirementId: string;
   readonly budgetLimitUnits: number;
   readonly maxConcurrentCalls?: number;
@@ -2995,6 +3036,9 @@ export async function explainReadinessGap(
   ai: AiExplainPort,
   input: RunExplanationInput,
 ): Promise<Result<RunExplanationSummary, ServiceError>> {
+  const rateLimited = await aiRateLimitRefusal(db, input.actorAccountId);
+  if (rateLimited) return err(rateLimited);
+
   const reservation = await reserveExplanationSlot(db, ai, input);
   if (reservation.kind === 'final') return reservation.outcome;
 
@@ -3462,6 +3506,9 @@ export async function runInconsistencyCheck(
   if (!(await hasConsent(db, applicant.ownerAccountId, 'AI_EXTRACTION'))) {
     return err(serviceError('consent_required', 'AI_EXTRACTION consent is required'));
   }
+
+  const rateLimited = await aiRateLimitRefusal(db, input.actorAccountId);
+  if (rateLimited) return err(rateLimited);
 
   const reservation = await reserveInconsistencySlot(db, ai, input);
   if (reservation.kind === 'final') return reservation.outcome;

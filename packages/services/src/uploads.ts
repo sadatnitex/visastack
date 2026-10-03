@@ -13,6 +13,7 @@ import {
   loadUploadQuotaConfig,
   mbLabel,
 } from './quotas';
+import { RATE_LIMITS, checkRateLimit } from './rate-limit';
 import type { BlobStore } from './storage';
 
 /**
@@ -94,6 +95,18 @@ export async function reserveUpload(
       serviceError('invalid', `file exceeds the ${mbLabel(config.maxUploadBytes)} upload limit`),
     );
   }
+
+  // Counts reservation attempts, not finished uploads: an attacker (or a
+  // runaway client) hammering this is exactly what the byte quotas below do
+  // not stop, since a rejected or abandoned reservation stores nothing. Runs
+  // outside the transaction on purpose, so a refused attempt never takes the
+  // platform-wide advisory lock that serializes every real reservation.
+  const rateLimit = await checkRateLimit(
+    db,
+    { subjectId: input.accountId, action: 'upload.reserve', label: 'upload' },
+    RATE_LIMITS.UPLOAD_RESERVE,
+  );
+  if (!rateLimit.allowed) return err(serviceError('rate_limited', rateLimit.reason));
 
   return db.transaction(async (tx) => {
     // Fixed, well-known key: serializes ALL upload reservations platform-wide

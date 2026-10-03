@@ -8,6 +8,7 @@ import { checkInvitationEntitlement, checkSeatEntitlement } from './entitlement-
 import { type ServiceError, serviceError } from './errors';
 import { generateInvitationToken, hashInvitationToken } from './invitation-tokens';
 import { isOrgAdmin } from './organizations';
+import { RATE_LIMITS, checkRateLimits } from './rate-limit';
 
 /**
  * Secure organization member invitations (Commercial V1 Part 4 §5): lets an
@@ -56,6 +57,30 @@ export async function createOrganizationInvitation(
   }
   const email = input.email.trim().toLowerCase();
   if (email.length === 0) return err(serviceError('invalid', 'email is required'));
+
+  // Checked BEFORE the account lookup below, deliberately: that lookup tells
+  // the caller whether an email is already registered, an account-enumeration
+  // oracle an org admin could otherwise probe at any speed. Actor first, then
+  // the organization's shared bucket (see `checkRateLimits`).
+  const rateLimit = await checkRateLimits(db, [
+    {
+      input: {
+        subjectId: input.actorAccountId,
+        action: 'org_invitation.create',
+        label: 'invitation',
+      },
+      config: RATE_LIMITS.ORG_INVITATION_CREATE,
+    },
+    {
+      input: {
+        subjectId: input.organizationId,
+        action: 'org_invitation.create.org',
+        label: 'invitation',
+      },
+      config: RATE_LIMITS.ORG_INVITATION_CREATE_ORG,
+    },
+  ]);
+  if (!rateLimit.allowed) return err(serviceError('rate_limited', rateLimit.reason));
 
   const existingAccount = await getAccountByEmail(db, email);
   if (existingAccount) {

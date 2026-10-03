@@ -857,9 +857,13 @@ export {
 export {
   type CheckRateLimitInput,
   RATE_LIMITS,
+  RATE_LIMIT_BUCKET_RETENTION_MS,
+  type RateLimitCheck,
   type RateLimitConfig,
   type RateLimitDecision,
   checkRateLimit,
+  checkRateLimits,
+  pruneExpiredRateLimitBuckets,
 } from './rate-limit';
 
 export {

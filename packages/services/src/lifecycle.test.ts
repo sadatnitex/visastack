@@ -25,6 +25,8 @@ import { placeLegalHold } from './legal-hold';
 import { createMission } from './missions';
 import { grantPlatformRole } from './platform-roles';
 import { editFact, registerFieldDefinition } from './profile';
+import { RATE_LIMITS } from './rate-limit';
+import { exhaustRateLimit } from './rate-limit.test-support';
 import type {
   BlobStore,
   ListObjectsPage,
@@ -131,6 +133,48 @@ describe('account export', () => {
     });
     expect(isErr(result)).toBe(true);
     if (isErr(result)) expect(result.error.code).toBe('forbidden');
+  });
+
+  describe('rate limiting (Part 9 SEC-02)', () => {
+    it('refuses with rate_limited once the account has hit its export limit', async () => {
+      const { account } = await seedFullAccount(db, 'exp-limited@example.com');
+      await exhaustRateLimit(db, account.id, 'account.export', RATE_LIMITS.ACCOUNT_EXPORT);
+
+      const result = await exportAccount(db, { actorAccountId: account.id, accountId: account.id });
+
+      expect(isErr(result)).toBe(true);
+      if (isOk(result)) return;
+      expect(result.error.code).toBe('rate_limited');
+      expect(result.error.message).toContain('export');
+    });
+
+    it('authorization comes first: exporting someone else is forbidden even when the actor is rate limited', async () => {
+      const { account } = await seedFullAccount(db, 'exp-target@example.com');
+      const other = await provisionAccount(db, { email: 'exp-intruder@example.com' });
+      if (!isOk(other)) throw new Error('provision');
+      await exhaustRateLimit(db, other.value.id, 'account.export', RATE_LIMITS.ACCOUNT_EXPORT);
+
+      const result = await exportAccount(db, {
+        actorAccountId: other.value.id,
+        accountId: account.id,
+      });
+
+      expect(isErr(result) && result.error.code).toBe('forbidden');
+    });
+
+    it('a successful export counts against the limit', async () => {
+      const { account } = await seedFullAccount(db, 'exp-counted@example.com');
+
+      const result = await exportAccount(db, { actorAccountId: account.id, accountId: account.id });
+      expect(isOk(result)).toBe(true);
+
+      const [bucket] = await db
+        .select()
+        .from(schema.rateLimitBuckets)
+        .where(eq(schema.rateLimitBuckets.subjectId, account.id));
+      expect(bucket?.action).toBe('account.export');
+      expect(bucket?.count).toBe(1);
+    });
   });
 
   it('manifest counts match the actual exported data exactly, and honestly lists known gaps (PRV-04, Part 7 §14: "manifest")', async () => {
