@@ -3669,6 +3669,33 @@ item gets its own requirements-ledger row once classified against the new direct
     77/77 (7 new). Repo-wide typecheck and Biome both verified clean; not
     verified in a live browser (sandbox limitation, same as every prior UI
     chunk this session).
+    **Chunk 32 (2026-10-03, SEC-07) -- first real CI signal in days, and the
+    two genuine defects it surfaced.** The multi-day GitHub Actions outage
+    (jobs dying in ~2s with `runner_id: 0`) cleared; a one-time re-run of
+    PR #157's CI got a real runner for the first time since 2026-09-28 and
+    failed at "Audit production dependencies" (which also skipped lint,
+    build, typecheck and test behind it). Two separate problems, both fixed:
+    (1) A NEW advisory set (published after Part 1's clean audit) hit
+    `undici` via `@vercel/blob`: GHSA-rfgv-xxqx-mfg5 (high), GHSA-3wwx-pv8p-q78v
+    (moderate), GHSA-r53p-7pc4-xj5r (low), all fixed at undici >=6.28.1. The
+    root `pnpm.overrides` floor (set to >=6.28.0 in Part 1) was raised to
+    >=6.28.1 <7.0.0 (keeping the <7 ceiling: `@vercel/blob` declares
+    `^6.23.0`); the lockfile diff is exactly undici 6.28.0 -> 6.29.0 and
+    nothing else. `pnpm audit --prod`: 0 known vulnerabilities, reproduced
+    failing before and passing after. (2) Unformatted `packages/db` files
+    that CI's `pnpm run lint` (`biome check .`) would have rejected: the
+    `0079`-`0082` drizzle snapshots, `_journal.json`, and `schema.ts`.
+    Cause, stated plainly: earlier chunks ran Biome only on the touched
+    services/adapters/web TypeScript files and never on `packages/db`'s
+    generated JSON or `schema.ts`, and the outage was hiding the gap. Fixed
+    with formatting only, proven not to change meaning (the four existing
+    JSON files parse to identical objects versus HEAD; `schema.ts` differs by
+    one expression collapsed onto one line). Standing rule going forward:
+    after any `db:generate`, run Biome over `packages/db/migrations/meta` and
+    `schema.ts`, and run repo-wide `biome check .` (what CI runs), not just
+    touched files, before every push. Verified locally: repo-wide Biome 511
+    files clean, typecheck 7/7, adapters 321 passed (2 pre-existing skips),
+    db 29 passed (1 pre-existing skip), production build clean.
 independently confirmed findings; the missing PRD file is tracked as Blocker 1 in
 `assumptions-and-blockers.md` (now resolved) rather than here, since it blocked the
 programme rather than being a product defect.

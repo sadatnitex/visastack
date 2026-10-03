@@ -1211,10 +1211,7 @@ export const documentInconsistencyFlags = pgTable(
   },
   (table) => [
     index('document_inconsistency_flags_document_version_idx').on(table.documentVersionId),
-    index('document_inconsistency_flags_applicant_status_idx').on(
-      table.applicantId,
-      table.status,
-    ),
+    index('document_inconsistency_flags_applicant_status_idx').on(table.applicantId, table.status),
   ],
 );
 
