@@ -121,7 +121,7 @@ export async function requestEvidenceAction(
   });
 
   if (result.ok) {
-    revalidatePath(`/app/agency/${organizationId}`);
+    revalidatePath(`/app/agency/${organizationId}`, 'layout');
     // NTF-02/§3: "event enqueue <=60 seconds" -- near-instant delivery for
     // the common case; the periodic cron sweep is the durability backstop.
     after(() => triggerNotificationWorker());
@@ -144,7 +144,7 @@ export async function startEvidenceReviewAction(
     if (!started.ok) return { ok: false, message: started.error.message } satisfies ActionState;
     return { ok: true, message: 'Marked under review.' } satisfies ActionState;
   });
-  if (result.ok) revalidatePath(`/app/agency/${organizationId}`);
+  if (result.ok) revalidatePath(`/app/agency/${organizationId}`, 'layout');
   return result;
 }
 
@@ -198,7 +198,7 @@ export async function decideEvidenceResponseAction(
     if (!decided.ok) return { ok: false, message: decided.error.message } satisfies ActionState;
     return { ok: true, message: EVIDENCE_OUTCOME_MESSAGES[outcome] } satisfies ActionState;
   });
-  if (result.ok) revalidatePath(`/app/agency/${organizationId}`);
+  if (result.ok) revalidatePath(`/app/agency/${organizationId}`, 'layout');
   return result;
 }
 
@@ -222,7 +222,7 @@ export async function cancelEvidenceRequestAction(
     if (!cancelled.ok) return { ok: false, message: cancelled.error.message } satisfies ActionState;
     return { ok: true, message: 'Request cancelled.' } satisfies ActionState;
   });
-  if (result.ok) revalidatePath(`/app/agency/${organizationId}`);
+  if (result.ok) revalidatePath(`/app/agency/${organizationId}`, 'layout');
   return result;
 }
 
@@ -266,7 +266,7 @@ export async function addMemberAction(
       message: `No account yet for ${memberEmail}. Share this link (expires in 7 days): ${acceptUrl}`,
     } satisfies ActionState;
   });
-  if (result.ok) revalidatePath(`/app/agency/${organizationId}`);
+  if (result.ok) revalidatePath(`/app/agency/${organizationId}`, 'layout');
   return result;
 }
 
@@ -287,7 +287,7 @@ export async function revokeInvitationAction(
     if (!revoked.ok) return { ok: false, message: revoked.error.message } satisfies ActionState;
     return { ok: true, message: 'Invitation revoked.' } satisfies ActionState;
   });
-  if (result.ok) revalidatePath(`/app/agency/${organizationId}`);
+  if (result.ok) revalidatePath(`/app/agency/${organizationId}`, 'layout');
   return result;
 }
 
@@ -332,7 +332,7 @@ export async function inviteClientAction(
       message: `Invitation created for ${displayName}. Share this link (expires in 7 days): ${acceptUrl}`,
     } satisfies ActionState;
   });
-  if (result.ok) revalidatePath(`/app/agency/${organizationId}`);
+  if (result.ok) revalidatePath(`/app/agency/${organizationId}`, 'layout');
   return result;
 }
 
@@ -353,7 +353,7 @@ export async function revokeClientInvitationAction(
     if (!revoked.ok) return { ok: false, message: revoked.error.message } satisfies ActionState;
     return { ok: true, message: 'Invitation revoked.' } satisfies ActionState;
   });
-  if (result.ok) revalidatePath(`/app/agency/${organizationId}`);
+  if (result.ok) revalidatePath(`/app/agency/${organizationId}`, 'layout');
   return result;
 }
 
@@ -381,7 +381,7 @@ export async function assignMemberAction(
     if (!assigned.ok) return { ok: false, message: assigned.error.message } satisfies ActionState;
     return { ok: true, message: 'Member assigned.' } satisfies ActionState;
   });
-  if (result.ok) revalidatePath(`/app/agency/${organizationId}`);
+  if (result.ok) revalidatePath(`/app/agency/${organizationId}`, 'layout');
   return result;
 }
 
@@ -411,7 +411,7 @@ export async function unassignMemberAction(
     }
     return { ok: true, message: 'Member unassigned.' } satisfies ActionState;
   });
-  if (result.ok) revalidatePath(`/app/agency/${organizationId}`);
+  if (result.ok) revalidatePath(`/app/agency/${organizationId}`, 'layout');
   return result;
 }
 
@@ -448,7 +448,7 @@ export async function createTaskForOrgAction(
     if (!task.ok) return { ok: false, message: task.error.message } satisfies ActionState;
     return { ok: true, message: 'Task added.' } satisfies ActionState;
   });
-  if (result.ok) revalidatePath(`/app/agency/${organizationId}`);
+  if (result.ok) revalidatePath(`/app/agency/${organizationId}`, 'layout');
   return result;
 }
 
@@ -477,7 +477,7 @@ export async function updateTaskForOrgAction(
     if (!updated.ok) return { ok: false, message: updated.error.message } satisfies ActionState;
     return { ok: true, message: 'Task reassigned.' } satisfies ActionState;
   });
-  if (result.ok) revalidatePath(`/app/agency/${organizationId}`);
+  if (result.ok) revalidatePath(`/app/agency/${organizationId}`, 'layout');
   return result;
 }
 
@@ -509,7 +509,7 @@ export async function decideTaskForOrgAction(
       message: `Task ${status.toLowerCase().replace('_', ' ')}.`,
     } satisfies ActionState;
   });
-  if (result.ok) revalidatePath(`/app/agency/${organizationId}`);
+  if (result.ok) revalidatePath(`/app/agency/${organizationId}`, 'layout');
   return result;
 }
 
@@ -553,7 +553,7 @@ export async function createAppointmentForOrgAction(
     }
     return { ok: true, message: 'Appointment scheduled.' } satisfies ActionState;
   });
-  if (result.ok) revalidatePath(`/app/agency/${organizationId}`);
+  if (result.ok) revalidatePath(`/app/agency/${organizationId}`, 'layout');
   return result;
 }
 
@@ -585,7 +585,7 @@ export async function decideAppointmentForOrgAction(
       message: status === 'DONE' ? 'Appointment completed.' : 'Appointment cancelled.',
     } satisfies ActionState;
   });
-  if (result.ok) revalidatePath(`/app/agency/${organizationId}`);
+  if (result.ok) revalidatePath(`/app/agency/${organizationId}`, 'layout');
   return result;
 }
 
@@ -616,7 +616,7 @@ export async function addNoteAction(_prev: ActionState, formData: FormData): Pro
     if (!note.ok) return { ok: false, message: note.error.message } satisfies ActionState;
     return { ok: true, message: 'Note added.' } satisfies ActionState;
   });
-  if (result.ok) revalidatePath(`/app/agency/${organizationId}`);
+  if (result.ok) revalidatePath(`/app/agency/${organizationId}`, 'layout');
   return result;
 }
 
@@ -648,7 +648,7 @@ export async function recordDecisionAction(
     return { ok: true, message: `Decision recorded: ${outcome}.` } satisfies ActionState;
   });
   if (result.ok) {
-    revalidatePath(`/app/agency/${organizationId}`);
+    revalidatePath(`/app/agency/${organizationId}`, 'layout');
     after(() => triggerNotificationWorker());
   }
   return result;
@@ -713,7 +713,7 @@ export async function recordIssuerVerificationAction(
     if (!recorded.ok) return { ok: false, message: recorded.error.message } satisfies ActionState;
     return { ok: true, message: 'Issuer confirmation recorded.' } satisfies ActionState;
   });
-  if (result.ok) revalidatePath(`/app/agency/${organizationId}`);
+  if (result.ok) revalidatePath(`/app/agency/${organizationId}`, 'layout');
   return result;
 }
 
@@ -742,7 +742,7 @@ export async function toggleMemberAction(
       message: active ? 'Member reactivated.' : 'Member deactivated.',
     } satisfies ActionState;
   });
-  if (result.ok) revalidatePath(`/app/agency/${organizationId}`);
+  if (result.ok) revalidatePath(`/app/agency/${organizationId}`, 'layout');
   return result;
 }
 
@@ -767,7 +767,7 @@ export async function setRequireDifferentReviewerAction(
         : 'Reviewer restriction turned off.',
     } satisfies ActionState;
   });
-  if (result.ok) revalidatePath(`/app/agency/${organizationId}`);
+  if (result.ok) revalidatePath(`/app/agency/${organizationId}`, 'layout');
   return result;
 }
 
@@ -789,7 +789,7 @@ export async function updateBrandingAction(
     if (!updated.ok) return { ok: false, message: updated.error.message } satisfies ActionState;
     return { ok: true, message: 'Branding updated.' } satisfies ActionState;
   });
-  if (result.ok) revalidatePath(`/app/agency/${organizationId}`);
+  if (result.ok) revalidatePath(`/app/agency/${organizationId}`, 'layout');
   return result;
 }
 
@@ -816,7 +816,7 @@ export async function uploadLogoAction(
     if (!uploaded.ok) return { ok: false, message: uploaded.error.message } satisfies ActionState;
     return { ok: true, message: 'Logo updated.' } satisfies ActionState;
   });
-  if (result.ok) revalidatePath(`/app/agency/${organizationId}`);
+  if (result.ok) revalidatePath(`/app/agency/${organizationId}`, 'layout');
   return result;
 }
 
@@ -835,6 +835,6 @@ export async function removeLogoAction(
     if (!removed.ok) return { ok: false, message: removed.error.message } satisfies ActionState;
     return { ok: true, message: 'Logo removed.' } satisfies ActionState;
   });
-  if (result.ok) revalidatePath(`/app/agency/${organizationId}`);
+  if (result.ok) revalidatePath(`/app/agency/${organizationId}`, 'layout');
   return result;
 }

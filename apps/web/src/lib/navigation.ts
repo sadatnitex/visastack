@@ -53,6 +53,52 @@ export function applicantTabs(applicantId: string): readonly NavLink[] {
   ];
 }
 
+/**
+ * The sections of one agency's console (directive Part 9 section 1: Dashboard,
+ * Clients, Cases, Team, Usage/Billing, Settings). Clients, Team and Settings are
+ * administrator work, so a member who is not an administrator sees only the
+ * sections they can use. The route for Usage & billing stays `plan`.
+ */
+export function agencyTabs(orgId: string, access: { readonly admin: boolean }): readonly NavLink[] {
+  const base = `/app/agency/${orgId}`;
+  const tabs: readonly (NavLink & { readonly adminOnly?: true })[] = [
+    { href: base, label: 'Dashboard', exact: true },
+    { href: `${base}/clients`, label: 'Clients', adminOnly: true },
+    { href: `${base}/cases`, label: 'Cases' },
+    { href: `${base}/team`, label: 'Team', adminOnly: true },
+    { href: `${base}/plan`, label: 'Usage & billing' },
+    { href: `${base}/settings`, label: 'Settings', adminOnly: true },
+  ];
+  return tabs
+    .filter((tab) => access.admin || !tab.adminOnly)
+    .map(({ adminOnly: _adminOnly, ...link }) => link);
+}
+
+/**
+ * The sections of platform administration (directive Part 9 section 1:
+ * Organizations, Rules, AI, Operations, Privacy, Audit), in that order. Operations
+ * is the landing page (`/app/admin`) and so matches only its own path. "Access"
+ * (platform roles and pilot access) and "Complaints" are real, shipped areas the
+ * directive's list does not name, kept as tabs rather than hidden. AI and
+ * Complaints show only to an administrator who may use them, so no tab leads to a
+ * refusal. The product spells it "Organizations" everywhere.
+ */
+export function platformTabs(access: {
+  readonly ai: boolean;
+  readonly complaints: boolean;
+}): readonly NavLink[] {
+  return [
+    { href: '/app/admin/organizations', label: 'Organizations' },
+    { href: '/app/admin/packs', label: 'Rules' },
+    ...(access.ai ? [{ href: '/app/admin/ai-settings', label: 'AI' }] : []),
+    { href: '/app/admin', label: 'Operations', exact: true },
+    { href: '/app/admin/privacy', label: 'Privacy' },
+    { href: '/app/admin/audit', label: 'Audit' },
+    { href: '/app/admin/access', label: 'Access' },
+    ...(access.complaints ? [{ href: '/app/admin/complaints', label: 'Complaints' }] : []),
+  ];
+}
+
 function stripTrailingSlash(path: string): string {
   return path.length > 1 && path.endsWith('/') ? path.slice(0, -1) : path;
 }
