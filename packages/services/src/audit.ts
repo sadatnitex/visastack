@@ -118,6 +118,61 @@ export async function appendAuditEvent(tx: Db, input: AuditEventInput): Promise<
   return row;
 }
 
+/** The field map the chain hash covers, rebuilt from a stored row. */
+function hashedFieldsOfRow(row: AuditEventRow): Record<string, AuditFieldValue> {
+  return hashedFields({
+    eventType: row.eventType,
+    actorAccountId: row.actorAccountId,
+    actorRole: row.actorRole,
+    action: row.action,
+    result: row.result,
+    method: row.method,
+    applicantId: row.applicantId,
+    resourceType: row.resourceType,
+    resourceId: row.resourceId,
+    missionId: row.missionId,
+    grantId: row.grantId,
+    reason: row.reason,
+    metadata: row.metadata as Record<string, unknown> | null,
+  });
+}
+
+export interface AuditChainCheck {
+  /** How many of the newest events were examined. */
+  readonly checked: number;
+  /** The sequence number of the first event whose `prevHash` is not the event before it, or `null`. */
+  readonly firstBrokenLinkSeq: number | null;
+  /** Events whose stored hash does not match a recomputation from their own fields. */
+  readonly hashMismatches: number;
+}
+
+/**
+ * Checks the newest `limit` audit events (OPS-03 "audit failures"). A broken link
+ * means an event was removed, inserted or reordered. A hash mismatch means an
+ * event's fields differ from what was hashed, which is tampering or, less
+ * seriously, a metadata value that does not survive a JSON round trip the way it
+ * was hashed; the two are reported separately so a serialisation quirk cannot be
+ * mistaken for a missing event.
+ */
+export async function checkRecentAuditChain(db: Db, limit = 500): Promise<AuditChainCheck> {
+  const newestFirst = await db
+    .select()
+    .from(schema.auditEvents)
+    .orderBy(desc(schema.auditEvents.seq))
+    .limit(limit);
+  const rows = [...newestFirst].reverse();
+  let firstBrokenLinkSeq: number | null = null;
+  let hashMismatches = 0;
+  rows.forEach((row, index) => {
+    const before = rows[index - 1];
+    if (before && row.prevHash !== before.hash && firstBrokenLinkSeq === null) {
+      firstBrokenLinkSeq = row.seq;
+    }
+    if (computeAuditHash(hashedFieldsOfRow(row), row.prevHash) !== row.hash) hashMismatches++;
+  });
+  return { checked: rows.length, firstBrokenLinkSeq, hashMismatches };
+}
+
 /**
  * Most recent audit events, platform-wide (master directive §7 "PR 7" —
  * platform admin nav's "Audit" destination). Read-only; callers are

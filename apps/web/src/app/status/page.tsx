@@ -128,9 +128,10 @@ export default function StatusPage() {
           System status
         </h1>
         <p className="section-sub" style={{ margin: 0 }}>
-          Polled directly from production health probes. Liveness reports the process; readiness
-          reports configuration, database connectivity, and whether migrations are applied — never
-          any secret value.
+          Polled directly from production health probes. Liveness reports the process. Readiness
+          gives one verdict, ready or degraded, that already accounts for configuration, database
+          connectivity and whether every migration is applied; the breakdown behind it is shown to
+          administrators only, and no secret value or setting name is ever public.
         </p>
       </div>
 

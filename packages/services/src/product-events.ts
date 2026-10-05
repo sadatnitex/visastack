@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { MISSION_STATES } from '@visastack/core';
 import { and, eq, gte, inArray, isNotNull, sql } from 'drizzle-orm';
 import { type Db, schema } from './db';
+import { redactErrorMessage } from './error-report';
 
 /**
  * Product events (Build Spec §14/§23-25; Commercial V1 OPS-04, directive Part 9
@@ -153,7 +154,9 @@ function invalidReason(input: RecordProductEventInput): string | null {
 /** Messages already logged by this process, so a systemic fault logs once rather than per event. */
 const reportedFailures = new Set<string>();
 
-function reportFailure(eventType: string, message: string): void {
+function reportFailure(eventType: string, rawMessage: string): void {
+  // A failed insert's error text ends with the values it tried to store.
+  const message = redactErrorMessage(rawMessage);
   const key = `${eventType}:${message}`;
   if (reportedFailures.has(key)) return;
   reportedFailures.add(key);

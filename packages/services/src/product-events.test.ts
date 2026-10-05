@@ -300,6 +300,22 @@ describe('recordProductEvent -- never in the way of the action it describes', ()
     expect(isOk(result)).toBe(true);
   });
 
+  it('writes none of the values it failed to store into the log', async () => {
+    await behindSchema();
+    const organizationId = '5d0c1f4e-2a3b-4c5d-8e9f-0a1b2c3d4e5f';
+    await recordProductEvent(db, {
+      eventType: 'OUTCOME_RECORDED',
+      accountId: null,
+      organizationId,
+      dimension: 'APPROVED',
+    });
+    expect(errorLog).toHaveBeenCalledTimes(1);
+    const written = String(errorLog.mock.calls[0]?.[0]);
+    expect(written).toContain('[product-events]');
+    expect(written).not.toContain(organizationId);
+    expect(written).not.toContain('APPROVED');
+  });
+
   it('reports a systemic failure once, not once per event', async () => {
     await behindSchema();
     for (let i = 0; i < 5; i++) {

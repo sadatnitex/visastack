@@ -6,6 +6,7 @@ import {
   verifyDocumentAccessToken,
 } from '@visastack/services';
 import { createPreviewRenderer } from '../../../../lib/providers';
+import { reportRenderFailure } from '../../../../lib/server-error';
 import { createStorage } from '../../../../lib/storage';
 import { blobResponseHeaders } from './headers';
 import { previewFilename } from './preview-filename';
@@ -135,6 +136,7 @@ export async function GET(
   const renderer = createPreviewRenderer();
   const rendered = await renderer.render({ bytes: object.bytes, contentType: object.contentType });
   if (!rendered.rendered) {
+    reportRenderFailure(object.contentType);
     return new Response(`redacted rendition not available: ${rendered.detail}`, { status: 501 });
   }
 

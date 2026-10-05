@@ -13,6 +13,7 @@ import {
 import { withAuth } from '@workos-inc/authkit-nextjs';
 import { redirect } from 'next/navigation';
 import { checkPilotAccess } from './pilot-access';
+import { reportServerError } from './server-error';
 import { enforceSessionAgeLimit, isStaffContext } from './session-age';
 
 /**
@@ -52,10 +53,9 @@ async function releaseClaimBestEffort(db: Db, invitationId: string): Promise<voi
   try {
     await releaseInvitationClaim(db, invitationId);
   } catch (error) {
-    console.error(
-      '[withSession] failed to release invitation claim after a failed provision',
-      error,
-    );
+    reportServerError('withSession', error, {
+      step: 'failed to release invitation claim after a failed provision',
+    });
   }
 }
 
@@ -94,7 +94,7 @@ export async function withSession<T>(
   // digest with nothing actionable in the logs. Swallowing it here keeps the
   // request's own error handling (below) authoritative.
   pool.on('error', (error) => {
-    console.error('[withSession] idle pool connection error', error);
+    reportServerError('withSession', error, { step: 'idle pool connection error' });
   });
   const handle = db as unknown as Db;
   try {
@@ -181,7 +181,7 @@ export async function withSession<T>(
     // actual message (DB connectivity, a failing query, a WorkOS refresh) is
     // invisible. This is the single log line that turns a digest into a
     // diagnosis.
-    console.error('[withSession] failed for', subjectRef(user.email), '—', error);
+    reportServerError('withSession', error, { subject: subjectRef(user.email) });
     throw error;
   } finally {
     await pool.end();

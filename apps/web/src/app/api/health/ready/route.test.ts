@@ -68,6 +68,7 @@ afterEach(() => {
     else setEnv(key, original);
   }
   vi.doUnmock('@visastack/db');
+  vi.unstubAllEnvs();
   vi.resetModules();
 });
 
@@ -79,12 +80,19 @@ function lookup(record: Record<string, string | undefined>, key: string): string
 function mockDb(overrides: {
   checkConnection?: () => Promise<boolean>;
   isSchemaApplied?: () => Promise<boolean>;
+  getMigrationStatus?: () => Promise<{
+    expected: number;
+    applied: number;
+    pending: string[];
+  }>;
 }): void {
   vi.doMock('@visastack/db', () => ({
     DATABASE_URL_ENV_CANDIDATES: ['DATABASE_URL'],
     createNeonDb: () => ({}),
     checkConnection: overrides.checkConnection ?? (async () => true),
     isSchemaApplied: overrides.isSchemaApplied ?? (async () => true),
+    getMigrationStatus:
+      overrides.getMigrationStatus ?? (async () => ({ expected: 3, applied: 3, pending: [] })),
     resolveDatabaseUrl: (env: Record<string, string | undefined>) => lookup(env, 'DATABASE_URL'),
   }));
 }
@@ -297,4 +305,78 @@ describe('GET /api/health/ready — honest health (200 vs 503)', () => {
       expect(text).not.toContain('externalPenetrationTest');
     });
   });
+});
+
+describe('GET /api/health/ready: migration drift and what a public probe may reveal (OPS-03)', () => {
+  it('is degraded, not ready, while the database lacks migrations this build ships', async () => {
+    mockDb({
+      getMigrationStatus: async () => ({
+        expected: 84,
+        applied: 79,
+        pending: ['0079_a', '0080_b', '0081_c', '0082_d', '0083_e'],
+      }),
+    });
+    const { GET } = await import('./route');
+    const res = await GET();
+    expect(res.status).toBe(503);
+    const body = await res.json();
+    expect(body.status).toBe('degraded');
+    // The local breakdown names them so a developer can act.
+    expect(body.migrations).toMatchObject({ checked: true, pending: expect.any(Array) });
+  }, 15_000);
+
+  it('does not fail readiness merely because the drift check itself could not run', async () => {
+    mockDb({
+      getMigrationStatus: async () => {
+        throw new Error('permission denied for schema drizzle');
+      },
+    });
+    const { GET } = await import('./route');
+    const res = await GET();
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.migrations).toEqual({ checked: false });
+  }, 15_000);
+
+  it('reveals nothing but the coarse verdict on any deployed build, even one still classed as development (a public PR preview)', async () => {
+    vi.stubEnv('NODE_ENV', 'production');
+    setEnv('MALWARE_SCANNER_PROVIDER', 'windows-defender');
+    mockDb({
+      getMigrationStatus: async () => ({
+        expected: 84,
+        applied: 79,
+        pending: ['0080_secret_looking_name'],
+      }),
+    });
+    const { GET } = await import('./route');
+    const res = await GET();
+    const text = await res.text();
+    const body = JSON.parse(text);
+    expect(body.status).toBe('degraded');
+    expect(body.deploymentMode).toBe('development');
+    for (const hidden of ['env', 'db', 'migrations', 'providers', 'capabilities']) {
+      expect(body, hidden).not.toHaveProperty(hidden);
+    }
+    // No configuration name, secret name, provider detail or migration name reaches a stranger.
+    for (const leaked of [
+      'WORKOS_API_KEY',
+      'WORKOS_COOKIE_PASSWORD',
+      'DATABASE_URL',
+      'MALWARE_SCANNER_PROVIDER',
+      'BLOB_SIGNING_SECRET',
+      'CRON_SECRET',
+      '0080_secret_looking_name',
+    ]) {
+      expect(text, leaked).not.toContain(leaked);
+    }
+  }, 15_000);
+
+  it('reveals the breakdown on a local run, where it is the developer who is asking', async () => {
+    vi.stubEnv('NODE_ENV', 'development');
+    mockDb({});
+    const { GET } = await import('./route');
+    const body = await (await GET()).json();
+    expect(body.env.workos.WORKOS_API_KEY).toBe(true);
+    expect(body.db).toEqual({ connected: true, schemaApplied: true });
+  }, 15_000);
 });

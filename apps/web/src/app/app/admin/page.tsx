@@ -1,6 +1,9 @@
+import { getMigrationStatus } from '@visastack/db';
 import {
   type AuditEventRow,
+  type OperationalSignal,
   type ProductEventType,
+  collectOperationalSignals,
   documentsPastRetention,
   getPilotScorecard,
   getPlatformEvidenceBytes,
@@ -24,6 +27,8 @@ import { aiWarningLimitUnits, defaultAiLimits, resolveAiLimits, unitsToUsd } fro
 import { formatDuration, formatMinorUnits, humanizeLabel } from '../../../lib/analytics-format';
 import { evaluateCommercialReadiness } from '../../../lib/commercial-readiness';
 import { getDeploymentMode } from '../../../lib/deployment-mode';
+import { SHIPPED_MIGRATIONS } from '../../../lib/migration-journal';
+import { evaluateReadiness } from '../../../lib/readiness';
 import { withSession } from '../../../lib/session';
 import { tolerate } from '../../../lib/tolerate';
 import { UsageMeter } from '../applicant/[id]/usage-meter';
@@ -80,6 +85,22 @@ const SCORECARD_LABELS: Record<ProductEventType, string> = {
   PLAN_CHANGED: 'Plan changes',
   PLAN_LIMIT_REACHED: 'Plan limits reached',
   CASH_COLLECTED: 'Cash collections recorded',
+};
+
+const SIGNAL_STATUS_LABEL: Record<OperationalSignal['status'], string> = {
+  ok: 'OK',
+  warning: 'Warning',
+  critical: 'Critical',
+  not_measured: 'Not measured',
+  not_built: 'Not built',
+};
+
+const SIGNAL_STATUS_TONE: Record<OperationalSignal['status'], string> = {
+  ok: 'badge-success',
+  warning: 'badge-warning',
+  critical: 'badge-danger',
+  not_measured: 'badge-neutral',
+  not_built: 'badge-neutral',
 };
 
 const ORG_STATUS: Record<string, { label: string; tone: string }> = {
@@ -143,6 +164,27 @@ export default async function AdminPage() {
       hasPlatformPermission(db, { accountId, email }, 'AI_SETTINGS_MANAGE'),
       t('AI limits', () => resolveAiLimits(db), defaultAiLimits()),
     ]);
+    // OPS-03: these need the AI figures above, so they run after them. Each is
+    // read tolerantly; `collectOperationalSignals` also isolates its own signals.
+    const migrations = await t(
+      'database migrations',
+      () => getMigrationStatus(db, SHIPPED_MIGRATIONS),
+      undefined,
+    );
+    const signals = await t(
+      'operational signals',
+      () =>
+        collectOperationalSignals(db, {
+          ai: {
+            spentUnits: aiCostUnits,
+            warningUnits: aiWarningLimitUnits(),
+            limitUnits: aiLimits.budgetLimitUnits,
+          },
+          ...(migrations ? { migrations } : {}),
+        }),
+      [],
+    );
+    const readiness = await t('platform readiness', () => evaluateReadiness(), null);
     const deploymentMode = getDeploymentMode();
     // Finding #35 (post-programme defect register): the full commercial-
     // readiness gate breakdown (pentest, backup-restore attestation,
@@ -180,6 +222,8 @@ export default async function AdminPage() {
       canManageComplaints,
       canManageAiSettings,
       aiLimits,
+      signals,
+      readiness,
       failedSections,
     };
   });
@@ -248,6 +292,9 @@ export default async function AdminPage() {
             <a href="/status" className="pill">
               Readiness
             </a>
+            <a href="#admin-signals" className="pill">
+              Signals
+            </a>
             <a href="#admin-analytics" className="pill">
               Analytics
             </a>
@@ -300,6 +347,145 @@ export default async function AdminPage() {
                 </div>
               ))}
             </div>
+          </article>
+
+          <article className="card" style={{ marginBottom: '1.5rem' }} id="admin-signals">
+            <p className="card-kicker">Operations</p>
+            <h2 className="card-title">Operational signals</h2>
+            <p className="card-body" style={{ marginBottom: '1rem' }}>
+              What an operator needs to tell whether the platform is healthy. Counts, ages and
+              ratios only: nothing here names a person or a document. The thresholds are pilot
+              defaults that have not been calibrated against real traffic, and they only choose a
+              colour. "Not measured" means the application cannot see it from inside; the
+              explanation says where to look.
+            </p>
+            {data.signals.length === 0 ? (
+              <p className="card-body">The signals could not be loaded; see the notice above.</p>
+            ) : (
+              <div className="rows">
+                {data.signals.map((signal) => (
+                  <div
+                    className="row"
+                    key={signal.key}
+                    style={{ flexDirection: 'column', alignItems: 'stretch', gap: '0.35rem' }}
+                  >
+                    <div
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        gap: '0.75rem',
+                      }}
+                    >
+                      <span className="row-key">{signal.label}</span>
+                      <span className={`badge ${SIGNAL_STATUS_TONE[signal.status]}`}>
+                        {SIGNAL_STATUS_LABEL[signal.status]}
+                      </span>
+                    </div>
+                    <span className="muted" style={{ fontSize: '0.85rem' }}>
+                      {signal.reading}
+                    </span>
+                    <details>
+                      <summary className="muted" style={{ fontSize: '0.8rem', cursor: 'pointer' }}>
+                        What this means
+                      </summary>
+                      <p className="card-body" style={{ marginTop: '0.4rem' }}>
+                        {signal.detail}
+                      </p>
+                    </details>
+                  </div>
+                ))}
+              </div>
+            )}
+          </article>
+
+          <article
+            className="card"
+            style={{ marginBottom: '1.5rem' }}
+            id="admin-platform-readiness"
+          >
+            <p className="card-kicker">Operations</p>
+            <h2 className="card-title">Platform readiness detail</h2>
+            <p className="card-body" style={{ marginBottom: '1rem' }}>
+              The detailed view behind the public readiness probe, which on a deployed build says
+              only "ready" or "degraded". It names missing configuration and pending migrations, so
+              it is shown to platform administrators only. It never shows a value.
+            </p>
+            {data.readiness === null ? (
+              <p className="card-body">Readiness could not be evaluated; see the notice above.</p>
+            ) : (
+              <div className="rows">
+                {(() => {
+                  const r = data.readiness;
+                  const missingSignIn = [
+                    ...Object.entries(r.env.workos)
+                      .filter(([, present]) => !present)
+                      .map(([name]) => name),
+                    ...(r.env.redirectUri ? [] : ['NEXT_PUBLIC_WORKOS_REDIRECT_URI']),
+                  ];
+                  const databaseConfigured = Object.values(r.env.database).some(Boolean);
+                  const rows: ReadonlyArray<readonly [string, string, boolean]> = [
+                    [
+                      'Overall',
+                      r.ready ? 'Ready' : 'Degraded: something required is missing',
+                      r.ready,
+                    ],
+                    ['Deployment mode', r.deploymentMode, true],
+                    [
+                      'Database',
+                      !databaseConfigured
+                        ? 'no connection string configured'
+                        : r.db.connected
+                          ? `connected${r.db.schemaApplied ? ', schema present' : ', schema missing'}`
+                          : 'could not connect',
+                      r.db.connected && r.db.schemaApplied,
+                    ],
+                    [
+                      'Migrations',
+                      r.migrations.checked
+                        ? r.migrations.pending.length === 0
+                          ? `${r.migrations.applied} of ${r.migrations.expected} applied`
+                          : `${r.migrations.pending.length} pending: ${r.migrations.pending.join(', ')}`
+                        : 'not checked',
+                      !r.migrations.checked || r.migrations.pending.length === 0,
+                    ],
+                    [
+                      'Provider settings',
+                      r.providers.valid ? 'valid' : (r.providers.error ?? 'invalid'),
+                      r.providers.valid,
+                    ],
+                    [
+                      'Sign-in configuration',
+                      missingSignIn.length === 0
+                        ? 'complete'
+                        : `missing: ${missingSignIn.join(', ')}`,
+                      missingSignIn.length === 0,
+                    ],
+                    [
+                      'Signed document links',
+                      r.capabilities.signedBlobStorage ? 'configured' : 'not configured',
+                      true,
+                    ],
+                    [
+                      'Scheduled job secret',
+                      r.capabilities.asyncIntakeSweep ? 'configured' : 'not configured',
+                      true,
+                    ],
+                  ];
+                  return rows.map(([label, value, good]) => (
+                    <div className="row" key={label}>
+                      <span className="row-key">{label}</span>
+                      <span
+                        className={good ? 'muted' : 'badge badge-danger'}
+                        style={{ fontSize: '0.85rem' }}
+                      >
+                        {value}
+                      </span>
+                    </div>
+                  ));
+                })()}
+              </div>
+            )}
           </article>
 
           <article className="card" style={{ marginBottom: '1.5rem' }} id="admin-analytics">

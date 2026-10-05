@@ -868,6 +868,21 @@ export {
   pruneExpiredRateLimitBuckets,
 } from './rate-limit';
 
+export { redactErrorMessage, serverErrorEvent } from './error-report';
+export { formatObservabilityLine } from './observability-format';
+
+export {
+  OPERATIONAL_SIGNAL_KEYS,
+  SIGNAL_THRESHOLDS,
+  type AiSpendInput,
+  type CollectSignalsInput,
+  type OperationalSignal,
+  type OperationalSignalKey,
+  type SignalSource,
+  type SignalStatus,
+  collectOperationalSignals,
+} from './operational-signals';
+
 export {
   PRODUCT_EVENT_CATEGORIES,
   PRODUCT_EVENT_TYPES,

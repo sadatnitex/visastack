@@ -24,3 +24,8 @@ export {
   type NeonDb,
   type PooledDb,
 } from './client';
+export {
+  getMigrationStatus,
+  type MigrationJournalEntry,
+  type MigrationStatus,
+} from './migration-status';
