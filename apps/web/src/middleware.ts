@@ -1,4 +1,6 @@
 import { authkitMiddleware } from '@workos-inc/authkit-nextjs';
+import { isAuthkitPath } from './lib/authkit-paths';
+import { createCspMiddleware } from './lib/csp-middleware';
 
 /**
  * AuthKit middleware with `middlewareAuth` enabled.
@@ -12,23 +14,37 @@ import { authkitMiddleware } from '@workos-inc/authkit-nextjs';
  * page triggers the refresh during render and throws "Cookies can only be
  * modified in a Server Action or Route Handler".
  *
- * Everything under the matcher requires a signed-in user except the paths in
+ * Everything AuthKit handles requires a signed-in user except the paths in
  * `unauthenticatedPaths` (public landing, status, and the OAuth callback);
  * unauthenticated visitors to protected routes are redirected to sign-in by the
  * middleware itself.
  */
-export default authkitMiddleware({
+const authkit = authkitMiddleware({
   middlewareAuth: {
     enabled: true,
     unauthenticatedPaths: ['/', '/status', '/callback'],
   },
 });
 
+/**
+ * The site-wide Content-Security-Policy (Commercial V1 SEC-02) is built per
+ * request, because its script nonce must be unique to the request, so it has
+ * to be applied here. AuthKit is wrapped unchanged and still handles exactly
+ * the routes it handled before (`lib/authkit-paths.ts`); every other page,
+ * including `/trust` and the not-found page, gets the policy and nothing else.
+ */
+export default createCspMiddleware({
+  authkit,
+  isAuthkitPath,
+  enabled: process.env.NODE_ENV === 'production',
+  readEnv: (name) => process.env[name],
+});
+
 export const config = {
-  // `/pilot-access-denied` is deliberately outside `/app` (so `app/layout.tsx`'s
-  // `withSession` call — which would re-run the pilot-access check and loop —
-  // never wraps it) but still included here so its own read-only `withAuth()`
-  // call gets the same middleware-refreshed token every other signed-in page
-  // gets (docs/audits/post-programme-defect-register.md finding #2).
-  matcher: ['/', '/status', '/app', '/app/:path*', '/callback', '/pilot-access-denied'],
+  // Every route that renders a page, so that every page response carries the
+  // policy. API routes are left out: they return JSON or bytes and set their own
+  // headers (`/api/blob/[key]` ships its own sandboxing policy). Next's static
+  // assets and image optimizer are not documents. Which of these routes AuthKit
+  // also handles is decided in `lib/authkit-paths.ts`.
+  matcher: ['/((?!api/|_next/static/|_next/image|favicon.ico).*)'],
 };

@@ -493,6 +493,8 @@ export {
   withdrawPackVersion,
 } from './packs';
 
+export { isHttpUrl, safeHttpUrl } from './external-url';
+
 export {
   type EvaluationContext,
   type RuleCondition,

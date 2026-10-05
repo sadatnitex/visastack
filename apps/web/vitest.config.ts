@@ -7,6 +7,10 @@ import { defineConfig } from 'vitest/config';
  * separately via `pnpm --filter @visastack/web e2e`.
  */
 export default defineConfig({
+  // `tsconfig.json` sets `"jsx": "preserve"` because Next compiles JSX itself;
+  // without this, a test that renders a component fails with "React is not
+  // defined" under Vite's classic transform.
+  esbuild: { jsx: 'automatic' },
   test: {
     exclude: ['**/node_modules/**', '**/e2e/**'],
   },

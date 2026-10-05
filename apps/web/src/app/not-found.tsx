@@ -19,9 +19,14 @@ export default function NotFound() {
         address, or head back to your workspace.
       </p>
       <div className="cta-row" style={{ justifyContent: 'center' }}>
-        <Link className="btn btn-primary" href="/app">
+        {/* A plain anchor, like the landing page and the nav: `/app` answers a
+            signed-out visitor with a redirect to WorkOS, and a `<Link>` would
+            prefetch it with a script request that the browser (and the
+            Content-Security-Policy's `connect-src`) refuses to follow
+            off-site. Crossing into the signed-in area is a full navigation. */}
+        <a className="btn btn-primary" href="/app">
           Go to workspace
-        </Link>
+        </a>
         <Link className="btn btn-secondary" href="/">
           Back to home
         </Link>

@@ -1,4 +1,4 @@
-import { getPublicTrustRoute } from '@visastack/services';
+import { getPublicTrustRoute, safeHttpUrl } from '@visastack/services';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { withPublicDb } from '../../../lib/public-db';
@@ -32,6 +32,15 @@ export default async function PublicTrustRoutePage({
   const { packKey } = await params;
   const route = await withPublicDb((db) => getPublicTrustRoute(db, packKey));
   if (!route) notFound();
+
+  // Links an author typed in render only if they are absolute http(s) URLs; a
+  // stored value that is anything else reads as "not on file".
+  const officialChannelUrl = safeHttpUrl(route.officialChannelUrl);
+  const officialReportingUrl = safeHttpUrl(route.officialReportingUrl);
+  const officialSources = route.officialSources.map((source) => ({
+    source,
+    href: safeHttpUrl(source.sourceUrl),
+  }));
 
   return (
     <section className="section container">
@@ -102,10 +111,10 @@ export default async function PublicTrustRoutePage({
         <article className="card">
           <p className="card-kicker">Official channel</p>
           <h2 className="card-title">Where to actually apply</h2>
-          {route.officialChannelUrl ? (
+          {officialChannelUrl ? (
             <a
               className="btn btn-primary"
-              href={route.officialChannelUrl}
+              href={officialChannelUrl}
               target="_blank"
               rel="noreferrer"
             >
@@ -123,11 +132,11 @@ export default async function PublicTrustRoutePage({
         <article className="card">
           <p className="card-kicker">Official source</p>
           <h2 className="card-title">Where this information comes from</h2>
-          {route.officialSources.length === 0 ? (
+          {officialSources.length === 0 ? (
             <p className="card-body">Not yet on file for this route.</p>
           ) : (
             <div className="rows" style={{ marginTop: '0.5rem' }}>
-              {route.officialSources.map((source) => (
+              {officialSources.map(({ source, href }) => (
                 <div
                   className="row"
                   key={`${source.publisher ?? ''}|${source.sourceTitle ?? ''}|${source.sourceUrl ?? ''}`}
@@ -137,14 +146,9 @@ export default async function PublicTrustRoutePage({
                     {[source.publisher, source.sourceTitle].filter(Boolean).join(' · ') ||
                       'Official source'}
                   </span>
-                  {source.sourceUrl ? (
-                    <a
-                      href={source.sourceUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      style={{ fontSize: '0.85rem' }}
-                    >
-                      {source.sourceUrl}
+                  {href ? (
+                    <a href={href} target="_blank" rel="noreferrer" style={{ fontSize: '0.85rem' }}>
+                      {href}
                     </a>
                   ) : null}
                 </div>
@@ -171,11 +175,11 @@ export default async function PublicTrustRoutePage({
         <p className="card-body" style={{ marginTop: '1rem' }}>
           If you suspect fraud, report it to the official immigration authority for the destination
           country and to your own country's consumer-protection or cybercrime authority.
-          {route.officialReportingUrl ? (
+          {officialReportingUrl ? (
             <>
               {' '}
               For this route specifically:{' '}
-              <a href={route.officialReportingUrl} target="_blank" rel="noreferrer">
+              <a href={officialReportingUrl} target="_blank" rel="noreferrer">
                 official reporting channel ↗
               </a>
             </>

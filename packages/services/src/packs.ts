@@ -4,6 +4,7 @@ import { and, eq, isNotNull, lte, ne } from 'drizzle-orm';
 import { appendAuditEvent } from './audit';
 import { type Db, first, required, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
+import { isHttpUrl } from './external-url';
 import { type RuleCondition, isValidRuleCondition } from './rule-conditions';
 
 /**
@@ -254,6 +255,13 @@ export async function addRequirement(
   }
   if (input.condition !== undefined && !isValidRuleCondition(input.condition)) {
     return err(serviceError('invalid', 'condition is not a recognized rule shape'));
+  }
+  if (
+    input.sourceUrl !== undefined &&
+    input.sourceUrl.trim() !== '' &&
+    !isHttpUrl(input.sourceUrl)
+  ) {
+    return err(serviceError('invalid', 'sourceUrl must be an http or https URL'));
   }
 
   return db.transaction(async (tx) => {
@@ -665,6 +673,14 @@ export async function setPublicTrustContent(
           serviceError('invalid', 'official fee must be a non-negative integer (minor units)'),
         );
       }
+    }
+  }
+  for (const [label, url] of [
+    ['official channel URL', input.officialChannelUrl],
+    ['official reporting URL', input.officialReportingUrl],
+  ] as const) {
+    if (url !== undefined && url.trim() !== '' && !isHttpUrl(url)) {
+      return err(serviceError('invalid', `${label} must be an http or https URL`));
     }
   }
 
