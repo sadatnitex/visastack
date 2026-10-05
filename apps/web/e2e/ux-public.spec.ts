@@ -174,7 +174,7 @@ function fixtureHtml(): string {
           <label class="check"><input type="checkbox"> Allow the agency to read my passport page</label>
           <label class="check"><input type="checkbox"> Allow downloads</label>
         </div>
-        <div style="display:flex;gap:.6rem;margin-top:1rem;flex-wrap:wrap"><a class="btn btn-primary" href="#">Create case</a><button class="btn btn-secondary" type="button">Cancel</button></div>
+        <div style="display:flex;gap:.6rem;margin-top:1rem;flex-wrap:wrap"><a class="btn btn-primary" href="#">Create case</a><button class="btn btn-secondary" type="button">Cancel</button><button class="btn btn-danger" type="button">Request account deletion</button></div>
       </article>
     </div>
     <div class="notice notice-warn" style="margin-top:1.5rem">A notice with a warning, in the warning colours.</div>
@@ -271,6 +271,36 @@ test.describe('signed-in layout building blocks on a narrow screen (real stylesh
             }
           }
         }
+      });
+
+      test('section tabs keep the width of their own text, so none is squeezed over another', async ({
+        page,
+      }) => {
+        // A tab shrunk below its text still sits inside the bar (so "is it on screen" passes) while its
+        // text spills over the next tab. Check the text fits its own box and neighbours do not overlap.
+        const squeezed = await page.evaluate(() => {
+          const out: string[] = [];
+          for (const nav of document.querySelectorAll<HTMLElement>('#fixture nav.subnav')) {
+            const bar = nav.getAttribute('aria-label');
+            const links = [...nav.querySelectorAll<HTMLElement>('a')];
+            links.forEach((link, i) => {
+              if (link.scrollWidth > link.clientWidth + 1) {
+                out.push(
+                  `${bar}: "${link.textContent}" is ${link.scrollWidth}px of text in a ${link.clientWidth}px tab`,
+                );
+              }
+              const next = links[i + 1];
+              if (
+                next &&
+                next.getBoundingClientRect().left < link.getBoundingClientRect().right - 0.5
+              ) {
+                out.push(`${bar}: "${link.textContent}" overlaps "${next.textContent}"`);
+              }
+            });
+          }
+          return out;
+        });
+        expect(squeezed).toEqual([]);
       });
 
       test('the public header keeps its sign-in button on screen', async ({ page }) => {
