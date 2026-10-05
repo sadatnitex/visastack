@@ -4,6 +4,7 @@ import { appendAuditEvent } from './audit';
 import { type ConsentRecord, getConsents, listConsentHistory } from './consent';
 import { type Db, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
+import { listProductEventsForAccount } from './product-events';
 import { RATE_LIMITS, checkRateLimit } from './rate-limit';
 
 /**
@@ -221,10 +222,7 @@ export async function exportAccount(
       .select()
       .from(schema.missionNotes)
       .where(eq(schema.missionNotes.authorAccountId, input.accountId)),
-    db
-      .select()
-      .from(schema.productEvents)
-      .where(eq(schema.productEvents.accountId, input.accountId)),
+    listProductEventsForAccount(db, input.accountId),
     listConsentHistory(db, input.accountId),
   ]);
 

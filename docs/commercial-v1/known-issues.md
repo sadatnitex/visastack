@@ -4005,6 +4005,130 @@ item gets its own requirements-ledger row once classified against the new direct
     Playwright's expected build, so the run used a throwaway config pointing
     at `/opt/pw-browsers/chromium` with `--no-sandbox`; that file is not
     committed.
+
+    **Update to Chunk 34 (2026-10-05).** The "two `/app` redirect specs could only
+    run in CI" caveat is now closed: after merge, the Playwright Deploy Smoke
+    against the real Vercel preview of that change passed 40 of 40, which
+    includes both redirect specs and all 27 browser-security tests. Signed-in
+    pages are still NOT browser-verified under the policy.
+
+    **Chunk 35 (2026-10-05, OPS-04, Part 9 chunk 3) -- analytics for the
+    fourteen learning areas, privacy-limited by construction.** The directive's
+    list of what the pilot must be able to learn was matched against the code.
+    `product_events` already existed but carried nine funnel milestones and no
+    label, measure or organization, so most areas could not be measured at all.
+    The log now holds 19 more event types (28 in total) and the columns
+    `organization_id`, `dimension` (one label from a closed list), `metric_value`
+    (a non-negative whole number) and `dedupe_key` (migration `0083`). Where
+    each area comes from:
+
+    - Case stage: `MISSION_STAGE_CHANGED`, labelled with the state moved to.
+    - Intake to ready: `MISSION_READY_REACHED`, seconds from case creation, the
+      first arrival at `SUBMISSION_READY` or `READY_TO_EXPORT` only (a case that
+      leaves and re-enters ready is not counted twice).
+    - Evidence: `EVIDENCE_REQUESTED`, `EVIDENCE_RECEIVED`,
+      `EVIDENCE_REWORK_REQUESTED` (labelled replacement, contradiction or
+      proposed correction).
+    - Overdue tasks: `TASK_OVERDUE`, once per task, however many times the
+      deadline sweep revisits it.
+    - Detected gaps: `READINESS_GAPS_DETECTED`, recorded when a prepared file is
+      captured: the overall readiness state and the number of required items
+      unmet, never which ones. This is a measure at capture time, not a
+      continuous one.
+    - Acknowledgement: `ACKNOWLEDGEMENT_RECORDED` (which of the three
+      decisions) and `ACKNOWLEDGEMENT_INVALIDATED` (only when a live one was
+      actually voided).
+    - Source review: `SOURCE_REVIEWED` (version approved, source unreachable or
+      restored, fee stale or confirmed).
+    - AI decisions: `AI_PROPOSAL_ACCEPTED`, `_CORRECTED`, `_REJECTED`, labelled
+      extraction, classification or inconsistency. A "correction" equal to the
+      proposal counts as accepted.
+    - Outcome: `OUTCOME_RECORDED`, the decision only.
+    - Complaint resolution: `COMPLAINT_RESOLVED`, how it ended and seconds open.
+    - Activation: `ACCOUNT_ACTIVATED`, defined as the account's first case
+      (traveller or agency), once per account, seconds since sign-up.
+    - Agency repeat use: derived, not a separate event: organizations whose
+      cases were created in two or more distinct weeks in the last 90 days.
+    - Plan usage: `PLAN_CHANGED` (activation, executed downgrade) and
+      `PLAN_LIMIT_REACHED` (seats, invitations, cases per period, open cases,
+      storage), at most one per organization, limit and UTC day, so it counts
+      organizations hitting a cap, not clicks after being refused. This is not
+      the usage meters.
+    - Cash collection: `CASH_COLLECTED`, written when a payment is recorded
+      against an invoice (currency and minor units), never when an invoice is
+      issued, so it is cash, not invoiced revenue.
+
+    **Privacy model.** The directive excludes passport numbers, file contents,
+    refusal wording and medical narrative. That is enforced twice, not by
+    convention: the recorder accepts a `dimension` only from the list its event
+    type allows (a pattern for a currency code), and the database independently
+    rejects any `dimension` that is not an UPPER_SNAKE token, so a sentence
+    cannot be stored even through a coding mistake. A `metric_value` is a
+    non-negative whole number. Identifiers are opaque UUIDs, cleared if the
+    account or organization is deleted; a once-only event stores a SHA-256 of
+    the event type and entity id, not the id. Tests for every hook assert that
+    the stored row contains none of the surrounding wording (refusal text,
+    reasons, names, document types, payment references, field values). Access:
+    platform administrators see aggregates only (new "Learning areas" card on
+    the admin page); an account sees its own rows in its account export (events
+    with no account, such as cash and plan changes, belong to no person and are
+    not in anyone's export). No new route and no client-side tracking exist.
+
+    **Deployment order and tolerance.** Migration `0083` is pending, together
+    with `0079` to `0082` from the earlier merged chunk; `db-migrate.yml` is
+    manual and human-gated and has NOT been run. Until it runs, analytics never
+    break anything: each event is written in a savepoint, so a failed write
+    (including "column does not exist") is logged once per process and rolled
+    back on its own while the business action commits; the admin card says it is
+    waiting for a database update; and the account export falls back to the
+    original four columns. Run the migration before relying on any figure.
+
+    **Honestly NOT done or NOT verified.** Nothing was backfilled: figures start
+    at the deploy, because history before it cannot be reconstructed. The
+    aggregate queries and the admin card were exercised only against PGlite and a
+    type-checked, built page, not rendered against the real Neon database or in
+    a browser. No retention window is defined for the log (it holds no PII, but a
+    policy is a product decision). The thresholds that would make any figure
+    "good" or "bad" are not set; the card reports, it does not judge. Definitions
+    above (activation, ready, gaps at capture, cash vs invoiced) are the ones
+    chosen here and should be confirmed by the product owner before targets are
+    set on them. One guard is not independently testable: the check that only a
+    resolved or closed complaint records an ending is masked by the allowed-label
+    list, so removing it changes nothing observable (the second guard catches it).
+
+    **Production incident found while building this (2026-10-05), and its
+    fix.** `/app/admin` returned the generic error page for a platform admin.
+    The runtime log (reference 2154584171) showed `relation "ocr_runs" does not
+    exist` from the AI cost total. Migration `0078` creates that table; the last
+    manual migration run before this was 2026-09-27, so `0078` to `0082` had
+    never been applied to production although their code was deployed. With the
+    product owner's explicit go-ahead, `db-migrate.yml` was run on `main` at
+    `3ee7e76` (run 37286912852, every step green). Migration `0083` is NOT in
+    that run (it is not merged yet) and needs another run after this change
+    merges. Separately, the admin page no longer fails as a whole when one
+    section cannot be read: each data read is wrapped, the section shows empty,
+    and a banner names the sections that could not load (permission checks are
+    deliberately not wrapped and still fail closed). That is a safety net, not a
+    substitute for running migrations before relying on the page.
+
+    Verified locally: `@visastack/services` 1289/1289 across 61 files (1204
+    before; 85 new, in the test file of each module that records an event, plus
+    export); `apps/web` 411/411 across 28 files (402 before; admin formatting
+    helpers 5, tolerant-read helper 4). Mutation checks, each restored
+    byte-for-byte: case creation and stage, ready-once, gap count and activation
+    label (5 caught); outcome hook removed (caught); acknowledgement hook and
+    invalidation guard (caught); evidence hooks (3); overdue once-only and gate
+    (2); source review labels (3); complaint ending and metric (2 caught, 1
+    equivalent mutant, described above); cash currency and amount (2); plan
+    change account and label (2); plan limit label and once-per-day key (3); AI
+    corrected-versus-accepted, inconsistency verdict, classification and
+    extraction labels (5); export fallback (1). Two mutations survived at
+    first and each exposed a weak test, which was tightened and re-run: a
+    currency normalisation the fixtures never exercised, and an accept/reject
+    swap on inconsistency flags that a set comparison could not see (the
+    classification test had the same weakness and was tightened with it). The
+    third survivor is the equivalent mutant described above. Repo-wide Biome 531 files clean, typecheck 7/7, production
+    build clean with the same `unpdf` and `@workos-inc/node` warnings as before.
 independently confirmed findings; the missing PRD file is tracked as Blocker 1 in
 `assumptions-and-blockers.md` (now resolved) rather than here, since it blocked the
 programme rather than being a product defect.

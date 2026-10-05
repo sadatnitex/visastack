@@ -9,6 +9,7 @@ import {
   enqueueNotificationBothChannels,
 } from './notifications';
 import { type PlatformAuthInput, isPlatformOwner } from './platform-roles';
+import { recordProductEvent } from './product-events';
 import { getOrganizationEvidenceBytes } from './quotas';
 
 /**
@@ -414,6 +415,15 @@ export async function activateSubscription(
       resourceType: 'subscription',
       resourceId: subscription.id,
       metadata: { organizationId: input.organizationId, planKey: plan.key, reason },
+    });
+    // OPS-04 plan usage: an organization's plan changed. No account is recorded:
+    // this is a commercial fact about the organization, not about the platform
+    // owner who happened to record it.
+    await recordProductEvent(tx, {
+      eventType: 'PLAN_CHANGED',
+      accountId: null,
+      organizationId: input.organizationId,
+      dimension: 'SUBSCRIPTION_ACTIVATED',
     });
     await supersedePendingDowngrade(tx, input.organizationId, input.actor.accountId, now);
     return ok(subscription);
@@ -922,6 +932,12 @@ export async function executeScheduledDowngrade(
         planKey: toPlan.key,
         scheduledDowngradeId: pending.id,
       },
+    });
+    await recordProductEvent(tx, {
+      eventType: 'PLAN_CHANGED',
+      accountId: null,
+      organizationId: pending.organizationId,
+      dimension: 'DOWNGRADE_EXECUTED',
     });
     for (const ownerAccountId of await activeOwnerAccountIds(tx, pending.organizationId)) {
       await enqueueNotificationBothChannels(tx, {

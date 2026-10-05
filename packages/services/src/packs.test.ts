@@ -1131,3 +1131,85 @@ describe('Pack Studio - Public Trust Lite (RUL-06)', () => {
     expect(after.map((r) => r.packKey)).toEqual([keyA]);
   });
 });
+
+describe('OPS-04 (Commercial V1 Part 9): source-review analytics', () => {
+  let db: Db;
+  let actor: string;
+  beforeEach(async () => {
+    db = await freshDb();
+    actor = await authorId(db);
+  });
+
+  async function reviews() {
+    return (await db.select().from(schema.productEvents)).filter(
+      (e) => e.eventType === 'SOURCE_REVIEWED',
+    );
+  }
+
+  async function draft() {
+    const pack = await createPack(db, { actorAccountId: actor, key: 'ops04.pack', name: 'Ops04' });
+    if (!isOk(pack)) throw new Error('pack');
+    const version = await addPackVersion(db, { actorAccountId: actor, packId: pack.value.id });
+    if (!isOk(version)) throw new Error('version');
+    const requirement = await addRequirement(db, {
+      actorAccountId: actor,
+      packVersionId: version.value.id,
+      kind: 'FIELD',
+      fieldKey: 'passport.number',
+      citation: 'Appendix V paragraph V 4.2 of the Immigration Rules',
+    });
+    if (!isOk(requirement)) throw new Error('requirement');
+    return { versionId: version.value.id, requirementId: requirement.value.id };
+  }
+
+  it('records a version approval as a source review, labelled by what was reviewed and nothing else', async () => {
+    const { versionId } = await draft();
+    const approved = await approvePackVersion(db, {
+      actorAccountId: actor,
+      packVersionId: versionId,
+    });
+    expect(isOk(approved)).toBe(true);
+
+    expect(await reviews()).toMatchObject([
+      { accountId: actor, organizationId: null, dimension: 'VERSION_APPROVED', metricValue: null },
+    ]);
+    const stored = JSON.stringify(await reviews());
+    for (const leaked of ['Appendix', 'Immigration', 'passport']) {
+      expect(stored, leaked).not.toContain(leaked);
+    }
+  });
+
+  it('records a source being found unreachable, and later restored', async () => {
+    const { requirementId } = await draft();
+    await markRequirementSourceInaccessible(db, { actorAccountId: actor, requirementId });
+    await clearRequirementSourceInaccessible(db, { actorAccountId: actor, requirementId });
+    expect((await reviews()).map((e) => e.dimension).sort()).toEqual([
+      'SOURCE_RESTORED',
+      'SOURCE_UNREACHABLE',
+    ]);
+  });
+
+  it('records an official fee being marked stale, and later confirmed', async () => {
+    const { versionId } = await draft();
+    await markOfficialFeeStale(db, { actorAccountId: actor, packVersionId: versionId });
+    await clearOfficialFeeStale(db, { actorAccountId: actor, packVersionId: versionId });
+    expect((await reviews()).map((e) => e.dimension).sort()).toEqual([
+      'FEE_CONFIRMED',
+      'FEE_STALE',
+    ]);
+  });
+
+  it('records nothing for a review that is refused', async () => {
+    const unknown = '00000000-0000-0000-0000-000000000000';
+    const results = [
+      await markRequirementSourceInaccessible(db, {
+        actorAccountId: actor,
+        requirementId: unknown,
+      }),
+      await markOfficialFeeStale(db, { actorAccountId: actor, packVersionId: unknown }),
+      await approvePackVersion(db, { actorAccountId: actor, packVersionId: unknown }),
+    ];
+    expect(results.map((r) => r.ok)).toEqual([false, false, false]);
+    expect(await reviews()).toEqual([]);
+  });
+});

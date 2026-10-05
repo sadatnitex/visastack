@@ -15,7 +15,7 @@ import { type StalenessClassification, classifyStaleness, parseDocumentDate } fr
 import { getLiveAcknowledgement, incrementMaterialRevision } from './material-revision';
 import { cancelQueuedNotificationsForResource } from './notifications';
 import { type PackRequirement, listRequirements } from './packs';
-import { recordProductEvent } from './product-events';
+import { elapsedSeconds, recordProductEvent } from './product-events';
 import {
   type EvaluationContext,
   type RuleConditionResult,
@@ -155,6 +155,13 @@ export async function getMissionSnapshot(
   return ok(snapshot);
 }
 
+/**
+ * The states that mean "this case is ready" for OPS-04's intake-to-ready time:
+ * the canonical submission-ready state, and the legacy reviewer workflow's
+ * ready-to-export state, which is what it means there.
+ */
+const READY_STATES: readonly MissionState[] = ['SUBMISSION_READY', 'READY_TO_EXPORT'];
+
 /** The legal next states from a given mission state (for UI affordances). */
 export function legalTransitions(from: MissionState): readonly MissionState[] {
   return TRANSITIONS[from] ?? [];
@@ -235,6 +242,25 @@ export async function createMission(
     await recordProductEvent(tx, {
       eventType: 'MISSION_CREATED',
       accountId: input.actorAccountId,
+      organizationId: mission.ownerOrganizationId,
+    });
+    // OPS-04 activation: an account is activated by its first case, the unit
+    // of value the product exists to produce. `onceFor` makes every later case
+    // a no-op, and the metric is how long after sign-up that first case came.
+    const account = first(
+      await tx
+        .select({ createdAt: schema.accounts.createdAt })
+        .from(schema.accounts)
+        .where(eq(schema.accounts.id, input.actorAccountId))
+        .limit(1),
+    );
+    await recordProductEvent(tx, {
+      eventType: 'ACCOUNT_ACTIVATED',
+      accountId: input.actorAccountId,
+      organizationId: mission.ownerOrganizationId,
+      dimension: mission.ownerOrganizationId ? 'AGENCY' : 'TRAVELLER',
+      ...(account ? { metricValue: elapsedSeconds(account.createdAt) } : {}),
+      onceFor: input.actorAccountId,
     });
     return ok(mission);
   });
@@ -1041,6 +1067,24 @@ export async function transitionMission(
       resourceId: mission.id,
       metadata: { from, to: input.to },
     });
+    await recordProductEvent(tx, {
+      eventType: 'MISSION_STAGE_CHANGED',
+      accountId: input.actorAccountId,
+      organizationId: mission.ownerOrganizationId,
+      dimension: input.to,
+    });
+    // OPS-04 intake-to-ready: the first time a case reaches a ready state, how
+    // long after it was created. `onceFor` keeps a case that bounces out of and
+    // back into ready from counting twice.
+    if (READY_STATES.includes(input.to)) {
+      await recordProductEvent(tx, {
+        eventType: 'MISSION_READY_REACHED',
+        accountId: input.actorAccountId,
+        organizationId: mission.ownerOrganizationId,
+        metricValue: elapsedSeconds(mission.createdAt),
+        onceFor: mission.id,
+      });
+    }
     return ok(mission);
   });
 }
@@ -1486,6 +1530,18 @@ export async function snapshotMission(
       resourceId: snapshot.id,
       metadata: { version: nextVersion, checksum },
     });
+    // OPS-04 detected gaps: what the readiness check found at the moment a
+    // prepared file was captured, as a count of required items still unmet and
+    // the overall state, never which requirements.
+    if (readiness?.ok) {
+      await recordProductEvent(tx, {
+        eventType: 'READINESS_GAPS_DETECTED',
+        accountId: input.actorAccountId,
+        organizationId: mission.ownerOrganizationId,
+        dimension: readiness.value.overallState,
+        metricValue: readiness.value.missing.filter((m) => !m.optional).length,
+      });
+    }
     return ok(snapshot);
   });
 }

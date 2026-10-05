@@ -5,6 +5,7 @@ import { appendAuditEvent } from './audit';
 import { type Db, first, required, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
 import { getMissionForOwner } from './missions';
+import { recordProductEvent } from './product-events';
 
 /**
  * TRU-02 (master directive Part 7 §3): the applicant's own acknowledgement
@@ -179,6 +180,14 @@ export async function decideAcknowledgement(
       resourceType: 'acknowledgement',
       resourceId: record.id,
       metadata: { decision: input.decision, snapshotId: snapshot.id },
+    });
+    // OPS-04: which of the three decisions the applicant took, never the reason
+    // they gave for a rejection or correction request.
+    await recordProductEvent(tx, {
+      eventType: 'ACKNOWLEDGEMENT_RECORDED',
+      accountId: input.actorAccountId,
+      organizationId: mission.ownerOrganizationId,
+      dimension: input.decision,
     });
 
     return ok(record);

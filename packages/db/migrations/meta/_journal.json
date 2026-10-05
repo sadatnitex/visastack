@@ -582,6 +582,13 @@
       "when": 1790695205641,
       "tag": "0082_fuzzy_masked_marvel",
       "breakpoints": true
+    },
+    {
+      "idx": 83,
+      "version": "7",
+      "when": 1791011332063,
+      "tag": "0083_vengeful_lionheart",
+      "breakpoints": true
     }
   ]
 }

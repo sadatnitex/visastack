@@ -7,6 +7,7 @@ import {
   missionsSelectingDocument,
 } from './material-revision';
 import { enqueueNotificationBothChannels } from './notifications';
+import { recordProductEvent } from './product-events';
 
 /**
  * NTF-04 (Part 5 §4) "Timing": the periodic sweeps that turn NTF-01's
@@ -114,6 +115,7 @@ export async function sweepTaskDeadlineReminders(
       missionId: schema.missionTasks.missionId,
       missionTitle: schema.missions.title,
       applicantId: schema.missions.applicantId,
+      organizationId: schema.missions.ownerOrganizationId,
       ownerAccountId: schema.applicants.ownerAccountId,
       applicantTimezone: schema.applicants.timezone,
     })
@@ -149,6 +151,18 @@ export async function sweepTaskDeadlineReminders(
           deepLinkPath: `/app/mission/${row.missionId}`,
         },
       });
+      // OPS-04 overdue tasks: the first sweep that finds a task past its due
+      // date records it. The sweep revisits an overdue task on every run (the
+      // notification above is deduplicated the same way), and `onceFor` makes
+      // those repeat visits record nothing further.
+      if (threshold.startsWith('overdue')) {
+        await recordProductEvent(tx, {
+          eventType: 'TASK_OVERDUE',
+          accountId: row.ownerAccountId,
+          organizationId: row.organizationId,
+          onceFor: row.taskId,
+        });
+      }
     });
     enqueued++;
   }

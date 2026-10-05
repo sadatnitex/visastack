@@ -1,6 +1,6 @@
 import { fileURLToPath } from 'node:url';
 import { PGlite } from '@electric-sql/pglite';
-import { isErr, isOk } from '@visastack/core';
+import { type MissionState, isErr, isOk } from '@visastack/core';
 import { schema } from '@visastack/db';
 import { eq } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/pglite';
@@ -57,6 +57,7 @@ import {
   listRequirements,
   publishPackVersion,
 } from './packs';
+import { recordProductEvent } from './product-events';
 import { editFact, registerFieldDefinition } from './profile';
 import { acceptGrant, createGrant } from './sharing';
 
@@ -3396,5 +3397,332 @@ describe('CAS-07 (Commercial V1 Part 7 §6): canonical case states', () => {
       to: 'IN_PROGRESS',
     });
     expect(isOk(result)).toBe(true);
+  });
+});
+
+describe('OPS-04 (Commercial V1 Part 9): case analytics', () => {
+  let db: Db;
+  beforeEach(async () => {
+    db = await freshDb();
+  });
+
+  async function events(type: string) {
+    return (await db.select().from(schema.productEvents)).filter((e) => e.eventType === type);
+  }
+
+  /**
+   * A case on a published pack that requires passport.number, with that field
+   * selected as its evidence. A document requirement can be added on top, and
+   * left unsatisfied, to give the case a gap.
+   */
+  async function setUp(
+    options: {
+      readonly document?: 'required' | 'optional';
+      readonly manualMode?: boolean;
+    } = {},
+  ) {
+    const { account, applicantId } = await seed(db);
+    const pack = await createPack(db, {
+      actorAccountId: account.id,
+      key: 'ops04.pack',
+      name: 'OPS-04 pack',
+    });
+    if (!isOk(pack)) throw new Error('pack');
+    const version = await addPackVersion(db, { actorAccountId: account.id, packId: pack.value.id });
+    if (!isOk(version)) throw new Error('version');
+    await addRequirement(db, {
+      actorAccountId: account.id,
+      packVersionId: version.value.id,
+      kind: 'FIELD',
+      fieldKey: 'passport.number',
+      citation: 'rule 1',
+    });
+    if (options.document) {
+      await addRequirement(db, {
+        actorAccountId: account.id,
+        packVersionId: version.value.id,
+        kind: 'DOCUMENT',
+        docType: 'bank_statement',
+        citation: 'rule 2',
+        optional: options.document === 'optional',
+      });
+    }
+    await approvePackVersion(db, { actorAccountId: account.id, packVersionId: version.value.id });
+    await publishPackVersion(db, { actorAccountId: account.id, packVersionId: version.value.id });
+
+    const mission = await createMission(db, {
+      actorAccountId: account.id,
+      applicantId,
+      title: 'UK Visa',
+      ...(options.manualMode ? { manualMode: true } : {}),
+    });
+    if (!isOk(mission)) throw new Error('mission');
+    await attachPackVersion(db, {
+      actorAccountId: account.id,
+      missionId: mission.value.id,
+      packVersionId: version.value.id,
+    });
+    await registerFieldDefinition(db, { key: 'passport.number', dataType: 'string' });
+    const fact = await editFact(db, {
+      actorAccountId: account.id,
+      applicantId,
+      fieldKey: 'passport.number',
+      value: 'A1',
+    });
+    if (!isOk(fact)) throw new Error('fact');
+    const requirements = await db
+      .select()
+      .from(schema.packRequirements)
+      .where(eq(schema.packRequirements.packVersionId, version.value.id));
+    const fieldRequirementId = requirements.find((r) => r.kind === 'FIELD')?.id;
+    if (!fieldRequirementId) throw new Error('requirement');
+    const selected = await selectEvidence(db, {
+      actorAccountId: account.id,
+      missionId: mission.value.id,
+      packRequirementId: fieldRequirementId,
+      factId: fact.value.fact.id,
+    });
+    if (!isOk(selected)) throw new Error('select');
+    return { account, applicantId, missionId: mission.value.id };
+  }
+
+  async function moveTo(accountId: string, missionId: string, ...states: MissionState[]) {
+    for (const to of states) {
+      const result = await transitionMission(db, { actorAccountId: accountId, missionId, to });
+      if (!isOk(result)) throw new Error(`transition to ${to}`);
+    }
+  }
+
+  /** Capture the case as it stands and acknowledge that capture. */
+  async function snapshotAndAcknowledge(accountId: string, missionId: string) {
+    const snap = await snapshotMission(db, { actorAccountId: accountId, missionId });
+    if (!isOk(snap)) throw new Error('snapshot');
+    const ack = await decideAcknowledgement(db, {
+      actorAccountId: accountId,
+      missionId,
+      snapshotId: snap.value.id,
+      expectedSnapshotChecksum: snap.value.checksum,
+      decision: 'ACKNOWLEDGED',
+      stepUpSatisfied: true,
+    });
+    if (!isOk(ack)) throw new Error('acknowledge');
+  }
+
+  it('activates an account with its first case and no other, recording how soon after sign-up that case came', async () => {
+    const { account, applicantId } = await seed(db);
+    for (const title of ['First case', 'Second case']) {
+      const result = await createMission(db, { actorAccountId: account.id, applicantId, title });
+      expect(isOk(result), title).toBe(true);
+    }
+
+    const created = await events('MISSION_CREATED');
+    expect(created).toHaveLength(2);
+    for (const event of created) {
+      expect(event).toMatchObject({ accountId: account.id, organizationId: null });
+    }
+    const activated = await events('ACCOUNT_ACTIVATED');
+    expect(activated).toHaveLength(1);
+    expect(activated[0]).toMatchObject({
+      accountId: account.id,
+      organizationId: null,
+      dimension: 'TRAVELLER',
+    });
+    // Sign-up and first case happened seconds apart inside this test.
+    expect(activated[0]?.metricValue).toBeGreaterThanOrEqual(0);
+    expect(activated[0]?.metricValue).toBeLessThan(120);
+    expect(activated[0]?.dedupeKey).toMatch(/^[0-9a-f]{64}$/);
+    expect(activated[0]?.dedupeKey).not.toContain(account.id);
+  });
+
+  it("carries the organization on an agency's case, and activates the account as an agency", async () => {
+    const { account, applicantId } = await seed(db);
+    const org = await createOrganization(db, { actorAccountId: account.id, name: 'Acme Visas' });
+    if (!isOk(org)) throw new Error('org');
+    const result = await createMission(db, {
+      actorAccountId: account.id,
+      applicantId,
+      title: 'Agency case',
+      ownerOrganizationId: org.value.id,
+    });
+    expect(isOk(result)).toBe(true);
+
+    expect(await events('MISSION_CREATED')).toMatchObject([
+      { accountId: account.id, organizationId: org.value.id },
+    ]);
+    expect(await events('ACCOUNT_ACTIVATED')).toMatchObject([
+      { accountId: account.id, organizationId: org.value.id, dimension: 'AGENCY' },
+    ]);
+  });
+
+  it('records every stage change by the state it moved to, and nothing for a move that is refused', async () => {
+    const { account, missionId } = await setUp();
+    await moveTo(account.id, missionId, 'INTAKE', 'IN_REVIEW', 'AWAITING_APPLICANT');
+
+    // Not a legal move, and not allowed without a live acknowledgement: neither happens.
+    const illegal = await transitionMission(db, {
+      actorAccountId: account.id,
+      missionId,
+      to: 'CLOSED',
+    });
+    const unacknowledged = await transitionMission(db, {
+      actorAccountId: account.id,
+      missionId,
+      to: 'SUBMISSION_READY',
+    });
+    expect([isErr(illegal), isErr(unacknowledged)]).toEqual([true, true]);
+
+    const stages = await events('MISSION_STAGE_CHANGED');
+    expect(stages.map((e) => e.dimension).sort()).toEqual(
+      ['AWAITING_APPLICANT', 'INTAKE', 'IN_REVIEW'].sort(),
+    );
+    for (const event of stages) {
+      expect(event).toMatchObject({
+        accountId: account.id,
+        organizationId: null,
+        metricValue: null,
+      });
+    }
+    expect(await events('MISSION_READY_REACHED')).toEqual([]);
+  });
+
+  it('records the first arrival at ready once, as seconds since the case was created, however often the case returns to ready', async () => {
+    const { account, missionId } = await setUp();
+    const twoHours = 2 * 60 * 60;
+    await db
+      .update(schema.missions)
+      .set({ createdAt: new Date(Date.now() - twoHours * 1000) })
+      .where(eq(schema.missions.id, missionId));
+
+    await moveTo(account.id, missionId, 'INTAKE', 'IN_REVIEW', 'AWAITING_APPLICANT');
+    await snapshotAndAcknowledge(account.id, missionId);
+    await moveTo(account.id, missionId, 'SUBMISSION_READY');
+
+    const first = await events('MISSION_READY_REACHED');
+    expect(first).toHaveLength(1);
+    expect(first[0]).toMatchObject({
+      accountId: account.id,
+      organizationId: null,
+      dimension: null,
+    });
+    expect(first[0]?.metricValue).toBeGreaterThanOrEqual(twoHours);
+    expect(first[0]?.metricValue).toBeLessThan(twoHours + 120);
+
+    // Out of ready and back in: the acknowledgement is still live, so this is allowed.
+    await moveTo(account.id, missionId, 'IN_REVIEW', 'AWAITING_APPLICANT', 'SUBMISSION_READY');
+    expect(await events('MISSION_READY_REACHED')).toHaveLength(1);
+    expect((await events('MISSION_STAGE_CHANGED')).map((e) => e.dimension).sort()).toEqual(
+      [
+        'INTAKE',
+        'IN_REVIEW',
+        'AWAITING_APPLICANT',
+        'SUBMISSION_READY',
+        'IN_REVIEW',
+        'AWAITING_APPLICANT',
+        'SUBMISSION_READY',
+      ].sort(),
+    );
+  });
+
+  it('treats the legacy ready-to-export state as ready too, and does not count the same case again when it later reaches submission-ready', async () => {
+    const { account, missionId } = await setUp();
+    await moveTo(
+      account.id,
+      missionId,
+      'IN_PROGRESS',
+      'READY_FOR_REVIEW',
+      'UNDER_REVIEW',
+      'READY_TO_EXPORT',
+    );
+    expect(await events('MISSION_READY_REACHED')).toHaveLength(1);
+
+    await moveTo(account.id, missionId, 'LOCKED');
+    await snapshotAndAcknowledge(account.id, missionId);
+    await moveTo(account.id, missionId, 'SUBMISSION_READY');
+    expect(await events('MISSION_READY_REACHED')).toHaveLength(1);
+  });
+
+  it('records the readiness state and the count of required items still unmet when a prepared file is captured', async () => {
+    const gap = await setUp({ document: 'required' });
+    const snap = await snapshotMission(db, {
+      actorAccountId: gap.account.id,
+      missionId: gap.missionId,
+    });
+    expect(isOk(snap)).toBe(true);
+
+    const detected = await events('READINESS_GAPS_DETECTED');
+    expect(detected).toHaveLength(1);
+    expect(detected[0]).toMatchObject({
+      accountId: gap.account.id,
+      organizationId: null,
+      dimension: 'NEEDS_ACTION',
+      metricValue: 1,
+    });
+  });
+
+  it('counts only required items as gaps: an unmet optional item is not one, and a complete case has none', async () => {
+    const optional = await setUp({ document: 'optional' });
+    const snap = await snapshotMission(db, {
+      actorAccountId: optional.account.id,
+      missionId: optional.missionId,
+    });
+    expect(isOk(snap)).toBe(true);
+    expect(await events('READINESS_GAPS_DETECTED')).toMatchObject([
+      { dimension: 'READY_FOR_APPLICANT_REVIEW', metricValue: 0 },
+    ]);
+  });
+
+  it('labels a manual-mode case as manual-only, and records nothing for a case with no pack to check against', async () => {
+    const manual = await setUp({ manualMode: true });
+    expect(
+      isOk(
+        await snapshotMission(db, {
+          actorAccountId: manual.account.id,
+          missionId: manual.missionId,
+        }),
+      ),
+    ).toBe(true);
+    expect(await events('READINESS_GAPS_DETECTED')).toMatchObject([{ dimension: 'MANUAL_ONLY' }]);
+
+    const packless = await createMission(db, {
+      actorAccountId: manual.account.id,
+      applicantId: manual.applicantId,
+      title: 'No pack yet',
+    });
+    if (!isOk(packless)) throw new Error('mission');
+    expect(
+      isOk(
+        await snapshotMission(db, {
+          actorAccountId: manual.account.id,
+          missionId: packless.value.id,
+        }),
+      ),
+    ).toBe(true);
+    expect(await events('READINESS_GAPS_DETECTED')).toHaveLength(1);
+  });
+
+  it('can label every state a case can be in, so a state added later is never silently dropped', async () => {
+    const { account } = await seed(db);
+    for (const state of schema.missionState.enumValues) {
+      await recordProductEvent(db, {
+        eventType: 'MISSION_STAGE_CHANGED',
+        accountId: account.id,
+        dimension: state,
+      });
+    }
+    const labels = (await events('MISSION_STAGE_CHANGED')).map((e) => e.dimension).sort();
+    expect(labels).toEqual([...schema.missionState.enumValues].sort());
+  });
+
+  it('puts nothing personal in any event across a whole case: no name, title, email or field value', async () => {
+    const { account, missionId } = await setUp({ document: 'required' });
+    await moveTo(account.id, missionId, 'INTAKE', 'IN_REVIEW', 'AWAITING_APPLICANT');
+    await snapshotAndAcknowledge(account.id, missionId);
+    await moveTo(account.id, missionId, 'SUBMISSION_READY');
+
+    const stored = JSON.stringify(await db.select().from(schema.productEvents));
+    expect(stored).toContain('MISSION_STAGE_CHANGED');
+    for (const personal of ['Owner', 'UK Visa', 'm@example.com', 'A1', 'passport.number']) {
+      expect(stored, personal).not.toContain(personal);
+    }
   });
 });

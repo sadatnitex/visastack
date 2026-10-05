@@ -24,6 +24,7 @@ import {
   sweepExpiryReminders,
   sweepTaskDeadlineReminders,
 } from './notification-sweep';
+import { createOrganization } from './organizations';
 import {
   addPackVersion,
   addRequirement,
@@ -450,5 +451,95 @@ describe('sweepExpiryReminders', () => {
       .from(schema.acknowledgements)
       .where(eq(schema.acknowledgements.missionId, missionId));
     expect(rows[0]?.invalidatedAt).not.toBeNull();
+  });
+});
+
+describe('OPS-04 (Commercial V1 Part 9): overdue-task analytics', () => {
+  let db: Db;
+  beforeEach(async () => {
+    db = await freshDb();
+  });
+
+  const now = new Date('2026-06-15T12:00:00.000Z');
+
+  async function overdueEvents() {
+    return (await db.select().from(schema.productEvents)).filter(
+      (e) => e.eventType === 'TASK_OVERDUE',
+    );
+  }
+
+  async function taskDue(dueDate: Date, options: { readonly organizationId?: string } = {}) {
+    const { account, applicantId } = await seedOwner(db, 'ops04-sweep@example.com');
+    const mission = await createMission(db, {
+      actorAccountId: account.id,
+      applicantId,
+      title: 'M',
+      ...(options.organizationId ? { ownerOrganizationId: options.organizationId } : {}),
+    });
+    if (!isOk(mission)) throw new Error('mission');
+    const task = await createTask(db, {
+      actorAccountId: account.id,
+      missionId: mission.value.id,
+      description: 'Submit form',
+      dueDate,
+      dueTimezone: 'Asia/Dhaka',
+    });
+    if (!isOk(task)) throw new Error('task');
+    return { account, taskId: task.value.id };
+  }
+
+  it('records a task going overdue once, however many sweeps revisit it, including the weekly follow-ups', async () => {
+    const { account, taskId } = await taskDue(new Date(now.getTime() - DAY_MS));
+
+    await sweepTaskDeadlineReminders(db, now);
+    await sweepTaskDeadlineReminders(db, new Date(now.getTime() + 3600_000));
+    // A week on, the sweep sends a fresh follow-up reminder (overdue_1) for the
+    // same task; the task is still the same overdue task.
+    const aWeekOn = new Date(now.getTime() + 6 * DAY_MS);
+    await sweepTaskDeadlineReminders(db, aWeekOn);
+    const reminders = await db
+      .select()
+      .from(schema.notifications)
+      .where(eq(schema.notifications.eventType, 'TASK_DEADLINE'));
+    expect(reminders.some((r) => r.idempotencyKey.endsWith(':overdue_1'))).toBe(true);
+
+    const events = await overdueEvents();
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({
+      accountId: account.id,
+      organizationId: null,
+      dimension: null,
+      metricValue: null,
+    });
+    expect(events[0]?.dedupeKey).toMatch(/^[0-9a-f]{64}$/);
+    expect(events[0]?.dedupeKey).not.toContain(taskId);
+  });
+
+  it('carries the organization of an agency case', async () => {
+    const { account } = await seedOwner(db, 'ops04-sweep-org@example.com');
+    const org = await createOrganization(db, { actorAccountId: account.id, name: 'Acme' });
+    if (!isOk(org)) throw new Error('org');
+    const { taskId } = await taskDue(new Date(now.getTime() - DAY_MS), {
+      organizationId: org.value.id,
+    });
+    expect(taskId).toBeTruthy();
+
+    await sweepTaskDeadlineReminders(db, now);
+    expect(await overdueEvents()).toMatchObject([{ organizationId: org.value.id }]);
+  });
+
+  it('records nothing for a task that is merely coming due, or one that is already done', async () => {
+    const upcoming = await taskDue(new Date(now.getTime() + 7 * DAY_MS));
+    expect(upcoming.taskId).toBeTruthy();
+    expect((await sweepTaskDeadlineReminders(db, now)).enqueued).toBe(1);
+    expect(await overdueEvents()).toEqual([]);
+
+    const done = await taskDue(new Date(now.getTime() - DAY_MS));
+    await db
+      .update(schema.missionTasks)
+      .set({ status: 'DONE' })
+      .where(eq(schema.missionTasks.id, done.taskId));
+    await sweepTaskDeadlineReminders(db, now);
+    expect(await overdueEvents()).toEqual([]);
   });
 });

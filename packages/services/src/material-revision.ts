@@ -1,5 +1,6 @@
 import { and, eq, isNull, sql } from 'drizzle-orm';
 import { type Db, schema } from './db';
+import { recordProductEvent } from './product-events';
 
 /**
  * TRU-03 (master directive Part 7 §4): case material revision.
@@ -12,7 +13,8 @@ import { type Db, schema } from './db';
  * whether it still matches what a snapshot or acknowledgement (TRU-02)
  * captured.
  *
- * Lives in its own module, depending only on `db`/`schema`, specifically so
+ * Lives in its own module, depending only on `db`/`schema` (and the
+ * analytics recorder, which itself depends on nothing else here), specifically so
  * `missions.ts`, `profile.ts` (`editFact`), `documents.ts`
  * (`addDocumentVersion`), and `erasure.ts` can all call it without any of
  * them importing from one another. `missions.ts` already imports from
@@ -33,11 +35,12 @@ import { type Db, schema } from './db';
  * begin with, and an already-invalidated row has nothing left to mark.
  */
 export async function incrementMaterialRevision(tx: Db, missionId: string): Promise<void> {
-  await tx
+  const [mission] = await tx
     .update(schema.missions)
     .set({ materialRevision: sql`${schema.missions.materialRevision} + 1` })
-    .where(eq(schema.missions.id, missionId));
-  await tx
+    .where(eq(schema.missions.id, missionId))
+    .returning({ organizationId: schema.missions.ownerOrganizationId });
+  const invalidated = await tx
     .update(schema.acknowledgements)
     .set({ invalidatedAt: sql`now()` })
     .where(
@@ -46,7 +49,18 @@ export async function incrementMaterialRevision(tx: Db, missionId: string): Prom
         eq(schema.acknowledgements.decision, 'ACKNOWLEDGED'),
         isNull(schema.acknowledgements.invalidatedAt),
       ),
-    );
+    )
+    .returning({ id: schema.acknowledgements.id });
+  // OPS-04 invalidation: only when a live acknowledgement was really voided. No
+  // account is recorded because the change that caused it may be a person's
+  // edit or the expiry sweep, and the event is about the case, not them.
+  if (invalidated.length > 0) {
+    await recordProductEvent(tx, {
+      eventType: 'ACKNOWLEDGEMENT_INVALIDATED',
+      accountId: null,
+      organizationId: mission?.organizationId ?? null,
+    });
+  }
 }
 
 /**

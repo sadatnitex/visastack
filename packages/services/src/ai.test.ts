@@ -3448,3 +3448,194 @@ describe('AI Gateway -- one per-actor rate limit shared across all five tasks (P
     expect(await aiBucketCount(account.id)).toBe(1);
   });
 });
+
+describe('OPS-04 (Commercial V1 Part 9): AI decision analytics', () => {
+  let db: Db;
+  beforeEach(async () => {
+    db = await freshDb();
+  });
+
+  async function decisions() {
+    return (await db.select().from(schema.productEvents)).filter((e) =>
+      ['AI_PROPOSAL_ACCEPTED', 'AI_PROPOSAL_CORRECTED', 'AI_PROPOSAL_REJECTED'].includes(
+        e.eventType,
+      ),
+    );
+  }
+
+  /** The event types a single action added to the log. */
+  async function eventsAddedBy(action: () => Promise<unknown>) {
+    const before = new Set((await decisions()).map((e) => e.id));
+    await action();
+    return (await decisions()).filter((e) => !before.has(e.id)).map((e) => e.eventType);
+  }
+
+  /** An extraction run on a fresh document, with its passport-number proposal. */
+  async function extractionProposal(email: string) {
+    const { account, applicantId, versionId } = await seedVersion(db, email);
+    await grantAiConsent(db, account.id);
+    await registerFieldDefinition(db, { key: 'passport.number', dataType: 'string' });
+    const run = await runExtraction(db, stubAi(), {
+      actorAccountId: account.id,
+      applicantId,
+      documentVersionId: versionId,
+      text: 'MRZ...',
+      budgetLimitUnits: 10,
+    });
+    if (!isOk(run)) throw new Error('run failed');
+    const proposalId = run.value.proposals.find((p) => p.fieldKey === 'passport.number')
+      ?.id as string;
+    return { account, proposalId };
+  }
+
+  it('records an extraction proposal taken as proposed as accepted, without the value', async () => {
+    const { account, proposalId } = await extractionProposal('ops04-accept@example.com');
+    expect(isOk(await approveProposal(db, { actorAccountId: account.id, proposalId }))).toBe(true);
+
+    expect(await decisions()).toMatchObject([
+      {
+        eventType: 'AI_PROPOSAL_ACCEPTED',
+        accountId: account.id,
+        organizationId: null,
+        dimension: 'EXTRACTION',
+        metricValue: null,
+      },
+    ]);
+    expect(JSON.stringify(await decisions())).not.toContain('L898902C3');
+  });
+
+  it('records a proposal the reviewer changed before approving as corrected, never either value', async () => {
+    const { account, proposalId } = await extractionProposal('ops04-correct@example.com');
+    const approved = await approveProposal(db, {
+      actorAccountId: account.id,
+      proposalId,
+      correctedValue: 'Z9999999-FIXED',
+    });
+    expect(isOk(approved)).toBe(true);
+
+    expect(await decisions()).toMatchObject([
+      { eventType: 'AI_PROPOSAL_CORRECTED', dimension: 'EXTRACTION' },
+    ]);
+    const stored = JSON.stringify(await decisions());
+    expect(stored).not.toContain('L898902C3');
+    expect(stored).not.toContain('Z9999999');
+  });
+
+  it('counts a "correction" that equals the proposal as accepted, not corrected', async () => {
+    const { account, proposalId } = await extractionProposal('ops04-same@example.com');
+    const approved = await approveProposal(db, {
+      actorAccountId: account.id,
+      proposalId,
+      correctedValue: 'L898902C3',
+    });
+    expect(isOk(approved)).toBe(true);
+    expect((await decisions()).map((e) => e.eventType)).toEqual(['AI_PROPOSAL_ACCEPTED']);
+  });
+
+  it('records a rejected extraction proposal without the reason given', async () => {
+    const { account, proposalId } = await extractionProposal('ops04-reject@example.com');
+    const rejected = await rejectProposal(db, {
+      actorAccountId: account.id,
+      proposalId,
+      reason: 'the scan is of my brother Tariq, not me',
+    });
+    expect(isOk(rejected)).toBe(true);
+
+    expect(await decisions()).toMatchObject([
+      { eventType: 'AI_PROPOSAL_REJECTED', accountId: account.id, dimension: 'EXTRACTION' },
+    ]);
+    expect(JSON.stringify(await decisions())).not.toContain('Tariq');
+  });
+
+  it('records nothing for a decision that is refused, or repeated on a proposal already decided', async () => {
+    const { account, proposalId } = await extractionProposal('ops04-refused@example.com');
+    expect(isOk(await approveProposal(db, { actorAccountId: account.id, proposalId }))).toBe(true);
+    const again = await approveProposal(db, { actorAccountId: account.id, proposalId });
+    const rejectAfter = await rejectProposal(db, {
+      actorAccountId: account.id,
+      proposalId,
+      reason: 'changed my mind',
+    });
+    expect([isErr(again), isErr(rejectAfter)]).toEqual([true, true]);
+    expect(await decisions()).toHaveLength(1);
+  });
+
+  it('records a document-type proposal accepted or rejected, under the classification label', async () => {
+    for (const verdict of ['accept', 'reject'] as const) {
+      const { account, applicantId, versionId } = await seedVersion(
+        db,
+        `ops04-classify-${verdict}@example.com`,
+      );
+      await grantAiConsent(db, account.id);
+      await seedExtractionRun(db, versionId);
+      const run = await runClassification(db, stubClassifyAi(), {
+        actorAccountId: account.id,
+        applicantId,
+        documentVersionId: versionId,
+        text: 'statement of account, opening balance, closing balance',
+        budgetLimitUnits: 1000,
+      });
+      if (!isOk(run) || !run.value.proposal) throw new Error('expected a proposal');
+      const proposalId = run.value.proposal.id;
+      const added = await eventsAddedBy(async () => {
+        const decided =
+          verdict === 'accept'
+            ? await approveDocumentTypeProposal(db, { actorAccountId: account.id, proposalId })
+            : await rejectDocumentTypeProposal(db, {
+                actorAccountId: account.id,
+                proposalId,
+                reason: 'not a bank statement',
+              });
+        expect(isOk(decided), verdict).toBe(true);
+      });
+      expect(added).toEqual([
+        verdict === 'accept' ? 'AI_PROPOSAL_ACCEPTED' : 'AI_PROPOSAL_REJECTED',
+      ]);
+    }
+
+    expect((await decisions()).map((e) => [e.eventType, e.dimension]).sort()).toEqual([
+      ['AI_PROPOSAL_ACCEPTED', 'CLASSIFICATION'],
+      ['AI_PROPOSAL_REJECTED', 'CLASSIFICATION'],
+    ]);
+  });
+
+  it('records an acknowledged inconsistency flag as accepted and a dismissed one as rejected', async () => {
+    for (const verdict of ['acknowledge', 'dismiss'] as const) {
+      const { account, applicantId, versionId } = await seedVersion(
+        db,
+        `ops04-flag-${verdict}@example.com`,
+      );
+      await grantAiConsent(db, account.id);
+      const run = await runInconsistencyCheck(db, stubInconsistencyAi(), {
+        actorAccountId: account.id,
+        applicantId,
+        documentVersionId: versionId,
+        text: 'Name: Mohammed Rahman',
+        budgetLimitUnits: 1000,
+      });
+      if (!isOk(run) || run.value.flags.length === 0) throw new Error('expected a flag');
+      const flagId = run.value.flags[0]?.id ?? '';
+      const added = await eventsAddedBy(async () => {
+        const decided =
+          verdict === 'acknowledge'
+            ? await acknowledgeInconsistencyFlag(db, { actorAccountId: account.id, flagId })
+            : await dismissInconsistencyFlag(db, {
+                actorAccountId: account.id,
+                flagId,
+                reason: 'legitimate spelling variation of Rahman',
+              });
+        expect(isOk(decided), verdict).toBe(true);
+      });
+      expect(added).toEqual([
+        verdict === 'acknowledge' ? 'AI_PROPOSAL_ACCEPTED' : 'AI_PROPOSAL_REJECTED',
+      ]);
+    }
+
+    const events = await decisions();
+    expect(events.map((e) => [e.eventType, e.dimension]).sort()).toEqual([
+      ['AI_PROPOSAL_ACCEPTED', 'INCONSISTENCY'],
+      ['AI_PROPOSAL_REJECTED', 'INCONSISTENCY'],
+    ]);
+    expect(JSON.stringify(events)).not.toContain('Rahman');
+  });
+});

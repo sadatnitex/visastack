@@ -869,11 +869,18 @@ export {
 } from './rate-limit';
 
 export {
+  PRODUCT_EVENT_CATEGORIES,
   PRODUCT_EVENT_TYPES,
+  type AnalyticsCategoryRow,
+  type DurationSummary,
+  type LabelCount,
   type PilotScorecardRow,
+  type ProductAnalytics,
+  type ProductAnalyticsResult,
   type ProductEventType,
   type RecordProductEventInput,
   getPilotScorecard,
+  getProductAnalytics,
   recordProductEvent,
 } from './product-events';
 
