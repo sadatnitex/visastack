@@ -9,6 +9,9 @@ import { defineCatalog } from '../catalog';
 export const shell = defineCatalog(
   { id: 'shell', review: [] },
   {
+    // The browser tab and the title a screen reader announces for the page.
+    'shell.meta.title': 'VisaStack - one profile, every visa',
+
     // Site header and footer.
     'shell.skipToContent': 'Skip to content',
     'shell.language': 'Language',
@@ -86,6 +89,8 @@ export const shell = defineCatalog(
       'The professional legal review of this Bangla translation is not finished yet. If anything is unclear, check the English version.',
   },
   {
+    'shell.meta.title': 'VisaStack - একটি প্রোফাইল, সব ভিসা',
+
     'shell.skipToContent': 'মূল বিষয়বস্তুতে যান',
     'shell.language': 'ভাষা',
     'shell.nav.platform': 'প্ল্যাটফর্ম',

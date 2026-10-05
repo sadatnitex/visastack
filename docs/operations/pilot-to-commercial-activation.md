@@ -103,7 +103,11 @@ record, not to bypass.
 4. Set the provider vars from §2 and `DEPLOYMENT_MODE=commercial` on the real
    production environment.
 5. Set every `COMMERCIAL_READINESS_ATTEST_*` flag from §3 to `true`, and only
-   after the work it names is genuinely done.
+   after the work it names is genuinely done. One gate is not a flag:
+   `banglaTranslationReview` opens only when the professional review of the Bangla
+   wording is recorded in `packages/i18n/src/review.ts` (see
+   `docs/ux/bangla-translation.md`), because a flag could be set without anyone
+   having read the text.
 6. Check `GET /api/health/ready`. It must report `"status": "ready"` (HTTP
    200) and `commercialReadiness.ready: true` with every gate `satisfied:
    true`. Until then, commercial mode stays inert: public capabilities report

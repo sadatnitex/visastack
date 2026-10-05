@@ -193,6 +193,46 @@ describe('applicants — consent-gated subject records', () => {
     if (isErr(result)) expect(result.error.message).toContain('authority');
   });
 
+  it('stores a legal name exactly as typed: no transliteration, no normalisation, joiners kept (Part 9 section 4)', async () => {
+    const account = await seedConsentedAccount(db, 'bangla-name@example.com');
+    // Written as escapes so the exact code points are visible: ZWJ (U+200D) and ZWNJ (U+200C) are
+    // part of how Bangla names are spelled, and U+09DF is a precomposed letter that canonical
+    // normalisation (NFC) would split into two code points. None of it may change on the way in.
+    const typed = 'র\u200D্যাব রহিম\u200C উদ্দিন \u09DF \u0041li';
+    const created = await createApplicant(db, {
+      actorAccountId: account.id,
+      ownerAccountId: account.id,
+      displayName: `  ${typed}  `,
+    });
+    expect(isOk(created)).toBe(true);
+    if (!isOk(created)) return;
+    const codePoints = (text: string) => [...text].map((c) => c.codePointAt(0));
+    expect(codePoints(created.value.displayName)).toEqual(codePoints(typed));
+    expect(typed.normalize('NFC')).not.toBe(typed);
+
+    const [stored] = await listApplicants(db, account.id);
+    expect(codePoints(stored?.displayName ?? '')).toEqual(codePoints(typed));
+  });
+
+  it('keeps a Bangla name and a Latin spelling of it as two separate, untouched values', async () => {
+    const account = await seedConsentedAccount(db, 'two-spellings@example.com');
+    const bangla = await createApplicant(db, {
+      actorAccountId: account.id,
+      ownerAccountId: account.id,
+      displayName: 'মোহাম্মদ রহিম উদ্দিন',
+    });
+    const latin = await addFamilyMember(db, {
+      actorAccountId: account.id,
+      ownerAccountId: account.id,
+      displayName: 'Mohammad Rahim Uddin',
+      relationship: 'FAMILY_MEMBER',
+      authorityConfirmed: true,
+    });
+    expect(isOk(bangla) && isOk(latin)).toBe(true);
+    const names = (await listApplicants(db, account.id)).map((a) => a.displayName).sort();
+    expect(names).toEqual(['Mohammad Rahim Uddin', 'মোহাম্মদ রহিম উদ্দিন'].sort());
+  });
+
   it('lists every applicant platform-wide, for admin pickers/lookups', async () => {
     const a = await seedConsentedAccount(db, 'admin-list-a@example.com');
     const b = await seedConsentedAccount(db, 'admin-list-b@example.com');

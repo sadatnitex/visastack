@@ -177,7 +177,9 @@ export const privacy = defineCatalog(
     'privacy.deletion.confirm':
       'আপনার অ্যাকাউন্ট ও আপনার মালিকানাধীন সব তথ্য স্থায়ীভাবে মুছে ফেলার সময় নির্ধারণ করবেন? বাতিল করার জন্য আপনি ৭ দিনের অবকাশকাল পাবেন।',
     'privacy.deletion.reason': 'কারণ (ঐচ্ছিক)',
-    'privacy.deletion.reasonPlaceholder': 'আমাদের উন্নতিতে সাহায্য করে - বাধ্যতামূলক নয়',
+    // Shorter than the English on purpose: a placeholder does not wrap, and the label above
+    // already says the reason is optional.
+    'privacy.deletion.reasonPlaceholder': 'আমাদের উন্নতিতে সাহায্য করে',
     'privacy.deletion.request': 'অ্যাকাউন্ট মুছে ফেলার অনুরোধ করুন',
     'privacy.deletion.requesting': 'নির্ধারণ করা হচ্ছে…',
     'privacy.deletion.scheduled':

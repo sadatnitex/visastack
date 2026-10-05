@@ -1,5 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { latinWords, localeState, renderServer, textOf } from '../../../lib/next-mocks.test-support';
+import {
+  latinWords,
+  localeState,
+  renderServer,
+  textOf,
+} from '../../../lib/next-mocks.test-support';
 
 const mocks = vi.hoisted(() => ({ listNotificationsForAccount: vi.fn() }));
 
@@ -54,6 +59,10 @@ describe('Alerts in English', () => {
     expect(text).toContain('Mark read');
   });
 
+  it('shows no translation notice in English', async () => {
+    expect(textOf(await renderServer(Page()))).not.toContain('legal review');
+  });
+
   it('says there are no alerts yet when there are none', async () => {
     mocks.listNotificationsForAccount.mockResolvedValue([]);
     expect(textOf(await renderServer(Page()))).toContain('No alerts yet.');
@@ -85,6 +94,11 @@ describe('Alerts in Bangla', () => {
     mocks.listNotificationsForAccount.mockResolvedValue([keyed]);
     const text = textOf(await renderServer(Page()));
     expect([...new Set(latinWords(text))]).toEqual(['Passport']);
+  });
+
+  it('says the retention and deletion wording is still waiting for a professional review', async () => {
+    const text = textOf(await renderServer(Page()));
+    expect(text).toContain('পেশাদার আইনি পর্যালোচনা এখনও শেষ হয়নি');
   });
 
   it('says there are no alerts yet, in Bangla', async () => {

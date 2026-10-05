@@ -69,6 +69,19 @@ describe('Applicants in Bangla', () => {
     expect([...new Set(latinWords(text))]).toEqual(['Karim', 'Uddin']);
   });
 
+  it('says the consent wording is still waiting for a professional review, next to the form that uses it', async () => {
+    const text = textOf(await renderServer(Page()));
+    expect(text).toContain('পেশাদার আইনি পর্যালোচনা এখনও শেষ হয়নি');
+  });
+
+  it('shows no notice in English, or when the form is not shown', async () => {
+    mocks.getConsents.mockResolvedValue({});
+    expect(textOf(await renderServer(Page()))).not.toContain('পেশাদার আইনি পর্যালোচনা');
+    localeState.value = 'en';
+    mocks.getConsents.mockResolvedValue({ CORE_PROCESSING: true });
+    expect(textOf(await renderServer(Page()))).not.toContain('legal review');
+  });
+
   it('hands the form Bangla words, with the authority statement for the reviewer to check', async () => {
     const html = await renderServer(Page());
     const [form] = stubProps<{ messages: Record<string, string> }>(html, 'AddApplicantForm');

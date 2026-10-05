@@ -9,11 +9,19 @@ import { getI18n } from '../lib/locale';
 import { setLocaleAction } from './actions';
 import './globals.css';
 
-export const metadata: Metadata = {
-  title: 'VisaStack — one profile, every visa',
-  description:
-    'A universal, pack-composable visa and immigration platform. Turn documents into structured, permission-aware profiles through a governed, AI-assisted (or fully manual) workflow.',
-};
+/**
+ * The page title is in the visitor's language (it is what the browser tab shows and what a
+ * screen reader announces first). The description is search-engine marketing copy that is
+ * still awaiting the owner's content review (known-issues, chunk 37), so it stays English.
+ */
+export async function generateMetadata(): Promise<Metadata> {
+  const { t } = await getI18n();
+  return {
+    title: t('shell.meta.title'),
+    description:
+      'A universal, pack-composable visa and immigration platform. Turn documents into structured, permission-aware profiles through a governed, AI-assisted (or fully manual) workflow.',
+  };
+}
 
 // Match the browser chrome to the theme in both light and dark (Apple-style).
 export const viewport: Viewport = {

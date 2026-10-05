@@ -12,6 +12,7 @@ import { setConsent } from './consent';
 import type { Db } from './db';
 import {
   applyEmailDeliveryEvent,
+  buildAlertPayload,
   buildNotificationIdempotencyKey,
   cancelQueuedNotificationsForResource,
   enqueueNotification,
@@ -663,5 +664,102 @@ describe('applyEmailDeliveryEvent (NTF-03 delivery/bounce webhook)', () => {
       outcome: 'delivered',
     });
     expect(result.applied).toBe(false);
+  });
+});
+
+describe('buildAlertPayload (alerts that read in the reader language)', () => {
+  let db: Db;
+  beforeEach(async () => {
+    db = await freshDb();
+  });
+
+  it('stores the English wording travellers have always seen, built from the catalog', () => {
+    expect(
+      buildAlertPayload({
+        subject: 'alert.evidenceRequestCreated.subject',
+        summary: 'alert.evidenceRequestCreated.summary',
+        deepLinkPath: '/app/applicant/a1/evidence',
+      }),
+    ).toEqual({
+      subject: 'New evidence request',
+      summary: 'An agency working your case has asked for evidence.',
+      deepLinkPath: '/app/applicant/a1/evidence',
+      messages: {
+        subject: 'alert.evidenceRequestCreated.subject',
+        summary: 'alert.evidenceRequestCreated.summary',
+      },
+    });
+  });
+
+  it('fills the values into the English text and keeps them for the page to translate', () => {
+    const payload = buildAlertPayload({
+      subject: 'alert.documentExpiry.subject',
+      summary: 'alert.documentExpiry.summary',
+      params: { name: 'পাসপোর্ট' },
+      deepLinkPath: '/app/applicant/a1/expiry',
+    });
+    expect(payload.summary).toBe('"পাসপোর্ট" is expiring soon. Check whether it needs renewing.');
+    expect(payload.messages?.params).toEqual({ name: 'পাসপোর্ট' });
+  });
+
+  it('keeps a number a number, so the page can write it in the reader digits', async () => {
+    const { account } = await seedOwner(db, 'alert-number@example.com');
+    await enqueueNotification(db, {
+      eventType: 'CASE_RETENTION_NOTICE',
+      channel: 'IN_APP',
+      resourceId: 'm1',
+      recipientAccountId: account.id,
+      payload: buildAlertPayload({
+        subject: 'alert.caseRetention.subject',
+        summary: 'alert.caseRetention.summary',
+        params: { months: 12 },
+        deepLinkPath: '/app/mission/m1',
+      }),
+    });
+    await runNotificationWorker(db, new FakeEmailPort(), 'https://app.example.com');
+    const [listed] = await listNotificationsForAccount(db, account.id);
+    expect(listed?.subject).toBe('Case data scheduled for deletion in 30 days');
+    expect(listed?.summary).toContain('closed for 12 months');
+    expect(listed?.messages).toEqual({
+      subject: 'alert.caseRetention.subject',
+      summary: 'alert.caseRetention.summary',
+      params: { months: 12 },
+    });
+  });
+
+  it('lists an alert stored before messages existed without any, so the page keeps its English', async () => {
+    const { account } = await seedOwner(db, 'alert-legacy@example.com');
+    await enqueueNotification(db, {
+      eventType: 'A',
+      channel: 'IN_APP',
+      resourceId: '1',
+      recipientAccountId: account.id,
+      payload: { subject: 'Old alert', summary: 'Old text', deepLinkPath: '/app' },
+    });
+    await runNotificationWorker(db, new FakeEmailPort(), 'https://app.example.com');
+    const [listed] = await listNotificationsForAccount(db, account.id);
+    expect(listed?.subject).toBe('Old alert');
+    expect(listed).not.toHaveProperty('messages');
+  });
+
+  it('still sends the email in English, with the same subject and body as before', async () => {
+    const { account } = await seedOwner(db, 'alert-email@example.com');
+    await enqueueNotification(db, {
+      eventType: 'EVIDENCE_REQUEST_CREATED',
+      channel: 'EMAIL',
+      resourceId: 'r1',
+      recipientAccountId: account.id,
+      payload: buildAlertPayload({
+        subject: 'alert.evidenceRequestCreated.subject',
+        summary: 'alert.evidenceRequestCreated.summary',
+        deepLinkPath: '/app/applicant/a1/evidence',
+      }),
+    });
+    const email = new FakeEmailPort();
+    await runNotificationWorker(db, email, 'https://app.example.com');
+    expect(email.sent[0]?.subject).toBe('New evidence request');
+    expect(email.sent[0]?.body).toBe(
+      'An agency working your case has asked for evidence.\n\nhttps://app.example.com/app/applicant/a1/evidence',
+    );
   });
 });

@@ -193,6 +193,18 @@ dashboard in the WorkOS-staging-gated suite
 (`e2e/authenticated-workspace.spec.ts`) — both fail the build on any
 `critical`/`serious` violation.
 
+## 6a. Languages
+
+English and Bangla are both first-class. The reader's language is a cookie, set from
+the switch in the site header or from the Account page, and applies to every page at
+once. Messages live in one typed catalog per flow with a complete Bangla object (a
+missing key is a compile error), numbers and dates are written in the reader's digits
+and day-first order, and Bangla gets its own typography rules (no letter-spacing, roomier
+line height). Consent, privacy, legal and security wording in Bangla is marked as needing
+a professional review before public launch, shows a notice on screen until that review is
+recorded, and holds a launch gate closed. The full account, including what is translated
+and what is not, is in [`bangla-translation.md`](./bangla-translation.md).
+
 ## 7. What this PR does not cover (named, not hidden)
 
 - **Agency console** was a bounded improvement in PR 7 (one page with a Case-inbox

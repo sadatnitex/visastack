@@ -206,6 +206,28 @@ describe('i18n - catalog integrity', () => {
     }
   });
 
+  it('uses the product vocabulary, never an internal name, in anything a reader sees', () => {
+    // Directive Part 9 section 1: no "mission", "provider schema" or "job lease" for ordinary travellers.
+    const internal = [/\bmissions?\b/i, /provider schema/i, /job lease/i];
+    for (const [catalog, key, text] of allEntries('en')) {
+      for (const pattern of internal) {
+        expect(pattern.test(text), `${catalog}:${key} mentions ${pattern}`).toBe(false);
+      }
+    }
+  });
+
+  it('has no stray spacing or placeholder text in any message', () => {
+    for (const locale of ['en', 'bn'] as const) {
+      for (const [catalog, key, text] of allEntries(locale)) {
+        expect(text, `${catalog}:${key} (${locale}) has outer whitespace`).toBe(text.trim());
+        expect(/ {2,}/.test(text), `${catalog}:${key} (${locale}) has a double space`).toBe(false);
+        expect(/todo|lorem|xxx/i.test(text), `${catalog}:${key} (${locale}) looks unfinished`).toBe(
+          false,
+        );
+      }
+    }
+  });
+
   it('knows which catalog a key belongs to', () => {
     expect(catalogOf('consent.core.title')).toBe('consent');
     expect(catalogOf('alert.documentExpiry.subject')).toBe('alerts');

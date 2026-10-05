@@ -1,6 +1,7 @@
 import { getConsents, listApplicants } from '@visastack/services';
 import Link from 'next/link';
 import { Rich } from '../../../components/rich';
+import { TranslationNotice } from '../../../components/translation-notice';
 import { pickMessages } from '../../../lib/client-messages';
 import { getI18n } from '../../../lib/locale';
 import { relationshipLabel } from '../../../lib/relationship-labels';
@@ -34,6 +35,9 @@ export default async function ApplicantsPage() {
           </p>
         </div>
       </div>
+
+      {/* The form's statement about authority over someone else's record is consent wording. */}
+      {data.coreGranted ? <TranslationNotice catalog="consent" locale={locale} t={t} /> : null}
 
       <div className="grid">
         <article className="card">

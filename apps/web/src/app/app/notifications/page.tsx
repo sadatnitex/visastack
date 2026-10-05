@@ -1,5 +1,6 @@
 import { listNotificationsForAccount } from '@visastack/services';
 import Link from 'next/link';
+import { TranslationNotice } from '../../../components/translation-notice';
 import { alertText } from '../../../lib/alert-text';
 import { getI18n } from '../../../lib/locale';
 import { withSession } from '../../../lib/session';
@@ -15,7 +16,7 @@ export const dynamic = 'force-dynamic';
  */
 export default async function NotificationsPage() {
   const i18n = await getI18n();
-  const { t } = i18n;
+  const { locale, t } = i18n;
   const notifications = await withSession(({ db, accountId }) =>
     listNotificationsForAccount(db, accountId),
   );
@@ -30,6 +31,9 @@ export default async function NotificationsPage() {
           </h1>
         </div>
       </div>
+
+      {/* Retention and deletion notices say what will happen to a person's data. */}
+      <TranslationNotice catalog="alerts" locale={locale} t={t} />
 
       <article className="card">
         {notifications.length === 0 ? (
@@ -60,7 +64,7 @@ export default async function NotificationsPage() {
                         </span>
                       ) : null}
                     </span>
-                    <span className="muted" style={{ fontSize: '0.75rem' }}>
+                    <span className="muted" style={{ fontSize: '0.75rem', whiteSpace: 'nowrap' }}>
                       {i18n.date(n.createdAt)}
                     </span>
                   </div>

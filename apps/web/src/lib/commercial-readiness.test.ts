@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
  * The commercial readiness guard (master directive §7 "PR 11" / Commercial
@@ -18,6 +18,20 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
  * real KMS, so no env var combination can satisfy it until a genuine KMS
  * vendor adapter is registered in providers.ts.
  */
+
+/**
+ * The Bangla review gate reads the review record in `@visastack/i18n`. The record is empty today,
+ * so by default the gate is closed (the real behaviour); a test that needs every gate open says
+ * the reviews are done by setting `override` to an empty list.
+ */
+const i18nMocks = vi.hoisted(() => ({ override: null as string[] | null }));
+vi.mock('@visastack/i18n', async (importOriginal) => {
+  const original = await importOriginal<typeof import('@visastack/i18n')>();
+  return {
+    ...original,
+    banglaReviewPending: () => i18nMocks.override ?? original.banglaReviewPending(),
+  };
+});
 
 const ATTEST_FLAGS = [
   'WORKOS_PRODUCTION',
@@ -75,6 +89,7 @@ function satisfyEveryGateExceptMalwareScanner(): void {
   setEnv('RESEND_API_KEY', 'x');
   setEnv('RESEND_FROM_ADDRESS', 'VisaStack <notifications@example.test>');
   for (const flag of ATTEST_FLAGS) setEnv(`COMMERCIAL_READINESS_ATTEST_${flag}`, 'true');
+  i18nMocks.override = [];
 }
 
 /** Sets every gate, including a genuinely configured real malware scanner. */
@@ -85,6 +100,7 @@ function satisfyEveryGate(): void {
 }
 
 beforeEach(() => {
+  i18nMocks.override = null;
   for (const key of ENV_KEYS) ORIGINAL[key] = process.env[key];
   for (const key of ENV_KEYS) unsetEnv(key);
 });
@@ -136,9 +152,51 @@ describe('evaluateCommercialReadiness', () => {
       'authenticatedProductionE2e',
       'incidentOwner',
       'termsAndPrivacyNotice',
+      'banglaTranslationReview',
       'noCriticalHighFindings',
       'externalPenetrationTest',
     ]);
+  });
+
+  it('keeps the Bangla review gate closed while any Bangla consent, privacy or legal wording is unreviewed', async () => {
+    const { evaluateCommercialReadiness } = await import('./commercial-readiness');
+    const gate = evaluateCommercialReadiness({ databaseReady: true }).gates.find(
+      (g) => g.key === 'banglaTranslationReview',
+    );
+    expect(gate?.satisfied).toBe(false);
+  });
+
+  it('opens the Bangla review gate only through the review record, never through an environment flag', async () => {
+    // Every attestation flag set, including one named for it, still leaves the gate closed.
+    for (const flag of ATTEST_FLAGS) setEnv(`COMMERCIAL_READINESS_ATTEST_${flag}`, 'true');
+    setEnv('COMMERCIAL_READINESS_ATTEST_BANGLA_TRANSLATION_REVIEW', 'true');
+    const { evaluateCommercialReadiness } = await import('./commercial-readiness');
+    try {
+      expect(
+        evaluateCommercialReadiness({ databaseReady: true }).gates.find(
+          (g) => g.key === 'banglaTranslationReview',
+        )?.satisfied,
+      ).toBe(false);
+      // Recording the reviews (an empty pending list) is what opens it.
+      i18nMocks.override = [];
+      expect(
+        evaluateCommercialReadiness({ databaseReady: true }).gates.find(
+          (g) => g.key === 'banglaTranslationReview',
+        )?.satisfied,
+      ).toBe(true);
+    } finally {
+      unsetEnv('COMMERCIAL_READINESS_ATTEST_BANGLA_TRANSLATION_REVIEW');
+    }
+  });
+
+  it('is not ready while only the Bangla review is outstanding', async () => {
+    satisfyEveryGate();
+    i18nMocks.override = null;
+    const { evaluateCommercialReadiness } = await import('./commercial-readiness');
+    const failing = evaluateCommercialReadiness({ databaseReady: true })
+      .gates.filter((g) => !g.satisfied)
+      .map((g) => g.key);
+    expect(failing).toEqual(['realKeyManagement', 'banglaTranslationReview']);
   });
 
   it('stays not-ready even when every other gate is satisfied, realMalwareScanner needs its own genuine configuration, not a stand-in', async () => {

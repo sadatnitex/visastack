@@ -27,8 +27,6 @@ vi.mock('./consent-button', () => ({ ConsentButton: stub('ConsentButton') }));
 
 const { default: Page } = await import('./page');
 
-const BENGALI = /[ঀ-৿]/;
-
 beforeEach(() => {
   vi.clearAllMocks();
   localeState.value = 'en';

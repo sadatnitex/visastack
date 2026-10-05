@@ -1,4 +1,5 @@
 import 'server-only';
+import { banglaReviewPending } from '@visastack/i18n';
 import { createAiExtractor } from './ai';
 import { isPresent, isWorkosConfigured, readEnv } from './env';
 
@@ -190,6 +191,16 @@ function buildGates(input: CommercialReadinessInput): readonly ReadinessGate[] {
       key: 'termsAndPrivacyNotice',
       label: 'terms and privacy notice',
       satisfied: attested('TERMS_AND_PRIVACY_NOTICE'),
+    },
+    {
+      key: 'banglaTranslationReview',
+      label: 'professional review of the Bangla consent, privacy and legal wording',
+      // A LIVE gate, not an attestation flag: it reads the review record kept next to the
+      // Bangla text itself (`packages/i18n/src/review.ts`), so it opens only once a named
+      // professional's review of every catalog that needs one is committed there, with the
+      // reviewer and the date in the history. A flag could be set without anyone having read
+      // a word of it.
+      satisfied: banglaReviewPending().length === 0,
     },
     {
       key: 'noCriticalHighFindings',

@@ -1,5 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { latinWords, localeState, renderServer, textOf } from '../../../lib/next-mocks.test-support';
+import {
+  latinWords,
+  localeState,
+  renderServer,
+  textOf,
+} from '../../../lib/next-mocks.test-support';
 
 const mocks = vi.hoisted(() => ({ isPlatformAdmin: vi.fn(), listMembershipsForAccount: vi.fn() }));
 
@@ -45,7 +50,12 @@ describe('Account', () => {
     expect(text).toContain('এজেন্সি ডেস্ক');
     expect(text).toContain('প্ল্যাটফর্ম প্রশাসন');
     expect(text).toContain('সাইন আউট');
-    expect([...new Set(latinWords(text))].sort()).toEqual(['English', 'com', 'example', 'traveller']);
+    expect([...new Set(latinWords(text))].sort()).toEqual([
+      'English',
+      'com',
+      'example',
+      'traveller',
+    ]);
   });
 
   it('shows the other-areas card only to someone who has one', async () => {

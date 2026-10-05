@@ -20,7 +20,11 @@ const ready = {
 
 function render(locale: 'en' | 'bn', jobs: Parameters<typeof LargeExportPanel>[0]['jobs']) {
   return renderToStaticMarkup(
-    <LargeExportPanel jobs={jobs} messages={pickMessages(locale, LARGE_EXPORT_KEYS)} locale={locale} />,
+    <LargeExportPanel
+      jobs={jobs}
+      messages={pickMessages(locale, LARGE_EXPORT_KEYS)}
+      locale={locale}
+    />,
   );
 }
 

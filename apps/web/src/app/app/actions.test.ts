@@ -29,22 +29,26 @@ beforeEach(() => {
 
 describe('setConsentAction', () => {
   it('confirms in English as it always has', async () => {
-    expect(
-      await setConsentAction(INITIAL, form({ type: 'MARKETING', granted: 'true' })),
-    ).toEqual({ ok: true, message: 'Consent granted.' });
-    expect(
-      await setConsentAction(INITIAL, form({ type: 'MARKETING', granted: 'false' })),
-    ).toEqual({ ok: true, message: 'Consent revoked.' });
+    expect(await setConsentAction(INITIAL, form({ type: 'MARKETING', granted: 'true' }))).toEqual({
+      ok: true,
+      message: 'Consent granted.',
+    });
+    expect(await setConsentAction(INITIAL, form({ type: 'MARKETING', granted: 'false' }))).toEqual({
+      ok: true,
+      message: 'Consent revoked.',
+    });
   });
 
   it('confirms in Bangla for a Bangla reader', async () => {
     localeState.value = 'bn';
-    expect(
-      await setConsentAction(INITIAL, form({ type: 'MARKETING', granted: 'true' })),
-    ).toEqual({ ok: true, message: 'সম্মতি দেওয়া হয়েছে।' });
-    expect(
-      await setConsentAction(INITIAL, form({ type: 'MARKETING', granted: 'false' })),
-    ).toEqual({ ok: true, message: 'সম্মতি প্রত্যাহার করা হয়েছে।' });
+    expect(await setConsentAction(INITIAL, form({ type: 'MARKETING', granted: 'true' }))).toEqual({
+      ok: true,
+      message: 'সম্মতি দেওয়া হয়েছে।',
+    });
+    expect(await setConsentAction(INITIAL, form({ type: 'MARKETING', granted: 'false' }))).toEqual({
+      ok: true,
+      message: 'সম্মতি প্রত্যাহার করা হয়েছে।',
+    });
   });
 
   it('refuses an unknown consent type in the readers language', async () => {

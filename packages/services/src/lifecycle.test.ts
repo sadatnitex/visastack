@@ -552,7 +552,11 @@ describe('account deletion workflow', () => {
       accountId: account.id,
     });
     expect(isErr(second)).toBe(true);
-    if (isErr(second)) expect(second.error.code).toBe('invalid');
+    if (isErr(second)) {
+      expect(second.error.code).toBe('invalid');
+      // The screen shows this in the reader's language by key, never the English message.
+      expect(second.error.key).toBe('privacy.error.alreadyPending');
+    }
   });
 
   it('under real concurrency, two requests racing for the same account never both create a PENDING row', async () => {
@@ -589,6 +593,19 @@ describe('account deletion workflow', () => {
     expect(await getPendingDeletion(db, account.id)).toBeUndefined();
   });
 
+  it('says there is nothing to cancel, by key, when no deletion request is pending', async () => {
+    const { account } = await seedFullAccount(db, 'del-nothing@example.com');
+    const result = await cancelAccountDeletion(db, {
+      actorAccountId: account.id,
+      accountId: account.id,
+    });
+    expect(isErr(result)).toBe(true);
+    if (isErr(result)) {
+      expect(result.error.code).toBe('not_found');
+      expect(result.error.key).toBe('privacy.error.noPending');
+    }
+  });
+
   it('refuses a deletion request while an active legal hold exists on any applicant this account owns (PRV-03, Part 7 §12 step 4)', async () => {
     const { account, applicantId } = await seedFullAccount(db, 'del-hold@example.com');
     const hold = await placeLegalHold(db, {
@@ -605,7 +622,10 @@ describe('account deletion workflow', () => {
       accountId: account.id,
     });
     expect(isErr(result)).toBe(true);
-    if (isErr(result)) expect(result.error.message).toContain('legal hold');
+    if (isErr(result)) {
+      expect(result.error.message).toContain('legal hold');
+      expect(result.error.key).toBe('privacy.error.holdBlocks');
+    }
     // Never even got as far as opening a request.
     expect(await getPendingDeletion(db, account.id)).toBeUndefined();
   });
