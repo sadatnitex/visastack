@@ -4430,6 +4430,16 @@ item gets its own requirements-ledger row once classified against the new direct
       (Part 9 section 4) is therefore **not met** and the Part 9 checkpoint cannot say
       PASS for I18N; it is recorded as deferred by the owner, not as done.
 
+    **Found by CI, not by me.** The deployment smoke check (`apps/web/scripts/smoke.mjs`,
+    run against every preview and production deployment) looks for the banner's
+    label on the home page and failed on the first push, because the label had changed.
+    My search for places that depended on the old wording had run from the wrong
+    folder with its errors hidden, so it found nothing and I wrongly concluded nothing
+    did. The script now looks for the new label, and a test
+    (`pilot-banner.test.tsx`) ties the script to the banner's wording so a future
+    change cannot turn every deployment red again. Lesson: search from the repository
+    root and never hide the search's errors.
+
     Not verified, stated plainly: the new wording was checked by tests and a layout
     pass on the built pages, not by a person reading it for tone; the signed-in screens
     still carry engineering words (listed in `docs/ux/plain-language.md`); emails were

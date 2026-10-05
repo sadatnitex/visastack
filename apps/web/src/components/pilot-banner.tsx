@@ -13,7 +13,17 @@ import type { DeploymentMode } from '@visastack/core';
  * computed server-side (`getDeploymentMode()`); the client never decides what this
  * says.
  */
-const COPY: Partial<Record<DeploymentMode, { readonly label: string; readonly detail: string }>> = {
+interface BannerCopy {
+  readonly label: string;
+  readonly detail: string;
+}
+
+/**
+ * Exported so a test can tie the deployment smoke check (`scripts/smoke.mjs`, which
+ * looks for these labels in the landing page of every deployment) to the words the
+ * page really shows. Change the wording here and that test says where else to update.
+ */
+export const PILOT_BANNER_COPY = {
   controlled_pilot: {
     label: 'VisaStack private pilot',
     detail:
@@ -23,11 +33,11 @@ const COPY: Partial<Record<DeploymentMode, { readonly label: string; readonly de
     label: 'VisaStack test build',
     detail: 'Test build. Not for real personal data.',
   },
-};
+} as const satisfies Partial<Record<DeploymentMode, BannerCopy>>;
 
 export function PilotBanner({ mode }: { readonly mode: DeploymentMode }) {
-  const copy = COPY[mode];
-  if (!copy) return null;
+  if (mode === 'commercial') return null;
+  const copy = PILOT_BANNER_COPY[mode];
   return (
     <div className="pilot-banner">
       <span className="pilot-banner-label">{copy.label}</span>

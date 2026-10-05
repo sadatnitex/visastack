@@ -1,6 +1,7 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { renderServer, textOf } from '../lib/next-mocks.test-support';
-import { PilotBanner } from './pilot-banner';
+import { PILOT_BANNER_COPY, PilotBanner } from './pilot-banner';
 
 describe('the banner every page carries', () => {
   it('says in plain words that the pilot is a test version for made-up or blacked-out information', async () => {
@@ -30,5 +31,19 @@ describe('the banner every page carries', () => {
 
   it('shows nothing in commercial mode', async () => {
     expect(await renderServer(<PilotBanner mode="commercial" />)).toBe('');
+  });
+
+  it('shows the very words the deployment smoke check looks for on every deployment', async () => {
+    // scripts/smoke.mjs fetches the landing page of each preview and of production and
+    // fails the deploy check if the banner's label is missing. A reworded banner that
+    // forgets the script turns every deployment red, so the two are tied together here.
+    const smoke = readFileSync(new URL('../../scripts/smoke.mjs', import.meta.url), 'utf8');
+    for (const mode of ['controlled_pilot', 'development'] as const) {
+      const html = await renderServer(<PilotBanner mode={mode} />);
+      expect(html).toContain(PILOT_BANNER_COPY[mode].label);
+      expect(smoke, `smoke.mjs should look for "${PILOT_BANNER_COPY[mode].label}"`).toContain(
+        PILOT_BANNER_COPY[mode].label,
+      );
+    }
   });
 });
