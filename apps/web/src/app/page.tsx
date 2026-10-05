@@ -1,54 +1,58 @@
-import { CORE_VERSION } from '@visastack/core';
 import Link from 'next/link';
 
-interface Capability {
+/**
+ * The public home page. Written for a traveller or an agency who has never heard of
+ * the product: plain words, what it does and what is honestly not switched on yet.
+ * No engineering vocabulary and no names of the tools behind it (guarded by
+ * `lib/plain-language.test.ts`).
+ */
+
+interface Feature {
   readonly kicker: string;
   readonly title: string;
   readonly body: string;
 }
 
-const CAPABILITIES: readonly Capability[] = [
+const FEATURES: readonly Feature[] = [
   {
-    kicker: 'Identity',
-    title: 'Applicant Core',
-    body: 'Accounts with separated consent, applicant & family records, and a Master Profile whose every value is an immutable, atomically-approved version — no silent mutation.',
+    kicker: 'Profile',
+    title: 'One profile for every application',
+    body: 'Enter your details once: identity, passport, travel history, work and money. Every change is saved as a new version, so nothing is quietly overwritten.',
   },
   {
     kicker: 'Documents',
-    title: 'Document Vault',
-    body: 'Private storage keyed by opaque IDs, permission-aware preview and download, and step-up authentication before original files are ever released.',
+    title: 'A private place for your papers',
+    body: 'Upload passports, bank statements and other documents. Only you and the people you choose can open them, and original files are never handed out without extra identity confirmation.',
   },
   {
-    kicker: 'Intelligence',
-    title: 'Safe pipeline + AI proposals',
-    body: 'Quarantine → scan → normalize → extract, with deterministic passport-MRZ parsing. AI only proposes fields; a human approves — nothing is written without consent.',
+    kicker: 'Suggestions',
+    title: 'AI can help, but never decides',
+    body: 'AI can suggest details from a document, and you approve or reject each one. Nothing changes without your say. Prefer to type it yourself? Everything also works by hand.',
   },
   {
-    kicker: 'Assembly',
-    title: 'Cases & Packs',
-    body: 'Cited, versioned, checksummed requirement packs. Parallel case workspaces show readiness as completeness - never an approval probability - with immutable snapshots.',
+    kicker: 'Cases',
+    title: 'See what is still missing',
+    body: 'Check your documents against the official requirements for a visa route. You see how complete your file is and what is missing, never a guess at your chances of approval.',
   },
   {
-    kicker: 'Collaboration',
-    title: 'Agencies & Sharing',
-    body: 'Verified organizations, scoped and time-limited grants that require acceptance and are revocable next-request, full access transparency, and permissioned bulk export.',
+    kicker: 'Agencies',
+    title: 'Share with an agency, on your terms',
+    body: 'Choose what an agency can see and for how long. They have to accept, you can stop sharing at any time, and you can see who looked at what.',
   },
   {
-    kicker: 'Governance',
-    title: 'Retention & legal hold',
-    body: 'Retention policies with eligibility-based purge, and legal holds that override deletion. Every action lands on a tamper-evident, append-only audit chain.',
+    kicker: 'Privacy',
+    title: 'Your data stays yours',
+    body: 'Your information is kept only as long as it is needed, and you can ask for it to be deleted. If the law says it must be kept, deletion waits. Every action is written to a record that cannot be quietly changed.',
   },
 ];
 
-const PRINCIPLES: readonly string[] = [
-  'Default-deny permissions',
-  'Fail-closed audit',
-  'No silent mutation',
-  'Immutable, cited evidence',
-  'Provider-agnostic ports',
-  'Remote-first delivery',
-  'English & Bangla',
-  'Fully manual, no-AI path',
+const PROMISES: readonly string[] = [
+  'Nobody sees your information unless you allow it',
+  'Every action is recorded',
+  'Changes are kept as new versions',
+  'Official information shows where it came from',
+  'AI never changes your profile on its own',
+  'A fully manual way to use everything',
 ];
 
 interface HomePageProps {
@@ -56,9 +60,9 @@ interface HomePageProps {
 }
 
 export default async function HomePage({ searchParams }: HomePageProps) {
-  // A failed WorkOS sign-in redirects here with a short, non-PII reference id
-  // (see apps/web/src/app/callback/route.ts) — recoverable messaging instead
-  // of the bare 500 AuthKit's own default error response would otherwise show.
+  // A failed sign-in sends the visitor back here with a short reference that holds no
+  // personal information (see apps/web/src/app/callback/route.ts), so they get a way
+  // forward instead of a blank error page.
   const { auth_error: authError } = await searchParams;
 
   return (
@@ -66,25 +70,22 @@ export default async function HomePage({ searchParams }: HomePageProps) {
       <section className="hero container">
         {authError ? (
           <p className="notice notice-warn" role="alert">
-            Sign-in didn’t complete. Please try again — if it keeps happening, contact support with
-            reference <strong>{authError}</strong>.
+            Sign-in didn’t complete. Please try again. If it keeps happening, contact support and
+            quote reference <strong>{authError}</strong>.
           </p>
         ) : null}
-        <span className="eyebrow">
-          Technical Preview · authenticated applicant core under validation
-        </span>
+        <span className="eyebrow">Invite-only pilot</span>
         <h1 className="hero-title">One profile. Every visa.</h1>
         <p className="hero-sub">
-          VisaStack turns documents into structured, permission-aware profiles — through a governed,
-          AI-assisted workflow, or a fully manual one. Applicants own their data; verified agencies
-          get exactly the access they’re granted.
+          Keep your passport, documents and visa history in one private place, and reuse them for
+          every application. Share only what an agency needs, for as long as you choose.
         </p>
         <div className="cta-row">
           <a className="btn btn-primary" href="/app">
-            Get started — sign in
+            Sign in to get started
           </a>
           <Link className="btn btn-secondary" href="/status">
-            View system status
+            See what works today
           </Link>
         </div>
       </section>
@@ -92,19 +93,18 @@ export default async function HomePage({ searchParams }: HomePageProps) {
       <section className="section" id="capabilities">
         <div className="container">
           <div className="section-head">
-            <h2 className="section-title">Everything, in one governed core</h2>
+            <h2 className="section-title">What you can do</h2>
             <p className="section-sub">
-              Six capability areas are being built on one governed core — each authorized,
-              consent-gated, and audited on the same tamper-evident foundation. VisaStack is a
-              technical preview; capabilities are enabled as they are verified end-to-end.
+              VisaStack is in a private pilot, so some features are still being switched on. The
+              status page shows what works today.
             </p>
           </div>
           <div className="grid">
-            {CAPABILITIES.map((c) => (
-              <article className="card" key={c.title}>
-                <p className="card-kicker">{c.kicker}</p>
-                <h3 className="card-title">{c.title}</h3>
-                <p className="card-body">{c.body}</p>
+            {FEATURES.map((feature) => (
+              <article className="card" key={feature.title}>
+                <p className="card-kicker">{feature.kicker}</p>
+                <h3 className="card-title">{feature.title}</h3>
+                <p className="card-body">{feature.body}</p>
               </article>
             ))}
           </div>
@@ -114,16 +114,16 @@ export default async function HomePage({ searchParams }: HomePageProps) {
       <section className="section">
         <div className="container">
           <div className="section-head">
-            <h2 className="section-title">Trust is the product</h2>
+            <h2 className="section-title">How VisaStack treats your information</h2>
             <p className="section-sub">
-              The guarantees below aren’t features you enable — they’re invariants the system is
-              built around and tested against.
+              These promises are built into how the product works, not options you have to switch
+              on.
             </p>
           </div>
           <ul className="pill-list center" style={{ justifyContent: 'center' }}>
-            {PRINCIPLES.map((p) => (
-              <li className="pill" key={p}>
-                {p}
+            {PROMISES.map((promise) => (
+              <li className="pill" key={promise}>
+                {promise}
               </li>
             ))}
           </ul>
@@ -132,18 +132,15 @@ export default async function HomePage({ searchParams }: HomePageProps) {
 
       <section className="section">
         <div className="container center">
-          <h2 className="section-title">Built to be swapped, never rewritten</h2>
+          <h2 className="section-title">Honest about where we are</h2>
           <p className="section-sub" style={{ marginBottom: '2rem' }}>
-            Storage, scanning, and AI sit behind stable ports. The authenticated applicant core runs
-            on Vercel and Neon today; production storage, real malware scanning, and a model
-            provider drop in behind those ports as each is verified — with no change to the domain.
+            This is a private pilot for invited users, and some features are not switched on yet.
+            Please use made-up details, or documents with all personal information blacked out,
+            until the pilot opens up.
           </p>
           <Link className="btn btn-primary" href="/status">
-            Check what’s live
+            See what works today
           </Link>
-          <p className="muted" style={{ marginTop: '1.5rem', fontSize: '0.85rem' }}>
-            Universal Core v{CORE_VERSION}
-          </p>
         </div>
       </section>
     </>

@@ -9,9 +9,9 @@ import { setLocaleAction } from './actions';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'VisaStack — one profile, every visa',
+  title: 'VisaStack - one profile, every visa',
   description:
-    'A universal, pack-composable visa and immigration platform. Turn documents into structured, permission-aware profiles through a governed, AI-assisted (or fully manual) workflow.',
+    'Keep your passport, documents and visa details in one private profile and reuse them for every application. Invite-only pilot.',
 };
 
 // Match the browser chrome to the theme in both light and dark (Apple-style).
@@ -48,7 +48,7 @@ export default async function RootLayout({ children }: { readonly children: Reac
             VisaStack
           </Link>
           <nav className="nav-links" aria-label="Primary">
-            <Link href="/#capabilities">Platform</Link>
+            <Link href="/#capabilities">Features</Link>
             <Link href="/trust">Public trust</Link>
             <Link href="/status">Status</Link>
             <form action={setLocaleAction} aria-label="Language">
@@ -66,7 +66,6 @@ export default async function RootLayout({ children }: { readonly children: Reac
         <footer className="footer">
           <div className="container footer-inner">
             <span>© {new Date().getFullYear()} VisaStack. Proprietary and confidential.</span>
-            <span>Built remote-first on Vercel + Neon.</span>
           </div>
         </footer>
       </body>
