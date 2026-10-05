@@ -113,7 +113,7 @@ export function CreateMissionForm({ applicantId }: { readonly applicantId: strin
       </div>
       <div>
         <button type="submit" className="btn btn-primary" disabled={pending}>
-          {pending ? 'Creating…' : 'Create mission'}
+          {pending ? 'Creating…' : 'Create case'}
         </button>
         {state.message ? (
           <p className={`field-msg ${state.ok ? 'field-msg-ok' : 'field-msg-err'}`}>

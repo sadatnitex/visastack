@@ -5,7 +5,11 @@ import { markNotificationReadAction } from './actions';
 
 export const dynamic = 'force-dynamic';
 
-/** NTF-02's in-app channel: every notification actually sent to this account, newest first. */
+/**
+ * NTF-02's in-app channel: every notification actually sent to this account,
+ * newest first. The product calls this page "Alerts" (directive Part 9 UX-01);
+ * the route and the stored records keep the older name.
+ */
 export default async function NotificationsPage() {
   const notifications = await withSession(({ db, accountId }) =>
     listNotificationsForAccount(db, accountId),
@@ -15,7 +19,7 @@ export default async function NotificationsPage() {
     <section className="section container">
       <div className="toolbar" style={{ marginBottom: '2rem' }}>
         <div>
-          <span className="eyebrow">Notifications</span>
+          <span className="eyebrow">Alerts</span>
           <h1 className="section-title" style={{ margin: '0.25rem 0 0' }}>
             Updates on your cases
           </h1>
@@ -24,7 +28,10 @@ export default async function NotificationsPage() {
 
       <article className="card">
         {notifications.length === 0 ? (
-          <p className="card-body">No notifications yet.</p>
+          <p className="card-body">
+            No alerts yet. Updates about your cases, requests for evidence and documents nearing
+            expiry will appear here.
+          </p>
         ) : (
           <div className="rows">
             {notifications.map((n) => (

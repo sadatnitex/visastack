@@ -204,7 +204,7 @@ export function TransitionButtons({
               if (
                 DESTRUCTIVE.has(to) &&
                 !window.confirm(
-                  `Move this mission to ${STATE_LABELS[to] ?? to}? This can't be undone.`,
+                  `Move this case to ${STATE_LABELS[to] ?? to}? This can't be undone.`,
                 )
               ) {
                 e.preventDefault();

@@ -144,8 +144,8 @@ export default async function PackDetailPage({
                 {isPublished || isWithdrawn ? (
                   <p className="muted" style={{ fontSize: '0.85rem', marginBottom: '1rem' }}>
                     {missionCount === 0
-                      ? 'No missions currently attached to this version.'
-                      : `${missionCount} mission${missionCount === 1 ? '' : 's'} currently attached to this version.`}
+                      ? 'No cases currently attached to this version.'
+                      : `${missionCount} case${missionCount === 1 ? '' : 's'} currently attached to this version.`}
                   </p>
                 ) : null}
 

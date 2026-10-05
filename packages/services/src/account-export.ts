@@ -580,13 +580,15 @@ export async function getAccountExportArtifact(
       .limit(1),
   );
   if (!job || job.accountId !== input.actorAccountId) {
-    return err(serviceError('not_found', 'export job not found'));
+    return err(serviceError('not_found', 'that export was not found'));
   }
   if (job.status !== 'READY' || !job.expiresAt || job.expiresAt.getTime() <= Date.now()) {
     return err(serviceError('not_found', 'export artifact is not ready or has expired'));
   }
   if (!job.bucket || !job.objectKey || !job.encryptionNonce || !job.encryptionKeyVersion) {
-    return err(serviceError('invalid', 'export job is READY but missing artifact fields'));
+    return err(
+      serviceError('invalid', 'this export is not available to download, please request a new one'),
+    );
   }
   if (!ports.keyManagement) {
     return err(serviceError('encryption_unavailable', 'no key management port was configured'));
@@ -600,6 +602,9 @@ export async function getAccountExportArtifact(
     keyVersion: job.encryptionKeyVersion,
     aad: buildAccountExportAad({ jobId: job.id }),
   });
-  if (!job.readyAt) return err(serviceError('invalid', 'export job is READY but missing readyAt'));
+  if (!job.readyAt)
+    return err(
+      serviceError('invalid', 'this export is not available to download, please request a new one'),
+    );
   return ok({ bytes, readyAt: job.readyAt, expiresAt: job.expiresAt });
 }

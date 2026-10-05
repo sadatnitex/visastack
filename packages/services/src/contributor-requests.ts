@@ -70,7 +70,7 @@ export async function createContributorRequest(
   input: CreateContributorRequestInput,
 ): Promise<Result<CreatedContributorRequest, ServiceError>> {
   const owned = await ownedMissionApplicant(db, input.actorAccountId, input.missionId);
-  if (!owned) return err(serviceError('forbidden', 'not authorized for this mission'));
+  if (!owned) return err(serviceError('forbidden', 'not authorized for this case'));
   const contributorEmail = input.contributorEmail.trim().toLowerCase();
   if (contributorEmail.length === 0) {
     return err(serviceError('invalid', "the contributor's email is required"));
@@ -366,7 +366,7 @@ export async function revokeContributorRequest(
   },
 ): Promise<Result<void, ServiceError>> {
   const owned = await ownedMissionApplicant(db, input.actorAccountId, input.missionId);
-  if (!owned) return err(serviceError('forbidden', 'not authorized for this mission'));
+  if (!owned) return err(serviceError('forbidden', 'not authorized for this case'));
   // missionId is part of the WHERE clause itself, not a separate
   // lookup-then-compare (the same cross-tenant IDOR discipline
   // invitations.ts's revokeOrganizationInvitation already documents): an
@@ -395,7 +395,7 @@ export async function listContributorRequests(
   input: { readonly actorAccountId: string; readonly missionId: string },
 ): Promise<Result<ContributorRequest[], ServiceError>> {
   const owned = await ownedMissionApplicant(db, input.actorAccountId, input.missionId);
-  if (!owned) return err(serviceError('forbidden', 'not authorized for this mission'));
+  if (!owned) return err(serviceError('forbidden', 'not authorized for this case'));
   const rows = await db
     .select()
     .from(schema.contributorRequests)

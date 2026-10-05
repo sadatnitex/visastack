@@ -25,8 +25,8 @@ const CAPABILITIES: readonly Capability[] = [
   },
   {
     kicker: 'Assembly',
-    title: 'Missions & Packs',
-    body: 'Cited, versioned, checksummed requirement packs. Parallel mission workspaces show readiness as completeness — never an approval probability — with immutable snapshots.',
+    title: 'Cases & Packs',
+    body: 'Cited, versioned, checksummed requirement packs. Parallel case workspaces show readiness as completeness - never an approval probability - with immutable snapshots.',
   },
   {
     kicker: 'Collaboration',

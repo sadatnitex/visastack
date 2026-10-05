@@ -176,7 +176,7 @@ export default async function AppPage() {
                   <span className="row-val">{data.documentTotal}</span>
                 </div>
                 <div className="row">
-                  <span className="row-key">Active missions</span>
+                  <span className="row-key">Active cases</span>
                   <span className="row-val">{data.activeMissionsTotal}</span>
                 </div>
                 <div className="row">

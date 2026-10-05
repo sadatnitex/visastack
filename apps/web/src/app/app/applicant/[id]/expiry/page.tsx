@@ -145,7 +145,7 @@ export default async function ExpiryCentrePage({
             document's own expiry.
           </p>
           {data.freshnessRows.length === 0 ? (
-            <p className="card-body">No active freshness rules apply to your missions yet.</p>
+            <p className="card-body">No active freshness rules apply to your cases yet.</p>
           ) : (
             <div className="rows" style={{ marginTop: '0.5rem' }}>
               {data.freshnessRows.map(({ mission, requirementKey, document }) => {

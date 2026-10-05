@@ -4226,6 +4226,84 @@ item gets its own requirements-ledger row once classified against the new direct
     and was my own: I edited the source it covers while that run was in progress,
     so it ran against the old file; it passed alone, the mutation check proved it
     bites, and the full run was repeated with no edits.
+
+    **Chunk 37 (2026-10-05, UX-01/UX-02/UX-03, Part 9 chunk 5a) -- names, loading
+    screens and phone layout.** The first of the visible-experience chunks. The
+    directive asks for real navigation, complete critical states and critical
+    journeys that work on a narrow phone; this chunk covers the names, the loading
+    state and the phone layout. The Agency and Platform areas, Bangla and English
+    for the nine flows, form-error association and upload resilience are the next
+    chunks and are NOT done.
+
+    - **Names.** The signed-in bar reads Overview, Applicants, Shared with me,
+      Alerts, Privacy, Account; an applicant's tabs read Overview, Profile,
+      Documents, Cases, Sharing, Evidence, Expiry, History. "Mission" is the stored
+      entity's name; it no longer appears in anything a person reads (about forty
+      strings in the web app, thirty-seven service error messages, one plan meter
+      definition, and the name of the downloaded case snapshot file). Routes, stored
+      data and the data-export file names keep the old name on purpose. Messages
+      that quoted a stored consent code (`CORE_PROCESSING`, `SHARING`, and the
+      others) now use the names the Privacy page shows, and the export download
+      errors no longer mention an internal job state. Two tests guard this, and
+      each was mutation-checked: one reads every `serviceError` message in
+      `packages/services`, the other reads all visible text in `apps/web` with the
+      TypeScript parser (JSX text, labels, messages; not identifiers, paths or
+      comparisons).
+    - **Loading screens.** Everything under `/app` now has a route-level loading
+      screen, and each applicant tab has its own so the header and tabs stay put.
+      It is an `<output>` (built-in role `status`), with decorative placeholder
+      shapes hidden from assistive technology. Checked on a production build with a
+      throwaway streaming route, under the real nonce-based Content-Security-Policy:
+      the loading screen appears, the content replaces it, no policy violation, the
+      accessibility tree reads `status: Loading…`. A redirect thrown inside a page
+      still behaves as before because the layouts, which run first, make the same
+      sign-in and pilot-access checks outside the loading boundary.
+    - **Phone layout: defects found by measuring, not by reading.** Against the real
+      stylesheet and a fixture of the signed-in building blocks: (1) `.section` and
+      `.hero` reset the side padding that `.container` sets, so every
+      `section container` page, including all signed-in pages, ran edge to edge on
+      any screen narrower than about 1024px; (2) the public header overflowed the
+      screen at 360px and 320px and broke its sign-in button across two lines at
+      390px (the existing 390px check passed with 4px to spare); (3) the signed-in
+      bar could not fit six links and three buttons, so text overlapped, and at
+      every width it stuck at the same offset as the public header and vanished
+      behind it when scrolling; (4) long values (an email address, an identifier)
+      pushed content off the card; (5) several controls were under 24 by 24 CSS
+      pixels (checkboxes 16px, header links 21px, the language switch 17px, the
+      banner link 19px); (6) cards lifted on tap; (7) fields under 16px make iOS
+      Safari zoom the page; (8) sticky bars could cover a control that took focus.
+      All fixed in `globals.css`. The signed-in bar and the public header now wrap
+      and scroll away with the page below 900px and 640px; above that they stack.
+    - **Permanent checks.** `ux-public.spec.ts` gains 24 cases that load the REAL
+      stylesheet and public header from the deployment, put the signed-in building
+      blocks in the page with the product's own class names and the labels from
+      `lib/navigation.ts`, and check: no sideways scroll, a side margin, every
+      navigation link and button on screen, every control at least 24 by 24 CSS
+      pixels, the signed-in bar staying visible under the header while scrolling,
+      focus not hidden behind the sticky bars, and axe contrast in light and dark
+      mode, at 320, 360, 390 and 768 wide plus a 1440 scroll check. Against the
+      previous stylesheet 19 of the 24 fail; with only `scroll-padding-top`
+      removed the focus case fails (a control stays at 60px under bars that end at
+      104px).
+
+    Not verified, stated plainly: the signed-in screens themselves were not opened
+    in a browser (no sign-in is possible here), so what was checked is the
+    stylesheet against faithful building blocks, not the real pages; Chromium only,
+    no real phone and no Safari; no manual keyboard or screen-reader pass; Bangla
+    text was not laid out; the landing page copy still contains engineering phrases
+    ("provider-agnostic ports", "fail-closed audit") that need a content review
+    before public launch. Two of the 64 local smoke cases (the two `/app` redirect
+    checks) cannot run here because following the redirect to WorkOS is blocked by
+    the sandbox network; they run in CI.
+
+    Verified locally: `@visastack/services` 1330/1330 across 65 files (1326 before;
+    4 new); `apps/web` 438/438 across 32 files (419 before; 19 new: navigation 9,
+    visible-text scanner 6, loading screen 4); `@visastack/db` 34 passed and 1
+    skipped; `@visastack/adapters` 322 passed and 2 skipped; repo-wide Biome clean,
+    typecheck 7/7, production build clean (the existing `unpdf` warning only).
+    Playwright against the local production build: 62 of 64 pass. One test
+    asserted the old consent code (`client-invitations.test.ts`) and was found only
+    by the full run, not by searching; it now asserts the new wording.
 independently confirmed findings; the missing PRD file is tracked as Blocker 1 in
 `assumptions-and-blockers.md` (now resolved) rather than here, since it blocked the
 programme rather than being a product defect.

@@ -199,7 +199,7 @@ export async function publishVersionAction(
     }
     return {
       ok: true,
-      message: 'Version published — attachable by missions now.',
+      message: 'Version published - attachable by cases now.',
     } satisfies ActionState;
   });
   if (result.ok) revalidatePath(`/app/admin/packs/${packId}`);

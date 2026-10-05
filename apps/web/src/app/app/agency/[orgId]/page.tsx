@@ -379,7 +379,7 @@ export default async function OrgConsolePage({
               <p className="card-body">
                 You're a member of this organization but not an administrator. Requesting evidence,
                 bulk export, and member management are admin-only — you can still collaborate on
-                missions you're assigned to below.
+                cases you're assigned to below.
               </p>
             </article>
           ) : null}
@@ -403,7 +403,7 @@ export default async function OrgConsolePage({
             {data.missions.length === 0 ? (
               <p className="card-body" style={{ marginTop: '1rem' }}>
                 {data.admin
-                  ? 'No cases are reachable yet - an applicant must grant this organization access to a specific mission.'
+                  ? 'No cases are reachable yet - an applicant must grant this organization access to a specific case.'
                   : "You aren't assigned to any cases yet - ask an admin to assign you to one."}
               </p>
             ) : (
@@ -794,7 +794,7 @@ export default async function OrgConsolePage({
               <p className="card-body" style={{ marginBottom: '1.25rem' }}>
                 Active cases this organization can still act on but that currently have nobody
                 assigned - most often because the only assigned member was removed. Assign someone
-                in the Missions section below.
+                in the Cases section below.
               </p>
               <div className="rows">
                 {data.unassignedQueue.map((m) => (
@@ -809,17 +809,17 @@ export default async function OrgConsolePage({
 
           <article className="card" style={{ marginTop: '1.5rem' }}>
             <p className="card-kicker">Collaborate</p>
-            <h2 className="card-title">Missions</h2>
+            <h2 className="card-title">Cases</h2>
             <p className="card-body" style={{ marginBottom: '1.25rem' }}>
               {data.admin
-                ? 'Assign a team member and leave case notes on any mission this organization has a grant for.'
-                : "Leave case notes and record decisions on missions you're assigned to."}
+                ? 'Assign a team member and leave case notes on any case this organization has a grant for.'
+                : "Leave case notes and record decisions on cases you're assigned to."}
             </p>
             {data.missions.length === 0 ? (
               <p className="card-body">
                 {data.admin
-                  ? 'No missions are reachable yet — an applicant must grant this organization access to a specific mission.'
-                  : "You aren't assigned to any missions yet — ask an admin to assign you to a case."}
+                  ? 'No cases are reachable yet - an applicant must grant this organization access to a specific case.'
+                  : "You aren't assigned to any cases yet - ask an admin to assign you to one."}
               </p>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>

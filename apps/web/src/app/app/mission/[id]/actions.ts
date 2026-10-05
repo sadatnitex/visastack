@@ -86,7 +86,7 @@ export async function transitionMissionAction(
 ): Promise<ActionState> {
   const missionId = String(formData.get('missionId') ?? '');
   const to = String(formData.get('to') ?? '') as MissionState;
-  if (missionId.length === 0 || to.length === 0) return { ok: false, message: 'Missing mission.' };
+  if (missionId.length === 0 || to.length === 0) return { ok: false, message: 'Missing case.' };
   const result = await withSession(async ({ db, accountId }) => {
     const transitioned = await transitionMission(db, { actorAccountId: accountId, missionId, to });
     if (!transitioned.ok) {
@@ -94,7 +94,7 @@ export async function transitionMissionAction(
     }
     return {
       ok: true,
-      message: `Mission moved to ${STATE_LABELS[to] ?? to}.`,
+      message: `Case moved to ${STATE_LABELS[to] ?? to}.`,
     } satisfies ActionState;
   });
   if (result.ok) revalidatePath(`/app/mission/${missionId}`);
@@ -107,7 +107,7 @@ export async function snapshotMissionAction(
   formData: FormData,
 ): Promise<ActionState> {
   const missionId = String(formData.get('missionId') ?? '');
-  if (missionId.length === 0) return { ok: false, message: 'Missing mission.' };
+  if (missionId.length === 0) return { ok: false, message: 'Missing case.' };
   const result = await withSession(async ({ db, accountId }) => {
     const snapshot = await snapshotMission(db, { actorAccountId: accountId, missionId });
     if (!snapshot.ok) return { ok: false, message: snapshot.error.message } satisfies ActionState;
@@ -308,7 +308,7 @@ export async function setItineraryRefAction(
 ): Promise<ActionState> {
   const missionId = String(formData.get('missionId') ?? '');
   const itineraryRef = String(formData.get('itineraryRef') ?? '');
-  if (missionId.length === 0) return { ok: false, message: 'Missing mission.' };
+  if (missionId.length === 0) return { ok: false, message: 'Missing case.' };
   const result = await withSession(async ({ db, accountId }) => {
     const updated = await setMissionItineraryRef(db, {
       actorAccountId: accountId,
@@ -338,7 +338,7 @@ export async function updateCaseDetailsAction(
   formData: FormData,
 ): Promise<ActionState> {
   const missionId = String(formData.get('missionId') ?? '');
-  if (missionId.length === 0) return { ok: false, message: 'Missing mission.' };
+  if (missionId.length === 0) return { ok: false, message: 'Missing case.' };
   const jurisdiction = String(formData.get('jurisdiction') ?? '');
   const serviceCategory = String(formData.get('serviceCategory') ?? '');
   const travelStartDate = parseOptionalDate(formData.get('travelStartDate'));
@@ -374,7 +374,7 @@ export async function createContributorRequestAction(
   const docType = String(formData.get('docType') ?? '').trim();
   const purpose = String(formData.get('purpose') ?? '').trim();
   const message = String(formData.get('message') ?? '').trim();
-  if (missionId.length === 0) return { ok: false, message: 'Missing mission.' };
+  if (missionId.length === 0) return { ok: false, message: 'Missing case.' };
   if (contributorEmail.length === 0)
     return { ok: false, message: "Enter the contributor's email." };
   if (docType.length === 0) return { ok: false, message: 'Name exactly what document is needed.' };
@@ -606,7 +606,7 @@ export async function generateLetterAction(
   formData: FormData,
 ): Promise<ActionState> {
   const missionId = String(formData.get('missionId') ?? '');
-  if (missionId.length === 0) return { ok: false, message: 'Missing mission.' };
+  if (missionId.length === 0) return { ok: false, message: 'Missing case.' };
   const result = await withSession(async ({ db, accountId }) => {
     const output = await generateCoverLetter(db, { actorAccountId: accountId, missionId });
     if (!output.ok) return { ok: false, message: output.error.message } satisfies ActionState;
@@ -636,7 +636,7 @@ export async function explainReadinessGapAction(
   const missionId = String(formData.get('missionId') ?? '');
   const packRequirementId = String(formData.get('packRequirementId') ?? '');
   if (missionId.length === 0 || packRequirementId.length === 0) {
-    return { ok: false, message: 'Missing mission or requirement.' };
+    return { ok: false, message: 'Missing case or requirement.' };
   }
 
   const result = await withSession(async ({ db, accountId }) => {
@@ -645,7 +645,7 @@ export async function explainReadinessGapAction(
     if (!mission.value.packVersionId) {
       return {
         ok: false,
-        message: 'This mission has no attached pack version.',
+        message: 'This case has no attached pack version.',
       } satisfies ActionState;
     }
 
@@ -660,7 +660,7 @@ export async function explainReadinessGapAction(
     );
     const requirementRow = requirements.find((r) => r.id === packRequirementId);
     if (!current || !requirementRow) {
-      return { ok: false, message: 'Requirement not found on this mission.' } satisfies ActionState;
+      return { ok: false, message: 'Requirement not found on this case.' } satisfies ActionState;
     }
     if (current.state !== 'CRITICAL_GAP' && current.state !== 'ATTENTION') {
       return {

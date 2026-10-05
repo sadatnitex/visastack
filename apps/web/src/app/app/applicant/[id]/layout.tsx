@@ -3,6 +3,7 @@ import { getApplicant } from '@visastack/services';
 import { notFound } from 'next/navigation';
 import type { ReactNode } from 'react';
 import { getLocale } from '../../../../lib/locale';
+import { applicantTabs } from '../../../../lib/navigation';
 import { relationshipLabel } from '../../../../lib/relationship-labels';
 import { withSession } from '../../../../lib/session';
 import { SubNav } from '../../subnav';
@@ -11,12 +12,12 @@ export const dynamic = 'force-dynamic';
 
 /**
  * Applicant workspace shell (master directive §7 "PR 7" - Overview, Profile,
- * Documents, Missions, Sharing, Evidence, History as real, distinct
- * destinations rather than one overloaded page). "Evidence" isn't in the
- * directive's own 6-item list but is real, shipped functionality (responding
- * to an agency's evidence requests) - kept as a 7th tab rather than deleted
- * or silently hidden. "Expiry" (NTF-01, Part 5 §1) is an 8th tab for the
- * same reason.
+ * Documents, Cases, Sharing, Evidence, History as real, distinct destinations
+ * rather than one overloaded page). "Evidence" isn't in the directive's own
+ * 6-item list but is real, shipped functionality (responding to an agency's
+ * evidence requests) - kept as a 7th tab rather than deleted or silently
+ * hidden. "Expiry" (NTF-01, Part 5 §1) is an 8th tab for the same reason. The
+ * tab names live in `lib/navigation.ts`.
  */
 export default async function ApplicantWorkspaceLayout({
   children,
@@ -34,8 +35,6 @@ export default async function ApplicantWorkspaceLayout({
   if (!applicant) notFound();
   const t = createTranslator(await getLocale());
 
-  const base = `/app/applicant/${id}`;
-
   return (
     <section className="section container">
       <div className="toolbar" style={{ marginBottom: '1.5rem' }}>
@@ -49,18 +48,7 @@ export default async function ApplicantWorkspaceLayout({
           </p>
         </div>
       </div>
-      <SubNav
-        links={[
-          { href: base, label: 'Overview' },
-          { href: `${base}/profile`, label: 'Profile' },
-          { href: `${base}/documents`, label: 'Documents' },
-          { href: `${base}/missions`, label: 'Missions' },
-          { href: `${base}/sharing`, label: 'Sharing' },
-          { href: `${base}/evidence`, label: 'Evidence' },
-          { href: `${base}/expiry`, label: 'Expiry' },
-          { href: `${base}/history`, label: 'History' },
-        ]}
-      />
+      <SubNav links={applicantTabs(id)} label="Applicant sections" />
       {children}
     </section>
   );

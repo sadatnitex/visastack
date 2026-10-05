@@ -474,12 +474,12 @@ export default async function MissionPage({
           className="muted"
           style={{ fontSize: '0.9rem' }}
         >
-          ← {data.applicantName} · Missions
+          ← {data.applicantName} · Cases
         </Link>
       </div>
       <div className="toolbar" style={{ marginBottom: '2rem' }}>
         <div>
-          <span className="eyebrow">Mission</span>
+          <span className="eyebrow">Case</span>
           <h1 className="section-title" style={{ margin: '0.25rem 0 0' }}>
             {mission.title}
           </h1>
@@ -732,9 +732,9 @@ export default async function MissionPage({
       <div className="grid" style={{ marginTop: '1.5rem' }}>
         <article className="card">
           <p className="card-kicker">Workflow</p>
-          <h2 className="card-title">Advance the mission</h2>
+          <h2 className="card-title">Advance the case</h2>
           {nextStates.length === 0 ? (
-            <p className="card-body">This mission is in a terminal state.</p>
+            <p className="card-body">This case is in a terminal state.</p>
           ) : (
             <div style={{ marginTop: '0.5rem' }}>
               <TransitionButtons missionId={mission.id} nextStates={nextStates} />
@@ -747,7 +747,7 @@ export default async function MissionPage({
           <h2 className="card-title">Snapshots</h2>
           {data.snapshots.length === 0 ? (
             <p className="card-body">
-              No snapshots yet. Capture one to freeze this mission's evidence and checksum.
+              No snapshots yet. Capture one to freeze this case's evidence and checksum.
             </p>
           ) : (
             <div className="rows" style={{ marginTop: '0.5rem' }}>

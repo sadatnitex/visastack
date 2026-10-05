@@ -27,7 +27,7 @@ export async function GET(
     status: 200,
     headers: {
       'Content-Type': 'application/json; charset=utf-8',
-      'Content-Disposition': `attachment; filename="mission-${id}-snapshot-v${snapshot.version}.json"`,
+      'Content-Disposition': `attachment; filename="case-${id}-snapshot-v${snapshot.version}.json"`,
       'Cache-Control': 'private, no-store',
     },
   });

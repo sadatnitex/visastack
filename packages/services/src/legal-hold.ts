@@ -164,9 +164,7 @@ export async function placeLegalHold(
     return err(serviceError('invalid', 'the review date must be in the future'));
   }
   if (input.missionId && input.documentId) {
-    return err(
-      serviceError('invalid', 'a hold can be scoped to a mission or a document, not both'),
-    );
+    return err(serviceError('invalid', 'a hold can be scoped to a case or a document, not both'));
   }
 
   return db.transaction(async (tx) => {
@@ -188,9 +186,9 @@ export async function placeLegalHold(
           .where(eq(schema.missions.id, input.missionId))
           .limit(1),
       );
-      if (!mission) return err(serviceError('not_found', 'mission not found'));
+      if (!mission) return err(serviceError('not_found', 'case not found'));
       if (mission.applicantId !== input.applicantId) {
-        return err(serviceError('invalid', 'that mission does not belong to this applicant'));
+        return err(serviceError('invalid', 'that case does not belong to this applicant'));
       }
     }
     if (input.documentId) {

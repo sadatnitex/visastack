@@ -78,7 +78,7 @@ export default async function ApplicantOverviewPage({
           ? { href: `/app/applicant/${id}/documents`, label: 'Review a flagged document' }
           : completenessPct < 100
             ? { href: `/app/applicant/${id}/profile`, label: 'Continue the Master Profile' }
-            : { href: `/app/applicant/${id}/missions`, label: 'Start or review a mission' };
+            : { href: `/app/applicant/${id}/missions`, label: 'Start or review a case' };
 
   return (
     <>
@@ -142,11 +142,11 @@ export default async function ApplicantOverviewPage({
         </article>
 
         <article className="card">
-          <p className="card-kicker">Missions</p>
-          <h2 className="card-title">Active missions</h2>
+          <p className="card-kicker">Cases</p>
+          <h2 className="card-title">Active cases</h2>
           {activeMissions.length === 0 ? (
             <p className="card-body" style={{ marginBottom: '0.75rem' }}>
-              No active mission yet.
+              No active case yet.
             </p>
           ) : (
             <div className="rows" style={{ marginBottom: '0.75rem' }}>
@@ -159,7 +159,7 @@ export default async function ApplicantOverviewPage({
             </div>
           )}
           <Link href={`/app/applicant/${id}/missions`} className="muted">
-            Open Missions →
+            Open Cases →
           </Link>
         </article>
 

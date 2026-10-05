@@ -143,7 +143,7 @@ export async function createGrant(
   }
   if (!(await hasConsent(db, input.actorAccountId, 'SHARING'))) {
     return err(
-      serviceError('consent_required', 'SHARING consent is required before creating a grant'),
+      serviceError('consent_required', 'Sharing consent is required before creating a grant'),
     );
   }
   if (input.recipientAccountId && input.recipientOrganizationId) {
@@ -224,7 +224,7 @@ export async function createGrant(
         .limit(1),
     );
     if (!mission || mission.applicantId !== input.applicantId) {
-      return err(serviceError('invalid', 'mission does not belong to this applicant'));
+      return err(serviceError('invalid', 'case does not belong to this applicant'));
     }
   }
   if (input.documentIds && input.documentIds.length > 0) {
