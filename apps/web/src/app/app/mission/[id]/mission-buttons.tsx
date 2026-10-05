@@ -130,6 +130,7 @@ export function ItineraryForm({
         type="text"
         defaultValue={itineraryRef ?? ''}
         className="input"
+        aria-label="Itinerary reference"
         placeholder="e.g. Smith Family Europe 2026"
       />
       <div>

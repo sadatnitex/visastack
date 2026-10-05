@@ -23,6 +23,7 @@ export function AssignComplaintForm({ complaintId }: { readonly complaintId: str
         type="email"
         required
         className="input"
+        aria-label="Email of the person to assign to"
         placeholder="assign to email"
         style={{ maxWidth: '14rem' }}
       />
@@ -60,6 +61,7 @@ export function UpdateComplaintStatusForm({
       <input type="hidden" name="complaintId" value={complaintId} />
       <select
         name="status"
+        aria-label="Move the complaint to"
         className="input"
         defaultValue=""
         required
@@ -78,9 +80,16 @@ export function UpdateComplaintStatusForm({
         name="resolution"
         type="text"
         className="input"
+        aria-label="Resolution (if resolving)"
         placeholder="resolution (if resolving)"
       />
-      <input name="note" type="text" className="input" placeholder="note (optional)" />
+      <input
+        name="note"
+        type="text"
+        className="input"
+        aria-label="Note (optional)"
+        placeholder="note (optional)"
+      />
       <SubmitButton
         pending={pending}
         idle="Update"

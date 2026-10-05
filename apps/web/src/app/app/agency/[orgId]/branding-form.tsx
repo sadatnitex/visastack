@@ -119,6 +119,7 @@ export function BrandingForm({
             name="logo"
             accept="image/png,image/jpeg"
             required
+            aria-label="Logo image (PNG or JPEG)"
           />
           <SubmitButton
             pending={uploadPending}

@@ -9,6 +9,8 @@ import { withSession } from '../../lib/session';
 export interface ActionState {
   readonly ok: boolean;
   readonly message: string;
+  /** The input a problem is about, when the action knows (the form marks it invalid and moves focus to it). */
+  readonly field?: string;
 }
 
 const RELATIONSHIPS: readonly ApplicantRelationship[] = ['SELF', 'FAMILY_MEMBER', 'MINOR_GUARDIAN'];
@@ -56,9 +58,14 @@ export async function createApplicantAction(
     ? (relationshipRaw as ApplicantRelationship)
     : 'SELF';
   const authorityConfirmed = formData.get('authorityConfirmed') === 'true';
-  if (displayName.length === 0) return { ok: false, message: 'Enter a name.' };
+  if (displayName.length === 0)
+    return { ok: false, message: 'Enter a name.', field: 'displayName' };
   if (relationship !== 'SELF' && !authorityConfirmed) {
-    return { ok: false, message: 'Confirm you have authority to create this record.' };
+    return {
+      ok: false,
+      message: 'Confirm you have authority to create this record.',
+      field: 'authorityConfirmed',
+    };
   }
   const result = await withSession(async ({ db, accountId }) => {
     const created = await createApplicant(db, {

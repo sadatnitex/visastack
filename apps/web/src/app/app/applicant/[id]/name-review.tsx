@@ -1,7 +1,12 @@
 'use client';
 
-import { useActionState, useState } from 'react';
-import { FormMessage, SubmitButton } from '../../../../components/form-feedback';
+import { useActionState, useId, useRef, useState } from 'react';
+import {
+  FormMessage,
+  SubmitButton,
+  fieldProblem,
+  useFocusInvalidField,
+} from '../../../../components/form-feedback';
 import { type ActionState, decideDocumentNameAction } from './actions';
 
 const INITIAL: ActionState = { ok: true, message: '' };
@@ -31,6 +36,9 @@ export function NameReview({
 }) {
   const [state, formAction, pending] = useActionState(decideDocumentNameAction, INITIAL);
   const [editedName, setEditedName] = useState(proposedName);
+  const formRef = useRef<HTMLFormElement>(null);
+  const messageId = useId();
+  useFocusInvalidField(formRef, state);
 
   return (
     <div
@@ -55,6 +63,7 @@ export function NameReview({
         ) : null}
       </p>
       <form
+        ref={formRef}
         action={formAction}
         style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}
       >
@@ -64,9 +73,11 @@ export function NameReview({
         <input
           type="text"
           name="finalName"
+          aria-label="Proposed filename"
           value={editedName}
           onChange={(e) => setEditedName(e.target.value)}
           className="input"
+          {...fieldProblem(state, 'finalName', messageId)}
           style={{ flex: '1 1 260px', fontSize: '0.85rem', padding: '0.4rem 0.65rem' }}
         />
         <SubmitButton
@@ -88,7 +99,7 @@ export function NameReview({
           value="reject"
         />
       </form>
-      <FormMessage result={state} />
+      <FormMessage id={messageId} result={state} />
     </div>
   );
 }

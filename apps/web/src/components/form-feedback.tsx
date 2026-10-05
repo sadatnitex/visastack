@@ -1,6 +1,6 @@
 'use client';
 
-import type { CSSProperties, ReactNode } from 'react';
+import { type CSSProperties, type ReactNode, type RefObject, useEffect } from 'react';
 
 /**
  * Shared pieces that make a form say what happened to everyone, not only to people
@@ -36,6 +36,23 @@ export function fieldProblem(
 ): { 'aria-invalid'?: true; 'aria-describedby'?: string } {
   if (!isFailure(result) || result.field !== field) return {};
   return { 'aria-invalid': true, 'aria-describedby': messageId };
+}
+
+/**
+ * When an action says which input its problem is about, put keyboard focus on that
+ * input so the person lands where they have to fix it, and a screen reader reads the
+ * error with it (the input points to the message through `fieldProblem`). Runs once
+ * per result, not on every render.
+ */
+export function useFocusInvalidField(
+  form: RefObject<HTMLFormElement | null>,
+  result: FormResult,
+): void {
+  useEffect(() => {
+    if (!isFailure(result) || result.field === undefined) return;
+    const control = form.current?.elements.namedItem(result.field);
+    if (control instanceof HTMLElement) control.focus();
+  }, [result, form]);
 }
 
 /**

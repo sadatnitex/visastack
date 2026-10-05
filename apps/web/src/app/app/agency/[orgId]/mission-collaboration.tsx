@@ -215,7 +215,13 @@ export function MissionCollaboration({
           <form action={assignAction} style={{ display: 'flex', gap: '0.5rem' }}>
             <input type="hidden" name="organizationId" value={organizationId} />
             <input type="hidden" name="missionId" value={missionId} />
-            <select name="memberAccountId" className="input" required defaultValue="">
+            <select
+              name="memberAccountId"
+              aria-label="Member to assign"
+              className="input"
+              required
+              defaultValue=""
+            >
               <option value="" disabled>
                 Assign a member…
               </option>
@@ -597,7 +603,13 @@ export function MissionCollaboration({
             >
               <input type="hidden" name="organizationId" value={organizationId} />
               <input type="hidden" name="missionId" value={missionId} />
-              <select name="packRequirementId" className="input" required defaultValue="">
+              <select
+                name="packRequirementId"
+                aria-label="Requirement"
+                className="input"
+                required
+                defaultValue=""
+              >
                 <option value="" disabled>
                   Requirement…
                 </option>
@@ -607,7 +619,12 @@ export function MissionCollaboration({
                   </option>
                 ))}
               </select>
-              <select name="outcome" className="input" defaultValue="ACCEPTED">
+              <select
+                name="outcome"
+                aria-label="Decision"
+                className="input"
+                defaultValue="ACCEPTED"
+              >
                 <option value="ACCEPTED">Accept</option>
                 <option value="REJECTED">Reject</option>
               </select>

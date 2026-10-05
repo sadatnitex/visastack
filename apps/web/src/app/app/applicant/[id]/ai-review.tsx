@@ -232,6 +232,7 @@ export function AiProposalReview({
             <input
               type="text"
               name="correctedValue"
+              aria-label="Value to save, edit it if it is not right"
               value={editedValue}
               onChange={(e) => setEditedValue(e.target.value)}
               className="input"
