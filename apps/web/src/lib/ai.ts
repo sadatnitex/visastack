@@ -554,6 +554,11 @@ function limitsFromConfig(config: AiProviderConfig | undefined): AiLimits {
  * silently disagree with what `resolveAiExtractor` actually dispatched with
  * moments earlier.
  */
+/** The limits in force when no provider has been configured, for a page that cannot read the configuration. */
+export function defaultAiLimits(): AiLimits {
+  return limitsFromConfig(undefined);
+}
+
 export async function resolveAiLimits(db: Db): Promise<AiLimits> {
   if (!(await hasAnyAiProviderConfig(db))) return limitsFromConfig(undefined);
   return limitsFromConfig(await getActiveAiProviderConfig(db));

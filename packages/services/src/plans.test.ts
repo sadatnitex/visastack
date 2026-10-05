@@ -1268,3 +1268,140 @@ describe('getUsageForOrganization - meters and their definitions (COM-01)', () =
     expect(usage.value.meters.find((m) => m.key === 'aiAllowanceUnits')?.used).toBe(0);
   });
 });
+
+describe('OPS-04 (Commercial V1 Part 9): plan-change analytics', () => {
+  let db: Db;
+  let owner: Awaited<ReturnType<typeof seedPlatformOwner>>;
+  beforeEach(async () => {
+    db = await freshDb();
+    owner = await seedPlatformOwner(db, 'ops04');
+  });
+
+  async function planChanges() {
+    return (await db.select().from(schema.productEvents)).filter(
+      (e) => e.eventType === 'PLAN_CHANGED',
+    );
+  }
+
+  async function makePlan(tag: string, seatsAllowed: number) {
+    const created = await createPlan(db, {
+      actor: owner.actor,
+      stepUpSatisfied: true,
+      key: `ops04-plan-${tag}`,
+      name: `OPS-04 plan ${tag}`,
+      seatsAllowed,
+    });
+    if (!isOk(created)) throw new Error('plan');
+    return created.value;
+  }
+
+  it('records each activation against the organization, never the platform owner who made it or the reason given', async () => {
+    const { organizationId } = await seedOrganization(db, 'ops04-activate');
+    const starter = await getPlanByKey(db, 'agency_starter');
+    const other = await makePlan('other', 8);
+    if (!starter) throw new Error('seed');
+    for (const [planId, reason] of [
+      [starter.id, 'Signed 12 month contract with Mr Rahim, discount agreed on the phone'],
+      [other.id, 'Upgrade requested by Mr Rahim after the Eid rush'],
+    ] as const) {
+      const activated = await activateSubscription(db, {
+        actor: owner.actor,
+        stepUpSatisfied: true,
+        organizationId,
+        planId,
+        reason,
+      });
+      expect(isOk(activated)).toBe(true);
+    }
+
+    const events = await planChanges();
+    expect(events).toHaveLength(2);
+    for (const event of events) {
+      expect(event).toMatchObject({
+        accountId: null,
+        organizationId,
+        dimension: 'SUBSCRIPTION_ACTIVATED',
+        metricValue: null,
+      });
+    }
+    const stored = JSON.stringify(events);
+    for (const leaked of ['Rahim', 'contract', 'Eid', 'agency_starter']) {
+      expect(stored, leaked).not.toContain(leaked);
+    }
+  });
+
+  it('records nothing for an activation that is refused', async () => {
+    const { organizationId } = await seedOrganization(db, 'ops04-refused');
+    const starter = await getPlanByKey(db, 'agency_starter');
+    if (!starter) throw new Error('seed');
+    const stranger = await provisionAccount(db, { email: 'ops04-stranger@example.com' });
+    if (!isOk(stranger)) throw new Error('provision');
+    const refused = [
+      await activateSubscription(db, {
+        actor: {
+          accountId: stranger.value.id,
+          email: 'ops04-stranger@example.com',
+          bootstrapEmails: [],
+        },
+        stepUpSatisfied: true,
+        organizationId,
+        planId: starter.id,
+        reason: 'x',
+      }),
+      await activateSubscription(db, {
+        actor: owner.actor,
+        stepUpSatisfied: false,
+        organizationId,
+        planId: starter.id,
+        reason: 'x',
+      }),
+    ];
+    expect(refused.map((r) => isErr(r))).toEqual([true, true]);
+    expect(await planChanges()).toEqual([]);
+  });
+
+  it('records a downgrade when it takes effect, not when it is scheduled, and not when it is attempted too early', async () => {
+    const { organizationId } = await seedOrganization(db, 'ops04-downgrade');
+    const generous = await makePlan('generous', 5);
+    const tight = await makePlan('tight', 1);
+    await activateSubscription(db, {
+      actor: owner.actor,
+      stepUpSatisfied: true,
+      organizationId,
+      planId: generous.id,
+      reason: 'setup',
+    });
+    expect(await planChanges()).toHaveLength(1);
+
+    const now = new Date();
+    const effectiveAt = new Date(now.getTime() + 60_000);
+    const scheduled = await scheduleDowngrade(db, {
+      actor: owner.actor,
+      stepUpSatisfied: true,
+      organizationId,
+      toPlanId: tight.id,
+      reason: 'right-sizing',
+      effectiveAt,
+      now,
+    });
+    if (!isOk(scheduled)) throw new Error('schedule');
+    const tooEarly = await executeScheduledDowngrade(db, { downgradeId: scheduled.value.id, now });
+    expect(isErr(tooEarly)).toBe(true);
+    expect(await planChanges()).toHaveLength(1);
+
+    const executed = await executeScheduledDowngrade(db, {
+      downgradeId: scheduled.value.id,
+      now: effectiveAt,
+    });
+    expect(isOk(executed)).toBe(true);
+    const events = await planChanges();
+    expect(events.map((e) => e.dimension).sort()).toEqual([
+      'DOWNGRADE_EXECUTED',
+      'SUBSCRIPTION_ACTIVATED',
+    ]);
+    expect(events.find((e) => e.dimension === 'DOWNGRADE_EXECUTED')).toMatchObject({
+      accountId: null,
+      organizationId,
+    });
+  });
+});

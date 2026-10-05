@@ -1198,3 +1198,156 @@ describe('commercial override bypasses every commercial check (COM-02)', () => {
     expect(isErr(added)).toBe(true);
   });
 });
+
+describe('OPS-04 (Commercial V1 Part 9): plan-limit analytics', () => {
+  let db: Db;
+  let owner: Awaited<ReturnType<typeof seedPlatformOwner>>;
+  beforeEach(async () => {
+    db = await freshDb();
+    owner = await seedPlatformOwner(db, 'ops04');
+  });
+
+  async function limitHits() {
+    return (await db.select().from(schema.productEvents)).filter(
+      (e) => e.eventType === 'PLAN_LIMIT_REACHED',
+    );
+  }
+
+  async function onPlan(
+    organizationId: string,
+    entitlements: Parameters<typeof createTightPlan>[2],
+  ) {
+    const plan = await createTightPlan(db, owner, entitlements);
+    const activated = await activateSubscription(db, {
+      actor: owner.actor,
+      stepUpSatisfied: true,
+      organizationId,
+      planId: plan.id,
+      reason: 'test',
+    });
+    if (!isOk(activated)) throw new Error('activate');
+  }
+
+  async function addMember(organizationId: string, ownerAccountId: string, email: string) {
+    const member = await provisionAccount(db, { email });
+    if (!isOk(member)) throw new Error('provision');
+    return addMembership(db, {
+      actorAccountId: ownerAccountId,
+      organizationId,
+      accountId: member.value.id,
+      role: 'CASE_MANAGER',
+    });
+  }
+
+  it('records the seat cap being hit, once per organization and day however often it is hit again, and names no member', async () => {
+    const { organizationId, ownerAccountId } = await seedOrganization(db, 'ops04-seats');
+    await onPlan(organizationId, { seatsAllowed: 1 });
+
+    for (const email of ['turned-away-1@acme.com', 'turned-away-2@acme.com']) {
+      expect(isErr(await addMember(organizationId, ownerAccountId, email))).toBe(true);
+    }
+
+    const hits = await limitHits();
+    expect(hits).toHaveLength(1);
+    expect(hits[0]).toMatchObject({
+      accountId: null,
+      organizationId,
+      dimension: 'SEATS',
+      metricValue: null,
+    });
+    expect(JSON.stringify(hits)).not.toContain('turned-away');
+  });
+
+  it('keeps one event per limit: a different limit on the same organization is a separate event', async () => {
+    const { organizationId, ownerAccountId } = await seedOrganization(db, 'ops04-two-limits');
+    await onPlan(organizationId, { seatsAllowed: 1 });
+    await addMember(organizationId, ownerAccountId, 'turned-away@acme.com');
+    const invited = await createOrganizationInvitation(db, {
+      actorAccountId: ownerAccountId,
+      organizationId,
+      email: 'invite-turned-away@example.com',
+      role: 'CASE_MANAGER',
+    });
+    expect(isErr(invited)).toBe(true);
+
+    expect((await limitHits()).map((e) => e.dimension).sort()).toEqual(['INVITATIONS', 'SEATS']);
+  });
+
+  it('records the case caps being hit, each under its own label', async () => {
+    const traveller = await seedTraveller(db, 'ops04-cases');
+    const perPeriod = await seedOrganization(db, 'ops04-period');
+    const concurrent = await seedOrganization(db, 'ops04-concurrent');
+    await onPlan(perPeriod.organizationId, { casesPerPeriodAllowed: 1 });
+    await onPlan(concurrent.organizationId, {
+      casesPerPeriodAllowed: 100,
+      concurrentOpenCasesAllowed: 1,
+    });
+
+    for (const organizationId of [perPeriod.organizationId, concurrent.organizationId]) {
+      for (const title of ['First', 'Second']) {
+        await createMission(db, {
+          actorAccountId: traveller.accountId,
+          applicantId: traveller.applicantId,
+          title,
+          ownerOrganizationId: organizationId,
+        });
+      }
+    }
+
+    const hits = await limitHits();
+    expect(hits.map((e) => [e.organizationId, e.dimension]).sort()).toEqual(
+      [
+        [perPeriod.organizationId, 'CASES_PER_PERIOD'],
+        [concurrent.organizationId, 'OPEN_CASES'],
+      ].sort(),
+    );
+  });
+
+  it('records the storage cap being hit against the organization whose cap it was', async () => {
+    const traveller = await seedTraveller(db, 'ops04-storage');
+    const { organizationId, ownerAccountId } = await seedOrganization(db, 'ops04-storage-org');
+    await onPlan(organizationId, { storageBytesAllowed: 10 * MB });
+    await grantOrgAccessToApplicant(db, {
+      applicantOwnerAccountId: traveller.accountId,
+      applicantId: traveller.applicantId,
+      organizationId,
+      orgOwnerAccountId: ownerAccountId,
+    });
+    const reserve = (sizeBytes: number) =>
+      reserveUpload(
+        db,
+        { accountId: traveller.accountId, applicantId: traveller.applicantId, sizeBytes },
+        generousUploadConfig,
+      );
+    expect(isOk(await reserve(8 * MB))).toBe(true);
+    expect(isErr(await reserve(5 * MB))).toBe(true);
+
+    expect(await limitHits()).toMatchObject([{ organizationId, dimension: 'STORAGE' }]);
+  });
+
+  it('records nothing while an organization is within its limits, or has no plan', async () => {
+    const roomy = await seedOrganization(db, 'ops04-roomy');
+    await onPlan(roomy.organizationId, { seatsAllowed: 5 });
+    expect(isOk(await addMember(roomy.organizationId, roomy.ownerAccountId, 'fits@acme.com'))).toBe(
+      true,
+    );
+    const planless = await seedOrganization(db, 'ops04-planless');
+    expect(
+      isOk(await addMember(planless.organizationId, planless.ownerAccountId, 'planless@acme.com')),
+    ).toBe(true);
+    expect(await limitHits()).toEqual([]);
+  });
+
+  it('still refuses with the same error whether or not the limit could be recorded', async () => {
+    const { organizationId, ownerAccountId } = await seedOrganization(db, 'ops04-same-refusal');
+    await onPlan(organizationId, { seatsAllowed: 1 });
+    const first = await addMember(organizationId, ownerAccountId, 'refused-a@acme.com');
+    // The second refusal records nothing new (same org, limit and day).
+    const second = await addMember(organizationId, ownerAccountId, 'refused-b@acme.com');
+    expect(isErr(first) && isErr(second)).toBe(true);
+    if (isErr(first) && isErr(second)) {
+      expect(second.error.code).toBe(first.error.code);
+      expect(second.error.message).toBe(first.error.message);
+    }
+  });
+});

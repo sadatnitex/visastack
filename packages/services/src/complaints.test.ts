@@ -2,6 +2,7 @@ import { fileURLToPath } from 'node:url';
 import { PGlite } from '@electric-sql/pglite';
 import { isErr, isOk } from '@visastack/core';
 import { schema } from '@visastack/db';
+import { eq } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/pglite';
 import { migrate } from 'drizzle-orm/pglite/migrator';
 import { beforeEach, describe, expect, it } from 'vitest';
@@ -371,5 +372,137 @@ describe('TRU-04 (Commercial V1 Part 7 §9): case complaint workflow', () => {
     if (isOk(list)) {
       expect(list.value.some((c) => c.id === filed.value.id)).toBe(true);
     }
+  });
+});
+
+describe('OPS-04 (Commercial V1 Part 9): complaint-resolution analytics', () => {
+  let db: Db;
+  beforeEach(async () => {
+    db = await freshDb();
+  });
+
+  const THREE_DAYS = 3 * 24 * 60 * 60;
+
+  async function endings() {
+    return (await db.select().from(schema.productEvents)).filter(
+      (e) => e.eventType === 'COMPLAINT_RESOLVED',
+    );
+  }
+
+  /** A complaint that has been open three days. */
+  async function openComplaint() {
+    const { account, missionId } = await seed(db);
+    const filed = await fileComplaint(db, {
+      actorAccountId: account.id,
+      missionId,
+      description: 'Mr Karim was charged 40,000 BDT twice by the agency',
+    });
+    if (!isOk(filed)) throw new Error('file');
+    await db
+      .update(schema.caseComplaints)
+      .set({ createdAt: new Date(Date.now() - THREE_DAYS * 1000) })
+      .where(eq(schema.caseComplaints.id, filed.value.id));
+    return { account, missionId, complaintId: filed.value.id };
+  }
+
+  it('records how a complaint was resolved and how long it was open, and nothing of what it said', async () => {
+    const { complaintId } = await openComplaint();
+    const admin = await seedQualityAdmin(db);
+    const resolved = await updateComplaintStatus(db, {
+      actor: admin,
+      complaintId,
+      status: 'RESOLVED',
+      resolution: 'Refunded Mr Karim the duplicate 40,000 BDT and apologised',
+    });
+    expect(isOk(resolved)).toBe(true);
+
+    const events = await endings();
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({
+      accountId: admin.accountId,
+      organizationId: null,
+      dimension: 'RESOLVED',
+    });
+    expect(events[0]?.metricValue).toBeGreaterThanOrEqual(THREE_DAYS);
+    expect(events[0]?.metricValue).toBeLessThan(THREE_DAYS + 300);
+    const stored = JSON.stringify(events);
+    for (const leaked of ['Karim', '40,000', 'agency', 'Refunded', 'apologised']) {
+      expect(stored, leaked).not.toContain(leaked);
+    }
+  });
+
+  it('labels a complaint closed by the quality reviewer, and one withdrawn by the person who filed it', async () => {
+    const closed = await openComplaint();
+    const admin = await seedQualityAdmin(db);
+    expect(
+      isOk(
+        await updateComplaintStatus(db, {
+          actor: admin,
+          complaintId: closed.complaintId,
+          status: 'CLOSED',
+        }),
+      ),
+    ).toBe(true);
+
+    const withdrawn = await fileComplaint(db, {
+      actorAccountId: closed.account.id,
+      missionId: closed.missionId,
+      description: 'another',
+    });
+    if (!isOk(withdrawn)) throw new Error('file');
+    expect(
+      isOk(
+        await withdrawOwnComplaint(db, {
+          actorAccountId: closed.account.id,
+          complaintId: withdrawn.value.id,
+        }),
+      ),
+    ).toBe(true);
+
+    const events = await endings();
+    expect(events.map((e) => e.dimension).sort()).toEqual(['CLOSED', 'WITHDRAWN']);
+    expect(events.find((e) => e.dimension === 'WITHDRAWN')?.accountId).toBe(closed.account.id);
+    expect(events.find((e) => e.dimension === 'CLOSED')?.accountId).toBe(admin.accountId);
+  });
+
+  it('carries the organization of an agency case', async () => {
+    const { account, applicantId } = await seed(db);
+    const org = await createOrganization(db, { actorAccountId: account.id, name: 'Acme' });
+    if (!isOk(org)) throw new Error('org');
+    const mission = await createMission(db, {
+      actorAccountId: account.id,
+      applicantId,
+      title: 'Agency case',
+      ownerOrganizationId: org.value.id,
+    });
+    if (!isOk(mission)) throw new Error('mission');
+    const filed = await fileComplaint(db, {
+      actorAccountId: account.id,
+      missionId: mission.value.id,
+      description: 'x',
+    });
+    if (!isOk(filed)) throw new Error('file');
+    await withdrawOwnComplaint(db, { actorAccountId: account.id, complaintId: filed.value.id });
+    expect(await endings()).toMatchObject([
+      { organizationId: org.value.id, dimension: 'WITHDRAWN' },
+    ]);
+  });
+
+  it('records nothing for a step that does not end the complaint, or for one that is refused', async () => {
+    const { account, complaintId } = await openComplaint();
+    const admin = await seedQualityAdmin(db);
+    const steps = [
+      await updateComplaintStatus(db, { actor: admin, complaintId, status: 'IN_PROGRESS' }),
+      // Resolving needs a resolution.
+      await updateComplaintStatus(db, { actor: admin, complaintId, status: 'RESOLVED' }),
+      // Not a quality admin.
+      await updateComplaintStatus(db, {
+        actor: { accountId: account.id, email: 'complaint@example.com', bootstrapEmails: [] },
+        complaintId,
+        status: 'CLOSED',
+      }),
+    ];
+    expect(steps.map((r) => isOk(r))).toEqual([true, false, false]);
+    expect(await endings()).toEqual([]);
   });
 });

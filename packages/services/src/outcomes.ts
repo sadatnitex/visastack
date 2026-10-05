@@ -4,6 +4,7 @@ import { appendAuditEvent } from './audit';
 import { type Db, first, required, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
 import { getMissionForOwner } from './missions';
+import { recordProductEvent } from './product-events';
 
 /**
  * TRU-04 (master directive Part 7 §8): the real-world outcome of a case.
@@ -105,6 +106,16 @@ export async function recordOutcome(
       resourceType: 'mission_outcome',
       resourceId: record.id,
       metadata: { decision: input.decision },
+    });
+
+    // OPS-04 outcome: which decision, and nothing of its wording. The decision
+    // is one of five fixed values; `officialWording` and `agencyInterpretation`
+    // (which can carry refusal reasons) never leave this table.
+    await recordProductEvent(tx, {
+      eventType: 'OUTCOME_RECORDED',
+      accountId: input.actorAccountId,
+      organizationId: mission.ownerOrganizationId,
+      dimension: input.decision,
     });
 
     return ok(record);

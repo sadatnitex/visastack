@@ -5,6 +5,7 @@ import { type Db, first, required, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
 import { getMissionForOwner } from './missions';
 import { type PlatformAuthInput, canPerformPlatformAction } from './platform-roles';
+import { elapsedSeconds, recordProductEvent } from './product-events';
 
 /**
  * TRU-04 (master directive Part 7 §9): case complaint workflow.
@@ -27,6 +28,33 @@ import { type PlatformAuthInput, canPerformPlatformAction } from './platform-rol
 
 export type CaseComplaint = typeof schema.caseComplaints.$inferSelect;
 export type CaseComplaintEvent = typeof schema.caseComplaintEvents.$inferSelect;
+
+/**
+ * OPS-04 complaint resolution: how a complaint ended and how long it was open,
+ * never the complaint's description or the resolution text. `how` is one of
+ * RESOLVED, CLOSED (by the quality reviewer) or WITHDRAWN (by the filer).
+ */
+async function recordComplaintEnded(
+  tx: Db,
+  complaint: CaseComplaint,
+  actorAccountId: string,
+  how: 'RESOLVED' | 'CLOSED' | 'WITHDRAWN',
+): Promise<void> {
+  const mission = first(
+    await tx
+      .select({ organizationId: schema.missions.ownerOrganizationId })
+      .from(schema.missions)
+      .where(eq(schema.missions.id, complaint.missionId))
+      .limit(1),
+  );
+  await recordProductEvent(tx, {
+    eventType: 'COMPLAINT_RESOLVED',
+    accountId: actorAccountId,
+    organizationId: mission?.organizationId ?? null,
+    dimension: how,
+    metricValue: elapsedSeconds(complaint.createdAt),
+  });
+}
 
 export async function fileComplaint(
   db: Db,
@@ -164,6 +192,7 @@ export async function withdrawOwnComplaint(
       resourceType: 'case_complaint',
       resourceId: complaint.id,
     });
+    await recordComplaintEnded(tx, complaint, input.actorAccountId, 'WITHDRAWN');
     return ok(updated);
   });
 }
@@ -249,6 +278,9 @@ export async function updateComplaintStatus(
       resourceId: complaint.id,
       metadata: { from: complaint.status, to: input.status },
     });
+    if (input.status === 'RESOLVED' || input.status === 'CLOSED') {
+      await recordComplaintEnded(tx, complaint, input.actor.accountId, input.status);
+    }
     return ok(updated);
   });
 }

@@ -5,6 +5,7 @@ import { appendAuditEvent } from './audit';
 import { type Db, first, required, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
 import { type PlatformAuthInput, isPlatformOwner } from './platform-roles';
+import { recordProductEvent } from './product-events';
 
 /**
  * Manual billing (Commercial V1 COM-03, PRD §12 / master directive Part 5
@@ -516,6 +517,17 @@ export async function recordInvoicePayment(
         newCollectedAmountMinorUnits: newCollected,
         newStatus,
       },
+    });
+    // OPS-04 cash collection: money actually received, as currency and amount
+    // only. The payment reference and the reason stay in the audit record. This
+    // is cash, not invoiced revenue (COM-03 keeps the two distinct), so it is
+    // recorded here, on collection, and not when an invoice is created.
+    await recordProductEvent(tx, {
+      eventType: 'CASH_COLLECTED',
+      accountId: null,
+      organizationId: invoice.organizationId,
+      dimension: invoice.currency.trim().toUpperCase(),
+      metricValue: input.amountMinorUnits,
     });
     return ok(updated);
   });

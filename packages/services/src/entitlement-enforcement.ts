@@ -11,6 +11,7 @@ import {
   countConcurrentOpenCases,
   getCurrentPlanForOrganization,
 } from './plans';
+import { recordProductEvent } from './product-events';
 import { getOrganizationEvidenceBytes, mbLabel } from './quotas';
 
 /**
@@ -80,6 +81,32 @@ import { getOrganizationEvidenceBytes, mbLabel } from './quotas';
  *   later"), not a gap this chunk silently left.
  */
 
+type PlanLimit = 'SEATS' | 'INVITATIONS' | 'CASES_PER_PERIOD' | 'OPEN_CASES' | 'STORAGE';
+
+/**
+ * Refuses with `error` and records, for OPS-04's plan-usage learning, that this
+ * organization ran into this limit. At most one event per organization, limit
+ * and day: the signal is "which organizations are hitting which caps", not how
+ * many times someone clicked after being told no. The caller's own refusal
+ * path commits the event with the rest of its (empty) transaction, and a
+ * failure to record never changes the refusal.
+ */
+async function limitReached(
+  tx: Db,
+  organizationId: string,
+  limit: PlanLimit,
+  error: ServiceError,
+): Promise<Result<void, ServiceError>> {
+  await recordProductEvent(tx, {
+    eventType: 'PLAN_LIMIT_REACHED',
+    accountId: null,
+    organizationId,
+    dimension: limit,
+    onceFor: `${organizationId}:${limit}:${new Date().toISOString().slice(0, 10)}`,
+  });
+  return err(error);
+}
+
 // Two-argument advisory-lock namespaces (the high bits of the composite
 // `pg_advisory_xact_lock(int, int)` key), matching `db.ts`'s
 // `EMAIL_LOCK_NAMESPACE` pattern: each namespace is a distinct, non-zero
@@ -119,7 +146,10 @@ export async function checkSeatEntitlement(
   if (!plan || plan.seatsAllowed === null) return ok(undefined);
   const current = await countActiveSeats(tx, organizationId);
   if (current >= plan.seatsAllowed) {
-    return err(
+    return limitReached(
+      tx,
+      organizationId,
+      'SEATS',
       serviceError(
         'invalid',
         `this organization's plan allows ${plan.seatsAllowed} active seat${plan.seatsAllowed === 1 ? '' : 's'}, and that limit is already reached`,
@@ -175,7 +205,10 @@ export async function checkInvitationEntitlement(
   const activeSeats = await countActiveSeats(tx, organizationId);
   const pending = await countPendingInvitations(tx, organizationId);
   if (activeSeats + pending >= plan.seatsAllowed) {
-    return err(
+    return limitReached(
+      tx,
+      organizationId,
+      'INVITATIONS',
       serviceError(
         'invalid',
         `this organization's plan allows ${plan.seatsAllowed} active seat${plan.seatsAllowed === 1 ? '' : 's'}; active members plus pending invitations have already reached that limit`,
@@ -217,7 +250,10 @@ export async function checkCaseCreationEntitlement(
     const periodStart = new Date(Date.now() - plan.periodDays * 24 * 60 * 60 * 1000);
     const casesThisPeriod = await countCasesInPeriod(tx, organizationId, periodStart);
     if (casesThisPeriod >= plan.casesPerPeriodAllowed) {
-      return err(
+      return limitReached(
+        tx,
+        organizationId,
+        'CASES_PER_PERIOD',
         serviceError(
           'invalid',
           `this organization's plan allows ${plan.casesPerPeriodAllowed} new case${plan.casesPerPeriodAllowed === 1 ? '' : 's'} per ${plan.periodDays}-day period, and that limit is already reached`,
@@ -229,7 +265,10 @@ export async function checkCaseCreationEntitlement(
   if (plan.concurrentOpenCasesAllowed !== null) {
     const concurrentOpen = await countConcurrentOpenCases(tx, organizationId);
     if (concurrentOpen >= plan.concurrentOpenCasesAllowed) {
-      return err(
+      return limitReached(
+        tx,
+        organizationId,
+        'OPEN_CASES',
         serviceError(
           'invalid',
           `this organization's plan allows ${plan.concurrentOpenCasesAllowed} concurrent open case${plan.concurrentOpenCasesAllowed === 1 ? '' : 's'}, and that limit is already reached`,
@@ -292,7 +331,10 @@ export async function checkStorageEntitlement(
     const committed = await getOrganizationEvidenceBytes(tx, organizationId);
     const reserved = await activeReservedBytesForOrganization(tx, organizationId);
     if (committed + reserved + additionalBytes > plan.storageBytesAllowed) {
-      return err(
+      return limitReached(
+        tx,
+        organizationId,
+        'STORAGE',
         serviceError(
           'invalid',
           `an organization with access to this applicant has reached its ${mbLabel(plan.storageBytesAllowed)} plan storage limit`,

@@ -2,10 +2,10 @@ import { fileURLToPath } from 'node:url';
 import { PGlite } from '@electric-sql/pglite';
 import { isErr, isOk } from '@visastack/core';
 import { schema } from '@visastack/db';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/pglite';
 import { migrate } from 'drizzle-orm/pglite/migrator';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { provisionAccount } from './accounts';
 import { createApplicant } from './applicants';
 import { getConsents, listConsentHistory, setConsent } from './consent';
@@ -24,6 +24,7 @@ import { buildExportCsvTables } from './export-csv';
 import { placeLegalHold } from './legal-hold';
 import { createMission } from './missions';
 import { grantPlatformRole } from './platform-roles';
+import { recordProductEvent, resetProductEventLogForTests } from './product-events';
 import { editFact, registerFieldDefinition } from './profile';
 import { RATE_LIMITS } from './rate-limit';
 import { exhaustRateLimit } from './rate-limit.test-support';
@@ -133,6 +134,68 @@ describe('account export', () => {
     });
     expect(isErr(result)).toBe(true);
     if (isErr(result)) expect(result.error.code).toBe('forbidden');
+  });
+
+  describe('analytics events (OPS-04)', () => {
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    it("includes the account's own events with their label and measure, and no one else's", async () => {
+      const { account } = await seedFullAccount(db, 'exp-events@example.com');
+      const other = await provisionAccount(db, { email: 'exp-events-other@example.com' });
+      if (!isOk(other)) throw new Error('provision');
+      await recordProductEvent(db, {
+        eventType: 'OUTCOME_RECORDED',
+        accountId: account.id,
+        dimension: 'APPROVED',
+      });
+      await recordProductEvent(db, {
+        eventType: 'OUTCOME_RECORDED',
+        accountId: other.value.id,
+        dimension: 'REFUSED',
+      });
+      // An organization-level fact with no account is nobody's personal data.
+      await recordProductEvent(db, {
+        eventType: 'CASH_COLLECTED',
+        accountId: null,
+        dimension: 'BDT',
+        metricValue: 1000,
+      });
+
+      const result = await exportAccount(db, { actorAccountId: account.id, accountId: account.id });
+      if (!isOk(result)) throw new Error('export');
+      const outcomes = result.value.productEvents.filter((e) => e.eventType === 'OUTCOME_RECORDED');
+      expect(outcomes).toMatchObject([{ accountId: account.id, dimension: 'APPROVED' }]);
+      expect(result.value.productEvents.some((e) => e.eventType === 'CASH_COLLECTED')).toBe(false);
+      expect(result.value.manifest.counts.productEvents).toBe(result.value.productEvents.length);
+    });
+
+    it('still exports, with the original columns, while the analytics migration has not run', async () => {
+      resetProductEventLogForTests();
+      const errorLog = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+      const { account } = await seedFullAccount(db, 'exp-behind@example.com');
+      expect(account.id).toBeTruthy();
+      for (const column of ['organization_id', 'dimension', 'metric_value', 'dedupe_key']) {
+        await db.execute(sql.raw(`alter table product_events drop column ${column} cascade`));
+      }
+
+      const result = await exportAccount(db, { actorAccountId: account.id, accountId: account.id });
+      expect(isOk(result)).toBe(true);
+      if (!isOk(result)) return;
+      // Sign-up and first applicant were recorded before the columns were dropped.
+      expect(result.value.productEvents.map((e) => e.eventType)).toContain('ACCOUNT_CREATED');
+      for (const event of result.value.productEvents) {
+        expect(event).toMatchObject({
+          accountId: account.id,
+          organizationId: null,
+          dimension: null,
+          metricValue: null,
+          dedupeKey: null,
+        });
+      }
+      expect(errorLog).toHaveBeenCalledTimes(1);
+    });
   });
 
   describe('rate limiting (Part 9 SEC-02)', () => {

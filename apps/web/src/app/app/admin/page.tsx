@@ -4,6 +4,7 @@ import {
   documentsPastRetention,
   getPilotScorecard,
   getPlatformEvidenceBytes,
+  getProductAnalytics,
   getRetentionPolicies,
   listActiveLegalHolds,
   listActivePlatformRoles,
@@ -19,10 +20,12 @@ import {
 } from '@visastack/services';
 import Link from 'next/link';
 import { hasPlatformPermission, isPlatformAdmin, isPlatformOwnerAccount } from '../../../lib/admin';
-import { aiWarningLimitUnits, resolveAiLimits, unitsToUsd } from '../../../lib/ai';
+import { aiWarningLimitUnits, defaultAiLimits, resolveAiLimits, unitsToUsd } from '../../../lib/ai';
+import { formatDuration, formatMinorUnits, humanizeLabel } from '../../../lib/analytics-format';
 import { evaluateCommercialReadiness } from '../../../lib/commercial-readiness';
 import { getDeploymentMode } from '../../../lib/deployment-mode';
 import { withSession } from '../../../lib/session';
+import { tolerate } from '../../../lib/tolerate';
 import { UsageMeter } from '../applicant/[id]/usage-meter';
 import {
   OrgReviewButtons,
@@ -58,6 +61,25 @@ const SCORECARD_LABELS: Record<ProductEventType, string> = {
   AI_OCR_RUN: 'AI OCR runs',
   AI_CLASSIFICATION_RUN: 'AI classifications run',
   AI_INCONSISTENCY_RUN: 'AI inconsistency checks run',
+  MISSION_STAGE_CHANGED: 'Case stage changes',
+  MISSION_READY_REACHED: 'Cases first reaching ready',
+  EVIDENCE_REQUESTED: 'Evidence requested',
+  EVIDENCE_RECEIVED: 'Evidence received',
+  EVIDENCE_REWORK_REQUESTED: 'Evidence sent back for rework',
+  TASK_OVERDUE: 'Tasks gone overdue',
+  READINESS_GAPS_DETECTED: 'Readiness checks at capture',
+  ACKNOWLEDGEMENT_RECORDED: 'Applicant acknowledgement decisions',
+  ACKNOWLEDGEMENT_INVALIDATED: 'Acknowledgements voided by a change',
+  SOURCE_REVIEWED: 'Official source reviews',
+  AI_PROPOSAL_ACCEPTED: 'AI proposals accepted',
+  AI_PROPOSAL_CORRECTED: 'AI proposals corrected',
+  AI_PROPOSAL_REJECTED: 'AI proposals rejected',
+  OUTCOME_RECORDED: 'Case outcomes recorded',
+  COMPLAINT_RESOLVED: 'Complaints ended',
+  ACCOUNT_ACTIVATED: 'Accounts activated (first case)',
+  PLAN_CHANGED: 'Plan changes',
+  PLAN_LIMIT_REACHED: 'Plan limits reached',
+  CASH_COLLECTED: 'Cash collections recorded',
 };
 
 const ORG_STATUS: Record<string, { label: string; tone: string }> = {
@@ -71,6 +93,12 @@ const ORG_STATUS: Record<string, { label: string; tone: string }> = {
 export default async function AdminPage() {
   const data = await withSession(async ({ db, accountId, email }) => {
     if (!(await isPlatformAdmin(db, { accountId, email }))) return { admin: false as const };
+    // Sections that cannot be read (typically a table a pending migration has not
+    // created) are left empty and named in a banner. The permission checks below
+    // are NOT wrapped: an authorization failure must stay an error.
+    const failedSections: string[] = [];
+    const t = <T,>(label: string, run: () => Promise<T>, fallback: T) =>
+      tolerate(label, run, fallback, failedSections);
     const [
       policies,
       holds,
@@ -80,6 +108,7 @@ export default async function AdminPage() {
       applicants,
       purgeEligible,
       scorecard,
+      analytics,
       roles,
       unboundAccounts,
       owner,
@@ -91,24 +120,28 @@ export default async function AdminPage() {
       canManageAiSettings,
       aiLimits,
     ] = await Promise.all([
-      getRetentionPolicies(db),
-      listActiveLegalHolds(db),
-      listAllOrganizations(db),
-      listFailedJobs(db),
-      listErasureJobsNeedingAttention(db),
-      listAllApplicants(db),
-      documentsPastRetention(db),
-      getPilotScorecard(db),
-      listActivePlatformRoles(db),
-      reportUnboundAccounts(db),
+      t('retention policies', () => getRetentionPolicies(db), []),
+      t('legal holds', () => listActiveLegalHolds(db), []),
+      t('organizations', () => listAllOrganizations(db), []),
+      t('failed jobs', () => listFailedJobs(db), []),
+      t('erasure jobs', () => listErasureJobsNeedingAttention(db), []),
+      t('applicants', () => listAllApplicants(db), []),
+      t('documents past retention', () => documentsPastRetention(db), []),
+      t('product scorecard', () => getPilotScorecard(db), []),
+      t('learning areas', () => getProductAnalytics(db), {
+        available: false as const,
+        reason: 'schema_pending' as const,
+      }),
+      t('platform roles', () => listActivePlatformRoles(db), []),
+      t('unbound accounts', () => reportUnboundAccounts(db), []),
       isPlatformOwnerAccount(db, { accountId, email }),
-      getPlatformEvidenceBytes(db),
-      listRecentAuditEvents(db, 50),
-      totalAiCostUnits(db),
-      listInvitations(db),
+      t('evidence storage', () => getPlatformEvidenceBytes(db), 0),
+      t('audit events', () => listRecentAuditEvents(db, 50), []),
+      t('AI cost', () => totalAiCostUnits(db), 0),
+      t('invitations', () => listInvitations(db), []),
       hasPlatformPermission(db, { accountId, email }, 'COMPLAINT_MANAGE'),
       hasPlatformPermission(db, { accountId, email }, 'AI_SETTINGS_MANAGE'),
-      resolveAiLimits(db),
+      t('AI limits', () => resolveAiLimits(db), defaultAiLimits()),
     ]);
     const deploymentMode = getDeploymentMode();
     // Finding #35 (post-programme defect register): the full commercial-
@@ -133,6 +166,7 @@ export default async function AdminPage() {
       applicants,
       purgeEligible,
       scorecard,
+      analytics,
       roles,
       unboundAccounts,
       owner,
@@ -146,6 +180,7 @@ export default async function AdminPage() {
       canManageComplaints,
       canManageAiSettings,
       aiLimits,
+      failedSections,
     };
   });
 
@@ -193,9 +228,28 @@ export default async function AdminPage() {
         </article>
       ) : (
         <>
+          {data.failedSections.length > 0 ? (
+            <article
+              className="card"
+              role="alert"
+              style={{ marginBottom: '1.5rem', borderColor: 'var(--danger, #b42318)' }}
+            >
+              <p className="card-kicker">Incomplete page</p>
+              <h2 className="card-title">Some sections could not be loaded</h2>
+              <p className="card-body">
+                {data.failedSections.join(', ')}. The sections above are shown empty or at zero
+                because they could not be read, not because there is nothing there. This is most
+                often a database migration that has not been applied yet; check the runtime log for
+                the exact message.
+              </p>
+            </article>
+          ) : null}
           <nav aria-label="Admin sections" className="pill-list" style={{ marginBottom: '1.5rem' }}>
             <a href="/status" className="pill">
               Readiness
+            </a>
+            <a href="#admin-analytics" className="pill">
+              Analytics
             </a>
             <a href="#admin-security" className="pill">
               Security
@@ -246,6 +300,101 @@ export default async function AdminPage() {
                 </div>
               ))}
             </div>
+          </article>
+
+          <article className="card" style={{ marginBottom: '1.5rem' }} id="admin-analytics">
+            <p className="card-kicker">Pilot measurement</p>
+            <h2 className="card-title">Learning areas</h2>
+            <p className="card-body" style={{ marginBottom: '1rem' }}>
+              Aggregates only, from the same event log. Nothing here names a person, a case, a
+              document or what anyone wrote. Figures are counts and timings; they say how the pilot
+              is behaving, not whether any application will succeed.
+            </p>
+            {data.analytics.available ? (
+              <>
+                <div className="rows" style={{ marginBottom: '1.25rem' }}>
+                  {data.analytics.categories.map((category) => (
+                    <div className="row" key={category.key}>
+                      <span className="row-key">{category.label}</span>
+                      <span style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                        <span className="muted" style={{ fontSize: '0.8rem' }}>
+                          {category.last7Days} last 7 days, {category.last30Days} last 30 days
+                        </span>
+                        <span className="badge badge-neutral">{category.total} total</span>
+                      </span>
+                    </div>
+                  ))}
+                </div>
+                <div className="rows">
+                  {(
+                    [
+                      ['Intake to ready (first time)', data.analytics.intakeToReady],
+                      ['Complaint open to ended', data.analytics.complaintResolution],
+                      ['Sign-up to first case', data.analytics.activationDelay],
+                    ] as const
+                  ).map(([label, summary]) => (
+                    <div className="row" key={label}>
+                      <span className="row-key">{label}</span>
+                      <span className="muted" style={{ fontSize: '0.85rem' }}>
+                        {summary.count === 0
+                          ? 'no data yet'
+                          : `median ${formatDuration(summary.medianSeconds)}, 90th percentile ${formatDuration(summary.p90Seconds)} (${summary.count})`}
+                      </span>
+                    </div>
+                  ))}
+                  <div className="row">
+                    <span className="row-key">Agencies active, last 90 days</span>
+                    <span className="muted" style={{ fontSize: '0.85rem' }}>
+                      {data.analytics.agencyRepeatUse.activeOrganizations} created a case,{' '}
+                      {data.analytics.agencyRepeatUse.repeatOrganizations} in two or more different
+                      weeks
+                    </span>
+                  </div>
+                  <div className="row">
+                    <span className="row-key">AI proposals decided</span>
+                    <span className="muted" style={{ fontSize: '0.85rem' }}>
+                      {data.analytics.aiDecisions.accepted} accepted,{' '}
+                      {data.analytics.aiDecisions.corrected} corrected,{' '}
+                      {data.analytics.aiDecisions.rejected} rejected
+                    </span>
+                  </div>
+                  {(
+                    [
+                      ['Cases by stage entered', data.analytics.casesByStage],
+                      ['Case outcomes', data.analytics.outcomes],
+                      ['Plan limits reached', data.analytics.planLimitHits],
+                    ] as const
+                  ).map(([label, counts]) => (
+                    <div className="row" key={label}>
+                      <span className="row-key">{label}</span>
+                      <span className="muted" style={{ fontSize: '0.85rem' }}>
+                        {counts.length === 0
+                          ? 'none yet'
+                          : counts.map((c) => `${humanizeLabel(c.label)} ${c.count}`).join(', ')}
+                      </span>
+                    </div>
+                  ))}
+                  <div className="row">
+                    <span className="row-key">Cash collected (not invoiced)</span>
+                    <span className="muted" style={{ fontSize: '0.85rem' }}>
+                      {data.analytics.cashCollected.length === 0
+                        ? 'none recorded yet'
+                        : data.analytics.cashCollected
+                            .map(
+                              (c) =>
+                                `${formatMinorUnits(c.minorUnits, c.currency)} in ${c.collections}`,
+                            )
+                            .join(', ')}
+                    </span>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <p className="card-body">
+                Waiting for a database update. These figures appear once the latest database
+                migration has been applied; nothing else is affected in the meantime.
+              </p>
+            )}
           </article>
 
           <article className="card" style={{ marginBottom: '1.5rem' }} id="admin-security">

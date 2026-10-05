@@ -3159,9 +3159,40 @@ export const productEvents = pgTable(
     id: uuid('id').primaryKey().defaultRandom(),
     eventType: text('event_type').notNull(),
     accountId: uuid('account_id').references(() => accounts.id, { onDelete: 'set null' }),
+    // OPS-04 (Part 9 section 10): the organization the event happened inside,
+    // where there is one (agency repeat use, plan usage, cash collection). An
+    // opaque id, never a name; cleared if the organization is ever deleted, the
+    // same way `account_id` is.
+    organizationId: uuid('organization_id').references(() => organizations.id, {
+      onDelete: 'set null',
+    }),
+    // A closed-vocabulary label (a case stage, an outcome, an AI task kind, a
+    // currency code). The CHECK below admits only UPPER_SNAKE tokens, which
+    // cannot hold a name, an email address or a sentence, so refusal wording,
+    // medical detail or any other free text cannot reach analytics by this
+    // column even through a coding mistake.
+    dimension: text('dimension'),
+    // A measured quantity: seconds, a count, or minor currency units.
+    metricValue: bigint('metric_value', { mode: 'number' }),
+    // Makes a once-only event (a task becoming overdue, an account being
+    // activated) safe to record on every pass: a SHA-256 of the event type and
+    // the entity's id, so the id itself is never stored here.
+    dedupeKey: text('dedupe_key'),
     occurredAt: timestamp('occurred_at', { withTimezone: true }).notNull().defaultNow(),
   },
-  (table) => [index('product_events_type_time_idx').on(table.eventType, table.occurredAt)],
+  (table) => [
+    index('product_events_type_time_idx').on(table.eventType, table.occurredAt),
+    index('product_events_org_time_idx').on(table.organizationId, table.occurredAt),
+    uniqueIndex('product_events_dedupe_key_uidx').on(table.dedupeKey),
+    check(
+      'product_events_dimension_token',
+      sql`${table.dimension} is null or ${table.dimension} ~ '^[A-Z][A-Z0-9_]{0,39}$'`,
+    ),
+    check(
+      'product_events_metric_non_negative',
+      sql`${table.metricValue} is null or ${table.metricValue} >= 0`,
+    ),
+  ],
 );
 
 // --- Notification outbox (NTF-02/§3, Part 5) --------------------------------

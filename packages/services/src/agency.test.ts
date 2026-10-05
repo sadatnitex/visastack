@@ -2737,3 +2737,190 @@ describe('CAS-04 - org-side tasks/appointments, unassignment, and the reassignme
     expect(queue.map((m) => m.missionId)).not.toContain(coAssignedMission.value.id);
   });
 });
+
+describe('OPS-04 (Commercial V1 Part 9): evidence analytics', () => {
+  let db: Db;
+  beforeEach(async () => {
+    db = await freshDb();
+  });
+
+  async function events(type: string) {
+    return (await db.select().from(schema.productEvents)).filter((e) => e.eventType === type);
+  }
+
+  async function setUp() {
+    const { account, applicantId } = await consentedApplicant(db, 'ops04-ev@example.com');
+    const agentAcc = await provisionAccount(db, { email: 'agent-ops04-ev@acme.com' });
+    if (!isOk(agentAcc)) throw new Error('provision');
+    const org = await createOrganization(db, { actorAccountId: agentAcc.value.id, name: 'Acme' });
+    if (!isOk(org)) throw new Error('org');
+    await activateOrg(db, org.value.id);
+    const grant = await createGrant(db, {
+      actorAccountId: account.id,
+      applicantId,
+      recipientOrganizationId: org.value.id,
+      actions: ['MANAGE'],
+      purpose: 'collaboration',
+    });
+    if (!isOk(grant)) throw new Error('grant');
+    await acceptGrant(db, { actorAccountId: agentAcc.value.id, grantId: grant.value.id });
+    return {
+      account,
+      applicantId,
+      agentId: agentAcc.value.id,
+      organizationId: org.value.id,
+    };
+  }
+
+  async function request(
+    s: Awaited<ReturnType<typeof setUp>>,
+    message = 'last 3 months of statements for the Rahman family',
+  ) {
+    const req = await requestEvidence(db, {
+      actorAccountId: s.agentId,
+      organizationId: s.organizationId,
+      applicantId: s.applicantId,
+      kind: 'DOCUMENT',
+      docType: 'bank_statement',
+      message,
+    });
+    if (!isOk(req)) throw new Error('request');
+    return req.value.id;
+  }
+
+  async function respond(s: Awaited<ReturnType<typeof setUp>>, requestId: string, key: string) {
+    const doc = await registerDocument(db, {
+      actorAccountId: s.account.id,
+      applicantId: s.applicantId,
+      originalName: `${key}.pdf`,
+      docType: 'bank_statement',
+    });
+    if (!isOk(doc)) throw new Error('doc');
+    await addDocumentVersion(db, {
+      actorAccountId: s.account.id,
+      documentId: doc.value.id,
+      bucket: 'CLEAN',
+      objectKey: `ops04-${key}`,
+      safetyStatus: 'CLEAN',
+      processingStatus: 'AWAITING_REVIEW',
+    });
+    const submitted = await submitEvidenceResponse(db, {
+      actorAccountId: s.account.id,
+      requestId,
+      documentId: doc.value.id,
+    });
+    if (!isOk(submitted)) throw new Error('submit');
+  }
+
+  it('records a request, each response and each send-back by organization, and none of the wording', async () => {
+    const s = await setUp();
+    const requestId = await request(s);
+    await respond(s, requestId, 'first');
+    const sentBack = await decideEvidenceResponse(db, {
+      actorAccountId: s.agentId,
+      requestId,
+      outcome: 'NEEDS_REPLACEMENT',
+      reason: 'The Rahman statement is older than three months',
+    });
+    expect(isOk(sentBack)).toBe(true);
+    await respond(s, requestId, 'second');
+    const accepted = await decideEvidenceResponse(db, {
+      actorAccountId: s.agentId,
+      requestId,
+      outcome: 'ACCEPTED',
+    });
+    expect(isOk(accepted)).toBe(true);
+
+    expect(await events('EVIDENCE_REQUESTED')).toMatchObject([
+      { accountId: s.agentId, organizationId: s.organizationId, dimension: null },
+    ]);
+    const received = await events('EVIDENCE_RECEIVED');
+    expect(received).toHaveLength(2);
+    for (const event of received) {
+      expect(event).toMatchObject({ accountId: s.account.id, organizationId: s.organizationId });
+    }
+    // Accepting is not rework: only the send-back counts.
+    expect(await events('EVIDENCE_REWORK_REQUESTED')).toMatchObject([
+      { accountId: s.agentId, organizationId: s.organizationId, dimension: 'NEEDS_REPLACEMENT' },
+    ]);
+
+    const stored = JSON.stringify(await db.select().from(schema.productEvents));
+    for (const leaked of ['Rahman', 'statement', 'bank_statement', 'three months']) {
+      expect(stored, leaked).not.toContain(leaked);
+    }
+  });
+
+  it('labels each kind of send-back, for every outcome the database allows other than accepting or cancelling', async () => {
+    const s = await setUp();
+    const kinds = schema.evidenceRequestDecisionOutcome.enumValues.filter(
+      (o) => o !== 'ACCEPTED' && o !== 'CANCELLED',
+    );
+    expect(kinds.length).toBeGreaterThan(0);
+    for (const outcome of kinds) {
+      const requestId = await request(s);
+      await respond(s, requestId, outcome);
+      const decided = await decideEvidenceResponse(db, {
+        actorAccountId: s.agentId,
+        requestId,
+        outcome: outcome as 'NEEDS_REPLACEMENT' | 'CONTRADICTION' | 'CORRECTION_PROPOSED',
+        reason: 'does not stand',
+      });
+      expect(isOk(decided), outcome).toBe(true);
+    }
+    const labels = (await events('EVIDENCE_REWORK_REQUESTED')).map((e) => e.dimension).sort();
+    expect(labels).toEqual([...kinds].sort());
+  });
+
+  it('records nothing for a response or a decision that is refused', async () => {
+    const s = await setUp();
+    const requestId = await request(s);
+
+    // A quarantined document can never answer a request.
+    const unsafe = await registerDocument(db, {
+      actorAccountId: s.account.id,
+      applicantId: s.applicantId,
+      originalName: 'unsafe.pdf',
+      docType: 'bank_statement',
+    });
+    if (!isOk(unsafe)) throw new Error('doc');
+    await addDocumentVersion(db, {
+      actorAccountId: s.account.id,
+      documentId: unsafe.value.id,
+      bucket: 'QUARANTINE',
+      objectKey: 'ops04-unsafe',
+      safetyStatus: 'QUARANTINED',
+      processingStatus: 'NEEDS_ATTENTION',
+    });
+    const refusedResponse = await submitEvidenceResponse(db, {
+      actorAccountId: s.account.id,
+      requestId,
+      documentId: unsafe.value.id,
+    });
+    // Nothing has been submitted, so there is nothing to decide yet.
+    const refusedDecision = await decideEvidenceResponse(db, {
+      actorAccountId: s.agentId,
+      requestId,
+      outcome: 'NEEDS_REPLACEMENT',
+    });
+    expect([isErr(refusedResponse), isErr(refusedDecision)]).toEqual([true, true]);
+
+    expect(await events('EVIDENCE_REQUESTED')).toHaveLength(1);
+    expect(await events('EVIDENCE_RECEIVED')).toEqual([]);
+    expect(await events('EVIDENCE_REWORK_REQUESTED')).toEqual([]);
+  });
+
+  it('records nothing for a request that is refused', async () => {
+    const s = await setUp();
+    const stranger = await provisionAccount(db, { email: 'ops04-stranger@example.com' });
+    if (!isOk(stranger)) throw new Error('provision');
+    const refused = await requestEvidence(db, {
+      actorAccountId: stranger.value.id,
+      organizationId: s.organizationId,
+      applicantId: s.applicantId,
+      kind: 'DOCUMENT',
+      docType: 'bank_statement',
+    });
+    expect(isErr(refused)).toBe(true);
+    expect(await events('EVIDENCE_REQUESTED')).toEqual([]);
+  });
+});

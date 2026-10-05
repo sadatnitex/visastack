@@ -2028,6 +2028,11 @@ export async function approveDocumentTypeProposal(
       resourceId: proposal.id,
       metadata: { suggestedType: proposal.suggestedType, classificationId: classification.id },
     });
+    await recordProductEvent(tx, {
+      eventType: 'AI_PROPOSAL_ACCEPTED',
+      accountId: input.actorAccountId,
+      dimension: 'CLASSIFICATION',
+    });
 
     return ok(updated);
   });
@@ -2086,6 +2091,11 @@ export async function rejectDocumentTypeProposal(
       resourceType: 'document_type_proposal',
       resourceId: proposal.id,
       metadata: { suggestedType: proposal.suggestedType, reason: input.reason },
+    });
+    await recordProductEvent(tx, {
+      eventType: 'AI_PROPOSAL_REJECTED',
+      accountId: input.actorAccountId,
+      dimension: 'CLASSIFICATION',
     });
     return ok(updated);
   });
@@ -2682,6 +2692,18 @@ export async function approveProposal(
       });
     }
 
+    // OPS-04 AI acceptance/correction: whether the reviewer took the proposal
+    // as given or changed it first. The values themselves (the proposal and the
+    // correction) stay in `correction_feedback` and never reach analytics.
+    await recordProductEvent(tx, {
+      eventType:
+        correctedValue && correctedValue !== proposal.value
+          ? 'AI_PROPOSAL_CORRECTED'
+          : 'AI_PROPOSAL_ACCEPTED',
+      accountId: input.actorAccountId,
+      dimension: 'EXTRACTION',
+    });
+
     return editResult;
   });
 }
@@ -2739,6 +2761,11 @@ export async function rejectProposal(
       resourceType: 'field_proposal',
       resourceId: proposal.id,
       metadata: { fieldKey: proposal.fieldKey, reason: input.reason },
+    });
+    await recordProductEvent(tx, {
+      eventType: 'AI_PROPOSAL_REJECTED',
+      accountId: input.actorAccountId,
+      dimension: 'EXTRACTION',
     });
     return ok(updated);
   });
@@ -3590,6 +3617,13 @@ async function decideInconsistencyFlag(
       resourceType: 'document_inconsistency_flag',
       resourceId: flag.id,
       metadata: { description: flag.description, reason: input.reason },
+    });
+    // An acknowledged flag was a real finding (the AI's output was accepted);
+    // a dismissed one was a false positive (it was rejected).
+    await recordProductEvent(tx, {
+      eventType: status === 'ACKNOWLEDGED' ? 'AI_PROPOSAL_ACCEPTED' : 'AI_PROPOSAL_REJECTED',
+      accountId: input.actorAccountId,
+      dimension: 'INCONSISTENCY',
     });
     return ok(updated);
   });

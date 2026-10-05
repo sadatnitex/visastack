@@ -547,4 +547,153 @@ describe('TRU-02 (Commercial V1 Part 7 §3): acknowledgement entity', () => {
     expect(isErr(denied)).toBe(true);
     if (isErr(denied)) expect(denied.error.code).toBe('forbidden');
   });
+
+  describe('OPS-04 analytics', () => {
+    async function events(type: 'ACKNOWLEDGEMENT_RECORDED' | 'ACKNOWLEDGEMENT_INVALIDATED') {
+      return (await db.select().from(schema.productEvents)).filter((e) => e.eventType === type);
+    }
+
+    it('records which decision the applicant took, for every decision the database allows, and never the reason they gave', async () => {
+      const { account, missionId, snapshotId, checksum } = await setUp(db);
+      const reason = 'My surname is misspelt and the embassy in Dhaka will bounce it';
+      const decisions = schema.acknowledgementDecision.enumValues;
+      for (const decision of decisions) {
+        const result = await decideAcknowledgement(db, {
+          actorAccountId: account.id,
+          missionId,
+          snapshotId,
+          expectedSnapshotChecksum: checksum,
+          decision,
+          stepUpSatisfied: true,
+          ...(decision === 'ACKNOWLEDGED' ? {} : { reason }),
+        });
+        expect(isOk(result), decision).toBe(true);
+      }
+
+      const recorded = await events('ACKNOWLEDGEMENT_RECORDED');
+      expect(recorded.map((e) => e.dimension).sort()).toEqual([...decisions].sort());
+      for (const event of recorded) {
+        expect(event).toMatchObject({
+          accountId: account.id,
+          organizationId: null,
+          metricValue: null,
+        });
+        const stored = JSON.stringify(event);
+        for (const leaked of ['surname', 'misspelt', 'embassy', 'Dhaka']) {
+          expect(stored).not.toContain(leaked);
+        }
+      }
+    });
+
+    it('records a repeated decision once, because the repeat changes nothing', async () => {
+      const { account, missionId, snapshotId, checksum } = await setUp(db);
+      for (let i = 0; i < 3; i++) {
+        await decideAcknowledgement(db, {
+          actorAccountId: account.id,
+          missionId,
+          snapshotId,
+          expectedSnapshotChecksum: checksum,
+          decision: 'ACKNOWLEDGED',
+          stepUpSatisfied: true,
+        });
+      }
+      expect(await events('ACKNOWLEDGEMENT_RECORDED')).toHaveLength(1);
+    });
+
+    it('records nothing for a decision that is refused', async () => {
+      const { account, missionId, snapshotId, checksum } = await setUp(db);
+      const noStepUp = await decideAcknowledgement(db, {
+        actorAccountId: account.id,
+        missionId,
+        snapshotId,
+        expectedSnapshotChecksum: checksum,
+        decision: 'ACKNOWLEDGED',
+        stepUpSatisfied: false,
+      });
+      const noReason = await decideAcknowledgement(db, {
+        actorAccountId: account.id,
+        missionId,
+        snapshotId,
+        expectedSnapshotChecksum: checksum,
+        decision: 'REJECTED',
+        stepUpSatisfied: true,
+      });
+      const stale = await decideAcknowledgement(db, {
+        actorAccountId: account.id,
+        missionId,
+        snapshotId,
+        expectedSnapshotChecksum: 'not-the-checksum',
+        decision: 'ACKNOWLEDGED',
+        stepUpSatisfied: true,
+      });
+      expect([isErr(noStepUp), isErr(noReason), isErr(stale)]).toEqual([true, true, true]);
+      expect(await events('ACKNOWLEDGEMENT_RECORDED')).toEqual([]);
+    });
+
+    it('records an invalidation when a material change voids a live acknowledgement, and only then', async () => {
+      const { account, applicantId, missionId, snapshotId, checksum } = await setUp(db);
+      await decideAcknowledgement(db, {
+        actorAccountId: account.id,
+        missionId,
+        snapshotId,
+        expectedSnapshotChecksum: checksum,
+        decision: 'ACKNOWLEDGED',
+        stepUpSatisfied: true,
+      });
+      expect(await events('ACKNOWLEDGEMENT_INVALIDATED')).toEqual([]);
+
+      const edit = (value: string) =>
+        editFact(db, {
+          actorAccountId: account.id,
+          applicantId,
+          fieldKey: 'passport.number',
+          value,
+        });
+      expect(isOk(await edit('A2'))).toBe(true);
+      const afterFirstChange = await events('ACKNOWLEDGEMENT_INVALIDATED');
+      expect(afterFirstChange).toHaveLength(1);
+      // No account: the change may have been a person's edit or the expiry sweep.
+      expect(afterFirstChange[0]).toMatchObject({
+        accountId: null,
+        organizationId: null,
+        dimension: null,
+        metricValue: null,
+      });
+
+      // The acknowledgement is already void; a second change has nothing to void.
+      expect(isOk(await edit('A3'))).toBe(true);
+      expect(await events('ACKNOWLEDGEMENT_INVALIDATED')).toHaveLength(1);
+    });
+
+    it('records no invalidation for a case that was never acknowledged, or whose only decision was a rejection', async () => {
+      const { account, applicantId, missionId, snapshotId } = await setUp(db);
+      const edit = (value: string) =>
+        editFact(db, {
+          actorAccountId: account.id,
+          applicantId,
+          fieldKey: 'passport.number',
+          value,
+        });
+      expect(isOk(await edit('A2'))).toBe(true);
+      expect(await events('ACKNOWLEDGEMENT_INVALIDATED')).toEqual([]);
+
+      // Take a fresh snapshot of the changed case and reject it: a rejection was
+      // never a valid green light, so a later change voids nothing.
+      const snap = await snapshotMission(db, { actorAccountId: account.id, missionId });
+      if (!isOk(snap)) throw new Error('snapshot');
+      expect(snap.value.id).not.toBe(snapshotId);
+      const rejected = await decideAcknowledgement(db, {
+        actorAccountId: account.id,
+        missionId,
+        snapshotId: snap.value.id,
+        expectedSnapshotChecksum: snap.value.checksum,
+        decision: 'REJECTED',
+        reason: 'not right yet',
+        stepUpSatisfied: true,
+      });
+      expect(isOk(rejected)).toBe(true);
+      expect(isOk(await edit('A3'))).toBe(true);
+      expect(await events('ACKNOWLEDGEMENT_INVALIDATED')).toEqual([]);
+    });
+  });
 });

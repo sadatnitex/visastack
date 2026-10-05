@@ -950,4 +950,105 @@ describe('invoices -- issue, collect, void (COM-03)', () => {
         .where(eq(schema.invoices.id, invoice.value.id)),
     ).rejects.toThrow();
   });
+
+  describe('OPS-04 cash analytics', () => {
+    async function cashEvents() {
+      return (await db.select().from(schema.productEvents)).filter(
+        (e) => e.eventType === 'CASH_COLLECTED',
+      );
+    }
+
+    async function openInvoice(invoiceRef: string, amount = 10000, currency = 'USD') {
+      const { periodStart, periodEnd, dueDate } = periodDates();
+      const invoice = await createInvoice(db, {
+        actor: owner.actor,
+        stepUpSatisfied: true,
+        organizationId,
+        planId,
+        periodStart,
+        periodEnd,
+        invoiceRef,
+        invoicedAmountMinorUnits: amount,
+        currency,
+        dueDate,
+      });
+      if (!isOk(invoice)) throw new Error('invoice');
+      return invoice.value.id;
+    }
+
+    function pay(invoiceId: string, amountMinorUnits: number) {
+      return recordInvoicePayment(db, {
+        actor: owner.actor,
+        stepUpSatisfied: true,
+        invoiceId,
+        amountMinorUnits,
+        collectedDate: new Date(),
+        paymentReference: 'bKash TrxID 8N7A6D5E',
+        reason: 'Cash handed over by Mr Hasan at the Gulshan office',
+      });
+    }
+
+    it('records each collection as cash in the invoice currency and minor units, and nothing of the reference or reason', async () => {
+      const invoiceId = await openInvoice('INV-OPS04-CASH');
+      expect(isOk(await pay(invoiceId, 4000))).toBe(true);
+      expect(isOk(await pay(invoiceId, 6000))).toBe(true);
+
+      const events = await cashEvents();
+      expect(events.map((e) => e.metricValue).sort()).toEqual([4000, 6000]);
+      for (const event of events) {
+        expect(event).toMatchObject({
+          accountId: null,
+          organizationId,
+          dimension: 'USD',
+        });
+      }
+      const stored = JSON.stringify(events);
+      for (const leaked of ['bKash', '8N7A6D5E', 'Hasan', 'Gulshan', 'INV-OPS04']) {
+        expect(stored, leaked).not.toContain(leaked);
+      }
+    });
+
+    it('writes the currency as a three-letter upper-case code however the invoice spelled it, and drops a spelling that is not a code', async () => {
+      const lower = await openInvoice('INV-OPS04-LOWER', 10000, ' bdt ');
+      expect(isOk(await pay(lower, 2500))).toBe(true);
+      const spelledOut = await openInvoice('INV-OPS04-WORDS', 10000, 'Bangladeshi taka');
+      // The payment itself still succeeds; only the analytics label is withheld.
+      expect(isOk(await pay(spelledOut, 2500))).toBe(true);
+
+      expect(await cashEvents()).toMatchObject([{ dimension: 'BDT', metricValue: 2500 }]);
+    });
+
+    it('records cash only when money is collected, not when an invoice is issued or voided', async () => {
+      const invoiceId = await openInvoice('INV-OPS04-NOCASH');
+      expect(await cashEvents()).toEqual([]);
+      const voided = await voidInvoice(db, {
+        actor: owner.actor,
+        stepUpSatisfied: true,
+        invoiceId,
+        reason: 'issued in error',
+      });
+      expect(isOk(voided)).toBe(true);
+      expect(await cashEvents()).toEqual([]);
+    });
+
+    it('records nothing for a payment that is refused', async () => {
+      const invoiceId = await openInvoice('INV-OPS04-REFUSED');
+      const strangerId = await seedStranger(db, 'cash-refused');
+      const refused = [
+        await pay(invoiceId, 10001),
+        await pay(invoiceId, 0),
+        await recordInvoicePayment(db, {
+          actor: { accountId: strangerId, email: 'x@example.com', bootstrapEmails: [] },
+          stepUpSatisfied: true,
+          invoiceId,
+          amountMinorUnits: 100,
+          collectedDate: new Date(),
+          paymentReference: 'ref',
+          reason: 'x',
+        }),
+      ];
+      expect(refused.map((r) => isErr(r))).toEqual([true, true, true]);
+      expect(await cashEvents()).toEqual([]);
+    });
+  });
 });

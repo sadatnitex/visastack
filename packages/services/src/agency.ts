@@ -21,6 +21,7 @@ import {
 } from './notifications';
 import { getOrganization, isOrgAdmin } from './organizations';
 import { type PackRequirement, listRequirements } from './packs';
+import { recordProductEvent } from './product-events';
 import { RATE_LIMITS, checkRateLimit, checkRateLimits } from './rate-limit';
 import { loadGrantsForPolicy } from './sharing';
 
@@ -1513,6 +1514,11 @@ export async function requestEvidence(
       resourceType: 'evidence_request',
       resourceId: request.id,
     });
+    await recordProductEvent(tx, {
+      eventType: 'EVIDENCE_REQUESTED',
+      accountId: input.actorAccountId,
+      organizationId: input.organizationId,
+    });
 
     // NTF-02: "evidence requests" is explicitly named in the notification
     // event list. Neutral/minimal on purpose -- never the request's own
@@ -1849,6 +1855,11 @@ export async function submitEvidenceResponse(
       resourceId: updated.id,
       metadata: { factId: input.factId, documentId: input.documentId },
     });
+    await recordProductEvent(tx, {
+      eventType: 'EVIDENCE_RECEIVED',
+      accountId: input.actorAccountId,
+      organizationId: request.organizationId,
+    });
     return ok(updated);
   });
 }
@@ -2000,6 +2011,17 @@ export async function decideEvidenceResponse(
       resourceId: request.id,
       metadata: { outcome: input.outcome },
     });
+    // OPS-04 reworked evidence: the reviewer sent a submission back. The
+    // dimension is which of the three kinds of "send back" it was, never the
+    // reviewer's own `reason` text.
+    if (requestStatus === 'NEEDS_REPLACEMENT') {
+      await recordProductEvent(tx, {
+        eventType: 'EVIDENCE_REWORK_REQUESTED',
+        accountId: input.actorAccountId,
+        organizationId: request.organizationId,
+        dimension: input.outcome,
+      });
+    }
 
     // NTF-02: "replacement requests" / "final review" -- a reviewer's
     // verdict on a submitted response, same neutral shape as

@@ -275,3 +275,76 @@ describe('TRU-04 (Commercial V1 Part 7 §8): case outcome', () => {
     if (isErr(denied)) expect(denied.error.code).toBe('forbidden');
   });
 });
+
+describe('OPS-04 (Commercial V1 Part 9): outcome analytics', () => {
+  let db: Db;
+  beforeEach(async () => {
+    db = await freshDb();
+  });
+
+  async function outcomeEvents() {
+    return (await db.select().from(schema.productEvents)).filter(
+      (e) => e.eventType === 'OUTCOME_RECORDED',
+    );
+  }
+
+  it('records which decision was reached, and nothing of what the official or agency wording says', async () => {
+    const { account, missionId } = await seed(db);
+    const result = await recordOutcome(db, {
+      actorAccountId: account.id,
+      missionId,
+      decision: 'REFUSED',
+      decisionDate: new Date('2026-01-15T00:00:00Z'),
+      officialWording: 'Refused under paragraph 320(11): previous breach of conditions.',
+      agencyInterpretation:
+        'Client overstayed in 2019; strong appeal prospects on proportionality.',
+      stepUpSatisfied: true,
+    });
+    expect(isOk(result)).toBe(true);
+
+    const events = await outcomeEvents();
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({
+      accountId: account.id,
+      organizationId: null,
+      dimension: 'REFUSED',
+      metricValue: null,
+      dedupeKey: null,
+    });
+    const stored = JSON.stringify(events[0]);
+    for (const leaked of ['320', 'breach', 'overstayed', 'appeal', 'proportionality']) {
+      expect(stored).not.toContain(leaked);
+    }
+  });
+
+  it('can label every decision the database allows, so a decision added later is not silently dropped', async () => {
+    const { account, missionId } = await seed(db);
+    const decisions = schema.missionOutcomeDecision.enumValues;
+    expect(decisions.length).toBeGreaterThan(0);
+    for (const decision of decisions) {
+      const result = await recordOutcome(db, {
+        actorAccountId: account.id,
+        missionId,
+        decision,
+        decisionDate: new Date('2026-01-15T00:00:00Z'),
+        stepUpSatisfied: true,
+      });
+      expect(isOk(result), decision).toBe(true);
+    }
+    const labels = (await outcomeEvents()).map((e) => e.dimension).sort();
+    expect(labels).toEqual([...decisions].sort());
+  });
+
+  it('records nothing when the outcome itself is refused', async () => {
+    const { account, missionId } = await seed(db);
+    const result = await recordOutcome(db, {
+      actorAccountId: account.id,
+      missionId,
+      decision: 'APPROVED',
+      decisionDate: new Date('2026-01-15T00:00:00Z'),
+      stepUpSatisfied: false,
+    });
+    expect(isErr(result)).toBe(true);
+    expect(await outcomeEvents()).toEqual([]);
+  });
+});

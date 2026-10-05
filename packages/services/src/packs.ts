@@ -5,6 +5,7 @@ import { appendAuditEvent } from './audit';
 import { type Db, first, required, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
 import { isHttpUrl } from './external-url';
+import { recordProductEvent } from './product-events';
 import { type RuleCondition, isValidRuleCondition } from './rule-conditions';
 
 /**
@@ -439,6 +440,12 @@ export async function approvePackVersion(
       resourceId: updated.id,
       metadata: { checksum, nextReviewDate: nextReviewDate.toISOString() },
     });
+    // OPS-04 source review: a reviewer signing off a version's sources.
+    await recordProductEvent(tx, {
+      eventType: 'SOURCE_REVIEWED',
+      accountId: input.actorAccountId,
+      dimension: 'VERSION_APPROVED',
+    });
     return ok(updated);
   });
 }
@@ -616,6 +623,11 @@ async function setRequirementSourceInaccessible(
       result: 'ALLOWED',
       resourceType: 'pack_requirement',
       resourceId: updated.id,
+    });
+    await recordProductEvent(tx, {
+      eventType: 'SOURCE_REVIEWED',
+      accountId: input.actorAccountId,
+      dimension: sourceInaccessibleAt === null ? 'SOURCE_RESTORED' : 'SOURCE_UNREACHABLE',
     });
     return ok(updated);
   });
@@ -874,6 +886,11 @@ async function setOfficialFeeStale(
       result: 'ALLOWED',
       resourceType: 'pack_version',
       resourceId: updated.id,
+    });
+    await recordProductEvent(tx, {
+      eventType: 'SOURCE_REVIEWED',
+      accountId: input.actorAccountId,
+      dimension: officialFeeStaleAt === null ? 'FEE_CONFIRMED' : 'FEE_STALE',
     });
     return ok(updated);
   });
