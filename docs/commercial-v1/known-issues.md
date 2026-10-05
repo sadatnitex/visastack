@@ -4129,6 +4129,103 @@ item gets its own requirements-ledger row once classified against the new direct
     classification test had the same weakness and was tightened with it). The
     third survivor is the equivalent mutant described above. Repo-wide Biome 531 files clean, typecheck 7/7, production
     build clean with the same `unpdf` and `@workos-inc/node` warnings as before.
+
+    **Update to Chunk 35 (2026-10-05, later the same day).** Migration `0083` was
+    applied to production with the owner's explicit go-ahead (manual migrate run
+    37294656562, every step green), so the analytics columns exist and recording
+    has started. Everything Chunk 35 says about a pending migration is now
+    history, except that nothing before this moment was recorded and cannot be
+    reconstructed.
+
+    **Chunk 36 (2026-10-05, OPS-03, Part 9 chunk 4) -- operational signals,
+    migration drift, and log hygiene.** The directive's monitoring list (Part 9
+    section 7: sixteen metrics and alerts; Part 3 section 13: seven signals) was
+    re-audited. Before this chunk two events were wired (`job_failure`,
+    `abandoned_upload_cleaned`) and nothing could be read in one place. The full
+    table, thresholds, log event names and the alert rules still to create are in
+    `docs/operations/monitoring.md`. In short:
+
+    - **Operational signals.** The platform-admin page shows 20 signals, each a
+      status, a reading and an explanation, computed from tables the product
+      already keeps and carrying no identifier or content: intake queue age, job
+      failures, scanner availability (scans that reached no verdict), abandoned
+      uploads the cleanup sweep should already have removed, object-storage
+      failures and stuck deletions, notification backlog, email failure and
+      bounce, denied-access spikes against the previous seven days, audit-log
+      integrity over the newest 500 events, AI spend, deletion-job failures and
+      database migrations. A signal whose own query fails is shown as unreadable;
+      it never hides the others. Thresholds are unmeasured pilot defaults that only
+      choose a colour.
+    - **Honest gaps in the signals.** Availability, latency, error rate and
+      connection pressure are platform metrics (Vercel, Neon) and are reported as
+      "Not measured" with where to look. Database errors and render failures are
+      log events, not counts. Scanner signature age is not exposed by the scanner
+      port. The AI circuit breaker the directive lists does not exist in the AI
+      gateway (the controls that do exist are the kill switch, the spend ceiling,
+      the per-document attempt cap and the cross-provider fallback); it is
+      reported as "Not built" beside the failure rate those controls react to.
+      Nothing is shown green that is not measured.
+    - **Readiness was wrong, and that caused a production outage.**
+      `/api/health/ready` tested only that the `accounts` table existed, so it
+      reported `ready` while migrations 0078 to 0082 had never been applied, and
+      `/app/admin` failed with `relation "ocr_runs" does not exist`. Readiness now
+      compares the migrations recorded in `drizzle.__drizzle_migrations` with the
+      journal bundled into the running build (the migrator's own rule) and is
+      `degraded` while any is pending. Consequence to know about: a deployment
+      whose code ships a new migration reads `degraded` between the merge and the
+      manual migrate run. That is the intended signal, not a fault.
+    - **The public probe no longer leaks configuration.** On a pull request
+      preview, a public URL that was classed as development, the readiness body
+      listed which secrets were configured (`WORKOS_API_KEY`, `CRON_SECRET` and so
+      on) and the provider detail, against the directive's "never expose secret
+      presence". Every deployed build now returns the verdict, the deployment mode
+      and the capability registry only; the breakdown is on the admin page and
+      names missing configuration, never values. Local and test runs keep the
+      developer breakdown.
+    - **Logs no longer carry query values.** The database layer's error message
+      ends with the bound parameters (`Failed query: ... params: <values>`), and
+      about 40 server-side calls logged it whole, so a failed notification or
+      session query could write an email address or a name into the log
+      aggregator. They now go through one sanitiser: the error type, the database
+      error code, the statement without its values, up to five call sites and a
+      hashed subject reference, as a single `server_error` event; email addresses
+      in a message are removed. The analytics recorder's own failure log uses the
+      same redaction. Preview render failures, which were silent, now log a
+      `render_failure` event carrying the content type only.
+
+    **Honestly NOT done or NOT verified.** No alert is configured in Vercel, Neon
+    or an uptime monitor: the rules are written in `monitoring.md`, not created, so
+    today an operator learns of a problem by opening the admin page or the log. The
+    migration check reads `drizzle.__drizzle_migrations`; it was tested against the
+    test database with the real journal and with deleted rows, not against the
+    production database, and if its query is refused there readiness reports the
+    check as not run rather than failing. The audit-integrity check recomputes
+    hashes from stored rows; a metadata value that does not survive storage the
+    way it was hashed would warn without any tampering, which is why a hash
+    mismatch with intact links is a warning and only a broken link is critical. The
+    admin cards were tested against a test database and a built page, not rendered
+    against production in a browser. Incident-owner coverage and the per-incident
+    runbooks are Part 9 section 11, not this chunk.
+
+    Verified locally: `@visastack/services` 1326/1326 across 64 files (1289 before; 37 new:
+    operational signals 26, error sanitiser 8, log-line formatter 2, analytics
+    failure redaction 1); `apps/web` 419/419 across 29 files (411 before; 8 new:
+    readiness drift and public detail 4, error reporter and render failure 4);
+    `@visastack/db` 34 passed and 1 skipped across 4 files (migration drift 5
+    new); repo-wide Biome 546 files clean, typecheck 7/7, production build
+    clean;
+    `@visastack/adapters` 322 passed and 2 skipped across 22 files (console
+    observability adapter 1 new). Mutation checks, each
+    restored byte-for-byte: migration drift (the pending rule, the never-migrated
+    case, swallowing other errors: 3 caught); operational signals (queue due-time
+    filter, deletion held versus failed, audit link versus hash, AI failure
+    status, email channel filter, email share arithmetic: 6 caught); error
+    sanitiser (parameter cut, address removal, stack filter: 3 caught); readiness
+    (drift gate, the unchecked case, public detail on a deployed preview: 3
+    caught); analytics failure redaction (1 caught). One test failed in a full run
+    and was my own: I edited the source it covers while that run was in progress,
+    so it ran against the old file; it passed alone, the mutation check proved it
+    bites, and the full run was repeated with no edits.
 independently confirmed findings; the missing PRD file is tracked as Blocker 1 in
 `assumptions-and-blockers.md` (now resolved) rather than here, since it blocked the
 programme rather than being a product defect.

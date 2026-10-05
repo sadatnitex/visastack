@@ -1,4 +1,8 @@
-import type { ObservabilityEvent, ObservabilityPort } from '@visastack/services';
+import {
+  type ObservabilityEvent,
+  type ObservabilityPort,
+  formatObservabilityLine,
+} from '@visastack/services';
 
 /**
  * The pilot's observability provider: a structured JSON line to stdout
@@ -9,12 +13,7 @@ import type { ObservabilityEvent, ObservabilityPort } from '@visastack/services'
  */
 export class ConsoleObservabilityPort implements ObservabilityPort {
   record(event: ObservabilityEvent): void {
-    const line = JSON.stringify({
-      at: new Date().toISOString(),
-      name: event.name,
-      severity: event.severity,
-      ...(event.metadata ? { metadata: event.metadata } : {}),
-    });
+    const line = formatObservabilityLine(event);
     if (event.severity === 'error') console.error(line);
     else if (event.severity === 'warning') console.warn(line);
     else console.info(line);

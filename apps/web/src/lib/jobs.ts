@@ -50,6 +50,7 @@ import {
   createObservabilityPort,
   createStorage,
 } from './providers';
+import { reportServerError } from './server-error';
 
 /**
  * Runs the low-volume durable intake worker on its own short-lived pooled
@@ -79,7 +80,7 @@ export async function triggerIntakeWorker(
 
   const { db, pool } = createPooledDb(connectionString);
   pool.on('error', (error) => {
-    console.error('[triggerIntakeWorker] idle pool connection error', error);
+    reportServerError('triggerIntakeWorker', error, { step: 'idle pool connection error' });
   });
   try {
     const handle = db as unknown as Parameters<typeof runIntakeWorker>[0];
@@ -92,7 +93,7 @@ export async function triggerIntakeWorker(
       observability: createObservabilityPort(),
     });
   } catch (error) {
-    console.error('[triggerIntakeWorker] worker pass failed', error);
+    reportServerError('triggerIntakeWorker', error, { step: 'worker pass failed' });
     return { processed: 0, failed: 0 };
   } finally {
     await pool.end();
@@ -116,14 +117,14 @@ export async function triggerErasureWorker(
 
   const { db, pool } = createPooledDb(connectionString);
   pool.on('error', (error) => {
-    console.error('[triggerErasureWorker] idle pool connection error', error);
+    reportServerError('triggerErasureWorker', error, { step: 'idle pool connection error' });
   });
   try {
     const handle = db as unknown as Parameters<typeof runErasureWorker>[0];
     const storage = createStorage(handle);
     return await runErasureWorker(handle, storage, options);
   } catch (error) {
-    console.error('[triggerErasureWorker] worker pass failed', error);
+    reportServerError('triggerErasureWorker', error, { step: 'worker pass failed' });
     return { processed: 0, blocked: 0, failed: 0 };
   } finally {
     await pool.end();
@@ -151,7 +152,7 @@ export async function triggerAccountExportWorker(
 
   const { db, pool } = createPooledDb(connectionString);
   pool.on('error', (error) => {
-    console.error('[triggerAccountExportWorker] idle pool connection error', error);
+    reportServerError('triggerAccountExportWorker', error, { step: 'idle pool connection error' });
   });
   try {
     const handle = db as unknown as Parameters<typeof runAccountExportWorker>[0];
@@ -162,7 +163,7 @@ export async function triggerAccountExportWorker(
     };
     return await runAccountExportWorker(handle, ports, options);
   } catch (error) {
-    console.error('[triggerAccountExportWorker] worker pass failed', error);
+    reportServerError('triggerAccountExportWorker', error, { step: 'worker pass failed' });
     return { ready: 0, failed: 0 };
   } finally {
     await pool.end();
@@ -186,14 +187,16 @@ export async function triggerAccountExportExpirySweep(
 
   const { db, pool } = createPooledDb(connectionString);
   pool.on('error', (error) => {
-    console.error('[triggerAccountExportExpirySweep] idle pool connection error', error);
+    reportServerError('triggerAccountExportExpirySweep', error, {
+      step: 'idle pool connection error',
+    });
   });
   try {
     const handle = db as unknown as Parameters<typeof sweepExpiredAccountExportArtifacts>[0];
     const storage = createStorage(handle);
     return await sweepExpiredAccountExportArtifacts(handle, storage, options.limit);
   } catch (error) {
-    console.error('[triggerAccountExportExpirySweep] sweep pass failed', error);
+    reportServerError('triggerAccountExportExpirySweep', error, { step: 'sweep pass failed' });
     return { expired: 0 };
   } finally {
     await pool.end();
@@ -220,13 +223,13 @@ export async function triggerNotificationWorker(
 
   const { db, pool } = createPooledDb(connectionString);
   pool.on('error', (error) => {
-    console.error('[triggerNotificationWorker] idle pool connection error', error);
+    reportServerError('triggerNotificationWorker', error, { step: 'idle pool connection error' });
   });
   try {
     const handle = db as unknown as Parameters<typeof runNotificationWorker>[0];
     return await runNotificationWorker(handle, createEmailPort(), resolveBaseUrl(), options);
   } catch (error) {
-    console.error('[triggerNotificationWorker] worker pass failed', error);
+    reportServerError('triggerNotificationWorker', error, { step: 'worker pass failed' });
     return { sent: 0, retrying: 0, failed: 0 };
   } finally {
     await pool.end();
@@ -255,7 +258,7 @@ export async function triggerNotificationSweeps(
 
   const { db, pool } = createPooledDb(connectionString);
   pool.on('error', (error) => {
-    console.error('[triggerNotificationSweeps] idle pool connection error', error);
+    reportServerError('triggerNotificationSweeps', error, { step: 'idle pool connection error' });
   });
   try {
     const handle = db as unknown as Parameters<typeof sweepTaskDeadlineReminders>[0];
@@ -264,7 +267,7 @@ export async function triggerNotificationSweeps(
     const expiry = await sweepExpiryReminders(handle, now, options);
     return { tasks, expiry };
   } catch (error) {
-    console.error('[triggerNotificationSweeps] sweep pass failed', error);
+    reportServerError('triggerNotificationSweeps', error, { step: 'sweep pass failed' });
     return { tasks: empty, expiry: emptyExpiry };
   } finally {
     await pool.end();
@@ -290,13 +293,13 @@ export async function triggerEmailDeliveryWebhook(input: {
 
   const { db, pool } = createPooledDb(connectionString);
   pool.on('error', (error) => {
-    console.error('[triggerEmailDeliveryWebhook] idle pool connection error', error);
+    reportServerError('triggerEmailDeliveryWebhook', error, { step: 'idle pool connection error' });
   });
   try {
     const handle = db as unknown as Parameters<typeof applyEmailDeliveryEvent>[0];
     return await applyEmailDeliveryEvent(handle, input);
   } catch (error) {
-    console.error('[triggerEmailDeliveryWebhook] apply failed', error);
+    reportServerError('triggerEmailDeliveryWebhook', error, { step: 'apply failed' });
     return { applied: false };
   } finally {
     await pool.end();
@@ -319,7 +322,7 @@ export async function triggerAccountDeletionSweep(): Promise<{ readonly executed
 
   const { db, pool } = createPooledDb(connectionString);
   pool.on('error', (error) => {
-    console.error('[triggerAccountDeletionSweep] idle pool connection error', error);
+    reportServerError('triggerAccountDeletionSweep', error, { step: 'idle pool connection error' });
   });
   let executed = 0;
   try {
@@ -332,7 +335,7 @@ export async function triggerAccountDeletionSweep(): Promise<{ readonly executed
       else console.error('[triggerAccountDeletionSweep] execution failed', result.error);
     }
   } catch (error) {
-    console.error('[triggerAccountDeletionSweep] sweep failed', error);
+    reportServerError('triggerAccountDeletionSweep', error, { step: 'sweep failed' });
   } finally {
     await pool.end();
   }
@@ -358,7 +361,7 @@ export async function triggerDowngradeSweep(): Promise<{ readonly executed: numb
 
   const { db, pool } = createPooledDb(connectionString);
   pool.on('error', (error) => {
-    console.error('[triggerDowngradeSweep] idle pool connection error', error);
+    reportServerError('triggerDowngradeSweep', error, { step: 'idle pool connection error' });
   });
   let executed = 0;
   try {
@@ -370,7 +373,7 @@ export async function triggerDowngradeSweep(): Promise<{ readonly executed: numb
       else console.error('[triggerDowngradeSweep] execution failed', result.error);
     }
   } catch (error) {
-    console.error('[triggerDowngradeSweep] sweep failed', error);
+    reportServerError('triggerDowngradeSweep', error, { step: 'sweep failed' });
   } finally {
     await pool.end();
   }
@@ -393,14 +396,14 @@ export async function triggerAbandonedUploadSweep(
 
   const { db, pool } = createPooledDb(connectionString);
   pool.on('error', (error) => {
-    console.error('[triggerAbandonedUploadSweep] idle pool connection error', error);
+    reportServerError('triggerAbandonedUploadSweep', error, { step: 'idle pool connection error' });
   });
   try {
     const handle = db as unknown as Parameters<typeof sweepAbandonedUploads>[0];
     const storage = createStorage(handle);
     return await sweepAbandonedUploads(handle, storage, options.limit, createObservabilityPort());
   } catch (error) {
-    console.error('[triggerAbandonedUploadSweep] sweep failed', error);
+    reportServerError('triggerAbandonedUploadSweep', error, { step: 'sweep failed' });
     return { checked: 0, cleaned: 0 };
   } finally {
     await pool.end();
@@ -423,16 +426,17 @@ export async function triggerAbandonedOrganizationInvitationSweep(
 
   const { db, pool } = createPooledDb(connectionString);
   pool.on('error', (error) => {
-    console.error(
-      '[triggerAbandonedOrganizationInvitationSweep] idle pool connection error',
-      error,
-    );
+    reportServerError('triggerAbandonedOrganizationInvitationSweep', error, {
+      step: 'idle pool connection error',
+    });
   });
   try {
     const handle = db as unknown as Parameters<typeof sweepAbandonedOrganizationInvitations>[0];
     return await sweepAbandonedOrganizationInvitations(handle, options.limit);
   } catch (error) {
-    console.error('[triggerAbandonedOrganizationInvitationSweep] sweep failed', error);
+    reportServerError('triggerAbandonedOrganizationInvitationSweep', error, {
+      step: 'sweep failed',
+    });
     return { checked: 0, deleted: 0 };
   } finally {
     await pool.end();
@@ -455,13 +459,15 @@ export async function triggerAbandonedClientInvitationSweep(
 
   const { db, pool } = createPooledDb(connectionString);
   pool.on('error', (error) => {
-    console.error('[triggerAbandonedClientInvitationSweep] idle pool connection error', error);
+    reportServerError('triggerAbandonedClientInvitationSweep', error, {
+      step: 'idle pool connection error',
+    });
   });
   try {
     const handle = db as unknown as Parameters<typeof sweepAbandonedClientInvitations>[0];
     return await sweepAbandonedClientInvitations(handle, options.limit);
   } catch (error) {
-    console.error('[triggerAbandonedClientInvitationSweep] sweep failed', error);
+    reportServerError('triggerAbandonedClientInvitationSweep', error, { step: 'sweep failed' });
     return { checked: 0, deleted: 0 };
   } finally {
     await pool.end();
@@ -486,13 +492,15 @@ export async function triggerCaseRetentionNoticeSweep(
 
   const { db, pool } = createPooledDb(connectionString);
   pool.on('error', (error) => {
-    console.error('[triggerCaseRetentionNoticeSweep] idle pool connection error', error);
+    reportServerError('triggerCaseRetentionNoticeSweep', error, {
+      step: 'idle pool connection error',
+    });
   });
   try {
     const handle = db as unknown as Parameters<typeof sweepCaseRetentionNotices>[0];
     return await sweepCaseRetentionNotices(handle, options.limit);
   } catch (error) {
-    console.error('[triggerCaseRetentionNoticeSweep] sweep failed', error);
+    reportServerError('triggerCaseRetentionNoticeSweep', error, { step: 'sweep failed' });
     return { checked: 0, notified: 0 };
   } finally {
     await pool.end();
@@ -519,13 +527,15 @@ export async function triggerLegalHoldReviewReminderSweep(
 
   const { db, pool } = createPooledDb(connectionString);
   pool.on('error', (error) => {
-    console.error('[triggerLegalHoldReviewReminderSweep] idle pool connection error', error);
+    reportServerError('triggerLegalHoldReviewReminderSweep', error, {
+      step: 'idle pool connection error',
+    });
   });
   try {
     const handle = db as unknown as Parameters<typeof sweepLegalHoldReviewReminders>[0];
     return await sweepLegalHoldReviewReminders(handle, options.limit);
   } catch (error) {
-    console.error('[triggerLegalHoldReviewReminderSweep] sweep failed', error);
+    reportServerError('triggerLegalHoldReviewReminderSweep', error, { step: 'sweep failed' });
     return { checked: 0, notified: 0 };
   } finally {
     await pool.end();
@@ -550,13 +560,15 @@ export async function triggerCaseRetentionPurgeSweep(
 
   const { db, pool } = createPooledDb(connectionString);
   pool.on('error', (error) => {
-    console.error('[triggerCaseRetentionPurgeSweep] idle pool connection error', error);
+    reportServerError('triggerCaseRetentionPurgeSweep', error, {
+      step: 'idle pool connection error',
+    });
   });
   try {
     const handle = db as unknown as Parameters<typeof sweepCaseRetentionPurge>[0];
     return await sweepCaseRetentionPurge(handle, options.limit);
   } catch (error) {
-    console.error('[triggerCaseRetentionPurgeSweep] sweep failed', error);
+    reportServerError('triggerCaseRetentionPurgeSweep', error, { step: 'sweep failed' });
     return { enabled: false, checked: 0, purged: 0, skippedForHold: 0, skippedForComplaint: 0 };
   } finally {
     await pool.end();
@@ -581,13 +593,15 @@ export async function triggerInactiveAccountNoticeSweep(
 
   const { db, pool } = createPooledDb(connectionString);
   pool.on('error', (error) => {
-    console.error('[triggerInactiveAccountNoticeSweep] idle pool connection error', error);
+    reportServerError('triggerInactiveAccountNoticeSweep', error, {
+      step: 'idle pool connection error',
+    });
   });
   try {
     const handle = db as unknown as Parameters<typeof sweepInactiveAccountNotices>[0];
     return await sweepInactiveAccountNotices(handle, options.limit);
   } catch (error) {
-    console.error('[triggerInactiveAccountNoticeSweep] sweep failed', error);
+    reportServerError('triggerInactiveAccountNoticeSweep', error, { step: 'sweep failed' });
     return { checked: 0, notified: 0 };
   } finally {
     await pool.end();
@@ -613,13 +627,15 @@ export async function triggerInactiveAccountDeletionSweep(
 
   const { db, pool } = createPooledDb(connectionString);
   pool.on('error', (error) => {
-    console.error('[triggerInactiveAccountDeletionSweep] idle pool connection error', error);
+    reportServerError('triggerInactiveAccountDeletionSweep', error, {
+      step: 'idle pool connection error',
+    });
   });
   try {
     const handle = db as unknown as Parameters<typeof sweepInactiveAccountDeletionRequests>[0];
     return await sweepInactiveAccountDeletionRequests(handle, options.limit);
   } catch (error) {
-    console.error('[triggerInactiveAccountDeletionSweep] sweep failed', error);
+    reportServerError('triggerInactiveAccountDeletionSweep', error, { step: 'sweep failed' });
     return { enabled: false, checked: 0, requested: 0, skipped: 0 };
   } finally {
     await pool.end();
@@ -641,13 +657,13 @@ export async function triggerRateLimitPrune(): Promise<{ readonly pruned: number
 
   const { db, pool } = createPooledDb(connectionString);
   pool.on('error', (error) => {
-    console.error('[triggerRateLimitPrune] idle pool connection error', error);
+    reportServerError('triggerRateLimitPrune', error, { step: 'idle pool connection error' });
   });
   try {
     const handle = db as unknown as Parameters<typeof pruneExpiredRateLimitBuckets>[0];
     return { pruned: await pruneExpiredRateLimitBuckets(handle) };
   } catch (error) {
-    console.error('[triggerRateLimitPrune] prune failed', error);
+    reportServerError('triggerRateLimitPrune', error, { step: 'prune failed' });
     return { pruned: 0 };
   } finally {
     await pool.end();

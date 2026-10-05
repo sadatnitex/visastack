@@ -1,6 +1,7 @@
 import 'server-only';
 import { createPooledDb, resolveDatabaseUrl } from '@visastack/db';
 import type { Db } from '@visastack/services';
+import { reportServerError } from './server-error';
 
 /**
  * The connection-lifecycle half of `withSession` (session.ts) -- pool
@@ -15,7 +16,7 @@ export async function withPublicDb<T>(fn: (db: Db) => Promise<T>): Promise<T> {
 
   const { db, pool } = createPooledDb(connectionString);
   pool.on('error', (error) => {
-    console.error('[withPublicDb] idle pool connection error', error);
+    reportServerError('withPublicDb', error, { step: 'idle pool connection error' });
   });
   try {
     return await fn(db as unknown as Db);

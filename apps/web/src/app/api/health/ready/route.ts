@@ -1,15 +1,5 @@
-import {
-  DATABASE_URL_ENV_CANDIDATES,
-  checkConnection,
-  createNeonDb,
-  isSchemaApplied,
-  resolveDatabaseUrl,
-} from '@visastack/db';
-import { getPlatformCapabilities } from '../../../../lib/capabilities';
-import { evaluateCommercialReadiness } from '../../../../lib/commercial-readiness';
-import { getDeploymentMode, isRealDeployment } from '../../../../lib/deployment-mode';
-import { isPresent, isWorkosConfigured } from '../../../../lib/env';
-import { validateProviderEnv } from '../../../../lib/providers';
+import { isRealDeployment } from '../../../../lib/deployment-mode';
+import { evaluateReadiness } from '../../../../lib/readiness';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -43,108 +33,47 @@ export const dynamic = 'force-dynamic';
  * planned but not yet built) was silently ignored at runtime instead of
  * failing loudly. It now gates `coreReady` here — the one guaranteed
  * startup/readiness path — same as DB connectivity and WorkOS config.
+ *
+ * OPS-03 (Part 9 section 7): "Public health: coarse. Admin readiness:
+ * detailed. Never expose secret presence, sensitive provider detail,
+ * identifiers." The detailed breakdown is now built by `lib/readiness.ts` and
+ * shown to platform administrators on `/app/admin`. This public route reveals
+ * the breakdown ONLY on a local or test run (`NODE_ENV` is not `production`
+ * and the mode is `development`). Every deployed build, including a PR preview
+ * (which is a public URL and used to be treated as development), returns the
+ * coarse verdict alone. A database whose migrations lag this build is
+ * `degraded`: that is what readiness exists to say, and it stayed `ready` while
+ * production lacked migrations 0078 to 0082.
  */
-const WORKOS_ENV_VARS = ['WORKOS_API_KEY', 'WORKOS_CLIENT_ID', 'WORKOS_COOKIE_PASSWORD'] as const;
-
-function presenceMap(names: readonly string[]): Record<string, boolean> {
-  return Object.fromEntries(names.map((name) => [name, isPresent(name)]));
-}
 
 export async function GET(): Promise<Response> {
-  const deploymentMode = getDeploymentMode();
-  const verbose = !isRealDeployment();
+  const report = await evaluateReadiness();
+  const verbose = !isRealDeployment() && process.env.NODE_ENV !== 'production';
+  const { ready, status, deploymentMode, commercial } = report;
 
-  const env = {
-    database: presenceMap(DATABASE_URL_ENV_CANDIDATES),
-    workos: presenceMap(WORKOS_ENV_VARS),
-    redirectUri: isPresent('NEXT_PUBLIC_WORKOS_REDIRECT_URI'),
-  };
-
-  let db: { connected: boolean; schemaApplied: boolean; error?: string } = {
-    connected: false,
-    schemaApplied: false,
-  };
-
-  const connectionString = resolveDatabaseUrl(process.env);
-  if (connectionString) {
-    try {
-      const client = createNeonDb(connectionString);
-      await checkConnection(client);
-      db = { connected: true, schemaApplied: await isSchemaApplied(client) };
-    } catch {
-      db = { connected: false, schemaApplied: false, error: 'connection_failed' };
-    }
-  }
-
-  // Finding #36: fail loudly, as part of readiness, the moment any
-  // *_PROVIDER var names a value this deployment doesn't implement — rather
-  // than silently ignoring it, as happened when validateProviderEnv() had no
-  // caller at all. The message only ever names a *_PROVIDER key and the
-  // provider-name values it supports (never a secret) but is still withheld
-  // on a real deployment's response body, same as every other diagnostic
-  // detail here — only its effect on `coreReady`/`status` is always public.
-  let providers: { valid: boolean; error?: string } = { valid: true };
-  try {
-    validateProviderEnv();
-  } catch (error) {
-    providers = {
-      valid: false,
-      error: error instanceof Error ? error.message : 'invalid_provider_configuration',
-    };
-  }
-
-  // The authenticated MANUAL core is ready only when the database is reachable
-  // AND migrated AND the WorkOS auth configuration required to sign in is
-  // present AND every configured provider is one this deployment actually
-  // implements (Milestone 1 — honest readiness). Optional capabilities (AI,
-  // signed blob storage) are reported separately and never gate the core.
-  const coreReady = db.connected && db.schemaApplied && isWorkosConfigured() && providers.valid;
-
-  // Commercial mode adds its own guard ON TOP of the pilot-level core bar,
-  // never in place of it (master directive §7 "PR 11": "No normal
-  // administrator may override this guard"). This is the one place the full
-  // guard runs — including live DB connectivity, which
-  // commercialConfigurationReady() (capabilities.ts) cannot check itself.
-  const commercial =
-    deploymentMode === 'commercial'
-      ? evaluateCommercialReadiness({ databaseReady: db.connected && db.schemaApplied })
-      : undefined;
-
-  const ready = coreReady && (commercial?.ready ?? true);
-  const status = ready ? 'ready' : 'degraded';
-
-  // Optional-capability visibility (not a core gate): signed document access
-  // and the periodic durable-job sweep (uploads still enqueue and process via
-  // `after()` without this — it only gates the /api/jobs/process-intake
-  // backstop route).
-  const optionalCapabilities = {
-    signedBlobStorage: isPresent('BLOB_SIGNING_SECRET'),
-    asyncIntakeSweep: isPresent('CRON_SECRET'),
-  };
-
-  const platform = getPlatformCapabilities();
   // Force these three off whenever the full guard fails, even if the
   // general-purpose (necessarily DB-blind) registry would otherwise report
-  // them available — "keep public capabilities disabled" (master directive
-  // §7 "PR 11"). This endpoint just verified live DB state, so it is final.
+  // them available: "keep public capabilities disabled" (master directive §7
+  // "PR 11"). This endpoint just verified live DB state, so it is final.
   const effectivePlatform =
     commercial && !commercial.ready
       ? {
-          ...platform,
+          ...report.platform,
           publicSignup: 'disabled' as const,
           realApplicantData: 'disabled' as const,
           commercialClaims: 'disabled' as const,
         }
-      : platform;
+      : report.platform;
 
   const body = verbose
     ? {
         status,
         deploymentMode,
-        env,
-        db,
-        providers,
-        capabilities: optionalCapabilities,
+        env: report.env,
+        db: report.db,
+        migrations: report.migrations,
+        providers: report.providers,
+        capabilities: report.capabilities,
         platform: effectivePlatform,
         ...(commercial ? { commercialReadiness: commercial } : {}),
       }
@@ -152,16 +81,14 @@ export async function GET(): Promise<Response> {
         status,
         deploymentMode,
         platform: effectivePlatform,
-        // Finding #35: a real deployment's response is public (reachable
-        // unauthenticated via /status) — expose only the aggregate boolean.
-        // The full per-gate breakdown (pentest, backups, incident owner,
-        // etc.) is available to platform admins only, on /app/admin.
+        // Finding #35: only the aggregate boolean is public. The per-gate
+        // breakdown (pentest, backups, incident owner) is for platform admins.
         ...(commercial ? { commercialReadiness: { ready: commercial.ready } } : {}),
       };
 
-  // HTTP status now carries the truth: 200 = core (and, in commercial mode,
-  // every commercial gate) ready; 503 = something required is missing.
-  // Load balancers and the deploy smoke can gate on the status code alone.
+  // HTTP status carries the truth: 200 = core (and, in commercial mode, every
+  // commercial gate) ready; 503 = something required is missing. Load
+  // balancers and the deploy smoke can gate on the status code alone.
   return new Response(JSON.stringify(body), {
     status: ready ? 200 : 503,
     headers: { 'content-type': 'application/json', 'cache-control': 'no-store' },

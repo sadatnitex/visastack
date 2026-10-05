@@ -1,0 +1,137 @@
+import 'server-only';
+import {
+  DATABASE_URL_ENV_CANDIDATES,
+  type MigrationStatus,
+  checkConnection,
+  createNeonDb,
+  getMigrationStatus,
+  isSchemaApplied,
+  resolveDatabaseUrl,
+} from '@visastack/db';
+import { getPlatformCapabilities } from './capabilities';
+import { evaluateCommercialReadiness } from './commercial-readiness';
+import { getDeploymentMode } from './deployment-mode';
+import { isPresent, isWorkosConfigured } from './env';
+import { SHIPPED_MIGRATIONS } from './migration-journal';
+import { validateProviderEnv } from './providers';
+
+/**
+ * Everything the platform knows about whether it can serve: configuration, the
+ * database, the migrations, the providers and the commercial gates.
+ *
+ * This is the DETAILED view. It names missing configuration and pending
+ * migrations, so it is for platform administrators only (the admin page). The
+ * public probe (`/api/health/ready`) decides what to reveal from it and, on any
+ * deployed build, reveals only the coarse verdict (OPS-03: public health is
+ * coarse, admin readiness is detailed, secret presence is never public).
+ */
+
+const WORKOS_ENV_VARS = ['WORKOS_API_KEY', 'WORKOS_CLIENT_ID', 'WORKOS_COOKIE_PASSWORD'] as const;
+
+function presenceMap(names: readonly string[]): Record<string, boolean> {
+  return Object.fromEntries(names.map((name) => [name, isPresent(name)]));
+}
+
+export type MigrationReadiness =
+  | ({ readonly checked: true } & MigrationStatus)
+  | { readonly checked: false };
+
+export interface ReadinessReport {
+  readonly ready: boolean;
+  readonly status: 'ready' | 'degraded';
+  readonly deploymentMode: ReturnType<typeof getDeploymentMode>;
+  readonly env: {
+    readonly database: Record<string, boolean>;
+    readonly workos: Record<string, boolean>;
+    readonly redirectUri: boolean;
+  };
+  readonly db: { connected: boolean; schemaApplied: boolean; error?: string };
+  readonly migrations: MigrationReadiness;
+  readonly providers: { valid: boolean; error?: string };
+  readonly capabilities: {
+    readonly signedBlobStorage: boolean;
+    readonly asyncIntakeSweep: boolean;
+  };
+  readonly platform: ReturnType<typeof getPlatformCapabilities>;
+  readonly commercial: ReturnType<typeof evaluateCommercialReadiness> | undefined;
+}
+
+export async function evaluateReadiness(): Promise<ReadinessReport> {
+  const deploymentMode = getDeploymentMode();
+
+  const env = {
+    database: presenceMap(DATABASE_URL_ENV_CANDIDATES),
+    workos: presenceMap(WORKOS_ENV_VARS),
+    redirectUri: isPresent('NEXT_PUBLIC_WORKOS_REDIRECT_URI'),
+  };
+
+  let db: ReadinessReport['db'] = { connected: false, schemaApplied: false };
+  let migrations: MigrationReadiness = { checked: false };
+
+  const connectionString = resolveDatabaseUrl(process.env);
+  if (connectionString) {
+    try {
+      const client = createNeonDb(connectionString);
+      await checkConnection(client);
+      db = { connected: true, schemaApplied: await isSchemaApplied(client) };
+      try {
+        migrations = {
+          checked: true,
+          ...(await getMigrationStatus(client, SHIPPED_MIGRATIONS)),
+        };
+      } catch {
+        // The connection works; only the drift check failed. Say it was not
+        // checked rather than guess in either direction.
+        migrations = { checked: false };
+      }
+    } catch {
+      db = { connected: false, schemaApplied: false, error: 'connection_failed' };
+    }
+  }
+
+  // Finding #36: fail loudly the moment any *_PROVIDER var names a value this
+  // deployment does not implement.
+  let providers: ReadinessReport['providers'] = { valid: true };
+  try {
+    validateProviderEnv();
+  } catch (error) {
+    providers = {
+      valid: false,
+      error: error instanceof Error ? error.message : 'invalid_provider_configuration',
+    };
+  }
+
+  // A database whose migrations lag the code is not ready: pages that read the
+  // newer tables fail, which is how production broke when 0078 to 0082 were
+  // never applied while this probe still reported ready.
+  const migrationsCurrent = !migrations.checked || migrations.pending.length === 0;
+  const coreReady =
+    db.connected &&
+    db.schemaApplied &&
+    migrationsCurrent &&
+    isWorkosConfigured() &&
+    providers.valid;
+
+  const commercial =
+    deploymentMode === 'commercial'
+      ? evaluateCommercialReadiness({ databaseReady: db.connected && db.schemaApplied })
+      : undefined;
+
+  const ready = coreReady && (commercial?.ready ?? true);
+
+  return {
+    ready,
+    status: ready ? 'ready' : 'degraded',
+    deploymentMode,
+    env,
+    db,
+    migrations,
+    providers,
+    capabilities: {
+      signedBlobStorage: isPresent('BLOB_SIGNING_SECRET'),
+      asyncIntakeSweep: isPresent('CRON_SECRET'),
+    },
+    platform: getPlatformCapabilities(),
+    commercial,
+  };
+}
