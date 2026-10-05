@@ -90,7 +90,7 @@ export default async function AdminComplaintsPage() {
                 style={{ flexDirection: 'column', alignItems: 'stretch', gap: '0.5rem' }}
               >
                 <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.75rem' }}>
-                  <span className="row-key">Mission {c.missionId}</span>
+                  <span className="row-key">Case {c.missionId}</span>
                   <span className={`badge ${STATUS_TONE[c.status] ?? 'badge-neutral'}`}>
                     {c.status}
                   </span>
@@ -136,7 +136,7 @@ export default async function AdminComplaintsPage() {
                   key={f.id}
                   style={{ flexDirection: 'column', alignItems: 'flex-start', gap: '0.2rem' }}
                 >
-                  <span className="row-key">Mission {f.missionId}</span>
+                  <span className="row-key">Case {f.missionId}</span>
                   <span style={{ fontSize: '0.9rem' }}>{f.comments}</span>
                   <span className="muted" style={{ fontSize: '0.75rem' }}>
                     {new Date(f.createdAt).toLocaleDateString()}

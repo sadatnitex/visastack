@@ -226,14 +226,14 @@ export function LegalHoldForm({ applicants }: LegalHoldFormProps) {
           onChange={(e) => setScope(e.target.value as 'applicant' | 'mission' | 'document')}
         >
           <option value="applicant">Whole applicant (default)</option>
-          <option value="mission">One mission only</option>
+          <option value="mission">One case only</option>
           <option value="document">One document only</option>
         </select>
       </div>
       {scope === 'mission' ? (
         <div className="field-row">
           <label className="field-label" htmlFor="missionId">
-            Mission ID
+            Case ID
           </label>
           <input
             id="missionId"

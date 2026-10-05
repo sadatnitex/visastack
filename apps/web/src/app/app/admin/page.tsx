@@ -60,7 +60,7 @@ const SCORECARD_LABELS: Record<ProductEventType, string> = {
   ACCOUNT_CREATED: 'Accounts created',
   APPLICANT_CREATED: 'Applicant records added',
   DOCUMENT_UPLOADED: 'Documents uploaded',
-  MISSION_CREATED: 'Missions started',
+  MISSION_CREATED: 'Cases started',
   GRANT_CREATED: 'Grants created',
   AI_EXTRACTION_RUN: 'AI extractions run',
   AI_OCR_RUN: 'AI OCR runs',

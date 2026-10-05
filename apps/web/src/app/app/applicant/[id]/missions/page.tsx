@@ -45,22 +45,22 @@ export default async function MissionsPage({
     <>
       <div className="toolbar" style={{ marginBottom: '2rem' }}>
         <div>
-          <span className="eyebrow">Missions</span>
+          <span className="eyebrow">Cases</span>
           <h2 className="section-title" style={{ margin: '0.25rem 0 0' }}>
-            Visa missions
+            Visa cases
           </h2>
           <p className="muted" style={{ margin: '0.35rem 0 0' }}>
-            A mission assembles this applicant's evidence against a published requirement pack.
+            A case assembles this applicant's evidence against a published requirement pack.
           </p>
         </div>
       </div>
 
       <div className="grid">
         <article className="card">
-          <p className="card-kicker">Your missions</p>
+          <p className="card-kicker">Your cases</p>
           <h2 className="card-title">Active &amp; past</h2>
           {data.missions.length === 0 ? (
-            <p className="card-body">No missions yet.</p>
+            <p className="card-body">No cases yet.</p>
           ) : (
             <div className="rows" style={{ marginTop: '0.5rem' }}>
               {data.missions.map((mission) => (
@@ -82,12 +82,12 @@ export default async function MissionsPage({
 
         <article className="card">
           <p className="card-kicker">New</p>
-          <h2 className="card-title">Start a mission</h2>
+          <h2 className="card-title">Start a case</h2>
           {data.coreGranted ? (
             <CreateMissionForm applicantId={id} />
           ) : (
             <p className="card-body">
-              Grant <strong>Core processing</strong> consent to create missions.
+              Grant <strong>Core processing</strong> consent to create cases.
             </p>
           )}
         </article>

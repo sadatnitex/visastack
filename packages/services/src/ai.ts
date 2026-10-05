@@ -1432,7 +1432,7 @@ export async function runExtraction(
     return err(serviceError('forbidden', 'not authorized to run extraction for this applicant'));
   }
   if (!(await hasConsent(db, applicant.ownerAccountId, 'AI_EXTRACTION'))) {
-    return err(serviceError('consent_required', 'AI_EXTRACTION consent is required'));
+    return err(serviceError('consent_required', 'AI extraction consent is required'));
   }
 
   const rateLimited = await aiRateLimitRefusal(db, input.actorAccountId);
@@ -1840,7 +1840,7 @@ export async function runClassification(
     );
   }
   if (!(await hasConsent(db, applicant.ownerAccountId, 'AI_EXTRACTION'))) {
-    return err(serviceError('consent_required', 'AI_EXTRACTION consent is required'));
+    return err(serviceError('consent_required', 'AI extraction consent is required'));
   }
 
   const existing = first(
@@ -2458,7 +2458,7 @@ export async function runOcr(
     return err(serviceError('forbidden', 'not authorized to run OCR for this applicant'));
   }
   if (!(await hasConsent(db, applicant.ownerAccountId, 'AI_OCR'))) {
-    return err(serviceError('consent_required', 'AI_OCR consent is required'));
+    return err(serviceError('consent_required', 'AI OCR consent is required'));
   }
 
   const rateLimited = await aiRateLimitRefusal(db, input.actorAccountId);
@@ -3531,7 +3531,7 @@ export async function runInconsistencyCheck(
     );
   }
   if (!(await hasConsent(db, applicant.ownerAccountId, 'AI_EXTRACTION'))) {
-    return err(serviceError('consent_required', 'AI_EXTRACTION consent is required'));
+    return err(serviceError('consent_required', 'AI extraction consent is required'));
   }
 
   const rateLimited = await aiRateLimitRefusal(db, input.actorAccountId);

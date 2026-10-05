@@ -78,7 +78,7 @@ export function PublishVersionButton({
         action={formAction}
         onSubmit={(e) => {
           if (
-            !window.confirm('Publish this version? It becomes attachable by missions immediately.')
+            !window.confirm('Publish this version? It becomes attachable by cases immediately.')
           ) {
             e.preventDefault();
           }
@@ -162,7 +162,7 @@ export function PublicTrustPublishButton({
           if (
             published &&
             !window.confirm(
-              'Remove this route from the public trust page? It stays usable by missions.',
+              'Remove this route from the public trust page? It stays usable by cases.',
             )
           ) {
             e.preventDefault();

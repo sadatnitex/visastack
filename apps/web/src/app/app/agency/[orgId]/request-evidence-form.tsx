@@ -51,7 +51,7 @@ export function RequestEvidenceForm({
       {missions.length > 0 ? (
         <div className="field-row">
           <label className="field-label" htmlFor="missionId">
-            Mission (only needed if this org's access is mission-scoped)
+            Case (only needed if this organization's access is limited to one case)
           </label>
           <select id="missionId" name="missionId" className="input" defaultValue="">
             <option value="">Applicant-wide (default)</option>

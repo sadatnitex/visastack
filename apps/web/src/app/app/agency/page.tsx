@@ -26,7 +26,7 @@ export default async function AgencyPage() {
             Organizations
           </h1>
           <p className="muted" style={{ margin: '0.35rem 0 0' }}>
-            Agencies collaborate on missions and request evidence. Membership never grants record
+            Agencies collaborate on cases and request evidence. Membership never grants record
             access on its own — access is always an accepted grant.
           </p>
         </div>

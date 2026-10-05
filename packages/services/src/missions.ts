@@ -79,10 +79,10 @@ async function ownedMission(
   const mission = first(
     await db.select().from(schema.missions).where(eq(schema.missions.id, missionId)).limit(1),
   );
-  if (!mission) return err(serviceError('not_found', 'mission not found'));
+  if (!mission) return err(serviceError('not_found', 'case not found'));
   const applicant = await getApplicant(db, mission.applicantId);
   if (!applicant || applicant.ownerAccountId !== actorAccountId) {
-    return err(serviceError('forbidden', 'not authorized for this mission'));
+    return err(serviceError('forbidden', 'not authorized for this case'));
   }
   return ok(mission);
 }
@@ -194,7 +194,7 @@ export async function createMission(
   }
   if (input.title.trim().length === 0) return err(serviceError('invalid', 'a title is required'));
   if (!(await hasConsent(db, applicant.ownerAccountId, 'CORE_PROCESSING'))) {
-    return err(serviceError('consent_required', 'CORE_PROCESSING consent is required'));
+    return err(serviceError('consent_required', 'Core processing consent is required'));
   }
 
   return db.transaction(async (tx) => {
@@ -876,9 +876,9 @@ export async function computeReadiness(
   const mission = first(
     await db.select().from(schema.missions).where(eq(schema.missions.id, missionId)).limit(1),
   );
-  if (!mission) return err(serviceError('not_found', 'mission not found'));
+  if (!mission) return err(serviceError('not_found', 'case not found'));
   if (!mission.packVersionId) {
-    return err(serviceError('invalid', 'mission has no attached pack version'));
+    return err(serviceError('invalid', 'case has no attached pack version'));
   }
 
   const requirements = await listRequirements(db, mission.packVersionId);
@@ -1561,7 +1561,7 @@ async function loadOwnedRequirement(
   if (!owned.ok) return owned;
   const mission = owned.value;
   if (!mission.packVersionId) {
-    return err(serviceError('invalid', 'mission has no attached pack version'));
+    return err(serviceError('invalid', 'case has no attached pack version'));
   }
   const requirement = first(
     await db
@@ -1576,7 +1576,7 @@ async function loadOwnedRequirement(
       .limit(1),
   );
   if (!requirement) {
-    return err(serviceError('not_found', "requirement not found on this mission's attached pack"));
+    return err(serviceError('not_found', "requirement not found on this case's attached pack"));
   }
   return ok({ mission, requirement });
 }
@@ -1633,7 +1633,7 @@ export async function selectEvidence(
         .limit(1),
     );
     if (!fact || fact.applicantId !== mission.applicantId) {
-      return err(serviceError('not_found', 'fact not found for this mission'));
+      return err(serviceError('not_found', 'fact not found for this case'));
     }
     if (fact.fieldKey !== requirement.fieldKey) {
       return err(serviceError('invalid', "this fact does not match the requirement's field"));
@@ -1652,7 +1652,7 @@ export async function selectEvidence(
         .limit(1),
     );
     if (!document || document.applicantId !== mission.applicantId) {
-      return err(serviceError('not_found', 'document not found for this mission'));
+      return err(serviceError('not_found', 'document not found for this case'));
     }
     if (document.docType !== requirement.docType) {
       return err(
@@ -1785,10 +1785,10 @@ export async function listSelectedEvidenceForOrg(
   const mission = first(
     await db.select().from(schema.missions).where(eq(schema.missions.id, missionId)).limit(1),
   );
-  if (!mission) return err(serviceError('not_found', 'mission not found'));
+  if (!mission) return err(serviceError('not_found', 'case not found'));
   if (!(await orgGrantPermits(db, organizationId, mission.applicantId, 'MANAGE', mission.id))) {
     return err(
-      serviceError('forbidden', 'this organization has no current grant covering that mission'),
+      serviceError('forbidden', 'this organization has no current grant covering that case'),
     );
   }
   const rows = await db
@@ -2384,7 +2384,7 @@ export async function generateCoverLetter(
   if (!owned.ok) return owned;
   const mission = owned.value;
   if (!mission.packVersionId) {
-    return err(serviceError('invalid', 'mission has no attached pack version'));
+    return err(serviceError('invalid', 'case has no attached pack version'));
   }
 
   const requirements = await listRequirements(db, mission.packVersionId);

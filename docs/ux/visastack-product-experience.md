@@ -33,16 +33,20 @@ switches into those areas explicitly rather than having every nav item
 crowded into one bar.
 
 **Applicant navigation** (persistent header on every signed-in page —
-`apps/web/src/app/app/layout.tsx`, `app-nav.tsx`): Home, Applicants, Shared
-with me, Privacy, Account. Agency Desk and Platform administration appear as
+`apps/web/src/app/app/layout.tsx`, `app-nav.tsx`; the names are in
+`apps/web/src/lib/navigation.ts`): Overview, Applicants, Shared with me, Alerts,
+Privacy, Account. Agency Desk and Platform administration appear as
 a secondary switch control in the same header, shown only to accounts that
 actually hold that access (`listMembershipsForAccount`, `isPlatformAdmin`).
 
 **Applicant workspace navigation** (`apps/web/src/app/app/applicant/[id]/layout.tsx`,
-`subnav.tsx`): Overview, Profile, Documents, Missions, Sharing, Evidence,
-History. "Evidence" isn't in the directive's own list but is real, shipped
-functionality (responding to an agency's evidence requests) — kept as a
-seventh tab rather than deleted or hidden to match the list exactly.
+`subnav.tsx`): Overview, Profile, Documents, Cases, Sharing, Evidence, Expiry,
+History. The product calls what a traveller opens a "case"; "mission" is the
+stored entity's name and stays in code, URLs and the database (a test fails if
+it appears in visible text). "Evidence" and "Expiry" aren't in the directive's
+own list but are real, shipped functionality (responding to an agency's evidence
+requests; document expiry) - kept as tabs rather than deleted or hidden to match
+the list exactly.
 
 **Agency navigation**: currently one list page (`/app/agency`) plus one
 per-organization console (`/app/agency/[orgId]`) rather than the full six-item

@@ -86,7 +86,7 @@ export async function createApplicant(
     return err(
       serviceError(
         'consent_required',
-        'CORE_PROCESSING consent is required before creating records',
+        'Core processing consent is required before creating records',
       ),
     );
   }

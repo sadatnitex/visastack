@@ -181,7 +181,7 @@ export async function editFact(
 
   if (!(await hasConsent(db, applicant.ownerAccountId, 'CORE_PROCESSING'))) {
     return err(
-      serviceError('consent_required', 'CORE_PROCESSING consent is required to edit facts'),
+      serviceError('consent_required', 'Core processing consent is required to edit facts'),
     );
   }
 

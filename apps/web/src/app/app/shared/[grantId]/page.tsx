@@ -50,8 +50,8 @@ export default async function SharedWorkspacePage({
       {workspace.missionScopeUnavailable ? (
         <div className="card" style={{ marginBottom: '1.5rem' }}>
           <p className="card-body">
-            This access is limited to a specific mission. Mission-scoped sharing isn't available yet
-            — nothing is shown below until that support ships.
+            This access is limited to a specific case. Case-scoped sharing isn't available yet -
+            nothing is shown below until that support ships.
           </p>
         </div>
       ) : null}

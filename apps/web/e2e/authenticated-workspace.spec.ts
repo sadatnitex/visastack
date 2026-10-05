@@ -118,7 +118,7 @@ async function signIn(page: import('@playwright/test').Page) {
   await expect(page).toHaveURL(/\/app(\/|$)/, { timeout: 20_000 });
 }
 
-/** Grants a consent purpose from the Home dashboard, no-op if already granted. */
+/** Grants a consent purpose from the Overview dashboard, no-op if already granted. */
 async function ensureConsent(page: import('@playwright/test').Page, title: string) {
   await page.goto('/app');
   const row = page.locator('.row', { hasText: title });
@@ -397,7 +397,7 @@ test.describe
       await page.goto(`${applicantUrl}/missions`);
       const missionTitle = `E2E Mission ${Date.now()}`;
       await page.getByLabel('Title').fill(missionTitle);
-      await page.getByRole('button', { name: 'Create mission' }).click();
+      await page.getByRole('button', { name: 'Create case' }).click();
       await expect(page.getByText(missionTitle)).toBeVisible({ timeout: 10_000 });
     });
 

@@ -397,7 +397,7 @@ export async function recordIssuerVerification(
   // them is a distinct optional purpose the applicant must separately
   // permit, gated here exactly like registerDocument gates CORE_PROCESSING.
   if (!(await hasConsent(db, applicant.ownerAccountId, 'ISSUER_CONTACT'))) {
-    return err(serviceError('consent_required', 'ISSUER_CONTACT consent is required'));
+    return err(serviceError('consent_required', 'Issuer contact consent is required'));
   }
 
   if (input.factId) {

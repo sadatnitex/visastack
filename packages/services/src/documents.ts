@@ -105,7 +105,7 @@ export async function registerDocument(
     return err(serviceError('invalid', 'a document name is required'));
   }
   if (!(await hasConsent(db, applicant.ownerAccountId, 'CORE_PROCESSING'))) {
-    return err(serviceError('consent_required', 'CORE_PROCESSING consent is required'));
+    return err(serviceError('consent_required', 'Core processing consent is required'));
   }
 
   return db.transaction(async (tx) => {

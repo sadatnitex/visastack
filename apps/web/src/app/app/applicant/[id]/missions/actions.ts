@@ -33,7 +33,7 @@ export async function createMissionAction(
   const travelStartDate = parseOptionalDate(formData.get('travelStartDate'));
   const travelEndDate = parseOptionalDate(formData.get('travelEndDate'));
   const targetDeadline = parseOptionalDate(formData.get('targetDeadline'));
-  if (title.length === 0) return { ok: false, message: 'Give the mission a title.' };
+  if (title.length === 0) return { ok: false, message: 'Give the case a title.' };
 
   const outcome = await withSession(async ({ db, accountId }) => {
     const created = await createMission(db, {

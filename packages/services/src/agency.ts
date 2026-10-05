@@ -191,12 +191,12 @@ export async function assignMember(
   const mission = first(
     await db.select().from(schema.missions).where(eq(schema.missions.id, input.missionId)).limit(1),
   );
-  if (!mission) return err(serviceError('not_found', 'mission not found'));
+  if (!mission) return err(serviceError('not_found', 'case not found'));
   if (
     !(await orgGrantPermits(db, input.organizationId, mission.applicantId, 'MANAGE', mission.id))
   ) {
     return err(
-      serviceError('forbidden', 'this organization has no current grant covering that mission'),
+      serviceError('forbidden', 'this organization has no current grant covering that case'),
     );
   }
 
@@ -472,15 +472,15 @@ async function loadMissionForOrgWrite(
     return err(serviceError('forbidden', 'not an active member of this organization'));
   }
   if (!(await assignedToMission(db, organizationId, actorAccountId, missionId))) {
-    return err(serviceError('forbidden', 'not assigned to this mission'));
+    return err(serviceError('forbidden', 'not assigned to this case'));
   }
   const mission = first(
     await db.select().from(schema.missions).where(eq(schema.missions.id, missionId)).limit(1),
   );
-  if (!mission) return err(serviceError('not_found', 'mission not found'));
+  if (!mission) return err(serviceError('not_found', 'case not found'));
   if (!(await orgGrantPermits(db, organizationId, mission.applicantId, 'MANAGE', mission.id))) {
     return err(
-      serviceError('forbidden', 'this organization has no current grant covering that mission'),
+      serviceError('forbidden', 'this organization has no current grant covering that case'),
     );
   }
   return ok(mission);
@@ -1185,7 +1185,7 @@ export async function addNote(
   const mission = first(
     await db.select().from(schema.missions).where(eq(schema.missions.id, input.missionId)).limit(1),
   );
-  if (!mission) return err(serviceError('not_found', 'mission not found'));
+  if (!mission) return err(serviceError('not_found', 'case not found'));
 
   const applicant = first(
     await db
@@ -1260,7 +1260,7 @@ export async function addNote(
         resourceId: null,
       });
     });
-    return err(serviceError('forbidden', 'not authorized to comment on this mission'));
+    return err(serviceError('forbidden', 'not authorized to comment on this case'));
   }
 
   if (input.visibility === 'AGENCY_INTERNAL' && !authorizingOrganizationId) {
@@ -1444,7 +1444,7 @@ export async function requestEvidence(
   }
   if (input.packRequirementId) {
     if (!input.missionId) {
-      return err(serviceError('invalid', 'a requirement-linked request must name its mission'));
+      return err(serviceError('invalid', 'a requirement-linked request must name its case'));
     }
     const mission = first(
       await db
@@ -1454,7 +1454,7 @@ export async function requestEvidence(
         .limit(1),
     );
     if (!mission || mission.applicantId !== input.applicantId) {
-      return err(serviceError('not_found', 'mission not found for this applicant'));
+      return err(serviceError('not_found', 'case not found for this applicant'));
     }
     const requirement = first(
       await db
@@ -1471,9 +1471,7 @@ export async function requestEvidence(
         .limit(1),
     );
     if (!requirement) {
-      return err(
-        serviceError('not_found', "requirement not found on this mission's attached pack"),
-      );
+      return err(serviceError('not_found', "requirement not found on this case's attached pack"));
     }
   }
 
@@ -2413,17 +2411,17 @@ export async function recordMissionDecision(
     return err(serviceError('forbidden', 'not an active member of this organization'));
   }
   if (!(await assignedToMission(db, input.organizationId, input.actorAccountId, input.missionId))) {
-    return err(serviceError('forbidden', 'not assigned to this mission'));
+    return err(serviceError('forbidden', 'not assigned to this case'));
   }
   const mission = first(
     await db.select().from(schema.missions).where(eq(schema.missions.id, input.missionId)).limit(1),
   );
-  if (!mission) return err(serviceError('not_found', 'mission not found'));
+  if (!mission) return err(serviceError('not_found', 'case not found'));
   if (
     !(await orgGrantPermits(db, input.organizationId, mission.applicantId, 'MANAGE', mission.id))
   ) {
     return err(
-      serviceError('forbidden', 'this organization has no current grant covering that mission'),
+      serviceError('forbidden', 'this organization has no current grant covering that case'),
     );
   }
   const requirement = first(
@@ -2441,7 +2439,7 @@ export async function recordMissionDecision(
       .limit(1),
   );
   if (!requirement) {
-    return err(serviceError('not_found', "requirement not found on this mission's attached pack"));
+    return err(serviceError('not_found', "requirement not found on this case's attached pack"));
   }
 
   return db.transaction(async (tx) => {
@@ -2520,7 +2518,7 @@ export async function listMissionDecisions(
   const mission = first(
     await db.select().from(schema.missions).where(eq(schema.missions.id, missionId)).limit(1),
   );
-  if (!mission) return err(serviceError('not_found', 'mission not found'));
+  if (!mission) return err(serviceError('not_found', 'case not found'));
   const applicant = first(
     await db
       .select({ ownerAccountId: schema.applicants.ownerAccountId })
@@ -2566,7 +2564,7 @@ export async function listMissionDecisions(
       }
     }
     if (!authorized) {
-      return err(serviceError('forbidden', 'not authorized to view decisions on this mission'));
+      return err(serviceError('forbidden', 'not authorized to view decisions on this case'));
     }
   }
   const rows = await db
@@ -2590,10 +2588,10 @@ export async function listMissionRequirementsForOrg(
   const mission = first(
     await db.select().from(schema.missions).where(eq(schema.missions.id, missionId)).limit(1),
   );
-  if (!mission) return err(serviceError('not_found', 'mission not found'));
+  if (!mission) return err(serviceError('not_found', 'case not found'));
   if (!(await orgGrantPermits(db, organizationId, mission.applicantId, 'MANAGE', mission.id))) {
     return err(
-      serviceError('forbidden', 'this organization has no current grant covering that mission'),
+      serviceError('forbidden', 'this organization has no current grant covering that case'),
     );
   }
   if (!mission.packVersionId) return ok([]);

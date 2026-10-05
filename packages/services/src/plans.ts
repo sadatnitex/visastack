@@ -1142,7 +1142,7 @@ export async function getUsageForOrganization(
     {
       key: 'casesPerPeriod',
       label: 'Cases created this period',
-      definition: `Cases (missions) attributed to this organization and created in the trailing ${plan?.periodDays ?? 30} days.`,
+      definition: `Cases attributed to this organization and created in the trailing ${plan?.periodDays ?? 30} days.`,
       used: casesUsed,
       allowed: plan?.casesPerPeriodAllowed ?? null,
     },

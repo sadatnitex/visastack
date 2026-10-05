@@ -531,7 +531,7 @@ describe('client invitations - agency invites a traveller as a new client (Comme
         applicantChoice: { kind: 'new' },
       });
       expect(isErr(result)).toBe(true);
-      if (isErr(result)) expect(result.error.message).toContain('SHARING');
+      if (isErr(result)) expect(result.error.message).toContain('Sharing consent is required');
 
       const applicants = await listApplicants(db, travellerId);
       expect(applicants).toHaveLength(0); // the applicant insert did not survive the rollback

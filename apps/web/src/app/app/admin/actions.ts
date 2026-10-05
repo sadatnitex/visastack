@@ -79,7 +79,7 @@ export async function placeLegalHoldAction(
   if (reason.length === 0) return { ok: false, message: 'A reason is required.' };
   if (reviewAtRaw.length === 0) return { ok: false, message: 'A review date is required.' };
   if (scope === 'mission' && missionId.length === 0) {
-    return { ok: false, message: 'Enter the mission ID to scope this hold to.' };
+    return { ok: false, message: 'Enter the case ID to scope this hold to.' };
   }
   if (scope === 'document' && documentId.length === 0) {
     return { ok: false, message: 'Enter the document ID to scope this hold to.' };

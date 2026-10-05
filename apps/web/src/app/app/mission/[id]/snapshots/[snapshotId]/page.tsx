@@ -149,7 +149,7 @@ export default async function MissionSnapshotPage({
 
       {content.evidenceScope === 'all_applicant_evidence' ? (
         <div className="notice notice-warn" style={{ marginBottom: '1.5rem' }}>
-          <strong>Not narrowed to this case.</strong> This mission had no automated requirement pack
+          <strong>Not narrowed to this case.</strong> This case had no automated requirement pack
           attached when captured, so there is no case-specific selection to disclose from - the
           facts and documents below are this applicant's full record, not limited to this case.
         </div>

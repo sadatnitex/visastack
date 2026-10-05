@@ -120,7 +120,7 @@ export async function decideAcknowledgement(
         )
         .limit(1),
     );
-    if (!snapshot) return err(serviceError('not_found', 'snapshot not found for this mission'));
+    if (!snapshot) return err(serviceError('not_found', 'snapshot not found for this case'));
 
     if (snapshot.checksum !== input.expectedSnapshotChecksum) {
       return err(serviceError('stale', 'the prepared file has changed since it was last reviewed'));

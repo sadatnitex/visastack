@@ -38,7 +38,7 @@ export default async function PackStudioPage() {
           </h1>
           <p className="muted" style={{ margin: '0.35rem 0 0' }}>
             Author versioned, cited requirement packs. A published version becomes attachable by
-            missions.
+            cases.
           </p>
         </div>
       </div>

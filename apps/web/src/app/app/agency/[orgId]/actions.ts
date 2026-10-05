@@ -397,7 +397,7 @@ export async function unassignMemberAction(
   const missionId = String(formData.get('missionId') ?? '');
   const memberAccountId = String(formData.get('memberAccountId') ?? '');
   if (missionId.length === 0 || memberAccountId.length === 0) {
-    return { ok: false, message: 'Missing member or mission.' };
+    return { ok: false, message: 'Missing member or case.' };
   }
   const result = await withSession(async ({ db, accountId }) => {
     const unassigned = await unassignMember(db, {
