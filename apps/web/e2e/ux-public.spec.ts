@@ -1,6 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { type Page, expect, test } from '@playwright/test';
-import { PRIMARY_NAV, applicantTabs } from '../src/lib/navigation';
+import { PRIMARY_NAV, agencyTabs, applicantTabs, platformTabs } from '../src/lib/navigation';
 
 /**
  * UX/accessibility verification for public (no-secret) surfaces (master
@@ -110,6 +110,15 @@ function fixtureHtml(): string {
   const primary = PRIMARY_NAV.map(
     (link, i) => `<a href="${link.href}"${i === 0 ? ' aria-current="page"' : ''}>${link.label}</a>`,
   ).join('');
+  const bar = (links: readonly { href: string; label: string }[]) =>
+    links
+      .map(
+        (link, i) =>
+          `<a href="${link.href}"${i === 0 ? ' aria-current="page"' : ''}>${link.label.replaceAll('&', '&amp;')}</a>`,
+      )
+      .join('');
+  const agencyBar = bar(agencyTabs('fixture', { admin: true }));
+  const platformBar = bar(platformTabs({ ai: true, complaints: true }));
   const tabs = applicantTabs('fixture')
     .map(
       (link, i) =>
@@ -126,6 +135,7 @@ function fixtureHtml(): string {
       <form action="#"><button type="submit" class="btn btn-secondary nav-cta">Sign out</button></form>
     </div>
   </div>
+  <div class="container tabs-bar"><nav class="subnav" aria-label="Platform sections">${platformBar}</nav></div>
   <section class="section container" id="fixture-section">
     <div class="toolbar" style="margin-bottom:1.5rem">
       <div>
@@ -135,6 +145,7 @@ function fixtureHtml(): string {
       </div>
     </div>
     <nav class="subnav" aria-label="Applicant sections">${tabs}</nav>
+    <nav class="subnav" aria-label="Organization sections">${agencyBar}</nav>
     <div class="grid">
       <article class="card">
         <p class="card-kicker">Cases</p>
@@ -240,6 +251,28 @@ test.describe('signed-in layout building blocks on a narrow screen (real stylesh
         }
       });
 
+      test('every tab of every section bar can be scrolled into view, so none is out of reach', async ({
+        page,
+      }) => {
+        const bars = page.locator('#fixture nav.subnav');
+        expect(await bars.count()).toBe(3);
+        for (let b = 0; b < (await bars.count()); b++) {
+          const links = bars.nth(b).locator('a');
+          for (let i = 0; i < (await links.count()); i++) {
+            const link = links.nth(i);
+            await link.scrollIntoViewIfNeeded();
+            const box = await link.boundingBox();
+            expect(box, `bar ${b} tab ${i}`).not.toBeNull();
+            if (box) {
+              expect(box.x, `bar ${b} tab ${i} left edge`).toBeGreaterThanOrEqual(-1);
+              expect(box.x + box.width, `bar ${b} tab ${i} right edge`).toBeLessThanOrEqual(
+                viewport.width + 1,
+              );
+            }
+          }
+        }
+      });
+
       test('the public header keeps its sign-in button on screen', async ({ page }) => {
         const button = page.locator('header.nav').getByRole('link', { name: /sign in|workspace/i });
         const box = await button.boundingBox();
@@ -304,6 +337,20 @@ test.describe('signed-in navigation on a wide screen (real stylesheet)', () => {
     // Not behind the public header (it used to stick at the same top and vanish).
     expect(barTop).toBeGreaterThanOrEqual(headerBottom - 1);
     expect(barBottom).toBeGreaterThan(headerBottom);
+  });
+
+  test('every section bar fits a desktop screen without scrolling sideways', async ({ page }) => {
+    const bars = await page.evaluate(() =>
+      [...document.querySelectorAll('#fixture nav.subnav')].map((nav) => ({
+        label: nav.getAttribute('aria-label'),
+        scrollWidth: nav.scrollWidth,
+        clientWidth: nav.clientWidth,
+      })),
+    );
+    expect(bars).toHaveLength(3);
+    for (const bar of bars) {
+      expect(bar.scrollWidth, `${bar.label} bar`).toBeLessThanOrEqual(bar.clientWidth + 1);
+    }
   });
 
   test('keyboard focus is never hidden behind the sticky bars', async ({ page }) => {

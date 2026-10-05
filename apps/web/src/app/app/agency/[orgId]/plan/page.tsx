@@ -1,19 +1,11 @@
-import {
-  getOrganization,
-  getOrganizationBrandingForDisplay,
-  getUsageForOrganization,
-} from '@visastack/services';
-import Link from 'next/link';
-import { notFound } from 'next/navigation';
+import { getUsageForOrganization } from '@visastack/services';
 import { withSession } from '../../../../../lib/session';
-import { createStorage } from '../../../../../lib/storage';
 import {
   formatMeterValue,
   formatPrice,
   meterFraction,
   meterTone,
 } from '../../../../../lib/usage-format';
-import { OrgBrandingHeader } from '../org-branding-header';
 
 export const dynamic = 'force-dynamic';
 
@@ -24,8 +16,11 @@ export const dynamic = 'force-dynamic';
  * `getUsageForOrganization` already computes. Plan/subscription management
  * itself (creating plans, activating one for an org) is a platform-owner,
  * step-up-gated action -- see `/app/admin/organizations/[orgId]` (ADM-01).
+ *
+ * This is the "Usage & billing" section of the agency console (Part 9 UX-01);
+ * the organization header and the section bar come from the console's layout,
+ * which also answers for an organization that does not exist.
  */
-
 export default async function OrgPlanPage({
   params,
 }: {
@@ -34,37 +29,24 @@ export default async function OrgPlanPage({
   const { orgId } = await params;
 
   const data = await withSession(async ({ db, accountId }) => {
-    const org = await getOrganization(db, orgId);
-    if (!org) return null;
-
-    const [usage, branding] = await Promise.all([
-      getUsageForOrganization(db, { actorAccountId: accountId, organizationId: orgId }),
-      getOrganizationBrandingForDisplay(db, createStorage(db), orgId),
-    ]);
+    const usage = await getUsageForOrganization(db, {
+      actorAccountId: accountId,
+      organizationId: orgId,
+    });
     return {
-      org,
-      branding,
       usage: usage.ok ? usage.value : null,
       error: usage.ok ? null : usage.error.message,
     };
   });
 
-  if (!data) notFound();
-
   return (
-    <section className="section container">
-      <div style={{ marginBottom: '1.5rem' }}>
-        <Link href={`/app/agency/${orgId}`} className="muted" style={{ fontSize: '0.9rem' }}>
-          ← {data.org.name}
-        </Link>
-      </div>
-      <div className="toolbar" style={{ marginBottom: '2rem' }}>
+    <>
+      <div className="toolbar" style={{ marginBottom: '1.5rem' }}>
         <div>
-          <span className="eyebrow">Plan &amp; usage</span>
-          <OrgBrandingHeader branding={data.branding} />
-          <h1 className="section-title" style={{ margin: '0.25rem 0 0' }}>
-            {data.org.name}
-          </h1>
+          <span className="eyebrow">Usage &amp; billing</span>
+          <h2 className="section-title" style={{ margin: '0.25rem 0 0' }}>
+            Plan &amp; usage
+          </h2>
           <p className="muted" style={{ margin: '0.35rem 0 0' }}>
             Every entitlement below is plan configuration, not a hardcoded limit -- each meter names
             its own definition and what it currently counts.
@@ -126,6 +108,6 @@ export default async function OrgPlanPage({
           </article>
         </>
       )}
-    </section>
+    </>
   );
 }

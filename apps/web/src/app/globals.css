@@ -711,6 +711,9 @@ main {
     radial-gradient(farthest-side at 100% 50%, rgb(0 0 0 / 0.16), transparent) right center / 0.6rem 100% no-repeat scroll;
 }
 .subnav a {
+  /* A two-letter tab ("AI") would otherwise be 16px wide, under the 24px target size. */
+  min-width: 1.5rem;
+  text-align: center;
   color: var(--text-secondary);
   font-size: 0.9rem;
   white-space: nowrap;
@@ -725,6 +728,18 @@ main {
   color: var(--text);
   font-weight: 600;
   border-bottom-color: var(--accent);
+}
+
+/* The platform section bar sits above pages that carry their own section padding, so it
+   keeps the container's side margins and trims the gap the page below would add. */
+.tabs-bar {
+  padding-top: 1rem;
+}
+.tabs-bar .subnav {
+  margin-bottom: 0;
+}
+.tabs-bar + .section {
+  padding-top: 1.75rem;
 }
 
 /* Screen-reader-only text — present in the accessibility tree, invisible on

@@ -145,11 +145,7 @@ export default async function AdminOrganizationPage({
   return (
     <section className="section container">
       <div style={{ marginBottom: '1.5rem' }}>
-        <Link
-          href="/app/admin#admin-organizations"
-          className="muted"
-          style={{ fontSize: '0.9rem' }}
-        >
+        <Link href="/app/admin/organizations" className="muted" style={{ fontSize: '0.9rem' }}>
           ← Organizations
         </Link>
       </div>

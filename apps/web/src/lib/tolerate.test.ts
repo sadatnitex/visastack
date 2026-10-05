@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { tolerate } from './tolerate';
+import { tolerantReader, tolerate } from './tolerate';
 
 describe('tolerate', () => {
   afterEach(() => {
@@ -50,5 +50,25 @@ describe('tolerate', () => {
     await tolerate('weird', () => Promise.reject('plain string'), 1, failed);
     expect(failed).toEqual(['weird']);
     expect(String(errorLog.mock.calls[0]?.[0])).toContain('plain string');
+  });
+});
+
+describe('tolerantReader', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('collects the failed sections of one page and leaves other pages alone', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const page = tolerantReader();
+    const other = tolerantReader();
+    const boom = async () => {
+      throw new Error('x');
+    };
+    expect(await page.read('roles', boom, [] as string[])).toEqual([]);
+    expect(await page.read('invitations', async () => ['a'], [] as string[])).toEqual(['a']);
+    expect(await other.read('audit', async () => 1, 0)).toBe(1);
+    expect(page.failed).toEqual(['roles']);
+    expect(other.failed).toEqual([]);
   });
 });

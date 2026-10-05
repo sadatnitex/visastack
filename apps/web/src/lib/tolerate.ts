@@ -24,3 +24,20 @@ export async function tolerate<T>(
     return fallback;
   }
 }
+
+/**
+ * A reader bound to one page's list of unreadable sections:
+ * `const { read, failed } = tolerantReader();` then `await read('label', run, fallback)`
+ * for each independent figure, and pass `failed` to the page's notice. The same
+ * rule as `tolerate`: never for an authorization decision.
+ */
+export function tolerantReader(): {
+  readonly read: <T>(label: string, run: () => Promise<T>, fallback: T) => Promise<T>;
+  readonly failed: string[];
+} {
+  const failed: string[] = [];
+  return {
+    read: (label, run, fallback) => tolerate(label, run, fallback, failed),
+    failed,
+  };
+}

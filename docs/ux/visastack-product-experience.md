@@ -48,15 +48,23 @@ own list but are real, shipped functionality (responding to an agency's evidence
 requests; document expiry) - kept as tabs rather than deleted or hidden to match
 the list exactly.
 
-**Agency navigation**: currently one list page (`/app/agency`) plus one
-per-organization console (`/app/agency/[orgId]`) rather than the full six-item
-structure (Case inbox, Assigned cases, Evidence requests, Reviews,
-Organization, Access) as separate routes. See §7 for what's covered instead.
+**Agency navigation** (`apps/web/src/app/app/agency/[orgId]/layout.tsx`; names in
+`lib/navigation.ts`): the organization list (`/app/agency`), then one console per
+organization with a bar of real sections, each a page of its own: Dashboard (the
+case inbox and a few counts), Clients (client invitations, evidence requests),
+Cases (one workspace per case), Team (members), Usage & billing, Settings (review
+policy, branding, bulk export). Clients, Team and Settings are administrator work
+and are left out of the bar for a member who is not an administrator. A case in
+the Dashboard opens that case's workspace on the Cases tab.
 
-**Platform administration**: one page (`/app/admin`) with anchored jump-nav
-sections — Readiness (links to the existing `/status` page), Security,
-Organizations, Retention, Deletion, Processing failures, Usage, Audit —
-rather than eight separate routes. See §7.
+**Platform navigation** (`apps/web/src/app/app/admin/layout.tsx`): a bar of
+sections above each page, in the directive's order: Organizations, Rules (the
+requirement-pack studio), AI (the AI Gateway), Operations (the landing page:
+signals, readiness, capacity, pilot measurement), Privacy (retention, legal
+holds, erasure, purge), Audit, then two real areas the directive does not name,
+Access (platform roles, pilot sign-in) and Complaints. AI and Complaints appear
+only for an administrator who may use them. The product spells it
+"Organizations" everywhere.
 
 No page renders a raw UUID as its primary label; every list and detail view
 resolves to a real display name (applicant name, organization name, mission
@@ -187,15 +195,15 @@ dashboard in the WorkOS-staging-gated suite
 
 ## 7. What this PR does not cover (named, not hidden)
 
-- **Agency Desk** is a bounded improvement (a Case-inbox summary card), not
-  the full six-destination IA (Case inbox / Assigned cases / Evidence
-  requests / Reviews / Organization / Access as separate routes) the
-  directive describes. A full rebuild is materially larger than the rest of
-  this PR combined and is better scoped as its own follow-up.
-- **Platform administration** uses anchored jump-nav on one page rather than
-  eight separate routes, to avoid restructuring an already-working,
-  recently-verified admin console. "Readiness" links out to the existing
-  `/status` page rather than duplicating that data here.
+- **Agency console** was a bounded improvement in PR 7 (one page with a Case-inbox
+  card). Commercial V1 Part 9 replaced it with six real sections (see section 2).
+  Still not covered: the Cases section shows the workspace of every case the
+  person can see on one page, which will need paging or a page per case as case
+  counts grow, and a separate "Reviews" destination does not exist.
+- **Platform administration** was one page with anchored jump-nav in PR 7, to avoid
+  restructuring an already-working, recently-verified admin console. Commercial V1
+  Part 9 split it into real sections (see section 2). The cards moved unchanged;
+  "Readiness" on the Operations page still links out to the public `/status` page.
 - **Document review** is not yet a two-pane desktop layout with an embedded
   live document preview next to AI proposals — preview still opens via a
   signed URL rather than rendering inline. Embedding it (`<iframe>` against

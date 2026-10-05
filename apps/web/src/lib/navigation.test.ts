@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { PRIMARY_NAV, applicantTabs, isCurrentPath } from './navigation';
+import { PRIMARY_NAV, agencyTabs, applicantTabs, isCurrentPath, platformTabs } from './navigation';
 
 const labels = (links: readonly { readonly label: string }[]) => links.map((l) => l.label);
 
@@ -80,5 +80,93 @@ describe('isCurrentPath', () => {
     expect(labels(onOverview)).toEqual(['Overview']);
     const onCases = tabs.filter((t) => isCurrentPath('/app/applicant/a1/missions', t));
     expect(labels(onCases)).toEqual(['Cases']);
+  });
+});
+
+describe('agency navigation (directive Part 9 section 1)', () => {
+  it('offers Dashboard, Clients, Cases, Team, Usage & billing and Settings to an administrator', () => {
+    expect(labels(agencyTabs('o1', { admin: true }))).toEqual([
+      'Dashboard',
+      'Clients',
+      'Cases',
+      'Team',
+      'Usage & billing',
+      'Settings',
+    ]);
+  });
+
+  it('shows a member who is not an administrator only what they can use', () => {
+    expect(labels(agencyTabs('o1', { admin: false }))).toEqual([
+      'Dashboard',
+      'Cases',
+      'Usage & billing',
+    ]);
+  });
+
+  it('keeps the plan route for Usage & billing and puts the rest under the organization', () => {
+    const tabs = agencyTabs('o1', { admin: true });
+    expect(tabs.map((t) => t.href)).toEqual([
+      '/app/agency/o1',
+      '/app/agency/o1/clients',
+      '/app/agency/o1/cases',
+      '/app/agency/o1/team',
+      '/app/agency/o1/plan',
+      '/app/agency/o1/settings',
+    ]);
+  });
+
+  it('never leaks the internal admin-only marker into a link', () => {
+    for (const tab of agencyTabs('o1', { admin: true })) {
+      expect(Object.keys(tab)).not.toContain('adminOnly');
+    }
+  });
+
+  it('highlights exactly one tab on every page of the console', () => {
+    const tabs = agencyTabs('o1', { admin: true });
+    const onlyCurrent = (path: string) => labels(tabs.filter((tab) => isCurrentPath(path, tab)));
+    expect(onlyCurrent('/app/agency/o1')).toEqual(['Dashboard']);
+    expect(onlyCurrent('/app/agency/o1/clients')).toEqual(['Clients']);
+    expect(onlyCurrent('/app/agency/o1/cases')).toEqual(['Cases']);
+    expect(onlyCurrent('/app/agency/o1/team')).toEqual(['Team']);
+    expect(onlyCurrent('/app/agency/o1/plan')).toEqual(['Usage & billing']);
+    expect(onlyCurrent('/app/agency/o1/settings')).toEqual(['Settings']);
+  });
+});
+
+describe('platform navigation (directive Part 9 section 1)', () => {
+  const all = { ai: true, complaints: true };
+
+  it('offers Organizations, Rules, AI, Operations, Privacy and Audit in the directive order', () => {
+    expect(labels(platformTabs(all)).slice(0, 6)).toEqual([
+      'Organizations',
+      'Rules',
+      'AI',
+      'Operations',
+      'Privacy',
+      'Audit',
+    ]);
+  });
+
+  it('keeps the shipped Access and Complaints areas as extra tabs', () => {
+    expect(labels(platformTabs(all)).slice(6)).toEqual(['Access', 'Complaints']);
+  });
+
+  it('hides AI and Complaints from an administrator who may not use them', () => {
+    const names = labels(platformTabs({ ai: false, complaints: false }));
+    expect(names).not.toContain('AI');
+    expect(names).not.toContain('Complaints');
+    expect(names).toContain('Operations');
+  });
+
+  it('makes Operations the landing page that matches only its own path', () => {
+    const tabs = platformTabs(all);
+    const operations = tabs.find((t) => t.label === 'Operations');
+    expect(operations?.href).toBe('/app/admin');
+    const onlyCurrent = (path: string) => labels(tabs.filter((tab) => isCurrentPath(path, tab)));
+    expect(onlyCurrent('/app/admin')).toEqual(['Operations']);
+    expect(onlyCurrent('/app/admin/audit')).toEqual(['Audit']);
+    expect(onlyCurrent('/app/admin/packs/p1/diff')).toEqual(['Rules']);
+    expect(onlyCurrent('/app/admin/organizations/o1')).toEqual(['Organizations']);
+    expect(onlyCurrent('/app/admin/ai-settings')).toEqual(['AI']);
   });
 });

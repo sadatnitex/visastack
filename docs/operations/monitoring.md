@@ -10,8 +10,8 @@ up. It is written so that nothing here is taken for a live alert unless it says 
 |---|---|---|
 | `GET /api/health/live` | The process is up. No dependency checks, so it never flaps on a database blip. | Anyone |
 | `GET /api/health/ready` | One verdict, `ready` (200) or `degraded` (503), plus the deployment mode and the platform capability registry. On a deployed build that is all it says. | Anyone |
-| `/app/admin`, section "Operational signals" | Twenty signals, each with a status, a reading and an explanation. | Platform administrators |
-| `/app/admin`, section "Platform readiness detail" | The breakdown behind the readiness verdict: database, pending migrations, provider settings, missing sign-in configuration. Names, never values. | Platform administrators |
+| `/app/admin` (the Operations section), card "Operational signals" | Twenty signals, each with a status, a reading and an explanation. | Platform administrators |
+| `/app/admin` (the Operations section), card "Platform readiness detail" | The breakdown behind the readiness verdict: database, pending migrations, provider settings, missing sign-in configuration. Names, never values. | Platform administrators |
 | Structured log events | One JSON line per event on stdout, captured by the Vercel runtime log. Names below. | Whoever can read the Vercel log |
 
 The public probe is coarse on purpose. A public URL must never reveal which secrets

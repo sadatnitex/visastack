@@ -4304,6 +4304,76 @@ item gets its own requirements-ledger row once classified against the new direct
     Playwright against the local production build: 62 of 64 pass. One test
     asserted the old consent code (`client-invitations.test.ts`) and was found only
     by the full run, not by searching; it now asserts the new wording.
+
+    **Chunk 38 (2026-10-05, UX-01, Part 9 chunk 5b) -- the Agency and Platform
+    areas as real sections.** Chunk 37 named the work; this one splits the two
+    long pages the directive's navigation list could not be applied to.
+
+    - **Agency console.** `/app/agency/[orgId]` was one 900-line page that read
+      everything (every case with its notes, tasks, decisions and issuer
+      confirmations, the roster, every invitation, every evidence request) on every
+      visit. It is now a layout (header and section bar) and six pages: Dashboard
+      (an at-a-glance card with four counts, the case inbox and search, the
+      reassignment queue), Clients (client invitations, request evidence, evidence
+      requests), Cases (one workspace per case), Team (members and invitations),
+      Usage & billing (the existing plan page, trimmed to content) and Settings
+      (review policy, branding, bulk export). Each page loads only its own data
+      through `console-data.ts`, whose reads are the old page's, moved unchanged.
+      Clients, Team and Settings are administrator work and are left out of the bar
+      for a member who is not an administrator; each page still re-checks standing
+      and the services still refuse anyone without it. Every agency action now
+      refreshes the whole console (`revalidatePath(..., 'layout')`), not one page.
+    - **Platform administration.** `/app/admin` was one 1,100-line page. It is now
+      a section bar above each page, in the directive's order: Organizations,
+      Rules (the pack studio), AI, Operations (the landing page: scorecard,
+      signals, readiness detail, learning areas, commercial readiness, failed
+      intake jobs, capacity), Privacy (retention policies, legal holds, erasure
+      jobs, purge), Audit, then Access (platform roles, pilot sign-in, accounts
+      awaiting an identity) and Complaints, which the directive does not name. The
+      cards moved unchanged; each page reads only its own figures with the same
+      tolerant reads that kept `/app/admin` up when a table was missing, and says
+      so in a banner when one could not be read. AI and Complaints show only to an
+      administrator who may use them.
+    - **A defect fixed on the way.** A case in the agency inbox linked to
+      `/app/mission/<id>`, the traveller's own case page, which only the applicant
+      who owns the case can open, so an agency member who clicked got "not found".
+      It now opens that case's workspace on the Cases tab. The same link style in
+      the reassignment queue changed with it.
+    - **Found by the new tests.** `nextApproachingDate` returned an internal sort
+      field alongside the two it documents (harmless in the old page, wrong as a
+      contract); it returns only `label` and `date` now. A two-letter tab ("AI") was
+      16px wide, under the 24px target; section tabs now have a 24px minimum.
+    - **Tests.** 124 new web tests: render tests for the Dashboard, Cases, Clients,
+      Team, Settings, Operations, Organizations, Privacy, Audit and Access pages and
+      both layouts (each page called as a function with mocked services, rendered to
+      markup), loader tests for the console (the administrator-only reads are not
+      even attempted for anyone else; arguments reach the services in the order they
+      take them; results are assembled as the pages expect), navigation tests for
+      the new tab sets, and tests for the tolerant reader. Mutation checks, each
+      restored byte for byte: the administrator gate in a loader, in the Team,
+      Clients and Operations pages; the member test; the readiness condition; the
+      inbox link; the owner gate on the Access page; the complaints permission in
+      the platform layout; the pages' data wiring in Privacy; the agency tab filter
+      (11 caught). The browser checks in
+      `ux-public.spec.ts` now also cover the two new bars (every tab reachable by
+      scrolling on a phone, no sideways scroll on a desktop).
+
+    Not verified, stated plainly: as in chunk 37, the signed-in pages were not
+    opened in a browser, so the render tests use mocked services and the layout
+    checks use the stylesheet against faithful building blocks; real data through
+    the real pages is exercised only by the staging journey, which needs
+    credentials and does not yet cover the agency (see the skipped steps in
+    `authenticated-workspace.spec.ts`). The Cases section still shows every visible
+    case on one page. `/app/admin#admin-...` anchors from before no longer exist
+    (nothing in the repository linked to them except one back link, updated).
+
+    Verified locally: `apps/web` 562/562 across 46 files (438 before; 124 new);
+    services, db and adapters are untouched by this chunk (last full runs: 1330,
+    34 plus 1 skipped, 322 plus 2 skipped); repo-wide Biome clean, typecheck 7/7,
+    production build clean (the existing `unpdf` warning only), every new route
+    answers a signed-out request with 307 to sign-in. Playwright against the local
+    production build: 67 of 69 (the two `/app` redirect cases cannot follow the
+    redirect to WorkOS from the sandbox; they run in CI).
 independently confirmed findings; the missing PRD file is tracked as Blocker 1 in
 `assumptions-and-blockers.md` (now resolved) rather than here, since it blocked the
 programme rather than being a product defect.
