@@ -1,6 +1,7 @@
 'use client';
 
 import { useActionState } from 'react';
+import { FormMessage, SubmitButton } from '../../../../components/form-feedback';
 import { type ActionState, attachPackAction } from './actions';
 
 const INITIAL: ActionState = { ok: true, message: '' };
@@ -47,14 +48,13 @@ export function AttachPackForm({
         ))}
       </select>
       <div>
-        <button type="submit" className="btn btn-primary" disabled={pending}>
-          {pending ? 'Attaching…' : 'Attach pack'}
-        </button>
-        {state.message ? (
-          <p className={`field-msg ${state.ok ? 'field-msg-ok' : 'field-msg-err'}`}>
-            {state.message}
-          </p>
-        ) : null}
+        <SubmitButton
+          pending={pending}
+          idle="Attach pack"
+          busy="Attaching…"
+          className="btn btn-primary"
+        />
+        <FormMessage result={state} />
       </div>
     </form>
   );

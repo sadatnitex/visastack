@@ -1,6 +1,7 @@
 'use client';
 
 import { useActionState } from 'react';
+import { FormMessage, SubmitButton } from '../../../../components/form-feedback';
 import {
   type ActionState,
   fileComplaintAction,
@@ -95,18 +96,17 @@ export function ComplaintPanel({
                 <form action={withdrawAction}>
                   <input type="hidden" name="missionId" value={missionId} />
                   <input type="hidden" name="complaintId" value={c.id} />
-                  <button type="submit" className="btn btn-secondary" disabled={withdrawPending}>
-                    {withdrawPending ? 'Withdrawing…' : 'Withdraw'}
-                  </button>
+                  <SubmitButton
+                    pending={withdrawPending}
+                    idle="Withdraw"
+                    busy="Withdrawing…"
+                    className="btn btn-secondary"
+                  />
                 </form>
               ) : null}
             </div>
           ))}
-          {withdrawState.message ? (
-            <p className={`field-msg ${withdrawState.ok ? 'field-msg-ok' : 'field-msg-err'}`}>
-              {withdrawState.message}
-            </p>
-          ) : null}
+          <FormMessage result={withdrawState} />
         </div>
       ) : null}
       <form action={fileAction} className="field-list">
@@ -124,14 +124,13 @@ export function ComplaintPanel({
           />
         </div>
         <div>
-          <button type="submit" className="btn btn-secondary" disabled={filePending}>
-            {filePending ? 'Filing…' : 'File complaint'}
-          </button>
-          {fileState.message ? (
-            <p className={`field-msg ${fileState.ok ? 'field-msg-ok' : 'field-msg-err'}`}>
-              {fileState.message}
-            </p>
-          ) : null}
+          <SubmitButton
+            pending={filePending}
+            idle="File complaint"
+            busy="Filing…"
+            className="btn btn-secondary"
+          />
+          <FormMessage result={fileState} />
         </div>
       </form>
     </article>
@@ -190,14 +189,13 @@ export function FeedbackPanel({
             <textarea id="feedback-comments" name="comments" className="input" rows={3} />
           </div>
           <div>
-            <button type="submit" className="btn btn-secondary" disabled={pending}>
-              {pending ? 'Submitting…' : 'Submit feedback'}
-            </button>
-            {state.message ? (
-              <p className={`field-msg ${state.ok ? 'field-msg-ok' : 'field-msg-err'}`}>
-                {state.message}
-              </p>
-            ) : null}
+            <SubmitButton
+              pending={pending}
+              idle="Submit feedback"
+              busy="Submitting…"
+              className="btn btn-secondary"
+            />
+            <FormMessage result={state} />
           </div>
         </form>
       ) : (

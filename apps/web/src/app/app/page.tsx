@@ -241,7 +241,12 @@ export default async function AppPage() {
           {CONSENT_TYPES.map((type) => (
             <div className="row" key={type}>
               <span className="row-key">{t(CONSENT_MESSAGE_KEYS[type])}</span>
-              <ConsentButton type={type} granted={Boolean(data.consents[type])} locale={locale} />
+              <ConsentButton
+                type={type}
+                granted={Boolean(data.consents[type])}
+                locale={locale}
+                label={t(CONSENT_MESSAGE_KEYS[type])}
+              />
             </div>
           ))}
         </div>

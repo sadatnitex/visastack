@@ -1,6 +1,7 @@
 'use client';
 
 import { useActionState } from 'react';
+import { FormMessage, SubmitButton } from '../../../../components/form-feedback';
 import { type ActionState, revokeInvitationAction } from './actions';
 
 const INITIAL: ActionState = { ok: true, message: '' };
@@ -20,20 +21,15 @@ export function InvitationRevokeButton({
       <form action={formAction}>
         <input type="hidden" name="organizationId" value={organizationId} />
         <input type="hidden" name="invitationId" value={invitationId} />
-        <button
-          type="submit"
+        <SubmitButton
+          pending={pending}
+          idle="Revoke"
+          busy="Revoking…"
           className="btn btn-secondary"
           style={{ padding: '0.3rem 0.85rem', fontSize: '0.8rem' }}
-          disabled={pending}
-        >
-          {pending ? 'Revoking…' : 'Revoke'}
-        </button>
+        />
       </form>
-      {state.message ? (
-        <p className={`field-msg ${state.ok ? 'field-msg-ok' : 'field-msg-err'}`}>
-          {state.message}
-        </p>
-      ) : null}
+      <FormMessage result={state} />
     </div>
   );
 }

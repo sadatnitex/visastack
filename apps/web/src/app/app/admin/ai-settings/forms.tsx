@@ -2,6 +2,7 @@
 
 import type { AiProviderConfig } from '@visastack/services';
 import { useActionState } from 'react';
+import { FormMessage, SubmitButton } from '../../../../components/form-feedback';
 import {
   type ActionState,
   activateAiProviderConfigAction,
@@ -16,10 +17,7 @@ import {
 const INITIAL: ActionState = { ok: true, message: '' };
 
 function StatusMessage({ state }: { readonly state: ActionState }) {
-  if (!state.message) return null;
-  return (
-    <p className={`field-msg ${state.ok ? 'field-msg-ok' : 'field-msg-err'}`}>{state.message}</p>
-  );
+  return <FormMessage result={state} />;
 }
 
 // All three directive-named providers (AI-03) are implemented -- a select
@@ -238,9 +236,12 @@ export function CreateDraftConfigForm({
         <input id="notes" name="notes" type="text" className="input" placeholder="Internal notes" />
       </div>
       <div>
-        <button type="submit" className="btn btn-primary" disabled={pending}>
-          {pending ? 'Saving…' : 'Save draft'}
-        </button>
+        <SubmitButton
+          pending={pending}
+          idle="Save draft"
+          busy="Saving…"
+          className="btn btn-primary"
+        />
         <StatusMessage state={state} />
       </div>
     </form>
@@ -261,14 +262,13 @@ export function TestConnectionButton({ configId }: { readonly configId: string }
   return (
     <form action={formAction}>
       <input type="hidden" name="configId" value={configId} />
-      <button
-        type="submit"
+      <SubmitButton
+        pending={pending}
+        idle="Test connection"
+        busy="Testing…"
         className="btn btn-secondary"
         style={{ padding: '0.3rem 0.85rem', fontSize: '0.8rem' }}
-        disabled={pending}
-      >
-        {pending ? 'Testing…' : 'Test connection'}
-      </button>
+      />
       <StatusMessage state={state} />
     </form>
   );
@@ -289,14 +289,13 @@ export function RunEvaluationButton({ configId }: { readonly configId: string })
   return (
     <form action={formAction}>
       <input type="hidden" name="configId" value={configId} />
-      <button
-        type="submit"
+      <SubmitButton
+        pending={pending}
+        idle="Run evaluation (13 cases)"
+        busy="Evaluating…"
         className="btn btn-secondary"
         style={{ padding: '0.3rem 0.85rem', fontSize: '0.8rem' }}
-        disabled={pending}
-      >
-        {pending ? 'Evaluating…' : 'Run evaluation (13 cases)'}
-      </button>
+      />
       <StatusMessage state={state} />
     </form>
   );
@@ -318,14 +317,13 @@ export function ActivateConfigButton({ configId }: { readonly configId: string }
       }}
     >
       <input type="hidden" name="configId" value={configId} />
-      <button
-        type="submit"
+      <SubmitButton
+        pending={pending}
+        idle="Activate"
+        busy="Activating…"
         className="btn btn-primary"
         style={{ padding: '0.3rem 0.85rem', fontSize: '0.8rem' }}
-        disabled={pending}
-      >
-        {pending ? 'Activating…' : 'Activate'}
-      </button>
+      />
       <StatusMessage state={state} />
     </form>
   );
@@ -346,9 +344,12 @@ export function RollbackConfigButton() {
         }
       }}
     >
-      <button type="submit" className="btn btn-secondary" disabled={pending}>
-        {pending ? 'Rolling back…' : 'Roll back'}
-      </button>
+      <SubmitButton
+        pending={pending}
+        idle="Roll back"
+        busy="Rolling back…"
+        className="btn btn-secondary"
+      />
       <StatusMessage state={state} />
     </form>
   );
@@ -372,9 +373,12 @@ export function EmergencyDisableButton() {
         }
       }}
     >
-      <button type="submit" className="btn btn-danger" disabled={pending}>
-        {pending ? 'Disabling…' : 'Emergency disable'}
-      </button>
+      <SubmitButton
+        pending={pending}
+        idle="Emergency disable"
+        busy="Disabling…"
+        className="btn btn-danger"
+      />
       <StatusMessage state={state} />
     </form>
   );
@@ -396,14 +400,13 @@ export function RevokeKeyButton({ configId }: { readonly configId: string }) {
       }}
     >
       <input type="hidden" name="configId" value={configId} />
-      <button
-        type="submit"
+      <SubmitButton
+        pending={pending}
+        idle="Revoke key"
+        busy="Revoking…"
         className="btn btn-danger"
         style={{ padding: '0.3rem 0.85rem', fontSize: '0.8rem' }}
-        disabled={pending}
-      >
-        {pending ? 'Revoking…' : 'Revoke key'}
-      </button>
+      />
       <StatusMessage state={state} />
     </form>
   );

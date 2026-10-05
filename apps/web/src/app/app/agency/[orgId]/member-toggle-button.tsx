@@ -1,6 +1,7 @@
 'use client';
 
 import { useActionState } from 'react';
+import { FormMessage, SubmitButton } from '../../../../components/form-feedback';
 import { type ActionState, toggleMemberAction } from './actions';
 
 const INITIAL: ActionState = { ok: true, message: '' };
@@ -30,20 +31,15 @@ export function MemberToggleButton({
         <input type="hidden" name="organizationId" value={organizationId} />
         <input type="hidden" name="membershipId" value={membershipId} />
         <input type="hidden" name="active" value={String(!active)} />
-        <button
-          type="submit"
+        <SubmitButton
+          pending={pending}
+          idle={active ? 'Deactivate' : 'Reactivate'}
+          busy="Updating…"
           className="btn btn-secondary"
           style={{ padding: '0.3rem 0.85rem', fontSize: '0.8rem' }}
-          disabled={pending}
-        >
-          {pending ? 'Updating…' : active ? 'Deactivate' : 'Reactivate'}
-        </button>
+        />
       </form>
-      {state.message ? (
-        <p className={`field-msg ${state.ok ? 'field-msg-ok' : 'field-msg-err'}`}>
-          {state.message}
-        </p>
-      ) : null}
+      <FormMessage result={state} />
     </div>
   );
 }

@@ -1,6 +1,7 @@
 'use client';
 
 import { useActionState } from 'react';
+import { FormMessage, SubmitButton } from '../../../../components/form-feedback';
 import {
   type ActionState,
   addNoteAction,
@@ -198,15 +199,14 @@ export function MissionCollaboration({
                 <input type="hidden" name="missionId" value={missionId} />
                 <input type="hidden" name="memberAccountId" value={a.memberAccountId} />
                 <span className="badge badge-neutral">{a.memberEmail}</span>
-                <button
-                  type="submit"
+                <SubmitButton
+                  pending={unassignPending}
+                  idle="×"
+                  busy="×"
                   className="btn btn-secondary"
                   style={{ padding: '0.1rem 0.5rem', fontSize: '0.7rem' }}
-                  disabled={unassignPending}
                   title="Unassign"
-                >
-                  ×
-                </button>
+                />
               </form>
             ))}
           </div>
@@ -225,26 +225,17 @@ export function MissionCollaboration({
                 </option>
               ))}
             </select>
-            <button
-              type="submit"
+            <SubmitButton
+              pending={assignPending}
+              idle="Assign"
+              busy="Assigning…"
               className="btn btn-secondary"
               style={{ padding: '0.3rem 0.85rem', fontSize: '0.8rem' }}
-              disabled={assignPending}
-            >
-              {assignPending ? 'Assigning…' : 'Assign'}
-            </button>
+            />
           </form>
         ) : null}
-        {assignState.message ? (
-          <p className={`field-msg ${assignState.ok ? 'field-msg-ok' : 'field-msg-err'}`}>
-            {assignState.message}
-          </p>
-        ) : null}
-        {unassignState.message ? (
-          <p className={`field-msg ${unassignState.ok ? 'field-msg-ok' : 'field-msg-err'}`}>
-            {unassignState.message}
-          </p>
-        ) : null}
+        <FormMessage result={assignState} />
+        <FormMessage result={unassignState} />
       </div>
 
       <div style={{ marginTop: '0.85rem' }}>
@@ -295,51 +286,47 @@ export function MissionCollaboration({
                         </option>
                       ))}
                     </select>
-                    <button
-                      type="submit"
+                    <SubmitButton
+                      pending={taskReassignPending}
+                      idle="Reassign"
+                      busy="Reassign"
                       className="btn btn-secondary"
                       style={{ padding: '0.15rem 0.5rem', fontSize: '0.72rem' }}
-                      disabled={taskReassignPending}
-                    >
-                      Reassign
-                    </button>
+                    />
                   </form>
                   <form action={taskDecideAction} style={{ display: 'flex', gap: '0.3rem' }}>
                     <input type="hidden" name="organizationId" value={organizationId} />
                     <input type="hidden" name="missionId" value={missionId} />
                     <input type="hidden" name="taskId" value={t.id} />
                     {t.status === 'OPEN' ? (
-                      <button
-                        type="submit"
-                        name="status"
-                        value="IN_PROGRESS"
+                      <SubmitButton
+                        pending={taskDecidePending}
+                        idle="Start"
+                        busy="Start"
                         className="btn btn-secondary"
                         style={{ padding: '0.15rem 0.5rem', fontSize: '0.72rem' }}
-                        disabled={taskDecidePending}
-                      >
-                        Start
-                      </button>
+                        name="status"
+                        value="IN_PROGRESS"
+                      />
                     ) : null}
-                    <button
-                      type="submit"
+                    <SubmitButton
+                      pending={taskDecidePending}
+                      idle="Done"
+                      busy="Done"
+                      className="btn btn-secondary"
+                      style={{ padding: '0.15rem 0.5rem', fontSize: '0.72rem' }}
                       name="status"
                       value="DONE"
+                    />
+                    <SubmitButton
+                      pending={taskDecidePending}
+                      idle="Cancel"
+                      busy="Cancel"
                       className="btn btn-secondary"
                       style={{ padding: '0.15rem 0.5rem', fontSize: '0.72rem' }}
-                      disabled={taskDecidePending}
-                    >
-                      Done
-                    </button>
-                    <button
-                      type="submit"
                       name="status"
                       value="CANCELLED"
-                      className="btn btn-secondary"
-                      style={{ padding: '0.15rem 0.5rem', fontSize: '0.72rem' }}
-                      disabled={taskDecidePending}
-                    >
-                      Cancel
-                    </button>
+                    />
                   </form>
                 </div>
               </div>
@@ -377,30 +364,17 @@ export function MissionCollaboration({
             ))}
           </select>
           <input name="dueDate" type="date" className="input" aria-label="Due date (optional)" />
-          <button
-            type="submit"
+          <SubmitButton
+            pending={taskCreatePending}
+            idle="Add"
+            busy="Adding…"
             className="btn btn-secondary"
             style={{ padding: '0.3rem 0.85rem', fontSize: '0.8rem' }}
-            disabled={taskCreatePending}
-          >
-            {taskCreatePending ? 'Adding…' : 'Add'}
-          </button>
+          />
         </form>
-        {taskCreateState.message ? (
-          <p className={`field-msg ${taskCreateState.ok ? 'field-msg-ok' : 'field-msg-err'}`}>
-            {taskCreateState.message}
-          </p>
-        ) : null}
-        {taskDecideState.message ? (
-          <p className={`field-msg ${taskDecideState.ok ? 'field-msg-ok' : 'field-msg-err'}`}>
-            {taskDecideState.message}
-          </p>
-        ) : null}
-        {taskReassignState.message ? (
-          <p className={`field-msg ${taskReassignState.ok ? 'field-msg-ok' : 'field-msg-err'}`}>
-            {taskReassignState.message}
-          </p>
-        ) : null}
+        <FormMessage result={taskCreateState} />
+        <FormMessage result={taskDecideState} />
+        <FormMessage result={taskReassignState} />
       </div>
 
       <div style={{ marginTop: '0.85rem' }}>
@@ -438,26 +412,24 @@ export function MissionCollaboration({
                   <input type="hidden" name="organizationId" value={organizationId} />
                   <input type="hidden" name="missionId" value={missionId} />
                   <input type="hidden" name="appointmentId" value={a.id} />
-                  <button
-                    type="submit"
+                  <SubmitButton
+                    pending={apptDecidePending}
+                    idle="Done"
+                    busy="Done"
+                    className="btn btn-secondary"
+                    style={{ padding: '0.15rem 0.5rem', fontSize: '0.72rem' }}
                     name="status"
                     value="DONE"
+                  />
+                  <SubmitButton
+                    pending={apptDecidePending}
+                    idle="Cancel"
+                    busy="Cancel"
                     className="btn btn-secondary"
                     style={{ padding: '0.15rem 0.5rem', fontSize: '0.72rem' }}
-                    disabled={apptDecidePending}
-                  >
-                    Done
-                  </button>
-                  <button
-                    type="submit"
                     name="status"
                     value="CANCELLED"
-                    className="btn btn-secondary"
-                    style={{ padding: '0.15rem 0.5rem', fontSize: '0.72rem' }}
-                    disabled={apptDecidePending}
-                  >
-                    Cancel
-                  </button>
+                  />
                 </form>
               </div>
             ))}
@@ -503,25 +475,16 @@ export function MissionCollaboration({
             placeholder="Channel"
             aria-label="Channel"
           />
-          <button
-            type="submit"
+          <SubmitButton
+            pending={apptCreatePending}
+            idle="Schedule"
+            busy="Scheduling…"
             className="btn btn-secondary"
             style={{ padding: '0.3rem 0.85rem', fontSize: '0.8rem' }}
-            disabled={apptCreatePending}
-          >
-            {apptCreatePending ? 'Scheduling…' : 'Schedule'}
-          </button>
+          />
         </form>
-        {apptCreateState.message ? (
-          <p className={`field-msg ${apptCreateState.ok ? 'field-msg-ok' : 'field-msg-err'}`}>
-            {apptCreateState.message}
-          </p>
-        ) : null}
-        {apptDecideState.message ? (
-          <p className={`field-msg ${apptDecideState.ok ? 'field-msg-ok' : 'field-msg-err'}`}>
-            {apptDecideState.message}
-          </p>
-        ) : null}
+        <FormMessage result={apptCreateState} />
+        <FormMessage result={apptDecideState} />
       </div>
 
       <div style={{ marginTop: '0.85rem' }}>
@@ -582,20 +545,15 @@ export function MissionCollaboration({
             <option value="AGENCY_INTERNAL">Internal (this org only)</option>
             <option value="TRAVELLER_SHARED">Shared with traveller</option>
           </select>
-          <button
-            type="submit"
+          <SubmitButton
+            pending={notePending}
+            idle="Add"
+            busy="Adding…"
             className="btn btn-secondary"
             style={{ padding: '0.3rem 0.85rem', fontSize: '0.8rem' }}
-            disabled={notePending}
-          >
-            {notePending ? 'Adding…' : 'Add'}
-          </button>
+          />
         </form>
-        {noteState.message ? (
-          <p className={`field-msg ${noteState.ok ? 'field-msg-ok' : 'field-msg-err'}`}>
-            {noteState.message}
-          </p>
-        ) : null}
+        <FormMessage result={noteState} />
       </div>
 
       {requirements.length > 0 ? (
@@ -660,25 +618,20 @@ export function MissionCollaboration({
                 placeholder="Reason (optional)"
                 aria-label="Decision reason"
               />
-              <button
-                type="submit"
+              <SubmitButton
+                pending={decisionPending}
+                idle="Record"
+                busy="Recording…"
                 className="btn btn-secondary"
                 style={{ padding: '0.3rem 0.85rem', fontSize: '0.8rem' }}
-                disabled={decisionPending}
-              >
-                {decisionPending ? 'Recording…' : 'Record'}
-              </button>
+              />
             </form>
           ) : (
             <p className="muted" style={{ fontSize: '0.78rem' }}>
               Only an assigned member can record a decision.
             </p>
           )}
-          {decisionState.message ? (
-            <p className={`field-msg ${decisionState.ok ? 'field-msg-ok' : 'field-msg-err'}`}>
-              {decisionState.message}
-            </p>
-          ) : null}
+          <FormMessage result={decisionState} />
         </div>
       ) : null}
 
@@ -774,24 +727,19 @@ export function MissionCollaboration({
               aria-label="Valid until"
               required
             />
-            <button
-              type="submit"
+            <SubmitButton
+              pending={issuerPending}
+              idle="Record confirmation"
+              busy="Recording…"
               className="btn btn-secondary"
               style={{ padding: '0.3rem 0.85rem', fontSize: '0.8rem' }}
-              disabled={issuerPending}
-            >
-              {issuerPending ? 'Recording…' : 'Record confirmation'}
-            </button>
+            />
           </form>
           <p className="muted" style={{ fontSize: '0.75rem', marginTop: '0.35rem' }}>
             Requires evidence already selected for that requirement; a staff checkbox alone is never
             accepted as confirmation.
           </p>
-          {issuerState.message ? (
-            <p className={`field-msg ${issuerState.ok ? 'field-msg-ok' : 'field-msg-err'}`}>
-              {issuerState.message}
-            </p>
-          ) : null}
+          <FormMessage result={issuerState} />
         </div>
       ) : null}
     </div>

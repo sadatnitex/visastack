@@ -1,6 +1,7 @@
 'use client';
 
 import { useActionState, useState } from 'react';
+import { FormMessage, SubmitButton } from '../../../../components/form-feedback';
 import { type ActionState, decideDocumentNameAction } from './actions';
 
 const INITIAL: ActionState = { ok: true, message: '' };
@@ -68,32 +69,26 @@ export function NameReview({
           className="input"
           style={{ flex: '1 1 260px', fontSize: '0.85rem', padding: '0.4rem 0.65rem' }}
         />
-        <button
-          type="submit"
-          name="nameAction"
-          value="accept"
+        <SubmitButton
+          pending={pending}
+          idle="Approve"
+          busy="Saving…"
           className="btn btn-primary"
           style={{ padding: '0.35rem 0.9rem', fontSize: '0.8rem' }}
-          disabled={pending}
-        >
-          {pending ? 'Saving…' : 'Approve'}
-        </button>
-        <button
-          type="submit"
           name="nameAction"
-          value="reject"
+          value="accept"
+        />
+        <SubmitButton
+          pending={pending}
+          idle="Reject"
+          busy="Reject"
           className="btn btn-secondary"
           style={{ padding: '0.35rem 0.9rem', fontSize: '0.8rem' }}
-          disabled={pending}
-        >
-          Reject
-        </button>
+          name="nameAction"
+          value="reject"
+        />
       </form>
-      {state.message ? (
-        <p className={`field-msg ${state.ok ? 'field-msg-ok' : 'field-msg-err'}`}>
-          {state.message}
-        </p>
-      ) : null}
+      <FormMessage result={state} />
     </div>
   );
 }

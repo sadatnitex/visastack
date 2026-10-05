@@ -1,6 +1,7 @@
 'use client';
 
 import { useActionState } from 'react';
+import { FormMessage, SubmitButton } from '../../../components/form-feedback';
 import { type ActionState, createOrganizationAction } from './actions';
 
 const INITIAL: ActionState = { ok: true, message: '' };
@@ -19,14 +20,13 @@ export function CreateOrgForm() {
         aria-label="Organization name"
       />
       <div>
-        <button type="submit" className="btn btn-primary" disabled={pending}>
-          {pending ? 'Creating…' : 'Create organization'}
-        </button>
-        {state.message ? (
-          <p className={`field-msg ${state.ok ? 'field-msg-ok' : 'field-msg-err'}`}>
-            {state.message}
-          </p>
-        ) : null}
+        <SubmitButton
+          pending={pending}
+          idle="Create organization"
+          busy="Creating…"
+          className="btn btn-primary"
+        />
+        <FormMessage result={state} />
       </div>
     </form>
   );

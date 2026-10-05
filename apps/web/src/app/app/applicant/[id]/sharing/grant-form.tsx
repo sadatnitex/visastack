@@ -1,6 +1,7 @@
 'use client';
 
 import { useActionState, useState } from 'react';
+import { FormMessage, SubmitButton } from '../../../../../components/form-feedback';
 import { PACK_LABELS, PACK_ORDER } from '../../../../../lib/profile-fields';
 import { type ActionState, createGrantAction } from './actions';
 
@@ -188,14 +189,13 @@ export function GrantForm({
       </div>
 
       <div>
-        <button type="submit" className="btn btn-primary" disabled={pending}>
-          {pending ? 'Sharing…' : 'Share access'}
-        </button>
-        {state.message ? (
-          <p className={`field-msg ${state.ok ? 'field-msg-ok' : 'field-msg-err'}`}>
-            {state.message}
-          </p>
-        ) : null}
+        <SubmitButton
+          pending={pending}
+          idle="Share access"
+          busy="Sharing…"
+          className="btn btn-primary"
+        />
+        <FormMessage result={state} />
       </div>
     </form>
   );

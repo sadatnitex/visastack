@@ -1,6 +1,7 @@
 'use client';
 
 import { useActionState } from 'react';
+import { FormMessage, SubmitButton } from '../../../../components/form-feedback';
 import { type ActionState, recordSubmissionAction } from './actions';
 
 const INITIAL: ActionState = { ok: true, message: '' };
@@ -114,14 +115,13 @@ export function SubmissionReportPanel({
             <input id="submittedAt" name="submittedAt" type="datetime-local" className="input" />
           </div>
           <div>
-            <button type="submit" className="btn btn-secondary" disabled={pending}>
-              {pending ? 'Recording…' : 'Report submission'}
-            </button>
-            {state.message ? (
-              <p className={`field-msg ${state.ok ? 'field-msg-ok' : 'field-msg-err'}`}>
-                {state.message}
-              </p>
-            ) : null}
+            <SubmitButton
+              pending={pending}
+              idle="Report submission"
+              busy="Recording…"
+              className="btn btn-secondary"
+            />
+            <FormMessage result={state} />
           </div>
         </form>
       ) : (

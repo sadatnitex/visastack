@@ -1,6 +1,7 @@
 'use client';
 
 import { useActionState } from 'react';
+import { FormMessage, SubmitButton } from '../../../components/form-feedback';
 import { type ActionState, cancelDeletionAction, requestDeletionAction } from './actions';
 
 const INITIAL: ActionState = { ok: true, message: '' };
@@ -71,15 +72,14 @@ export function DeletionPanel({ scheduledFor, impact, holds }: DeletionPanelProp
           permanent deletion on {when}. Cancel any time before then to keep your account.
         </div>
         <form action={cancelAction}>
-          <button type="submit" className="btn btn-primary" disabled={cancelPending}>
-            {cancelPending ? 'Cancelling…' : 'Cancel deletion'}
-          </button>
+          <SubmitButton
+            pending={cancelPending}
+            idle="Cancel deletion"
+            busy="Cancelling…"
+            className="btn btn-primary"
+          />
         </form>
-        {cancelState.message ? (
-          <p className={`field-msg ${cancelState.ok ? 'field-msg-ok' : 'field-msg-err'}`}>
-            {cancelState.message}
-          </p>
-        ) : null}
+        <FormMessage result={cancelState} />
       </div>
     );
   }
@@ -165,14 +165,13 @@ export function DeletionPanel({ scheduledFor, impact, holds }: DeletionPanelProp
           placeholder="Helps us improve - not required"
           style={{ marginBottom: '0.85rem' }}
         />
-        <button type="submit" className="btn btn-danger" disabled={reqPending}>
-          {reqPending ? 'Scheduling…' : 'Request account deletion'}
-        </button>
-        {reqState.message ? (
-          <p className={`field-msg ${reqState.ok ? 'field-msg-ok' : 'field-msg-err'}`}>
-            {reqState.message}
-          </p>
-        ) : null}
+        <SubmitButton
+          pending={reqPending}
+          idle="Request account deletion"
+          busy="Scheduling…"
+          className="btn btn-danger"
+        />
+        <FormMessage result={reqState} />
       </form>
     </div>
   );

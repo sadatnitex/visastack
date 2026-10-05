@@ -1,6 +1,7 @@
 'use client';
 
 import { useActionState } from 'react';
+import { FormMessage, SubmitButton } from '../../../../components/form-feedback';
 import { type ActionState, uploadDocumentAction } from './actions';
 
 const INITIAL: ActionState = { ok: true, message: '' };
@@ -19,14 +20,13 @@ export function DocumentUploader({ applicantId }: { readonly applicantId: string
         className="input"
         aria-label="Document file"
       />
-      <button type="submit" className="btn btn-primary" disabled={pending}>
-        {pending ? 'Uploading…' : 'Upload document'}
-      </button>
-      {state.message ? (
-        <p className={`field-msg ${state.ok ? 'field-msg-ok' : 'field-msg-err'}`}>
-          {state.message}
-        </p>
-      ) : null}
+      <SubmitButton
+        pending={pending}
+        idle="Upload document"
+        busy="Uploading…"
+        className="btn btn-primary"
+      />
+      <FormMessage result={state} />
       <p className="muted" style={{ fontSize: '0.8rem', margin: 0 }}>
         PNG, JPEG, DOCX, TXT or MD · up to 20 MB · scanned for safety on upload.
       </p>

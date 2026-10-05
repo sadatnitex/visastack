@@ -1,6 +1,7 @@
 'use client';
 
 import { useActionState, useState } from 'react';
+import { FormMessage, SubmitButton } from '../../../../../components/form-feedback';
 import { type ActionState, submitEvidenceResponseAction } from './actions';
 
 const INITIAL: ActionState = { ok: true, message: '' };
@@ -116,19 +117,15 @@ export function SubmitResponseForm({
             ))}
       </div>
       <div>
-        <button
-          type="submit"
+        <SubmitButton
+          pending={pending}
+          unavailable={selection.length === 0}
+          idle="Submit"
+          busy="Submitting…"
           className="btn btn-primary"
           style={{ padding: '0.3rem 0.9rem', fontSize: '0.8rem' }}
-          disabled={pending || selection.length === 0}
-        >
-          {pending ? 'Submitting…' : 'Submit'}
-        </button>
-        {state.message ? (
-          <p className={`field-msg ${state.ok ? 'field-msg-ok' : 'field-msg-err'}`}>
-            {state.message}
-          </p>
-        ) : null}
+        />
+        <FormMessage result={state} />
       </div>
     </form>
   );

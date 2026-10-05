@@ -1,6 +1,7 @@
 'use client';
 
 import { useActionState, useState } from 'react';
+import { FormMessage, SubmitButton } from '../../../../components/form-feedback';
 import {
   type ActionState,
   cancelEvidenceRequestAction,
@@ -55,28 +56,26 @@ export function EvidenceRequestActions({
           <form action={reviewAction}>
             <input type="hidden" name="organizationId" value={organizationId} />
             <input type="hidden" name="requestId" value={requestId} />
-            <button
-              type="submit"
+            <SubmitButton
+              pending={reviewPending}
+              idle="Start review"
+              busy="Starting…"
               className="btn btn-secondary"
               style={{ padding: '0.3rem 0.75rem', fontSize: '0.8rem' }}
-              disabled={reviewPending}
-            >
-              {reviewPending ? 'Starting…' : 'Start review'}
-            </button>
+            />
           </form>
         ) : null}
         <form action={decideAction}>
           <input type="hidden" name="organizationId" value={organizationId} />
           <input type="hidden" name="requestId" value={requestId} />
           <input type="hidden" name="outcome" value="ACCEPTED" />
-          <button
-            type="submit"
+          <SubmitButton
+            pending={decidePending}
+            idle="Accept"
+            busy="Accept"
             className="btn btn-primary"
             style={{ padding: '0.3rem 0.75rem', fontSize: '0.8rem' }}
-            disabled={decidePending}
-          >
-            Accept
-          </button>
+          />
         </form>
         <button
           type="button"
@@ -109,14 +108,13 @@ export function EvidenceRequestActions({
         <form action={cancelAction}>
           <input type="hidden" name="organizationId" value={organizationId} />
           <input type="hidden" name="requestId" value={requestId} />
-          <button
-            type="submit"
+          <SubmitButton
+            pending={cancelPending}
+            idle="Cancel request"
+            busy="Cancelling…"
             className="btn btn-secondary"
             style={{ padding: '0.3rem 0.75rem', fontSize: '0.8rem' }}
-            disabled={cancelPending}
-          >
-            {cancelPending ? 'Cancelling…' : 'Cancel request'}
-          </button>
+          />
         </form>
       </div>
       {reasonOutcome ? (
@@ -132,22 +130,20 @@ export function EvidenceRequestActions({
             type="text"
             required
             className="input"
+            aria-label="Reason"
             placeholder={REASON_PLACEHOLDER[reasonOutcome]}
             style={{ fontSize: '0.8rem' }}
           />
-          <button
-            type="submit"
+          <SubmitButton
+            pending={decidePending}
+            idle="Send"
+            busy="Sending…"
             className="btn btn-secondary"
             style={{ padding: '0.3rem 0.75rem', fontSize: '0.8rem' }}
-            disabled={decidePending}
-          >
-            {decidePending ? 'Sending…' : 'Send'}
-          </button>
+          />
         </form>
       ) : null}
-      {anyMessage ? (
-        <p className={`field-msg ${anyOk ? 'field-msg-ok' : 'field-msg-err'}`}>{anyMessage}</p>
-      ) : null}
+      <FormMessage result={{ ok: anyOk, message: anyMessage }} />
     </div>
   );
 }

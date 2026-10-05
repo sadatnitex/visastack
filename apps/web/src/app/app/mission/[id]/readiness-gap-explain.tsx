@@ -1,6 +1,7 @@
 'use client';
 
 import { useActionState } from 'react';
+import { FormMessage, SubmitButton } from '../../../../components/form-feedback';
 import { type ActionState, explainReadinessGapAction } from './actions';
 
 const INITIAL: ActionState = { ok: true, message: '' };
@@ -36,20 +37,15 @@ export function ExplainGapButton({
       <form action={formAction} style={{ display: 'inline' }}>
         <input type="hidden" name="missionId" value={missionId} />
         <input type="hidden" name="packRequirementId" value={packRequirementId} />
-        <button
-          type="submit"
+        <SubmitButton
+          pending={pending}
+          idle={explanation ? 'Refresh explanation' : 'Explain this with AI'}
+          busy="Asking AI…"
           className="btn btn-secondary"
           style={{ padding: '0.2rem 0.6rem', fontSize: '0.75rem' }}
-          disabled={pending}
-        >
-          {pending ? 'Asking AI…' : explanation ? 'Refresh explanation' : 'Explain this with AI'}
-        </button>
+        />
       </form>
-      {!state.ok && state.message ? (
-        <p className="field-msg field-msg-err" style={{ fontSize: '0.75rem' }}>
-          {state.message}
-        </p>
-      ) : null}
+      <FormMessage result={state} style={{ fontSize: '0.75rem' }} />
     </div>
   );
 }

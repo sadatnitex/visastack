@@ -1,6 +1,7 @@
 'use client';
 
 import { useActionState, useState } from 'react';
+import { FormMessage, SubmitButton } from '../../../../components/form-feedback';
 import { profileField } from '../../../../lib/profile-fields';
 import {
   type ActionState,
@@ -30,20 +31,15 @@ export function RunAiExtractionButton({
       <form action={formAction} style={{ display: 'inline' }}>
         <input type="hidden" name="applicantId" value={applicantId} />
         <input type="hidden" name="documentVersionId" value={documentVersionId} />
-        <button
-          type="submit"
+        <SubmitButton
+          pending={pending}
+          idle="Run AI extraction"
+          busy="Running AI extraction…"
           className="btn btn-secondary"
           style={{ padding: '0.3rem 0.9rem', fontSize: '0.8rem' }}
-          disabled={pending}
-        >
-          {pending ? 'Running AI extraction…' : 'Run AI extraction'}
-        </button>
+        />
       </form>
-      {state.message ? (
-        <p className={`field-msg ${state.ok ? 'field-msg-ok' : 'field-msg-err'}`}>
-          {state.message}
-        </p>
-      ) : null}
+      <FormMessage result={state} />
     </div>
   );
 }
@@ -71,20 +67,15 @@ export function RunOcrButton({
       <form action={formAction} style={{ display: 'inline' }}>
         <input type="hidden" name="applicantId" value={applicantId} />
         <input type="hidden" name="documentVersionId" value={documentVersionId} />
-        <button
-          type="submit"
+        <SubmitButton
+          pending={pending}
+          idle="Run OCR"
+          busy="Running OCR…"
           className="btn btn-secondary"
           style={{ padding: '0.3rem 0.9rem', fontSize: '0.8rem' }}
-          disabled={pending}
-        >
-          {pending ? 'Running OCR…' : 'Run OCR'}
-        </button>
+        />
       </form>
-      {state.message ? (
-        <p className={`field-msg ${state.ok ? 'field-msg-ok' : 'field-msg-err'}`}>
-          {state.message}
-        </p>
-      ) : null}
+      <FormMessage result={state} />
     </div>
   );
 }
@@ -246,38 +237,32 @@ export function AiProposalReview({
               className="input"
               style={{ flex: '1 1 260px', fontSize: '0.85rem', padding: '0.4rem 0.65rem' }}
             />
-            <button
-              type="submit"
-              name="proposalAction"
-              value="approve"
+            <SubmitButton
+              pending={pending}
+              idle="Approve"
+              busy="Saving…"
               className="btn btn-primary"
               style={{ padding: '0.35rem 0.9rem', fontSize: '0.8rem' }}
-              disabled={pending}
-            >
-              {pending ? 'Saving…' : 'Approve'}
-            </button>
+              name="proposalAction"
+              value="approve"
+            />
           </>
         ) : (
           <span className="muted" style={{ fontSize: '0.8rem' }}>
             {proposal.value ?? '(no value)'}
           </span>
         )}
-        <button
-          type="submit"
-          name="proposalAction"
-          value="reject"
+        <SubmitButton
+          pending={pending}
+          idle="Reject"
+          busy="Reject"
           className="btn btn-secondary"
           style={{ padding: '0.35rem 0.9rem', fontSize: '0.8rem' }}
-          disabled={pending}
-        >
-          Reject
-        </button>
+          name="proposalAction"
+          value="reject"
+        />
       </form>
-      {state.message ? (
-        <p className={`field-msg ${state.ok ? 'field-msg-ok' : 'field-msg-err'}`}>
-          {state.message}
-        </p>
-      ) : null}
+      <FormMessage result={state} />
     </div>
   );
 }
@@ -297,20 +282,15 @@ export function RunClassificationButton({
       <form action={formAction} style={{ display: 'inline' }}>
         <input type="hidden" name="applicantId" value={applicantId} />
         <input type="hidden" name="documentVersionId" value={documentVersionId} />
-        <button
-          type="submit"
+        <SubmitButton
+          pending={pending}
+          idle="Suggest document type with AI"
+          busy="Asking AI to suggest a type…"
           className="btn btn-secondary"
           style={{ padding: '0.3rem 0.9rem', fontSize: '0.8rem' }}
-          disabled={pending}
-        >
-          {pending ? 'Asking AI to suggest a type…' : 'Suggest document type with AI'}
-        </button>
+        />
       </form>
-      {state.message ? (
-        <p className={`field-msg ${state.ok ? 'field-msg-ok' : 'field-msg-err'}`}>
-          {state.message}
-        </p>
-      ) : null}
+      <FormMessage result={state} />
     </div>
   );
 }
@@ -330,20 +310,15 @@ export function RunInconsistencyCheckButton({
       <form action={formAction} style={{ display: 'inline' }}>
         <input type="hidden" name="applicantId" value={applicantId} />
         <input type="hidden" name="documentVersionId" value={documentVersionId} />
-        <button
-          type="submit"
+        <SubmitButton
+          pending={pending}
+          idle="Check for inconsistencies with AI"
+          busy="Checking for inconsistencies…"
           className="btn btn-secondary"
           style={{ padding: '0.3rem 0.9rem', fontSize: '0.8rem' }}
-          disabled={pending}
-        >
-          {pending ? 'Checking for inconsistencies…' : 'Check for inconsistencies with AI'}
-        </button>
+        />
       </form>
-      {state.message ? (
-        <p className={`field-msg ${state.ok ? 'field-msg-ok' : 'field-msg-err'}`}>
-          {state.message}
-        </p>
-      ) : null}
+      <FormMessage result={state} />
     </div>
   );
 }
@@ -396,32 +371,26 @@ export function InconsistencyFlagReview({
       >
         <input type="hidden" name="applicantId" value={applicantId} />
         <input type="hidden" name="flagId" value={flag.id} />
-        <button
-          type="submit"
-          name="flagAction"
-          value="acknowledge"
+        <SubmitButton
+          pending={pending}
+          idle="Acknowledge"
+          busy="Saving…"
           className="btn btn-primary"
           style={{ padding: '0.35rem 0.9rem', fontSize: '0.8rem' }}
-          disabled={pending}
-        >
-          {pending ? 'Saving…' : 'Acknowledge'}
-        </button>
-        <button
-          type="submit"
           name="flagAction"
-          value="dismiss"
+          value="acknowledge"
+        />
+        <SubmitButton
+          pending={pending}
+          idle="Dismiss"
+          busy="Dismiss"
           className="btn btn-secondary"
           style={{ padding: '0.35rem 0.9rem', fontSize: '0.8rem' }}
-          disabled={pending}
-        >
-          Dismiss
-        </button>
+          name="flagAction"
+          value="dismiss"
+        />
       </form>
-      {state.message ? (
-        <p className={`field-msg ${state.ok ? 'field-msg-ok' : 'field-msg-err'}`}>
-          {state.message}
-        </p>
-      ) : null}
+      <FormMessage result={state} />
     </div>
   );
 }
@@ -476,33 +445,27 @@ export function DocumentTypeProposalReview({
         <input type="hidden" name="applicantId" value={applicantId} />
         <input type="hidden" name="proposalId" value={proposal.id} />
         {canApprove ? (
-          <button
-            type="submit"
-            name="proposalAction"
-            value="approve"
+          <SubmitButton
+            pending={pending}
+            idle="Approve"
+            busy="Saving…"
             className="btn btn-primary"
             style={{ padding: '0.35rem 0.9rem', fontSize: '0.8rem' }}
-            disabled={pending}
-          >
-            {pending ? 'Saving…' : 'Approve'}
-          </button>
+            name="proposalAction"
+            value="approve"
+          />
         ) : null}
-        <button
-          type="submit"
-          name="proposalAction"
-          value="reject"
+        <SubmitButton
+          pending={pending}
+          idle="Reject"
+          busy="Reject"
           className="btn btn-secondary"
           style={{ padding: '0.35rem 0.9rem', fontSize: '0.8rem' }}
-          disabled={pending}
-        >
-          Reject
-        </button>
+          name="proposalAction"
+          value="reject"
+        />
       </form>
-      {state.message ? (
-        <p className={`field-msg ${state.ok ? 'field-msg-ok' : 'field-msg-err'}`}>
-          {state.message}
-        </p>
-      ) : null}
+      <FormMessage result={state} />
     </div>
   );
 }

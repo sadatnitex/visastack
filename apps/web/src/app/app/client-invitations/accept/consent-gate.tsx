@@ -2,6 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { useActionState, useEffect, useRef } from 'react';
+import { FormMessage, SubmitButton } from '../../../../components/form-feedback';
 import { type ActionState, setConsentAction } from '../../actions';
 
 const INITIAL: ActionState = { ok: true, message: '' };
@@ -45,14 +46,16 @@ function ConsentToggle({
         <form action={formAction}>
           <input type="hidden" name="type" value={type} />
           <input type="hidden" name="granted" value="true" />
-          <button
-            type="submit"
+          <SubmitButton
+            pending={pending}
+            idle="Grant"
+            busy="Granting…"
+            label={`Grant: ${label}`}
             className="btn btn-primary"
             style={{ padding: '0.35rem 1rem', fontSize: '0.85rem' }}
-            disabled={pending}
-          >
-            {pending ? 'Granting…' : 'Grant'}
-          </button>
+          />
+          {/* A failed grant used to say nothing at all. */}
+          <FormMessage result={state} />
         </form>
       )}
     </div>

@@ -1,6 +1,7 @@
 'use client';
 
 import { useActionState } from 'react';
+import { FormMessage, SubmitButton } from '../../../../components/form-feedback';
 import {
   type ActionState,
   assignComplaintOwnerAction,
@@ -25,14 +26,13 @@ export function AssignComplaintForm({ complaintId }: { readonly complaintId: str
         placeholder="assign to email"
         style={{ maxWidth: '14rem' }}
       />
-      <button type="submit" className="btn btn-secondary" disabled={pending}>
-        {pending ? 'Assigning…' : 'Assign'}
-      </button>
-      {state.message ? (
-        <p className={`field-msg ${state.ok ? 'field-msg-ok' : 'field-msg-err'}`}>
-          {state.message}
-        </p>
-      ) : null}
+      <SubmitButton
+        pending={pending}
+        idle="Assign"
+        busy="Assigning…"
+        className="btn btn-secondary"
+      />
+      <FormMessage result={state} />
     </form>
   );
 }
@@ -81,14 +81,13 @@ export function UpdateComplaintStatusForm({
         placeholder="resolution (if resolving)"
       />
       <input name="note" type="text" className="input" placeholder="note (optional)" />
-      <button type="submit" className="btn btn-secondary" disabled={pending}>
-        {pending ? 'Updating…' : 'Update'}
-      </button>
-      {state.message ? (
-        <p className={`field-msg ${state.ok ? 'field-msg-ok' : 'field-msg-err'}`}>
-          {state.message}
-        </p>
-      ) : null}
+      <SubmitButton
+        pending={pending}
+        idle="Update"
+        busy="Updating…"
+        className="btn btn-secondary"
+      />
+      <FormMessage result={state} />
     </form>
   );
 }

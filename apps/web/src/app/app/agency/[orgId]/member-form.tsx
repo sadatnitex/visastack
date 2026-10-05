@@ -1,6 +1,7 @@
 'use client';
 
 import { useActionState } from 'react';
+import { FormMessage, SubmitButton } from '../../../../components/form-feedback';
 import { type ActionState, addMemberAction } from './actions';
 
 const INITIAL: ActionState = { ok: true, message: '' };
@@ -34,14 +35,13 @@ export function AddMemberForm({ organizationId }: { readonly organizationId: str
         </select>
       </div>
       <div>
-        <button type="submit" className="btn btn-secondary" disabled={pending}>
-          {pending ? 'Adding…' : 'Add member'}
-        </button>
-        {state.message ? (
-          <p className={`field-msg ${state.ok ? 'field-msg-ok' : 'field-msg-err'}`}>
-            {state.message}
-          </p>
-        ) : null}
+        <SubmitButton
+          pending={pending}
+          idle="Add member"
+          busy="Adding…"
+          className="btn btn-secondary"
+        />
+        <FormMessage result={state} />
       </div>
     </form>
   );

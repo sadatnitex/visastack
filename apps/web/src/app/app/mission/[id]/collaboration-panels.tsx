@@ -1,6 +1,7 @@
 'use client';
 
 import { useActionState } from 'react';
+import { FormMessage, SubmitButton } from '../../../../components/form-feedback';
 import {
   type ActionState,
   createAppointmentAction,
@@ -85,47 +86,40 @@ export function TasksPanel({
               </span>
               <div style={{ display: 'flex', gap: '0.4rem' }}>
                 {task.status === 'OPEN' ? (
-                  <button
-                    type="submit"
-                    name="status"
-                    value="IN_PROGRESS"
+                  <SubmitButton
+                    pending={decidePending}
+                    idle="Start"
+                    busy="Start"
                     className="btn btn-secondary"
                     style={{ padding: '0.25rem 0.7rem', fontSize: '0.78rem' }}
-                    disabled={decidePending}
-                  >
-                    Start
-                  </button>
+                    name="status"
+                    value="IN_PROGRESS"
+                  />
                 ) : null}
-                <button
-                  type="submit"
+                <SubmitButton
+                  pending={decidePending}
+                  idle="Done"
+                  busy="Done"
+                  className="btn btn-secondary"
+                  style={{ padding: '0.25rem 0.7rem', fontSize: '0.78rem' }}
                   name="status"
                   value="DONE"
+                />
+                <SubmitButton
+                  pending={decidePending}
+                  idle="Cancel"
+                  busy="Cancel"
                   className="btn btn-secondary"
                   style={{ padding: '0.25rem 0.7rem', fontSize: '0.78rem' }}
-                  disabled={decidePending}
-                >
-                  Done
-                </button>
-                <button
-                  type="submit"
                   name="status"
                   value="CANCELLED"
-                  className="btn btn-secondary"
-                  style={{ padding: '0.25rem 0.7rem', fontSize: '0.78rem' }}
-                  disabled={decidePending}
-                >
-                  Cancel
-                </button>
+                />
               </div>
             </form>
           ))}
         </div>
       )}
-      {decideState.message ? (
-        <p className={`field-msg ${decideState.ok ? 'field-msg-ok' : 'field-msg-err'}`}>
-          {decideState.message}
-        </p>
-      ) : null}
+      <FormMessage result={decideState} />
 
       {decided.length > 0 ? (
         <details style={{ marginBottom: '1rem' }}>
@@ -181,15 +175,14 @@ export function TasksPanel({
           aria-label="Due timezone (optional)"
           style={{ maxWidth: '10rem' }}
         />
-        <button type="submit" className="btn btn-secondary" disabled={createPending}>
-          {createPending ? 'Adding…' : 'Add'}
-        </button>
+        <SubmitButton
+          pending={createPending}
+          idle="Add"
+          busy="Adding…"
+          className="btn btn-secondary"
+        />
       </form>
-      {createState.message ? (
-        <p className={`field-msg ${createState.ok ? 'field-msg-ok' : 'field-msg-err'}`}>
-          {createState.message}
-        </p>
-      ) : null}
+      <FormMessage result={createState} />
     </article>
   );
 }
@@ -259,37 +252,31 @@ export function AppointmentsPanel({
                 <form action={decideAction} style={{ display: 'flex', gap: '0.4rem' }}>
                   <input type="hidden" name="missionId" value={missionId} />
                   <input type="hidden" name="appointmentId" value={appt.id} />
-                  <button
-                    type="submit"
+                  <SubmitButton
+                    pending={decidePending}
+                    idle="Done"
+                    busy="Done"
+                    className="btn btn-secondary"
+                    style={{ padding: '0.2rem 0.6rem', fontSize: '0.75rem' }}
                     name="status"
                     value="DONE"
+                  />
+                  <SubmitButton
+                    pending={decidePending}
+                    idle="Cancel"
+                    busy="Cancel"
                     className="btn btn-secondary"
                     style={{ padding: '0.2rem 0.6rem', fontSize: '0.75rem' }}
-                    disabled={decidePending}
-                  >
-                    Done
-                  </button>
-                  <button
-                    type="submit"
                     name="status"
                     value="CANCELLED"
-                    className="btn btn-secondary"
-                    style={{ padding: '0.2rem 0.6rem', fontSize: '0.75rem' }}
-                    disabled={decidePending}
-                  >
-                    Cancel
-                  </button>
+                  />
                 </form>
               </div>
             </div>
           ))}
         </div>
       )}
-      {decideState.message ? (
-        <p className={`field-msg ${decideState.ok ? 'field-msg-ok' : 'field-msg-err'}`}>
-          {decideState.message}
-        </p>
-      ) : null}
+      <FormMessage result={decideState} />
 
       {past.length > 0 ? (
         <details style={{ marginBottom: '1rem' }}>
@@ -348,15 +335,14 @@ export function AppointmentsPanel({
           placeholder="Channel, e.g. video call (optional)"
           aria-label="Channel"
         />
-        <button type="submit" className="btn btn-secondary" disabled={createPending}>
-          {createPending ? 'Scheduling…' : 'Schedule'}
-        </button>
+        <SubmitButton
+          pending={createPending}
+          idle="Schedule"
+          busy="Scheduling…"
+          className="btn btn-secondary"
+        />
       </form>
-      {createState.message ? (
-        <p className={`field-msg ${createState.ok ? 'field-msg-ok' : 'field-msg-err'}`}>
-          {createState.message}
-        </p>
-      ) : null}
+      <FormMessage result={createState} />
     </article>
   );
 }
@@ -413,20 +399,20 @@ export function LettersPanel({
       )}
       <form action={formAction}>
         <input type="hidden" name="missionId" value={missionId} />
-        <button type="submit" className="btn btn-secondary" disabled={pending || !canGenerate}>
-          {pending ? 'Generating…' : 'Generate new version'}
-        </button>
+        <SubmitButton
+          pending={pending}
+          unavailable={!canGenerate}
+          idle="Generate new version"
+          busy="Generating…"
+          className="btn btn-secondary"
+        />
       </form>
       {!canGenerate ? (
         <p className="muted" style={{ fontSize: '0.78rem', marginTop: '0.5rem' }}>
           Nothing eligible to ground a letter in yet.
         </p>
       ) : null}
-      {state.message ? (
-        <p className={`field-msg ${state.ok ? 'field-msg-ok' : 'field-msg-err'}`}>
-          {state.message}
-        </p>
-      ) : null}
+      <FormMessage result={state} />
     </article>
   );
 }
@@ -513,14 +499,13 @@ export function EvidenceSelectionPanel({
                         <form action={unselectAction}>
                           <input type="hidden" name="missionId" value={missionId} />
                           <input type="hidden" name="selectionId" value={selectionId} />
-                          <button
-                            type="submit"
+                          <SubmitButton
+                            pending={unselectPending}
+                            idle="Selected - remove"
+                            busy="Selected - remove"
                             className="btn btn-secondary"
                             style={{ padding: '0.2rem 0.6rem', fontSize: '0.75rem' }}
-                            disabled={unselectPending}
-                          >
-                            Selected - remove
-                          </button>
+                          />
                         </form>
                       ) : (
                         <form action={selectAction}>
@@ -531,14 +516,13 @@ export function EvidenceSelectionPanel({
                             value={c.packRequirementId}
                           />
                           <input type="hidden" name="factId" value={fact.factId} />
-                          <button
-                            type="submit"
+                          <SubmitButton
+                            pending={selectPending}
+                            idle="Select"
+                            busy="Select"
                             className="btn btn-secondary"
                             style={{ padding: '0.2rem 0.6rem', fontSize: '0.75rem' }}
-                            disabled={selectPending}
-                          >
-                            Select
-                          </button>
+                          />
                         </form>
                       )}
                     </div>
@@ -577,14 +561,13 @@ export function EvidenceSelectionPanel({
                         <form action={unselectAction}>
                           <input type="hidden" name="missionId" value={missionId} />
                           <input type="hidden" name="selectionId" value={selectionId} />
-                          <button
-                            type="submit"
+                          <SubmitButton
+                            pending={unselectPending}
+                            idle="Selected - remove"
+                            busy="Selected - remove"
                             className="btn btn-secondary"
                             style={{ padding: '0.2rem 0.6rem', fontSize: '0.75rem' }}
-                            disabled={unselectPending}
-                          >
-                            Selected - remove
-                          </button>
+                          />
                         </form>
                       ) : (
                         <form action={selectAction}>
@@ -595,14 +578,13 @@ export function EvidenceSelectionPanel({
                             value={c.packRequirementId}
                           />
                           <input type="hidden" name="documentId" value={doc.documentId} />
-                          <button
-                            type="submit"
+                          <SubmitButton
+                            pending={selectPending}
+                            idle="Select"
+                            busy="Select"
                             className="btn btn-secondary"
                             style={{ padding: '0.2rem 0.6rem', fontSize: '0.75rem' }}
-                            disabled={selectPending}
-                          >
-                            Select
-                          </button>
+                          />
                         </form>
                       )}
                     </div>
@@ -611,16 +593,8 @@ export function EvidenceSelectionPanel({
           </div>
         ))}
       </div>
-      {selectState.message ? (
-        <p className={`field-msg ${selectState.ok ? 'field-msg-ok' : 'field-msg-err'}`}>
-          {selectState.message}
-        </p>
-      ) : null}
-      {unselectState.message ? (
-        <p className={`field-msg ${unselectState.ok ? 'field-msg-ok' : 'field-msg-err'}`}>
-          {unselectState.message}
-        </p>
-      ) : null}
+      <FormMessage result={selectState} />
+      <FormMessage result={unselectState} />
     </article>
   );
 }

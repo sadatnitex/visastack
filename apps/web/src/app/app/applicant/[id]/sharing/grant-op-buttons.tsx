@@ -1,6 +1,7 @@
 'use client';
 
 import { useActionState } from 'react';
+import { FormMessage, SubmitButton } from '../../../../../components/form-feedback';
 import { type ActionState, updateGrantAction } from './actions';
 
 const INITIAL: ActionState = { ok: true, message: '' };
@@ -39,22 +40,17 @@ export function GrantOpButtons({
             <input type="hidden" name="applicantId" value={applicantId} />
             <input type="hidden" name="grantId" value={grantId} />
             <input type="hidden" name="op" value={op} />
-            <button
-              type="submit"
+            <SubmitButton
+              pending={pending}
+              idle={label}
+              busy={label}
               className={`btn ${variant}`}
               style={{ padding: '0.3rem 0.85rem', fontSize: '0.8rem' }}
-              disabled={pending}
-            >
-              {label}
-            </button>
+            />
           </form>
         ))}
       </div>
-      {state.message ? (
-        <p className={`field-msg ${state.ok ? 'field-msg-ok' : 'field-msg-err'}`}>
-          {state.message}
-        </p>
-      ) : null}
+      <FormMessage result={state} />
     </div>
   );
 }

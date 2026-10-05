@@ -1,6 +1,7 @@
 'use client';
 
 import { useActionState } from 'react';
+import { FormMessage, SubmitButton } from '../../../components/form-feedback';
 import {
   type ActionState,
   releaseLegalHoldAction,
@@ -27,19 +28,14 @@ export function ReleaseHoldButton({ holdId }: { readonly holdId: string }) {
       }}
     >
       <input type="hidden" name="holdId" value={holdId} />
-      <button
-        type="submit"
+      <SubmitButton
+        pending={pending}
+        idle="Release"
+        busy="Releasing…"
         className="btn btn-secondary"
         style={{ padding: '0.3rem 0.85rem', fontSize: '0.8rem' }}
-        disabled={pending}
-      >
-        {pending ? 'Releasing…' : 'Release'}
-      </button>
-      {state.message ? (
-        <p className={`field-msg ${state.ok ? 'field-msg-ok' : 'field-msg-err'}`}>
-          {state.message}
-        </p>
-      ) : null}
+      />
+      <FormMessage result={state} />
     </form>
   );
 }
@@ -49,19 +45,14 @@ export function RetryJobButton({ jobId }: { readonly jobId: string }) {
   return (
     <form action={formAction}>
       <input type="hidden" name="jobId" value={jobId} />
-      <button
-        type="submit"
+      <SubmitButton
+        pending={pending}
+        idle="Retry"
+        busy="Retrying…"
         className="btn btn-secondary"
         style={{ padding: '0.3rem 0.85rem', fontSize: '0.8rem' }}
-        disabled={pending}
-      >
-        {pending ? 'Retrying…' : 'Retry'}
-      </button>
-      {state.message ? (
-        <p className={`field-msg ${state.ok ? 'field-msg-ok' : 'field-msg-err'}`}>
-          {state.message}
-        </p>
-      ) : null}
+      />
+      <FormMessage result={state} />
     </form>
   );
 }
@@ -71,19 +62,14 @@ export function RetryErasureJobButton({ jobId }: { readonly jobId: string }) {
   return (
     <form action={formAction}>
       <input type="hidden" name="jobId" value={jobId} />
-      <button
-        type="submit"
+      <SubmitButton
+        pending={pending}
+        idle="Retry"
+        busy="Retrying…"
         className="btn btn-secondary"
         style={{ padding: '0.3rem 0.85rem', fontSize: '0.8rem' }}
-        disabled={pending}
-      >
-        {pending ? 'Retrying…' : 'Retry'}
-      </button>
-      {state.message ? (
-        <p className={`field-msg ${state.ok ? 'field-msg-ok' : 'field-msg-err'}`}>
-          {state.message}
-        </p>
-      ) : null}
+      />
+      <FormMessage result={state} />
     </form>
   );
 }
@@ -106,19 +92,14 @@ export function RevokeRoleButton({ grantId }: { readonly grantId: string }) {
     >
       <input type="hidden" name="grantId" value={grantId} />
       <input type="hidden" name="reason" value="" />
-      <button
-        type="submit"
+      <SubmitButton
+        pending={pending}
+        idle="Revoke"
+        busy="Revoking…"
         className="btn btn-secondary"
         style={{ padding: '0.3rem 0.85rem', fontSize: '0.8rem' }}
-        disabled={pending}
-      >
-        {pending ? 'Revoking…' : 'Revoke'}
-      </button>
-      {state.message ? (
-        <p className={`field-msg ${state.ok ? 'field-msg-ok' : 'field-msg-err'}`}>
-          {state.message}
-        </p>
-      ) : null}
+      />
+      <FormMessage result={state} />
     </form>
   );
 }
@@ -141,19 +122,14 @@ export function RevokeInvitationButton({ invitationId }: { readonly invitationId
     >
       <input type="hidden" name="invitationId" value={invitationId} />
       <input type="hidden" name="reason" value="" />
-      <button
-        type="submit"
+      <SubmitButton
+        pending={pending}
+        idle="Revoke"
+        busy="Revoking…"
         className="btn btn-secondary"
         style={{ padding: '0.3rem 0.85rem', fontSize: '0.8rem' }}
-        disabled={pending}
-      >
-        {pending ? 'Revoking…' : 'Revoke'}
-      </button>
-      {state.message ? (
-        <p className={`field-msg ${state.ok ? 'field-msg-ok' : 'field-msg-err'}`}>
-          {state.message}
-        </p>
-      ) : null}
+      />
+      <FormMessage result={state} />
     </form>
   );
 }
@@ -168,14 +144,13 @@ export function OrgReviewButtons({ organizationId }: { readonly organizationId: 
         <form action={formAction}>
           <input type="hidden" name="organizationId" value={organizationId} />
           <input type="hidden" name="decision" value="ACTIVE" />
-          <button
-            type="submit"
+          <SubmitButton
+            pending={pending}
+            idle="Verify"
+            busy="Verify"
             className="btn btn-primary"
             style={{ padding: '0.3rem 0.85rem', fontSize: '0.8rem' }}
-            disabled={pending}
-          >
-            Verify
-          </button>
+          />
         </form>
         <form
           action={formAction}
@@ -185,21 +160,16 @@ export function OrgReviewButtons({ organizationId }: { readonly organizationId: 
         >
           <input type="hidden" name="organizationId" value={organizationId} />
           <input type="hidden" name="decision" value="REJECTED" />
-          <button
-            type="submit"
+          <SubmitButton
+            pending={pending}
+            idle="Reject"
+            busy="Reject"
             className="btn btn-secondary"
             style={{ padding: '0.3rem 0.85rem', fontSize: '0.8rem' }}
-            disabled={pending}
-          >
-            Reject
-          </button>
+          />
         </form>
       </div>
-      {state.message ? (
-        <p className={`field-msg ${state.ok ? 'field-msg-ok' : 'field-msg-err'}`}>
-          {state.message}
-        </p>
-      ) : null}
+      <FormMessage result={state} />
     </div>
   );
 }
@@ -216,19 +186,14 @@ export function OrgSuspendButton({ organizationId }: { readonly organizationId: 
       }}
     >
       <input type="hidden" name="organizationId" value={organizationId} />
-      <button
-        type="submit"
+      <SubmitButton
+        pending={pending}
+        idle="Suspend"
+        busy="Suspending…"
         className="btn btn-secondary"
         style={{ padding: '0.3rem 0.85rem', fontSize: '0.8rem' }}
-        disabled={pending}
-      >
-        {pending ? 'Suspending…' : 'Suspend'}
-      </button>
-      {state.message ? (
-        <p className={`field-msg ${state.ok ? 'field-msg-ok' : 'field-msg-err'}`}>
-          {state.message}
-        </p>
-      ) : null}
+      />
+      <FormMessage result={state} />
     </form>
   );
 }
@@ -249,19 +214,14 @@ export function OrgTerminateButton({ organizationId }: { readonly organizationId
       }}
     >
       <input type="hidden" name="organizationId" value={organizationId} />
-      <button
-        type="submit"
+      <SubmitButton
+        pending={pending}
+        idle="Terminate"
+        busy="Terminating…"
         className="btn btn-danger"
         style={{ padding: '0.3rem 0.85rem', fontSize: '0.8rem' }}
-        disabled={pending}
-      >
-        {pending ? 'Terminating…' : 'Terminate'}
-      </button>
-      {state.message ? (
-        <p className={`field-msg ${state.ok ? 'field-msg-ok' : 'field-msg-err'}`}>
-          {state.message}
-        </p>
-      ) : null}
+      />
+      <FormMessage result={state} />
     </form>
   );
 }

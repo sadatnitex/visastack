@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useActionState } from 'react';
+import { FormMessage, SubmitButton } from '../../../../components/form-feedback';
 import { formatDateOnly } from '../../../../lib/format-date';
 import {
   PACK_DESCRIPTIONS,
@@ -229,9 +230,7 @@ function FieldRow({
             className="input"
           />
         )}
-        <button type="submit" className="btn btn-secondary" disabled={pending}>
-          {pending ? 'Saving…' : 'Save'}
-        </button>
+        <SubmitButton pending={pending} idle="Save" busy="Saving…" className="btn btn-secondary" />
       </div>
       <details style={{ marginTop: '-0.25rem' }}>
         <summary className="muted" style={{ fontSize: '0.75rem', cursor: 'pointer' }}>
@@ -257,11 +256,7 @@ function FieldRow({
         </p>
       ) : null}
       {assurance ? <AssuranceDetail assurance={assurance} /> : null}
-      {state.message ? (
-        <p className={`field-msg ${state.ok ? 'field-msg-ok' : 'field-msg-err'}`}>
-          {state.message}
-        </p>
-      ) : null}
+      <FormMessage result={state} />
     </form>
   );
 }

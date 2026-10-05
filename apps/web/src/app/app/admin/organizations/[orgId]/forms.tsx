@@ -1,6 +1,7 @@
 'use client';
 
 import { useActionState } from 'react';
+import { FormMessage, SubmitButton } from '../../../../../components/form-feedback';
 import {
   type ActionState,
   activatePlanAction,
@@ -19,10 +20,7 @@ import {
 const INITIAL: ActionState = { ok: true, message: '' };
 
 function StatusMessage({ state }: { readonly state: ActionState }) {
-  if (!state.message) return null;
-  return (
-    <p className={`field-msg ${state.ok ? 'field-msg-ok' : 'field-msg-err'}`}>{state.message}</p>
-  );
+  return <FormMessage result={state} />;
 }
 
 /** A one-click destructive/administrative action, gated by a mandatory reason typed into a browser prompt -- the same pattern `RevokeRoleButton`/`RevokeInvitationButton` already use. */
@@ -60,15 +58,14 @@ function ReasonPromptButton({
         <input key={name} type="hidden" name={name} value={value} />
       ))}
       <input type="hidden" name="reason" value="" />
-      <button
-        type="submit"
+      <SubmitButton
+        pending={pending}
+        idle={confirmedLabel}
+        busy={pendingLabel}
         className={`btn ${tone}`}
         style={{ padding: '0.3rem 0.85rem', fontSize: '0.8rem' }}
-        disabled={pending}
-      >
-        {pending ? pendingLabel : confirmedLabel}
-      </button>
-      {state.message ? <StatusMessage state={state} /> : null}
+      />
+      <StatusMessage state={state} />
     </form>
   );
 }
@@ -125,9 +122,12 @@ export function ActivatePlanForm({
         />
       </div>
       <div>
-        <button type="submit" className="btn btn-primary" disabled={pending}>
-          {pending ? 'Activating…' : 'Activate plan'}
-        </button>
+        <SubmitButton
+          pending={pending}
+          idle="Activate plan"
+          busy="Activating…"
+          className="btn btn-primary"
+        />
         <StatusMessage state={state} />
       </div>
     </form>
@@ -206,9 +206,12 @@ export function ScheduleDowngradeForm({
         />
       </div>
       <div>
-        <button type="submit" className="btn btn-primary" disabled={pending}>
-          {pending ? 'Scheduling…' : 'Schedule downgrade'}
-        </button>
+        <SubmitButton
+          pending={pending}
+          idle="Schedule downgrade"
+          busy="Scheduling…"
+          className="btn btn-primary"
+        />
         <StatusMessage state={state} />
       </div>
     </form>
@@ -261,9 +264,12 @@ export function OpenBillingAccountForm({ organizationId }: { readonly organizati
         />
       </div>
       <div>
-        <button type="submit" className="btn btn-primary" disabled={pending}>
-          {pending ? 'Opening…' : 'Open billing account'}
-        </button>
+        <SubmitButton
+          pending={pending}
+          idle="Open billing account"
+          busy="Opening…"
+          className="btn btn-primary"
+        />
         <StatusMessage state={state} />
       </div>
     </form>
@@ -311,9 +317,12 @@ export function TransitionBillingStatusForm({
         />
       </div>
       <div>
-        <button type="submit" className="btn btn-primary" disabled={pending}>
-          {pending ? 'Changing…' : 'Change status'}
-        </button>
+        <SubmitButton
+          pending={pending}
+          idle="Change status"
+          busy="Changing…"
+          className="btn btn-primary"
+        />
         <StatusMessage state={state} />
       </div>
     </form>
@@ -412,9 +421,12 @@ export function CreateInvoiceForm({
         <input id="invoice-dueDate" name="dueDate" type="date" required className="input" />
       </div>
       <div>
-        <button type="submit" className="btn btn-primary" disabled={pending}>
-          {pending ? 'Creating…' : 'Create invoice'}
-        </button>
+        <SubmitButton
+          pending={pending}
+          idle="Create invoice"
+          busy="Creating…"
+          className="btn btn-primary"
+        />
         <StatusMessage state={state} />
       </div>
     </form>
@@ -489,14 +501,13 @@ export function RecordPaymentForm({
         />
       </div>
       <div>
-        <button
-          type="submit"
+        <SubmitButton
+          pending={pending}
+          idle="Record payment"
+          busy="Recording…"
           className="btn btn-secondary"
           style={{ padding: '0.3rem 0.85rem', fontSize: '0.8rem' }}
-          disabled={pending}
-        >
-          {pending ? 'Recording…' : 'Record payment'}
-        </button>
+        />
         <StatusMessage state={state} />
       </div>
     </form>
@@ -556,9 +567,12 @@ export function GrantOverrideForm({ organizationId }: { readonly organizationId:
         />
       </div>
       <div>
-        <button type="submit" className="btn btn-primary" disabled={pending}>
-          {pending ? 'Granting…' : 'Grant override'}
-        </button>
+        <SubmitButton
+          pending={pending}
+          idle="Grant override"
+          busy="Granting…"
+          className="btn btn-primary"
+        />
         <StatusMessage state={state} />
       </div>
     </form>
