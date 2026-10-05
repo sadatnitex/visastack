@@ -32,6 +32,9 @@
   --warning: #9a6400;
   --warning-bg: #fdf3dc;
   --danger: #c1372c;
+  /* Solid-fill contexts (white text on top), like --accent-strong: the same red in both
+     schemes, because the lighter dark-mode --danger is for text on a dark page. */
+  --danger-strong: #c1372c;
   --danger-bg: #fce8e6;
 
   /* Materials & depth */
@@ -83,6 +86,9 @@
     --warning: #f2c14e;
     --warning-bg: #33280d;
     --danger: #ff6b5e;
+    /* White text on the lighter --danger above is only 2.79:1 (fails WCAG AA's 4.5:1), so a
+       solid red button keeps the deeper red (5.46:1) in dark mode as well. */
+    --danger-strong: #c1372c;
     --danger-bg: #3a1512;
     --nav-material: rgba(0, 0, 0, 0.72);
     --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.5), 0 8px 24px rgba(0, 0, 0, 0.5);
@@ -303,7 +309,7 @@ main {
   font-size: 0.9rem;
 }
 .btn-danger {
-  background: var(--danger);
+  background: var(--danger-strong);
   color: #fff;
 }
 .btn-danger:hover {
@@ -711,6 +717,10 @@ main {
     radial-gradient(farthest-side at 100% 50%, rgb(0 0 0 / 0.16), transparent) right center / 0.6rem 100% no-repeat scroll;
 }
 .subnav a {
+  /* Each tab keeps the width of its own text and the bar scrolls when they do not all fit.
+     Without this a flex item may shrink below its text (the explicit min-width below replaces
+     the automatic minimum), and a squeezed tab spills its text over the next one. */
+  flex: none;
   /* A two-letter tab ("AI") would otherwise be 16px wide, under the 24px target size. */
   min-width: 1.5rem;
   text-align: center;

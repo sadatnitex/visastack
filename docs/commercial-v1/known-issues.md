@@ -4374,6 +4374,30 @@ item gets its own requirements-ledger row once classified against the new direct
     answers a signed-out request with 307 to sign-in. Playwright against the local
     production build: 67 of 69 (the two `/app` redirect cases cannot follow the
     redirect to WorkOS from the sandbox; they run in CI).
+
+    **Correction to chunk 38 (2026-10-05, found 25 minutes after it went live) -- section
+    tabs were squeezed over each other on a phone.** Chunk 38 gave `.subnav a` a
+    24px `min-width` so the two-letter "AI" tab met the target-size rule. An explicit
+    `min-width` replaces the automatic minimum a flex item has, so on a screen too
+    narrow for all the tabs each one shrank to 24px and its text spilled over the next:
+    "Organizations" was 95px of text in a 24px box. This affected the applicant tabs a
+    traveller uses and the agency and platform bars, at 320, 360 and 390px; wider
+    screens were fine. The "every tab can be scrolled into view" check passed anyway,
+    because squeezed tabs still sit inside the bar. Found by looking at a Bangla
+    screenshot, not by a test. Fixed with `flex: none` (a tab keeps the width of its
+    own text and the bar scrolls). A new check runs on the deploy smoke: no tab's text
+    is wider than its box and no tab overlaps its neighbour. It fails against the
+    chunk-38 stylesheet at 320, 360 and 390px (21 tabs squeezed at 320px) and passes
+    with the fix. Lesson recorded: a layout
+    check that asks "is it on screen" cannot catch text that overflows its own box.
+
+    A second, older defect came out of the same screenshots: in dark mode the red
+    "Request account deletion" button (and every `btn-danger`) was white text on
+    `#ff6b5e`, a contrast of 2.79:1 against the 4.5:1 AA needs. The lighter red is right
+    for red text on a dark page and wrong for a solid fill, the same two-role split
+    `--accent-strong` already makes for blue. Solid red buttons now use a deeper red
+    (`--danger-strong`, 5.46:1) in both colour schemes; the dark-mode axe check now
+    includes a danger button and fails without the fix.
 independently confirmed findings; the missing PRD file is tracked as Blocker 1 in
 `assumptions-and-blockers.md` (now resolved) rather than here, since it blocked the
 programme rather than being a product defect.
