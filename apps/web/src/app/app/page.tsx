@@ -1,5 +1,5 @@
 import { CONSENT_TYPES, type ConsentType } from '@visastack/core';
-import { type MessageKey, createTranslator } from '@visastack/i18n';
+import type { MessageKey } from '@visastack/i18n';
 import {
   type Db,
   getConsents,
@@ -11,9 +11,12 @@ import {
   listPendingProposals,
 } from '@visastack/services';
 import Link from 'next/link';
-import { getLocale } from '../../lib/locale';
+import { TranslationNotice } from '../../components/translation-notice';
+import { pickMessages } from '../../lib/client-messages';
+import { getI18n } from '../../lib/locale';
 import { withSession } from '../../lib/session';
 import { ConsentButton } from './consent-button';
+import { CONSENT_BUTTON_KEYS } from './consent-button.messages';
 
 export const dynamic = 'force-dynamic';
 
@@ -32,7 +35,7 @@ const TERMINAL_MISSION_STATES = new Set(['CLOSED', 'CANCELLED']);
 interface AttentionItem {
   readonly applicantId: string;
   readonly applicantName: string;
-  readonly label: string;
+  readonly label: MessageKey;
   readonly count: number;
 }
 
@@ -73,7 +76,7 @@ async function loadDashboard(db: Db, accountId: string, email: string) {
       attention.push({
         applicantId: row.applicant.id,
         applicantName: row.applicant.displayName,
-        label: 'AI proposal(s) awaiting your review',
+        label: 'account.attention.proposals',
         count: row.pendingProposals,
       });
     }
@@ -81,7 +84,7 @@ async function loadDashboard(db: Db, accountId: string, email: string) {
       attention.push({
         applicantId: row.applicant.id,
         applicantName: row.applicant.displayName,
-        label: 'Evidence request(s) awaiting a response',
+        label: 'account.attention.requests',
         count: row.openRequests,
       });
     }
@@ -93,7 +96,7 @@ async function loadDashboard(db: Db, accountId: string, email: string) {
     attention.push({
       applicantId: '',
       applicantName: '',
-      label: 'Sharing invitation(s) awaiting your acceptance',
+      label: 'account.attention.invitations',
       count: pendingGrants,
     });
   }
@@ -114,31 +117,32 @@ async function loadDashboard(db: Db, accountId: string, email: string) {
 }
 
 export default async function AppPage() {
-  const locale = await getLocale();
-  const t = createTranslator(locale);
+  const i18n = await getI18n();
+  const { locale, t } = i18n;
   const data = await withSession(({ db, accountId, email }) => loadDashboard(db, accountId, email));
   const coreGranted = Boolean(data.consents.CORE_PROCESSING);
+  const consentButtonMessages = pickMessages(locale, CONSENT_BUTTON_KEYS);
 
   // One primary action (directive §7 "PR 7"): the single most useful next
   // step, resolved in priority order — never more than one at a time.
   const primaryAction = !coreGranted
     ? null // consent gate below is itself the primary action when missing
     : data.applicants.length === 0
-      ? { href: '/app/applicants', label: 'Add your first applicant' }
+      ? { href: '/app/applicants', label: t('account.action.addFirst') }
       : data.attention.length > 0 && data.attention[0]?.applicantId
         ? {
             href: `/app/applicant/${data.attention[0].applicantId}`,
-            label: `Review ${data.attention[0].applicantName}`,
+            label: t('account.action.review', { name: data.attention[0].applicantName }),
           }
-        : { href: '/app/applicants', label: 'View applicants' };
+        : { href: '/app/applicants', label: t('account.action.view') };
 
   return (
     <section className="section container">
       <div className="toolbar" style={{ marginBottom: '2rem' }}>
         <div>
-          <span className="eyebrow">Home</span>
+          <span className="eyebrow">{t('account.overview.eyebrow')}</span>
           <h1 className="section-title" style={{ margin: '0.25rem 0 0' }}>
-            Welcome back
+            {t('account.overview.title')}
           </h1>
           <p className="muted" style={{ margin: '0.35rem 0 0' }}>
             {data.email}
@@ -153,50 +157,47 @@ export default async function AppPage() {
 
       {!coreGranted ? (
         <article className="card" style={{ marginBottom: '1.5rem' }}>
-          <p className="card-kicker">Get started</p>
-          <h2 className="card-title">Grant core processing consent</h2>
-          <p className="card-body">
-            VisaStack can't create applicant or profile records until you grant this below. You can
-            revoke it again at any time.
-          </p>
+          <p className="card-kicker">{t('consent.gate.kicker')}</p>
+          <h2 className="card-title">{t('consent.gate.title')}</h2>
+          <p className="card-body">{t('consent.gate.body')}</p>
         </article>
       ) : (
         <>
           <div className="grid" style={{ marginBottom: '1.5rem' }}>
             <article className="card">
-              <p className="card-kicker">Status</p>
-              <h2 className="card-title">At a glance</h2>
+              <p className="card-kicker">{t('account.glance.kicker')}</p>
+              <h2 className="card-title">{t('account.glance.title')}</h2>
               <div className="rows">
                 <div className="row">
-                  <span className="row-key">Applicants</span>
-                  <span className="row-val">{data.applicants.length}</span>
+                  <span className="row-key">{t('account.glance.applicants')}</span>
+                  <span className="row-val">{i18n.number(data.applicants.length)}</span>
                 </div>
                 <div className="row">
-                  <span className="row-key">Documents uploaded</span>
-                  <span className="row-val">{data.documentTotal}</span>
+                  <span className="row-key">{t('account.glance.documents')}</span>
+                  <span className="row-val">{i18n.number(data.documentTotal)}</span>
                 </div>
                 <div className="row">
-                  <span className="row-key">Active cases</span>
-                  <span className="row-val">{data.activeMissionsTotal}</span>
+                  <span className="row-key">{t('account.glance.cases')}</span>
+                  <span className="row-val">{i18n.number(data.activeMissionsTotal)}</span>
                 </div>
                 <div className="row">
-                  <span className="row-key">Sharing invitations awaiting you</span>
+                  <span className="row-key">{t('account.glance.invitations')}</span>
                   {data.pendingGrants > 0 ? (
                     <Link href="/app/shared" className="badge badge-warning">
-                      {data.pendingGrants} pending
+                      {t('account.glance.pending', { count: data.pendingGrants })}
                     </Link>
                   ) : (
-                    <span className="badge badge-neutral">None</span>
+                    <span className="badge badge-neutral">{t('account.glance.none')}</span>
                   )}
                 </div>
               </div>
             </article>
 
             <article className="card">
-              <p className="card-kicker">Attention</p>
-              <h2 className="card-title">Needs your attention</h2>
+              <p className="card-kicker">{t('account.attention.kicker')}</p>
+              <h2 className="card-title">{t('account.attention.title')}</h2>
               {data.attention.length === 0 ? (
-                <p className="card-body">Nothing needs your attention right now.</p>
+                <p className="card-body">{t('account.attention.empty')}</p>
               ) : (
                 <div className="rows">
                   {data.attention.map((item, i) => (
@@ -206,10 +207,10 @@ export default async function AppPage() {
                       href={item.applicantId ? `/app/applicant/${item.applicantId}` : '/app/shared'}
                     >
                       <span className="row-key">
-                        {item.applicantName ? `${item.applicantName} — ` : ''}
-                        {item.label}
+                        {item.applicantName ? `${item.applicantName} - ` : ''}
+                        {t(item.label)}
                       </span>
-                      <span className="badge badge-warning">{item.count}</span>
+                      <span className="badge badge-warning">{i18n.number(item.count)}</span>
                     </Link>
                   ))}
                 </div>
@@ -226,19 +227,22 @@ export default async function AppPage() {
        * while core processing is absent or revoked
        * (docs/audits/post-programme-defect-register.md finding #22).
        */}
+      <TranslationNotice catalog="consent" locale={locale} t={t} />
       <article className="card">
-        <p className="card-kicker">Consent</p>
-        <h2 className="card-title">Permissions you control</h2>
+        <p className="card-kicker">{t('consent.overview.kicker')}</p>
+        <h2 className="card-title">{t('consent.overview.title')}</h2>
         <p className="card-body" style={{ marginBottom: '1rem' }}>
-          Each purpose is granted and revoked independently, at any time — revoking one never
-          requires regranting another. Core processing is required before any applicant or profile
-          records can be created; the others remain optional.
+          {t('consent.overview.body')}
         </p>
         <div className="rows">
           {CONSENT_TYPES.map((type) => (
             <div className="row" key={type}>
               <span className="row-key">{t(CONSENT_MESSAGE_KEYS[type])}</span>
-              <ConsentButton type={type} granted={Boolean(data.consents[type])} locale={locale} />
+              <ConsentButton
+                type={type}
+                granted={Boolean(data.consents[type])}
+                messages={consentButtonMessages}
+              />
             </div>
           ))}
         </div>

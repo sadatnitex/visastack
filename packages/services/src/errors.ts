@@ -7,6 +7,8 @@
  * programmer/infrastructure faults.
  */
 
+import type { MessageKey } from '@visastack/i18n';
+
 export type ServiceErrorCode =
   /** The actor is not permitted to perform this action on this resource. */
   | 'forbidden'
@@ -31,9 +33,16 @@ export type ServiceErrorCode =
 
 export interface ServiceError {
   readonly code: ServiceErrorCode;
+  /** English, for logs and the audit trail. A screen shows `key` (or a message for `code`) in the reader's language instead. */
   readonly message: string;
+  /** The message to show a person for this exact failure, when it has one of its own in `@visastack/i18n`. */
+  readonly key?: MessageKey;
 }
 
-export function serviceError(code: ServiceErrorCode, message: string): ServiceError {
-  return { code, message };
+export function serviceError(
+  code: ServiceErrorCode,
+  message: string,
+  key?: MessageKey,
+): ServiceError {
+  return key === undefined ? { code, message } : { code, message, key };
 }

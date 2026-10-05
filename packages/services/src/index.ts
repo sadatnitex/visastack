@@ -522,6 +522,7 @@ export {
 } from './expiry';
 
 export {
+  type AlertMessageKey,
   type EnqueueNotificationInput,
   type InAppNotificationView,
   type Notification,
@@ -532,6 +533,7 @@ export {
   type NotificationPayload,
   type NotificationWorkerResult,
   applyEmailDeliveryEvent,
+  buildAlertPayload,
   buildNotificationIdempotencyKey,
   enqueueNotification,
   enqueueNotificationBothChannels,

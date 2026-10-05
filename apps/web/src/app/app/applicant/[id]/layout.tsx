@@ -1,9 +1,8 @@
-import { createTranslator } from '@visastack/i18n';
 import { getApplicant } from '@visastack/services';
 import { notFound } from 'next/navigation';
 import type { ReactNode } from 'react';
-import { getLocale } from '../../../../lib/locale';
-import { applicantTabs } from '../../../../lib/navigation';
+import { getI18n } from '../../../../lib/locale';
+import { applicantTabs, localizeLinks } from '../../../../lib/navigation';
 import { relationshipLabel } from '../../../../lib/relationship-labels';
 import { withSession } from '../../../../lib/session';
 import { SubNav } from '../../subnav';
@@ -33,13 +32,13 @@ export default async function ApplicantWorkspaceLayout({
     return a;
   });
   if (!applicant) notFound();
-  const t = createTranslator(await getLocale());
+  const { t } = await getI18n();
 
   return (
     <section className="section container">
       <div className="toolbar" style={{ marginBottom: '1.5rem' }}>
         <div>
-          <span className="eyebrow">Applicant</span>
+          <span className="eyebrow">{t('shell.applicant.eyebrow')}</span>
           <h1 className="section-title" style={{ margin: '0.25rem 0 0' }}>
             {applicant.displayName}
           </h1>
@@ -48,7 +47,7 @@ export default async function ApplicantWorkspaceLayout({
           </p>
         </div>
       </div>
-      <SubNav links={applicantTabs(id)} label="Applicant sections" />
+      <SubNav links={localizeLinks(applicantTabs(id), t)} label={t('shell.applicant.navLabel')} />
       {children}
     </section>
   );

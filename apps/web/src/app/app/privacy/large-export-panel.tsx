@@ -1,7 +1,9 @@
 'use client';
 
+import { type Locale, fill } from '@visastack/i18n/client';
 import { useActionState } from 'react';
 import { type ActionState, requestLargeExportAction } from './actions';
+import type { LargeExportMessages } from './large-export-panel.messages';
 
 const INITIAL: ActionState = { ok: true, message: '' };
 
@@ -11,29 +13,31 @@ export interface LargeExportJobProps {
   readonly createdAt: string;
   readonly readyAt: string | null;
   readonly expiresAt: string | null;
+  /** When the download expires, already written in the reader's language by the server. */
+  readonly expiresLabel: string | null;
   readonly lastError: string | null;
 }
 
 interface LargeExportPanelProps {
   /** Newest first, matching `listAccountExportJobsForAccount`'s own order. */
   readonly jobs: readonly LargeExportJobProps[];
+  readonly messages: LargeExportMessages;
+  readonly locale: Locale;
 }
 
-function formatDateTime(iso: string): string {
-  return new Date(iso).toLocaleString(undefined, {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-}
-
-function StatusLine({ job }: { readonly job: LargeExportJobProps }) {
+function StatusLine({
+  job,
+  messages,
+  locale,
+}: {
+  readonly job: LargeExportJobProps;
+  readonly messages: LargeExportMessages;
+  readonly locale: Locale;
+}) {
   switch (job.status) {
     case 'PENDING':
     case 'CLAIMED':
-      return <span className="badge badge-neutral">Preparing…</span>;
+      return <span className="badge badge-neutral">{messages['privacy.large.preparing']}</span>;
     case 'READY':
       return (
         <span style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
@@ -42,26 +46,26 @@ function StatusLine({ job }: { readonly job: LargeExportJobProps }) {
             className="btn btn-secondary"
             download
           >
-            Download ZIP
+            {messages['privacy.large.download']}
           </a>
-          {job.expiresAt ? (
+          {job.expiresLabel ? (
             <span className="muted" style={{ fontSize: '0.85rem' }}>
-              expires {formatDateTime(job.expiresAt)}
+              {fill(messages['privacy.large.expires'], { when: job.expiresLabel }, locale)}
             </span>
           ) : null}
         </span>
       );
     case 'FAILED':
-      return <span className="badge badge-danger">Failed - request a new one</span>;
+      return <span className="badge badge-danger">{messages['privacy.large.failed']}</span>;
     case 'EXPIRED':
-      return <span className="badge badge-neutral">Expired</span>;
+      return <span className="badge badge-neutral">{messages['privacy.large.expired']}</span>;
     default:
       return null;
   }
 }
 
 /** Only the current job matters to a returning visitor - a terminal (FAILED/EXPIRED) history entry is still shown, but never crowds out requesting a fresh one. */
-export function LargeExportPanel({ jobs }: LargeExportPanelProps) {
+export function LargeExportPanel({ jobs, messages, locale }: LargeExportPanelProps) {
   const [state, action, pending] = useActionState(requestLargeExportAction, INITIAL);
   const active = jobs.find(
     (j) => j.status === 'PENDING' || j.status === 'CLAIMED' || j.status === 'READY',
@@ -72,16 +76,14 @@ export function LargeExportPanel({ jobs }: LargeExportPanelProps) {
       style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid var(--border, #333)' }}
     >
       <p className="card-body" style={{ marginBottom: '0.75rem' }}>
-        Need the actual document files too, not just their metadata? Request a large export - a ZIP
-        containing every current, safe document file alongside the same manifest and CSV tables
-        above. It takes a few minutes to prepare and stays downloadable for 24 hours.
+        {messages['privacy.large.body']}
       </p>
       {active ? (
-        <StatusLine job={active} />
+        <StatusLine job={active} messages={messages} locale={locale} />
       ) : (
         <form action={action}>
           <button type="submit" className="btn btn-secondary" disabled={pending}>
-            {pending ? 'Requesting…' : 'Request large export (with files)'}
+            {pending ? messages['privacy.large.requesting'] : messages['privacy.large.request']}
           </button>
         </form>
       )}

@@ -16,6 +16,7 @@
   "dependencies": {
     "@visastack/core": "workspace:*",
     "@visastack/db": "workspace:*",
+    "@visastack/i18n": "workspace:*",
     "@visastack/policy": "workspace:*",
     "drizzle-orm": "^0.45.2"
   },

@@ -156,7 +156,13 @@ export async function requestAccountDeletion(
     return err(serviceError('forbidden', 'an account may only request its own deletion'));
   }
   if (await pendingRequest(db, input.accountId)) {
-    return err(serviceError('invalid', 'a deletion request is already pending'));
+    return err(
+      serviceError(
+        'invalid',
+        'a deletion request is already pending',
+        'privacy.error.alreadyPending',
+      ),
+    );
   }
   // PRV-03 (Part 7 §12 step 4): fail fast and honestly, rather than letting
   // the requester wait out the full grace window only for
@@ -166,7 +172,9 @@ export async function requestAccountDeletion(
   // remains the actual point of enforcement against a hold placed after
   // this request is already pending.
   if ((await listActiveLegalHoldsForAccount(db, input.accountId)).length > 0) {
-    return err(serviceError('invalid', 'an active legal hold blocks deletion'));
+    return err(
+      serviceError('invalid', 'an active legal hold blocks deletion', 'privacy.error.holdBlocks'),
+    );
   }
   const now = input.now ?? new Date();
   const scheduledFor = new Date(now.getTime() + (input.gracePeriodMs ?? DEFAULT_GRACE_PERIOD_MS));
@@ -233,7 +241,13 @@ export async function requestAccountDeletion(
     // accounts.ts's established isUniqueViolation pattern, rather than an
     // unhandled 500.
     if (isUniqueViolation(error)) {
-      return err(serviceError('invalid', 'a deletion request is already pending'));
+      return err(
+        serviceError(
+          'invalid',
+          'a deletion request is already pending',
+          'privacy.error.alreadyPending',
+        ),
+      );
     }
     throw error;
   }
@@ -248,7 +262,9 @@ export async function cancelAccountDeletion(
     return err(serviceError('forbidden', 'an account may only cancel its own deletion'));
   }
   const pending = await pendingRequest(db, input.accountId);
-  if (!pending) return err(serviceError('not_found', 'no pending deletion request'));
+  if (!pending) {
+    return err(serviceError('not_found', 'no pending deletion request', 'privacy.error.noPending'));
+  }
 
   return db.transaction(async (tx) => {
     const updated = required(
@@ -357,7 +373,15 @@ export async function executeAccountDeletion(
           )
           .limit(1),
       );
-      if (held) return err(serviceError('invalid', 'an active legal hold blocks deletion'));
+      if (held) {
+        return err(
+          serviceError(
+            'invalid',
+            'an active legal hold blocks deletion',
+            'privacy.error.holdBlocks',
+          ),
+        );
+      }
     }
 
     // Deleting the sole active PLATFORM_OWNER would strand the platform

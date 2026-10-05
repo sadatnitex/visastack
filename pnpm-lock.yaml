@@ -205,6 +205,9 @@ importers:
       '@visastack/db':
         specifier: workspace:*
         version: link:../db
+      '@visastack/i18n':
+        specifier: workspace:*
+        version: link:../i18n
       '@visastack/policy':
         specifier: workspace:*
         version: link:../policy

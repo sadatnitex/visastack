@@ -9,9 +9,14 @@
  * here: a traveller opens a case, not a mission.
  */
 
+import type { MessageKey, Translator } from '@visastack/i18n';
+
 export interface NavLink {
   readonly href: string;
+  /** The English name, which the tests and the Playwright checks read. */
   readonly label: string;
+  /** The catalog message for this name; a link without one (the professional consoles) is shown in English. */
+  readonly labelKey?: MessageKey;
   /** Current only on this exact path, not on pages below it (an overview or home link). */
   readonly exact?: boolean;
   /** Further path prefixes that also belong to this link (pages that live elsewhere in the route tree). */
@@ -20,17 +25,18 @@ export interface NavLink {
 
 /** Persistent primary navigation for a signed-in traveller. */
 export const PRIMARY_NAV: readonly NavLink[] = [
-  { href: '/app', label: 'Overview', exact: true },
+  { href: '/app', label: 'Overview', labelKey: 'shell.app.overview', exact: true },
   {
     href: '/app/applicants',
     label: 'Applicants',
+    labelKey: 'shell.app.applicants',
     // A person's workspace and their case pages sit outside `/app/applicants`.
     alsoCurrentFor: ['/app/applicant/', '/app/mission/'],
   },
-  { href: '/app/shared', label: 'Shared with me' },
-  { href: '/app/notifications', label: 'Alerts' },
-  { href: '/app/privacy', label: 'Privacy' },
-  { href: '/app/account', label: 'Account' },
+  { href: '/app/shared', label: 'Shared with me', labelKey: 'shell.app.shared' },
+  { href: '/app/notifications', label: 'Alerts', labelKey: 'shell.app.alerts' },
+  { href: '/app/privacy', label: 'Privacy', labelKey: 'shell.app.privacy' },
+  { href: '/app/account', label: 'Account', labelKey: 'shell.app.account' },
 ];
 
 /**
@@ -42,15 +48,24 @@ export const PRIMARY_NAV: readonly NavLink[] = [
 export function applicantTabs(applicantId: string): readonly NavLink[] {
   const base = `/app/applicant/${applicantId}`;
   return [
-    { href: base, label: 'Overview', exact: true },
-    { href: `${base}/profile`, label: 'Profile' },
-    { href: `${base}/documents`, label: 'Documents' },
-    { href: `${base}/missions`, label: 'Cases' },
-    { href: `${base}/sharing`, label: 'Sharing' },
-    { href: `${base}/evidence`, label: 'Evidence' },
-    { href: `${base}/expiry`, label: 'Expiry' },
-    { href: `${base}/history`, label: 'History' },
+    { href: base, label: 'Overview', labelKey: 'shell.applicant.overview', exact: true },
+    { href: `${base}/profile`, label: 'Profile', labelKey: 'shell.applicant.profile' },
+    { href: `${base}/documents`, label: 'Documents', labelKey: 'shell.applicant.documents' },
+    { href: `${base}/missions`, label: 'Cases', labelKey: 'shell.applicant.cases' },
+    { href: `${base}/sharing`, label: 'Sharing', labelKey: 'shell.applicant.sharing' },
+    { href: `${base}/evidence`, label: 'Evidence', labelKey: 'shell.applicant.evidence' },
+    { href: `${base}/expiry`, label: 'Expiry', labelKey: 'shell.applicant.expiry' },
+    { href: `${base}/history`, label: 'History', labelKey: 'shell.applicant.history' },
   ];
+}
+
+/**
+ * The links with their names in the reader's language. A link carries the key of
+ * its message; one with no key keeps its English name. The result is plain data a
+ * client navigation component can receive, so no catalog reaches the browser.
+ */
+export function localizeLinks(links: readonly NavLink[], t: Translator): readonly NavLink[] {
+  return links.map((link) => (link.labelKey ? { ...link, label: t(link.labelKey) } : link));
 }
 
 /**

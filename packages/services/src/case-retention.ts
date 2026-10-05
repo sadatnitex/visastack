@@ -2,7 +2,7 @@ import { and, eq, inArray, isNotNull, isNull, lte, notInArray } from 'drizzle-or
 import { appendAuditEvent } from './audit';
 import { type Db, first, schema } from './db';
 import { missionBlockedByLegalHold } from './legal-hold';
-import { enqueueNotificationBothChannels } from './notifications';
+import { buildAlertPayload, enqueueNotificationBothChannels } from './notifications';
 
 /**
  * Closed-case retention notice (PRV-02, master directive Part 7 §11):
@@ -102,11 +102,12 @@ export async function sweepCaseRetentionNotices(
         recipientAccountId: row.ownerAccountId,
         applicantId: row.applicantId,
         missionId: row.missionId,
-        payload: {
-          subject: 'Case data scheduled for deletion in 30 days',
-          summary: `This case has been closed for ${months} months. Its case records will be permanently deleted in 30 days. Export anything you still need before then.`,
+        payload: buildAlertPayload({
+          subject: 'alert.caseRetention.subject',
+          summary: 'alert.caseRetention.summary',
+          params: { months },
           deepLinkPath: `/app/mission/${row.missionId}`,
-        },
+        }),
       });
       return true;
     });

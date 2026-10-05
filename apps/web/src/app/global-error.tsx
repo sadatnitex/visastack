@@ -1,12 +1,15 @@
 'use client';
 
+import { errorPageText, fill } from '@visastack/i18n/client';
 import { useEffect } from 'react';
 
 /**
  * Last-resort boundary for errors thrown in the root layout itself (where the
  * normal `error.tsx` cannot help because it renders *inside* the layout). It
  * must ship its own <html>/<body>. Kept deliberately dependency-free so it can
- * render even when app chrome or styles are the thing that failed.
+ * render even when app chrome or styles are the thing that failed. It cannot know
+ * the visitor's language (the layout that would have told it is what failed), so
+ * it says the same thing in English and in Bangla.
  */
 export default function GlobalError({
   error,
@@ -18,6 +21,9 @@ export default function GlobalError({
   useEffect(() => {
     console.error(error);
   }, [error]);
+
+  const en = errorPageText('en');
+  const bn = errorPageText('bn');
 
   return (
     <html lang="en">
@@ -36,9 +42,16 @@ export default function GlobalError({
         }}
       >
         <div style={{ maxWidth: '32rem' }}>
-          <h1 style={{ fontSize: '1.5rem', marginBottom: '0.75rem' }}>Something went wrong</h1>
-          <p style={{ color: '#6e6e73', marginBottom: '1.5rem' }}>
-            An unexpected error interrupted the page. Please try again.
+          <h1 style={{ fontSize: '1.5rem', marginBottom: '0.75rem' }}>
+            <span lang="en">{en['error.generic.title']}</span>
+            {' / '}
+            <span lang="bn">{bn['error.generic.title']}</span>
+          </h1>
+          <p style={{ color: '#6e6e73', marginBottom: '0.5rem' }} lang="en">
+            {en['error.global.body']}
+          </p>
+          <p style={{ color: '#6e6e73', marginBottom: '1.5rem' }} lang="bn">
+            {bn['error.global.body']}
           </p>
           <button
             type="button"
@@ -53,11 +66,15 @@ export default function GlobalError({
               cursor: 'pointer',
             }}
           >
-            Try again
+            <span lang="en">{en['shell.error.retry']}</span>
+            {' / '}
+            <span lang="bn">{bn['shell.error.retry']}</span>
           </button>
           {error.digest ? (
             <p style={{ marginTop: '1.5rem', fontSize: '0.8rem', color: '#86868b' }}>
-              Reference: {error.digest}
+              <span lang="en">{fill(en['shell.error.reference'], { digest: error.digest })}</span>
+              {' / '}
+              <span lang="bn">{fill(bn['shell.error.reference'], { digest: error.digest })}</span>
             </p>
           ) : null}
         </div>

@@ -2,7 +2,8 @@ import { signOut } from '@workos-inc/authkit-nextjs';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { isPlatformAdmin } from '../../lib/admin';
-import { PRIMARY_NAV } from '../../lib/navigation';
+import { getI18n } from '../../lib/locale';
+import { PRIMARY_NAV, localizeLinks } from '../../lib/navigation';
 import { withSession } from '../../lib/session';
 import { AppNav } from './app-nav';
 
@@ -22,6 +23,7 @@ export const dynamic = 'force-dynamic';
  * administration.
  */
 export default async function AppLayout({ children }: { readonly children: ReactNode }) {
+  const { t } = await getI18n();
   const isAdmin = await withSession(async ({ db, accountId, email }) =>
     isPlatformAdmin(db, { accountId, email }),
   );
@@ -29,14 +31,14 @@ export default async function AppLayout({ children }: { readonly children: React
   return (
     <>
       <div className="app-shell-nav">
-        <AppNav links={PRIMARY_NAV} />
+        <AppNav links={localizeLinks(PRIMARY_NAV, t)} label={t('shell.nav.primary')} />
         <div className="app-shell-switch">
           <Link href="/app/agency" className="btn btn-secondary nav-cta">
-            Agency
+            {t('shell.app.agency')}
           </Link>
           {isAdmin ? (
             <Link href="/app/admin" className="btn btn-secondary nav-cta">
-              Admin
+              {t('shell.app.admin')}
             </Link>
           ) : null}
           <form
@@ -46,7 +48,7 @@ export default async function AppLayout({ children }: { readonly children: React
             }}
           >
             <button type="submit" className="btn btn-secondary nav-cta">
-              Sign out
+              {t('shell.app.signOut')}
             </button>
           </form>
         </div>

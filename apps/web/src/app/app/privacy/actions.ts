@@ -9,8 +9,10 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { after } from 'next/server';
 import { triggerAccountExportWorker } from '../../../lib/jobs';
+import { getI18n } from '../../../lib/locale';
+import { errorText } from '../../../lib/localize-error';
 import { withSession } from '../../../lib/session';
-import { STEP_UP_NOT_CONFIGURED_MESSAGE, tryEstablishStepUp } from '../../../lib/step-up';
+import { tryEstablishStepUp } from '../../../lib/step-up';
 
 /** Result surfaced back to the client for inline feedback. */
 export interface ActionState {
@@ -30,6 +32,7 @@ export async function requestDeletionAction(
   _prev: ActionState,
   formData: FormData,
 ): Promise<ActionState> {
+  const i18n = await getI18n();
   const reason = String(formData.get('reason') ?? '').trim();
   const result = await withSession(async ({ db, accountId }) => {
     const stepUp = await tryEstablishStepUp(
@@ -37,7 +40,7 @@ export async function requestDeletionAction(
       '/app/privacy',
     );
     if (stepUp.kind === 'not_configured') {
-      return { ok: false, message: STEP_UP_NOT_CONFIGURED_MESSAGE } satisfies ActionState;
+      return { ok: false, message: i18n.t('error.stepUpNotConfigured') } satisfies ActionState;
     }
     if (stepUp.kind === 'reauth_required') redirect(stepUp.reauthUrl);
     const req = await requestAccountDeletion(db, {
@@ -45,11 +48,12 @@ export async function requestDeletionAction(
       accountId,
       ...(reason.length > 0 ? { reason } : {}),
     });
-    if (!req.ok) return { ok: false, message: req.error.message } satisfies ActionState;
-    const when = req.value.scheduledFor.toLocaleDateString();
+    if (!req.ok) return { ok: false, message: errorText(i18n, req.error) } satisfies ActionState;
     return {
       ok: true,
-      message: `Deletion scheduled for ${when}. You can cancel any time before then.`,
+      message: i18n.t('privacy.deletion.scheduled', {
+        when: i18n.date(req.value.scheduledFor, 'long'),
+      }),
     } satisfies ActionState;
   });
   if (result.ok) revalidatePath('/app/privacy');
@@ -75,20 +79,18 @@ export async function requestLargeExportAction(
   _prev: ActionState,
   _formData: FormData,
 ): Promise<ActionState> {
+  const i18n = await getI18n();
   const result = await withSession(async ({ db, accountId }) => {
     const stepUp = await tryEstablishStepUp(
       { accountId, action: 'ACCOUNT_EXPORT_LARGE', resourceId: accountId },
       '/app/privacy',
     );
     if (stepUp.kind === 'not_configured') {
-      return { ok: false, message: STEP_UP_NOT_CONFIGURED_MESSAGE } satisfies ActionState;
+      return { ok: false, message: i18n.t('error.stepUpNotConfigured') } satisfies ActionState;
     }
     if (stepUp.kind === 'reauth_required') redirect(stepUp.reauthUrl);
     await enqueueAccountExportJob(db, accountId);
-    return {
-      ok: true,
-      message: 'Preparing your export. This can take a few minutes.',
-    } satisfies ActionState;
+    return { ok: true, message: i18n.t('privacy.large.started') } satisfies ActionState;
   });
   if (result.ok) {
     after(() => triggerAccountExportWorker());
@@ -102,10 +104,13 @@ export async function cancelDeletionAction(
   _prev: ActionState,
   _formData: FormData,
 ): Promise<ActionState> {
+  const i18n = await getI18n();
   const result = await withSession(async ({ db, accountId }) => {
     const cancelled = await cancelAccountDeletion(db, { actorAccountId: accountId, accountId });
-    if (!cancelled.ok) return { ok: false, message: cancelled.error.message } satisfies ActionState;
-    return { ok: true, message: 'Deletion request cancelled.' } satisfies ActionState;
+    if (!cancelled.ok) {
+      return { ok: false, message: errorText(i18n, cancelled.error) } satisfies ActionState;
+    }
+    return { ok: true, message: i18n.t('privacy.deletion.cancelled') } satisfies ActionState;
   });
   if (result.ok) revalidatePath('/app/privacy');
   return result;

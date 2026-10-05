@@ -10,10 +10,17 @@ import { type NavLink, isCurrentPath } from '../../lib/navigation';
  * `isCurrentPath`: the overview link matches only its own path, otherwise every
  * page in the app would light up "Overview".
  */
-export function AppNav({ links }: { readonly links: readonly NavLink[] }) {
+export function AppNav({
+  links,
+  label,
+}: {
+  readonly links: readonly NavLink[];
+  /** The landmark's accessible name, in the reader's language. */
+  readonly label: string;
+}) {
   const pathname = usePathname();
   return (
-    <nav className="app-shell-links" aria-label="Primary">
+    <nav className="app-shell-links" aria-label={label}>
       {links.map((link) => (
         <Link
           key={link.href}

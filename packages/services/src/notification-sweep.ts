@@ -6,7 +6,7 @@ import {
   incrementMaterialRevision,
   missionsSelectingDocument,
 } from './material-revision';
-import { enqueueNotificationBothChannels } from './notifications';
+import { buildAlertPayload, enqueueNotificationBothChannels } from './notifications';
 import { recordProductEvent } from './product-events';
 
 /**
@@ -145,11 +145,14 @@ export async function sweepTaskDeadlineReminders(
         threshold,
         applicantId: row.applicantId,
         missionId: row.missionId,
-        payload: {
-          subject: threshold.startsWith('overdue') ? 'Overdue task on your case' : 'Task due soon',
-          summary: `A task on "${row.missionTitle}" needs your attention.`,
+        payload: buildAlertPayload({
+          subject: threshold.startsWith('overdue')
+            ? 'alert.taskOverdue.subject'
+            : 'alert.taskDueSoon.subject',
+          summary: 'alert.taskDeadline.summary',
+          params: { title: row.missionTitle },
           deepLinkPath: `/app/mission/${row.missionId}`,
-        },
+        }),
       });
       // OPS-04 overdue tasks: the first sweep that finds a task past its due
       // date records it. The sweep revisits an overdue task on every run (the
@@ -246,11 +249,12 @@ export async function sweepExpiryReminders(
         recipientAccountId: row.ownerAccountId,
         threshold: String(classification.thresholdCrossed),
         applicantId: row.applicantId,
-        payload: {
-          subject: 'A document is expiring soon',
-          summary: `"${row.displayName}" is expiring soon -- check whether it needs renewing.`,
+        payload: buildAlertPayload({
+          subject: 'alert.documentExpiry.subject',
+          summary: 'alert.documentExpiry.summary',
+          params: { name: row.displayName },
           deepLinkPath: `/app/applicant/${row.applicantId}/expiry`,
-        },
+        }),
       });
     });
     enqueued++;
@@ -279,11 +283,12 @@ export async function sweepExpiryReminders(
         recipientAccountId: row.ownerAccountId,
         threshold: String(classification.thresholdCrossed),
         applicantId: row.applicantId,
-        payload: {
-          subject: 'An issuer confirmation is expiring soon',
-          summary: `The confirmation from "${row.issuerIdentity}" is expiring soon.`,
+        payload: buildAlertPayload({
+          subject: 'alert.verificationExpiry.subject',
+          summary: 'alert.verificationExpiry.summary',
+          params: { issuer: row.issuerIdentity },
           deepLinkPath: `/app/applicant/${row.applicantId}/expiry`,
-        },
+        }),
       });
     });
     enqueued++;

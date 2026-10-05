@@ -1,123 +1,85 @@
 /**
- * Bilingual message catalog (Build Spec §9; PRD §6 — English/Bangla).
+ * The bilingual message catalog (Build Spec section 9; PRD section 6: English
+ * and Bangla), assembled from one catalog per flow.
  *
- * English is the canonical catalog; its keys define the `MessageKey` union so a
- * missing translation is a type-visible gap, and the runtime falls back to
- * English. Messages support `{token}` interpolation. Keep these UI-agnostic —
- * any surface (web, email, docs) can consume them.
+ * English is canonical: each catalog's English keys define the `MessageKey`
+ * union, and its Bangla object must have exactly those keys (`defineCatalog`
+ * enforces it at compile time). A key can appear in only one catalog; loading
+ * this module fails loudly on a duplicate. Messages support `{token}`
+ * interpolation. Keep them UI-agnostic: any surface (web, email, docs) can use
+ * them.
  */
 
-export const LOCALES = ['en', 'bn'] as const;
-export type Locale = (typeof LOCALES)[number];
-export const DEFAULT_LOCALE: Locale = 'en';
+import type { Catalog } from './catalog';
+import { account } from './catalogs/account';
+import { alerts } from './catalogs/alerts';
+import { consent } from './catalogs/consent';
+import { errors } from './catalogs/errors';
+import { privacy } from './catalogs/privacy';
+import { readiness } from './catalogs/readiness';
+import { sharing } from './catalogs/sharing';
+import { shell } from './catalogs/shell';
+import { upload } from './catalogs/upload';
+import { DEFAULT_LOCALE, LOCALES, type Locale } from './locales';
 
-/** Canonical English catalog. Keys here are the source of truth. */
-export const EN = {
-  'consent.core.title': 'Core processing consent',
-  'consent.ai.title': 'AI extraction consent',
-  'consent.ocr.title': 'AI OCR consent',
-  'consent.sharing.title': 'Sharing consent',
-  'consent.marketing.title': 'Marketing consent',
-  'consent.issuerContact.title': 'Issuer contact consent',
-  'consent.required': 'Consent is required before we can continue.',
-  'consent.action.grant': 'Grant',
-  'consent.action.revoke': 'Revoke',
-  'mission.readiness.missing': '{count} requirement(s) still needed',
-  'mission.readiness.ready': 'All required items are provided.',
-  'mission.readiness.needsReview': '{count} requirement(s) need more information to confirm.',
-  'mission.readiness.manualOnly': 'This case is not automatically assessed.',
-  'document.scanning': 'This document is being scanned for safety.',
-  'document.quarantined': 'This document was flagged and needs attention.',
-  'document.status.clean': 'Clean',
-  'document.status.pending': 'Pending',
-  'document.status.scanning': 'Scanning',
-  'document.status.quarantined': 'Quarantined',
-  'document.processing.uploading': 'Uploading',
-  'document.processing.quarantined': 'In quarantine',
-  'document.processing.scanning': 'Scanning',
-  'document.processing.normalizing': 'Structural validation',
-  'document.processing.extracting': 'Processing',
-  'document.processing.awaitingReview': 'Needs review',
-  'document.processing.ready': 'Ready',
-  'document.processing.needsAttention': 'Needs attention',
-  'document.processing.failed': 'Failed',
-  'document.processing.rejected': 'Rejected',
-  'grant.pending': 'Waiting for {recipient} to accept.',
-  'grant.revoked': 'Access has been revoked.',
-  'grant.status.pendingAcceptance': 'Pending acceptance',
-  'grant.status.awaitingYourAcceptance': 'Awaiting your acceptance',
-  'grant.status.active': 'Active',
-  'grant.status.paused': 'Paused',
-  'grant.status.revoked': 'Revoked',
-  'grant.status.expired': 'Expired',
-  'legalHold.active': 'This record is under legal hold and cannot be deleted.',
-  'applicant.relationship.self': 'Myself',
-  'applicant.relationship.familyMember': 'Family member',
-  'applicant.relationship.minorGuardian': 'Minor (guardian)',
-  'nav.signIn': 'Sign in',
-  'nav.workspace': 'Workspace',
-  'error.generic.title': 'Something went wrong',
-  'error.generic.body': "This wasn't caused by anything you did, and your data was not affected.",
-  'error.notFound.title': 'Page not found',
-} as const;
+export { DEFAULT_LOCALE, LOCALES, type Locale };
 
-export type MessageKey = keyof typeof EN;
+/** Every flow's catalog, in the order they are documented. */
+export const CATALOG_LIST = [
+  shell,
+  errors,
+  consent,
+  account,
+  alerts,
+  privacy,
+  readiness,
+  upload,
+  sharing,
+] as const;
 
-/**
- * Bangla catalog. Intentionally `Partial` — any missing key falls back to
- * English at runtime, so translations can land incrementally without breaking
- * the type or the UI.
- */
-export const BN: Partial<Record<MessageKey, string>> = {
-  'consent.core.title': 'মূল প্রক্রিয়াকরণ সম্মতি',
-  'consent.ai.title': 'এআই নিষ্কাশন সম্মতি',
-  'consent.ocr.title': 'এআই ওসিআর সম্মতি',
-  'consent.sharing.title': 'শেয়ারিং সম্মতি',
-  'consent.marketing.title': 'মার্কেটিং সম্মতি',
-  'consent.issuerContact.title': 'ইস্যুকারী যোগাযোগ সম্মতি',
-  'consent.required': 'চালিয়ে যাওয়ার আগে সম্মতি প্রয়োজন।',
-  'consent.action.grant': 'প্রদান করুন',
-  'consent.action.revoke': 'প্রত্যাহার করুন',
-  'mission.readiness.missing': '{count}টি প্রয়োজনীয় নথি এখনও বাকি',
-  'mission.readiness.ready': 'সমস্ত প্রয়োজনীয় নথি প্রদান করা হয়েছে।',
-  'mission.readiness.needsReview': '{count}টি বিষয় নিশ্চিত করতে আরও তথ্য প্রয়োজন।',
-  'mission.readiness.manualOnly': 'এই কেসটি স্বয়ংক্রিয়ভাবে মূল্যায়ন করা হয় না।',
-  'document.scanning': 'নিরাপত্তার জন্য এই নথিটি স্ক্যান করা হচ্ছে।',
-  'document.quarantined': 'এই নথিটি চিহ্নিত করা হয়েছে এবং মনোযোগ প্রয়োজন।',
-  'document.status.clean': 'পরিষ্কার',
-  'document.status.pending': 'মুলতুবি',
-  'document.status.scanning': 'স্ক্যান করা হচ্ছে',
-  'document.status.quarantined': 'চিহ্নিত',
-  'document.processing.uploading': 'আপলোড হচ্ছে',
-  'document.processing.quarantined': 'কোয়ারেন্টাইনে',
-  'document.processing.scanning': 'স্ক্যান করা হচ্ছে',
-  'document.processing.normalizing': 'কাঠামোগত যাচাই',
-  'document.processing.extracting': 'প্রক্রিয়াকরণ হচ্ছে',
-  'document.processing.awaitingReview': 'পর্যালোচনা প্রয়োজন',
-  'document.processing.ready': 'প্রস্তুত',
-  'document.processing.needsAttention': 'মনোযোগ প্রয়োজন',
-  'document.processing.failed': 'ব্যর্থ হয়েছে',
-  'document.processing.rejected': 'প্রত্যাখ্যাত',
-  'grant.pending': '{recipient} গ্রহণ করার অপেক্ষায়।',
-  'grant.revoked': 'অ্যাক্সেস প্রত্যাহার করা হয়েছে।',
-  'grant.status.pendingAcceptance': 'গ্রহণের অপেক্ষায়',
-  'grant.status.awaitingYourAcceptance': 'আপনার গ্রহণের অপেক্ষায়',
-  'grant.status.active': 'সক্রিয়',
-  'grant.status.paused': 'বিরত',
-  'grant.status.revoked': 'প্রত্যাহৃত',
-  'grant.status.expired': 'মেয়াদ উত্তীর্ণ',
-  // 'legalHold.active' intentionally omitted to exercise English fallback.
-  'applicant.relationship.self': 'নিজে',
-  'applicant.relationship.familyMember': 'পরিবারের সদস্য',
-  'applicant.relationship.minorGuardian': 'নাবালক (অভিভাবক)',
-  'nav.signIn': 'সাইন ইন',
-  'nav.workspace': 'ওয়ার্কস্পেস',
-  'error.generic.title': 'কিছু ভুল হয়েছে',
-  'error.generic.body': 'এটি আপনার কারণে ঘটেনি, এবং আপনার তথ্য প্রভাবিত হয়নি।',
-  'error.notFound.title': 'পৃষ্ঠা পাওয়া যায়নি',
-};
+export type CatalogId = (typeof CATALOG_LIST)[number]['meta']['id'];
 
-export const CATALOGS: Record<Locale, Partial<Record<MessageKey, string>>> = {
+type KeysOf<C> = C extends Catalog<string, infer K> ? K : never;
+
+/** Every message key in the product. A key that is not here is a compile error at the call site. */
+export type MessageKey = KeysOf<(typeof CATALOG_LIST)[number]>;
+
+function merge(locale: Locale): Readonly<Record<MessageKey, string>> {
+  const merged: Record<string, string> = {};
+  for (const catalog of CATALOG_LIST) {
+    const messages: Readonly<Record<string, string>> = catalog[locale];
+    for (const [key, text] of Object.entries(messages)) {
+      if (key in merged) {
+        throw new Error(
+          `Message key "${key}" is declared twice (second time in "${catalog.meta.id}")`,
+        );
+      }
+      merged[key] = text;
+    }
+  }
+  return merged as Record<MessageKey, string>;
+}
+
+/** Canonical English catalog. */
+export const EN = merge('en');
+
+/** Bangla catalog. Complete by construction: every English key has a Bangla message. */
+export const BN = merge('bn');
+
+export const CATALOGS: Readonly<Record<Locale, Readonly<Record<MessageKey, string>>>> = {
   en: EN,
   bn: BN,
 };
+
+/** Whether a string read from storage still names a message (a stored key can outlive the message it named). */
+export function isMessageKey(key: string): key is MessageKey {
+  return Object.hasOwn(EN, key);
+}
+
+/** The catalog a key belongs to, so a screen can say which review its text needs. */
+export function catalogOf(key: MessageKey): CatalogId {
+  for (const catalog of CATALOG_LIST) {
+    if (key in catalog.en) return catalog.meta.id;
+  }
+  throw new Error(`Unknown message key "${key}"`);
+}

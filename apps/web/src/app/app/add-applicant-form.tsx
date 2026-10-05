@@ -2,10 +2,11 @@
 
 import { useActionState, useState } from 'react';
 import { type ActionState, createApplicantAction } from './actions';
+import type { AddApplicantMessages } from './add-applicant-form.messages';
 
 const INITIAL: ActionState = { ok: true, message: '' };
 
-export function AddApplicantForm() {
+export function AddApplicantForm({ messages }: { readonly messages: AddApplicantMessages }) {
   const [state, formAction, pending] = useActionState(createApplicantAction, INITIAL);
   const [relationship, setRelationship] = useState('SELF');
   const needsAuthority = relationship !== 'SELF';
@@ -17,12 +18,12 @@ export function AddApplicantForm() {
     >
       <div>
         <label className="field-label" htmlFor="displayName">
-          Full name
+          {messages['account.add.name']}
         </label>
         <input
           id="displayName"
           name="displayName"
-          placeholder="Full name"
+          placeholder={messages['account.add.name']}
           required
           className="input"
           style={{ width: '100%', marginTop: '0.35rem' }}
@@ -30,7 +31,7 @@ export function AddApplicantForm() {
       </div>
       <div>
         <label className="field-label" htmlFor="relationship">
-          Relationship
+          {messages['account.add.relationship']}
         </label>
         <select
           id="relationship"
@@ -40,9 +41,9 @@ export function AddApplicantForm() {
           className="input"
           style={{ width: '100%', marginTop: '0.35rem' }}
         >
-          <option value="SELF">Myself</option>
-          <option value="FAMILY_MEMBER">Family member</option>
-          <option value="MINOR_GUARDIAN">Minor (guardian)</option>
+          <option value="SELF">{messages['applicant.relationship.self']}</option>
+          <option value="FAMILY_MEMBER">{messages['applicant.relationship.familyMember']}</option>
+          <option value="MINOR_GUARDIAN">{messages['applicant.relationship.minorGuardian']}</option>
         </select>
       </div>
       {needsAuthority ? (
@@ -55,14 +56,11 @@ export function AddApplicantForm() {
           }}
         >
           <input type="checkbox" name="authorityConfirmed" value="true" required />
-          <span>
-            I confirm I have authority to create and manage this record on their behalf. This is
-            never assumed from a shared name or address.
-          </span>
+          <span>{messages['consent.authority.confirm']}</span>
         </label>
       ) : null}
       <button type="submit" className="btn btn-primary" disabled={pending}>
-        {pending ? 'Adding…' : 'Add applicant'}
+        {pending ? messages['account.add.submitting'] : messages['account.add.submit']}
       </button>
       {state.message ? (
         <p className={`field-msg ${state.ok ? 'field-msg-ok' : 'field-msg-err'}`}>

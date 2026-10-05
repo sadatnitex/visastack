@@ -2,14 +2,15 @@ import { listMembershipsForAccount } from '@visastack/services';
 import { signOut } from '@workos-inc/authkit-nextjs';
 import Link from 'next/link';
 import { isPlatformAdmin } from '../../../lib/admin';
-import { getLocale } from '../../../lib/locale';
+import { getI18n } from '../../../lib/locale';
 import { withSession } from '../../../lib/session';
 import { setLocaleAction } from '../../actions';
 
 export const dynamic = 'force-dynamic';
 
 export default async function AccountPage() {
-  const locale = await getLocale();
+  const { locale, t } = await getI18n();
+  const otherLocale = locale === 'en' ? 'bn' : 'en';
   const data = await withSession(async ({ db, accountId, email }) => {
     const [isAdmin, memberships] = await Promise.all([
       isPlatformAdmin(db, { accountId, email }),
@@ -22,7 +23,7 @@ export default async function AccountPage() {
     <section className="section container">
       <div className="toolbar" style={{ marginBottom: '2rem' }}>
         <div>
-          <span className="eyebrow">Account</span>
+          <span className="eyebrow">{t('account.page.eyebrow')}</span>
           <h1 className="section-title" style={{ margin: '0.25rem 0 0' }}>
             {data.email}
           </h1>
@@ -31,38 +32,38 @@ export default async function AccountPage() {
 
       <div className="grid">
         <article className="card">
-          <p className="card-kicker">Preferences</p>
-          <h2 className="card-title">Language</h2>
+          <p className="card-kicker">{t('account.language.kicker')}</p>
+          <h2 className="card-title">{t('account.language.title')}</h2>
           <p className="card-body" style={{ marginBottom: '1.25rem' }}>
-            Applies immediately across the whole product.
+            {t('account.language.body')}
           </p>
           <form action={setLocaleAction}>
-            <input type="hidden" name="locale" value={locale === 'en' ? 'bn' : 'en'} />
+            <input type="hidden" name="locale" value={otherLocale} />
             <button type="submit" className="btn btn-secondary">
-              Switch to {locale === 'en' ? 'বাংলা' : 'English'}
+              {t('account.language.switch', { language: otherLocale === 'bn' ? 'বাংলা' : 'English' })}
             </button>
           </form>
         </article>
 
         <article className="card">
-          <p className="card-kicker">Data rights</p>
-          <h2 className="card-title">Privacy</h2>
+          <p className="card-kicker">{t('account.privacy.kicker')}</p>
+          <h2 className="card-title">{t('account.privacy.title')}</h2>
           <p className="card-body" style={{ marginBottom: '1.25rem' }}>
-            Export your data, review consent history, or delete your account.
+            {t('account.privacy.body')}
           </p>
           <Link href="/app/privacy" className="btn btn-secondary">
-            Open Privacy
+            {t('account.privacy.open')}
           </Link>
         </article>
 
         {data.hasAgencyAccess || data.isAdmin ? (
           <article className="card">
-            <p className="card-kicker">Roles</p>
-            <h2 className="card-title">Other areas you can access</h2>
+            <p className="card-kicker">{t('account.roles.kicker')}</p>
+            <h2 className="card-title">{t('account.roles.title')}</h2>
             <div className="rows" style={{ marginTop: '0.5rem' }}>
               {data.hasAgencyAccess ? (
                 <Link className="row row-link" href="/app/agency">
-                  <span className="row-key">Agency Desk</span>
+                  <span className="row-key">{t('account.roles.agency')}</span>
                   <span className="muted" aria-hidden="true">
                     →
                   </span>
@@ -70,7 +71,7 @@ export default async function AccountPage() {
               ) : null}
               {data.isAdmin ? (
                 <Link className="row row-link" href="/app/admin">
-                  <span className="row-key">Platform administration</span>
+                  <span className="row-key">{t('account.roles.admin')}</span>
                   <span className="muted" aria-hidden="true">
                     →
                   </span>
@@ -81,10 +82,10 @@ export default async function AccountPage() {
         ) : null}
 
         <article className="card">
-          <p className="card-kicker">Session</p>
-          <h2 className="card-title">Signed in</h2>
+          <p className="card-kicker">{t('account.session.kicker')}</p>
+          <h2 className="card-title">{t('account.session.title')}</h2>
           <p className="card-body" style={{ marginBottom: '1.25rem' }}>
-            Sign out of this device.
+            {t('account.session.body')}
           </p>
           <form
             action={async () => {
@@ -93,7 +94,7 @@ export default async function AccountPage() {
             }}
           >
             <button type="submit" className="btn btn-secondary">
-              Sign out
+              {t('shell.app.signOut')}
             </button>
           </form>
         </article>

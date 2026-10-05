@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type { Result } from '@visastack/core';
 import { err, ok } from '@visastack/core';
+import { type MessageKey, createTranslator } from '@visastack/i18n';
 import { and, asc, desc, eq, inArray, isNull, lte, or } from 'drizzle-orm';
 import { type Db, first, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
@@ -76,6 +77,45 @@ export interface NotificationPayload {
   readonly subject: string;
   readonly summary: string;
   readonly deepLinkPath: string;
+  /**
+   * The messages `subject` and `summary` were written from, and the values put
+   * into them, so the in-app alerts page can show the same alert in the reader's
+   * own language. Absent on alerts stored before this existed, which keep the
+   * English they were written in.
+   */
+  readonly messages?: {
+    readonly subject: AlertMessageKey;
+    readonly summary: AlertMessageKey;
+    readonly params?: Readonly<Record<string, string | number>>;
+  };
+}
+
+/** The message keys an alert can be built from (`alerts.ts` in `@visastack/i18n`). */
+export type AlertMessageKey = Extract<MessageKey, `alert.${string}`>;
+
+/**
+ * Builds an alert's payload from its message keys. The stored `subject` and
+ * `summary` are the English messages (so email, which has no reader's language
+ * to ask yet, and any older consumer keep working), and the keys and values
+ * travel with them for the page to translate.
+ */
+export function buildAlertPayload(input: {
+  readonly subject: AlertMessageKey;
+  readonly summary: AlertMessageKey;
+  readonly params?: Readonly<Record<string, string | number>>;
+  readonly deepLinkPath: string;
+}): NotificationPayload {
+  const english = createTranslator('en');
+  return {
+    subject: english(input.subject, input.params),
+    summary: english(input.summary, input.params),
+    deepLinkPath: input.deepLinkPath,
+    messages: {
+      subject: input.subject,
+      summary: input.summary,
+      ...(input.params ? { params: input.params } : {}),
+    },
+  };
 }
 
 /** Deterministic composition of "event; recipient; channel; threshold where applicable" plus the driving resource, so two different resources of the same event/recipient/channel never collide. */
@@ -422,6 +462,8 @@ export interface InAppNotificationView {
   readonly subject: string;
   readonly summary: string;
   readonly deepLinkPath: string;
+  /** What `subject` and `summary` were written from, when known; see `NotificationPayload.messages`. */
+  readonly messages?: NotificationPayload['messages'];
   readonly read: boolean;
   readonly createdAt: Date;
 }
@@ -452,6 +494,7 @@ export async function listNotificationsForAccount(
       subject: payload.subject,
       summary: payload.summary,
       deepLinkPath: payload.deepLinkPath,
+      ...(payload.messages ? { messages: payload.messages } : {}),
       read: row.status === 'READ',
       createdAt: row.createdAt,
     };

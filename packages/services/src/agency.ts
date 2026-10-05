@@ -16,6 +16,7 @@ import { isDocumentVersionUsable } from './documents';
 import { activeOrVerifiedErasureStorageObjectIds } from './erasure';
 import { type ServiceError, serviceError } from './errors';
 import {
+  buildAlertPayload,
   cancelQueuedNotificationsForResource,
   enqueueNotificationBothChannels,
 } from './notifications';
@@ -800,11 +801,11 @@ export async function createAppointmentForOrg(
         applicantId: mission.value.applicantId,
         organizationId: input.organizationId,
         missionId: input.missionId,
-        payload: {
-          subject: 'Appointment scheduled',
-          summary: 'An appointment was scheduled on your case.',
+        payload: buildAlertPayload({
+          subject: 'alert.appointmentScheduled.subject',
+          summary: 'alert.appointmentScheduled.summary',
           deepLinkPath: `/app/mission/${input.missionId}`,
-        },
+        }),
       });
     }
     return ok(appointment);
@@ -1537,11 +1538,11 @@ export async function requestEvidence(
         applicantId: input.applicantId,
         organizationId: input.organizationId,
         ...(input.missionId !== undefined ? { missionId: input.missionId } : {}),
-        payload: {
-          subject: 'New evidence request',
-          summary: 'An agency working your case has asked for evidence.',
+        payload: buildAlertPayload({
+          subject: 'alert.evidenceRequestCreated.subject',
+          summary: 'alert.evidenceRequestCreated.summary',
           deepLinkPath: `/app/applicant/${input.applicantId}/evidence`,
-        },
+        }),
       });
     }
     return ok(request);
@@ -2044,11 +2045,11 @@ export async function decideEvidenceResponse(
           recipientAccountId: owner.ownerAccountId,
           applicantId: request.applicantId,
           organizationId: request.organizationId,
-          payload: {
-            subject: 'Evidence accepted',
-            summary: 'A reviewer accepted your submitted evidence.',
+          payload: buildAlertPayload({
+            subject: 'alert.evidenceReviewAccepted.subject',
+            summary: 'alert.evidenceReviewAccepted.summary',
             deepLinkPath,
-          },
+          }),
         });
       } else {
         await enqueueNotificationBothChannels(tx, {
@@ -2057,11 +2058,11 @@ export async function decideEvidenceResponse(
           recipientAccountId: owner.ownerAccountId,
           applicantId: request.applicantId,
           organizationId: request.organizationId,
-          payload: {
-            subject: 'Evidence needs a fresh submission',
-            summary: 'A reviewer requested a replacement for your submitted evidence.',
+          payload: buildAlertPayload({
+            subject: 'alert.evidenceReplacementRequested.subject',
+            summary: 'alert.evidenceReplacementRequested.summary',
             deepLinkPath,
-          },
+          }),
         });
       }
     }
@@ -2489,11 +2490,11 @@ export async function recordMissionDecision(
         applicantId: mission.applicantId,
         organizationId: input.organizationId,
         missionId: input.missionId,
-        payload: {
-          subject: 'Update on your case',
-          summary: 'A reviewer recorded a decision on your case.',
+        payload: buildAlertPayload({
+          subject: 'alert.missionStatusChanged.subject',
+          summary: 'alert.missionStatusChanged.summary',
           deepLinkPath: `/app/mission/${input.missionId}`,
-        },
+        }),
       });
     }
     return ok(decision);

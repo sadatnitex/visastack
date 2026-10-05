@@ -941,3 +941,48 @@ main {
     flex: 1 1 12rem;
   }
 }
+
+/*
+ * The loading label is written in both languages so a loading screen needs no
+ * request-time lookup of the reader's language; the page's own language attribute
+ * decides which one is shown, and the hidden one is not announced either.
+ */
+html[lang="bn"] .loading-label[lang="en"],
+html:not([lang="bn"]) .loading-label[lang="bn"] {
+  display: none;
+}
+
+/*
+ * Bangla (directive Part 9 section 4). Bengali letters join into conjuncts that
+ * carry marks above and below the line, so the defaults that suit English damage
+ * them: tight leading clips the marks, and any letter-spacing (even the small
+ * negative tracking the headings use) pulls the conjuncts apart. In Bangla the
+ * text is not tracked, headings are given room, and Bengali families are named so
+ * the device's own Bangla font is chosen rather than whatever the browser falls
+ * back to. No web font is loaded: every phone and computer the product targets
+ * ships one, and a font download is what a low-bandwidth reader can least afford.
+ */
+html[lang="bn"] {
+  --font-sans:
+    -apple-system, BlinkMacSystemFont, "SF Pro Text", "Noto Sans Bengali",
+    "Kohinoor Bangla", "Bangla Sangam MN", "Nirmala UI", Vrinda, "Segoe UI", Roboto, Helvetica,
+    Arial, sans-serif;
+}
+html[lang="bn"] body {
+  line-height: 1.75;
+}
+html[lang="bn"] *,
+html[lang="bn"] *::before,
+html[lang="bn"] *::after {
+  letter-spacing: normal;
+}
+html[lang="bn"] :is(.hero-title, .section-title, .card-title, h1, h2, h3) {
+  line-height: 1.4;
+}
+html[lang="bn"] :is(.hero-sub, .pilot-banner, .notice, .card-kicker, .eyebrow, .badge, .btn) {
+  line-height: 1.6;
+}
+html[lang="bn"] .card-kicker {
+  /* There are no capitals in Bengali; the rule only adds nothing, so drop it. */
+  text-transform: none;
+}

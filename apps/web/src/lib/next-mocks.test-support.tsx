@@ -9,10 +9,27 @@ import { vi } from 'vitest';
  * the mocks it registers must exist before the page under test is loaded.
  */
 
-const state = vi.hoisted(() => ({ pathname: '/' }));
+const state = vi.hoisted(() => ({ pathname: '/', locale: 'en' }));
 
 /** What `usePathname()` returns while a page renders; set it to see which tab is current. */
 export const navigationState = state;
+
+/** The visitor's language cookie while a page renders: set `localeState.value = 'bn'` to see it in Bangla. */
+export const localeState = {
+  get value(): string {
+    return state.locale;
+  },
+  set value(next: string) {
+    state.locale = next;
+  },
+};
+
+vi.mock('next/headers', () => ({
+  cookies: async () => ({
+    get: (name: string) => (name === 'visastack_locale' ? { value: state.locale } : undefined),
+    set: () => undefined,
+  }),
+}));
 
 vi.mock('next/navigation', () => ({
   notFound: () => {
@@ -77,9 +94,18 @@ export async function renderServer(
   return resolved === null ? '' : renderToStaticMarkup(resolved);
 }
 
+/**
+ * The Latin-script words in some text. On a Bangla screen the only ones left should be what a
+ * person typed (an email address, a name in English) and the brand, never interface wording.
+ */
+export function latinWords(text: string): string[] {
+  return text.match(/[A-Za-z][A-Za-z0-9]*/g) ?? [];
+}
+
 /** Collapses markup to its words, for assertions that should not care about tags. */
 export function textOf(html: string): string {
   return html
+    .replace(/<script[\s\S]*?<\/script>/g, ' ')
     .replace(/<[^>]*>/g, ' ')
     .replaceAll('&amp;', '&')
     .replaceAll('&#x27;', "'")

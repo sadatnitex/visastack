@@ -1,15 +1,18 @@
-import { createTranslator } from '@visastack/i18n';
 import { getConsents, listApplicants } from '@visastack/services';
 import Link from 'next/link';
-import { getLocale } from '../../../lib/locale';
+import { Rich } from '../../../components/rich';
+import { pickMessages } from '../../../lib/client-messages';
+import { getI18n } from '../../../lib/locale';
 import { relationshipLabel } from '../../../lib/relationship-labels';
 import { withSession } from '../../../lib/session';
 import { AddApplicantForm } from '../add-applicant-form';
+import { ADD_APPLICANT_KEYS } from '../add-applicant-form.messages';
 
 export const dynamic = 'force-dynamic';
 
 export default async function ApplicantsPage() {
-  const t = createTranslator(await getLocale());
+  const i18n = await getI18n();
+  const { locale, t } = i18n;
   const data = await withSession(async ({ db, accountId }) => {
     const [applicants, consents] = await Promise.all([
       listApplicants(db, accountId),
@@ -22,23 +25,24 @@ export default async function ApplicantsPage() {
     <section className="section container">
       <div className="toolbar" style={{ marginBottom: '2rem' }}>
         <div>
-          <span className="eyebrow">Applicants</span>
+          <span className="eyebrow">{t('account.applicants.eyebrow')}</span>
           <h1 className="section-title" style={{ margin: '0.25rem 0 0' }}>
-            People on your account
+            {t('account.applicants.title')}
           </h1>
           <p className="muted" style={{ margin: '0.35rem 0 0' }}>
-            Yourself and anyone you manage records for — family members or a minor under your
-            guardianship.
+            {t('account.applicants.subtitle')}
           </p>
         </div>
       </div>
 
       <div className="grid">
         <article className="card">
-          <p className="card-kicker">All applicants</p>
-          <h2 className="card-title">{data.applicants.length} record(s)</h2>
+          <p className="card-kicker">{t('account.applicants.listKicker')}</p>
+          <h2 className="card-title">
+            {i18n.tn('account.applicants.count', data.applicants.length)}
+          </h2>
           {data.applicants.length === 0 ? (
-            <p className="card-body">No applicant records yet.</p>
+            <p className="card-body">{t('account.applicants.empty')}</p>
           ) : (
             <div className="rows" style={{ marginTop: '0.5rem' }}>
               {data.applicants.map((a) => (
@@ -59,14 +63,17 @@ export default async function ApplicantsPage() {
         </article>
 
         <article className="card">
-          <p className="card-kicker">New</p>
-          <h2 className="card-title">Add an applicant</h2>
+          <p className="card-kicker">{t('account.applicants.newKicker')}</p>
+          <h2 className="card-title">{t('account.applicants.addTitle')}</h2>
           {data.coreGranted ? (
-            <AddApplicantForm />
+            <AddApplicantForm messages={pickMessages(locale, ADD_APPLICANT_KEYS)} />
           ) : (
             <p className="card-body">
-              Grant <strong>Core processing</strong> consent from <Link href="/app">Home</Link> to
-              start adding applicant records.
+              <Rich
+                template={t('account.applicants.needConsent')}
+                locale={locale}
+                link={(text) => <Link href="/app">{text}</Link>}
+              />
             </p>
           )}
         </article>

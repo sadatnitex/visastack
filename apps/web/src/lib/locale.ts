@@ -1,4 +1,4 @@
-import { type Locale, resolveLocale } from '@visastack/i18n';
+import { type I18n, type Locale, createI18n, resolveLocale } from '@visastack/i18n';
 import { cookies } from 'next/headers';
 
 /**
@@ -30,4 +30,9 @@ export function localeCookieOptions(secure: boolean) {
 export async function getLocale(): Promise<Locale> {
   const store = await cookies();
   return resolveLocale(store.get(LOCALE_COOKIE)?.value);
+}
+
+/** Messages, plurals, numbers and dates in the visitor's language, for a server page, layout or action. */
+export async function getI18n(): Promise<I18n> {
+  return createI18n(await getLocale());
 }

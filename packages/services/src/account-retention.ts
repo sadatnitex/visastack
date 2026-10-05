@@ -2,7 +2,7 @@ import { isOk } from '@visastack/core';
 import { and, eq, isNotNull, isNull, lte } from 'drizzle-orm';
 import { type Db, first, schema } from './db';
 import { requestAccountDeletion } from './deletion';
-import { enqueueNotificationBothChannels } from './notifications';
+import { buildAlertPayload, enqueueNotificationBothChannels } from './notifications';
 
 /**
  * Inactive-account retention (PRV-02, master directive Part 7 §11): "wallet
@@ -99,11 +99,12 @@ export async function sweepInactiveAccountNotices(
         eventType: 'INACTIVE_ACCOUNT_NOTICE',
         resourceId: row.id,
         recipientAccountId: row.id,
-        payload: {
-          subject: 'Your account has been inactive for a while',
-          summary: `We haven't seen you sign in for ${months} months. If you don't sign in within 30 days, we'll begin the account deletion process (with its own final review period before anything is actually deleted). Sign in any time to cancel this.`,
+        payload: buildAlertPayload({
+          subject: 'alert.inactiveAccount.subject',
+          summary: 'alert.inactiveAccount.summary',
+          params: { months },
           deepLinkPath: '/app',
-        },
+        }),
       });
       return true;
     });

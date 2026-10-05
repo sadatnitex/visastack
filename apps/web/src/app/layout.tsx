@@ -2,9 +2,10 @@ import { withAuth } from '@workos-inc/authkit-nextjs';
 import type { Metadata, Viewport } from 'next';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
+import { LocaleProvider } from '../components/locale-provider';
 import { PilotBanner } from '../components/pilot-banner';
 import { getDeploymentMode } from '../lib/deployment-mode';
-import { getLocale } from '../lib/locale';
+import { getI18n } from '../lib/locale';
 import { setLocaleAction } from './actions';
 import './globals.css';
 
@@ -33,40 +34,44 @@ export default async function RootLayout({ children }: { readonly children: Reac
   } catch {
     signedIn = false;
   }
-  const locale = await getLocale();
+  const { locale, t } = await getI18n();
   const deploymentMode = getDeploymentMode();
+  const otherLocale = locale === 'en' ? 'bn' : 'en';
 
   return (
     <html lang={locale}>
       <body>
         <a className="skip-link" href="#main">
-          Skip to content
+          {t('shell.skipToContent')}
         </a>
-        <PilotBanner mode={deploymentMode} />
+        <PilotBanner mode={deploymentMode} t={t} />
         <header className="nav">
           <Link className="brand" href="/">
             VisaStack
           </Link>
-          <nav className="nav-links" aria-label="Primary">
-            <Link href="/#capabilities">Platform</Link>
-            <Link href="/trust">Public trust</Link>
-            <Link href="/status">Status</Link>
-            <form action={setLocaleAction} aria-label="Language">
-              <input type="hidden" name="locale" value={locale === 'en' ? 'bn' : 'en'} />
-              <button type="submit" className="lang-switch">
-                {locale === 'en' ? 'বাংলা' : 'English'}
+          <nav className="nav-links" aria-label={t('shell.nav.primary')}>
+            <Link href="/#capabilities">{t('shell.nav.platform')}</Link>
+            <Link href="/trust">{t('shell.nav.publicTrust')}</Link>
+            <Link href="/status">{t('shell.nav.status')}</Link>
+            <form action={setLocaleAction} aria-label={t('shell.language')}>
+              <input type="hidden" name="locale" value={otherLocale} />
+              {/* Named in its own language and marked as such, so a screen reader pronounces it correctly and a Bangla reader can find it. */}
+              <button type="submit" className="lang-switch" lang={otherLocale}>
+                {otherLocale === 'bn' ? 'বাংলা' : 'English'}
               </button>
             </form>
             <a className="btn btn-secondary nav-cta" href="/app">
-              {signedIn ? 'Workspace' : 'Sign in'}
+              {signedIn ? t('nav.workspace') : t('nav.signIn')}
             </a>
           </nav>
         </header>
-        <main id="main">{children}</main>
+        <main id="main">
+          <LocaleProvider locale={locale}>{children}</LocaleProvider>
+        </main>
         <footer className="footer">
           <div className="container footer-inner">
-            <span>© {new Date().getFullYear()} VisaStack. Proprietary and confidential.</span>
-            <span>Built remote-first on Vercel + Neon.</span>
+            <span>{t('shell.footer.rights', { year: new Date().getFullYear() })}</span>
+            <span>{t('shell.footer.hosting')}</span>
           </div>
         </footer>
       </body>
