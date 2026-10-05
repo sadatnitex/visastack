@@ -1,10 +1,28 @@
 import { getPublicTrustRoute, safeHttpUrl } from '@visastack/services';
+import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { cache } from 'react';
 import { withPublicDb } from '../../../lib/public-db';
 import { formatPrice } from '../../../lib/usage-format';
 
 export const dynamic = 'force-dynamic';
+
+/** One lookup per request, shared by the page and its title. */
+const loadRoute = cache((packKey: string) =>
+  withPublicDb((db) => getPublicTrustRoute(db, packKey)),
+);
+
+/** The route's own name is public information, so the tab says which route this is (WCAG 2.4.2). */
+export async function generateMetadata({
+  params,
+}: {
+  readonly params: Promise<{ packKey: string }>;
+}): Promise<Metadata> {
+  const { packKey } = await params;
+  const route = await loadRoute(packKey);
+  return { title: route ? route.packName : 'Route information' };
+}
 
 /**
  * ScamShield Lite (directive §9): a general, platform-level checklist and
@@ -30,7 +48,7 @@ export default async function PublicTrustRoutePage({
   readonly params: Promise<{ packKey: string }>;
 }) {
   const { packKey } = await params;
-  const route = await withPublicDb((db) => getPublicTrustRoute(db, packKey));
+  const route = await loadRoute(packKey);
   if (!route) notFound();
 
   // Links an author typed in render only if they are absolute http(s) URLs; a

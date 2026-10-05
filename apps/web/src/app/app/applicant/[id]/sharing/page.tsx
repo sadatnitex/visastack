@@ -6,6 +6,7 @@ import {
   listDocumentsDetailed,
   previewScopeExpansion,
 } from '@visastack/services';
+import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { grantStatusBadge } from '../../../../../lib/grant-status';
 import { getLocale } from '../../../../../lib/locale';
@@ -14,6 +15,8 @@ import { withSession } from '../../../../../lib/session';
 import { GrantForm } from './grant-form';
 import { GrantOpButtons } from './grant-op-buttons';
 import { ScopeExpansionForm } from './scope-expansion-form';
+
+export const metadata: Metadata = { title: 'Sharing' };
 
 export const dynamic = 'force-dynamic';
 

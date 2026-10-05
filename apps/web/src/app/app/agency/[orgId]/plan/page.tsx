@@ -1,4 +1,5 @@
 import { getUsageForOrganization } from '@visastack/services';
+import type { Metadata } from 'next';
 import { withSession } from '../../../../../lib/session';
 import {
   formatMeterValue,
@@ -6,6 +7,8 @@ import {
   meterFraction,
   meterTone,
 } from '../../../../../lib/usage-format';
+
+export const metadata: Metadata = { title: 'Agency usage and billing' };
 
 export const dynamic = 'force-dynamic';
 

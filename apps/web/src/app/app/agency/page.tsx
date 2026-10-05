@@ -1,7 +1,10 @@
 import { listMembershipsForAccount } from '@visastack/services';
+import type { Metadata } from 'next';
 import Link from 'next/link';
 import { withSession } from '../../../lib/session';
 import { CreateOrgForm } from './create-org-form';
+
+export const metadata: Metadata = { title: 'Agencies' };
 
 export const dynamic = 'force-dynamic';
 

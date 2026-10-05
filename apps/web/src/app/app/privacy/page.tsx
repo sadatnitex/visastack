@@ -6,9 +6,12 @@ import {
   listActiveLegalHoldsForAccount,
   listConsentHistory,
 } from '@visastack/services';
+import type { Metadata } from 'next';
 import { withSession } from '../../../lib/session';
 import { DeletionPanel } from './deletion-panel';
 import { LargeExportPanel } from './large-export-panel';
+
+export const metadata: Metadata = { title: 'Privacy' };
 
 export const dynamic = 'force-dynamic';
 

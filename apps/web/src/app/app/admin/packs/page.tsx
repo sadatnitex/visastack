@@ -4,10 +4,13 @@ import {
   listPacks,
   listPublicTrustPublished,
 } from '@visastack/services';
+import type { Metadata } from 'next';
 import Link from 'next/link';
 import { isPlatformAdmin } from '../../../../lib/admin';
 import { withSession } from '../../../../lib/session';
 import { CreatePackForm, SetDocumentExpiryPolicyForm } from './pack-forms';
+
+export const metadata: Metadata = { title: 'Rules' };
 
 export const dynamic = 'force-dynamic';
 

@@ -1,9 +1,12 @@
 import { type AuditEventRow, listRecentAuditEvents } from '@visastack/services';
+import type { Metadata } from 'next';
 import { isPlatformAdmin } from '../../../../lib/admin';
 import { withSession } from '../../../../lib/session';
 import { tolerantReader } from '../../../../lib/tolerate';
 import { AdminRestricted } from '../admin-restricted';
 import { FailedSectionsBanner } from '../failed-sections-banner';
+
+export const metadata: Metadata = { title: 'Audit' };
 
 export const dynamic = 'force-dynamic';
 

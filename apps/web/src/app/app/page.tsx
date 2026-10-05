@@ -10,10 +10,13 @@ import {
   listMissions,
   listPendingProposals,
 } from '@visastack/services';
+import type { Metadata } from 'next';
 import Link from 'next/link';
 import { getLocale } from '../../lib/locale';
 import { withSession } from '../../lib/session';
 import { ConsentButton } from './consent-button';
+
+export const metadata: Metadata = { title: 'Overview' };
 
 export const dynamic = 'force-dynamic';
 

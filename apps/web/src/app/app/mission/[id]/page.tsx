@@ -31,6 +31,7 @@ import {
   listTasks,
   safeHttpUrl,
 } from '@visastack/services';
+import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { isExplanationConfigured } from '../../../../lib/ai';
@@ -56,6 +57,8 @@ import {
 import { OutcomePanel } from './outcome-panel';
 import { ExplainGapButton } from './readiness-gap-explain';
 import { SubmissionReportPanel } from './submission-report-panel';
+
+export const metadata: Metadata = { title: 'Case' };
 
 export const dynamic = 'force-dynamic';
 

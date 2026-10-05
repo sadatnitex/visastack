@@ -7,9 +7,12 @@ import {
   listMissions,
   listPendingProposals,
 } from '@visastack/services';
+import type { Metadata } from 'next';
 import Link from 'next/link';
 import { PROFILE_FIELDS } from '../../../../lib/profile-fields';
 import { withSession } from '../../../../lib/session';
+
+export const metadata: Metadata = { title: 'Applicant overview' };
 
 export const dynamic = 'force-dynamic';
 

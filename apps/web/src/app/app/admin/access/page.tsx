@@ -3,6 +3,7 @@ import {
   listInvitations,
   reportUnboundAccounts,
 } from '@visastack/services';
+import type { Metadata } from 'next';
 import { isPlatformAdmin, isPlatformOwnerAccount } from '../../../../lib/admin';
 import { withSession } from '../../../../lib/session';
 import { tolerantReader } from '../../../../lib/tolerate';
@@ -10,6 +11,8 @@ import { RevokeInvitationButton, RevokeRoleButton } from '../action-buttons';
 import { GrantRoleForm, InviteForm } from '../admin-forms';
 import { AdminRestricted } from '../admin-restricted';
 import { FailedSectionsBanner } from '../failed-sections-banner';
+
+export const metadata: Metadata = { title: 'Platform access' };
 
 export const dynamic = 'force-dynamic';
 

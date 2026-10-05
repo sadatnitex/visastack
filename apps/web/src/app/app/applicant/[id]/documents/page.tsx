@@ -14,6 +14,7 @@ import {
   listPendingProposals,
   loadUploadQuotaConfig,
 } from '@visastack/services';
+import type { Metadata } from 'next';
 import Link from 'next/link';
 import {
   createAiExtractor,
@@ -37,6 +38,8 @@ import {
 import { DocumentUploader } from '../document-uploader';
 import { NameReview } from '../name-review';
 import { UsageMeter } from '../usage-meter';
+
+export const metadata: Metadata = { title: 'Documents' };
 
 export const dynamic = 'force-dynamic';
 

@@ -5,10 +5,13 @@ import {
   listFactHistory,
   listMissionsUsingField,
 } from '@visastack/services';
+import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { profileField } from '../../../../../lib/profile-fields';
 import { withSession } from '../../../../../lib/session';
+
+export const metadata: Metadata = { title: 'History' };
 
 export const dynamic = 'force-dynamic';
 

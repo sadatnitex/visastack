@@ -1,5 +1,8 @@
 import { withAuth } from '@workos-inc/authkit-nextjs';
+import type { Metadata } from 'next';
 import Link from 'next/link';
+
+export const metadata: Metadata = { title: 'Invite-only pilot' };
 
 export const dynamic = 'force-dynamic';
 

@@ -26,6 +26,7 @@ const PUBLIC_FILES: readonly string[] = [
   'app/page.tsx',
   'app/layout.tsx',
   'app/status/page.tsx',
+  'app/status/status-client.tsx',
   'app/status/status-view.tsx',
   'app/status/capability-names.ts',
   'app/not-found.tsx',

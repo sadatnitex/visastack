@@ -1,6 +1,9 @@
 import { listPublicTrustPublished } from '@visastack/services';
+import type { Metadata } from 'next';
 import Link from 'next/link';
 import { withPublicDb } from '../../lib/public-db';
+
+export const metadata: Metadata = { title: 'Route information' };
 
 export const dynamic = 'force-dynamic';
 

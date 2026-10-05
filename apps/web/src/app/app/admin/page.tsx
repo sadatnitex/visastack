@@ -10,6 +10,7 @@ import {
   loadUploadQuotaConfig,
   totalAiCostUnits,
 } from '@visastack/services';
+import type { Metadata } from 'next';
 import { isPlatformAdmin } from '../../../lib/admin';
 import { aiWarningLimitUnits, defaultAiLimits, resolveAiLimits, unitsToUsd } from '../../../lib/ai';
 import { formatDuration, formatMinorUnits, humanizeLabel } from '../../../lib/analytics-format';
@@ -24,6 +25,8 @@ import { RetryJobButton } from './action-buttons';
 import { AdminRestricted } from './admin-restricted';
 import { FailedSectionsBanner } from './failed-sections-banner';
 import { ReconcileButtons } from './reconcile-buttons';
+
+export const metadata: Metadata = { title: 'Platform operations' };
 
 export const dynamic = 'force-dynamic';
 

@@ -1,8 +1,11 @@
 import { getApplicant, hasConsent, listMissions } from '@visastack/services';
+import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { withSession } from '../../../../../lib/session';
 import { CreateMissionForm } from './create-mission-form';
+
+export const metadata: Metadata = { title: 'Cases' };
 
 export const dynamic = 'force-dynamic';
 

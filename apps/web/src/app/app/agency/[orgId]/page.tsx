@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import Link from 'next/link';
 import { withSession } from '../../../../lib/session';
 import { CaseSearchForm, STAGE_LABELS } from './case-search-form';
@@ -9,6 +10,8 @@ import {
   loadUnassignedQueue,
 } from './console-data';
 import { countOverdueTasks, nextApproachingDate, summarizeAttention } from './console-format';
+
+export const metadata: Metadata = { title: 'Agency dashboard' };
 
 export const dynamic = 'force-dynamic';
 

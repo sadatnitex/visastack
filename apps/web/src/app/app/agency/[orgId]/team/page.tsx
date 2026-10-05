@@ -1,8 +1,11 @@
+import type { Metadata } from 'next';
 import { withSession } from '../../../../../lib/session';
 import { loadMembers, loadOrgAccess, loadPendingTeamInvitations } from '../console-data';
 import { InvitationRevokeButton } from '../invitation-revoke-button';
 import { AddMemberForm } from '../member-form';
 import { MemberToggleButton } from '../member-toggle-button';
+
+export const metadata: Metadata = { title: 'Agency team' };
 
 export const dynamic = 'force-dynamic';
 

@@ -1,6 +1,9 @@
 import { previewOrganizationInvitation } from '@visastack/services';
+import type { Metadata } from 'next';
 import { withSession } from '../../../../lib/session';
 import { AcceptInvitationForm } from './accept-form';
+
+export const metadata: Metadata = { title: 'Team invitation' };
 
 export const dynamic = 'force-dynamic';
 

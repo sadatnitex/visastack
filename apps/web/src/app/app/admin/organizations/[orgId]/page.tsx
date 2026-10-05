@@ -13,6 +13,7 @@ import {
   listInvoicesForOrganization,
   listPlans,
 } from '@visastack/services';
+import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { bootstrapAdminEmails, isPlatformOwnerAccount } from '../../../../../lib/admin';
@@ -36,6 +37,8 @@ import {
   TransitionBillingStatusForm,
   VoidInvoiceButton,
 } from './forms';
+
+export const metadata: Metadata = { title: 'Organization' };
 
 export const dynamic = 'force-dynamic';
 

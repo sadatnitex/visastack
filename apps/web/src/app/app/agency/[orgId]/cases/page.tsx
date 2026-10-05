@@ -1,6 +1,9 @@
+import type { Metadata } from 'next';
 import { withSession } from '../../../../../lib/session';
 import { loadCases, loadMembers, loadOrgAccess } from '../console-data';
 import { MissionCollaboration } from '../mission-collaboration';
+
+export const metadata: Metadata = { title: 'Agency cases' };
 
 export const dynamic = 'force-dynamic';
 
