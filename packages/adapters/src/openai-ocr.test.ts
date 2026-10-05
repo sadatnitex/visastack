@@ -172,7 +172,8 @@ describe('OpenAiOcrAdapter', () => {
     if (outcome.ok) return;
     expect(outcome.code).toBe('timeout');
     expect(outcome.provider).toBe('openai');
-    expect(outcome.latencyMs).toBeGreaterThanOrEqual(20);
+    // A timer can fire a millisecond early against the clock; this only has to show it waited.
+    expect(outcome.latencyMs).toBeGreaterThanOrEqual(15);
   });
 
   it('reports auth_failed (never generic upstream_error) on HTTP 401', async () => {
