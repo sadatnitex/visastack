@@ -4,7 +4,9 @@ name: WorkOS Staging E2E (authenticated)
 # §8C). Runs only when the required repository secrets exist; clearly skipped
 # otherwise. Never touches production credentials, never logs credentials or
 # session tokens, uses a synthetic WorkOS-staging test identity, and creates
-# no real applicant data.
+# no real applicant data. Restricted to the production deployment or a
+# manual dispatch, never a PR-branch preview -- see the authenticated-e2e
+# job's own if: condition for why (Codex review).
 #
 # Required repository secrets (names only — no values are ever committed):
 #   WORKOS_STAGING_TEST_EMAIL     — a synthetic WorkOS-staging test user email
@@ -12,9 +14,21 @@ name: WorkOS Staging E2E (authenticated)
 #   E2E_BASE_URL (optional)       — target URL; defaults to the triggering
 #                                   deployment's URL, or the production URL
 #
-# To enable: add the two required secrets under
-# Settings → Secrets and variables → Actions. Leave them unset to keep this
-# workflow a no-op.
+# Optional, for the 8 cross-account-boundary tests in
+# authenticated-workspace.spec.ts (a second independent identity is the only
+# way to meaningfully prove a tenant-isolation boundary — see that file's own
+# header comment). Each of those tests currently self-skips unconditionally
+# regardless of these being set, until its journey is actually implemented;
+# passing them through now means nothing further is needed here once that
+# code lands:
+#   WORKOS_STAGING_TEST_EMAIL_2     — a second synthetic WorkOS-staging test
+#                                      user email, distinct from the one above
+#   WORKOS_STAGING_TEST_PASSWORD_2  — that user's password
+#
+# To enable: add the required secrets under Settings → Secrets and variables
+# → Actions. Leave WORKOS_STAGING_TEST_EMAIL/_PASSWORD unset to keep this
+# workflow a no-op entirely; the _2 pair can be added independently at any
+# time.
 on:
   deployment_status:
   workflow_dispatch: {}
@@ -48,7 +62,23 @@ jobs:
   authenticated-e2e:
     name: Authenticated workspace journey (WorkOS staging)
     needs: check-configured
-    if: needs.check-configured.outputs.configured == 'true' && (github.event_name == 'workflow_dispatch' || github.event.deployment_status.state == 'success')
+    # Restricted to the production deployment (ref == 'main') or a manual
+    # dispatch -- never a PR-branch preview (Codex review, this PR, P1).
+    # deployment_status fires for EVERY Vercel deployment, preview included
+    # (deploy-smoke.yml's own header comment says so), and this job checks
+    # out and executes github.event.deployment.sha's own
+    # authenticated-workspace.spec.ts with real WorkOS-staging credentials
+    # in its environment. Without this restriction, any branch's preview
+    # build reaching success would run that branch's own (possibly
+    # modified) test code with real secrets available to it -- a PR could
+    # trivially exfiltrate them. Every deployment this session has ever
+    # confirmed target: "production" for also had githubCommitRef: "main"
+    # (Vercel only marks a build "production" when it's built from the
+    # repo's designated production branch), so ref == 'main' reliably
+    # distinguishes "this is the production deployment" from "this is a
+    # preview" without guessing at Vercel's own environment-name string
+    # convention.
+    if: needs.check-configured.outputs.configured == 'true' && (github.event_name == 'workflow_dispatch' || (github.event.deployment_status.state == 'success' && github.event.deployment.ref == 'main'))
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -57,7 +87,10 @@ jobs:
       # deploy-smoke.yml. Falls back to github.sha for the manual
       # workflow_dispatch trigger, where github.event.deployment doesn't
       # exist and github.sha already correctly resolves to whatever ref the
-      # operator selected when dispatching.
+      # operator selected when dispatching. Safe here specifically because
+      # the if: above already guarantees this only runs for the production
+      # deployment (or an operator's own explicit manual dispatch) -- never
+      # an untrusted PR branch's preview.
       - name: Checkout
         uses: actions/checkout@v4
         with:
@@ -85,6 +118,14 @@ jobs:
           PLAYWRIGHT_BASE_URL: ${{ vars.E2E_BASE_URL || github.event.deployment_status.environment_url || github.event.deployment_status.target_url }}
           WORKOS_STAGING_TEST_EMAIL: ${{ secrets.WORKOS_STAGING_TEST_EMAIL }}
           WORKOS_STAGING_TEST_PASSWORD: ${{ secrets.WORKOS_STAGING_TEST_PASSWORD }}
+          # Optional second identity for the cross-account-boundary tests
+          # (docs/roadmap/remaining-commercial-blockers.md §3). Passed
+          # through unconditionally, whether or not these secrets are set —
+          # each consuming test currently self-skips regardless (see the
+          # header comment above), so an unset value here is inert, not an
+          # error.
+          WORKOS_STAGING_TEST_EMAIL_2: ${{ secrets.WORKOS_STAGING_TEST_EMAIL_2 }}
+          WORKOS_STAGING_TEST_PASSWORD_2: ${{ secrets.WORKOS_STAGING_TEST_PASSWORD_2 }}
         run: npx playwright test authenticated-workspace.spec.ts
 
       - name: Upload Playwright report
