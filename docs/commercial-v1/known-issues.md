@@ -4561,6 +4561,26 @@ item gets its own requirements-ledger row once classified against the new direct
       a deprecated text-encoding package); it is a development-only dependency and the
       production dependency audit is unaffected.
 
+    **Chunk 41 (2026-10-06, SEC-07) -- the production dependency audit went red on a new
+    advisory, and what was done.** The CI run on `main` after #166 merged failed its
+    "Audit production dependencies" step (`pnpm audit --prod --audit-level high`) in under a
+    minute. Two advisories were open: `source-map-js` (high, event-loop denial of service
+    through indexed source-map offsets, vulnerable below 1.2.2, reached through `next` and
+    `postcss`) and `sprintf-js` (moderate, denial of service, vulnerable up to 1.1.3, reached
+    through `mammoth` and `argparse`). The same dependency set had passed the audit on the
+    pull request's own run hours earlier, which points to advisories published in between
+    (I did not look up their publication times). Nothing about #166 caused it: it only added
+    development-only packages. A new override pins `source-map-js` to `>=1.2.2 <2.0.0` (bounded
+    above, because an unbounded override once broke DOCX reading; lint, typecheck, the web
+    tests and a production build all pass with it, and the audit gate now passes). `sprintf-js`
+    has **no patched version** (1.1.3 is the newest), is only moderate (so it does not fail the
+    high-severity gate) and sits behind the DOCX text reader; it is accepted for now and must be
+    revisited when a fix exists or `mammoth` changes. Lesson that keeps repeating (known issue
+    10, and again on 2026-10-03): this gate can go red with no change of ours, so a green
+    pull request does not guarantee a green `main`. The scheduled weekly scan that would
+    surface this earlier is not set up (CodeQL and dependency review are skipped on this
+    private repository; see the supply-chain work still to do).
+
 independently confirmed findings; the missing PRD file is tracked as Blocker 1 in
 `assumptions-and-blockers.md` (now resolved) rather than here, since it blocked the
 programme rather than being a product defect.
