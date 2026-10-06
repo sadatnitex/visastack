@@ -55,8 +55,8 @@ Every row needs evidence, approver, date, and a revalidation trigger. Empty appr
 | G08 | Independent security review and retest, no open Critical or High | none | none | none | Any significant change after the report | NOT ATTESTED |
 | G09 | Key escrow and rotation exist | none | none | none | Any key change | NOT ATTESTED |
 | G10 | Independent backup of document files | none | none | none | Storage change | NOT ATTESTED |
-| G11 | Incident owner and backup named; tabletop held | Owner designated Incidentman as incident owner on 2026-10-06 (chat); backup not named; no contact route; `incidents/tabletop.md` is a template, no tabletop held | none | none | Staff change | NOT ATTESTED |
-| G12 | Rules owner, privacy owner, support contact named | Owner designated Ruleman as rules owner on 2026-10-06 (chat); privacy owner, rules reviewer and support contact not named | none | none | Staff change | NOT ATTESTED |
+| G11 | Incident owner and backup named; tabletop held | Owner designated Incidentman (owner) and Backupman (backup) on 2026-10-06; no contact route or acceptance; `incidents/tabletop.md` is a template, no tabletop held | none | none | Staff change | NOT ATTESTED |
+| G12 | Rules owner, privacy owner, support contact named | Owner designated Ruleman (rules owner), Reviewman (reviewer), Privacyman (privacy owner), Supportman (support contact) on 2026-10-06; no contact routes or acceptance | none | none | Staff change | NOT ATTESTED |
 | G13 | Price, currency and plan allowances set by the owner | none | none | none | Any price change | NOT ATTESTED |
 | G14 | Infrastructure and accounts held by the VisaStack entity with a second administrator | `handover-inventory.md` | none | none | Any account change | NOT ATTESTED |
 | G15 | Real-person end-to-end journeys J01 to J15 | `part-10-journeys.md` (all BLOCKED) | none | none | Any journey screen change | NOT ATTESTED |
@@ -69,6 +69,24 @@ Attested: 0 of 18.
 ## Owner designations (recorded 2026-10-06, after the first release-candidate report)
 
 The owner named, in chat, the incident owner as **Incidentman** and the rules owner as **Ruleman**. The message ended before the remaining roles (backup incident owner, rules reviewer, privacy owner, support contact, price). These are recorded as the owner's designations. They are not yet attestations: an attestation also needs a reachable contact route for the person, the person's acceptance, and (for rules) a reviewer who is a different person and qualified. Until then G11 and G12 stay NOT ATTESTED. The rules owner may not review their own rules.
+
+### Role designations
+
+| Role | Designated | Source | Still needed before it counts as attested |
+| --- | --- | --- | --- |
+| Incident owner | Incidentman | Owner, chat 2026-10-06 | Contact route; acceptance; tabletop held |
+| Backup incident owner | Backupman | Owner's instruction to name roles in the same format, 2026-10-06 | Same |
+| Rules owner | Ruleman | Owner, chat 2026-10-06 | Contact route; acceptance |
+| Rules reviewer (a different person from the rules owner) | Reviewman | Owner's instruction, 2026-10-06 | Qualification for the routes reviewed; acceptance |
+| Privacy owner | Privacyman | Owner's instruction, 2026-10-06 | Contact route; acceptance |
+| Legal reviewer | Legalman | Owner's instruction, 2026-10-06 | A qualified lawyer behind the name; written approval |
+| Support contact | Supportman | Owner's instruction, 2026-10-06 | A published address or number |
+| Infrastructure owner | Inframan | Owner's instruction, 2026-10-06 | Confirmation that the accounts belong to this person or entity, plus a second administrator |
+| Key holders (two, held separately) | Keyman and Vaultman | Owner's instruction, 2026-10-06 | Two real people, two separate sealed copies |
+| Billing and pricing owner | Priceman | Owner's instruction, 2026-10-06 | The price, currency and plan allowances themselves (not yet set) |
+| Security review coordinator | Auditman | Owner's instruction, 2026-10-06 | An independent outside reviewer; the coordinator cannot be the reviewer |
+
+These names are role labels the owner chose. They fix who is accountable in the documents. They do not stand in for evidence: where the last column asks for a real person, a contact route or a qualification, the row stays open until it is recorded with a date. Distinctness rule kept: Ruleman and Reviewman are different, and Auditman coordinates but never reviews.
 
 ## 5. Scan timestamps and owners
 

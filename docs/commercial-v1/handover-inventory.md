@@ -23,8 +23,8 @@ Written 2026-10-06. Code: `a27cefb8bd40e0f766870309b02a848c1917307d`. For every 
 | Billing | Manual billing records in app; no payment provider | Owner | Price, currency and process undecided |
 | Export path | Self-export and agency bulk export in app (`account-export.test.ts`) | App | Exercised in tests only; not with a real session |
 | Backup and recovery | `docs/operations/recovery.md`, `incidents/restore.md`, `backup-resurrection-reconciliation.md`; provider point-in-time history for the database | Provider tier | Never rehearsed (A30 BLOCKED) |
-| Support process | `docs/operations/runbook.md` and support-access grants (60 minute maximum, reasoned, approved) | Nobody named | No support contact, no admin screen for support grants |
-| Incident contacts | Eight runbooks under `docs/operations/incidents` and `tabletop.md` | Incidentman (incident owner, designated 2026-10-06); backup not named | Appoint primary and backup; hold the tabletop |
+| Support process | `docs/operations/runbook.md` and support-access grants (60 minute maximum, reasoned, approved) | Supportman (designated 2026-10-06) | No support contact, no admin screen for support grants |
+| Incident contacts | Eight runbooks under `docs/operations/incidents` and `tabletop.md` | Incidentman (incident owner) and Backupman (backup), designated 2026-10-06 | Appoint primary and backup; hold the tabletop |
 
 ## Documents a new operator reads first
 

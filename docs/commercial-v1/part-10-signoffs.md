@@ -43,11 +43,11 @@ Current official terms for each provider were not re-read in this session (outbo
 | Plan allowances | Plans, entitlements and manual billing exist in code. Allowance values for a paid launch are not set by the owner. | none | BLOCKED |
 | Price and currency | Not set. Payments are unconfigured by design. | none | BLOCKED |
 | Billing process | Manual billing screens exist; no written process and no payment provider. | none | BLOCKED |
-| Support contact | None published. | none | BLOCKED |
-| Primary and backup incident owner | Incidentman designated as incident owner by the owner (2026-10-06). Backup not named, no contact route, no tabletop held. | owner (designation only) | PARTIAL |
-| Rules owner and reviewer | Ruleman designated as rules owner by the owner (2026-10-06). No reviewer; the reviewer must be a different person | owner (designation only) | PARTIAL |
-| Privacy owner | None appointed. | none | BLOCKED |
-| Infrastructure ownership | Vercel project sits under a team slug that carries a personal name, and the source repository is under a personal GitHub account. Whether these belong to the intended VisaStack entity is for the owner to confirm. | none | UNCONFIRMED |
+| Support contact | Supportman designated by the owner, 2026-10-06. No published address | owner (designation only) | PARTIAL |
+| Primary and backup incident owner | Incidentman (owner) and Backupman (backup) designated by the owner, 2026-10-06. No contact route, no tabletop held. | owner (designation only) | PARTIAL |
+| Rules owner and reviewer | Ruleman (rules owner) and Reviewman (reviewer, a different person) designated by the owner, 2026-10-06. No reviewed content exists yet | owner (designation only) | PARTIAL |
+| Privacy owner | Privacyman designated by the owner, 2026-10-06. No contact route | owner (designation only) | PARTIAL |
+| Infrastructure ownership | Inframan designated by the owner, 2026-10-06. Vercel project sits under a team slug that carries a personal name, and the source repository is under a personal GitHub account. Whether these belong to the intended VisaStack entity is for the owner to confirm. | none | UNCONFIRMED |
 | Domain, cloud, identity, data, secrets, billing accounts belong to the owner entity | Not verifiable from the repository. | none | UNCONFIRMED |
 
 ## Section 13: runtime degradation versus release eligibility
