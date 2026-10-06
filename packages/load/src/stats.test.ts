@@ -35,3 +35,20 @@ describe('reference PDF', () => {
     expect(bytes.length).toBeGreaterThan(10_000);
   });
 });
+
+describe('in-memory file store', () => {
+  it('returns a fresh copy on every read so one reader cannot empty it for the next', async () => {
+    const { MemoryBlobStore } = await import('./memory-blobs');
+    const store = new MemoryBlobStore();
+    await store.putObject({
+      bucket: 'QUARANTINE',
+      objectKey: 'k',
+      contentType: 'application/pdf',
+      bytes: buildPdf(1),
+    });
+    const first = await store.getObject('k');
+    structuredClone(first?.bytes.buffer, { transfer: [first?.bytes.buffer as ArrayBuffer] });
+    const second = await store.getObject('k');
+    expect(second?.bytes.byteLength).toBeGreaterThan(100);
+  });
+});

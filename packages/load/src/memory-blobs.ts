@@ -17,7 +17,8 @@ export class MemoryBlobStore implements BlobStore {
 
   async getObject(objectKey: string): Promise<StoredBytes | undefined> {
     const found = this.objects.get(objectKey);
-    return found ? { contentType: found.contentType, bytes: found.bytes } : undefined;
+    // A copy on every read, like a real file store: the PDF reader takes ownership of the buffer it is given.
+    return found ? { contentType: found.contentType, bytes: found.bytes.slice() } : undefined;
   }
 
   async deleteObject(_bucket: StorageBucket, objectKey: string): Promise<void> {
