@@ -12,14 +12,19 @@ concrete dashboards/URLs live in the Vercel and Neon consoles, not in the repo.
   details and returns only `{ "status": "ready" | "degraded" }`.
 
 A deploy is healthy when readiness returns `ready` and the latest migration is
-applied (build-time migration runs on every production deploy).
+applied. Migrations do not run during a deploy: they run only through the manual
+"DB Migrate" workflow (see `docs/operations/release-and-rollback.md`), so a new
+release that needs a migration shows `degraded` until someone runs it.
+For a suspected incident, start at `docs/operations/incidents/README.md`.
 
 ## Common incidents
 
 ### Readiness = `degraded`
 1. Check the Neon console: is the production branch reachable / not suspended?
 2. Confirm the connection string env var is present (readiness reports presence).
-3. Check the latest Vercel deploy's build log for a migration failure.
+3. Check whether a migration is waiting: compare the newest migration in the repository
+   with the one applied, and look at the latest "DB Migrate" run in GitHub Actions for a
+   failure. The Vercel build log will not show a migration.
 4. If migrations failed, fix forward with a new reviewed migration — never edit
    an applied migration.
 

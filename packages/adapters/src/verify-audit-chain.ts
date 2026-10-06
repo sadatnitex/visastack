@@ -1,5 +1,5 @@
 import { createPooledDb } from '@visastack/db';
-import { checkRecentAuditChain } from '@visastack/services';
+import { runAuditChainVerification } from './audit-chain-report';
 
 /**
  * Verifies the audit trail's hash chain over a whole database, run deliberately as part of a
@@ -27,30 +27,16 @@ function parseLimit(): number {
 }
 
 async function main(): Promise<void> {
-  const connectionString = process.env['VERIFY_DATABASE_URL'];
+  const { VERIFY_DATABASE_URL: connectionString } = process.env;
   if (!connectionString) {
     throw new Error('VERIFY_DATABASE_URL is required to verify the audit chain');
   }
   const limit = parseLimit();
   const { db, pool } = createPooledDb(connectionString);
   try {
-    const check = await checkRecentAuditChain(db, limit);
-    process.stdout.write(`checked ${check.checked} audit event(s)\n`);
-    if (check.firstBrokenLinkSeq !== null) {
-      process.stdout.write(
-        `BROKEN: event ${check.firstBrokenLinkSeq} does not link to the one before it\n`,
-      );
-    }
-    if (check.hashMismatches > 0) {
-      process.stdout.write(
-        `${check.hashMismatches} event(s) do not recompute to their stored hash\n`,
-      );
-    }
-    if (check.firstBrokenLinkSeq !== null || check.hashMismatches > 0) {
-      process.exitCode = 1;
-      return;
-    }
-    process.stdout.write('audit chain intact\n');
+    process.exitCode = await runAuditChainVerification(db, limit, (line) =>
+      process.stdout.write(`${line}\n`),
+    );
   } finally {
     await pool.end();
   }

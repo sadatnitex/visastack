@@ -90,7 +90,7 @@ treat the steps above as a documented procedure, not a proven one.
 |---|---|
 | Clean install | Covered by CI (`pnpm install --frozen-lockfile`, build, test) on every pull request |
 | Upgrade | Migrations are forward only and checked by the readiness comparison; a rehearsed upgrade from a restored copy is part of Part 10 |
-| Preview isolation | Previews are built from unreviewed branches and are public addresses; they get no production credential by design. Verified from the Vercel environment-variable scoping on 2026-10-06 (see the supply-chain page) |
+| Preview isolation | Previews are built from unreviewed branches and are public addresses; they get no production credential by design. **Not verified:** on 2026-10-06 the attempt to list which environments each secret is attached to was refused (permission denied), so the scoping has not been checked. The owner checks it in the Vercel dashboard (Settings, Environment Variables) and records the date here |
 | Migrations serialized | One workflow, one at a time, never cancelled halfway |
 | Deployed commit identity | Vercel shows it; the release record names it; the readiness comparison names the migration state |
 | Rollback behaviour | Documented above; **not tested** |

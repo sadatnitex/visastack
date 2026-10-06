@@ -21,7 +21,7 @@ import { DATABASE_URL_ENV_CANDIDATES, resolveDatabaseUrl } from './client';
  * application's own credential is a launch blocker, not a standing arrangement.
  */
 async function main(): Promise<void> {
-  const dedicated = process.env['MIGRATION_DATABASE_URL'];
+  const { MIGRATION_DATABASE_URL: dedicated } = process.env;
   const connectionString =
     dedicated && dedicated.length > 0 ? dedicated : resolveDatabaseUrl(process.env);
   if (!connectionString) {
