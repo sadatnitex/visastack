@@ -111,3 +111,20 @@ Run on `3fbaeef143e33ca039ff353c9212f70fd9d3b165` (the release-candidate branch 
 Two honest notes. First, an intermediate run failed: one database-backed test hook timed out at the 10 second default when all packages ran at once on 4 CPUs, and two web tests timed out while I ran other commands in parallel. They passed alone (28 seconds for that package). This was treated as a real test-robustness defect, not dismissed: the limits were made explicit and the whole run was repeated cleanly. Second, the load run and the browser/CSP behaviour are unchanged by this work and were not repeated for load.
 
 Security counts now: **Critical 0, High 0, Medium 2** (1 production, 1 development), Low not graded. This replaces the counts in the table above for the branch head. Production itself still runs `a27cefb`; this branch is not deployed.
+
+
+## Addendum 2026-10-06 (evening): Neon Auth phase 1 added, whole run repeated
+
+Branch head `46b0e3b62ec6d10d818ce7b58793d4c9587a4192` now contains shipped-code changes (the Neon sign-in pieces, off by default), so the release gate's earlier "documentation only" statements no longer hold for the branch, and the branch is **not** the tested `a27cefb` build. Production still runs `a27cefb`.
+
+| Step | Result |
+| --- | --- |
+| Install with frozen lockfile, lint, typecheck, build | PASSED |
+| Web tests, run uncached after the final lockfile change | PASSED: 1,046 of 1,046 (was 1,018; 28 new, each new guard proved by breaking it once) |
+| Other packages | PASSED on the previous full uncached run at the same source (services 1,332; adapters 325 with 2 skipped; db 34 with 1 skipped; policy 32; load 10; i18n 6; core 2). The final run replayed these from the build cache because their source did not change; this is stated, not hidden |
+| Production audit, high and above | PASSED (after raising the `sharp` floor) |
+| Supply-chain scans | 7 of 7 PASSED (after excluding the Neon UI add-on that carried two AGPL packages) |
+| Browser checks | 75 passed, 2 failed (the same two sandbox-only sign-in tests) |
+| Smoke | 10 of 10 PASSED |
+
+The release gate must be re-validated against this head before any decision: its rule is that a change under `apps/` or `packages/` voids the record (`release-gate.md`, section 6). Not verified: any live Neon sign-in.
