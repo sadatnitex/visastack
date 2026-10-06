@@ -44,8 +44,8 @@ Current official terms for each provider were not re-read in this session (outbo
 | Price and currency | Not set. Payments are unconfigured by design. | none | BLOCKED |
 | Billing process | Manual billing screens exist; no written process and no payment provider. | none | BLOCKED |
 | Support contact | None published. | none | BLOCKED |
-| Primary and backup incident owner | None appointed. No tabletop held. | none | BLOCKED |
-| Rules owner and reviewer | None appointed. | none | BLOCKED |
+| Primary and backup incident owner | Incidentman designated as incident owner by the owner (2026-10-06). Backup not named, no contact route, no tabletop held. | owner (designation only) | PARTIAL |
+| Rules owner and reviewer | Ruleman designated as rules owner by the owner (2026-10-06). No reviewer; the reviewer must be a different person | owner (designation only) | PARTIAL |
 | Privacy owner | None appointed. | none | BLOCKED |
 | Infrastructure ownership | Vercel project sits under a team slug that carries a personal name, and the source repository is under a personal GitHub account. Whether these belong to the intended VisaStack entity is for the owner to confirm. | none | UNCONFIRMED |
 | Domain, cloud, identity, data, secrets, billing accounts belong to the owner entity | Not verifiable from the repository. | none | UNCONFIRMED |

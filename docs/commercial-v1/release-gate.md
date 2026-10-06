@@ -55,8 +55,8 @@ Every row needs evidence, approver, date, and a revalidation trigger. Empty appr
 | G08 | Independent security review and retest, no open Critical or High | none | none | none | Any significant change after the report | NOT ATTESTED |
 | G09 | Key escrow and rotation exist | none | none | none | Any key change | NOT ATTESTED |
 | G10 | Independent backup of document files | none | none | none | Storage change | NOT ATTESTED |
-| G11 | Incident owner and backup named; tabletop held | `docs/operations/incidents/tabletop.md` is a template | none | none | Staff change | NOT ATTESTED |
-| G12 | Rules owner, privacy owner, support contact named | none | none | none | Staff change | NOT ATTESTED |
+| G11 | Incident owner and backup named; tabletop held | Owner designated Incidentman as incident owner on 2026-10-06 (chat); backup not named; no contact route; `incidents/tabletop.md` is a template, no tabletop held | none | none | Staff change | NOT ATTESTED |
+| G12 | Rules owner, privacy owner, support contact named | Owner designated Ruleman as rules owner on 2026-10-06 (chat); privacy owner, rules reviewer and support contact not named | none | none | Staff change | NOT ATTESTED |
 | G13 | Price, currency and plan allowances set by the owner | none | none | none | Any price change | NOT ATTESTED |
 | G14 | Infrastructure and accounts held by the VisaStack entity with a second administrator | `handover-inventory.md` | none | none | Any account change | NOT ATTESTED |
 | G15 | Real-person end-to-end journeys J01 to J15 | `part-10-journeys.md` (all BLOCKED) | none | none | Any journey screen change | NOT ATTESTED |
@@ -65,6 +65,10 @@ Every row needs evidence, approver, date, and a revalidation trigger. Empty appr
 | G18 | Screen-reader and keyboard pass by a person | `part-9-checkpoint.md` (owed) | none | none | Any screen change | NOT ATTESTED |
 
 Attested: 0 of 18.
+
+## Owner designations (recorded 2026-10-06, after the first release-candidate report)
+
+The owner named, in chat, the incident owner as **Incidentman** and the rules owner as **Ruleman**. The message ended before the remaining roles (backup incident owner, rules reviewer, privacy owner, support contact, price). These are recorded as the owner's designations. They are not yet attestations: an attestation also needs a reachable contact route for the person, the person's acceptance, and (for rules) a reviewer who is a different person and qualified. Until then G11 and G12 stay NOT ATTESTED. The rules owner may not review their own rules.
 
 ## 5. Scan timestamps and owners
 
