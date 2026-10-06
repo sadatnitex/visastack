@@ -63,7 +63,16 @@ export function StatusView({
         <span className="muted" style={{ fontSize: '0.9rem' }}>
           {updatedAt ? `Updated ${updatedAt}. Checks again every 15 seconds.` : 'Loading…'}
         </span>
-        <button type="button" className="btn btn-secondary" onClick={onRefresh} disabled={loading}>
+        {/* Not `disabled`: this page re-checks by itself every 15 seconds, and a button that
+            disables itself drops keyboard focus whenever that happens. */}
+        <button
+          type="button"
+          className="btn btn-secondary"
+          aria-disabled={loading || undefined}
+          onClick={() => {
+            if (!loading) onRefresh();
+          }}
+        >
           {loading ? 'Checking…' : 'Check now'}
         </button>
       </div>
@@ -81,7 +90,9 @@ export function StatusView({
         <h2 className="card-title">Features</h2>
         {rows.length === 0 ? (
           <p className="muted" style={{ margin: 0 }}>
-            The list of features is not available right now.
+            {ready === null
+              ? 'Checking which features are working…'
+              : 'The list of features is not available right now.'}
           </p>
         ) : (
           <div className="rows" style={{ marginTop: '0.5rem' }}>
