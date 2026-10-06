@@ -13,7 +13,7 @@ import { PRIMARY_NAV, agencyTabs, applicantTabs, platformTabs } from '../src/lib
  */
 
 test.describe('accessibility (axe) — public pages', () => {
-  for (const path of ['/', '/status']) {
+  for (const path of ['/', '/status', '/trust']) {
     test(`${path} has no critical/serious automated accessibility violations`, async ({ page }) => {
       await page.goto(path);
       const results = await new AxeBuilder({ page })
@@ -429,6 +429,33 @@ test.describe('colour contrast of the signed-in building blocks (axe, both colou
         (v) => v.impact === 'critical' || v.impact === 'serious',
       );
       expect(blocking, JSON.stringify(blocking, null, 2)).toEqual([]);
+    });
+  }
+});
+
+test.describe('route information page (answers with data or says plainly it is unavailable)', () => {
+  // With no database behind it (this check), the page must say so instead of failing; with one,
+  // it lists the routes. Either way: one top heading, a way forward, nothing off the screen.
+  for (const [name, width] of [
+    ['320', 320],
+    ['360', 360],
+    ['390', 390],
+  ] as const) {
+    test(`/trust is readable at ${name} width`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 800 });
+      const response = await page.goto('/trust');
+      expect(response?.status()).toBe(200);
+      await expect(page.locator('main h1')).toHaveCount(1);
+      const { scrollWidth, clientWidth } = await page.evaluate(() => ({
+        scrollWidth: document.documentElement.scrollWidth,
+        clientWidth: document.documentElement.clientWidth,
+      }));
+      expect(scrollWidth).toBeLessThanOrEqual(clientWidth + 1);
+      const unavailable = page.getByText('Route information is not available right now');
+      if (await unavailable.count()) {
+        await expect(page.getByRole('link', { name: 'Try again' })).toBeVisible();
+        await expect(page.getByRole('link', { name: 'Back to home' })).toBeVisible();
+      }
     });
   }
 });

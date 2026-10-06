@@ -63,7 +63,7 @@ added without a decision.
 These are shown to signed-in travellers and still carry engineering words. They are
 the next candidates for the same pass:
 
-- Document stages: "Structural validation", "In quarantine".
+- Document stages: done (2026-10-06): now "Checking the file", "Reading the file", "Held for safety", "No problems found", "Reviewed and approved".
 - AI controls on a document: "Run OCR", "Fallback provider used", "Unmapped (no
   matching field)", and raw document type codes such as `BANK_STATEMENT`.
 - Agency and platform consoles, which are written for staff and are left as they are

@@ -26,5 +26,14 @@ export function PageLoading({
       <span className="skeleton skeleton-card" aria-hidden="true" />
     </output>
   );
-  return frame === 'page' ? <section className="section container">{body}</section> : body;
+  // A whole page has exactly one top heading even while it loads (WCAG 1.3.1); a panel sits under
+  // the workspace heading that is already on screen.
+  return frame === 'page' ? (
+    <section className="section container">
+      <h1 className="sr-only">{label}</h1>
+      {body}
+    </section>
+  ) : (
+    body
+  );
 }
