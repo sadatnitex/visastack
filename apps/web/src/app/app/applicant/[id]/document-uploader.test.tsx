@@ -1,18 +1,14 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
+import { formatFileSize } from '../../../../lib/format-size';
 import { textOf } from '../../../../lib/next-mocks.test-support';
 
 vi.mock('./actions', () => ({
   uploadDocumentAction: async () => ({ ok: true, message: '' }),
 }));
 
-const {
-  DocumentUploader,
-  formatFileSize,
-  UPLOADING_SLOW_TEXT,
-  UPLOADING_TEXT,
-  UPLOAD_UNKNOWN_OUTCOME,
-} = await import('./document-uploader');
+const { DocumentUploader, UPLOADING_SLOW_TEXT, UPLOADING_TEXT, UPLOAD_UNKNOWN_OUTCOME } =
+  await import('./document-uploader');
 
 describe('the upload form', () => {
   const html = renderToStaticMarkup(<DocumentUploader applicantId="a1" limitLabel="5 MB" />);

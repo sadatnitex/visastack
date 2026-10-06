@@ -154,7 +154,7 @@ describe('the upload form', () => {
       await render(),
       'DocumentUploader',
     );
-    expect(uploader).toEqual({ applicantId: 'a1', limitLabel: '5 MB' });
+    expect(uploader).toEqual({ applicantId: 'a1', limitLabel: '5 MB', virusScanning: false });
   });
 
   it('is not shown until core processing consent is granted, as before', async () => {

@@ -7,6 +7,7 @@ import {
   fieldProblem,
   useFocusInvalidField,
 } from '../../../../components/form-feedback';
+import { formatFileSize } from '../../../../lib/format-size';
 import { SLOW_AFTER_MS, guardNetwork } from '../../../../lib/resilience';
 import { type ActionState, uploadDocumentAction } from './actions';
 
@@ -25,13 +26,6 @@ export const UPLOADING_TEXT =
   'Uploading. Larger files can take a minute. Please keep this page open.';
 export const UPLOADING_SLOW_TEXT =
   'Still uploading. This is taking longer than usual. Please keep this page open, or check the list of documents below before trying again.';
-
-/** A file size a person can read: "2.4 MB", "310 KB". */
-export function formatFileSize(bytes: number): string {
-  if (bytes >= 1_000_000) return `${(bytes / 1_000_000).toFixed(1)} MB`;
-  if (bytes >= 1_000) return `${Math.round(bytes / 1_000)} KB`;
-  return `${bytes} bytes`;
-}
 
 const guardedUpload = guardNetwork(uploadDocumentAction, UPLOAD_UNKNOWN_OUTCOME);
 

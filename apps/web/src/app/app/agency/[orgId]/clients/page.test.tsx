@@ -128,7 +128,7 @@ describe('agency Clients', () => {
 
   it('says so when no evidence has been requested', async () => {
     mocks.loadEvidenceRequests.mockResolvedValue([]);
-    expect(textOf(await renderServer(Page(props)))).toContain('No evidence requests raised yet.');
+    expect(textOf(await renderServer(Page(props)))).toContain('No evidence requests yet');
   });
 
   it('points to the Cases section, where the work on a case happens', async () => {
