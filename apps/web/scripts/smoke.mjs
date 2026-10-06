@@ -97,10 +97,10 @@ async function main() {
       `status=${res.status} bytes=${html.length}`,
     );
     record(
-      'Landing page shows the controlled-pilot banner',
+      'Landing page shows the pilot banner',
       html.includes('pilot-banner') &&
-        (html.includes('Controlled Pilot') || html.includes('Development Preview')),
-      'looking for .pilot-banner + "Controlled Pilot"/"Development Preview"',
+        (html.includes('VisaStack private pilot') || html.includes('VisaStack test build')),
+      'looking for .pilot-banner + "VisaStack private pilot"/"VisaStack test build"',
     );
   } catch (error) {
     record('Landing page renders', false, String(error));

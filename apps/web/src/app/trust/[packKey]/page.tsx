@@ -159,7 +159,7 @@ export default async function PublicTrustRoutePage({
       </div>
 
       <article className="card" style={{ marginTop: '1.5rem' }}>
-        <p className="card-kicker">ScamShield Lite</p>
+        <p className="card-kicker">Scam awareness</p>
         <h2 className="card-title">Warning signs to watch for</h2>
         <p className="muted" style={{ margin: '0.35rem 0 1rem', fontSize: '0.85rem' }}>
           General guidance, the same for every route - not specific to this one, and never an

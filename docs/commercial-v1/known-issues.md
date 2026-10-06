@@ -4398,6 +4398,53 @@ item gets its own requirements-ledger row once classified against the new direct
     `--accent-strong` already makes for blue. Solid red buttons now use a deeper red
     (`--danger-strong`, 5.46:1) in both colour schemes; the dark-mode axe check now
     includes a danger button and fails without the fix.
+
+    **Chunk 39 (2026-10-05, owner instructions) -- plain words on the public pages, and
+    Bangla deferred.** Two instructions from the owner shaped this chunk.
+
+    - **Plain language.** "No engineering talk to the public unless it is really
+      needed." The public home page described the product in architecture terms
+      ("Provider-agnostic ports", "immutable, atomically-approved version", "Quarantine,
+      scan, normalize, extract, with deterministic passport-MRZ parsing", "Built
+      remote-first on Vercel + Neon", "Universal Core v0.0.0"), the status page printed
+      raw probe keys and paths (`platform.aiExtraction: unconfigured`,
+      `/api/health/live`), and the banner on every page used "synthetic or irreversibly
+      redacted". All now say what a person gets or sees (`docs/ux/plain-language.md`).
+      The status page names every platform capability in everyday words and says "Not
+      set up yet" or "Switched off for now" beside what is not on, so it stays honest;
+      a capability with no plain name does not compile, and one with a state it has no
+      words for is left out rather than shown as a code. The "English & Bangla" promise
+      was removed from the home page because Bangla is only partly there. The footer no
+      longer names the hosting and database tools, and the internal label "ScamShield
+      Lite" on the trust pages became "Scam awareness". A guard test
+      (`lib/plain-language.test.ts`, sharing a scanner with `vocabulary.test.ts`) fails
+      if engineering vocabulary, tool names, paths, version numbers, raw state codes or
+      em dashes return to the public files; it fails against the old wording (13 of its 16
+      rules broke) and passes now.
+    - **Bangla deferred.** "Do not do Bangla translation work now; keep it deferred
+      until the full product is done with all other features and functions." The
+      Bangla foundation and the first flows had been built and checked locally (typed
+      per-flow catalogs, review marking and launch gate, account and consent, alerts,
+      privacy actions) but were never shipped; they are parked on a local branch and
+      nothing of them is in production. The directive's English and Bangla requirement
+      (Part 9 section 4) is therefore **not met** and the Part 9 checkpoint cannot say
+      PASS for I18N; it is recorded as deferred by the owner, not as done.
+
+    **Found by CI, not by me.** The deployment smoke check (`apps/web/scripts/smoke.mjs`,
+    run against every preview and production deployment) looks for the banner's
+    label on the home page and failed on the first push, because the label had changed.
+    My search for places that depended on the old wording had run from the wrong
+    folder with its errors hidden, so it found nothing and I wrongly concluded nothing
+    did. The script now looks for the new label, and a test
+    (`pilot-banner.test.tsx`) ties the script to the banner's wording so a future
+    change cannot turn every deployment red again. Lesson: search from the repository
+    root and never hide the search's errors.
+
+    Not verified, stated plainly: the new wording was checked by tests and a layout
+    pass on the built pages, not by a person reading it for tone; the signed-in screens
+    still carry engineering words (listed in `docs/ux/plain-language.md`); emails were
+    not reviewed. The banner's wording differs from the sentence the pilot directive
+    quotes (same meaning, everyday words); that is a deliberate owner-driven change.
 independently confirmed findings; the missing PRD file is tracked as Blocker 1 in
 `assumptions-and-blockers.md` (now resolved) rather than here, since it blocked the
 programme rather than being a product defect.
