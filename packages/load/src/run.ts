@@ -59,6 +59,8 @@ const DOC_WORKERS = Number(env('LOAD_DOC_WORKERS', '5'));
 const THINK_MS = Number(env('LOAD_THINK_MS', '1000'));
 const PDF_PAGES = 10;
 const BRIDGE_PORT = 5434;
+const RTT_MS = Number(env('LOAD_RTT_MS', '0'));
+const PHASES = new Set(env('LOAD_PHASES', 'idle,volume,docs,launch,stress,outage').split(','));
 
 function assertLocal(url: string): void {
   const host = new URL(url).hostname;
@@ -494,12 +496,13 @@ async function main(): Promise<void> {
     listenPort: BRIDGE_PORT,
     pgHost: new URL(BASE_URL).hostname,
     pgPort: Number(new URL(BASE_URL).port || 5432),
+    oneWayDelayMs: RTT_MS / 2,
   });
   useLocalBridge(BRIDGE_PORT);
   const report: Report = {
     when: new Date().toISOString(),
     node: process.version,
-    settings: { SECONDS, SESSIONS, DOC_WORKERS, THINK_MS, PDF_PAGES },
+    settings: { SECONDS, SESSIONS, DOC_WORKERS, THINK_MS, PDF_PAGES, RTT_MS, phases: [...PHASES] },
     host: {
       cpus: execFileSync('nproc').toString().trim(),
       memory: `${execFileSync('sh', ['-c', "free -m | awk '/Mem:/ {print $2}'"]).toString().trim()} MB`,
@@ -523,143 +526,149 @@ async function main(): Promise<void> {
     report.dataset = { counts: manifest.counts, seededSeconds: round(manifest.seededMs / 1000) };
     process.stdout.write(`seeded in ${round(manifest.seededMs / 1000)}s\n`);
 
-    // 1. One person on an idle system (the best case, for comparison)
-    const idle = new Recorder();
-    await sessions(manifest, idle, 1, 25, 150);
-    report.idle = table(idle);
-
-    // 2. Pagination at volume: the case and client lists for the biggest agency and for an agency that sees every case
-    const volume = new Recorder();
-    const sizes: Record<string, number> = {};
-    const biggest = [...manifest.agencies].sort(
-      (a, b) => b.caseCount - a.caseCount,
-    )[0] as (typeof manifest.agencies)[number];
-    const targets = [
-      ['biggest normal agency', biggest],
-      ['agency that sees all cases', manifest.stressAgency as (typeof manifest.agencies)[number]],
-    ] as const;
-    for (const [name, agency] of targets) {
-      const admin = agency.staff.find((s) => s.role === 'ADMIN') as { accountId: string };
-      for (let i = 0; i < 15; i++) {
-        const cases = await volume.time(`${name}: case list`, () =>
-          withDb('load', (db) =>
-            listVisibleMissionsForMember(db, agency.organizationId, admin.accountId),
-          ),
-        );
-        const clients = await volume.time(`${name}: client list`, () =>
-          withDb('load', (db) => listApplicantsForOrganization(db, agency.organizationId)),
-        );
-        if (name === 'biggest normal agency') {
-          await volume.time(`${name}: evidence requests (old one-by-one method)`, () =>
-            withDb('load', (db) =>
-              legacyEvidenceRequestsDetailed(db, admin.accountId, agency.organizationId),
-            ),
-          );
-        }
-        const requests = await volume.time(`${name}: evidence requests`, () =>
-          withDb('load', (db) =>
-            listEvidenceRequestsForOrgDetailed(db, admin.accountId, agency.organizationId),
-          ),
-        );
-        if (i === 0) {
-          sizes[`${name}: case list`] = cases.missions.length;
-          sizes[`${name}: client list`] = clients.length;
-          sizes[`${name}: evidence requests`] = isOk(requests) ? requests.value.length : -1;
-          sizes[`${name}: case list payload KB`] = round(
-            JSON.stringify(cases.missions).length / 1024,
-          );
-        }
-      }
-    }
-    report.volume = { rows: sizes, timings: table(volume) };
-
-    // 3. Documents alone: 5 at a time, 10-page reference PDF
     const ports = docPorts();
     report.documentScanner = ports.scannerName;
-    const alone = new Recorder();
-    const aloneIds = await queueDocuments(manifest, ports, 25, 'alone');
-    const aloneMon = startMonitor('load');
-    const aloneStart = performance.now();
-    const aloneResult = await runDocWorkers(ports, alone, DOC_WORKERS, Date.now() + 10 * 60_000);
-    const aloneSeconds = (performance.now() - aloneStart) / 1000;
-    report.documentsAlone = {
-      ...aloneResult,
-      wallSeconds: round(aloneSeconds),
-      perJob: table(alone),
-      jobs: await jobTimings(aloneIds),
-      resources: await aloneMon.stop(),
-    };
-
-    // 4. The launch envelope: 50 sessions with normal thinking time, plus 5 document jobs at once
-    const normal = new Recorder();
-    const docs = new Recorder();
-    const normalIds = await queueDocuments(manifest, ports, 150, 'normal');
-    const normalMon = startMonitor('load');
-    const [views, docResult] = await Promise.all([
-      sessions(manifest, normal, SESSIONS, SECONDS, THINK_MS),
-      runDocWorkers(ports, docs, DOC_WORKERS, Date.now() + SECONDS * 1000),
-    ]);
-    const normalRes = await normalMon.stop();
-    report.launchEnvelope = {
-      sessions: SESSIONS,
-      thinkMs: THINK_MS,
-      seconds: SECONDS,
-      pageViews: views,
-      pageViewsPerSecond: round(views / SECONDS),
-      overall: summarise(normal.all(), normal.totalErrors()),
-      perPage: table(normal),
-      documents: { ...docResult, perJob: table(docs), jobs: await jobTimings(normalIds) },
-      resources: normalRes,
-    };
-
-    // 5. Stress: same 50 sessions with no thinking time, to find where it bends
-    const stress = new Recorder();
-    const stressMon = startMonitor('load');
-    const stressViews = await sessions(
-      manifest,
-      stress,
-      SESSIONS,
-      Math.max(20, Math.floor(SECONDS / 2)),
-      0,
-    );
-    report.stress = {
-      sessions: SESSIONS,
-      thinkMs: 0,
-      seconds: Math.max(20, Math.floor(SECONDS / 2)),
-      pageViews: stressViews,
-      pageViewsPerSecond: round(stressViews / Math.max(20, Math.floor(SECONDS / 2))),
-      overall: summarise(stress.all(), stress.totalErrors()),
-      perPage: table(stress),
-      resources: await stressMon.stop(),
-    };
-
-    // 6. Scanner outage: a broken scanner must stop release of new documents
-    const brokenScanner = new ClamAvScanner({
-      blobStore: ports.blobs,
-      socketPath: '/nonexistent/clamd.ctl',
-      enforceSignatureFreshness: false,
-    });
-    const outageIds = await queueDocuments(manifest, ports, 1, 'outage');
-    const outageResult = await withDb('load', (db) =>
-      runIntakeWorker(db, brokenScanner, ports.extractor, ports.limits, { limit: 1 }),
-    );
-    const state = await withDb('load', async (db) => {
-      const r = await db.execute(
-        sql`select processing_status, safety_status from document_versions where id = ${outageIds[0]}::uuid`,
-      );
-      return rowsOf<{ processing_status: string; safety_status: string }>(r)[0] as {
-        processing_status: string;
-        safety_status: string;
+    if (PHASES.has('idle')) {
+      // 1. One person on an idle system (the best case, for comparison)
+      const idle = new Recorder();
+      await sessions(manifest, idle, 1, 25, 150);
+      report.idle = table(idle);
+    }
+    if (PHASES.has('volume')) {
+      // 2. Pagination at volume: the case and client lists for the biggest agency and for an agency that sees every case
+      const volume = new Recorder();
+      const sizes: Record<string, number> = {};
+      const biggest = [...manifest.agencies].sort(
+        (a, b) => b.caseCount - a.caseCount,
+      )[0] as (typeof manifest.agencies)[number];
+      const targets = [
+        ['biggest normal agency', biggest],
+        ['agency that sees all cases', manifest.stressAgency as (typeof manifest.agencies)[number]],
+      ] as const;
+      for (const [name, agency] of targets) {
+        const admin = agency.staff.find((s) => s.role === 'ADMIN') as { accountId: string };
+        for (let i = 0; i < 15; i++) {
+          const cases = await volume.time(`${name}: case list`, () =>
+            withDb('load', (db) =>
+              listVisibleMissionsForMember(db, agency.organizationId, admin.accountId),
+            ),
+          );
+          const clients = await volume.time(`${name}: client list`, () =>
+            withDb('load', (db) => listApplicantsForOrganization(db, agency.organizationId)),
+          );
+          if (name === 'biggest normal agency') {
+            await volume.time(`${name}: evidence requests (old one-by-one method)`, () =>
+              withDb('load', (db) =>
+                legacyEvidenceRequestsDetailed(db, admin.accountId, agency.organizationId),
+              ),
+            );
+          }
+          const requests = await volume.time(`${name}: evidence requests`, () =>
+            withDb('load', (db) =>
+              listEvidenceRequestsForOrgDetailed(db, admin.accountId, agency.organizationId),
+            ),
+          );
+          if (i === 0) {
+            sizes[`${name}: case list`] = cases.missions.length;
+            sizes[`${name}: client list`] = clients.length;
+            sizes[`${name}: evidence requests`] = isOk(requests) ? requests.value.length : -1;
+            sizes[`${name}: case list payload KB`] = round(
+              JSON.stringify(cases.missions).length / 1024,
+            );
+          }
+        }
+      }
+      report.volume = { rows: sizes, timings: table(volume) };
+    }
+    if (PHASES.has('docs')) {
+      // 3. Documents alone: 5 at a time, 10-page reference PDF
+      const alone = new Recorder();
+      const aloneIds = await queueDocuments(manifest, ports, 25, 'alone');
+      const aloneMon = startMonitor('load');
+      const aloneStart = performance.now();
+      const aloneResult = await runDocWorkers(ports, alone, DOC_WORKERS, Date.now() + 10 * 60_000);
+      const aloneSeconds = (performance.now() - aloneStart) / 1000;
+      report.documentsAlone = {
+        ...aloneResult,
+        wallSeconds: round(aloneSeconds),
+        perJob: table(alone),
+        jobs: await jobTimings(aloneIds),
+        resources: await aloneMon.stop(),
       };
-    });
-    report.scannerOutage = {
-      workerResult: outageResult,
-      versionState: state,
-      releaseStopped:
-        state.safety_status !== 'CLEAN' &&
-        !['APPROVED', 'AWAITING_REVIEW'].includes(state.processing_status),
-    };
-
+    }
+    if (PHASES.has('launch')) {
+      // 4. The launch envelope: 50 sessions with normal thinking time, plus 5 document jobs at once
+      const normal = new Recorder();
+      const docs = new Recorder();
+      const normalIds = await queueDocuments(manifest, ports, 150, 'normal');
+      const normalMon = startMonitor('load');
+      const [views, docResult] = await Promise.all([
+        sessions(manifest, normal, SESSIONS, SECONDS, THINK_MS),
+        runDocWorkers(ports, docs, DOC_WORKERS, Date.now() + SECONDS * 1000),
+      ]);
+      const normalRes = await normalMon.stop();
+      report.launchEnvelope = {
+        sessions: SESSIONS,
+        thinkMs: THINK_MS,
+        seconds: SECONDS,
+        pageViews: views,
+        pageViewsPerSecond: round(views / SECONDS),
+        overall: summarise(normal.all(), normal.totalErrors()),
+        perPage: table(normal),
+        documents: { ...docResult, perJob: table(docs), jobs: await jobTimings(normalIds) },
+        resources: normalRes,
+      };
+    }
+    if (PHASES.has('stress')) {
+      // 5. Stress: same 50 sessions with no thinking time, to find where it bends
+      const stress = new Recorder();
+      const stressMon = startMonitor('load');
+      const stressViews = await sessions(
+        manifest,
+        stress,
+        SESSIONS,
+        Math.max(20, Math.floor(SECONDS / 2)),
+        0,
+      );
+      report.stress = {
+        sessions: SESSIONS,
+        thinkMs: 0,
+        seconds: Math.max(20, Math.floor(SECONDS / 2)),
+        pageViews: stressViews,
+        pageViewsPerSecond: round(stressViews / Math.max(20, Math.floor(SECONDS / 2))),
+        overall: summarise(stress.all(), stress.totalErrors()),
+        perPage: table(stress),
+        resources: await stressMon.stop(),
+      };
+    }
+    if (PHASES.has('outage')) {
+      // 6. Scanner outage: a broken scanner must stop release of new documents
+      const brokenScanner = new ClamAvScanner({
+        blobStore: ports.blobs,
+        socketPath: '/nonexistent/clamd.ctl',
+        enforceSignatureFreshness: false,
+      });
+      const outageIds = await queueDocuments(manifest, ports, 1, 'outage');
+      const outageResult = await withDb('load', (db) =>
+        runIntakeWorker(db, brokenScanner, ports.extractor, ports.limits, { limit: 1 }),
+      );
+      const state = await withDb('load', async (db) => {
+        const r = await db.execute(
+          sql`select processing_status, safety_status from document_versions where id = ${outageIds[0]}::uuid`,
+        );
+        return rowsOf<{ processing_status: string; safety_status: string }>(r)[0] as {
+          processing_status: string;
+          safety_status: string;
+        };
+      });
+      report.scannerOutage = {
+        workerResult: outageResult,
+        versionState: state,
+        releaseStopped:
+          state.safety_status !== 'CLEAN' &&
+          !['APPROVED', 'AWAITING_REVIEW'].includes(state.processing_status),
+      };
+    }
     // Database size, for the record
     report.databaseSizeMb = await withDb('load', async (db) => {
       const r = await db.execute(sql`select pg_database_size('load') / 1048576 as mb`);

@@ -16,7 +16,11 @@ export async function startBridge(input: {
   readonly listenPort: number;
   readonly pgHost: string;
   readonly pgPort: number;
+  /** Delay added to every message in each direction, to imitate the network between the app and the database. */
+  readonly oneWayDelayMs?: number;
 }): Promise<Bridge> {
+  const delay = input.oneWayDelayMs ?? 0;
+  const later = (run: () => void) => (delay > 0 ? setTimeout(run, delay) : run());
   const server = new WebSocketServer({ host: '127.0.0.1', port: input.listenPort });
   await new Promise<void>((resolve) => server.once('listening', () => resolve()));
   server.on('connection', (ws: WebSocket) => {
@@ -32,11 +36,15 @@ export async function startBridge(input: {
       const chunk = Array.isArray(data)
         ? Buffer.concat(data)
         : Buffer.from(data instanceof ArrayBuffer ? new Uint8Array(data) : data);
-      if (open) tcp.write(chunk);
-      else pending.push(chunk);
+      later(() => {
+        if (open) tcp.write(chunk);
+        else pending.push(chunk);
+      });
     });
     tcp.on('data', (chunk: Buffer) => {
-      if (ws.readyState === WebSocket.OPEN) ws.send(chunk);
+      later(() => {
+        if (ws.readyState === WebSocket.OPEN) ws.send(chunk);
+      });
     });
     const shut = () => {
       tcp.destroy();
