@@ -43,3 +43,26 @@ jobs:
         env:
           SMOKE_BASE_URL: ${{ github.event.deployment_status.environment_url || github.event.deployment_status.target_url }}
         run: node scripts/smoke.mjs
+        id: smoke
+
+      # Release record (Commercial V1 Part 9 section 13): the code SHA, the deployment, the
+      # environment, the newest migration in the repository at that commit, and the smoke result,
+      # kept as a workflow artifact and shown in the run summary. Runs even if the smoke failed,
+      # because a failed deployment is part of the record.
+      # (Skipped for a deployment of an older commit that does not have the script yet: this
+      # workflow runs from the default branch, the script from the deployed commit.)
+      - name: Write the release record
+        if: always() && hashFiles('apps/web/scripts/release-record.mjs') != ''
+        env:
+          SMOKE_OUTCOME: ${{ steps.smoke.outcome }}
+        run: |
+          node apps/web/scripts/release-record.mjs "$GITHUB_EVENT_PATH" "$SMOKE_OUTCOME" > release-record.json
+          { echo '### Release record'; echo '```json'; cat release-record.json; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Keep the release record
+        if: always() && hashFiles('apps/web/scripts/release-record.mjs') != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-record-${{ github.event.deployment.sha }}-${{ github.event.deployment.id }}
+          path: release-record.json
+          retention-days: 90
