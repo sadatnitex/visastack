@@ -48,3 +48,7 @@ Stage B includes real passports and identity papers. The gate exists because a l
 2. Item 1 (scanner host) and item 6 (second store and Neon branch): small or no cost, unlocks the recovery drill and real uploads.
 3. Item 7 (key holders) and the named people for items 8: no cost, needs the owner's decisions.
 4. Item 5 (independent review): the long pole. Start it first in calendar time.
+
+## Update 2026-10-06: sign-in and email through Neon
+
+The owner asked for sign-in, sign-up and email to be done by Neon. See `neon-auth-migration-plan.md`. In short: Neon Auth can replace WorkOS for sign-in and sign-up (free up to 60,000 monthly users), but Neon does not send email itself. Neon Auth sends its own emails through an SMTP account you connect (2 an hour project-wide until you do), and the app's own emails need an SMTP account too. One free SMTP account can serve both. Items 2 and 9 in the table above change accordingly once phase 1 to 3 of that plan are done.
