@@ -19,6 +19,7 @@ import {
   getCurrentDocumentReview,
   listDocumentReviews,
   listDocuments,
+  listDocumentsDetailed,
   previewDocument,
   recheckDocumentAccess,
   recordDocumentReview,
@@ -1561,4 +1562,106 @@ describe('recheckDocumentAccess, redemption-time replay against LIVE state (EVI-
     });
     expect(result.allowed).toBe(false);
   });
+});
+
+describe('listDocumentsDetailed picks the right latest version, name proposal and classification per document', () => {
+  it('does it for several documents at once, including one with no version', async () => {
+    const db = await freshDb();
+    const {
+      account,
+      applicant,
+      document: first,
+    } = await seedOwnerWithDocument(db, 'detail@example.com');
+    const second = await registerDocument(db, {
+      actorAccountId: account.id,
+      applicantId: applicant.id,
+      originalName: 'letter.pdf',
+    });
+    const third = await registerDocument(db, {
+      actorAccountId: account.id,
+      applicantId: applicant.id,
+      originalName: 'no-version.pdf',
+    });
+    if (!isOk(second) || !isOk(third)) throw new Error('register');
+    // The first document gets a newer second version; the second document has one version.
+    const newer = await addDocumentVersion(db, {
+      actorAccountId: account.id,
+      documentId: first.id,
+      bucket: 'CLEAN',
+      objectKey: 'obj-detail-v2',
+      sizeBytes: 2048,
+      safetyStatus: 'CLEAN',
+      processingStatus: 'AWAITING_REVIEW',
+    });
+    const only = await addDocumentVersion(db, {
+      actorAccountId: account.id,
+      documentId: second.value.id,
+      bucket: 'CLEAN',
+      objectKey: 'obj-detail-other',
+      sizeBytes: 10,
+      safetyStatus: 'CLEAN',
+      processingStatus: 'APPROVED',
+    });
+    if (!isOk(newer) || !isOk(only)) throw new Error('version');
+
+    // Name proposals: the latest one for the first document is pending, an earlier one was accepted.
+    await db.insert(schema.documentNameVersions).values([
+      {
+        documentId: first.id,
+        versionNumber: 1,
+        proposedName: 'Old name',
+        decision: 'ACCEPTED_UNCHANGED',
+      },
+      { documentId: first.id, versionNumber: 2, proposedName: 'New name', decision: 'PENDING' },
+    ]);
+    // Classifications on the newer version: the most recent one wins.
+    const processing = await db
+      .insert(schema.processingRuns)
+      .values({ documentVersionId: newer.value.version.id, pipelineVersion: 't' })
+      .returning();
+    const extraction = await db
+      .insert(schema.extractionRuns)
+      .values({
+        processingRunId: processing[0]?.id as string,
+        documentVersionId: newer.value.version.id,
+        parserName: 't',
+        parserVersion: '1',
+        status: 'SUCCEEDED',
+      })
+      .returning();
+    await db.insert(schema.documentClassifications).values([
+      {
+        extractionRunId: extraction[0]?.id as string,
+        documentVersionId: newer.value.version.id,
+        classifiedType: 'older_guess',
+        confidence: 40,
+        createdAt: new Date('2026-01-01T00:00:00Z'),
+      },
+      {
+        extractionRunId: extraction[0]?.id as string,
+        documentVersionId: newer.value.version.id,
+        classifiedType: 'passport',
+        confidence: 90,
+        reviewRequired: false,
+        createdAt: new Date('2026-02-01T00:00:00Z'),
+      },
+    ]);
+
+    const detailed = await listDocumentsDetailed(db, account.id, applicant.id);
+    if (!isOk(detailed)) throw new Error('list failed');
+    const byId = new Map(detailed.value.map((d) => [d.id, d]));
+    expect(byId.size).toBe(3);
+    const a = byId.get(first.id);
+    expect(a?.latestVersionId).toBe(newer.value.version.id);
+    expect(a?.processingStatus).toBe('AWAITING_REVIEW');
+    expect(a?.pendingNameVersion?.proposedName).toBe('New name');
+    expect(a?.classification?.classifiedType).toBe('passport');
+    const b = byId.get(second.value.id);
+    expect(b?.latestVersionId).toBe(only.value.version.id);
+    expect(b?.pendingNameVersion).toBeNull();
+    expect(b?.classification).toBeNull();
+    const c = byId.get(third.value.id);
+    expect(c?.latestVersionId).toBeNull();
+    expect(c?.safetyStatus).toBeNull();
+  }, 60_000);
 });

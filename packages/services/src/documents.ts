@@ -9,7 +9,7 @@ import type {
 } from '@visastack/core';
 import { err, ok } from '@visastack/core';
 import { type Actor, type Grant as PolicyGrant, authorize } from '@visastack/policy';
-import { and, desc, eq, ne } from 'drizzle-orm';
+import { and, desc, eq, inArray, ne } from 'drizzle-orm';
 import { orgGrantPermits } from './agency';
 import { getApplicant } from './applicants';
 import { appendAuditEvent } from './audit';
@@ -635,38 +635,55 @@ export async function listDocumentsDetailed(
   const listed = await listDocuments(db, actorAccountId, applicantId);
   if (!listed.ok) return listed;
 
-  const summaries: DocumentSummary[] = [];
-  for (const doc of listed.value) {
-    const version = first(
-      await db
+  // Three queries for the whole list, not three per document. Measured on a database 40 ms away,
+  // the per-document version took 1.3 s at p95 for a traveller with six documents
+  // (docs/operations/capacity.md).
+  const documentIds = listed.value.map((doc) => doc.id);
+  const latestVersion = new Map<string, DocumentVersion>();
+  const latestNameVersion = new Map<string, typeof schema.documentNameVersions.$inferSelect>();
+  const latestClassification = new Map<
+    string,
+    typeof schema.documentClassifications.$inferSelect
+  >();
+  if (documentIds.length > 0) {
+    const versions = await db
+      .select()
+      .from(schema.documentVersions)
+      .where(inArray(schema.documentVersions.documentId, documentIds))
+      .orderBy(desc(schema.documentVersions.versionNumber));
+    for (const version of versions) {
+      if (!latestVersion.has(version.documentId)) latestVersion.set(version.documentId, version);
+    }
+    const nameVersions = await db
+      .select()
+      .from(schema.documentNameVersions)
+      .where(inArray(schema.documentNameVersions.documentId, documentIds))
+      .orderBy(desc(schema.documentNameVersions.versionNumber));
+    for (const nameVersion of nameVersions) {
+      if (!latestNameVersion.has(nameVersion.documentId)) {
+        latestNameVersion.set(nameVersion.documentId, nameVersion);
+      }
+    }
+    const latestVersionIds = [...latestVersion.values()].map((version) => version.id);
+    if (latestVersionIds.length > 0) {
+      const classifications = await db
         .select()
-        .from(schema.documentVersions)
-        .where(eq(schema.documentVersions.documentId, doc.id))
-        .orderBy(desc(schema.documentVersions.versionNumber))
-        .limit(1),
-    );
+        .from(schema.documentClassifications)
+        .where(inArray(schema.documentClassifications.documentVersionId, latestVersionIds))
+        .orderBy(desc(schema.documentClassifications.createdAt));
+      for (const classification of classifications) {
+        if (!latestClassification.has(classification.documentVersionId)) {
+          latestClassification.set(classification.documentVersionId, classification);
+        }
+      }
+    }
+  }
 
-    const latestNameVersion = first(
-      await db
-        .select()
-        .from(schema.documentNameVersions)
-        .where(eq(schema.documentNameVersions.documentId, doc.id))
-        .orderBy(desc(schema.documentNameVersions.versionNumber))
-        .limit(1),
-    );
-
-    const classification = version
-      ? first(
-          await db
-            .select()
-            .from(schema.documentClassifications)
-            .where(eq(schema.documentClassifications.documentVersionId, version.id))
-            .orderBy(desc(schema.documentClassifications.createdAt))
-            .limit(1),
-        )
-      : undefined;
-
-    summaries.push({
+  const summaries: DocumentSummary[] = listed.value.map((doc) => {
+    const version = latestVersion.get(doc.id);
+    const nameVersion = latestNameVersion.get(doc.id);
+    const classification = version ? latestClassification.get(version.id) : undefined;
+    return {
       id: doc.id,
       originalName: doc.originalName,
       approvedName: doc.approvedName,
@@ -678,8 +695,8 @@ export async function listDocumentsDetailed(
       documentDate: doc.documentDate,
       expiresAt: doc.expiresAt ? doc.expiresAt.toISOString() : null,
       pendingNameVersion:
-        latestNameVersion && latestNameVersion.decision === 'PENDING'
-          ? { id: latestNameVersion.id, proposedName: latestNameVersion.proposedName }
+        nameVersion && nameVersion.decision === 'PENDING'
+          ? { id: nameVersion.id, proposedName: nameVersion.proposedName }
           : null,
       classification: classification
         ? {
@@ -688,8 +705,8 @@ export async function listDocumentsDetailed(
             reviewRequired: classification.reviewRequired,
           }
         : null,
-    });
-  }
+    };
+  });
   return ok(summaries);
 }
 
