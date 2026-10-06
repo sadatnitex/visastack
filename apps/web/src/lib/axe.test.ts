@@ -52,6 +52,19 @@ describe('the accessibility scan itself', () => {
     expect(found.join('\n')).toContain('duplicate-id');
   });
 
+  it('can be asked for several scans at once without them colliding', async () => {
+    // axe refuses a second run while one is going; a test that times out leaves its scan
+    // running, so the next test's scan must wait its turn instead of failing.
+    const [first, second, third] = await Promise.all([
+      axeViolations('<button type="button"></button>'),
+      axeViolations('<p>Fine.</p>'),
+      axeViolations('<div role="banana">x</div>'),
+    ]);
+    expect(first.join('\n')).toContain('button-name');
+    expect(second).toEqual([]);
+    expect(third.join('\n')).toContain('aria-roles');
+  });
+
   it('catches a link to a place on the page that is not there', async () => {
     const found = await axeViolations('<a href="#nowhere">Skip to content</a><p>Words.</p>');
     expect(found.join('\n')).toContain('dangling-link');

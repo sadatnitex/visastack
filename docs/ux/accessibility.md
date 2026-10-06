@@ -51,6 +51,14 @@ button it exports, has no case. Add the import, add a case with realistic props,
 input names the action can report as being at fault (if any), and mark it `repeated` when
 it appears once per row.
 
+### Timing
+
+Scans share one page and run one at a time, because axe refuses a second run while one is
+going and a test that times out leaves its scan running. The scanning tests carry their own
+90 second limit (the biggest screen, the profile editor, takes seconds on a fast machine and
+more on a CI runner). A new heavy case inherits that limit; if one ever needs more, raise it
+in the test, not in the default.
+
 ### How we know it can fail
 
 Temporary faults in real code turned the suite red with a message that names the place:

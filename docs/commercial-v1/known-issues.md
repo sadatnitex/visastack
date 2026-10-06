@@ -4521,6 +4521,21 @@ item gets its own requirements-ledger row once classified against the new direct
     answer was on its way the feature list also said "not available right now"; it now
     says it is checking.
 
+    **Found by CI, not by me.** The first CI run of this change failed in its test step.
+    The scan shares one page between tests, axe refuses a second run on a page while one
+    is going, and the profile editor (hundreds of fields, scanned in four states) took
+    longer than vitest's five second limit on the slower CI machine. That test timed out,
+    its scan kept running in the background, and the next 110 tests each failed with
+    "Axe is already running". Locally everything passed because this machine is faster.
+    Fixed twice over: scans now queue, so one can never start while another is going, and
+    the scanning tests carry their own 90 second limit. Proven by reproducing the cascade
+    with a 1.5 second limit before the fix, and afterwards by running the suite with a
+    200 millisecond limit (the slow tests time out and nothing after them is affected).
+    Lesson: a test that takes seconds on a fast machine needs a limit sized for the
+    slowest machine that runs it, and state shared between tests has to survive one of
+    them timing out. I also noticed the field-at-fault test could pass without checking
+    anything if a case named fields that were not on the screen; it now fails in that case.
+
     **Not done, stated plainly:**
     - No person has used the screens with a keyboard or a screen reader. A scan finds
       structural faults, not whether a task can be finished. Directive Part 9 section 5

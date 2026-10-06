@@ -1288,6 +1288,13 @@ function render(item: Case, forced: Forced | undefined): string {
   }
 }
 
+/**
+ * Each case is scanned in four states and the biggest screens (the profile editor has
+ * hundreds of fields) take seconds on a fast machine. vitest's default of five seconds is
+ * too tight for a slower CI runner, and one timeout used to fail every test after it.
+ */
+const SCAN_TIMEOUT_MS = 90_000;
+
 const disabledCount = (html: string) => (html.match(/\sdisabled(=|\s|>|\/)/g) ?? []).length;
 
 describe('every form and action button', () => {
@@ -1307,6 +1314,7 @@ describe('every form and action button', () => {
       }
       expect(problems).toEqual([]);
     },
+    SCAN_TIMEOUT_MS,
   );
 
   it.each(CASES.map((c) => [c.name, c] as const))(
@@ -1321,6 +1329,7 @@ describe('every form and action button', () => {
   it.each(CASES.filter((c) => c.fields !== undefined).map((c) => [c.name, c] as const))(
     '%s marks the field at fault when its action names one',
     async (_name, item) => {
+      let checked = 0;
       for (const field of item.fields ?? []) {
         const html = render(item, {
           state: { ok: false, message: 'Check this field.', field },
@@ -1329,10 +1338,13 @@ describe('every form and action button', () => {
         // Not every named field exists in every state of the screen, so only fields that are
         // rendered have to be marked; at least one of the form's fields must be.
         if (!html.includes(`name="${field}"`)) continue;
+        checked++;
         expect(html, field).toContain('aria-invalid="true"');
         expect(await axeViolations(html), field).toEqual([]);
       }
+      expect(checked, 'none of the fields this case names is on the screen').toBeGreaterThan(0);
     },
+    SCAN_TIMEOUT_MS,
   );
 
   it('speaks a failure through the alert region and not only by colour', () => {

@@ -149,10 +149,24 @@ afterAll(() => {
 });
 
 /**
+ * Scans run one at a time. axe refuses a second run on the same page while one is going,
+ * and a test that times out on a slow machine leaves its scan running in the background,
+ * so without this queue one slow test makes every test after it fail with "Axe is already
+ * running" (this is what happened on the first CI run).
+ */
+let queue: Promise<unknown> = Promise.resolve();
+
+/**
  * The accessibility problems found in `html`, one readable line per problem; an empty
  * list means none were found by the rules that can run here.
  */
-export async function axeViolations(html: string, options: AxeOptions = {}): Promise<string[]> {
+export function axeViolations(html: string, options: AxeOptions = {}): Promise<string[]> {
+  const result = queue.then(() => scan(html, options));
+  queue = result.catch(() => undefined);
+  return result;
+}
+
+async function scan(html: string, options: AxeOptions): Promise<string[]> {
   const { window, run } = sharedPage();
   const { document } = window;
   document.documentElement.setAttribute('lang', options.lang ?? 'en');

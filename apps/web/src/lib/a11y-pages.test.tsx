@@ -216,6 +216,7 @@ describe('every public page, as a whole page', () => {
     async (_name, page) => {
       expect(await axeViolations(await pageMarkup(page), { wholePage: true })).toEqual([]);
     },
+    30_000,
   );
 
   it('is also fine for a signed-in visitor (the nav shows the workspace link)', async () => {
