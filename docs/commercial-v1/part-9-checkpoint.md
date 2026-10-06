@@ -12,7 +12,7 @@ Blocked, not failed. Every automated check that can run here is green. The block
 |---|---|---|
 | Lint | PASSED | 632 files |
 | Typecheck | PASSED | 8 packages |
-| Unit and service tests | PASSED | TESTSLINE |
+| Unit and service tests | PASSED | Run uncached (0 of 8 from cache): 2,759 passed, 3 skipped, 0 failed across 8 packages (services 1,332; web 1,018; adapters 325 with 2 skipped; db 34 with 1 skipped; policy 32; load 10; i18n 6; core 2). The 3 skips are existing, named skips in the adapters and db suites |
 | Production build | PASSED | web app |
 | Dependency audit (high and above, production) | PASSED | exit 0 |
 | Supply-chain scans | PASSED, 7 of 7 | secret, licence, static analysis, browser bundle, prompt, fixture, preview credential. The secret scan covered the working tree only (shallow clone); CI scans full history. Static analysis is rule-based and does not replace CodeQL |

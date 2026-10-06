@@ -4694,7 +4694,7 @@ programme rather than being a product defect.
 
 - **Part 9 checkpoint: BLOCKED, not failed** (`docs/commercial-v1/part-9-checkpoint.md`). One run on `d3c3902`:
   lint, typecheck, build, dependency audit, all seven supply-chain scans, the load suite and the smoke
-  check passed; the unit and service tests passed (counts in the checkpoint); browser checks gave 75
+  check passed; the unit and service tests passed (2,759 passed, 3 skipped, 0 failed, uncached); browser checks gave 75
   passed, 2 failed (the two known sign-in redirect tests that cannot reach the sign-in provider from the
   sandbox), 21 skipped (staging-only). I18N is reported as deferred by the owner. The block is the list
   of launch blockers in that document, none of which this environment can close.
