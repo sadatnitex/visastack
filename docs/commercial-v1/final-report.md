@@ -10,7 +10,7 @@ Why this verdict and not the other two: the full automated suite is green on the
 
 ## RELEASE CANDIDATE
 
-- Branch: `claude/pensive-cray-4fhand` (documentation only on top of main; PR is a draft and is not merged)
+- Branch: `claude/pensive-cray-4fhand`. After this report was first written it gained the test-tool upgrade and Neon Auth sign-in phase 1 (off by default; WorkOS remains the default), so it is no longer documentation only. The gate record is void for the new code and must be re-validated before any launch decision
 - Tested code SHA: `a27cefb8bd40e0f766870309b02a848c1917307d` (main after PR 172), then re-run on the branch head `3fbaeef143e33ca039ff353c9212f70fd9d3b165` after the test-tool upgrade (no shipped source file differs)
 - Deployed verification: production, deployment `dpl_EBYqheEpDEEdNmvSSsSbCn4mDtxV`, same SHA as tested; `/api/health/ready` returned ready on 2026-10-06 in controlled_pilot mode. This is the pilot environment with made-up data. **No isolated staging environment exists**, so the directive's staging deploy was not done.
 

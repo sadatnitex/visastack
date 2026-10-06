@@ -11,7 +11,7 @@ Separate from this record: the runtime readiness guard in `apps/web/src/lib/comm
 | Field | Value | Evidence |
 | --- | --- | --- |
 | Code SHA tested | `a27cefb8bd40e0f766870309b02a848c1917307d` | git history of main; PR 172 squash merge |
-| Branch | main at that SHA; release-candidate branch `claude/pensive-cray-4fhand` carries documentation only on top (diff checked: no file outside `docs/`) | PR link in final report |
+| Branch | main at that SHA; release-candidate branch `claude/pensive-cray-4fhand` originally carried documentation only; it later gained the test-tool upgrade and Neon Auth sign-in phase 1 (off by default), so this record must be re-validated on the new head (section 6) | PR link in final report |
 | Build id | Vercel production build for that SHA | Deployment `dpl_EBYqheEpDEEdNmvSSsSbCn4mDtxV`, state READY, created 2026-10-06 |
 | Deployment id | `dpl_EBYqheEpDEEdNmvSSsSbCn4mDtxV` | Vercel deployment list, read 2026-10-06 |
 | Environment | Production, mode `controlled_pilot` (made-up data only). **No isolated staging environment exists.** The directive asks for staging; this was not possible and is recorded as a gap, not substituted silently | `/api/health/ready` read live: ready, `realApplicantData: disabled`, `commercialClaims: disabled`, `payments: unconfigured` |
