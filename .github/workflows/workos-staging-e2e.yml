@@ -14,10 +14,10 @@ name: WorkOS Staging E2E (authenticated)
 #
 # For the eight cross-account tests (directive Part 10 section 2) also add:
 #   WORKOS_STAGING_TEST_EMAIL_2 / WORKOS_STAGING_TEST_PASSWORD_2
-#                                 — a SECOND, different synthetic identity
+#                                 - a SECOND, different synthetic identity
 #   E2E_AGENCY_ORG_ID, E2E_AGENCY_ASSIGNED_APPLICANT_NAME,
 #   E2E_AGENCY_UNASSIGNED_APPLICANT_ID, E2E_AGENCY_UNASSIGNED_APPLICANT_NAME
-#                                 — repository variables naming the staging
+#                                 - repository variables naming the staging
 #                                   agency fixture (see the spec's header)
 # Without them those tests are skipped and reported BLOCKED, never passed.
 #
