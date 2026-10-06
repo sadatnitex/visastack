@@ -55,6 +55,48 @@ const PROMISES: readonly string[] = [
   'A fully manual way to use everything',
 ];
 
+const STEPS: readonly { readonly title: string; readonly body: string }[] = [
+  {
+    title: 'Add your details once',
+    body: 'Fill in your profile and upload your documents. Each change is saved with its date, so you can always see what was added and when.',
+  },
+  {
+    title: 'See what is missing',
+    body: 'Pick a visa route and check your file against its requirements. You see what is complete, what is missing and what is close to expiring.',
+  },
+  {
+    title: 'Share only what is needed',
+    body: 'Invite an agency to see specific items for a set time. You approve it, you can stop it, and you can see what they opened.',
+  },
+];
+
+interface Audience {
+  readonly who: string;
+  readonly title: string;
+  readonly points: readonly string[];
+}
+
+const AUDIENCES: readonly Audience[] = [
+  {
+    who: 'For travellers',
+    title: 'Know where your papers are and what to do next',
+    points: [
+      'Store passport and supporting documents once, then reuse them',
+      'See which documents are missing for each visa route',
+      'Answer an agency’s document request in one place',
+    ],
+  },
+  {
+    who: 'For agencies',
+    title: 'Stop chasing documents by message',
+    points: [
+      'Ask a client for a specific document and see when it arrives',
+      'Open a case and see at once what is missing or overdue',
+      'Keep a clear record of who did what, and when',
+    ],
+  },
+];
+
 interface HomePageProps {
   readonly searchParams: Promise<{ readonly auth_error?: string }>;
 }
@@ -87,6 +129,41 @@ export default async function HomePage({ searchParams }: HomePageProps) {
           <Link className="btn btn-secondary" href="/status">
             See what works today
           </Link>
+        </div>
+      </section>
+
+      <section className="section">
+        <div className="container">
+          <div className="section-head">
+            <h2 className="section-title">How it works</h2>
+          </div>
+          <ol className="grid" style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+            {STEPS.map((step, index) => (
+              <li className="card" key={step.title}>
+                <p className="card-kicker">Step {index + 1}</p>
+                <h3 className="card-title">{step.title}</h3>
+                <p className="card-body">{step.body}</p>
+              </li>
+            ))}
+          </ol>
+        </div>
+      </section>
+
+      <section className="section">
+        <div className="container">
+          <div className="grid">
+            {AUDIENCES.map((audience) => (
+              <article className="card" key={audience.who}>
+                <p className="card-kicker">{audience.who}</p>
+                <h3 className="card-title">{audience.title}</h3>
+                <ul className="fact-line" style={{ flexDirection: 'column', gap: '0.5rem' }}>
+                  {audience.points.map((point) => (
+                    <li key={point}>{point}</li>
+                  ))}
+                </ul>
+              </article>
+            ))}
+          </div>
         </div>
       </section>
 

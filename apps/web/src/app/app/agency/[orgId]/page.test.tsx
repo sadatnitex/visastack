@@ -83,7 +83,7 @@ beforeEach(() => {
 describe('agency Dashboard', () => {
   it('shows an administrator the four counts, each agreeing with the case list below', async () => {
     const text = textOf(await renderServer(Page(pageProps())));
-    expect(text).toContain('At a glance');
+    expect(text).toContain('What needs you first');
     expect(text).toMatch(/Cases you can see 2/);
     expect(text).toMatch(/Cases with nobody assigned 1/);
     expect(text).toMatch(/Evidence requests waiting on the applicant 1/);
