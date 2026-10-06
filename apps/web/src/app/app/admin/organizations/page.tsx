@@ -1,4 +1,5 @@
 import { listAllOrganizations } from '@visastack/services';
+import type { Metadata } from 'next';
 import Link from 'next/link';
 import { isPlatformAdmin, isPlatformOwnerAccount } from '../../../../lib/admin';
 import { withSession } from '../../../../lib/session';
@@ -6,6 +7,8 @@ import { tolerantReader } from '../../../../lib/tolerate';
 import { OrgReviewButtons, OrgSuspendButton, OrgTerminateButton } from '../action-buttons';
 import { AdminRestricted } from '../admin-restricted';
 import { FailedSectionsBanner } from '../failed-sections-banner';
+
+export const metadata: Metadata = { title: 'Platform organizations' };
 
 export const dynamic = 'force-dynamic';
 

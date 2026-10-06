@@ -1,6 +1,12 @@
 'use client';
 
-import { useActionState, useState } from 'react';
+import { useActionState, useId, useRef, useState } from 'react';
+import {
+  FormMessage,
+  SubmitButton,
+  fieldProblem,
+  useFocusInvalidField,
+} from '../../../../components/form-feedback';
 import { type ActionState, decideDocumentNameAction } from './actions';
 
 const INITIAL: ActionState = { ok: true, message: '' };
@@ -30,6 +36,9 @@ export function NameReview({
 }) {
   const [state, formAction, pending] = useActionState(decideDocumentNameAction, INITIAL);
   const [editedName, setEditedName] = useState(proposedName);
+  const formRef = useRef<HTMLFormElement>(null);
+  const messageId = useId();
+  useFocusInvalidField(formRef, state);
 
   return (
     <div
@@ -54,6 +63,7 @@ export function NameReview({
         ) : null}
       </p>
       <form
+        ref={formRef}
         action={formAction}
         style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}
       >
@@ -63,37 +73,33 @@ export function NameReview({
         <input
           type="text"
           name="finalName"
+          aria-label="Proposed filename"
           value={editedName}
           onChange={(e) => setEditedName(e.target.value)}
           className="input"
+          {...fieldProblem(state, 'finalName', messageId)}
           style={{ flex: '1 1 260px', fontSize: '0.85rem', padding: '0.4rem 0.65rem' }}
         />
-        <button
-          type="submit"
-          name="nameAction"
-          value="accept"
+        <SubmitButton
+          pending={pending}
+          idle="Approve"
+          busy="Saving…"
           className="btn btn-primary"
           style={{ padding: '0.35rem 0.9rem', fontSize: '0.8rem' }}
-          disabled={pending}
-        >
-          {pending ? 'Saving…' : 'Approve'}
-        </button>
-        <button
-          type="submit"
           name="nameAction"
-          value="reject"
+          value="accept"
+        />
+        <SubmitButton
+          pending={pending}
+          idle="Reject"
+          busy="Reject"
           className="btn btn-secondary"
           style={{ padding: '0.35rem 0.9rem', fontSize: '0.8rem' }}
-          disabled={pending}
-        >
-          Reject
-        </button>
+          name="nameAction"
+          value="reject"
+        />
       </form>
-      {state.message ? (
-        <p className={`field-msg ${state.ok ? 'field-msg-ok' : 'field-msg-err'}`}>
-          {state.message}
-        </p>
-      ) : null}
+      <FormMessage id={messageId} result={state} />
     </div>
   );
 }

@@ -4445,6 +4445,122 @@ item gets its own requirements-ledger row once classified against the new direct
     still carry engineering words (listed in `docs/ux/plain-language.md`); emails were
     not reviewed. The banner's wording differs from the sentence the pilot directive
     quotes (same meaning, everyday words); that is a deliberate owner-driven change.
+    **Chunk 40 (2026-10-06, UX-02/UX-03, Part 9 chunk 7) -- accessibility of forms,
+    pages and uploads, and an automatic scan that keeps it that way.** Part 9 sections 3
+    and 5. What changed, in the order a person meets it:
+
+    - **Every page names itself** (WCAG 2.4.2). Every page showed the same browser-tab
+      title. There is now a template ("Documents | VisaStack") and each of the other 41
+      pages supplies its own part; the public route page uses the route's own name. The
+      two navigation bars that were both called "Primary" are "Site" and "Workspace", the
+      pilot notice at the top of every page is a named region ("About this version", it
+      sat outside every landmark before) and the language switch says which language its
+      label is written in. Guard: `lib/page-titles.test.ts`.
+    - **Forms say what happened to everyone** (WCAG 3.3.1, 4.1.3). Each of the 46 files
+      holding a form (more than 100 forms and buttons) had its result appear only after
+      the action finished, which a screen reader often does not announce, and its submit
+      button disabled itself while the action ran, which throws keyboard focus to the top
+      of the page and let the Enter key send twice. `components/form-feedback.tsx` gives
+      every form a message area that is always in the page (polite for progress and
+      success, an alert for failure) and a submit button that stays focusable and refuses
+      a second click. Guard: `lib/accessible-forms.test.ts`, which now covers every kind
+      of button after it missed one (see below).
+    - **A problem points at the input it is about** (WCAG 3.3.1). Where a server action
+      knows which field is at fault (add a person, a profile value or date, the file name
+      review, the upload) the input is marked invalid, tied to the message and given
+      focus. Other actions still describe the problem in the alert without naming a field
+      (see "Not done").
+    - **Every control has a name** (WCAG 1.3.1, 3.3.2, 4.1.2). Ten controls had only a
+      placeholder or nothing; all are named. Guard: `lib/form-labels.test.ts` (a
+      placeholder does not count as a name here, although the scan below accepts it).
+    - **Upload survives a bad connection** (Part 9 section 3). A request that never got an
+      answer used to throw the page behind the error screen. The form now says it could
+      not confirm whether the upload finished and sends the person to the document list
+      first, so the same file is not uploaded twice because the page went quiet. While
+      uploading it says to keep the page open and, after 15 seconds, that it is taking
+      longer than usual. The documents page keeps itself up to date while a file is
+      scanned and read (quick at first, slower after, about ten minutes in all, nothing
+      while the tab is hidden), says so, and gives a plain next step under a file that
+      failed, needs attention or was rejected.
+    - **An automatic scan of the real markup** (`lib/axe.test-support.ts`). axe-core, with
+      the WCAG 2.2 A and AA rules and its best practices, runs inside the ordinary test
+      run (jsdom, no browser) over the real markup of: every form and button (129 cases) in
+      four states (waiting, working, failed, done), with row-level buttons rendered twice
+      in one tree so clashing ids show; the field-at-fault case for every form whose
+      action can name a field; and 15 whole public pages and page states in the real
+      site shell. It also checks
+      what axe reports only as "needs review": a reference to an element that is not in
+      the page, an id used twice, a same-page link with no target, and for a whole page
+      exactly one main landmark and one top heading. A guard fails if a file with a form,
+      or a form it exports, has no case, so a new form cannot ship unscanned. It found
+      two real faults, both fixed: the pilot notice was outside every landmark, and the
+      last-resort error page had no main area.
+    - **Behaviour, run in a DOM** (`lib/form-behaviour.test.tsx`). The real add-person
+      form, upload form and status page are rendered and used: focus moves to the field a
+      failed action names and the alert holds the reason, the mark clears when the next
+      try works, a working button stays focusable and a second click is refused (nothing
+      runs after the first one finishes), the "taking longer than usual" and "could not
+      confirm" wording appear when they should, and focus stays on "Check now" through
+      the status page's own refresh. It shows which element has focus and what a live
+      region holds; it does not show how any screen reader voices it.
+    - **Proven to go red, not just green.** The scan has its own tests that feed it real
+      mistakes, and temporary faults in real code each turned the suite red with a
+      message naming the place: a file input with no name, an error message that lost the
+      id its field points at, a new form nobody scanned, a submit button that disables
+      itself, a status button that disables itself, a form that stops moving focus to the
+      field at fault, a button that stops refusing a second click. (The first version of
+      the double-click test passed even with the refusal removed, because React queues a
+      second submission instead of running it at once; it now checks that nothing runs
+      after the first one finishes.)
+
+    **Found by my own scan, not by a person.** The status page's "Check now" button
+    disabled itself while a check ran, and the page re-checks by itself every 15 seconds,
+    so a keyboard user resting on it lost their place each time. The guard that was meant
+    to stop that had only looked at submit buttons, which is why it slipped through; it
+    now looks at every button in the pages and the shared components. While the first
+    answer was on its way the feature list also said "not available right now"; it now
+    says it is checking.
+
+    **Found by CI, not by me.** The first CI run of this change failed in its test step.
+    The scan shares one page between tests, axe refuses a second run on a page while one
+    is going, and the profile editor (hundreds of fields, scanned in four states) took
+    longer than vitest's five second limit on the slower CI machine. That test timed out,
+    its scan kept running in the background, and the next 110 tests each failed with
+    "Axe is already running". Locally everything passed because this machine is faster.
+    Fixed twice over: scans now queue, so one can never start while another is going, and
+    the scanning tests carry their own 90 second limit. Proven by reproducing the cascade
+    with a 1.5 second limit before the fix, and afterwards by running the suite with a
+    200 millisecond limit (the slow tests time out and nothing after them is affected).
+    Lesson: a test that takes seconds on a fast machine needs a limit sized for the
+    slowest machine that runs it, and state shared between tests has to survive one of
+    them timing out. I also noticed the field-at-fault test could pass without checking
+    anything if a case named fields that were not on the screen; it now fails in that case.
+
+    **Not done, stated plainly:**
+    - No person has used the screens with a keyboard or a screen reader. A scan finds
+      structural faults, not whether a task can be finished. Directive Part 9 section 5
+      forbids reporting AA compliance from a scanner alone, so **WCAG 2.2 AA is not
+      claimed.** A manual pass of the nine critical flows (NVDA or JAWS on Windows,
+      VoiceOver on iPhone and Mac, TalkBack on Android) is still owed.
+    - Colour contrast and layout are checked in a real browser only on the public pages
+      and the layout fixture (`e2e/ux-public.spec.ts`), Chromium only. The signed-in
+      screens were never opened in a real browser here, and Safari and Firefox were not
+      tried.
+    - The signed-in forms are scanned as components, not as whole pages, so how forms
+      and headings combine on a full signed-in page (heading order, ids shared by two
+      forms on one page) is not scanned. The only repeated id inside one file is in
+      different pages' forms and does not clash today.
+    - Actions that do not name a field (share with someone, start a case, create an
+      organisation and most admin forms) describe the problem in the alert without
+      marking one input invalid or moving focus to it; browsers' own required-field
+      messages cover the common mistakes first.
+    - Zoom to 200 and 400 percent, text spacing and reduced-motion were not checked by
+      hand. Bangla is deferred by the owner, so nothing about Bangla accessibility
+      (the lang attribute on a language switch is the only part in place) was done.
+    - Three deprecation warnings appear when installing the scan's DOM library (jsdom 25:
+      a deprecated text-encoding package); it is a development-only dependency and the
+      production dependency audit is unaffected.
+
 independently confirmed findings; the missing PRD file is tracked as Blocker 1 in
 `assumptions-and-blockers.md` (now resolved) rather than here, since it blocked the
 programme rather than being a product defect.

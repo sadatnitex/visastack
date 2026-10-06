@@ -29,6 +29,14 @@ describe('the banner every page carries', () => {
     expect(text).toContain('Not for real personal data.');
   });
 
+  it('is a named landmark, so a screen reader user can find it and move past it', async () => {
+    for (const mode of ['controlled_pilot', 'development'] as const) {
+      const html = await renderServer(<PilotBanner mode={mode} />);
+      // A <section> with an accessible name is a "region" landmark.
+      expect(html).toContain('<section class="pilot-banner" aria-label="About this version">');
+    }
+  });
+
   it('shows nothing in commercial mode', async () => {
     expect(await renderServer(<PilotBanner mode="commercial" />)).toBe('');
   });

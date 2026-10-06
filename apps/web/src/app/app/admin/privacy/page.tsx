@@ -5,6 +5,7 @@ import {
   listAllApplicants,
   listErasureJobsNeedingAttention,
 } from '@visastack/services';
+import type { Metadata } from 'next';
 import { isPlatformAdmin } from '../../../../lib/admin';
 import { withSession } from '../../../../lib/session';
 import { tolerantReader } from '../../../../lib/tolerate';
@@ -13,6 +14,8 @@ import { LegalHoldForm, RetentionPolicyForm } from '../admin-forms';
 import { AdminRestricted } from '../admin-restricted';
 import { FailedSectionsBanner } from '../failed-sections-banner';
 import { PurgeButton } from '../purge-button';
+
+export const metadata: Metadata = { title: 'Platform privacy' };
 
 export const dynamic = 'force-dynamic';
 

@@ -1,6 +1,7 @@
 'use client';
 
 import { useActionState } from 'react';
+import { FormMessage, SubmitButton } from '../../../components/form-feedback';
 import { type ActionState, reconcileOrphansAction } from './actions';
 
 const INITIAL: ActionState = { ok: true, message: '' };
@@ -20,9 +21,12 @@ export function ReconcileButtons() {
       <div style={{ display: 'flex', gap: '0.75rem' }}>
         <form action={dryRunAction}>
           <input type="hidden" name="mode" value="dry-run" />
-          <button type="submit" className="btn btn-secondary" disabled={dryRunPending}>
-            {dryRunPending ? 'Scanning…' : 'Scan for drift (dry run)'}
-          </button>
+          <SubmitButton
+            pending={dryRunPending}
+            idle="Scan for drift (dry run)"
+            busy="Scanning…"
+            className="btn btn-secondary"
+          />
         </form>
         <form
           action={mutateAction}
@@ -37,21 +41,16 @@ export function ReconcileButtons() {
           }}
         >
           <input type="hidden" name="mode" value="mutate" />
-          <button type="submit" className="btn btn-danger" disabled={mutatePending}>
-            {mutatePending ? 'Cleaning…' : 'Clean up dangling references'}
-          </button>
+          <SubmitButton
+            pending={mutatePending}
+            idle="Clean up dangling references"
+            busy="Cleaning…"
+            className="btn btn-danger"
+          />
         </form>
       </div>
-      {dryRunState.message ? (
-        <p className={`field-msg ${dryRunState.ok ? 'field-msg-ok' : 'field-msg-err'}`}>
-          {dryRunState.message}
-        </p>
-      ) : null}
-      {mutateState.message ? (
-        <p className={`field-msg ${mutateState.ok ? 'field-msg-ok' : 'field-msg-err'}`}>
-          {mutateState.message}
-        </p>
-      ) : null}
+      <FormMessage result={dryRunState} />
+      <FormMessage result={mutateState} />
     </div>
   );
 }

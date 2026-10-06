@@ -52,6 +52,8 @@ import { createStorage } from '../../../../lib/storage';
 export interface ActionState {
   readonly ok: boolean;
   readonly message: string;
+  /** The input a problem is about, when the action knows (the form marks it invalid and moves focus to it). */
+  readonly field?: string;
 }
 
 /** Variable-keyed env read (satisfies both TS index-signature and Biome rules). */
@@ -77,13 +79,15 @@ export async function saveFactAction(_prev: ActionState, formData: FormData): Pr
       : null;
   const def = profileField(fieldKey);
   if (!def) return { ok: false, message: 'Unknown field.' };
-  if (value.length === 0) return { ok: false, message: 'Enter a value first.' };
+  if (value.length === 0) return { ok: false, message: 'Enter a value first.', field: 'value' };
 
   const effectiveFromRaw = String(formData.get('effectiveFrom') ?? '').trim();
   let effectiveFrom: Date | undefined;
   if (effectiveFromRaw.length > 0) {
     const parsed = new Date(effectiveFromRaw);
-    if (Number.isNaN(parsed.getTime())) return { ok: false, message: 'Invalid effective date.' };
+    if (Number.isNaN(parsed.getTime())) {
+      return { ok: false, message: 'Invalid effective date.', field: 'effectiveFrom' };
+    }
     effectiveFrom = parsed;
   }
 
@@ -138,7 +142,7 @@ export async function uploadDocumentAction(
   const applicantId = String(formData.get('applicantId') ?? '');
   const file = formData.get('file');
   if (!(file instanceof File) || file.size === 0) {
-    return { ok: false, message: 'Choose a file to upload.' };
+    return { ok: false, message: 'Choose a file to upload.', field: 'file' };
   }
 
   // Cheap, upfront rejection using the File's declared size — before reading
@@ -151,6 +155,7 @@ export async function uploadDocumentAction(
     return {
       ok: false,
       message: `File exceeds the ${mbLabel(quotaConfig.maxUploadBytes)} upload limit.`,
+      field: 'file',
     };
   }
 
@@ -316,7 +321,7 @@ export async function decideDocumentNameAction(
     return { ok: false, message: 'Unknown action.' };
   }
   if (action === 'accept' && finalName.length === 0) {
-    return { ok: false, message: 'Enter a filename before approving.' };
+    return { ok: false, message: 'Enter a filename before approving.', field: 'finalName' };
   }
 
   const result = await withSession(async ({ db, accountId }) => {

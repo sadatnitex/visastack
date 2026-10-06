@@ -2,6 +2,7 @@
 
 import type { MissionState } from '@visastack/core';
 import { useActionState } from 'react';
+import { FormMessage, SubmitButton } from '../../../../components/form-feedback';
 import {
   type ActionState,
   setItineraryRefAction,
@@ -100,14 +101,13 @@ export function CaseDetailsForm({
         No automated requirement pack covers this route (manual mode)
       </label>
       <div>
-        <button type="submit" className="btn btn-secondary" disabled={pending}>
-          {pending ? 'Saving…' : 'Save case details'}
-        </button>
-        {state.message ? (
-          <p className={`field-msg ${state.ok ? 'field-msg-ok' : 'field-msg-err'}`}>
-            {state.message}
-          </p>
-        ) : null}
+        <SubmitButton
+          pending={pending}
+          idle="Save case details"
+          busy="Saving…"
+          className="btn btn-secondary"
+        />
+        <FormMessage result={state} />
       </div>
     </form>
   );
@@ -130,17 +130,17 @@ export function ItineraryForm({
         type="text"
         defaultValue={itineraryRef ?? ''}
         className="input"
+        aria-label="Itinerary reference"
         placeholder="e.g. Smith Family Europe 2026"
       />
       <div>
-        <button type="submit" className="btn btn-secondary" disabled={pending}>
-          {pending ? 'Saving…' : itineraryRef ? 'Update' : 'Link'}
-        </button>
-        {state.message ? (
-          <p className={`field-msg ${state.ok ? 'field-msg-ok' : 'field-msg-err'}`}>
-            {state.message}
-          </p>
-        ) : null}
+        <SubmitButton
+          pending={pending}
+          idle={itineraryRef ? 'Update' : 'Link'}
+          busy="Saving…"
+          className="btn btn-secondary"
+        />
+        <FormMessage result={state} />
       </div>
     </form>
   );
@@ -154,15 +154,14 @@ export function SnapshotButton({ missionId }: { readonly missionId: string }) {
     >
       <form action={formAction}>
         <input type="hidden" name="missionId" value={missionId} />
-        <button type="submit" className="btn btn-secondary" disabled={pending}>
-          {pending ? 'Capturing…' : 'Snapshot'}
-        </button>
+        <SubmitButton
+          pending={pending}
+          idle="Snapshot"
+          busy="Capturing…"
+          className="btn btn-secondary"
+        />
       </form>
-      {state.message ? (
-        <p className={`field-msg ${state.ok ? 'field-msg-ok' : 'field-msg-err'}`}>
-          {state.message}
-        </p>
-      ) : null}
+      <FormMessage result={state} />
     </div>
   );
 }
@@ -213,21 +212,16 @@ export function TransitionButtons({
           >
             <input type="hidden" name="missionId" value={missionId} />
             <input type="hidden" name="to" value={to} />
-            <button
-              type="submit"
+            <SubmitButton
+              pending={pending}
+              idle={STATE_LABELS[to] ?? to}
+              busy={STATE_LABELS[to] ?? to}
               className={`btn ${DESTRUCTIVE.has(to) ? 'btn-danger' : 'btn-secondary'}`}
-              disabled={pending}
-            >
-              {STATE_LABELS[to] ?? to}
-            </button>
+            />
           </form>
         ))}
       </div>
-      {state.message ? (
-        <p className={`field-msg ${state.ok ? 'field-msg-ok' : 'field-msg-err'}`}>
-          {state.message}
-        </p>
-      ) : null}
+      <FormMessage result={state} />
     </div>
   );
 }

@@ -1,6 +1,12 @@
 'use client';
 
-import { useActionState, useState } from 'react';
+import { useActionState, useId, useRef, useState } from 'react';
+import {
+  FormMessage,
+  SubmitButton,
+  fieldProblem,
+  useFocusInvalidField,
+} from '../../components/form-feedback';
 import { type ActionState, createApplicantAction } from './actions';
 
 const INITIAL: ActionState = { ok: true, message: '' };
@@ -8,10 +14,14 @@ const INITIAL: ActionState = { ok: true, message: '' };
 export function AddApplicantForm() {
   const [state, formAction, pending] = useActionState(createApplicantAction, INITIAL);
   const [relationship, setRelationship] = useState('SELF');
+  const formRef = useRef<HTMLFormElement>(null);
+  const messageId = useId();
+  useFocusInvalidField(formRef, state);
   const needsAuthority = relationship !== 'SELF';
 
   return (
     <form
+      ref={formRef}
       action={formAction}
       style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginTop: '1rem' }}
     >
@@ -25,6 +35,7 @@ export function AddApplicantForm() {
           placeholder="Full name"
           required
           className="input"
+          {...fieldProblem(state, 'displayName', messageId)}
           style={{ width: '100%', marginTop: '0.35rem' }}
         />
       </div>
@@ -54,21 +65,26 @@ export function AddApplicantForm() {
             fontSize: '0.85rem',
           }}
         >
-          <input type="checkbox" name="authorityConfirmed" value="true" required />
+          <input
+            type="checkbox"
+            name="authorityConfirmed"
+            value="true"
+            required
+            {...fieldProblem(state, 'authorityConfirmed', messageId)}
+          />
           <span>
             I confirm I have authority to create and manage this record on their behalf. This is
             never assumed from a shared name or address.
           </span>
         </label>
       ) : null}
-      <button type="submit" className="btn btn-primary" disabled={pending}>
-        {pending ? 'Adding…' : 'Add applicant'}
-      </button>
-      {state.message ? (
-        <p className={`field-msg ${state.ok ? 'field-msg-ok' : 'field-msg-err'}`}>
-          {state.message}
-        </p>
-      ) : null}
+      <SubmitButton
+        pending={pending}
+        idle="Add applicant"
+        busy="Adding…"
+        className="btn btn-primary"
+      />
+      <FormMessage id={messageId} result={state} />
     </form>
   );
 }

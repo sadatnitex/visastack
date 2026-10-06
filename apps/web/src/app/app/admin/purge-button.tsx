@@ -1,6 +1,7 @@
 'use client';
 
 import { useActionState } from 'react';
+import { FormMessage, SubmitButton } from '../../../components/form-feedback';
 import { type ActionState, purgeExpiredDocumentsAction } from './actions';
 
 const INITIAL: ActionState = { ok: true, message: '' };
@@ -21,16 +22,13 @@ export function PurgeButton({ eligibleCount }: { readonly eligibleCount: number 
         }
       }}
     >
-      <button type="submit" className="btn btn-danger" disabled={pending}>
-        {pending
-          ? 'Queuing…'
-          : `Queue ${eligibleCount} document${eligibleCount === 1 ? '' : 's'} for deletion`}
-      </button>
-      {state.message ? (
-        <p className={`field-msg ${state.ok ? 'field-msg-ok' : 'field-msg-err'}`}>
-          {state.message}
-        </p>
-      ) : null}
+      <SubmitButton
+        pending={pending}
+        idle={`Queue ${eligibleCount} document${eligibleCount === 1 ? '' : 's'} for deletion`}
+        busy="Queuing…"
+        className="btn btn-danger"
+      />
+      <FormMessage result={state} />
     </form>
   );
 }

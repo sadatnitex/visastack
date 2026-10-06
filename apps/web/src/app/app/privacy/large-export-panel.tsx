@@ -1,6 +1,7 @@
 'use client';
 
 import { useActionState } from 'react';
+import { FormMessage, SubmitButton } from '../../../components/form-feedback';
 import { type ActionState, requestLargeExportAction } from './actions';
 
 const INITIAL: ActionState = { ok: true, message: '' };
@@ -80,16 +81,15 @@ export function LargeExportPanel({ jobs }: LargeExportPanelProps) {
         <StatusLine job={active} />
       ) : (
         <form action={action}>
-          <button type="submit" className="btn btn-secondary" disabled={pending}>
-            {pending ? 'Requesting…' : 'Request large export (with files)'}
-          </button>
+          <SubmitButton
+            pending={pending}
+            idle="Request large export (with files)"
+            busy="Requesting…"
+            className="btn btn-secondary"
+          />
         </form>
       )}
-      {state.message ? (
-        <p className={`field-msg ${state.ok ? 'field-msg-ok' : 'field-msg-err'}`}>
-          {state.message}
-        </p>
-      ) : null}
+      <FormMessage result={state} />
     </div>
   );
 }

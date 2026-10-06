@@ -1,6 +1,7 @@
 'use client';
 
 import { useActionState } from 'react';
+import { FormMessage, SubmitButton } from '../../../../components/form-feedback';
 import {
   type ActionState,
   assignComplaintOwnerAction,
@@ -22,17 +23,17 @@ export function AssignComplaintForm({ complaintId }: { readonly complaintId: str
         type="email"
         required
         className="input"
+        aria-label="Email of the person to assign to"
         placeholder="assign to email"
         style={{ maxWidth: '14rem' }}
       />
-      <button type="submit" className="btn btn-secondary" disabled={pending}>
-        {pending ? 'Assigning…' : 'Assign'}
-      </button>
-      {state.message ? (
-        <p className={`field-msg ${state.ok ? 'field-msg-ok' : 'field-msg-err'}`}>
-          {state.message}
-        </p>
-      ) : null}
+      <SubmitButton
+        pending={pending}
+        idle="Assign"
+        busy="Assigning…"
+        className="btn btn-secondary"
+      />
+      <FormMessage result={state} />
     </form>
   );
 }
@@ -60,6 +61,7 @@ export function UpdateComplaintStatusForm({
       <input type="hidden" name="complaintId" value={complaintId} />
       <select
         name="status"
+        aria-label="Move the complaint to"
         className="input"
         defaultValue=""
         required
@@ -78,17 +80,23 @@ export function UpdateComplaintStatusForm({
         name="resolution"
         type="text"
         className="input"
+        aria-label="Resolution (if resolving)"
         placeholder="resolution (if resolving)"
       />
-      <input name="note" type="text" className="input" placeholder="note (optional)" />
-      <button type="submit" className="btn btn-secondary" disabled={pending}>
-        {pending ? 'Updating…' : 'Update'}
-      </button>
-      {state.message ? (
-        <p className={`field-msg ${state.ok ? 'field-msg-ok' : 'field-msg-err'}`}>
-          {state.message}
-        </p>
-      ) : null}
+      <input
+        name="note"
+        type="text"
+        className="input"
+        aria-label="Note (optional)"
+        placeholder="note (optional)"
+      />
+      <SubmitButton
+        pending={pending}
+        idle="Update"
+        busy="Updating…"
+        className="btn btn-secondary"
+      />
+      <FormMessage result={state} />
     </form>
   );
 }

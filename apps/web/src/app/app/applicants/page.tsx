@@ -1,10 +1,13 @@
 import { createTranslator } from '@visastack/i18n';
 import { getConsents, listApplicants } from '@visastack/services';
+import type { Metadata } from 'next';
 import Link from 'next/link';
 import { getLocale } from '../../../lib/locale';
 import { relationshipLabel } from '../../../lib/relationship-labels';
 import { withSession } from '../../../lib/session';
 import { AddApplicantForm } from '../add-applicant-form';
+
+export const metadata: Metadata = { title: 'Applicants' };
 
 export const dynamic = 'force-dynamic';
 

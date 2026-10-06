@@ -128,7 +128,7 @@ function fixtureHtml(): string {
   return `
 <div id="fixture">
   <div class="app-shell-nav">
-    <nav class="app-shell-links" aria-label="Primary">${primary}</nav>
+    <nav class="app-shell-links" aria-label="Workspace">${primary}</nav>
     <div class="app-shell-switch">
       <a href="/app/agency" class="btn btn-secondary nav-cta">Agency</a>
       <a href="/app/admin" class="btn btn-secondary nav-cta">Admin</a>

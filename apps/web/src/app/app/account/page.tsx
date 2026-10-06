@@ -1,10 +1,13 @@
 import { listMembershipsForAccount } from '@visastack/services';
 import { signOut } from '@workos-inc/authkit-nextjs';
+import type { Metadata } from 'next';
 import Link from 'next/link';
 import { isPlatformAdmin } from '../../../lib/admin';
 import { getLocale } from '../../../lib/locale';
 import { withSession } from '../../../lib/session';
 import { setLocaleAction } from '../../actions';
+
+export const metadata: Metadata = { title: 'Account' };
 
 export const dynamic = 'force-dynamic';
 

@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import Link from 'next/link';
 import { profileField } from '../../../../../lib/profile-fields';
 import { withSession } from '../../../../../lib/session';
@@ -14,6 +15,8 @@ import {
 import { EVIDENCE_DECIDABLE_STATUSES, REQ_STATUS } from '../console-format';
 import { EvidenceRequestActions } from '../evidence-request-actions';
 import { RequestEvidenceForm } from '../request-evidence-form';
+
+export const metadata: Metadata = { title: 'Agency clients' };
 
 export const dynamic = 'force-dynamic';
 

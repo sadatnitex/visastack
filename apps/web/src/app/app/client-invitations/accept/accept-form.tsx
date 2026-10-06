@@ -1,6 +1,7 @@
 'use client';
 
 import { useActionState, useState } from 'react';
+import { FormMessage, SubmitButton } from '../../../../components/form-feedback';
 import { type ActionState, acceptClientInvitationAction } from './actions';
 
 const INITIAL: ActionState = { ok: true, message: '' };
@@ -66,14 +67,13 @@ export function AcceptClientInvitationForm({
         </div>
       ) : null}
       <div>
-        <button type="submit" className="btn btn-primary" disabled={pending}>
-          {pending ? 'Granting access…' : 'Grant access'}
-        </button>
-        {state.message ? (
-          <p className={`field-msg ${state.ok ? 'field-msg-ok' : 'field-msg-err'}`}>
-            {state.message}
-          </p>
-        ) : null}
+        <SubmitButton
+          pending={pending}
+          idle="Grant access"
+          busy="Granting access…"
+          className="btn btn-primary"
+        />
+        <FormMessage result={state} />
       </div>
     </form>
   );

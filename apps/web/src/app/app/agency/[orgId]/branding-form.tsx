@@ -1,6 +1,7 @@
 'use client';
 
 import { useActionState, useRef } from 'react';
+import { FormMessage, SubmitButton } from '../../../../components/form-feedback';
 import {
   type ActionState,
   removeLogoAction,
@@ -11,10 +12,7 @@ import {
 const INITIAL: ActionState = { ok: true, message: '' };
 
 function StatusMessage({ state }: { readonly state: ActionState }) {
-  if (!state.message) return null;
-  return (
-    <p className={`field-msg ${state.ok ? 'field-msg-ok' : 'field-msg-err'}`}>{state.message}</p>
-  );
+  return <FormMessage result={state} />;
 }
 
 /** Org admin management UI for an agency's name, accent color, and logo (Commercial V1 COM-04). */
@@ -75,9 +73,12 @@ export function BrandingForm({
           </div>
         </label>
         <div>
-          <button type="submit" className="btn btn-primary" disabled={brandingPending}>
-            {brandingPending ? 'Saving…' : 'Save branding'}
-          </button>
+          <SubmitButton
+            pending={brandingPending}
+            idle="Save branding"
+            busy="Saving…"
+            className="btn btn-primary"
+          />
         </div>
         <StatusMessage state={brandingState} />
       </form>
@@ -118,18 +119,25 @@ export function BrandingForm({
             name="logo"
             accept="image/png,image/jpeg"
             required
+            aria-label="Logo image (PNG or JPEG)"
           />
-          <button type="submit" className="btn btn-secondary" disabled={uploadPending}>
-            {uploadPending ? 'Uploading…' : logoUrl ? 'Replace' : 'Upload'}
-          </button>
+          <SubmitButton
+            pending={uploadPending}
+            idle={logoUrl ? 'Replace' : 'Upload'}
+            busy="Uploading…"
+            className="btn btn-secondary"
+          />
         </form>
         <StatusMessage state={uploadState} />
         {logoUrl ? (
           <form action={removeAction}>
             <input type="hidden" name="organizationId" value={organizationId} />
-            <button type="submit" className="btn btn-secondary" disabled={removePending}>
-              {removePending ? 'Removing…' : 'Remove logo'}
-            </button>
+            <SubmitButton
+              pending={removePending}
+              idle="Remove logo"
+              busy="Removing…"
+              className="btn btn-secondary"
+            />
           </form>
         ) : null}
         <StatusMessage state={removeState} />

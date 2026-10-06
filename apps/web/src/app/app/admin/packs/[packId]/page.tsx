@@ -4,6 +4,7 @@ import {
   listPackVersions,
   listRequirements,
 } from '@visastack/services';
+import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { isPlatformAdmin } from '../../../../../lib/admin';
@@ -19,6 +20,8 @@ import {
   SourceInaccessibleButton,
   WithdrawVersionButton,
 } from '../pack-version-buttons';
+
+export const metadata: Metadata = { title: 'Rule pack' };
 
 export const dynamic = 'force-dynamic';
 

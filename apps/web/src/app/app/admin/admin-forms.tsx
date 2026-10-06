@@ -1,6 +1,7 @@
 'use client';
 
 import { useActionState, useState } from 'react';
+import { FormMessage, SubmitButton } from '../../../components/form-feedback';
 import {
   type ActionState,
   createInvitationAction,
@@ -41,14 +42,13 @@ export function InviteForm() {
         />
       </div>
       <div>
-        <button type="submit" className="btn btn-primary" disabled={pending}>
-          {pending ? 'Inviting…' : 'Invite'}
-        </button>
-        {state.message ? (
-          <p className={`field-msg ${state.ok ? 'field-msg-ok' : 'field-msg-err'}`}>
-            {state.message}
-          </p>
-        ) : null}
+        <SubmitButton
+          pending={pending}
+          idle="Invite"
+          busy="Inviting…"
+          className="btn btn-primary"
+        />
+        <FormMessage result={state} />
       </div>
     </form>
   );
@@ -107,14 +107,13 @@ export function GrantRoleForm() {
         />
       </div>
       <div>
-        <button type="submit" className="btn btn-primary" disabled={pending}>
-          {pending ? 'Granting…' : 'Grant role'}
-        </button>
-        {state.message ? (
-          <p className={`field-msg ${state.ok ? 'field-msg-ok' : 'field-msg-err'}`}>
-            {state.message}
-          </p>
-        ) : null}
+        <SubmitButton
+          pending={pending}
+          idle="Grant role"
+          busy="Granting…"
+          className="btn btn-primary"
+        />
+        <FormMessage result={state} />
       </div>
     </form>
   );
@@ -152,14 +151,13 @@ export function RetentionPolicyForm() {
         />
       </div>
       <div>
-        <button type="submit" className="btn btn-primary" disabled={pending}>
-          {pending ? 'Saving…' : 'Set policy'}
-        </button>
-        {state.message ? (
-          <p className={`field-msg ${state.ok ? 'field-msg-ok' : 'field-msg-err'}`}>
-            {state.message}
-          </p>
-        ) : null}
+        <SubmitButton
+          pending={pending}
+          idle="Set policy"
+          busy="Saving…"
+          className="btn btn-primary"
+        />
+        <FormMessage result={state} />
       </div>
     </form>
   );
@@ -261,14 +259,13 @@ export function LegalHoldForm({ applicants }: LegalHoldFormProps) {
         </div>
       ) : null}
       <div>
-        <button type="submit" className="btn btn-danger" disabled={pending}>
-          {pending ? 'Placing…' : 'Place legal hold'}
-        </button>
-        {state.message ? (
-          <p className={`field-msg ${state.ok ? 'field-msg-ok' : 'field-msg-err'}`}>
-            {state.message}
-          </p>
-        ) : null}
+        <SubmitButton
+          pending={pending}
+          idle="Place legal hold"
+          busy="Placing…"
+          className="btn btn-danger"
+        />
+        <FormMessage result={state} />
       </div>
     </form>
   );

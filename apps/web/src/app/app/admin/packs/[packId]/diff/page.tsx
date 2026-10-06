@@ -1,8 +1,11 @@
 import { diffPackVersions, getPack } from '@visastack/services';
+import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { isPlatformAdmin } from '../../../../../../lib/admin';
 import { withSession } from '../../../../../../lib/session';
+
+export const metadata: Metadata = { title: 'Rule pack changes' };
 
 export const dynamic = 'force-dynamic';
 

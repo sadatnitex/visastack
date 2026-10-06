@@ -1,6 +1,7 @@
 'use client';
 
 import { useActionState } from 'react';
+import { FormMessage, SubmitButton } from '../../../../components/form-feedback';
 import { type ActionState, setRequireDifferentReviewerAction } from './actions';
 
 const INITIAL: ActionState = { ok: true, message: '' };
@@ -21,20 +22,15 @@ export function RequireDifferentReviewerToggle({
       <form action={formAction}>
         <input type="hidden" name="organizationId" value={organizationId} />
         <input type="hidden" name="required" value={String(!required)} />
-        <button
-          type="submit"
+        <SubmitButton
+          pending={pending}
+          idle={required ? 'Turn off' : 'Require a different reviewer'}
+          busy="Saving…"
           className={`btn ${required ? 'btn-secondary' : 'btn-primary'}`}
           style={{ padding: '0.35rem 1rem', fontSize: '0.85rem' }}
-          disabled={pending}
-        >
-          {pending ? 'Saving…' : required ? 'Turn off' : 'Require a different reviewer'}
-        </button>
+        />
       </form>
-      {state.message ? (
-        <p className={`field-msg ${state.ok ? 'field-msg-ok' : 'field-msg-err'}`}>
-          {state.message}
-        </p>
-      ) : null}
+      <FormMessage result={state} />
     </div>
   );
 }

@@ -1,6 +1,7 @@
 'use client';
 
 import { useActionState } from 'react';
+import { FormMessage, SubmitButton } from '../../../../../../components/form-feedback';
 import { type ActionState, decideAcknowledgementAction } from './actions';
 
 const INITIAL: ActionState = { ok: true, message: '' };
@@ -117,39 +118,32 @@ export function AcknowledgementPanel({
           />
         </div>
         <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap' }}>
-          <button
-            type="submit"
+          <SubmitButton
+            pending={pending}
+            idle="Acknowledge"
+            busy="Recording…"
+            className="btn btn-primary"
             name="decision"
             value="ACKNOWLEDGED"
-            className="btn btn-primary"
-            disabled={pending}
-          >
-            {pending ? 'Recording…' : 'Acknowledge'}
-          </button>
-          <button
-            type="submit"
+          />
+          <SubmitButton
+            pending={pending}
+            idle="Request correction"
+            busy="Request correction"
+            className="btn btn-secondary"
             name="decision"
             value="CORRECTION_REQUESTED"
-            className="btn btn-secondary"
-            disabled={pending}
-          >
-            Request correction
-          </button>
-          <button
-            type="submit"
+          />
+          <SubmitButton
+            pending={pending}
+            idle="Reject"
+            busy="Reject"
+            className="btn btn-danger"
             name="decision"
             value="REJECTED"
-            className="btn btn-danger"
-            disabled={pending}
-          >
-            Reject
-          </button>
+          />
         </div>
-        {state.message ? (
-          <p className={`field-msg ${state.ok ? 'field-msg-ok' : 'field-msg-err'}`}>
-            {state.message}
-          </p>
-        ) : null}
+        <FormMessage result={state} />
       </form>
     </article>
   );

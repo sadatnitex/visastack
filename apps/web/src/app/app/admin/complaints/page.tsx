@@ -1,8 +1,11 @@
 import { listComplaintsForQualityReview, listFeedbackForQualityReview } from '@visastack/services';
+import type { Metadata } from 'next';
 import Link from 'next/link';
 import { bootstrapAdminEmails, hasPlatformPermission } from '../../../../lib/admin';
 import { withSession } from '../../../../lib/session';
 import { AssignComplaintForm, UpdateComplaintStatusForm } from './forms';
+
+export const metadata: Metadata = { title: 'Complaints' };
 
 export const dynamic = 'force-dynamic';
 

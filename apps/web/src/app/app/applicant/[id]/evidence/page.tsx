@@ -6,9 +6,12 @@ import {
   listEvidenceRequestDecisions,
   listEvidenceRequestsForApplicant,
 } from '@visastack/services';
+import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { withSession } from '../../../../../lib/session';
 import { SubmitResponseForm } from './submit-response-form';
+
+export const metadata: Metadata = { title: 'Evidence' };
 
 export const dynamic = 'force-dynamic';
 

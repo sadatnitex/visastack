@@ -4,10 +4,13 @@ import {
   listApplicants,
   previewClientInvitation,
 } from '@visastack/services';
+import type { Metadata } from 'next';
 import { withSession } from '../../../../lib/session';
 import { createStorage } from '../../../../lib/storage';
 import { AcceptClientInvitationForm } from './accept-form';
 import { ConsentGate } from './consent-gate';
+
+export const metadata: Metadata = { title: 'Invitation from an agency' };
 
 export const dynamic = 'force-dynamic';
 

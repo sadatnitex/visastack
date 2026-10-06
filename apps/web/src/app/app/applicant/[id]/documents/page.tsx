@@ -13,8 +13,11 @@ import {
   listPendingInconsistencyFlags,
   listPendingProposals,
   loadUploadQuotaConfig,
+  mbLabel,
 } from '@visastack/services';
+import type { Metadata } from 'next';
 import Link from 'next/link';
+import { AutoRefresh } from '../../../../../components/auto-refresh';
 import {
   createAiExtractor,
   isClassificationConfigured,
@@ -22,6 +25,7 @@ import {
   isOcrConfigured,
 } from '../../../../../lib/ai';
 import { getLocale } from '../../../../../lib/locale';
+import { isStillProcessing } from '../../../../../lib/resilience';
 import { withSession } from '../../../../../lib/session';
 import { previewDocumentAction, setDocumentDateAction } from '../actions';
 import {
@@ -37,6 +41,8 @@ import {
 import { DocumentUploader } from '../document-uploader';
 import { NameReview } from '../name-review';
 import { UsageMeter } from '../usage-meter';
+
+export const metadata: Metadata = { title: 'Documents' };
 
 export const dynamic = 'force-dynamic';
 
@@ -68,6 +74,15 @@ function safetyBadge(status: string, t: Translator): { label: string; tone: stri
   };
   return { label: t(entry.key), tone: entry.tone };
 }
+
+/** What a person can do next when a file could not be used (a state with no next step is a dead end). */
+const PROBLEM_NEXT_STEP: Record<string, string> = {
+  FAILED:
+    'We could not finish checking this file. Try uploading it again. If it keeps failing, contact support.',
+  NEEDS_ATTENTION:
+    'This file could not be accepted as it is. Try a different copy, such as a clearer scan or a smaller file.',
+  REJECTED: 'This file was rejected. Upload a different copy if you still need it.',
+};
 
 /** Processing-state badge tone: attention states read as warning/danger, everything mid-flight as neutral. */
 function processingTone(status: string | null): string {
@@ -165,8 +180,14 @@ export default async function ApplicantDocumentsPage({
     };
   });
 
+  // While the server is still scanning or reading a file, keep this page up to date by
+  // itself: nobody has to reload, and nobody uploads the file again because nothing seemed
+  // to happen (directive Part 9 section 3).
+  const anyProcessing = data.documents.some((doc) => isStillProcessing(doc.processingStatus));
+
   return (
     <>
+      <AutoRefresh active={anyProcessing} />
       {previewError ? (
         <p className="notice notice-warn" role="alert" style={{ marginBottom: '1.5rem' }}>
           Couldn't open that preview - the document may no longer be available. Please try again.
@@ -229,7 +250,7 @@ export default async function ApplicantDocumentsPage({
                 limitBytes={data.quota.maxApplicantEvidenceBytes}
               />
             </div>
-            <DocumentUploader applicantId={id} />
+            <DocumentUploader applicantId={id} limitLabel={mbLabel(data.quota.maxUploadBytes)} />
           </article>
         </>
       )}
@@ -237,6 +258,12 @@ export default async function ApplicantDocumentsPage({
       <article className="card">
         <p className="card-kicker">Document Vault</p>
         <h2 className="card-title">{data.documents.length} document(s)</h2>
+        {anyProcessing ? (
+          <p className="muted" style={{ fontSize: '0.85rem' }}>
+            Some documents are still being checked. This page updates by itself, so there is no need
+            to upload them again.
+          </p>
+        ) : null}
         {data.documents.length === 0 ? (
           <p className="muted">No documents yet.</p>
         ) : (
@@ -294,6 +321,11 @@ export default async function ApplicantDocumentsPage({
                       ) : null}
                     </span>
                   </div>
+                  {doc.processingStatus && PROBLEM_NEXT_STEP[doc.processingStatus] ? (
+                    <p className="muted" style={{ fontSize: '0.75rem', margin: 0 }}>
+                      {PROBLEM_NEXT_STEP[doc.processingStatus]}
+                    </p>
+                  ) : null}
                   {(() => {
                     const wallet = data.wallet.get(doc.id);
                     if (

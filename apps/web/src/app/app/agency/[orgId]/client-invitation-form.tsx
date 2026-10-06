@@ -1,6 +1,7 @@
 'use client';
 
 import { useActionState } from 'react';
+import { FormMessage, SubmitButton } from '../../../../components/form-feedback';
 import { type ActionState, inviteClientAction } from './actions';
 
 const INITIAL: ActionState = { ok: true, message: '' };
@@ -79,14 +80,13 @@ export function ClientInvitationForm({
         </select>
       </div>
       <div>
-        <button type="submit" className="btn btn-secondary" disabled={pending}>
-          {pending ? 'Creating…' : 'Invite client'}
-        </button>
-        {state.message ? (
-          <p className={`field-msg ${state.ok ? 'field-msg-ok' : 'field-msg-err'}`}>
-            {state.message}
-          </p>
-        ) : null}
+        <SubmitButton
+          pending={pending}
+          idle="Invite client"
+          busy="Creating…"
+          className="btn btn-secondary"
+        />
+        <FormMessage result={state} />
       </div>
     </form>
   );

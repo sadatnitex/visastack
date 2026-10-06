@@ -1,4 +1,5 @@
 import { getOrganizationBrandingForDisplay } from '@visastack/services';
+import type { Metadata } from 'next';
 import {
   capabilityUnavailableMessage,
   getPlatformCapabilities,
@@ -8,6 +9,8 @@ import { createStorage } from '../../../../../lib/storage';
 import { BrandingForm } from '../branding-form';
 import { loadOrgAccess } from '../console-data';
 import { RequireDifferentReviewerToggle } from '../require-different-reviewer-toggle';
+
+export const metadata: Metadata = { title: 'Agency settings' };
 
 export const dynamic = 'force-dynamic';
 

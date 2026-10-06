@@ -1,6 +1,7 @@
 'use client';
 
 import { useActionState } from 'react';
+import { FormMessage, SubmitButton } from '../../../../components/form-feedback';
 import {
   type ActionState,
   createContributorRequestAction,
@@ -114,17 +115,13 @@ export function ContributorRequestsPanel({
           <input id="message" name="message" type="text" className="input" />
         </div>
         <div>
-          <button type="submit" className="btn btn-secondary" disabled={pending}>
-            {pending ? 'Creating…' : 'Ask for this'}
-          </button>
-          {state.message ? (
-            <p
-              className={`field-msg ${state.ok ? 'field-msg-ok' : 'field-msg-err'}`}
-              style={{ wordBreak: 'break-all' }}
-            >
-              {state.message}
-            </p>
-          ) : null}
+          <SubmitButton
+            pending={pending}
+            idle="Ask for this"
+            busy="Creating…"
+            className="btn btn-secondary"
+          />
+          <FormMessage result={state} style={{ wordBreak: 'break-all' }} />
         </div>
       </form>
     </>
@@ -150,14 +147,13 @@ function RevokeButton({
     >
       <input type="hidden" name="missionId" value={missionId} />
       <input type="hidden" name="requestId" value={requestId} />
-      <button
-        type="submit"
+      <SubmitButton
+        pending={pending}
+        idle="Revoke"
+        busy="Revoking…"
         className="btn btn-danger"
-        disabled={pending}
         style={{ alignSelf: 'flex-start' }}
-      >
-        {pending ? 'Revoking…' : 'Revoke'}
-      </button>
+      />
       {state.message && !state.ok ? (
         <p className="field-msg field-msg-err">{state.message}</p>
       ) : null}

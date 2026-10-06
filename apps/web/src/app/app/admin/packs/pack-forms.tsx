@@ -1,6 +1,7 @@
 'use client';
 
 import { useActionState } from 'react';
+import { FormMessage, SubmitButton } from '../../../../components/form-feedback';
 import {
   type ActionState,
   addRequirementAction,
@@ -89,14 +90,13 @@ export function CreatePackForm() {
         <span>Authoritative (official source, not an agency's own custom checklist)</span>
       </label>
       <div>
-        <button type="submit" className="btn btn-primary" disabled={pending}>
-          {pending ? 'Creating…' : 'Create pack'}
-        </button>
-        {state.message ? (
-          <p className={`field-msg ${state.ok ? 'field-msg-ok' : 'field-msg-err'}`}>
-            {state.message}
-          </p>
-        ) : null}
+        <SubmitButton
+          pending={pending}
+          idle="Create pack"
+          busy="Creating…"
+          className="btn btn-primary"
+        />
+        <FormMessage result={state} />
       </div>
     </form>
   );
@@ -168,14 +168,13 @@ export function AddRequirementForm({
         <span>Optional requirement</span>
       </label>
       <div>
-        <button type="submit" className="btn btn-secondary" disabled={pending}>
-          {pending ? 'Adding…' : 'Add requirement'}
-        </button>
-        {state.message ? (
-          <p className={`field-msg ${state.ok ? 'field-msg-ok' : 'field-msg-err'}`}>
-            {state.message}
-          </p>
-        ) : null}
+        <SubmitButton
+          pending={pending}
+          idle="Add requirement"
+          busy="Adding…"
+          className="btn btn-secondary"
+        />
+        <FormMessage result={state} />
       </div>
     </form>
   );
@@ -186,19 +185,14 @@ export function VerifyChecksumForm({ packVersionId }: { readonly packVersionId: 
   return (
     <form action={formAction} style={{ display: 'inline-block' }}>
       <input type="hidden" name="packVersionId" value={packVersionId} />
-      <button
-        type="submit"
+      <SubmitButton
+        pending={pending}
+        idle="Verify checksum"
+        busy="Verifying…"
         className="btn btn-secondary"
         style={{ padding: '0.3rem 0.85rem', fontSize: '0.8rem' }}
-        disabled={pending}
-      >
-        {pending ? 'Verifying…' : 'Verify checksum'}
-      </button>
-      {state.message ? (
-        <p className={`field-msg ${state.ok ? 'field-msg-ok' : 'field-msg-err'}`}>
-          {state.message}
-        </p>
-      ) : null}
+      />
+      <FormMessage result={state} />
     </form>
   );
 }
@@ -323,14 +317,13 @@ export function PublicTrustContentForm({
         />
       </div>
       <div>
-        <button type="submit" className="btn btn-secondary" disabled={pending}>
-          {pending ? 'Saving…' : 'Save public trust content'}
-        </button>
-        {state.message ? (
-          <p className={`field-msg ${state.ok ? 'field-msg-ok' : 'field-msg-err'}`}>
-            {state.message}
-          </p>
-        ) : null}
+        <SubmitButton
+          pending={pending}
+          idle="Save public trust content"
+          busy="Saving…"
+          className="btn btn-secondary"
+        />
+        <FormMessage result={state} />
       </div>
     </form>
   );
@@ -368,14 +361,13 @@ export function SetDocumentExpiryPolicyForm() {
         />
       </div>
       <div>
-        <button type="submit" className="btn btn-secondary" disabled={pending}>
-          {pending ? 'Saving…' : 'Save thresholds'}
-        </button>
-        {state.message ? (
-          <p className={`field-msg ${state.ok ? 'field-msg-ok' : 'field-msg-err'}`}>
-            {state.message}
-          </p>
-        ) : null}
+        <SubmitButton
+          pending={pending}
+          idle="Save thresholds"
+          busy="Saving…"
+          className="btn btn-secondary"
+        />
+        <FormMessage result={state} />
       </div>
     </form>
   );

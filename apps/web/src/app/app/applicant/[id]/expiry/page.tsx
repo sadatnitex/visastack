@@ -9,8 +9,11 @@ import {
   listIssuerVerificationsForDocument,
   listMissions,
 } from '@visastack/services';
+import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { withSession } from '../../../../../lib/session';
+
+export const metadata: Metadata = { title: 'Expiry' };
 
 export const dynamic = 'force-dynamic';
 

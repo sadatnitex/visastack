@@ -4,9 +4,12 @@ import {
   listApplicantAssurance,
   listApplicantProfile,
 } from '@visastack/services';
+import type { Metadata } from 'next';
 import Link from 'next/link';
 import { withSession } from '../../../../../lib/session';
 import { type FieldAssurance, ProfileEditor } from '../profile-editor';
+
+export const metadata: Metadata = { title: 'Profile' };
 
 /** RSC boundary: dates must cross as ISO strings, never `Date` objects. */
 function toClientAssurance(view: FactAssuranceView): FieldAssurance {

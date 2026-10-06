@@ -9,7 +9,8 @@ import { setLocaleAction } from './actions';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'VisaStack - one profile, every visa',
+  // Every page names itself (WCAG 2.4.2): the page's own title, then the product.
+  title: { default: 'VisaStack - one profile, every visa', template: '%s | VisaStack' },
   description:
     'Keep your passport, documents and visa details in one private profile and reuse them for every application. Invite-only pilot.',
 };
@@ -47,13 +48,14 @@ export default async function RootLayout({ children }: { readonly children: Reac
           <Link className="brand" href="/">
             VisaStack
           </Link>
-          <nav className="nav-links" aria-label="Primary">
+          <nav className="nav-links" aria-label="Site">
             <Link href="/#capabilities">Features</Link>
             <Link href="/trust">Public trust</Link>
             <Link href="/status">Status</Link>
             <form action={setLocaleAction} aria-label="Language">
               <input type="hidden" name="locale" value={locale === 'en' ? 'bn' : 'en'} />
-              <button type="submit" className="lang-switch">
+              {/* The label is written in the language it switches to, so say so (WCAG 3.1.2). */}
+              <button type="submit" className="lang-switch" lang={locale === 'en' ? 'bn' : 'en'}>
                 {locale === 'en' ? 'বাংলা' : 'English'}
               </button>
             </form>

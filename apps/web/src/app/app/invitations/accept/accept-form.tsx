@@ -1,6 +1,7 @@
 'use client';
 
 import { useActionState } from 'react';
+import { FormMessage, SubmitButton } from '../../../../components/form-feedback';
 import { type ActionState, acceptInvitationAction } from './actions';
 
 const INITIAL: ActionState = { ok: true, message: '' };
@@ -10,14 +11,13 @@ export function AcceptInvitationForm({ token }: { readonly token: string }) {
   return (
     <form action={formAction}>
       <input type="hidden" name="token" value={token} />
-      <button type="submit" className="btn btn-primary" disabled={pending}>
-        {pending ? 'Joining…' : 'Accept and join'}
-      </button>
-      {state.message ? (
-        <p className={`field-msg ${state.ok ? 'field-msg-ok' : 'field-msg-err'}`}>
-          {state.message}
-        </p>
-      ) : null}
+      <SubmitButton
+        pending={pending}
+        idle="Accept and join"
+        busy="Joining…"
+        className="btn btn-primary"
+      />
+      <FormMessage result={state} />
     </form>
   );
 }

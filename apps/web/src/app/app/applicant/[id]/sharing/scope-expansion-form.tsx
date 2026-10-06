@@ -1,6 +1,7 @@
 'use client';
 
 import { useActionState, useState } from 'react';
+import { FormMessage, SubmitButton } from '../../../../../components/form-feedback';
 import { type ActionState, expandGrantScopeAction } from './actions';
 
 const INITIAL: ActionState = { ok: true, message: '' };
@@ -65,22 +66,16 @@ export function ScopeExpansionForm({
           ))}
         </div>
         <div>
-          <button
-            type="submit"
+          <SubmitButton
+            pending={pending}
+            unavailable={selected.size === 0}
+            idle={`Include ${selected.size} selected document${selected.size === 1 ? '' : 's'}`}
+            busy="Including…"
             className="btn btn-secondary"
             style={{ padding: '0.3rem 0.85rem', fontSize: '0.8rem' }}
-            disabled={pending || selected.size === 0}
-          >
-            {pending
-              ? 'Including…'
-              : `Include ${selected.size} selected document${selected.size === 1 ? '' : 's'}`}
-          </button>
+          />
         </div>
-        {state.message ? (
-          <p className={`field-msg ${state.ok ? 'field-msg-ok' : 'field-msg-err'}`}>
-            {state.message}
-          </p>
-        ) : null}
+        <FormMessage result={state} />
       </form>
     </div>
   );

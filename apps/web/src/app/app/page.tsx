@@ -10,10 +10,13 @@ import {
   listMissions,
   listPendingProposals,
 } from '@visastack/services';
+import type { Metadata } from 'next';
 import Link from 'next/link';
 import { getLocale } from '../../lib/locale';
 import { withSession } from '../../lib/session';
 import { ConsentButton } from './consent-button';
+
+export const metadata: Metadata = { title: 'Overview' };
 
 export const dynamic = 'force-dynamic';
 
@@ -238,7 +241,12 @@ export default async function AppPage() {
           {CONSENT_TYPES.map((type) => (
             <div className="row" key={type}>
               <span className="row-key">{t(CONSENT_MESSAGE_KEYS[type])}</span>
-              <ConsentButton type={type} granted={Boolean(data.consents[type])} locale={locale} />
+              <ConsentButton
+                type={type}
+                granted={Boolean(data.consents[type])}
+                locale={locale}
+                label={t(CONSENT_MESSAGE_KEYS[type])}
+              />
             </div>
           ))}
         </div>

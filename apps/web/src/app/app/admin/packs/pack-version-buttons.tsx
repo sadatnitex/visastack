@@ -1,6 +1,7 @@
 'use client';
 
 import { useActionState } from 'react';
+import { FormMessage, SubmitButton } from '../../../../components/form-feedback';
 import {
   type ActionState,
   approveVersionAction,
@@ -25,15 +26,14 @@ export function OpenVersionButton({ packId }: { readonly packId: string }) {
     >
       <form action={formAction}>
         <input type="hidden" name="packId" value={packId} />
-        <button type="submit" className="btn btn-secondary" disabled={pending}>
-          {pending ? 'Opening…' : 'Open new draft version'}
-        </button>
+        <SubmitButton
+          pending={pending}
+          idle="Open new draft version"
+          busy="Opening…"
+          className="btn btn-secondary"
+        />
       </form>
-      {state.message ? (
-        <p className={`field-msg ${state.ok ? 'field-msg-ok' : 'field-msg-err'}`}>
-          {state.message}
-        </p>
-      ) : null}
+      <FormMessage result={state} />
     </div>
   );
 }
@@ -51,15 +51,14 @@ export function ApproveVersionButton({
       <form action={formAction}>
         <input type="hidden" name="packId" value={packId} />
         <input type="hidden" name="packVersionId" value={packVersionId} />
-        <button type="submit" className="btn btn-primary" disabled={pending}>
-          {pending ? 'Approving…' : 'Approve version'}
-        </button>
+        <SubmitButton
+          pending={pending}
+          idle="Approve version"
+          busy="Approving…"
+          className="btn btn-primary"
+        />
       </form>
-      {state.message ? (
-        <p className={`field-msg ${state.ok ? 'field-msg-ok' : 'field-msg-err'}`}>
-          {state.message}
-        </p>
-      ) : null}
+      <FormMessage result={state} />
     </div>
   );
 }
@@ -86,15 +85,14 @@ export function PublishVersionButton({
       >
         <input type="hidden" name="packId" value={packId} />
         <input type="hidden" name="packVersionId" value={packVersionId} />
-        <button type="submit" className="btn btn-primary" disabled={pending}>
-          {pending ? 'Publishing…' : 'Publish version'}
-        </button>
+        <SubmitButton
+          pending={pending}
+          idle="Publish version"
+          busy="Publishing…"
+          className="btn btn-primary"
+        />
       </form>
-      {state.message ? (
-        <p className={`field-msg ${state.ok ? 'field-msg-ok' : 'field-msg-err'}`}>
-          {state.message}
-        </p>
-      ) : null}
+      <FormMessage result={state} />
     </div>
   );
 }
@@ -127,15 +125,14 @@ export function WithdrawVersionButton({
         <input type="hidden" name="packId" value={packId} />
         <input type="hidden" name="packVersionId" value={packVersionId} />
         <input type="hidden" name="reason" value="" />
-        <button type="submit" className="btn btn-danger" disabled={pending}>
-          {pending ? 'Withdrawing…' : 'Withdraw version'}
-        </button>
+        <SubmitButton
+          pending={pending}
+          idle="Withdraw version"
+          busy="Withdrawing…"
+          className="btn btn-danger"
+        />
       </form>
-      {state.message ? (
-        <p className={`field-msg ${state.ok ? 'field-msg-ok' : 'field-msg-err'}`}>
-          {state.message}
-        </p>
-      ) : null}
+      <FormMessage result={state} />
     </div>
   );
 }
@@ -171,25 +168,14 @@ export function PublicTrustPublishButton({
       >
         <input type="hidden" name="packId" value={packId} />
         <input type="hidden" name="packVersionId" value={packVersionId} />
-        <button
-          type="submit"
+        <SubmitButton
+          pending={pending}
+          idle={published ? 'Remove from public trust' : 'Publish to public trust'}
+          busy={published ? 'Removing…' : 'Publishing…'}
           className={`btn ${published ? 'btn-danger' : 'btn-primary'}`}
-          disabled={pending}
-        >
-          {pending
-            ? published
-              ? 'Removing…'
-              : 'Publishing…'
-            : published
-              ? 'Remove from public trust'
-              : 'Publish to public trust'}
-        </button>
+        />
       </form>
-      {state.message ? (
-        <p className={`field-msg ${state.ok ? 'field-msg-ok' : 'field-msg-err'}`}>
-          {state.message}
-        </p>
-      ) : null}
+      <FormMessage result={state} />
     </div>
   );
 }
@@ -213,20 +199,15 @@ export function OfficialFeeStaleButton({
       <form action={formAction}>
         <input type="hidden" name="packId" value={packId} />
         <input type="hidden" name="packVersionId" value={packVersionId} />
-        <button
-          type="submit"
+        <SubmitButton
+          pending={pending}
+          idle={stale ? 'Restore fee' : 'Mark fee stale'}
+          busy="…"
           className={`btn ${stale ? 'btn-secondary' : 'btn-danger'}`}
           style={{ padding: '0.2rem 0.6rem', fontSize: '0.75rem' }}
-          disabled={pending}
-        >
-          {pending ? '…' : stale ? 'Restore fee' : 'Mark fee stale'}
-        </button>
+        />
       </form>
-      {state.message ? (
-        <span className={`field-msg ${state.ok ? 'field-msg-ok' : 'field-msg-err'}`}>
-          {state.message}
-        </span>
-      ) : null}
+      <FormMessage result={state} style={{ display: 'inline' }} />
     </div>
   );
 }
@@ -250,20 +231,15 @@ export function SourceInaccessibleButton({
       <form action={formAction}>
         <input type="hidden" name="packId" value={packId} />
         <input type="hidden" name="requirementId" value={requirementId} />
-        <button
-          type="submit"
+        <SubmitButton
+          pending={pending}
+          idle={inaccessible ? 'Clear source-inaccessible' : 'Mark source inaccessible'}
+          busy="…"
           className={`btn ${inaccessible ? 'btn-secondary' : 'btn-danger'}`}
           style={{ padding: '0.2rem 0.6rem', fontSize: '0.75rem' }}
-          disabled={pending}
-        >
-          {pending ? '…' : inaccessible ? 'Clear source-inaccessible' : 'Mark source inaccessible'}
-        </button>
+        />
       </form>
-      {state.message ? (
-        <span className={`field-msg ${state.ok ? 'field-msg-ok' : 'field-msg-err'}`}>
-          {state.message}
-        </span>
-      ) : null}
+      <FormMessage result={state} style={{ display: 'inline' }} />
     </div>
   );
 }

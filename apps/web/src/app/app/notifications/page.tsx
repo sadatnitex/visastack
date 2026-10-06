@@ -1,7 +1,10 @@
 import { listNotificationsForAccount } from '@visastack/services';
+import type { Metadata } from 'next';
 import Link from 'next/link';
 import { withSession } from '../../../lib/session';
 import { markNotificationReadAction } from './actions';
+
+export const metadata: Metadata = { title: 'Alerts' };
 
 export const dynamic = 'force-dynamic';
 

@@ -1,6 +1,9 @@
 import { getRetentionPolicies, previewContributorRequest } from '@visastack/services';
+import type { Metadata } from 'next';
 import { withSession } from '../../../../lib/session';
 import { SubmitEvidenceForm } from './submit-evidence-form';
+
+export const metadata: Metadata = { title: 'Add evidence for a request' };
 
 export const dynamic = 'force-dynamic';
 

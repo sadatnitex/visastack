@@ -4,6 +4,7 @@ import {
   getMissionSnapshot,
   listAcknowledgementsForMission,
 } from '@visastack/services';
+import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { profileField } from '../../../../../../lib/profile-fields';
@@ -14,6 +15,8 @@ import {
   type SnapshotFactEntry,
   normalizeSnapshotFacts,
 } from './snapshot-facts';
+
+export const metadata: Metadata = { title: 'Case snapshot' };
 
 export const dynamic = 'force-dynamic';
 

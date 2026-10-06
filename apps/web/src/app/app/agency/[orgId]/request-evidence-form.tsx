@@ -1,6 +1,7 @@
 'use client';
 
 import { useActionState } from 'react';
+import { FormMessage, SubmitButton } from '../../../../components/form-feedback';
 import { PROFILE_FIELDS } from '../../../../lib/profile-fields';
 import { type ActionState, requestEvidenceAction } from './actions';
 
@@ -112,14 +113,13 @@ export function RequestEvidenceForm({
         <input id="dueDate" name="dueDate" type="date" className="input" />
       </div>
       <div>
-        <button type="submit" className="btn btn-primary" disabled={pending}>
-          {pending ? 'Sending…' : 'Request evidence'}
-        </button>
-        {state.message ? (
-          <p className={`field-msg ${state.ok ? 'field-msg-ok' : 'field-msg-err'}`}>
-            {state.message}
-          </p>
-        ) : null}
+        <SubmitButton
+          pending={pending}
+          idle="Request evidence"
+          busy="Sending…"
+          className="btn btn-primary"
+        />
+        <FormMessage result={state} />
       </div>
     </form>
   );

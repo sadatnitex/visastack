@@ -87,9 +87,19 @@ describe('the status page', () => {
     expect(textOf(render())).toContain('Updated 14:05:09. Checks again every 15 seconds.');
   });
 
-  it('disables the button while a check is running', () => {
+  it('shows the button as busy while a check is running, without taking focus away from it', () => {
     const html = render({ loading: true });
-    expect(html).toMatch(/<button[^>]*disabled=""[^>]*>Checking…<\/button>/);
+    expect(html).toMatch(/<button[^>]*aria-disabled="true"[^>]*>Checking…<\/button>/);
+    // A `disabled` button cannot be focused, so a keyboard user resting on it would lose their
+    // place every time the page re-checks by itself.
+    expect(html).not.toMatch(/<button[^>]*\sdisabled/);
     expect(textOf(render())).toContain('Check now');
+    expect(render()).not.toContain('aria-disabled');
+  });
+
+  it('does not say the list is missing while the first answer is still on its way', () => {
+    const waiting = textOf(render({ live: null, ready: null, updatedAt: '' }));
+    expect(waiting).toContain('Checking which features are working…');
+    expect(waiting).not.toContain('not available right now');
   });
 });

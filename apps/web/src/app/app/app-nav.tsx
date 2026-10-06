@@ -13,7 +13,7 @@ import { type NavLink, isCurrentPath } from '../../lib/navigation';
 export function AppNav({ links }: { readonly links: readonly NavLink[] }) {
   const pathname = usePathname();
   return (
-    <nav className="app-shell-links" aria-label="Primary">
+    <nav className="app-shell-links" aria-label="Workspace">
       {links.map((link) => (
         <Link
           key={link.href}

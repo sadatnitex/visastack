@@ -3,6 +3,7 @@ import {
   hasAnyAiProviderConfig,
   listAiProviderConfigHistory,
 } from '@visastack/services';
+import type { Metadata } from 'next';
 import Link from 'next/link';
 import { bootstrapAdminEmails, hasPlatformPermission } from '../../../../lib/admin';
 import { unitsToUsd } from '../../../../lib/ai';
@@ -16,6 +17,8 @@ import {
   RunEvaluationButton,
   TestConnectionButton,
 } from './forms';
+
+export const metadata: Metadata = { title: 'AI settings' };
 
 export const dynamic = 'force-dynamic';
 // The "run task evaluation" action below makes up to 13 sequential real
