@@ -4635,3 +4635,31 @@ programme rather than being a product defect.
     Preview variable scoping is not verified; Actions pinned by tag; no alert routing for the
     weekly run; the tabletop count of gaps drops from 5 to 4. **Owner decision (does not block):**
     pay for GitHub code scanning or accept the free rule-based checks plus independent review.
+
+    **Chunk 44 (2026-10-06, OPS-01, A33, Part 9 s8-9) -- load and service objectives.**
+    Built `packages/load` (private, tested, never deployed): seeded made-up dataset generator, a
+    load harness using the application's own database driver (through a loopback WebSocket bridge to
+    a local Postgres 16), real migrations, real services, real ClamAV, content limits and text
+    extraction, optional network delay between app and database, and a public-page HTTP check.
+    Refuses any non-local database. Result and method: `docs/operations/capacity.md`. Headline:
+    launch size, 50 sessions plus 5 document jobs, 0 errors, p95 39 ms next door and 234 ms at a
+    10 ms round trip; stress (no thinking time) 225 views a second, p95 352 ms; 10-page PDF p95 0.41 s.
+    **Two real defects found by measurement and fixed:** (1) `listEvidenceRequestsForOrgDetailed`
+    looked up the applicant once per request (639 requests: 1.1 s next door, 27.5 s at a 40 ms
+    distance) and now uses one query; (2) `listDocumentsDetailed` ran three queries per document
+    (1.3 s p95 at 40 ms for six documents) and now runs three in total (0.30 s). Each has a
+    regression test proven red by breaking the real code. **Findings, not fixed:** the pilot's
+    built-in scanner rejects every PDF by design ("pdf content safety cannot be established without
+    a real malware scanner"), so PDFs release only with ClamAV configured, and production reports
+    the scanner as unconfigured; case, client and evidence-request lists are not paginated (fast at
+    1,000 rows, 441 KB payload; revisit past about 2,000 cases in one agency); the audited save is
+    the screen closest to the 800 ms target when the database is far away (611 ms at 40 ms, one
+    person); `/trust` returns a 500 when the database is unreachable. **Harness bugs caught on the
+    way (not product bugs):** the in-memory file store handed one buffer to every job and the PDF
+    reader empties it, which made 160 of 175 jobs look like "empty file" until fixed; Postgres CPU
+    time summed from process counters went negative as connections closed, replaced by whole-machine
+    busy share. The supply-chain static check also rightly flagged the harness for running shell
+    commands, so it now reads operating-system files directly. **Limits:** see "What these numbers do
+    NOT prove" in capacity.md (one machine, plain Postgres, one-signature ClamAV, in-memory files,
+    no browser, 60 s runs). **Owner action:** none blocks; the next real test is a rehearsal against a
+    Neon branch at launch compute size, and an outside uptime probe on `/api/health/ready`.

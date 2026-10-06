@@ -1598,17 +1598,21 @@ export async function listEvidenceRequestsForOrgDetailed(
 ): Promise<Result<EvidenceRequestWithApplicant[], ServiceError>> {
   const listed = await listEvidenceRequestsForOrg(db, actorAccountId, organizationId);
   if (!listed.ok) return listed;
-  const result: EvidenceRequestWithApplicant[] = [];
-  for (const request of listed.value) {
-    const applicant = first(
-      await db
-        .select({ displayName: schema.applicants.displayName })
-        .from(schema.applicants)
-        .where(eq(schema.applicants.id, request.applicantId))
-        .limit(1),
-    );
-    result.push({ ...request, applicantName: applicant?.displayName ?? 'Unknown applicant' });
+  // One query for every distinct applicant, not one per request (measured at 639 requests: about
+  // 1.1 seconds for the per-row version, docs/operations/capacity.md).
+  const applicantIds = [...new Set(listed.value.map((request) => request.applicantId))];
+  const names = new Map<string, string>();
+  if (applicantIds.length > 0) {
+    const rows = await db
+      .select({ id: schema.applicants.id, displayName: schema.applicants.displayName })
+      .from(schema.applicants)
+      .where(inArray(schema.applicants.id, applicantIds));
+    for (const row of rows) names.set(row.id, row.displayName);
   }
+  const result: EvidenceRequestWithApplicant[] = listed.value.map((request) => ({
+    ...request,
+    applicantName: names.get(request.applicantId) ?? 'Unknown applicant',
+  }));
   return ok(result);
 }
 
