@@ -1,5 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { EmptyState } from '../../../../../components/ui';
+import { formatDateOnly, formatTimestampDate } from '../../../../../lib/format-date';
 import { profileField } from '../../../../../lib/profile-fields';
 import { withSession } from '../../../../../lib/session';
 import { ClientInvitationForm } from '../client-invitation-form';
@@ -80,7 +82,7 @@ export default async function AgencyClientsPage({
                 </span>
                 <span style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
                   <span className="badge badge-warning">
-                    Invited &middot; expires {new Date(invitation.expiresAt).toLocaleDateString()}
+                    Invited &middot; expires {formatTimestampDate(invitation.expiresAt)}
                   </span>
                   <ClientInvitationRevokeButton
                     organizationId={orgId}
@@ -122,7 +124,10 @@ export default async function AgencyClientsPage({
         <p className="card-kicker">Activity</p>
         <h2 className="card-title">Evidence requests</h2>
         {data.requests.length === 0 ? (
-          <p className="card-body">No evidence requests raised yet.</p>
+          <EmptyState title="No evidence requests yet">
+            Ask a client for a specific document or detail. You will see here when it arrives and
+            when it is overdue.
+          </EmptyState>
         ) : (
           <div className="rows" style={{ marginTop: '0.5rem' }}>
             {data.requests.map((req) => {
@@ -154,7 +159,7 @@ export default async function AgencyClientsPage({
                   </div>
                   <span className="muted" style={{ fontSize: '0.8rem' }}>
                     {req.applicantName}
-                    {req.dueDate ? ` · due ${new Date(req.dueDate).toLocaleDateString()}` : ''}
+                    {req.dueDate ? ` · due ${formatDateOnly(req.dueDate)}` : ''}
                   </span>
                   {EVIDENCE_DECIDABLE_STATUSES.has(req.status) ? (
                     <EvidenceRequestActions

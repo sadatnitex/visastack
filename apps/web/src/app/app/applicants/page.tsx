@@ -2,6 +2,7 @@ import { createTranslator } from '@visastack/i18n';
 import { getConsents, listApplicants } from '@visastack/services';
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { EmptyState } from '../../../components/ui';
 import { getLocale } from '../../../lib/locale';
 import { relationshipLabel } from '../../../lib/relationship-labels';
 import { withSession } from '../../../lib/session';
@@ -39,9 +40,14 @@ export default async function ApplicantsPage() {
       <div className="grid">
         <article className="card">
           <p className="card-kicker">All applicants</p>
-          <h2 className="card-title">{data.applicants.length} record(s)</h2>
+          <h2 className="card-title">
+            {data.applicants.length} {data.applicants.length === 1 ? 'person' : 'people'}
+          </h2>
           {data.applicants.length === 0 ? (
-            <p className="card-body">No applicant records yet.</p>
+            <EmptyState title="No applicants yet">
+              Add yourself first. Your passport details and documents are entered once and reused
+              for every application.
+            </EmptyState>
           ) : (
             <div className="rows" style={{ marginTop: '0.5rem' }}>
               {data.applicants.map((a) => (

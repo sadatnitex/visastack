@@ -46,7 +46,7 @@ export function SubmitEvidenceForm({
             className="btn btn-primary"
           />
           <p className="muted" style={{ fontSize: '0.8rem', margin: 0 }}>
-            PDF, PNG, JPEG, DOCX, TXT or MD · scanned for safety on upload.
+            PDF, PNG, JPEG, DOCX, TXT or MD · file type and structure are checked on upload.
           </p>
         </form>
       )}

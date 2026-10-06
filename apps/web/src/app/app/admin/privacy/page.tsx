@@ -7,6 +7,7 @@ import {
 } from '@visastack/services';
 import type { Metadata } from 'next';
 import { isPlatformAdmin } from '../../../../lib/admin';
+import { formatDateOnly } from '../../../../lib/format-date';
 import { withSession } from '../../../../lib/session';
 import { tolerantReader } from '../../../../lib/tolerate';
 import { ReleaseHoldButton, RetryErasureJobButton } from '../action-buttons';
@@ -125,11 +126,11 @@ export default async function AdminPrivacyPage() {
                           <span className="badge badge-danger">no review date set</span>
                         ) : h.reviewAt.getTime() < Date.now() ? (
                           <span className="badge badge-danger">
-                            review overdue since {h.reviewAt.toLocaleDateString()}
+                            review overdue since {formatDateOnly(h.reviewAt)}
                           </span>
                         ) : (
                           <span className="badge badge-neutral">
-                            review by {h.reviewAt.toLocaleDateString()}
+                            review by {formatDateOnly(h.reviewAt)}
                           </span>
                         )}
                       </span>

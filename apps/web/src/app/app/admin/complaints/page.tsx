@@ -2,6 +2,7 @@ import { listComplaintsForQualityReview, listFeedbackForQualityReview } from '@v
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { bootstrapAdminEmails, hasPlatformPermission } from '../../../../lib/admin';
+import { formatTimestampDate } from '../../../../lib/format-date';
 import { withSession } from '../../../../lib/session';
 import { AssignComplaintForm, UpdateComplaintStatusForm } from './forms';
 
@@ -107,7 +108,7 @@ export default async function AdminComplaintsPage() {
                   </p>
                 ) : null}
                 <p className="muted" style={{ fontSize: '0.75rem', margin: 0 }}>
-                  Filed {new Date(c.createdAt).toLocaleDateString()}
+                  Filed {formatTimestampDate(c.createdAt)}
                   {c.ownerAccountId ? ` · Assigned to ${c.ownerAccountId}` : ' · Unassigned'}
                 </p>
                 {!TERMINAL_STATUSES.has(c.status) ? (
@@ -142,7 +143,7 @@ export default async function AdminComplaintsPage() {
                   <span className="row-key">Case {f.missionId}</span>
                   <span style={{ fontSize: '0.9rem' }}>{f.comments}</span>
                   <span className="muted" style={{ fontSize: '0.75rem' }}>
-                    {new Date(f.createdAt).toLocaleDateString()}
+                    {formatTimestampDate(f.createdAt)}
                   </span>
                 </div>
               ))}

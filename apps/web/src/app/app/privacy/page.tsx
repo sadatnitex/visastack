@@ -7,6 +7,7 @@ import {
   listConsentHistory,
 } from '@visastack/services';
 import type { Metadata } from 'next';
+import { EmptyState } from '../../../components/ui';
 import { withSession } from '../../../lib/session';
 import { DeletionPanel } from './deletion-panel';
 import { LargeExportPanel } from './large-export-panel';
@@ -116,7 +117,9 @@ export default async function PrivacyPage() {
         <p className="card-kicker">Transparency</p>
         <h2 className="card-title">Consent history</h2>
         {data.history.length === 0 ? (
-          <p className="card-body">No consent changes recorded yet.</p>
+          <EmptyState title="No changes yet">
+            Each time you turn a permission on or off, it is recorded here with the date.
+          </EmptyState>
         ) : (
           <div className="rows" style={{ marginTop: '0.5rem' }}>
             {data.history.map((entry, i) => (

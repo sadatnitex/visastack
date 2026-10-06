@@ -4751,3 +4751,21 @@ programme rather than being a product defect.
 - **The supply-chain guards caught two real problems the first time the Neon package was added, and neither was waved through.** (1) The package pulled in two AGPL-licensed packages (`@triplit/client`, `ua-parser-js` 2.x) through its optional UI add-on; the licence scan failed. This app never uses that add-on (its server entry does not import it; the production build is the proof), so the add-on is excluded from the install with a bounded override, which removes the AGPL code from the shipped tree entirely: 409 production packages fell back to 237. (2) The production audit failed on a new `sharp` advisory (fixed in 0.35.5) unrelated to Neon; the override is now `>=0.35.5 <1.0.0`.
 - Open risks (not closed): the Neon login package is a beta (0.5.0-beta, pinned) and declares Next 16 as its minimum while this app is on 15.5; no live check against a real Neon Auth project was possible (the sandbox cannot reach Neon); a reported session-cookie renewal bug needs a re-test; email verification, password reset and the staff second factor are untested.
 - A mistaken `git stash` during this work was undone at once (`git stash pop`, all files restored, tree verified).
+
+### Chunk 51 (2026-10-06): UI and UX upgrade, passes 1 to 3 (frontend only)
+
+- **Scope:** signed-in and public screens only. No API, data, permission, rule or billing change.
+- **Shared pieces** (`apps/web/src/components/ui.tsx`): status label with a tick, triangle or cross
+  as well as a colour; next-step card; attention list; empty state; disclosure. Helpers:
+  `formatTimestampDate`, `formatTimestamp`, `daysUntilDateOnly` (`lib/format-date.ts`), `humanizeCode`
+  (`lib/format-code.ts`).
+- **Screens changed:** traveller home, applicant overview, expiry, documents, evidence requests (what,
+  why, deadline as a status, what happens next), sharing (one plain sentence per grant), shared with me,
+  notifications, applicants, cases, history, privacy, agency dashboard, agency list, applicant
+  confirmation panel (what is being confirmed, and a notice when the case changed since), upload form,
+  public home. Every bare `toLocaleDateString()` and `toLocaleString()` in the app now writes the month as a word.
+- **Wording finding fixed:** the upload form said files are "scanned for safety" while production
+  reports virus scanning as not configured. It now claims a scan only when one is switched on.
+- **Not verified:** signed-in screens were not opened in a browser (sign-in needs the identity provider);
+  slow-network behaviour; mobile screenshots of signed-in pages. Admin screens only got the date change.
+- **Left alone on purpose:** Bangla and all translation (deferred by the owner).

@@ -7,6 +7,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { bootstrapAdminEmails, hasPlatformPermission } from '../../../../lib/admin';
 import { unitsToUsd } from '../../../../lib/ai';
+import { formatTimestamp } from '../../../../lib/format-date';
 import { withSession } from '../../../../lib/session';
 import {
   ActivateConfigButton,
@@ -222,7 +223,7 @@ export default async function AiSettingsPage() {
                   {config.keyRevokedAt !== null ? (
                     <div className="row">
                       <span className="row-key">Key revoked</span>
-                      <span className="row-val">{config.keyRevokedAt.toLocaleString()}</span>
+                      <span className="row-val">{formatTimestamp(config.keyRevokedAt)}</span>
                     </div>
                   ) : null}
                   {config.fallbackEnabled ? (
@@ -238,7 +239,7 @@ export default async function AiSettingsPage() {
                   <div className="row">
                     <span className="row-key">Created</span>
                     <span className="muted" style={{ fontSize: '0.8rem' }}>
-                      {config.createdAt.toLocaleString()}
+                      {formatTimestamp(config.createdAt)}
                     </span>
                   </div>
                 </div>

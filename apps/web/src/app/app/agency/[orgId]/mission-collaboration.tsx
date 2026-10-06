@@ -2,6 +2,7 @@
 
 import { useActionState } from 'react';
 import { FormMessage, SubmitButton } from '../../../../components/form-feedback';
+import { formatDateOnly, formatTimestampDate } from '../../../../lib/format-date';
 import {
   type ActionState,
   addNoteAction,
@@ -271,7 +272,7 @@ export function MissionCollaboration({
                   {t.assigneeAccountId
                     ? (memberEmailByAccountId.get(t.assigneeAccountId) ?? 'unknown')
                     : 'unassigned'}
-                  {t.dueDate ? `, due ${new Date(t.dueDate).toLocaleDateString()}` : ''}
+                  {t.dueDate ? `, due ${formatDateOnly(t.dueDate)}` : ''}
                 </span>
                 <div style={{ display: 'flex', gap: '0.35rem', marginTop: '0.25rem' }}>
                   <form action={taskReassignAction} style={{ display: 'flex', gap: '0.3rem' }}>
@@ -520,7 +521,7 @@ export function MissionCollaboration({
                 </span>
                 <span>{n.body}</span>{' '}
                 <span className="muted" style={{ fontSize: '0.75rem' }}>
-                  — {n.authorEmail}, {new Date(n.createdAt).toLocaleDateString()}
+                  - {n.authorEmail}, {formatTimestampDate(n.createdAt)}
                 </span>
               </div>
             ))}
@@ -590,7 +591,7 @@ export function MissionCollaboration({
                   <span className="muted" style={{ fontSize: '0.75rem' }}>
                     {requirements.find((r) => r.id === d.packRequirementId)?.label ??
                       d.packRequirementId}
-                    {d.reason ? ` — ${d.reason}` : ''}, {new Date(d.createdAt).toLocaleDateString()}
+                    {d.reason ? ` - ${d.reason}` : ''}, {formatTimestampDate(d.createdAt)}
                   </span>
                 </div>
               ))}
@@ -679,7 +680,7 @@ export function MissionCollaboration({
                     {requirements.find((r) => r.id === v.packRequirementId)?.label ??
                       v.packRequirementId}
                     : {v.issuerIdentity}, "{v.exactClaim}", valid until{' '}
-                    {new Date(v.validUntil).toLocaleDateString()}
+                    {formatTimestampDate(v.validUntil)}
                   </span>
                 </div>
               ))}

@@ -7,6 +7,7 @@ import {
   fieldProblem,
   useFocusInvalidField,
 } from '../../../../components/form-feedback';
+import { formatFileSize } from '../../../../lib/format-size';
 import { SLOW_AFTER_MS, guardNetwork } from '../../../../lib/resilience';
 import { type ActionState, uploadDocumentAction } from './actions';
 
@@ -45,15 +46,21 @@ function useSlow(active: boolean, afterMs: number): boolean {
 export function DocumentUploader({
   applicantId,
   limitLabel = '20 MB',
+  virusScanning = false,
 }: {
   readonly applicantId: string;
   /** The real per-file limit, so the help text never states a number the server does not enforce. */
   readonly limitLabel?: string;
+  /** True only when a real virus scanner is switched on, so the page never claims one that is not. */
+  readonly virusScanning?: boolean;
 }) {
   const [state, formAction, pending] = useActionState(guardedUpload, INITIAL);
   const slow = useSlow(pending, SLOW_AFTER_MS);
   const messageId = useId();
   const formRef = useRef<HTMLFormElement>(null);
+  const [picked, setPicked] = useState<{ readonly name: string; readonly size: number } | null>(
+    null,
+  );
   useFocusInvalidField(formRef, state);
 
   return (
@@ -65,9 +72,18 @@ export function DocumentUploader({
         accept=".pdf,.png,.jpg,.jpeg,.docx,.txt,.md,image/png,image/jpeg,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,text/markdown"
         required
         className="input"
+        onChange={(event) => {
+          const file = event.currentTarget.files?.[0];
+          setPicked(file ? { name: file.name, size: file.size } : null);
+        }}
         aria-label="Document file"
         {...fieldProblem(state, 'file', messageId)}
       />
+      {picked ? (
+        <output className="muted" style={{ display: 'block', fontSize: '0.85rem' }}>
+          Ready to upload: {picked.name} ({formatFileSize(picked.size)})
+        </output>
+      ) : null}
       <SubmitButton
         pending={pending}
         idle="Upload document"
@@ -81,7 +97,13 @@ export function DocumentUploader({
         pendingText={slow ? UPLOADING_SLOW_TEXT : UPLOADING_TEXT}
       />
       <p className="muted" style={{ fontSize: '0.8rem', margin: 0 }}>
-        PDF, PNG, JPEG, DOCX, TXT or MD · up to {limitLabel} · scanned for safety on upload.
+        PDF, PNG, JPEG, DOCX, TXT or MD · up to {limitLabel} ·{' '}
+        {virusScanning
+          ? 'scanned for viruses on upload.'
+          : 'file type and structure are checked on upload.'}
+      </p>
+      <p className="muted" style={{ fontSize: '0.8rem', margin: 0 }}>
+        Stored privately. Only you and the people you choose to share with can open it.
       </p>
     </form>
   );

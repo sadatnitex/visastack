@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { formatDateOnly, formatTimestampDate } from './format-date';
+import {
+  daysUntilDateOnly,
+  formatDateOnly,
+  formatTimestamp,
+  formatTimestampDate,
+} from './format-date';
 
 describe('formatDateOnly — timezone-stable date-only rendering (finding #25, post-programme defect register)', () => {
   // Exactly how a date-only value round-trips through this product: a
@@ -54,5 +59,20 @@ describe('formatTimestampDate', () => {
   it('writes the month as a word so day and month cannot be confused', () => {
     expect(formatTimestampDate(new Date('2026-10-06T12:00:00.000Z'))).toBe('6 Oct 2026');
     expect(formatTimestampDate('2026-06-10T12:00:00.000Z')).toBe('10 Jun 2026');
+  });
+});
+
+describe('formatTimestamp and daysUntilDateOnly', () => {
+  it('shows the day and the time, with the month as a word', () => {
+    expect(formatTimestamp(new Date('2026-10-06T12:05:00.000Z'))).toMatch(
+      /^6 Oct 2026, \d\d:\d\d$/,
+    );
+  });
+
+  it('counts whole calendar days, negative once the date has passed', () => {
+    const now = new Date('2026-10-06T08:00:00.000Z');
+    expect(daysUntilDateOnly('2026-10-06', now)).toBe(0);
+    expect(daysUntilDateOnly('2026-10-13', now)).toBe(7);
+    expect(daysUntilDateOnly('2026-10-04', now)).toBe(-2);
   });
 });

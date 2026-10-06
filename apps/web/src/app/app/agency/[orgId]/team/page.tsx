@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { formatTimestampDate } from '../../../../../lib/format-date';
 import { withSession } from '../../../../../lib/session';
 import { loadMembers, loadOrgAccess, loadPendingTeamInvitations } from '../console-data';
 import { InvitationRevokeButton } from '../invitation-revoke-button';
@@ -89,7 +90,7 @@ export default async function AgencyTeamPage({
               </span>
               <span style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
                 <span className="badge badge-warning">
-                  Invited &middot; expires {new Date(invitation.expiresAt).toLocaleDateString()}
+                  Invited &middot; expires {formatTimestampDate(invitation.expiresAt)}
                 </span>
                 <InvitationRevokeButton organizationId={orgId} invitationId={invitation.id} />
               </span>

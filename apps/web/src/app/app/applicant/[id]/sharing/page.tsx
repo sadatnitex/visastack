@@ -8,6 +8,9 @@ import {
 } from '@visastack/services';
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
+import { EmptyState, StatusBadge } from '../../../../../components/ui';
+import { humanizeCode } from '../../../../../lib/format-code';
+import { formatTimestamp, formatTimestampDate } from '../../../../../lib/format-date';
 import { grantStatusBadge } from '../../../../../lib/grant-status';
 import { getLocale } from '../../../../../lib/locale';
 import { PACK_LABELS } from '../../../../../lib/profile-fields';
@@ -124,7 +127,10 @@ export default async function SharingPage({
             </p>
           ) : null}
           {data.grants.length === 0 ? (
-            <p className="card-body">No access has been granted yet.</p>
+            <EmptyState title="Nobody has access yet">
+              Your profile and documents are private. When you share with someone, they appear here
+              with what they can see and until when.
+            </EmptyState>
           ) : (
             <div className="rows" style={{ marginTop: '0.5rem' }}>
               {data.grants.map((grant) => {
@@ -155,13 +161,24 @@ export default async function SharingPage({
                       </span>
                       <span className={`badge ${badge.tone}`}>{badge.label}</span>
                     </div>
+                    <p style={{ margin: 0, fontSize: '0.9rem' }}>
+                      {grant.recipient.label}{' '}
+                      {grant.status === 'ACTIVE' ? 'can' : 'would be able to'}{' '}
+                      {grant.actions.map((a) => (ACTION_LABELS[a] ?? a).toLowerCase()).join(', ')}{' '}
+                      {grant.missionId
+                        ? 'for one specific case'
+                        : grant.categories && grant.categories.length > 0
+                          ? `in ${grant.categories
+                              .map((c) => PACK_LABELS[c as keyof typeof PACK_LABELS] ?? c)
+                              .join(', ')}`
+                          : 'across your whole profile'}
+                      {grant.expiryAt ? `, until ${formatTimestampDate(grant.expiryAt)}` : ''}.
+                    </p>
                     <p className="muted" style={{ margin: 0, fontSize: '0.8rem' }}>
-                      {grant.purpose}
-                      {grant.expiryAt
-                        ? ` · expires ${new Date(grant.expiryAt).toLocaleDateString()}`
-                        : ''}
+                      Purpose: {grant.purpose}
+                      {grant.expiryAt ? ` · expires ${formatTimestampDate(grant.expiryAt)}` : ''}
                       {grant.acceptedAt
-                        ? ` · accepted ${new Date(grant.acceptedAt).toLocaleDateString()}`
+                        ? ` · accepted ${formatTimestampDate(grant.acceptedAt)}`
                         : ''}
                     </p>
                     <p className="muted" style={{ margin: 0, fontSize: '0.8rem' }}>
@@ -180,6 +197,12 @@ export default async function SharingPage({
                         ? ` · ${grant.documentIds.length} specific document${grant.documentIds.length === 1 ? '' : 's'}`
                         : ''}
                     </p>
+                    {canPause || canResume || canRevoke ? (
+                      <p className="muted" style={{ margin: 0, fontSize: '0.8rem' }}>
+                        Pause stops access straight away and you can resume it later. Revoke ends
+                        this access.
+                      </p>
+                    ) : null}
                     {canPause || canResume || canRevoke ? (
                       <GrantOpButtons
                         applicantId={id}
@@ -224,27 +247,27 @@ export default async function SharingPage({
             {data.auditEvents.length} event{data.auditEvents.length === 1 ? '' : 's'}.
           </p>
           {data.auditEvents.length === 0 ? (
-            <p className="card-body">No recorded activity yet.</p>
+            <EmptyState title="No activity yet">
+              Every time your information is opened, shared or changed, it is recorded here.
+            </EmptyState>
           ) : (
             <div className="rows" style={{ marginTop: '0.5rem' }}>
               {data.auditEvents.map((e) => (
                 <div className="row" key={e.seq}>
                   <span className="row-key">
-                    {e.eventType.toLowerCase().replaceAll('_', ' ')}
+                    {humanizeCode(e.eventType)}
                     <span className="muted" style={{ fontSize: '0.8rem', marginLeft: '0.5rem' }}>
                       {e.actorEmail ?? 'System'}
                     </span>
                   </span>
                   <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                     {e.result ? (
-                      <span
-                        className={`badge ${e.result === 'ALLOWED' ? 'badge-success' : 'badge-danger'}`}
-                      >
-                        {e.result === 'ALLOWED' ? 'Allowed' : 'Denied'}
-                      </span>
+                      <StatusBadge tone={e.result === 'ALLOWED' ? 'success' : 'danger'}>
+                        {e.result === 'ALLOWED' ? 'Allowed' : 'Blocked'}
+                      </StatusBadge>
                     ) : null}
                     <span className="muted" style={{ fontSize: '0.8rem' }}>
-                      {new Date(e.occurredAt).toLocaleString()}
+                      {formatTimestamp(e.occurredAt)}
                     </span>
                   </span>
                 </div>

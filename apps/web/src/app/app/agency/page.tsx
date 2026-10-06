@@ -1,6 +1,8 @@
 import { listMembershipsForAccount } from '@visastack/services';
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { EmptyState } from '../../../components/ui';
+import { humanizeCode } from '../../../lib/format-code';
 import { withSession } from '../../../lib/session';
 import { CreateOrgForm } from './create-org-form';
 
@@ -40,12 +42,15 @@ export default async function AgencyPage() {
           <p className="card-kicker">Your organizations</p>
           <h2 className="card-title">Memberships</h2>
           {orgs.length === 0 ? (
-            <p className="card-body">You are not a member of any organization yet.</p>
+            <EmptyState title="No organizations yet">
+              Create your agency on the right to start inviting clients, opening cases and
+              requesting evidence. You become the owner.
+            </EmptyState>
           ) : (
             <div className="rows" style={{ marginTop: '0.5rem' }}>
               {orgs.map((m) => {
                 const badge = ORG_STATUS[m.organization.status] ?? {
-                  label: m.organization.status,
+                  label: humanizeCode(m.organization.status),
                   tone: 'badge-neutral',
                 };
                 return (
@@ -57,7 +62,7 @@ export default async function AgencyPage() {
                     <span className="row-key">
                       {m.organization.name}
                       <span className="muted" style={{ fontSize: '0.8rem', marginLeft: '0.5rem' }}>
-                        {m.role}
+                        {humanizeCode(m.role)}
                       </span>
                     </span>
                     <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>

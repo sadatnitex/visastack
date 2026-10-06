@@ -171,7 +171,10 @@ export default async function ExpiryCentrePage({
             document's own expiry.
           </p>
           {data.freshnessRows.length === 0 ? (
-            <p className="card-body">No active freshness rules apply to your cases yet.</p>
+            <EmptyState title="No date rules yet">
+              Some visa routes need a document dated within a set window, such as a bank statement
+              from the last 30 days. They appear here once a case uses such a route.
+            </EmptyState>
           ) : (
             <div className="rows" style={{ marginTop: '0.5rem' }}>
               {data.freshnessRows.map(({ mission, requirementKey, document }) => {
@@ -199,7 +202,10 @@ export default async function ExpiryCentrePage({
           <p className="card-kicker">Verification expiry</p>
           <h2 className="card-title">Issuer confirmations</h2>
           {data.verifications.length === 0 ? (
-            <p className="card-body">No issuer confirmations yet.</p>
+            <EmptyState title="No confirmations yet">
+              When an issuer, such as a bank or employer, confirms a document, the confirmation and
+              how long it stays valid appear here.
+            </EmptyState>
           ) : (
             <div className="rows" style={{ marginTop: '0.5rem' }}>
               {data.verifications.map(({ doc, verification }) => {

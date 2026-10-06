@@ -2,6 +2,8 @@
 
 import { useActionState } from 'react';
 import { FormMessage, SubmitButton } from '../../../../components/form-feedback';
+import { humanizeCode } from '../../../../lib/format-code';
+import { formatDateOnly, formatTimestampDate } from '../../../../lib/format-date';
 import {
   type ActionState,
   createAppointmentAction,
@@ -79,7 +81,7 @@ export function TasksPanel({
                 ) : null}
                 {task.dueDate ? (
                   <span className="muted" style={{ fontSize: '0.7rem' }}>
-                    due {new Date(task.dueDate).toLocaleDateString()}
+                    due {formatDateOnly(task.dueDate)}
                     {task.dueTimezone ? ` (${task.dueTimezone})` : ''}
                   </span>
                 ) : null}
@@ -132,7 +134,7 @@ export function TasksPanel({
                 <span className="row-key" style={{ textDecoration: 'line-through' }}>
                   {task.description}
                 </span>
-                <span className="badge badge-neutral">{task.status}</span>
+                <span className="badge badge-neutral">{humanizeCode(task.status)}</span>
               </div>
             ))}
           </div>
@@ -289,7 +291,7 @@ export function AppointmentsPanel({
                 <span className="row-key" style={{ textDecoration: 'line-through' }}>
                   {appt.title}
                 </span>
-                <span className="badge badge-neutral">{appt.status}</span>
+                <span className="badge badge-neutral">{humanizeCode(appt.status)}</span>
               </div>
             ))}
           </div>
@@ -381,7 +383,7 @@ export function LettersPanel({
           {letters.map((letter) => (
             <details key={letter.id}>
               <summary style={{ cursor: 'pointer', fontSize: '0.85rem' }}>
-                Version {letter.version} · {new Date(letter.createdAt).toLocaleDateString()}
+                Version {letter.version} · {formatTimestampDate(letter.createdAt)}
               </summary>
               <pre
                 style={{

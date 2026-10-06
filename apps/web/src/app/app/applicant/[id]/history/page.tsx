@@ -8,6 +8,7 @@ import {
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { EmptyState } from '../../../../../components/ui';
 import { profileField } from '../../../../../lib/profile-fields';
 import { withSession } from '../../../../../lib/session';
 
@@ -101,7 +102,13 @@ export default async function HistoryPage({
 
       {data.facts.length === 0 ? (
         <article className="card">
-          <p className="card-body">No facts recorded yet.</p>
+          <EmptyState
+            title="No history yet"
+            action={{ href: `/app/applicant/${id}/profile`, label: 'Open the profile' }}
+          >
+            Every detail you add to the profile is kept with its date, so you can see what changed
+            and when.
+          </EmptyState>
         </article>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
