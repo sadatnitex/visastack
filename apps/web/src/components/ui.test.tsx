@@ -1,0 +1,67 @@
+import { renderToStaticMarkup } from 'react-dom/server';
+import { describe, expect, it } from 'vitest';
+import { AttentionList, Disclosure, EmptyState, NextStepCard, StatusBadge } from './ui';
+
+describe('StatusBadge', () => {
+  it('puts the tone in the class so the stylesheet can add a mark as well as a colour', () => {
+    expect(renderToStaticMarkup(<StatusBadge tone="danger">Overdue</StatusBadge>)).toBe(
+      '<span class="badge badge-danger">Overdue</span>',
+    );
+  });
+});
+
+describe('NextStepCard', () => {
+  it('names the step, says why, and links to where it is done', () => {
+    const html = renderToStaticMarkup(
+      <NextStepCard
+        title="Answer an evidence request"
+        why="An agency is waiting for a document."
+        href="/app/applicant/a1/evidence"
+        action="Open request"
+      />,
+    );
+    expect(html).toContain('Answer an evidence request');
+    expect(html).toContain('An agency is waiting for a document.');
+    expect(html).toContain('href="/app/applicant/a1/evidence"');
+    expect(html).toContain('aria-labelledby="next-step-title"');
+  });
+});
+
+describe('AttentionList', () => {
+  it('renders one link per item with its count, and hides the chevron from screen readers', () => {
+    const html = renderToStaticMarkup(
+      <AttentionList
+        items={[
+          { key: 'a', href: '/x', label: 'Two documents', detail: 'Asha Rahman', count: 2 },
+          { key: 'b', href: '/y', label: 'One invitation' },
+        ]}
+      />,
+    );
+    expect(html.match(/<a /g)).toHaveLength(2);
+    expect(html).toContain('badge badge-warning');
+    expect(html).toContain('Asha Rahman');
+    expect(html).toContain('aria-hidden="true"');
+  });
+});
+
+describe('EmptyState and Disclosure', () => {
+  it('explains an empty area and offers the next action', () => {
+    const html = renderToStaticMarkup(
+      <EmptyState title="No documents yet" action={{ href: '/up', label: 'Add a document' }}>
+        Papers you reuse across applications live here.
+      </EmptyState>,
+    );
+    expect(html).toContain('No documents yet');
+    expect(html).toContain('href="/up"');
+  });
+
+  it('keeps secondary detail inside a native details element', () => {
+    const html = renderToStaticMarkup(
+      <Disclosure title="Permissions" hint="2 of 6 on">
+        body
+      </Disclosure>,
+    );
+    expect(html).toContain('<details class="disclosure">');
+    expect(html).toContain('2 of 6 on');
+  });
+});

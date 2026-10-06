@@ -12,6 +12,13 @@ import {
 } from '@visastack/services';
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import {
+  AttentionList,
+  Disclosure,
+  EmptyState,
+  NextStepCard,
+  StatusBadge,
+} from '../../components/ui';
 import { getLocale } from '../../lib/locale';
 import { withSession } from '../../lib/session';
 import { ConsentButton } from './consent-button';
@@ -33,9 +40,11 @@ const CONSENT_MESSAGE_KEYS: Record<ConsentType, MessageKey> = {
 const TERMINAL_MISSION_STATES = new Set(['CLOSED', 'CANCELLED']);
 
 interface AttentionItem {
-  readonly applicantId: string;
+  readonly href: string;
   readonly applicantName: string;
   readonly label: string;
+  readonly why: string;
+  readonly action: string;
   readonly count: number;
 }
 
@@ -72,20 +81,24 @@ async function loadDashboard(db: Db, accountId: string, email: string) {
 
   const attention: AttentionItem[] = [];
   for (const row of perApplicant) {
-    if (row.pendingProposals > 0) {
-      attention.push({
-        applicantId: row.applicant.id,
-        applicantName: row.applicant.displayName,
-        label: 'AI proposal(s) awaiting your review',
-        count: row.pendingProposals,
-      });
-    }
     if (row.openRequests > 0) {
       attention.push({
-        applicantId: row.applicant.id,
+        href: `/app/applicant/${row.applicant.id}/evidence`,
         applicantName: row.applicant.displayName,
-        label: 'Evidence request(s) awaiting a response',
+        label: 'Evidence requests waiting for a reply',
+        why: 'An agency has asked for a document. Reply with a file from your documents.',
+        action: 'Open requests',
         count: row.openRequests,
+      });
+    }
+    if (row.pendingProposals > 0) {
+      attention.push({
+        href: `/app/applicant/${row.applicant.id}/documents`,
+        applicantName: row.applicant.displayName,
+        label: 'Suggested details waiting for your decision',
+        why: 'Details were read from a document. Nothing is added to the profile until you approve it.',
+        action: 'Review suggestions',
+        count: row.pendingProposals,
       });
     }
   }
@@ -94,15 +107,14 @@ async function loadDashboard(db: Db, accountId: string, email: string) {
   ).length;
   if (pendingGrants > 0) {
     attention.push({
-      applicantId: '',
+      href: '/app/shared',
       applicantName: '',
-      label: 'Sharing invitation(s) awaiting your acceptance',
+      label: 'Sharing invitations waiting for your answer',
+      why: 'Someone wants to share their information with you. Nothing is shared until you accept.',
+      action: 'See invitations',
       count: pendingGrants,
     });
   }
-
-  const activeMissionsTotal = perApplicant.reduce((sum, r) => sum + r.activeMissions, 0);
-  const documentTotal = perApplicant.reduce((sum, r) => sum + r.documentCount, 0);
 
   return {
     email,
@@ -110,9 +122,6 @@ async function loadDashboard(db: Db, accountId: string, email: string) {
     applicants,
     perApplicant,
     attention,
-    pendingGrants,
-    activeMissionsTotal,
-    documentTotal,
   };
 }
 
@@ -121,136 +130,154 @@ export default async function AppPage() {
   const t = createTranslator(locale);
   const data = await withSession(({ db, accountId, email }) => loadDashboard(db, accountId, email));
   const coreGranted = Boolean(data.consents.CORE_PROCESSING);
+  const grantedCount = CONSENT_TYPES.filter((type) => Boolean(data.consents[type])).length;
 
-  // One primary action (directive §7 "PR 7"): the single most useful next
-  // step, resolved in priority order — never more than one at a time.
-  const primaryAction = !coreGranted
-    ? null // consent gate below is itself the primary action when missing
-    : data.applicants.length === 0
-      ? { href: '/app/applicants', label: 'Add your first applicant' }
-      : data.attention.length > 0 && data.attention[0]?.applicantId
+  // One next step, chosen in priority order: the consent gate first, then whatever
+  // someone is waiting on, then the first applicant, then "all clear".
+  const first = data.attention[0];
+  const nextStep = !coreGranted
+    ? {
+        title: 'Turn on core processing to begin',
+        why: 'VisaStack cannot create applicant or profile records until you allow this. You can turn it off again at any time.',
+        href: '#permissions',
+        action: 'Choose permissions',
+        tone: 'warning' as const,
+      }
+    : first
+      ? {
+          title: first.label,
+          why: first.applicantName ? `${first.applicantName}. ${first.why}` : first.why,
+          href: first.href,
+          action: first.action,
+          tone: 'warning' as const,
+        }
+      : data.applicants.length === 0
         ? {
-            href: `/app/applicant/${data.attention[0].applicantId}`,
-            label: `Review ${data.attention[0].applicantName}`,
+            title: 'Add your first applicant',
+            why: 'An applicant holds one person\u2019s profile and documents, ready to reuse for every application.',
+            href: '/app/applicants',
+            action: 'Add an applicant',
           }
-        : { href: '/app/applicants', label: 'View applicants' };
+        : {
+            title: 'You are up to date',
+            why: 'Nothing is waiting for you. Open an applicant to add documents or start a case.',
+            href: '/app/applicants',
+            action: 'View applicants',
+            tone: 'ok' as const,
+          };
 
   return (
     <section className="section container">
-      <div className="toolbar" style={{ marginBottom: '2rem' }}>
-        <div>
-          <span className="eyebrow">Home</span>
-          <h1 className="section-title" style={{ margin: '0.25rem 0 0' }}>
-            Welcome back
-          </h1>
-          <p className="muted" style={{ margin: '0.35rem 0 0' }}>
-            {data.email}
-          </p>
-        </div>
-        {primaryAction ? (
-          <Link href={primaryAction.href} className="btn btn-primary">
-            {primaryAction.label}
-          </Link>
-        ) : null}
+      <div style={{ marginBottom: '1.5rem' }}>
+        <span className="eyebrow">Home</span>
+        <h1 className="section-title" style={{ margin: '0.25rem 0 0' }}>
+          Welcome back
+        </h1>
+        <p className="muted" style={{ margin: '0.35rem 0 0', overflowWrap: 'anywhere' }}>
+          Signed in as {data.email}
+        </p>
       </div>
 
-      {!coreGranted ? (
-        <article className="card" style={{ marginBottom: '1.5rem' }}>
-          <p className="card-kicker">Get started</p>
-          <h2 className="card-title">Grant core processing consent</h2>
-          <p className="card-body">
-            VisaStack can't create applicant or profile records until you grant this below. You can
-            revoke it again at any time.
-          </p>
-        </article>
-      ) : (
-        <>
-          <div className="grid" style={{ marginBottom: '1.5rem' }}>
-            <article className="card">
-              <p className="card-kicker">Status</p>
-              <h2 className="card-title">At a glance</h2>
-              <div className="rows">
-                <div className="row">
-                  <span className="row-key">Applicants</span>
-                  <span className="row-val">{data.applicants.length}</span>
-                </div>
-                <div className="row">
-                  <span className="row-key">Documents uploaded</span>
-                  <span className="row-val">{data.documentTotal}</span>
-                </div>
-                <div className="row">
-                  <span className="row-key">Active cases</span>
-                  <span className="row-val">{data.activeMissionsTotal}</span>
-                </div>
-                <div className="row">
-                  <span className="row-key">Sharing invitations awaiting you</span>
-                  {data.pendingGrants > 0 ? (
-                    <Link href="/app/shared" className="badge badge-warning">
-                      {data.pendingGrants} pending
-                    </Link>
-                  ) : (
-                    <span className="badge badge-neutral">None</span>
-                  )}
-                </div>
-              </div>
-            </article>
+      <NextStepCard {...nextStep} />
 
-            <article className="card">
-              <p className="card-kicker">Attention</p>
-              <h2 className="card-title">Needs your attention</h2>
-              {data.attention.length === 0 ? (
-                <p className="card-body">Nothing needs your attention right now.</p>
-              ) : (
-                <div className="rows">
-                  {data.attention.map((item, i) => (
-                    <Link
-                      className="row row-link"
-                      key={`${item.label}-${item.applicantId}-${i}`}
-                      href={item.applicantId ? `/app/applicant/${item.applicantId}` : '/app/shared'}
-                    >
-                      <span className="row-key">
-                        {item.applicantName ? `${item.applicantName} — ` : ''}
-                        {item.label}
+      {coreGranted && data.attention.length > 1 ? (
+        <article className="card" style={{ marginBottom: '1.5rem' }}>
+          <p className="card-kicker">Also waiting</p>
+          <h2 className="card-title">Needs your attention</h2>
+          <AttentionList
+            items={data.attention.slice(1).map((item, i) => ({
+              key: `${item.href}-${i}`,
+              href: item.href,
+              label: item.label,
+              ...(item.applicantName ? { detail: item.applicantName } : {}),
+              count: item.count,
+            }))}
+          />
+        </article>
+      ) : null}
+
+      {coreGranted ? (
+        <article className="card" style={{ marginBottom: '1.5rem' }}>
+          <p className="card-kicker">People and cases</p>
+          <h2 className="card-title">Your applicants</h2>
+          {data.perApplicant.length === 0 ? (
+            <EmptyState
+              title="No applicants yet"
+              action={{ href: '/app/applicants', label: 'Add an applicant' }}
+            >
+              An applicant is one person whose passport details and documents you keep here and
+              reuse for each visa application.
+            </EmptyState>
+          ) : (
+            <ul className="attention-list">
+              {data.perApplicant.map((row) => (
+                <li className="attention-item" key={row.applicant.id}>
+                  <Link className="attention-link" href={`/app/applicant/${row.applicant.id}`}>
+                    <span className="attention-text">
+                      <span className="attention-label">{row.applicant.displayName}</span>
+                      <span className="attention-detail">
+                        {plural(row.documentCount, 'document')}
+                        {' \u00b7 '}
+                        {plural(row.activeMissions, 'active case')}
+                        {row.openRequests > 0
+                          ? ` \u00b7 ${plural(row.openRequests, 'open request')}`
+                          : ''}
                       </span>
-                      <span className="badge badge-warning">{item.count}</span>
-                    </Link>
-                  ))}
-                </div>
-              )}
-            </article>
-          </div>
-        </>
-      )}
+                    </span>
+                    <span className="attention-end">
+                      {row.openRequests + row.pendingProposals > 0 ? (
+                        <StatusBadge tone="warning">Action needed</StatusBadge>
+                      ) : null}
+                      <span className="attention-chevron" aria-hidden="true">
+                        ›
+                      </span>
+                    </span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+        </article>
+      ) : null}
 
       {/*
-       * Always rendered, independent of `coreGranted` — the sole place any
+       * Always rendered, independent of `coreGranted` - the sole place any
        * consent type (including CORE_PROCESSING) is granted or revoked, so
        * AI/sharing/marketing consent stay independently controllable even
        * while core processing is absent or revoked
        * (docs/audits/post-programme-defect-register.md finding #22).
+       * It opens by itself while core processing is off, because that is the next step.
        */}
-      <article className="card">
-        <p className="card-kicker">Consent</p>
-        <h2 className="card-title">Permissions you control</h2>
-        <p className="card-body" style={{ marginBottom: '1rem' }}>
-          Each purpose is granted and revoked independently, at any time — revoking one never
-          requires regranting another. Core processing is required before any applicant or profile
-          records can be created; the others remain optional.
-        </p>
-        <div className="rows">
-          {CONSENT_TYPES.map((type) => (
-            <div className="row" key={type}>
-              <span className="row-key">{t(CONSENT_MESSAGE_KEYS[type])}</span>
-              <ConsentButton
-                type={type}
-                granted={Boolean(data.consents[type])}
-                locale={locale}
-                label={t(CONSENT_MESSAGE_KEYS[type])}
-              />
-            </div>
-          ))}
-        </div>
-      </article>
+      <div id="permissions">
+        <Disclosure
+          title="Permissions you control"
+          hint={`${grantedCount} of ${CONSENT_TYPES.length} on`}
+          open={!coreGranted}
+        >
+          <p className="card-body" style={{ marginBottom: '1rem' }}>
+            Each purpose is granted and revoked independently, at any time. Turning one off never
+            requires turning another back on. Core processing is required before any applicant or
+            profile records can be created; the others are optional.
+          </p>
+          <div className="rows">
+            {CONSENT_TYPES.map((type) => (
+              <div className="row" key={type}>
+                <span className="row-key">{t(CONSENT_MESSAGE_KEYS[type])}</span>
+                <ConsentButton
+                  type={type}
+                  granted={Boolean(data.consents[type])}
+                  locale={locale}
+                  label={t(CONSENT_MESSAGE_KEYS[type])}
+                />
+              </div>
+            ))}
+          </div>
+        </Disclosure>
+      </div>
     </section>
   );
+}
+
+function plural(count: number, noun: string): string {
+  return `${count} ${noun}${count === 1 ? '' : 's'}`;
 }

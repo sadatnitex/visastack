@@ -9,8 +9,10 @@ import {
 } from '@visastack/services';
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { EmptyState, NextStepCard, StatusBadge } from '../../../../components/ui';
 import { PROFILE_FIELDS } from '../../../../lib/profile-fields';
 import { withSession } from '../../../../lib/session';
+import { STAGE_LABELS } from '../../agency/[orgId]/case-search-form';
 
 export const metadata: Metadata = { title: 'Applicant overview' };
 
@@ -72,26 +74,58 @@ export default async function ApplicantOverviewPage({
   );
 
   const nextAction = !data.coreGranted
-    ? { href: '/app', label: 'Grant consent from Home to get started' }
+    ? {
+        href: '/app',
+        label: 'Turn on core processing from Home',
+        why: 'Profiles and documents cannot be saved until you allow this. You can turn it off again at any time.',
+        action: 'Go to Home',
+      }
     : openEvidenceRequests.length > 0
-      ? { href: `/app/applicant/${id}/evidence`, label: 'Respond to an evidence request' }
+      ? {
+          href: `/app/applicant/${id}/evidence`,
+          label: 'Reply to an evidence request',
+          why: 'An agency is waiting for a document before it can continue this case.',
+          action: 'Open requests',
+        }
       : data.pendingProposals.length > 0
-        ? { href: `/app/applicant/${id}/documents`, label: 'Review AI proposals' }
+        ? {
+            href: `/app/applicant/${id}/documents`,
+            label: 'Decide on suggested details',
+            why: 'Details were read from a document. Nothing is added to the profile until you approve it.',
+            action: 'Review suggestions',
+          }
         : documentsNeedingAttention.length > 0
-          ? { href: `/app/applicant/${id}/documents`, label: 'Review a flagged document' }
+          ? {
+              href: `/app/applicant/${id}/documents`,
+              label: 'Check a flagged document',
+              why: 'A document needs a second look before it can be relied on.',
+              action: 'Open documents',
+            }
           : completenessPct < 100
-            ? { href: `/app/applicant/${id}/profile`, label: 'Continue the Master Profile' }
-            : { href: `/app/applicant/${id}/missions`, label: 'Start or review a case' };
+            ? {
+                href: `/app/applicant/${id}/profile`,
+                label: 'Finish the Master Profile',
+                why: `${completedCore} of ${UNIVERSAL_CORE_FIELDS.length} core identity fields are filled. Cases reuse this profile, so you only enter it once.`,
+                action: 'Continue profile',
+              }
+            : {
+                href: `/app/applicant/${id}/missions`,
+                label: 'Start or review a case',
+                why: 'The core profile is complete.',
+                action: 'Open cases',
+              };
 
   return (
     <>
-      <article className="card" style={{ marginBottom: '1.5rem' }}>
-        <p className="card-kicker">Next step</p>
-        <h2 className="card-title">{nextAction.label}</h2>
-        <Link href={nextAction.href} className="btn btn-primary" style={{ marginTop: '0.75rem' }}>
-          Go there
-        </Link>
-      </article>
+      <NextStepCard
+        title={nextAction.label}
+        why={nextAction.why}
+        href={nextAction.href}
+        action={nextAction.action}
+        {...(nextAction.href.endsWith('/profile') || nextAction.href.endsWith('/missions')
+          ? {}
+          : { tone: 'warning' as const })}
+      />
 
       <div className="grid">
         <article className="card">
@@ -99,10 +133,12 @@ export default async function ApplicantOverviewPage({
           <h2 className="card-title">Completeness</h2>
           <div style={{ marginBottom: '1rem' }}>
             <div className="meter-label">
-              <span>Core identity fields</span>
+              <span>
+                Core identity fields: {completedCore} of {UNIVERSAL_CORE_FIELDS.length}
+              </span>
               <span>{completenessPct}%</span>
             </div>
-            <div className="meter">
+            <div className="meter" aria-hidden="true">
               <div
                 className={`meter-fill ${completenessPct >= 100 ? 'meter-full' : ''}`.trim()}
                 style={{ width: `${completenessPct}%`, background: 'var(--accent)' }}
@@ -124,19 +160,15 @@ export default async function ApplicantOverviewPage({
             </div>
             <div className="row">
               <span className="row-key">Needing attention</span>
-              <span
-                className={`badge ${documentsNeedingAttention.length > 0 ? 'badge-warning' : 'badge-neutral'}`}
-              >
+              <StatusBadge tone={documentsNeedingAttention.length > 0 ? 'warning' : 'neutral'}>
                 {documentsNeedingAttention.length}
-              </span>
+              </StatusBadge>
             </div>
             <div className="row">
               <span className="row-key">AI proposals to review</span>
-              <span
-                className={`badge ${data.pendingProposals.length > 0 ? 'badge-warning' : 'badge-neutral'}`}
-              >
+              <StatusBadge tone={data.pendingProposals.length > 0 ? 'warning' : 'neutral'}>
                 {data.pendingProposals.length}
-              </span>
+              </StatusBadge>
             </div>
           </div>
           <Link href={`/app/applicant/${id}/documents`} className="muted">
@@ -148,15 +180,17 @@ export default async function ApplicantOverviewPage({
           <p className="card-kicker">Cases</p>
           <h2 className="card-title">Active cases</h2>
           {activeMissions.length === 0 ? (
-            <p className="card-body" style={{ marginBottom: '0.75rem' }}>
-              No active case yet.
-            </p>
+            <div style={{ marginBottom: '0.75rem' }}>
+              <EmptyState title="No active case yet">
+                A case checks this person's documents against the requirements of one visa route.
+              </EmptyState>
+            </div>
           ) : (
             <div className="rows" style={{ marginBottom: '0.75rem' }}>
               {activeMissions.slice(0, 4).map((m) => (
                 <div className="row" key={m.id}>
                   <span className="row-key">{m.title}</span>
-                  <span className="badge badge-neutral">{m.state}</span>
+                  <StatusBadge tone="neutral">{STAGE_LABELS[m.state] ?? 'In progress'}</StatusBadge>
                 </div>
               ))}
             </div>
@@ -176,11 +210,9 @@ export default async function ApplicantOverviewPage({
             </div>
             <div className="row">
               <span className="row-key">Open evidence requests</span>
-              <span
-                className={`badge ${openEvidenceRequests.length > 0 ? 'badge-warning' : 'badge-neutral'}`}
-              >
+              <StatusBadge tone={openEvidenceRequests.length > 0 ? 'warning' : 'neutral'}>
                 {openEvidenceRequests.length}
-              </span>
+              </StatusBadge>
             </div>
           </div>
           <Link href={`/app/applicant/${id}/sharing`} className="muted">

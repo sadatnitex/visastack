@@ -1,5 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { StatusBadge } from '../../../../components/ui';
+import { formatDateOnly, formatTimestampDate } from '../../../../lib/format-date';
 import { withSession } from '../../../../lib/session';
 import { CaseSearchForm, STAGE_LABELS } from './case-search-form';
 import {
@@ -70,6 +72,9 @@ export default async function AgencyDashboardPage({
     requests: data.requests,
   });
 
+  const needsYou =
+    summary.overdueTasks + (summary.needAssignment ?? 0) + (summary.openRequests ?? 0);
+
   return (
     <>
       {!data.admin ? (
@@ -83,40 +88,39 @@ export default async function AgencyDashboardPage({
       ) : null}
 
       <article className="card" style={{ marginBottom: '1.5rem' }}>
-        <p className="card-kicker">Overview</p>
-        <h2 className="card-title">At a glance</h2>
+        <p className="card-kicker">Today</p>
+        <h2 className="card-title">What needs you first</h2>
+        {needsYou === 0 ? (
+          <p className="card-body" style={{ marginBottom: '0.75rem' }}>
+            Nothing is overdue, unassigned or waiting on an applicant right now.
+          </p>
+        ) : null}
         <div className="rows">
           <div className="row">
-            <span className="row-key">Cases you can see</span>
-            <span className="row-val">{summary.cases}</span>
+            <span className="row-key">Overdue tasks</span>
+            <StatusBadge tone={summary.overdueTasks > 0 ? 'danger' : 'neutral'}>
+              {summary.overdueTasks}
+            </StatusBadge>
           </div>
           {summary.needAssignment !== null ? (
             <div className="row">
               <span className="row-key">Cases with nobody assigned</span>
-              <span
-                className={`badge ${summary.needAssignment > 0 ? 'badge-warning' : 'badge-neutral'}`}
-              >
+              <StatusBadge tone={summary.needAssignment > 0 ? 'warning' : 'neutral'}>
                 {summary.needAssignment}
-              </span>
+              </StatusBadge>
             </div>
           ) : null}
           {summary.openRequests !== null ? (
             <div className="row">
               <span className="row-key">Evidence requests waiting on the applicant</span>
-              <span
-                className={`badge ${summary.openRequests > 0 ? 'badge-warning' : 'badge-neutral'}`}
-              >
+              <StatusBadge tone={summary.openRequests > 0 ? 'warning' : 'neutral'}>
                 {summary.openRequests}
-              </span>
+              </StatusBadge>
             </div>
           ) : null}
           <div className="row">
-            <span className="row-key">Overdue tasks</span>
-            <span
-              className={`badge ${summary.overdueTasks > 0 ? 'badge-danger' : 'badge-neutral'}`}
-            >
-              {summary.overdueTasks}
-            </span>
+            <span className="row-key">Cases you can see</span>
+            <span className="row-val">{summary.cases}</span>
           </div>
         </div>
       </article>
@@ -227,29 +231,14 @@ export default async function AgencyDashboardPage({
                       approaching,
                       assignedToMe,
                     }) => (
-                      <div
-                        className="row"
-                        key={mission.missionId}
-                        style={{
-                          flexDirection: 'column',
-                          alignItems: 'stretch',
-                          gap: '0.3rem',
-                        }}
-                      >
-                        <div
-                          style={{
-                            display: 'flex',
-                            justifyContent: 'space-between',
-                            gap: '0.75rem',
-                            flexWrap: 'wrap',
-                          }}
-                        >
-                          <span className="row-key">
+                      <div className="case-row" key={mission.missionId}>
+                        <div className="case-row-head">
+                          <span className="case-row-title">
                             <Link href={`/app/agency/${orgId}/cases#mission-${mission.missionId}`}>
                               {mission.applicantName} · {mission.title}
                             </Link>
                           </span>
-                          <span style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
+                          <span className="case-row-badges">
                             {assignedToMe ? (
                               <span className="badge badge-neutral">Assigned to you</span>
                             ) : null}
@@ -273,8 +262,7 @@ export default async function AgencyDashboardPage({
                             ) : null}
                             {approaching ? (
                               <span className="badge badge-warning">
-                                {approaching.label}{' '}
-                                {new Date(approaching.date).toLocaleDateString()}
+                                {approaching.label} {formatDateOnly(approaching.date)}
                               </span>
                             ) : null}
                             <span
@@ -292,7 +280,7 @@ export default async function AgencyDashboardPage({
                             </span>
                           </span>
                         </div>
-                        <span className="muted" style={{ fontSize: '0.8rem' }}>
+                        <span className="case-row-meta">
                           {STAGE_LABELS[mission.state] ?? mission.state}
                           {' · '}
                           {mission.assignments.length > 0
@@ -304,7 +292,7 @@ export default async function AgencyDashboardPage({
                                 sign-off status, not a reviewer's -- this org
                                 can see whether it exists, never act on it. */}
                           {mission.liveAcknowledgementAt
-                            ? ` · Acknowledged ${new Date(mission.liveAcknowledgementAt).toLocaleDateString()}`
+                            ? ` · Acknowledged ${formatTimestampDate(mission.liveAcknowledgementAt)}`
                             : ' · Not yet acknowledged'}
                         </span>
                       </div>

@@ -466,6 +466,28 @@ main {
   color: var(--text-secondary);
   background: var(--bg-subtle);
 }
+/* Status is never colour alone: each tone carries its own mark (a tick, a triangle, a
+   cross), so the difference survives colour blindness and a greyscale print. The second
+   value after the slash is empty alternative text, so a screen reader reads the label only. */
+.badge-success::before,
+.badge-warning::before,
+.badge-danger::before {
+  width: auto;
+  height: auto;
+  border-radius: 0;
+  background: none;
+  font-size: 0.72rem;
+  line-height: 1;
+}
+.badge-success::before {
+  content: "\2713" / "";
+}
+.badge-warning::before {
+  content: "\25B2" / "";
+}
+.badge-danger::before {
+  content: "\2715" / "";
+}
 
 /* Usage meter (quota bars) */
 .meter {
@@ -964,5 +986,213 @@ main {
   }
   .field-control .input {
     flex: 1 1 12rem;
+  }
+}
+
+/* ---------------------------------------------------------------------------------
+   Action-first building blocks (components/ui.tsx). One next step, a short list of
+   what needs attention, calm empty states and a tidy disclosure for secondary detail.
+   --------------------------------------------------------------------------------- */
+
+.next-step {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem 1.5rem;
+  padding: 1.25rem 1.5rem;
+  margin-bottom: 1.5rem;
+  background: var(--bg-elevated);
+  border: 1px solid var(--hairline-soft);
+  border-left: 4px solid var(--accent);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-card);
+}
+.next-step-text {
+  flex: 1 1 18rem;
+  min-width: 0;
+}
+.next-step-title {
+  font-size: 1.2rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  margin: 0 0 0.25rem;
+}
+.next-step-why {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 0.95rem;
+}
+.next-step-tone-warning {
+  border-left-color: var(--warning);
+}
+.next-step-tone-ok {
+  border-left-color: var(--success);
+}
+
+.attention-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.attention-item {
+  border-bottom: 1px solid var(--hairline-soft);
+}
+.attention-item:last-child {
+  border-bottom: none;
+}
+.attention-link {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem 1rem;
+  min-height: 3rem;
+  padding: 0.7rem 0;
+  color: var(--text);
+}
+.attention-link:hover {
+  text-decoration: none;
+}
+.attention-link:hover .attention-label {
+  text-decoration: underline;
+}
+.attention-text {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.attention-label {
+  overflow-wrap: anywhere;
+}
+.attention-detail {
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+}
+.attention-end {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-shrink: 0;
+}
+.attention-chevron {
+  color: var(--text-tertiary);
+}
+
+.empty-state {
+  padding: 1.5rem;
+  border: 1px dashed var(--hairline);
+  border-radius: var(--radius);
+  background: var(--bg-subtle);
+}
+.empty-state-title {
+  font-size: 1rem;
+  font-weight: 600;
+  margin: 0 0 0.25rem;
+}
+.empty-state-body {
+  margin: 0 0 0.9rem;
+  color: var(--text-secondary);
+  font-size: 0.95rem;
+}
+.empty-state > :last-child {
+  margin-bottom: 0;
+}
+
+.disclosure {
+  background: var(--bg-elevated);
+  border: 1px solid var(--hairline-soft);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-card);
+}
+.disclosure > summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.25rem 1rem;
+  min-height: 3rem;
+  padding: 1rem 1.5rem;
+  cursor: pointer;
+  list-style: none;
+}
+.disclosure > summary::-webkit-details-marker {
+  display: none;
+}
+.disclosure > summary::after {
+  content: "\25BE";
+  color: var(--text-tertiary);
+  margin-left: auto;
+  transition: transform 0.15s ease;
+}
+.disclosure[open] > summary::after {
+  transform: rotate(180deg);
+}
+.disclosure-body {
+  padding: 0 1.5rem 1.25rem;
+}
+.disclosure-title {
+  font-weight: 600;
+}
+.disclosure-hint {
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+}
+
+/* A row of short facts under a heading, for example "3 cases, 1 request open". */
+.fact-line {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 1rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+}
+
+/* Agency case rows: the person and case first, the reasons it needs attention under it. */
+.case-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding: 0.9rem 0;
+  border-bottom: 1px solid var(--hairline-soft);
+}
+.case-row:last-child {
+  border-bottom: none;
+}
+.case-row-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.4rem 0.75rem;
+}
+.case-row-title {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-weight: 500;
+}
+.case-row-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+.case-row-meta {
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  overflow-wrap: anywhere;
+}
+
+/* A finger is about 9mm wide: on a touch screen every button and tab gets a 44px target. */
+@media (pointer: coarse) {
+  .btn {
+    min-height: 44px;
+  }
+  .subnav a,
+  .app-shell-links a {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
   }
 }

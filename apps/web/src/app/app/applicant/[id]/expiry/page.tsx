@@ -11,7 +11,13 @@ import {
 } from '@visastack/services';
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
+import { EmptyState, StatusBadge, type Tone } from '../../../../../components/ui';
+import { formatTimestampDate } from '../../../../../lib/format-date';
 import { withSession } from '../../../../../lib/session';
+
+function plural(count: number, noun: string): string {
+  return `${count} ${noun}${count === 1 ? '' : 's'}`;
+}
 
 export const metadata: Metadata = { title: 'Expiry' };
 
@@ -110,32 +116,49 @@ export default async function ExpiryCentrePage({
           <p className="card-kicker">Intrinsic expiry</p>
           <h2 className="card-title">Documents</h2>
           {data.intrinsic.length === 0 ? (
-            <p className="card-body">No documents yet.</p>
+            <EmptyState title="No documents yet">
+              Documents with an expiry date, such as a passport, appear here so you hear about them
+              before they run out.
+            </EmptyState>
           ) : (
             <div className="rows" style={{ marginTop: '0.5rem' }}>
-              {data.intrinsic.map(({ doc, thresholds }) => {
-                const classification = classifyExpiry(
-                  doc.expiresAt ? new Date(doc.expiresAt) : null,
-                  now,
-                  thresholds,
-                );
-                const badge = URGENCY_BADGE[classification.urgency];
-                return (
-                  <div className="row" key={doc.id}>
-                    <span className="row-key">{doc.approvedName ?? doc.originalName}</span>
-                    <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                      {classification.daysRemaining !== null ? (
-                        <span className="muted" style={{ fontSize: '0.75rem' }}>
-                          {classification.daysRemaining >= 0
-                            ? `${classification.daysRemaining}d left`
-                            : `${Math.abs(classification.daysRemaining)}d ago`}
-                        </span>
-                      ) : null}
-                      <span className={`badge ${badge.tone}`}>{badge.label}</span>
-                    </span>
-                  </div>
-                );
-              })}
+              {data.intrinsic
+                .map(({ doc, thresholds }) => ({
+                  doc,
+                  classification: classifyExpiry(
+                    doc.expiresAt ? new Date(doc.expiresAt) : null,
+                    now,
+                    thresholds,
+                  ),
+                }))
+                // Most urgent first: already expired, then soonest to expire; no date last.
+                .sort(
+                  (a, b) =>
+                    (a.classification.daysRemaining ?? Number.POSITIVE_INFINITY) -
+                    (b.classification.daysRemaining ?? Number.POSITIVE_INFINITY),
+                )
+                .map(({ doc, classification }) => {
+                  const badge = URGENCY_BADGE[classification.urgency];
+                  return (
+                    <div className="row" key={doc.id}>
+                      <span className="attention-text">
+                        <span className="row-key">{doc.approvedName ?? doc.originalName}</span>
+                        {classification.daysRemaining !== null && doc.expiresAt ? (
+                          <span className="attention-detail">
+                            {classification.daysRemaining >= 0
+                              ? `Expires in ${plural(classification.daysRemaining, 'day')}`
+                              : `Expired ${plural(Math.abs(classification.daysRemaining), 'day')} ago`}
+                            {' · '}
+                            {formatTimestampDate(doc.expiresAt)}
+                          </span>
+                        ) : null}
+                      </span>
+                      <StatusBadge tone={badge.tone.replace('badge-', '') as Tone}>
+                        {badge.label}
+                      </StatusBadge>
+                    </div>
+                  );
+                })}
             </div>
           )}
         </article>
