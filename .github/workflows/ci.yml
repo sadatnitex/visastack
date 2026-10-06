@@ -47,6 +47,8 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          # Full history so the secret scan can read every past commit.
+          fetch-depth: 0
 
       - name: Install pnpm
         uses: pnpm/action-setup@v4
@@ -126,6 +128,25 @@ jobs:
 
       - name: Typecheck
         run: pnpm run typecheck
+
+      # Scans that really run on this private repository (CodeQL and
+      # dependency review do not). Needs the production build above for the
+      # browser bundle check. A skipped check fails the job here: skipped is
+      # reported on its own and is never counted as a pass.
+      - name: Supply-chain checks, self-tests
+        run: node --test scripts/supply-chain/checks.test.mjs
+
+      - name: Supply-chain checks, scans
+        run: node scripts/supply-chain/scan.mjs --no-skips --json supply-chain-report.json
+
+      - name: Upload supply-chain report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: supply-chain-report
+          path: supply-chain-report.json
+          if-no-files-found: ignore
+          retention-days: 30
 
       - name: Test
         run: pnpm run test

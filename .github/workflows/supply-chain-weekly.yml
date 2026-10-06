@@ -1,0 +1,66 @@
+name: Supply chain weekly audit
+
+# Runs every Monday and on demand. Scheduled workflows only ever run from the
+# default branch, so this always audits trusted code. It reads no repository
+# secrets and has read-only access.
+on:
+  schedule:
+    - cron: '17 3 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: supply-chain-weekly
+  cancel-in-progress: false
+
+jobs:
+  audit:
+    name: Weekly supply-chain audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # Hard gate: what we ship. A new advisory published since the last
+      # merge turns this red even when nobody changed code.
+      - name: Audit production dependencies
+        run: pnpm audit --prod --audit-level high
+
+      - name: Audit dev dependencies (informational)
+        run: pnpm audit --dev --audit-level high || true
+
+      # The browser bundle check needs a production build.
+      - name: Build
+        run: pnpm run build
+
+      - name: Supply-chain checks, self-tests
+        run: node --test scripts/supply-chain/checks.test.mjs
+
+      - name: Supply-chain checks, scans
+        run: node scripts/supply-chain/scan.mjs --no-skips --json supply-chain-report.json
+
+      - name: Upload supply-chain report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: supply-chain-report
+          path: supply-chain-report.json
+          if-no-files-found: ignore
+          retention-days: 90
