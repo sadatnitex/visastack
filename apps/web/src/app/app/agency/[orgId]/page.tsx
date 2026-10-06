@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { StatusBadge } from '../../../../components/ui';
-import { formatDateOnly } from '../../../../lib/format-date';
+import { formatDateOnly, formatTimestampDate } from '../../../../lib/format-date';
 import { withSession } from '../../../../lib/session';
 import { CaseSearchForm, STAGE_LABELS } from './case-search-form';
 import {
@@ -12,15 +12,6 @@ import {
   loadUnassignedQueue,
 } from './console-data';
 import { countOverdueTasks, nextApproachingDate, summarizeAttention } from './console-format';
-
-/** An unambiguous day, month name and year in the viewer's own timezone, for real timestamps. */
-function formatDateTime(iso: string): string {
-  return new Date(iso).toLocaleDateString(undefined, {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-  });
-}
 
 export const metadata: Metadata = { title: 'Agency dashboard' };
 
@@ -301,7 +292,7 @@ export default async function AgencyDashboardPage({
                                 sign-off status, not a reviewer's -- this org
                                 can see whether it exists, never act on it. */}
                           {mission.liveAcknowledgementAt
-                            ? ` · Acknowledged ${formatDateTime(mission.liveAcknowledgementAt)}`
+                            ? ` · Acknowledged ${formatTimestampDate(mission.liveAcknowledgementAt)}`
                             : ' · Not yet acknowledged'}
                         </span>
                       </div>

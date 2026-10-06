@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatDateOnly } from './format-date';
+import { formatDateOnly, formatTimestampDate } from './format-date';
 
 describe('formatDateOnly — timezone-stable date-only rendering (finding #25, post-programme defect register)', () => {
   // Exactly how a date-only value round-trips through this product: a
@@ -47,5 +47,12 @@ describe('formatDateOnly — timezone-stable date-only rendering (finding #25, p
   it('is not a no-op passthrough — it actually reformats the ISO string into a short display date', () => {
     expect(formatDateOnly('2024-06-01T00:00:00.000Z')).toBe('Jun 1, 2024');
     expect(formatDateOnly('2024-06-01T00:00:00.000Z')).not.toBe('2024-06-01T00:00:00.000Z');
+  });
+});
+
+describe('formatTimestampDate', () => {
+  it('writes the month as a word so day and month cannot be confused', () => {
+    expect(formatTimestampDate(new Date('2026-10-06T12:00:00.000Z'))).toBe('6 Oct 2026');
+    expect(formatTimestampDate('2026-06-10T12:00:00.000Z')).toBe('10 Jun 2026');
   });
 });

@@ -34,7 +34,9 @@ import {
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { StatusBadge } from '../../../../components/ui';
 import { isExplanationConfigured } from '../../../../lib/ai';
+import { formatDateOnly, formatTimestampDate } from '../../../../lib/format-date';
 import { getLocale } from '../../../../lib/locale';
 import { profileField } from '../../../../lib/profile-fields';
 import { withSession } from '../../../../lib/session';
@@ -489,10 +491,15 @@ export default async function MissionPage({
           <p className="muted" style={{ margin: '0.35rem 0 0' }}>
             {mission.destination ? `${mission.destination} · ` : ''}
             {STATE_LABELS[mission.state] ?? mission.state}
-            {' · '}
-            {data.liveAcknowledgedAt
-              ? `Acknowledged ${new Date(data.liveAcknowledgedAt).toLocaleDateString()}`
-              : 'Not yet acknowledged'}
+          </p>
+          <p style={{ margin: '0.5rem 0 0' }}>
+            {data.liveAcknowledgedAt ? (
+              <StatusBadge tone="success">
+                Confirmed by the applicant on {formatTimestampDate(data.liveAcknowledgedAt)}
+              </StatusBadge>
+            ) : (
+              <StatusBadge tone="neutral">Applicant has not confirmed yet</StatusBadge>
+            )}
           </p>
         </div>
         <SnapshotButton missionId={mission.id} />
@@ -548,7 +555,7 @@ export default async function MissionPage({
               ) : null}
               {data.packInfo.effectiveDate ? (
                 <p className="muted" style={{ fontSize: '0.8rem', margin: '0.35rem 0 0' }}>
-                  In effect since {new Date(data.packInfo.effectiveDate).toLocaleDateString()}
+                  In effect since {formatDateOnly(data.packInfo.effectiveDate)}
                 </p>
               ) : null}
             </>
@@ -684,9 +691,7 @@ export default async function MissionPage({
                           {r.citation ? (
                             <span className="muted" style={{ fontSize: '0.75rem' }}>
                               Cite: {sourceLine || r.citation}
-                              {r.observedDate
-                                ? ` · as of ${new Date(r.observedDate).toLocaleDateString()}`
-                                : ''}
+                              {r.observedDate ? ` · as of ${formatDateOnly(r.observedDate)}` : ''}
                               {sourceHref ? (
                                 <>
                                   {' · '}
@@ -862,7 +867,7 @@ export default async function MissionPage({
                 >
                   <span style={{ fontSize: '0.9rem' }}>{n.body}</span>
                   <span className="muted" style={{ fontSize: '0.75rem', marginTop: '0.2rem' }}>
-                    {n.authorEmail ?? 'Unknown'}, {new Date(n.createdAt).toLocaleDateString()}
+                    {n.authorEmail ?? 'Unknown'}, {formatTimestampDate(n.createdAt)}
                   </span>
                 </div>
               ))}

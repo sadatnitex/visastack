@@ -18,12 +18,14 @@ import {
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { AutoRefresh } from '../../../../../components/auto-refresh';
+import { EmptyState } from '../../../../../components/ui';
 import {
   createAiExtractor,
   isClassificationConfigured,
   isInconsistencyConfigured,
   isOcrConfigured,
 } from '../../../../../lib/ai';
+import { formatTimestampDate } from '../../../../../lib/format-date';
 import { getLocale } from '../../../../../lib/locale';
 import { isStillProcessing } from '../../../../../lib/resilience';
 import { withSession } from '../../../../../lib/session';
@@ -265,7 +267,10 @@ export default async function ApplicantDocumentsPage({
           </p>
         ) : null}
         {data.documents.length === 0 ? (
-          <p className="muted">No documents yet.</p>
+          <EmptyState title="No documents yet">
+            Store the passport, statements and letters you reuse across applications. They are kept
+            privately and only the people you share them with can open them.
+          </EmptyState>
         ) : (
           <div className="rows" style={{ marginTop: '0.5rem' }}>
             {data.documents.map((doc) => {
@@ -406,7 +411,7 @@ export default async function ApplicantDocumentsPage({
                                   ? `(expires in ${verification.daysRemaining} day(s)) `
                                   : ''}
                                 {c.issuerIdentity}: "{c.exactClaim}", response: {c.response}, valid
-                                until {c.validUntil.toLocaleDateString()}
+                                until {formatTimestampDate(c.validUntil)}
                               </p>
                             );
                           })}

@@ -36,3 +36,17 @@ export function formatDateOnly(iso: string): string {
     timeZone: 'UTC',
   });
 }
+
+/**
+ * Renders a real timestamp (a moment that happened, such as an upload or an
+ * acknowledgement) as an unambiguous day in the viewer's own timezone, for example
+ * "6 Oct 2026". A bare `toLocaleDateString()` prints 06/10/2026, which a reader
+ * cannot tell from 10 June. Not for date-only values: use `formatDateOnly`.
+ */
+export function formatTimestampDate(value: string | Date): string {
+  return new Date(value).toLocaleDateString('en-GB', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+  });
+}
