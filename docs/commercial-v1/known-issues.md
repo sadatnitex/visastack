@@ -4495,11 +4495,23 @@ item gets its own requirements-ledger row once classified against the new direct
       or a form it exports, has no case, so a new form cannot ship unscanned. It found
       two real faults, both fixed: the pilot notice was outside every landmark, and the
       last-resort error page had no main area.
+    - **Behaviour, run in a DOM** (`lib/form-behaviour.test.tsx`). The real add-person
+      form, upload form and status page are rendered and used: focus moves to the field a
+      failed action names and the alert holds the reason, the mark clears when the next
+      try works, a working button stays focusable and a second click is refused (nothing
+      runs after the first one finishes), the "taking longer than usual" and "could not
+      confirm" wording appear when they should, and focus stays on "Check now" through
+      the status page's own refresh. It shows which element has focus and what a live
+      region holds; it does not show how any screen reader voices it.
     - **Proven to go red, not just green.** The scan has its own tests that feed it real
       mistakes, and temporary faults in real code each turned the suite red with a
       message naming the place: a file input with no name, an error message that lost the
       id its field points at, a new form nobody scanned, a submit button that disables
-      itself, a status button that disables itself.
+      itself, a status button that disables itself, a form that stops moving focus to the
+      field at fault, a button that stops refusing a second click. (The first version of
+      the double-click test passed even with the refusal removed, because React queues a
+      second submission instead of running it at once; it now checks that nothing runs
+      after the first one finishes.)
 
     **Found by my own scan, not by a person.** The status page's "Check now" button
     disabled itself while a check ran, and the page re-checks by itself every 15 seconds,

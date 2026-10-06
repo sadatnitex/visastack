@@ -42,6 +42,7 @@ reports only loosely or as "needs review":
 | `lib/axe.test.ts` | The scan itself: it is fed real mistakes on purpose (a field with no name, a button with no name, a dangling reference, a repeated id, a link to nothing, a bad role, a skipped heading) and must report each |
 | `lib/a11y-forms.test.tsx` | 129 cases covering every form and action button, each in four states (waiting, working, failed, done), row-level buttons rendered twice in one tree, the field-at-fault case, and a check that nothing becomes disabled while an action runs |
 | `lib/a11y-pages.test.tsx` | 15 whole public pages and page states in the real site shell (home, status in each state, route information, not found, errors, invite-only, last-resort error page) |
+| `lib/form-behaviour.test.tsx` | The behaviour markup cannot show, with the real add-person form, upload form and status page running in a DOM: focus moves to the field a failed action names and the alert holds the reason, the mark clears when the next try works, a working button stays focusable and a second click is refused (nothing runs after the first finishes), the "taking longer than usual" and "could not confirm" wording appear when they should, and focus stays on "Check now" through the status page's own refresh |
 
 ### Adding a form
 
@@ -55,7 +56,9 @@ it appears once per row.
 Temporary faults in real code turned the suite red with a message that names the place:
 a file input with no name, an error message that lost the id its field points at, a new
 form nobody scanned, a submit button that disables itself, a status button that
-disables itself. The scan's own tests keep the first kind honest permanently.
+disables itself, a form that stops moving focus to the field at fault, and a button that
+stops refusing a second click. The scan's own tests keep the first kind honest
+permanently.
 
 ### What the scan found so far
 
@@ -71,9 +74,10 @@ disables itself. The scan's own tests keep the first kind honest permanently.
 - **Colour contrast and layout.** jsdom has no layout. Contrast is checked in a real
   browser on the public pages and the layout fixture (`e2e/ux-public.spec.ts`, Chromium,
   light and dark). The signed-in screens were never opened in a real browser here.
-- **Whether a task can be finished.** A scan finds structural faults. Only a person using
-  a keyboard and a screen reader can tell whether the order, wording and announcements
-  make sense.
+- **Whether a task can be finished.** A scan finds structural faults, and the behaviour
+  tests show which element has focus and what text a live region holds. Neither shows how
+  a particular screen reader voices it. Only a person using a keyboard and a screen reader
+  can tell whether the order, wording and announcements make sense.
 - **Signed-in pages as whole pages.** Their forms are scanned as components. How headings
   and ids combine on a full signed-in page is not scanned.
 - **Forms whose action does not name a field.** They describe the problem in the alert but
