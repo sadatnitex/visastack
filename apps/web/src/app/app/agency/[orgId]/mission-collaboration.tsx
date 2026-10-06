@@ -521,7 +521,7 @@ export function MissionCollaboration({
                 </span>
                 <span>{n.body}</span>{' '}
                 <span className="muted" style={{ fontSize: '0.75rem' }}>
-                  — {n.authorEmail}, {formatTimestampDate(n.createdAt)}
+                  - {n.authorEmail}, {formatTimestampDate(n.createdAt)}
                 </span>
               </div>
             ))}
@@ -591,7 +591,7 @@ export function MissionCollaboration({
                   <span className="muted" style={{ fontSize: '0.75rem' }}>
                     {requirements.find((r) => r.id === d.packRequirementId)?.label ??
                       d.packRequirementId}
-                    {d.reason ? ` — ${d.reason}` : ''}, {formatTimestampDate(d.createdAt)}
+                    {d.reason ? ` - ${d.reason}` : ''}, {formatTimestampDate(d.createdAt)}
                   </span>
                 </div>
               ))}
