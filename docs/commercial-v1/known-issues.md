@@ -4584,3 +4584,31 @@ item gets its own requirements-ledger row once classified against the new direct
 independently confirmed findings; the missing PRD file is tracked as Blocker 1 in
 `assumptions-and-blockers.md` (now resolved) rather than here, since it blocked the
 programme rather than being a product defect.
+
+    **Chunk 42 (2026-10-06, OPS-02, OPS-03, SEC-07, NTF-04, A31) -- incident readiness,
+    recovery preparation, release and rollback safety (Part 9 sections 11 to 13).**
+    Written: the incident runbooks under `docs/operations/incidents/` (eight scenarios, roles
+    table, evidence rules, no 24/7 promise), a rewritten `docs/operations/recovery.md`, and
+    `docs/operations/release-and-rollback.md`. Built: `verify:audit-chain` (checks the whole audit
+    trail; its exit codes are now tested on a throwaway database: intact gives 0, an edited event
+    and a removed event give 1; the two database rules that refuse edits and deletes had to be
+    dropped in the test to simulate privileged access); a migration credential preference and a
+    main-only, protected migration workflow; and a release record written for every deployment.
+    **Corrections found while checking my own earlier text.** (1) The runbook said migrations run
+    during every production deploy and that a failure shows in the build log. Both are false:
+    migrations run only through the manual DB Migrate workflow; fixed in `runbook.md`.
+    (2) The release page said preview isolation was "verified from environment-variable scoping".
+    That was never done; the attempt to list the project's environment variables was refused
+    (403), so the claim is removed and the owner must check it in the dashboard. (3) SEC-07 said
+    VERIFIED because CodeQL and dependency review exist; both are skipped on a private repository,
+    so it is now PARTIAL. (4) NTF-04 promised date checks at least hourly; the jobs run once a day.
+    **Not verified, said plainly:** `verify:audit-chain` has never run against the real database
+    (the production driver needs a hosted database; only the checking logic ran, against a test
+    database); the migration workflow changes were read and parsed but the workflow was not run
+    and must not be without the owner's go-ahead; no restore or rollback was rehearsed; no
+    tabletop with people was held (the desk check in `incidents/tabletop.md` only shows that the
+    named controls exist in code). **Owner decisions still open:** appoint the incident owner,
+    backup and legal reviewer; fund an independent store for document originals and an escrow for
+    the master key; create the Neon migration role, the secret `MIGRATION_DATABASE_URL` and the
+    GitHub environment `production-migrations`; confirm the Neon history window; allow a rollback
+    rehearsal; check preview secret scoping in the Vercel dashboard.
