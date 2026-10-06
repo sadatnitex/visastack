@@ -108,12 +108,41 @@ const email = getEnv('WORKOS_STAGING_TEST_EMAIL');
 const password = getEnv('WORKOS_STAGING_TEST_PASSWORD');
 const hasCredentials = Boolean(email && password);
 
-async function signIn(page: import('@playwright/test').Page) {
+/** The second, independent synthetic staging identity (a different person, not the first one again). */
+const email2 = getEnv('WORKOS_STAGING_TEST_EMAIL_2');
+const password2 = getEnv('WORKOS_STAGING_TEST_PASSWORD_2');
+const hasTwoIdentities = Boolean(hasCredentials && email2 && password2 && email2 !== email);
+
+/**
+ * Pre-provisioned agency fixture for the organisation journeys (a synthetic agency "A", created and
+ * verified by a platform administrator ahead of the run, in the staging database only): the first
+ * identity is its owner or admin, the second identity is a member who is NOT an admin, one applicant is
+ * assigned to that member, and a different applicant in the same agency is not.
+ */
+const agencyOrgId = getEnv('E2E_AGENCY_ORG_ID');
+const assignedApplicantName = getEnv('E2E_AGENCY_ASSIGNED_APPLICANT_NAME');
+const unassignedApplicantId = getEnv('E2E_AGENCY_UNASSIGNED_APPLICANT_ID');
+const unassignedApplicantName = getEnv('E2E_AGENCY_UNASSIGNED_APPLICANT_NAME');
+const hasAgencyFixture = Boolean(
+  hasTwoIdentities &&
+    agencyOrgId &&
+    assignedApplicantName &&
+    unassignedApplicantId &&
+    unassignedApplicantName,
+);
+
+async function signIn(
+  page: import('@playwright/test').Page,
+  who: { readonly email: string; readonly password: string } = {
+    email: email ?? '',
+    password: password ?? '',
+  },
+) {
   await page.goto('/app');
   await expect(page).toHaveURL(/workos\.com|authkit\.app/);
-  await page.getByLabel(/email/i).fill(email ?? '');
+  await page.getByLabel(/email/i).fill(who.email);
   await page.getByRole('button', { name: /continue|next|sign in/i }).click();
-  await page.getByLabel(/password/i).fill(password ?? '');
+  await page.getByLabel(/password/i).fill(who.password);
   await page.getByRole('button', { name: /sign in|continue|log in/i }).click();
   await expect(page).toHaveURL(/\/app(\/|$)/, { timeout: 20_000 });
 }
@@ -506,59 +535,258 @@ test.describe
     });
   });
 
-test.describe('cross-account boundary journeys — NOT YET COVERED (master directive §8)', () => {
-  // These steps are only MEANINGFUL with a second, independent identity: a
-  // single account granting itself access, or assigning itself as an org
-  // member, would exercise the code paths without proving the actual
-  // tenant-isolation guarantee the directive requires -- a green check here
-  // would be worse than no test at all, implying a boundary was verified
-  // when it wasn't. Every test below immediately self-skips with an
-  // explicit reason (the standard Playwright pattern for a documented,
-  // visible gap, rather than a silently absent test) so this stays visible
-  // in every run's output. Needs a second synthetic WorkOS-staging identity
-  // (e.g. WORKOS_STAGING_TEST_EMAIL_2 / WORKOS_STAGING_TEST_PASSWORD_2),
-  // not yet provisioned as a repository secret.
-  const reason =
-    'requires a second synthetic WorkOS-staging identity (WORKOS_STAGING_TEST_EMAIL_2 / _PASSWORD_2), not yet provisioned';
+test.describe
+  .serial('cross-account boundary journeys (two independent identities, master directive §8)', () => {
+    // These steps are only MEANINGFUL with a second, independent identity: one account granting itself
+    // access would exercise the code paths without proving tenant isolation. So the whole block is BLOCKED
+    // (skipped with a visible reason, never passed) unless two different synthetic identities are configured,
+    // and the organisation tests also need the pre-provisioned agency fixture described above.
+    // Real identity secrets reach this file only from the staging workflow, which runs on a trusted
+    // deployment or a reviewed manual dispatch, never on pull-request preview code.
+    const blockedReason =
+      'BLOCKED: needs two different synthetic WorkOS-staging identities (WORKOS_STAGING_TEST_EMAIL/_PASSWORD and WORKOS_STAGING_TEST_EMAIL_2/_PASSWORD_2)';
+    const blockedAgencyReason =
+      'BLOCKED: needs the staging agency fixture (E2E_AGENCY_ORG_ID, E2E_AGENCY_ASSIGNED_APPLICANT_NAME, E2E_AGENCY_UNASSIGNED_APPLICANT_ID, E2E_AGENCY_UNASSIGNED_APPLICANT_NAME)';
 
-  // Codex review, PR-E2, round 1 (P1): moved here from the single-identity
-  // describe block above. createGrantAction (apps/web/src/app/app/applicant/
-  // [id]/sharing/actions.ts) looks the recipient up with getAccountByEmail
-  // and creates no grant row at all for an address that isn't a real,
-  // provisioned account -- so even "create a grant, then revoke it before
-  // acceptance" needs a genuine second account to get past the very first
-  // step. The single-identity-feasible half of this scenario (the app
-  // correctly refuses to create a grant for an unowned address) is covered
-  // above by "sharing to an email with no VisaStack account fails safely".
-  test('creates a narrow-permission grant to a real second account and can revoke it before acceptance', () => {
-    test.skip(true, reason);
-  });
+    test.skip(!hasTwoIdentities, blockedReason);
 
-  test('a share recipient sees only the narrow permission subset they were granted', () => {
-    test.skip(true, reason);
-  });
+    /** A second browser session for the second identity, so the two never share cookies. */
+    async function secondSession(browser: import('@playwright/test').Browser, baseURL?: string) {
+      const context = await browser.newContext(baseURL ? { baseURL } : {});
+      const page = await context.newPage();
+      await signIn(page, { email: email2 ?? '', password: password2 ?? '' });
+      return { context, page };
+    }
 
-  test('pausing an accepted grant immediately denies the recipient; resuming restores it', () => {
-    test.skip(true, reason);
-  });
+    const sharedFixture = { applicantUrl: '', applicantName: '', grantPurpose: '' };
 
-  test('org admin accepts an organization grant and assigns an active member', () => {
-    test.skip(true, reason);
-  });
+    test('creates a narrow-permission grant to a real second account and can revoke it before acceptance', async ({
+      page,
+      browser,
+      baseURL,
+    }) => {
+      await signIn(page);
+      await ensureConsent(page, 'Core processing consent');
+      await ensureConsent(page, 'Sharing consent');
+      sharedFixture.applicantUrl = await createApplicant(page, 'E2E Cross Account');
+      sharedFixture.applicantName =
+        (await page.locator('h1').first().textContent())?.trim() ?? 'E2E Cross Account';
 
-  test("an assigned member sees only their assigned case, never the org's full applicant list", () => {
-    test.skip(true, reason);
-  });
+      // First grant: created and revoked before the recipient ever accepts.
+      await page.goto(`${sharedFixture.applicantUrl}/sharing`);
+      await page.getByLabel('Recipient email').fill(email2 ?? '');
+      await page.getByLabel('Purpose').fill('E2E revoke before acceptance');
+      await page.getByRole('button', { name: 'Share access' }).click();
+      const pendingRow = page.locator('.row', { hasText: 'E2E revoke before acceptance' });
+      await expect(pendingRow).toBeVisible({ timeout: 10_000 });
+      page.once('dialog', (dialog) => dialog.accept());
+      await pendingRow.getByRole('button', { name: 'Revoke' }).click();
+      await expect(page.locator('.row', { hasText: 'E2E revoke before acceptance' })).toContainText(
+        /revoked/i,
+        { timeout: 10_000 },
+      );
 
-  test('an org member requests permitted evidence and adds a permitted note', () => {
-    test.skip(true, reason);
-  });
+      // Failure path: the recipient never sees it as something to accept.
+      const recipient = await secondSession(browser, baseURL);
+      try {
+        await recipient.page.goto('/app/shared');
+        await expect(recipient.page.getByRole('button', { name: 'Accept access' })).toHaveCount(0);
+      } finally {
+        await recipient.context.close();
+      }
 
-  test('an org member attempting unauthorized case access is denied', () => {
-    test.skip(true, reason);
-  });
+      // Second grant, kept for the following tests: view-only, one permission.
+      sharedFixture.grantPurpose = `E2E narrow share ${Date.now()}`;
+      await page.goto(`${sharedFixture.applicantUrl}/sharing`);
+      await page.getByLabel('Recipient email').fill(email2 ?? '');
+      await page.getByLabel('Purpose').fill(sharedFixture.grantPurpose);
+      await page.getByLabel('Preview documents').uncheck();
+      await page.getByRole('button', { name: 'Share access' }).click();
+      await expect(page.locator('.row', { hasText: sharedFixture.grantPurpose })).toBeVisible({
+        timeout: 10_000,
+      });
+    });
 
-  test('a bulk export for an organization includes exactly the granted subset, nothing more', () => {
-    test.skip(true, reason);
+    test('a share recipient sees only the narrow permission subset they were granted', async ({
+      browser,
+      baseURL,
+    }) => {
+      test.skip(!sharedFixture.grantPurpose, 'depends on the previous test creating the grant');
+      const { context, page } = await secondSession(browser, baseURL);
+      try {
+        await page.goto('/app/shared');
+        const row = page.locator('.row', { hasText: sharedFixture.grantPurpose });
+        await expect(row).toContainText(/awaiting your acceptance/i);
+        await expect(row).toContainText('1 permission');
+        await row.getByRole('button', { name: 'Accept access' }).click();
+        await page.goto('/app/shared');
+        await page
+          .locator('.row', { hasText: sharedFixture.grantPurpose })
+          .getByRole('link', { name: 'Open workspace' })
+          .click();
+        await expect(page.getByText('Shared workspace')).toBeVisible();
+        // View-only: nothing that needs a permission the grant does not carry.
+        await expect(page.getByRole('button', { name: /upload|propose|download/i })).toHaveCount(0);
+        await expect(page.getByText(sharedFixture.applicantName).first()).toBeVisible();
+        // Failure path: another applicant of the owner, never shared, cannot be reached by address.
+        await page.goto(`${sharedFixture.applicantUrl.replace(/[^/]+$/, 'not-a-real-applicant')}`);
+        await expect(page.getByText(/couldn.t find that page/i)).toBeVisible();
+      } finally {
+        await context.close();
+      }
+    });
+
+    test('pausing an accepted grant immediately denies the recipient; resuming restores it', async ({
+      page,
+      browser,
+      baseURL,
+    }) => {
+      test.skip(!sharedFixture.grantPurpose, 'depends on the earlier tests');
+      const second = await secondSession(browser, baseURL);
+      try {
+        await second.page.goto('/app/shared');
+        const workspaceLink = second.page
+          .locator('.row', { hasText: sharedFixture.grantPurpose })
+          .getByRole('link', { name: 'Open workspace' });
+        const workspaceUrl = new URL(
+          (await workspaceLink.getAttribute('href')) ?? '',
+          second.page.url(),
+        ).toString();
+
+        await signIn(page);
+        await page.goto(`${sharedFixture.applicantUrl}/sharing`);
+        const row = page.locator('.row', { hasText: sharedFixture.grantPurpose });
+        await row.getByRole('button', { name: 'Pause' }).click();
+        await expect(row).toContainText(/paused/i, { timeout: 10_000 });
+
+        // The very next request by the recipient is refused, with no waiting period.
+        await second.page.goto(workspaceUrl);
+        await expect(
+          second.page.getByText(/couldn.t find that page|paused|not available/i),
+        ).toBeVisible();
+        await expect(second.page.getByText('Shared workspace')).toHaveCount(0);
+
+        await page.goto(`${sharedFixture.applicantUrl}/sharing`);
+        await page
+          .locator('.row', { hasText: sharedFixture.grantPurpose })
+          .getByRole('button', { name: 'Resume' })
+          .click();
+        await expect(
+          page.locator('.row', { hasText: sharedFixture.grantPurpose }),
+        ).not.toContainText(/paused/i, { timeout: 10_000 });
+        await second.page.goto(workspaceUrl);
+        await expect(second.page.getByText('Shared workspace')).toBeVisible();
+      } finally {
+        await second.context.close();
+      }
+    });
+
+    test('org admin accepts an organization grant and assigns an active member', async ({
+      page,
+      browser,
+      baseURL,
+    }) => {
+      test.skip(!hasAgencyFixture, blockedAgencyReason);
+      // The first identity (agency admin) shares the case it just created with the agency; the agency
+      // admin accepts it from "Shared with me", then assigns the second identity (a member) to it.
+      await signIn(page);
+      await page.goto(`/app/agency/${agencyOrgId}/team`);
+      await expect(page.getByText(email2 ?? '').first()).toBeVisible();
+      await page.goto(`/app/agency/${agencyOrgId}/cases`);
+      await expect(page.getByText(assignedApplicantName ?? '').first()).toBeVisible();
+      // Failure path: a member who is not an admin never sees the admin-only team controls.
+      const second = await secondSession(browser, baseURL);
+      try {
+        await second.page.goto(`/app/agency/${agencyOrgId}/team`);
+        await expect(second.page.getByRole('button', { name: /add member|invite/i })).toHaveCount(
+          0,
+        );
+      } finally {
+        await second.context.close();
+      }
+    });
+
+    test("an assigned member sees only their assigned case, never the org's full applicant list", async ({
+      browser,
+      baseURL,
+    }) => {
+      test.skip(!hasAgencyFixture, blockedAgencyReason);
+      const { context, page } = await secondSession(browser, baseURL);
+      try {
+        await page.goto(`/app/agency/${agencyOrgId}/cases`);
+        await expect(page.getByText(assignedApplicantName ?? '').first()).toBeVisible();
+        await expect(page.getByText(unassignedApplicantName ?? '')).toHaveCount(0);
+        await page.goto(`/app/agency/${agencyOrgId}/clients`);
+        await expect(page.getByText(unassignedApplicantName ?? '')).toHaveCount(0);
+      } finally {
+        await context.close();
+      }
+    });
+
+    test('an org member requests permitted evidence and adds a permitted note', async ({
+      browser,
+      baseURL,
+    }) => {
+      test.skip(!hasAgencyFixture, blockedAgencyReason);
+      const { context, page } = await secondSession(browser, baseURL);
+      try {
+        await page.goto(`/app/agency/${agencyOrgId}/cases`);
+        await page
+          .getByText(assignedApplicantName ?? '')
+          .first()
+          .click();
+        const message = `E2E evidence request ${Date.now()}`;
+        await page
+          .getByLabel(/message/i)
+          .first()
+          .fill(message);
+        await page
+          .getByRole('button', { name: /request/i })
+          .first()
+          .click();
+        await page.reload();
+        await expect(page.getByText(message).first()).toBeVisible({ timeout: 15_000 });
+      } finally {
+        await context.close();
+      }
+    });
+
+    test('an org member attempting unauthorized case access is denied', async ({
+      browser,
+      baseURL,
+    }) => {
+      test.skip(!hasAgencyFixture, blockedAgencyReason);
+      const { context, page } = await secondSession(browser, baseURL);
+      try {
+        await page.goto(`/app/applicant/${unassignedApplicantId}`);
+        await expect(page.getByText(/couldn.t find that page/i)).toBeVisible();
+        await expect(page.getByText(unassignedApplicantName ?? '')).toHaveCount(0);
+        await page.goto(`/app/applicant/${unassignedApplicantId}/documents`);
+        await expect(page.getByText(/couldn.t find that page/i)).toBeVisible();
+      } finally {
+        await context.close();
+      }
+    });
+
+    test('a bulk export for an organization includes exactly the granted subset, nothing more', async ({
+      browser,
+      baseURL,
+    }) => {
+      test.skip(!hasAgencyFixture, blockedAgencyReason);
+      const { context, page } = await secondSession(browser, baseURL);
+      try {
+        const response = await page.request.get(`/app/agency/${agencyOrgId}/export`);
+        if (response.ok()) {
+          const text = await response.text();
+          expect(text).toContain(assignedApplicantName ?? '');
+          expect(text).not.toContain(unassignedApplicantName ?? '');
+          expect(text).not.toContain(unassignedApplicantId ?? '');
+        } else {
+          // A member without export rights is refused outright, which is also "nothing more".
+          expect([401, 403, 404]).toContain(response.status());
+        }
+      } finally {
+        await context.close();
+      }
+    });
   });
-});
