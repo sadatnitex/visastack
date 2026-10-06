@@ -22,6 +22,13 @@ vi.mock('next/navigation', () => ({
     throw new Error(`NEXT_REDIRECT:${to}`);
   },
   usePathname: () => state.pathname,
+  useRouter: () => ({
+    refresh: () => undefined,
+    push: () => undefined,
+    replace: () => undefined,
+    back: () => undefined,
+    prefetch: () => undefined,
+  }),
 }));
 
 vi.mock('next/link', () => ({
