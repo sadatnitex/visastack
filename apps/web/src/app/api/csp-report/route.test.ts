@@ -139,13 +139,15 @@ describe('POST /api/csp-report', () => {
     try {
       vi.setSystemTime(new Date('2026-10-03T06:00:00Z'));
       for (let i = 0; i < 100; i++) await route.POST(post(violation()));
-      const violations = warn.mock.calls.filter(([label]) => label === '[csp-violation]');
+      const violations = warn.mock.calls.filter(
+        ([label]: unknown[]) => label === '[csp-violation]',
+      );
       expect(violations).toHaveLength(30);
 
       vi.setSystemTime(new Date('2026-10-03T06:01:01Z'));
       await route.POST(post(violation()));
       const notices = warn.mock.calls.filter(
-        ([label]) => typeof label === 'string' && label.includes('were not logged'),
+        ([label]: unknown[]) => typeof label === 'string' && label.includes('were not logged'),
       );
       expect(notices).toHaveLength(1);
       expect(notices[0]?.[0]).toContain('70 reports were not logged');

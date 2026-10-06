@@ -10,12 +10,14 @@ granted, and every action is authorized, consent-gated, and audited.
 > only.** Not a commercial launch. The repository is mid-way through the
 > **VisaStack Commercial V1** implementation programme
 > ([`docs/roadmap/commercial-v1-implementation-directive.md`](docs/roadmap/commercial-v1-implementation-directive.md),
-> 10 parts): **Parts 1-7 are complete** (authority/traceability, data model,
-> evidence vault, missions/packs/sharing, billing/notifications/admin, the
-> rules engine and public trust, applicant truth-check and retention/erasure).
-> **Part 8 (multi-provider AI gateway, admin control, OCR, budgets) is in
-> progress.** Parts 9-10 (UX/i18n/accessibility/monitoring completeness, and
-> the full release gate) have not started. The governing product contract is
+> 10 parts): the software work is in place (Bangla translation is deferred by
+> the owner) and the release gate has been run. **Verdict on 2026-10-06: code complete,
+> commercial launch blocked** - see
+> [`docs/commercial-v1/final-report.md`](docs/commercial-v1/final-report.md)
+> and [`docs/commercial-v1/release-gate.md`](docs/commercial-v1/release-gate.md).
+> What blocks launch is mostly people and outside parties (independent
+> security review, restore rehearsal, published rules, live scanner, email and
+> AI accounts, named owners, legal review, price), not missing screens. The governing product contract is
 > [`docs/product/commercial-v1-prd-2026-09-16.md`](docs/product/commercial-v1-prd-2026-09-16.md)
 > plus the Build Specification; a feature is not "complete" until it is
 > verified end-to-end, not merely built. For the live, per-requirement

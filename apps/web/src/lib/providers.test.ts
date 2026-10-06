@@ -137,6 +137,13 @@ describe('createIdentityPort', () => {
     expect(createIdentityPort()).toBeInstanceOf(WorkosIdentityPort);
   });
 
+  it('selects the Neon identity port only when IDENTITY_PROVIDER is neon_auth', async () => {
+    setEnv('IDENTITY_PROVIDER', 'neon_auth');
+    const { createIdentityPort } = await import('./providers');
+    const { NeonIdentityPort } = await import('./identity-provider');
+    expect(createIdentityPort()).toBeInstanceOf(NeonIdentityPort);
+  });
+
   it('throws for an unrecognized IDENTITY_PROVIDER instead of silently using WorkOS anyway', async () => {
     setEnv('IDENTITY_PROVIDER', 'okta');
     const { createIdentityPort } = await import('./providers');

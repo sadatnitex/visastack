@@ -41,3 +41,11 @@ existing OpenAI-only wiring and blended-cost tracking), and the 8 unconditionall
 cross-account E2E tests (5's Part 10 Section 2 versus `remaining-commercial-blockers.md`
 Section 3, which is the same finding). Where 5 and the still-open items from 3 describe the
 same gap, the requirements ledger treats them as one requirement, not two.
+
+## Release-gate documents (2026-10-06)
+
+- `release-gate.md` is rewritten as the real gate record; the earlier placeholder text ("not eligible, Part 1 blocked") is superseded by it.
+- `final-report.md` supersedes the checkpoint verdict in `part-9-checkpoint.md` for the programme as a whole; the checkpoint stays as dated evidence.
+- The README status paragraph was refreshed; its older "Part 8 in progress, Parts 9-10 not started" wording is superseded.
+- The environment attestation flags described in `docs/operations/pilot-to-commercial-activation.md` are runtime switches, not release evidence. The release gate does not read them.
+

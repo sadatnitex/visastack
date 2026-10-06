@@ -4722,3 +4722,32 @@ programme rather than being a product defect.
 - **Owner decisions:** provision the two staging identities and the agency fixture (PR #77 has the code
   half; a session cannot write repository secrets); appoint the incident owner, backup owner and legal
   reviewer; choose document backup and key escrow; configure ClamAV.
+
+### Chunk 47 (2026-10-06): Part 10 sections 5 to 7 and 11: release-candidate run, scans, A30, A35
+- Run on `a27cefb` (production runs the same SHA): install, lint, typecheck, 2,759 tests passed and 3 skipped, build, production audit, 7 of 7 supply-chain scans, 12 of 12 scan self-tests, 75 browser checks passed with the 2 known sandbox-only sign-in failures, smoke 10 of 10, load re-run (p95 39 ms at launch load, 0 errors). Detail: `part-10-security-scans.md`.
+- **New finding, reported not fixed:** the full dependency audit lists 3 Critical and 1 High advisories in development tools only (`vitest` below 3.2.6, `tinypool`, `vite`). Never shipped. The production audit is clean at high and above (1 moderate, `sprintf-js` through the DOCX reader, no patched version). The fix is a major upgrade of the test runner and needs its own change. The CI audit for development tools is non-blocking by design, which is why this was not caught earlier.
+- Not run and recorded as such: CodeQL (private repository), SSRF (no test exists; nothing fetches a user-supplied address), authenticated browser tests, rule golden suites, live AI, email and scanner runs, staging deploy (no staging exists), PDF timing with a real scanner at this SHA (no ClamAV in the run; all 150 files ended quarantined as designed).
+- A30 BLOCKED: no restore performed (no approved Neon branch, no document backup, no key escrow). A35 BLOCKED: no independent report. Neither target was rewritten.
+- The secret scan covered the working tree only (shallow clone); CI scans history.
+
+### Chunk 48 (2026-10-06): Part 10 sections 8 to 18: sign-offs, release gate, handover, final verdict
+- `part-10-signoffs.md` (rules, provider and privacy, operations, runtime degradation vs eligibility): all blocked on people; no approval invented. Zero launch packs are published and no golden-case suite exists.
+- `release-gate.md` rewritten as a real record: 18 attestations, each with evidence, approver, date and revalidation trigger; 0 attested. The runtime readiness flags are stated not to be release evidence.
+- `handover-inventory.md`: the "no critical system on one person's account" test FAILS (repository, hosting and the master key).
+- `final-report.md`: verdict CODE COMPLETE - COMMERCIAL LAUNCH BLOCKED. No isolated staging exists, so the directive's staging deployment was not done.
+- Nothing was merged to main, deployed, enabled or activated by this task. The release-candidate PR is a draft. PR 77 untouched.
+
+
+### Chunk 49 (2026-10-06): free-stack hardening after the release-candidate report
+- Owner designated roles: Incidentman (incident owner), Backupman, Ruleman (rules owner), Reviewman (reviewer), Privacyman, Legalman, Supportman, Inframan, Keyman and Vaultman (key holders), Priceman, Auditman. Recorded in `release-gate.md`. They are designations, not attestations: contact routes, acceptance and qualifications are still owed. No gate row changed to attested.
+- Test runner upgraded (vitest 4, vite 6.4.3 or later): audit is now 2 moderate, 0 High, 0 Critical. Full clean run repeated on the branch head: 2,759 passed, 3 skipped, scans 7 of 7, browser 75 passed with the 2 known sandbox failures, smoke 10 of 10.
+- An intermediate run failed on a 10 second database-hook timeout under parallel load and on web timeouts caused by running other commands at the same time. Treated as a robustness defect: explicit 60 second limits added for the adapters, db and services packages; run repeated clean.
+- **Finding:** `LocalEnvelopeKeyProvider` throws in commercial mode on purpose. The free stack therefore cannot satisfy the key requirement for commercial mode; a real key service is needed (a cheap one exists; confirm current pricing). Stage A (open pilot) is unaffected.
+- A scheduled uptime-check workflow was attempted and refused by the session's safety layer, so it was not added. `free-stack-launch-plan.md` records the alternatives.
+- Not changed: production still runs `a27cefb`. Nothing was deployed, merged, enabled or activated.
+
+### Chunk 50 (2026-10-06): Neon Auth sign-in, phase 1
+- Built behind `IDENTITY_PROVIDER=neon_auth`; WorkOS stays the default and production is unchanged. Details and the phase table: `neon-auth-migration-plan.md`. Web tests rose from 1,018 to 1,046; each new guard was broken once and its test went red.
+- **The supply-chain guards caught two real problems the first time the Neon package was added, and neither was waved through.** (1) The package pulled in two AGPL-licensed packages (`@triplit/client`, `ua-parser-js` 2.x) through its optional UI add-on; the licence scan failed. This app never uses that add-on (its server entry does not import it; the production build is the proof), so the add-on is excluded from the install with a bounded override, which removes the AGPL code from the shipped tree entirely: 409 production packages fell back to 237. (2) The production audit failed on a new `sharp` advisory (fixed in 0.35.5) unrelated to Neon; the override is now `>=0.35.5 <1.0.0`.
+- Open risks (not closed): the Neon login package is a beta (0.5.0-beta, pinned) and declares Next 16 as its minimum while this app is on 15.5; no live check against a real Neon Auth project was possible (the sandbox cannot reach Neon); a reported session-cookie renewal bug needs a re-test; email verification, password reset and the staff second factor are untested.
+- A mistaken `git stash` during this work was undone at once (`git stash pop`, all files restored, tree verified).

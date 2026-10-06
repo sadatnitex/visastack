@@ -12,6 +12,7 @@ import {
 } from '@visastack/services';
 import { withAuth } from '@workos-inc/authkit-nextjs';
 import { redirect } from 'next/navigation';
+import { selectedIdentityProvider } from './identity-selection';
 import { checkPilotAccess } from './pilot-access';
 import { reportServerError } from './server-error';
 import { enforceSessionAgeLimit, isStaffContext } from './session-age';
@@ -69,6 +70,12 @@ async function releaseClaimBestEffort(db: Db, invitationId: string): Promise<voi
 export async function withSession<T>(
   fn: (ctx: { readonly db: Db; readonly accountId: string; readonly email: string }) => Promise<T>,
 ): Promise<T> {
+  // Neon Auth sign-in exists (phase 1) but is not yet linked to local accounts (phase 2 of
+  // docs/commercial-v1/neon-auth-migration-plan.md). Until it is, refuse to run rather than
+  // provision or match an account from an identity this function cannot yet map safely.
+  if (selectedIdentityProvider() === 'neon_auth') {
+    throw new Error('Neon Auth sign-in is not linked to accounts yet (phase 2 is pending)');
+  }
   // Read-only: the middleware (with `middlewareAuth` enabled) has already
   // enforced sign-in and refreshed the token, so this never writes cookies
   // during the render. `ensureSignedIn` is intentionally NOT passed — forcing a

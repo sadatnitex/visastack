@@ -1,9 +1,9 @@
-import { signOut } from '@workos-inc/authkit-nextjs';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { isPlatformAdmin } from '../../lib/admin';
 import { PRIMARY_NAV } from '../../lib/navigation';
 import { withSession } from '../../lib/session';
+import { signOutCurrentUser } from '../../lib/sign-out';
 import { AppNav } from './app-nav';
 
 export const dynamic = 'force-dynamic';
@@ -42,7 +42,7 @@ export default async function AppLayout({ children }: { readonly children: React
           <form
             action={async () => {
               'use server';
-              await signOut();
+              await signOutCurrentUser();
             }}
           >
             <button type="submit" className="btn btn-secondary nav-cta">

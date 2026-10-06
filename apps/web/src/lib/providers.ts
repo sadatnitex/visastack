@@ -24,7 +24,8 @@ import {
   type PreviewRendererPort,
   loadUploadQuotaConfig,
 } from '@visastack/services';
-import { WorkosIdentityPort } from './identity-provider';
+import { NeonIdentityPort, WorkosIdentityPort } from './identity-provider';
+import { selectedIdentityProvider } from './identity-selection';
 
 /**
  * The central provider registry (master directive §7 "PR 11"): the one place
@@ -53,7 +54,7 @@ function readEnv(name: string): string | undefined {
 }
 
 const KNOWN_PROVIDERS = {
-  IDENTITY_PROVIDER: ['workos'],
+  IDENTITY_PROVIDER: ['workos', 'neon_auth'],
   STORAGE_PROVIDER: ['vercel_blob', 'neon'],
   DATABASE_PROVIDER: ['neon'],
   MALWARE_SCANNER_PROVIDER: ['builtin', 'clamav'],
@@ -119,15 +120,17 @@ export function validateProviderEnv(): void {
 }
 
 /**
- * Pilot and commercial-track identity provider: WorkOS AuthKit (master
- * directive §7 "PR 11" pilot provider list). The only implementation, so
- * this exists to validate the env var rather than to choose between adapters
- * — see `IdentityPort`'s own doc comment (ports.ts) for what is and isn't
+ * Identity provider: WorkOS AuthKit by default (master directive §7 "PR 11"
+ * pilot provider list), or Neon Auth when `IDENTITY_PROVIDER=neon_auth` (phase 1:
+ * sign-in pieces only; account linking is phase 2, see
+ * docs/commercial-v1/neon-auth-migration-plan.md). See `IdentityPort`'s own doc comment (ports.ts) for what is and isn't
  * wired through it yet.
  */
 export function createIdentityPort(): IdentityPort {
   checkKnownProvider('IDENTITY_PROVIDER');
-  return new WorkosIdentityPort();
+  return selectedIdentityProvider(readEnv) === 'neon_auth'
+    ? new NeonIdentityPort()
+    : new WorkosIdentityPort();
 }
 
 /**
