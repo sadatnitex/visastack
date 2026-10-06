@@ -14,7 +14,8 @@
     "test": "vitest run",
     "eval": "tsx src/eval/run.ts",
     "backfill:protected-fields": "tsx src/backfill-protected-fields.ts",
-    "reconcile:restored-branch": "tsx src/reconcile-restored-branch.ts"
+    "reconcile:restored-branch": "tsx src/reconcile-restored-branch.ts",
+    "verify:audit-chain": "tsx src/verify-audit-chain.ts"
   },
   "dependencies": {
     "@napi-rs/canvas": "^1.0.9",

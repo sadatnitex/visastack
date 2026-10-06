@@ -1,9 +1,16 @@
 name: DB Migrate (manual)
 
 # Applies the reviewed Drizzle migrations to Neon from CI, so no local
-# machine is needed. Requires a repository secret `DATABASE_URL` (the Neon
-# connection string). Trigger manually from the Actions tab and type
-# "migrate" to confirm.
+# machine is needed. Trigger manually from the Actions tab and type
+# "migrate" to confirm. Commercial V1 Part 9 section 13: a controlled job, one at a
+# time, never a pull request preview, run from `main` only.
+#
+# Credential: prefer the secret `MIGRATION_DATABASE_URL`, the connection string of a
+# database role used only for migrations. Without it the job falls back to the
+# application's own connection secrets and says so in its summary. Create the
+# GitHub environment `production-migrations` with "deployment branches: main only"
+# and a required reviewer, and keep the migration secret in that environment, so a
+# branch other than main (or a workflow edited on a branch) cannot read it.
 
 on:
   workflow_dispatch:
@@ -21,8 +28,12 @@ concurrency:
 
 jobs:
   migrate:
-    if: ${{ github.event.inputs.confirm == 'migrate' }}
+    # Only from main, and only with the typed confirmation. (This check lives in the
+    # workflow file, so on its own it does not stop a branch with an edited copy; the
+    # environment's branch rule above is what does.)
+    if: ${{ github.event.inputs.confirm == 'migrate' && github.ref == 'refs/heads/main' }}
     name: Apply migrations to Neon
+    environment: production-migrations
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -45,9 +56,27 @@ jobs:
       # the migrate script resolves the first one present.
       - name: Apply migrations
         env:
+          MIGRATION_DATABASE_URL: ${{ secrets.MIGRATION_DATABASE_URL }}
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           POSTGRES_URL: ${{ secrets.POSTGRES_URL }}
           DATABASE_URL_UNPOOLED: ${{ secrets.DATABASE_URL_UNPOOLED }}
           POSTGRES_URL_NON_POOLING: ${{ secrets.POSTGRES_URL_NON_POOLING }}
           POSTGRES_PRISMA_URL: ${{ secrets.POSTGRES_PRISMA_URL }}
         run: pnpm --filter @visastack/db db:migrate
+
+      # The release record for this migration: which code, which migration, which credential.
+      - name: Record the migration in the job summary
+        if: always()
+        env:
+          RESULT: ${{ job.status }}
+          DEDICATED: ${{ secrets.MIGRATION_DATABASE_URL != '' }}
+        run: |
+          {
+            echo "### Migration record"
+            echo "- Result: $RESULT"
+            echo "- Code SHA: $GITHUB_SHA"
+            echo "- Ref: $GITHUB_REF"
+            echo "- Run: $GITHUB_RUN_ID (attempt $GITHUB_RUN_ATTEMPT)"
+            echo "- Dedicated migration credential: $DEDICATED"
+            echo "- Newest migration in this build: $(node -e "const j=require('./packages/db/migrations/meta/_journal.json');console.log(j.entries.at(-1).tag)")"
+          } >> "$GITHUB_STEP_SUMMARY"

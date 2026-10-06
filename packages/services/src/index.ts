@@ -21,6 +21,7 @@ export {
   type AuditEventRow,
   appendAuditEvent,
   type ApplicantAuditEvent,
+  checkRecentAuditChain,
   listAuditEventsForApplicant,
   listRecentAuditEvents,
 } from './audit';
