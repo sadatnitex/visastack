@@ -37,7 +37,7 @@ the file that holds it was identified. It does not mean the control was run.
 | Switch email off | `EMAIL_PROVIDER` | Found in `.env.example` | Found in code |
 | Check email delivery events | `/api/webhooks/resend` with `RESEND_WEBHOOK_SECRET` | Route exists | Found in code. Needs a live check once email is on |
 | Replace a leaked secret | Vercel environment, GitHub secrets, provider consoles | Outside this repository | NOT VERIFIED. No rotation tool exists for the master key (known gap) |
-| Find a leaked secret in history | A secret scan on pull requests | None runs on this private repository | GAP: planned in the supply-chain task |
+| Find a leaked secret in history | Secret scan of files and every commit, on each pull request and weekly (`docs/security/supply-chain.md`) | Built and tested in `scripts/supply-chain/`; each check proved able to fail | Found in code with tests. Finds known credential shapes only, not every kind of secret |
 | Export one person's data for a request | Account export (`ACCOUNT_EXPORTED`) | Found in `packages/services/src/export.ts` | Found in code |
 | Prove a deletion finished | Erasure verification (`ERASURE_VERIFIED`) | Found in code with tests | Found in code |
 | Restore the database | Neon history branch, then `reconcile-restored-branch` and `verify:audit-chain` | Procedure in `docs/operations/recovery.md` | NOT TESTED. No restore has been rehearsed |
@@ -49,7 +49,7 @@ the file that holds it was identified. It does not mean the control was run.
 Summary of the desk check: 2 steps verified against a test database (the audit chain check and the
 edit and delete protection); 14 steps found in code but never run; 3 steps outside the repository
 that cannot be checked from here; 2 procedures documented but not tested (database restore,
-rollback); 5 gaps that need a person or a purchase (no log place, no secret scan, no independent
+rollback); 4 gaps that need a person or a purchase (no log place, no independent
 copy of document files, no legal reviewer, no incident owners); 1 timing limit (notification and
 date checks run once a day). None of these was fixed by this exercise; each is listed with its
 owner in the report.

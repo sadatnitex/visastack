@@ -28,9 +28,15 @@ We aim to acknowledge reports within 72 hours.
 
 ## Automated controls
 
-- CodeQL static analysis (`.github/workflows/codeql.yml`).
-- Dependency review with severity and license gates
-  (`.github/workflows/dependency-review.yml`).
-- Secret scanning and push protection (enabled in repository settings).
+- Checks that run on every pull request and weekly, including on this private repository:
+  production dependency audit, secret scan (files and full git history), licence scan,
+  rule-based static analysis, browser bundle check, prompt check, test fixture check and
+  preview credential check. Each reports executed, passed, failed and skipped; see
+  `docs/security/supply-chain.md`.
+- CodeQL static analysis (`.github/workflows/codeql.yml`) and dependency review
+  (`.github/workflows/dependency-review.yml`) run only when the repository is public, so they
+  are skipped on the private repository and are not counted as evidence.
+- GitHub secret scanning and push protection apply only if enabled in repository settings; this is
+  not verified from code.
 - Branch protection with required reviews and status checks
   (`docs/governance/branch-protection.md`).

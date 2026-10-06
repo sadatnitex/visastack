@@ -117,6 +117,6 @@ read or change data is.
 ## After
 
 Postmortem as in the README. Questions: how did it get there, and why was that possible? Would a
-secret scan on every pull request have caught it (no such scan runs on this private repository today; it is planned work in the supply-chain task)? Should a
+secret scan on every pull request have caught it (a secret scan of files and history now runs on every pull request and weekly; see [supply-chain.md](../../security/supply-chain.md))? Should a
 person who left lose access to a place they could read secrets from? Which secrets can we now make
 shorter-lived or narrower?

@@ -4612,3 +4612,26 @@ programme rather than being a product defect.
     the master key; create the Neon migration role, the secret `MIGRATION_DATABASE_URL` and the
     GitHub environment `production-migrations`; confirm the Neon history window; allow a rollback
     rehearsal; check preview secret scoping in the Vercel dashboard.
+
+    **Chunk 43 (2026-10-06, SEC-07, Part 9 s15 and Part 10 s6) -- supply-chain finalization.**
+    Built `scripts/supply-chain/` (`checks.mjs`, `scan.mjs`, `checks.test.mjs`, 12 tests): secret
+    scan (14 credential shapes; every tracked file plus the added lines of every commit on every
+    branch), licence scan (deny list for copyleft and source-available licences, named exceptions
+    with reasons), rule-based static analysis (10 patterns, shipped code only), browser bundle
+    check (server variable names from `.env.example`, credential shapes, server-only markers and
+    source maps in `.next/static`), prompt check (15 templates), test fixture check (163 files),
+    preview credential check (workflows, committed environment files, example file, vercel
+    config). Wired into the main CI job after the build (full history checkout, `--no-skips`, JSON
+    report kept as an artifact) and a new weekly workflow `supply-chain-weekly.yml` (Monday 03:17
+    UTC, read-only, no secrets). New page `docs/security/supply-chain.md`; `SECURITY.md`, the
+    secret-compromise runbook and the tabletop gap row now say what is true. Guards proved able to
+    fail: unit tests plant a bad input per check, and on the real repository a planted `eval`, a
+    planted fake key and a planted server variable name in a built browser file turned three
+    checks red (exit 1); removed afterwards, clean again. **First real run: 7 executed, 7 passed, 0
+    skipped.** It first FAILED the licence scan on a real finding: `@img/sharp-libvips-linux-x64`
+    (LGPL-3.0-or-later, via Next.js image optimisation). Judged acceptable (separate, unmodified,
+    replaceable shared binary) and recorded as a named exception rather than loosening the rule.
+    **Limits:** not CodeQL (no data-flow); the secret scan knows credential shapes only; Vercel
+    Preview variable scoping is not verified; Actions pinned by tag; no alert routing for the
+    weekly run; the tabletop count of gaps drops from 5 to 4. **Owner decision (does not block):**
+    pay for GitHub code scanning or accept the free rule-based checks plus independent review.
