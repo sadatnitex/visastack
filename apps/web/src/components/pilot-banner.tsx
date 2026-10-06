@@ -38,13 +38,15 @@ export const PILOT_BANNER_COPY = {
 export function PilotBanner({ mode }: { readonly mode: DeploymentMode }) {
   if (mode === 'commercial') return null;
   const copy = PILOT_BANNER_COPY[mode];
+  // A named region, so the notice is a landmark a screen reader user can find and skip,
+  // not loose content above the page's own landmarks.
   return (
-    <div className="pilot-banner">
+    <section className="pilot-banner" aria-label="About this version">
       <span className="pilot-banner-label">{copy.label}</span>
       <span className="pilot-banner-detail">{copy.detail}</span>
       <a className="pilot-banner-link" href="/status">
         What works today
       </a>
-    </div>
+    </section>
   );
 }
