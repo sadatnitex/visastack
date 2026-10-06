@@ -46,8 +46,8 @@ export default async function PilotAccessDeniedPage() {
         <form
           action={async () => {
             'use server';
-            const { signOut } = await import('@workos-inc/authkit-nextjs');
-            await signOut();
+            const { signOutCurrentUser } = await import('../../lib/sign-out');
+            await signOutCurrentUser();
           }}
         >
           <button type="submit" className="btn btn-primary">

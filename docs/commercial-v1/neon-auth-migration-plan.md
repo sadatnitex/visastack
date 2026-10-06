@@ -1,6 +1,6 @@
 # Plan: sign-in, sign-up and email through Neon
 
-Written 2026-10-06 at the owner's request ("email and sign-in / sign-up authentication should all be done by Neon"). Status: PLAN ONLY, nothing built or switched. Reason: this replaces the sign-in system for every user and every staff action, it cannot be tested live from the build sandbox (the Neon documentation host and any Neon Auth project are unreachable from here), and parts of it cannot be undone once real accounts exist. The owner's decisions are listed at the end.
+Written 2026-10-06 at the owner's request ("email and sign-in / sign-up authentication should all be done by Neon"). Status: PHASE 1 BUILT (see 'Phase 1 result' at the end); phases 2 to 4 not started. Production is unchanged and still uses WorkOS. Reason: this replaces the sign-in system for every user and every staff action, it cannot be tested live from the build sandbox (the Neon documentation host and any Neon Auth project are unreachable from here), and parts of it cannot be undone once real accounts exist. The owner's decisions are listed at the end.
 
 ## What Neon offers (from search results, not read from Neon's own pages, which the sandbox cannot open)
 
@@ -48,3 +48,23 @@ Settings needed from the owner in phase 3 (names only, never paste values into c
 1. Go for phase 1 now (code only, no effect on production).
 2. Confirm the defaults above: link by verified email only; step-up by fresh password check; staff second factor required once confirmed.
 3. Choose the SMTP account (a free tier works at first) so both Neon Auth and app emails use it.
+
+## Phase 1 result (2026-10-06)
+
+Built, all behind `IDENTITY_PROVIDER=neon_auth` (default stays WorkOS; unset or any other value keeps WorkOS):
+
+- Neon identity port with the same contract as the WorkOS one (verified flag passed through, missing flag counts as not verified).
+- Request filter: with Neon selected, `/app/*` and `/pilot-access-denied` require a Neon session and unsigned-in visitors go to `/auth/sign-in`; the landing, status and trust pages and the two auth pages stay public. With WorkOS selected, the filter is exactly as before.
+- `/auth/sign-in` and `/auth/sign-up` pages (plain forms that work without scripts, fixed plain-language messages, one generic failure message so the forms cannot reveal who has an account). Both are 404 under WorkOS.
+- `/api/auth/*` hands requests to Neon Auth; under WorkOS every path is a plain 404.
+- Provider-aware sign-out on the three sign-out buttons.
+- `withSession` refuses to run under Neon until phase 2 (account linking): a premature switch fails closed instead of matching or creating accounts from an identity it cannot yet map safely.
+- Settings validation: base address must be https, cookie secret at least 32 characters, secret never printed.
+
+Facts found while building that change the risk picture (also in `known-issues.md` chunk 50):
+
+1. **The Neon login package is a beta** (`@neondatabase/auth` 0.5.0-beta, pinned exactly). It also pulls in `better-auth`, a Supabase auth client and its UI package.
+2. **Its declared requirement is Next 16 or later**; its own guide says Next 15 and later. This app is on Next 15.5. The package resolves to the app's single Next copy (no second copy was installed) and its tests here pass, but a live check on a real Neon Auth project is still owed.
+3. A reported session-cookie renewal bug (sign-out after about 7 days) should be re-tested.
+
+Not done, owed: a live sign-in against a real Neon Auth project (none exists, and the sandbox cannot reach Neon); email verification and password reset behaviour; the staff second factor; every row of phases 2 to 4.

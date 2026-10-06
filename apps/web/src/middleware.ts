@@ -1,6 +1,8 @@
 import { authkitMiddleware } from '@workos-inc/authkit-nextjs';
+import type { NextRequest } from 'next/server';
 import { isAuthkitPath } from './lib/authkit-paths';
 import { createCspMiddleware } from './lib/csp-middleware';
+import { isNeonProtectedPath, selectedIdentityProvider } from './lib/identity-selection';
 
 /**
  * AuthKit middleware with `middlewareAuth` enabled.
@@ -19,12 +21,27 @@ import { createCspMiddleware } from './lib/csp-middleware';
  * unauthenticated visitors to protected routes are redirected to sign-in by the
  * middleware itself.
  */
-const authkit = authkitMiddleware({
-  middlewareAuth: {
-    enabled: true,
-    unauthenticatedPaths: ['/', '/status', '/callback'],
-  },
-});
+const useNeon = selectedIdentityProvider() === 'neon_auth';
+
+const authkit = useNeon
+  ? undefined
+  : authkitMiddleware({
+      middlewareAuth: {
+        enabled: true,
+        unauthenticatedPaths: ['/', '/status', '/callback'],
+      },
+    });
+
+/**
+ * Neon Auth sign-in check (phase 1 of docs/commercial-v1/neon-auth-migration-plan.md), used only
+ * when `IDENTITY_PROVIDER=neon_auth`. The Neon package is loaded on first use so the default
+ * WorkOS deployment never touches it. Unsigned-in visitors to protected pages are sent to
+ * `/auth/sign-in`.
+ */
+async function neonMiddleware(request: NextRequest) {
+  const { getNeonAuth } = await import('./lib/neon-auth');
+  return getNeonAuth().middleware({ loginUrl: '/auth/sign-in' })(request);
+}
 
 /**
  * The site-wide Content-Security-Policy (Commercial V1 SEC-02) is built per
@@ -34,8 +51,8 @@ const authkit = authkitMiddleware({
  * including `/trust` and the not-found page, gets the policy and nothing else.
  */
 export default createCspMiddleware({
-  authkit,
-  isAuthkitPath,
+  authkit: useNeon ? neonMiddleware : (authkit as NonNullable<typeof authkit>),
+  isAuthkitPath: useNeon ? isNeonProtectedPath : isAuthkitPath,
   enabled: process.env.NODE_ENV === 'production',
   readEnv: (name) => process.env[name],
 });

@@ -1,10 +1,10 @@
 import { listMembershipsForAccount } from '@visastack/services';
-import { signOut } from '@workos-inc/authkit-nextjs';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { isPlatformAdmin } from '../../../lib/admin';
 import { getLocale } from '../../../lib/locale';
 import { withSession } from '../../../lib/session';
+import { signOutCurrentUser } from '../../../lib/sign-out';
 import { setLocaleAction } from '../../actions';
 
 export const metadata: Metadata = { title: 'Account' };
@@ -92,7 +92,7 @@ export default async function AccountPage() {
           <form
             action={async () => {
               'use server';
-              await signOut();
+              await signOutCurrentUser();
             }}
           >
             <button type="submit" className="btn btn-secondary">
