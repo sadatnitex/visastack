@@ -1,6 +1,8 @@
 import { listNotificationsForAccount } from '@visastack/services';
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { EmptyState } from '../../../components/ui';
+import { formatTimestampDate } from '../../../lib/format-date';
 import { withSession } from '../../../lib/session';
 import { markNotificationReadAction } from './actions';
 
@@ -31,10 +33,10 @@ export default async function NotificationsPage() {
 
       <article className="card">
         {notifications.length === 0 ? (
-          <p className="card-body">
-            No alerts yet. Updates about your cases, requests for evidence and documents nearing
-            expiry will appear here.
-          </p>
+          <EmptyState title="No alerts yet">
+            Updates about your cases, requests for evidence and documents nearing expiry will appear
+            here, each with a button that takes you to what needs doing.
+          </EmptyState>
         ) : (
           <div className="rows">
             {notifications.map((n) => (
@@ -60,7 +62,7 @@ export default async function NotificationsPage() {
                     ) : null}
                   </span>
                   <span className="muted" style={{ fontSize: '0.75rem' }}>
-                    {n.createdAt.toLocaleDateString()}
+                    {formatTimestampDate(n.createdAt)}
                   </span>
                 </div>
                 <p className="muted" style={{ fontSize: '0.85rem', margin: 0 }}>

@@ -28,7 +28,7 @@
  * SHOULD render in the viewer's own local timezone; that is correct,
  * expected behavior, not a variant of this same bug.
  */
-export function formatDateOnly(iso: string): string {
+export function formatDateOnly(iso: string | Date): string {
   return new Date(iso).toLocaleDateString(undefined, {
     year: 'numeric',
     month: 'short',
@@ -49,4 +49,26 @@ export function formatTimestampDate(value: string | Date): string {
     month: 'short',
     day: 'numeric',
   });
+}
+
+/** A real moment with its time, for example "6 Oct 2026, 14:05", in the viewer's timezone. */
+export function formatTimestamp(value: string | Date): string {
+  return new Date(value).toLocaleString('en-GB', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
+/**
+ * Whole days from `now` to a date-only value, negative when it has passed. Both sides are
+ * read as calendar days in UTC, matching how date-only values are stored.
+ */
+export function daysUntilDateOnly(value: string | Date, now: Date = new Date()): number {
+  const day = 86_400_000;
+  const target = Math.floor(new Date(value).getTime() / day);
+  const today = Math.floor(now.getTime() / day);
+  return target - today;
 }

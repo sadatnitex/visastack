@@ -5,6 +5,7 @@ import {
 } from '@visastack/services';
 import type { Metadata } from 'next';
 import { isPlatformAdmin, isPlatformOwnerAccount } from '../../../../lib/admin';
+import { formatTimestampDate } from '../../../../lib/format-date';
 import { withSession } from '../../../../lib/session';
 import { tolerantReader } from '../../../../lib/tolerate';
 import { RevokeInvitationButton, RevokeRoleButton } from '../action-buttons';
@@ -88,7 +89,7 @@ export default async function AdminAccessPage() {
                       <span className="row-key">{PLATFORM_ROLE_LABELS[r.role] ?? r.role}</span>
                       <span style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
                         <span className="muted" style={{ fontSize: '0.8rem' }}>
-                          {r.assignedAt.toLocaleDateString()}
+                          {formatTimestampDate(r.assignedAt)}
                         </span>
                         {data.owner ? <RevokeRoleButton grantId={r.id} /> : null}
                       </span>
@@ -157,7 +158,7 @@ export default async function AdminAccessPage() {
                       </div>
                       <span className="muted" style={{ fontSize: '0.8rem' }}>
                         {inv.reason ?? 'No reason given'} · invited{' '}
-                        {inv.invitedAt.toLocaleDateString()}
+                        {formatTimestampDate(inv.invitedAt)}
                       </span>
                     </div>
                   );
@@ -190,7 +191,7 @@ export default async function AdminAccessPage() {
                     </span>
                     <span style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
                       <span className="muted" style={{ fontSize: '0.8rem' }}>
-                        since {new Date(a.createdAt).toLocaleDateString()}
+                        since {formatTimestampDate(a.createdAt)}
                       </span>
                       <span
                         className={`badge ${a.applicantCount > 0 ? 'badge-warning' : 'badge-neutral'}`}

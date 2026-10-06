@@ -17,6 +17,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { bootstrapAdminEmails, isPlatformOwnerAccount } from '../../../../../lib/admin';
+import { formatTimestamp, formatTimestampDate } from '../../../../../lib/format-date';
 import { withSession } from '../../../../../lib/session';
 import {
   formatMeterValue,
@@ -268,7 +269,7 @@ export default async function AdminOrganizationPage({
                       {h.fromStatus ?? 'opened'} → {h.toStatus}
                     </span>
                     <span className="muted" style={{ fontSize: '0.8rem' }}>
-                      {h.createdAt.toLocaleDateString()} · {h.reason}
+                      {formatTimestampDate(h.createdAt)} · {h.reason}
                     </span>
                   </div>
                 ))}
@@ -355,7 +356,7 @@ export default async function AdminOrganizationPage({
                   style={{ flexDirection: 'column', alignItems: 'stretch', gap: '0.4rem' }}
                 >
                   <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.75rem' }}>
-                    <span className="row-key">Until {o.expiryAt.toLocaleString()}</span>
+                    <span className="row-key">Until {formatTimestamp(o.expiryAt)}</span>
                     <span style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
                       <span className={`badge ${tone}`}>{status}</span>
                       {active ? (

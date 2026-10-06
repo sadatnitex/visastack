@@ -8,6 +8,10 @@ import {
 } from '@visastack/services';
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
+import { EmptyState, StatusBadge, type Tone } from '../../../../../components/ui';
+import { humanizeCode } from '../../../../../lib/format-code';
+import { daysUntilDateOnly, formatDateOnly } from '../../../../../lib/format-date';
+import { PROFILE_FIELDS } from '../../../../../lib/profile-fields';
 import { withSession } from '../../../../../lib/session';
 import { SubmitResponseForm } from './submit-response-form';
 
@@ -27,6 +31,46 @@ const STATUS_BADGE: Record<string, { label: string; tone: string }> = {
   FULFILLED: { label: 'Fulfilled', tone: 'badge-success' },
   DECLINED: { label: 'Declined', tone: 'badge-neutral' },
 };
+
+/** What happens next, for each state, in words the person who was asked can act on. */
+const NEXT_HINT: Record<string, string> = {
+  OPEN: 'Next: send a document or detail from your wallet, or add a new one.',
+  RECEIVED: 'Sent. The agency will review it. Nothing more is needed from you yet.',
+  UNDER_REVIEW: 'The agency is reviewing what you sent. Nothing more is needed from you yet.',
+  ACCEPTED: 'Accepted. Nothing more is needed.',
+  NEEDS_REPLACEMENT: 'Next: send a replacement. The reason is shown below.',
+  CANCELLED: 'The agency cancelled this request. Nothing is needed.',
+};
+
+/** The deadline as a status: overdue is serious, due within a week is a warning, later is calm. */
+function dueLabel(
+  dueDate: string | Date,
+  status: string,
+): { readonly label: string; readonly tone: Tone } | null {
+  if (!AWAITING_SUBMISSION.has(status)) return null;
+  const days = daysUntilDateOnly(dueDate);
+  if (days < 0) return { label: `Overdue by ${plural(-days, 'day')}`, tone: 'danger' };
+  if (days === 0) return { label: 'Due today', tone: 'warning' };
+  if (days <= 7) return { label: `Due in ${plural(days, 'day')}`, tone: 'warning' };
+  return { label: `Due in ${plural(days, 'day')}`, tone: 'neutral' };
+}
+
+function plural(count: number, noun: string): string {
+  return `${count} ${noun}${count === 1 ? '' : 's'}`;
+}
+
+/** A person-readable name for what is being asked for, never the stored key. */
+function requestTarget(req: {
+  readonly kind: string;
+  readonly fieldKey?: string | null;
+  readonly docType?: string | null;
+}): string {
+  if (req.kind === 'FIELD') {
+    const field = PROFILE_FIELDS.find((f) => f.key === req.fieldKey);
+    return field?.label ?? (req.fieldKey ? humanizeCode(req.fieldKey) : 'Not specified');
+  }
+  return req.docType ? humanizeCode(req.docType) : 'Not specified';
+}
 
 const AWAITING_SUBMISSION = new Set(['OPEN', 'NEEDS_REPLACEMENT']);
 
@@ -70,6 +114,16 @@ export default async function EvidencePage({
 
   if (!data) notFound();
 
+  const sorted = [...data.requests].sort((x, y) => {
+    const waiting = (r: { status: string }) => (AWAITING_SUBMISSION.has(r.status) ? 0 : 1);
+    if (waiting(x) !== waiting(y)) return waiting(x) - waiting(y);
+    // Soonest deadline first; no deadline last.
+    const dx = x.dueDate ? new Date(x.dueDate).getTime() : Number.POSITIVE_INFINITY;
+    const dy = y.dueDate ? new Date(y.dueDate).getTime() : Number.POSITIVE_INFINITY;
+    return dx - dy;
+  });
+  const awaiting = data.requests.filter((r) => AWAITING_SUBMISSION.has(r.status));
+
   return (
     <>
       <div className="toolbar" style={{ marginBottom: '2rem' }}>
@@ -86,19 +140,29 @@ export default async function EvidencePage({
         </div>
       </div>
 
+      {awaiting.length > 0 ? (
+        <output className="notice notice-warn" style={{ display: 'block', marginBottom: '1.5rem' }}>
+          {awaiting.length === 1
+            ? '1 request is waiting for you.'
+            : `${awaiting.length} requests are waiting for you.`}{' '}
+          Reply to each one below.
+        </output>
+      ) : null}
+
       <article className="card">
         {data.requests.length === 0 ? (
-          <p className="card-body">
-            No evidence requests. When an agency asks for something, it appears here.
-          </p>
+          <EmptyState title="No evidence requests">
+            When an agency asks for a document or a detail, it appears here with what is needed,
+            why, and the date it is needed by.
+          </EmptyState>
         ) : (
           <div className="rows">
-            {data.requests.map((req) => {
+            {sorted.map((req) => {
               const badge = STATUS_BADGE[req.status] ?? {
-                label: req.status,
+                label: humanizeCode(req.status),
                 tone: 'badge-neutral',
               };
-              const target = req.kind === 'FIELD' ? req.fieldKey : req.docType;
+              const target = requestTarget(req);
               const decisions = data.decisionsByRequest.get(req.id) ?? [];
               const latestDecision = decisions[0];
               const candidateFacts =
@@ -111,41 +175,33 @@ export default async function EvidencePage({
                 req.kind === 'DOCUMENT'
                   ? data.documents.filter((doc) => doc.docType === req.docType)
                   : [];
+              const due = req.dueDate ? dueLabel(req.dueDate, req.status) : null;
               return (
-                <div
-                  className="row"
-                  key={req.id}
-                  style={{ flexDirection: 'column', alignItems: 'stretch', gap: '0.5rem' }}
-                >
-                  <div
-                    style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                      gap: '0.75rem',
-                    }}
-                  >
-                    <span className="row-key">
-                      {req.kind === 'FIELD' ? 'Field' : 'Document'}: {target ?? '(unspecified)'}
-                      <span
-                        className="badge badge-neutral"
-                        style={{ marginLeft: '0.5rem', fontSize: '0.7rem' }}
-                      >
-                        Agency request
-                      </span>
+                <div className="case-row" key={req.id}>
+                  <div className="case-row-head">
+                    <span className="case-row-title">
+                      {req.kind === 'FIELD' ? 'Detail' : 'Document'}: {target}
                     </span>
-                    <span className={`badge ${badge.tone}`}>{badge.label}</span>
+                    <span className="case-row-badges">
+                      {due ? <StatusBadge tone={due.tone}>{due.label}</StatusBadge> : null}
+                      <StatusBadge tone={badge.tone.replace('badge-', '') as Tone}>
+                        {badge.label}
+                      </StatusBadge>
+                    </span>
                   </div>
-                  {req.message ? (
-                    <p className="muted" style={{ margin: 0, fontSize: '0.85rem' }}>
-                      &ldquo;{req.message}&rdquo;
-                    </p>
-                  ) : null}
+                  <p className="case-row-meta" style={{ margin: 0 }}>
+                    {req.message
+                      ? `Why it is needed: \u201c${req.message}\u201d`
+                      : 'The agency did not add a reason. Ask them if you are unsure.'}
+                  </p>
                   {req.dueDate ? (
-                    <p className="muted" style={{ margin: 0, fontSize: '0.8rem' }}>
-                      Due {new Date(req.dueDate).toLocaleDateString()}
+                    <p className="case-row-meta" style={{ margin: 0 }}>
+                      Needed by {formatDateOnly(req.dueDate)}
                     </p>
                   ) : null}
+                  <p className="case-row-meta" style={{ margin: 0 }}>
+                    {NEXT_HINT[req.status] ?? ''}
+                  </p>
                   {latestDecision?.reason ? (
                     <p className="field-msg field-msg-err" style={{ margin: 0 }}>
                       {DECISION_PREFIX[latestDecision.outcome] ?? ''}

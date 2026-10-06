@@ -2,6 +2,7 @@
 
 import { useActionState } from 'react';
 import { FormMessage, SubmitButton } from '../../../../components/form-feedback';
+import { formatTimestamp } from '../../../../lib/format-date';
 import { type ActionState, recordSubmissionAction } from './actions';
 
 const INITIAL: ActionState = { ok: true, message: '' };
@@ -48,7 +49,7 @@ export function SubmissionReportPanel({
               style={{ flexDirection: 'column', alignItems: 'stretch', gap: '0.3rem' }}
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.75rem' }}>
-                <span className="row-key">{new Date(s.submittedAt).toLocaleString()}</span>
+                <span className="row-key">{formatTimestamp(s.submittedAt)}</span>
                 <span className="badge badge-neutral">
                   {CHANNEL_LABELS[s.channel] ?? s.channel}
                 </span>

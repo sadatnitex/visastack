@@ -2,6 +2,7 @@
 
 import { useActionState } from 'react';
 import { FormMessage, SubmitButton } from '../../../../../../components/form-feedback';
+import { formatTimestamp } from '../../../../../../lib/format-date';
 import { type ActionState, decideAcknowledgementAction } from './actions';
 
 const INITIAL: ActionState = { ok: true, message: '' };
@@ -53,20 +54,44 @@ export function AcknowledgementPanel({
 }) {
   const [state, formAction, pending] = useActionState(decideAcknowledgementAction, INITIAL);
   const live = history.find((entry) => entry.decision === 'ACKNOWLEDGED' && !entry.invalidatedAt);
+  const changedSince =
+    !live && history.some((entry) => entry.decision === 'ACKNOWLEDGED' && entry.invalidatedAt);
 
   return (
     <article className="card" style={{ marginBottom: '1.5rem' }}>
-      <p className="card-kicker">Applicant-acknowledged prepared file</p>
-      <h2 className="card-title">Review and decide</h2>
+      <p className="card-kicker">Final review</p>
+      <h2 className="card-title">Confirm this prepared file</h2>
       <p className="muted" style={{ fontSize: '0.85rem', marginBottom: '1rem' }}>
         This page is the exact evidence bundle, selected facts, and rule context this decision
         applies to. Acknowledging it does not mean it has been submitted, officially verified, or
         approved by anyone -- only that you have reviewed this exact content.
       </p>
 
+      <div className="notice" style={{ marginBottom: '1rem' }}>
+        <strong>What you are confirming</strong>
+        <ul style={{ margin: '0.5rem 0 0', paddingLeft: '1.25rem' }}>
+          <li>
+            This exact version of the file, reference{' '}
+            <span className="mono">{checksum.slice(0, 8)}</span>. It is the content shown on this
+            page.
+          </li>
+          <li>That you have read it. Acknowledging is not the same as submitting it.</li>
+          <li>
+            If the case changes afterwards, this confirmation stops counting and you will be asked
+            to decide again.
+          </li>
+        </ul>
+      </div>
+
+      {changedSince ? (
+        <p className="notice notice-warn" style={{ marginBottom: '1rem' }}>
+          The case changed after you last acknowledged it. Review this version and decide again.
+        </p>
+      ) : null}
+
       {live ? (
         <div className="notice notice-ok" style={{ marginBottom: '1rem' }}>
-          <strong>Acknowledged</strong> on {live.createdAt.toLocaleString()}. This is still the live
+          <strong>Acknowledged</strong> on {formatTimestamp(live.createdAt)}. This is still the live
           acknowledgement for this case.
         </div>
       ) : null}
@@ -84,7 +109,7 @@ export function AcknowledgementPanel({
                   {DECISION_LABELS[entry.decision]}
                 </span>
                 <span className="muted" style={{ fontSize: '0.75rem' }}>
-                  {entry.createdAt.toLocaleString()}
+                  {formatTimestamp(entry.createdAt)}
                 </span>
               </div>
               {entry.reason ? (
@@ -93,7 +118,7 @@ export function AcknowledgementPanel({
               {entry.invalidatedAt ? (
                 <p className="muted" style={{ margin: 0, fontSize: '0.75rem' }}>
                   Historical -- the case changed after this decision, on{' '}
-                  {entry.invalidatedAt.toLocaleString()}. A new decision is needed.
+                  {formatTimestamp(entry.invalidatedAt)}. A new decision is needed.
                 </p>
               ) : null}
             </div>

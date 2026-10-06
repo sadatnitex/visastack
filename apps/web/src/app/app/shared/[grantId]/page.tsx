@@ -2,6 +2,8 @@ import { getRecipientWorkspace } from '@visastack/services';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { EmptyState } from '../../../../components/ui';
+import { formatTimestampDate } from '../../../../lib/format-date';
 import { profileField } from '../../../../lib/profile-fields';
 import { withSession } from '../../../../lib/session';
 
@@ -39,7 +41,7 @@ export default async function SharedWorkspacePage({
           <p className="muted" style={{ margin: '0.35rem 0 0' }}>
             {workspace.grant.purpose}
             {workspace.grant.expiryAt
-              ? ` · expires ${new Date(workspace.grant.expiryAt).toLocaleDateString()}`
+              ? ` · expires ${formatTimestampDate(workspace.grant.expiryAt)}`
               : ''}
           </p>
         </div>
@@ -64,7 +66,9 @@ export default async function SharedWorkspacePage({
           <p className="card-kicker">Profile</p>
           <h2 className="card-title">Shared fields</h2>
           {workspace.fields.length === 0 ? (
-            <p className="card-body">No profile fields are shared with you.</p>
+            <EmptyState title="No profile details shared">
+              This person has not shared any profile details with you for this purpose.
+            </EmptyState>
           ) : (
             <div className="rows" style={{ marginTop: '0.5rem' }}>
               {workspace.fields.map((field) => (
@@ -83,7 +87,9 @@ export default async function SharedWorkspacePage({
           <p className="card-kicker">Document Vault</p>
           <h2 className="card-title">Shared documents</h2>
           {workspace.documents.length === 0 ? (
-            <p className="card-body">No documents are shared with you.</p>
+            <EmptyState title="No documents shared">
+              This person has not shared any documents with you for this purpose.
+            </EmptyState>
           ) : (
             <>
               <div className="rows" style={{ marginTop: '0.5rem', marginBottom: '1rem' }}>

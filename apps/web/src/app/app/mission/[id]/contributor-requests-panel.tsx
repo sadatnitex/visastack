@@ -2,6 +2,7 @@
 
 import { useActionState } from 'react';
 import { FormMessage, SubmitButton } from '../../../../components/form-feedback';
+import { formatTimestampDate } from '../../../../lib/format-date';
 import {
   type ActionState,
   createContributorRequestAction,
@@ -55,9 +56,7 @@ export function ContributorRequestsPanel({
                 </div>
                 <span className="muted" style={{ fontSize: '0.8rem' }}>
                   {r.purpose}
-                  {r.status === 'PENDING'
-                    ? ` · expires ${new Date(r.expiresAt).toLocaleDateString()}`
-                    : ''}
+                  {r.status === 'PENDING' ? ` · expires ${formatTimestampDate(r.expiresAt)}` : ''}
                 </span>
                 {r.status === 'PENDING' ? (
                   <RevokeButton missionId={missionId} requestId={r.id} />

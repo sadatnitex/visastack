@@ -1,6 +1,7 @@
 import { type AuditEventRow, listRecentAuditEvents } from '@visastack/services';
 import type { Metadata } from 'next';
 import { isPlatformAdmin } from '../../../../lib/admin';
+import { formatTimestamp } from '../../../../lib/format-date';
 import { withSession } from '../../../../lib/session';
 import { tolerantReader } from '../../../../lib/tolerate';
 import { AdminRestricted } from '../admin-restricted';
@@ -71,7 +72,7 @@ export default async function AdminAuditPage() {
                       ) : null}
                     </div>
                     <span className="muted" style={{ fontSize: '0.78rem' }}>
-                      {event.occurredAt.toLocaleString()}
+                      {formatTimestamp(event.occurredAt)}
                       {event.resourceType ? ` · ${event.resourceType}` : ''}
                       {event.reason ? ` · ${event.reason}` : ''}
                     </span>

@@ -2,6 +2,7 @@
 
 import { useActionState } from 'react';
 import { FormMessage, SubmitButton } from '../../../../components/form-feedback';
+import { formatTimestampDate } from '../../../../lib/format-date';
 import {
   type ActionState,
   fileComplaintAction,
@@ -68,7 +69,7 @@ export function ComplaintPanel({
               style={{ flexDirection: 'column', alignItems: 'stretch', gap: '0.35rem' }}
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.75rem' }}>
-                <span className="row-key">{new Date(c.createdAt).toLocaleDateString()}</span>
+                <span className="row-key">{formatTimestampDate(c.createdAt)}</span>
                 <span className={`badge ${STATUS_TONES[c.status] ?? 'badge-neutral'}`}>
                   {c.status}
                 </span>
@@ -86,7 +87,7 @@ export function ComplaintPanel({
                   {c.events.map((e) => (
                     <p key={e.id} className="muted" style={{ fontSize: '0.72rem', margin: 0 }}>
                       {e.fromStatus ? `${e.fromStatus} → ${e.toStatus}` : `Filed (${e.toStatus})`} ·{' '}
-                      {new Date(e.createdAt).toLocaleDateString()}
+                      {formatTimestampDate(e.createdAt)}
                       {e.note ? ` · ${e.note}` : ''}
                     </p>
                   ))}
@@ -173,7 +174,7 @@ export function FeedbackPanel({
             >
               <span style={{ fontSize: '0.9rem' }}>{f.comments}</span>
               <span className="muted" style={{ fontSize: '0.75rem' }}>
-                {new Date(f.createdAt).toLocaleDateString()}
+                {formatTimestampDate(f.createdAt)}
               </span>
             </div>
           ))}

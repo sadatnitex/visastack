@@ -25,6 +25,7 @@ import {
   isInconsistencyConfigured,
   isOcrConfigured,
 } from '../../../../../lib/ai';
+import { getPlatformCapabilities } from '../../../../../lib/capabilities';
 import { formatTimestampDate } from '../../../../../lib/format-date';
 import { getLocale } from '../../../../../lib/locale';
 import { isStillProcessing } from '../../../../../lib/resilience';
@@ -252,7 +253,11 @@ export default async function ApplicantDocumentsPage({
                 limitBytes={data.quota.maxApplicantEvidenceBytes}
               />
             </div>
-            <DocumentUploader applicantId={id} limitLabel={mbLabel(data.quota.maxUploadBytes)} />
+            <DocumentUploader
+              applicantId={id}
+              limitLabel={mbLabel(data.quota.maxUploadBytes)}
+              virusScanning={getPlatformCapabilities().malwareScanning === 'available'}
+            />
           </article>
         </>
       )}

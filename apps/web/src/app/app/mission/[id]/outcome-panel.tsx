@@ -2,6 +2,7 @@
 
 import { useActionState } from 'react';
 import { FormMessage, SubmitButton } from '../../../../components/form-feedback';
+import { formatDateOnly } from '../../../../lib/format-date';
 import { type ActionState, recordOutcomeAction } from './actions';
 
 const INITIAL: ActionState = { ok: true, message: '' };
@@ -66,7 +67,7 @@ export function OutcomePanel({
               style={{ flexDirection: 'column', alignItems: 'stretch', gap: '0.35rem' }}
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.75rem' }}>
-                <span className="row-key">{new Date(o.decisionDate).toLocaleDateString()}</span>
+                <span className="row-key">{formatDateOnly(o.decisionDate)}</span>
                 <span className={`badge ${DECISION_TONES[o.decision] ?? 'badge-neutral'}`}>
                   {DECISION_LABELS[o.decision] ?? o.decision}
                 </span>

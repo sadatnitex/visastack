@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { cache } from 'react';
 import { TrustUnavailable } from '../../../components/trust-unavailable';
+import { formatDateOnly } from '../../../lib/format-date';
 import { withPublicDb } from '../../../lib/public-db';
 import { reportServerError } from '../../../lib/server-error';
 import { formatPrice } from '../../../lib/usage-format';
@@ -103,12 +104,12 @@ export default async function PublicTrustRoutePage({
           <p className="card-body">{route.routeDescription}</p>
           {route.effectiveDate ? (
             <p className="muted" style={{ fontSize: '0.8rem', marginTop: '0.75rem' }}>
-              In effect since {route.effectiveDate.toLocaleDateString()}
+              In effect since {formatDateOnly(route.effectiveDate)}
             </p>
           ) : null}
           {route.nextReviewDate ? (
             <p className="muted" style={{ fontSize: '0.8rem', marginTop: '0.25rem' }}>
-              Next reviewed {route.nextReviewDate.toLocaleDateString()}
+              Next reviewed {formatDateOnly(route.nextReviewDate)}
             </p>
           ) : null}
         </article>

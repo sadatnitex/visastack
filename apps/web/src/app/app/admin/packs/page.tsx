@@ -7,6 +7,7 @@ import {
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { isPlatformAdmin } from '../../../../lib/admin';
+import { formatDateOnly } from '../../../../lib/format-date';
 import { withSession } from '../../../../lib/session';
 import { CreatePackForm, SetDocumentExpiryPolicyForm } from './pack-forms';
 
@@ -101,7 +102,7 @@ export default async function PackStudioPage() {
                       </span>
                     </span>
                     <span className="muted" style={{ fontSize: '0.8rem' }}>
-                      due {due.nextReviewDate.toLocaleDateString()}
+                      due {formatDateOnly(due.nextReviewDate)}
                     </span>
                   </Link>
                 ))}

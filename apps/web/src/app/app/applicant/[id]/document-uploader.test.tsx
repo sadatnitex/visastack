@@ -6,8 +6,13 @@ vi.mock('./actions', () => ({
   uploadDocumentAction: async () => ({ ok: true, message: '' }),
 }));
 
-const { DocumentUploader, UPLOADING_SLOW_TEXT, UPLOADING_TEXT, UPLOAD_UNKNOWN_OUTCOME } =
-  await import('./document-uploader');
+const {
+  DocumentUploader,
+  formatFileSize,
+  UPLOADING_SLOW_TEXT,
+  UPLOADING_TEXT,
+  UPLOAD_UNKNOWN_OUTCOME,
+} = await import('./document-uploader');
 
 describe('the upload form', () => {
   const html = renderToStaticMarkup(<DocumentUploader applicantId="a1" limitLabel="5 MB" />);
@@ -57,5 +62,27 @@ describe('what the form says when an upload goes quiet', () => {
     expect(UPLOADING_TEXT).toContain('keep this page open');
     expect(UPLOADING_SLOW_TEXT).toContain('taking longer than usual');
     expect(UPLOADING_SLOW_TEXT).toContain('check the list of documents below before trying again');
+  });
+});
+
+describe('what the upload form claims about checking', () => {
+  it('claims a virus scan only when one is switched on', () => {
+    const off = textOf(renderToStaticMarkup(<DocumentUploader applicantId="a1" />));
+    expect(off).not.toContain('viruses');
+    expect(off).toContain('file type and structure are checked on upload');
+    const on = textOf(renderToStaticMarkup(<DocumentUploader applicantId="a1" virusScanning />));
+    expect(on).toContain('scanned for viruses on upload');
+  });
+
+  it('says where the file is kept and who can open it', () => {
+    expect(textOf(renderToStaticMarkup(<DocumentUploader applicantId="a1" />))).toContain(
+      'Stored privately. Only you and the people you choose to share with can open it.',
+    );
+  });
+
+  it('writes a chosen file size in words a person can read', () => {
+    expect(formatFileSize(310_000)).toBe('310 KB');
+    expect(formatFileSize(2_400_000)).toBe('2.4 MB');
+    expect(formatFileSize(512)).toBe('512 bytes');
   });
 });

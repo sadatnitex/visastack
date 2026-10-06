@@ -2,6 +2,8 @@ import { type MessageKey, createTranslator } from '@visastack/i18n';
 import { listGrantsForRecipientAccount } from '@visastack/services';
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { EmptyState } from '../../../components/ui';
+import { formatTimestampDate } from '../../../lib/format-date';
 import { getLocale } from '../../../lib/locale';
 import { withSession } from '../../../lib/session';
 import { acceptGrantAction } from './actions';
@@ -40,9 +42,10 @@ export default async function SharedWithMePage() {
 
       <article className="card">
         {grants.length === 0 ? (
-          <p className="card-body">
-            Nothing has been shared with you yet. When someone grants you access, it appears here.
-          </p>
+          <EmptyState title="Nothing shared with you yet">
+            When someone invites you to see their information, the invitation appears here. Nothing
+            is shared until you accept.
+          </EmptyState>
         ) : (
           <div className="rows">
             {grants.map(({ grant, applicantName }) => {
@@ -71,9 +74,7 @@ export default async function SharedWithMePage() {
                   </div>
                   <p className="muted" style={{ margin: 0, fontSize: '0.8rem' }}>
                     {grant.actions.length} permission{grant.actions.length === 1 ? '' : 's'}
-                    {grant.expiryAt
-                      ? ` · expires ${new Date(grant.expiryAt).toLocaleDateString()}`
-                      : ''}
+                    {grant.expiryAt ? ` · expires ${formatTimestampDate(grant.expiryAt)}` : ''}
                   </p>
                   {grant.status === 'PENDING_ACCEPTANCE' ? (
                     <form action={acceptGrantAction}>

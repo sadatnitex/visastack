@@ -8,6 +8,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { isPlatformAdmin } from '../../../../../lib/admin';
+import { formatDateOnly, formatTimestampDate } from '../../../../../lib/format-date';
 import { withSession } from '../../../../../lib/session';
 import { formatPrice } from '../../../../../lib/usage-format';
 import { AddRequirementForm, PublicTrustContentForm, VerifyChecksumForm } from '../pack-forms';
@@ -134,13 +135,14 @@ export default async function PackDetailPage({
 
                 {isWithdrawn ? (
                   <p className="muted" style={{ fontSize: '0.85rem', marginBottom: '1rem' }}>
-                    Withdrawn {version.withdrawnAt?.toLocaleDateString()}: {version.withdrawnReason}
+                    Withdrawn {version.withdrawnAt ? formatTimestampDate(version.withdrawnAt) : ''}:{' '}
+                    {version.withdrawnReason}
                   </p>
                 ) : null}
 
                 {(isPublished || isWithdrawn) && version.nextReviewDate ? (
                   <p className="muted" style={{ fontSize: '0.85rem', marginBottom: '0.5rem' }}>
-                    Next review: {version.nextReviewDate.toLocaleDateString()}
+                    Next review: {formatDateOnly(version.nextReviewDate)}
                   </p>
                 ) : null}
 
@@ -189,7 +191,7 @@ export default async function PackDetailPage({
                         {req.sourceInaccessibleAt ? (
                           <span className="badge badge-danger" style={{ alignSelf: 'flex-start' }}>
                             Source inaccessible since{' '}
-                            {req.sourceInaccessibleAt.toLocaleDateString()}
+                            {formatTimestampDate(req.sourceInaccessibleAt)}
                           </span>
                         ) : null}
                         <div style={{ marginTop: '0.2rem' }}>
