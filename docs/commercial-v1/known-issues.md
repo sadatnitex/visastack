@@ -4689,3 +4689,36 @@ programme rather than being a product defect.
   keyboard-only pass and the screen-reader pass (NVDA/JAWS, VoiceOver, TalkBack), Safari and Firefox,
   zoom and text spacing. WCAG 2.2 AA is not claimed; the report line is "automated and keyboard-behaviour
   checks pass; screen-reader pass owed". Bangla deferred by the owner. **Owner action:** none blocks.
+
+### Chunk 46 (2026-10-06): Part 9 checkpoint and Part 10 sections 1 to 4, first pass
+
+- **Part 9 checkpoint: BLOCKED, not failed** (`docs/commercial-v1/part-9-checkpoint.md`). One run on `d3c3902`:
+  lint, typecheck, build, dependency audit, all seven supply-chain scans, the load suite and the smoke
+  check passed; the unit and service tests passed (2,759 passed, 3 skipped, 0 failed, uncached); browser checks gave 75
+  passed, 2 failed (the two known sign-in redirect tests that cannot reach the sign-in provider from the
+  sandbox), 21 skipped (staging-only). I18N is reported as deferred by the owner. The block is the list
+  of launch blockers in that document, none of which this environment can close.
+- **Correction to my own first run.** The first test pass reported success in 30 seconds because the
+  build cache served 7 of 8 packages from an earlier run. I re-ran it uncached before writing the
+  result down.
+- **Real defect found and fixed (Part 10 s2).** The staging end-to-end workflow ran on every successful
+  deployment, including pull-request previews, with real identity secrets and the preview's own test
+  code checked out. The directive forbids exactly that. It now needs the Production environment, or a
+  manual dispatch.
+- **Eight cross-account tests now have real bodies** in `apps/web/e2e/authenticated-workspace.spec.ts`:
+  three between two travellers (create and revoke before acceptance, narrow view, pause and resume) and
+  five for an agency (needs a pre-built staging agency fixture named by four repository variables). They
+  are gated on two different identities and skip with a BLOCKED reason otherwise. **They have never been
+  run**: selectors were written from reading the forms, not from a live page, and expect to need a
+  round of fixes on first execution. A single identity cannot fake the isolation: the gate refuses a
+  second identity equal to the first.
+- **Journeys J01 to J15: all BLOCKED**, none executed through the real UI (`part-10-journeys.md`). The
+  one live check was the public catalog, which loaded but has no published route.
+- **Acceptance matrix A01 to A35** (`part-10-acceptance-matrix.md`): 1 PASS (A14), 18 BLOCKED, 16
+  NOT_EXECUTED, 0 FAIL. The ledger's A and J tables are updated to match; they had been stale
+  (implemented areas still said NOT_STARTED).
+- **Section 1 re-read was not done in full** (cost rules); `part-10-reread.md` says exactly what was
+  read and records the divergence (one merged change since the last base; PR #77 untouched).
+- **Owner decisions:** provision the two staging identities and the agency fixture (PR #77 has the code
+  half; a session cannot write repository secrets); appoint the incident owner, backup owner and legal
+  reviewer; choose document backup and key escrow; configure ClamAV.

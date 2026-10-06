@@ -12,6 +12,18 @@ name: WorkOS Staging E2E (authenticated)
 #   E2E_BASE_URL (optional)       — target URL; defaults to the triggering
 #                                   deployment's URL, or the production URL
 #
+# For the eight cross-account tests (directive Part 10 section 2) also add:
+#   WORKOS_STAGING_TEST_EMAIL_2 / WORKOS_STAGING_TEST_PASSWORD_2
+#                                 - a SECOND, different synthetic identity
+#   E2E_AGENCY_ORG_ID, E2E_AGENCY_ASSIGNED_APPLICANT_NAME,
+#   E2E_AGENCY_UNASSIGNED_APPLICANT_ID, E2E_AGENCY_UNASSIGNED_APPLICANT_NAME
+#                                 - repository variables naming the staging
+#                                   agency fixture (see the spec's header)
+# Without them those tests are skipped and reported BLOCKED, never passed.
+#
+# Trusted code only: a deployment-triggered run needs the PRODUCTION
+# environment. A pull-request preview deployment never receives these secrets.
+#
 # To enable: add the two required secrets under
 # Settings → Secrets and variables → Actions. Leave them unset to keep this
 # workflow a no-op.
@@ -48,7 +60,7 @@ jobs:
   authenticated-e2e:
     name: Authenticated workspace journey (WorkOS staging)
     needs: check-configured
-    if: needs.check-configured.outputs.configured == 'true' && (github.event_name == 'workflow_dispatch' || github.event.deployment_status.state == 'success')
+    if: needs.check-configured.outputs.configured == 'true' && (github.event_name == 'workflow_dispatch' || (github.event.deployment_status.state == 'success' && github.event.deployment.environment == 'Production'))
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -85,6 +97,12 @@ jobs:
           PLAYWRIGHT_BASE_URL: ${{ vars.E2E_BASE_URL || github.event.deployment_status.environment_url || github.event.deployment_status.target_url }}
           WORKOS_STAGING_TEST_EMAIL: ${{ secrets.WORKOS_STAGING_TEST_EMAIL }}
           WORKOS_STAGING_TEST_PASSWORD: ${{ secrets.WORKOS_STAGING_TEST_PASSWORD }}
+          WORKOS_STAGING_TEST_EMAIL_2: ${{ secrets.WORKOS_STAGING_TEST_EMAIL_2 }}
+          WORKOS_STAGING_TEST_PASSWORD_2: ${{ secrets.WORKOS_STAGING_TEST_PASSWORD_2 }}
+          E2E_AGENCY_ORG_ID: ${{ vars.E2E_AGENCY_ORG_ID }}
+          E2E_AGENCY_ASSIGNED_APPLICANT_NAME: ${{ vars.E2E_AGENCY_ASSIGNED_APPLICANT_NAME }}
+          E2E_AGENCY_UNASSIGNED_APPLICANT_ID: ${{ vars.E2E_AGENCY_UNASSIGNED_APPLICANT_ID }}
+          E2E_AGENCY_UNASSIGNED_APPLICANT_NAME: ${{ vars.E2E_AGENCY_UNASSIGNED_APPLICANT_NAME }}
         run: npx playwright test authenticated-workspace.spec.ts
 
       - name: Upload Playwright report
