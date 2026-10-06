@@ -94,7 +94,11 @@ const SCREENS: readonly Screen[] = [
     },
     build: async () => await NotificationsPage(),
   },
-  { name: 'shared with me, nothing yet', path: '/app/shared', build: async () => await SharedPage() },
+  {
+    name: 'shared with me, nothing yet',
+    path: '/app/shared',
+    build: async () => await SharedPage(),
+  },
   {
     name: 'shared with me, pending, active, revoked and expired',
     path: '/app/shared',
@@ -136,11 +140,17 @@ const SCREENS: readonly Screen[] = [
     path: '/app/account',
     setup: () => {
       state.isAdmin = true;
-      state.memberships = [{ organization: { id: 'o1', name: 'Dhaka Visa Desk', status: 'ACTIVE' } }];
+      state.memberships = [
+        { organization: { id: 'o1', name: 'Dhaka Visa Desk', status: 'ACTIVE' } },
+      ];
     },
     build: async () => await AccountPage(),
   },
-  { name: 'agency, no organization yet', path: '/app/agency', build: async () => await AgencyPage() },
+  {
+    name: 'agency, no organization yet',
+    path: '/app/agency',
+    build: async () => await AgencyPage(),
+  },
   {
     name: 'agency, active, pending and suspended organizations',
     path: '/app/agency',
@@ -191,7 +201,9 @@ describe('signed-in pages, as whole pages in the signed-in shell', () => {
 
   it('marks the current section in the signed-in navigation', async () => {
     const html = await shellMarkup(SCREENS[0] as Screen);
-    expect(html).toMatch(/aria-current="page"[^>]*>Alerts|>Alerts<[^]*?aria-current="page"/);
+    const current = html.match(/<a [^>]*aria-current="page"[^>]*>[^<]*<\/a>/g) ?? [];
+    expect(current).toHaveLength(1);
+    expect(current[0]).toContain('Alerts');
   });
 });
 
