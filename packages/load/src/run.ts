@@ -8,7 +8,6 @@
  * Environment (all optional): LOAD_DATABASE_URL, LOAD_SECONDS (60), LOAD_SESSIONS (50),
  * LOAD_DOC_WORKERS (5), LOAD_THINK_MS (1000), LOAD_REPORT (path for the JSON report).
  */
-import { execFileSync } from 'node:child_process';
 import { writeFileSync } from 'node:fs';
 import { monitorEventLoopDelay } from 'node:perf_hooks';
 import { fileURLToPath } from 'node:url';
@@ -44,6 +43,7 @@ import { type DatasetManifest, LAUNCH_SHAPE, seedDataset } from './dataset';
 import { MemoryBlobStore } from './memory-blobs';
 import { buildPdf } from './pdf';
 import { startBridge, useLocalBridge } from './pg-bridge';
+import { busyPercent, hostSummary, readMachineCpu, readProcessesNamed } from './proc';
 import { rowsOf } from './rows';
 import { Recorder, round, summarise } from './stats';
 
@@ -90,19 +90,6 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const exp = (mean: number) => (mean <= 0 ? 0 : -Math.log(1 - Math.random()) * mean);
 const pickOf = <T>(items: readonly T[]): T => items[Math.floor(Math.random() * items.length)] as T;
 
-function psSum(column: 'rss' | 'cputimes'): number {
-  try {
-    const out = execFileSync('ps', ['-C', 'postgres', '-o', `${column}=`]).toString();
-    return out
-      .split('\n')
-      .map((l) => Number(l.trim()))
-      .filter((n) => Number.isFinite(n))
-      .reduce((a, b) => a + b, 0);
-  } catch {
-    return 0;
-  }
-}
-
 interface ResourceReport {
   readonly harnessRssMaxMb: number;
   readonly harnessHeapMaxMb: number;
@@ -111,7 +98,7 @@ interface ResourceReport {
   readonly dbConnectionsAvg: number;
   readonly eventLoopDelayP99Ms: number;
   readonly harnessCpuSeconds: number;
-  readonly postgresCpuSeconds: number;
+  readonly machineCpuBusyPercent: number;
 }
 
 /** Samples memory, connections and event-loop delay once a second until stopped. */
@@ -123,13 +110,13 @@ function startMonitor(dbName: string) {
   let heap = 0;
   let pgRss = 0;
   const cpu0 = process.cpuUsage();
-  const pgCpu0 = psSum('cputimes');
+  const machine0 = readMachineCpu();
   const monitor = createPooledDb(dbUrl(dbName));
   const timer = setInterval(() => {
     const m = process.memoryUsage();
     rss = Math.max(rss, m.rss);
     heap = Math.max(heap, m.heapUsed);
-    pgRss = Math.max(pgRss, psSum('rss') * 1024);
+    pgRss = Math.max(pgRss, readProcessesNamed('postgres').rssBytes);
     void monitor.db
       .execute(sql`select count(*)::int as n from pg_stat_activity where datname = ${dbName}`)
       .then((r) => connections.push((rowsOf<{ n: number }>(r)[0]?.n ?? 1) - 1))
@@ -151,7 +138,7 @@ function startMonitor(dbName: string) {
         ),
         eventLoopDelayP99Ms: round(histogram.percentile(99) / 1e6),
         harnessCpuSeconds: round((cpu.user + cpu.system) / 1e6),
-        postgresCpuSeconds: round(psSum('cputimes') - pgCpu0),
+        machineCpuBusyPercent: busyPercent(machine0, readMachineCpu()),
       };
     },
   };
@@ -503,10 +490,7 @@ async function main(): Promise<void> {
     when: new Date().toISOString(),
     node: process.version,
     settings: { SECONDS, SESSIONS, DOC_WORKERS, THINK_MS, PDF_PAGES, RTT_MS, phases: [...PHASES] },
-    host: {
-      cpus: execFileSync('nproc').toString().trim(),
-      memory: `${execFileSync('sh', ['-c', "free -m | awk '/Mem:/ {print $2}'"]).toString().trim()} MB`,
-    },
+    host: hostSummary(),
   };
 
   try {
