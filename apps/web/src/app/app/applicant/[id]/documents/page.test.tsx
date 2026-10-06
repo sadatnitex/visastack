@@ -115,7 +115,7 @@ describe('the documents page while the server is still working on a file', () =>
     mocks.listDocumentsDetailed.mockResolvedValue({ ok: true, value: [] });
     const html = await render();
     expect(stubProps<{ active: boolean }>(html, 'AutoRefresh')).toEqual([{ active: false }]);
-    expect(textOf(html)).toContain('No documents yet.');
+    expect(textOf(html)).toContain('No documents yet');
   });
 });
 
