@@ -1,0 +1,30 @@
+{
+  "name": "@visastack/load",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Capacity and load measurement harness (made-up data only, never run against production).",
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run",
+    "load": "tsx src/run.ts",
+    "load:http": "tsx src/http-public.ts"
+  },
+  "dependencies": {
+    "@neondatabase/serverless": "^0.10.4",
+    "@visastack/adapters": "workspace:*",
+    "@visastack/core": "workspace:*",
+    "@visastack/db": "workspace:*",
+    "@visastack/services": "workspace:*",
+    "drizzle-orm": "^0.45.2",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "^0.2.13",
+    "@types/node": "^22.10.2",
+    "@types/ws": "^8.5.13",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  }
+}

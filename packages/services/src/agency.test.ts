@@ -1096,6 +1096,55 @@ describe('agency collaboration — assignments, notes, evidence', () => {
     }
   });
 
+  it('resolves the right applicant name across several applicants and requests, and handles none', async () => {
+    const first = await consentedApplicant(db, 'ev4a@example.com');
+    const second = await consentedApplicant(db, 'ev4b@example.com');
+    await db
+      .update(schema.applicants)
+      .set({ displayName: 'Second Person' })
+      .where(eq(schema.applicants.id, second.applicantId));
+    const agentAcc = await provisionAccount(db, { email: 'agent-ev4@acme.com' });
+    if (!isOk(agentAcc)) throw new Error('provision');
+    const org = await createOrganization(db, { actorAccountId: agentAcc.value.id, name: 'Acme' });
+    if (!isOk(org)) throw new Error('org');
+    await activateOrg(db, org.value.id);
+
+    const empty = await listEvidenceRequestsForOrgDetailed(db, agentAcc.value.id, org.value.id);
+    expect(isOk(empty) && empty.value.length === 0).toBe(true);
+
+    for (const who of [first, second]) {
+      const grant = await createGrant(db, {
+        actorAccountId: who.account.id,
+        applicantId: who.applicantId,
+        recipientOrganizationId: org.value.id,
+        actions: ['MANAGE'],
+        purpose: 'collaboration',
+      });
+      if (!isOk(grant)) throw new Error('grant');
+      await acceptGrant(db, { actorAccountId: agentAcc.value.id, grantId: grant.value.id });
+    }
+    for (const who of [first, second, second]) {
+      await requestEvidence(db, {
+        actorAccountId: agentAcc.value.id,
+        organizationId: org.value.id,
+        applicantId: who.applicantId,
+        kind: 'FIELD',
+        fieldKey: 'passport_number',
+      });
+    }
+
+    const detailed = await listEvidenceRequestsForOrgDetailed(db, agentAcc.value.id, org.value.id);
+    expect(isOk(detailed)).toBe(true);
+    if (isOk(detailed)) {
+      expect(detailed.value).toHaveLength(3);
+      for (const row of detailed.value) {
+        expect(row.applicantName).toBe(
+          row.applicantId === second.applicantId ? 'Second Person' : 'Owner',
+        );
+      }
+    }
+  });
+
   it('resolves an assignment to the assigned member email', async () => {
     const { account, applicantId } = await consentedApplicant(db, 'assign@example.com');
     const mission = await createMission(db, {
