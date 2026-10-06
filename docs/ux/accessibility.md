@@ -73,6 +73,7 @@ permanently.
 - The pilot notice at the top of every page sat outside every landmark (fixed: a named
   region).
 - The last-resort error page had no main area (fixed).
+- The signed-in loading screen had no top heading (fixed 2026-10-06).
 - The status page's "Check now" button disabled itself during the page's own 15 second
   refresh, so a keyboard user lost their place (fixed; the guard had only looked at
   submit buttons and now looks at every button).
@@ -86,8 +87,11 @@ permanently.
   tests show which element has focus and what text a live region holds. Neither shows how
   a particular screen reader voices it. Only a person using a keyboard and a screen reader
   can tell whether the order, wording and announcements make sense.
-- **Signed-in pages as whole pages.** Their forms are scanned as components. How headings
-  and ids combine on a full signed-in page is not scanned.
+- **Most signed-in pages as whole pages.** Whole-page scans with simulated data now cover
+  alerts, shared with me, applicants, account, the agency list, the loading screen and the
+  error screen in the signed-in shell (`lib/a11y-signed-in.test.tsx`). The applicant tabs,
+  case readiness, privacy, the agency tabs and platform administration are scanned only as
+  components or by page tests.
 - **Forms whose action does not name a field.** They describe the problem in the alert but
   do not mark one input invalid or move focus; the browser's own required-field messages
   catch the common mistakes first.
@@ -99,5 +103,6 @@ permanently.
    Android.
 3. Real-device and Safari and Firefox checks.
 4. Zoom to 200 and 400 percent, text spacing, reduced motion.
-5. Whole-page scans of the signed-in screens with their data simulated.
+5. Whole-page scans of the remaining signed-in screens (applicant tabs, case readiness,
+   privacy, agency tabs, administration).
 6. Bangla accessibility, after the owner lifts the deferral of Bangla work.

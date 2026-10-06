@@ -1,7 +1,9 @@
 import { listPublicTrustPublished } from '@visastack/services';
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { TrustUnavailable } from '../../components/trust-unavailable';
 import { withPublicDb } from '../../lib/public-db';
+import { reportServerError } from '../../lib/server-error';
 
 export const metadata: Metadata = { title: 'Route information' };
 
@@ -13,7 +15,14 @@ export const dynamic = 'force-dynamic';
  * the directive forbids. Genuinely public: no session, no auth.
  */
 export default async function PublicTrustCatalogPage() {
-  const routes = await withPublicDb((db) => listPublicTrustPublished(db));
+  let routes: Awaited<ReturnType<typeof listPublicTrustPublished>>;
+  try {
+    routes = await withPublicDb((db) => listPublicTrustPublished(db));
+  } catch (error) {
+    // The public pages stay readable when the database is down: say so plainly (UX-02).
+    reportServerError('trust catalog', error);
+    return <TrustUnavailable />;
+  }
 
   return (
     <section className="section container">

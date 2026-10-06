@@ -17,6 +17,11 @@ describe('PageLoading', () => {
     for (const shape of shapes) expect(shape).toContain('aria-hidden="true"');
   });
 
+  it('gives a whole page one top heading while it loads, and a panel none', () => {
+    expect(renderToStaticMarkup(<PageLoading />)).toContain('<h1 class="sr-only">Loading</h1>');
+    expect(renderToStaticMarkup(<PageLoading frame="panel" />)).not.toContain('<h1');
+  });
+
   it('accepts a more specific label', () => {
     expect(renderToStaticMarkup(<PageLoading label="Loading documents" />)).toContain(
       'Loading documents…',

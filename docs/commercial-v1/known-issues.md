@@ -4663,3 +4663,29 @@ programme rather than being a product defect.
     NOT prove" in capacity.md (one machine, plain Postgres, one-signature ClamAV, in-memory files,
     no browser, 60 s runs). **Owner action:** none blocks; the next real test is a rehearsal against a
     Neon branch at launch compute size, and an outside uptime probe on `/api/health/ready`.
+
+### Chunk 45 (2026-10-06): critical states and signed-in accessibility (Part 9 sections 2, 3, 5)
+
+- **What was checked.** Every signed-in and public screen against the seven states (loading,
+  empty, error, forbidden, pending, retry, success), written up in `docs/ux/critical-states.md`
+  from the code. The product has no autosave and no optimistic updates (searched), so a saved
+  state is only ever shown after the server answers.
+- **Real defects found and fixed.** (1) `/trust` and `/trust/<route>` showed a crash screen when the
+  database was unreachable; they now say the information is not available right now, keep HTTP 200
+  and log the cause (decision recorded in the inventory; the trade-off is that a monitor looking only
+  at the status code will not see this page fail, so `/api/health/ready` stays the signal). (2) The
+  whole-page loading screen had zero top headings (caught by the first whole-page scan of a signed-in
+  screen). (3) Document status badges read as approval or as engineering talk: "Clean" in green is now
+  "No problems found", "Ready" is "Reviewed and approved", "Structural validation" is "Checking the
+  file", "In quarantine" is "Held for safety", "Processing" is "Reading the file" (English only).
+- **Tests.** `lib/a11y-signed-in.test.tsx` (19 cases: alerts, shared with me, applicants, account, agency
+  list, loading and error screens in the signed-in shell, plus plain-words checks for pending and revoked
+  shares), two database-down cases in `lib/a11y-pages.test.tsx`, a heading test for the loading screen,
+  and `/trust` at 320, 360 and 390 wide in `e2e/ux-public.spec.ts` (also in the axe list). Proven red by
+  removing the loading heading and the database-down handling.
+- **Not done, said plainly.** Applicant tabs, case readiness, privacy, agency tabs and administration are
+  not whole-page scanned; the assurance wording is not audited on every screen; no real-browser run with a
+  dropped connection; signed-in screens never opened in a real browser here. **Owed to a person:** the
+  keyboard-only pass and the screen-reader pass (NVDA/JAWS, VoiceOver, TalkBack), Safari and Firefox,
+  zoom and text spacing. WCAG 2.2 AA is not claimed; the report line is "automated and keyboard-behaviour
+  checks pass; screen-reader pass owed". Bangla deferred by the owner. **Owner action:** none blocks.

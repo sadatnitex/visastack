@@ -19,6 +19,7 @@ const session = vi.hoisted(() => ({ user: null as null | { email: string } }));
 const trust = vi.hoisted(() => ({
   routes: [] as unknown[],
   route: undefined as unknown,
+  down: false,
 }));
 
 vi.mock('@workos-inc/authkit-nextjs', () => ({
@@ -31,8 +32,14 @@ vi.mock('./public-db', () => ({
 }));
 vi.mock('@visastack/services', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@visastack/services')>()),
-  listPublicTrustPublished: async () => trust.routes,
-  getPublicTrustRoute: async () => trust.route,
+  listPublicTrustPublished: async () => {
+    if (trust.down) throw new Error('database unreachable');
+    return trust.routes;
+  },
+  getPublicTrustRoute: async () => {
+    if (trust.down) throw new Error('database unreachable');
+    return trust.route;
+  },
 }));
 
 vi.stubEnv('DEPLOYMENT_MODE', 'controlled_pilot');
@@ -177,6 +184,22 @@ const PAGES: readonly Page[] = [
       })) as ReactElement;
     },
   },
+  {
+    name: 'route information while the database is down',
+    build: async () => {
+      trust.down = true;
+      return await TrustCatalogPage();
+    },
+  },
+  {
+    name: 'one route while the database is down',
+    build: async () => {
+      trust.down = true;
+      return (await TrustRoutePage({
+        params: Promise.resolve({ packKey: 'uk.standard-visitor' }),
+      })) as ReactElement;
+    },
+  },
   { name: 'page not found', build: async () => <NotFound /> },
   {
     name: 'something went wrong',
@@ -208,6 +231,7 @@ beforeEach(() => {
   session.user = null;
   trust.routes = [];
   trust.route = undefined;
+  trust.down = false;
 });
 
 describe('every public page, as a whole page', () => {
@@ -224,6 +248,23 @@ describe('every public page, as a whole page', () => {
     const html = await pageMarkup(PAGES[0] as Page);
     expect(html).toContain('>Workspace</a>');
     expect(await axeViolations(html, { wholePage: true })).toEqual([]);
+  });
+
+  it('says plainly that route information is unavailable when the database is down (not a crash, not a 404)', async () => {
+    const log = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    trust.down = true;
+    const html = renderToStaticMarkup(await TrustCatalogPage());
+    expect(html).toContain('Route information is not available right now');
+    expect(html).toContain('href="/trust"');
+    expect(html).not.toContain('database unreachable');
+    const route = renderToStaticMarkup(
+      (await TrustRoutePage({
+        params: Promise.resolve({ packKey: 'uk.standard-visitor' }),
+      })) as ReactElement,
+    );
+    expect(route).toContain('Route information is not available right now');
+    expect(log).toHaveBeenCalled();
+    log.mockRestore();
   });
 
   it('has a skip link that lands on the main content', async () => {
