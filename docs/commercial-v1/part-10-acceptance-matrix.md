@@ -45,3 +45,5 @@ Written 2026-10-06 (Part 10 sections 1 to 4, first pass). Code under test: see t
 **Totals:** PASS 1, FAIL 0, BLOCKED 18, NOT_EXECUTED 16
 
 The full automated suite was green on the verified commit (see the checkpoint document); the table above says what that does and does not prove.
+
+**Update 2026-10-06 (Task 8, code `a27cefb`):** no row changed state. A30 and A35 remain BLOCKED (`part-10-security-scans.md`). A33 stays NOT_EXECUTED: load was re-run and met its target on one machine, but the PDF timing with a real scanner and the Neon rehearsal were not done. Final verdict: `final-report.md`.

@@ -4722,3 +4722,18 @@ programme rather than being a product defect.
 - **Owner decisions:** provision the two staging identities and the agency fixture (PR #77 has the code
   half; a session cannot write repository secrets); appoint the incident owner, backup owner and legal
   reviewer; choose document backup and key escrow; configure ClamAV.
+
+### Chunk 47 (2026-10-06): Part 10 sections 5 to 7 and 11: release-candidate run, scans, A30, A35
+- Run on `a27cefb` (production runs the same SHA): install, lint, typecheck, 2,759 tests passed and 3 skipped, build, production audit, 7 of 7 supply-chain scans, 12 of 12 scan self-tests, 75 browser checks passed with the 2 known sandbox-only sign-in failures, smoke 10 of 10, load re-run (p95 39 ms at launch load, 0 errors). Detail: `part-10-security-scans.md`.
+- **New finding, reported not fixed:** the full dependency audit lists 3 Critical and 1 High advisories in development tools only (`vitest` below 3.2.6, `tinypool`, `vite`). Never shipped. The production audit is clean at high and above (1 moderate, `sprintf-js` through the DOCX reader, no patched version). The fix is a major upgrade of the test runner and needs its own change. The CI audit for development tools is non-blocking by design, which is why this was not caught earlier.
+- Not run and recorded as such: CodeQL (private repository), SSRF (no test exists; nothing fetches a user-supplied address), authenticated browser tests, rule golden suites, live AI, email and scanner runs, staging deploy (no staging exists), PDF timing with a real scanner at this SHA (no ClamAV in the run; all 150 files ended quarantined as designed).
+- A30 BLOCKED: no restore performed (no approved Neon branch, no document backup, no key escrow). A35 BLOCKED: no independent report. Neither target was rewritten.
+- The secret scan covered the working tree only (shallow clone); CI scans history.
+
+### Chunk 48 (2026-10-06): Part 10 sections 8 to 18: sign-offs, release gate, handover, final verdict
+- `part-10-signoffs.md` (rules, provider and privacy, operations, runtime degradation vs eligibility): all blocked on people; no approval invented. Zero launch packs are published and no golden-case suite exists.
+- `release-gate.md` rewritten as a real record: 18 attestations, each with evidence, approver, date and revalidation trigger; 0 attested. The runtime readiness flags are stated not to be release evidence.
+- `handover-inventory.md`: the "no critical system on one person's account" test FAILS (repository, hosting and the master key).
+- `final-report.md`: verdict CODE COMPLETE - COMMERCIAL LAUNCH BLOCKED. No isolated staging exists, so the directive's staging deployment was not done.
+- Nothing was merged to main, deployed, enabled or activated by this task. The release-candidate PR is a draft. PR 77 untouched.
+
