@@ -4737,3 +4737,11 @@ programme rather than being a product defect.
 - `final-report.md`: verdict CODE COMPLETE - COMMERCIAL LAUNCH BLOCKED. No isolated staging exists, so the directive's staging deployment was not done.
 - Nothing was merged to main, deployed, enabled or activated by this task. The release-candidate PR is a draft. PR 77 untouched.
 
+
+### Chunk 49 (2026-10-06): free-stack hardening after the release-candidate report
+- Owner designated roles: Incidentman (incident owner), Backupman, Ruleman (rules owner), Reviewman (reviewer), Privacyman, Legalman, Supportman, Inframan, Keyman and Vaultman (key holders), Priceman, Auditman. Recorded in `release-gate.md`. They are designations, not attestations: contact routes, acceptance and qualifications are still owed. No gate row changed to attested.
+- Test runner upgraded (vitest 4, vite 6.4.3 or later): audit is now 2 moderate, 0 High, 0 Critical. Full clean run repeated on the branch head: 2,759 passed, 3 skipped, scans 7 of 7, browser 75 passed with the 2 known sandbox failures, smoke 10 of 10.
+- An intermediate run failed on a 10 second database-hook timeout under parallel load and on web timeouts caused by running other commands at the same time. Treated as a robustness defect: explicit 60 second limits added for the adapters, db and services packages; run repeated clean.
+- **Finding:** `LocalEnvelopeKeyProvider` throws in commercial mode on purpose. The free stack therefore cannot satisfy the key requirement for commercial mode; a real key service is needed (a cheap one exists; confirm current pricing). Stage A (open pilot) is unaffected.
+- A scheduled uptime-check workflow was attempted and refused by the session's safety layer, so it was not added. `free-stack-launch-plan.md` records the alternatives.
+- Not changed: production still runs `a27cefb`. Nothing was deployed, merged, enabled or activated.

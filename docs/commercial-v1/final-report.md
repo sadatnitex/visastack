@@ -11,7 +11,7 @@ Why this verdict and not the other two: the full automated suite is green on the
 ## RELEASE CANDIDATE
 
 - Branch: `claude/pensive-cray-4fhand` (documentation only on top of main; PR is a draft and is not merged)
-- Tested code SHA: `a27cefb8bd40e0f766870309b02a848c1917307d` (main after PR 172)
+- Tested code SHA: `a27cefb8bd40e0f766870309b02a848c1917307d` (main after PR 172), then re-run on the branch head `3fbaeef143e33ca039ff353c9212f70fd9d3b165` after the test-tool upgrade (no shipped source file differs)
 - Deployed verification: production, deployment `dpl_EBYqheEpDEEdNmvSSsSbCn4mDtxV`, same SHA as tested; `/api/health/ready` returned ready on 2026-10-06 in controlled_pilot mode. This is the pilot environment with made-up data. **No isolated staging environment exists**, so the directive's staging deploy was not done.
 
 ## P0 REQUIREMENTS
@@ -84,13 +84,13 @@ Totals: PASS 1, FAIL 0, BLOCKED 18, NOT_EXECUTED 16. A service test never upgrad
 
 ## SECURITY
 
-- Critical: 0 in what ships. 3 open in development tools only (test runner and its build server; never deployed)
-- High: 0 in what ships. 1 open in development tools only (`vite`)
-- Medium: 7 (1 in production, a text-formatting library inside the DOCX reader with no patched version; 6 in development tools)
+- Critical: 0 (the 3 development-tool advisories were cleared by upgrading the test runner; see `part-10-security-scans.md` addendum)
+- High: 0 (the 1 development-tool advisory was cleared the same way)
+- Medium: 2 (1 in production, a text-formatting library inside the DOCX reader with no patched version; 1 in a development build tool)
 - Low: 0 reported by the audit tool (it does not grade lower findings)
-- Also open, not scanner findings: staff MFA not enforced; master key with no escrow or rotation; no independent backup of document files; no outside monitoring or paging
+- Also open, not scanner findings: staff MFA not enforced; master key with no escrow or rotation (and the local key provider refuses to start in commercial mode by design, so commercial mode needs a real key service); no independent backup of document files; no outside monitoring or paging
 - Independent review status: BLOCKED. None exists. Internal review is never called a penetration test. Commercial admission stays blocked
-- Scans at this SHA: 11 executed, 11 passed, 0 failed, 2 skipped (CodeQL, which cannot run on a private repository; SSRF, for which no test exists because nothing fetches a user-supplied address). Full table: `part-10-security-scans.md`
+- Scans: 11 executed, 11 passed, 0 failed, 2 skipped (CodeQL, which cannot run on a private repository; SSRF, for which no test exists because nothing fetches a user-supplied address). Re-run clean on the branch head `3fbaeef` after the test-tool upgrade. Full table: `part-10-security-scans.md`
 
 ## INTEGRATIONS
 
@@ -135,16 +135,16 @@ Measured at this SHA on one 4-CPU machine, database next door:
 
 | Owner | Exact action needed |
 | --- | --- |
-| Owner | Name an incident owner and a backup; hold the tabletop |
-| Owner | Name a rules owner and a different rules reviewer; commission two launch routes with 20 reviewed cases each |
-| Owner | Name a privacy owner and a support contact; commission legal review of terms, privacy notice, consent |
+| Owner | Incident owner Incidentman and backup Backupman are designated; record contact routes, acceptance, and hold the tabletop |
+| Owner | Rules owner Ruleman and reviewer Reviewman are designated; commission two launch routes with 20 reviewed cases each, reviewed by Reviewman |
+| Owner | Privacyman, Supportman and Legalman are designated; a qualified lawyer must stand behind Legalman for terms, privacy notice and consent wording |
 | Owner | Set price, currency and plan allowances |
 | Owner | Commission an independent security review and retest, or supply a report |
 | Owner | Approve a Neon test branch for the restore drill; fund a second store for document files; create and escrow the key with two holders |
 | Owner | Create the two staging test identities and the agency fixture so journeys J01 to J15 can be run |
 | Owner | Open business accounts: email, three AI providers, a scanner host; record terms |
 | Owner | Move the repository, hosting and identity accounts to the VisaStack entity with a second administrator |
-| Engineering (next task) | Upgrade the test runner to clear the development-tool advisories; add an outside uptime probe with paging; enforce staff MFA |
+| Engineering (next task) | Add an outside uptime probe (a scheduled workflow was attempted and refused by the session's safety layer; the owner can add it or use a free monitor); enforce staff MFA; key rotation tool; a real key service for commercial mode |
 
 ## KNOWN ISSUES
 

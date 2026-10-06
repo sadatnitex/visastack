@@ -90,3 +90,24 @@ To unblock: (1) approve a Neon test branch; (2) fund a second store for document
 | Medium | 7 | 1 in production (`sprintf-js`), 6 in development tools |
 | Low | 0 reported by the audit | The scan does not grade lower findings |
 | Known design gaps (not scanner findings) | see `threat-model.md` | Staff MFA not enforced; master key without escrow; no document backup; no outside monitoring |
+
+
+## Addendum 2026-10-06 (afternoon): test tools upgraded, whole run repeated
+
+The Critical and High advisories in development tools were cleared by upgrading the test runner (vitest 2 to 4) and pinning its build server (vite 6.4.3 or later). Files changed since `a27cefb`, outside `docs/` and the README: package manifests, the lockfile, three small test configuration files (explicit 60 second limits for the packages that start an in-process database per test), and one test file (typed mock filters). **No shipped source file changed**; the lockfile difference is development tools only.
+
+Run on `3fbaeef143e33ca039ff353c9212f70fd9d3b165` (the release-candidate branch head at the time):
+
+| Step | Result |
+| --- | --- |
+| Install with frozen lockfile, lint, typecheck, build | PASSED |
+| Unit and service tests, uncached | PASSED: 2,759 passed, 3 skipped, 0 failed (same counts as before) |
+| Production audit, high and above | PASSED |
+| Full audit (including development tools) | 2 moderate only: a build-tool advisory (`esbuild`) and the DOCX-reader advisory (`sprintf-js`). **0 Critical, 0 High, 0 other** |
+| Supply-chain scans and self-tests | 7 of 7 and 12 of 12 PASSED |
+| Browser checks | 75 passed, 2 failed (the same two sandbox-only sign-in tests) |
+| Smoke | 10 of 10 PASSED |
+
+Two honest notes. First, an intermediate run failed: one database-backed test hook timed out at the 10 second default when all packages ran at once on 4 CPUs, and two web tests timed out while I ran other commands in parallel. They passed alone (28 seconds for that package). This was treated as a real test-robustness defect, not dismissed: the limits were made explicit and the whole run was repeated cleanly. Second, the load run and the browser/CSP behaviour are unchanged by this work and were not repeated for load.
+
+Security counts now: **Critical 0, High 0, Medium 2** (1 production, 1 development), Low not graded. This replaces the counts in the table above for the branch head. Production itself still runs `a27cefb`; this branch is not deployed.
