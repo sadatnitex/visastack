@@ -2,7 +2,7 @@ import { getRecipientWorkspace } from '@visastack/services';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { EmptyState } from '../../../../components/ui';
+import { EmptyState, PageHeader } from '../../../../components/ui';
 import { formatTimestampDate } from '../../../../lib/format-date';
 import { profileField } from '../../../../lib/profile-fields';
 import { withSession } from '../../../../lib/session';
@@ -32,20 +32,18 @@ export default async function SharedWorkspacePage({
           ← Shared with you
         </Link>
       </div>
-      <div className="toolbar" style={{ marginBottom: '2rem' }}>
-        <div>
-          <span className="eyebrow">Shared workspace</span>
-          <h1 className="section-title" style={{ margin: '0.25rem 0 0' }}>
-            {workspace.applicantDisplayName}
-          </h1>
-          <p className="muted" style={{ margin: '0.35rem 0 0' }}>
+      <PageHeader
+        eyebrow="Shared workspace"
+        title={workspace.applicantDisplayName}
+        description={
+          <>
             {workspace.grant.purpose}
             {workspace.grant.expiryAt
               ? ` · expires ${formatTimestampDate(workspace.grant.expiryAt)}`
               : ''}
-          </p>
-        </div>
-      </div>
+          </>
+        }
+      />
 
       <p className="muted" style={{ fontSize: '0.85rem', marginBottom: '1.5rem' }}>
         Every item below is re-checked against your grant's permissions on every visit — it never

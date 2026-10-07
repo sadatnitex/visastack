@@ -22,6 +22,10 @@ const trust = vi.hoisted(() => ({
   down: false,
 }));
 
+// Fonts are files the build turns into styles; a test only needs the class names to exist.
+vi.mock('next/font/local', () => ({
+  default: () => ({ variable: 'font-variable', className: 'font-class' }),
+}));
 vi.mock('@workos-inc/authkit-nextjs', () => ({
   withAuth: async () => ({ user: session.user }),
 }));

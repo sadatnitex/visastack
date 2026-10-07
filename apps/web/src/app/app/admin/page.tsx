@@ -11,6 +11,7 @@ import {
   totalAiCostUnits,
 } from '@visastack/services';
 import type { Metadata } from 'next';
+import { PageHeader } from '../../../components/ui';
 import { isPlatformAdmin } from '../../../lib/admin';
 import { aiWarningLimitUnits, defaultAiLimits, resolveAiLimits, unitsToUsd } from '../../../lib/ai';
 import { formatDuration, formatMinorUnits, humanizeLabel } from '../../../lib/analytics-format';
@@ -154,17 +155,11 @@ export default async function AdminOperationsPage() {
 
   return (
     <section className="section container">
-      <div className="toolbar" style={{ marginBottom: '2rem' }}>
-        <div>
-          <span className="eyebrow">Platform</span>
-          <h1 className="section-title" style={{ margin: '0.25rem 0 0' }}>
-            Operations
-          </h1>
-          <p className="muted" style={{ margin: '0.35rem 0 0' }}>
-            Platform health, readiness, capacity and pilot measurement.
-          </p>
-        </div>
-      </div>
+      <PageHeader
+        eyebrow="Platform"
+        title="Operations"
+        description="Platform health, readiness, capacity and pilot measurement."
+      />
 
       {!data.admin ? (
         <AdminRestricted />

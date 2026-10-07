@@ -34,8 +34,9 @@ import {
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { Disclosure, StatusBadge } from '../../../../components/ui';
+import { Disclosure, PageHeader, StatusBadge } from '../../../../components/ui';
 import { isExplanationConfigured } from '../../../../lib/ai';
+import { humanizeCode } from '../../../../lib/format-code';
 import { formatDateOnly, formatTimestampDate } from '../../../../lib/format-date';
 import { getLocale } from '../../../../lib/locale';
 import { profileField } from '../../../../lib/profile-fields';
@@ -525,26 +526,19 @@ export default async function MissionPage({
 
   return (
     <section className="section container">
-      <div style={{ marginBottom: '1.5rem' }}>
-        <Link
-          href={`/app/applicant/${data.applicantId}/missions`}
-          className="muted"
-          style={{ fontSize: '0.9rem' }}
-        >
-          ← {data.applicantName} · Cases
-        </Link>
-      </div>
-      <div className="toolbar" style={{ marginBottom: '2rem' }}>
-        <div>
-          <span className="eyebrow">Case</span>
-          <h1 className="section-title" style={{ margin: '0.25rem 0 0' }}>
-            {mission.title}
-          </h1>
-          <p className="muted" style={{ margin: '0.35rem 0 0' }}>
-            {mission.destination ? `${mission.destination} · ` : ''}
-            {STATE_LABELS[mission.state] ?? mission.state}
-          </p>
-          <p style={{ margin: '0.5rem 0 0' }}>
+      <PageHeader
+        back={{
+          href: `/app/applicant/${data.applicantId}/missions`,
+          label: `${data.applicantName} · Cases`,
+        }}
+        eyebrow="Case"
+        title={mission.title}
+        meta={
+          <>
+            <span>
+              {mission.destination ? `${mission.destination} · ` : ''}
+              {STATE_LABELS[mission.state] ?? mission.state}
+            </span>
             {data.liveAcknowledgedAt ? (
               <StatusBadge tone="success">
                 Confirmed by the applicant on {formatTimestampDate(data.liveAcknowledgedAt)}
@@ -552,10 +546,10 @@ export default async function MissionPage({
             ) : (
               <StatusBadge tone="neutral">Applicant has not confirmed yet</StatusBadge>
             )}
-          </p>
-        </div>
-        <SnapshotButton missionId={mission.id} />
-      </div>
+          </>
+        }
+        actions={<SnapshotButton missionId={mission.id} />}
+      />
 
       {data.isDirty ? (
         <div className="notice notice-warn" style={{ marginBottom: '1.5rem' }}>
@@ -602,397 +596,412 @@ export default async function MissionPage({
         <a href="#outcome">Submission and outcome</a>
       </nav>
 
-      <div className="grid">
-        <article className="card" id="readiness" style={{ gridColumn: '1 / -1' }}>
-          <p className="card-kicker">Completeness</p>
-          <h2 className="card-title">Readiness</h2>
-          {data.selfReviewed ? (
-            <p className="muted" style={{ fontSize: '0.85rem', marginBottom: '0.75rem' }}>
-              <span className="badge badge-neutral">Self-reviewed</span> No agency currently has
-              access to this case, so you are the only one assessing it.
-            </p>
-          ) : null}
-          {data.readiness ? (
-            <>
-              <div className="rows" style={{ marginBottom: '1rem' }}>
-                <div className="row">
-                  <span className="row-key">Required satisfied</span>
-                  <span className="row-val">
-                    {data.readiness.satisfiedRequired} / {data.readiness.requiredCount}
-                  </span>
-                </div>
-                <div className="row">
-                  <span className="row-key">Status</span>
-                  <span className={`badge ${OVERALL_STATE_META[data.readiness.overallState].tone}`}>
-                    {OVERALL_STATE_META[data.readiness.overallState].label}
-                  </span>
-                </div>
-              </div>
-              <p className="muted" style={{ fontSize: '0.85rem', marginBottom: '1rem' }}>
-                {data.readiness.overallState === 'READY_FOR_APPLICANT_REVIEW'
-                  ? t('mission.readiness.ready')
-                  : data.readiness.overallState === 'NEEDS_REVIEW'
-                    ? t('mission.readiness.needsReview', { count: data.requiredUnverifiedCount })
-                    : data.readiness.overallState === 'MANUAL_ONLY'
-                      ? t('mission.readiness.manualOnly')
-                      : t('mission.readiness.missing', { count: data.requiredHardGapCount })}
+      <div className="split">
+        <div className="split-main">
+          <article className="card" id="readiness">
+            <p className="card-kicker">Completeness</p>
+            <h2 className="card-title">Readiness</h2>
+            {data.selfReviewed ? (
+              <p className="muted" style={{ fontSize: '0.85rem', marginBottom: '0.75rem' }}>
+                <span className="badge badge-neutral">Self-reviewed</span> No agency currently has
+                access to this case, so you are the only one assessing it.
               </p>
-              {data.requirementDetails.length > 0 ? (
-                <>
-                  <p className="card-kicker" style={{ marginBottom: '0.5rem' }}>
-                    Every requirement
-                  </p>
-                  <div className="rows">
-                    {data.requirementDetails.map((r) => {
-                      const meta = REQUIREMENT_STATE_META[r.state];
-                      const label =
-                        r.kind === 'FIELD' ? (profileField(r.key)?.label ?? r.key) : r.key;
-                      const sourceLine = [r.publisher, r.sourceTitle].filter(Boolean).join(' · ');
-                      const sourceHref = safeHttpUrl(r.sourceUrl);
-                      return (
-                        <div
-                          className="row"
-                          key={r.packRequirementId}
-                          style={{ flexDirection: 'column', alignItems: 'stretch', gap: '0.3rem' }}
-                        >
+            ) : null}
+            {data.readiness ? (
+              <>
+                <div className="rows" style={{ marginBottom: '1rem' }}>
+                  <div className="row">
+                    <span className="row-key">Required satisfied</span>
+                    <span className="row-val">
+                      {data.readiness.satisfiedRequired} / {data.readiness.requiredCount}
+                    </span>
+                  </div>
+                  <div className="row">
+                    <span className="row-key">Status</span>
+                    <span
+                      className={`badge ${OVERALL_STATE_META[data.readiness.overallState].tone}`}
+                    >
+                      {OVERALL_STATE_META[data.readiness.overallState].label}
+                    </span>
+                  </div>
+                </div>
+                <p className="muted" style={{ fontSize: '0.85rem', marginBottom: '1rem' }}>
+                  {data.readiness.overallState === 'READY_FOR_APPLICANT_REVIEW'
+                    ? t('mission.readiness.ready')
+                    : data.readiness.overallState === 'NEEDS_REVIEW'
+                      ? t('mission.readiness.needsReview', { count: data.requiredUnverifiedCount })
+                      : data.readiness.overallState === 'MANUAL_ONLY'
+                        ? t('mission.readiness.manualOnly')
+                        : t('mission.readiness.missing', { count: data.requiredHardGapCount })}
+                </p>
+                {data.requirementDetails.length > 0 ? (
+                  <>
+                    <p className="card-kicker" style={{ marginBottom: '0.5rem' }}>
+                      Every requirement
+                    </p>
+                    <div className="rows">
+                      {data.requirementDetails.map((r) => {
+                        const meta = REQUIREMENT_STATE_META[r.state];
+                        const label =
+                          r.kind === 'FIELD'
+                            ? (profileField(r.key)?.label ?? humanizeCode(r.key))
+                            : humanizeCode(r.key);
+                        const sourceLine = [r.publisher, r.sourceTitle].filter(Boolean).join(' · ');
+                        const sourceHref = safeHttpUrl(r.sourceUrl);
+                        return (
                           <div
+                            className="row"
+                            key={r.packRequirementId}
                             style={{
-                              display: 'flex',
-                              justifyContent: 'space-between',
-                              alignItems: 'center',
-                              gap: '0.75rem',
+                              flexDirection: 'column',
+                              alignItems: 'stretch',
+                              gap: '0.3rem',
                             }}
                           >
-                            <span className="row-key">
-                              {label || '(unnamed)'}
-                              {r.optional ? ' · optional' : ''}
-                            </span>
-                            <span className={`badge ${meta.tone}`}>{meta.label}</span>
-                          </div>
-                          {meta.next ? (
-                            <span className="muted" style={{ fontSize: '0.8rem' }}>
-                              {meta.next}
-                              {r.state === 'CONFLICTING' ? (
-                                <>
-                                  {' '}
-                                  <Link href={`/app/applicant/${data.applicantId}/profile`}>
-                                    Resolve on profile →
-                                  </Link>
-                                </>
-                              ) : null}
-                              {r.state === 'CRITICAL_GAP' || r.state === 'EXPIRING_STALE' ? (
-                                <>
-                                  {' '}
-                                  <a href="#evidence">Provide evidence ↓</a>
-                                </>
-                              ) : null}
-                            </span>
-                          ) : null}
-                          {r.citation ? (
-                            <span className="muted" style={{ fontSize: '0.75rem' }}>
-                              Cite: {sourceLine || r.citation}
-                              {r.observedDate ? ` · as of ${formatDateOnly(r.observedDate)}` : ''}
-                              {sourceHref ? (
-                                <>
-                                  {' · '}
-                                  <a href={sourceHref} target="_blank" rel="noreferrer">
-                                    source
-                                  </a>
-                                </>
-                              ) : null}
-                            </span>
-                          ) : null}
-                          {r.sourceInaccessible ? (
-                            <span
-                              className="badge badge-danger"
-                              style={{ alignSelf: 'flex-start' }}
+                            <div
+                              style={{
+                                display: 'flex',
+                                justifyContent: 'space-between',
+                                alignItems: 'center',
+                                gap: '0.75rem',
+                              }}
                             >
-                              Source currently unreachable - under review
-                            </span>
-                          ) : null}
-                          {data.explanationConfigured &&
-                          (r.state === 'CRITICAL_GAP' || r.state === 'ATTENTION') ? (
-                            <ExplainGapButton
-                              missionId={data.mission.id}
-                              packRequirementId={r.packRequirementId}
-                              explanation={
-                                data.explanationsByRequirement.get(r.packRequirementId)
-                                  ?.explanation ?? null
-                              }
-                            />
-                          ) : null}
-                        </div>
-                      );
-                    })}
-                  </div>
-                </>
-              ) : null}
-              <p className="muted" style={{ fontSize: '0.8rem', marginTop: '1rem' }}>
-                Readiness is completeness only - never an approval likelihood.
-              </p>
-            </>
-          ) : (
-            <p className="card-body">Attach a requirement pack to see readiness.</p>
-          )}
-        </article>
-
-        <article className="card">
-          <p className="card-kicker">Requirements</p>
-          <h2 className="card-title">Requirement pack</h2>
-          {mission.packVersionId && data.packInfo ? (
-            <>
-              <div
-                style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  gap: '0.75rem',
-                  marginBottom: '0.5rem',
-                }}
-              >
-                <span className="card-body" style={{ margin: 0 }}>
-                  {data.packInfo.name}
-                </span>
-                <span
-                  className={`badge ${data.packInfo.authoritative ? 'badge-success' : 'badge-neutral'}`}
-                >
-                  {data.packInfo.authoritative
-                    ? 'Official requirement pack'
-                    : 'Agency custom checklist'}
-                </span>
-              </div>
-              {data.packInfo.jurisdiction || data.packInfo.route ? (
-                <p className="muted" style={{ fontSize: '0.85rem', margin: 0 }}>
-                  {[data.packInfo.jurisdiction, data.packInfo.route].filter(Boolean).join(' · ')}
-                </p>
-              ) : null}
-              {data.packInfo.effectiveDate ? (
-                <p className="muted" style={{ fontSize: '0.8rem', margin: '0.35rem 0 0' }}>
-                  In effect since {formatDateOnly(data.packInfo.effectiveDate)}
-                </p>
-              ) : null}
-            </>
-          ) : (
-            <>
-              <p className="card-body" style={{ marginBottom: '1rem' }}>
-                Attach a published requirement pack to compute readiness.
-              </p>
-              <AttachPackForm missionId={mission.id} options={data.packOptions} />
-            </>
-          )}
-        </article>
-
-        <article className="card">
-          <p className="card-kicker">Case</p>
-          <h2 className="card-title">Case details</h2>
-          <CaseDetailsForm
-            missionId={mission.id}
-            jurisdiction={mission.jurisdiction}
-            serviceCategory={mission.serviceCategory}
-            travelStartDate={mission.travelStartDate}
-            travelEndDate={mission.travelEndDate}
-            targetDeadline={mission.targetDeadline}
-            manualMode={mission.manualMode}
-          />
-        </article>
-
-        <article className="card">
-          <p className="card-kicker">Family trip</p>
-          <h2 className="card-title">Itinerary reference</h2>
-          <p className="card-body" style={{ marginBottom: '1rem' }}>
-            An optional label linking this case to another family member's, purely for display.
-            Access and permissions stay entirely separate per case.
-          </p>
-          <ItineraryForm missionId={mission.id} itineraryRef={mission.itineraryRef} />
-          {data.linkedMissions.length > 0 ? (
-            <div className="rows" style={{ marginTop: '1rem' }}>
-              {data.linkedMissions.map((m) => (
-                <Link className="row row-link" key={m.id} href={`/app/mission/${m.id}`}>
-                  <span className="row-key">{m.applicantName}</span>
-                  <span className="muted">{m.title}</span>
-                </Link>
-              ))}
-            </div>
-          ) : null}
-        </article>
-      </div>
-
-      <div className="grid" style={{ marginTop: '1.5rem' }}>
-        <article className="card">
-          <p className="card-kicker">Workflow</p>
-          <h2 className="card-title">Advance the case</h2>
-          {nextStates.length === 0 ? (
-            <p className="card-body">This case is in a terminal state.</p>
-          ) : (
-            <div style={{ marginTop: '0.5rem' }}>
-              <TransitionButtons missionId={mission.id} nextStates={nextStates} />
-            </div>
-          )}
-        </article>
-
-        <article className="card" id="snapshots">
-          <p className="card-kicker">History</p>
-          <h2 className="card-title">Snapshots</h2>
-          {data.snapshots.length === 0 ? (
-            <p className="card-body">
-              No snapshots yet. Capture one to freeze this case's evidence and checksum.
-            </p>
-          ) : (
-            <div className="rows" style={{ marginTop: '0.5rem' }}>
-              {data.snapshots.map((snap) => {
-                const content = snap.content as { state?: string } | null;
-                const isPacket = content?.state ? PACKET_STATES.has(content.state) : false;
-                return (
-                  <Link
-                    href={`/app/mission/${mission.id}/snapshots/${snap.id}`}
-                    className="row"
-                    key={snap.id}
-                    style={{ textDecoration: 'none', color: 'inherit' }}
-                  >
-                    <span className="row-key">
-                      Version {snap.version}
-                      {isPacket ? (
-                        <span className="badge badge-success" style={{ marginLeft: '0.5rem' }}>
-                          Application packet
-                        </span>
-                      ) : null}
-                    </span>
-                    <span className="row-val" title={snap.checksum} style={{ fontSize: '0.75rem' }}>
-                      {snap.checksum.slice(0, 12)}…
-                    </span>
-                  </Link>
-                );
-              })}
-            </div>
-          )}
-        </article>
-      </div>
-
-      <div className="grid" id="evidence" style={{ marginTop: '1.5rem' }}>
-        <EvidenceSelectionPanel
-          missionId={mission.id}
-          candidates={data.candidates.map((c) => ({
-            packRequirementId: c.packRequirementId,
-            kind: c.kind,
-            label: c.kind === 'FIELD' ? (profileField(c.key)?.label ?? c.key) : c.key,
-            citation: c.citation,
-            factCandidates: c.factCandidates.map((f) => ({
-              factId: f.factId,
-              value: f.value,
-              repeatingRecordKey: f.repeatingRecordKey,
-              eligible: isFactStatusEligible(f.status),
-            })),
-            documentCandidates: c.documentCandidates.map((d) => ({
-              documentId: d.documentId,
-              displayName: d.displayName,
-              eligible: d.eligible,
-              staleness: d.staleness.status,
-            })),
-            selectedFactIds: c.selectedFactIds,
-            selectedDocumentIds: c.selectedDocumentIds,
-            selectionIdsByCandidate: data.selectionIdsByCandidate,
-          }))}
-        />
-      </div>
-
-      <div className="grid" id="work" style={{ marginTop: '1.5rem' }}>
-        <TasksPanel missionId={mission.id} tasks={data.tasks} />
-        <AppointmentsPanel missionId={mission.id} appointments={data.appointments} />
-        <LettersPanel
-          missionId={mission.id}
-          letters={data.letters.map((l) => ({
-            id: l.id,
-            version: l.version,
-            content: l.content,
-            createdAt: l.createdAt.toISOString(),
-          }))}
-          canGenerate={data.candidates.some(
-            (c) =>
-              c.factCandidates.some((f) => isFactStatusEligible(f.status)) ||
-              c.documentCandidates.some((d) => d.eligible),
-          )}
-        />
-      </div>
-
-      <div style={{ marginTop: '1.5rem' }} id="notes">
-        <Disclosure
-          title="Contributors and notes from your agency"
-          hint="Ask a sponsor for one document, read shared notes"
-        >
-          <div className="grid">
-            <article className="card">
-              <p className="card-kicker">Delegate</p>
-              <h2 className="card-title">Ask a contributor</h2>
-              <p className="card-body" style={{ marginBottom: '1.25rem' }}>
-                Ask a sponsor or family member - who never gets a wallet, profile, or case view of
-                any kind - for exactly one named document. They see only what you type below before
-                deciding whether to upload.
-              </p>
-              <ContributorRequestsPanel
-                missionId={mission.id}
-                requests={data.contributorRequests}
-              />
-            </article>
-
-            <article className="card">
-              <p className="card-kicker">Collaboration</p>
-              <h2 className="card-title">Notes from your agency</h2>
-              <p className="card-body" style={{ marginBottom: '1.25rem' }}>
-                Notes an agency working this case has chosen to share with you. An agency's own
-                internal notes are never shown here.
-              </p>
-              {data.notes.length === 0 ? (
-                <p className="muted" style={{ fontSize: '0.9rem' }}>
-                  No notes shared with you yet.
-                </p>
-              ) : (
-                <div className="rows">
-                  {data.notes.map((n) => (
-                    <div
-                      className="row"
-                      key={n.id}
-                      style={{ flexDirection: 'column', alignItems: 'flex-start' }}
-                    >
-                      <span style={{ fontSize: '0.9rem' }}>{n.body}</span>
-                      <span className="muted" style={{ fontSize: '0.75rem', marginTop: '0.2rem' }}>
-                        {n.authorEmail ?? 'Unknown'}, {formatTimestampDate(n.createdAt)}
-                      </span>
+                              <span className="row-key">
+                                {label || '(unnamed)'}
+                                {r.optional ? ' · optional' : ''}
+                              </span>
+                              <span className={`badge ${meta.tone}`}>{meta.label}</span>
+                            </div>
+                            {meta.next ? (
+                              <span className="muted" style={{ fontSize: '0.8rem' }}>
+                                {meta.next}
+                                {r.state === 'CONFLICTING' ? (
+                                  <>
+                                    {' '}
+                                    <Link href={`/app/applicant/${data.applicantId}/profile`}>
+                                      Resolve on profile →
+                                    </Link>
+                                  </>
+                                ) : null}
+                                {r.state === 'CRITICAL_GAP' || r.state === 'EXPIRING_STALE' ? (
+                                  <>
+                                    {' '}
+                                    <a href="#evidence">Provide evidence ↓</a>
+                                  </>
+                                ) : null}
+                              </span>
+                            ) : null}
+                            {r.citation ? (
+                              <span className="muted" style={{ fontSize: '0.75rem' }}>
+                                Cite: {sourceLine || r.citation}
+                                {r.observedDate ? ` · as of ${formatDateOnly(r.observedDate)}` : ''}
+                                {sourceHref ? (
+                                  <>
+                                    {' · '}
+                                    <a href={sourceHref} target="_blank" rel="noreferrer">
+                                      source
+                                    </a>
+                                  </>
+                                ) : null}
+                              </span>
+                            ) : null}
+                            {r.sourceInaccessible ? (
+                              <span
+                                className="badge badge-danger"
+                                style={{ alignSelf: 'flex-start' }}
+                              >
+                                Source currently unreachable - under review
+                              </span>
+                            ) : null}
+                            {data.explanationConfigured &&
+                            (r.state === 'CRITICAL_GAP' || r.state === 'ATTENTION') ? (
+                              <ExplainGapButton
+                                missionId={data.mission.id}
+                                packRequirementId={r.packRequirementId}
+                                explanation={
+                                  data.explanationsByRequirement.get(r.packRequirementId)
+                                    ?.explanation ?? null
+                                }
+                              />
+                            ) : null}
+                          </div>
+                        );
+                      })}
                     </div>
-                  ))}
-                </div>
-              )}
-            </article>
-          </div>
-        </Disclosure>
-      </div>
+                  </>
+                ) : null}
+                <p className="muted" style={{ fontSize: '0.8rem', marginTop: '1rem' }}>
+                  Readiness is completeness only - never an approval likelihood.
+                </p>
+              </>
+            ) : (
+              <p className="card-body">Attach a requirement pack to see readiness.</p>
+            )}
+          </article>
 
-      <div className="grid" id="outcome" style={{ marginTop: '1.5rem' }}>
-        <SubmissionReportPanel
-          missionId={mission.id}
-          submissions={data.submissions}
-          eligible={mission.state === 'SUBMISSION_READY'}
-        />
-        <OutcomePanel
-          missionId={mission.id}
-          outcomes={data.outcomes}
-          evidenceOptions={data.evidenceOptions}
-        />
-      </div>
-
-      <div style={{ marginTop: '1.5rem' }}>
-        <Disclosure
-          title="Problems and feedback"
-          hint="Raise a complaint or give feedback on this case"
-        >
-          <div className="grid">
-            <ComplaintPanel missionId={mission.id} complaints={data.complaints} />
-            <FeedbackPanel
+          <div className="grid" id="evidence" style={{ marginTop: '1.5rem' }}>
+            <EvidenceSelectionPanel
               missionId={mission.id}
-              feedback={data.feedback}
-              canSubmit={data.canSubmitFeedback}
+              candidates={data.candidates.map((c) => ({
+                packRequirementId: c.packRequirementId,
+                kind: c.kind,
+                label:
+                  c.kind === 'FIELD'
+                    ? (profileField(c.key)?.label ?? humanizeCode(c.key))
+                    : humanizeCode(c.key),
+                citation: c.citation,
+                factCandidates: c.factCandidates.map((f) => ({
+                  factId: f.factId,
+                  value: f.value,
+                  repeatingRecordKey: f.repeatingRecordKey,
+                  eligible: isFactStatusEligible(f.status),
+                })),
+                documentCandidates: c.documentCandidates.map((d) => ({
+                  documentId: d.documentId,
+                  displayName: d.displayName,
+                  eligible: d.eligible,
+                  staleness: d.staleness.status,
+                })),
+                selectedFactIds: c.selectedFactIds,
+                selectedDocumentIds: c.selectedDocumentIds,
+                selectionIdsByCandidate: data.selectionIdsByCandidate,
+              }))}
             />
           </div>
-        </Disclosure>
+
+          <div className="grid" id="work" style={{ marginTop: '1.5rem' }}>
+            <TasksPanel missionId={mission.id} tasks={data.tasks} />
+            <AppointmentsPanel missionId={mission.id} appointments={data.appointments} />
+            <LettersPanel
+              missionId={mission.id}
+              letters={data.letters.map((l) => ({
+                id: l.id,
+                version: l.version,
+                content: l.content,
+                createdAt: l.createdAt.toISOString(),
+              }))}
+              canGenerate={data.candidates.some(
+                (c) =>
+                  c.factCandidates.some((f) => isFactStatusEligible(f.status)) ||
+                  c.documentCandidates.some((d) => d.eligible),
+              )}
+            />
+          </div>
+
+          <div id="notes">
+            <Disclosure
+              title="Contributors and notes from your agency"
+              hint="Ask a sponsor for one document, read shared notes"
+            >
+              <div className="grid">
+                <article className="card">
+                  <p className="card-kicker">Delegate</p>
+                  <h2 className="card-title">Ask a contributor</h2>
+                  <p className="card-body" style={{ marginBottom: '1.25rem' }}>
+                    Ask a sponsor or family member - who never gets a wallet, profile, or case view
+                    of any kind - for exactly one named document. They see only what you type below
+                    before deciding whether to upload.
+                  </p>
+                  <ContributorRequestsPanel
+                    missionId={mission.id}
+                    requests={data.contributorRequests}
+                  />
+                </article>
+
+                <article className="card">
+                  <p className="card-kicker">Collaboration</p>
+                  <h2 className="card-title">Notes from your agency</h2>
+                  <p className="card-body" style={{ marginBottom: '1.25rem' }}>
+                    Notes an agency working this case has chosen to share with you. An agency's own
+                    internal notes are never shown here.
+                  </p>
+                  {data.notes.length === 0 ? (
+                    <p className="muted" style={{ fontSize: '0.9rem' }}>
+                      No notes shared with you yet.
+                    </p>
+                  ) : (
+                    <div className="rows">
+                      {data.notes.map((n) => (
+                        <div
+                          className="row"
+                          key={n.id}
+                          style={{ flexDirection: 'column', alignItems: 'flex-start' }}
+                        >
+                          <span style={{ fontSize: '0.9rem' }}>{n.body}</span>
+                          <span
+                            className="muted"
+                            style={{ fontSize: '0.75rem', marginTop: '0.2rem' }}
+                          >
+                            {n.authorEmail ?? 'Unknown'}, {formatTimestampDate(n.createdAt)}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </article>
+              </div>
+            </Disclosure>
+          </div>
+
+          <div className="grid" id="outcome" style={{ marginTop: '1.5rem' }}>
+            <SubmissionReportPanel
+              missionId={mission.id}
+              submissions={data.submissions}
+              eligible={mission.state === 'SUBMISSION_READY'}
+            />
+            <OutcomePanel
+              missionId={mission.id}
+              outcomes={data.outcomes}
+              evidenceOptions={data.evidenceOptions}
+            />
+          </div>
+
+          <div style={{ marginTop: '1.5rem' }}>
+            <Disclosure
+              title="Problems and feedback"
+              hint="Raise a complaint or give feedback on this case"
+            >
+              <div className="grid">
+                <ComplaintPanel missionId={mission.id} complaints={data.complaints} />
+                <FeedbackPanel
+                  missionId={mission.id}
+                  feedback={data.feedback}
+                  canSubmit={data.canSubmitFeedback}
+                />
+              </div>
+            </Disclosure>
+          </div>
+        </div>
+        <aside className="split-rail" aria-label="About this case">
+          <article className="card">
+            <p className="card-kicker">Case</p>
+            <h2 className="card-title">Case details</h2>
+            <CaseDetailsForm
+              missionId={mission.id}
+              jurisdiction={mission.jurisdiction}
+              serviceCategory={mission.serviceCategory}
+              travelStartDate={mission.travelStartDate}
+              travelEndDate={mission.travelEndDate}
+              targetDeadline={mission.targetDeadline}
+              manualMode={mission.manualMode}
+            />
+          </article>
+          <article className="card">
+            <p className="card-kicker">Requirements</p>
+            <h2 className="card-title">Requirement pack</h2>
+            {mission.packVersionId && data.packInfo ? (
+              <>
+                <div
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    gap: '0.75rem',
+                    marginBottom: '0.5rem',
+                  }}
+                >
+                  <span className="card-body" style={{ margin: 0 }}>
+                    {data.packInfo.name}
+                  </span>
+                  <span
+                    className={`badge ${data.packInfo.authoritative ? 'badge-success' : 'badge-neutral'}`}
+                  >
+                    {data.packInfo.authoritative
+                      ? 'Official requirement pack'
+                      : 'Agency custom checklist'}
+                  </span>
+                </div>
+                {data.packInfo.jurisdiction || data.packInfo.route ? (
+                  <p className="muted" style={{ fontSize: '0.85rem', margin: 0 }}>
+                    {[data.packInfo.jurisdiction, data.packInfo.route].filter(Boolean).join(' · ')}
+                  </p>
+                ) : null}
+                {data.packInfo.effectiveDate ? (
+                  <p className="muted" style={{ fontSize: '0.8rem', margin: '0.35rem 0 0' }}>
+                    In effect since {formatDateOnly(data.packInfo.effectiveDate)}
+                  </p>
+                ) : null}
+              </>
+            ) : (
+              <>
+                <p className="card-body" style={{ marginBottom: '1rem' }}>
+                  Attach a published requirement pack to compute readiness.
+                </p>
+                <AttachPackForm missionId={mission.id} options={data.packOptions} />
+              </>
+            )}
+          </article>
+          <article className="card">
+            <p className="card-kicker">Workflow</p>
+            <h2 className="card-title">Advance the case</h2>
+            {nextStates.length === 0 ? (
+              <p className="card-body">This case is in a terminal state.</p>
+            ) : (
+              <div style={{ marginTop: '0.5rem' }}>
+                <TransitionButtons missionId={mission.id} nextStates={nextStates} />
+              </div>
+            )}
+          </article>
+          <article className="card" id="snapshots">
+            <p className="card-kicker">History</p>
+            <h2 className="card-title">Snapshots</h2>
+            {data.snapshots.length === 0 ? (
+              <p className="card-body">
+                No snapshots yet. Capture one to freeze this case's evidence and checksum.
+              </p>
+            ) : (
+              <div className="rows" style={{ marginTop: '0.5rem' }}>
+                {data.snapshots.map((snap) => {
+                  const content = snap.content as { state?: string } | null;
+                  const isPacket = content?.state ? PACKET_STATES.has(content.state) : false;
+                  return (
+                    <Link
+                      href={`/app/mission/${mission.id}/snapshots/${snap.id}`}
+                      className="row"
+                      key={snap.id}
+                      style={{ textDecoration: 'none', color: 'inherit' }}
+                    >
+                      <span className="row-key">
+                        Version {snap.version}
+                        {isPacket ? (
+                          <span className="badge badge-success" style={{ marginLeft: '0.5rem' }}>
+                            Application packet
+                          </span>
+                        ) : null}
+                      </span>
+                      <span
+                        className="row-val"
+                        title={snap.checksum}
+                        style={{ fontSize: '0.75rem' }}
+                      >
+                        {snap.checksum.slice(0, 12)}…
+                      </span>
+                    </Link>
+                  );
+                })}
+              </div>
+            )}
+          </article>
+          <article className="card">
+            <p className="card-kicker">Family trip</p>
+            <h2 className="card-title">Itinerary reference</h2>
+            <p className="card-body" style={{ marginBottom: '1rem' }}>
+              An optional label linking this case to another family member's, purely for display.
+              Access and permissions stay entirely separate per case.
+            </p>
+            <ItineraryForm missionId={mission.id} itineraryRef={mission.itineraryRef} />
+            {data.linkedMissions.length > 0 ? (
+              <div className="rows" style={{ marginTop: '1rem' }}>
+                {data.linkedMissions.map((m) => (
+                  <Link className="row row-link" key={m.id} href={`/app/mission/${m.id}`}>
+                    <span className="row-key">{m.applicantName}</span>
+                    <span className="muted">{m.title}</span>
+                  </Link>
+                ))}
+              </div>
+            ) : null}
+          </article>
+        </aside>
       </div>
     </section>
   );

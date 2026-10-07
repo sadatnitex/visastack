@@ -6,6 +6,7 @@ import {
   listErasureJobsNeedingAttention,
 } from '@visastack/services';
 import type { Metadata } from 'next';
+import { PageHeader } from '../../../../components/ui';
 import { isPlatformAdmin } from '../../../../lib/admin';
 import { formatDateOnly } from '../../../../lib/format-date';
 import { withSession } from '../../../../lib/session';
@@ -49,17 +50,11 @@ export default async function AdminPrivacyPage() {
 
   return (
     <section className="section container">
-      <div className="toolbar" style={{ marginBottom: '2rem' }}>
-        <div>
-          <span className="eyebrow">Platform</span>
-          <h1 className="section-title" style={{ margin: '0.25rem 0 0' }}>
-            Privacy
-          </h1>
-          <p className="muted" style={{ margin: '0.35rem 0 0' }}>
-            Retention policies, legal holds, erasure and purge.
-          </p>
-        </div>
-      </div>
+      <PageHeader
+        eyebrow="Platform"
+        title="Privacy"
+        description="Retention policies, legal holds, erasure and purge."
+      />
 
       {!data.admin ? (
         <AdminRestricted />

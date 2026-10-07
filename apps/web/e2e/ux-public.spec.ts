@@ -107,9 +107,13 @@ const PHONE_AND_TABLET = [
 ] as const;
 
 function fixtureHtml(): string {
-  const primary = PRIMARY_NAV.map(
-    (link, i) => `<a href="${link.href}"${i === 0 ? ' aria-current="page"' : ''}>${link.label}</a>`,
-  ).join('');
+  const icon =
+    '<svg class="icon" aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M5 12h14"/></svg>';
+  const navLink = (link: { href: string; label: string }, i: number) =>
+    `<a href="${link.href}"${i === 0 ? ' aria-current="page"' : ''}>${icon}<span class="app-link-label">${link.label}</span></a>`;
+  // Mirrors `AppNav`: four links on the bar, "More" for the rest and the switch controls.
+  const primary = PRIMARY_NAV.slice(0, 4).map(navLink).join('');
+  const secondary = PRIMARY_NAV.slice(4).map(navLink).join('');
   const bar = (links: readonly { href: string; label: string }[]) =>
     links
       .map(
@@ -128,12 +132,19 @@ function fixtureHtml(): string {
   return `
 <div id="fixture">
  <div class="app-frame">
-  <div class="app-shell-nav">
-    <nav class="app-shell-links" aria-label="Workspace">${primary}</nav>
-    <div class="app-shell-switch">
-      <a href="/app/agency" class="btn btn-secondary nav-cta">Agency</a>
-      <a href="/app/admin" class="btn btn-secondary nav-cta">Admin</a>
-      <form action="#"><button type="submit" class="btn btn-secondary nav-cta">Sign out</button></form>
+  <div class="app-shell-nav" data-open="false">
+    <div class="app-bar">
+      <nav class="app-shell-links" aria-label="Workspace">${primary}</nav>
+      <button type="button" class="app-more-toggle" aria-expanded="false" aria-controls="fixture-more" onclick="const n=this.closest('.app-shell-nav');const o=n.dataset.open!=='true';n.dataset.open=String(o);this.setAttribute('aria-expanded',String(o))">${icon}<span class="app-link-label">More</span></button>
+    </div>
+    <div class="app-more" id="fixture-more">
+      <nav class="app-shell-links app-shell-links-more" aria-label="Account and privacy">${secondary}</nav>
+      <div class="app-shell-switch">
+        <p class="app-shell-switch-label">Switch area</p>
+        <a href="/app/agency" class="btn btn-secondary nav-cta">Agency</a>
+        <a href="/app/admin" class="btn btn-secondary nav-cta">Admin</a>
+        <form action="#"><button type="submit" class="btn btn-secondary nav-cta">Sign out</button></form>
+      </div>
     </div>
   </div>
   <div class="app-main">
@@ -239,6 +250,8 @@ test.describe('signed-in layout building blocks on a narrow screen (real stylesh
         page,
       }) => {
         const labels = [...PRIMARY_NAV.map((l) => l.label), 'Agency', 'Admin', 'Sign out'];
+        // The last few links and the switch controls sit under "More" on a narrow screen.
+        await page.getByRole('button', { name: 'More' }).click();
         for (const label of labels) {
           const target = page
             .locator('.app-shell-nav')
@@ -253,6 +266,26 @@ test.describe('signed-in layout building blocks on a narrow screen (real stylesh
             );
           }
         }
+      });
+
+      test('the bottom bar stays at the bottom and never covers the last line of the page', async ({
+        page,
+      }) => {
+        const { barTop, barBottom, innerHeight, lastBottom } = await page.evaluate(() => {
+          window.scrollTo({ top: document.documentElement.scrollHeight, behavior: 'instant' });
+          const bar = document.querySelector('.app-shell-nav')?.getBoundingClientRect();
+          const main = document.querySelector('.app-main')?.getBoundingClientRect();
+          if (!bar || !main) throw new Error('missing shell');
+          return {
+            barTop: bar.top,
+            barBottom: bar.bottom,
+            innerHeight: window.innerHeight,
+            lastBottom: main.bottom,
+          };
+        });
+        expect(barBottom, 'bar sits on the bottom edge').toBeGreaterThanOrEqual(innerHeight - 1);
+        expect(barTop, 'bar is a bar, not a screen').toBeGreaterThan(innerHeight - 140);
+        expect(lastBottom, 'the page ends above the bar').toBeLessThanOrEqual(barTop + 1);
       });
 
       test('every tab of every section bar can be scrolled into view, so none is out of reach', async ({

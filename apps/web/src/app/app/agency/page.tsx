@@ -1,7 +1,7 @@
 import { listMembershipsForAccount } from '@visastack/services';
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { EmptyState } from '../../../components/ui';
+import { EmptyState, PageHeader } from '../../../components/ui';
 import { humanizeCode } from '../../../lib/format-code';
 import { withSession } from '../../../lib/session';
 import { CreateOrgForm } from './create-org-form';
@@ -24,18 +24,11 @@ export default async function AgencyPage() {
 
   return (
     <section className="section container">
-      <div className="toolbar" style={{ marginBottom: '2rem' }}>
-        <div>
-          <span className="eyebrow">Agency</span>
-          <h1 className="section-title" style={{ margin: '0.25rem 0 0' }}>
-            Organizations
-          </h1>
-          <p className="muted" style={{ margin: '0.35rem 0 0' }}>
-            Agencies collaborate on cases and request evidence. Membership never grants record
-            access on its own — access is always an accepted grant.
-          </p>
-        </div>
-      </div>
+      <PageHeader
+        eyebrow="Agency"
+        title="Organizations"
+        description="Agencies collaborate on cases and request evidence. Membership never grants record access on its own - access is always an accepted grant."
+      />
 
       <div className="grid">
         <article className="card">

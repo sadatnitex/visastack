@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { Icon } from '../components/icons';
 import { StatusBadge, type Tone } from '../components/ui';
 
 /**
@@ -241,10 +242,11 @@ export default async function HomePage({ searchParams }: HomePageProps) {
               on.
             </p>
           </div>
-          <ul className="pill-list center" style={{ justifyContent: 'center' }}>
+          <ul className="promise-grid">
             {PROMISES.map((promise) => (
-              <li className="pill" key={promise}>
-                {promise}
+              <li key={promise}>
+                <Icon name="check" size={18} />
+                <span>{promise}</span>
               </li>
             ))}
           </ul>

@@ -21,6 +21,10 @@ const state = vi.hoisted(() => ({
   isAdmin: false,
 }));
 
+// Fonts are files the build turns into styles; a test only needs the class names to exist.
+vi.mock('next/font/local', () => ({
+  default: () => ({ variable: 'font-variable', className: 'font-class' }),
+}));
 vi.mock('@workos-inc/authkit-nextjs', () => ({
   withAuth: async () => ({ user: { email: 'traveller@example.com' } }),
   signOut: async () => undefined,
@@ -201,7 +205,7 @@ describe('signed-in pages, as whole pages in the signed-in shell', () => {
 
   it('marks the current section in the signed-in navigation', async () => {
     const html = await shellMarkup(SCREENS[0] as Screen);
-    const current = html.match(/<a [^>]*aria-current="page"[^>]*>[^<]*<\/a>/g) ?? [];
+    const current = html.match(/<a [^>]*aria-current="page"[^>]*>.*?<\/a>/g) ?? [];
     expect(current).toHaveLength(1);
     expect(current[0]).toContain('Alerts');
   });

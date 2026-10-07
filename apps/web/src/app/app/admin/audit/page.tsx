@@ -1,5 +1,7 @@
 import { type AuditEventRow, listRecentAuditEvents } from '@visastack/services';
 import type { Metadata } from 'next';
+import { EmptyState, StatusBadge } from '../../../../components/ui';
+import { PageHeader } from '../../../../components/ui';
 import { isPlatformAdmin } from '../../../../lib/admin';
 import { formatTimestamp } from '../../../../lib/format-date';
 import { withSession } from '../../../../lib/session';
@@ -22,17 +24,11 @@ export default async function AdminAuditPage() {
 
   return (
     <section className="section container">
-      <div className="toolbar" style={{ marginBottom: '2rem' }}>
-        <div>
-          <span className="eyebrow">Platform</span>
-          <h1 className="section-title" style={{ margin: '0.25rem 0 0' }}>
-            Audit
-          </h1>
-          <p className="muted" style={{ margin: '0.35rem 0 0' }}>
-            The platform's append-only, hash-chained audit trail.
-          </p>
-        </div>
-      </div>
+      <PageHeader
+        eyebrow="Platform"
+        title="Audit"
+        description="The platform's append-only, hash-chained audit trail."
+      />
 
       {!data.admin ? (
         <AdminRestricted />
@@ -48,37 +44,43 @@ export default async function AdminAuditPage() {
               audit trail - every sensitive action across every tenant, newest first.
             </p>
             {data.auditEvents.length === 0 ? (
-              <p className="card-body">No audit events recorded yet.</p>
+              <EmptyState title="No audit events yet" icon="activity">
+                Sensitive actions across the platform are recorded here as they happen.
+              </EmptyState>
             ) : (
-              <div className="rows">
-                {data.auditEvents.map((event: AuditEventRow) => (
-                  <div
-                    className="row"
-                    key={event.seq}
-                    style={{ flexDirection: 'column', alignItems: 'stretch', gap: '0.2rem' }}
-                  >
-                    <div
-                      style={{ display: 'flex', justifyContent: 'space-between', gap: '0.75rem' }}
-                    >
-                      <span className="row-key mono" style={{ fontSize: '0.85rem' }}>
+              <table className="data-table">
+                <caption className="sr-only">Recent audit events, newest first</caption>
+                <thead>
+                  <tr>
+                    <th scope="col">When</th>
+                    <th scope="col">Event</th>
+                    <th scope="col">Result</th>
+                    <th scope="col">Resource</th>
+                    <th scope="col">Reason</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.auditEvents.map((event: AuditEventRow) => (
+                    <tr key={event.seq}>
+                      <td data-label="When">{formatTimestamp(event.occurredAt)}</td>
+                      <th scope="row" className="mono">
                         {event.eventType}
-                      </span>
-                      {event.result ? (
-                        <span
-                          className={`badge ${event.result === 'DENIED' ? 'badge-danger' : 'badge-neutral'}`}
-                        >
-                          {event.result}
-                        </span>
-                      ) : null}
-                    </div>
-                    <span className="muted" style={{ fontSize: '0.78rem' }}>
-                      {formatTimestamp(event.occurredAt)}
-                      {event.resourceType ? ` · ${event.resourceType}` : ''}
-                      {event.reason ? ` · ${event.reason}` : ''}
-                    </span>
-                  </div>
-                ))}
-              </div>
+                      </th>
+                      <td data-label="Result">
+                        {event.result ? (
+                          <StatusBadge tone={event.result === 'DENIED' ? 'danger' : 'neutral'}>
+                            {event.result}
+                          </StatusBadge>
+                        ) : (
+                          <span className="muted">-</span>
+                        )}
+                      </td>
+                      <td data-label="Resource">{event.resourceType ?? '-'}</td>
+                      <td data-label="Reason">{event.reason ?? '-'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             )}
           </article>
         </>

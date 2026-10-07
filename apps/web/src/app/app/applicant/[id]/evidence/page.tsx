@@ -8,7 +8,7 @@ import {
 } from '@visastack/services';
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
-import { EmptyState, StatusBadge, type Tone } from '../../../../../components/ui';
+import { EmptyState, PageHeader, StatusBadge, type Tone } from '../../../../../components/ui';
 import { humanizeCode } from '../../../../../lib/format-code';
 import { daysUntilDateOnly, formatDateOnly } from '../../../../../lib/format-date';
 import { PROFILE_FIELDS } from '../../../../../lib/profile-fields';
@@ -126,19 +126,12 @@ export default async function EvidencePage({
 
   return (
     <>
-      <div className="toolbar" style={{ marginBottom: '2rem' }}>
-        <div>
-          <span className="eyebrow">Evidence requests</span>
-          <h2 className="section-title" style={{ margin: '0.25rem 0 0' }}>
-            Requests from agencies
-          </h2>
-          <p className="muted" style={{ margin: '0.35rem 0 0' }}>
-            An agency request is that organisation asking you for something, never an official visa
-            requirement on its own. You decide what to submit, and can reuse anything already in
-            your wallet.
-          </p>
-        </div>
-      </div>
+      <PageHeader
+        eyebrow="Evidence requests"
+        title="Requests from agencies"
+        description="An agency request is that organisation asking you for something, never an official visa requirement on its own. You decide what to submit, and can reuse anything already in your wallet."
+        as="h2"
+      />
 
       {awaiting.length > 0 ? (
         <output className="notice notice-warn" style={{ display: 'block', marginBottom: '1.5rem' }}>

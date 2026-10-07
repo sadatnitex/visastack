@@ -7,7 +7,7 @@ import {
   listConsentHistory,
 } from '@visastack/services';
 import type { Metadata } from 'next';
-import { EmptyState } from '../../../components/ui';
+import { EmptyState, PageHeader } from '../../../components/ui';
 import { withSession } from '../../../lib/session';
 import { DeletionPanel } from './deletion-panel';
 import { LargeExportPanel } from './large-export-panel';
@@ -70,17 +70,11 @@ export default async function PrivacyPage() {
 
   return (
     <section className="section container">
-      <div className="toolbar" style={{ marginBottom: '2rem' }}>
-        <div>
-          <span className="eyebrow">Privacy</span>
-          <h1 className="section-title" style={{ margin: '0.25rem 0 0' }}>
-            Your data rights
-          </h1>
-          <p className="muted" style={{ margin: '0.35rem 0 0' }}>
-            Export everything, review your consent history, or delete your account.
-          </p>
-        </div>
-      </div>
+      <PageHeader
+        eyebrow="Privacy"
+        title="Your data rights"
+        description="Export everything, review your consent history, or delete your account."
+      />
 
       <div className="grid">
         <article className="card">

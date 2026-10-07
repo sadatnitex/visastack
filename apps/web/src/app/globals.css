@@ -12,7 +12,7 @@
      best installed Bengali face so mixed English and Bangla text keeps one rhythm. */
   --font-sans:
     "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
-    "Noto Sans", "Noto Sans Bengali", "Hind Siliguri", "Nirmala UI", Helvetica, Arial, sans-serif;
+    "Noto Sans", var(--font-bengali, "Noto Sans Bengali"), "Hind Siliguri", "Nirmala UI", Helvetica, Arial, sans-serif;
   --font-mono: ui-monospace, "SF Mono", "SFMono-Regular", Menlo, Consolas, monospace;
 
   /* Light palette: cool paper, navy ink, one blue for links and focus, one teal for progress. */
@@ -54,6 +54,12 @@
   --container: 1024px;
   --container-wide: 1280px;
   --header-height: 56px;
+  --seg-0: #0a7f73;
+  --seg-1: #1457d6;
+  --seg-2: #6d4ad6;
+  --seg-3: #b7791f;
+  --seg-4: #c0396b;
+  --seg-5: #5d6c80;
   --side-width: 15rem;
 
   /* Spacing scale: an 8px rhythm with a half-step at the bottom for tight inline gaps. */
@@ -80,6 +86,12 @@
     /* White text on a light-blue fill fails 4.5:1, so solid fills stay a deeper blue. */
     --accent-strong: #2b62cc;
     --brand: #35c2b0;
+    --seg-0: #35c2b0;
+    --seg-1: #6aa3ff;
+    --seg-2: #a592ff;
+    --seg-3: #e0b25a;
+    --seg-4: #ee86ac;
+    --seg-5: #8393ab;
     --brand-bg: #0f2f33;
     --hairline: #26344d;
     --hairline-soft: #1d2a40;
@@ -465,6 +477,7 @@ main {
   line-height: 1.2;
   padding: 0.28rem 0.6rem;
   border-radius: 6px;
+  white-space: nowrap;
   font-variant-numeric: tabular-nums;
 }
 .badge::before {
@@ -713,9 +726,10 @@ main {
   flex-wrap: wrap;
 }
 
-/* App shell: the signed-in product. A sidebar of the main jobs on a wide screen; on a phone
-   or tablet the same links wrap into a compact block at the top (see the narrow-screen rules
-   below). The switch buttons (Agency, Admin, Sign out) live at the foot of the sidebar. */
+/* App shell: the signed-in product. On a laptop or larger it is a sidebar listing every
+   destination, with the switch controls underneath. On a phone or tablet it is a bar at the
+   bottom of the screen, within reach of a thumb: four destinations and a "More" button that
+   opens the rest (see the narrow-screen rules below). */
 .app-frame {
   display: grid;
   grid-template-columns: var(--side-width) minmax(0, 1fr);
@@ -737,10 +751,21 @@ main {
   top: var(--header-height);
   display: flex;
   flex-direction: column;
-  gap: 1.25rem;
+  gap: 0.15rem;
   max-height: calc(100dvh - var(--header-height));
-  padding: 1.25rem 0.9rem 1.25rem 1.1rem;
+  padding: 1.1rem 0.9rem 1.25rem 1rem;
   overflow-y: auto;
+}
+.app-bar {
+  display: block;
+}
+.app-more-toggle {
+  display: none;
+}
+.app-more {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
 }
 .app-shell-links {
   display: flex;
@@ -748,15 +773,27 @@ main {
   gap: 0.15rem;
   min-width: 0;
 }
-.app-shell-links a {
+.app-shell-links a,
+.app-more-toggle {
   display: flex;
   align-items: center;
+  gap: 0.7rem;
   min-height: 2.5rem;
   padding: 0.45rem 0.75rem;
   border-radius: var(--radius-sm);
   color: var(--text-secondary);
   font-size: 0.95rem;
   font-weight: 500;
+}
+.app-more-toggle {
+  display: none;
+  border: none;
+  background: none;
+  font-family: inherit;
+  cursor: pointer;
+}
+.app-shell-links a .icon {
+  color: var(--text-tertiary);
 }
 .app-shell-links a:hover {
   color: var(--text);
@@ -769,12 +806,24 @@ main {
   background: var(--brand-bg);
   box-shadow: inset 3px 0 0 var(--brand);
 }
+.app-shell-links a[aria-current="page"] .icon {
+  color: var(--brand);
+}
 .app-shell-switch {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
+  margin-top: 0.9rem;
   padding-top: 1rem;
   border-top: 1px solid var(--hairline-soft);
+}
+.app-shell-switch-label {
+  margin: 0;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
 }
 .app-shell-switch .btn,
 .app-shell-switch form {
@@ -782,6 +831,7 @@ main {
 }
 .app-shell-switch .btn {
   justify-content: flex-start;
+  gap: 0.6rem;
 }
 
 /* Contextual secondary nav (workspace/agency/admin section tabs) */
@@ -965,57 +1015,111 @@ main {
   }
 }
 
-/* Narrower than a laptop the sidebar becomes a block at the top of the page: the links wrap
-   as chips and the switch buttons sit on their own row. It scrolls away with the page instead
-   of covering a quarter of a phone. */
+/* Narrower than a laptop the navigation moves to the bottom of the screen, where a thumb
+   reaches it: four destinations and "More". The page keeps room below its content so the
+   bar never covers the last lines. */
 @media (max-width: 1023px) {
   html {
     scroll-padding-top: 4.5rem;
+    scroll-padding-bottom: 5.5rem;
   }
   .app-frame {
     display: block;
     background: none;
   }
+  .app-main {
+    padding-bottom: calc(5rem + env(safe-area-inset-bottom, 0px));
+  }
+  body:has(.app-shell-nav) .footer {
+    padding-bottom: calc(6rem + env(safe-area-inset-bottom, 0px));
+  }
   .app-shell-nav {
-    position: static;
+    position: fixed;
+    inset: auto 0 0 0;
+    z-index: 45;
     max-height: none;
-    background: var(--bg-elevated);
-    flex-direction: row;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 0.5rem 1rem;
-    padding: 0.6rem clamp(1rem, 4vw, 2.5rem);
+    padding: 0 0 env(safe-area-inset-bottom, 0px);
     overflow: visible;
-    border-right: none;
-    border-bottom: 1px solid var(--hairline);
-  }
-  .app-shell-links {
-    flex: 1 1 100%;
-    flex-direction: row;
-    flex-wrap: wrap;
-    gap: 0.3rem;
-  }
-  .app-shell-links a {
-    min-height: 2.25rem;
-    padding: 0.3rem 0.8rem;
-    border: 1px solid var(--hairline);
-    border-radius: var(--radius-pill);
     background: var(--bg-elevated);
-    white-space: nowrap;
+    border-top: 1px solid var(--hairline);
+    box-shadow: 0 -2px 10px rgba(14, 26, 43, 0.06);
   }
-  .app-shell-links a[aria-current="page"] {
-    border-color: var(--brand);
-    box-shadow: none;
+  .app-bar {
+    display: flex;
+  }
+  .app-bar > .app-shell-links {
+    flex: 4 1 0;
+    flex-direction: row;
+    gap: 0;
+  }
+  .app-bar a,
+  .app-more-toggle {
+    flex: 1 1 0;
+    flex-direction: column;
+    justify-content: center;
+    gap: 0.15rem;
+    min-width: 0;
+    min-height: 3.5rem;
+    padding: 0.35rem 0.15rem;
+    border-radius: 0;
+    border: none;
+    background: none;
+    font-family: inherit;
+    font-size: 0.7rem;
+    line-height: 1.15;
+    text-align: center;
+    cursor: pointer;
+    color: var(--text-secondary);
+  }
+  .app-bar .app-link-label {
+    overflow-wrap: anywhere;
+  }
+  .app-bar a[aria-current="page"] {
+    background: none;
+    color: var(--brand);
+    box-shadow: inset 0 3px 0 var(--brand);
+  }
+  .app-more-toggle {
+    display: flex;
+    flex: 1 1 0;
+  }
+  .app-more-toggle[aria-expanded="true"] {
+    color: var(--text);
+    background: var(--bg-subtle);
+  }
+  .app-more {
+    display: none;
+    position: absolute;
+    inset: auto 0 100% 0;
+    gap: 0.25rem;
+    padding: 0.75rem 1rem 1rem;
+    background: var(--bg-elevated);
+    border-top: 1px solid var(--hairline);
+    box-shadow: 0 -10px 24px rgba(14, 26, 43, 0.14);
+  }
+  .app-shell-nav[data-open="true"] .app-more {
+    display: flex;
+  }
+  .app-more .app-shell-links a {
+    min-height: 2.9rem;
+    font-size: 1rem;
   }
   .app-shell-switch {
-    flex: 1 1 100%;
     flex-direction: row;
     flex-wrap: wrap;
-    padding-top: 0.5rem;
+    margin-top: 0.4rem;
+  }
+  .app-shell-switch-label {
+    flex: 1 1 100%;
   }
   .app-shell-switch .btn,
   .app-shell-switch form {
     width: auto;
+    flex: 1 1 auto;
+  }
+  .app-shell-switch .btn {
+    min-height: 2.75rem;
+    justify-content: center;
   }
 }
 
@@ -1422,7 +1526,7 @@ a.checklist-item:hover .checklist-label {
   letter-spacing: -0.02em;
 }
 .app-main .container {
-  max-width: 62rem;
+  max-width: 74rem;
 }
 @media print {
   .app-frame {
@@ -1436,4 +1540,361 @@ a.checklist-item:hover .checklist-label {
 .card-title,
 .next-step-title {
   text-wrap: balance;
+}
+
+/* Page header, one pattern for every page. */
+.page-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem 1.5rem;
+  margin-bottom: 1.5rem;
+}
+.page-header-text {
+  flex: 1 1 20rem;
+  min-width: 0;
+}
+.page-header .eyebrow {
+  display: block;
+  margin-bottom: 0.3rem;
+}
+.page-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-bottom: 0.6rem;
+  min-height: 1.75rem;
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+}
+.page-back:hover {
+  color: var(--text);
+}
+.page-title {
+  margin: 0;
+  font-size: clamp(1.5rem, 2.6vw, 2rem);
+  line-height: 1.15;
+  letter-spacing: -0.025em;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+  text-wrap: balance;
+}
+.page-description {
+  margin: 0.45rem 0 0;
+  max-width: 62ch;
+  color: var(--text-secondary);
+}
+.page-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem 0.6rem;
+  margin-top: 0.7rem;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+}
+.page-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem;
+}
+.icon {
+  flex: none;
+}
+.icon-tile {
+  display: inline-grid;
+  place-items: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  margin-bottom: 0.65rem;
+  border-radius: 10px;
+  background: var(--brand-bg);
+  color: var(--brand);
+}
+
+/* Small facts in a row, not cards: the numbers an agency member scans first. */
+.section-label {
+  margin: 0 0 0.6rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+.stat-section {
+  margin-bottom: 1.25rem;
+}
+.stat-strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(10.5rem, 1fr));
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius);
+  background: var(--bg-elevated);
+  box-shadow: var(--shadow-card);
+  overflow: hidden;
+}
+.stat {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 0.5rem;
+  min-height: 5.5rem;
+  padding: 0.9rem 1.1rem;
+  border-right: 1px solid var(--hairline-soft);
+}
+.stat:last-child {
+  border-right: none;
+}
+.stat-label {
+  font-size: 0.85rem;
+  line-height: 1.3;
+  color: var(--text-secondary);
+}
+.stat-value {
+  font-size: 1.9rem;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-tertiary);
+}
+.stat-warning .stat-value {
+  color: var(--warning);
+}
+.stat-danger .stat-value {
+  color: var(--danger);
+}
+.stat-note {
+  margin: 0.6rem 0 0;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+}
+
+/* Pipeline: how many cases are at each stage, as one bar. Each stage is also a filter link. */
+.pipeline-card {
+  margin-bottom: 1.25rem;
+}
+.pipeline-bar {
+  display: flex;
+  gap: 3px;
+  height: 0.75rem;
+  margin: 0.4rem 0 0.9rem;
+}
+.pipeline-seg {
+  flex-basis: 0;
+  min-width: 6px;
+  border-radius: 4px;
+  background: var(--seg-0);
+}
+.pipeline-seg-1 {
+  background: var(--seg-1);
+}
+.pipeline-seg-2 {
+  background: var(--seg-2);
+}
+.pipeline-seg-3 {
+  background: var(--seg-3);
+}
+.pipeline-seg-4 {
+  background: var(--seg-4);
+}
+.pipeline-seg-5 {
+  background: var(--seg-5);
+}
+.pipeline-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 1.25rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.pipeline-legend a {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-height: 2rem;
+  color: var(--text);
+  font-size: 0.9rem;
+}
+.pipeline-dot {
+  width: 0.65rem;
+  height: 0.65rem;
+  border-radius: 50%;
+  background: var(--seg-0);
+}
+.pipeline-dot.pipeline-seg-1 {
+  background: var(--seg-1);
+}
+.pipeline-dot.pipeline-seg-2 {
+  background: var(--seg-2);
+}
+.pipeline-dot.pipeline-seg-3 {
+  background: var(--seg-3);
+}
+.pipeline-dot.pipeline-seg-4 {
+  background: var(--seg-4);
+}
+.pipeline-dot.pipeline-seg-5 {
+  background: var(--seg-5);
+}
+.pipeline-count {
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Data tables: real tables on a wide screen, a stack of labelled rows on a narrow one. */
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.92rem;
+}
+.data-table th,
+.data-table td {
+  padding: 0.8rem 0.75rem;
+  text-align: left;
+  vertical-align: top;
+}
+.data-table thead th {
+  padding-block: 0.55rem;
+  border-bottom: 1px solid var(--hairline);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+.data-table tbody tr {
+  border-bottom: 1px solid var(--hairline-soft);
+}
+.data-table tbody tr:last-child {
+  border-bottom: none;
+}
+.data-table tbody tr:hover {
+  background: var(--bg-subtle);
+}
+.data-table tbody th[scope="row"] {
+  font-weight: 600;
+}
+.data-table .cell-sub {
+  display: block;
+  margin-top: 0.2rem;
+  font-size: 0.82rem;
+  font-weight: 400;
+  color: var(--text-secondary);
+  overflow-wrap: anywhere;
+}
+.data-table td > .badge + .cell-sub {
+  margin-top: 0.35rem;
+}
+@media (max-width: 1180px) {
+  .data-table thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+  }
+  .data-table,
+  .data-table tbody,
+  .data-table tr,
+  .data-table th,
+  .data-table td {
+    display: block;
+  }
+  .data-table tbody tr {
+    padding: 0.9rem 0;
+  }
+  .data-table th,
+  .data-table td {
+    padding: 0.2rem 0;
+  }
+  .data-table td {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.2rem 0.75rem;
+    align-items: baseline;
+  }
+  .data-table td::before {
+    content: attr(data-label);
+    flex: 0 0 8.5rem;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--text-tertiary);
+  }
+  .data-table td > * {
+    flex: 1 1 10rem;
+    min-width: 0;
+  }
+  .data-table .cell-main {
+    margin-bottom: 0.35rem;
+    font-size: 1rem;
+  }
+}
+
+/* Two columns on a wide screen: the work on the left, the facts about it in a rail. */
+.split {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 20rem;
+  gap: 1.25rem;
+  align-items: start;
+}
+.split-main,
+.split-rail {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  min-width: 0;
+}
+.split-rail {
+  position: sticky;
+  top: calc(var(--header-height) + 1rem);
+}
+.split-main > .grid {
+  margin-top: 0 !important;
+}
+@media (max-width: 1180px) {
+  .split {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .split-rail {
+    position: static;
+  }
+}
+
+/* Public footer and the home page's promises, with a tick beside each. */
+.footer-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 1.25rem;
+}
+.footer-links a {
+  color: var(--text-secondary);
+  padding: 0.25rem 0;
+}
+.promise-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 17rem), 1fr));
+  gap: 0.75rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.promise-grid li {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
+  padding: 0.9rem 1rem;
+  background: var(--bg-elevated);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius);
+}
+.promise-grid .icon {
+  margin-top: 0.1rem;
+  color: var(--brand);
 }

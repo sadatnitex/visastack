@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import type { ReactNode } from 'react';
+import { Icon, type IconName } from './icons';
 
 /**
  * Small shared building blocks for the signed-in screens. They carry no state and no
@@ -96,13 +97,16 @@ export function EmptyState({
   title,
   children,
   action,
+  icon,
 }: {
   readonly title: string;
   readonly children: ReactNode;
   readonly action?: { readonly href: string; readonly label: string };
+  readonly icon?: IconName;
 }) {
   return (
     <div className="empty-state">
+      {icon ? <IconTile name={icon} /> : null}
       <p className="empty-state-title">{title}</p>
       <p className="empty-state-body">{children}</p>
       {action ? (
@@ -201,5 +205,59 @@ export function Checklist({
         })}
       </ol>
     </article>
+  );
+}
+
+/**
+ * The top of every page: where you are (small label), what this is (one heading), one
+ * sentence on what it is for, and the actions that belong to the whole page. One pattern
+ * everywhere, so a person learns the layout once.
+ */
+export function PageHeader({
+  eyebrow,
+  title,
+  description,
+  actions,
+  back,
+  as: Heading = 'h1',
+  meta,
+  lead,
+}: {
+  readonly eyebrow?: string;
+  readonly title: ReactNode;
+  readonly description?: ReactNode;
+  readonly actions?: ReactNode;
+  readonly back?: { readonly href: string; readonly label: string };
+  readonly as?: 'h1' | 'h2';
+  /** A line of small facts under the description, for example stage and deadline. */
+  readonly meta?: ReactNode;
+  /** Something that belongs above the label, such as an organization's logo. */
+  readonly lead?: ReactNode;
+}) {
+  return (
+    <header className="page-header">
+      <div className="page-header-text">
+        {back ? (
+          <Link href={back.href} className="page-back">
+            <span aria-hidden="true">{'\u2190'}</span> {back.label}
+          </Link>
+        ) : null}
+        {lead}
+        {eyebrow ? <span className="eyebrow">{eyebrow}</span> : null}
+        <Heading className="page-title">{title}</Heading>
+        {description ? <p className="page-description">{description}</p> : null}
+        {meta ? <div className="page-meta">{meta}</div> : null}
+      </div>
+      {actions ? <div className="page-actions">{actions}</div> : null}
+    </header>
+  );
+}
+
+/** A round-cornered square holding an icon, for empty states and list leads. */
+export function IconTile({ name }: { readonly name: IconName }) {
+  return (
+    <span className="icon-tile">
+      <Icon name={name} size={20} />
+    </span>
   );
 }

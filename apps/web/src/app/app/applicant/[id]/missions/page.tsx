@@ -2,7 +2,7 @@ import { getApplicant, hasConsent, listMissions } from '@visastack/services';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { EmptyState, StatusBadge } from '../../../../../components/ui';
+import { EmptyState, PageHeader, StatusBadge } from '../../../../../components/ui';
 import { humanizeCode } from '../../../../../lib/format-code';
 import { withSession } from '../../../../../lib/session';
 import { CreateMissionForm } from './create-mission-form';
@@ -48,17 +48,12 @@ export default async function MissionsPage({
 
   return (
     <>
-      <div className="toolbar" style={{ marginBottom: '2rem' }}>
-        <div>
-          <span className="eyebrow">Cases</span>
-          <h2 className="section-title" style={{ margin: '0.25rem 0 0' }}>
-            Visa cases
-          </h2>
-          <p className="muted" style={{ margin: '0.35rem 0 0' }}>
-            A case assembles this applicant's evidence against a published requirement pack.
-          </p>
-        </div>
-      </div>
+      <PageHeader
+        eyebrow="Cases"
+        title="Visa cases"
+        description="A case assembles this applicant's evidence against a published requirement pack."
+        as="h2"
+      />
 
       <div className="grid">
         <article className="card">

@@ -8,7 +8,7 @@ import {
 } from '@visastack/services';
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
-import { EmptyState, StatusBadge } from '../../../../../components/ui';
+import { EmptyState, PageHeader, StatusBadge } from '../../../../../components/ui';
 import { humanizeCode } from '../../../../../lib/format-code';
 import { formatTimestamp, formatTimestampDate } from '../../../../../lib/format-date';
 import { grantStatusBadge } from '../../../../../lib/grant-status';
@@ -87,18 +87,12 @@ export default async function SharingPage({
 
   return (
     <>
-      <div className="toolbar" style={{ marginBottom: '2rem' }}>
-        <div>
-          <span className="eyebrow">Sharing</span>
-          <h2 className="section-title" style={{ margin: '0.25rem 0 0' }}>
-            Access &amp; transparency
-          </h2>
-          <p className="muted" style={{ margin: '0.35rem 0 0' }}>
-            You control every grant. Access is purpose-bound, takes effect only once accepted, and
-            can be paused or revoked at any time.
-          </p>
-        </div>
-      </div>
+      <PageHeader
+        eyebrow="Sharing"
+        title={<>Access &amp; transparency</>}
+        description="You control every grant. Access is purpose-bound, takes effect only once accepted, and can be paused or revoked at any time."
+        as="h2"
+      />
 
       <div className="grid">
         <article className="card">

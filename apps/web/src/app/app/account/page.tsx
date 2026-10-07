@@ -1,6 +1,7 @@
 import { listMembershipsForAccount } from '@visastack/services';
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { PageHeader } from '../../../components/ui';
 import { isPlatformAdmin } from '../../../lib/admin';
 import { getLocale } from '../../../lib/locale';
 import { withSession } from '../../../lib/session';
@@ -23,14 +24,7 @@ export default async function AccountPage() {
 
   return (
     <section className="section container">
-      <div className="toolbar" style={{ marginBottom: '2rem' }}>
-        <div>
-          <span className="eyebrow">Account</span>
-          <h1 className="section-title" style={{ margin: '0.25rem 0 0' }}>
-            {data.email}
-          </h1>
-        </div>
-      </div>
+      <PageHeader eyebrow="Account" title={data.email} />
 
       <div className="grid">
         <article className="card">

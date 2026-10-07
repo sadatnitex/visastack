@@ -117,108 +117,107 @@ export default async function ApplicantOverviewPage({
 
   return (
     <>
-      <NextStepCard
-        title={nextAction.label}
-        why={nextAction.why}
-        href={nextAction.href}
-        action={nextAction.action}
-        {...(nextAction.href.endsWith('/profile') || nextAction.href.endsWith('/missions')
-          ? {}
-          : { tone: 'warning' as const })}
-      />
-
-      <div className="grid">
-        <article className="card">
-          <p className="card-kicker">Master Profile</p>
-          <h2 className="card-title">Completeness</h2>
-          <div style={{ marginBottom: '1rem' }}>
-            <div className="meter-label">
-              <span>
-                Core identity fields: {completedCore} of {UNIVERSAL_CORE_FIELDS.length}
-              </span>
-              <span>{completenessPct}%</span>
+      <div className="split">
+        <div className="split-main">
+          <NextStepCard
+            title={nextAction.label}
+            why={nextAction.why}
+            href={nextAction.href}
+            action={nextAction.action}
+            {...(nextAction.href.endsWith('/profile') || nextAction.href.endsWith('/missions')
+              ? {}
+              : { tone: 'warning' as const })}
+          />
+          <article className="card">
+            <p className="card-kicker">Cases</p>
+            <h2 className="card-title">Active cases</h2>
+            {activeMissions.length === 0 ? (
+              <div style={{ marginBottom: '0.75rem' }}>
+                <EmptyState title="No active case yet">
+                  A case checks this person's documents against the requirements of one visa route.
+                </EmptyState>
+              </div>
+            ) : (
+              <div className="rows" style={{ marginBottom: '0.75rem' }}>
+                {activeMissions.slice(0, 4).map((m) => (
+                  <Link className="row row-link" key={m.id} href={`/app/mission/${m.id}`}>
+                    <span className="row-key">{m.title}</span>
+                    <StatusBadge tone="neutral">
+                      {STAGE_LABELS[m.state] ?? 'In progress'}
+                    </StatusBadge>
+                  </Link>
+                ))}
+              </div>
+            )}
+            <Link href={`/app/applicant/${id}/missions`} className="muted">
+              Open Cases →
+            </Link>
+          </article>
+        </div>
+        <aside className="split-rail" aria-label="Profile, documents and sharing">
+          <article className="card">
+            <p className="card-kicker">Master Profile</p>
+            <h2 className="card-title">Completeness</h2>
+            <div style={{ marginBottom: '1rem' }}>
+              <div className="meter-label">
+                <span>
+                  Core identity fields: {completedCore} of {UNIVERSAL_CORE_FIELDS.length}
+                </span>
+                <span>{completenessPct}%</span>
+              </div>
+              <div className="meter" aria-hidden="true">
+                <div className="meter-fill" style={{ width: `${completenessPct}%` }} />
+              </div>
             </div>
-            <div className="meter" aria-hidden="true">
-              <div
-                className={`meter-fill ${completenessPct >= 100 ? 'meter-full' : ''}`.trim()}
-                style={{ width: `${completenessPct}%`, background: 'var(--accent)' }}
-              />
-            </div>
-          </div>
-          <Link href={`/app/applicant/${id}/profile`} className="muted">
-            Open Profile →
-          </Link>
-        </article>
-
-        <article className="card">
-          <p className="card-kicker">Documents</p>
-          <h2 className="card-title">Document health</h2>
-          <div className="rows" style={{ marginBottom: '0.75rem' }}>
-            <div className="row">
-              <span className="row-key">Total uploaded</span>
-              <span className="row-val">{data.documents.length}</span>
-            </div>
-            <div className="row">
-              <span className="row-key">Needing attention</span>
-              <StatusBadge tone={documentsNeedingAttention.length > 0 ? 'warning' : 'neutral'}>
-                {documentsNeedingAttention.length}
-              </StatusBadge>
-            </div>
-            <div className="row">
-              <span className="row-key">AI proposals to review</span>
-              <StatusBadge tone={data.pendingProposals.length > 0 ? 'warning' : 'neutral'}>
-                {data.pendingProposals.length}
-              </StatusBadge>
-            </div>
-          </div>
-          <Link href={`/app/applicant/${id}/documents`} className="muted">
-            Open Documents →
-          </Link>
-        </article>
-
-        <article className="card">
-          <p className="card-kicker">Cases</p>
-          <h2 className="card-title">Active cases</h2>
-          {activeMissions.length === 0 ? (
-            <div style={{ marginBottom: '0.75rem' }}>
-              <EmptyState title="No active case yet">
-                A case checks this person's documents against the requirements of one visa route.
-              </EmptyState>
-            </div>
-          ) : (
+            <Link href={`/app/applicant/${id}/profile`} className="muted">
+              Open Profile →
+            </Link>
+          </article>
+          <article className="card">
+            <p className="card-kicker">Documents</p>
+            <h2 className="card-title">Document health</h2>
             <div className="rows" style={{ marginBottom: '0.75rem' }}>
-              {activeMissions.slice(0, 4).map((m) => (
-                <div className="row" key={m.id}>
-                  <span className="row-key">{m.title}</span>
-                  <StatusBadge tone="neutral">{STAGE_LABELS[m.state] ?? 'In progress'}</StatusBadge>
-                </div>
-              ))}
+              <div className="row">
+                <span className="row-key">Total uploaded</span>
+                <span className="row-val">{data.documents.length}</span>
+              </div>
+              <div className="row">
+                <span className="row-key">Needing attention</span>
+                <StatusBadge tone={documentsNeedingAttention.length > 0 ? 'warning' : 'neutral'}>
+                  {documentsNeedingAttention.length}
+                </StatusBadge>
+              </div>
+              <div className="row">
+                <span className="row-key">AI proposals to review</span>
+                <StatusBadge tone={data.pendingProposals.length > 0 ? 'warning' : 'neutral'}>
+                  {data.pendingProposals.length}
+                </StatusBadge>
+              </div>
             </div>
-          )}
-          <Link href={`/app/applicant/${id}/missions`} className="muted">
-            Open Cases →
-          </Link>
-        </article>
-
-        <article className="card">
-          <p className="card-kicker">Sharing &amp; requests</p>
-          <h2 className="card-title">Outstanding items</h2>
-          <div className="rows" style={{ marginBottom: '0.75rem' }}>
-            <div className="row">
-              <span className="row-key">Currently shared with</span>
-              <span className="row-val">{data.activeGrants}</span>
+            <Link href={`/app/applicant/${id}/documents`} className="muted">
+              Open Documents →
+            </Link>
+          </article>
+          <article className="card">
+            <p className="card-kicker">Sharing &amp; requests</p>
+            <h2 className="card-title">Outstanding items</h2>
+            <div className="rows" style={{ marginBottom: '0.75rem' }}>
+              <div className="row">
+                <span className="row-key">Currently shared with</span>
+                <span className="row-val">{data.activeGrants}</span>
+              </div>
+              <div className="row">
+                <span className="row-key">Open evidence requests</span>
+                <StatusBadge tone={openEvidenceRequests.length > 0 ? 'warning' : 'neutral'}>
+                  {openEvidenceRequests.length}
+                </StatusBadge>
+              </div>
             </div>
-            <div className="row">
-              <span className="row-key">Open evidence requests</span>
-              <StatusBadge tone={openEvidenceRequests.length > 0 ? 'warning' : 'neutral'}>
-                {openEvidenceRequests.length}
-              </StatusBadge>
-            </div>
-          </div>
-          <Link href={`/app/applicant/${id}/sharing`} className="muted">
-            Open Sharing →
-          </Link>
-        </article>
+            <Link href={`/app/applicant/${id}/sharing`} className="muted">
+              Open Sharing →
+            </Link>
+          </article>
+        </aside>
       </div>
     </>
   );

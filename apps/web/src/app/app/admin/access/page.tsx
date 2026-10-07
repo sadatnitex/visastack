@@ -4,6 +4,7 @@ import {
   reportUnboundAccounts,
 } from '@visastack/services';
 import type { Metadata } from 'next';
+import { PageHeader } from '../../../../components/ui';
 import { isPlatformAdmin, isPlatformOwnerAccount } from '../../../../lib/admin';
 import { formatTimestampDate } from '../../../../lib/format-date';
 import { withSession } from '../../../../lib/session';
@@ -41,17 +42,11 @@ export default async function AdminAccessPage() {
 
   return (
     <section className="section container">
-      <div className="toolbar" style={{ marginBottom: '2rem' }}>
-        <div>
-          <span className="eyebrow">Platform</span>
-          <h1 className="section-title" style={{ margin: '0.25rem 0 0' }}>
-            Access
-          </h1>
-          <p className="muted" style={{ margin: '0.35rem 0 0' }}>
-            Who holds a platform role, and who may sign in during the controlled pilot.
-          </p>
-        </div>
-      </div>
+      <PageHeader
+        eyebrow="Platform"
+        title="Access"
+        description="Who holds a platform role, and who may sign in during the controlled pilot."
+      />
 
       {!data.admin ? (
         <AdminRestricted />

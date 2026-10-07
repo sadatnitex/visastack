@@ -2,6 +2,7 @@ import { createTranslator } from '@visastack/i18n';
 import { getApplicant } from '@visastack/services';
 import { notFound } from 'next/navigation';
 import type { ReactNode } from 'react';
+import { PageHeader } from '../../../../components/ui';
 import { getLocale } from '../../../../lib/locale';
 import { applicantTabs } from '../../../../lib/navigation';
 import { relationshipLabel } from '../../../../lib/relationship-labels';
@@ -37,17 +38,11 @@ export default async function ApplicantWorkspaceLayout({
 
   return (
     <section className="section container">
-      <div className="toolbar" style={{ marginBottom: '1.5rem' }}>
-        <div>
-          <span className="eyebrow">Applicant</span>
-          <h1 className="section-title" style={{ margin: '0.25rem 0 0' }}>
-            {applicant.displayName}
-          </h1>
-          <p className="muted" style={{ margin: '0.35rem 0 0' }}>
-            {relationshipLabel(applicant.relationship, t)}
-          </p>
-        </div>
-      </div>
+      <PageHeader
+        eyebrow="Applicant"
+        title={applicant.displayName}
+        description={relationshipLabel(applicant.relationship, t)}
+      />
       <SubNav links={applicantTabs(id)} label="Applicant sections" />
       {children}
     </section>

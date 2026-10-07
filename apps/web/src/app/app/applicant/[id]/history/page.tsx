@@ -8,7 +8,7 @@ import {
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { EmptyState } from '../../../../../components/ui';
+import { EmptyState, PageHeader } from '../../../../../components/ui';
 import { profileField } from '../../../../../lib/profile-fields';
 import { withSession } from '../../../../../lib/session';
 
@@ -87,18 +87,12 @@ export default async function HistoryPage({
 
   return (
     <>
-      <div className="toolbar" style={{ marginBottom: '2rem' }}>
-        <div>
-          <span className="eyebrow">Provenance</span>
-          <h2 className="section-title" style={{ margin: '0.25rem 0 0' }}>
-            Fact history
-          </h2>
-          <p className="muted" style={{ margin: '0.35rem 0 0' }}>
-            Every value is an immutable version — nothing is ever overwritten. This is the full,
-            ordered trail with its provenance.
-          </p>
-        </div>
-      </div>
+      <PageHeader
+        eyebrow="Provenance"
+        title="Fact history"
+        description="Every value is an immutable version - nothing is ever overwritten. This is the full, ordered trail with its provenance."
+        as="h2"
+      />
 
       {data.facts.length === 0 ? (
         <article className="card">

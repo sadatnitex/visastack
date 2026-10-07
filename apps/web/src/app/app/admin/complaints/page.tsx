@@ -1,6 +1,7 @@
 import { listComplaintsForQualityReview, listFeedbackForQualityReview } from '@visastack/services';
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { PageHeader } from '../../../../components/ui';
 import { bootstrapAdminEmails, hasPlatformPermission } from '../../../../lib/admin';
 import { formatTimestampDate } from '../../../../lib/format-date';
 import { withSession } from '../../../../lib/session';
@@ -71,14 +72,7 @@ export default async function AdminComplaintsPage() {
           ← Admin
         </Link>
       </div>
-      <div className="toolbar" style={{ marginBottom: '2rem' }}>
-        <div>
-          <span className="eyebrow">Quality</span>
-          <h1 className="section-title" style={{ margin: '0.25rem 0 0' }}>
-            Complaint &amp; feedback triage
-          </h1>
-        </div>
-      </div>
+      <PageHeader eyebrow="Quality" title={<>Complaint &amp; feedback triage</>} />
 
       <article className="card" style={{ marginBottom: '1.5rem' }}>
         <p className="card-kicker">Oversight</p>

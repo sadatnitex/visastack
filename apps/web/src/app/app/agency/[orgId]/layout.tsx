@@ -1,7 +1,7 @@
 import { getOrganizationBrandingForDisplay } from '@visastack/services';
-import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import type { ReactNode } from 'react';
+import { PageHeader, StatusBadge, type Tone } from '../../../../components/ui';
 import {
   capabilityUnavailableMessage,
   getPlatformCapabilities,
@@ -49,27 +49,18 @@ export default async function AgencyConsoleLayout({
   if (!data) notFound();
 
   const badge = ORG_STATUS[data.org.status] ?? { label: data.org.status, tone: 'badge-neutral' };
+  const badgeTone = badge.tone.replace('badge-', '') as Tone;
 
   return (
     <section className="section container">
-      <div style={{ marginBottom: '1.5rem' }}>
-        <Link href="/app/agency" className="muted" style={{ fontSize: '0.9rem' }}>
-          ← Organizations
-        </Link>
-      </div>
-      <div className="toolbar" style={{ marginBottom: '1.5rem' }}>
-        <div>
-          <span className="eyebrow">Organization</span>
-          <OrgBrandingHeader branding={data.branding} />
-          <h1 className="section-title" style={{ margin: '0.25rem 0 0' }}>
-            {data.org.name}
-          </h1>
-          <p className="muted" style={{ margin: '0.35rem 0 0' }}>
-            Agency workspace
-          </p>
-        </div>
-        <span className={`badge ${badge.tone}`}>{badge.label}</span>
-      </div>
+      <PageHeader
+        back={{ href: '/app/agency', label: 'Organizations' }}
+        lead={<OrgBrandingHeader branding={data.branding} />}
+        eyebrow="Organization"
+        title={data.org.name}
+        description="Agency workspace"
+        actions={<StatusBadge tone={badgeTone}>{badge.label}</StatusBadge>}
+      />
 
       {data.member ? (
         <>

@@ -90,7 +90,7 @@ describe('Platform > Organizations', () => {
     const html = await renderServer(Page());
     expect(textOf(html)).toContain('Some sections could not be loaded');
     expect(textOf(html)).toContain('organizations');
-    expect(textOf(html)).toContain('No organizations yet.');
+    expect(textOf(html)).toContain('No organizations yet');
   });
 
   it('keeps an unrelated failure of the permission check an error', async () => {

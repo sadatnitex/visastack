@@ -1,5 +1,6 @@
 import { withAuth } from '@workos-inc/authkit-nextjs';
 import type { Metadata, Viewport } from 'next';
+import localFont from 'next/font/local';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { PilotBanner } from '../components/pilot-banner';
@@ -7,6 +8,26 @@ import { getDeploymentMode } from '../lib/deployment-mode';
 import { getLocale } from '../lib/locale';
 import { setLocaleAction } from './actions';
 import './globals.css';
+
+/**
+ * Self-hosted fonts (see `fonts/README.md`): Inter for Latin text and Noto Sans Bengali for
+ * Bangla, so numbers, dates and Bengali letters read well on every device. The Bengali file
+ * is only fetched when a page shows Bangla text. Both are served from this site, so the page
+ * security policy (`font-src 'self'`) is unchanged.
+ */
+const inter = localFont({
+  src: './fonts/inter-latin-wght-normal.woff2',
+  variable: '--font-inter',
+  display: 'swap',
+  weight: '100 900',
+});
+const bengali = localFont({
+  src: './fonts/noto-sans-bengali-bengali-wght-normal.woff2',
+  variable: '--font-bengali',
+  display: 'swap',
+  weight: '100 900',
+  preload: false,
+});
 
 export const metadata: Metadata = {
   // Every page names itself (WCAG 2.4.2): the page's own title, then the product.
@@ -38,7 +59,7 @@ export default async function RootLayout({ children }: { readonly children: Reac
   const deploymentMode = getDeploymentMode();
 
   return (
-    <html lang={locale}>
+    <html lang={locale} className={`${inter.variable} ${bengali.variable}`}>
       <body>
         <a className="skip-link" href="#main">
           Skip to content
@@ -69,6 +90,14 @@ export default async function RootLayout({ children }: { readonly children: Reac
         <footer className="footer">
           <div className="container footer-inner">
             <span>© {new Date().getFullYear()} VisaStack. Proprietary and confidential.</span>
+            <nav className="footer-links" aria-label="Footer">
+              <Link href="/#capabilities">Features</Link>
+              <Link href="/trust">Public trust</Link>
+              <Link href="/status">Status</Link>
+              {/* A plain link, like the header's: `/app` sends a visitor on to the sign-in provider, and a
+                  prefetch of it would be a blocked cross-origin request. */}
+              <a href="/app">{signedIn ? 'Workspace' : 'Sign in'}</a>
+            </nav>
           </div>
         </footer>
       </body>

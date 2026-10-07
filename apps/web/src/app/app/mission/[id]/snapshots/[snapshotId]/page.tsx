@@ -5,8 +5,8 @@ import {
   listAcknowledgementsForMission,
 } from '@visastack/services';
 import type { Metadata } from 'next';
-import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { PageHeader } from '../../../../../../components/ui';
 import { profileField } from '../../../../../../lib/profile-fields';
 import { withSession } from '../../../../../../lib/session';
 import { AcknowledgementPanel } from './acknowledgement-panel';
@@ -127,28 +127,20 @@ export default async function MissionSnapshotPage({
 
   return (
     <section className="section container">
-      <div style={{ marginBottom: '1.5rem' }}>
-        <Link href={`/app/mission/${mission.id}`} className="muted" style={{ fontSize: '0.9rem' }}>
-          ← {mission.title}
-        </Link>
-      </div>
-      <div className="toolbar" style={{ marginBottom: '2rem' }}>
-        <div>
-          <span className="eyebrow">{isPacket ? 'Application packet' : 'Working snapshot'}</span>
-          <h1 className="section-title" style={{ margin: '0.25rem 0 0' }}>
-            Version {snapshot.version}
-          </h1>
-          <p className="muted" style={{ margin: '0.35rem 0 0', fontSize: '0.8rem' }}>
-            Captured while {content.state} · checksum {snapshot.checksum}
-          </p>
-        </div>
-        <a
-          className="btn btn-secondary"
-          href={`/app/mission/${mission.id}/snapshots/${snapshot.id}/download`}
-        >
-          Download JSON
-        </a>
-      </div>
+      <PageHeader
+        back={{ href: `/app/mission/${mission.id}`, label: mission.title }}
+        eyebrow={isPacket ? 'Application packet' : 'Working snapshot'}
+        title={`Version ${snapshot.version}`}
+        description={`Captured while ${content.state} · checksum ${snapshot.checksum}`}
+        actions={
+          <a
+            className="btn btn-secondary"
+            href={`/app/mission/${mission.id}/snapshots/${snapshot.id}/download`}
+          >
+            Download JSON
+          </a>
+        }
+      />
 
       {content.evidenceScope === 'all_applicant_evidence' ? (
         <div className="notice notice-warn" style={{ marginBottom: '1.5rem' }}>

@@ -4775,4 +4775,5 @@ programme rather than being a product defect.
 - New look through one stylesheet: palette, shapes, type, flat cards, square-ish buttons, a small brand mark. Signed-in sidebar on a laptop or larger, chips on a phone. Report: `docs/ux/ui-upgrade-report.md`.
 - New: get-started checklists (traveller home, agency dashboard), case attention strip and jump links, home page example case (made-up details, labelled).
 - Browser layout checks updated for the sidebar (`apps/web/e2e/ux-public.spec.ts`): the signed-in copy now has a frame and main column; the keyboard-focus check is against the sticky header only.
-- Not verified: signed-in pages in a live browser; the case page was not rendered.
+- Later in the same change: self-hosted fonts (Inter, Noto Sans Bengali), drawn icons, one page-header component on every page, bottom navigation on phones, agency inbox and admin audit and organizations as responsive tables, a pipeline bar, a two-column case page and applicant overview.
+- Not verified: signed-in pages in a live browser (rendered with made-up data and screenshotted instead).

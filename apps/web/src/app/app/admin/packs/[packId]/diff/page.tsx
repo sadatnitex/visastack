@@ -1,7 +1,7 @@
 import { diffPackVersions, getPack } from '@visastack/services';
 import type { Metadata } from 'next';
-import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { PageHeader } from '../../../../../../components/ui';
 import { isPlatformAdmin } from '../../../../../../lib/admin';
 import { withSession } from '../../../../../../lib/session';
 
@@ -56,24 +56,16 @@ export default async function PackVersionDiffPage({
 
   return (
     <section className="section container">
-      <div style={{ marginBottom: '1.5rem' }}>
-        <Link href={`/app/admin/packs/${packId}`} className="muted" style={{ fontSize: '0.9rem' }}>
-          ← {data.pack.name}
-        </Link>
-      </div>
-      <div className="toolbar" style={{ marginBottom: '2rem' }}>
-        <div>
-          <span className="eyebrow">Pack · {data.pack.key} · RUL-05</span>
-          <h1 className="section-title" style={{ margin: '0.25rem 0 0' }}>
-            Version diff
-          </h1>
-          {data.diff ? (
-            <p className="muted" style={{ margin: '0.35rem 0 0' }}>
-              Version {data.diff.fromVersion.version} to Version {data.diff.toVersion.version}
-            </p>
-          ) : null}
-        </div>
-      </div>
+      <PageHeader
+        back={{ href: `/app/admin/packs/${packId}`, label: data.pack.name }}
+        eyebrow={`Pack · ${data.pack.key} · RUL-05`}
+        title="Version diff"
+        description={
+          data.diff
+            ? `Version ${data.diff.fromVersion.version} to Version ${data.diff.toVersion.version}`
+            : undefined
+        }
+      />
 
       {data.error ? (
         <article className="card">
