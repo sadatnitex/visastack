@@ -254,7 +254,7 @@ export default async function SharingPage({
                       {e.actorEmail ?? 'System'}
                     </span>
                   </span>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <span className="row-end">
                     {e.result ? (
                       <StatusBadge tone={e.result === 'ALLOWED' ? 'success' : 'danger'}>
                         {e.result === 'ALLOWED' ? 'Allowed' : 'Blocked'}

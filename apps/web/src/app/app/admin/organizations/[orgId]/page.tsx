@@ -352,7 +352,7 @@ export default async function AdminOrganizationPage({
                 >
                   <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.75rem' }}>
                     <span className="row-key">Until {formatTimestamp(o.expiryAt)}</span>
-                    <span style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                    <span className="row-end">
                       <span className={`badge ${tone}`}>{status}</span>
                       {active ? (
                         <RevokeOverrideButton organizationId={orgId} overrideId={o.id} />

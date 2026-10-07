@@ -166,7 +166,7 @@ export default async function AdminPrivacyPage() {
                       <span className="row-key" style={{ wordBreak: 'break-word' }}>
                         {job.objectKey}
                       </span>
-                      <span style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                      <span className="row-end">
                         <span
                           className={`badge ${job.status === 'BLOCKED_BY_HOLD' ? 'badge-warning' : 'badge-danger'}`}
                         >

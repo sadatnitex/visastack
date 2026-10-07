@@ -477,7 +477,9 @@ main {
   line-height: 1.2;
   padding: 0.28rem 0.6rem;
   border-radius: 6px;
-  white-space: nowrap;
+  max-width: 100%;
+  /* Break between words when a label is long, never inside one ("Acti ve"). */
+  overflow-wrap: break-word;
   font-variant-numeric: tabular-nums;
 }
 .badge::before {
@@ -734,6 +736,8 @@ main {
   display: grid;
   grid-template-columns: var(--side-width) minmax(0, 1fr);
   align-items: start;
+  /* A short page still gives the sidebar a panel that reaches the bottom of the screen. */
+  min-height: calc(100dvh - var(--header-height) - 3rem);
   /* The sidebar's panel runs the full height of the page, whatever the sidebar holds. */
   background: linear-gradient(
     to right,
@@ -1025,6 +1029,7 @@ main {
   }
   .app-frame {
     display: block;
+    min-height: 0;
     background: none;
   }
   .app-main {
@@ -1897,4 +1902,28 @@ a.checklist-item:hover .checklist-label {
 .promise-grid .icon {
   margin-top: 0.1rem;
   color: var(--brand);
+}
+
+/* Labels in a table or a strip stay on one line so a count never splits from its word. */
+.data-table .badge,
+.stat .badge,
+.case-row-badges .badge {
+  white-space: nowrap;
+}
+
+/* The right-hand end of a row: status labels and a button, wrapping onto a second line on a
+   narrow screen instead of pushing the page wider. */
+.row-end {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.6rem;
+  min-width: 0;
+}
+
+/* A link inside a sentence is underlined: colour alone cannot be the only sign that it is a link. */
+:where(p, li, dd, .card-body, .muted, .field-msg, .notice, .page-description, .stat-note)
+  a:not(.btn):not(.row):not(.attention-link):not(.checklist-item) {
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
 }

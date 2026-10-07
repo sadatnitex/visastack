@@ -31,6 +31,7 @@ Frontend only. No API, data, permission, rule, billing or integration change.
 
 ## Verified
 
+- **Screen preview** (`docs/ux/screen-preview.md`): 58 pages rendered against a made-up database (busy traveller, brand-new traveller, traveller without consent, busy agency, brand-new agency, platform admin), 122 screenshots, automatic checks for overflow, clipped text, field style and accessibility. It found and fixed: links inside sentences marked by colour only, a long admin label pushing a phone page 493px wide, document rows overflowing on a phone, a status label splitting mid-word, unstyled fields on the branding form, a new traveller told "You are up to date" with two steps left, and a sidebar panel stopping mid-screen on short pages.
 - Lint, typecheck, 71 test files (1,060 tests), production audit, web build.
 - Browser layout checks against the real stylesheet (`ux-public`, `browser-security`, `no-secret-auth`): 75 pass; 2 sign-in redirect tests fail only in the sandbox because the identity provider is unreachable.
 - Signed-in pages rendered with made-up data into static pages and screenshotted at 390 and 1440px, light and dark: traveller home, applicant overview, evidence requests, agency dashboard, case page, public home, and the phone navigation sheet. No sideways scroll.

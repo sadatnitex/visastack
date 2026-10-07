@@ -46,7 +46,7 @@ export default async function ApplicantsPage() {
               {data.applicants.map((a) => (
                 <Link className="row row-link" key={a.id} href={`/app/applicant/${a.id}`}>
                   <span className="row-key">{a.displayName}</span>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <span className="row-end">
                     <span className="badge badge-neutral">
                       {relationshipLabel(a.relationship, t)}
                     </span>

@@ -133,40 +133,6 @@ export default async function AppPage() {
   const coreGranted = Boolean(data.consents.CORE_PROCESSING);
   const grantedCount = CONSENT_TYPES.filter((type) => Boolean(data.consents[type])).length;
 
-  // One next step, chosen in priority order: the consent gate first, then whatever
-  // someone is waiting on, then the first applicant, then "all clear".
-  const first = data.attention[0];
-  const nextStep = !coreGranted
-    ? {
-        title: 'Turn on core processing to begin',
-        why: 'VisaStack cannot create applicant or profile records until you allow this. You can turn it off again at any time.',
-        href: '#permissions',
-        action: 'Choose permissions',
-        tone: 'warning' as const,
-      }
-    : first
-      ? {
-          title: first.label,
-          why: first.applicantName ? `${first.applicantName}. ${first.why}` : first.why,
-          href: first.href,
-          action: first.action,
-          tone: 'warning' as const,
-        }
-      : data.applicants.length === 0
-        ? {
-            title: 'Add your first applicant',
-            why: 'An applicant holds one person\u2019s profile and documents, ready to reuse for every application.',
-            href: '/app/applicants',
-            action: 'Add an applicant',
-          }
-        : {
-            title: 'You are up to date',
-            why: 'Nothing is waiting for you. Open an applicant to add documents or start a case.',
-            href: '/app/applicants',
-            action: 'View applicants',
-            tone: 'ok' as const,
-          };
-
   const firstApplicant = data.perApplicant[0];
   const setupSteps = [
     {
@@ -202,6 +168,42 @@ export default async function AppPage() {
         : '/app/applicants',
     },
   ];
+
+  const firstTodo = setupSteps.find((step) => !step.done);
+
+  // One next step, chosen in priority order: the consent gate first, then whatever
+  // someone is waiting on, then the first applicant, then "all clear".
+  const first = data.attention[0];
+  const nextStep = !coreGranted
+    ? {
+        title: 'Turn on core processing to begin',
+        why: 'VisaStack cannot create applicant or profile records until you allow this. You can turn it off again at any time.',
+        href: '#permissions',
+        action: 'Choose permissions',
+        tone: 'warning' as const,
+      }
+    : first
+      ? {
+          title: first.label,
+          why: first.applicantName ? `${first.applicantName}. ${first.why}` : first.why,
+          href: first.href,
+          action: first.action,
+          tone: 'warning' as const,
+        }
+      : firstTodo
+        ? {
+            title: firstTodo.label,
+            why: firstTodo.hint,
+            href: firstTodo.href,
+            action: firstTodo.key === 'applicant' ? 'Add an applicant' : 'Continue',
+          }
+        : {
+            title: 'You are up to date',
+            why: 'Nothing is waiting for you. Open an applicant to add documents or start a case.',
+            href: '/app/applicants',
+            action: 'View applicants',
+            tone: 'ok' as const,
+          };
 
   return (
     <section className="section container">

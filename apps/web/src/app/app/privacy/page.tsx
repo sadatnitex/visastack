@@ -119,7 +119,7 @@ export default async function PrivacyPage() {
             {data.history.map((entry, i) => (
               <div className="row" key={`${entry.type}-${entry.at}-${i}`}>
                 <span className="row-key">{CONSENT_LABELS[entry.type] ?? entry.type}</span>
-                <span style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <span className="row-end">
                   <span className={`badge ${entry.granted ? 'badge-success' : 'badge-neutral'}`}>
                     {entry.granted ? 'Granted' : 'Revoked'}
                   </span>

@@ -58,7 +58,7 @@ export default async function AgencyPage() {
                         {humanizeCode(m.role)}
                       </span>
                     </span>
-                    <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <span className="row-end">
                       <span className={`badge ${badge.tone}`}>{badge.label}</span>
                       <span className="muted" aria-hidden="true">
                         →

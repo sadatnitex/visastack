@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { EmptyState } from '../../../../../components/ui';
 import { withSession } from '../../../../../lib/session';
 import { loadCases, loadMembers, loadOrgAccess } from '../console-data';
 import { MissionCollaboration } from '../mission-collaboration';
@@ -40,11 +41,17 @@ export default async function AgencyCasesPage({
           : "Leave case notes and record decisions on cases you're assigned to."}
       </p>
       {data.cases.length === 0 ? (
-        <p className="card-body">
+        <EmptyState
+          title="No cases yet"
+          icon="briefcase"
+          {...(data.admin
+            ? { action: { href: `/app/agency/${orgId}/clients`, label: 'Invite a client' } }
+            : {})}
+        >
           {data.admin
             ? 'No cases are reachable yet - an applicant must grant this organization access to a specific case.'
             : "You aren't assigned to any cases yet - ask an admin to assign you to one."}
-        </p>
+        </EmptyState>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
           {data.cases.map((mission) => (

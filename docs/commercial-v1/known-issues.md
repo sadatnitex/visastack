@@ -4777,3 +4777,9 @@ programme rather than being a product defect.
 - Browser layout checks updated for the sidebar (`apps/web/e2e/ux-public.spec.ts`): the signed-in copy now has a frame and main column; the keyboard-focus check is against the sticky header only.
 - Later in the same change: self-hosted fonts (Inter, Noto Sans Bengali), drawn icons, one page-header component on every page, bottom navigation on phones, agency inbox and admin audit and organizations as responsive tables, a pipeline bar, a two-column case page and applicant overview.
 - Not verified: signed-in pages in a live browser (rendered with made-up data and screenshotted instead).
+
+### Chunk 53 (2026-10-07): screen preview with made-up data
+
+- New dev tool `apps/web/preview` (`pnpm --filter @visastack/web preview`): seeds a throwaway in-memory database through the real tables, renders every page in its real layouts for six kinds of account, screenshots at phone and desktop width, and checks each page. Documented in `docs/ux/screen-preview.md`. Not part of the product or the normal test run.
+- Fixed from what it found: underlined links inside sentences, wrapping of long status labels, document row overflow on a phone, unstyled branding fields, first-day next step, short-page sidebar, plain sign-in and sign-up forms (now in a card), heavy red buttons on pack sources, plain empty state on the agency Cases page.
+- Not rendered: pages that need a one-off link or token (invitations, contributor links, snapshots, pack diffs). Dev dependencies added to the web package: `@electric-sql/pglite`, `drizzle-orm`.

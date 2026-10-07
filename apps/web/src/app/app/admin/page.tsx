@@ -201,7 +201,7 @@ export default async function AdminOperationsPage() {
               {data.scorecard.map((row) => (
                 <div className="row" key={row.eventType}>
                   <span className="row-key">{SCORECARD_LABELS[row.eventType]}</span>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                  <span className="row-end">
                     <span className="muted" style={{ fontSize: '0.8rem' }}>
                       {row.last7Days} last 7 days
                     </span>
@@ -365,7 +365,7 @@ export default async function AdminOperationsPage() {
                   {data.analytics.categories.map((category) => (
                     <div className="row" key={category.key}>
                       <span className="row-key">{category.label}</span>
-                      <span style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                      <span className="row-end">
                         <span className="muted" style={{ fontSize: '0.8rem' }}>
                           {category.last7Days} last 7 days, {category.last30Days} last 30 days
                         </span>
@@ -514,7 +514,7 @@ export default async function AdminOperationsPage() {
                       <span className="row-key" style={{ wordBreak: 'break-word' }}>
                         {job.documentName}
                       </span>
-                      <span style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                      <span className="row-end">
                         {job.errorCode ? (
                           <span className="badge badge-neutral">{job.errorCode}</span>
                         ) : null}

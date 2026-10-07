@@ -44,7 +44,14 @@ export function BrandingForm({
         <input type="hidden" name="organizationId" value={organizationId} />
         <label style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
           <span style={{ fontSize: '0.85rem', fontWeight: 600 }}>Agency name</span>
-          <input type="text" name="name" defaultValue={name} maxLength={200} required />
+          <input
+            className="input"
+            type="text"
+            name="name"
+            defaultValue={name}
+            maxLength={200}
+            required
+          />
         </label>
         <label style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
           <span style={{ fontSize: '0.85rem', fontWeight: 600 }}>Accent color</span>
@@ -63,6 +70,7 @@ export function BrandingForm({
               style={{ width: '2.5rem', height: '2.5rem', padding: 0, border: 'none' }}
             />
             <input
+              className="input"
               type="text"
               name="accentColor"
               defaultValue={accentColor ?? ''}
@@ -110,7 +118,7 @@ export function BrandingForm({
             uploadAction(formData);
             if (fileInputRef.current) fileInputRef.current.value = '';
           }}
-          style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+          style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '0.5rem' }}
         >
           <input type="hidden" name="organizationId" value={organizationId} />
           <input

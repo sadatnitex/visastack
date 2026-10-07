@@ -82,7 +82,7 @@ export default async function AdminAccessPage() {
                       }}
                     >
                       <span className="row-key">{PLATFORM_ROLE_LABELS[r.role] ?? r.role}</span>
-                      <span style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                      <span className="row-end">
                         <span className="muted" style={{ fontSize: '0.8rem' }}>
                           {formatTimestampDate(r.assignedAt)}
                         </span>
@@ -144,7 +144,7 @@ export default async function AdminAccessPage() {
                         <span className="row-key" style={{ wordBreak: 'break-word' }}>
                           {inv.email}
                         </span>
-                        <span style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                        <span className="row-end">
                           <span className={`badge ${status.tone}`}>{status.label}</span>
                           {data.owner && !inv.revokedAt ? (
                             <RevokeInvitationButton invitationId={inv.id} />
@@ -184,7 +184,7 @@ export default async function AdminAccessPage() {
                     <span className="row-key" style={{ wordBreak: 'break-word' }}>
                       {a.email}
                     </span>
-                    <span style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                    <span className="row-end">
                       <span className="muted" style={{ fontSize: '0.8rem' }}>
                         since {formatTimestampDate(a.createdAt)}
                       </span>

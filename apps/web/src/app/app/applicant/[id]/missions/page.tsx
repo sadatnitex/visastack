@@ -69,7 +69,7 @@ export default async function MissionsPage({
               {data.missions.map((mission) => (
                 <Link className="row row-link" key={mission.id} href={`/app/mission/${mission.id}`}>
                   <span className="row-key">{mission.title}</span>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <span className="row-end">
                     <StatusBadge tone="neutral">
                       {STATE_LABELS[mission.state] ?? humanizeCode(mission.state)}
                     </StatusBadge>
