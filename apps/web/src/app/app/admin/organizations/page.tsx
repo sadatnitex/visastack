@@ -1,6 +1,8 @@
 import { listAllOrganizations } from '@visastack/services';
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { EmptyState, StatusBadge, type Tone } from '../../../../components/ui';
+import { PageHeader } from '../../../../components/ui';
 import { isPlatformAdmin, isPlatformOwnerAccount } from '../../../../lib/admin';
 import { withSession } from '../../../../lib/session';
 import { tolerantReader } from '../../../../lib/tolerate';
@@ -37,17 +39,11 @@ export default async function AdminOrganizationsPage() {
 
   return (
     <section className="section container">
-      <div className="toolbar" style={{ marginBottom: '2rem' }}>
-        <div>
-          <span className="eyebrow">Platform</span>
-          <h1 className="section-title" style={{ margin: '0.25rem 0 0' }}>
-            Organizations
-          </h1>
-          <p className="muted" style={{ margin: '0.35rem 0 0' }}>
-            Verify, suspend or close the organizations that use the platform.
-          </p>
-        </div>
-      </div>
+      <PageHeader
+        eyebrow="Platform"
+        title="Organizations"
+        description="Verify, suspend or close the organizations that use the platform."
+      />
 
       {!data.admin ? (
         <AdminRestricted />
@@ -59,50 +55,60 @@ export default async function AdminOrganizationsPage() {
             <p className="card-kicker">Verification</p>
             <h2 className="card-title">Organizations</h2>
             {data.orgs.length === 0 ? (
-              <p className="card-body">No organizations yet.</p>
+              <EmptyState title="No organizations yet" icon="building">
+                Organizations appear here when an agency registers and asks to be verified.
+              </EmptyState>
             ) : (
-              <div className="rows" style={{ marginTop: '0.5rem' }}>
-                {data.orgs.map((org) => {
-                  const badge = ORG_STATUS[org.status] ?? {
-                    label: org.status,
-                    tone: 'badge-neutral',
-                  };
-                  const pending = org.status === 'PENDING_VERIFICATION';
-                  const active = org.status === 'ACTIVE';
-                  const suspended = org.status === 'SUSPENDED';
-                  return (
-                    <div
-                      className="row"
-                      key={org.id}
-                      style={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                        gap: '0.75rem',
-                      }}
-                    >
-                      <span className="row-key">{org.name}</span>
-                      <span style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-                        <span className={`badge ${badge.tone}`}>{badge.label}</span>
-                        {pending ? <OrgReviewButtons organizationId={org.id} /> : null}
-                        {active ? <OrgSuspendButton organizationId={org.id} /> : null}
-                        {active || suspended ? (
-                          <OrgTerminateButton organizationId={org.id} />
-                        ) : null}
-                        {data.owner ? (
-                          <Link
-                            href={`/app/admin/organizations/${org.id}`}
-                            className="btn btn-secondary"
-                            style={{ padding: '0.3rem 0.85rem', fontSize: '0.8rem' }}
-                          >
-                            Manage
-                          </Link>
-                        ) : null}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
+              <table className="data-table" style={{ marginTop: '0.5rem' }}>
+                <caption className="sr-only">Organizations on the platform</caption>
+                <thead>
+                  <tr>
+                    <th scope="col">Organization</th>
+                    <th scope="col">Status</th>
+                    <th scope="col">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.orgs.map((org) => {
+                    const badge = ORG_STATUS[org.status] ?? {
+                      label: org.status,
+                      tone: 'badge-neutral',
+                    };
+                    const pending = org.status === 'PENDING_VERIFICATION';
+                    const active = org.status === 'ACTIVE';
+                    const suspended = org.status === 'SUSPENDED';
+                    return (
+                      <tr key={org.id}>
+                        <th scope="row" className="cell-main">
+                          {org.name}
+                        </th>
+                        <td data-label="Status">
+                          <StatusBadge tone={badge.tone.replace('badge-', '') as Tone}>
+                            {badge.label}
+                          </StatusBadge>
+                        </td>
+                        <td data-label="Actions">
+                          <span className="case-row-badges">
+                            {pending ? <OrgReviewButtons organizationId={org.id} /> : null}
+                            {active ? <OrgSuspendButton organizationId={org.id} /> : null}
+                            {active || suspended ? (
+                              <OrgTerminateButton organizationId={org.id} />
+                            ) : null}
+                            {data.owner ? (
+                              <Link
+                                href={`/app/admin/organizations/${org.id}`}
+                                className="btn btn-secondary nav-cta"
+                              >
+                                Manage
+                              </Link>
+                            ) : null}
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             )}
           </article>
         </>

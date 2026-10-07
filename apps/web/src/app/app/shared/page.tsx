@@ -2,7 +2,7 @@ import { type MessageKey, createTranslator } from '@visastack/i18n';
 import { listGrantsForRecipientAccount } from '@visastack/services';
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { EmptyState } from '../../../components/ui';
+import { EmptyState, PageHeader } from '../../../components/ui';
 import { formatTimestampDate } from '../../../lib/format-date';
 import { getLocale } from '../../../lib/locale';
 import { withSession } from '../../../lib/session';
@@ -28,17 +28,11 @@ export default async function SharedWithMePage() {
 
   return (
     <section className="section container">
-      <div className="toolbar" style={{ marginBottom: '2rem' }}>
-        <div>
-          <span className="eyebrow">Shared with you</span>
-          <h1 className="section-title" style={{ margin: '0.25rem 0 0' }}>
-            Access others have shared
-          </h1>
-          <p className="muted" style={{ margin: '0.35rem 0 0' }}>
-            Someone granted you access to their records. Access only begins once you accept.
-          </p>
-        </div>
-      </div>
+      <PageHeader
+        eyebrow="Shared with you"
+        title="Access others have shared"
+        description="Someone granted you access to their records. Access only begins once you accept."
+      />
 
       <article className="card">
         {grants.length === 0 ? (

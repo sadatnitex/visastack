@@ -8,53 +8,61 @@
 :root {
   color-scheme: light dark;
 
-  /* Type */
-  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Segoe UI",
-    Roboto, Helvetica, Arial, sans-serif;
+  /* Type. System fonts only (no web fonts, CSP-safe). Bengali falls through to the
+     best installed Bengali face so mixed English and Bangla text keeps one rhythm. */
+  --font-sans:
+    "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    "Noto Sans", var(--font-bengali, "Noto Sans Bengali"), "Hind Siliguri", "Nirmala UI", Helvetica, Arial, sans-serif;
   --font-mono: ui-monospace, "SF Mono", "SFMono-Regular", Menlo, Consolas, monospace;
 
-  /* Light palette (Apple neutrals + system blue) */
-  --bg: #fbfbfd;
+  /* Light palette: cool paper, navy ink, one blue for links and focus, one teal for progress. */
+  --bg: #f6f7f9;
   --bg-elevated: #ffffff;
-  --bg-subtle: #f5f5f7;
-  --text: #1d1d1f;
-  --text-secondary: #6e6e73;
-  --text-tertiary: #737378;
-  --accent: #0071e3;
-  --accent-hover: #0077ed;
-  /* Solid-fill contexts (white text on top): identical to --accent in light
-     mode, but a real, distinct, darker value in dark mode — see below. */
-  --accent-strong: #0071e3;
-  --hairline: #d2d2d7;
-  --hairline-soft: #e8e8ed;
-  --success: #127f29;
-  --success-bg: #e3f5e8;
-  --warning: #9a6400;
-  --warning-bg: #fdf3dc;
-  --danger: #c1372c;
-  /* Solid-fill contexts (white text on top), like --accent-strong: the same red in both
-     schemes, because the lighter dark-mode --danger is for text on a dark page. */
-  --danger-strong: #c1372c;
-  --danger-bg: #fce8e6;
+  --bg-subtle: #eef1f5;
+  --text: #0e1a2b;
+  --text-secondary: #4a5a70;
+  --text-tertiary: #5d6c80;
+  --accent: #1457d6;
+  --accent-hover: #1d4478;
+  /* Solid fills with white text on top (primary buttons): deep navy in light mode, a real
+     and different value in dark mode, see below. */
+  --accent-strong: #0f2a4a;
+  --brand: #0a7f73;
+  --brand-bg: #e0f3f0;
+  --hairline: #d5dbe4;
+  --hairline-soft: #e3e8ef;
+  --success: #0f7a4a;
+  --success-bg: #e2f4ea;
+  --warning: #8a5a00;
+  --warning-bg: #fdf0d2;
+  --danger: #b42318;
+  /* Solid red fills with white text: the same red in both schemes, because the lighter
+     dark-mode --danger is meant for text on a dark page. */
+  --danger-strong: #b42318;
+  --danger-bg: #fde8e6;
 
-  /* Materials & depth */
-  --nav-material: rgba(251, 251, 253, 0.72);
-  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.04), 0 8px 24px rgba(0, 0, 0, 0.06);
-  --shadow-raise: 0 2px 6px rgba(0, 0, 0, 0.06), 0 16px 40px rgba(0, 0, 0, 0.1);
+  /* Materials & depth: flat surfaces, hairline borders, almost no shadow. */
+  --nav-material: #ffffff;
+  --shadow-card: 0 1px 2px rgba(14, 26, 43, 0.05);
+  --shadow-raise: 0 6px 20px rgba(14, 26, 43, 0.1);
 
   /* Shape & rhythm */
-  --radius-sm: 10px;
-  --radius: 16px;
-  --radius-lg: 22px;
+  --radius-sm: 8px;
+  --radius: 12px;
+  --radius-lg: 16px;
   --radius-pill: 980px;
   --container: 1024px;
   --container-wide: 1280px;
+  --header-height: 56px;
+  --seg-0: #0a7f73;
+  --seg-1: #1457d6;
+  --seg-2: #6d4ad6;
+  --seg-3: #b7791f;
+  --seg-4: #c0396b;
+  --seg-5: #5d6c80;
+  --side-width: 15rem;
 
-  /* Spacing scale (docs/ux/visastack-product-experience.md's "Visual system"
-     table) — an 8px rhythm with a half-step at the bottom for tight
-     inline gaps. Prefer these over ad hoc rem values in new code; existing
-     clamp()-based fluid spacing (hero/section padding) is intentionally
-     left alone. */
+  /* Spacing scale: an 8px rhythm with a half-step at the bottom for tight inline gaps. */
   --space-1: 0.25rem;
   --space-2: 0.5rem;
   --space-3: 0.75rem;
@@ -67,32 +75,36 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #000000;
-    --bg-elevated: #1c1c1e;
-    --bg-subtle: #141416;
-    --text: #f5f5f7;
-    --text-secondary: #a1a1a6;
-    --text-tertiary: #86868b;
-    --accent: #2997ff;
-    --accent-hover: #47a6ff;
-    /* Darker than --accent: white text on a #2997ff fill only reaches 3.02:1
-       (fails WCAG AA's 4.5:1 for normal text), but #2997ff itself reads fine
-       as text/links on the dark background. Two roles, two values. */
-    --accent-strong: #0876de;
-    --hairline: #2a2a2d;
-    --hairline-soft: #242426;
-    --success: #46d16a;
-    --success-bg: #12331c;
+    --bg: #0a1220;
+    --bg-elevated: #111b2e;
+    --bg-subtle: #162338;
+    --text: #e8edf5;
+    --text-secondary: #a3b1c6;
+    --text-tertiary: #8393ab;
+    --accent: #6aa3ff;
+    --accent-hover: #3f78e0;
+    /* White text on a light-blue fill fails 4.5:1, so solid fills stay a deeper blue. */
+    --accent-strong: #2b62cc;
+    --brand: #35c2b0;
+    --seg-0: #35c2b0;
+    --seg-1: #6aa3ff;
+    --seg-2: #a592ff;
+    --seg-3: #e0b25a;
+    --seg-4: #ee86ac;
+    --seg-5: #8393ab;
+    --brand-bg: #0f2f33;
+    --hairline: #26344d;
+    --hairline-soft: #1d2a40;
+    --success: #4cd18a;
+    --success-bg: #0f2a1e;
     --warning: #f2c14e;
     --warning-bg: #33280d;
-    --danger: #ff6b5e;
-    /* White text on the lighter --danger above is only 2.79:1 (fails WCAG AA's 4.5:1), so a
-       solid red button keeps the deeper red (5.46:1) in dark mode as well. */
-    --danger-strong: #c1372c;
+    --danger: #ff8a7d;
+    --danger-strong: #b42318;
     --danger-bg: #3a1512;
-    --nav-material: rgba(0, 0, 0, 0.72);
-    --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.5), 0 8px 24px rgba(0, 0, 0, 0.5);
-    --shadow-raise: 0 2px 6px rgba(0, 0, 0, 0.6), 0 16px 40px rgba(0, 0, 0, 0.6);
+    --nav-material: #0a1220;
+    --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.4);
+    --shadow-raise: 0 6px 20px rgba(0, 0, 0, 0.5);
   }
 }
 
@@ -106,7 +118,7 @@ html {
   /* Both navigation bars are sticky (about 104px together on a wide screen), so a
      keyboard-focused control or an in-page anchor must stop below them, never
      behind them (WCAG 2.2 SC 2.4.11 Focus Not Obscured). */
-  scroll-padding-top: 7rem;
+  scroll-padding-top: 5rem;
 }
 
 body {
@@ -114,8 +126,10 @@ body {
   font-family: var(--font-sans);
   background: var(--bg);
   color: var(--text);
-  line-height: 1.5;
-  letter-spacing: -0.01em;
+  font-size: 1rem;
+  line-height: 1.55;
+  letter-spacing: 0;
+  font-feature-settings: "tnum" 1, "cv11" 1;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
 }
@@ -126,6 +140,13 @@ a {
 }
 a:hover {
   text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* Bengali needs more line height than Latin to keep its matras clear of the line above. */
+:lang(bn) body,
+:lang(bn) {
+  line-height: 1.75;
 }
 
 :focus-visible {
@@ -167,21 +188,33 @@ a:hover {
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
-  height: 52px;
+  height: var(--header-height);
   padding: 0 clamp(1rem, 4vw, 2.5rem);
   background: var(--nav-material);
-  backdrop-filter: saturate(180%) blur(20px);
-  -webkit-backdrop-filter: saturate(180%) blur(20px);
-  border-bottom: 1px solid var(--hairline-soft);
+  border-bottom: 1px solid var(--hairline);
 }
 .brand {
-  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  font-weight: 700;
   font-size: 1.05rem;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.01em;
   color: var(--text);
 }
 .brand:hover {
   text-decoration: none;
+}
+/* A small mark: two stacked bars, the stack in the name. Decorative. */
+.brand-mark {
+  display: inline-block;
+  width: 1.15rem;
+  height: 1.15rem;
+  border-radius: 5px;
+  background:
+    linear-gradient(var(--bg-elevated), var(--bg-elevated)) 22% 34% / 56% 14% no-repeat,
+    linear-gradient(var(--bg-elevated), var(--bg-elevated)) 22% 62% / 56% 14% no-repeat,
+    var(--brand);
 }
 .nav-links {
   display: flex;
@@ -227,7 +260,7 @@ main {
   /* Block padding only. The shorthand `padding: X 0` that stood here came after
      `.container` and reset its side padding to zero, so every `section container`
      page ran edge to edge on a screen narrower than the container. */
-  padding-block: clamp(3.5rem, 9vw, 7rem);
+  padding-block: clamp(2.5rem, 7vw, 5rem);
 }
 .section + .section {
   border-top: 1px solid var(--hairline-soft);
@@ -235,37 +268,42 @@ main {
 
 /* Hero (clarity: big, tight display type) */
 .hero {
-  text-align: center;
-  padding-top: clamp(4rem, 12vw, 9rem);
-  padding-bottom: clamp(3rem, 8vw, 6rem);
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
+  align-items: center;
+  gap: clamp(2rem, 5vw, 4rem);
+  text-align: left;
+  padding-top: clamp(2.5rem, 7vw, 5.5rem);
+  padding-bottom: clamp(2.5rem, 6vw, 4.5rem);
 }
 .eyebrow {
   display: inline-block;
-  font-size: 0.8rem;
-  font-weight: 600;
-  letter-spacing: 0.01em;
-  color: var(--accent);
-  margin-bottom: 1rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--brand);
+  margin-bottom: 0.9rem;
 }
 .hero-title {
-  font-size: clamp(2.6rem, 7vw, 4.5rem);
-  line-height: 1.05;
+  font-size: clamp(2.2rem, 5.2vw, 3.6rem);
+  line-height: 1.06;
   letter-spacing: -0.03em;
-  font-weight: 600;
-  margin: 0 auto 1.25rem;
-  max-width: 15ch;
+  font-weight: 700;
+  margin: 0 0 1.1rem;
+  max-width: 16ch;
 }
 .hero-sub {
-  font-size: clamp(1.1rem, 2.4vw, 1.45rem);
-  line-height: 1.4;
+  font-size: clamp(1.05rem, 2vw, 1.25rem);
+  line-height: 1.5;
   color: var(--text-secondary);
-  max-width: 44ch;
-  margin: 0 auto 2rem;
+  max-width: 46ch;
+  margin: 0 0 1.75rem;
 }
 .cta-row {
   display: flex;
-  gap: 1rem;
-  justify-content: center;
+  gap: 0.75rem;
+  justify-content: flex-start;
   flex-wrap: wrap;
 }
 
@@ -275,19 +313,20 @@ main {
   align-items: center;
   justify-content: center;
   gap: 0.4rem;
-  font-size: 1rem;
-  font-weight: 500;
-  padding: 0.7rem 1.5rem;
-  border-radius: var(--radius-pill);
+  font-size: 0.95rem;
+  font-weight: 600;
+  line-height: 1.25;
+  padding: 0.65rem 1.25rem;
+  border-radius: var(--radius-sm);
   border: 1px solid transparent;
   cursor: pointer;
-  transition: background 0.2s ease, color 0.2s ease, transform 0.1s ease;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
 }
 .btn:hover {
   text-decoration: none;
 }
 .btn:active {
-  transform: scale(0.97);
+  transform: translateY(1px);
 }
 .btn-primary {
   background: var(--accent-strong);
@@ -297,16 +336,17 @@ main {
   background: var(--accent-hover);
 }
 .btn-secondary {
-  background: transparent;
-  color: var(--accent);
+  background: var(--bg-elevated);
+  color: var(--text);
   border-color: var(--hairline);
 }
 .btn-secondary:hover {
   background: var(--bg-subtle);
+  border-color: var(--text-tertiary);
 }
 .nav-cta {
-  padding: 0.4rem 1.1rem;
-  font-size: 0.9rem;
+  padding: 0.4rem 0.95rem;
+  font-size: 0.875rem;
 }
 .btn-danger {
   background: var(--danger-strong);
@@ -355,7 +395,7 @@ main {
 /* Inline notices */
 .notice {
   padding: 0.85rem 1rem;
-  border-radius: 12px;
+  border-radius: var(--radius-sm);
   font-size: 0.9rem;
   line-height: 1.5;
   border: 1px solid var(--hairline);
@@ -375,73 +415,72 @@ main {
 
 /* Section headings */
 .section-head {
-  text-align: center;
-  margin-bottom: clamp(2rem, 5vw, 3.5rem);
+  text-align: left;
+  margin-bottom: clamp(1.5rem, 4vw, 2.5rem);
 }
 .section-title {
-  font-size: clamp(1.9rem, 4.5vw, 3rem);
-  line-height: 1.1;
+  font-size: clamp(1.6rem, 3.6vw, 2.4rem);
+  line-height: 1.15;
   letter-spacing: -0.025em;
-  font-weight: 600;
-  margin: 0 0 0.75rem;
+  font-weight: 700;
+  margin: 0 0 0.6rem;
   overflow-wrap: break-word;
 }
 .section-sub {
-  font-size: clamp(1rem, 2vw, 1.2rem);
+  font-size: clamp(1rem, 1.8vw, 1.1rem);
   color: var(--text-secondary);
-  max-width: 52ch;
-  margin: 0 auto;
+  max-width: 56ch;
+  margin: 0;
 }
 
 /* Cards & grid (depth) */
 .grid {
   display: grid;
-  gap: 1.25rem;
+  gap: 1rem;
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
 }
 .card {
   background: var(--bg-elevated);
-  border: 1px solid var(--hairline-soft);
+  border: 1px solid var(--hairline);
   border-radius: var(--radius);
-  padding: 1.75rem;
+  padding: 1.35rem 1.4rem;
   box-shadow: var(--shadow-card);
-  transition: box-shadow 0.25s ease, transform 0.25s ease;
-}
-@media (hover: hover) {
-  .card:hover {
-    box-shadow: var(--shadow-raise);
-    transform: translateY(-2px);
-  }
 }
 .card-title {
-  font-size: 1.2rem;
-  font-weight: 600;
-  letter-spacing: -0.02em;
+  font-size: 1.08rem;
+  font-weight: 650;
+  letter-spacing: -0.012em;
+  line-height: 1.3;
   margin: 0 0 0.5rem;
 }
 .card-body {
   color: var(--text-secondary);
-  font-size: 0.975rem;
+  font-size: 0.95rem;
   margin: 0;
 }
 .card-kicker {
-  font-size: 0.75rem;
-  font-weight: 600;
-  letter-spacing: 0.02em;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.07em;
   text-transform: uppercase;
   color: var(--text-tertiary);
-  margin: 0 0 0.6rem;
+  margin: 0 0 0.5rem;
 }
 
 /* Badges (status) */
 .badge {
   display: inline-flex;
   align-items: center;
-  gap: 0.4rem;
-  font-size: 0.8rem;
-  font-weight: 600;
-  padding: 0.3rem 0.7rem;
-  border-radius: var(--radius-pill);
+  gap: 0.35rem;
+  font-size: 0.78rem;
+  font-weight: 650;
+  line-height: 1.2;
+  padding: 0.28rem 0.6rem;
+  border-radius: 6px;
+  max-width: 100%;
+  /* Break between words when a label is long, never inside one ("Acti ve"). */
+  overflow-wrap: break-word;
+  font-variant-numeric: tabular-nums;
 }
 .badge::before {
   content: "";
@@ -491,7 +530,7 @@ main {
 
 /* Usage meter (quota bars) */
 .meter {
-  height: 6px;
+  height: 8px;
   border-radius: var(--radius-pill);
   background: var(--bg-subtle);
   overflow: hidden;
@@ -499,7 +538,7 @@ main {
 .meter-fill {
   height: 100%;
   border-radius: var(--radius-pill);
-  background: var(--accent);
+  background: var(--brand);
   transition: width 0.2s ease;
 }
 .meter-fill.meter-warn {
@@ -528,7 +567,7 @@ main {
   align-items: center;
   justify-content: space-between;
   gap: 0.5rem 1rem;
-  padding: 0.85rem 0;
+  padding: 0.8rem 0;
   border-bottom: 1px solid var(--hairline-soft);
 }
 .row:last-child {
@@ -536,7 +575,7 @@ main {
 }
 .row-key {
   min-width: 0;
-  color: var(--text-secondary);
+  color: var(--text);
   font-size: 0.95rem;
   overflow-wrap: break-word;
 }
@@ -556,20 +595,22 @@ main {
   transition: opacity 0.15s ease;
 }
 .row-link:hover {
-  opacity: 0.7;
+  opacity: 1;
+  background: var(--bg-subtle);
 }
 
 /* Text inputs / selects shared control */
 .input {
   width: 100%;
   min-width: 0;
-  padding: 0.6rem 0.85rem;
-  border-radius: 10px;
+  padding: 0.6rem 0.8rem;
+  border-radius: var(--radius-sm);
   border: 1px solid var(--hairline);
-  background: var(--bg-subtle);
+  background: var(--bg-elevated);
   color: var(--text);
-  font-size: 0.95rem;
+  font-size: 1rem;
   font-family: inherit;
+  min-height: 2.6rem;
 }
 .input:focus-visible {
   outline: 2px solid var(--accent);
@@ -601,8 +642,8 @@ main {
 }
 .field-label {
   font-size: 0.9rem;
-  font-weight: 600;
-  color: var(--text-secondary);
+  font-weight: 650;
+  color: var(--text);
 }
 .field-control {
   display: flex;
@@ -673,10 +714,11 @@ main {
 
 /* Footer */
 .footer {
-  border-top: 1px solid var(--hairline-soft);
-  padding: 2.5rem 0;
+  border-top: 1px solid var(--hairline);
+  padding: 2rem 0;
   color: var(--text-tertiary);
   font-size: 0.85rem;
+  background: var(--bg-elevated);
 }
 .footer-inner {
   display: flex;
@@ -686,54 +728,114 @@ main {
   flex-wrap: wrap;
 }
 
-/* App shell — persistent primary nav for the signed-in product (distinct from
-   the marketing header in .nav above, which only wraps the logged-out
-   landing/status pages). */
+/* App shell: the signed-in product. On a laptop or larger it is a sidebar listing every
+   destination, with the switch controls underneath. On a phone or tablet it is a bar at the
+   bottom of the screen, within reach of a thumb: four destinations and a "More" button that
+   opens the rest (see the narrow-screen rules below). */
+.app-frame {
+  display: grid;
+  grid-template-columns: var(--side-width) minmax(0, 1fr);
+  align-items: start;
+  /* A short page still gives the sidebar a panel that reaches the bottom of the screen. */
+  min-height: calc(100dvh - var(--header-height) - 3rem);
+  /* The sidebar's panel runs the full height of the page, whatever the sidebar holds. */
+  background: linear-gradient(
+    to right,
+    var(--bg-elevated) calc(var(--side-width) - 1px),
+    var(--hairline) calc(var(--side-width) - 1px),
+    var(--hairline) var(--side-width),
+    transparent var(--side-width)
+  );
+}
+.app-main {
+  min-width: 0;
+}
 .app-shell-nav {
   position: sticky;
-  /* Directly under the public header (52px), which is also sticky; at top: 0
-     this bar slid behind it and vanished on scroll. */
-  top: 52px;
-  z-index: 40;
+  top: var(--header-height);
   display: flex;
-  align-items: center;
-  gap: clamp(1rem, 3vw, 2rem);
-  padding: 0 clamp(1rem, 4vw, 2.5rem);
-  height: 52px;
-  background: var(--nav-material);
-  backdrop-filter: saturate(180%) blur(20px);
-  -webkit-backdrop-filter: saturate(180%) blur(20px);
-  border-bottom: 1px solid var(--hairline-soft);
-  overflow-x: auto;
+  flex-direction: column;
+  gap: 0.15rem;
+  max-height: calc(100dvh - var(--header-height));
+  padding: 1.1rem 0.9rem 1.25rem 1rem;
+  overflow-y: auto;
+}
+.app-bar {
+  display: block;
+}
+.app-more-toggle {
+  display: none;
+}
+.app-more {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
 }
 .app-shell-links {
   display: flex;
-  gap: clamp(0.9rem, 2.5vw, 1.75rem);
-  align-items: center;
-  flex: 1;
+  flex-direction: column;
+  gap: 0.15rem;
   min-width: 0;
 }
-.app-shell-links a {
+.app-shell-links a,
+.app-more-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  min-height: 2.5rem;
+  padding: 0.45rem 0.75rem;
+  border-radius: var(--radius-sm);
   color: var(--text-secondary);
-  font-size: 0.875rem;
-  white-space: nowrap;
-  padding: 0.3rem 0;
-  border-bottom: 2px solid transparent;
+  font-size: 0.95rem;
+  font-weight: 500;
+}
+.app-more-toggle {
+  display: none;
+  border: none;
+  background: none;
+  font-family: inherit;
+  cursor: pointer;
+}
+.app-shell-links a .icon {
+  color: var(--text-tertiary);
 }
 .app-shell-links a:hover {
   color: var(--text);
+  background: var(--bg-subtle);
   text-decoration: none;
 }
 .app-shell-links a[aria-current="page"] {
   color: var(--text);
-  font-weight: 600;
-  border-bottom-color: var(--accent);
+  font-weight: 650;
+  background: var(--brand-bg);
+  box-shadow: inset 3px 0 0 var(--brand);
+}
+.app-shell-links a[aria-current="page"] .icon {
+  color: var(--brand);
 }
 .app-shell-switch {
   display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: 0.9rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--hairline-soft);
+}
+.app-shell-switch-label {
+  margin: 0;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+.app-shell-switch .btn,
+.app-shell-switch form {
+  width: 100%;
+}
+.app-shell-switch .btn {
+  justify-content: flex-start;
   gap: 0.6rem;
-  align-items: center;
-  flex-shrink: 0;
 }
 
 /* Contextual secondary nav (workspace/agency/admin section tabs) */
@@ -743,8 +845,8 @@ main {
   overflow-x: auto;
   overscroll-behavior-x: contain;
   scrollbar-width: thin;
-  border-bottom: 1px solid var(--hairline-soft);
-  margin-bottom: 1.75rem;
+  border-bottom: 1px solid var(--hairline);
+  margin-bottom: 1.5rem;
   /* When the tabs do not all fit, a soft edge on the hidden side shows that the
      bar scrolls. The two `local` layers cover the shadows once the end is reached. */
   background:
@@ -773,8 +875,8 @@ main {
 }
 .subnav a[aria-current="page"] {
   color: var(--text);
-  font-weight: 600;
-  border-bottom-color: var(--accent);
+  font-weight: 650;
+  border-bottom-color: var(--brand);
 }
 
 /* The platform section bar sits above pages that carry their own section padding, so it
@@ -863,8 +965,8 @@ main {
 .pill {
   font-size: 0.85rem;
   color: var(--text-secondary);
-  background: var(--bg-subtle);
-  border: 1px solid var(--hairline-soft);
+  background: var(--bg-elevated);
+  border: 1px solid var(--hairline);
   border-radius: var(--radius-pill);
   padding: 0.35rem 0.85rem;
 }
@@ -917,31 +1019,112 @@ main {
   }
 }
 
-/* Narrow screens. The signed-in bar holds six links and up to three buttons, which
-   cannot share one 52px row below about 900px: the links wrap onto their own rows
-   and the bar scrolls away with the page instead of covering a quarter of a phone. */
-@media (max-width: 900px) {
-  /* Only the public header is still sticky here, 52px tall. */
+/* Narrower than a laptop the navigation moves to the bottom of the screen, where a thumb
+   reaches it: four destinations and "More". The page keeps room below its content so the
+   bar never covers the last lines. */
+@media (max-width: 1023px) {
   html {
     scroll-padding-top: 4.5rem;
+    scroll-padding-bottom: 5.5rem;
+  }
+  .app-frame {
+    display: block;
+    min-height: 0;
+    background: none;
+  }
+  .app-main {
+    padding-bottom: calc(5rem + env(safe-area-inset-bottom, 0px));
+  }
+  body:has(.app-shell-nav) .footer {
+    padding-bottom: calc(6rem + env(safe-area-inset-bottom, 0px));
   }
   .app-shell-nav {
-    position: static;
-    height: auto;
-    flex-wrap: wrap;
-    row-gap: 0.25rem;
-    padding-top: 0.4rem;
-    padding-bottom: 0.4rem;
+    position: fixed;
+    inset: auto 0 0 0;
+    z-index: 45;
+    max-height: none;
+    padding: 0 0 env(safe-area-inset-bottom, 0px);
     overflow: visible;
+    background: var(--bg-elevated);
+    border-top: 1px solid var(--hairline);
+    box-shadow: 0 -2px 10px rgba(14, 26, 43, 0.06);
   }
-  .app-shell-links {
-    flex: 1 1 100%;
-    flex-wrap: wrap;
-    row-gap: 0.1rem;
+  .app-bar {
+    display: flex;
+  }
+  .app-bar > .app-shell-links {
+    flex: 4 1 0;
+    flex-direction: row;
+    gap: 0;
+  }
+  .app-bar a,
+  .app-more-toggle {
+    flex: 1 1 0;
+    flex-direction: column;
+    justify-content: center;
+    gap: 0.15rem;
+    min-width: 0;
+    min-height: 3.5rem;
+    padding: 0.35rem 0.15rem;
+    border-radius: 0;
+    border: none;
+    background: none;
+    font-family: inherit;
+    font-size: 0.7rem;
+    line-height: 1.15;
+    text-align: center;
+    cursor: pointer;
+    color: var(--text-secondary);
+  }
+  .app-bar .app-link-label {
+    overflow-wrap: anywhere;
+  }
+  .app-bar a[aria-current="page"] {
+    background: none;
+    color: var(--brand);
+    box-shadow: inset 0 3px 0 var(--brand);
+  }
+  .app-more-toggle {
+    display: flex;
+    flex: 1 1 0;
+  }
+  .app-more-toggle[aria-expanded="true"] {
+    color: var(--text);
+    background: var(--bg-subtle);
+  }
+  .app-more {
+    display: none;
+    position: absolute;
+    inset: auto 0 100% 0;
+    gap: 0.25rem;
+    padding: 0.75rem 1rem 1rem;
+    background: var(--bg-elevated);
+    border-top: 1px solid var(--hairline);
+    box-shadow: 0 -10px 24px rgba(14, 26, 43, 0.14);
+  }
+  .app-shell-nav[data-open="true"] .app-more {
+    display: flex;
+  }
+  .app-more .app-shell-links a {
+    min-height: 2.9rem;
+    font-size: 1rem;
   }
   .app-shell-switch {
-    flex: 1 1 100%;
+    flex-direction: row;
     flex-wrap: wrap;
+    margin-top: 0.4rem;
+  }
+  .app-shell-switch-label {
+    flex: 1 1 100%;
+  }
+  .app-shell-switch .btn,
+  .app-shell-switch form {
+    width: auto;
+    flex: 1 1 auto;
+  }
+  .app-shell-switch .btn {
+    min-height: 2.75rem;
+    justify-content: center;
   }
 }
 
@@ -1195,4 +1378,552 @@ main {
     align-items: center;
     min-height: 44px;
   }
+}
+
+/* ---------------------------------------------------------------------------------
+   Visual redesign layer: the home page preview, the get-started checklist and the case
+   workspace attention strip. Tokens above carry the colour; these carry the shapes.
+   --------------------------------------------------------------------------------- */
+
+@media (max-width: 860px) {
+  .hero {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* "Example" preview on the home page: a made-up case drawn with the same pieces as the real
+   product, so a visitor sees what the product feels like in five seconds. */
+.hero-preview {
+  background: var(--bg-elevated);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-raise);
+  padding: 1.25rem;
+}
+.hero-preview-tag {
+  display: inline-block;
+  margin: 0 0 0.9rem;
+  padding: 0.15rem 0.55rem;
+  border: 1px dashed var(--hairline);
+  border-radius: 6px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+.hero-preview h2 {
+  font-size: 1.05rem;
+  margin: 0 0 0.15rem;
+}
+.hero-preview .row {
+  padding: 0.6rem 0;
+}
+
+/* Get-started checklist (traveller home, agency dashboard). */
+.checklist {
+  list-style: none;
+  margin: 0.75rem 0 0;
+  padding: 0;
+}
+.checklist li {
+  border-bottom: 1px solid var(--hairline-soft);
+}
+.checklist li:last-child {
+  border-bottom: none;
+}
+.checklist-item {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  min-height: 3rem;
+  padding: 0.6rem 0;
+  color: var(--text);
+}
+a.checklist-item:hover {
+  text-decoration: none;
+}
+a.checklist-item:hover .checklist-label {
+  text-decoration: underline;
+}
+.checklist-mark {
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  width: 1.6rem;
+  height: 1.6rem;
+  border-radius: 50%;
+  border: 2px solid var(--hairline);
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--text-tertiary);
+}
+.checklist-done .checklist-mark {
+  background: var(--brand);
+  border-color: var(--brand);
+  color: var(--bg-elevated);
+}
+.checklist-done .checklist-label {
+  color: var(--text-secondary);
+  text-decoration: line-through;
+  text-decoration-color: var(--hairline);
+}
+.checklist-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.checklist-hint {
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+}
+
+/* Case workspace: a strip of what needs attention, and a row of jump links to its sections. */
+.case-attention {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 0 0 1.25rem;
+  padding: 0;
+  list-style: none;
+}
+.case-attention a,
+.case-attention span.case-attention-ok {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-height: 2.25rem;
+  padding: 0.35rem 0.8rem;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elevated);
+  color: var(--text);
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+.case-attention a:hover {
+  text-decoration: none;
+  border-color: var(--text-tertiary);
+}
+.jump-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 1.1rem;
+  margin: 0 0 1.5rem;
+  padding: 0 0 0.6rem;
+  border-bottom: 1px solid var(--hairline);
+  font-size: 0.9rem;
+}
+.jump-nav a {
+  color: var(--text-secondary);
+  padding: 0.25rem 0;
+}
+.jump-nav a:hover {
+  color: var(--text);
+}
+
+/* App pages: headings sized for work, not for a landing page. */
+.app-main .section {
+  padding-block: clamp(1.5rem, 3vw, 2.25rem);
+}
+.app-main .section-title {
+  font-size: clamp(1.45rem, 2.4vw, 1.85rem);
+  letter-spacing: -0.02em;
+}
+.app-main .container {
+  max-width: 74rem;
+}
+@media print {
+  .app-frame {
+    display: block;
+  }
+}
+
+/* Balanced line breaks keep a short heading from ending on a single stranded word. */
+.hero-title,
+.section-title,
+.card-title,
+.next-step-title {
+  text-wrap: balance;
+}
+
+/* Page header, one pattern for every page. */
+.page-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem 1.5rem;
+  margin-bottom: 1.5rem;
+}
+.page-header-text {
+  flex: 1 1 20rem;
+  min-width: 0;
+}
+.page-header .eyebrow {
+  display: block;
+  margin-bottom: 0.3rem;
+}
+.page-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-bottom: 0.6rem;
+  min-height: 1.75rem;
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+}
+.page-back:hover {
+  color: var(--text);
+}
+.page-title {
+  margin: 0;
+  font-size: clamp(1.5rem, 2.6vw, 2rem);
+  line-height: 1.15;
+  letter-spacing: -0.025em;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+  text-wrap: balance;
+}
+.page-description {
+  margin: 0.45rem 0 0;
+  max-width: 62ch;
+  color: var(--text-secondary);
+}
+.page-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem 0.6rem;
+  margin-top: 0.7rem;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+}
+.page-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem;
+}
+.icon {
+  flex: none;
+}
+.icon-tile {
+  display: inline-grid;
+  place-items: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  margin-bottom: 0.65rem;
+  border-radius: 10px;
+  background: var(--brand-bg);
+  color: var(--brand);
+}
+
+/* Small facts in a row, not cards: the numbers an agency member scans first. */
+.section-label {
+  margin: 0 0 0.6rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+.stat-section {
+  margin-bottom: 1.25rem;
+}
+.stat-strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(10.5rem, 1fr));
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius);
+  background: var(--bg-elevated);
+  box-shadow: var(--shadow-card);
+  overflow: hidden;
+}
+.stat {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 0.5rem;
+  min-height: 5.5rem;
+  padding: 0.9rem 1.1rem;
+  border-right: 1px solid var(--hairline-soft);
+}
+.stat:last-child {
+  border-right: none;
+}
+.stat-label {
+  font-size: 0.85rem;
+  line-height: 1.3;
+  color: var(--text-secondary);
+}
+.stat-value {
+  font-size: 1.9rem;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-tertiary);
+}
+.stat-warning .stat-value {
+  color: var(--warning);
+}
+.stat-danger .stat-value {
+  color: var(--danger);
+}
+.stat-note {
+  margin: 0.6rem 0 0;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+}
+
+/* Pipeline: how many cases are at each stage, as one bar. Each stage is also a filter link. */
+.pipeline-card {
+  margin-bottom: 1.25rem;
+}
+.pipeline-bar {
+  display: flex;
+  gap: 3px;
+  height: 0.75rem;
+  margin: 0.4rem 0 0.9rem;
+}
+.pipeline-seg {
+  flex-basis: 0;
+  min-width: 6px;
+  border-radius: 4px;
+  background: var(--seg-0);
+}
+.pipeline-seg-1 {
+  background: var(--seg-1);
+}
+.pipeline-seg-2 {
+  background: var(--seg-2);
+}
+.pipeline-seg-3 {
+  background: var(--seg-3);
+}
+.pipeline-seg-4 {
+  background: var(--seg-4);
+}
+.pipeline-seg-5 {
+  background: var(--seg-5);
+}
+.pipeline-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 1.25rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.pipeline-legend a {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-height: 2rem;
+  color: var(--text);
+  font-size: 0.9rem;
+}
+.pipeline-dot {
+  width: 0.65rem;
+  height: 0.65rem;
+  border-radius: 50%;
+  background: var(--seg-0);
+}
+.pipeline-dot.pipeline-seg-1 {
+  background: var(--seg-1);
+}
+.pipeline-dot.pipeline-seg-2 {
+  background: var(--seg-2);
+}
+.pipeline-dot.pipeline-seg-3 {
+  background: var(--seg-3);
+}
+.pipeline-dot.pipeline-seg-4 {
+  background: var(--seg-4);
+}
+.pipeline-dot.pipeline-seg-5 {
+  background: var(--seg-5);
+}
+.pipeline-count {
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Data tables: real tables on a wide screen, a stack of labelled rows on a narrow one. */
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.92rem;
+}
+.data-table th,
+.data-table td {
+  padding: 0.8rem 0.75rem;
+  text-align: left;
+  vertical-align: top;
+}
+.data-table thead th {
+  padding-block: 0.55rem;
+  border-bottom: 1px solid var(--hairline);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+.data-table tbody tr {
+  border-bottom: 1px solid var(--hairline-soft);
+}
+.data-table tbody tr:last-child {
+  border-bottom: none;
+}
+.data-table tbody tr:hover {
+  background: var(--bg-subtle);
+}
+.data-table tbody th[scope="row"] {
+  font-weight: 600;
+}
+.data-table .cell-sub {
+  display: block;
+  margin-top: 0.2rem;
+  font-size: 0.82rem;
+  font-weight: 400;
+  color: var(--text-secondary);
+  overflow-wrap: anywhere;
+}
+.data-table td > .badge + .cell-sub {
+  margin-top: 0.35rem;
+}
+@media (max-width: 1180px) {
+  .data-table thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+  }
+  .data-table,
+  .data-table tbody,
+  .data-table tr,
+  .data-table th,
+  .data-table td {
+    display: block;
+  }
+  .data-table tbody tr {
+    padding: 0.9rem 0;
+  }
+  .data-table th,
+  .data-table td {
+    padding: 0.2rem 0;
+  }
+  .data-table td {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.2rem 0.75rem;
+    align-items: baseline;
+  }
+  .data-table td::before {
+    content: attr(data-label);
+    flex: 0 0 8.5rem;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--text-tertiary);
+  }
+  .data-table td > * {
+    flex: 1 1 10rem;
+    min-width: 0;
+  }
+  .data-table .cell-main {
+    margin-bottom: 0.35rem;
+    font-size: 1rem;
+  }
+}
+
+/* Two columns on a wide screen: the work on the left, the facts about it in a rail. */
+.split {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 20rem;
+  gap: 1.25rem;
+  align-items: start;
+}
+.split-main,
+.split-rail {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  min-width: 0;
+}
+.split-rail {
+  position: sticky;
+  top: calc(var(--header-height) + 1rem);
+}
+.split-main > .grid {
+  margin-top: 0 !important;
+}
+@media (max-width: 1180px) {
+  .split {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .split-rail {
+    position: static;
+  }
+}
+
+/* Public footer and the home page's promises, with a tick beside each. */
+.footer-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 1.25rem;
+}
+.footer-links a {
+  color: var(--text-secondary);
+  padding: 0.25rem 0;
+}
+.promise-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 17rem), 1fr));
+  gap: 0.75rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.promise-grid li {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
+  padding: 0.9rem 1rem;
+  background: var(--bg-elevated);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius);
+}
+.promise-grid .icon {
+  margin-top: 0.1rem;
+  color: var(--brand);
+}
+
+/* Labels in a table or a strip stay on one line so a count never splits from its word. */
+.data-table .badge,
+.stat .badge,
+.case-row-badges .badge {
+  white-space: nowrap;
+}
+
+/* The right-hand end of a row: status labels and a button, wrapping onto a second line on a
+   narrow screen instead of pushing the page wider. */
+.row-end {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.6rem;
+  min-width: 0;
+}
+
+/* A link inside a sentence is underlined: colour alone cannot be the only sign that it is a link. */
+:where(p, li, dd, .card-body, .muted, .field-msg, .notice, .page-description, .stat-note)
+  a:not(.btn):not(.row):not(.attention-link):not(.checklist-item) {
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
 }

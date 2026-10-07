@@ -1,7 +1,7 @@
 import { listNotificationsForAccount } from '@visastack/services';
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { EmptyState } from '../../../components/ui';
+import { EmptyState, PageHeader } from '../../../components/ui';
 import { formatTimestampDate } from '../../../lib/format-date';
 import { withSession } from '../../../lib/session';
 import { markNotificationReadAction } from './actions';
@@ -22,14 +22,7 @@ export default async function NotificationsPage() {
 
   return (
     <section className="section container">
-      <div className="toolbar" style={{ marginBottom: '2rem' }}>
-        <div>
-          <span className="eyebrow">Alerts</span>
-          <h1 className="section-title" style={{ margin: '0.25rem 0 0' }}>
-            Updates on your cases
-          </h1>
-        </div>
-      </div>
+      <PageHeader eyebrow="Alerts" title="Updates on your cases" />
 
       <article className="card">
         {notifications.length === 0 ? (

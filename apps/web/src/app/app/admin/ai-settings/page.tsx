@@ -5,6 +5,7 @@ import {
 } from '@visastack/services';
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { PageHeader } from '../../../../components/ui';
 import { bootstrapAdminEmails, hasPlatformPermission } from '../../../../lib/admin';
 import { unitsToUsd } from '../../../../lib/ai';
 import { formatTimestamp } from '../../../../lib/format-date';
@@ -79,25 +80,19 @@ export default async function AiSettingsPage() {
           ← Admin
         </Link>
       </div>
-      <div className="toolbar" style={{ marginBottom: '2rem' }}>
-        <div>
-          <span className="eyebrow">Admin · AI Gateway</span>
-          <h1 className="section-title" style={{ margin: '0.25rem 0 0' }}>
-            AI provider settings
-          </h1>
-          <p className="muted" style={{ margin: '0.35rem 0 0' }}>
-            Configure, activate, and roll back the AI extraction provider (master directive Part 8
-            §5). Every version below is a permanent, immutable snapshot -- nothing is ever edited in
-            place.
-          </p>
-        </div>
-        {data.hasAny ? (
-          <div style={{ display: 'flex', gap: '0.6rem' }}>
-            <RollbackConfigButton />
-            {data.hasActive ? <EmergencyDisableButton /> : null}
-          </div>
-        ) : null}
-      </div>
+      <PageHeader
+        eyebrow="Admin · AI Gateway"
+        title="AI provider settings"
+        description="Configure, activate, and roll back the AI extraction provider (master directive Part 8 §5). Every version below is a permanent, immutable snapshot -- nothing is ever edited in place."
+        actions={
+          data.hasAny ? (
+            <div style={{ display: 'flex', gap: '0.6rem' }}>
+              <RollbackConfigButton />
+              {data.hasActive ? <EmergencyDisableButton /> : null}
+            </div>
+          ) : null
+        }
+      />
 
       {!data.hasAny ? (
         <div className="notice" style={{ marginBottom: '1.5rem' }}>

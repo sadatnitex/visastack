@@ -62,7 +62,7 @@ export default async function AgencyTeamPage({
                   {m.role}
                 </span>
               </span>
-              <span style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+              <span className="row-end">
                 <span className={`badge ${m.active ? 'badge-success' : 'badge-neutral'}`}>
                   {m.active ? 'Active' : 'Inactive'}
                 </span>
@@ -88,7 +88,7 @@ export default async function AgencyTeamPage({
                   {invitation.role}
                 </span>
               </span>
-              <span style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+              <span className="row-end">
                 <span className="badge badge-warning">
                   Invited &middot; expires {formatTimestampDate(invitation.expiresAt)}
                 </span>

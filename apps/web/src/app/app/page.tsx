@@ -14,6 +14,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import {
   AttentionList,
+  Checklist,
   Disclosure,
   EmptyState,
   NextStepCard,
@@ -132,6 +133,44 @@ export default async function AppPage() {
   const coreGranted = Boolean(data.consents.CORE_PROCESSING);
   const grantedCount = CONSENT_TYPES.filter((type) => Boolean(data.consents[type])).length;
 
+  const firstApplicant = data.perApplicant[0];
+  const setupSteps = [
+    {
+      key: 'consent',
+      label: 'Allow core processing',
+      hint: 'Needed before anything can be saved. You can turn it off at any time.',
+      done: coreGranted,
+      href: '#permissions',
+    },
+    {
+      key: 'applicant',
+      label: 'Add an applicant',
+      hint: 'Start with yourself, or someone you manage records for.',
+      done: data.applicants.length > 0,
+      href: '/app/applicants',
+    },
+    {
+      key: 'document',
+      label: 'Add a first document',
+      hint: 'A passport page is the usual start.',
+      done: data.perApplicant.some((row) => row.documentCount > 0),
+      href: firstApplicant
+        ? `/app/applicant/${firstApplicant.applicant.id}/documents`
+        : '/app/applicants',
+    },
+    {
+      key: 'case',
+      label: 'Start a case',
+      hint: 'Check your documents against one visa route.',
+      done: data.perApplicant.some((row) => row.activeMissions > 0),
+      href: firstApplicant
+        ? `/app/applicant/${firstApplicant.applicant.id}/missions`
+        : '/app/applicants',
+    },
+  ];
+
+  const firstTodo = setupSteps.find((step) => !step.done);
+
   // One next step, chosen in priority order: the consent gate first, then whatever
   // someone is waiting on, then the first applicant, then "all clear".
   const first = data.attention[0];
@@ -151,12 +190,12 @@ export default async function AppPage() {
           action: first.action,
           tone: 'warning' as const,
         }
-      : data.applicants.length === 0
+      : firstTodo
         ? {
-            title: 'Add your first applicant',
-            why: 'An applicant holds one person\u2019s profile and documents, ready to reuse for every application.',
-            href: '/app/applicants',
-            action: 'Add an applicant',
+            title: firstTodo.label,
+            why: firstTodo.hint,
+            href: firstTodo.href,
+            action: firstTodo.key === 'applicant' ? 'Add an applicant' : 'Continue',
           }
         : {
             title: 'You are up to date',
@@ -179,6 +218,10 @@ export default async function AppPage() {
       </div>
 
       <NextStepCard {...nextStep} />
+
+      {setupSteps.some((step) => !step.done) ? (
+        <Checklist title="Set up your account" items={setupSteps} />
+      ) : null}
 
       {coreGranted && data.attention.length > 1 ? (
         <article className="card" style={{ marginBottom: '1.5rem' }}>

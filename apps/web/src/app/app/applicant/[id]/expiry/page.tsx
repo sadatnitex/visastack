@@ -11,7 +11,7 @@ import {
 } from '@visastack/services';
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
-import { EmptyState, StatusBadge, type Tone } from '../../../../../components/ui';
+import { EmptyState, PageHeader, StatusBadge, type Tone } from '../../../../../components/ui';
 import { formatTimestampDate } from '../../../../../lib/format-date';
 import { withSession } from '../../../../../lib/session';
 
@@ -98,18 +98,12 @@ export default async function ExpiryCentrePage({
 
   return (
     <>
-      <div className="toolbar" style={{ marginBottom: '2rem' }}>
-        <div>
-          <span className="eyebrow">Expiry Centre</span>
-          <h2 className="section-title" style={{ margin: '0.25rem 0 0' }}>
-            Expiry &amp; freshness
-          </h2>
-          <p className="muted" style={{ margin: '0.35rem 0 0' }}>
-            Three separate signals - a document's own expiry, whether a route needs it more recently
-            dated, and how long an issuer confirmation stays valid. Never merged into one status.
-          </p>
-        </div>
-      </div>
+      <PageHeader
+        eyebrow="Expiry Centre"
+        title={<>Expiry &amp; freshness</>}
+        description="Three separate signals - a document's own expiry, whether a route needs it more recently dated, and how long an issuer confirmation stays valid. Never merged into one status."
+        as="h2"
+      />
 
       <div className="grid">
         <article className="card">

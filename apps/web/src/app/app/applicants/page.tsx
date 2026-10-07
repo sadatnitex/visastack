@@ -2,7 +2,7 @@ import { createTranslator } from '@visastack/i18n';
 import { getConsents, listApplicants } from '@visastack/services';
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { EmptyState } from '../../../components/ui';
+import { EmptyState, PageHeader } from '../../../components/ui';
 import { getLocale } from '../../../lib/locale';
 import { relationshipLabel } from '../../../lib/relationship-labels';
 import { withSession } from '../../../lib/session';
@@ -24,18 +24,11 @@ export default async function ApplicantsPage() {
 
   return (
     <section className="section container">
-      <div className="toolbar" style={{ marginBottom: '2rem' }}>
-        <div>
-          <span className="eyebrow">Applicants</span>
-          <h1 className="section-title" style={{ margin: '0.25rem 0 0' }}>
-            People on your account
-          </h1>
-          <p className="muted" style={{ margin: '0.35rem 0 0' }}>
-            Yourself and anyone you manage records for — family members or a minor under your
-            guardianship.
-          </p>
-        </div>
-      </div>
+      <PageHeader
+        eyebrow="Applicants"
+        title="People on your account"
+        description="Yourself and anyone you manage records for - family members or a minor under your guardianship."
+      />
 
       <div className="grid">
         <article className="card">
@@ -53,7 +46,7 @@ export default async function ApplicantsPage() {
               {data.applicants.map((a) => (
                 <Link className="row row-link" key={a.id} href={`/app/applicant/${a.id}`}>
                   <span className="row-key">{a.displayName}</span>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <span className="row-end">
                     <span className="badge badge-neutral">
                       {relationshipLabel(a.relationship, t)}
                     </span>

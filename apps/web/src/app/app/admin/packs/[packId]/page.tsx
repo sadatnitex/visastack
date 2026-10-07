@@ -5,8 +5,8 @@ import {
   listRequirements,
 } from '@visastack/services';
 import type { Metadata } from 'next';
-import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { PageHeader, StatusBadge } from '../../../../../components/ui';
 import { isPlatformAdmin } from '../../../../../lib/admin';
 import { formatDateOnly, formatTimestampDate } from '../../../../../lib/format-date';
 import { withSession } from '../../../../../lib/session';
@@ -75,37 +75,25 @@ export default async function PackDetailPage({
 
   return (
     <section className="section container">
-      <div style={{ marginBottom: '1.5rem' }}>
-        <Link href="/app/admin/packs" className="muted" style={{ fontSize: '0.9rem' }}>
-          ← Pack Studio
-        </Link>
-      </div>
-      <div className="toolbar" style={{ marginBottom: '2rem' }}>
-        <div>
-          <span className="eyebrow">Pack · {data.pack.key}</span>
-          <h1 className="section-title" style={{ margin: '0.25rem 0 0' }}>
-            {data.pack.name}
-          </h1>
-          <span
-            className={`badge ${data.pack.authoritative ? 'badge-success' : 'badge-neutral'}`}
-            style={{ marginTop: '0.5rem', display: 'inline-block' }}
-          >
+      <PageHeader
+        back={{ href: '/app/admin/packs', label: 'Pack Studio' }}
+        eyebrow={`Pack · ${data.pack.key}`}
+        title={data.pack.name}
+        meta={
+          <StatusBadge tone={data.pack.authoritative ? 'success' : 'neutral'}>
             {data.pack.authoritative ? 'Official requirement pack' : 'Agency custom checklist'}
-          </span>
-          {data.pack.description ? (
-            <p className="muted" style={{ margin: '0.35rem 0 0' }}>
-              {data.pack.description}
-            </p>
-          ) : null}
-          {!data.pack.authoritative ? (
-            <p className="muted" style={{ margin: '0.35rem 0 0', fontSize: '0.8rem' }}>
-              Not eligible for the public trust surface (RUL-06) - only an authoritative pack can be
-              published there.
-            </p>
-          ) : null}
-        </div>
-        <OpenVersionButton packId={packId} />
-      </div>
+          </StatusBadge>
+        }
+        description={
+          <>
+            {data.pack.description ?? ''}
+            {!data.pack.authoritative
+              ? ' Not eligible for the public trust surface (RUL-06): only an authoritative pack can be published there.'
+              : ''}
+          </>
+        }
+        actions={<OpenVersionButton packId={packId} />}
+      />
 
       {data.versions.length === 0 ? (
         <article className="card">

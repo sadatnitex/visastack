@@ -80,7 +80,7 @@ export default async function AgencyClientsPage({
                     {invitation.contactDestination}
                   </span>
                 </span>
-                <span style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                <span className="row-end">
                   <span className="badge badge-warning">
                     Invited &middot; expires {formatTimestampDate(invitation.expiresAt)}
                   </span>

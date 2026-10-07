@@ -1,5 +1,6 @@
 import { getUsageForOrganization } from '@visastack/services';
 import type { Metadata } from 'next';
+import { PageHeader } from '../../../../../components/ui';
 import { withSession } from '../../../../../lib/session';
 import {
   formatMeterValue,
@@ -44,18 +45,12 @@ export default async function OrgPlanPage({
 
   return (
     <>
-      <div className="toolbar" style={{ marginBottom: '1.5rem' }}>
-        <div>
-          <span className="eyebrow">Usage &amp; billing</span>
-          <h2 className="section-title" style={{ margin: '0.25rem 0 0' }}>
-            Plan &amp; usage
-          </h2>
-          <p className="muted" style={{ margin: '0.35rem 0 0' }}>
-            Every entitlement below is plan configuration, not a hardcoded limit -- each meter names
-            its own definition and what it currently counts.
-          </p>
-        </div>
-      </div>
+      <PageHeader
+        eyebrow="Usage &amp; billing"
+        title={<>Plan &amp; usage</>}
+        description="Every entitlement below is plan configuration, not a hardcoded limit -- each meter names its own definition and what it currently counts."
+        as="h2"
+      />
 
       {!data.usage ? (
         <article className="card">

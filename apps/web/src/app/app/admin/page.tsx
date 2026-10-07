@@ -11,6 +11,7 @@ import {
   totalAiCostUnits,
 } from '@visastack/services';
 import type { Metadata } from 'next';
+import { PageHeader } from '../../../components/ui';
 import { isPlatformAdmin } from '../../../lib/admin';
 import { aiWarningLimitUnits, defaultAiLimits, resolveAiLimits, unitsToUsd } from '../../../lib/ai';
 import { formatDuration, formatMinorUnits, humanizeLabel } from '../../../lib/analytics-format';
@@ -154,17 +155,11 @@ export default async function AdminOperationsPage() {
 
   return (
     <section className="section container">
-      <div className="toolbar" style={{ marginBottom: '2rem' }}>
-        <div>
-          <span className="eyebrow">Platform</span>
-          <h1 className="section-title" style={{ margin: '0.25rem 0 0' }}>
-            Operations
-          </h1>
-          <p className="muted" style={{ margin: '0.35rem 0 0' }}>
-            Platform health, readiness, capacity and pilot measurement.
-          </p>
-        </div>
-      </div>
+      <PageHeader
+        eyebrow="Platform"
+        title="Operations"
+        description="Platform health, readiness, capacity and pilot measurement."
+      />
 
       {!data.admin ? (
         <AdminRestricted />
@@ -206,7 +201,7 @@ export default async function AdminOperationsPage() {
               {data.scorecard.map((row) => (
                 <div className="row" key={row.eventType}>
                   <span className="row-key">{SCORECARD_LABELS[row.eventType]}</span>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                  <span className="row-end">
                     <span className="muted" style={{ fontSize: '0.8rem' }}>
                       {row.last7Days} last 7 days
                     </span>
@@ -370,7 +365,7 @@ export default async function AdminOperationsPage() {
                   {data.analytics.categories.map((category) => (
                     <div className="row" key={category.key}>
                       <span className="row-key">{category.label}</span>
-                      <span style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                      <span className="row-end">
                         <span className="muted" style={{ fontSize: '0.8rem' }}>
                           {category.last7Days} last 7 days, {category.last30Days} last 30 days
                         </span>
@@ -519,7 +514,7 @@ export default async function AdminOperationsPage() {
                       <span className="row-key" style={{ wordBreak: 'break-word' }}>
                         {job.documentName}
                       </span>
-                      <span style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                      <span className="row-end">
                         {job.errorCode ? (
                           <span className="badge badge-neutral">{job.errorCode}</span>
                         ) : null}

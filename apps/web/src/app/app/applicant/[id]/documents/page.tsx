@@ -296,7 +296,7 @@ export default async function ApplicantDocumentsPage({
                     <span className="row-key" style={{ wordBreak: 'break-word' }}>
                       {doc.approvedName ?? doc.originalName}
                     </span>
-                    <span style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                    <span className="row-end">
                       <span className={`badge ${badge.tone}`}>{badge.label}</span>
                       {(() => {
                         const lifecycle = data.wallet.get(doc.id);

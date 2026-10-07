@@ -51,7 +51,7 @@ describe('Platform > Audit', () => {
 
   it('says there is nothing yet rather than an empty box', async () => {
     mocks.listRecentAuditEvents.mockResolvedValue([]);
-    expect(textOf(await renderServer(Page()))).toContain('No audit events recorded yet.');
+    expect(textOf(await renderServer(Page()))).toContain('No audit events yet');
   });
 
   it('refuses anyone who is not a platform administrator, without reading the trail', async () => {

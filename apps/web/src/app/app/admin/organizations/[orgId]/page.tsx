@@ -16,6 +16,7 @@ import {
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { PageHeader } from '../../../../../components/ui';
 import { bootstrapAdminEmails, isPlatformOwnerAccount } from '../../../../../lib/admin';
 import { formatTimestamp, formatTimestampDate } from '../../../../../lib/format-date';
 import { withSession } from '../../../../../lib/session';
@@ -153,17 +154,11 @@ export default async function AdminOrganizationPage({
           ← Organizations
         </Link>
       </div>
-      <div className="toolbar" style={{ marginBottom: '2rem' }}>
-        <div>
-          <span className="eyebrow">Organization admin</span>
-          <h1 className="section-title" style={{ margin: '0.25rem 0 0' }}>
-            {data.org.name}
-          </h1>
-          <p className="muted" style={{ margin: '0.35rem 0 0' }}>
-            Status: {data.org.status}
-          </p>
-        </div>
-      </div>
+      <PageHeader
+        eyebrow="Organization admin"
+        title={data.org.name}
+        description={<>Status: {data.org.status}</>}
+      />
 
       <article className="card" style={{ marginBottom: '1.5rem' }}>
         <p className="card-kicker">Commerce</p>
@@ -357,7 +352,7 @@ export default async function AdminOrganizationPage({
                 >
                   <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.75rem' }}>
                     <span className="row-key">Until {formatTimestamp(o.expiryAt)}</span>
-                    <span style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                    <span className="row-end">
                       <span className={`badge ${tone}`}>{status}</span>
                       {active ? (
                         <RevokeOverrideButton organizationId={orgId} overrideId={o.id} />

@@ -1,9 +1,10 @@
+import { signOut } from '@workos-inc/authkit-nextjs';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
+import { Icon } from '../../components/icons';
 import { isPlatformAdmin } from '../../lib/admin';
 import { PRIMARY_NAV } from '../../lib/navigation';
 import { withSession } from '../../lib/session';
-import { signOutCurrentUser } from '../../lib/sign-out';
 import { AppNav } from './app-nav';
 
 export const dynamic = 'force-dynamic';
@@ -27,31 +28,34 @@ export default async function AppLayout({ children }: { readonly children: React
   );
 
   return (
-    <>
-      <div className="app-shell-nav">
-        <AppNav links={PRIMARY_NAV} />
+    <div className="app-frame">
+      <AppNav links={PRIMARY_NAV}>
         <div className="app-shell-switch">
+          <p className="app-shell-switch-label">Switch area</p>
           <Link href="/app/agency" className="btn btn-secondary nav-cta">
+            <Icon name="building" size={18} />
             Agency
           </Link>
           {isAdmin ? (
             <Link href="/app/admin" className="btn btn-secondary nav-cta">
+              <Icon name="settings" size={18} />
               Admin
             </Link>
           ) : null}
           <form
             action={async () => {
               'use server';
-              await signOutCurrentUser();
+              await signOut();
             }}
           >
             <button type="submit" className="btn btn-secondary nav-cta">
+              <Icon name="logout" size={18} />
               Sign out
             </button>
           </form>
         </div>
-      </div>
-      {children}
-    </>
+      </AppNav>
+      <div className="app-main">{children}</div>
+    </div>
   );
 }

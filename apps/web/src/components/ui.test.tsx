@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
-import { AttentionList, Disclosure, EmptyState, NextStepCard, StatusBadge } from './ui';
+import { AttentionList, Checklist, Disclosure, EmptyState, NextStepCard, StatusBadge } from './ui';
 
 describe('StatusBadge', () => {
   it('puts the tone in the class so the stylesheet can add a mark as well as a colour', () => {
@@ -63,5 +63,34 @@ describe('EmptyState and Disclosure', () => {
     );
     expect(html).toContain('<details class="disclosure">');
     expect(html).toContain('2 of 6 on');
+  });
+});
+
+describe('Checklist', () => {
+  const html = renderToStaticMarkup(
+    <Checklist
+      title="Set up your account"
+      items={[
+        { key: 'a', label: 'Allow processing', done: true, href: '#permissions' },
+        {
+          key: 'b',
+          label: 'Add an applicant',
+          hint: 'Start with yourself',
+          done: false,
+          href: '/app/applicants',
+        },
+      ]}
+    />,
+  );
+
+  it('says how far along the person is', () => {
+    expect(html).toContain('1 of 2 done');
+  });
+
+  it('links only the steps still to do, and marks finished ones as done for screen readers', () => {
+    expect(html.match(/<a /g)).toHaveLength(1);
+    expect(html).toContain('href="/app/applicants"');
+    expect(html).toContain('Start with yourself');
+    expect(html).toContain('<span class="sr-only">Done</span>');
   });
 });

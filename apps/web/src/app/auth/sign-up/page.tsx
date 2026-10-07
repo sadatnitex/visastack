@@ -20,7 +20,9 @@ export default async function SignUpPage({
   const error = e ? ERRORS[e] : undefined;
   return (
     <section className="section container" style={{ maxWidth: '28rem' }}>
-      <h1 className="section-title">Create an account</h1>
+      <h1 className="page-title" style={{ marginBottom: '1.25rem' }}>
+        Create an account
+      </h1>
       <p className="card-body">
         VisaStack is invite-only for now. You can create an account, but you can only get in if you
         have been invited.
@@ -30,55 +32,57 @@ export default async function SignUpPage({
           {error}
         </p>
       ) : null}
-      <form action={signUpAction} className="field-list">
-        <div className="field-row">
-          <label className="field-label" htmlFor="name">
-            Your name
-          </label>
-          <input
-            id="name"
-            name="name"
-            type="text"
-            className="input"
-            autoComplete="name"
-            maxLength={120}
-          />
-        </div>
-        <div className="field-row">
-          <label className="field-label" htmlFor="email">
-            Email address
-          </label>
-          <input
-            id="email"
-            name="email"
-            type="email"
-            className="input"
-            autoComplete="email"
-            required
-            maxLength={254}
-            aria-invalid={error ? true : undefined}
-            aria-describedby={error ? 'signup-error' : undefined}
-          />
-        </div>
-        <div className="field-row">
-          <label className="field-label" htmlFor="password">
-            Password (at least 8 characters)
-          </label>
-          <input
-            id="password"
-            name="password"
-            type="password"
-            className="input"
-            autoComplete="new-password"
-            required
-            minLength={8}
-            maxLength={128}
-          />
-        </div>
-        <button type="submit" className="btn btn-primary">
-          Create account
-        </button>
-      </form>
+      <div className="card" style={{ marginBottom: '1rem' }}>
+        <form action={signUpAction} className="field-list">
+          <div className="field-row">
+            <label className="field-label" htmlFor="name">
+              Your name
+            </label>
+            <input
+              id="name"
+              name="name"
+              type="text"
+              className="input"
+              autoComplete="name"
+              maxLength={120}
+            />
+          </div>
+          <div className="field-row">
+            <label className="field-label" htmlFor="email">
+              Email address
+            </label>
+            <input
+              id="email"
+              name="email"
+              type="email"
+              className="input"
+              autoComplete="email"
+              required
+              maxLength={254}
+              aria-invalid={error ? true : undefined}
+              aria-describedby={error ? 'signup-error' : undefined}
+            />
+          </div>
+          <div className="field-row">
+            <label className="field-label" htmlFor="password">
+              Password (at least 8 characters)
+            </label>
+            <input
+              id="password"
+              name="password"
+              type="password"
+              className="input"
+              autoComplete="new-password"
+              required
+              minLength={8}
+              maxLength={128}
+            />
+          </div>
+          <button type="submit" className="btn btn-primary">
+            Create account
+          </button>
+        </form>
+      </div>
       <p className="card-body">
         Already have an account? <Link href="/auth/sign-in">Sign in</Link>
       </p>

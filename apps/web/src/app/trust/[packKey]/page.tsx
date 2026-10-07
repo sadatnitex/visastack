@@ -1,9 +1,9 @@
 import { getPublicTrustRoute, safeHttpUrl } from '@visastack/services';
 import type { Metadata } from 'next';
-import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { cache } from 'react';
 import { TrustUnavailable } from '../../../components/trust-unavailable';
+import { PageHeader } from '../../../components/ui';
 import { formatDateOnly } from '../../../lib/format-date';
 import { withPublicDb } from '../../../lib/public-db';
 import { reportServerError } from '../../../lib/server-error';
@@ -74,22 +74,12 @@ export default async function PublicTrustRoutePage({
 
   return (
     <section className="section container">
-      <div style={{ marginBottom: '1.5rem' }}>
-        <Link href="/trust" className="muted" style={{ fontSize: '0.9rem' }}>
-          ← Public Trust
-        </Link>
-      </div>
-      <div className="toolbar" style={{ marginBottom: '2rem' }}>
-        <div>
-          <span className="eyebrow">Public Trust · v{route.version}</span>
-          <h1 className="section-title" style={{ margin: '0.25rem 0 0' }}>
-            {route.packName}
-          </h1>
-          <p className="muted" style={{ margin: '0.35rem 0 0' }}>
-            {[route.jurisdiction, route.route, route.purpose].filter(Boolean).join(' · ')}
-          </p>
-        </div>
-      </div>
+      <PageHeader
+        back={{ href: '/trust', label: 'Public Trust' }}
+        eyebrow={`Public Trust · v${route.version}`}
+        title={route.packName}
+        description={[route.jurisdiction, route.route, route.purpose].filter(Boolean).join(' · ')}
+      />
 
       <div className="notice" style={{ marginBottom: '2rem' }}>
         This page describes the official process only. It is not an embassy or government service,

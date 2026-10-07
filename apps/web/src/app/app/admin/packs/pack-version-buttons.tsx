@@ -235,7 +235,7 @@ export function SourceInaccessibleButton({
           pending={pending}
           idle={inaccessible ? 'Clear source-inaccessible' : 'Mark source inaccessible'}
           busy="…"
-          className={`btn ${inaccessible ? 'btn-secondary' : 'btn-danger'}`}
+          className="btn btn-secondary"
           style={{ padding: '0.2rem 0.6rem', fontSize: '0.75rem' }}
         />
       </form>

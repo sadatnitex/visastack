@@ -107,9 +107,13 @@ const PHONE_AND_TABLET = [
 ] as const;
 
 function fixtureHtml(): string {
-  const primary = PRIMARY_NAV.map(
-    (link, i) => `<a href="${link.href}"${i === 0 ? ' aria-current="page"' : ''}>${link.label}</a>`,
-  ).join('');
+  const icon =
+    '<svg class="icon" aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M5 12h14"/></svg>';
+  const navLink = (link: { href: string; label: string }, i: number) =>
+    `<a href="${link.href}"${i === 0 ? ' aria-current="page"' : ''}>${icon}<span class="app-link-label">${link.label}</span></a>`;
+  // Mirrors `AppNav`: four links on the bar, "More" for the rest and the switch controls.
+  const primary = PRIMARY_NAV.slice(0, 4).map(navLink).join('');
+  const secondary = PRIMARY_NAV.slice(4).map(navLink).join('');
   const bar = (links: readonly { href: string; label: string }[]) =>
     links
       .map(
@@ -127,14 +131,23 @@ function fixtureHtml(): string {
     .join('');
   return `
 <div id="fixture">
-  <div class="app-shell-nav">
-    <nav class="app-shell-links" aria-label="Workspace">${primary}</nav>
-    <div class="app-shell-switch">
-      <a href="/app/agency" class="btn btn-secondary nav-cta">Agency</a>
-      <a href="/app/admin" class="btn btn-secondary nav-cta">Admin</a>
-      <form action="#"><button type="submit" class="btn btn-secondary nav-cta">Sign out</button></form>
+ <div class="app-frame">
+  <div class="app-shell-nav" data-open="false">
+    <div class="app-bar">
+      <nav class="app-shell-links" aria-label="Workspace">${primary}</nav>
+      <button type="button" class="app-more-toggle" aria-expanded="false" aria-controls="fixture-more" onclick="const n=this.closest('.app-shell-nav');const o=n.dataset.open!=='true';n.dataset.open=String(o);this.setAttribute('aria-expanded',String(o))">${icon}<span class="app-link-label">More</span></button>
+    </div>
+    <div class="app-more" id="fixture-more">
+      <nav class="app-shell-links app-shell-links-more" aria-label="Account and privacy">${secondary}</nav>
+      <div class="app-shell-switch">
+        <p class="app-shell-switch-label">Switch area</p>
+        <a href="/app/agency" class="btn btn-secondary nav-cta">Agency</a>
+        <a href="/app/admin" class="btn btn-secondary nav-cta">Admin</a>
+        <form action="#"><button type="submit" class="btn btn-secondary nav-cta">Sign out</button></form>
+      </div>
     </div>
   </div>
+  <div class="app-main">
   <div class="container tabs-bar"><nav class="subnav" aria-label="Platform sections">${platformBar}</nav></div>
   <section class="section container" id="fixture-section">
     <div class="toolbar" style="margin-bottom:1.5rem">
@@ -180,6 +193,8 @@ function fixtureHtml(): string {
     <div class="notice notice-warn" style="margin-top:1.5rem">A notice with a warning, in the warning colours.</div>
     <div style="height:2600px" aria-hidden="true"></div>
   </section>
+  </div>
+ </div>
 </div>`;
 }
 
@@ -235,6 +250,8 @@ test.describe('signed-in layout building blocks on a narrow screen (real stylesh
         page,
       }) => {
         const labels = [...PRIMARY_NAV.map((l) => l.label), 'Agency', 'Admin', 'Sign out'];
+        // The last few links and the switch controls sit under "More" on a narrow screen.
+        await page.getByRole('button', { name: 'More' }).click();
         for (const label of labels) {
           const target = page
             .locator('.app-shell-nav')
@@ -249,6 +266,26 @@ test.describe('signed-in layout building blocks on a narrow screen (real stylesh
             );
           }
         }
+      });
+
+      test('the bottom bar stays at the bottom and never covers the last line of the page', async ({
+        page,
+      }) => {
+        const { barTop, barBottom, innerHeight, lastBottom } = await page.evaluate(() => {
+          window.scrollTo({ top: document.documentElement.scrollHeight, behavior: 'instant' });
+          const bar = document.querySelector('.app-shell-nav')?.getBoundingClientRect();
+          const main = document.querySelector('.app-main')?.getBoundingClientRect();
+          if (!bar || !main) throw new Error('missing shell');
+          return {
+            barTop: bar.top,
+            barBottom: bar.bottom,
+            innerHeight: window.innerHeight,
+            lastBottom: main.bottom,
+          };
+        });
+        expect(barBottom, 'bar sits on the bottom edge').toBeGreaterThanOrEqual(innerHeight - 1);
+        expect(barTop, 'bar is a bar, not a screen').toBeGreaterThan(innerHeight - 140);
+        expect(lastBottom, 'the page ends above the bar').toBeLessThanOrEqual(barTop + 1);
       });
 
       test('every tab of every section bar can be scrolled into view, so none is out of reach', async ({
@@ -348,7 +385,7 @@ test.describe('signed-in navigation on a wide screen (real stylesheet)', () => {
     await openFixture(page);
   });
 
-  test('the signed-in bar stays visible under the public header while scrolling', async ({
+  test('the signed-in sidebar stays visible beside the page, under the public header, while scrolling', async ({
     page,
   }) => {
     // `scroll-behavior: smooth` is set on the page, so jump instantly and check the
@@ -383,10 +420,11 @@ test.describe('signed-in navigation on a wide screen (real stylesheet)', () => {
     }
   });
 
-  test('keyboard focus is never hidden behind the sticky bars', async ({ page }) => {
-    // Scroll so a control sits underneath the two sticky bars, then focus it, as
+  test('keyboard focus is never hidden behind the sticky header', async ({ page }) => {
+    // Scroll so a control sits underneath the sticky public header, then focus it, as
     // tabbing or shift-tabbing to it would. The browser only moves it clear of the
-    // bars when `scroll-padding-top` tells it they are there.
+    // header when `scroll-padding-top` tells it it is there. (On a wide screen the
+    // signed-in links sit in a sidebar beside the page, so nothing else covers content.)
     const placed = await page.evaluate(() => {
       const control = [...document.querySelectorAll<HTMLElement>('#fixture button')].find(
         (el) => el.textContent?.trim() === 'Cancel',
@@ -396,7 +434,7 @@ test.describe('signed-in navigation on a wide screen (real stylesheet)', () => {
       window.scrollTo({ top: top - 60, behavior: 'instant' });
       return control.getBoundingClientRect().top;
     });
-    expect(placed, 'the control starts underneath the bars').toBeLessThan(104);
+    expect(placed, 'the control starts underneath the header').toBeLessThan(80);
     await page.evaluate(() => {
       const control = [...document.querySelectorAll<HTMLElement>('#fixture button')].find(
         (el) => el.textContent?.trim() === 'Cancel',
@@ -406,9 +444,9 @@ test.describe('signed-in navigation on a wide screen (real stylesheet)', () => {
     await page.waitForTimeout(400);
     const { top, barsBottom } = await page.evaluate(() => {
       const focused = document.activeElement?.getBoundingClientRect();
-      const bar = document.querySelector('.app-shell-nav')?.getBoundingClientRect();
-      if (!focused || !bar) throw new Error('missing element');
-      return { top: focused.top, barsBottom: bar.bottom };
+      const header = document.querySelector('header.nav')?.getBoundingClientRect();
+      if (!focused || !header) throw new Error('missing element');
+      return { top: focused.top, barsBottom: header.bottom };
     });
     expect(top).toBeGreaterThanOrEqual(barsBottom - 1);
   });
