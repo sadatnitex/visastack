@@ -10,7 +10,7 @@ describe('the public home page', () => {
   it('says what the product is for in everyday words', async () => {
     const text = textOf(await render());
     expect(text).toContain('One profile. Every visa.');
-    expect(text).toContain('Invite-only pilot');
+    expect(text).toContain('Open pilot');
     expect(text).toContain('Keep your passport, documents and visa history in one private place');
     for (const title of [
       'One profile for every application',

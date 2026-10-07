@@ -8,7 +8,7 @@ describe('the banner every page carries', () => {
     const html = await renderServer(<PilotBanner mode="controlled_pilot" />);
     const text = textOf(html);
     expect(text).toContain('VisaStack private pilot');
-    expect(text).toContain('Invite-only test version.');
+    expect(text).toContain('Open test version.');
     expect(text).toContain('made-up details');
     expect(text).toContain('permanently blacked out');
     expect(text).toContain('What works today');

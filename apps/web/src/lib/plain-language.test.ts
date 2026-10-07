@@ -73,7 +73,7 @@ describe('the guard itself', () => {
     const text = visible.map((v) => v.text);
     expect(text).toContain('One profile. Every visa.');
     expect(text).toContain('What works today');
-    expect(text.some((t) => t.startsWith('Invite-only test version'))).toBe(true);
+    expect(text.some((t) => t.startsWith('Open test version'))).toBe(true);
     expect(visible.length).toBeGreaterThan(40);
   });
 

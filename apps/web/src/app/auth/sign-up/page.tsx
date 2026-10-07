@@ -24,8 +24,7 @@ export default async function SignUpPage({
         Create an account
       </h1>
       <p className="card-body">
-        VisaStack is invite-only for now. You can create an account, but you can only get in if you
-        have been invited.
+        Anyone can create an account. This is a test version, so please use made-up details for now.
       </p>
       {error ? (
         <p className="field-msg field-msg-err" id="signup-error">
