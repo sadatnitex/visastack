@@ -33,7 +33,7 @@ export const metadata: Metadata = {
   // Every page names itself (WCAG 2.4.2): the page's own title, then the product.
   title: { default: 'VisaStack - one profile, every visa', template: '%s | VisaStack' },
   description:
-    'Keep your passport, documents and visa details in one private profile and reuse them for every application. Invite-only pilot.',
+    'Keep your passport, documents and visa details in one private profile and reuse them for every application. Open pilot.',
 };
 
 // Match the browser chrome to the theme in both light and dark.

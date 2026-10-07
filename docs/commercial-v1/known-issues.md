@@ -4783,3 +4783,23 @@ programme rather than being a product defect.
 - New dev tool `apps/web/preview` (`pnpm --filter @visastack/web preview`): seeds a throwaway in-memory database through the real tables, renders every page in its real layouts for six kinds of account, screenshots at phone and desktop width, and checks each page. Documented in `docs/ux/screen-preview.md`. Not part of the product or the normal test run.
 - Fixed from what it found: underlined links inside sentences, wrapping of long status labels, document row overflow on a phone, unstyled branding fields, first-day next step, short-page sidebar, plain sign-in and sign-up forms (now in a card), heavy red buttons on pack sources, plain empty state on the agency Cases page.
 - Not rendered: pages that need a one-off link or token (invitations, contributor links, snapshots, pack diffs). Dev dependencies added to the web package: `@electric-sql/pglite`, `drizzle-orm`.
+
+    **Chunk 54 (2026-10-07, SEC-06 / pilot access) -- sign-up opened to anyone, by the owner's
+    decision.** A tester saw "This email is not available" on the sign-up screen. Read-only look at
+    the sign-in provider: that address already has an account in the staging environment (made
+    2026-09-23, verified, seven sign-ins), so the screen was telling them to sign in instead; it was
+    not the invitation gate. The live site appears to use the staging environment of the sign-in
+    provider (inferred from the password sign-up screen; the production environment there has
+    password, email-code and social sign-in switched off and holds no users). I could not confirm
+    which environment production uses because the hosting provider refused to list its settings.
+    Separately the owner decided sign-up must be open to anyone and feedback will be collected
+    directly. Change: `pilotAccessBypassed()` in `apps/web/src/lib/pilot-access.ts` now lets any
+    signed-in person get an account unless `PILOT_INVITE_ONLY=true` is set (the invitation table, the
+    allowlist and the denial page stay and work when the switch is on). Public wording changed from
+    "invite-only" to "open" (banner, landing eyebrow, page description, sign-up page, admin note).
+    The guard was proven by breaking it (3 tests red) and restoring it. **Risks stated, not
+    removed:** open sign-up means strangers can create accounts and upload; the virus scanner and AI
+    reading are not configured in production, abuse limits are the existing rate limits only, and the
+    banner still asks for made-up details. The status page row "Open sign-up for anyone" still reads
+    disabled because it is tied to the commercial readiness gate, not to this switch; left as is.
+    To go back: set `PILOT_INVITE_ONLY=true` and redeploy.

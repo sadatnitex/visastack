@@ -136,7 +136,7 @@ export default async function HomePage({ searchParams }: HomePageProps) {
               quote reference <strong>{authError}</strong>.
             </p>
           ) : null}
-          <span className="eyebrow">Invite-only pilot</span>
+          <span className="eyebrow">Open pilot</span>
           <h1 className="hero-title">One profile. Every visa.</h1>
           <p className="hero-sub">
             Keep your passport, documents and visa history in one private place, and reuse them for

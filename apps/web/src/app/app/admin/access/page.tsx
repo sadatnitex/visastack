@@ -109,11 +109,13 @@ export default async function AdminAccessPage() {
             <p className="card-kicker">Controlled pilot</p>
             <h2 className="card-title">Pilot access</h2>
             <p className="card-body" style={{ marginBottom: '1rem' }}>
-              This is an invite-only controlled pilot: an authenticated identity that isn't invited
-              or allowlisted is denied a local account. An invitation is never deleted, only revoked
-              - the full history of who was invited, by whom, and why is always reconstructable.
-              Revoking only blocks a future, not-yet-provisioned sign-in; an account already
-              provisioned from this invitation keeps its access.
+              Sign-up is open to anyone unless invite-only mode is switched on
+              (PILOT_INVITE_ONLY=true). In invite-only mode an authenticated identity that isn't
+              invited or allowlisted is denied a local account; invitations are still recorded
+              either way. An invitation is never deleted, only revoked - the full history of who was
+              invited, by whom, and why is always reconstructable. Revoking only blocks a future,
+              not-yet-provisioned sign-in; an account already provisioned from this invitation keeps
+              its access.
             </p>
             {data.invitations.length === 0 ? (
               <p className="card-body" style={{ marginBottom: '1.25rem' }}>

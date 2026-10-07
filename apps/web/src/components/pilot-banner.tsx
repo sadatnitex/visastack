@@ -27,7 +27,7 @@ export const PILOT_BANNER_COPY = {
   controlled_pilot: {
     label: 'VisaStack private pilot',
     detail:
-      'Invite-only test version. Please use made-up details, or documents with all personal information permanently blacked out.',
+      'Open test version. Please use made-up details, or documents with all personal information permanently blacked out.',
   },
   development: {
     label: 'VisaStack test build',
