@@ -27,7 +27,7 @@ export default async function AppLayout({ children }: { readonly children: React
   );
 
   return (
-    <>
+    <div className="app-frame">
       <div className="app-shell-nav">
         <AppNav links={PRIMARY_NAV} />
         <div className="app-shell-switch">
@@ -51,7 +51,7 @@ export default async function AppLayout({ children }: { readonly children: React
           </form>
         </div>
       </div>
-      {children}
-    </>
+      <div className="app-main">{children}</div>
+    </div>
   );
 }

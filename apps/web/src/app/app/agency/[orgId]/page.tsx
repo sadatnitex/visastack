@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { StatusBadge } from '../../../../components/ui';
+import { Checklist, StatusBadge } from '../../../../components/ui';
 import { formatDateOnly, formatTimestampDate } from '../../../../lib/format-date';
 import { withSession } from '../../../../lib/session';
 import { CaseSearchForm, STAGE_LABELS } from './case-search-form';
@@ -75,8 +75,44 @@ export default async function AgencyDashboardPage({
   const needsYou =
     summary.overdueTasks + (summary.needAssignment ?? 0) + (summary.openRequests ?? 0);
 
+  const base = `/app/agency/${orgId}`;
+  const setupSteps = [
+    {
+      key: 'client',
+      label: 'Invite a client',
+      hint: 'A traveller who agrees to work with you.',
+      done: data.missions.length > 0 || data.requests.length > 0,
+      href: `${base}/clients`,
+    },
+    {
+      key: 'case',
+      label: 'Open a case',
+      hint: 'A case appears once a client shares one with you.',
+      done: data.missions.length > 0,
+      href: `${base}/cases`,
+    },
+    {
+      key: 'request',
+      label: 'Ask for a document',
+      hint: 'You will see here when it arrives and when it is overdue.',
+      done: data.requests.length > 0,
+      href: `${base}/clients`,
+    },
+    {
+      key: 'team',
+      label: 'Add a colleague',
+      hint: 'Give staff their own access to the cases you assign them.',
+      done: data.members.length > 1,
+      href: `${base}/team`,
+    },
+  ];
+
   return (
     <>
+      {data.admin && setupSteps.some((step) => !step.done) ? (
+        <Checklist title="Set up your agency" items={setupSteps} />
+      ) : null}
+
       {!data.admin ? (
         <article className="card" style={{ marginBottom: '1.5rem' }}>
           <p className="card-body">

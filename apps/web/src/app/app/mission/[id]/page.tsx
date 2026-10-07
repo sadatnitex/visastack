@@ -34,7 +34,7 @@ import {
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { StatusBadge } from '../../../../components/ui';
+import { Disclosure, StatusBadge } from '../../../../components/ui';
 import { isExplanationConfigured } from '../../../../lib/ai';
 import { formatDateOnly, formatTimestampDate } from '../../../../lib/format-date';
 import { getLocale } from '../../../../lib/locale';
@@ -471,6 +471,58 @@ export default async function MissionPage({
   const { mission } = data;
   const nextStates = legalTransitions(mission.state);
 
+  const openTasks = data.tasks.filter(
+    (task) => task.status === 'OPEN' || task.status === 'IN_PROGRESS',
+  ).length;
+  const attention: {
+    readonly label: string;
+    readonly href: string;
+    readonly count: number;
+    readonly tone: 'warning' | 'danger';
+  }[] = [
+    ...(data.isDirty
+      ? [
+          {
+            label: 'Changed since confirmed',
+            href: '#snapshots',
+            count: 1,
+            tone: 'danger' as const,
+          },
+        ]
+      : []),
+    ...(data.readiness && data.requiredHardGapCount > 0
+      ? [
+          {
+            label:
+              data.requiredHardGapCount === 1 ? 'required item missing' : 'required items missing',
+            href: '#readiness',
+            count: data.requiredHardGapCount,
+            tone: 'danger' as const,
+          },
+        ]
+      : []),
+    ...(data.readiness && data.requiredUnverifiedCount > 0
+      ? [
+          {
+            label: 'need a check',
+            href: '#readiness',
+            count: data.requiredUnverifiedCount,
+            tone: 'warning' as const,
+          },
+        ]
+      : []),
+    ...(openTasks > 0
+      ? [
+          {
+            label: openTasks === 1 ? 'open task' : 'open tasks',
+            href: '#work',
+            count: openTasks,
+            tone: 'warning' as const,
+          },
+        ]
+      : []),
+  ];
+
   return (
     <section className="section container">
       <div style={{ marginBottom: '1.5rem' }}>
@@ -522,88 +574,36 @@ export default async function MissionPage({
         </div>
       ) : null}
 
+      <ul className="case-attention" aria-label="What needs attention on this case">
+        {attention.length === 0 ? (
+          <li>
+            <span className="case-attention-ok">
+              <StatusBadge tone="success">Nothing needs attention right now</StatusBadge>
+            </span>
+          </li>
+        ) : (
+          attention.map((item) => (
+            <li key={item.label}>
+              <a href={item.href}>
+                <StatusBadge tone={item.tone}>{item.count}</StatusBadge>
+                {item.label}
+              </a>
+            </li>
+          ))
+        )}
+      </ul>
+
+      <nav className="jump-nav" aria-label="Sections of this case">
+        <a href="#readiness">Readiness</a>
+        <a href="#evidence">Evidence</a>
+        <a href="#work">Tasks and letters</a>
+        <a href="#snapshots">Snapshots</a>
+        <a href="#notes">Contributors and notes</a>
+        <a href="#outcome">Submission and outcome</a>
+      </nav>
+
       <div className="grid">
-        <article className="card">
-          <p className="card-kicker">Requirements</p>
-          <h2 className="card-title">Requirement pack</h2>
-          {mission.packVersionId && data.packInfo ? (
-            <>
-              <div
-                style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  gap: '0.75rem',
-                  marginBottom: '0.5rem',
-                }}
-              >
-                <span className="card-body" style={{ margin: 0 }}>
-                  {data.packInfo.name}
-                </span>
-                <span
-                  className={`badge ${data.packInfo.authoritative ? 'badge-success' : 'badge-neutral'}`}
-                >
-                  {data.packInfo.authoritative
-                    ? 'Official requirement pack'
-                    : 'Agency custom checklist'}
-                </span>
-              </div>
-              {data.packInfo.jurisdiction || data.packInfo.route ? (
-                <p className="muted" style={{ fontSize: '0.85rem', margin: 0 }}>
-                  {[data.packInfo.jurisdiction, data.packInfo.route].filter(Boolean).join(' · ')}
-                </p>
-              ) : null}
-              {data.packInfo.effectiveDate ? (
-                <p className="muted" style={{ fontSize: '0.8rem', margin: '0.35rem 0 0' }}>
-                  In effect since {formatDateOnly(data.packInfo.effectiveDate)}
-                </p>
-              ) : null}
-            </>
-          ) : (
-            <>
-              <p className="card-body" style={{ marginBottom: '1rem' }}>
-                Attach a published requirement pack to compute readiness.
-              </p>
-              <AttachPackForm missionId={mission.id} options={data.packOptions} />
-            </>
-          )}
-        </article>
-
-        <article className="card">
-          <p className="card-kicker">Case</p>
-          <h2 className="card-title">Case details</h2>
-          <CaseDetailsForm
-            missionId={mission.id}
-            jurisdiction={mission.jurisdiction}
-            serviceCategory={mission.serviceCategory}
-            travelStartDate={mission.travelStartDate}
-            travelEndDate={mission.travelEndDate}
-            targetDeadline={mission.targetDeadline}
-            manualMode={mission.manualMode}
-          />
-        </article>
-
-        <article className="card">
-          <p className="card-kicker">Family trip</p>
-          <h2 className="card-title">Itinerary reference</h2>
-          <p className="card-body" style={{ marginBottom: '1rem' }}>
-            An optional label linking this case to another family member's, purely for display.
-            Access and permissions stay entirely separate per case.
-          </p>
-          <ItineraryForm missionId={mission.id} itineraryRef={mission.itineraryRef} />
-          {data.linkedMissions.length > 0 ? (
-            <div className="rows" style={{ marginTop: '1rem' }}>
-              {data.linkedMissions.map((m) => (
-                <Link className="row row-link" key={m.id} href={`/app/mission/${m.id}`}>
-                  <span className="row-key">{m.applicantName}</span>
-                  <span className="muted">{m.title}</span>
-                </Link>
-              ))}
-            </div>
-          ) : null}
-        </article>
-
-        <article className="card">
+        <article className="card" id="readiness" style={{ gridColumn: '1 / -1' }}>
           <p className="card-kicker">Completeness</p>
           <h2 className="card-title">Readiness</h2>
           {data.selfReviewed ? (
@@ -735,6 +735,86 @@ export default async function MissionPage({
             <p className="card-body">Attach a requirement pack to see readiness.</p>
           )}
         </article>
+
+        <article className="card">
+          <p className="card-kicker">Requirements</p>
+          <h2 className="card-title">Requirement pack</h2>
+          {mission.packVersionId && data.packInfo ? (
+            <>
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  gap: '0.75rem',
+                  marginBottom: '0.5rem',
+                }}
+              >
+                <span className="card-body" style={{ margin: 0 }}>
+                  {data.packInfo.name}
+                </span>
+                <span
+                  className={`badge ${data.packInfo.authoritative ? 'badge-success' : 'badge-neutral'}`}
+                >
+                  {data.packInfo.authoritative
+                    ? 'Official requirement pack'
+                    : 'Agency custom checklist'}
+                </span>
+              </div>
+              {data.packInfo.jurisdiction || data.packInfo.route ? (
+                <p className="muted" style={{ fontSize: '0.85rem', margin: 0 }}>
+                  {[data.packInfo.jurisdiction, data.packInfo.route].filter(Boolean).join(' · ')}
+                </p>
+              ) : null}
+              {data.packInfo.effectiveDate ? (
+                <p className="muted" style={{ fontSize: '0.8rem', margin: '0.35rem 0 0' }}>
+                  In effect since {formatDateOnly(data.packInfo.effectiveDate)}
+                </p>
+              ) : null}
+            </>
+          ) : (
+            <>
+              <p className="card-body" style={{ marginBottom: '1rem' }}>
+                Attach a published requirement pack to compute readiness.
+              </p>
+              <AttachPackForm missionId={mission.id} options={data.packOptions} />
+            </>
+          )}
+        </article>
+
+        <article className="card">
+          <p className="card-kicker">Case</p>
+          <h2 className="card-title">Case details</h2>
+          <CaseDetailsForm
+            missionId={mission.id}
+            jurisdiction={mission.jurisdiction}
+            serviceCategory={mission.serviceCategory}
+            travelStartDate={mission.travelStartDate}
+            travelEndDate={mission.travelEndDate}
+            targetDeadline={mission.targetDeadline}
+            manualMode={mission.manualMode}
+          />
+        </article>
+
+        <article className="card">
+          <p className="card-kicker">Family trip</p>
+          <h2 className="card-title">Itinerary reference</h2>
+          <p className="card-body" style={{ marginBottom: '1rem' }}>
+            An optional label linking this case to another family member's, purely for display.
+            Access and permissions stay entirely separate per case.
+          </p>
+          <ItineraryForm missionId={mission.id} itineraryRef={mission.itineraryRef} />
+          {data.linkedMissions.length > 0 ? (
+            <div className="rows" style={{ marginTop: '1rem' }}>
+              {data.linkedMissions.map((m) => (
+                <Link className="row row-link" key={m.id} href={`/app/mission/${m.id}`}>
+                  <span className="row-key">{m.applicantName}</span>
+                  <span className="muted">{m.title}</span>
+                </Link>
+              ))}
+            </div>
+          ) : null}
+        </article>
       </div>
 
       <div className="grid" style={{ marginTop: '1.5rem' }}>
@@ -750,7 +830,7 @@ export default async function MissionPage({
           )}
         </article>
 
-        <article className="card">
+        <article className="card" id="snapshots">
           <p className="card-kicker">History</p>
           <h2 className="card-title">Snapshots</h2>
           {data.snapshots.length === 0 ? (
@@ -815,7 +895,7 @@ export default async function MissionPage({
         />
       </div>
 
-      <div className="grid" style={{ marginTop: '1.5rem' }}>
+      <div className="grid" id="work" style={{ marginTop: '1.5rem' }}>
         <TasksPanel missionId={mission.id} tasks={data.tasks} />
         <AppointmentsPanel missionId={mission.id} appointments={data.appointments} />
         <LettersPanel
@@ -834,49 +914,59 @@ export default async function MissionPage({
         />
       </div>
 
-      <div className="grid" style={{ marginTop: '1.5rem' }}>
-        <article className="card">
-          <p className="card-kicker">Delegate</p>
-          <h2 className="card-title">Ask a contributor</h2>
-          <p className="card-body" style={{ marginBottom: '1.25rem' }}>
-            Ask a sponsor or family member - who never gets a wallet, profile, or case view of any
-            kind - for exactly one named document. They see only what you type below before deciding
-            whether to upload.
-          </p>
-          <ContributorRequestsPanel missionId={mission.id} requests={data.contributorRequests} />
-        </article>
+      <div style={{ marginTop: '1.5rem' }} id="notes">
+        <Disclosure
+          title="Contributors and notes from your agency"
+          hint="Ask a sponsor for one document, read shared notes"
+        >
+          <div className="grid">
+            <article className="card">
+              <p className="card-kicker">Delegate</p>
+              <h2 className="card-title">Ask a contributor</h2>
+              <p className="card-body" style={{ marginBottom: '1.25rem' }}>
+                Ask a sponsor or family member - who never gets a wallet, profile, or case view of
+                any kind - for exactly one named document. They see only what you type below before
+                deciding whether to upload.
+              </p>
+              <ContributorRequestsPanel
+                missionId={mission.id}
+                requests={data.contributorRequests}
+              />
+            </article>
 
-        <article className="card">
-          <p className="card-kicker">Collaboration</p>
-          <h2 className="card-title">Notes from your agency</h2>
-          <p className="card-body" style={{ marginBottom: '1.25rem' }}>
-            Notes an agency working this case has chosen to share with you. An agency's own internal
-            notes are never shown here.
-          </p>
-          {data.notes.length === 0 ? (
-            <p className="muted" style={{ fontSize: '0.9rem' }}>
-              No notes shared with you yet.
-            </p>
-          ) : (
-            <div className="rows">
-              {data.notes.map((n) => (
-                <div
-                  className="row"
-                  key={n.id}
-                  style={{ flexDirection: 'column', alignItems: 'flex-start' }}
-                >
-                  <span style={{ fontSize: '0.9rem' }}>{n.body}</span>
-                  <span className="muted" style={{ fontSize: '0.75rem', marginTop: '0.2rem' }}>
-                    {n.authorEmail ?? 'Unknown'}, {formatTimestampDate(n.createdAt)}
-                  </span>
+            <article className="card">
+              <p className="card-kicker">Collaboration</p>
+              <h2 className="card-title">Notes from your agency</h2>
+              <p className="card-body" style={{ marginBottom: '1.25rem' }}>
+                Notes an agency working this case has chosen to share with you. An agency's own
+                internal notes are never shown here.
+              </p>
+              {data.notes.length === 0 ? (
+                <p className="muted" style={{ fontSize: '0.9rem' }}>
+                  No notes shared with you yet.
+                </p>
+              ) : (
+                <div className="rows">
+                  {data.notes.map((n) => (
+                    <div
+                      className="row"
+                      key={n.id}
+                      style={{ flexDirection: 'column', alignItems: 'flex-start' }}
+                    >
+                      <span style={{ fontSize: '0.9rem' }}>{n.body}</span>
+                      <span className="muted" style={{ fontSize: '0.75rem', marginTop: '0.2rem' }}>
+                        {n.authorEmail ?? 'Unknown'}, {formatTimestampDate(n.createdAt)}
+                      </span>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
-          )}
-        </article>
+              )}
+            </article>
+          </div>
+        </Disclosure>
       </div>
 
-      <div className="grid" style={{ marginTop: '1.5rem' }}>
+      <div className="grid" id="outcome" style={{ marginTop: '1.5rem' }}>
         <SubmissionReportPanel
           missionId={mission.id}
           submissions={data.submissions}
@@ -889,13 +979,20 @@ export default async function MissionPage({
         />
       </div>
 
-      <div className="grid" style={{ marginTop: '1.5rem' }}>
-        <ComplaintPanel missionId={mission.id} complaints={data.complaints} />
-        <FeedbackPanel
-          missionId={mission.id}
-          feedback={data.feedback}
-          canSubmit={data.canSubmitFeedback}
-        />
+      <div style={{ marginTop: '1.5rem' }}>
+        <Disclosure
+          title="Problems and feedback"
+          hint="Raise a complaint or give feedback on this case"
+        >
+          <div className="grid">
+            <ComplaintPanel missionId={mission.id} complaints={data.complaints} />
+            <FeedbackPanel
+              missionId={mission.id}
+              feedback={data.feedback}
+              canSubmit={data.canSubmitFeedback}
+            />
+          </div>
+        </Disclosure>
       </div>
     </section>
   );

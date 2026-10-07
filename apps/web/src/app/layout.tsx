@@ -15,11 +15,11 @@ export const metadata: Metadata = {
     'Keep your passport, documents and visa details in one private profile and reuse them for every application. Invite-only pilot.',
 };
 
-// Match the browser chrome to the theme in both light and dark (Apple-style).
+// Match the browser chrome to the theme in both light and dark.
 export const viewport: Viewport = {
   themeColor: [
-    { media: '(prefers-color-scheme: light)', color: '#fbfbfd' },
-    { media: '(prefers-color-scheme: dark)', color: '#000000' },
+    { media: '(prefers-color-scheme: light)', color: '#f6f7f9' },
+    { media: '(prefers-color-scheme: dark)', color: '#0a1220' },
   ],
 };
 
@@ -46,6 +46,7 @@ export default async function RootLayout({ children }: { readonly children: Reac
         <PilotBanner mode={deploymentMode} />
         <header className="nav">
           <Link className="brand" href="/">
+            <span className="brand-mark" aria-hidden="true" />
             VisaStack
           </Link>
           <nav className="nav-links" aria-label="Site">

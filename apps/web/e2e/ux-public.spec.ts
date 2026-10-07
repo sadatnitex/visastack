@@ -127,6 +127,7 @@ function fixtureHtml(): string {
     .join('');
   return `
 <div id="fixture">
+ <div class="app-frame">
   <div class="app-shell-nav">
     <nav class="app-shell-links" aria-label="Workspace">${primary}</nav>
     <div class="app-shell-switch">
@@ -135,6 +136,7 @@ function fixtureHtml(): string {
       <form action="#"><button type="submit" class="btn btn-secondary nav-cta">Sign out</button></form>
     </div>
   </div>
+  <div class="app-main">
   <div class="container tabs-bar"><nav class="subnav" aria-label="Platform sections">${platformBar}</nav></div>
   <section class="section container" id="fixture-section">
     <div class="toolbar" style="margin-bottom:1.5rem">
@@ -180,6 +182,8 @@ function fixtureHtml(): string {
     <div class="notice notice-warn" style="margin-top:1.5rem">A notice with a warning, in the warning colours.</div>
     <div style="height:2600px" aria-hidden="true"></div>
   </section>
+  </div>
+ </div>
 </div>`;
 }
 
@@ -348,7 +352,7 @@ test.describe('signed-in navigation on a wide screen (real stylesheet)', () => {
     await openFixture(page);
   });
 
-  test('the signed-in bar stays visible under the public header while scrolling', async ({
+  test('the signed-in sidebar stays visible beside the page, under the public header, while scrolling', async ({
     page,
   }) => {
     // `scroll-behavior: smooth` is set on the page, so jump instantly and check the
@@ -383,10 +387,11 @@ test.describe('signed-in navigation on a wide screen (real stylesheet)', () => {
     }
   });
 
-  test('keyboard focus is never hidden behind the sticky bars', async ({ page }) => {
-    // Scroll so a control sits underneath the two sticky bars, then focus it, as
+  test('keyboard focus is never hidden behind the sticky header', async ({ page }) => {
+    // Scroll so a control sits underneath the sticky public header, then focus it, as
     // tabbing or shift-tabbing to it would. The browser only moves it clear of the
-    // bars when `scroll-padding-top` tells it they are there.
+    // header when `scroll-padding-top` tells it it is there. (On a wide screen the
+    // signed-in links sit in a sidebar beside the page, so nothing else covers content.)
     const placed = await page.evaluate(() => {
       const control = [...document.querySelectorAll<HTMLElement>('#fixture button')].find(
         (el) => el.textContent?.trim() === 'Cancel',
@@ -396,7 +401,7 @@ test.describe('signed-in navigation on a wide screen (real stylesheet)', () => {
       window.scrollTo({ top: top - 60, behavior: 'instant' });
       return control.getBoundingClientRect().top;
     });
-    expect(placed, 'the control starts underneath the bars').toBeLessThan(104);
+    expect(placed, 'the control starts underneath the header').toBeLessThan(80);
     await page.evaluate(() => {
       const control = [...document.querySelectorAll<HTMLElement>('#fixture button')].find(
         (el) => el.textContent?.trim() === 'Cancel',
@@ -406,9 +411,9 @@ test.describe('signed-in navigation on a wide screen (real stylesheet)', () => {
     await page.waitForTimeout(400);
     const { top, barsBottom } = await page.evaluate(() => {
       const focused = document.activeElement?.getBoundingClientRect();
-      const bar = document.querySelector('.app-shell-nav')?.getBoundingClientRect();
-      if (!focused || !bar) throw new Error('missing element');
-      return { top: focused.top, barsBottom: bar.bottom };
+      const header = document.querySelector('header.nav')?.getBoundingClientRect();
+      if (!focused || !header) throw new Error('missing element');
+      return { top: focused.top, barsBottom: header.bottom };
     });
     expect(top).toBeGreaterThanOrEqual(barsBottom - 1);
   });

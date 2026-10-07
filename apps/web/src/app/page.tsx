@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { StatusBadge, type Tone } from '../components/ui';
 
 /**
  * The public home page. Written for a traveller or an agency who has never heard of
@@ -6,6 +7,23 @@ import Link from 'next/link';
  * No engineering vocabulary and no names of the tools behind it (guarded by
  * `lib/plain-language.test.ts`).
  */
+
+const PREVIEW_ROWS: readonly {
+  readonly name: string;
+  readonly detail: string;
+  readonly status: string;
+  readonly tone: Tone;
+}[] = [
+  { name: 'Passport', detail: 'Valid until 14 Mar 2031', status: 'Ready', tone: 'success' },
+  {
+    name: 'Bank statement',
+    detail: 'Expires in 12 days',
+    status: 'Expiring soon',
+    tone: 'warning',
+  },
+  { name: 'Employer letter', detail: 'Asked for by the agency', status: 'Missing', tone: 'danger' },
+  { name: 'Hotel booking', detail: 'Sent 3 Oct 2026', status: 'Under review', tone: 'neutral' },
+];
 
 interface Feature {
   readonly kicker: string;
@@ -110,26 +128,52 @@ export default async function HomePage({ searchParams }: HomePageProps) {
   return (
     <>
       <section className="hero container">
-        {authError ? (
-          <p className="notice notice-warn" role="alert">
-            Sign-in didn’t complete. Please try again. If it keeps happening, contact support and
-            quote reference <strong>{authError}</strong>.
+        <div>
+          {authError ? (
+            <p className="notice notice-warn" role="alert" style={{ marginBottom: '1.25rem' }}>
+              Sign-in didn’t complete. Please try again. If it keeps happening, contact support and
+              quote reference <strong>{authError}</strong>.
+            </p>
+          ) : null}
+          <span className="eyebrow">Invite-only pilot</span>
+          <h1 className="hero-title">One profile. Every visa.</h1>
+          <p className="hero-sub">
+            Keep your passport, documents and visa history in one private place, and reuse them for
+            every application. Share only what an agency needs, for as long as you choose.
           </p>
-        ) : null}
-        <span className="eyebrow">Invite-only pilot</span>
-        <h1 className="hero-title">One profile. Every visa.</h1>
-        <p className="hero-sub">
-          Keep your passport, documents and visa history in one private place, and reuse them for
-          every application. Share only what an agency needs, for as long as you choose.
-        </p>
-        <div className="cta-row">
-          <a className="btn btn-primary" href="/app">
-            Sign in to get started
-          </a>
-          <Link className="btn btn-secondary" href="/status">
-            See what works today
-          </Link>
+          <div className="cta-row">
+            <a className="btn btn-primary" href="/app">
+              Sign in to get started
+            </a>
+            <Link className="btn btn-secondary" href="/status">
+              See what works today
+            </Link>
+          </div>
         </div>
+
+        <aside className="hero-preview" aria-label="Example of a case">
+          <p className="hero-preview-tag">Example with made-up details</p>
+          <h2>Visitor visa, example traveller</h2>
+          <p className="muted" style={{ margin: '0 0 0.75rem', fontSize: '0.9rem' }}>
+            2 of 4 requirements ready
+          </p>
+          <div className="meter" aria-hidden="true" style={{ marginBottom: '0.75rem' }}>
+            <div className="meter-fill" style={{ width: '50%' }} />
+          </div>
+          <div className="rows">
+            {PREVIEW_ROWS.map((row) => (
+              <div className="row" key={row.name}>
+                <span className="row-key">
+                  {row.name}
+                  <span className="attention-detail" style={{ display: 'block' }}>
+                    {row.detail}
+                  </span>
+                </span>
+                <StatusBadge tone={row.tone}>{row.status}</StatusBadge>
+              </div>
+            ))}
+          </div>
+        </aside>
       </section>
 
       <section className="section">

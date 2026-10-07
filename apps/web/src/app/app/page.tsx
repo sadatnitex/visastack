@@ -14,6 +14,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import {
   AttentionList,
+  Checklist,
   Disclosure,
   EmptyState,
   NextStepCard,
@@ -166,6 +167,42 @@ export default async function AppPage() {
             tone: 'ok' as const,
           };
 
+  const firstApplicant = data.perApplicant[0];
+  const setupSteps = [
+    {
+      key: 'consent',
+      label: 'Allow core processing',
+      hint: 'Needed before anything can be saved. You can turn it off at any time.',
+      done: coreGranted,
+      href: '#permissions',
+    },
+    {
+      key: 'applicant',
+      label: 'Add an applicant',
+      hint: 'Start with yourself, or someone you manage records for.',
+      done: data.applicants.length > 0,
+      href: '/app/applicants',
+    },
+    {
+      key: 'document',
+      label: 'Add a first document',
+      hint: 'A passport page is the usual start.',
+      done: data.perApplicant.some((row) => row.documentCount > 0),
+      href: firstApplicant
+        ? `/app/applicant/${firstApplicant.applicant.id}/documents`
+        : '/app/applicants',
+    },
+    {
+      key: 'case',
+      label: 'Start a case',
+      hint: 'Check your documents against one visa route.',
+      done: data.perApplicant.some((row) => row.activeMissions > 0),
+      href: firstApplicant
+        ? `/app/applicant/${firstApplicant.applicant.id}/missions`
+        : '/app/applicants',
+    },
+  ];
+
   return (
     <section className="section container">
       <div style={{ marginBottom: '1.5rem' }}>
@@ -179,6 +216,10 @@ export default async function AppPage() {
       </div>
 
       <NextStepCard {...nextStep} />
+
+      {setupSteps.some((step) => !step.done) ? (
+        <Checklist title="Set up your account" items={setupSteps} />
+      ) : null}
 
       {coreGranted && data.attention.length > 1 ? (
         <article className="card" style={{ marginBottom: '1.5rem' }}>

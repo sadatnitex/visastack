@@ -4769,3 +4769,10 @@ programme rather than being a product defect.
 - **Not verified:** signed-in screens were not opened in a browser (sign-in needs the identity provider);
   slow-network behaviour; mobile screenshots of signed-in pages. Admin screens only got the date change.
 - **Left alone on purpose:** Bangla and all translation (deferred by the owner).
+
+### Chunk 52 (2026-10-07): visible redesign (frontend only)
+
+- New look through one stylesheet: palette, shapes, type, flat cards, square-ish buttons, a small brand mark. Signed-in sidebar on a laptop or larger, chips on a phone. Report: `docs/ux/ui-upgrade-report.md`.
+- New: get-started checklists (traveller home, agency dashboard), case attention strip and jump links, home page example case (made-up details, labelled).
+- Browser layout checks updated for the sidebar (`apps/web/e2e/ux-public.spec.ts`): the signed-in copy now has a frame and main column; the keyboard-focus check is against the sticky header only.
+- Not verified: signed-in pages in a live browser; the case page was not rendered.

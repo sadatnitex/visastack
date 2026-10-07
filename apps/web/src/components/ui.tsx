@@ -136,3 +136,70 @@ export function Disclosure({
     </details>
   );
 }
+
+export interface ChecklistEntry {
+  readonly key: string;
+  readonly label: string;
+  readonly hint?: string;
+  readonly done: boolean;
+  readonly href: string;
+}
+
+/**
+ * A short "get started" list built from what the person has already done, so it is never
+ * out of date and disappears on its own (the page shows it only while something is left).
+ * Items still to do are links; finished ones are plain text with a tick.
+ */
+export function Checklist({
+  title,
+  items,
+}: {
+  readonly title: string;
+  readonly items: readonly ChecklistEntry[];
+}) {
+  const done = items.filter((item) => item.done).length;
+  return (
+    <article className="card" style={{ marginBottom: '1.5rem' }}>
+      <p className="card-kicker">Get started</p>
+      <h2 className="card-title">{title}</h2>
+      <div className="meter-label">
+        <span>
+          {done} of {items.length} done
+        </span>
+      </div>
+      <div className="meter" aria-hidden="true">
+        <div
+          className="meter-fill"
+          style={{ width: `${Math.round((done / items.length) * 100)}%` }}
+        />
+      </div>
+      <ol className="checklist">
+        {items.map((item, index) => {
+          const body = (
+            <>
+              <span className="checklist-mark" aria-hidden="true">
+                {item.done ? '\u2713' : index + 1}
+              </span>
+              <span className="checklist-text">
+                <span className="checklist-label">{item.label}</span>
+                {item.hint ? <span className="checklist-hint">{item.hint}</span> : null}
+              </span>
+              {item.done ? <span className="sr-only">Done</span> : null}
+            </>
+          );
+          return (
+            <li key={item.key} className={item.done ? 'checklist-done' : undefined}>
+              {item.done ? (
+                <span className="checklist-item">{body}</span>
+              ) : (
+                <Link className="checklist-item" href={item.href}>
+                  {body}
+                </Link>
+              )}
+            </li>
+          );
+        })}
+      </ol>
+    </article>
+  );
+}
