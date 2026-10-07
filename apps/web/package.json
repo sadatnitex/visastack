@@ -11,7 +11,7 @@
     "test": "vitest run",
     "smoke": "node scripts/smoke.mjs",
     "e2e": "playwright test",
-    "preview": "node preview/run.mjs"
+    "preview": "vitest run -c vitest.preview.config.ts && node preview/shoot.mjs && node preview/sheet.mjs"
   },
   "dependencies": {
     "@neondatabase/auth": "0.5.0-beta",

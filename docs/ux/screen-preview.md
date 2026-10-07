@@ -2,7 +2,7 @@
 
 A dev tool (never part of the product) that shows what every screen looks like with data in it, before real data exists.
 
-Run: `pnpm --filter @visastack/web preview`, then `node apps/web/preview/sheet.mjs` for contact sheets. Output goes to `apps/web/.preview/` (not committed): `html/` (each page), `shots/` (phone and desktop screenshots, plus dark and tablet for the busiest pages), `sheets/` (many pages on one image), `report.md` (what to look at).
+Run: `pnpm --filter @visastack/web preview` (seed and render, then screenshot and check, then contact sheets). Output goes to `apps/web/.preview/` (not committed): `html/` (each page), `shots/` (phone and desktop screenshots, plus dark and tablet for the busiest pages), `sheets/` (many pages on one image), `report.md` (what to look at).
 
 ## What "mock data" means here
 
