@@ -57,7 +57,8 @@ describe('the public home page', () => {
 
   it('sends a visitor to sign in and to see what works today', async () => {
     const html = await render();
-    expect(html).toContain('<a class="btn btn-primary" href="/app">Sign in to get started</a>');
+    expect(html).toMatch(/<a class="btn btn-primary land-btn" href="\/app">Sign in to get started/);
+    expect(html.match(/href="\/app"/g)?.length).toBe(2);
     expect(html.match(/href="\/status"/g)?.length).toBe(2);
     expect(html).toContain('id="capabilities"');
   });
@@ -72,5 +73,42 @@ describe('the public home page', () => {
 
   it('shows no sign-in notice on an ordinary visit', async () => {
     expect(await render()).not.toContain('role="alert"');
+  });
+
+  it('tells the story in order, from the problem to the closing call to action', async () => {
+    const html = await render();
+    const order = [
+      'Every visa starts with the same scramble',
+      'Three simple steps',
+      'What you can do',
+      'Calmer for the traveller, clearer for the agency',
+      'How VisaStack treats your information',
+      'Honest about where we are',
+      'Stop starting from zero.',
+    ].map((heading) => html.indexOf(heading));
+    expect(order.every((at) => at >= 0)).toBe(true);
+    expect([...order].sort((a, b) => a - b)).toEqual(order);
+  });
+
+  it('shows the before and after, and every example is labelled as made up', async () => {
+    const text = textOf(await render());
+    expect(text).toContain('Without one profile');
+    expect(text).toContain('With VisaStack');
+    expect(text).toContain('Example with made-up details');
+    expect(text).toContain('You approve every AI suggestion');
+    expect(text).toContain('You can stop this at any time');
+  });
+
+  it('is honest that the longer-term direction is an aim, not a promise', async () => {
+    const text = textOf(await render());
+    expect(text).toContain('We are working toward');
+    expect(text).toContain('The status page shows exactly what works today');
+  });
+
+  it('gives every section a name for screen readers and keeps one top heading', async () => {
+    const html = await render();
+    expect(html.match(/<h1[ >]/g)?.length).toBe(1);
+    expect(html.match(/<section[^>]*aria-labelledby="land-[a-z-]+"/g)?.length).toBe(8);
+    expect(html).toContain('id="land-hero-title"');
   });
 });
