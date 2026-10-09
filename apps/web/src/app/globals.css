@@ -1927,3 +1927,696 @@ a.checklist-item:hover .checklist-label {
   text-decoration: underline;
   text-underline-offset: 0.2em;
 }
+
+/* ---------------------------------------------------------------------------------
+   Home page (landing). Everything is prefixed land- so no signed-in screen is touched.
+   Colour comes from the tokens above, so light and dark both work; the one dark band
+   fixes its own colours so it reads the same in either scheme.
+   --------------------------------------------------------------------------------- */
+.land {
+  --land-wrap: 1180px;
+  overflow-x: clip;
+}
+.land-wrap {
+  max-width: var(--land-wrap);
+  margin: 0 auto;
+  padding: 0 clamp(1.25rem, 5vw, 2.5rem);
+}
+.land-section {
+  padding-block: clamp(3.5rem, 9vw, 6.5rem);
+}
+.land-tint {
+  background: var(--bg-subtle);
+  border-block: 1px solid var(--hairline-soft);
+}
+.land-head {
+  max-width: 44rem;
+  margin-bottom: clamp(2rem, 5vw, 3.25rem);
+}
+.land-kicker {
+  margin: 0 0 0.75rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--brand);
+}
+.land-h2 {
+  margin: 0 0 0.9rem;
+  font-size: clamp(1.9rem, 4.4vw, 3rem);
+  line-height: 1.08;
+  letter-spacing: -0.03em;
+  font-weight: 750;
+  text-wrap: balance;
+}
+.land-h3 {
+  margin: 0 0 0.5rem;
+  font-size: 1.15rem;
+  line-height: 1.3;
+  letter-spacing: -0.015em;
+  font-weight: 650;
+  text-wrap: balance;
+}
+.land-sub {
+  margin: 0;
+  max-width: 54ch;
+  font-size: clamp(1.02rem, 1.8vw, 1.2rem);
+  line-height: 1.55;
+  color: var(--text-secondary);
+}
+.land-body {
+  margin: 0;
+  font-size: 0.97rem;
+  line-height: 1.6;
+  color: var(--text-secondary);
+}
+.land-btn {
+  padding: 0.85rem 1.5rem;
+  font-size: 1rem;
+  border-radius: var(--radius);
+}
+.land-btn .icon {
+  transition: transform 0.2s ease;
+}
+.land-btn:hover .icon {
+  transform: translateX(3px);
+}
+
+/* Hero */
+.land-hero {
+  position: relative;
+  overflow: clip;
+  padding-block: clamp(3rem, 8vw, 6rem) clamp(3.5rem, 8vw, 6.5rem);
+  background:
+    radial-gradient(60rem 30rem at 85% -10%, var(--brand-bg), transparent 70%),
+    radial-gradient(48rem 26rem at -10% 10%, color-mix(in srgb, var(--accent) 12%, transparent), transparent 70%),
+    var(--bg);
+}
+.land-hero-glow {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image: radial-gradient(var(--hairline) 1px, transparent 1px);
+  background-size: 26px 26px;
+  mask-image: radial-gradient(ellipse at 70% 30%, #000 0%, transparent 65%);
+  -webkit-mask-image: radial-gradient(ellipse at 70% 30%, #000 0%, transparent 65%);
+  opacity: 0.7;
+}
+.land-hero-grid {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1.02fr) minmax(0, 0.98fr);
+  align-items: center;
+  gap: clamp(2.5rem, 6vw, 5rem);
+}
+.land-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 1.4rem;
+  padding: 0.35rem 0.85rem;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-pill);
+  background: var(--bg-elevated);
+  font-size: 0.8rem;
+  font-weight: 650;
+  color: var(--text-secondary);
+  box-shadow: var(--shadow-card);
+}
+.land-pill-dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: var(--brand);
+  box-shadow: 0 0 0 0 color-mix(in srgb, var(--brand) 55%, transparent);
+  animation: land-pulse 2.4s ease-out infinite;
+}
+@keyframes land-pulse {
+  70% {
+    box-shadow: 0 0 0 0.5rem transparent;
+  }
+  100% {
+    box-shadow: 0 0 0 0 transparent;
+  }
+}
+.land-title {
+  margin: 0 0 1.25rem;
+  font-size: clamp(2.7rem, 7vw, 5rem);
+  line-height: 1;
+  letter-spacing: -0.045em;
+  font-weight: 800;
+  text-wrap: balance;
+}
+.land-title-accent {
+  display: inline-block;
+  background: linear-gradient(100deg, var(--accent), var(--brand));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+}
+.land-lede {
+  margin: 0 0 2rem;
+  max-width: 44ch;
+  font-size: clamp(1.1rem, 2.1vw, 1.35rem);
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+.land-assure {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem 1.5rem;
+  margin: 1.75rem 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+}
+.land-assure li {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+.land-assure .icon {
+  color: var(--brand);
+}
+
+/* The example case with two small cards floating over it */
+.land-stage {
+  position: relative;
+  padding: 0 0 2.5rem;
+}
+.land-case {
+  position: relative;
+  padding: 1.5rem;
+  border-radius: 20px;
+  box-shadow:
+    0 1px 0 var(--hairline-soft) inset,
+    0 30px 60px -20px rgba(14, 26, 43, 0.28);
+  transform: perspective(1400px) rotateY(-4deg) rotateX(2deg);
+  transform-origin: center left;
+}
+.land-case-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.9rem;
+}
+.land-case-count {
+  margin: 0.2rem 0 0;
+  font-size: 0.9rem;
+}
+.land-case-meter {
+  margin-bottom: 1rem;
+  height: 10px;
+}
+.land-ring {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 3.6rem;
+  height: 3.6rem;
+  border-radius: 50%;
+  background: conic-gradient(var(--brand) 0 50%, var(--bg-subtle) 0);
+  position: relative;
+  font-size: 0.82rem;
+  font-weight: 750;
+}
+.land-ring::before {
+  content: "";
+  position: absolute;
+  inset: 6px;
+  border-radius: 50%;
+  background: var(--bg-elevated);
+}
+.land-ring span {
+  position: relative;
+}
+.land-float {
+  position: absolute;
+  z-index: 2;
+  width: min(17.5rem, 78%);
+  padding: 0.9rem 1rem;
+  background: var(--bg-elevated);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-raise);
+  animation: land-bob 7s ease-in-out infinite;
+}
+.land-float-ai {
+  right: -0.5rem;
+  bottom: 4.5rem;
+}
+.land-float-share {
+  left: -1.25rem;
+  bottom: 0;
+  animation-delay: -3.5s;
+}
+@keyframes land-bob {
+  50% {
+    transform: translateY(-6px);
+  }
+}
+.land-float-kicker {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0 0 0.35rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--brand);
+}
+.land-float-line {
+  margin: 0;
+  font-size: 0.92rem;
+  font-weight: 600;
+}
+.land-float-note {
+  margin: 0.2rem 0 0;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+.land-float-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.65rem;
+}
+.land-chip {
+  padding: 0.25rem 0.8rem;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-pill);
+  font-size: 0.8rem;
+  font-weight: 650;
+  color: var(--text-secondary);
+}
+.land-chip-yes {
+  background: var(--success-bg);
+  border-color: transparent;
+  color: var(--success);
+}
+
+/* Before and after */
+.land-versus {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+.land-versus-col {
+  padding: clamp(1.4rem, 3vw, 2rem);
+  border: 1px solid var(--hairline);
+  border-radius: 20px;
+  background: var(--bg-elevated);
+}
+.land-versus-after {
+  background: linear-gradient(160deg, var(--brand-bg), var(--bg-elevated) 70%);
+  border-color: color-mix(in srgb, var(--brand) 45%, var(--hairline));
+  box-shadow: var(--shadow-raise);
+}
+.land-versus-label {
+  margin: 0 0 1.1rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+.land-versus-after .land-versus-label {
+  color: var(--brand);
+}
+.land-versus ul {
+  display: grid;
+  gap: 0.95rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.land-versus li {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.7rem;
+  font-size: 1rem;
+  line-height: 1.45;
+}
+.land-versus .icon {
+  flex: none;
+  margin-top: 0.15rem;
+}
+.land-versus-before .icon {
+  color: var(--danger);
+}
+.land-versus-before li {
+  color: var(--text-secondary);
+}
+.land-versus-after .icon {
+  color: var(--brand);
+}
+
+/* Steps joined by a line */
+.land-steps {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1.25rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: none;
+}
+.land-step {
+  position: relative;
+  padding: 1.75rem 1.5rem 1.6rem;
+  background: var(--bg-elevated);
+  border: 1px solid var(--hairline);
+  border-radius: 20px;
+  box-shadow: var(--shadow-card);
+  overflow: hidden;
+}
+.land-step-num {
+  position: absolute;
+  top: -0.6rem;
+  right: 0.9rem;
+  font-size: 6.5rem;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -0.06em;
+  color: var(--bg-subtle);
+  user-select: none;
+}
+.land-step > *:not(.land-step-num) {
+  position: relative;
+}
+.land-step-icon,
+.land-tile-icon {
+  display: inline-grid;
+  place-items: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  margin-bottom: 1.1rem;
+  border-radius: 12px;
+  background: var(--brand-bg);
+  color: var(--brand);
+}
+.land-step-kicker {
+  margin: 0 0 0.35rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+
+/* Feature bento */
+.land-bento {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 1rem;
+}
+.land-tile {
+  grid-column: span 2;
+  padding: 1.6rem;
+  background: var(--bg-elevated);
+  border: 1px solid var(--hairline);
+  border-radius: 20px;
+  box-shadow: var(--shadow-card);
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease,
+    border-color 0.2s ease;
+}
+.land-tile-wide {
+  grid-column: span 3;
+}
+.land-tile:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--shadow-raise);
+  border-color: color-mix(in srgb, var(--brand) 40%, var(--hairline));
+}
+
+/* Audiences */
+.land-who {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1.25rem;
+}
+.land-who-card {
+  padding: clamp(1.6rem, 3vw, 2.25rem);
+  background: var(--bg-elevated);
+  border: 1px solid var(--hairline);
+  border-radius: 24px;
+  box-shadow: var(--shadow-card);
+}
+.land-who-card:first-child {
+  background: linear-gradient(165deg, var(--brand-bg), var(--bg-elevated) 65%);
+}
+.land-who-card .land-h3 {
+  font-size: clamp(1.3rem, 2.4vw, 1.6rem);
+  margin-bottom: 1.25rem;
+}
+.land-ticks {
+  display: grid;
+  gap: 0.8rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.land-ticks li {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+.land-ticks .icon {
+  flex: none;
+  margin-top: 0.2rem;
+  color: var(--brand);
+}
+
+/* The dark trust band. Colours are fixed so it reads the same in both schemes. */
+.land-dark {
+  background:
+    radial-gradient(50rem 24rem at 90% 0%, rgba(53, 194, 176, 0.16), transparent 70%),
+    #0a1a33;
+  color: #eaf1ff;
+}
+.land-dark .land-kicker {
+  color: #5fd9c8;
+}
+.land-dark .land-sub {
+  color: #b9c7de;
+}
+.land-promises {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.9rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.land-promises li {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.9rem;
+  padding: 1.15rem 1.2rem;
+  border: 1px solid rgba(160, 190, 235, 0.22);
+  border-radius: 16px;
+  background: rgba(160, 190, 235, 0.07);
+  font-size: 1rem;
+  line-height: 1.45;
+}
+.land-promise-icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 2.4rem;
+  height: 2.4rem;
+  border-radius: 10px;
+  background: rgba(95, 217, 200, 0.16);
+  color: #5fd9c8;
+}
+.land-dark-link {
+  margin: 1.75rem 0 0;
+}
+.land-dark-link a {
+  color: #9fc2ff;
+  font-weight: 650;
+  text-decoration: underline;
+  text-underline-offset: 0.25em;
+}
+.land-dark-link a:hover {
+  color: #ffffff;
+}
+
+/* Where we are going */
+.land-horizons {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.land-horizon {
+  position: relative;
+  padding: 1.6rem 1.5rem;
+  border: 1px solid var(--hairline);
+  border-radius: 20px;
+  background: var(--bg-elevated);
+}
+.land-horizon::before {
+  content: "";
+  position: absolute;
+  left: 1.5rem;
+  right: 1.5rem;
+  top: 0;
+  height: 3px;
+  border-radius: 0 0 3px 3px;
+  background: var(--hairline);
+}
+.land-horizon-now::before {
+  background: var(--brand);
+}
+.land-horizon-next::before {
+  background: linear-gradient(90deg, var(--brand), var(--accent));
+}
+.land-horizon-later {
+  border-style: dashed;
+}
+.land-horizon-label {
+  margin: 0 0 0.6rem;
+  font-size: 0.74rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+.land-horizon-now .land-horizon-label {
+  color: var(--brand);
+}
+
+/* Closing call to action */
+.land-final {
+  padding-block: 0 clamp(3.5rem, 9vw, 6.5rem);
+}
+.land-final-card {
+  padding: clamp(2.5rem, 7vw, 5rem) clamp(1.5rem, 5vw, 4rem);
+  border-radius: 28px;
+  text-align: center;
+  color: #ffffff;
+  background:
+    radial-gradient(40rem 18rem at 15% 0%, rgba(53, 194, 176, 0.55), transparent 70%),
+    linear-gradient(135deg, #0f2a4a, #1457d6);
+  box-shadow: 0 30px 60px -25px rgba(20, 87, 214, 0.55);
+}
+.land-final-title {
+  margin: 0 0 0.8rem;
+  font-size: clamp(2.2rem, 6vw, 3.8rem);
+  line-height: 1.04;
+  letter-spacing: -0.04em;
+  font-weight: 800;
+}
+.land-final-sub {
+  margin: 0 auto 2rem;
+  max-width: 40ch;
+  font-size: clamp(1.05rem, 2vw, 1.25rem);
+  color: #d6e3ff;
+}
+.land-final-cta {
+  justify-content: center;
+}
+.land-btn-light {
+  background: #ffffff;
+  color: #0f2a4a;
+}
+.land-btn-light:hover {
+  background: #e8f0ff;
+}
+.land-btn-ghost {
+  background: transparent;
+  color: #ffffff;
+  border-color: rgba(255, 255, 255, 0.55);
+}
+.land-btn-ghost:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+/* Sections ease in as they scroll into view, only where the browser supports it. The
+   resting state is fully visible, so nothing is ever hidden without the effect. */
+@supports (animation-timeline: view()) {
+  .land-step,
+  .land-tile,
+  .land-who-card,
+  .land-horizon,
+  .land-versus-col,
+  .land-promises li {
+    animation: land-rise linear both;
+    animation-timeline: view();
+    animation-range: entry 0% entry 40%;
+  }
+  @keyframes land-rise {
+    from {
+      opacity: 0;
+      transform: translateY(1.5rem);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+}
+
+@media (max-width: 960px) {
+  .land-hero-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .land-case {
+    transform: none;
+  }
+  .land-steps,
+  .land-horizons,
+  .land-promises {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .land-bento {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .land-tile,
+  .land-tile-wide {
+    grid-column: span 1;
+  }
+}
+@media (max-width: 640px) {
+  .land-versus,
+  .land-who,
+  .land-bento {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .land-stage {
+    padding-bottom: 0;
+  }
+  .land-float {
+    position: static;
+    width: auto;
+    margin-top: 0.75rem;
+    animation: none;
+  }
+  .land-btn {
+    width: 100%;
+  }
+  .land-title {
+    font-size: clamp(2.4rem, 12vw, 3rem);
+  }
+}
+@media print {
+  .land-hero-glow {
+    display: none;
+  }
+  .land-dark,
+  .land-final-card {
+    background: #fff;
+    color: #000;
+  }
+}
