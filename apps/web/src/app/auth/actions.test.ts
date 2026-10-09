@@ -22,7 +22,7 @@ vi.mock('../../lib/neon-auth', () => ({
   }),
 }));
 
-const withinAuthLimits = vi.fn(async () => true);
+const withinAuthLimits = vi.fn(async (_input?: unknown) => true);
 vi.mock('../../lib/auth-throttle', () => ({
   withinAuthLimits: (input: unknown) => withinAuthLimits(input),
 }));

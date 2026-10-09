@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const service = vi.fn(async () => ({
+const service = vi.fn(async (..._args: unknown[]) => ({
   allowed: true,
   invitationId: null,
   mustClaimInvitation: false,

@@ -5,8 +5,8 @@ import { selectedIdentityProvider } from '../../../lib/identity-selection';
 import { resetPasswordAction } from '../actions';
 import { AuthShell, ErrorLine, TextField } from '../auth-ui';
 
-// The link in the email carries a one-time code. Never pass it on to other sites.
-export const metadata: Metadata = { title: 'Choose a new password', referrer: 'no-referrer' };
+export const metadata: Metadata = { title: 'Choose a new password' };
+// The email link carries a one-time code, so the form page tells the browser not to pass it on.
 export const dynamic = 'force-dynamic';
 
 const ERRORS: Record<string, string> = {
@@ -35,6 +35,7 @@ export default async function ResetPasswordPage({
   const error = e ? ERRORS[e] : undefined;
   return (
     <AuthShell title="Choose a new password">
+      <meta name="referrer" content="no-referrer" />
       <ErrorLine id="reset-error" message={error} />
       <div className="card" style={{ marginBottom: '1rem' }}>
         <form action={resetPasswordAction} className="field-list">
