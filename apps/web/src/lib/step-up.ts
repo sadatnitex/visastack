@@ -5,6 +5,8 @@ import {
   verifyStepUpAssurance,
 } from '@visastack/services';
 import { checkRecentAuth, getSignInUrl } from '@workos-inc/authkit-nextjs';
+import { selectedIdentityProvider } from './identity-selection';
+import { neonReauthUrl, neonSessionAgeSeconds } from './neon-recency';
 
 /**
  * Genuine WorkOS-compatible step-up (master directive §7 "PR 5"; Build Spec
@@ -61,10 +63,16 @@ export async function establishStepUp(
   request: StepUpRequest,
   returnTo: string,
 ): Promise<StepUpResult> {
-  const { isStale } = await checkRecentAuth({ maxAge: STEP_UP_MAX_AGE_SECONDS });
-  if (isStale) {
-    const reauthUrl = await getSignInUrl({ maxAge: STEP_UP_MAX_AGE_SECONDS, returnTo });
-    return { satisfied: false, reauthUrl };
+  if (selectedIdentityProvider() === 'neon_auth') {
+    if ((await neonSessionAgeSeconds()) > STEP_UP_MAX_AGE_SECONDS) {
+      return { satisfied: false, reauthUrl: neonReauthUrl(returnTo) };
+    }
+  } else {
+    const { isStale } = await checkRecentAuth({ maxAge: STEP_UP_MAX_AGE_SECONDS });
+    if (isStale) {
+      const reauthUrl = await getSignInUrl({ maxAge: STEP_UP_MAX_AGE_SECONDS, returnTo });
+      return { satisfied: false, reauthUrl };
+    }
   }
   const secret = signingSecret();
   const token: StepUpAssuranceFields = issueStepUpAssurance(secret, request);

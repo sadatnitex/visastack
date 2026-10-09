@@ -2,7 +2,9 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { selectedIdentityProvider } from '../../../lib/identity-selection';
+import { isPublicBetaOpen } from '../../../lib/public-beta';
 import { signUpAction } from '../actions';
+import { AuthShell, ErrorLine, TextField } from '../auth-ui';
 
 export const metadata: Metadata = { title: 'Create an account' };
 export const dynamic = 'force-dynamic';
@@ -10,6 +12,7 @@ export const dynamic = 'force-dynamic';
 const ERRORS: Record<string, string> = {
   invalid: 'Enter a valid email address and a password of at least 8 characters.',
   failed: 'We could not create that account. Try a different email address or sign in instead.',
+  slow: 'Too many attempts. Please wait a little while and try again.',
 };
 
 export default async function SignUpPage({
@@ -19,73 +22,47 @@ export default async function SignUpPage({
   const { e } = await searchParams;
   const error = e ? ERRORS[e] : undefined;
   return (
-    <section className="section container" style={{ maxWidth: '28rem' }}>
-      <h1 className="page-title" style={{ marginBottom: '1.25rem' }}>
-        Create an account
-      </h1>
+    <AuthShell title="Create an account">
       <p className="card-body">
-        VisaStack is invite-only for now. You can create an account, but you can only get in if you
-        have been invited.
+        {isPublicBetaOpen()
+          ? 'VisaStack is in public beta. Anyone can create an account, and some features are still being finished.'
+          : 'VisaStack is invite-only for now. You can create an account, but you can only get in if you have been invited.'}
       </p>
-      {error ? (
-        <p className="field-msg field-msg-err" id="signup-error">
-          {error}
-        </p>
-      ) : null}
+      <ErrorLine id="signup-error" message={error} />
       <div className="card" style={{ marginBottom: '1rem' }}>
         <form action={signUpAction} className="field-list">
-          <div className="field-row">
-            <label className="field-label" htmlFor="name">
-              Your name
-            </label>
-            <input
-              id="name"
-              name="name"
-              type="text"
-              className="input"
-              autoComplete="name"
-              maxLength={120}
-            />
-          </div>
-          <div className="field-row">
-            <label className="field-label" htmlFor="email">
-              Email address
-            </label>
-            <input
-              id="email"
-              name="email"
-              type="email"
-              className="input"
-              autoComplete="email"
-              required
-              maxLength={254}
-              aria-invalid={error ? true : undefined}
-              aria-describedby={error ? 'signup-error' : undefined}
-            />
-          </div>
-          <div className="field-row">
-            <label className="field-label" htmlFor="password">
-              Password (at least 8 characters)
-            </label>
-            <input
-              id="password"
-              name="password"
-              type="password"
-              className="input"
-              autoComplete="new-password"
-              required
-              minLength={8}
-              maxLength={128}
-            />
-          </div>
+          <TextField id="name" name="name" label="Your name" autoComplete="name" maxLength={120} />
+          <TextField
+            id="email"
+            name="email"
+            type="email"
+            label="Email address"
+            autoComplete="email"
+            required
+            maxLength={254}
+            errorId={error ? 'signup-error' : undefined}
+          />
+          <TextField
+            id="password"
+            name="password"
+            type="password"
+            label="Password (at least 8 characters)"
+            autoComplete="new-password"
+            required
+            minLength={8}
+            maxLength={128}
+          />
           <button type="submit" className="btn btn-primary">
             Create account
           </button>
         </form>
       </div>
       <p className="card-body">
+        We will email you a link to confirm your address before you can sign in.
+      </p>
+      <p className="card-body">
         Already have an account? <Link href="/auth/sign-in">Sign in</Link>
       </p>
-    </section>
+    </AuthShell>
   );
 }

@@ -7,11 +7,13 @@ import {
   attributeInvitation,
   claimInvitation,
   provisionAccount,
+  provisionNeonAccount,
   releaseInvitationClaim,
   touchAccountActivity,
 } from '@visastack/services';
 import { withAuth } from '@workos-inc/authkit-nextjs';
 import { redirect } from 'next/navigation';
+import { NeonIdentityPort } from './identity-provider';
 import { selectedIdentityProvider } from './identity-selection';
 import { checkPilotAccess } from './pilot-access';
 import { reportServerError } from './server-error';
@@ -70,25 +72,31 @@ async function releaseClaimBestEffort(db: Db, invitationId: string): Promise<voi
 export async function withSession<T>(
   fn: (ctx: { readonly db: Db; readonly accountId: string; readonly email: string }) => Promise<T>,
 ): Promise<T> {
-  // Neon Auth sign-in exists (phase 1) but is not yet linked to local accounts (phase 2 of
-  // docs/commercial-v1/neon-auth-migration-plan.md). Until it is, refuse to run rather than
-  // provision or match an account from an identity this function cannot yet map safely.
-  if (selectedIdentityProvider() === 'neon_auth') {
-    throw new Error('Neon Auth sign-in is not linked to accounts yet (phase 2 is pending)');
+  const neon = selectedIdentityProvider() === 'neon_auth';
+  // Who is signed in, from the server-side session only. With Neon Auth, an address that has not
+  // been confirmed yet is sent to the confirmation page and gets no account and no database work.
+  let user: { readonly id: string; readonly email: string; readonly emailVerified: boolean };
+  if (neon) {
+    const identity = await new NeonIdentityPort().currentIdentity();
+    if (!identity) redirect('/auth/sign-in');
+    if (!identity.emailVerified) redirect('/auth/verify-email');
+    user = { id: identity.providerId, email: identity.email, emailVerified: true };
+  } else {
+    // Read-only: the middleware (with `middlewareAuth` enabled) has already
+    // enforced sign-in and refreshed the token, so this never writes cookies
+    // during the render. `ensureSignedIn` is intentionally NOT passed - forcing a
+    // refresh here is what threw "Cookies can only be modified in a Server Action
+    // or Route Handler" on protected pages.
+    const { user: workosUser } = await withAuth();
+    // A signed-in visit already passed middleware's sign-in check; landing here
+    // with no user means the session lapsed between that check and this render
+    // (or this action's submission) - e.g. an expired/revoked WorkOS session.
+    // That's routine, recoverable, and not a bug: send them back through the
+    // existing sign-in flow instead of surfacing the generic error boundary,
+    // which would misleadingly read as a server fault ("this is on our side").
+    if (!workosUser?.email) redirect('/app');
+    user = { id: workosUser.id, email: workosUser.email, emailVerified: workosUser.emailVerified };
   }
-  // Read-only: the middleware (with `middlewareAuth` enabled) has already
-  // enforced sign-in and refreshed the token, so this never writes cookies
-  // during the render. `ensureSignedIn` is intentionally NOT passed — forcing a
-  // refresh here is what threw "Cookies can only be modified in a Server Action
-  // or Route Handler" on protected pages.
-  const { user } = await withAuth();
-  // A signed-in visit already passed middleware's sign-in check; landing here
-  // with no user means the session lapsed between that check and this render
-  // (or this action's submission) — e.g. an expired/revoked WorkOS session.
-  // That's routine, recoverable, and not a bug: send them back through the
-  // existing sign-in flow instead of surfacing the generic error boundary,
-  // which would misleadingly read as a server fault ("this is on our side").
-  if (!user?.email) redirect('/app');
 
   const connectionString = resolveDatabaseUrl(process.env);
   if (!connectionString) throw new Error('database not configured');
@@ -110,7 +118,10 @@ export async function withSession<T>(
     // provisioning, every time. An authenticated-but-uninvited identity must
     // never receive a local account, regardless of how far WorkOS itself let
     // them get through sign-in.
-    const access = await checkPilotAccess(handle, { email: user.email, workosUserId: user.id });
+    const access = await checkPilotAccess(handle, {
+      email: user.email,
+      workosUserId: neon ? null : user.id,
+    });
     if (!access.allowed) {
       redirect('/pilot-access-denied');
     }
@@ -142,11 +153,17 @@ export async function withSession<T>(
     // issues another invitation (Codex review, PR #65).
     let provisioned: Awaited<ReturnType<typeof provisionAccount>>;
     try {
-      provisioned = await provisionAccount(handle, {
-        email: user.email,
-        workosUserId: user.id,
-        emailVerified: user.emailVerified,
-      });
+      provisioned = neon
+        ? await provisionNeonAccount(handle, {
+            email: user.email,
+            neonUserId: user.id,
+            emailVerified: user.emailVerified,
+          })
+        : await provisionAccount(handle, {
+            email: user.email,
+            workosUserId: user.id,
+            emailVerified: user.emailVerified,
+          });
     } catch (error) {
       if (claimedInvitationId) await releaseClaimBestEffort(handle, claimedInvitationId);
       throw error;

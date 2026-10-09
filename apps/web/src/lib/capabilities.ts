@@ -6,7 +6,8 @@ import {
 } from '@visastack/core';
 import { commercialConfigurationReady } from './commercial-readiness';
 import { getDeploymentMode } from './deployment-mode';
-import { isPresent, isWorkosConfigured, readEnv } from './env';
+import { isPresent, isSignInConfigured, readEnv } from './env';
+import { isPublicBetaOpen } from './public-beta';
 
 export { isPresent, isWorkosConfigured } from './env';
 
@@ -71,7 +72,7 @@ export function getPlatformCapabilities(): PlatformCapabilities {
     (isPresent('CLAMAV_SOCKET_PATH') || (isPresent('CLAMAV_HOST') && isPresent('CLAMAV_PORT')));
 
   return {
-    authentication: isWorkosConfigured() ? 'available' : 'unconfigured',
+    authentication: isSignInConfigured() ? 'available' : 'unconfigured',
     manualProfile: 'available',
     documentUpload: blobConfigured ? 'available' : 'unconfigured',
     deterministicExtraction: 'available',
@@ -110,7 +111,10 @@ export function getPlatformCapabilities(): PlatformCapabilities {
     // itself must never be enough to serve real applicants or make public
     // claims. See commercial-readiness.ts; `/api/health/ready` is the
     // authoritative, live-checked enforcement point for this same guard.
-    publicSignup: isCommercial && commercialConfigurationReady() ? 'available' : 'disabled',
+    publicSignup:
+      (isCommercial && commercialConfigurationReady()) || isPublicBetaOpen()
+        ? 'available'
+        : 'disabled',
     payments: 'unconfigured',
     realApplicantData: isCommercial && commercialConfigurationReady() ? 'available' : 'disabled',
     commercialClaims: isCommercial && commercialConfigurationReady() ? 'available' : 'disabled',

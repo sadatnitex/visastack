@@ -11,7 +11,7 @@ import {
 import { getPlatformCapabilities } from './capabilities';
 import { evaluateCommercialReadiness } from './commercial-readiness';
 import { getDeploymentMode } from './deployment-mode';
-import { isPresent, isWorkosConfigured } from './env';
+import { isPresent, isSignInConfigured } from './env';
 import { SHIPPED_MIGRATIONS } from './migration-journal';
 import { validateProviderEnv } from './providers';
 
@@ -109,7 +109,7 @@ export async function evaluateReadiness(): Promise<ReadinessReport> {
     db.connected &&
     db.schemaApplied &&
     migrationsCurrent &&
-    isWorkosConfigured() &&
+    isSignInConfigured() &&
     providers.valid;
 
   const commercial =

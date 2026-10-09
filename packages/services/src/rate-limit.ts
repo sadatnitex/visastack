@@ -46,6 +46,17 @@ export const RATE_LIMITS = {
   ACCOUNT_EXPORT: { limit: 5, windowMs: HOUR_MS },
   BULK_EXPORT: { limit: 10, windowMs: HOUR_MS },
   BULK_EXPORT_ORG: { limit: 20, windowMs: HOUR_MS },
+  /**
+   * Sign-in, sign-up and password recovery (public beta). Keyed by a hash of the address and by a
+   * hash of the network address, so one person cannot lock out another and one source cannot
+   * drain the daily email allowance. Unmeasured starting defaults, like the rest of this table.
+   */
+  AUTH_SIGN_IN_EMAIL: { limit: 10, windowMs: HOUR_MS },
+  AUTH_SIGN_IN_IP: { limit: 60, windowMs: HOUR_MS },
+  AUTH_SIGN_UP_IP: { limit: 10, windowMs: HOUR_MS },
+  AUTH_SIGN_UP_EMAIL: { limit: 3, windowMs: HOUR_MS },
+  AUTH_EMAIL_SEND_EMAIL: { limit: 3, windowMs: HOUR_MS },
+  AUTH_EMAIL_SEND_IP: { limit: 10, windowMs: HOUR_MS },
   /** One shared bucket per actor across all five AI Gateway tasks (extraction, OCR, classification, explanation, inconsistency check). */
   AI_RUN: { limit: 150, windowMs: HOUR_MS },
 } as const satisfies Record<string, RateLimitConfig>;

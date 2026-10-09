@@ -589,6 +589,13 @@
       "when": 1791011332063,
       "tag": "0083_vengeful_lionheart",
       "breakpoints": true
+    },
+    {
+      "idx": 84,
+      "version": "7",
+      "when": 1791560232399,
+      "tag": "0084_plain_speed_demon",
+      "breakpoints": true
     }
   ]
 }
