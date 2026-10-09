@@ -79,7 +79,7 @@ interface Feature {
   readonly title: string;
   readonly body: string;
   readonly icon: IconName;
-  readonly wide?: boolean;
+  readonly span?: 'half' | 'full';
 }
 
 const FEATURES: readonly Feature[] = [
@@ -88,13 +88,14 @@ const FEATURES: readonly Feature[] = [
     title: 'One profile for every application',
     body: 'Enter your details once: identity, passport, travel history, work and money. Every change is saved as a new version, so nothing is quietly overwritten.',
     icon: 'user',
-    wide: true,
+    span: 'half',
   },
   {
     kicker: 'Documents',
     title: 'A private place for your papers',
     body: 'Upload passports, bank statements and other documents. Only you and the people you choose can open them, and original files are never handed out without extra identity confirmation.',
     icon: 'folder',
+    span: 'half',
   },
   {
     kicker: 'Suggestions',
@@ -119,7 +120,7 @@ const FEATURES: readonly Feature[] = [
     title: 'Your data stays yours',
     body: 'Your information is kept only as long as it is needed, and you can ask for it to be deleted. If the law says it must be kept, deletion waits. Every action is written to a record that cannot be quietly changed.',
     icon: 'shield',
-    wide: true,
+    span: 'full',
   },
 ];
 
@@ -171,7 +172,7 @@ const HORIZONS: readonly {
   {
     label: 'In the pilot today',
     title: 'The core of one profile',
-    body: 'Your profile with saved versions, a private document vault, readiness checks against official requirements, and sharing with agencies.',
+    body: 'Your profile with saved versions, a private document vault, document checks against official requirements, and sharing with agencies.',
     state: 'now',
   },
   {
@@ -215,7 +216,7 @@ export default async function HomePage({ searchParams }: HomePageProps) {
               Invite-only pilot
             </span>
             <h1 className="land-title" id="land-hero-title">
-              One profile. <span className="land-title-accent">Every visa.</span>
+              One profile. Every visa.
             </h1>
             <p className="land-lede">
               Keep your passport, documents and visa history in one private place, and reuse them
@@ -270,7 +271,7 @@ export default async function HomePage({ searchParams }: HomePageProps) {
               </div>
             </aside>
 
-            <div className="land-float land-float-ai" role="group" aria-label="Example suggestion">
+            <aside className="land-float land-float-ai" aria-label="Example suggestion">
               <p className="land-float-kicker">
                 <Icon name="activity" size={14} />
                 Suggestion from your passport
@@ -282,16 +283,16 @@ export default async function HomePage({ searchParams }: HomePageProps) {
                 <span className="land-chip land-chip-yes">Approve</span>
                 <span className="land-chip">Reject</span>
               </div>
-            </div>
+            </aside>
 
-            <div className="land-float land-float-share" role="group" aria-label="Example sharing">
+            <aside className="land-float land-float-share" aria-label="Example sharing">
               <p className="land-float-kicker">
                 <Icon name="lock" size={14} />
                 Shared with Sunrise Visa Services
               </p>
               <p className="land-float-line">3 items, until 30 Nov</p>
               <p className="land-float-note">You can stop this at any time</p>
-            </div>
+            </aside>
           </div>
         </div>
       </section>
@@ -362,7 +363,11 @@ export default async function HomePage({ searchParams }: HomePageProps) {
         </div>
       </section>
 
-      <section className="land-section land-tint" id="capabilities" aria-labelledby="land-cap-title">
+      <section
+        className="land-section land-tint"
+        id="capabilities"
+        aria-labelledby="land-cap-title"
+      >
         <div className="land-wrap">
           <div className="land-head">
             <p className="land-kicker">Everything in one stack</p>
@@ -377,7 +382,7 @@ export default async function HomePage({ searchParams }: HomePageProps) {
           <div className="land-bento">
             {FEATURES.map((feature) => (
               <article
-                className={feature.wide ? 'land-tile land-tile-wide' : 'land-tile'}
+                className={feature.span ? `land-tile land-tile-${feature.span}` : 'land-tile'}
                 key={feature.title}
               >
                 <span className="land-tile-icon">

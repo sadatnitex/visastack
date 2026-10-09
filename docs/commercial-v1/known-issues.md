@@ -4792,3 +4792,10 @@ programme rather than being a product defect.
 - Still not verified: everything against a live Neon Auth project and real email delivery. The first live proof is owner step 7 in the setup page.
 - Production unchanged until the owner sets the hosting variables and approves the migration run; the migration must run right after merge because the new code reads the new column.
 
+
+### Chunk 55 (2026-10-09): home page rebuilt as a story (frontend only)
+
+- Home page now runs in order: hero with a layered made-up case (progress ring, an AI suggestion to approve or reject, a sharing card), the before and after of the document scramble, three steps, a six-tile feature grid, traveller and agency panels, a dark trust band, an honest "where we are and where we are heading" strip, and a closing call to action. All styles are prefixed `land-` in `globals.css`; no signed-in screen is touched; no scripts, packages or images added.
+- Every existing guarded sentence is kept (plain-language guard, honesty tests). New tests cover the story order, the before and after, the made-up labels, the aim-not-promise wording and one top heading with eight named sections.
+- Checked in a real browser at phone, desktop and dark: no sideways scrolling, no accessibility rule violations. A scroll-reveal effect was tried and removed because it hid cards in screenshots and print.
+- Not verified: live deployment; the "heading toward one trusted file across routes and countries" wording is a direction statement for the owner to confirm. The eyebrow still says invite-only; open PR 177 changes that wording and will need a small merge of the two.

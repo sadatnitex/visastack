@@ -1959,7 +1959,7 @@ a.checklist-item:hover .checklist-label {
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--brand);
+  color: color-mix(in srgb, var(--brand) 70%, var(--text));
 }
 .land-h2 {
   margin: 0 0 0.9rem;
@@ -2007,10 +2007,12 @@ a.checklist-item:hover .checklist-label {
   position: relative;
   overflow: clip;
   padding-block: clamp(3rem, 8vw, 6rem) clamp(3.5rem, 8vw, 6.5rem);
-  background:
-    radial-gradient(60rem 30rem at 85% -10%, var(--brand-bg), transparent 70%),
-    radial-gradient(48rem 26rem at -10% 10%, color-mix(in srgb, var(--accent) 12%, transparent), transparent 70%),
-    var(--bg);
+  background: radial-gradient(60rem 30rem at 85% -10%, var(--brand-bg), transparent 70%),
+    radial-gradient(
+      48rem 26rem at -10% 10%,
+      color-mix(in srgb, var(--accent) 12%, transparent),
+      transparent 70%
+    ), var(--bg);
 }
 .land-hero-glow {
   position: absolute;
@@ -2066,10 +2068,7 @@ a.checklist-item:hover .checklist-label {
   letter-spacing: -0.045em;
   font-weight: 800;
   text-wrap: balance;
-}
-.land-title-accent {
-  display: inline-block;
-  background: linear-gradient(100deg, var(--accent), var(--brand));
+  background: linear-gradient(100deg, var(--text) 38%, var(--accent) 72%, var(--brand));
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
@@ -2104,15 +2103,13 @@ a.checklist-item:hover .checklist-label {
 /* The example case with two small cards floating over it */
 .land-stage {
   position: relative;
-  padding: 0 0 2.5rem;
+  padding: 0 0 8.5rem;
 }
 .land-case {
   position: relative;
   padding: 1.5rem;
   border-radius: 20px;
-  box-shadow:
-    0 1px 0 var(--hairline-soft) inset,
-    0 30px 60px -20px rgba(14, 26, 43, 0.28);
+  box-shadow: 0 1px 0 var(--hairline-soft) inset, 0 30px 60px -20px rgba(14, 26, 43, 0.28);
   transform: perspective(1400px) rotateY(-4deg) rotateX(2deg);
   transform-origin: center left;
 }
@@ -2156,7 +2153,7 @@ a.checklist-item:hover .checklist-label {
 .land-float {
   position: absolute;
   z-index: 2;
-  width: min(17.5rem, 78%);
+  width: min(16rem, 48%);
   padding: 0.9rem 1rem;
   background: var(--bg-elevated);
   border: 1px solid var(--hairline);
@@ -2165,11 +2162,11 @@ a.checklist-item:hover .checklist-label {
   animation: land-bob 7s ease-in-out infinite;
 }
 .land-float-ai {
-  right: -0.5rem;
-  bottom: 4.5rem;
+  right: 0;
+  bottom: 0;
 }
 .land-float-share {
-  left: -1.25rem;
+  left: 0;
   bottom: 0;
   animation-delay: -3.5s;
 }
@@ -2341,13 +2338,13 @@ a.checklist-item:hover .checklist-label {
   border: 1px solid var(--hairline);
   border-radius: 20px;
   box-shadow: var(--shadow-card);
-  transition:
-    transform 0.2s ease,
-    box-shadow 0.2s ease,
-    border-color 0.2s ease;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
 }
-.land-tile-wide {
+.land-tile-half {
   grid-column: span 3;
+}
+.land-tile-full {
+  grid-column: 1 / -1;
 }
 .land-tile:hover {
   transform: translateY(-3px);
@@ -2397,8 +2394,7 @@ a.checklist-item:hover .checklist-label {
 
 /* The dark trust band. Colours are fixed so it reads the same in both schemes. */
 .land-dark {
-  background:
-    radial-gradient(50rem 24rem at 90% 0%, rgba(53, 194, 176, 0.16), transparent 70%),
+  background: radial-gradient(50rem 24rem at 90% 0%, rgba(53, 194, 176, 0.16), transparent 70%),
     #0a1a33;
   color: #eaf1ff;
 }
@@ -2506,8 +2502,7 @@ a.checklist-item:hover .checklist-label {
   border-radius: 28px;
   text-align: center;
   color: #ffffff;
-  background:
-    radial-gradient(40rem 18rem at 15% 0%, rgba(53, 194, 176, 0.55), transparent 70%),
+  background: radial-gradient(40rem 18rem at 15% 0%, rgba(53, 194, 176, 0.55), transparent 70%),
     linear-gradient(135deg, #0f2a4a, #1457d6);
   box-shadow: 0 30px 60px -25px rgba(20, 87, 214, 0.55);
 }
@@ -2543,31 +2538,6 @@ a.checklist-item:hover .checklist-label {
   background: rgba(255, 255, 255, 0.12);
 }
 
-/* Sections ease in as they scroll into view, only where the browser supports it. The
-   resting state is fully visible, so nothing is ever hidden without the effect. */
-@supports (animation-timeline: view()) {
-  .land-step,
-  .land-tile,
-  .land-who-card,
-  .land-horizon,
-  .land-versus-col,
-  .land-promises li {
-    animation: land-rise linear both;
-    animation-timeline: view();
-    animation-range: entry 0% entry 40%;
-  }
-  @keyframes land-rise {
-    from {
-      opacity: 0;
-      transform: translateY(1.5rem);
-    }
-    to {
-      opacity: 1;
-      transform: none;
-    }
-  }
-}
-
 @media (max-width: 960px) {
   .land-hero-grid {
     grid-template-columns: minmax(0, 1fr);
@@ -2584,8 +2554,11 @@ a.checklist-item:hover .checklist-label {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
   .land-tile,
-  .land-tile-wide {
+  .land-tile-half {
     grid-column: span 1;
+  }
+  .land-tile-full {
+    grid-column: 1 / -1;
   }
 }
 @media (max-width: 640px) {
