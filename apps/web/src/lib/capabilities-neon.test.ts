@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const NEON = {
   IDENTITY_PROVIDER: 'neon_auth',
-  NEON_AUTH_BASE_URL: 'https://auth.example.neon.tech/db',
+  NEON_AUTH_BASE_URL: 'https://auth.example.test/db',
   NEON_AUTH_COOKIE_SECRET: 'c'.repeat(40),
 };
 
