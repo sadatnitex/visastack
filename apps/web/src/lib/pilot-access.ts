@@ -5,6 +5,7 @@ import {
   checkPilotAccess as checkPilotAccessService,
 } from '@visastack/services';
 import { getDeploymentMode } from './deployment-mode';
+import { isPublicBetaOpen } from './public-beta';
 
 /** Variable-keyed env read (satisfies both TS index-signature and Biome rules). */
 function readEnv(name: string): string | undefined {
@@ -43,6 +44,7 @@ export async function checkPilotAccess(
   return checkPilotAccessService(db, {
     ...input,
     allowlistEmails: pilotAllowlistEmails(),
-    bypass: getDeploymentMode() === 'development',
+    // Local development, or the public beta (Neon sign-in only, confirmed addresses only).
+    bypass: getDeploymentMode() === 'development' || isPublicBetaOpen(),
   });
 }

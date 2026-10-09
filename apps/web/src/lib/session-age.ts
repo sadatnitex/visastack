@@ -2,6 +2,8 @@ import 'server-only';
 import { type Db, listMembershipsForAccount } from '@visastack/services';
 import { checkRecentAuth } from '@workos-inc/authkit-nextjs';
 import { isPlatformAdmin } from './admin';
+import { selectedIdentityProvider } from './identity-selection';
+import { neonReauthUrl, neonSessionAgeSeconds } from './neon-recency';
 
 /**
  * Absolute session-age enforcement (Commercial V1 SEC-01; implementation
@@ -67,6 +69,12 @@ export async function enforceSessionAgeLimit(
   returnTo: string,
 ): Promise<SessionAgeResult> {
   const maxAge = staffContext ? STAFF_MAX_SESSION_AGE_SECONDS : TRAVELLER_MAX_SESSION_AGE_SECONDS;
+  if (selectedIdentityProvider() === 'neon_auth') {
+    if ((await neonSessionAgeSeconds()) > maxAge) {
+      return { satisfied: false, reauthUrl: neonReauthUrl(returnTo) };
+    }
+    return { satisfied: true };
+  }
   const { isStale } = await checkRecentAuth({ maxAge });
   if (isStale) {
     const reauthUrl = `/api/session-reauth?maxAge=${maxAge}&returnTo=${encodeURIComponent(returnTo)}`;

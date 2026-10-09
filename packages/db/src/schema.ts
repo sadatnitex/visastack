@@ -316,6 +316,9 @@ const timestamps = {
 export const accounts = pgTable('accounts', {
   id: uuid('id').primaryKey().defaultRandom(),
   workosUserId: text('workos_user_id').unique(),
+  // Neon Auth user id (the sign-in system that replaces WorkOS). Same discipline as the WorkOS id:
+  // immutable, unique, bound only from a verified email, never from client input.
+  neonUserId: text('neon_user_id').unique(),
   email: text('email').notNull().unique(),
   emailVerifiedAt: timestamp('email_verified_at', { withTimezone: true }),
   // Inactive-account retention (Part 7 §11: "wallet original: until

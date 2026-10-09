@@ -68,3 +68,15 @@ Facts found while building that change the risk picture (also in `known-issues.m
 3. A reported session-cookie renewal bug (sign-out after about 7 days) should be re-tested.
 
 Not done, owed: a live sign-in against a real Neon Auth project (none exists, and the sandbox cannot reach Neon); email verification and password reset behaviour; the staff second factor; every row of phases 2 to 4.
+
+## Phase 2 and recovery result (2026-10-09)
+
+Built on the owner's instruction to open a public beta on Neon Auth and Resend (setup and deferred register: `docs/operations/public-beta-sign-in.md`). Still behind `IDENTITY_PROVIDER=neon_auth`; WorkOS remains the default.
+
+- Account link: new nullable unique column `accounts.neon_user_id` (migration 0084, additive, not yet run anywhere). `provisionNeonAccount` binds by immutable Neon id, links an existing account only for a CONFIRMED address, refuses and audits a different Neon id for a bound address, never creates or links for an unconfirmed address.
+- `withSession` now runs under Neon: identity from the server session, unconfirmed address sent to `/auth/verify-email` before any database work.
+- Pages and actions: sign-in, sign-up, confirm email (resend), forgot password, reset password, password re-check. Fixed messages, same answer for known and unknown addresses, safe same-site return addresses, per-address and per-source limits.
+- Session limit (7 days, 12 hours for staff) and step-up (5 minutes) rebuilt on the Neon session creation time; re-checking means typing the password again, which makes a new session.
+- Public beta switch `PUBLIC_BETA_OPEN=true` skips the invitation list, only with Neon sign-in. It does not enable real-applicant data, payments or commercial claims.
+- Capability and readiness checks now follow the selected sign-in system.
+- Not done: any live check, staff second factor, the commercial readiness check on Neon (see register D1, D4, D8).

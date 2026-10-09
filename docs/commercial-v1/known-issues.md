@@ -4783,3 +4783,12 @@ programme rather than being a product defect.
 - New dev tool `apps/web/preview` (`pnpm --filter @visastack/web preview`): seeds a throwaway in-memory database through the real tables, renders every page in its real layouts for six kinds of account, screenshots at phone and desktop width, and checks each page. Documented in `docs/ux/screen-preview.md`. Not part of the product or the normal test run.
 - Fixed from what it found: underlined links inside sentences, wrapping of long status labels, document row overflow on a phone, unstyled branding fields, first-day next step, short-page sidebar, plain sign-in and sign-up forms (now in a card), heavy red buttons on pack sources, plain empty state on the agency Cases page.
 - Not rendered: pages that need a one-off link or token (invitations, contributor links, snapshots, pack diffs). Dev dependencies added to the web package: `@electric-sql/pglite`, `drizzle-orm`.
+
+### Chunk 54 (2026-10-09): public beta sign-in on Neon Auth and Resend (phase 2 and recovery)
+
+- Built sign-up with email confirmation, sign-in, forgot and reset password, resend confirmation, password re-check, account linking (`accounts.neon_user_id`, migration 0084 not run), Neon session limits and step-up, rate limits for the auth forms, and the `PUBLIC_BETA_OPEN` switch. Details in `neon-auth-migration-plan.md` (Phase 2 result) and `docs/operations/public-beta-sign-in.md` (setup and deferred register D1 to D13).
+- Proved by test and by breaking the code on purpose: an unconfirmed address never links or creates an account; only the exact unconfirmed code leads to the confirmation page; the beta switch is inert under WorkOS; return addresses cannot leave the site.
+- Found and fixed while building: capability and readiness checks reported sign-in as unconfigured under Neon because they only looked at WorkOS settings.
+- Still not verified: everything against a live Neon Auth project and real email delivery. The first live proof is owner step 7 in the setup page.
+- Production unchanged until the owner sets the hosting variables and approves the migration run; the migration must run right after merge because the new code reads the new column.
+

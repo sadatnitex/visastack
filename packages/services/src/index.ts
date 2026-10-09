@@ -61,6 +61,11 @@ export {
   reportUnboundAccounts,
   touchAccountActivity,
 } from './accounts';
+export {
+  type ProvisionNeonAccountInput,
+  getAccountByNeonUserId,
+  provisionNeonAccount,
+} from './accounts-neon';
 
 export {
   type ConsentRecord,
