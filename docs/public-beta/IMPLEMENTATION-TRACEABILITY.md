@@ -17,3 +17,7 @@ This is one dependency graph for the supplied mandate, not a competing roadmap. 
 
 
 2026-10-10 continuation: PR #181 and PR #182 merged. The session shell, selected logout/denial and legacy route repairs are deployed. PR-01 remains in progress; secure recovery-state handling is the next bounded patch. Follow [deployment actions](DEPLOYMENT-ACTIONS.md) for owner-facing done, in-progress and remaining actions and who each deployment affects. Historical status rows above remain dated evidence.
+
+## 2026-10-11: approved flat interface assignment
+
+The owner-adopted UI-00 through UI-09 mandate is traced in [UI route coverage](../uiux/ROUTE-COVERAGE.md) and [reference mapping](../uiux/REFERENCE-MAPPING.md). This is a frontend continuation across public, identity, traveller, agency and administration surfaces. It retains PR-01 through PR-09 service and acceptance boundaries. Native-write configuration remains required; R2 activation, private PDF worker activation, live SQL capture/restore and authenticated acceptance remain independently outstanding. [UI release report](../uiux/FINAL-UIUX-RELEASE-REPORT.md) distinguishes implementation, automated verification and production release.

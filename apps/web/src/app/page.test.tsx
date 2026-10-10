@@ -1,6 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
 import { renderServer, textOf } from '../lib/next-mocks.test-support';
 
+const betaState = vi.hoisted(() => ({ value: false }));
+vi.mock('../lib/public-beta', () => ({ isPublicBetaOpen: () => betaState.value }));
+
 const signedInState = vi.hoisted(() => ({ value: false }));
 vi.mock('../lib/signed-in', () => ({ isSignedIn: async () => signedInState.value }));
 
@@ -40,7 +43,16 @@ describe('the public home page', () => {
     expect(text).toContain('never a guess at your chances of approval');
     // Bangla is only partly available (the full translation is a later piece of work), so
     // the page must not promise it yet.
-    for (const overclaim of ['guarantee', 'bank-grade', 'unhackable', '100% secure', 'bangla']) {
+    for (const overclaim of [
+      'guarantee',
+      'bank-grade',
+      'unhackable',
+      '100% secure',
+      'bangla',
+      'nobody sees',
+      'every action',
+      'use everything',
+    ]) {
       expect(text, overclaim).not.toContain(overclaim);
     }
   });
@@ -64,6 +76,23 @@ describe('the public home page', () => {
     expect(html.match(/href="\/app"/g)?.length).toBe(2);
     expect(html.match(/href="\/status"/g)?.length).toBe(2);
     expect(html).toContain('id="capabilities"');
+  });
+
+  it('uses the actual open-registration flag without relaxing the data restriction', async () => {
+    betaState.value = true;
+    try {
+      const html = await render();
+      const text = textOf(html);
+      expect(text).toContain('Public beta');
+      expect(text).toContain('Create your free account');
+      expect(text).toContain('Registration is open for public beta');
+      expect(text).toContain('Real applicant details are not accepted yet');
+      expect(text).not.toContain('private pilot for invited users');
+      expect(text).not.toContain('VisaStack is in a private pilot');
+      expect(html.match(/href="\/auth\/sign-up"/g)?.length).toBe(2);
+    } finally {
+      betaState.value = false;
+    }
   });
 
   it('shows a way forward when a sign-in did not complete, quoting the reference', async () => {

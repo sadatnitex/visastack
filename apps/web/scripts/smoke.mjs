@@ -101,7 +101,9 @@ async function main() {
     record(
       'Landing page shows the pilot banner',
       html.includes('pilot-banner') &&
-        (html.includes('VisaStack private pilot') || html.includes('VisaStack test build')),
+        (html.includes('VisaStack private pilot') ||
+          html.includes('VisaStack test build') ||
+          html.includes('VisaStack public beta')),
       'looking for .pilot-banner + "VisaStack private pilot"/"VisaStack test build"',
     );
   } catch (error) {

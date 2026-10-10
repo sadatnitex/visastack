@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { Icon, type IconName } from '../components/icons';
 import { StatusBadge, type Tone } from '../components/ui';
+import { isPublicBetaOpen } from '../lib/public-beta';
 import { isSignedIn } from '../lib/signed-in';
 
 /**
@@ -30,6 +31,8 @@ const PREVIEW_ROWS: readonly {
   { name: 'Employer letter', detail: 'Asked for by the agency', status: 'Missing', tone: 'danger' },
   { name: 'Hotel booking', detail: 'Sent 3 Oct 2026', status: 'Under review', tone: 'neutral' },
 ];
+
+const HERO_HEADLINE = 'One profile. Every visa.';
 
 const ASSURANCES: readonly { readonly icon: IconName; readonly text: string }[] = [
   { icon: 'lock', text: 'Private by default' },
@@ -119,7 +122,7 @@ const FEATURES: readonly Feature[] = [
   {
     kicker: 'Privacy',
     title: 'Your data stays yours',
-    body: 'Your information is kept only as long as it is needed, and you can ask for it to be deleted. If the law says it must be kept, deletion waits. Every action is written to a record that cannot be quietly changed.',
+    body: 'Your information is kept only as long as it is needed, and you can ask for it to be deleted. If the law says it must be kept, deletion waits. Sharing decisions are recorded in a protected history.',
     icon: 'shield',
     span: 'full',
   },
@@ -156,12 +159,12 @@ const AUDIENCES: readonly Audience[] = [
 ];
 
 const PROMISES: readonly { readonly icon: IconName; readonly text: string }[] = [
-  { icon: 'eye', text: 'Nobody sees your information unless you allow it' },
-  { icon: 'activity', text: 'Every action is recorded' },
+  { icon: 'eye', text: 'Record sharing starts with your permission' },
+  { icon: 'activity', text: 'Sharing decisions are recorded' },
   { icon: 'file', text: 'Changes are kept as new versions' },
   { icon: 'building', text: 'Official information shows where it came from' },
   { icon: 'shield', text: 'AI never changes your profile on its own' },
-  { icon: 'check', text: 'A fully manual way to use everything' },
+  { icon: 'check', text: 'A manual way to manage your profile' },
 ];
 
 const HORIZONS: readonly {
@@ -201,12 +204,17 @@ export default async function HomePage({ searchParams }: HomePageProps) {
   const { auth_error: authError } = await searchParams;
   // Someone already signed in is taken straight to their workspace, never asked to sign in again.
   const signedIn = await isSignedIn();
-  const startLabel = signedIn ? 'Open your workspace' : 'Sign in to get started';
+  const betaOpen = isPublicBetaOpen();
+  const startLabel = signedIn
+    ? 'Open your workspace'
+    : betaOpen
+      ? 'Create your free account'
+      : 'Sign in to get started';
+  const startHref = !signedIn && betaOpen ? '/auth/sign-up' : '/app';
 
   return (
     <div className="land">
       <section className="land-hero" aria-labelledby="land-hero-title">
-        <div className="land-hero-glow" aria-hidden="true" />
         <div className="land-wrap land-hero-grid">
           <div className="land-hero-copy">
             {authError ? (
@@ -217,17 +225,17 @@ export default async function HomePage({ searchParams }: HomePageProps) {
             ) : null}
             <span className="land-pill">
               <span className="land-pill-dot" aria-hidden="true" />
-              Invite-only pilot
+              {betaOpen ? 'Public beta' : 'Invite-only pilot'}
             </span>
             <h1 className="land-title" id="land-hero-title">
-              One profile. Every visa.
+              {HERO_HEADLINE.slice(0, 12)} <em>{HERO_HEADLINE.slice(13)}</em>
             </h1>
             <p className="land-lede">
               Keep your passport, documents and visa history in one private place, and reuse them
               for every application. Share only what an agency needs, for as long as you choose.
             </p>
             <div className="cta-row">
-              <a className="btn btn-primary land-btn" href="/app">
+              <a className="btn btn-primary land-btn" href={startHref}>
                 {startLabel}
                 <Icon name="arrow" size={18} />
               </a>
@@ -275,27 +283,27 @@ export default async function HomePage({ searchParams }: HomePageProps) {
               </div>
             </aside>
 
-            <aside className="land-float land-float-ai" aria-label="Example suggestion">
-              <p className="land-float-kicker">
+            <aside className="land-example land-example-ai" aria-label="Example suggestion">
+              <p className="land-example-kicker">
                 <Icon name="activity" size={14} />
                 Suggestion from your passport
               </p>
-              <p className="land-float-line">
+              <p className="land-example-line">
                 Passport number <strong className="mono">X1234567</strong>
               </p>
-              <div className="land-float-actions" aria-hidden="true">
+              <div className="land-example-actions" aria-hidden="true">
                 <span className="land-chip land-chip-yes">Approve</span>
                 <span className="land-chip">Reject</span>
               </div>
             </aside>
 
-            <aside className="land-float land-float-share" aria-label="Example sharing">
-              <p className="land-float-kicker">
+            <aside className="land-example land-example-share" aria-label="Example sharing">
+              <p className="land-example-kicker">
                 <Icon name="lock" size={14} />
                 Shared with Sunrise Visa Services
               </p>
-              <p className="land-float-line">3 items, until 30 Nov</p>
-              <p className="land-float-note">You can stop this at any time</p>
+              <p className="land-example-line">3 items, until 30 Nov</p>
+              <p className="land-example-note">You can stop this at any time</p>
             </aside>
           </div>
         </div>
@@ -379,8 +387,8 @@ export default async function HomePage({ searchParams }: HomePageProps) {
               What you can do
             </h2>
             <p className="land-sub">
-              VisaStack is in a private pilot, so some features are still being switched on. The
-              status page shows what works today.
+              {betaOpen ? 'VisaStack is in public beta' : 'VisaStack is in a private pilot'}, so
+              some features are still being switched on. The status page shows what works today.
             </p>
           </div>
           <div className="land-bento">
@@ -401,7 +409,7 @@ export default async function HomePage({ searchParams }: HomePageProps) {
         </div>
       </section>
 
-      <section className="land-section" aria-labelledby="land-who-title">
+      <section className="land-section" id="for-agencies" aria-labelledby="land-who-title">
         <div className="land-wrap">
           <div className="land-head">
             <p className="land-kicker">Who it is for</p>
@@ -467,15 +475,19 @@ export default async function HomePage({ searchParams }: HomePageProps) {
               Honest about where we are
             </h2>
             <p className="land-sub">
-              This is a private pilot for invited users, and some features are not switched on yet.
-              Please use made-up details, or documents with all personal information blacked out,
-              until the pilot opens up.
+              {betaOpen
+                ? 'Registration is open for public beta, and some features are not switched on yet.'
+                : 'This is a private pilot for invited users, and some features are not switched on yet.'}{' '}
+              Please use made-up details, or documents with all personal information permanently
+              blacked out. Real applicant details are not accepted yet.
             </p>
           </div>
           <ol className="land-horizons">
             {HORIZONS.map((horizon) => (
               <li className={`land-horizon land-horizon-${horizon.state}`} key={horizon.title}>
-                <p className="land-horizon-label">{horizon.label}</p>
+                <p className="land-horizon-label">
+                  {horizon.state === 'now' && betaOpen ? 'Available in beta' : horizon.label}
+                </p>
                 <h3 className="land-h3">{horizon.title}</h3>
                 <p className="land-body">{horizon.body}</p>
               </li>
@@ -494,7 +506,7 @@ export default async function HomePage({ searchParams }: HomePageProps) {
               Build your profile once and let every application start from it.
             </p>
             <div className="cta-row land-final-cta">
-              <a className="btn land-btn land-btn-light" href="/app">
+              <a className="btn land-btn land-btn-light" href={startHref}>
                 {startLabel}
                 <Icon name="arrow" size={18} />
               </a>

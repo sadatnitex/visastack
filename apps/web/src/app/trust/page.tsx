@@ -1,6 +1,7 @@
 import { listPublicTrustPublished } from '@visastack/services';
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { Icon } from '../../components/icons';
 import { TrustUnavailable } from '../../components/trust-unavailable';
 import { withPublicDb } from '../../lib/public-db';
 import { reportServerError } from '../../lib/server-error';
@@ -37,6 +38,42 @@ export default async function PublicTrustCatalogPage() {
           ranking.
         </p>
       </div>
+
+      <section className="trust-principles" aria-label="Control over your records">
+        <article className="card">
+          <Icon name="user" size={24} />
+          <h2 className="card-title">Your records belong to you</h2>
+          <p className="card-body">
+            Keep one profile and reuse your documents across applications. Changes are recorded as
+            new versions, so you can review their history.
+          </p>
+        </article>
+        <article className="card">
+          <Icon name="share" size={24} />
+          <h2 className="card-title">Share only what is needed</h2>
+          <p className="card-body">
+            Choose the recipient, purpose, items and time limit. Access begins after acceptance. You
+            can pause or revoke future access, but cannot erase copies already downloaded.
+          </p>
+        </article>
+        <article className="card">
+          <Icon name="check" size={24} />
+          <h2 className="card-title">You approve suggestions</h2>
+          <p className="card-body">
+            A suggestion is separate from a confirmed fact. Review it before accepting it. You can
+            also enter your details by hand.
+          </p>
+        </article>
+        <article className="card">
+          <Icon name="shield" size={24} />
+          <h2 className="card-title">Clear privacy choices</h2>
+          <p className="card-body">
+            Review your permissions and request export or deletion. Legal retention can delay
+            deletion. Read the <Link href="/privacy">privacy notice</Link> and{' '}
+            <Link href="/terms">terms of use</Link> for the details.
+          </p>
+        </article>
+      </section>
 
       {routes.length === 0 ? (
         <article className="card">

@@ -267,3 +267,7 @@ An optional isolated GitHub ClamAV worker reuses the existing queue and real sca
 port, supports PDF quarantine admission and deferred processing, and preserves
 retry/fencing semantics. Provider activation, fresh-engine controls and authenticated
 synthetic clean/infected acceptance remain required; overall release gates unchanged.
+
+## 2026-10-11 UI transformation traceability
+
+UX-01, UX-02 and UX-03 retain their historical IN_PROGRESS acceptance status. The approved UI assignment updates the shared visual system and existing navigation/forms across 52 page routes, adds safe metadata selection/search and improves mobile menu focus behavior. It does not erase the owed manual screen-reader, authenticated lifecycle or deferred language acceptance. Exact coverage, evidence and release status are recorded under [docs/uiux](../uiux/FINAL-UIUX-RELEASE-REPORT.md). No security, recovery or public-beta acceptance row is promoted by screenshots or synthetic fixtures.

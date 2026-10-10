@@ -2,7 +2,7 @@
   "name": "visastack",
   "version": "0.0.0",
   "private": true,
-  "description": "VisaStack — universal, pack-composable visa/immigration platform.",
+  "description": "VisaStack \u2014 universal, pack-composable visa/immigration platform.",
   "packageManager": "pnpm@10.33.0",
   "engines": {
     "node": ">=22.0.0",
@@ -12,16 +12,18 @@
     "build": "turbo run build",
     "dev": "turbo run dev",
     "typecheck": "turbo run typecheck",
-    "test": "turbo run test",
-    "lint": "biome check .",
+    "test": "turbo run test && node --test scripts/check-flat-design.test.mjs",
+    "lint": "biome check . && node scripts/check-flat-design.mjs",
     "scan:supply-chain": "node scripts/supply-chain/scan.mjs",
     "test:supply-chain": "node --test scripts/supply-chain/checks.test.mjs",
     "lint:fix": "biome check --write .",
     "format": "biome format --write .",
-    "check": "pnpm run lint && pnpm run typecheck && pnpm run test"
+    "check": "pnpm run lint && pnpm run typecheck && pnpm run test",
+    "scan:flat-ui": "node scripts/check-flat-design.mjs"
   },
   "devDependencies": {
     "@biomejs/biome": "1.9.4",
+    "postcss": "8.5.26",
     "turbo": "^2.3.3",
     "typescript": "^5.7.2"
   },

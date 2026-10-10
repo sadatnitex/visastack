@@ -35,9 +35,22 @@ export const PILOT_BANNER_COPY = {
   },
 } as const satisfies Partial<Record<DeploymentMode, BannerCopy>>;
 
-export function PilotBanner({ mode }: { readonly mode: DeploymentMode }) {
+export function PilotBanner({
+  mode,
+  registrationOpen = false,
+}: {
+  readonly mode: DeploymentMode;
+  readonly registrationOpen?: boolean;
+}) {
   if (mode === 'commercial') return null;
-  const copy = PILOT_BANNER_COPY[mode];
+  const copy =
+    mode === 'controlled_pilot' && registrationOpen
+      ? {
+          label: 'VisaStack public beta',
+          detail:
+            'Registration is open. Please use made-up details, or documents with all personal information permanently blacked out.',
+        }
+      : PILOT_BANNER_COPY[mode];
   // A named region, so the notice is a landmark a screen reader user can find and skip,
   // not loose content above the page's own landmarks.
   return (

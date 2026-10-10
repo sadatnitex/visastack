@@ -5,7 +5,7 @@ import { isPlatformAdmin } from '../../lib/admin';
 import { PRIMARY_NAV } from '../../lib/navigation';
 import { withSession } from '../../lib/session';
 import { signOutCurrentUser } from '../../lib/sign-out';
-import { AppNav } from './app-nav';
+import { AppNav, WorkspaceToolbar } from './app-nav';
 
 export const dynamic = 'force-dynamic';
 
@@ -23,9 +23,10 @@ export const dynamic = 'force-dynamic';
  * administration.
  */
 export default async function AppLayout({ children }: { readonly children: ReactNode }) {
-  const isAdmin = await withSession(async ({ db, accountId, email }) =>
-    isPlatformAdmin(db, { accountId, email }),
-  );
+  const account = await withSession(async ({ db, accountId, email }) => ({
+    isAdmin: await isPlatformAdmin(db, { accountId, email }),
+    email,
+  }));
 
   return (
     <div className="app-frame">
@@ -36,7 +37,7 @@ export default async function AppLayout({ children }: { readonly children: React
             <Icon name="building" size={18} />
             Agency
           </Link>
-          {isAdmin ? (
+          {account.isAdmin ? (
             <Link href="/app/admin" className="btn btn-secondary nav-cta">
               <Icon name="settings" size={18} />
               Admin
@@ -55,7 +56,10 @@ export default async function AppLayout({ children }: { readonly children: React
           </form>
         </div>
       </AppNav>
-      <div className="app-main">{children}</div>
+      <div className="app-main">
+        <WorkspaceToolbar accountLabel={account.email} />
+        {children}
+      </div>
     </div>
   );
 }
