@@ -22,7 +22,7 @@ importers:
         specifier: 1.9.4
         version: 1.9.4
       postcss:
-        specifier: 8.5.26
+        specifier: '>=8.5.23'
         version: 8.5.26
       turbo:
         specifier: ^2.3.3
