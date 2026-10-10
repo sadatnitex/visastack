@@ -257,16 +257,13 @@ export default async function HomePage({ searchParams }: HomePageProps) {
             <aside className="hero-preview land-case" aria-label="Example of a case">
               <p className="hero-preview-tag">Example with made-up details</p>
               <div className="land-case-head">
+                <span className="land-passport" aria-hidden="true">
+                  <Icon name="file" size={28} />
+                </span>
                 <div>
                   <h2>Visitor visa, example traveller</h2>
                   <p className="muted land-case-count">2 of 4 requirements ready</p>
                 </div>
-                <div className="land-ring" aria-hidden="true">
-                  <span>50%</span>
-                </div>
-              </div>
-              <div className="meter land-case-meter" aria-hidden="true">
-                <div className="meter-fill" style={{ width: '50%' }} />
               </div>
               <div className="rows">
                 {PREVIEW_ROWS.map((row) => (
@@ -306,6 +303,27 @@ export default async function HomePage({ searchParams }: HomePageProps) {
               <p className="land-example-note">You can stop this at any time</p>
             </aside>
           </div>
+        </div>
+      </section>
+
+      <section className="land-summary" aria-labelledby="land-summary-title">
+        <div className="land-wrap land-summary-panel">
+          <div>
+            <p className="land-kicker">A better start</p>
+            <h2 id="land-summary-title">
+              Your next application
+              <br />
+              shouldn’t start <em>from zero.</em>
+            </h2>
+          </div>
+          <ul>
+            {AFTER.map((line) => (
+              <li key={line}>
+                <Icon name="check" size={18} />
+                {line}
+              </li>
+            ))}
+          </ul>
         </div>
       </section>
 
@@ -439,7 +457,7 @@ export default async function HomePage({ searchParams }: HomePageProps) {
         </div>
       </section>
 
-      <section className="land-section land-dark" aria-labelledby="land-trust-title">
+      <section className="land-section land-trust" aria-labelledby="land-trust-title">
         <div className="land-wrap">
           <div className="land-head">
             <p className="land-kicker">Trust, built in</p>
@@ -461,7 +479,7 @@ export default async function HomePage({ searchParams }: HomePageProps) {
               </li>
             ))}
           </ul>
-          <p className="land-dark-link">
+          <p className="land-trust-link">
             <Link href="/trust">Read our public trust page</Link>
           </p>
         </div>

@@ -24,3 +24,7 @@ Existing shared components cover page headings, next action, notices, status, me
 Refinement: light success text is #075D54 on #D9F3E9, and danger text is #963932 on #FBE9E5. White action text retains its accessible solid fills. Document search filters only the already-authorized metadata passed by the existing owner-scoped page. No search endpoint or wider data query is introduced. Safety badge tones come from the page's existing safety-label mapping; search never turns a blocked document into an available preview.
 
 Selected navigation and registration labels use the separate selected-text token (#075D54 light, #9AE0C9 dark) on the selected mint surfaces. Icons retain their existing accent; text is evaluated at the normal-text threshold.
+
+## Approved appearance correction, 2026-10-11
+
+Remove both automatic prefers-color-scheme dark override blocks. Keep color-scheme light and a fixed paper theme color. Separate paper public background, white surfaces, #fafaf7 workspace content and #f1f3ee sidebar. Retain deliberate #102937/#183844 navy accents, teal actions, mint selection and rust serif headlines. Shared AuthShell, AppNav, WorkspaceToolbar, SiteNavigation and trust story translate the original desktop proportions into purposeful tablet/phone reflow. No alternate dark theme is provided.

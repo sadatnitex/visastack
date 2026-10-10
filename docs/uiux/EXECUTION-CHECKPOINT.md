@@ -12,3 +12,9 @@ UI-08/09: responsive, accessibility, actual React fixtures and complete verifica
 Prior security deployment: native pgcrypto writes active on verified merge `7f9a9fe0ef1b9aef95c38bef9e48939284ec7535`; all required CI and deployment checks passed. R2 remains blocked by fresh 404 NoSuchBucket even with forcePathStyle already true. PDF worker activation, completed live backup and signed-in production acceptance remain separate outstanding public-beta items. Real-applicant gate remains disabled.
 
 Shipping checkpoint: final lint, production build, typecheck and 24 focused tests pass. The full workspace suite, final browser suite and exact-head CI remain pending. The owner requested an immediate push so CI can run alongside local verification; merge remains gated on those results. The final deployment outcome will be recorded on the release pull request.
+
+## Authoritative whole-product correction, 2026-10-11
+
+PR #187 is merged as `2f07d915c37d6ff5895bdad27f482cec8903ad12`. All required source and merge checks, deployment smoke checks, both production aliases and readiness were verified. That release does not meet the subsequent owner correction concerning automatic dark substitution.
+
+The correction uses that verified main baseline and the same designated branch. All ten original HTML sections were rendered and inspected before style edits. Forty baseline browser screenshots cover the ten mapped surfaces at 1600/1000 and 390/844 under light and dark device preferences. The correction covers all 52 pages through shared foundations and an incoming-reference guard. Final visual comparison, complete local checks and exact-head source/deployment verification remain release gates. The release pull request records their final results. Authenticated provider-backed acceptance remains independent.

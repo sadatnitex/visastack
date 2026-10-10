@@ -1,0 +1,1308 @@
+{
+  "pages": [
+    "/",
+    "/app",
+    "/app/account",
+    "/app/admin",
+    "/app/admin/access",
+    "/app/admin/ai-settings",
+    "/app/admin/audit",
+    "/app/admin/complaints",
+    "/app/admin/organizations",
+    "/app/admin/organizations/[orgId]",
+    "/app/admin/packs",
+    "/app/admin/packs/[packId]",
+    "/app/admin/packs/[packId]/diff",
+    "/app/admin/privacy",
+    "/app/agency",
+    "/app/agency/[orgId]",
+    "/app/agency/[orgId]/cases",
+    "/app/agency/[orgId]/clients",
+    "/app/agency/[orgId]/plan",
+    "/app/agency/[orgId]/settings",
+    "/app/agency/[orgId]/team",
+    "/app/applicant/[id]",
+    "/app/applicant/[id]/documents",
+    "/app/applicant/[id]/evidence",
+    "/app/applicant/[id]/expiry",
+    "/app/applicant/[id]/history",
+    "/app/applicant/[id]/missions",
+    "/app/applicant/[id]/profile",
+    "/app/applicant/[id]/sharing",
+    "/app/applicants",
+    "/app/client-invitations/accept",
+    "/app/contributor-requests/accept",
+    "/app/invitations/accept",
+    "/app/mission/[id]",
+    "/app/mission/[id]/snapshots/[snapshotId]",
+    "/app/notifications",
+    "/app/privacy",
+    "/app/shared",
+    "/app/shared/[grantId]",
+    "/auth/account-recovery",
+    "/auth/forgot-password",
+    "/auth/reauth",
+    "/auth/reset-password",
+    "/auth/sign-in",
+    "/auth/sign-up",
+    "/auth/verify-email",
+    "/pilot-access-denied",
+    "/privacy",
+    "/status",
+    "/terms",
+    "/trust",
+    "/trust/[packKey]"
+  ],
+  "references": [
+    {
+      "target": "/",
+      "file": "apps/web/src/lib/sign-out.ts",
+      "line": 14,
+      "kind": "redirect"
+    },
+    {
+      "target": "/auth/sign-in",
+      "file": "apps/web/src/lib/session.ts",
+      "line": 81,
+      "kind": "redirect"
+    },
+    {
+      "target": "/auth/verify-email",
+      "file": "apps/web/src/lib/session.ts",
+      "line": 82,
+      "kind": "redirect"
+    },
+    {
+      "target": "/app",
+      "file": "apps/web/src/lib/session.ts",
+      "line": 97,
+      "kind": "redirect"
+    },
+    {
+      "target": "/pilot-access-denied",
+      "file": "apps/web/src/lib/session.ts",
+      "line": 126,
+      "kind": "redirect"
+    },
+    {
+      "target": "/pilot-access-denied",
+      "file": "apps/web/src/lib/session.ts",
+      "line": 143,
+      "kind": "redirect"
+    },
+    {
+      "target": "/auth/account-recovery",
+      "file": "apps/web/src/lib/session.ts",
+      "line": 174,
+      "kind": "redirect"
+    },
+    {
+      "target": "/app",
+      "file": "apps/web/src/lib/navigation.ts",
+      "line": 23,
+      "kind": "destination"
+    },
+    {
+      "target": "/app/applicants",
+      "file": "apps/web/src/lib/navigation.ts",
+      "line": 25,
+      "kind": "destination"
+    },
+    {
+      "target": "/app/shared",
+      "file": "apps/web/src/lib/navigation.ts",
+      "line": 30,
+      "kind": "destination"
+    },
+    {
+      "target": "/app/notifications",
+      "file": "apps/web/src/lib/navigation.ts",
+      "line": 31,
+      "kind": "destination"
+    },
+    {
+      "target": "/app/privacy",
+      "file": "apps/web/src/lib/navigation.ts",
+      "line": 32,
+      "kind": "destination"
+    },
+    {
+      "target": "/app/account",
+      "file": "apps/web/src/lib/navigation.ts",
+      "line": 33,
+      "kind": "destination"
+    },
+    {
+      "target": "/app/applicant/*",
+      "file": "apps/web/src/lib/navigation.ts",
+      "line": 45,
+      "kind": "destination"
+    },
+    {
+      "target": "/app/applicant/*/profile",
+      "file": "apps/web/src/lib/navigation.ts",
+      "line": 46,
+      "kind": "destination"
+    },
+    {
+      "target": "/app/applicant/*/documents",
+      "file": "apps/web/src/lib/navigation.ts",
+      "line": 47,
+      "kind": "destination"
+    },
+    {
+      "target": "/app/applicant/*/missions",
+      "file": "apps/web/src/lib/navigation.ts",
+      "line": 48,
+      "kind": "destination"
+    },
+    {
+      "target": "/app/applicant/*/sharing",
+      "file": "apps/web/src/lib/navigation.ts",
+      "line": 49,
+      "kind": "destination"
+    },
+    {
+      "target": "/app/applicant/*/evidence",
+      "file": "apps/web/src/lib/navigation.ts",
+      "line": 50,
+      "kind": "destination"
+    },
+    {
+      "target": "/app/applicant/*/expiry",
+      "file": "apps/web/src/lib/navigation.ts",
+      "line": 51,
+      "kind": "destination"
+    },
+    {
+      "target": "/app/applicant/*/history",
+      "file": "apps/web/src/lib/navigation.ts",
+      "line": 52,
+      "kind": "destination"
+    },
+    {
+      "target": "/app/agency/*",
+      "file": "apps/web/src/lib/navigation.ts",
+      "line": 65,
+      "kind": "destination"
+    },
+    {
+      "target": "/app/agency/*/clients",
+      "file": "apps/web/src/lib/navigation.ts",
+      "line": 66,
+      "kind": "destination"
+    },
+    {
+      "target": "/app/agency/*/cases",
+      "file": "apps/web/src/lib/navigation.ts",
+      "line": 67,
+      "kind": "destination"
+    },
+    {
+      "target": "/app/agency/*/team",
+      "file": "apps/web/src/lib/navigation.ts",
+      "line": 68,
+      "kind": "destination"
+    },
+    {
+      "target": "/app/agency/*/plan",
+      "file": "apps/web/src/lib/navigation.ts",
+      "line": 69,
+      "kind": "destination"
+    },
+    {
+      "target": "/app/agency/*/settings",
+      "file": "apps/web/src/lib/navigation.ts",
+      "line": 70,
+      "kind": "destination"
+    },
+    {
+      "target": "/app/admin/organizations",
+      "file": "apps/web/src/lib/navigation.ts",
+      "line": 91,
+      "kind": "destination"
+    },
+    {
+      "target": "/app/admin/packs",
+      "file": "apps/web/src/lib/navigation.ts",
+      "line": 92,
+      "kind": "destination"
+    },
+    {
+      "target": "/app/admin/ai-settings",
+      "file": "apps/web/src/lib/navigation.ts",
+      "line": 93,
+      "kind": "destination"
+    },
+    {
+      "target": "/app/admin",
+      "file": "apps/web/src/lib/navigation.ts",
+      "line": 94,
+      "kind": "destination"
+    },
+    {
+      "target": "/app/admin/privacy",
+      "file": "apps/web/src/lib/navigation.ts",
+      "line": 95,
+      "kind": "destination"
+    },
+    {
+      "target": "/app/admin/audit",
+      "file": "apps/web/src/lib/navigation.ts",
+      "line": 96,
+      "kind": "destination"
+    },
+    {
+      "target": "/app/admin/access",
+      "file": "apps/web/src/lib/navigation.ts",
+      "line": 97,
+      "kind": "destination"
+    },
+    {
+      "target": "/app/admin/complaints",
+      "file": "apps/web/src/lib/navigation.ts",
+      "line": 98,
+      "kind": "destination"
+    },
+    {
+      "target": "/app",
+      "file": "apps/web/src/components/public-trust-story.tsx",
+      "line": 19,
+      "kind": "link"
+    },
+    {
+      "target": "/privacy",
+      "file": "apps/web/src/components/public-trust-story.tsx",
+      "line": 111,
+      "kind": "link"
+    },
+    {
+      "target": "/trust",
+      "file": "apps/web/src/components/trust-unavailable.tsx",
+      "line": 24,
+      "kind": "link"
+    },
+    {
+      "target": "/",
+      "file": "apps/web/src/components/trust-unavailable.tsx",
+      "line": 27,
+      "kind": "link"
+    },
+    {
+      "target": "/status",
+      "file": "apps/web/src/components/pilot-banner.tsx",
+      "line": 60,
+      "kind": "link"
+    },
+    {
+      "target": "/trust/*",
+      "file": "apps/web/src/app/trust/page.tsx",
+      "line": 59,
+      "kind": "link"
+    },
+    {
+      "target": "/trust",
+      "file": "apps/web/src/app/trust/[packKey]/page.tsx",
+      "line": 78,
+      "kind": "destination"
+    },
+    {
+      "target": "/privacy",
+      "file": "apps/web/src/app/terms/page.tsx",
+      "line": 38,
+      "kind": "link"
+    },
+    {
+      "target": "/auth/sign-up",
+      "file": "apps/web/src/app/terms/page.tsx",
+      "line": 39,
+      "kind": "link"
+    },
+    {
+      "target": "/app/privacy",
+      "file": "apps/web/src/app/privacy/page.tsx",
+      "line": 40,
+      "kind": "link"
+    },
+    {
+      "target": "/terms",
+      "file": "apps/web/src/app/privacy/page.tsx",
+      "line": 53,
+      "kind": "link"
+    },
+    {
+      "target": "/auth/sign-up",
+      "file": "apps/web/src/app/privacy/page.tsx",
+      "line": 54,
+      "kind": "link"
+    },
+    {
+      "target": "/",
+      "file": "apps/web/src/app/pilot-access-denied/page.tsx",
+      "line": 59,
+      "kind": "link"
+    },
+    {
+      "target": "/",
+      "file": "apps/web/src/app/error.tsx",
+      "line": 38,
+      "kind": "link"
+    },
+    {
+      "target": "/status",
+      "file": "apps/web/src/app/page.tsx",
+      "line": 242,
+      "kind": "link"
+    },
+    {
+      "target": "/trust",
+      "file": "apps/web/src/app/page.tsx",
+      "line": 483,
+      "kind": "link"
+    },
+    {
+      "target": "/status",
+      "file": "apps/web/src/app/page.tsx",
+      "line": 531,
+      "kind": "link"
+    },
+    {
+      "target": "/app",
+      "file": "apps/web/src/app/not-found.tsx",
+      "line": 27,
+      "kind": "link"
+    },
+    {
+      "target": "/",
+      "file": "apps/web/src/app/not-found.tsx",
+      "line": 30,
+      "kind": "link"
+    },
+    {
+      "target": "/",
+      "file": "apps/web/src/app/layout.tsx",
+      "line": 63,
+      "kind": "link"
+    },
+    {
+      "target": "/",
+      "file": "apps/web/src/app/layout.tsx",
+      "line": 69,
+      "kind": "link"
+    },
+    {
+      "target": "/",
+      "file": "apps/web/src/app/layout.tsx",
+      "line": 70,
+      "kind": "link"
+    },
+    {
+      "target": "/trust",
+      "file": "apps/web/src/app/layout.tsx",
+      "line": 71,
+      "kind": "link"
+    },
+    {
+      "target": "/",
+      "file": "apps/web/src/app/layout.tsx",
+      "line": 72,
+      "kind": "link"
+    },
+    {
+      "target": "/app",
+      "file": "apps/web/src/app/layout.tsx",
+      "line": 82,
+      "kind": "link"
+    },
+    {
+      "target": "/auth/sign-up",
+      "file": "apps/web/src/app/layout.tsx",
+      "line": 86,
+      "kind": "link"
+    },
+    {
+      "target": "/",
+      "file": "apps/web/src/app/layout.tsx",
+      "line": 98,
+      "kind": "link"
+    },
+    {
+      "target": "/trust",
+      "file": "apps/web/src/app/layout.tsx",
+      "line": 99,
+      "kind": "link"
+    },
+    {
+      "target": "/status",
+      "file": "apps/web/src/app/layout.tsx",
+      "line": 100,
+      "kind": "link"
+    },
+    {
+      "target": "/privacy",
+      "file": "apps/web/src/app/layout.tsx",
+      "line": 101,
+      "kind": "link"
+    },
+    {
+      "target": "/terms",
+      "file": "apps/web/src/app/layout.tsx",
+      "line": 102,
+      "kind": "link"
+    },
+    {
+      "target": "/app",
+      "file": "apps/web/src/app/layout.tsx",
+      "line": 105,
+      "kind": "link"
+    },
+    {
+      "target": "/auth/sign-in",
+      "file": "apps/web/src/app/callback/route.ts",
+      "line": 9,
+      "kind": "url"
+    },
+    {
+      "target": "/",
+      "file": "apps/web/src/app/callback/route.ts",
+      "line": 19,
+      "kind": "url"
+    },
+    {
+      "target": "/app/shared/*",
+      "file": "apps/web/src/app/app/shared/page.tsx",
+      "line": 87,
+      "kind": "link"
+    },
+    {
+      "target": "/app/shared",
+      "file": "apps/web/src/app/app/shared/[grantId]/page.tsx",
+      "line": 31,
+      "kind": "link"
+    },
+    {
+      "target": "/app/privacy/export",
+      "file": "apps/web/src/app/app/privacy/page.tsx",
+      "line": 89,
+      "kind": "link"
+    },
+    {
+      "target": "/app/privacy/export",
+      "file": "apps/web/src/app/app/privacy/page.tsx",
+      "line": 92,
+      "kind": "link"
+    },
+    {
+      "target": "/app/privacy/large-export/*/download",
+      "file": "apps/web/src/app/app/privacy/large-export-panel.tsx",
+      "line": 42,
+      "kind": "link"
+    },
+    {
+      "target": "/app/applicant/*",
+      "file": "apps/web/src/app/app/client-invitations/accept/actions.ts",
+      "line": 40,
+      "kind": "redirect"
+    },
+    {
+      "target": "/auth/sign-in",
+      "file": "apps/web/src/app/auth/verify-email/page.tsx",
+      "line": 49,
+      "kind": "link"
+    },
+    {
+      "target": "/terms",
+      "file": "apps/web/src/app/auth/sign-up/page.tsx",
+      "line": 66,
+      "kind": "link"
+    },
+    {
+      "target": "/privacy",
+      "file": "apps/web/src/app/auth/sign-up/page.tsx",
+      "line": 67,
+      "kind": "link"
+    },
+    {
+      "target": "/auth/sign-in",
+      "file": "apps/web/src/app/auth/sign-up/page.tsx",
+      "line": 83,
+      "kind": "link"
+    },
+    {
+      "target": "/app/applicant/*",
+      "file": "apps/web/src/app/app/applicants/page.tsx",
+      "line": 47,
+      "kind": "link"
+    },
+    {
+      "target": "/app",
+      "file": "apps/web/src/app/app/applicants/page.tsx",
+      "line": 70,
+      "kind": "link"
+    },
+    {
+      "target": "/app/privacy/export",
+      "file": "apps/web/src/app/app/privacy/deletion-panel.tsx",
+      "line": 136,
+      "kind": "link"
+    },
+    {
+      "target": "/auth/forgot-password",
+      "file": "apps/web/src/app/auth/sign-in/page.tsx",
+      "line": 64,
+      "kind": "link"
+    },
+    {
+      "target": "/auth/sign-up",
+      "file": "apps/web/src/app/auth/sign-in/page.tsx",
+      "line": 67,
+      "kind": "link"
+    },
+    {
+      "target": "/app/applicant/*/evidence",
+      "file": "apps/web/src/app/app/page.tsx",
+      "line": 87,
+      "kind": "destination"
+    },
+    {
+      "target": "/app/applicant/*/documents",
+      "file": "apps/web/src/app/app/page.tsx",
+      "line": 97,
+      "kind": "destination"
+    },
+    {
+      "target": "/app/shared",
+      "file": "apps/web/src/app/app/page.tsx",
+      "line": 111,
+      "kind": "destination"
+    },
+    {
+      "target": "/app/applicants",
+      "file": "apps/web/src/app/app/page.tsx",
+      "line": 150,
+      "kind": "destination"
+    },
+    {
+      "target": "/app/applicants",
+      "file": "apps/web/src/app/app/page.tsx",
+      "line": 203,
+      "kind": "destination"
+    },
+    {
+      "target": "/app/applicants",
+      "file": "apps/web/src/app/app/page.tsx",
+      "line": 249,
+      "kind": "destination"
+    },
+    {
+      "target": "/app/applicant/*",
+      "file": "apps/web/src/app/app/page.tsx",
+      "line": 258,
+      "kind": "link"
+    },
+    {
+      "target": "/auth/forgot-password",
+      "file": "apps/web/src/app/auth/reset-password/page.tsx",
+      "line": 30,
+      "kind": "link"
+    },
+    {
+      "target": "/app",
+      "file": "apps/web/src/app/app/applicant/[id]/profile/page.tsx",
+      "line": 128,
+      "kind": "link"
+    },
+    {
+      "target": "/auth/sign-in",
+      "file": "apps/web/src/app/auth/forgot-password/page.tsx",
+      "line": 50,
+      "kind": "link"
+    },
+    {
+      "target": "/app",
+      "file": "apps/web/src/app/app/applicant/[id]/page.tsx",
+      "line": 78,
+      "kind": "destination"
+    },
+    {
+      "target": "/app/applicant/*/evidence",
+      "file": "apps/web/src/app/app/applicant/[id]/page.tsx",
+      "line": 85,
+      "kind": "destination"
+    },
+    {
+      "target": "/app/applicant/*/documents",
+      "file": "apps/web/src/app/app/applicant/[id]/page.tsx",
+      "line": 92,
+      "kind": "destination"
+    },
+    {
+      "target": "/app/applicant/*/documents",
+      "file": "apps/web/src/app/app/applicant/[id]/page.tsx",
+      "line": 99,
+      "kind": "destination"
+    },
+    {
+      "target": "/app/applicant/*/profile",
+      "file": "apps/web/src/app/app/applicant/[id]/page.tsx",
+      "line": 106,
+      "kind": "destination"
+    },
+    {
+      "target": "/app/applicant/*/missions",
+      "file": "apps/web/src/app/app/applicant/[id]/page.tsx",
+      "line": 112,
+      "kind": "destination"
+    },
+    {
+      "target": "/app/mission/*",
+      "file": "apps/web/src/app/app/applicant/[id]/page.tsx",
+      "line": 143,
+      "kind": "link"
+    },
+    {
+      "target": "/app/applicant/*/missions",
+      "file": "apps/web/src/app/app/applicant/[id]/page.tsx",
+      "line": 152,
+      "kind": "link"
+    },
+    {
+      "target": "/app/applicant/*/profile",
+      "file": "apps/web/src/app/app/applicant/[id]/page.tsx",
+      "line": 172,
+      "kind": "link"
+    },
+    {
+      "target": "/app/applicant/*/documents",
+      "file": "apps/web/src/app/app/applicant/[id]/page.tsx",
+      "line": 197,
+      "kind": "link"
+    },
+    {
+      "target": "/app/applicant/*/sharing",
+      "file": "apps/web/src/app/app/applicant/[id]/page.tsx",
+      "line": 216,
+      "kind": "link"
+    },
+    {
+      "target": "/",
+      "file": "apps/web/src/app/auth/auth-ui.tsx",
+      "line": 11,
+      "kind": "link"
+    },
+    {
+      "target": "/",
+      "file": "apps/web/src/app/auth/auth-ui.tsx",
+      "line": 33,
+      "kind": "link"
+    },
+    {
+      "target": "/privacy",
+      "file": "apps/web/src/app/auth/auth-ui.tsx",
+      "line": 34,
+      "kind": "link"
+    },
+    {
+      "target": "/terms",
+      "file": "apps/web/src/app/auth/auth-ui.tsx",
+      "line": 35,
+      "kind": "link"
+    },
+    {
+      "target": "/app",
+      "file": "apps/web/src/app/app/applicant/[id]/documents/page.tsx",
+      "line": 232,
+      "kind": "link"
+    },
+    {
+      "target": "/app",
+      "file": "apps/web/src/app/app/applicant/[id]/documents/page.tsx",
+      "line": 241,
+      "kind": "link"
+    },
+    {
+      "target": "/app",
+      "file": "apps/web/src/app/app/applicant/[id]/documents/page.tsx",
+      "line": 251,
+      "kind": "link"
+    },
+    {
+      "target": "/",
+      "file": "apps/web/src/app/auth/actions.ts",
+      "line": 39,
+      "kind": "redirect"
+    },
+    {
+      "target": "/auth/sign-in",
+      "file": "apps/web/src/app/auth/actions.ts",
+      "line": 56,
+      "kind": "redirect"
+    },
+    {
+      "target": "/auth/sign-in",
+      "file": "apps/web/src/app/auth/actions.ts",
+      "line": 63,
+      "kind": "redirect"
+    },
+    {
+      "target": "/auth/verify-email",
+      "file": "apps/web/src/app/auth/actions.ts",
+      "line": 67,
+      "kind": "redirect"
+    },
+    {
+      "target": "/auth/sign-in",
+      "file": "apps/web/src/app/auth/actions.ts",
+      "line": 68,
+      "kind": "redirect"
+    },
+    {
+      "target": "/auth/sign-up",
+      "file": "apps/web/src/app/auth/actions.ts",
+      "line": 78,
+      "kind": "redirect"
+    },
+    {
+      "target": "/auth/sign-up",
+      "file": "apps/web/src/app/auth/actions.ts",
+      "line": 79,
+      "kind": "redirect"
+    },
+    {
+      "target": "/auth/sign-up",
+      "file": "apps/web/src/app/auth/actions.ts",
+      "line": 80,
+      "kind": "redirect"
+    },
+    {
+      "target": "/auth/sign-up",
+      "file": "apps/web/src/app/auth/actions.ts",
+      "line": 82,
+      "kind": "redirect"
+    },
+    {
+      "target": "/auth/sign-up",
+      "file": "apps/web/src/app/auth/actions.ts",
+      "line": 89,
+      "kind": "redirect"
+    },
+    {
+      "target": "/auth/sign-up",
+      "file": "apps/web/src/app/auth/actions.ts",
+      "line": 90,
+      "kind": "redirect"
+    },
+    {
+      "target": "/auth/sign-in",
+      "file": "apps/web/src/app/auth/actions.ts",
+      "line": 96,
+      "kind": "destination"
+    },
+    {
+      "target": "/auth/sign-up",
+      "file": "apps/web/src/app/auth/actions.ts",
+      "line": 98,
+      "kind": "redirect"
+    },
+    {
+      "target": "/auth/verify-email",
+      "file": "apps/web/src/app/auth/actions.ts",
+      "line": 99,
+      "kind": "redirect"
+    },
+    {
+      "target": "/auth/verify-email",
+      "file": "apps/web/src/app/auth/actions.ts",
+      "line": 106,
+      "kind": "redirect"
+    },
+    {
+      "target": "/auth/verify-email",
+      "file": "apps/web/src/app/auth/actions.ts",
+      "line": 113,
+      "kind": "redirect"
+    },
+    {
+      "target": "/auth/sign-in",
+      "file": "apps/web/src/app/auth/actions.ts",
+      "line": 117,
+      "kind": "destination"
+    },
+    {
+      "target": "/auth/verify-email",
+      "file": "apps/web/src/app/auth/actions.ts",
+      "line": 119,
+      "kind": "redirect"
+    },
+    {
+      "target": "/auth/forgot-password",
+      "file": "apps/web/src/app/auth/actions.ts",
+      "line": 126,
+      "kind": "redirect"
+    },
+    {
+      "target": "/auth/forgot-password",
+      "file": "apps/web/src/app/auth/actions.ts",
+      "line": 133,
+      "kind": "redirect"
+    },
+    {
+      "target": "/auth/reset-password",
+      "file": "apps/web/src/app/auth/actions.ts",
+      "line": 137,
+      "kind": "destination"
+    },
+    {
+      "target": "/auth/forgot-password",
+      "file": "apps/web/src/app/auth/actions.ts",
+      "line": 139,
+      "kind": "redirect"
+    },
+    {
+      "target": "/auth/forgot-password",
+      "file": "apps/web/src/app/auth/actions.ts",
+      "line": 148,
+      "kind": "redirect"
+    },
+    {
+      "target": "/auth/reset-password",
+      "file": "apps/web/src/app/auth/actions.ts",
+      "line": 150,
+      "kind": "redirect"
+    },
+    {
+      "target": "/auth/reset-password",
+      "file": "apps/web/src/app/auth/actions.ts",
+      "line": 151,
+      "kind": "redirect"
+    },
+    {
+      "target": "/auth/forgot-password",
+      "file": "apps/web/src/app/auth/actions.ts",
+      "line": 154,
+      "kind": "redirect"
+    },
+    {
+      "target": "/auth/sign-in",
+      "file": "apps/web/src/app/auth/actions.ts",
+      "line": 155,
+      "kind": "redirect"
+    },
+    {
+      "target": "/auth/reauth",
+      "file": "apps/web/src/app/auth/actions.ts",
+      "line": 164,
+      "kind": "redirect"
+    },
+    {
+      "target": "/auth/sign-in",
+      "file": "apps/web/src/app/auth/actions.ts",
+      "line": 169,
+      "kind": "redirect"
+    },
+    {
+      "target": "/auth/reauth",
+      "file": "apps/web/src/app/auth/actions.ts",
+      "line": 176,
+      "kind": "redirect"
+    },
+    {
+      "target": "/auth/reauth",
+      "file": "apps/web/src/app/auth/actions.ts",
+      "line": 178,
+      "kind": "redirect"
+    },
+    {
+      "target": "/app/applicant/*/documents",
+      "file": "apps/web/src/app/app/applicant/[id]/actions.ts",
+      "line": 400,
+      "kind": "redirect"
+    },
+    {
+      "target": "/app/applicant/*/documents",
+      "file": "apps/web/src/app/app/applicant/[id]/actions.ts",
+      "line": 423,
+      "kind": "redirect"
+    },
+    {
+      "target": "/app/applicant/*/documents",
+      "file": "apps/web/src/app/app/applicant/[id]/actions.ts",
+      "line": 424,
+      "kind": "redirect"
+    },
+    {
+      "target": "/",
+      "file": "apps/web/src/app/app/app-nav.tsx",
+      "line": 83,
+      "kind": "link"
+    },
+    {
+      "target": "/app/account",
+      "file": "apps/web/src/app/app/app-nav.tsx",
+      "line": 88,
+      "kind": "link"
+    },
+    {
+      "target": "/app/agency",
+      "file": "apps/web/src/app/app/app-nav.tsx",
+      "line": 142,
+      "kind": "destination"
+    },
+    {
+      "target": "/app/admin",
+      "file": "apps/web/src/app/app/app-nav.tsx",
+      "line": 143,
+      "kind": "destination"
+    },
+    {
+      "target": "/",
+      "file": "apps/web/src/app/app/app-nav.tsx",
+      "line": 168,
+      "kind": "link"
+    },
+    {
+      "target": "/status",
+      "file": "apps/web/src/app/app/app-nav.tsx",
+      "line": 204,
+      "kind": "link"
+    },
+    {
+      "target": "/app/notifications",
+      "file": "apps/web/src/app/app/app-nav.tsx",
+      "line": 207,
+      "kind": "link"
+    },
+    {
+      "target": "/app/account",
+      "file": "apps/web/src/app/app/app-nav.tsx",
+      "line": 210,
+      "kind": "link"
+    },
+    {
+      "target": "/",
+      "file": "apps/web/src/app/auth/account-recovery/page.tsx",
+      "line": 31,
+      "kind": "link"
+    },
+    {
+      "target": "/app/mission/*/appointments/*/ics",
+      "file": "apps/web/src/app/app/mission/[id]/collaboration-panels.tsx",
+      "line": 248,
+      "kind": "link"
+    },
+    {
+      "target": "/app/agency/*",
+      "file": "apps/web/src/app/app/agency/page.tsx",
+      "line": 53,
+      "kind": "link"
+    },
+    {
+      "target": "/app/agency/*",
+      "file": "apps/web/src/app/app/agency/actions.ts",
+      "line": 32,
+      "kind": "redirect"
+    },
+    {
+      "target": "/app/mission/*",
+      "file": "apps/web/src/app/app/applicant/[id]/missions/page.tsx",
+      "line": 70,
+      "kind": "link"
+    },
+    {
+      "target": "/app/mission/*",
+      "file": "apps/web/src/app/app/applicant/[id]/missions/actions.ts",
+      "line": 60,
+      "kind": "redirect"
+    },
+    {
+      "target": "/app/mission/*",
+      "file": "apps/web/src/app/app/mission/[id]/snapshots/[snapshotId]/page.tsx",
+      "line": 131,
+      "kind": "destination"
+    },
+    {
+      "target": "/app/mission/*/snapshots/*/download",
+      "file": "apps/web/src/app/app/mission/[id]/snapshots/[snapshotId]/page.tsx",
+      "line": 138,
+      "kind": "link"
+    },
+    {
+      "target": "/app/applicant/*/missions",
+      "file": "apps/web/src/app/app/mission/[id]/page.tsx",
+      "line": 531,
+      "kind": "destination"
+    },
+    {
+      "target": "/app/applicant/*/profile",
+      "file": "apps/web/src/app/app/mission/[id]/page.tsx",
+      "line": 681,
+      "kind": "link"
+    },
+    {
+      "target": "/app/mission/*/snapshots/*",
+      "file": "apps/web/src/app/app/mission/[id]/page.tsx",
+      "line": 959,
+      "kind": "link"
+    },
+    {
+      "target": "/app/mission/*",
+      "file": "apps/web/src/app/app/mission/[id]/page.tsx",
+      "line": 996,
+      "kind": "link"
+    },
+    {
+      "target": "/app/agency/*/export",
+      "file": "apps/web/src/app/app/agency/[orgId]/settings/page.tsx",
+      "line": 92,
+      "kind": "link"
+    },
+    {
+      "target": "/app/agency/*/clients",
+      "file": "apps/web/src/app/app/agency/[orgId]/page.tsx",
+      "line": 104,
+      "kind": "destination"
+    },
+    {
+      "target": "/app/agency/*/cases",
+      "file": "apps/web/src/app/app/agency/[orgId]/page.tsx",
+      "line": 111,
+      "kind": "destination"
+    },
+    {
+      "target": "/app/agency/*/clients",
+      "file": "apps/web/src/app/app/agency/[orgId]/page.tsx",
+      "line": 118,
+      "kind": "destination"
+    },
+    {
+      "target": "/app/agency/*/team",
+      "file": "apps/web/src/app/app/agency/[orgId]/page.tsx",
+      "line": 125,
+      "kind": "destination"
+    },
+    {
+      "target": "/app/agency/*",
+      "file": "apps/web/src/app/app/agency/[orgId]/page.tsx",
+      "line": 252,
+      "kind": "link"
+    },
+    {
+      "target": "/app/agency/*/cases",
+      "file": "apps/web/src/app/app/agency/[orgId]/page.tsx",
+      "line": 315,
+      "kind": "link"
+    },
+    {
+      "target": "/app/agency/*/cases",
+      "file": "apps/web/src/app/app/agency/[orgId]/page.tsx",
+      "line": 420,
+      "kind": "link"
+    },
+    {
+      "target": "/app/agency",
+      "file": "apps/web/src/app/app/agency/[orgId]/layout.tsx",
+      "line": 57,
+      "kind": "destination"
+    },
+    {
+      "target": "/app/applicant/*/profile",
+      "file": "apps/web/src/app/app/applicant/[id]/history/page.tsx",
+      "line": 101,
+      "kind": "destination"
+    },
+    {
+      "target": "/app/mission/*",
+      "file": "apps/web/src/app/app/applicant/[id]/history/page.tsx",
+      "line": 131,
+      "kind": "link"
+    },
+    {
+      "target": "/app/agency/*/cases",
+      "file": "apps/web/src/app/app/agency/[orgId]/clients/page.tsx",
+      "line": 178,
+      "kind": "link"
+    },
+    {
+      "target": "/app",
+      "file": "apps/web/src/app/app/applicant/[id]/download-actions.ts",
+      "line": 27,
+      "kind": "redirect"
+    },
+    {
+      "target": "/app/applicant/*/documents",
+      "file": "apps/web/src/app/app/applicant/[id]/download-actions.ts",
+      "line": 30,
+      "kind": "redirect"
+    },
+    {
+      "target": "/app/agency",
+      "file": "apps/web/src/app/app/layout.tsx",
+      "line": 36,
+      "kind": "link"
+    },
+    {
+      "target": "/app/admin",
+      "file": "apps/web/src/app/app/layout.tsx",
+      "line": 41,
+      "kind": "link"
+    },
+    {
+      "target": "/app/applicant/*/profile",
+      "file": "apps/web/src/app/app/applicant/[id]/evidence/submit-response-form.tsx",
+      "line": 53,
+      "kind": "link"
+    },
+    {
+      "target": "/app/applicant/*/documents",
+      "file": "apps/web/src/app/app/applicant/[id]/evidence/submit-response-form.tsx",
+      "line": 62,
+      "kind": "link"
+    },
+    {
+      "target": "/app/contributor-requests/accept",
+      "file": "apps/web/src/app/app/mission/[id]/actions.ts",
+      "line": 395,
+      "kind": "email-acceptance"
+    },
+    {
+      "target": "/app/agency/*/clients",
+      "file": "apps/web/src/app/app/agency/[orgId]/cases/page.tsx",
+      "line": 48,
+      "kind": "destination"
+    },
+    {
+      "target": "/app/agency/*",
+      "file": "apps/web/src/app/app/agency/[orgId]/case-search-form.tsx",
+      "line": 52,
+      "kind": "link"
+    },
+    {
+      "target": "/app/agency/*",
+      "file": "apps/web/src/app/app/agency/[orgId]/case-search-form.tsx",
+      "line": 112,
+      "kind": "link"
+    },
+    {
+      "target": "/app/invitations/accept",
+      "file": "apps/web/src/app/app/agency/[orgId]/actions.ts",
+      "line": 263,
+      "kind": "email-acceptance"
+    },
+    {
+      "target": "/app/client-invitations/accept",
+      "file": "apps/web/src/app/app/agency/[orgId]/actions.ts",
+      "line": 329,
+      "kind": "email-acceptance"
+    },
+    {
+      "target": "/app/agency/*",
+      "file": "apps/web/src/app/app/invitations/accept/actions.ts",
+      "line": 30,
+      "kind": "redirect"
+    },
+    {
+      "target": "/app/privacy",
+      "file": "apps/web/src/app/app/account/page.tsx",
+      "line": 50,
+      "kind": "link"
+    },
+    {
+      "target": "/app/agency",
+      "file": "apps/web/src/app/app/account/page.tsx",
+      "line": 61,
+      "kind": "link"
+    },
+    {
+      "target": "/app/admin",
+      "file": "apps/web/src/app/app/account/page.tsx",
+      "line": 69,
+      "kind": "link"
+    },
+    {
+      "target": "/app/admin",
+      "file": "apps/web/src/app/app/admin/complaints/page.tsx",
+      "line": 71,
+      "kind": "link"
+    },
+    {
+      "target": "/status",
+      "file": "apps/web/src/app/app/admin/page.tsx",
+      "line": 170,
+      "kind": "link"
+    },
+    {
+      "target": "/app/admin",
+      "file": "apps/web/src/app/app/admin/ai-settings/page.tsx",
+      "line": 79,
+      "kind": "link"
+    },
+    {
+      "target": "/app/admin/packs/*",
+      "file": "apps/web/src/app/app/admin/packs/actions.ts",
+      "line": 77,
+      "kind": "redirect"
+    },
+    {
+      "target": "/app/admin",
+      "file": "apps/web/src/app/app/admin/packs/page.tsx",
+      "line": 34,
+      "kind": "link"
+    },
+    {
+      "target": "/app/admin/packs/*",
+      "file": "apps/web/src/app/app/admin/packs/page.tsx",
+      "line": 58,
+      "kind": "link"
+    },
+    {
+      "target": "/app/admin/packs/*",
+      "file": "apps/web/src/app/app/admin/packs/page.tsx",
+      "line": 90,
+      "kind": "link"
+    },
+    {
+      "target": "/trust/*",
+      "file": "apps/web/src/app/app/admin/packs/page.tsx",
+      "line": 123,
+      "kind": "link"
+    },
+    {
+      "target": "/app/admin/organizations/*",
+      "file": "apps/web/src/app/app/admin/organizations/page.tsx",
+      "line": 99,
+      "kind": "link"
+    },
+    {
+      "target": "/app/admin/organizations",
+      "file": "apps/web/src/app/app/admin/organizations/[orgId]/page.tsx",
+      "line": 153,
+      "kind": "link"
+    },
+    {
+      "target": "/app/admin/packs",
+      "file": "apps/web/src/app/app/admin/packs/[packId]/page.tsx",
+      "line": 79,
+      "kind": "destination"
+    },
+    {
+      "target": "/trust/*",
+      "file": "apps/web/src/app/app/admin/packs/[packId]/page.tsx",
+      "line": 305,
+      "kind": "link"
+    },
+    {
+      "target": "/app/admin/packs/*/diff",
+      "file": "apps/web/src/app/app/admin/packs/[packId]/page.tsx",
+      "line": 330,
+      "kind": "link"
+    },
+    {
+      "target": "/app/admin/packs/*",
+      "file": "apps/web/src/app/app/admin/packs/[packId]/diff/page.tsx",
+      "line": 60,
+      "kind": "destination"
+    }
+  ],
+  "invalid": [],
+  "uncovered": []
+}

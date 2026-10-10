@@ -15,3 +15,7 @@
 Hover, pressed, selected, disabled and explicit outline focus states are shared. Disabled controls retain readable opaque text. Existing live regions, field-level errors, retry and submission feedback remain. No simulated server persistence is used in production. Test fixture action stubs report no saved data or granted access.
 
 Document search: matching authorized names update the selectable metadata, no matches explain how to clear/retry, and no preview form or document bytes appear for an empty result. Clearing restores the original authorized selection list. Quarantine retains its existing danger tone. Public registration-open copy is driven by the existing flag in every affected home section, with the real-applicant restriction retained.
+
+## Navigation correction, 2026-10-11
+
+Public menu: closed/open, first-link focus, Escape restoration, same-page anchor and route close. Page finder: authorized destination set, matching labels, explicit no-results state, Escape clear and visible desktop keyboard shortcut. Public trust: illustrated explanation plus actual catalog/explicit unavailable state. Conditional invitation and comparison entry points remain conditional; no unrestricted menu or permission bypass is introduced.

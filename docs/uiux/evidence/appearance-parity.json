@@ -1,0 +1,122 @@
+[
+  {
+    "screen": "01-home",
+    "width": 1600,
+    "identicalPixels": true,
+    "changedBounds": null
+  },
+  {
+    "screen": "01-home",
+    "width": 390,
+    "identicalPixels": true,
+    "changedBounds": null
+  },
+  {
+    "screen": "02-trust",
+    "width": 1600,
+    "identicalPixels": true,
+    "changedBounds": null
+  },
+  {
+    "screen": "02-trust",
+    "width": 390,
+    "identicalPixels": true,
+    "changedBounds": null
+  },
+  {
+    "screen": "03-signup",
+    "width": 1600,
+    "identicalPixels": true,
+    "changedBounds": null
+  },
+  {
+    "screen": "03-signup",
+    "width": 390,
+    "identicalPixels": true,
+    "changedBounds": null
+  },
+  {
+    "screen": "04-overview",
+    "width": 1600,
+    "identicalPixels": true,
+    "changedBounds": null
+  },
+  {
+    "screen": "04-overview",
+    "width": 390,
+    "identicalPixels": true,
+    "changedBounds": null
+  },
+  {
+    "screen": "05-profile",
+    "width": 1600,
+    "identicalPixels": true,
+    "changedBounds": null
+  },
+  {
+    "screen": "05-profile",
+    "width": 390,
+    "identicalPixels": true,
+    "changedBounds": null
+  },
+  {
+    "screen": "06-documents",
+    "width": 1600,
+    "identicalPixels": true,
+    "changedBounds": null
+  },
+  {
+    "screen": "06-documents",
+    "width": 390,
+    "identicalPixels": true,
+    "changedBounds": null
+  },
+  {
+    "screen": "07-case",
+    "width": 1600,
+    "identicalPixels": true,
+    "changedBounds": null
+  },
+  {
+    "screen": "07-case",
+    "width": 390,
+    "identicalPixels": true,
+    "changedBounds": null
+  },
+  {
+    "screen": "08-sharing",
+    "width": 1600,
+    "identicalPixels": true,
+    "changedBounds": null
+  },
+  {
+    "screen": "08-sharing",
+    "width": 390,
+    "identicalPixels": true,
+    "changedBounds": null
+  },
+  {
+    "screen": "09-agency",
+    "width": 1600,
+    "identicalPixels": true,
+    "changedBounds": null
+  },
+  {
+    "screen": "09-agency",
+    "width": 390,
+    "identicalPixels": true,
+    "changedBounds": null
+  },
+  {
+    "screen": "10-admin",
+    "width": 1600,
+    "identicalPixels": true,
+    "changedBounds": null
+  },
+  {
+    "screen": "10-admin",
+    "width": 390,
+    "identicalPixels": true,
+    "changedBounds": null
+  }
+]

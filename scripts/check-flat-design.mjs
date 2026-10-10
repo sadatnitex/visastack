@@ -6,7 +6,12 @@ import ts from 'typescript';
 
 export function checkCss(css, source = 'stylesheet') {
   const errors = [];
-  postcss.parse(css, { from: source }).walkDecls((declaration) => {
+  const ast = postcss.parse(css, { from: source });
+  ast.walkAtRules('media', (rule) => {
+    if (/prefers-color-scheme\s*:\s*dark/i.test(rule.params))
+      errors.push(`${source}:${rule.source.start.line}: automatic dark appearance`);
+  });
+  ast.walkDecls((declaration) => {
     const { prop, value } = declaration;
     if (/^(?:box-shadow|text-shadow|(?:-webkit-)?backdrop-filter)$/.test(prop) && value !== 'none')
       errors.push(`${source}:${declaration.source.start.line}: ${prop}`);

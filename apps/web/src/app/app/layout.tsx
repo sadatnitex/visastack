@@ -30,7 +30,7 @@ export default async function AppLayout({ children }: { readonly children: React
 
   return (
     <div className="app-frame">
-      <AppNav links={PRIMARY_NAV}>
+      <AppNav links={PRIMARY_NAV} accountLabel={account.email}>
         <div className="app-shell-switch">
           <p className="app-shell-switch-label">Switch area</p>
           <Link href="/app/agency" className="btn btn-secondary nav-cta">
@@ -57,7 +57,7 @@ export default async function AppLayout({ children }: { readonly children: React
         </div>
       </AppNav>
       <div className="app-main">
-        <WorkspaceToolbar accountLabel={account.email} />
+        <WorkspaceToolbar accountLabel={account.email} isAdmin={account.isAdmin} />
         {children}
       </div>
     </div>
