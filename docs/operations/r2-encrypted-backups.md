@@ -141,3 +141,5 @@ keys, identity links and object hashes. Then run the existing restored-branch
 reconciliation and replay erasure tombstones before any access. Do not create a tenth
 Neon branch or overwrite production to run a drill. Record actual recovery time and
 data-loss bounds. A synthetic local drill does not establish production recovery.
+
+Production database binding: the application uses `visastackdev` on the main Neon branch. The workflow fixes `BACKUP_EXPECTED_DATABASE=visastackdev`; the backup runner refuses a different database before reading data or opening storage. Verify the secret selects this database and its direct main endpoint. A variable named `DATABASE_URL_UNPOOLED` is not proof that it selects the same database as the application.

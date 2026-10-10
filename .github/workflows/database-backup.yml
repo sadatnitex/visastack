@@ -33,6 +33,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - name: Stream authenticated encrypted SQL backup to private R2
         env:
+          BACKUP_EXPECTED_DATABASE: visastackdev
           BACKUP_DATABASE_URL: ${{ secrets.BACKUP_DATABASE_URL }}
           BACKUP_ENCRYPTION_KEY_BASE64: ${{ secrets.BACKUP_ENCRYPTION_KEY_BASE64 }}
           BACKUP_ENCRYPTION_KEY_ID: ${{ vars.BACKUP_ENCRYPTION_KEY_ID }}

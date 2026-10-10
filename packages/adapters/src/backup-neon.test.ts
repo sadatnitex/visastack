@@ -35,6 +35,7 @@ const values: Record<string, string> = {
   GITHUB_RUN_ATTEMPT: '1',
   GITHUB_SHA: 'a'.repeat(40),
   BACKUP_DATABASE_URL: 'postgresql://backup:test@ep-backup.us-east-1.aws.neon.tech/neondb', // supply-chain-allow: synthetic nonexistent hostname; subprocess and S3 are mocked, no network calls.
+  BACKUP_EXPECTED_DATABASE: 'neondb',
   BACKUP_ENCRYPTION_KEY_BASE64: Buffer.alloc(32, 7).toString('base64'),
   BACKUP_ENCRYPTION_KEY_ID: 'backup-v1',
   R2_ENDPOINT_URL: `https://${'a'.repeat(32)}.r2.cloudflarestorage.com`,
@@ -74,6 +75,16 @@ function dump(code: number) {
 }
 
 describe('pg_dump backup commit boundary', () => {
+  it('refuses a different database before reading data or opening storage', async () => {
+    vi.stubEnv('BACKUP_EXPECTED_DATABASE', 'visastackdev');
+    try {
+      await expect(runDatabaseBackup()).rejects.toThrow('expected application database');
+      expect(mocks.spawn).not.toHaveBeenCalled();
+      expect(mocks.send).not.toHaveBeenCalled();
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
   it('records completion only after successful pg_dump and encrypted upload', async () => {
     dump(0);
     await runDatabaseBackup();

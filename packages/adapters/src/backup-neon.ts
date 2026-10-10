@@ -25,6 +25,9 @@ export async function runDatabaseBackup(): Promise<void> {
   ) {
     throw new Error('BACKUP_DATABASE_URL must be a direct Neon database connection');
   }
+  const database = decodeURIComponent(connection.pathname.slice(1));
+  if (database !== required('BACKUP_EXPECTED_DATABASE'))
+    throw new Error('Backup connection does not select the expected application database');
   const key = parseBackupKey(required('BACKUP_ENCRYPTION_KEY_BASE64'));
   const keyId = required('BACKUP_ENCRYPTION_KEY_ID');
   const client = new S3Client({
@@ -44,7 +47,7 @@ export async function runDatabaseBackup(): Promise<void> {
     PGCONNECT_TIMEOUT: '15',
     PGHOST: connection.hostname,
     PGPORT: connection.port || '5432',
-    PGDATABASE: decodeURIComponent(connection.pathname.slice(1)),
+    PGDATABASE: database,
     PGUSER: decodeURIComponent(connection.username),
     PGPASSWORD: decodeURIComponent(connection.password),
     PGSSLMODE: 'verify-full',
