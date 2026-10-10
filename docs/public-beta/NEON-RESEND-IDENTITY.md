@@ -35,3 +35,6 @@ Remaining caller map at this patch:
 | apps/web/scripts/smoke.mjs; e2e/no-secret-auth.spec.ts; CI workflows | Replace obsolete WorkOS-only redirect assumptions and run exact-head checks |
 
 Contract review: navigation and denial are read-only hints; withSession and middleware remain the permission/admission boundaries. Adversarial review: selected-provider read failures render safe signed-out/generic output and use sanitized logging, with no fallback to a different identity provider. Actual provider renewal/revocation and stronger legacy linking remain unverified.
+
+
+2026-10-10 routing continuation: /callback and /api/session-reauth now choose the selected provider before importing or invoking WorkOS. Neon stale callbacks go to same-site sign-in; fresh-auth requests use Neon password re-check with safe return paths. Legacy routes are retained for explicitly selected WorkOS deployments. This supersedes the earlier routing gap only; Neon-only defaults, dependency removal, safe linking, MFA and actual renewal/revocation remain incomplete. See EXECUTION-CHECKPOINT.md for local evidence.

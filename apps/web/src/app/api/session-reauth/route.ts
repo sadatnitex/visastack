@@ -1,4 +1,5 @@
-import { getSignInUrl } from '@workos-inc/authkit-nextjs';
+import { selectedIdentityProvider } from '../../../lib/identity-selection';
+import { neonReauthUrl, safeReturnPath } from '../../../lib/neon-recency';
 
 /**
  * `getSignInUrl` (WorkOS SDK) sets a PKCE cookie as a side effect of
@@ -8,7 +9,7 @@ import { getSignInUrl } from '@workos-inc/authkit-nextjs';
  * (`../../../../lib/session-age.ts`) runs on every protected page's render
  * via `withSession`, so it cannot call `getSignInUrl` directly -- it builds
  * a link here instead, and this genuinely-legal Route Handler makes the
- * real call, then forwards the browser on to WorkOS.
+ * real call for legacy deployments. Neon goes to its own password re-check page.
  *
  * `returnTo` never becomes an off-app redirect: only a same-origin relative
  * path is accepted, and anything else falls back to `/app` -- regardless of
@@ -17,11 +18,11 @@ import { getSignInUrl } from '@workos-inc/authkit-nextjs';
 export async function GET(request: Request): Promise<Response> {
   const params = new URL(request.url).searchParams;
   const maxAge = Number(params.get('maxAge'));
-  const requestedReturnTo = params.get('returnTo');
-  const returnTo =
-    requestedReturnTo?.startsWith('/') && !requestedReturnTo.startsWith('//')
-      ? requestedReturnTo
-      : '/app';
+  const returnTo = safeReturnPath(params.get('returnTo'));
+  if (selectedIdentityProvider() === 'neon_auth') {
+    return Response.redirect(new URL(neonReauthUrl(returnTo), request.url), 302);
+  }
+  const { getSignInUrl } = await import('@workos-inc/authkit-nextjs');
   const reauthUrl = await getSignInUrl({
     ...(Number.isFinite(maxAge) && maxAge > 0 ? { maxAge } : {}),
     returnTo,

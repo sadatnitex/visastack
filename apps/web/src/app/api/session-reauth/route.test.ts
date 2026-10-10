@@ -17,6 +17,7 @@ vi.mock('@workos-inc/authkit-nextjs', () => ({
 }));
 
 beforeEach(() => {
+  vi.stubEnv('IDENTITY_PROVIDER', 'workos');
   getSignInUrl.mockReset();
   getSignInUrl.mockResolvedValue('https://auth.workos.com/sign-in?reauth=1');
 });
@@ -64,5 +65,30 @@ describe('GET /api/session-reauth', () => {
     const { GET } = await import('./route');
     await GET(new Request('https://example.test/api/session-reauth?returnTo=%2Fapp'));
     expect(getSignInUrl).toHaveBeenCalledWith({ returnTo: '/app' });
+  });
+});
+
+describe('Neon reauthentication', () => {
+  it.each([
+    ['/app/privacy', '/app/privacy'],
+    ['https://other.example.test', '/app'],
+    ['//other.example.test', '/app'],
+    ['/\\other.example.test', '/app'],
+    ['/app\n', '/app'],
+  ])('keeps the return destination safe: %s', async (requested, expected) => {
+    vi.stubEnv('IDENTITY_PROVIDER', 'neon_auth');
+    const { GET } = await import('./route');
+    const request = new Request(
+      `https://example.test/api/session-reauth?maxAge=1&returnTo=${encodeURIComponent(requested)}`,
+    );
+    const response = await GET(request);
+    const target = new URL(response.headers.get('location') ?? '');
+    expect(response.status).toBe(302);
+    expect(target.origin).toBe('https://example.test');
+    expect(target.pathname).toBe('/auth/reauth');
+    expect(target.searchParams.get('returnTo')).toBe(expected);
+    expect(target.searchParams.has('maxAge')).toBe(false);
+    expect(getSignInUrl).not.toHaveBeenCalled();
+    expect(response.headers.has('set-cookie')).toBe(false);
   });
 });
