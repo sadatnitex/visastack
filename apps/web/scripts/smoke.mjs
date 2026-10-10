@@ -2,7 +2,7 @@
 /**
  * No-secret deployment smoke check (master directive §8A).
  *
- * Exercises the deployed app over plain HTTP — no credentials, no database
+ * Exercises the deployed app over plain HTTP - no credentials, no direct database
  * access, no browser. Safe to run against any preview or production URL.
  * Usage: SMOKE_BASE_URL=https://your-deploy.vercel.app node scripts/smoke.mjs
  *
@@ -11,13 +11,15 @@
  *
  * A Vercel deployment occasionally fails before this script ever runs, with
  * errorCode BUILD_FAILED / "Resource provisioning failed", zero build log
- * events, and `ready` firing within ~1s of `buildingAt` — a transient
+ * events, and `ready` firing within ~1s of `buildingAt` - a transient
  * platform-side provisioning hiccup, not a code defect (confirmed against
- * this exact repo's history — see
+ * this exact repo's history - see
  * docs/audits/commercial-readiness-recovery-baseline.md §3). The fix is a
  * fresh push to retrigger a real build attempt, matching this repo's
  * existing precedent (commit b04d9ff).
  */
+
+import { isNeonSignInRedirect } from './auth-redirect.mjs';
 
 function log(line) {
   process.stdout.write(`${line}\n`);
@@ -29,7 +31,7 @@ function logError(line) {
 const baseUrl = process.env.SMOKE_BASE_URL?.replace(/\/$/, '');
 
 if (!baseUrl) {
-  log('[smoke] SMOKE_BASE_URL not set — skipping deployment smoke check.');
+  log('[smoke] SMOKE_BASE_URL not set - skipping deployment smoke check.');
   process.exit(0);
 }
 
@@ -38,7 +40,7 @@ const results = [];
 
 function record(name, pass, detail) {
   results.push({ name, pass, detail });
-  log(`${pass ? '✓' : '✗'} ${name}${detail ? ` — ${detail}` : ''}`);
+  log(`${pass ? '✓' : '✗'} ${name}${detail ? ` - ${detail}` : ''}`);
 }
 
 async function fetchNoRedirect(path) {
@@ -73,7 +75,7 @@ async function main() {
   }
 
   // 2a. Readiness truthfully reports the deployment mode and capability
-  // registry (master recovery directive §6/§7 "PR 1") — never a green build
+  // registry (master recovery directive §6/§7 "PR 1") - never a green build
   // standing in for production verification.
   record(
     '/api/health/ready reports a real deploymentMode',
@@ -81,7 +83,7 @@ async function main() {
     `deploymentMode=${readinessBody?.deploymentMode}`,
   );
   record(
-    '/api/health/ready reports the platform capability registry — agencyCollaboration repaired (PR 2), bulkExport repaired with real step-up (PR 5)',
+    '/api/health/ready reports the platform capability registry - agencyCollaboration repaired (PR 2), bulkExport repaired with real step-up (PR 5)',
     readinessBody?.platform?.agencyCollaboration === 'available' &&
       readinessBody?.platform?.bulkExport === 'available',
     `agencyCollaboration=${readinessBody?.platform?.agencyCollaboration} bulkExport=${readinessBody?.platform?.bulkExport}`,
@@ -114,19 +116,35 @@ async function main() {
     record('Status page renders', false, String(error));
   }
 
-  // 5. Unauthenticated /app redirects toward WorkOS — never renders the workspace.
+  // A healthy HTTP database probe must also mean the pooled public page can query it.
+  try {
+    const res = await fetch(`${baseUrl}/trust`);
+    const html = await res.text();
+    const databaseReady = readinessBody?.db?.connected && readinessBody?.db?.schemaApplied;
+    record(
+      'Public route catalog renders when the database is ready',
+      res.status === 200 &&
+        html.includes('<html') &&
+        (!databaseReady || /<h1[^>]*>Maintained route information<\/h1>/.test(html)),
+      `status=${res.status} databaseReady=${Boolean(databaseReady)}`,
+    );
+  } catch (error) {
+    record('Public route catalog renders when the database is ready', false, String(error));
+  }
+
+  // 5. Unauthenticated /app redirects to the selected Neon sign-in page - never renders the workspace.
   try {
     const res = await fetchNoRedirect('/app');
     const location = res.headers.get('location') ?? '';
     const redirectsToAuth =
-      (res.status === 302 || res.status === 307) && /workos\.com|authkit\.app/i.test(location);
+      (res.status === 302 || res.status === 307) && isNeonSignInRedirect(location, baseUrl);
     record(
-      'Unauthenticated /app redirects to WorkOS (never leaks the workspace)',
+      'Unauthenticated /app redirects to same-site Neon sign-in (never leaks the workspace)',
       redirectsToAuth,
       `status=${res.status} location=${location || '(none)'}`,
     );
   } catch (error) {
-    record('Unauthenticated /app redirects to WorkOS', false, String(error));
+    record('Unauthenticated /app redirects to same-site Neon sign-in', false, String(error));
   }
 
   // 6. /callback is publicly reachable (not blocked by auth, not a bare 404).
@@ -143,7 +161,7 @@ async function main() {
     const res = await fetchNoRedirect('/app/privacy');
     const location = res.headers.get('location') ?? '';
     const denied =
-      (res.status === 302 || res.status === 307) && /workos\.com|authkit\.app/i.test(location);
+      (res.status === 302 || res.status === 307) && isNeonSignInRedirect(location, baseUrl);
     record(
       'Protected nested route denies unauthenticated access',
       denied,

@@ -1,5 +1,5 @@
-import { NeonIdentityPort, WorkosIdentityPort } from './identity-provider';
-import { selectedIdentityProvider } from './identity-selection';
+import { createIdentityPort } from './providers';
+import { reportServerError } from './server-error';
 
 /** The one thing the public pages need to know: does this visitor have a session? */
 export interface SessionReader {
@@ -12,14 +12,11 @@ export interface SessionReader {
  * both. A read that fails counts as signed out: a hiccup must never break a public page, and the
  * workspace itself still checks the session on its own.
  */
-export async function isSignedIn(
-  reader: SessionReader = selectedIdentityProvider() === 'neon_auth'
-    ? new NeonIdentityPort()
-    : new WorkosIdentityPort(),
-): Promise<boolean> {
+export async function isSignedIn(reader?: SessionReader): Promise<boolean> {
   try {
-    return Boolean(await reader.currentIdentity());
-  } catch {
+    return Boolean(await (reader ?? createIdentityPort()).currentIdentity());
+  } catch (error) {
+    reportServerError('public navigation identity', error);
     return false;
   }
 }
