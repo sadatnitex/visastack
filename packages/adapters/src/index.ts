@@ -11,6 +11,13 @@ export { type BlobTokenFields, signBlobToken, verifyBlobToken } from './blob-tok
 export { NeonBlobStorage, type NeonBlobStorageOptions } from './neon-blob';
 
 export { VercelPrivateBlobStorage, type VercelPrivateBlobStorageOptions } from './vercel-blob';
+export {
+  R2Storage,
+  R2_DOCUMENT_BUCKET,
+  validateR2Endpoint,
+  probeR2Storage,
+  type R2StorageOptions,
+} from './r2-storage';
 
 export {
   BasicSafetyScanner,
@@ -90,3 +97,5 @@ export {
 } from './key-management';
 
 export { JszipBundler } from './zip-bundler';
+
+export { hasRecentDatabaseBackup } from './backup-status';

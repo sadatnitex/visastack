@@ -28,11 +28,12 @@ beforeEach(() => {
 });
 
 describe('sign-in configuration follows the selected provider', () => {
+  // First import loads the provider graph; keep startup bounded on shared CI.
   it('is available with Neon settings and no WorkOS settings', async () => {
     useEnv({ ...NEON, DEPLOYMENT_MODE: 'controlled_pilot' });
     const { getPlatformCapabilities } = await import('./capabilities');
     expect(getPlatformCapabilities().authentication).toBe('available');
-  });
+  }, 15_000);
 
   it.each([
     ['a missing address', { ...NEON, NEON_AUTH_BASE_URL: '' }],

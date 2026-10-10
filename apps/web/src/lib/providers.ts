@@ -55,7 +55,7 @@ function readEnv(name: string): string | undefined {
 
 const KNOWN_PROVIDERS = {
   IDENTITY_PROVIDER: ['workos', 'neon_auth'],
-  STORAGE_PROVIDER: ['vercel_blob', 'neon'],
+  STORAGE_PROVIDER: ['vercel_blob', 'neon', 'r2'],
   DATABASE_PROVIDER: ['neon'],
   MALWARE_SCANNER_PROVIDER: ['builtin', 'clamav'],
   DOCUMENT_CONVERTER_PROVIDER: ['builtin'],

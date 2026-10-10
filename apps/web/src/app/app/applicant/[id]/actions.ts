@@ -47,6 +47,7 @@ import { profileField } from '../../../../lib/profile-fields';
 import { createKeyManagementPort, createPreviewRenderer } from '../../../../lib/providers';
 import { withSession } from '../../../../lib/session';
 import { createStorage } from '../../../../lib/storage';
+import { validateUploadBytes } from '../../../../lib/upload-preflight';
 
 /** Result surfaced back to the client for inline feedback. */
 export interface ActionState {
@@ -212,6 +213,21 @@ export async function uploadDocumentAction(
         }
         const sha256 = createHash('sha256').update(bytes).digest('hex');
 
+        if (
+          !validateUploadBytes(
+            bytes,
+            contentType,
+            readEnv('MALWARE_SCANNER_PROVIDER') === 'clamav',
+            quotaConfig.maxUploadBytes,
+          )
+        ) {
+          await failUpload(db, intent.id, 'upload rejected by structural preflight');
+          return {
+            ok: false,
+            message: 'This file type cannot be safely processed. Choose a supported document.',
+          };
+        }
+
         try {
           await storage.putObject({
             objectKey: intent.objectKey,
@@ -229,8 +245,14 @@ export async function uploadDocumentAction(
         // strength of "the write call didn't throw" alone (same round-trip
         // discipline as the erasure worker's delete-then-verify, master
         // directive §7 "PR 4").
-        const verification = await storage.getObject(intent.objectKey);
-        if (!verification || verification.bytes.byteLength !== bytes.byteLength) {
+        const verification = storage.getPendingUpload
+          ? await storage.getPendingUpload(intent.objectKey)
+          : await storage.getObject(intent.objectKey);
+        if (
+          !verification ||
+          verification.bytes.byteLength !== bytes.byteLength ||
+          createHash('sha256').update(verification.bytes).digest('hex') !== sha256
+        ) {
           await storage.deleteObject('QUARANTINE', intent.objectKey).catch(() => undefined);
           await failUpload(
             db,

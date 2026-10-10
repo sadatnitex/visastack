@@ -494,6 +494,8 @@ export function checkFixtures(root, files = trackedFiles(root)) {
 
 // Workflows that may read repository secrets, and why. Everything else must not.
 export const SECRET_WORKFLOW_ALLOWLIST = {
+  'database-backup.yml':
+    'scheduled or manual, main-only, read-only checkout, encrypted private R2 output',
   'db-migrate.yml': 'manual, main-only, protected environment',
   'workos-staging-e2e.yml': 'staging-only test identity, skipped when absent',
 };
@@ -513,6 +515,14 @@ export function checkPreviewCredentials(root, files = trackedFiles(root)) {
     }
     if (usesSecrets && base in SECRET_WORKFLOW_ALLOWLIST && /^\s*pull_request\s*:/m.test(text)) {
       findings.push(`${f} reads repository secrets on pull_request events`);
+    }
+    if (
+      base === 'database-backup.yml' &&
+      usesSecrets &&
+      (!/^\s*if:\s*github\.ref == 'refs\/heads\/main'\s*$/m.test(text) ||
+        !/^\s*persist-credentials:\s*false\s*$/m.test(text))
+    ) {
+      findings.push(`${f} must restrict backup secrets to main and discard checkout credentials`);
     }
     if (/^\s*persist-credentials\s*:\s*true/m.test(text)) {
       findings.push(`${f} keeps the checkout credential on disk`);

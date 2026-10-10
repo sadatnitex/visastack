@@ -1,5 +1,5 @@
 import 'server-only';
-import { NeonBlobStorage, VercelPrivateBlobStorage } from '@visastack/adapters';
+import { NeonBlobStorage, R2Storage, VercelPrivateBlobStorage } from '@visastack/adapters';
 import type { BlobStore, Db, StoragePort } from '@visastack/services';
 import { resolveBaseUrl } from './base-url';
 import { isRealDeployment } from './deployment-mode';
@@ -52,6 +52,30 @@ export function createStorage(db: Db): StoragePort & BlobStore {
   // route exists to prevent.
   const rawProvider = readEnv('STORAGE_PROVIDER');
   const provider = rawProvider === '' ? undefined : rawProvider;
+  if (provider === 'r2') {
+    const endpoint = readEnv('R2_ENDPOINT_URL');
+    const accessKeyId = readEnv('R2_ACCESS_KEY_ID');
+    const secretAccessKey = readEnv('R2_SECRET_ACCESS_KEY');
+    if (!endpoint || !accessKeyId || !secretAccessKey) {
+      throw new Error('STORAGE_PROVIDER=r2 requires all three R2 environment variables');
+    }
+    if (isRealDeployment() && !blobToken)
+      throw new Error(
+        'R2 mirrored storage requires the existing private file store on a real deployment',
+      );
+    const legacy = blobToken
+      ? new VercelPrivateBlobStorage({ db, signingSecret, baseUrl, token: blobToken })
+      : new NeonBlobStorage({ db, signingSecret, baseUrl });
+    return new R2Storage({
+      db,
+      signingSecret,
+      baseUrl,
+      endpoint,
+      accessKeyId,
+      secretAccessKey,
+      legacy,
+    });
+  }
   if (provider !== undefined && provider !== 'vercel_blob' && provider !== 'neon') {
     throw new Error(
       `unsupported STORAGE_PROVIDER=${JSON.stringify(provider)} — this deployment implements: vercel_blob, neon`,

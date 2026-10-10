@@ -73,6 +73,9 @@ export interface ListObjectKeysInput {
 export interface BlobStore {
   putObject(input: PutObjectInput): Promise<void>;
   getObject(objectKey: string): Promise<StoredBytes | undefined>;
+  /** Internal upload verification for an owned, server-reserved quarantine key.
+   * Normal delivery must still use getObject and registered domain metadata. */
+  getPendingUpload?(objectKey: string): Promise<StoredBytes | undefined>;
   /** Idempotent: deleting an already-absent object is not an error. */
   deleteObject(bucket: StorageBucket, objectKey: string): Promise<void>;
   /** Bounded, paginated listing — used only by the orphan reconciliation sweep. */

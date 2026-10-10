@@ -200,3 +200,27 @@ test('summary counts skipped separately and never as passed', () => {
   assert.deepEqual(summarise(results), { executed: 2, passed: 1, failed: 1, skipped: 1 });
   assert.match(toMarkdown(results), /Executed 2 \| Passed 1 \| Failed 1 \| Skipped 1/);
 });
+
+test('reviewed database backup cannot expose credentials through PR triggers or missing main guards', () => {
+  const safe =
+    "on:\n  schedule:\n    - cron: '0 6 * * 0'\n  workflow_dispatch:\njobs:\n  backup:\n    if: github.ref == 'refs/heads/main'\n    steps:\n      - uses: actions/checkout@v4\n        with:\n          persist-credentials: false\n      - run: backup\n        env:\n          BACKUP_DATABASE_URL: ${{ secrets.BACKUP_DATABASE_URL }}\n";
+  const file = '.github/workflows/database-backup.yml';
+  assert.equal(checkPreviewCredentials(repo({ [file]: safe })).status, 'passed');
+  assert.equal(
+    checkPreviewCredentials(
+      repo({ [file]: safe.replace("if: github.ref == 'refs/heads/main'", 'if: true') }),
+    ).status,
+    'failed',
+  );
+  assert.equal(
+    checkPreviewCredentials(repo({ [file]: safe.replace('workflow_dispatch:', 'pull_request:') }))
+      .status,
+    'failed',
+  );
+  assert.equal(
+    checkPreviewCredentials(
+      repo({ [file]: safe.replace('persist-credentials: false', 'persist-credentials: true') }),
+    ).status,
+    'failed',
+  );
+});
