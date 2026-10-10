@@ -57,7 +57,7 @@ const KNOWN_PROVIDERS = {
   IDENTITY_PROVIDER: ['workos', 'neon_auth'],
   STORAGE_PROVIDER: ['vercel_blob', 'neon', 'r2'],
   DATABASE_PROVIDER: ['neon'],
-  MALWARE_SCANNER_PROVIDER: ['builtin', 'clamav'],
+  MALWARE_SCANNER_PROVIDER: ['builtin', 'clamav', 'github_clamav'],
   DOCUMENT_CONVERTER_PROVIDER: ['builtin'],
   PREVIEW_RENDERER_PROVIDER: ['builtin'],
   CONTENT_LIMITS_PROVIDER: ['builtin'],
@@ -142,6 +142,13 @@ export function createIdentityPort(): IdentityPort {
  */
 export function createMalwareScanner(blobStore: BlobStore): MalwareScannerPort {
   checkKnownProvider('MALWARE_SCANNER_PROVIDER');
+  if (readEnv('MALWARE_SCANNER_PROVIDER') === 'github_clamav') {
+    if (!readEnv('GITHUB_INTAKE_DISPATCH_TOKEN'))
+      throw new Error('github_clamav requires GITHUB_INTAKE_DISPATCH_TOKEN');
+    // Existing synchronous branding checks remain structural. Document intake
+    // dispatches instead of using this checker; the runner constructs ClamAvScanner.
+    return new BasicSafetyScanner({ blobStore });
+  }
   if (readEnv('MALWARE_SCANNER_PROVIDER') === 'clamav') {
     const socketPath = readEnv('CLAMAV_SOCKET_PATH');
     const host = readEnv('CLAMAV_HOST');

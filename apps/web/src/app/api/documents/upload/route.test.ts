@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { POST } from './route';
 const { session, applicant, upload } = vi.hoisted(() => ({
   session: vi.fn(),
@@ -25,7 +25,16 @@ beforeEach(() => {
   applicant.mockResolvedValue({ ownerAccountId: 'owner' });
   upload.mockResolvedValue({ ok: true, message: 'Uploaded.' });
 });
+afterEach(() => vi.unstubAllEnvs());
 describe('authenticated raw document upload', () => {
+  it('accepts PDF original bytes into the existing private intake action for the queued scanner', async () => {
+    vi.stubEnv('MALWARE_SCANNER_PROVIDER', 'github_clamav');
+    const bytes = Buffer.from('%PDF-1.7 synthetic fixture');
+    expect((await POST(request('https://app.example', bytes, 'application/pdf'))).status).toBe(201);
+    const file = upload.mock.calls[0]?.[1].get('file') as File;
+    expect(Buffer.from(await file.arrayBuffer())).toEqual(bytes);
+    expect(file.type).toBe('application/pdf');
+  });
   it('rejects another origin and oversized requests before session work', async () => {
     expect((await POST(request('https://evil.example'))).status).toBe(403);
     const large = request();

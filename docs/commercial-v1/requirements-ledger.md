@@ -261,3 +261,9 @@ PR-02/03 adds linked versioned notices, server-enforced acknowledgement and atom
 | OPS-02 | IN_PROGRESS | Weekly Actions pg_dump capture, authenticated streaming encryption and bounded R2 upload, completion manifests, weekly Vercel verification/fallback dispatch and offline extraction. A real isolated synthetic SQL dump restored tables, functions, sequences, pgcrypto and immutable audit rules. Live GitHub secret setup, complete Neon/Auth capture, production restore drill, file backfill, tombstone replay and measured recovery targets remain open. |
 
 Implementation and secure configuration: `docs/operations/r2-encrypted-backups.md`.
+
+2026-10-10 PDF intake continuation: EVI-01/EVI-02/SEC-05 remain in progress.
+An optional isolated GitHub ClamAV worker reuses the existing queue and real scan
+port, supports PDF quarantine admission and deferred processing, and preserves
+retry/fencing semantics. Provider activation, fresh-engine controls and authenticated
+synthetic clean/infected acceptance remain required; overall release gates unchanged.

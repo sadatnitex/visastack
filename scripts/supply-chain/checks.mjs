@@ -494,6 +494,8 @@ export function checkFixtures(root, files = trackedFiles(root)) {
 
 // Workflows that may read repository secrets, and why. Everything else must not.
 export const SECRET_WORKFLOW_ALLOWLIST = {
+  'document-intake.yml':
+    'scheduled or dispatched main-only isolated ClamAV worker, private queue, no checkout credentials',
   'database-backup.yml':
     'scheduled or manual, main-only, read-only checkout, encrypted private R2 output',
   'db-migrate.yml': 'manual, main-only, protected environment',
@@ -523,6 +525,18 @@ export function checkPreviewCredentials(root, files = trackedFiles(root)) {
         !/^\s*persist-credentials:\s*false\s*$/m.test(text))
     ) {
       findings.push(`${f} must restrict backup secrets to main and discard checkout credentials`);
+    }
+    if (
+      base === 'document-intake.yml' &&
+      usesSecrets &&
+      (!/^\s*if:\s*github\.ref == 'refs\/heads\/main' && vars\.DOCUMENT_INTAKE_ENABLED == 'true'\s*$/m.test(
+        text,
+      ) ||
+        !/^\s*persist-credentials:\s*false\s*$/m.test(text))
+    ) {
+      findings.push(
+        `${f} must restrict intake secrets to enabled main code and discard checkout credentials`,
+      );
     }
     if (/^\s*persist-credentials\s*:\s*true/m.test(text)) {
       findings.push(`${f} keeps the checkout credential on disk`);

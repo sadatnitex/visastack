@@ -1,0 +1,72 @@
+name: Private document scanning and processing
+
+on:
+  schedule:
+    - cron: '15 22 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-document-intake
+  cancel-in-progress: false
+
+jobs:
+  intake:
+    if: github.ref == 'refs/heads/main' && vars.DOCUMENT_INTAKE_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Install isolated scanner
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends clamav-daemon clamav
+          sudo systemctl stop clamav-daemon clamav-freshclam
+          sudo freshclam --stdout
+          sudo python3 - <<'PY'
+          from pathlib import Path
+          p = Path('/etc/clamav/clamd.conf')
+          controls = {'ScanPDF': 'yes', 'ScanArchive': 'yes', 'AlertExceedsMax': 'yes', 'AlertEncrypted': 'yes', 'MaxScanTime': '30000', 'MaxFileSize': '25M', 'MaxScanSize': '100M', 'StreamMaxLength': '25M'}
+          lines = [line for line in p.read_text().splitlines() if not line.split() or line.split()[0] not in controls]
+          p.write_text('\n'.join(lines + [f'{key} {value}' for key, value in controls.items()]) + '\n')
+          PY
+          sudo systemctl start clamav-daemon
+          for attempt in $(seq 1 60); do
+            if sudo clamdscan --ping=1; then break; fi
+            sleep 2
+          done
+          sudo clamdscan --ping=1
+          sudo chmod 0660 /var/run/clamav/clamd.ctl
+          sudo usermod -a -G clamav "$USER"
+      - name: Verify live engine before opening the private queue
+        run: |
+          printf 'harmless scanner control\n' > /tmp/scanner-clean.txt
+          printf '%s' 'X5O!P%@AP[4\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*' > /tmp/scanner-eicar.txt
+          sudo clamdscan --no-summary /tmp/scanner-clean.txt
+          set +e
+          sudo clamdscan --no-summary /tmp/scanner-eicar.txt
+          scan_status=$?
+          set -e
+          rm /tmp/scanner-clean.txt /tmp/scanner-eicar.txt
+          test "$scan_status" -eq 1
+      - name: Scan and process private queued documents
+        env:
+          INTAKE_STORAGE_PROVIDER: ${{ vars.INTAKE_STORAGE_PROVIDER || 'vercel_blob' }}
+          INTAKE_DATABASE_URL: ${{ secrets.INTAKE_DATABASE_URL }}
+          R2_ENDPOINT_URL: ${{ secrets.R2_ENDPOINT_URL }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          BLOB_READ_WRITE_TOKEN: ${{ secrets.BLOB_READ_WRITE_TOKEN }}
+        run: |
+          export CLAMAV_ENGINE_VERSION="$(clamscan --version)"
+          sg clamav -c 'pnpm --filter @visastack/adapters exec tsx src/intake-runner.ts'

@@ -47,7 +47,7 @@ import { profileField } from '../../../../lib/profile-fields';
 import { createKeyManagementPort, createPreviewRenderer } from '../../../../lib/providers';
 import { withSession } from '../../../../lib/session';
 import { createStorage } from '../../../../lib/storage';
-import { validateUploadBytes } from '../../../../lib/upload-preflight';
+import { permitsPdfAdmission, validateUploadBytes } from '../../../../lib/upload-preflight';
 
 /** Result surfaced back to the client for inline feedback. */
 export interface ActionState {
@@ -217,7 +217,7 @@ export async function uploadDocumentAction(
           !validateUploadBytes(
             bytes,
             contentType,
-            readEnv('MALWARE_SCANNER_PROVIDER') === 'clamav',
+            permitsPdfAdmission(readEnv('MALWARE_SCANNER_PROVIDER')),
             quotaConfig.maxUploadBytes,
           )
         ) {

@@ -41,6 +41,7 @@ import {
   sweepTaskDeadlineReminders,
 } from '@visastack/services';
 import { resolveBaseUrl } from './base-url';
+import { dispatchGithubIntake } from './github-intake';
 import {
   createContentLimitsChecker,
   createDocumentConverter,
@@ -71,7 +72,14 @@ import { reportServerError } from './server-error';
  */
 export async function triggerIntakeWorker(
   options: { readonly limit?: number } = {},
-): Promise<IntakeWorkerResult> {
+): Promise<IntakeWorkerResult & { readonly queued?: boolean }> {
+  const provider = 'MALWARE_SCANNER_PROVIDER';
+  if (process.env[provider] === 'github_clamav') {
+    // Keep jobs PENDING. The isolated runner claims them using the same leases.
+    // Dispatch errors propagate to the cron caller; after() reports them.
+    await dispatchGithubIntake();
+    return { processed: 0, failed: 0, queued: true };
+  }
   const connectionString = resolveDatabaseUrl(process.env);
   if (!connectionString) {
     console.error('[triggerIntakeWorker] database not configured');

@@ -4876,3 +4876,17 @@ The GitHub connection returns 403 for repository-secret management. Vercel's pro
 
 
 Continuation: the initial complete local run exposed a cold provider-import timeout in a sign-in capability test. The S3 SDK now loads only when R2 is used; the bounded first-import test budget accounts for shared CI startup without changing its assertions. Focused provider checks passed. Inspection also found Vercel upload verification reading metadata before registration creates it. An internal reserved-quarantine verification method repairs that ordering while normal unregistered-object reads stay refused. Expiring encrypted account exports keep their existing storage path and limits. Full verification is being rerun for these changes; no initial failed run is counted as green.
+
+### Chunk 65 (2026-10-10): private PDF intake worker
+
+The owner requested PDF upload and processing without reopening the abandoned
+hand-written PDF safety parser. The new optional github_clamav execution path accepts
+PDF admission to private quarantine and reuses the existing intake queue, real
+ClamAV adapter, leases, extraction and limits on an isolated private Actions runner.
+No scan gate or real-applicant gate is bypassed. Preview dispatch is forbidden and
+workflow processing defaults disabled until secure configuration. Live acceptance,
+GitHub secret provisioning, dispatch credential setup and scanner capacity remain
+open; no production scanner availability or PDF processing success is claimed yet.
+Configuration and upgrade procedure: docs/operations/private-pdf-intake.md.
+
+Continuation: the complete PDF source run passed 2,933 workspace tests with three existing provider skips, 1,151 standalone web tests, 84 browser checks and 11 smoke checks. Local real ClamAV clean-PDF and synthetic EICAR rejection controls passed, followed by actual PDF text extraction. The local signature set contains only the synthetic test threat and does not certify production signature coverage. Final worker-only storage changes and guard mutation received additional focused verification. A production read found the native-write setting only in the branch preview; production R2 bucket/list probes still return HTTP 403. Owner-provided GitHub backup secrets are acknowledged but cannot be listed through this connection. Actual live capture and PDF worker activation remain unverified.

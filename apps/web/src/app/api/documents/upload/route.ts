@@ -2,6 +2,7 @@ import { getApplicant } from '@visastack/services';
 import { withSession } from '../../../../lib/session';
 import {
   STREAM_UPLOAD_LIMIT,
+  permitsPdfAdmission,
   readBoundedUpload,
   validateUploadBytes,
 } from '../../../../lib/upload-preflight';
@@ -44,7 +45,11 @@ export async function POST(request: Request): Promise<Response> {
       return json('The upload could not be read.', 400);
     }
     if (
-      !validateUploadBytes(bytes, contentType, readEnv('MALWARE_SCANNER_PROVIDER') === 'clamav')
+      !validateUploadBytes(
+        bytes,
+        contentType,
+        permitsPdfAdmission(readEnv('MALWARE_SCANNER_PROVIDER')),
+      )
     ) {
       return json('This file type cannot be safely processed.', 415);
     }

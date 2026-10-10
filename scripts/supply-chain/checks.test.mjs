@@ -224,3 +224,17 @@ test('reviewed database backup cannot expose credentials through PR triggers or 
     'failed',
   );
 });
+
+test('private intake secrets require enabled main code and discarded checkout credentials', () => {
+  const safe =
+    "on:\n  workflow_dispatch:\njobs:\n  intake:\n    if: github.ref == 'refs/heads/main' && vars.DOCUMENT_INTAKE_ENABLED == 'true'\n    steps:\n      - uses: actions/checkout@v4\n        with:\n          persist-credentials: false\n      - run: intake\n        env:\n          INTAKE_DATABASE_URL: ${{ secrets.INTAKE_DATABASE_URL }}\n";
+  const file = '.github/workflows/document-intake.yml';
+  assert.equal(checkPreviewCredentials(repo({ [file]: safe })).status, 'passed');
+  for (const unsafe of [
+    safe.replace("github.ref == 'refs/heads/main'", 'true'),
+    safe.replace(" && vars.DOCUMENT_INTAKE_ENABLED == 'true'", ''),
+    safe.replace('persist-credentials: false', 'persist-credentials: true'),
+    safe.replace('workflow_dispatch:', 'pull_request:'),
+  ])
+    assert.equal(checkPreviewCredentials(repo({ [file]: unsafe })).status, 'failed');
+});

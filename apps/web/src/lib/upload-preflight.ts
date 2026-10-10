@@ -11,6 +11,11 @@ const TYPES = new Set([
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
 ]);
 
+/** Admission to private quarantine, never an antivirus verdict. */
+export function permitsPdfAdmission(provider: string | undefined): boolean {
+  return provider === 'clamav' || provider === 'github_clamav';
+}
+
 export function validateUploadBytes(
   bytes: Uint8Array,
   contentType: string,

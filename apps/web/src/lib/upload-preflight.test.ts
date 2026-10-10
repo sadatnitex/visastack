@@ -1,8 +1,34 @@
 import { describe, expect, it } from 'vitest';
-import { STREAM_UPLOAD_LIMIT, readBoundedUpload, validateUploadBytes } from './upload-preflight';
+import {
+  STREAM_UPLOAD_LIMIT,
+  permitsPdfAdmission,
+  readBoundedUpload,
+  validateUploadBytes,
+} from './upload-preflight';
 
 const png = Uint8Array.from([137, 80, 78, 71, 13, 10, 26, 10]);
 describe('upload preflight', () => {
+  it('admits PDF to quarantine only for known real scan paths; signature spoofing still fails', () => {
+    for (const provider of ['clamav', 'github_clamav']) {
+      expect(permitsPdfAdmission(provider)).toBe(true);
+      expect(
+        validateUploadBytes(
+          Buffer.from('%PDF-1.7'),
+          'application/pdf',
+          permitsPdfAdmission(provider),
+        ),
+      ).toBe(true);
+      expect(
+        validateUploadBytes(
+          Buffer.from('MZpayload'),
+          'application/pdf',
+          permitsPdfAdmission(provider),
+        ),
+      ).toBe(false);
+    }
+    for (const provider of [undefined, '', 'builtin', 'unknown'])
+      expect(permitsPdfAdmission(provider)).toBe(false);
+  });
   it('rejects mismatched MIME, truncated signatures and executables', () => {
     expect(validateUploadBytes(png, 'image/png', false)).toBe(true);
     expect(validateUploadBytes(png, 'image/jpeg', false)).toBe(false);
