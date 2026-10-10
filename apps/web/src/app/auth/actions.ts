@@ -5,6 +5,7 @@ import { withinAuthLimits } from '../../lib/auth-throttle';
 import { resolveBaseUrl } from '../../lib/base-url';
 import { selectedIdentityProvider } from '../../lib/identity-selection';
 import { safeReturnPath } from '../../lib/neon-recency';
+import { consumeSignupForm, readSignupForm } from '../../lib/signup-form';
 
 /**
  * Sign-in, sign-up, email confirmation and password recovery for Neon Auth. Plain forms that work
@@ -75,6 +76,10 @@ export async function signUpAction(formData: FormData): Promise<void> {
   const password = field(formData, 'password');
   const name = field(formData, 'name').trim().slice(0, 120);
   if (!validCredentials(email, password)) redirect('/auth/sign-up?e=invalid');
+  if (field(formData, 'acceptNotices') !== 'yes') redirect('/auth/sign-up?e=notices');
+  if (field(formData, 'website')) redirect('/auth/sign-up?e=refresh');
+  const signupForm = readSignupForm(field(formData, 'signupForm'));
+  if (!signupForm) redirect('/auth/sign-up?e=refresh');
   const allowed = await withinAuthLimits({
     email,
     byEmail: 'AUTH_SIGN_UP_EMAIL',
@@ -82,6 +87,7 @@ export async function signUpAction(formData: FormData): Promise<void> {
     onFailure: 'deny',
   });
   if (!allowed) redirect('/auth/sign-up?e=slow');
+  if (!(await consumeSignupForm(signupForm))) redirect('/auth/sign-up?e=refresh');
   const { getNeonAuth } = await import('../../lib/neon-auth');
   const { error } = await getNeonAuth().signUp.email({
     email,

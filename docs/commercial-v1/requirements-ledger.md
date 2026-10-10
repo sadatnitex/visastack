@@ -245,3 +245,7 @@ IAM-01 continuation (2026-10-10): generic recoverable identity verification repl
 ### 2026-10-10 coordinated public-beta implementation checkpoint
 
 NTF-03 now includes provider rejection and complaints/bounces arriving after delivery, preserving replay safety. COM-01/02 now distinguish explicit complimentary founding subscriptions for new agencies from legacy and paid offers, without relaxing infrastructure limits or record authorization. EVI-06 adds the owner original-download action with fresh server authentication and existing exact-version delivery policy. Operational real-data readiness is separated from commercial certification. These are implementation changes pending shared verification and actual provider/user acceptance. Existing blocked journey and security rows remain blocked; no package-completion claim is made. Details: docs/public-beta/PR02-05-COORDINATED.md.
+
+### Public beta registration continuation
+
+PR-02/03 adds linked versioned notices, server-enforced acknowledgement and atomic single-use signed registration forms. Unauthenticated acknowledgement records do not assert verified account acceptance or optional consent. Existing auth throttles and pilot/real-record gates remain in force. Implementation verification is pending; legal review, managed bot challenge, identity-linked acceptance and actual delivery remain unresolved. See public-beta/SIGNUP-SAFEGUARDS.md.

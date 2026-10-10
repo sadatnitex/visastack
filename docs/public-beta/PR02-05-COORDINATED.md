@@ -38,3 +38,9 @@ Lint, production build, type checking, the high-severity audit gate and supply-c
 The previously missing STEP_UP_SIGNING_SECRET was initially configured with distinct production and branch-preview keys. No existing binding was replaced. Actual authenticated download acceptance is still pending. The owner selected existing scanner/key/backup services and will identify them; no new paid service was purchased.
 
 PR #183 production verification completed after correcting the verification script to accept a relative same-origin sign-in redirect. All required merge-commit CI and deployment checks passed, readiness returned ready, the recovery page rendered, anonymous workspace access stayed denied and Neon retained nine branches.
+
+### Production verification and next continuation
+
+PR #184 merged as 2c6d7c9ec31f5b10a17df23019d74d1364913407. All three required checks passed on its exact PR head and merge commit; Vercel, Deploy Smoke and Playwright Deploy Smoke passed. The corrected full browser run passed 82 checks and local smoke passed 11. Production readiness, original-download configuration, account recovery and anonymous workspace denial were verified. Real applicant intake remains disabled; authenticated download and lifecycle acceptance were not performed. Neon retains nine branches.
+
+The owner deferred scanner, managed keys and independent backup provider selection after requesting a free-first approach with an upgrade path. No provider provisioning is authorized by that discussion. The next independent continuation implements registration disclosures, mandatory server-side notice acknowledgement and replay-resistant signup forms.

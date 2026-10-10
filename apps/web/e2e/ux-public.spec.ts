@@ -13,7 +13,7 @@ import { PRIMARY_NAV, agencyTabs, applicantTabs, platformTabs } from '../src/lib
  */
 
 test.describe('accessibility (axe) — public pages', () => {
-  for (const path of ['/', '/status', '/trust']) {
+  for (const path of ['/', '/status', '/trust', '/terms', '/privacy']) {
     test(`${path} has no critical/serious automated accessibility violations`, async ({ page }) => {
       await page.goto(path);
       const results = await new AxeBuilder({ page })
