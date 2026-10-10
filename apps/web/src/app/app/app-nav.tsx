@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { type ReactNode, useEffect, useId, useState } from 'react';
+import { type ReactNode, useEffect, useId, useRef, useState } from 'react';
 import { Icon, type IconName } from '../../components/icons';
 import { type NavLink, isCurrentPath } from '../../lib/navigation';
 
@@ -41,6 +41,8 @@ export function AppNav({
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const panelId = useId();
+  const toggleRef = useRef<HTMLButtonElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
 
   // Moving to another page closes the sheet, so it never sits open over the next page.
   // biome-ignore lint/correctness/useExhaustiveDependencies: the sheet closes when the path changes, which is not read inside the effect
@@ -51,8 +53,12 @@ export function AppNav({
   // Escape closes the sheet, as people expect of anything that opens over the page.
   useEffect(() => {
     if (!open) return;
+    panelRef.current?.querySelector<HTMLAnchorElement>('a')?.focus();
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setOpen(false);
+      if (event.key === 'Escape') {
+        setOpen(false);
+        toggleRef.current?.focus();
+      }
     };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
@@ -71,11 +77,16 @@ export function AppNav({
 
   return (
     <div className="app-shell-nav" data-open={open ? 'true' : 'false'}>
+      <div className="app-sidebar-heading">
+        <Icon name="folder" size={22} />
+        <span>Your workspace</span>
+      </div>
       <div className="app-bar">
         <nav className="app-shell-links" aria-label="Workspace">
           {links.slice(0, BAR_LINKS).map(link)}
         </nav>
         <button
+          ref={toggleRef}
           type="button"
           className="app-more-toggle"
           aria-expanded={open}
@@ -86,12 +97,36 @@ export function AppNav({
           <span className="app-link-label">More</span>
         </button>
       </div>
-      <div className="app-more" id={panelId}>
+      <div className="app-more" id={panelId} ref={panelRef}>
         <nav className="app-shell-links app-shell-links-more" aria-label="Account and privacy">
           {links.slice(BAR_LINKS).map(link)}
         </nav>
         {children}
       </div>
     </div>
+  );
+}
+
+/** Existing destinations only. Context labels never grant or imply access. */
+export function WorkspaceToolbar({ accountLabel }: { readonly accountLabel?: string }) {
+  const pathname = usePathname();
+  const context = pathname.startsWith('/app/admin')
+    ? 'Platform administration'
+    : pathname.startsWith('/app/agency')
+      ? 'Agency workspace'
+      : 'Personal workspace';
+  return (
+    <header className="workspace-toolbar">
+      <p className="workspace-context">{context}</p>
+      <nav aria-label="Workspace shortcuts" className="workspace-shortcuts">
+        <Link href="/app/notifications" aria-label="Notifications">
+          <Icon name="bell" size={20} />
+        </Link>
+        <Link href="/app/account" aria-label="Your account">
+          <Icon name="user" size={20} />
+          {accountLabel ? <span className="workspace-identity">{accountLabel}</span> : null}
+        </Link>
+      </nav>
+    </header>
   );
 }

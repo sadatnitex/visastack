@@ -4,6 +4,18 @@ import { renderServer, textOf } from '../lib/next-mocks.test-support';
 import { PILOT_BANNER_COPY, PilotBanner } from './pilot-banner';
 
 describe('the banner every page carries', () => {
+  it('distinguishes open registration from permission to use real applicant data', async () => {
+    const text = textOf(
+      await renderServer(<PilotBanner mode="controlled_pilot" registrationOpen />),
+    );
+    expect(text).toContain('VisaStack public beta');
+    expect(text).toContain('Registration is open.');
+    expect(text).toContain('made-up details');
+    expect(text).toContain('permanently blacked out');
+    expect(text).not.toContain('Invite-only');
+    const smoke = readFileSync(new URL('../../scripts/smoke.mjs', import.meta.url), 'utf8');
+    expect(smoke).toContain('VisaStack public beta');
+  });
   it('says in plain words that the pilot is a test version for made-up or blacked-out information', async () => {
     const html = await renderServer(<PilotBanner mode="controlled_pilot" />);
     const text = textOf(html);

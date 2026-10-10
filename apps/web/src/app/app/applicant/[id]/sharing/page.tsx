@@ -94,23 +94,7 @@ export default async function SharingPage({
         as="h2"
       />
 
-      <div className="grid">
-        <article className="card">
-          <p className="card-kicker">Share</p>
-          <h2 className="card-title">Grant access</h2>
-          <p className="card-body" style={{ marginBottom: '1.25rem' }}>
-            Share with an existing VisaStack user by email. They must accept before any access
-            begins.
-          </p>
-          <GrantForm
-            applicantId={id}
-            documents={data.documents.map((d) => ({
-              id: d.id,
-              displayName: d.approvedName ?? d.originalName,
-            }))}
-          />
-        </article>
-
+      <div className="sharing-workspace">
         <article className="card">
           <p className="card-kicker">Transparency</p>
           <h2 className="card-title">Who has access</h2>
@@ -229,6 +213,22 @@ export default async function SharingPage({
               })}
             </div>
           )}
+        </article>
+
+        <article className="card">
+          <p className="card-kicker">Share</p>
+          <h2 className="card-title">Grant access</h2>
+          <p className="card-body" style={{ marginBottom: '1.25rem' }}>
+            Share with an existing VisaStack user by email. They must accept before any access
+            begins.
+          </p>
+          <GrantForm
+            applicantId={id}
+            documents={data.documents.map((d) => ({
+              id: d.id,
+              displayName: d.approvedName ?? d.originalName,
+            }))}
+          />
         </article>
       </div>
 

@@ -1,66 +1,55 @@
-/*
- * VisaStack design system — inspired by Apple's Human Interface Guidelines:
- * clarity (legible type, clear hierarchy), deference (content-first, translucent
- * chrome), and depth (subtle layering). Uses the Apple system font stack (SF on
- * Apple devices, graceful fallbacks elsewhere) — no web fonts, CSP-safe.
- */
-
 :root {
   color-scheme: light dark;
 
-  /* Type. System fonts only (no web fonts, CSP-safe). Bengali falls through to the
+  /* Type. Existing self-hosted fonts and system fallbacks. Bengali falls through to the
      best installed Bengali face so mixed English and Bangla text keeps one rhythm. */
-  --font-sans:
-    "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
-    "Noto Sans", var(--font-bengali, "Noto Sans Bengali"), "Hind Siliguri", "Nirmala UI", Helvetica, Arial, sans-serif;
+  --font-sans: var(--font-inter, "Inter"), system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+    Roboto, var(--font-bengali, "Noto Sans Bengali"), Helvetica, Arial, sans-serif;
   --font-mono: ui-monospace, "SF Mono", "SFMono-Regular", Menlo, Consolas, monospace;
 
-  /* Light palette: cool paper, navy ink, one blue for links and focus, one teal for progress. */
-  --bg: #f6f7f9;
+  /* Light palette: warm paper, navy ink and teal actions. */
+  --bg: #f9f8f5;
   --bg-elevated: #ffffff;
-  --bg-subtle: #eef1f5;
-  --text: #0e1a2b;
-  --text-secondary: #4a5a70;
-  --text-tertiary: #5d6c80;
-  --accent: #1457d6;
-  --accent-hover: #1d4478;
-  /* Solid fills with white text on top (primary buttons): deep navy in light mode, a real
+  --bg-subtle: #f0eee8;
+  --text: #152b37;
+  --text-secondary: #304450;
+  --text-tertiary: #526862;
+  --accent: #087a68;
+  --accent-hover: #075d54;
+  /* Solid fills with white text on top (primary buttons): deep teal in light mode, a real
      and different value in dark mode, see below. */
-  --accent-strong: #0f2a4a;
-  --brand: #0a7f73;
-  --brand-bg: #e0f3f0;
-  --hairline: #d5dbe4;
-  --hairline-soft: #e3e8ef;
-  --success: #0f7a4a;
-  --success-bg: #e2f4ea;
-  --warning: #8a5a00;
-  --warning-bg: #fdf0d2;
-  --danger: #b42318;
+  --accent-strong: #087a68;
+  --brand: #087a68;
+  --brand-bg: #d9f3e9;
+  --selected-text: #075d54;
+  --hairline: #d8ded6;
+  --hairline-soft: #e8eae5;
+  --success: #075d54;
+  --success-bg: #d9f3e9;
+  --warning: #865014;
+  --warning-bg: #fff0db;
+  --danger: #963932;
   /* Solid red fills with white text: the same red in both schemes, because the lighter
      dark-mode --danger is meant for text on a dark page. */
-  --danger-strong: #b42318;
-  --danger-bg: #fde8e6;
-
-  /* Materials & depth: flat surfaces, hairline borders, almost no shadow. */
-  --nav-material: #ffffff;
-  --shadow-card: 0 1px 2px rgba(14, 26, 43, 0.05);
-  --shadow-raise: 0 6px 20px rgba(14, 26, 43, 0.1);
+  --danger-strong: #b94945;
+  --danger-bg: #fbe9e5;
+  --nav-material: #f9f8f5;
 
   /* Shape & rhythm */
-  --radius-sm: 8px;
-  --radius: 12px;
-  --radius-lg: 16px;
+  --radius-sm: 10px;
+  --radius: 16px;
+  --radius-lg: 22px;
   --radius-pill: 980px;
-  --container: 1024px;
-  --container-wide: 1280px;
-  --header-height: 56px;
-  --seg-0: #0a7f73;
-  --seg-1: #1457d6;
-  --seg-2: #6d4ad6;
-  --seg-3: #b7791f;
-  --seg-4: #c0396b;
-  --seg-5: #5d6c80;
-  --side-width: 15rem;
+  --container: 1152px;
+  --container-wide: 1440px;
+  --header-height: 68px;
+  --seg-0: #087a68;
+  --seg-1: #304450;
+  --seg-2: #075d54;
+  --seg-3: #ac6718;
+  --seg-4: #b94945;
+  --seg-5: #526862;
+  --side-width: 16rem;
 
   /* Spacing scale: an 8px rhythm with a half-step at the bottom for tight inline gaps. */
   --space-1: 0.25rem;
@@ -75,36 +64,35 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #0a1220;
-    --bg-elevated: #111b2e;
-    --bg-subtle: #162338;
-    --text: #e8edf5;
-    --text-secondary: #a3b1c6;
-    --text-tertiary: #8393ab;
-    --accent: #6aa3ff;
-    --accent-hover: #3f78e0;
-    /* White text on a light-blue fill fails 4.5:1, so solid fills stay a deeper blue. */
-    --accent-strong: #2b62cc;
-    --brand: #35c2b0;
-    --seg-0: #35c2b0;
-    --seg-1: #6aa3ff;
-    --seg-2: #a592ff;
-    --seg-3: #e0b25a;
-    --seg-4: #ee86ac;
-    --seg-5: #8393ab;
-    --brand-bg: #0f2f33;
-    --hairline: #26344d;
-    --hairline-soft: #1d2a40;
-    --success: #4cd18a;
-    --success-bg: #0f2a1e;
-    --warning: #f2c14e;
-    --warning-bg: #33280d;
-    --danger: #ff8a7d;
-    --danger-strong: #b42318;
-    --danger-bg: #3a1512;
-    --nav-material: #0a1220;
-    --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.4);
-    --shadow-raise: 0 6px 20px rgba(0, 0, 0, 0.5);
+    --bg: #102937;
+    --bg-elevated: #183844;
+    --bg-subtle: #203f4a;
+    --text: #f9f8f5;
+    --text-secondary: #d1e3dd;
+    --text-tertiary: #b4cdc5;
+    --accent: #9ae0c9;
+    --accent-hover: #075d54;
+    /* White text on a mint fill fails 4.5:1, so solid fills stay a deeper teal. */
+    --accent-strong: #075d54;
+    --brand: #9ae0c9;
+    --seg-0: #9ae0c9;
+    --seg-1: #d1e3dd;
+    --seg-2: #b4cdc5;
+    --seg-3: #f4ca89;
+    --seg-4: #ffb5ac;
+    --seg-5: #b4cdc5;
+    --brand-bg: #254b48;
+    --selected-text: #9ae0c9;
+    --hairline: #55756e;
+    --hairline-soft: #345651;
+    --success: #9ae0c9;
+    --success-bg: #254b48;
+    --warning: #f4ca89;
+    --warning-bg: #4a381f;
+    --danger: #ffb5ac;
+    --danger-strong: #b94945;
+    --danger-bg: #482b2c;
+    --nav-material: #102937;
   }
 }
 
@@ -178,8 +166,6 @@ a:hover {
   left: 12px;
   top: 12px;
 }
-
-/* Navigation — translucent frosted bar (deference + depth) */
 .nav {
   position: sticky;
   top: 0;
@@ -198,8 +184,8 @@ a:hover {
   align-items: center;
   gap: 0.55rem;
   font-weight: 700;
-  font-size: 1.05rem;
-  letter-spacing: -0.01em;
+  font-size: 1.125rem;
+  letter-spacing: -0.035em;
   color: var(--text);
 }
 .brand:hover {
@@ -208,13 +194,11 @@ a:hover {
 /* A small mark: two stacked bars, the stack in the name. Decorative. */
 .brand-mark {
   display: inline-block;
-  width: 1.15rem;
-  height: 1.15rem;
-  border-radius: 5px;
-  background:
-    linear-gradient(var(--bg-elevated), var(--bg-elevated)) 22% 34% / 56% 14% no-repeat,
-    linear-gradient(var(--bg-elevated), var(--bg-elevated)) 22% 62% / 56% 14% no-repeat,
-    var(--brand);
+  width: 1.8rem;
+  height: 1.8rem;
+  border-radius: 9px;
+  background: var(--accent-strong);
+  position: relative;
 }
 .nav-links {
   display: flex;
@@ -317,16 +301,17 @@ main {
   font-weight: 600;
   line-height: 1.25;
   padding: 0.65rem 1.25rem;
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-pill);
   border: 1px solid transparent;
   cursor: pointer;
   transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+  min-height: 44px;
 }
 .btn:hover {
   text-decoration: none;
 }
 .btn:active {
-  transform: translateY(1px);
+  transform: none;
 }
 .btn-primary {
   background: var(--accent-strong);
@@ -352,13 +337,13 @@ main {
   background: var(--danger-strong);
   color: #fff;
 }
-.btn-danger:hover {
-  filter: brightness(1.08);
-}
 .btn:disabled,
 .btn[aria-disabled="true"] {
-  opacity: 0.55;
+  opacity: 1;
   cursor: not-allowed;
+  background: var(--bg-subtle);
+  color: var(--text-tertiary);
+  border-color: var(--hairline);
 }
 
 /* Controlled-pilot / deployment-mode banner (global, root layout) */
@@ -432,8 +417,6 @@ main {
   max-width: 56ch;
   margin: 0;
 }
-
-/* Cards & grid (depth) */
 .grid {
   display: grid;
   gap: 1rem;
@@ -444,7 +427,7 @@ main {
   border: 1px solid var(--hairline);
   border-radius: var(--radius);
   padding: 1.35rem 1.4rem;
-  box-shadow: var(--shadow-card);
+  border-color: var(--hairline-soft);
 }
 .card-title {
   font-size: 1.08rem;
@@ -735,20 +718,15 @@ main {
 .app-frame {
   display: grid;
   grid-template-columns: var(--side-width) minmax(0, 1fr);
-  align-items: start;
+  align-items: stretch;
   /* A short page still gives the sidebar a panel that reaches the bottom of the screen. */
   min-height: calc(100dvh - var(--header-height) - 3rem);
   /* The sidebar's panel runs the full height of the page, whatever the sidebar holds. */
-  background: linear-gradient(
-    to right,
-    var(--bg-elevated) calc(var(--side-width) - 1px),
-    var(--hairline) calc(var(--side-width) - 1px),
-    var(--hairline) var(--side-width),
-    transparent var(--side-width)
-  );
+  background: var(--bg-subtle);
 }
 .app-main {
   min-width: 0;
+  background: var(--bg);
 }
 .app-shell-nav {
   position: sticky;
@@ -757,8 +735,11 @@ main {
   flex-direction: column;
   gap: 0.15rem;
   max-height: calc(100dvh - var(--header-height));
-  padding: 1.1rem 0.9rem 1.25rem 1rem;
+  padding: 1.5rem 1rem;
   overflow-y: auto;
+  background: var(--bg-subtle);
+  border-right: 1px solid var(--hairline-soft);
+  align-self: start;
 }
 .app-bar {
   display: block;
@@ -782,12 +763,13 @@ main {
   display: flex;
   align-items: center;
   gap: 0.7rem;
-  min-height: 2.5rem;
+  min-height: 44px;
   padding: 0.45rem 0.75rem;
   border-radius: var(--radius-sm);
   color: var(--text-secondary);
   font-size: 0.95rem;
   font-weight: 500;
+  border: 1px solid transparent;
 }
 .app-more-toggle {
   display: none;
@@ -805,10 +787,10 @@ main {
   text-decoration: none;
 }
 .app-shell-links a[aria-current="page"] {
-  color: var(--text);
+  color: var(--selected-text);
   font-weight: 650;
   background: var(--brand-bg);
-  box-shadow: inset 3px 0 0 var(--brand);
+  border: 1px solid var(--hairline);
 }
 .app-shell-links a[aria-current="page"] .icon {
   color: var(--brand);
@@ -847,13 +829,7 @@ main {
   scrollbar-width: thin;
   border-bottom: 1px solid var(--hairline);
   margin-bottom: 1.5rem;
-  /* When the tabs do not all fit, a soft edge on the hidden side shows that the
-     bar scrolls. The two `local` layers cover the shadows once the end is reached. */
-  background:
-    linear-gradient(to right, var(--bg) 30%, transparent) left center / 1.5rem 100% no-repeat local,
-    linear-gradient(to left, var(--bg) 30%, transparent) right center / 1.5rem 100% no-repeat local,
-    radial-gradient(farthest-side at 0 50%, rgb(0 0 0 / 0.16), transparent) left center / 0.6rem 100% no-repeat scroll,
-    radial-gradient(farthest-side at 100% 50%, rgb(0 0 0 / 0.16), transparent) right center / 0.6rem 100% no-repeat scroll;
+  background: var(--bg);
 }
 .subnav a {
   /* Each tab keeps the width of its own text and the bar scrolls when they do not all fit.
@@ -926,7 +902,6 @@ main {
     color: #000;
   }
   .card {
-    box-shadow: none;
     border: 1px solid #ccc;
     break-inside: avoid;
   }
@@ -986,12 +961,7 @@ main {
 .skeleton {
   display: block;
   border-radius: var(--radius-sm);
-  background: linear-gradient(
-    90deg,
-    var(--bg-subtle) 25%,
-    var(--hairline-soft) 50%,
-    var(--bg-subtle) 75%
-  );
+  background: var(--bg-subtle);
   background-size: 200% 100%;
   animation: skeleton-shimmer 1.4s ease-in-out infinite;
 }
@@ -1047,7 +1017,6 @@ main {
     overflow: visible;
     background: var(--bg-elevated);
     border-top: 1px solid var(--hairline);
-    box-shadow: 0 -2px 10px rgba(14, 26, 43, 0.06);
   }
   .app-bar {
     display: flex;
@@ -1082,7 +1051,6 @@ main {
   .app-bar a[aria-current="page"] {
     background: none;
     color: var(--brand);
-    box-shadow: inset 0 3px 0 var(--brand);
   }
   .app-more-toggle {
     display: flex;
@@ -1100,7 +1068,6 @@ main {
     padding: 0.75rem 1rem 1rem;
     background: var(--bg-elevated);
     border-top: 1px solid var(--hairline);
-    box-shadow: 0 -10px 24px rgba(14, 26, 43, 0.14);
   }
   .app-shell-nav[data-open="true"] .app-more {
     display: flex;
@@ -1189,7 +1156,6 @@ main {
   border: 1px solid var(--hairline-soft);
   border-left: 4px solid var(--accent);
   border-radius: var(--radius);
-  box-shadow: var(--shadow-card);
 }
 .next-step-text {
   flex: 1 1 18rem;
@@ -1285,7 +1251,6 @@ main {
   background: var(--bg-elevated);
   border: 1px solid var(--hairline-soft);
   border-radius: var(--radius);
-  box-shadow: var(--shadow-card);
 }
 .disclosure > summary {
   display: flex;
@@ -1397,7 +1362,6 @@ main {
   background: var(--bg-elevated);
   border: 1px solid var(--hairline);
   border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-raise);
   padding: 1.25rem;
 }
 .hero-preview-tag {
@@ -1637,7 +1601,6 @@ a.checklist-item:hover .checklist-label {
   border: 1px solid var(--hairline);
   border-radius: var(--radius);
   background: var(--bg-elevated);
-  box-shadow: var(--shadow-card);
   overflow: hidden;
 }
 .stat {
@@ -2007,22 +1970,7 @@ a.checklist-item:hover .checklist-label {
   position: relative;
   overflow: clip;
   padding-block: clamp(3rem, 8vw, 6rem) clamp(3.5rem, 8vw, 6.5rem);
-  background: radial-gradient(60rem 30rem at 85% -10%, var(--brand-bg), transparent 70%),
-    radial-gradient(
-      48rem 26rem at -10% 10%,
-      color-mix(in srgb, var(--accent) 12%, transparent),
-      transparent 70%
-    ), var(--bg);
-}
-.land-hero-glow {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background-image: radial-gradient(var(--hairline) 1px, transparent 1px);
-  background-size: 26px 26px;
-  mask-image: radial-gradient(ellipse at 70% 30%, #000 0%, transparent 65%);
-  -webkit-mask-image: radial-gradient(ellipse at 70% 30%, #000 0%, transparent 65%);
-  opacity: 0.7;
+  background: var(--bg);
 }
 .land-hero-grid {
   position: relative;
@@ -2039,40 +1987,28 @@ a.checklist-item:hover .checklist-label {
   padding: 0.35rem 0.85rem;
   border: 1px solid var(--hairline);
   border-radius: var(--radius-pill);
-  background: var(--bg-elevated);
+  background: var(--brand-bg);
   font-size: 0.8rem;
   font-weight: 650;
-  color: var(--text-secondary);
-  box-shadow: var(--shadow-card);
+  color: var(--selected-text);
+  border-color: var(--brand-bg);
 }
 .land-pill-dot {
   width: 0.5rem;
   height: 0.5rem;
   border-radius: 50%;
   background: var(--brand);
-  box-shadow: 0 0 0 0 color-mix(in srgb, var(--brand) 55%, transparent);
-  animation: land-pulse 2.4s ease-out infinite;
-}
-@keyframes land-pulse {
-  70% {
-    box-shadow: 0 0 0 0.5rem transparent;
-  }
-  100% {
-    box-shadow: 0 0 0 0 transparent;
-  }
 }
 .land-title {
   margin: 0 0 1.25rem;
-  font-size: clamp(2.7rem, 7vw, 5rem);
+  font-size: clamp(2.7rem, 5.4vw, 5rem);
   line-height: 1;
   letter-spacing: -0.045em;
-  font-weight: 800;
+  font-weight: 730;
   text-wrap: balance;
-  background: linear-gradient(100deg, var(--text) 38%, var(--accent) 72%, var(--brand));
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-  -webkit-text-fill-color: transparent;
+  background: none;
+  color: var(--text);
+  max-width: 12ch;
 }
 .land-lede {
   margin: 0 0 2rem;
@@ -2099,19 +2035,20 @@ a.checklist-item:hover .checklist-label {
 .land-assure .icon {
   color: var(--brand);
 }
-
-/* The example case with two small cards floating over it */
 .land-stage {
   position: relative;
-  padding: 0 0 8.5rem;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
 }
 .land-case {
   position: relative;
   padding: 1.5rem;
   border-radius: 20px;
-  box-shadow: 0 1px 0 var(--hairline-soft) inset, 0 30px 60px -20px rgba(14, 26, 43, 0.28);
-  transform: perspective(1400px) rotateY(-4deg) rotateX(2deg);
-  transform-origin: center left;
+  transform-origin: initial;
+  grid-column: 1 / -1;
+  transform: none;
 }
 .land-case-head {
   display: flex;
@@ -2150,32 +2087,28 @@ a.checklist-item:hover .checklist-label {
 .land-ring span {
   position: relative;
 }
-.land-float {
-  position: absolute;
-  z-index: 2;
-  width: min(16rem, 48%);
+.land-example {
+  position: static;
+  z-index: auto;
+  width: auto;
   padding: 0.9rem 1rem;
   background: var(--bg-elevated);
   border: 1px solid var(--hairline);
   border-radius: var(--radius);
-  box-shadow: var(--shadow-raise);
-  animation: land-bob 7s ease-in-out infinite;
+  min-width: 0;
 }
-.land-float-ai {
-  right: 0;
-  bottom: 0;
+.land-example-ai {
+  right: auto;
+  bottom: auto;
+  background: #183844;
+  color: #ffffff;
 }
-.land-float-share {
-  left: 0;
-  bottom: 0;
+.land-example-share {
+  left: auto;
+  bottom: auto;
   animation-delay: -3.5s;
 }
-@keyframes land-bob {
-  50% {
-    transform: translateY(-6px);
-  }
-}
-.land-float-kicker {
+.land-example-kicker {
   display: flex;
   align-items: center;
   gap: 0.4rem;
@@ -2186,17 +2119,17 @@ a.checklist-item:hover .checklist-label {
   text-transform: uppercase;
   color: var(--brand);
 }
-.land-float-line {
+.land-example-line {
   margin: 0;
   font-size: 0.92rem;
   font-weight: 600;
 }
-.land-float-note {
+.land-example-note {
   margin: 0.2rem 0 0;
   font-size: 0.8rem;
   color: var(--text-secondary);
 }
-.land-float-actions {
+.land-example-actions {
   display: flex;
   gap: 0.5rem;
   margin-top: 0.65rem;
@@ -2228,9 +2161,8 @@ a.checklist-item:hover .checklist-label {
   background: var(--bg-elevated);
 }
 .land-versus-after {
-  background: linear-gradient(160deg, var(--brand-bg), var(--bg-elevated) 70%);
+  background: var(--bg-elevated);
   border-color: color-mix(in srgb, var(--brand) 45%, var(--hairline));
-  box-shadow: var(--shadow-raise);
 }
 .land-versus-label {
   margin: 0 0 1.1rem;
@@ -2288,7 +2220,6 @@ a.checklist-item:hover .checklist-label {
   background: var(--bg-elevated);
   border: 1px solid var(--hairline);
   border-radius: 20px;
-  box-shadow: var(--shadow-card);
   overflow: hidden;
 }
 .land-step-num {
@@ -2337,8 +2268,7 @@ a.checklist-item:hover .checklist-label {
   background: var(--bg-elevated);
   border: 1px solid var(--hairline);
   border-radius: 20px;
-  box-shadow: var(--shadow-card);
-  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+  transition: border-color 0.15s ease;
 }
 .land-tile-half {
   grid-column: span 3;
@@ -2347,8 +2277,6 @@ a.checklist-item:hover .checklist-label {
   grid-column: 1 / -1;
 }
 .land-tile:hover {
-  transform: translateY(-3px);
-  box-shadow: var(--shadow-raise);
   border-color: color-mix(in srgb, var(--brand) 40%, var(--hairline));
 }
 
@@ -2363,10 +2291,9 @@ a.checklist-item:hover .checklist-label {
   background: var(--bg-elevated);
   border: 1px solid var(--hairline);
   border-radius: 24px;
-  box-shadow: var(--shadow-card);
 }
 .land-who-card:first-child {
-  background: linear-gradient(165deg, var(--brand-bg), var(--bg-elevated) 65%);
+  background: var(--bg-elevated);
 }
 .land-who-card .land-h3 {
   font-size: clamp(1.3rem, 2.4vw, 1.6rem);
@@ -2394,8 +2321,7 @@ a.checklist-item:hover .checklist-label {
 
 /* The dark trust band. Colours are fixed so it reads the same in both schemes. */
 .land-dark {
-  background: radial-gradient(50rem 24rem at 90% 0%, rgba(53, 194, 176, 0.16), transparent 70%),
-    #0a1a33;
+  background: #102937;
   color: #eaf1ff;
 }
 .land-dark .land-kicker {
@@ -2417,9 +2343,9 @@ a.checklist-item:hover .checklist-label {
   align-items: flex-start;
   gap: 0.9rem;
   padding: 1.15rem 1.2rem;
-  border: 1px solid rgba(160, 190, 235, 0.22);
+  border: 1px solid #345651;
   border-radius: 16px;
-  background: rgba(160, 190, 235, 0.07);
+  background: #183844;
   font-size: 1rem;
   line-height: 1.45;
 }
@@ -2430,7 +2356,7 @@ a.checklist-item:hover .checklist-label {
   width: 2.4rem;
   height: 2.4rem;
   border-radius: 10px;
-  background: rgba(95, 217, 200, 0.16);
+  background: #183844;
   color: #5fd9c8;
 }
 .land-dark-link {
@@ -2476,7 +2402,7 @@ a.checklist-item:hover .checklist-label {
   background: var(--brand);
 }
 .land-horizon-next::before {
-  background: linear-gradient(90deg, var(--brand), var(--accent));
+  background: var(--bg-elevated);
 }
 .land-horizon-later {
   border-style: dashed;
@@ -2502,9 +2428,7 @@ a.checklist-item:hover .checklist-label {
   border-radius: 28px;
   text-align: center;
   color: #ffffff;
-  background: radial-gradient(40rem 18rem at 15% 0%, rgba(53, 194, 176, 0.55), transparent 70%),
-    linear-gradient(135deg, #0f2a4a, #1457d6);
-  box-shadow: 0 30px 60px -25px rgba(20, 87, 214, 0.55);
+  background: #102937;
 }
 .land-final-title {
   margin: 0 0 0.8rem;
@@ -2524,18 +2448,18 @@ a.checklist-item:hover .checklist-label {
 }
 .land-btn-light {
   background: #ffffff;
-  color: #0f2a4a;
+  color: #152b37;
 }
 .land-btn-light:hover {
-  background: #e8f0ff;
+  background: #d9f3e9;
 }
 .land-btn-ghost {
-  background: transparent;
+  background: #183844;
   color: #ffffff;
-  border-color: rgba(255, 255, 255, 0.55);
+  border-color: #d1e3dd;
 }
 .land-btn-ghost:hover {
-  background: rgba(255, 255, 255, 0.12);
+  background: #254b48;
 }
 
 @media (max-width: 960px) {
@@ -2570,7 +2494,7 @@ a.checklist-item:hover .checklist-label {
   .land-stage {
     padding-bottom: 0;
   }
-  .land-float {
+  .land-example {
     position: static;
     width: auto;
     margin-top: 0.75rem;
@@ -2584,12 +2508,343 @@ a.checklist-item:hover .checklist-label {
   }
 }
 @media print {
-  .land-hero-glow {
-    display: none;
-  }
   .land-dark,
   .land-final-card {
     background: #fff;
     color: #000;
+  }
+}
+
+/* Shared geometry for public, identity and authorized workspaces. */
+.brand-mark::before,
+.brand-mark::after {
+  content: "";
+  position: absolute;
+  left: 22%;
+  width: 56%;
+  height: 12%;
+  border-radius: 2px;
+  background: #ffffff;
+}
+.brand-mark::before {
+  top: 32%;
+}
+.brand-mark::after {
+  top: 58%;
+}
+.land-title em,
+.auth-introduction em {
+  display: block;
+  font-family: Georgia, "Times New Roman", serif;
+  font-weight: 400;
+  color: #b54a3e;
+  letter-spacing: -0.04em;
+}
+.land-example-ai .land-example-kicker,
+.land-example-ai .land-chip {
+  color: #d9f3e9;
+}
+.land-example-ai .land-chip-yes {
+  color: #075d54;
+  background: #d9f3e9;
+}
+.land-example-ai .land-chip {
+  border-color: #55756e;
+}
+.land-assure {
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--hairline-soft);
+}
+.land-dark-link a {
+  color: #d9f3e9;
+}
+.land-final-sub {
+  color: #d1e3dd;
+}
+.land-dark .land-kicker {
+  color: #9ae0c9;
+}
+.land-final-card .land-kicker {
+  color: #9ae0c9;
+}
+.nav-links .btn-primary {
+  color: #ffffff;
+}
+.app-sidebar-heading {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.25rem 0.75rem 1.5rem;
+  font-weight: 650;
+  color: var(--text);
+}
+.app-sidebar-heading .icon {
+  color: var(--brand);
+}
+.workspace-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.65rem clamp(1.25rem, 4vw, 2rem);
+  background: var(--bg-elevated);
+  border-bottom: 1px solid var(--hairline-soft);
+}
+.workspace-context {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+.workspace-shortcuts {
+  display: flex;
+  gap: 0.25rem;
+}
+.workspace-shortcuts a {
+  display: grid;
+  place-items: center;
+  min-width: 44px;
+  min-height: 44px;
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+}
+.workspace-shortcuts a:hover {
+  background: var(--bg-subtle);
+}
+.auth-shell {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  align-items: stretch;
+  gap: clamp(1.5rem, 5vw, 4rem);
+  max-width: 1152px;
+}
+.auth-introduction {
+  display: flex;
+  flex-direction: column;
+  align-self: start;
+  padding: clamp(1.5rem, 4vw, 3rem);
+  border-radius: var(--radius-lg);
+  background: #102937;
+  color: #ffffff;
+}
+.auth-introduction h2 {
+  margin: 1rem 0 1.5rem;
+  font-size: clamp(2.2rem, 4vw, 3.5rem);
+  letter-spacing: -0.045em;
+  line-height: 1.12;
+}
+.auth-introduction em {
+  color: #f5b4a5;
+}
+.auth-introduction p {
+  color: #d1e3dd;
+}
+.auth-kicker {
+  margin: 0;
+  font-size: 0.75rem;
+  font-weight: 650;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.auth-introduction ul {
+  display: grid;
+  gap: 1.25rem;
+  padding: 1.5rem 0;
+  margin: 1rem 0;
+  list-style: none;
+  border-block: 1px solid #345651;
+}
+.auth-introduction li {
+  display: flex;
+  align-items: start;
+  gap: 0.75rem;
+  font-size: 0.9rem;
+}
+.auth-introduction .icon {
+  color: #9ae0c9;
+}
+.auth-footnote {
+  font-size: 0.875rem;
+  margin-bottom: 0;
+}
+.auth-form-panel {
+  min-width: 0;
+  padding-top: 0.5rem;
+}
+.auth-form-panel .page-title {
+  margin: 0 0 1.25rem;
+}
+.auth-form-panel .card {
+  padding: clamp(1.1rem, 3vw, 1.75rem);
+}
+.auth-form-panel .field-list {
+  gap: 1.25rem;
+}
+.input,
+select,
+textarea {
+  font: inherit;
+}
+.input {
+  min-height: 44px;
+  border-color: var(--text-tertiary);
+}
+button,
+a,
+input,
+select,
+textarea,
+summary {
+  scroll-margin-block: 6rem;
+}
+@media (prefers-color-scheme: dark) {
+  .land-title em {
+    color: #f5b4a5;
+  }
+}
+@media (max-width: 960px) {
+  .app-sidebar-heading {
+    display: none;
+  }
+  .app-shell-nav {
+    border-right: 0;
+  }
+}
+@media (max-width: 700px) {
+  .auth-shell {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .auth-introduction {
+    padding: 1.5rem;
+  }
+  .auth-introduction ul,
+  .auth-footnote {
+    display: none;
+  }
+  .auth-introduction h2 {
+    margin: 0.75rem 0;
+    font-size: 2.25rem;
+  }
+  .auth-introduction p {
+    margin-block: 0.5rem;
+  }
+  .land-stage {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .land-case {
+    grid-column: auto;
+  }
+  .land-example {
+    margin-top: 0;
+  }
+}
+@media print {
+  .workspace-toolbar,
+  .auth-introduction {
+    display: none;
+  }
+  .auth-shell {
+    display: block;
+  }
+}
+.trust-principles {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  margin-bottom: 2.5rem;
+}
+.trust-principles .icon {
+  color: var(--brand);
+  margin-bottom: 1rem;
+}
+@media (max-width: 700px) {
+  .trust-principles {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+.document-wallet-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(16rem, 0.45fr);
+  gap: 1.25rem;
+  align-items: start;
+}
+.document-wallet-list {
+  min-width: 0;
+}
+.document-review-panel {
+  position: sticky;
+  top: calc(var(--header-height) + 1rem);
+  min-width: 0;
+}
+.document-review-panel .input {
+  width: 100%;
+  margin: 0.5rem 0 1rem;
+}
+.document-review-panel .btn {
+  width: 100%;
+}
+.document-preview-placeholder {
+  display: grid;
+  place-items: center;
+  padding: 2rem 1rem;
+  text-align: center;
+  background: var(--bg-subtle);
+  border: 1px solid var(--hairline-soft);
+  border-radius: var(--radius-sm);
+}
+.document-preview-placeholder .icon {
+  color: var(--brand);
+}
+.document-preview-placeholder p {
+  margin: 0.5rem 0 0;
+}
+.document-review-name {
+  font-size: 1rem;
+  overflow-wrap: anywhere;
+}
+.document-review-status {
+  display: grid;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+@media (max-width: 1100px) {
+  .document-wallet-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .document-review-panel {
+    position: static;
+  }
+}
+.sharing-workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(0, 0.85fr);
+  gap: 1.25rem;
+  align-items: start;
+}
+@media (max-width: 1100px) {
+  .sharing-workspace {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+.btn-danger:hover {
+  background: #963932;
+}
+.workspace-shortcuts a {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.65rem;
+  padding-inline: 0.65rem;
+}
+.workspace-identity {
+  max-width: 24ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.875rem;
+}
+@media (max-width: 700px) {
+  .workspace-identity {
+    display: none;
   }
 }

@@ -1,6 +1,9 @@
+import { createHash } from 'node:crypto';
+import { mkdirSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import type { ReactElement, ReactNode } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { vi } from 'vitest';
+import { expect, vi } from 'vitest';
 
 /**
  * Shared stand-ins for the Next.js pieces a page imports, so a server page can be
@@ -81,7 +84,22 @@ export async function renderServer(
   element: Promise<ReactElement | null> | ReactElement | null,
 ): Promise<string> {
   const resolved = await element;
-  return resolved === null ? '' : renderToStaticMarkup(resolved);
+  const html = resolved === null ? '' : renderToStaticMarkup(resolved);
+  const captureVariable = 'UI_VISUAL_CAPTURE_DIR';
+  const captureDirectory = process.env[captureVariable];
+  if (captureDirectory && html) {
+    const state = expect.getState();
+    const source = state.testPath ?? '';
+    const name = state.currentTestName ?? '';
+    const id = createHash('sha256').update(`${source}:${name}:${html}`).digest('hex').slice(0, 16);
+    mkdirSync(captureDirectory, { recursive: true });
+    writeFileSync(join(captureDirectory, `${id}.html`), html);
+    writeFileSync(
+      join(captureDirectory, `${id}.json`),
+      JSON.stringify({ source, name, synthetic: true }),
+    );
+  }
+  return html;
 }
 
 /** Collapses markup to its words, for assertions that should not care about tags. */

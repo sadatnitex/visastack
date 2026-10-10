@@ -1,14 +1,41 @@
 import type { ReactNode } from 'react';
+import { Icon } from '../../components/icons';
 
 /** Shared pieces of the Neon Auth pages, so every form has the same labels, errors and spacing. */
 
 export function AuthShell({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <section className="section container" style={{ maxWidth: '28rem' }}>
-      <h1 className="page-title" style={{ marginBottom: '1.25rem' }}>
-        {title}
-      </h1>
-      {children}
+    <section className="section container auth-shell">
+      <aside className="auth-introduction" aria-label="Your VisaStack account">
+        <p className="auth-kicker">Clarity. Control. Trust.</p>
+        <h2>
+          One profile.
+          <br />
+          <em>Every visa.</em>
+        </h2>
+        <p>Keep your details together. Reuse what you need, and choose what you share.</p>
+        <ul>
+          <li>
+            <Icon name="user" size={20} />
+            Your profile, kept in one place
+          </li>
+          <li>
+            <Icon name="lock" size={20} />
+            Documents private by default
+          </li>
+          <li>
+            <Icon name="share" size={20} />
+            Sharing you can stop at any time
+          </li>
+        </ul>
+        <p className="auth-footnote">
+          You stay in control of your records and every suggestion you approve.
+        </p>
+      </aside>
+      <div className="auth-form-panel">
+        <h1 className="page-title">{title}</h1>
+        {children}
+      </div>
     </section>
   );
 }

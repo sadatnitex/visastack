@@ -5,6 +5,7 @@ import type { ReactNode } from 'react';
 import { PilotBanner } from '../components/pilot-banner';
 import { getDeploymentMode } from '../lib/deployment-mode';
 import { getLocale } from '../lib/locale';
+import { isPublicBetaOpen } from '../lib/public-beta';
 import { isSignedIn } from '../lib/signed-in';
 import { setLocaleAction } from './actions';
 import './globals.css';
@@ -33,14 +34,14 @@ export const metadata: Metadata = {
   // Every page names itself (WCAG 2.4.2): the page's own title, then the product.
   title: { default: 'VisaStack - one profile, every visa', template: '%s | VisaStack' },
   description:
-    'Keep your passport, documents and visa details in one private profile and reuse them for every application. Invite-only pilot.',
+    'Keep your passport, documents and visa details in one private profile and reuse them for every application. Review changes and control what you share.',
 };
 
 // Match the browser chrome to the theme in both light and dark.
 export const viewport: Viewport = {
   themeColor: [
-    { media: '(prefers-color-scheme: light)', color: '#f6f7f9' },
-    { media: '(prefers-color-scheme: dark)', color: '#0a1220' },
+    { media: '(prefers-color-scheme: light)', color: '#f9f8f5' },
+    { media: '(prefers-color-scheme: dark)', color: '#102937' },
   ],
 };
 
@@ -58,7 +59,7 @@ export default async function RootLayout({ children }: { readonly children: Reac
         <a className="skip-link" href="#main">
           Skip to content
         </a>
-        <PilotBanner mode={deploymentMode} />
+        <PilotBanner mode={deploymentMode} registrationOpen={isPublicBetaOpen()} />
         <header className="nav">
           <Link className="brand" href="/">
             <span className="brand-mark" aria-hidden="true" />
@@ -66,6 +67,7 @@ export default async function RootLayout({ children }: { readonly children: Reac
           </Link>
           <nav className="nav-links" aria-label="Site">
             <Link href="/#capabilities">Features</Link>
+            <Link href="/#for-agencies">For agencies</Link>
             <Link href="/trust">Public trust</Link>
             <Link href="/status">Status</Link>
             <form action={setLocaleAction} aria-label="Language">

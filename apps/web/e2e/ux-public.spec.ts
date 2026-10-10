@@ -1,6 +1,7 @@
 import AxeBuilder from '@axe-core/playwright';
 import { type Page, expect, test } from '@playwright/test';
 import { PRIMARY_NAV, agencyTabs, applicantTabs, platformTabs } from '../src/lib/navigation';
+import { openUiFixture } from './flat-ui-support';
 
 /**
  * UX/accessibility verification for public (no-secret) surfaces (master
@@ -496,4 +497,151 @@ test.describe('route information page (answers with data or says plainly it is u
       }
     });
   }
+});
+
+/** Real React components with synthetic records, not authenticated production journeys. */
+test.describe('flat UI reference geometry and interaction', () => {
+  test.use({ bypassCSP: true });
+  const sizes = [
+    [1600, 1000],
+    [1440, 900],
+    [1280, 800],
+    [1024, 768],
+    [768, 1024],
+    [390, 844],
+    [375, 812],
+    [320, 640],
+  ] as const;
+  for (const mode of [
+    'overview',
+    'profile',
+    'documents',
+    'case',
+    'sharing',
+    'agency',
+    'admin',
+  ] as const) {
+    for (const [width, height] of sizes) {
+      test(`${mode} fits ${width}px without decorative surfaces`, async ({ page }) => {
+        await page.setViewportSize({ width, height });
+        await openUiFixture(page, mode);
+        await page.evaluate(() => document.fonts.ready);
+        const findings = await page.locator('main').evaluate((main) => {
+          const effects = [...main.querySelectorAll('*')]
+            .filter((element) => {
+              const css = getComputedStyle(element);
+              return (
+                css.boxShadow !== 'none' ||
+                css.textShadow !== 'none' ||
+                css.backdropFilter !== 'none' ||
+                /(?:linear|radial)-gradient|blur\(|drop-shadow\(/.test(
+                  css.backgroundImage + css.filter,
+                )
+              );
+            })
+            .map((element) => element.className);
+          return { overflow: document.documentElement.scrollWidth > innerWidth + 1, effects };
+        });
+        expect(findings).toEqual({ overflow: false, effects: [] });
+        await page.screenshot({
+          path: test.info().outputPath(`${mode}-${width}.png`),
+          fullPage: false,
+          animations: 'disabled',
+        });
+      });
+    }
+  }
+  test('mobile navigation moves focus into the menu and returns it on Escape', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await openUiFixture(page, 'overview');
+    const more = page.getByRole('button', { name: 'More', exact: true });
+    await more.click();
+    await expect(page.getByRole('link', { name: 'Privacy', exact: true })).toBeFocused();
+    await page.keyboard.press('Escape');
+    await expect(more).toBeFocused();
+    await expect(more).toHaveAttribute('aria-expanded', 'false');
+  });
+  test('document selection never offers an unchecked preview', async ({ page }) => {
+    await openUiFixture(page, 'documents');
+    await page.getByLabel('Choose a document').selectOption('synthetic-pending');
+    await expect(page.getByRole('button', { name: 'Open secure preview' })).toHaveCount(0);
+    await expect(page.locator('main iframe, main object, main embed')).toHaveCount(0);
+    await page.getByLabel('Choose a document').selectOption('synthetic-clean');
+    await page.getByRole('button', { name: 'Open secure preview' }).click();
+    await expect
+      .poll(() => page.evaluate(() => window.__uiFixtureActions))
+      .toEqual(['synthetic-clean']);
+  });
+  test('document search uses the authorized metadata and keeps empty results safe', async ({
+    page,
+  }) => {
+    await openUiFixture(page, 'documents');
+    const search = page.getByRole('searchbox', { name: 'Find a document' });
+    await search.fill('no-such-document');
+    await expect(
+      page.getByText('No documents match. Try another name or clear your search.'),
+    ).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Open secure preview' })).toHaveCount(0);
+    await search.clear();
+    await expect(page.getByLabel('Choose a document').locator('option')).toHaveCount(2);
+    await search.fill('letter');
+    await expect(page.getByLabel('Choose a document').locator('option')).toHaveCount(1);
+    await expect(page.getByRole('button', { name: 'Open secure preview' })).toHaveCount(0);
+  });
+  for (const colorScheme of ['light', 'dark'] as const) {
+    for (const mode of ['profile', 'documents', 'sharing', 'agency', 'admin'] as const) {
+      test(`${mode} has no serious accessibility violations in ${colorScheme} mode`, async ({
+        page,
+      }) => {
+        await page.emulateMedia({ colorScheme, reducedMotion: 'reduce' });
+        await openUiFixture(page, mode);
+        const result = await new AxeBuilder({ page })
+          .withTags(['wcag2a', 'wcag2aa', 'wcag22aa'])
+          .analyze();
+        const blocking = result.violations.filter(
+          (violation) => violation.impact === 'critical' || violation.impact === 'serious',
+        );
+        expect(blocking, JSON.stringify(blocking, null, 2)).toEqual([]);
+      });
+    }
+  }
+  for (const mode of ['profile', 'documents', 'sharing', 'agency', 'admin'] as const) {
+    test(`${mode} reflows at 320px with increased text spacing`, async ({ page }) => {
+      await page.setViewportSize({ width: 320, height: 640 });
+      await openUiFixture(page, mode);
+      await page.addStyleTag({
+        content:
+          '* { line-height: 1.5 !important; letter-spacing: .12em !important; word-spacing: .16em !important; } p { margin-bottom: 2em !important; }',
+      });
+      const overflowing = await page
+        .locator('body')
+        .evaluate((body) => body.scrollWidth > window.innerWidth + 1);
+      expect(overflowing).toBe(false);
+      await expect(page.getByRole('button', { name: 'More', exact: true })).toBeVisible();
+    });
+  }
+  test('the public surfaces remain flat in both color schemes', async ({ page }) => {
+    for (const colorScheme of ['light', 'dark'] as const) {
+      await page.emulateMedia({ colorScheme });
+      for (const path of ['/', '/trust', '/auth/sign-up', '/auth/sign-in']) {
+        await page.goto(path);
+        const effects = await page.locator('body').evaluate((body) =>
+          [...body.querySelectorAll('*')]
+            .filter((element) => {
+              const css = getComputedStyle(element);
+              return (
+                css.boxShadow !== 'none' ||
+                css.textShadow !== 'none' ||
+                css.backdropFilter !== 'none' ||
+                /(?:linear|radial)-gradient|blur\(|drop-shadow\(/.test(
+                  css.backgroundImage + css.filter,
+                )
+              );
+            })
+            .map((element) => element.className),
+        );
+        expect(effects, path).toEqual([]);
+      }
+    }
+  });
 });
