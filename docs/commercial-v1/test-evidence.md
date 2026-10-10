@@ -441,3 +441,19 @@ Regression proof: before the repair, 7 of 13 route assertions failed; afterwards
 Neon capacity: removed only br-damp-dust-a4xtmktw, the unused merged PR #176 preview, after confirming its merged commit is on main, no open work, no children and no active environment reference. Created isolated preview br-jolly-surf-a4zjgej8 for this patch; production and existing Auth endpoints were retained. Preview settings must be scoped to this Git branch after it exists remotely. No production schema changes, activation, secret rotation, emails or real-account acceptance were performed.
 
 PR-01 remains partial: legacy default/dependencies, stronger account continuity, privileged assurance and real SDK renewal/revocation acceptance remain open. This change repairs routing only.
+
+
+2026-10-10 continuation: recoverable identity verification
+
+Verified-email-only legacy binding has been removed from provisionNeonAccount. Existing immutable Neon bindings remain authoritative, including when the verified contact email changes. Unbound legacy accounts and conflicting bindings receive the same generic identity_recovery_required result and a denied identity audit event. No account fields are mutated or duplicate accounts created by this denial. Concurrent legacy claims are refused. The unique-constraint race path uses the same recovery result. New verified identities with no matching account retain transactional creation.
+
+withSession releases any claimed invitation before redirecting to /auth/account-recovery. It does not attribute an invitation, touch account activity or grant a workspace on this path. The public recovery page explains verification and offers sign-out without exposing an account ID or reason for conflict. It performs no linking. Controlled original-identity proof, recovery approval and holder notification are still required before actual legacy relinking; this patch intentionally preserves existing records pending that proof.
+
+Regression proof before implementation: three of seven service cases failed and the session recovery assertion failed. Lint, web build and workspace type checking passed. Full workspace tests, browser checks and smoke verification are running under bounded parallelism; their final results are not claimed here. The initial unrestricted test attempt overloaded four CPU cores and a new dynamic-import test exceeded the default timeout. Its timeout is now explicitly 30 seconds, with the security assertions retained. The first full attempt was stopped, not counted as a pass. Exact-head CI and deployment remain required.
+
+Neon capacity: confirmed merged PR #167 preview claude/lucid-lamport-70jivu had its exact latest head on the merged PR, its merge on main, no open work/children/current environment references, no Auth metadata, and only historical preview deployments without production aliases. Removed br-lingering-cherry-a4ikv6l9 and created br-steep-frost-a4nwvyev for this isolated patch, retaining nine branches. Production and all currently referenced Auth endpoints were preserved. No production migration, relinking, emails, secret rotation or beta activation occurred.
+
+Owner reporting requirements are recorded in CLAUDE.md and DEPLOYMENT-ACTIONS.md: after each deployment, explain what changed for whom and show done, in-progress and remaining public beta actions. PR-01 remains incomplete; privileged assurance, Neon-only selection/dependency cleanup and actual auth/recovery acceptance remain open.
+
+
+Focused continuation verification (2026-10-10): all seven account-provisioning tests passed, including concurrent refusal and unchanged historical account rows. All three session-bridge tests passed, including invitation release, denied workspace execution and recovery redirect. Supply-chain scans passed 7/7 with zero skips. Full workspace/browser/smoke verification remains running; none of those pending outcomes is counted as passed.

@@ -238,3 +238,6 @@ Public-beta continuation (2026-10-10, chunk 58): existing-session shell fixes we
 
 
 IAM-01 evidence update (2026-10-10): provider-aware /callback and /api/session-reauth routing repaired and verified through route tests and the production build. Stale Neon callback requests never invoke WorkOS, and safe fresh-auth redirects stay on site. This is partial identity migration work; IAM-01 remains BLOCKED for privileged assurance and unverified authenticated acceptance. See public-beta/EXECUTION-CHECKPOINT.md and known-issues.md Chunk 59.
+
+
+IAM-01 continuation (2026-10-10): generic recoverable identity verification replaces verified-email-only legacy binding. Stable IDs and historical identities are preserved, including under concurrent claims. An invitation is released before the recovery redirect and no workspace work runs. This is a bounded protection, not a completed controlled recovery workflow; IAM-01 remains BLOCKED for privileged assurance and actual authenticated acceptance. See Chunk 60 and public-beta/DEPLOYMENT-ACTIONS.md.

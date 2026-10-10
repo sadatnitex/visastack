@@ -74,24 +74,42 @@ describe('Neon account provisioning', () => {
     expect(rows[0]?.neonUserId).toBeNull();
   });
 
-  it('links an existing pilot account on the first confirmed sign-in, once, with an audit event', async () => {
+  it('requires recovery instead of transferring a legacy account on verified email alone', async () => {
     const legacy = await provisionAccount(db, {
       email: 'pilot@example.com',
       workosUserId: 'user_01ABC',
       emailVerified: true,
     });
     if (!isOk(legacy)) throw new Error('expected ok');
-    const linked = await provisionNeonAccount(db, {
+    const before = (await db.select().from(schema.accounts))[0];
+    const result = await provisionNeonAccount(db, {
       email: 'pilot@example.com',
       neonUserId: 'neon-3',
       emailVerified: true,
     });
-    if (!isOk(linked)) throw new Error('expected ok');
-    expect(linked.value.id).toBe(legacy.value.id);
-    expect(linked.value.neonUserId).toBe('neon-3');
-    expect(linked.value.workosUserId).toBe('user_01ABC');
-    expect(await auditCount(db, 'ACCOUNT_IDENTITY_BOUND')).toBeGreaterThanOrEqual(1);
-    expect((await db.select().from(schema.accounts)).length).toBe(1);
+    expect(result).toEqual({
+      ok: false,
+      error: {
+        code: 'identity_recovery_required',
+        message: 'Account access needs additional verification.',
+      },
+    });
+    expect(await db.select().from(schema.accounts)).toEqual([before]);
+    expect(await getAccountByNeonUserId(db, 'neon-3')).toBeUndefined();
+    expect(await auditCount(db, 'ACCOUNT_IDENTITY_CONFLICT')).toBe(1);
+  });
+
+  it('refuses concurrent verified identities without changing or duplicating a legacy account', async () => {
+    await provisionAccount(db, { email: 'race@example.com', workosUserId: 'user_RACE' });
+    const before = await db.select().from(schema.accounts);
+    const results = await Promise.all(
+      ['neon-race-a', 'neon-race-b'].map((neonUserId) =>
+        provisionNeonAccount(db, { email: 'race@example.com', neonUserId, emailVerified: true }),
+      ),
+    );
+    expect(results.every(isErr)).toBe(true);
+    expect(await db.select().from(schema.accounts)).toEqual(before);
+    expect(await auditCount(db, 'ACCOUNT_IDENTITY_CONFLICT')).toBe(2);
   });
 
   it('refuses a different Neon identity for an address already bound to another, and audits it', async () => {
@@ -105,7 +123,13 @@ describe('Neon account provisioning', () => {
       neonUserId: 'neon-b',
       emailVerified: true,
     });
-    expect(isErr(other)).toBe(true);
+    expect(other).toEqual({
+      ok: false,
+      error: {
+        code: 'identity_recovery_required',
+        message: 'Account access needs additional verification.',
+      },
+    });
     expect(await auditCount(db, 'ACCOUNT_IDENTITY_CONFLICT')).toBe(1);
     expect(await getAccountByNeonUserId(db, 'neon-b')).toBeUndefined();
   });
@@ -119,6 +143,23 @@ describe('Neon account provisioning', () => {
     if (!isOk(created)) throw new Error('expected ok');
     const found = await getAccountByNeonUserId(db, 'neon-c');
     expect(found?.id).toBe(created.value.id);
+    const legacy = await provisionAccount(db, {
+      email: 'other@example.com',
+      workosUserId: 'user_OTHER',
+    });
+    if (!isOk(legacy)) throw new Error('expected ok');
+    const again = await provisionNeonAccount(db, {
+      email: 'other@example.com',
+      neonUserId: 'neon-c',
+      emailVerified: true,
+    });
+    if (!isOk(again)) throw new Error('expected ok');
+    expect(again.value.id).toBe(created.value.id);
+    const other = (
+      await db.select().from(schema.accounts).where(eq(schema.accounts.id, legacy.value.id))
+    )[0];
+    expect(other?.neonUserId).toBeNull();
+    expect(other?.workosUserId).toBe('user_OTHER');
     expect(await getAccountByNeonUserId(db, '  ')).toBeUndefined();
   });
 

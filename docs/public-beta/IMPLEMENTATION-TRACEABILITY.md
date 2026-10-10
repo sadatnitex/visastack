@@ -14,3 +14,6 @@
 | PR-09 release candidate | Applicable prior packages and external approvals | Execute J01-J25, exact-SHA checks, rollback; owner-controlled activation |
 
 This is one dependency graph for the supplied mandate, not a competing roadmap. No later package is claimed complete. Local changes must pass review and required exact-head CI before merge; the release candidate and production-sensitive actions retain their specific approval boundaries.
+
+
+2026-10-10 continuation: PR #181 and PR #182 merged. The session shell, selected logout/denial and legacy route repairs are deployed. PR-01 remains in progress; secure recovery-state handling is the next bounded patch. Follow [deployment actions](DEPLOYMENT-ACTIONS.md) for owner-facing done, in-progress and remaining actions and who each deployment affects. Historical status rows above remain dated evidence.

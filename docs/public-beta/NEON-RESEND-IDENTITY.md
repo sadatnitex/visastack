@@ -38,3 +38,6 @@ Contract review: navigation and denial are read-only hints; withSession and midd
 
 
 2026-10-10 routing continuation: /callback and /api/session-reauth now choose the selected provider before importing or invoking WorkOS. Neon stale callbacks go to same-site sign-in; fresh-auth requests use Neon password re-check with safe return paths. Legacy routes are retained for explicitly selected WorkOS deployments. This supersedes the earlier routing gap only; Neon-only defaults, dependency removal, safe linking, MFA and actual renewal/revocation remain incomplete. See EXECUTION-CHECKPOINT.md for local evidence.
+
+
+Account continuity continuation (2026-10-10): verified-email-only legacy transfer is removed. Immutable existing Neon bindings still work; unresolved legacy or conflicting bindings require controlled recovery with generic wording, unchanged account records and denied audit evidence. The recovery page grants no records or linking capability. Safe original-identity proof and actual recovery/holder-notification acceptance remain required. This supersedes the earlier email-only-linking behavior, not the full PR-01 completion criteria.
