@@ -11,12 +11,7 @@ import { createApplicant } from './applicants';
 import { setConsent } from './consent';
 import type { Db } from './db';
 import { createMission } from './missions';
-import {
-  addMembership,
-  createOrganization,
-  reviewOrganization,
-  setMembershipActive,
-} from './organizations';
+import { addMembership, reviewOrganization, setMembershipActive } from './organizations';
 import {
   TRAVELLER_FREE_PLAN_KEY,
   activateSubscription,
@@ -81,11 +76,20 @@ async function seedPlatformOwner(db: Db, tag: string) {
 async function seedOrganization(db: Db, tag: string) {
   const ownerAcc = await provisionAccount(db, { email: `org-owner-${tag}@acme.com` });
   if (!isOk(ownerAcc)) throw new Error('provision');
-  const org = await createOrganization(db, {
-    actorAccountId: ownerAcc.value.id,
-    name: `Acme ${tag}`,
+  // Existing legacy organizations have no automatically assigned offer.
+  // New-organization founding assignment is covered in organizations.test.ts.
+  const [legacyOrg] = await db
+    .insert(schema.organizations)
+    .values({ name: `Acme ${tag}` })
+    .returning();
+  if (!legacyOrg) throw new Error('org');
+  await db.insert(schema.memberships).values({
+    organizationId: legacyOrg.id,
+    accountId: ownerAcc.value.id,
+    role: 'OWNER',
   });
-  if (!isOk(org)) throw new Error('org');
+  const org = { value: legacyOrg };
+
   await activateOrg(db, org.value.id);
   return { organizationId: org.value.id, ownerAccountId: ownerAcc.value.id };
 }

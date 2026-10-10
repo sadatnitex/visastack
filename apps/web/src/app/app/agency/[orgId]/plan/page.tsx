@@ -63,13 +63,19 @@ export default async function OrgPlanPage({
           <article className="card" style={{ marginBottom: '1.5rem' }}>
             <p className="card-kicker">Current plan</p>
             <h2 className="card-title">
-              {data.usage.plan ? data.usage.plan.name : 'No plan assigned'}
+              {data.usage.plan ? data.usage.plan.name : 'Access offer not recorded'}
             </h2>
             {!data.usage.planAssigned || !data.usage.plan ? (
               <p className="card-body">
-                No plan has been manually activated for this organization yet -- there is no
-                self-serve checkout. Usage below is still real; there is simply no allowance yet to
-                compare it against.
+                An access offer has not been recorded for this organization. Your measured usage is
+                shown below. Record permissions and safety checks still apply.
+              </p>
+            ) : data.usage.plan.key === 'agency_founding_access' &&
+              data.usage.plan.priceMinorUnits === 0 ? (
+              <p className="card-body">
+                Complimentary during public beta. No payment method is required. Fair-use safeguards
+                and private-record permissions still apply. Storage and processing remain subject to
+                available capacity.
               </p>
             ) : (
               <p className="card-body">

@@ -21,6 +21,8 @@ const ENV_KEYS = [
   'WORKOS_COOKIE_PASSWORD',
   'NEXT_PUBLIC_WORKOS_REDIRECT_URI',
   'BLOB_READ_WRITE_TOKEN',
+  'BLOB_SIGNING_SECRET',
+  'STEP_UP_SIGNING_SECRET',
   'AI_ENABLED',
   'OPENAI_API_KEY',
   'MALWARE_SCANNER_PROVIDER',
@@ -183,4 +185,18 @@ describe('capabilityUnavailableMessage', () => {
     const { capabilityUnavailableMessage } = await import('./capabilities');
     expect(capabilityUnavailableMessage('payments').length).toBeGreaterThan(0);
   });
+});
+
+it('enables owner original downloads only with storage and both server signing keys', async () => {
+  const { getPlatformCapabilities } = await import('./capabilities');
+  setEnv('DEPLOYMENT_MODE', 'controlled_pilot');
+  setEnv('BLOB_READ_WRITE_TOKEN', 'test-only');
+  expect(getPlatformCapabilities().originalDownload).toBe('unconfigured');
+  setEnv('BLOB_SIGNING_SECRET', 'test-only');
+  expect(getPlatformCapabilities().originalDownload).toBe('unconfigured');
+  setEnv('STEP_UP_SIGNING_SECRET', 'test-only');
+  expect(getPlatformCapabilities().originalDownload).toBe('available');
+  expect(getPlatformCapabilities().redactedDownload).toBe('disabled');
+  unsetEnv('BLOB_READ_WRITE_TOKEN');
+  expect(getPlatformCapabilities().originalDownload).toBe('unconfigured');
 });

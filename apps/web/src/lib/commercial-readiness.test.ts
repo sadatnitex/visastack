@@ -290,3 +290,32 @@ describe('commercialConfigurationReady', () => {
     expect(() => commercialConfigurationReady()).not.toThrow();
   });
 });
+
+it('evaluates real-record safeguards without requiring payment, commercial hosting certification or WorkOS', async () => {
+  const { evaluateOperationalReadiness } = await import('./commercial-readiness');
+  const result = evaluateOperationalReadiness({ databaseReady: false });
+  const keys = result.gates.map((gate) => gate.key);
+  expect(keys).toEqual([
+    'authentication',
+    'productionDatabase',
+    'privateProductionStorage',
+    'realMalwareScanner',
+    'realKeyManagement',
+    'safeConversion',
+    'stepUp',
+    'externalObjectDeletionVerification',
+    'tenantIsolationSuite',
+    'permissionMatrix',
+    'productionOpenAiProject',
+    'privacyConsentConfiguration',
+    'retentionDeletionWorkflow',
+    'backupRestoreVerification',
+    'authenticatedProductionE2e',
+    'incidentOwner',
+    'termsAndPrivacyNotice',
+    'noCriticalHighFindings',
+  ]);
+  expect(result.ready).toBe(false);
+  expect(result.gates.find((gate) => gate.key === 'productionDatabase')?.satisfied).toBe(false);
+  expect(result.gates.find((gate) => gate.key === 'realKeyManagement')?.satisfied).toBe(false);
+});

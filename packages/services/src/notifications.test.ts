@@ -601,6 +601,39 @@ describe('applyEmailDeliveryEvent (NTF-03 delivery/bounce webhook)', () => {
     return row;
   }
 
+  it('records provider rejection as failed and refuses replay or a later delivered event', async () => {
+    const row = await seedSentEmail(db);
+    const input = {
+      providerMessageId: row.providerMessageId as string,
+      outcome: 'failed' as const,
+    };
+    expect((await applyEmailDeliveryEvent(db, input)).applied).toBe(true);
+    expect((await db.select().from(schema.notifications))[0]?.status).toBe('FAILED');
+    expect((await applyEmailDeliveryEvent(db, input)).applied).toBe(false);
+    expect((await applyEmailDeliveryEvent(db, { ...input, outcome: 'delivered' })).applied).toBe(
+      false,
+    );
+  });
+
+  it.each(['bounced', 'complained'] as const)(
+    'records a late %s after delivery without permitting replay or re-delivery',
+    async (outcome) => {
+      const row = await seedSentEmail(db);
+      const providerMessageId = row.providerMessageId as string;
+      await applyEmailDeliveryEvent(db, { providerMessageId, outcome: 'delivered' });
+      expect((await applyEmailDeliveryEvent(db, { providerMessageId, outcome })).applied).toBe(
+        true,
+      );
+      expect((await db.select().from(schema.notifications))[0]?.status).toBe('BOUNCED');
+      expect((await applyEmailDeliveryEvent(db, { providerMessageId, outcome })).applied).toBe(
+        false,
+      );
+      expect(
+        (await applyEmailDeliveryEvent(db, { providerMessageId, outcome: 'delivered' })).applied,
+      ).toBe(false);
+    },
+  );
+
   it('marks a SENT row DELIVERED on a delivered event', async () => {
     const row = await seedSentEmail(db);
     const result = await applyEmailDeliveryEvent(db, {

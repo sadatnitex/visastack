@@ -8,6 +8,7 @@ import { migrate } from 'drizzle-orm/pglite/migrator';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { provisionAccount } from './accounts';
 import { type Db, schema as dbSchema } from './db';
+import { createOrganizationInvitation } from './invitations';
 import {
   addMembership,
   createOrganization,
@@ -43,6 +44,30 @@ describe('organizations — verification, membership, and the last-active-owner 
     db = await freshDb();
     ownerId = await account(db, 'owner@agency.example');
     reviewerId = await account(db, 'reviewer@platform.example');
+  });
+
+  it('assigns a complimentary founding offer without self-verifying the organization', async () => {
+    const created = await createOrganization(db, { actorAccountId: ownerId, name: 'New agency' });
+    if (!isOk(created)) throw new Error('expected organization');
+    expect(created.value.status).toBe('PENDING_VERIFICATION');
+    const subs = await db.select().from(schema.subscriptions);
+    expect(subs).toHaveLength(1);
+    const plans = await db.select().from(schema.plans);
+    const offer = plans.find((p) => p.id === subs[0]?.planId);
+    expect(offer?.key).toBe('agency_founding_access');
+    expect(offer?.priceMinorUnits).toBe(0);
+    const invitation = await createOrganizationInvitation(db, {
+      actorAccountId: ownerId,
+      organizationId: created.value.id,
+      email: 'new-agency-team@example.com',
+      role: 'CASE_MANAGER',
+    });
+    expect(isOk(invitation)).toBe(true);
+    const unchanged = await db
+      .select()
+      .from(schema.organizations)
+      .where(eq(schema.organizations.id, created.value.id));
+    expect(unchanged[0]?.status).toBe('PENDING_VERIFICATION');
   });
 
   it('creates an organization PENDING_VERIFICATION with the creator as OWNER', async () => {

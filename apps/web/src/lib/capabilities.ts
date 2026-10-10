@@ -4,7 +4,10 @@ import {
   PLATFORM_CAPABILITY_KEYS,
   type PlatformCapabilities,
 } from '@visastack/core';
-import { commercialConfigurationReady } from './commercial-readiness';
+import {
+  commercialConfigurationReady,
+  operationalConfigurationReady,
+} from './commercial-readiness';
 import { getDeploymentMode } from './deployment-mode';
 import { isPresent, isSignInConfigured, readEnv } from './env';
 import { isPublicBetaOpen } from './public-beta';
@@ -92,14 +95,13 @@ export function getPlatformCapabilities(): PlatformCapabilities {
     // preview a given document.
     ownerPreview: gapAware(blobConfigured ? 'available' : 'unconfigured', 'ownerPreview'),
     thirdPartyPreview: gapAware(blobConfigured ? 'available' : 'unconfigured', 'thirdPartyPreview'),
-    // A real step-up mechanism exists now (apps/web/src/lib/step-up.ts, PR
-    // 5) and the policy engine already requires it for DOWNLOAD_ORIGINAL
-    // (packages/policy/src/authorize.ts's STEP_UP_ACTIONS) — step-up is no
-    // longer why these are disabled. What's still missing is the UI/route
-    // itself: nothing in the app calls `downloadDocument` to request an
-    // original or redacted download (only preview — ownerPreview/
-    // thirdPartyPreview above — is wired up). Disabled for that reason.
-    originalDownload: 'disabled',
+    // Originals use the owner action, fresh authentication, policy checks and
+    // revocable signed delivery. Redacted downloads remain disabled until actual
+    // protected-content redaction is implemented and verified.
+    originalDownload:
+      blobConfigured && isPresent('BLOB_SIGNING_SECRET') && isPresent('STEP_UP_SIGNING_SECRET')
+        ? gapAware('available', 'originalDownload')
+        : 'unconfigured',
     redactedDownload: 'disabled',
     sharing: gapAware('available', 'sharing'),
     agencyCollaboration: gapAware('available', 'agencyCollaboration'),
@@ -116,7 +118,7 @@ export function getPlatformCapabilities(): PlatformCapabilities {
         ? 'available'
         : 'disabled',
     payments: 'unconfigured',
-    realApplicantData: isCommercial && commercialConfigurationReady() ? 'available' : 'disabled',
+    realApplicantData: !isDev && operationalConfigurationReady() ? 'available' : 'disabled',
     commercialClaims: isCommercial && commercialConfigurationReady() ? 'available' : 'disabled',
   };
 }

@@ -283,7 +283,7 @@ export async function triggerNotificationSweeps(
  */
 export async function triggerEmailDeliveryWebhook(input: {
   readonly providerMessageId: string;
-  readonly outcome: 'delivered' | 'bounced' | 'complained';
+  readonly outcome: 'delivered' | 'bounced' | 'complained' | 'failed';
 }): Promise<{ readonly applied: boolean }> {
   const connectionString = resolveDatabaseUrl(process.env);
   if (!connectionString) {

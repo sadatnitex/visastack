@@ -1,6 +1,6 @@
 import 'server-only';
 import { createAiExtractor } from './ai';
-import { isPresent, isWorkosConfigured, readEnv } from './env';
+import { isPresent, isSignInConfigured, isWorkosConfigured, readEnv } from './env';
 
 /**
  * The commercial readiness guard (master directive §7 "PR 11"): every named
@@ -232,4 +232,42 @@ export function commercialConfigurationReady(): boolean {
   return buildGates({ databaseReady: true })
     .filter((gate) => gate.key !== 'productionDatabase')
     .every((gate) => gate.satisfied);
+}
+
+/** Safety for real records is independent of charging and commercial certification. */
+export function evaluateOperationalReadiness(
+  input: CommercialReadinessInput,
+): CommercialReadinessResult {
+  const applicable = new Set([
+    'productionDatabase',
+    'privateProductionStorage',
+    'realMalwareScanner',
+    'realKeyManagement',
+    'safeConversion',
+    'stepUp',
+    'externalObjectDeletionVerification',
+    'tenantIsolationSuite',
+    'permissionMatrix',
+    'privacyConsentConfiguration',
+    'retentionDeletionWorkflow',
+    'backupRestoreVerification',
+    'authenticatedProductionE2e',
+    'productionOpenAiProject',
+    'incidentOwner',
+    'termsAndPrivacyNotice',
+    'noCriticalHighFindings',
+  ]);
+  const gates = [
+    {
+      key: 'authentication',
+      label: 'configured identity provider',
+      satisfied: isSignInConfigured(),
+    },
+    ...buildGates(input).filter((gate) => applicable.has(gate.key)),
+  ];
+  return { ready: gates.every((gate) => gate.satisfied), gates };
+}
+
+export function operationalConfigurationReady(): boolean {
+  return evaluateOperationalReadiness({ databaseReady: true }).ready;
 }

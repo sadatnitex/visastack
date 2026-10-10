@@ -545,8 +545,8 @@ export async function retryNotification(
  * row was originally SENT). "DELIVERED only if provider confirms" -- this
  * is that confirmation's only entry point; nothing else in this file ever
  * sets DELIVERED. Idempotent by construction, not by a separate dedup log:
- * only a currently-SENT row transitions (`status = 'SENT'` in the WHERE
- * clause), so replaying the same webhook event twice is a harmless
+ * delivery/rejection only transition SENT; bounce/complaint also supersede
+ * DELIVERED because complaints can arrive after delivery. Replaying the same webhook event twice is a harmless
  * second no-op update, and an already-BOUNCED row can never be
  * "un-bounced" by a late/out-of-order `delivered` event.
  */
@@ -554,21 +554,25 @@ export async function applyEmailDeliveryEvent(
   db: Db,
   input: {
     readonly providerMessageId: string;
-    readonly outcome: 'delivered' | 'bounced' | 'complained';
+    readonly outcome: 'delivered' | 'bounced' | 'complained' | 'failed';
   },
 ): Promise<{ readonly applied: boolean }> {
   const now = new Date();
   const set =
     input.outcome === 'delivered'
       ? { status: 'DELIVERED' as const, deliveredAt: now }
-      : { status: 'BOUNCED' as const, bouncedAt: now };
+      : input.outcome === 'failed'
+        ? { status: 'FAILED' as const, lastError: 'The email provider rejected this message.' }
+        : { status: 'BOUNCED' as const, bouncedAt: now };
   const updated = await db
     .update(schema.notifications)
     .set(set)
     .where(
       and(
         eq(schema.notifications.providerMessageId, input.providerMessageId),
-        eq(schema.notifications.status, 'SENT'),
+        input.outcome === 'delivered' || input.outcome === 'failed'
+          ? eq(schema.notifications.status, 'SENT')
+          : inArray(schema.notifications.status, ['SENT', 'DELIVERED']),
       ),
     )
     .returning({ id: schema.notifications.id });

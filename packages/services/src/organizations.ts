@@ -5,6 +5,7 @@ import { appendAuditEvent } from './audit';
 import { type Db, first, required, schema } from './db';
 import { checkSeatEntitlement } from './entitlement-enforcement';
 import { type ServiceError, serviceError } from './errors';
+import { assignFoundingAccess } from './founding-access';
 
 /**
  * Organizations (agencies) — verification and membership (Build Spec §2;
@@ -171,6 +172,7 @@ export async function createOrganization(
       resourceType: 'organization',
       resourceId: org.id,
     });
+    await assignFoundingAccess(tx, org.id, input.actorAccountId);
     return ok(org);
   });
 }
