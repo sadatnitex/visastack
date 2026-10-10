@@ -1,5 +1,5 @@
 import { type Result, err, ok } from '@visastack/core';
-import { and, eq, isNull } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import type { Account } from './accounts';
 import { appendAuditEvent } from './audit';
 import { type Db, first, isUniqueViolation, lockOnEmail, required, schema } from './db';
@@ -8,17 +8,10 @@ import { consumeAnyActiveInvitation } from './pilot-access';
 import { recordProductEvent } from './product-events';
 
 /**
- * Account provisioning for Neon Auth sign-in (docs/commercial-v1/neon-auth-migration-plan.md,
- * phase 2). Same rules as the WorkOS path in `accounts.ts`, keyed by the immutable Neon user id:
- *
- *   1. An account already bound to this Neon id is authoritative.
- *   2. An account with the same email and no Neon id is linked only when the sign-in system
- *      reports the email VERIFIED, atomically, audited. An unverified address never links, so
- *      nobody can take over an existing account by merely registering its address.
- *   3. An account whose email is bound to a DIFFERENT Neon id is refused and audited.
- *   4. Otherwise a fresh account is created and bound, only for a verified email.
- *
- * Unlike the WorkOS path, a missing id is an error: there is no legacy caller to keep working.
+ * Provision verified Neon identities without transferring legacy accounts by email.
+ * An immutable existing Neon binding is authoritative. A matching email without
+ * that binding requires controlled identity recovery; it never grants access.
+ * Canonical IDs, historical identities and account data remain unchanged.
  */
 
 export interface ProvisionNeonAccountInput {
@@ -70,52 +63,10 @@ async function auditConflict(db: Db, accountId: string | null): Promise<void> {
   });
 }
 
-async function bindNeonAccount(
-  db: Db,
-  account: Account,
-  neonUserId: string,
-  emailVerifiedAt: Date,
-): Promise<Result<Account, ServiceError>> {
-  try {
-    return await db.transaction(async (tx) => {
-      const bound = first(
-        await tx
-          .update(schema.accounts)
-          .set({
-            neonUserId,
-            emailVerifiedAt: account.emailVerifiedAt ?? emailVerifiedAt,
-            updatedAt: new Date(),
-          })
-          .where(and(eq(schema.accounts.id, account.id), isNull(schema.accounts.neonUserId)))
-          .returning(),
-      );
-      if (!bound) {
-        const current = first(
-          await tx
-            .select()
-            .from(schema.accounts)
-            .where(eq(schema.accounts.id, account.id))
-            .limit(1),
-        );
-        if (current?.neonUserId === neonUserId) return ok(current);
-        return err(serviceError('forbidden', 'account was bound to a different identity'));
-      }
-      await appendAuditEvent(tx, {
-        eventType: 'ACCOUNT_IDENTITY_BOUND',
-        actorAccountId: bound.id,
-        method: 'SYSTEM',
-        result: 'ALLOWED',
-        resourceType: 'account',
-        resourceId: bound.id,
-      });
-      return ok(bound);
-    });
-  } catch (error) {
-    if (isUniqueViolation(error)) {
-      return err(serviceError('forbidden', 'this identity is already bound to another account'));
-    }
-    throw error;
-  }
+function identityRecoveryRequired(): Result<Account, ServiceError> {
+  return err(
+    serviceError('identity_recovery_required', 'Account access needs additional verification.'),
+  );
 }
 
 async function createNeonAccount(
@@ -149,7 +100,7 @@ async function createNeonAccount(
       const byEmail = await findByEmail(db, values.email);
       if (byEmail?.neonUserId === values.neonUserId) return ok(byEmail);
       await auditConflict(db, byEmail?.id ?? null);
-      return err(serviceError('forbidden', 'this email is bound to a different identity'));
+      return identityRecoveryRequired();
     }
     throw error;
   }
@@ -176,11 +127,10 @@ export async function provisionNeonAccount(
 
   const byEmail = await findByEmail(db, email);
   if (byEmail) {
-    if (byEmail.neonUserId && byEmail.neonUserId !== neonUserId) {
-      await auditConflict(db, byEmail.id);
-      return err(serviceError('forbidden', 'this email is bound to a different identity'));
-    }
-    return bindNeonAccount(db, byEmail, neonUserId, new Date());
+    // Another request may have provisioned this exact identity since the first lookup.
+    if (byEmail.neonUserId === neonUserId) return ok(byEmail);
+    await auditConflict(db, byEmail.id);
+    return identityRecoveryRequired();
   }
 
   return createNeonAccount(db, { email, neonUserId, emailVerifiedAt: new Date() });

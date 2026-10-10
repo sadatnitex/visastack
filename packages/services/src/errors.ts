@@ -12,6 +12,8 @@ export type ServiceErrorCode =
   | 'forbidden'
   /** The actor may proceed, but only after a genuine, recent reauthentication. */
   | 'step_up_required'
+  /** Account access requires stronger identity proof through controlled recovery. */
+  | 'identity_recovery_required'
   /** A referenced resource does not exist. */
   | 'not_found'
   /** A required consent (Build Spec §13) has not been granted. */

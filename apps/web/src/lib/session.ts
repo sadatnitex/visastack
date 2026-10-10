@@ -170,6 +170,9 @@ export async function withSession<T>(
     }
     if (!isOk(provisioned)) {
       if (claimedInvitationId) await releaseClaimBestEffort(handle, claimedInvitationId);
+      if (provisioned.error.code === 'identity_recovery_required') {
+        redirect('/auth/account-recovery');
+      }
       throw new Error(`account provisioning failed: ${provisioned.error.message}`);
     }
     if (claimedInvitationId) {

@@ -1,4 +1,19 @@
 import { expect, test } from '@playwright/test';
+
+test('account recovery explains verification without exposing an account', async ({ page }) => {
+  await page.goto('/auth/account-recovery');
+  await expect(
+    page.getByRole('heading', { name: 'Account access needs verification' }),
+  ).toBeVisible();
+  await expect(
+    page.getByText('Resetting a password confirms access to your email.', { exact: false }),
+  ).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Sign out', exact: true })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Back to home', exact: true })).toHaveAttribute(
+    'href',
+    '/',
+  );
+});
 import { isNeonSignInRedirect } from '../scripts/auth-redirect.mjs';
 
 /**

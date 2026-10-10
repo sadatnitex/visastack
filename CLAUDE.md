@@ -54,3 +54,5 @@ Read this first. It is loaded automatically. Task-specific instructions come fro
 - The audit_events table refuses edits and deletes through database rules; tests that simulate tampering must drop those rules first.
 - Vercel MCP may refuse to list project environment variables (403): environment scoping then has to be checked by the owner in the dashboard.
 - MCP servers sometimes disconnect: reload tools with ToolSearch. Local-only branches vanish when the container ends: push or tell the owner. The stop hook needs a clean tree: commit before ending a turn.
+
+Owner reporting instruction (2026-10-10): after each deployment, show the public beta action list with done, in-progress and remaining work. Explain what each deployment means for whom: what changed, what users will see, who is affected, and live verification versus unverified acceptance. Never describe a partial package as complete.
