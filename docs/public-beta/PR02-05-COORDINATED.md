@@ -28,3 +28,13 @@ Use the existing Neon Auth endpoint and the verified sender noreply@vs.obsidiang
 ### Corrected focused verification
 
 The corrected notifications, organizations, entitlements and plans suites passed 135/135 tests. Download action, document-wallet and capability checks passed 30/30; readiness/capability checks passed 36/36 before the additional configured-download assertion. Type checking passed across all eight packages. Subsequent additions, including the pending-agency internal invitation assertion, will be covered by the shared full run. A reviewed obsolete merged preview was replaced with the coordinated branch preview; Neon inventory is nine and the production/default branch is preserved.
+
+### Full application checks and browser correction
+
+The full workspace run passed: services 1,344 tests, web 1,123, adapters 325, database 34, policy 32, core 2 and load 10. Three existing live-service cases were skipped. The separate read-only pooled database run passed five tests against the existing allowed endpoint, covering the database live case; the two real-ClamAV cases remain unverified. The new preview pooled request was refused with HTTP 403 by the cloud hostname policy. Its exact pooler, Auth and current preview deployment hosts are saved in the environment draft, pending publication.
+
+Lint, production build, type checking, the high-severity audit gate and supply-chain checks passed. The first browser run passed 81/82 checks. Its injected-markup check assumed a missing image would fail within 500 ms; the script-element CSP event arrived, but the image-handler event did not arrive before that fixed deadline. The test now awaits both actual blocked directives with a ten-second failure deadline and retains every assertion. The focused corrected test passed and observed both directives. Full browser rerun and smoke completion are pending at this checkpoint. Application source and dependencies are unchanged by this browser correction, so their completed full checks are retained.
+
+The previously missing STEP_UP_SIGNING_SECRET was initially configured with distinct production and branch-preview keys. No existing binding was replaced. Actual authenticated download acceptance is still pending. The owner selected existing scanner/key/backup services and will identify them; no new paid service was purchased.
+
+PR #183 production verification completed after correcting the verification script to accept a relative same-origin sign-in redirect. All required merge-commit CI and deployment checks passed, readiness returned ready, the recovery page rendered, anonymous workspace access stayed denied and Neon retained nine branches.

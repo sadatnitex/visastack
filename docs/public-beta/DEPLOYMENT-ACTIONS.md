@@ -31,3 +31,7 @@ Current next change: prevent verified-email-only legacy account transfer and sho
 PR #183 merged as fff184d53abd35265a56f761e37ac69f29e66a32 after the required current-head checks passed. It prevents a new identity from claiming an existing account through email matching alone and presents a recoverable verification page. This protects existing account holders; new verified identities with no conflicting account can still provision normally. Post-merge production verification is pending at this checkpoint. Real authentication and controlled relinking are not certified.
 
 PR-02 through PR-05 are now one coordinated engineering batch. Implemented code, remaining acceptance, provider prerequisites and per-audience impact are recorded in PR02-05-COORDINATED.md. All four remain in progress. PR-00/01 retain their previously recorded limitations; PR-06 through PR-09 remain outstanding. No public beta activation follows from either change.
+
+### PR #183 verification completed
+
+All required merge-commit CI and deployment checks passed for fff184d53abd35265a56f761e37ac69f29e66a32. Live readiness, account-recovery guidance and anonymous workspace denial passed; the denial is a valid relative same-origin sign-in redirect. Neon inventory is nine. This protects existing account holders from email-only transfer. Real account recovery, privileged assurance and authenticated journeys remain unverified. PR-02 through PR-05 are still in progress in coordinated PR #184; the other package statuses above remain applicable.
