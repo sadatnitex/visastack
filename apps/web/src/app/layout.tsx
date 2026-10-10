@@ -1,4 +1,3 @@
-import { withAuth } from '@workos-inc/authkit-nextjs';
 import type { Metadata, Viewport } from 'next';
 import localFont from 'next/font/local';
 import Link from 'next/link';
@@ -6,6 +5,8 @@ import type { ReactNode } from 'react';
 import { PilotBanner } from '../components/pilot-banner';
 import { getDeploymentMode } from '../lib/deployment-mode';
 import { getLocale } from '../lib/locale';
+import { createIdentityPort } from '../lib/providers';
+import { reportServerError } from '../lib/server-error';
 import { setLocaleAction } from './actions';
 import './globals.css';
 
@@ -50,9 +51,9 @@ export default async function RootLayout({ children }: { readonly children: Reac
   // signed-out if the read fails, so a hiccup never breaks the whole shell.
   let signedIn = false;
   try {
-    const { user } = await withAuth();
-    signedIn = Boolean(user);
-  } catch {
+    signedIn = Boolean(await createIdentityPort().currentIdentity());
+  } catch (error) {
+    reportServerError('root navigation identity', error);
     signedIn = false;
   }
   const locale = await getLocale();

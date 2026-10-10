@@ -227,3 +227,8 @@ Counting only rows with a grounded (non-TBD) classification as of this commit:
 These counts are approximate and will tighten as each part actually opens the relevant code;
 they are reported here to satisfy Part 1's capability-inventory requirement with real
 evidence rather than to claim a false precision the current read-depth does not support.
+
+
+## Public-beta identity continuation (2026-10-10)
+
+The owner directive in docs/product/public-beta-transformation-directive-2026-10-10.md establishes Neon Auth + Resend as the target and supersedes historical WorkOS-default recommendations. Current selected-session shell corrections and their bounded evidence are recorded in docs/public-beta/NEON-RESEND-IDENTITY.md and known-issues.md chunk 56. Historical commercial requirement verdicts are not rewritten: actual login/logout/recovery, staff assurance, complete Neon-only cleanup and secure legacy-account continuity remain independently required. The current acceptance state is in docs/public-beta/TEST-AND-ACCEPTANCE-EVIDENCE.md.
