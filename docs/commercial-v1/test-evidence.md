@@ -428,3 +428,5 @@ Full detail: `docs/commercial-v1/architecture-decisions.md` AD-15; `docs/commerc
 items 34 (why `AGENCY_REVIEWED` stays unreachable by design) and 35 (the missing evidence-selection
 prompt, and fact-level org sharing still not existing); `docs/commercial-v1/requirements-ledger.md`
 EVI-05.
+
+Continuation verification (2026-10-10): installed system Chromium 151 ran all three public suites against the local production build: 81 passed, including real browser accessibility and CSP checks. Compatible browser download remains blocked but is no longer required for current-instance verification. PR #181 first CI run stopped at the static scan because the smoke harness filename was treated as shipped code. The harness was moved to apps/web/tests/auth-redirect.node.mjs, a recognised test directory, retaining all 16 assertions and adding fixture scanning coverage without changing scan rules. Supersedes the earlier local browser limitation; authenticated acceptance and email delivery remain unverified.

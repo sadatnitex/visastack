@@ -130,7 +130,7 @@ jobs:
         run: pnpm run typecheck
 
       - name: Authentication redirect guard checks
-        run: node --test apps/web/scripts/auth-redirect.checks.mjs
+        run: node --test apps/web/tests/auth-redirect.node.mjs
 
       # Scans that really run on this private repository (CodeQL and
       # dependency review do not). Needs the production build above for the

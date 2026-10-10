@@ -3,7 +3,7 @@ import { spawn } from 'node:child_process';
 import { createServer } from 'node:http';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { isNeonSignInRedirect } from './auth-redirect.mjs';
+import { isNeonSignInRedirect } from '../scripts/auth-redirect.mjs';
 
 const base = 'https://preview.example.test';
 for (const location of ['/auth/sign-in', `${base}/auth/sign-in?next=%2Fapp`]) {
@@ -44,7 +44,7 @@ for (const catalogAvailable of [true, false]) {
       const code = await new Promise((resolve, reject) => {
         const child = spawn(
           process.execPath,
-          [fileURLToPath(new URL('./smoke.mjs', import.meta.url))],
+          [fileURLToPath(new URL('../scripts/smoke.mjs', import.meta.url))],
           {
             env: {
               ...process.env,
