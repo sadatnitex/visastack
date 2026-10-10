@@ -46,6 +46,7 @@ Read this first. It is loaded automatically. Task-specific instructions come fro
 - Docs are append-only. Update the ledger rows the task touches and add the next known-issues chunk.
 
 ## 7. Gotchas learned
+- Neon branch capacity: the owner requires fewer than 10 branches per project (maximum 9). During branch creation and after work closes, inspect the current branch inventory and remove only confirmed unnecessary branches. Protect production/default branches, active preview and staging databases, open work, referenced Neon Auth endpoints, and required recovery data. Verify deployment, environment, parent/child and authentication dependencies before deletion; never delete merely by age or name. If all retained branches are needed or management access is unavailable, report the blocker rather than break a working environment or claim cleanup occurred.
 - Local green is not CI green: CI machines are slower. Give heavy tests explicit timeouts.
 - pnpm overrides must be bounded above (an unbounded xmldom override once broke DOCX reading).
 - TypeScript strict flags are on: noPropertyAccessFromIndexSignature (bracket access for process.env), exactOptionalPropertyTypes, noUncheckedIndexedAccess. Biome: useSemanticElements (use <output> for polite status), noExportsInTest.
