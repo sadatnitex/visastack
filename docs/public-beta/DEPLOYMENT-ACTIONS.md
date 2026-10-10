@@ -39,3 +39,9 @@ All required merge-commit CI and deployment checks passed for fff184d53abd35265a
 ### PR #184 production verification
 
 Exact merge commit: 2c6d7c9ec31f5b10a17df23019d74d1364913407. Required main checks and deployment checks passed. Newly created agencies receive explicit Founding Access; owners can request eligible original downloads with fresh authentication; operators receive improved email delivery state. Readiness and anonymous denial were checked live. Authenticated journeys and actual provider acceptance remain outstanding. PR-00 is recorded; PR-01 through PR-05 remain in progress; PR-06 through PR-08 remain; PR-09 is gated. Real-document intake stays disabled and Neon has nine branches.
+
+## UI transformation shipping checkpoint (2026-10-10)
+
+PR #187 contains the public, authentication, traveller, agency and administration interface update. It is pending verified merge and deployment; its final release outcome will be recorded on the pull request. See docs/uiux/EXECUTION-CHECKPOINT.md.
+
+Public-beta actions: PR-00 is done. PR-01 through PR-06 remain in progress, with privileged authentication, email/legal acceptance, quota acceptance, R2/PDF/key/backup evidence, authenticated lifecycle and job monitoring still outstanding. PR-07 reviewed packs/AI and PR-08 measured cost/control-room remain open. PR-09 release acceptance and activation remain gated. Interface implementation does not close these operational acceptance requirements.
