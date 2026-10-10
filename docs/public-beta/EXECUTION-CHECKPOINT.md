@@ -19,3 +19,5 @@ Next code work after this patch: finish PR-01 identity selection, secure legacy 
 Local contract/correctness and adversarial reviews completed. A recoverable feature-branch commit and incremental Git bundle preserve this patch. Remote publication status is recorded below once attempted. Next verification: diagnose the built-app pooled proxy path, publish the saved network draft, retry the blocked browser/API checks, and inspect required exact-head CI before merge. Keep work packages separately reviewable.
 
 Owner actions: [consolidated table](OWNER-ACTIONS.md). Remaining packages: [work graph](IMPLEMENTATION-TRACEABILITY.md). The full beta transformation remains incomplete.
+
+Remote preservation: native Git push succeeded for public-beta/baseline-and-neon-session-wiring. Implementation commit f6b6aa4 is on origin. A subsequent documentation-only commit records this result. No PR was opened because GitHub API access remained proxy-blocked; no remote CI result, merge or deployment was inspected or claimed. The review description is prepared locally at /workspace/.cloud-tools/beta-pr-body.md.
