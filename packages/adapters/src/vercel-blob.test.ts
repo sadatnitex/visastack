@@ -166,3 +166,28 @@ describe('VercelPrivateBlobStorage', () => {
     expect(del).toHaveBeenCalledWith('quarantine/obj-9', { token: 'rw-token' });
   });
 });
+
+describe('pre-registration upload verification', () => {
+  it('reads only the reserved quarantine path without requiring storage metadata first', async () => {
+    get.mockReset();
+    get.mockResolvedValue({
+      statusCode: 200,
+      stream: streamOf('hello'),
+      blob: { contentType: 'text/plain', size: 5 },
+    });
+    const storage = new VercelPrivateBlobStorage({
+      db: {} as never,
+      signingSecret: SECRET,
+      baseUrl: 'https://app.example',
+      token: 'test',
+    });
+    expect((await storage.getPendingUpload('opaque-reserved-key'))?.bytes).toEqual(
+      new Uint8Array(Buffer.from('hello')),
+    );
+    expect(get).toHaveBeenCalledWith('quarantine/opaque-reserved-key', {
+      access: 'private',
+      token: 'test',
+    });
+    await expect(storage.getPendingUpload('../clean/other')).rejects.toThrow('invalid');
+  });
+});

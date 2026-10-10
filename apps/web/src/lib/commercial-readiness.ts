@@ -92,7 +92,10 @@ function buildGates(input: CommercialReadinessInput): readonly ReadinessGate[] {
     {
       key: 'privateProductionStorage',
       label: 'private production storage',
-      satisfied: isPresent('BLOB_READ_WRITE_TOKEN'),
+      satisfied:
+        readEnv('STORAGE_PROVIDER') === 'r2'
+          ? ['R2_ACCESS_KEY_ID', 'R2_SECRET_ACCESS_KEY', 'R2_ENDPOINT_URL'].every(isPresent)
+          : isPresent('BLOB_READ_WRITE_TOKEN'),
     },
     {
       key: 'realMalwareScanner',

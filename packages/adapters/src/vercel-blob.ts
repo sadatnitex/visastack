@@ -89,7 +89,19 @@ export class VercelPrivateBlobStorage implements StoragePort, BlobStore {
     )[0];
     if (!row) return undefined;
 
-    const pathname = pathnameFor(row.bucket, objectKey);
+    return this.readPrivate(row.bucket, objectKey);
+  }
+
+  async getPendingUpload(objectKey: string): Promise<StoredBytes | undefined> {
+    if (!/^[A-Za-z0-9_-]{1,128}$/.test(objectKey)) throw new Error('invalid upload object key');
+    return this.readPrivate('QUARANTINE', objectKey);
+  }
+
+  private async readPrivate(
+    bucket: StorageBucket,
+    objectKey: string,
+  ): Promise<StoredBytes | undefined> {
+    const pathname = pathnameFor(bucket, objectKey);
     const result = await get(pathname, {
       access: 'private',
       ...(this.token ? { token: this.token } : {}),

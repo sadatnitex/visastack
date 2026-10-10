@@ -1,4 +1,4 @@
-import { NeonBlobStorage, VercelPrivateBlobStorage } from '@visastack/adapters';
+import { NeonBlobStorage, R2Storage, VercelPrivateBlobStorage } from '@visastack/adapters';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 /**
@@ -15,6 +15,9 @@ const ENV_KEYS = [
   'BLOB_READ_WRITE_TOKEN',
   'VERCEL_ENV',
   'STORAGE_PROVIDER',
+  'R2_ENDPOINT_URL',
+  'R2_ACCESS_KEY_ID',
+  'R2_SECRET_ACCESS_KEY',
 ] as const;
 const ORIGINAL: Record<string, string | undefined> = {};
 
@@ -109,5 +112,29 @@ describe('createStorage — backend selection', () => {
     setEnv('STORAGE_PROVIDER', 'neon');
     const { createStorage } = await import('./storage');
     expect(createStorage({} as never)).toBeInstanceOf(NeonBlobStorage);
+  });
+});
+
+describe('R2 storage selection', () => {
+  it('requires explicit selection and preserves existing storage credentials', async () => {
+    setEnv('R2_ENDPOINT_URL', `https://${'a'.repeat(32)}.r2.cloudflarestorage.com`);
+    setEnv('R2_ACCESS_KEY_ID', 'test');
+    setEnv('R2_SECRET_ACCESS_KEY', 'test');
+    setEnv('BLOB_READ_WRITE_TOKEN', 'test');
+    const { createStorage } = await import('./storage');
+    expect(createStorage({} as never)).toBeInstanceOf(VercelPrivateBlobStorage);
+    setEnv('STORAGE_PROVIDER', 'r2');
+    expect(createStorage({} as never)).toBeInstanceOf(R2Storage);
+  });
+  it('fails closed when R2 credentials or the independent production copy are missing', async () => {
+    setEnv('STORAGE_PROVIDER', 'r2');
+    unsetEnv('R2_SECRET_ACCESS_KEY');
+    const { createStorage } = await import('./storage');
+    expect(() => createStorage({} as never)).toThrow('all three');
+    setEnv('R2_ENDPOINT_URL', `https://${'a'.repeat(32)}.r2.cloudflarestorage.com`);
+    setEnv('R2_ACCESS_KEY_ID', 'test');
+    setEnv('R2_SECRET_ACCESS_KEY', 'test');
+    setEnv('VERCEL_ENV', 'production');
+    expect(() => createStorage({} as never)).toThrow('existing private file store');
   });
 });

@@ -1,5 +1,5 @@
-import { createCipheriv, createDecipheriv, randomBytes } from 'node:crypto';
-import { eq } from 'drizzle-orm';
+import { createCipheriv, createDecipheriv, createHmac, randomBytes } from 'node:crypto';
+import { eq, sql } from 'drizzle-orm';
 import { type Db, first, required, schema } from './db';
 import type { KeyManagementPort } from './ports';
 
@@ -121,6 +121,9 @@ export async function protectValue(
   value: string,
   aad: string,
 ): Promise<ProtectedValue> {
+  const nativeMode = readEnv('PROTECTED_FIELDS_PGCRYPTO');
+  if (nativeMode && nativeMode !== 'required')
+    throw new Error('unsupported protected-field encryption mode');
   const keyVersion = port.currentKeyVersion();
   const dataKey = await getOrCreateDataKey(db, port, keyVersion);
   const nonce = randomBytes(NONCE_LENGTH);
@@ -131,6 +134,10 @@ export async function protectValue(
     cipher.final(),
     cipher.getAuthTag(),
   ]);
+  if (nativeMode === 'required') {
+    const wrapped = await pgcryptoTransform(db, ciphertext, dataKey, 'encrypt');
+    return { ciphertext: wrapped, nonce: Buffer.concat([Buffer.from([2]), nonce]), keyVersion };
+  }
   return { ciphertext, nonce, keyVersion };
 }
 
@@ -152,13 +159,23 @@ export async function revealValue(
   input: RevealValueInput,
 ): Promise<string> {
   const dataKey = await getOrCreateDataKey(db, port, input.keyVersion);
-  const buf = Buffer.from(input.ciphertext);
+  const native = input.nonce.byteLength === NONCE_LENGTH + 1 && input.nonce[0] === 2;
+  if (input.nonce.byteLength !== NONCE_LENGTH && !native) {
+    throw new Error('unsupported protected value format');
+  }
+  const buf = native
+    ? await pgcryptoTransform(db, input.ciphertext, dataKey, 'decrypt')
+    : Buffer.from(input.ciphertext);
   if (buf.length < AUTH_TAG_LENGTH) {
     throw new Error('protected value is too short to contain an auth tag');
   }
   const tag = buf.subarray(buf.length - AUTH_TAG_LENGTH);
   const body = buf.subarray(0, buf.length - AUTH_TAG_LENGTH);
-  const decipher = createDecipheriv('aes-256-gcm', dataKey, Buffer.from(input.nonce));
+  const decipher = createDecipheriv(
+    'aes-256-gcm',
+    dataKey,
+    Buffer.from(native ? input.nonce.slice(1) : input.nonce),
+  );
   decipher.setAAD(Buffer.from(input.aad, 'utf8'));
   decipher.setAuthTag(tag);
   return Buffer.concat([decipher.update(body), decipher.final()]).toString('utf8');
@@ -208,4 +225,43 @@ export async function revealBytes(
   decipher.setAAD(Buffer.from(input.aad, 'utf8'));
   decipher.setAuthTag(tag);
   return Buffer.concat([decipher.update(body), decipher.final()]);
+}
+
+/**
+ * Native database encryption wraps an already authenticated envelope. PostgreSQL
+ * receives no applicant plaintext, and the inner GCM still binds subject and row.
+ * Derive a separate passphrase from the unwrapped data key, never a DB-stored key.
+ * A 13-byte nonce with format marker 2 distinguishes these rows without rewriting
+ * legacy 12-byte envelopes or changing the schema. Reads work after the flag is off.
+ */
+async function pgcryptoTransform(
+  db: Db,
+  bytes: Uint8Array,
+  dataKey: Buffer,
+  operation: 'encrypt' | 'decrypt',
+): Promise<Buffer> {
+  const passphrase = createHmac('sha256', dataKey)
+    .update('visastack:pgcrypto-envelope:v2')
+    .digest('base64');
+  try {
+    const hex = Buffer.from(bytes).toString('hex');
+    const query =
+      operation === 'encrypt'
+        ? sql`select encode(pgp_sym_encrypt_bytea(decode(${hex}, 'hex'), ${passphrase}, 'cipher-algo=aes256,compress-algo=0'), 'hex') as payload`
+        : sql`select encode(pgp_sym_decrypt_bytea(decode(${hex}, 'hex'), ${passphrase}), 'hex') as payload`;
+    const result = await db.execute(query);
+    const rows = Array.isArray(result) ? result : (result as { rows?: unknown[] }).rows;
+    const row = rows?.[0] as { payload?: unknown } | undefined;
+    if (typeof row?.payload !== 'string' || !/^(?:[0-9a-f]{2})+$/.test(row.payload)) {
+      throw new Error('invalid encrypted database response');
+    }
+    return Buffer.from(row.payload, 'hex');
+  } catch {
+    // Drizzle errors include bound values. Never attach the raw error or query.
+    throw new Error('native protected-field encryption failed');
+  }
+}
+
+function readEnv(name: string): string | undefined {
+  return process.env[name];
 }

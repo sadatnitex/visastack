@@ -1,4 +1,5 @@
 import 'server-only';
+import { probeR2Storage } from '@visastack/adapters';
 import {
   DATABASE_URL_ENV_CANDIDATES,
   type MigrationStatus,
@@ -95,6 +96,15 @@ export async function evaluateReadiness(): Promise<ReadinessReport> {
   let providers: ReadinessReport['providers'] = { valid: true };
   try {
     validateProviderEnv();
+    const variable = 'STORAGE_PROVIDER';
+    if (process.env[variable] === 'r2') {
+      const config = (name: string) => process.env[name] ?? '';
+      await probeR2Storage({
+        endpoint: config('R2_ENDPOINT_URL'),
+        accessKeyId: config('R2_ACCESS_KEY_ID'),
+        secretAccessKey: config('R2_SECRET_ACCESS_KEY'),
+      });
+    }
   } catch (error) {
     providers = {
       valid: false,
