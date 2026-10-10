@@ -1,8 +1,9 @@
 import { expect, test } from '@playwright/test';
+import { isNeonSignInRedirect } from '../scripts/auth-redirect.mjs';
 
 /**
  * No-secret authentication/deployment checks (master directive §8B).
- * These never require WorkOS credentials and always run in ordinary CI.
+ * These never require signed-in credentials and always run in ordinary CI.
  */
 
 test.describe('public surfaces', () => {
@@ -19,22 +20,22 @@ test.describe('public surfaces', () => {
 });
 
 test.describe('unauthenticated access is denied, never leaked', () => {
-  test('/app redirects to WorkOS instead of rendering the workspace', async ({ page }) => {
-    await page.goto('/app');
-    // Middleware-owned auth (ADR: middlewareAuth) sends an unauthenticated
-    // visitor to the WorkOS-hosted sign-in — the workspace content must never
-    // render for them.
-    await expect(page).toHaveURL(/workos\.com|authkit\.app/);
-  });
-
-  test('a nested protected route also redirects, never rendering applicant content', async ({
-    page,
-  }) => {
-    await page.goto('/app/privacy');
-    await expect(page).toHaveURL(/workos\.com|authkit\.app/);
-    // Never assert on page content here beyond the URL — if this ever starts
-    // rendering app chrome instead of redirecting, that IS the P0 regression.
-  });
+  for (const path of ['/app', '/app/privacy']) {
+    test(`${path} redirects to same-site sign-in without rendering the workspace`, async ({
+      page,
+      request,
+      baseURL,
+    }) => {
+      if (!baseURL) throw new Error('A deployment URL is required');
+      const response = await request.get(path, { maxRedirects: 0 });
+      expect([302, 307]).toContain(response.status());
+      const locationHeader = 'location';
+      expect(isNeonSignInRedirect(response.headers()[locationHeader] ?? '', baseURL)).toBe(true);
+      await page.goto(path);
+      expect(isNeonSignInRedirect(page.url(), baseURL)).toBe(true);
+      await expect(page.getByRole('heading', { name: 'Sign in', exact: true })).toBeVisible();
+    });
+  }
 
   test('/callback is publicly reachable (not itself gated by auth)', async ({ request }) => {
     const response = await request.get('/callback', { maxRedirects: 0 });

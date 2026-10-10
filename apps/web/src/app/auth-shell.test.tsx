@@ -80,7 +80,7 @@ describe('selected identity in the application shell', () => {
     const html = await renderServer(RootLayout({ children: null }));
     expect(html).toContain('Sign in');
     expect(html).not.toContain('Workspace');
-    expect(mocks.reportServerError).toHaveBeenCalledWith('root navigation identity', error);
+    expect(mocks.reportServerError).toHaveBeenCalledWith('public navigation identity', error);
     expect(mocks.workosWithAuth).not.toHaveBeenCalled();
   });
 
