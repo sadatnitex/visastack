@@ -1,4 +1,3 @@
-import { withAuth } from '@workos-inc/authkit-nextjs';
 import type { Metadata, Viewport } from 'next';
 import localFont from 'next/font/local';
 import Link from 'next/link';
@@ -6,6 +5,7 @@ import type { ReactNode } from 'react';
 import { PilotBanner } from '../components/pilot-banner';
 import { getDeploymentMode } from '../lib/deployment-mode';
 import { getLocale } from '../lib/locale';
+import { isSignedIn } from '../lib/signed-in';
 import { setLocaleAction } from './actions';
 import './globals.css';
 
@@ -45,16 +45,10 @@ export const viewport: Viewport = {
 };
 
 export default async function RootLayout({ children }: { readonly children: ReactNode }) {
-  // Read-only auth check so the nav reflects the real session (middleware owns
-  // the refresh, so this never writes cookies during render). Defaults to
+  // Read-only check of the sign-in system this deployment uses, so the nav reflects the real
+  // session on WorkOS and on Neon Auth. It never writes cookies during render and defaults to
   // signed-out if the read fails, so a hiccup never breaks the whole shell.
-  let signedIn = false;
-  try {
-    const { user } = await withAuth();
-    signedIn = Boolean(user);
-  } catch {
-    signedIn = false;
-  }
+  const signedIn = await isSignedIn();
   const locale = await getLocale();
   const deploymentMode = getDeploymentMode();
 

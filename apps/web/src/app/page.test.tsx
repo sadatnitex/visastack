@@ -1,5 +1,8 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { renderServer, textOf } from '../lib/next-mocks.test-support';
+
+const signedInState = vi.hoisted(() => ({ value: false }));
+vi.mock('../lib/signed-in', () => ({ isSignedIn: async () => signedInState.value }));
 
 const { default: HomePage } = await import('./page');
 
@@ -110,5 +113,18 @@ describe('the public home page', () => {
     expect(html.match(/<h1[ >]/g)?.length).toBe(1);
     expect(html.match(/<section[^>]*aria-labelledby="land-[a-z-]+"/g)?.length).toBe(8);
     expect(html).toContain('id="land-hero-title"');
+  });
+
+  it('shows no sign-in wording to someone who is already signed in', async () => {
+    signedInState.value = true;
+    try {
+      const html = await render();
+      const text = textOf(html);
+      expect(text).toContain('Open your workspace');
+      expect(text).not.toContain('Sign in to get started');
+      expect(html.match(/href="\/app"/g)?.length).toBe(2);
+    } finally {
+      signedInState.value = false;
+    }
   });
 });

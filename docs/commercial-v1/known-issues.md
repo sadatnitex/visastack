@@ -4799,3 +4799,10 @@ programme rather than being a product defect.
 - Every existing guarded sentence is kept (plain-language guard, honesty tests). New tests cover the story order, the before and after, the made-up labels, the aim-not-promise wording and one top heading with eight named sections.
 - Checked in a real browser at phone, desktop and dark: no sideways scrolling, no accessibility rule violations. A scroll-reveal effect was tried and removed because it hid cards in screenshots and print.
 - Not verified: live deployment; the "heading toward one trusted file across routes and countries" wording is a direction statement for the owner to confirm. The eyebrow still says invite-only; open PR 177 changes that wording and will need a small merge of the two.
+
+### Chunk 56 (2026-10-10): signed-in visitors no longer see "Sign in" on public pages
+
+- Cause: the header, footer and home page asked only the WorkOS session whether someone was signed in. Production signs people in with Neon Auth (chunk 54), so everyone looked signed out: the header and footer said "Sign in" and the home page buttons said "Sign in to get started".
+- Fix: one shared check (`apps/web/src/lib/signed-in.ts`) asks the sign-in system the deployment actually uses, and treats a failed read as signed out. Header and footer show "Workspace"; the home page buttons read "Open your workspace".
+- Proved by test and by breaking the code on purpose: forcing the home page button back to the sign-in wording turned the new signed-in test red; restoring it turned it green.
+- Not verified: live with a real signed-in Neon session (the sandbox has no sign-in). The two failing deploy smoke checks from chunk 55 are a separate matter and not touched here.

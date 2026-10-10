@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { Icon, type IconName } from '../components/icons';
 import { StatusBadge, type Tone } from '../components/ui';
+import { isSignedIn } from '../lib/signed-in';
 
 /**
  * The public home page. Written for a traveller or an agency who has never heard of
@@ -198,6 +199,9 @@ export default async function HomePage({ searchParams }: HomePageProps) {
   // personal information (see apps/web/src/app/callback/route.ts), so they get a way
   // forward instead of a blank error page.
   const { auth_error: authError } = await searchParams;
+  // Someone already signed in is taken straight to their workspace, never asked to sign in again.
+  const signedIn = await isSignedIn();
+  const startLabel = signedIn ? 'Open your workspace' : 'Sign in to get started';
 
   return (
     <div className="land">
@@ -224,7 +228,7 @@ export default async function HomePage({ searchParams }: HomePageProps) {
             </p>
             <div className="cta-row">
               <a className="btn btn-primary land-btn" href="/app">
-                Sign in to get started
+                {startLabel}
                 <Icon name="arrow" size={18} />
               </a>
               <Link className="btn btn-secondary land-btn" href="/status">
@@ -491,7 +495,7 @@ export default async function HomePage({ searchParams }: HomePageProps) {
             </p>
             <div className="cta-row land-final-cta">
               <a className="btn land-btn land-btn-light" href="/app">
-                Sign in to get started
+                {startLabel}
                 <Icon name="arrow" size={18} />
               </a>
               <Link className="btn land-btn land-btn-ghost" href="/status">
