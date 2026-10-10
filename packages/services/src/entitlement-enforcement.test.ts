@@ -70,7 +70,7 @@ async function seedPlatformOwner(db: Db, tag: string) {
 }
 
 /** A verified organization with one OWNER member, ready to receive a subscription. */
-async function seedOrganization(db: Db, tag: string) {
+async function seedOrganization(db: Db, tag: string, founding = false) {
   const ownerAcc = await provisionAccount(db, { email: `org-owner-${tag}@acme.com` });
   if (!isOk(ownerAcc)) throw new Error('provision');
   const org = await createOrganization(db, {
@@ -79,6 +79,13 @@ async function seedOrganization(db: Db, tag: string) {
   });
   if (!isOk(org)) throw new Error('org');
   await activateOrg(db, org.value.id);
+  // Legacy no-plan fixtures stay distinct from newly assigned founding offers.
+  if (!founding) {
+    await db
+      .update(schema.subscriptions)
+      .set({ endedAt: new Date() })
+      .where(eq(schema.subscriptions.organizationId, org.value.id));
+  }
   return { organizationId: org.value.id, ownerAccountId: ownerAcc.value.id };
 }
 
@@ -716,19 +723,11 @@ describe('checkStorageEntitlement - upload storage (COM-02)', () => {
     if (isErr(second)) expect(second.error.message).toContain('plan storage limit');
   });
 
-  it('checks every organization with access independently -- blocks on a second, tightly-capped org even though the first has ample room', async () => {
+  it('checks paid storage limits even when another accessing organization has founding access', async () => {
     const traveller = await seedTraveller(db, 'multi-org');
-    const roomy = await seedOrganization(db, 'multi-org-roomy');
+    const roomy = await seedOrganization(db, 'multi-org-roomy', true);
     const tight = await seedOrganization(db, 'multi-org-tight');
-    const roomyPlan = await createTightPlan(db, owner, { storageBytesAllowed: 1000 * MB });
     const tightPlan = await createTightPlan(db, owner, { storageBytesAllowed: 6 * MB });
-    await activateSubscription(db, {
-      actor: owner.actor,
-      stepUpSatisfied: true,
-      organizationId: roomy.organizationId,
-      planId: roomyPlan.id,
-      reason: 'test',
-    });
     await activateSubscription(db, {
       actor: owner.actor,
       stepUpSatisfied: true,
@@ -842,6 +841,46 @@ describe('suspended billing blocks new paid work (COM-02 + COM-03)', () => {
     });
     if (!isOk(suspended)) throw new Error('suspend');
   }
+
+  it('keeps complimentary founding collaboration available without billing while retaining infrastructure limits', async () => {
+    const { organizationId, ownerAccountId } = await seedOrganization(db, 'founding-free', true);
+    await suspendOrg(organizationId);
+    const invited = await createOrganizationInvitation(db, {
+      actorAccountId: ownerAccountId,
+      organizationId,
+      email: 'founding-team@example.com',
+      role: 'CASE_MANAGER',
+    });
+    expect(isOk(invited)).toBe(true);
+    const traveller = await seedTraveller(db, 'founding-free');
+    await grantOrgAccessToApplicant(db, {
+      applicantOwnerAccountId: traveller.accountId,
+      applicantId: traveller.applicantId,
+      organizationId,
+      orgOwnerAccountId: ownerAccountId,
+    });
+    const allowed = await reserveUpload(
+      db,
+      { accountId: traveller.accountId, applicantId: traveller.applicantId, sizeBytes: MB },
+      generousUploadConfig,
+    );
+    expect(isOk(allowed)).toBe(true);
+    const oversized = await reserveUpload(
+      db,
+      { accountId: traveller.accountId, applicantId: traveller.applicantId, sizeBytes: 101 * MB },
+      generousUploadConfig,
+    );
+    expect(isErr(oversized)).toBe(true);
+    const outsider = await provisionAccount(db, { email: 'founding-outsider@example.com' });
+    if (!isOk(outsider)) throw new Error('outsider');
+    const denied = await createOrganizationInvitation(db, {
+      actorAccountId: outsider.value.id,
+      organizationId,
+      email: 'unauthorized@example.com',
+      role: 'CASE_MANAGER',
+    });
+    expect(isErr(denied)).toBe(true);
+  });
 
   it('blocks addMembership once billing is suspended, even with generous seat headroom to spare', async () => {
     const { organizationId, ownerAccountId } = await seedOrganization(db, 'seats-suspended');

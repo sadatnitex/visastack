@@ -241,3 +241,7 @@ IAM-01 evidence update (2026-10-10): provider-aware /callback and /api/session-r
 
 
 IAM-01 continuation (2026-10-10): generic recoverable identity verification replaces verified-email-only legacy binding. Stable IDs and historical identities are preserved, including under concurrent claims. An invitation is released before the recovery redirect and no workspace work runs. This is a bounded protection, not a completed controlled recovery workflow; IAM-01 remains BLOCKED for privileged assurance and actual authenticated acceptance. See Chunk 60 and public-beta/DEPLOYMENT-ACTIONS.md.
+
+### 2026-10-10 coordinated public-beta implementation checkpoint
+
+NTF-03 now includes provider rejection and complaints/bounces arriving after delivery, preserving replay safety. COM-01/02 now distinguish explicit complimentary founding subscriptions for new agencies from legacy and paid offers, without relaxing infrastructure limits or record authorization. EVI-06 adds the owner original-download action with fresh server authentication and existing exact-version delivery policy. Operational real-data readiness is separated from commercial certification. These are implementation changes pending shared verification and actual provider/user acceptance. Existing blocked journey and security rows remain blocked; no package-completion claim is made. Details: docs/public-beta/PR02-05-COORDINATED.md.

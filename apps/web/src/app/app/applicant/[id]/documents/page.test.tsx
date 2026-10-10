@@ -31,6 +31,7 @@ vi.mock('../../../../../lib/session', () => ({
   withSession: async (fn: (ctx: unknown) => Promise<unknown>) =>
     fn({ db: {}, accountId: 'acct-1', email: 'traveller@example.com' }),
 }));
+vi.mock('../download-actions', () => ({ downloadOriginalAction: async () => undefined }));
 vi.mock('../actions', () => ({
   previewDocumentAction: async () => undefined,
   setDocumentDateAction: async () => undefined,

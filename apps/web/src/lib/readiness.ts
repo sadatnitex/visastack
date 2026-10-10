@@ -9,7 +9,7 @@ import {
   resolveDatabaseUrl,
 } from '@visastack/db';
 import { getPlatformCapabilities } from './capabilities';
-import { evaluateCommercialReadiness } from './commercial-readiness';
+import { evaluateCommercialReadiness, evaluateOperationalReadiness } from './commercial-readiness';
 import { getDeploymentMode } from './deployment-mode';
 import { isPresent, isSignInConfigured } from './env';
 import { SHIPPED_MIGRATIONS } from './migration-journal';
@@ -53,6 +53,7 @@ export interface ReadinessReport {
     readonly asyncIntakeSweep: boolean;
   };
   readonly platform: ReturnType<typeof getPlatformCapabilities>;
+  readonly operational: ReturnType<typeof evaluateOperationalReadiness>;
   readonly commercial: ReturnType<typeof evaluateCommercialReadiness> | undefined;
 }
 
@@ -117,6 +118,12 @@ export async function evaluateReadiness(): Promise<ReadinessReport> {
       ? evaluateCommercialReadiness({ databaseReady: db.connected && db.schemaApplied })
       : undefined;
 
+  const operational = evaluateOperationalReadiness({ databaseReady: coreReady });
+  const platform = {
+    ...getPlatformCapabilities(),
+    ...(!operational.ready ? { realApplicantData: 'disabled' as const } : {}),
+  };
+
   const ready = coreReady && (commercial?.ready ?? true);
 
   return {
@@ -131,7 +138,8 @@ export async function evaluateReadiness(): Promise<ReadinessReport> {
       signedBlobStorage: isPresent('BLOB_SIGNING_SECRET'),
       asyncIntakeSweep: isPresent('CRON_SECRET'),
     },
-    platform: getPlatformCapabilities(),
+    platform,
+    operational,
     commercial,
   };
 }

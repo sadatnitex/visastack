@@ -10,11 +10,11 @@ import { triggerEmailDeliveryWebhook } from '../../../../lib/jobs';
  * on the periodic job routes -- and never applies an event whose signature
  * doesn't verify (401).
  *
- * Only three of Resend's event types change anything here --
- * `email.delivered`, `email.bounced`, `email.complained` -- matching
- * `applyEmailDeliveryEvent`'s three outcomes. Every other type
+ * Four of Resend's event types change anything here --
+ * `email.delivered`, `email.bounced`, `email.complained`, `email.failed` -- matching
+ * `applyEmailDeliveryEvent`'s four outcomes. Every other type
  * (`email.sent`, `email.opened`, `email.clicked`, `email.delivery_delayed`,
- * `email.failed`) is acknowledged (200) without further action: `SENT` is
+ * other tracking events) is acknowledged (200) without further action: `SENT` is
  * already set by the worker itself at send time, not by this webhook, and
  * open/click tracking is outside this chunk's scope entirely.
  *
@@ -40,10 +40,13 @@ interface ResendWebhookPayload {
   };
 }
 
-const OUTCOME_BY_EVENT_TYPE: Readonly<Record<string, 'delivered' | 'bounced' | 'complained'>> = {
+const OUTCOME_BY_EVENT_TYPE: Readonly<
+  Record<string, 'delivered' | 'bounced' | 'complained' | 'failed'>
+> = {
   'email.delivered': 'delivered',
   'email.bounced': 'bounced',
   'email.complained': 'complained',
+  'email.failed': 'failed',
 };
 
 export async function POST(request: Request): Promise<Response> {

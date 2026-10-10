@@ -42,6 +42,7 @@ import {
   RunOcrButton,
 } from '../ai-review';
 import { DocumentUploader } from '../document-uploader';
+import { downloadOriginalAction } from '../download-actions';
 import { NameReview } from '../name-review';
 import { UsageMeter } from '../usage-meter';
 
@@ -109,10 +110,18 @@ export default async function ApplicantDocumentsPage({
   searchParams,
 }: {
   readonly params: Promise<{ id: string }>;
-  readonly searchParams: Promise<{ readonly preview_error?: string; readonly date_error?: string }>;
+  readonly searchParams: Promise<{
+    readonly preview_error?: string;
+    readonly date_error?: string;
+    readonly download_error?: string;
+  }>;
 }) {
   const { id } = await params;
-  const { preview_error: previewError, date_error: dateError } = await searchParams;
+  const {
+    preview_error: previewError,
+    date_error: dateError,
+    download_error: downloadError,
+  } = await searchParams;
   const locale = await getLocale();
   const t = createTranslator(locale);
 
@@ -190,6 +199,12 @@ export default async function ApplicantDocumentsPage({
 
   return (
     <>
+      {downloadError ? (
+        <p role="alert" className="card-body">
+          We could not download this document. Try again after confirming your account. Documents
+          still being checked are unavailable for download.
+        </p>
+      ) : null}
       <AutoRefresh active={anyProcessing} />
       {previewError ? (
         <p className="notice notice-warn" role="alert" style={{ marginBottom: '1.5rem' }}>
@@ -326,6 +341,15 @@ export default async function ApplicantDocumentsPage({
                             style={{ padding: '0.3rem 0.9rem', fontSize: '0.8rem' }}
                           >
                             Preview
+                          </button>
+                        </form>
+                      ) : null}
+                      {previewable && getPlatformCapabilities().originalDownload === 'available' ? (
+                        <form action={downloadOriginalAction}>
+                          <input type="hidden" name="applicantId" value={id} />
+                          <input type="hidden" name="documentId" value={doc.id} />
+                          <button type="submit" className="btn btn-secondary">
+                            Download original
                           </button>
                         </form>
                       ) : null}

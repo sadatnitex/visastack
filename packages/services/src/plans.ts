@@ -47,10 +47,10 @@ import { getOrganizationEvidenceBytes } from './quotas';
  * Traveller Free needs no `subscriptions` row at all -- every individual
  * account is implicitly on it (`getPlanByKey(db, TRAVELLER_FREE_PLAN_KEY)`),
  * since there is no self-upgrade path yet and the PRD names no other
- * traveller-facing tier. An organization, by contrast, has NO entitlements
- * at all (`getCurrentPlanForOrganization` returns `undefined`) until a
- * platform owner explicitly `activateSubscription`s one -- "manually
- * activated," never a silent free-tier fallback for agency work.
+ * traveller-facing tier. New organizations receive an explicit complimentary
+ * Founding Access subscription in their creation transaction. Existing
+ * organizations retain their recorded subscriptions, including no-plan states;
+ * paid offer changes remain platform-owner and step-up gated.
  *
  * "Cases created per billing period" and "concurrent open cases" are scoped
  * by `missions.ownerOrganizationId` (the case's own "whose case is this"

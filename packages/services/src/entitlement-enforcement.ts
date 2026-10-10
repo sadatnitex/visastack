@@ -5,6 +5,7 @@ import { isBillingSuspended } from './billing';
 import { isCommercialOverrideActive } from './commercial-override';
 import { type Db, first, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
+import { hasFoundingAccess } from './founding-access';
 import {
   countActiveSeats,
   countCasesInPeriod,
@@ -134,6 +135,7 @@ export async function checkSeatEntitlement(
     sql`select pg_advisory_xact_lock(${SEAT_QUOTA_LOCK_NAMESPACE}, hashtext(${organizationId}))`,
   );
   if (await isCommercialOverrideActive(tx, organizationId)) return ok(undefined);
+  if (await hasFoundingAccess(tx, organizationId)) return ok(undefined);
   if (await isBillingSuspended(tx, organizationId)) {
     return err(
       serviceError(
@@ -192,6 +194,7 @@ export async function checkInvitationEntitlement(
     sql`select pg_advisory_xact_lock(${SEAT_QUOTA_LOCK_NAMESPACE}, hashtext(${organizationId}))`,
   );
   if (await isCommercialOverrideActive(tx, organizationId)) return ok(undefined);
+  if (await hasFoundingAccess(tx, organizationId)) return ok(undefined);
   if (await isBillingSuspended(tx, organizationId)) {
     return err(
       serviceError(
@@ -235,6 +238,7 @@ export async function checkCaseCreationEntitlement(
     sql`select pg_advisory_xact_lock(${CASE_QUOTA_LOCK_NAMESPACE}, hashtext(${organizationId}))`,
   );
   if (await isCommercialOverrideActive(tx, organizationId)) return ok(undefined);
+  if (await hasFoundingAccess(tx, organizationId)) return ok(undefined);
   if (await isBillingSuspended(tx, organizationId)) {
     return err(
       serviceError(
@@ -318,6 +322,7 @@ export async function checkStorageEntitlement(
   const organizationIds = await listOrganizationsWithAccessToApplicant(tx, applicantId);
   for (const organizationId of organizationIds) {
     if (await isCommercialOverrideActive(tx, organizationId)) continue;
+    if (await hasFoundingAccess(tx, organizationId)) continue;
     if (await isBillingSuspended(tx, organizationId)) {
       return err(
         serviceError(

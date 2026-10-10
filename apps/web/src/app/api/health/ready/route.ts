@@ -51,16 +51,15 @@ export async function GET(): Promise<Response> {
   const verbose = !isRealDeployment() && process.env.NODE_ENV !== 'production';
   const { ready, status, deploymentMode, commercial } = report;
 
-  // Force these three off whenever the full guard fails, even if the
+  // Commercial claims remain subject to commercial certification, even if the
   // general-purpose (necessarily DB-blind) registry would otherwise report
-  // them available: "keep public capabilities disabled" (master directive §7
-  // "PR 11"). This endpoint just verified live DB state, so it is final.
+  // them available. Real records use the independent operational guard (§6.5).
+  // This endpoint just verified live DB state, so it is final.
   const effectivePlatform =
     commercial && !commercial.ready
       ? {
           ...report.platform,
           publicSignup: 'disabled' as const,
-          realApplicantData: 'disabled' as const,
           commercialClaims: 'disabled' as const,
         }
       : report.platform;

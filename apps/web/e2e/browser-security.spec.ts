@@ -228,14 +228,26 @@ test.describe('the policy is enforced in the browser', () => {
     const outcome = await page.evaluate(async () => {
       const seen: string[] = [];
       document.open();
-      document.addEventListener('securitypolicyviolation', (event) => {
-        seen.push(event.effectiveDirective);
+      // The image error is asynchronous; completion requires both actual
+      // security events rather than assuming the request failed within 500 ms.
+      const blocked = new Promise<void>((resolve, reject) => {
+        const deadline = setTimeout(
+          () => reject(new Error('Both injected-script protections were not observed')),
+          10_000,
+        );
+        document.addEventListener('securitypolicyviolation', (event) => {
+          seen.push(event.effectiveDirective);
+          if (seen.includes('script-src-elem') && seen.includes('script-src-attr')) {
+            clearTimeout(deadline);
+            resolve();
+          }
+        });
       });
       document.write(
         '<script>window.__injected = true</script><img src="/x" onerror="window.__clicked = true">',
       );
       document.close();
-      await new Promise((resolve) => setTimeout(resolve, 500));
+      await blocked;
       return { seen, injected: window.__injected, handled: window.__clicked };
     });
     expect(outcome.injected).toBeUndefined();
