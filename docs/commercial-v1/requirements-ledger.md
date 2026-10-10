@@ -235,3 +235,6 @@ The owner directive in docs/product/public-beta-transformation-directive-2026-10
 
 
 Public-beta continuation (2026-10-10, chunk 58): existing-session shell fixes were reconciled with main #180. Current deployment checks enforce the selected Neon same-site sign-in contract and a ready-database catalog query. No permission, admission, identity-linking, schema, consent or audit contract changed. Local continuation evidence and remaining exact-head/authenticated proof are appended in docs/public-beta/TEST-AND-ACCEPTANCE-EVIDENCE.md and EXECUTION-CHECKPOINT.md.
+
+
+IAM-01 evidence update (2026-10-10): provider-aware /callback and /api/session-reauth routing repaired and verified through route tests and the production build. Stale Neon callback requests never invoke WorkOS, and safe fresh-auth redirects stay on site. This is partial identity migration work; IAM-01 remains BLOCKED for privileged assurance and unverified authenticated acceptance. See public-beta/EXECUTION-CHECKPOINT.md and known-issues.md Chunk 59.

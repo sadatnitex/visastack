@@ -4820,3 +4820,17 @@ Final local verification for chunk 57: lint, production build, typecheck and hig
 Reconciled current main ecced6a (#180), preserving its shared public-session helper and home-page links. Main's deployed browser checks failed two WorkOS-only expectations despite correct Neon redirects. Smoke and browser checks now require the exact same-origin /auth/sign-in destination, and browser checks also verify raw redirect status and the sign-in heading. A shared URL guard rejects workspace and external destinations; explicit Node checks are wired into CI. A positive/negative synthetic deployment test proves smoke rejects an unavailable catalog when DB readiness reports connected/applied.
 
 The web app directly declares the existing locked Neon and ws versions so its existing Next external-package configuration can resolve them. The rebuilt catalog now renders successfully in cloud, resolving the previous fallback without changing query logic, data, flags or production provider settings. Shared session reads use the selected provider factory with sanitized error reporting. Local lint/build/typecheck/high-severity audit, 1107 web tests, 5 live pooled checks, 16 Node checks, 11 header checks and 11 local smoke checks passed. Exact-head CI and deployed-candidate verification remain separate. Browser installation still needs Google's download redirect host; a supplemental draft is saved, unverified until applied. Full auth migration and authenticated acceptance remain incomplete.
+
+
+### Chunk 59 (2026-10-10): Provider-aware legacy authentication routes
+
+
+Continuation (2026-10-10): provider-aware legacy auth routes
+
+Neon deployments now send bare or stale /callback links to same-site /auth/sign-in without exchanging WorkOS codes, forwarding query parameters or writing a legacy cookie. /api/session-reauth sends Neon to /auth/reauth with the shared safe return-path rule. Explicit legacy deployments retain their WorkOS handler. Callback failures use sanitized server logging.
+
+Regression proof: before the repair, 7 of 13 route assertions failed; afterwards all 13 passed. Focused auth verification passed 39 tests. Local lint, web production build, workspace type checking, all 1115 web unit tests, production dependency audit, 81 browser checks and deployment smoke passed. Both changed routes were also checked through the actual production build. The first browser attempt failed because the test server started in the repository root rather than apps/web; after correcting the external runner working directory and confirming readiness, all 81 passed without changing assertions. Full workspace tests and exact-head deployment checks remain required in CI; these local results do not establish production deployment.
+
+Neon capacity: removed only br-damp-dust-a4xtmktw, the unused merged PR #176 preview, after confirming its merged commit is on main, no open work, no children and no active environment reference. Created isolated preview br-jolly-surf-a4zjgej8 for this patch; production and existing Auth endpoints were retained. Preview settings must be scoped to this Git branch after it exists remotely. No production schema changes, activation, secret rotation, emails or real-account acceptance were performed.
+
+PR-01 remains partial: legacy default/dependencies, stronger account continuity, privileged assurance and real SDK renewal/revocation acceptance remain open. This change repairs routing only.
