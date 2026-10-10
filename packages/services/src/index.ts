@@ -1016,3 +1016,10 @@ export {
   previewContributorRequest,
   revokeContributorRequest,
 } from './contributor-requests';
+export {
+  SIGNUP_FORM_LIFETIME_MS,
+  SIGNUP_PRIVACY_VERSION,
+  SIGNUP_TERMS_VERSION,
+  acknowledgeSignupNotices,
+  type SignupNoticeInput,
+} from './signup-notices';

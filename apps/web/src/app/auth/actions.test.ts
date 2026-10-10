@@ -27,6 +27,12 @@ vi.mock('../../lib/auth-throttle', () => ({
   withinAuthLimits: (input: unknown) => withinAuthLimits(input),
 }));
 vi.mock('../../lib/base-url', () => ({ resolveBaseUrl: () => 'https://app.example.test' }));
+const readSignupForm = vi.fn();
+const consumeSignupForm = vi.fn();
+vi.mock('../../lib/signup-form', () => ({
+  readSignupForm: (token: string) => readSignupForm(token),
+  consumeSignupForm: (input: unknown) => consumeSignupForm(input),
+}));
 
 function form(values: Record<string, string>): FormData {
   const data = new FormData();
@@ -46,6 +52,8 @@ async function destination(run: () => Promise<void>): Promise<string> {
 beforeEach(() => {
   vi.clearAllMocks();
   withinAuthLimits.mockResolvedValue(true);
+  readSignupForm.mockReturnValue({ formId: 'trusted-form' });
+  consumeSignupForm.mockResolvedValue(true);
   vi.stubEnv('IDENTITY_PROVIDER', 'neon_auth');
 });
 
@@ -140,21 +148,56 @@ describe('signInAction', () => {
 });
 
 describe('signUpAction', () => {
+  function signup(values: Record<string, string> = {}): FormData {
+    return form({
+      email: 'a@b.co',
+      password: 'longenough',
+      acceptNotices: 'yes',
+      signupForm: 'signed',
+      ...values,
+    });
+  }
+
+  it('requires acknowledgement even when browser validation is bypassed', async () => {
+    signUpEmail.mockResolvedValue({ error: null });
+    const { signUpAction } = await import('./actions');
+    expect(await destination(() => signUpAction(signup({ acceptNotices: '' })))).toBe(
+      '/auth/sign-up?e=notices',
+    );
+    expect(signUpEmail).not.toHaveBeenCalled();
+    expect(consumeSignupForm).not.toHaveBeenCalled();
+  });
+
+  it('refuses automation traps and invalid forms before calling the provider', async () => {
+    const { signUpAction } = await import('./actions');
+    expect(await destination(() => signUpAction(signup({ website: 'https://bot.test' })))).toBe(
+      '/auth/sign-up?e=refresh',
+    );
+    expect(readSignupForm).not.toHaveBeenCalled();
+    readSignupForm.mockReturnValue(null);
+    expect(await destination(() => signUpAction(signup()))).toBe('/auth/sign-up?e=refresh');
+    expect(signUpEmail).not.toHaveBeenCalled();
+    expect(consumeSignupForm).not.toHaveBeenCalled();
+  });
+
+  it('refuses replayed forms or unavailable acknowledgement storage before sending email', async () => {
+    consumeSignupForm.mockResolvedValue(false);
+    const { signUpAction } = await import('./actions');
+    expect(await destination(() => signUpAction(signup()))).toBe('/auth/sign-up?e=refresh');
+    expect(signUpEmail).not.toHaveBeenCalled();
+  });
+
   it('rejects bad input, shows a generic failure, and sends a success to the confirmation page', async () => {
     const { signUpAction } = await import('./actions');
-    expect(
-      await destination(() => signUpAction(form({ email: 'a@b.co', password: 'short' }))),
-    ).toBe('/auth/sign-up?e=invalid');
+    expect(await destination(() => signUpAction(signup({ password: 'short' })))).toBe(
+      '/auth/sign-up?e=invalid',
+    );
     signUpEmail.mockResolvedValue({ error: { message: 'User already exists' } });
-    expect(
-      await destination(() => signUpAction(form({ email: 'a@b.co', password: 'longenough' }))),
-    ).toBe('/auth/sign-up?e=failed');
+    expect(await destination(() => signUpAction(signup()))).toBe('/auth/sign-up?e=failed');
     signUpEmail.mockResolvedValue({ error: null });
-    expect(
-      await destination(() =>
-        signUpAction(form({ email: 'a@b.co', password: 'longenough', name: 'Ana' })),
-      ),
-    ).toBe('/auth/verify-email?s=1');
+    expect(await destination(() => signUpAction(signup({ name: 'Ana' })))).toBe(
+      '/auth/verify-email?s=1',
+    );
     expect(signUpEmail).toHaveBeenLastCalledWith({
       email: 'a@b.co',
       password: 'longenough',
@@ -166,16 +209,14 @@ describe('signUpAction', () => {
   it('falls back to a name taken from the address when none is given', async () => {
     signUpEmail.mockResolvedValue({ error: null });
     const { signUpAction } = await import('./actions');
-    await destination(() => signUpAction(form({ email: 'maria@b.co', password: 'longenough' })));
+    await destination(() => signUpAction(signup({ email: 'maria@b.co' })));
     expect(signUpEmail).toHaveBeenCalledWith(expect.objectContaining({ name: 'maria' }));
   });
 
   it('refuses over-limit sign-ups, and also when the limit cannot be checked (it sends email)', async () => {
     withinAuthLimits.mockResolvedValue(false);
     const { signUpAction } = await import('./actions');
-    expect(
-      await destination(() => signUpAction(form({ email: 'a@b.co', password: 'longenough' }))),
-    ).toBe('/auth/sign-up?e=slow');
+    expect(await destination(() => signUpAction(signup()))).toBe('/auth/sign-up?e=slow');
     expect(signUpEmail).not.toHaveBeenCalled();
     expect(withinAuthLimits).toHaveBeenCalledWith(expect.objectContaining({ onFailure: 'deny' }));
   });

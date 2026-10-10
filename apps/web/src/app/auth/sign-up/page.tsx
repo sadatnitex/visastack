@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { selectedIdentityProvider } from '../../../lib/identity-selection';
 import { isPublicBetaOpen } from '../../../lib/public-beta';
+import { createSignupForm } from '../../../lib/signup-form';
 import { signUpAction } from '../actions';
 import { AuthShell, ErrorLine, TextField } from '../auth-ui';
 
@@ -13,6 +14,8 @@ const ERRORS: Record<string, string> = {
   invalid: 'Enter a valid email address and a password of at least 8 characters.',
   failed: 'We could not create that account. Try a different email address or sign in instead.',
   slow: 'Too many attempts. Please wait a little while and try again.',
+  notices: 'Read and acknowledge the terms and privacy notice before creating your account.',
+  refresh: 'Reload this page and try again. Your registration form could not be accepted.',
 };
 
 export default async function SignUpPage({
@@ -21,6 +24,7 @@ export default async function SignUpPage({
   if (selectedIdentityProvider() !== 'neon_auth') notFound();
   const { e } = await searchParams;
   const error = e ? ERRORS[e] : undefined;
+  const signupForm = createSignupForm();
   return (
     <AuthShell title="Create an account">
       <p className="card-body">
@@ -31,6 +35,11 @@ export default async function SignUpPage({
       <ErrorLine id="signup-error" message={error} />
       <div className="card" style={{ marginBottom: '1rem' }}>
         <form action={signUpAction} className="field-list">
+          <input type="hidden" name="signupForm" value={signupForm} />
+          <div hidden aria-hidden="true">
+            <label htmlFor="signup-website">Leave this field empty</label>
+            <input id="signup-website" name="website" autoComplete="off" tabIndex={-1} />
+          </div>
           <TextField id="name" name="name" label="Your name" autoComplete="name" maxLength={120} />
           <TextField
             id="email"
@@ -52,6 +61,16 @@ export default async function SignUpPage({
             minLength={8}
             maxLength={128}
           />
+          <label className="card-body" htmlFor="accept-notices">
+            <input id="accept-notices" type="checkbox" name="acceptNotices" value="yes" required />{' '}
+            I agree to the <Link href="/terms">terms of use</Link> and acknowledge the{' '}
+            <Link href="/privacy">privacy notice</Link>.
+          </label>
+          <p className="card-body">
+            Account creation is free. Do not enter real applicant details or upload real identity
+            documents during the current test pilot. This acknowledgement does not enable marketing,
+            AI processing or sharing with an agency.
+          </p>
           <button type="submit" className="btn btn-primary">
             Create account
           </button>

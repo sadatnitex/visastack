@@ -35,3 +35,7 @@ PR-02 through PR-05 are now one coordinated engineering batch. Implemented code,
 ### PR #183 verification completed
 
 All required merge-commit CI and deployment checks passed for fff184d53abd35265a56f761e37ac69f29e66a32. Live readiness, account-recovery guidance and anonymous workspace denial passed; the denial is a valid relative same-origin sign-in redirect. Neon inventory is nine. This protects existing account holders from email-only transfer. Real account recovery, privileged assurance and authenticated journeys remain unverified. PR-02 through PR-05 are still in progress in coordinated PR #184; the other package statuses above remain applicable.
+
+### PR #184 production verification
+
+Exact merge commit: 2c6d7c9ec31f5b10a17df23019d74d1364913407. Required main checks and deployment checks passed. Newly created agencies receive explicit Founding Access; owners can request eligible original downloads with fresh authentication; operators receive improved email delivery state. Readiness and anonymous denial were checked live. Authenticated journeys and actual provider acceptance remain outstanding. PR-00 is recorded; PR-01 through PR-05 remain in progress; PR-06 through PR-08 remain; PR-09 is gated. Real-document intake stays disabled and Neon has nine branches.
