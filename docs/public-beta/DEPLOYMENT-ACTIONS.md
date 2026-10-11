@@ -55,3 +55,19 @@ PR-00 is done. PR-01 through PR-06 remain in progress: privileged identity and l
 ## Preview and recovery follow-up checkpoint (2026-10-11)
 
 PR-188 is merged and deployed, with production browser appearance failures still under correction. Current source work adds preview-aware absolute links, matching content-security origins, explicit password-recovery confirmation/resend states and configurable R2 region. Its release checks remain pending at this checkpoint. Native encryption is already enabled; R2 reachability, authenticated owner access, live reset delivery, PDF processing and backup recovery remain unverified or blocked. No public-beta package is promoted to complete by these changes.
+
+
+## PR 191 and PR 192 verified production outcomes (2026-10-11)
+
+| Area | What changed | What you will see | Who notices |
+| --- | --- | --- | --- |
+| Signup | Existing-account guidance avoids duplicate registration | Sign-in and reset options for an existing email | Returning users |
+| Branding | Neon Auth application name is VisaStack | Newly generated mail should use VisaStack; delivery rendering is untested | New users and recipients |
+| Public header | Flat border paint retains approved geometry | Consistent appearance under light/dark device preferences | Public visitors |
+| Database recovery | Private isolated encrypted-backup restore | Operators have actual database-only recovery evidence | Founder and operators |
+
+Checked live: exact PR 191 merge 390845818e9546e9776a1abbcb78ad44bc655d71 and PR 192 merge c18bbda2f905105fce269a72b7fc6717d9be837b, required main/deployment checks, aliases, readiness and anonymous protected-route refusal. PR 192 restore run [38128672220](https://github.com/sadatnitex/visastack/actions/runs/38128672220) passed its actual isolated recovery step. No production restore occurred.
+
+Not live yet: PR 193 notification/scheduler hardening and the PR-07/08 source-review/provider-panel continuation. Not yet checked: newly delivered branded email, complete document/key/lifecycle recovery, authenticated acceptance and provider billing headroom. Needs owner/provider evidence: see OWNER-ACTIONS.md and RELEASE-ACCEPTANCE-CHECKPOINT.md.
+
+Done: PR-00 and the narrow deployed changes above. In progress: PR-01 through PR-08, including PR-04 complete recovery and PR-06 real scheduling/delivery acceptance. Remaining: PR-09 complete journeys, staging/integrations/security/performance/legal/recovery/rollback and final classification. Current safe operating scope is controlled pilot with sensitive applicant intake disabled.

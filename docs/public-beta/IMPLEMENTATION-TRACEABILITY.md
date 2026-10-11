@@ -27,3 +27,15 @@ The owner-adopted UI-00 through UI-09 mandate is traced in [UI route coverage](.
 PR-06 adds honest email acceptance, stable retry keys, bounded dispatch, current recipient/lease checks, explicit outage responses and an optional external scheduler without replacing the durable database queues. See [scheduler operation](../operations/cloudflare-job-scheduler.md). Focused tests passed; complete verification and release are pending. The scheduler cannot yet be activated with the available R2-only credentials, so timing acceptance remains open.
 
 PR-07 retains manual processing and requires approved provider/privacy, pack-source and actual integration evidence. PR-08 must extend existing founder analytics with truthful measured resource and recovery indicators. PR-09 remains a consolidated acceptance and classification gate, with production-sensitive activation separate. The uploaded directives match the already recorded authoritative documents; no second roadmap was created. No package is marked complete on implementation alone.
+
+
+## 2026-10-11: PR-06 through PR-09 continuation
+
+PR-06 source 65f481b3629d1b39398818f4be8614cdfab53de6 is in PR 193. All twelve local gates passed; remote checks and live verification determine shipping, not this checkpoint. Worker deployment, measured schedule bounds, application Resend sender/provider configuration and signed delivery events remain open. Optional intake polling is disabled until free-runner capacity is reviewed.
+
+PR-07 source-review actions and official approval/publication guards are implemented for verification; manually authored custom routes remain supported. Actual maintained pack review, approved AI privacy/model integration and complete authenticated journeys remain unexecuted. PR-08 truthful provider readings and unavailable-cost states are implemented for verification; actual account costs, limits and alerts remain evidence requirements.
+
+PR-09 preparation is documented in RELEASE-ACCEPTANCE-CHECKPOINT.md. The programme is BETA_BLOCKED for public sensitive-data use. No final release-candidate SHA is nominated, no public-data gate is opened and no full recovery or authenticated acceptance result is inferred from unit tests. PR 192 database-only restore succeeded in run 38128672220; complete disaster recovery remains open.
+
+
+Bounded review corrections: the AI key display reports only environment-key presence and preserves the existing database-managed configuration distinction. Public privacy now names selected R2 file storage and configured encrypted archives under notice version 2026-10-11.1. Prior acknowledgements remain unchanged; the update is not legal sign-off. Five notice-service checks passed against the updated version; final affected web/build/browser verification remains mandatory.

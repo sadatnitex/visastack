@@ -1,12 +1,22 @@
 import { SIGNUP_PRIVACY_VERSION } from '@visastack/services';
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { readEnv } from '../../lib/env';
 import { selectedIdentityProvider } from '../../lib/identity-selection';
 
 export const metadata: Metadata = { title: 'Privacy notice' };
 export const dynamic = 'force-dynamic';
 
 export default function PrivacyPage() {
+  const storage = readEnv('STORAGE_PROVIDER');
+  const fileStorage =
+    storage === 'r2'
+      ? 'Cloudflare R2'
+      : storage === 'vercel_blob'
+        ? 'Vercel'
+        : storage === 'neon'
+          ? 'Neon'
+          : 'The configured private storage service';
   return (
     <section className="section container" style={{ maxWidth: '48rem' }}>
       <h1 className="page-title">Privacy notice</h1>
@@ -22,7 +32,8 @@ export default function PrivacyPage() {
       </p>
       <h2>Services that process information</h2>
       <p>
-        Vercel hosts the application and private file storage. Neon stores application records.{' '}
+        Vercel hosts the application. {fileStorage} stores private files. Cloudflare R2 stores
+        encrypted backup archives when backups are configured. Neon stores application records.{' '}
         {selectedIdentityProvider() === 'neon_auth' ? 'Neon Auth' : 'WorkOS'} handles sign-in.
         Resend handles application email when configured. Authentication email uses the configured
         sign-in provider's mail service. These services can process information outside your

@@ -22,10 +22,12 @@ import {
   listPacks,
   listPublicTrustPublished,
   listPublishedPackVersions,
+  listRequirements,
   markOfficialFeeStale,
   markRequirementSourceInaccessible,
   publishPackVersion,
   publishToPublicTrust,
+  recordRequirementSourceReview,
   setPublicTrustContent,
   unpublishFromPublicTrust,
   verifyPackChecksum,
@@ -344,6 +346,14 @@ describe('Pack Studio - review interval and author/reviewer distinctness (RUL-02
       kind: 'FIELD',
       fieldKey: 'x',
       citation: 'x',
+      ...(options.authoritative
+        ? {
+            sourceUrl: 'https://www.gov.uk/standard-visitor',
+            sourceTitle: 'Standard Visitor visa',
+            publisher: 'UK Home Office',
+            observedDate: new Date(Date.now() - 60_000),
+          }
+        : {}),
     });
     if (!isOk(req)) throw new Error('req');
     return version.value.id;
@@ -400,6 +410,145 @@ describe('Pack Studio - review interval and author/reviewer distinctness (RUL-02
       packVersionId: versionId,
     });
     expect(isOk(distinctApprove)).toBe(true);
+  });
+
+  it('refuses incomplete, future-dated or inaccessible authoritative source records without changing approval state', async () => {
+    const versionId = await draftedBy(actor, { authoritative: true });
+    const valid = {
+      sourceUrl: 'https://www.gov.uk/standard-visitor',
+      sourceTitle: 'Standard Visitor visa',
+      publisher: 'UK Home Office',
+      observedDate: new Date(Date.now() - 60_000),
+      sourceInaccessibleAt: null,
+    };
+    for (const invalid of [
+      { sourceUrl: null },
+      { sourceTitle: '' },
+      { publisher: '' },
+      { observedDate: null },
+      { observedDate: new Date(Date.now() + 60_000) },
+      { sourceInaccessibleAt: new Date() },
+    ]) {
+      await db
+        .update(schema.packRequirements)
+        .set({ ...valid, ...invalid })
+        .where(eq(schema.packRequirements.packVersionId, versionId));
+      const result = await approvePackVersion(db, {
+        actorAccountId: other,
+        packVersionId: versionId,
+      });
+      expect(isErr(result)).toBe(true);
+      if (isErr(result)) expect(result.error.code).toBe('invalid');
+      const version = (
+        await db.select().from(schema.packVersions).where(eq(schema.packVersions.id, versionId))
+      )[0];
+      expect(version?.status).toBe('DRAFT');
+      expect(version?.approvedAt).toBeNull();
+    }
+    await db
+      .update(schema.packRequirements)
+      .set(valid)
+      .where(eq(schema.packRequirements.packVersionId, versionId));
+    expect(
+      isOk(await approvePackVersion(db, { actorAccountId: other, packVersionId: versionId })),
+    ).toBe(true);
+  });
+
+  it('repairs a draft source record with an audit trail and freezes it after approval', async () => {
+    const versionId = await draftedBy(actor, { authoritative: true });
+    const requirement = (await listRequirements(db, versionId))[0];
+    if (!requirement) throw new Error('requirement missing');
+    await db
+      .update(schema.packRequirements)
+      .set({ sourceUrl: null, observedDate: null, sourceInaccessibleAt: new Date() })
+      .where(eq(schema.packRequirements.id, requirement.id));
+    const input = {
+      actorAccountId: actor,
+      requirementId: requirement.id,
+      sourceUrl: 'https://www.gov.uk/standard-visitor',
+      sourceTitle: 'Standard Visitor visa',
+      publisher: 'UK Home Office',
+      observedDate: new Date(Date.now() - 60_000),
+    };
+    const saved = await recordRequirementSourceReview(db, input);
+    expect(isOk(saved)).toBe(true);
+    if (isOk(saved)) expect(saved.value.sourceInaccessibleAt).toBeNull();
+    const events = await db
+      .select()
+      .from(schema.auditEvents)
+      .where(eq(schema.auditEvents.eventType, 'PACK_REQUIREMENT_SOURCE_REVIEWED'));
+    expect(events).toHaveLength(1);
+    expect(events[0]?.resourceId).toBe(versionId);
+    expect(
+      isOk(await approvePackVersion(db, { actorAccountId: other, packVersionId: versionId })),
+    ).toBe(true);
+    const attempted = await recordRequirementSourceReview(db, {
+      ...input,
+      publisher: 'Changed after approval',
+    });
+    expect(isErr(attempted)).toBe(true);
+    expect((await listRequirements(db, versionId))[0]?.publisher).toBe('UK Home Office');
+    expect(await verifyPackChecksum(db, versionId)).toBe(true);
+  });
+
+  it('refuses malformed source updates without changing the draft record', async () => {
+    const versionId = await draftedBy(actor);
+    const requirement = (await listRequirements(db, versionId))[0];
+    if (!requirement) throw new Error('requirement missing');
+    const input = {
+      actorAccountId: actor,
+      requirementId: requirement.id,
+      sourceUrl: 'https://example.com/rule',
+      sourceTitle: 'Synthetic rule',
+      publisher: 'Synthetic authority',
+      observedDate: new Date(Date.now() - 60_000),
+    };
+    for (const invalid of [
+      { sourceUrl: 'javascript:alert(1)' },
+      { sourceTitle: '' },
+      { publisher: '' },
+      { observedDate: new Date(Number.NaN) },
+      { observedDate: new Date(Date.now() + 60_000) },
+    ]) {
+      expect(isErr(await recordRequirementSourceReview(db, { ...input, ...invalid }))).toBe(true);
+    }
+    expect((await listRequirements(db, versionId))[0]?.sourceUrl).toBeNull();
+  });
+
+  it('rechecks authoritative sources and review freshness before publication', async () => {
+    const versionId = await draftedBy(actor, { authoritative: true });
+    expect(
+      isOk(await approvePackVersion(db, { actorAccountId: other, packVersionId: versionId })),
+    ).toBe(true);
+    await db
+      .update(schema.packRequirements)
+      .set({ sourceInaccessibleAt: new Date() })
+      .where(eq(schema.packRequirements.packVersionId, versionId));
+    expect(
+      isErr(await publishPackVersion(db, { actorAccountId: actor, packVersionId: versionId })),
+    ).toBe(true);
+    await db
+      .update(schema.packRequirements)
+      .set({ sourceInaccessibleAt: null })
+      .where(eq(schema.packRequirements.packVersionId, versionId));
+    await db
+      .update(schema.packVersions)
+      .set({ nextReviewDate: new Date(Date.now() - 60_000) })
+      .where(eq(schema.packVersions.id, versionId));
+    expect(
+      isErr(await publishPackVersion(db, { actorAccountId: actor, packVersionId: versionId })),
+    ).toBe(true);
+    const version = (
+      await db.select().from(schema.packVersions).where(eq(schema.packVersions.id, versionId))
+    )[0];
+    expect(version?.status).toBe('APPROVED');
+    await db
+      .update(schema.packVersions)
+      .set({ nextReviewDate: new Date(Date.now() + 60_000) })
+      .where(eq(schema.packVersions.id, versionId));
+    expect(
+      isOk(await publishPackVersion(db, { actorAccountId: actor, packVersionId: versionId })),
+    ).toBe(true);
   });
 
   it('allows the same account to author and approve a non-authoritative (agency custom) pack', async () => {
@@ -782,6 +931,7 @@ describe('Pack Studio - Public Trust Lite (RUL-06)', () => {
       sourceUrl: 'https://www.gov.uk/standard-visitor',
       sourceTitle: 'Standard Visitor visa',
       publisher: 'UK Home Office',
+      observedDate: new Date(Date.now() - 60_000),
     });
     if (!isOk(req)) throw new Error('req');
     return { packId: pack.value.id, packKey: pack.value.key, versionId: version.value.id };
@@ -1099,6 +1249,10 @@ describe('Pack Studio - Public Trust Lite (RUL-06)', () => {
       kind: 'FIELD',
       fieldKey: 'passport_expiry',
       citation: 'UK Immigration Rules Appendix V 4.2',
+      sourceUrl: 'https://www.gov.uk/standard-visitor',
+      sourceTitle: 'Standard Visitor visa',
+      publisher: 'UK Home Office',
+      observedDate: new Date(Date.now() - 60_000),
     });
     const approved = await approvePackVersion(db, {
       actorAccountId: reviewer,

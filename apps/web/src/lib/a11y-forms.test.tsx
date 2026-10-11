@@ -1164,6 +1164,19 @@ const ADMIN: readonly Case[] = [
     element: () => <packForms.AddRequirementForm packId="pk1" packVersionId="pv1" />,
   },
   {
+    name: 'record a requirement source review',
+    element: () => (
+      <packForms.RequirementSourceReviewForm
+        packId="pk1"
+        requirementId="req1"
+        sourceUrl="https://example.gov/requirements"
+        sourceTitle="Official requirements"
+        publisher="Immigration authority"
+        observedDate="2026-10-01"
+      />
+    ),
+  },
+  {
     name: 'verify a checksum',
     element: () => <packForms.VerifyChecksumForm packVersionId="pv1" />,
   },

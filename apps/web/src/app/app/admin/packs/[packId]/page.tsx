@@ -11,7 +11,12 @@ import { isPlatformAdmin } from '../../../../../lib/admin';
 import { formatDateOnly, formatTimestampDate } from '../../../../../lib/format-date';
 import { withSession } from '../../../../../lib/session';
 import { formatPrice } from '../../../../../lib/usage-format';
-import { AddRequirementForm, PublicTrustContentForm, VerifyChecksumForm } from '../pack-forms';
+import {
+  AddRequirementForm,
+  PublicTrustContentForm,
+  RequirementSourceReviewForm,
+  VerifyChecksumForm,
+} from '../pack-forms';
 import {
   ApproveVersionButton,
   OfficialFeeStaleButton,
@@ -171,6 +176,30 @@ export default async function PackDetailPage({
                         <span className="muted" style={{ fontSize: '0.8rem' }}>
                           Cite: {req.citation}
                         </span>
+                        {req.sourceUrl ? (
+                          <p className="muted">
+                            <a href={req.sourceUrl} target="_blank" rel="noopener noreferrer">
+                              {req.sourceTitle ?? 'Source reference'}
+                            </a>
+                            {req.publisher ? `, ${req.publisher}` : ''}
+                            {req.observedDate
+                              ? `, checked ${formatDateOnly(req.observedDate)}`
+                              : ', checked date not recorded'}
+                          </p>
+                        ) : null}
+                        {isDraft ? (
+                          <details>
+                            <summary>Record source review</summary>
+                            <RequirementSourceReviewForm
+                              packId={data.pack.id}
+                              requirementId={req.id}
+                              sourceUrl={req.sourceUrl}
+                              sourceTitle={req.sourceTitle}
+                              publisher={req.publisher}
+                              observedDate={req.observedDate?.toISOString().slice(0, 10) ?? ''}
+                            />
+                          </details>
+                        ) : null}
                         {req.maxAgeDays !== null ? (
                           <span className="muted" style={{ fontSize: '0.8rem' }}>
                             Freshness: must be dated within {req.maxAgeDays} day(s)
