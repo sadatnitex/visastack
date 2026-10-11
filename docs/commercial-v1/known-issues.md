@@ -4940,3 +4940,10 @@ Signup checks registration through a parameterized SELECT EXISTS in the matching
 Production remains controlled_pilot with real applicant intake disabled. Full capture/restore, scanner worker activation, role lifecycle acceptance and commercial release certification remain incomplete. Verification and exact deployment evidence are recorded outside the checkout and reported separately; no pending check is counted as passed.
 
 The designated active preview branch was separately confirmed and received the same supported application-name update. Fresh reads verified VisaStack with unchanged auth endpoint, sender and email/password settings. Unrelated historical branches were not modified.
+
+
+### Chunk 71 (2026-10-11): registration fixture scan correction and backup database diagnosis
+
+PR 191 CI rejected credential-free, synthetic Neon endpoint fixtures in signup-account.test.ts. The original local supply-chain scan missed this new test because it was not yet tracked when scanned. Current tracked fixtures now carry precise reviewed line comments: the endpoint names are synthetic, both database resolver and query driver are mocked, and no network or credentials are used. Scanner rules and runtime source remain unchanged. The complete local build, tests and 192 browser checks remain valid for this comment-only correction; the tracked fixture scan and affected checks are repeated before pushing. No failed check is counted as passed.
+
+The authenticated encrypted backup run now reports an exact safe diagnostic: BACKUP_DATABASE_URL does not select the expected application database, visastackdev. Capture and restore remain unverified. The expected-database guard is retained rather than backing up the wrong database. Correcting this repository secret requires secure GitHub Actions settings access; no connection string should be sent in chat.

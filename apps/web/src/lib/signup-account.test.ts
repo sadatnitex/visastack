@@ -9,10 +9,10 @@ vi.mock('@visastack/db', () => ({ resolveDatabaseUrl: () => resolveDatabaseUrl()
 beforeEach(() => {
   vi.clearAllMocks();
   // No credentials and no network calls: the query function is mocked above.
-  resolveDatabaseUrl.mockReturnValue('postgresql://ep-example-pooler.us-east-1.aws.neon.tech/app');
+  resolveDatabaseUrl.mockReturnValue('postgresql://ep-example-pooler.us-east-1.aws.neon.tech/app'); // supply-chain-allow: synthetic endpoint; mocked driver; no credentials or network.
   vi.stubEnv(
     'NEON_AUTH_BASE_URL',
-    'https://ep-example.neonauth.us-east-1.aws.neon.tech/neondb/auth',
+    'https://ep-example.neonauth.us-east-1.aws.neon.tech/neondb/auth', // supply-chain-allow: synthetic endpoint; mocked driver; no credentials or network.
   );
   query.mockResolvedValue([{ registered: true }]);
 });
@@ -31,10 +31,10 @@ describe('signup account lookup', () => {
   });
 
   it.each([
-    'https://ep-other.neonauth.us-east-1.aws.neon.tech/neondb/auth',
+    'https://ep-other.neonauth.us-east-1.aws.neon.tech/neondb/auth', // supply-chain-allow: synthetic endpoint; mocked driver; no credentials or network.
     'https://ep-example.neonauth.example.invalid/neondb/auth',
-    'http://ep-example.neonauth.us-east-1.aws.neon.tech/neondb/auth',
-    'https://ep-example.neonauth.us-east-1.aws.neon.tech/invalid-db/auth',
+    'http://ep-example.neonauth.us-east-1.aws.neon.tech/neondb/auth', // supply-chain-allow: synthetic endpoint; mocked driver; no credentials or network.
+    'https://ep-example.neonauth.us-east-1.aws.neon.tech/invalid-db/auth', // supply-chain-allow: synthetic endpoint; mocked driver; no credentials or network.
   ])('refuses a mismatched or unsupported auth endpoint', async (auth) => {
     vi.stubEnv('NEON_AUTH_BASE_URL', auth);
     const { signupAccountExists } = await import('./signup-account');
