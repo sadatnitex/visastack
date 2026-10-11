@@ -275,3 +275,7 @@ UX-01, UX-02 and UX-03 retain their historical IN_PROGRESS acceptance status. Th
 ### Authoritative HTML correction, 2026-10-11
 
 UX-01, UX-02 and UX-03 remain IN_PROGRESS for full product acceptance. The owner's correction applies the original HTML identity to all 52 existing page routes, removes unintended device-dark substitution and adds a route graph guard plus rendered appearance parity checks. Ten desktop references are inspected before correction; tablet and phone layouts preserve existing actions and accessibility. Authenticated journeys, deferred translation and broader operational acceptance are not closed by this UI release. Final exact-head release evidence is recorded on its pull request.
+
+### Preview and recovery continuation (2026-10-11)
+
+UX-01, UX-02, SEC-02 and OPS-03 retain their existing acceptance status. Preview-aware origins, explicit recovery states and configurable R2 routing are a follow-up to the shared UI deployment, not certification of authenticated identity migration, live email delivery, R2 availability or disaster recovery. The preceding deployment's failed desktop browser comparisons remain recorded in known-issues Chunk 68.

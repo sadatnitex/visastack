@@ -143,3 +143,9 @@ Neon branch or overwrite production to run a drill. Record actual recovery time 
 data-loss bounds. A synthetic local drill does not establish production recovery.
 
 Production database binding: the application uses `visastackdev` on the main Neon branch. The workflow fixes `BACKUP_EXPECTED_DATABASE=visastackdev`; the backup runner refuses a different database before reading data or opening storage. Verify the secret selects this database and its direct main endpoint. A variable named `DATABASE_URL_UNPOOLED` is not proof that it selects the same database as the application.
+
+## Region configuration and existing bucket failure (2026-10-11)
+
+Every R2 client reads `R2_REGION`, defaulting to `auto` when absent or empty, and retains `forcePathStyle: true`. The database backup workflow reads this optional value from the Actions secret of the same name. New deployments create new process clients; this adapter does not cache bucket lookups. Setting `auto` does not change the previously hard-coded region and must not be presented as proof that a bucket is reachable.
+
+The latest read-only production probe still returns `404 NoSuchBucket` from the account endpoint with the bucket correctly in the request path. Do not switch `STORAGE_PROVIDER` to R2, delete documents, rotate encryption keys or bypass readiness until a real bucket probe succeeds. Bucket inventory and location must be checked through the Cloudflare account console or an authorized management API; object access credentials do not provide that management access.

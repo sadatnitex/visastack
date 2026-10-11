@@ -132,10 +132,23 @@ export async function requestPasswordResetAction(formData: FormData): Promise<vo
   });
   if (!allowed) redirect('/auth/forgot-password?e=slow');
   const { getNeonAuth } = await import('../../lib/neon-auth');
-  await getNeonAuth().requestPasswordReset({
-    email,
-    redirectTo: `${resolveBaseUrl()}/auth/reset-password`,
-  });
+  let unavailable = false;
+  let throttled = false;
+  try {
+    const { error } = await getNeonAuth().requestPasswordReset({
+      email,
+      redirectTo: `${resolveBaseUrl()}/auth/reset-password`,
+    });
+    // Unknown accounts receive the same neutral confirmation. Provider outages
+    // and throttling must not be disguised as a successful request.
+    throttled = error?.status === 429;
+    const unknownAccount = error?.code === 'USER_NOT_FOUND' || error?.message === 'User not found';
+    unavailable = !!error && !unknownAccount && !throttled;
+  } catch {
+    unavailable = true;
+  }
+  if (throttled) redirect('/auth/forgot-password?e=slow');
+  if (unavailable) redirect('/auth/forgot-password?e=unavailable');
   redirect('/auth/forgot-password?sent=1');
 }
 

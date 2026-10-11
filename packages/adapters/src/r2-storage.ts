@@ -19,6 +19,11 @@ import { signBlobToken } from './blob-token';
 const loadS3 = () => import('@aws-sdk/client-s3');
 
 export const R2_DOCUMENT_BUCKET = 'visastack-document-backups';
+
+export function readR2Region(): string {
+  const name = 'R2_REGION';
+  return process.env[name] || 'auto';
+}
 const MAX_BYTES = 25 * 1024 * 1024;
 const isExport = (key: string) => /^exports\/[a-f0-9-]{36}-[a-f0-9-]{36}\.zip\.enc$/.test(key);
 
@@ -47,7 +52,7 @@ export async function probeR2Storage(input: {
 }): Promise<void> {
   const { S3Client, HeadBucketCommand } = await loadS3();
   const client = new S3Client({
-    region: 'auto',
+    region: readR2Region(),
     forcePathStyle: true,
     endpoint: validateR2Endpoint(input.endpoint),
     credentials: { accessKeyId: input.accessKeyId, secretAccessKey: input.secretAccessKey },
@@ -99,7 +104,7 @@ export class R2Storage implements StoragePort, BlobStore {
     this.client ??= loadS3().then(
       ({ S3Client }) =>
         new S3Client({
-          region: 'auto',
+          region: readR2Region(),
           forcePathStyle: true,
           endpoint: validateR2Endpoint(this.options.endpoint),
           credentials: {

@@ -131,6 +131,9 @@ describe('resolveAppOrigin', () => {
 describe('resolveAppOrigin stays in step with resolveBaseUrl', () => {
   const NAMES = [
     'NEXT_PUBLIC_APP_URL',
+    'VERCEL_ENV',
+    'VERCEL_BRANCH_URL',
+    'VERCEL_URL',
     'VERCEL_PROJECT_PRODUCTION_URL',
     'NEXT_PUBLIC_WORKOS_REDIRECT_URI',
   ] as const;
@@ -164,6 +167,27 @@ describe('resolveAppOrigin stays in step with resolveBaseUrl', () => {
     for (const name of NAMES) delete process.env[name];
     for (const [name, value] of Object.entries(values)) process.env[name] = value;
     expect(resolveAppOrigin((name) => process.env[name])).toBe(new URL(resolveBaseUrl()).origin);
+  });
+
+  it('keeps preview links on the current branch even when a production URL was copied', () => {
+    for (const name of NAMES) delete process.env[name];
+    const values: Record<string, string> = {
+      VERCEL_ENV: 'preview',
+      VERCEL_BRANCH_URL: 'current-branch.vercel.app',
+      NEXT_PUBLIC_APP_URL: 'https://production.example.com',
+      VERCEL_PROJECT_PRODUCTION_URL: 'production.vercel.app',
+    };
+    for (const [name, value] of Object.entries(values)) process.env[name] = value;
+    expect(resolveBaseUrl()).toBe('https://current-branch.vercel.app');
+    expect(resolveAppOrigin((name) => process.env[name])).toBe(resolveBaseUrl());
+    const branchName = 'VERCEL_BRANCH_URL';
+    const deploymentName = 'VERCEL_URL';
+    const environmentName = 'VERCEL_ENV';
+    delete process.env[branchName];
+    process.env[deploymentName] = 'current-deployment.vercel.app';
+    expect(resolveBaseUrl()).toBe('https://current-deployment.vercel.app');
+    process.env[environmentName] = 'production';
+    expect(resolveBaseUrl()).toBe('https://production.example.com');
   });
 
   it('differs only in having no made-up default when nothing is configured', () => {

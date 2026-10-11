@@ -11,6 +11,7 @@ export const dynamic = 'force-dynamic';
 const ERRORS: Record<string, string> = {
   invalid: 'Enter a valid email address.',
   slow: 'Too many requests. Please wait a little while and try again.',
+  unavailable: 'We could not request a link right now. Please try again in a few minutes.',
   expired: 'That link has expired or was already used. Ask for a new one below.',
 };
 
@@ -23,32 +24,56 @@ export default async function ForgotPasswordPage({
   return (
     <AuthShell title="Reset your password">
       {sent === '1' ? (
-        <Notice>
-          If that address has an account, we have sent a link to choose a new password. It can take
-          a few minutes to arrive. Check your spam folder too.
-        </Notice>
-      ) : null}
-      <ErrorLine id="forgot-error" message={error} />
-      <div className="card" style={{ marginBottom: '1rem' }}>
-        <form action={requestPasswordResetAction} className="field-list">
-          <TextField
-            id="email"
-            name="email"
-            type="email"
-            label="Email address"
-            autoComplete="email"
-            required
-            maxLength={254}
-            errorId={error ? 'forgot-error' : undefined}
-          />
-          <button type="submit" className="btn btn-primary">
-            Send me a link
-          </button>
-        </form>
-      </div>
+        <div className="card" style={{ marginBottom: '1rem' }}>
+          <h2 className="card-title">Check your email</h2>
+          <Notice>
+            If an account uses that address, a password reset link will arrive shortly. Check your
+            inbox and spam folder. If you do not have an account, you can create one instead.
+          </Notice>
+          <details style={{ marginTop: '1rem' }}>
+            <summary>Did not get a link? Send another</summary>
+            <p className="card-body">
+              Wait a few minutes, then enter your email to request a new link.
+            </p>
+            <RecoveryForm resend />
+          </details>
+          <p className="card-body" style={{ marginTop: '1rem' }}>
+            <Link href="/auth/forgot-password">Use a different email address</Link>
+            {' · '}
+            <Link href="/auth/sign-up">Create an account</Link>
+          </p>
+        </div>
+      ) : (
+        <>
+          <ErrorLine id="forgot-error" message={error} />
+          <div className="card" style={{ marginBottom: '1rem' }}>
+            <RecoveryForm error={error} />
+          </div>
+        </>
+      )}
       <p className="card-body">
         <Link href="/auth/sign-in">Back to sign in</Link>
       </p>
     </AuthShell>
+  );
+}
+
+function RecoveryForm({ error, resend = false }: { error?: string | undefined; resend?: boolean }) {
+  return (
+    <form action={requestPasswordResetAction} className="field-list">
+      <TextField
+        id={resend ? 'resend-email' : 'email'}
+        name="email"
+        type="email"
+        label="Email address"
+        autoComplete="email"
+        required
+        maxLength={254}
+        errorId={error ? 'forgot-error' : undefined}
+      />
+      <button type="submit" className="btn btn-primary">
+        {resend ? 'Send another link' : 'Send me a link'}
+      </button>
+    </form>
   );
 }

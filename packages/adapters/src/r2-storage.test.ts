@@ -1,14 +1,17 @@
 import { Readable } from 'node:stream';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { verifyBlobToken } from './blob-token';
 import { R2Storage, validateR2Endpoint } from './r2-storage';
 
-const { send } = vi.hoisted(() => ({ send: vi.fn() }));
+const { send, configured } = vi.hoisted(() => ({ send: vi.fn(), configured: vi.fn() }));
 vi.mock('@aws-sdk/client-s3', async (load) => {
   const actual = await load<typeof import('@aws-sdk/client-s3')>();
   return {
     ...actual,
     S3Client: class {
+      constructor(options: unknown) {
+        configured(options);
+      }
       send = send;
     },
   };
@@ -39,9 +42,29 @@ function storage(bucket: 'CLEAN' | 'QUARANTINE' | undefined = undefined) {
 }
 beforeEach(() => {
   send.mockReset();
+  configured.mockReset();
   for (const fn of Object.values(legacy)) fn.mockReset();
 });
+afterEach(() => vi.unstubAllEnvs());
 describe('R2 private storage and legacy continuity', () => {
+  it('uses the configured region and retains path-style routing with the auto fallback', async () => {
+    for (const region of ['auto', 'custom-region', '']) {
+      vi.stubEnv('R2_REGION', region);
+      await storage().putObject({
+        bucket: 'QUARANTINE',
+        objectKey: 'region-probe',
+        bytes: Buffer.from('hello'),
+        contentType: 'text/plain',
+      });
+      expect(configured).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          region: region || 'auto',
+          forcePathStyle: true,
+          endpoint,
+        }),
+      );
+    }
+  });
   it('allows only R2 HTTPS endpoints without credentials, paths or ports', () => {
     expect(validateR2Endpoint(endpoint)).toBe(endpoint);
     for (const bad of [

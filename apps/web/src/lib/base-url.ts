@@ -1,4 +1,5 @@
 import 'server-only';
+import { resolveAppOrigin } from './csp';
 
 /** Variable-keyed env read (satisfies both TS index-signature and Biome rules). */
 function readEnv(name: string): string | undefined {
@@ -13,11 +14,5 @@ function readEnv(name: string): string | undefined {
  * (`invitations.ts`) needed the identical resolution logic.
  */
 export function resolveBaseUrl(): string {
-  const explicit = readEnv('NEXT_PUBLIC_APP_URL');
-  if (explicit) return explicit;
-  const vercel = readEnv('VERCEL_PROJECT_PRODUCTION_URL');
-  if (vercel) return `https://${vercel}`;
-  const redirect = readEnv('NEXT_PUBLIC_WORKOS_REDIRECT_URI');
-  if (redirect) return new URL(redirect).origin;
-  return 'https://visastack-five.vercel.app';
+  return resolveAppOrigin(readEnv) ?? 'https://visastack-five.vercel.app';
 }

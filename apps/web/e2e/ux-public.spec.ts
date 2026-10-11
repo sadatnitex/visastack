@@ -675,6 +675,14 @@ test.describe('authoritative appearance on public routes', () => {
           caret: 'hide',
         });
         await page.emulateMedia({ colorScheme: 'dark' });
+        expect(await page.locator('html').evaluate((el) => getComputedStyle(el).colorScheme)).toBe(
+          'light',
+        );
+        // Chromium repaints rounded border edges at different subpixel positions
+        // when its native appearance changes. Compare complete fresh renders,
+        // retaining exact pixel equality and the runtime color-scheme assertion.
+        await page.reload();
+        await page.evaluate(() => document.fonts.ready);
         const dark = await page.screenshot({
           path: test.info().outputPath('appearance-dark.png'),
           animations: 'disabled',
@@ -825,4 +833,24 @@ test.describe('authoritative appearance of actual workspace components', () => {
         .getByRole('link', { name: 'Platform administration' }),
     ).toHaveAttribute('href', '/app/admin');
   });
+});
+
+test('password recovery confirms the request and offers an explicit resend without exposing accounts', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/auth/forgot-password?sent=1');
+  await expect(page.getByRole('heading', { name: 'Check your email' })).toBeVisible();
+  await expect(page.getByText('If an account uses that address', { exact: false })).toBeVisible();
+  await expect(page.getByLabel('Email address')).toBeHidden();
+  await page.getByText('Did not get a link? Send another', { exact: true }).click();
+  await expect(page.getByLabel('Email address')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Send another link' })).toBeVisible();
+  await page.getByRole('link', { name: 'Use a different email address' }).click();
+  await expect(page.getByRole('button', { name: 'Send me a link' })).toBeVisible();
+  await page.goto('/auth/forgot-password?e=unavailable');
+  await expect(
+    page.getByText('We could not request a link right now.', { exact: false }),
+  ).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Send me a link' })).toBeVisible();
 });
