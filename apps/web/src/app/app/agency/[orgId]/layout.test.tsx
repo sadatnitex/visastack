@@ -41,36 +41,31 @@ beforeEach(() => {
 });
 
 describe('agency console layout', () => {
-  it('shows the organization, its status and the six sections to an administrator', async () => {
+  it('keeps organization identity and status without duplicating the primary sidebar', async () => {
     const html = await renderServer(Layout({ children: <p id="page">the page</p>, params }));
     const text = textOf(html);
     expect(text).toContain('Dhaka Visa Desk');
     expect(text).toContain('Active');
     expect(text).toContain('Agency workspace');
-    expect(tabLabels(html)).toEqual([
-      'Dashboard',
-      'Clients',
-      'Cases',
-      'Team',
-      'Usage & billing',
-      'Settings',
-    ]);
+    expect(tabLabels(html)).toEqual([]);
+    expect(html).not.toContain('subnav');
     expect(html).toContain('id="page"');
-    expect(html).toContain('aria-label="Organization sections"');
+    expect(html).not.toContain('aria-label="Organization sections"');
   });
 
-  it('leaves Clients, Team and Settings out of the bar for a member who is not an administrator', async () => {
+  it('retains the member-only body without exposing administrator controls', async () => {
     mocks.loadOrgAccess.mockResolvedValue({ org, admin: false, member: true });
     const html = await renderServer(Layout({ children: <p id="page">the page</p>, params }));
-    expect(tabLabels(html)).toEqual(['Dashboard', 'Cases', 'Usage & billing']);
+    expect(tabLabels(html)).toEqual([]);
+    expect(html).not.toContain('subnav');
     expect(html).toContain('id="page"');
   });
 
-  it('shows the current section', async () => {
+  it('keeps case content while primary selected state belongs to the shared shell', async () => {
     navigationState.pathname = '/app/agency/o1/cases';
     const html = await renderServer(Layout({ children: null, params }));
-    expect(html).toMatch(/<a href="\/app\/agency\/o1\/cases" aria-current="page">Cases<\/a>/);
-    expect(html.match(/aria-current="page"/g)).toHaveLength(1);
+    expect(html).not.toContain('subnav');
+    expect(html).not.toContain('aria-current="page"');
   });
 
   it('tells someone with no role so, and renders neither the bar nor the page', async () => {
@@ -87,11 +82,11 @@ describe('agency console layout', () => {
     await expect(Layout({ children: null, params })).rejects.toThrow('NEXT_NOT_FOUND');
   });
 
-  it('warns when agency collaboration is switched off, above the bar', async () => {
+  it('warns when agency collaboration is switched off, before the page', async () => {
     mocks.getPlatformCapabilities.mockReturnValue({ agencyCollaboration: 'disabled' });
-    const html = await renderServer(Layout({ children: null, params }));
+    const html = await renderServer(Layout({ children: <p id="page">the page</p>, params }));
     expect(html).toContain('notice-warn');
-    expect(html.indexOf('notice-warn')).toBeLessThan(html.indexOf('subnav'));
+    expect(html.indexOf('notice-warn')).toBeLessThan(html.indexOf('id="page"'));
   });
 
   it('shows no warning when collaboration is available', async () => {

@@ -44,3 +44,7 @@ Use VisaStack as the product name and the canonical production address for produ
 Privacy notice version 2026-10-11.1 names the selected document provider and configured R2 archives; terms version remains 2026-10-10.1. Both await legal review. Prior acknowledgements and already delivered messages remain historical records. Registration notice acknowledgement is separate from marketing, AI and agency-sharing consent.
 
 Founding access stays complimentary. Actual provider bills, allowances and account usage must be measured before an upgrade. Missing cost or capacity readings are unavailable, not zero or unlimited. See [cost register](../public-beta/PROVIDER-COST-REGISTER.md), [upgrade procedure](free-to-scale-upgrades.md) and [remaining owner/provider evidence](../public-beta/OWNER-ACTIONS.md).
+
+### 2026-10-11 PDF fidelity correction checkpoint
+
+The latest corrective owner mandate uses the uploaded ten-page PDF for composition and the approved flat refinement. Earlier HTML palette/device-theme checks do not establish full PDF or authenticated functional acceptance. The [reference checkpoint](../uiux/REFERENCE-FIDELITY-CHECKPOINT.md) records the complete baseline route/control inventory, reference-to-function mapping and package status. Contextual navigation changes preserve existing owned-record, active-membership and platform-role boundaries; they do not establish new permissions. Final isolated authenticated screenshots and journeys remain unverified.

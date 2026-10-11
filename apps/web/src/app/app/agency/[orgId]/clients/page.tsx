@@ -122,7 +122,9 @@ export default async function AgencyClientsPage({
 
       <article className="card">
         <p className="card-kicker">Activity</p>
-        <h2 className="card-title">Evidence requests</h2>
+        <h2 className="card-title" id="agency-evidence-requests">
+          Evidence requests
+        </h2>
         {data.requests.length === 0 ? (
           <EmptyState title="No evidence requests yet">
             Ask a client for a specific document or detail. You will see here when it arrives and

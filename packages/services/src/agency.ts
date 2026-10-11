@@ -1320,9 +1320,10 @@ export async function listNotes(
   organizationId: string,
   applicantId: string,
   missionId: string,
+  options?: { readonly limit: number },
 ): Promise<MissionNote[]> {
   if (!(await canReadMissionCollaboration(db, organizationId, applicantId, missionId))) return [];
-  return db
+  const query = db
     .select()
     .from(schema.missionNotes)
     .where(
@@ -1334,6 +1335,13 @@ export async function listNotes(
         ),
       ),
     );
+  if (!options) return query;
+  const limit = Number.isFinite(options.limit)
+    ? Math.max(1, Math.min(50, Math.floor(options.limit)))
+    : 50;
+  return query
+    .orderBy(desc(schema.missionNotes.createdAt), desc(schema.missionNotes.id))
+    .limit(limit);
 }
 
 /** A note as the applicant owner sees it - author already resolved to an email, never a raw account id. */
