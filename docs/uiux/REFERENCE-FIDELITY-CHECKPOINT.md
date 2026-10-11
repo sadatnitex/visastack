@@ -22,7 +22,7 @@ Inventory covers every detected production JSX control and exported action; beha
 | CF-01 | Implemented locally, acceptance incomplete | Authenticated role/mobile/keyboard screenshots and journeys remain unverified |
 | CF-02 | Implemented in an isolated worktree, release checks pending | Authenticated search/menu/mobile and exact header screenshots remain unverified |
 | CF-03 | Overview/profile implementation complete locally, release verification pending | Real authenticated desktop/mobile comparisons and full acceptance remain unverified |
-| CF-04 | Not implemented | Real wallet selection, case stages/progress and accurate sharing composer |
+| CF-04 | Wallet list/detail and case preparation/stage presentation implemented locally, release checks pending | Sharing composer composition, full package verification and authenticated visual acceptance remain incomplete |
 | CF-05 | Not implemented | Agency pipeline, activity/requests and role-specific operation |
 | CF-06 | Not implemented | Platform members/metrics/trends/providers/costs and existing tools |
 | CF-07 | Not implemented | Public/signup pathway and exact composition corrections |
@@ -54,3 +54,20 @@ Selected-traveller overview now keeps the three real metrics, latest active case
 The profile uses the existing canonical field registry, divided into personal, passport/identity, travel, employment, finances and additional sections. Business, medical and attendant packs, repeating records, immutable saves, backdating, provenance and per-field assurance remain accessible. Keyboard tabs, all-field search and the history route remain functional. Completeness counts core fields with values; it does not imply identity or email verification. Health and latest changes use recorded fact states and timestamps. Both pages independently enforce current ownership before reading facts, even if layouts render concurrently.
 
 Focused checks passed 278 page/form-accessibility tests and four real profile-editor interaction tests. These include foreign-owner refusal, retained empty regions, actual case selection/progress, unavailable totals, consent-disabled editing, keyboard tabs, cross-section search and preserved repeating-record identifiers. This is implementation verification, not provider-backed authenticated screenshot acceptance. Full package checks and production publication are still pending.
+
+## CF-04 partial implementation checkpoint
+
+The wallet now has real status/category filters, local metadata search, twelve-row pagination, explicit selected-document state and a mobile details jump. The detail slot retains all existing safety-gated preview/download forms, document-date corrections, naming proposals, lifecycle/usage/access details, issuer confirmation, OCR and AI review actions. Selection never substitutes another document for an unavailable explicit ID. The page independently checks ownership before its reads. Latest version numbers and update timestamps come from the existing authorized batched document reader; no schema or storage-key exposure is added. A verified file format is not persisted in the existing metadata model, so the view states this accurately instead of inferring it from a filename.
+
+Case presentation adds actual canonical/legacy stage labels with only the current state marked, legal-next descriptions and the unchanged guarded transition actions. Evidence progress uses computed required-item completeness and exact requirement state counts, keeping unknown applicability, optional gaps, non-applicable items and applicant confirmation distinct. It does not infer completed-stage history or approval likelihood. Existing case sections, sources, snapshots, acknowledgements, submissions and deeper actions remain reachable.
+
+Local checks passed five wallet interaction tests and all 45 document service tests, including latest-version selection. Workspace type checks, flat-design and 56-route/303-reference navigation checks passed. Full browser/production build verification, sharing-composer composition and provider-backed visual acceptance remain pending. CI now retains the full workspace suites and three root self-tests with bounded package concurrency and two Vitest workers, matching the existing local regression command; assertions and timeouts are unchanged.
+
+
+## CF-04 wallet/case regression checkpoint
+
+The complete web suite passed 1,246 tests across 105 files after the final wallet and case changes. Twelve wallet page tests, five metadata-browser interaction tests and three case-summary tests cover ownership, unavailable explicit selection, quarantine exclusion, retained processing status, actual filters and distinct evidence states. The real wallet ownership guard was temporarily removed: the refusal test failed, then passed after the guard was restored. Web type checking and final repository lint, flat-design and navigation checks passed. Production build, complete package release checks and sharing composition remain pending.
+
+## Verified releases CF-01 through CF-03
+
+PR 195 merged at 74eaf610a07901a9e13c76c6770710b87d73febe and PR 196 merged at 84f879eca23a4cc9e85a5f58584f10851a9be655. All three required checks passed on their exact source and merged commits; deployment smoke checks and canonical/fallback readiness passed. PR 196 production deployment is dpl_4VYnzh2Fj4gx8AgqqZNtj4p8uHVi. Contextual navigation, scoped toolbar controls and traveller overview/profile composition are live. Actual authenticated visual and role-journey acceptance remains unverified; this release evidence does not close CF-09 or enable real applicant data.

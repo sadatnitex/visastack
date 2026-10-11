@@ -2,6 +2,7 @@ import { type MessageKey, type Translator, createTranslator } from '@visastack/i
 import {
   type DocumentLifecycleStatus,
   classifyExpiry,
+  getApplicant,
   getApplicantEvidenceBytes,
   getLatestOcrRun,
   getWalletView,
@@ -17,9 +18,10 @@ import {
 } from '@visastack/services';
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { notFound } from 'next/navigation';
 import { AutoRefresh } from '../../../../../components/auto-refresh';
-import { DocumentReviewPanel } from '../../../../../components/document-review-panel';
-import { EmptyState, type Tone } from '../../../../../components/ui';
+import { DocumentWalletBrowser } from '../../../../../components/document-wallet-browser';
+import { PageHeader } from '../../../../../components/ui';
 import {
   createAiExtractor,
   isClassificationConfigured,
@@ -112,6 +114,7 @@ export default async function ApplicantDocumentsPage({
 }: {
   readonly params: Promise<{ id: string }>;
   readonly searchParams: Promise<{
+    readonly document?: string;
     readonly preview_error?: string;
     readonly date_error?: string;
     readonly download_error?: string;
@@ -119,6 +122,7 @@ export default async function ApplicantDocumentsPage({
 }) {
   const { id } = await params;
   const {
+    document: initialSelection,
     preview_error: previewError,
     date_error: dateError,
     download_error: downloadError,
@@ -127,6 +131,8 @@ export default async function ApplicantDocumentsPage({
   const t = createTranslator(locale);
 
   const data = await withSession(async ({ db, accountId }) => {
+    const applicant = await getApplicant(db, id);
+    if (!applicant || applicant.ownerAccountId !== accountId) return null;
     const [
       documents,
       coreGranted,
@@ -175,6 +181,7 @@ export default async function ApplicantDocumentsPage({
     const ocrRuns = new Map(documentRows.map((doc, i) => [doc.id, ocrRunLists[i]] as const));
     return {
       documents: documentRows,
+      recordsUnavailable: !documents.ok || !wallet.ok,
       coreGranted,
       aiGranted,
       aiConfigured: Boolean(createAiExtractor()),
@@ -193,6 +200,19 @@ export default async function ApplicantDocumentsPage({
     };
   });
 
+  if (!data) notFound();
+
+  if (data.recordsUnavailable)
+    return (
+      <>
+        <PageHeader as="h2" title="Documents" description="Your private evidence wallet" />
+        <p role="alert" className="notice notice-warn">
+          We could not load your document records or lifecycle status. Refresh to try again.
+          Unavailable records are not reported as an empty wallet.
+        </p>
+      </>
+    );
+
   // While the server is still scanning or reading a file, keep this page up to date by
   // itself: nobody has to reload, and nobody uploads the file again because nothing seemed
   // to happen (directive Part 9 section 3).
@@ -200,6 +220,17 @@ export default async function ApplicantDocumentsPage({
 
   return (
     <>
+      <PageHeader
+        as="h2"
+        eyebrow="Your private wallet"
+        title="Documents"
+        description="Keep reusable evidence together. Processing, review and expiry are separate signals."
+        actions={
+          <a className="btn btn-primary" href="#document-upload">
+            + Upload documents
+          </a>
+        }
+      />
       {downloadError ? (
         <p role="alert" className="card-body">
           We could not download this document. Try again after confirming your account. Documents
@@ -207,6 +238,12 @@ export default async function ApplicantDocumentsPage({
         </p>
       ) : null}
       <AutoRefresh active={anyProcessing} />
+      {anyProcessing ? (
+        <p className="muted">
+          Some documents are still being checked. This page updates by itself, so there is no need
+          to upload them again.
+        </p>
+      ) : null}
       {previewError ? (
         <p className="notice notice-warn" role="alert" style={{ marginBottom: '1.5rem' }}>
           Couldn't open that preview - the document may no longer be available. Please try again.
@@ -278,366 +315,348 @@ export default async function ApplicantDocumentsPage({
         </>
       )}
 
-      <div className="document-wallet-layout">
-        <article className="card document-wallet-list">
-          <p className="card-kicker">Document Vault</p>
-          <h2 className="card-title">{data.documents.length} document(s)</h2>
-          {anyProcessing ? (
-            <p className="muted" style={{ fontSize: '0.85rem' }}>
-              Some documents are still being checked. This page updates by itself, so there is no
-              need to upload them again.
-            </p>
-          ) : null}
-          {data.documents.length === 0 ? (
-            <EmptyState title="No documents yet">
-              Store the passport, statements and letters you reuse across applications. They are
-              kept privately and only the people you share them with can open them.
-            </EmptyState>
-          ) : (
-            <div className="rows" style={{ marginTop: '0.5rem' }}>
-              {data.documents.map((doc) => {
-                const badge = safetyBadge(doc.safetyStatus ?? 'PENDING', t);
-                const processingKey = doc.processingStatus
-                  ? PROCESSING_STATE_KEYS[doc.processingStatus]
-                  : undefined;
-                const previewable =
-                  doc.safetyStatus === 'CLEAN' &&
-                  doc.processingStatus !== null &&
-                  isServableProcessingState(doc.processingStatus);
-                return (
-                  <div
-                    key={doc.id}
-                    id={`document-${doc.id}`}
-                    style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}
+      <DocumentWalletBrowser
+        key={initialSelection ?? id}
+        applicantId={id}
+        {...(initialSelection ? { initialSelection } : {})}
+        documents={data.documents.map((doc) => {
+          const badge = safetyBadge(doc.safetyStatus ?? 'PENDING', t);
+          const processingKey = doc.processingStatus
+            ? PROCESSING_STATE_KEYS[doc.processingStatus]
+            : undefined;
+          const previewable =
+            doc.safetyStatus === 'CLEAN' &&
+            doc.processingStatus !== null &&
+            isServableProcessingState(doc.processingStatus);
+          const lifecycle = data.wallet.get(doc.id)?.status;
+          const needsReview =
+            doc.safetyStatus === 'QUARANTINED' ||
+            doc.processingStatus === 'AWAITING_REVIEW' ||
+            doc.classification?.reviewRequired === true ||
+            doc.pendingNameVersion !== null ||
+            ['QUARANTINED', 'REJECTED', 'FAILED', 'NEEDS_ATTENTION'].includes(
+              doc.processingStatus ?? '',
+            ) ||
+            data.pendingProposals.some(
+              ({ proposal }) => proposal.documentVersionId === doc.latestVersionId,
+            );
+          return {
+            id: doc.id,
+            name: doc.approvedName ?? doc.originalName,
+            category: doc.docType,
+            version: doc.latestVersionNumber ?? null,
+            updatedAt: doc.updatedAt ?? null,
+            ready:
+              doc.safetyStatus === 'CLEAN' &&
+              doc.processingStatus === 'APPROVED' &&
+              !needsReview &&
+              (lifecycle === 'CURRENT' || lifecycle === 'EXPIRING'),
+            needsReview,
+            expiring: lifecycle === 'EXPIRING',
+            safetyLabel: badge.label,
+            processingLabel: processingKey ? t(processingKey) : 'Not yet checked',
+            previewAllowed: previewable,
+            details: (
+              <div
+                key={doc.id}
+                className="wallet-document-actions"
+                style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}
+              >
+                <div className="row">
+                  <span className="row-key" style={{ wordBreak: 'break-word' }}>
+                    {doc.approvedName ?? doc.originalName}
+                  </span>
+                  <span className="row-end">
+                    <span className={`badge ${badge.tone}`}>{badge.label}</span>
+                    {(() => {
+                      const lifecycle = data.wallet.get(doc.id);
+                      if (!lifecycle) return null;
+                      const lifecycleBadge = LIFECYCLE_BADGES[lifecycle.status];
+                      return (
+                        <span className={`badge ${lifecycleBadge.tone}`}>
+                          {lifecycleBadge.label}
+                        </span>
+                      );
+                    })()}
+                    {processingKey ? (
+                      <span
+                        className={`badge ${processingTone(doc.processingStatus)}`}
+                        aria-live="polite"
+                      >
+                        {t(processingKey)}
+                      </span>
+                    ) : null}
+                    {previewable ? (
+                      <form action={previewDocumentAction}>
+                        <input type="hidden" name="applicantId" value={id} />
+                        <input type="hidden" name="documentId" value={doc.id} />
+                        <button
+                          type="submit"
+                          className="btn btn-secondary"
+                          style={{ padding: '0.3rem 0.9rem', fontSize: '0.8rem' }}
+                        >
+                          Preview
+                        </button>
+                      </form>
+                    ) : null}
+                    {previewable && getPlatformCapabilities().originalDownload === 'available' ? (
+                      <form action={downloadOriginalAction}>
+                        <input type="hidden" name="applicantId" value={id} />
+                        <input type="hidden" name="documentId" value={doc.id} />
+                        <button type="submit" className="btn btn-secondary">
+                          Download original
+                        </button>
+                      </form>
+                    ) : null}
+                  </span>
+                </div>
+                {doc.processingStatus && PROBLEM_NEXT_STEP[doc.processingStatus] ? (
+                  <p className="muted" style={{ fontSize: '0.75rem', margin: 0 }}>
+                    {PROBLEM_NEXT_STEP[doc.processingStatus]}
+                  </p>
+                ) : null}
+                {(() => {
+                  const wallet = data.wallet.get(doc.id);
+                  if (
+                    !wallet ||
+                    (wallet.usedInMissions.length === 0 && wallet.accessibleTo.length === 0)
+                  ) {
+                    return null;
+                  }
+                  return (
+                    <p className="muted" style={{ fontSize: '0.75rem', margin: 0 }}>
+                      {wallet.usedInMissions.length > 0
+                        ? `Used in ${wallet.usedInMissions.map((m) => m.missionTitle).join(', ')}`
+                        : null}
+                      {wallet.usedInMissions.length > 0 && wallet.accessibleTo.length > 0
+                        ? ' · '
+                        : null}
+                      {wallet.accessibleTo.length > 0
+                        ? `Shared with ${wallet.accessibleTo.map((a) => a.label).join(', ')}`
+                        : null}
+                    </p>
+                  );
+                })()}
+                <form
+                  action={setDocumentDateAction}
+                  style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}
+                >
+                  <input type="hidden" name="applicantId" value={id} />
+                  <input type="hidden" name="documentId" value={doc.id} />
+                  <label
+                    className="muted"
+                    style={{ fontSize: '0.75rem' }}
+                    htmlFor={`date-${doc.id}`}
                   >
-                    <div className="row">
-                      <span className="row-key" style={{ wordBreak: 'break-word' }}>
-                        {doc.approvedName ?? doc.originalName}
-                      </span>
-                      <span className="row-end">
-                        <span className={`badge ${badge.tone}`}>{badge.label}</span>
-                        {(() => {
-                          const lifecycle = data.wallet.get(doc.id);
-                          if (!lifecycle) return null;
-                          const lifecycleBadge = LIFECYCLE_BADGES[lifecycle.status];
+                    Document date
+                  </label>
+                  <input
+                    id={`date-${doc.id}`}
+                    name="documentDate"
+                    type="date"
+                    defaultValue={doc.documentDate ?? ''}
+                    max={new Date().toISOString().slice(0, 10)}
+                    className="input"
+                    style={{ padding: '0.2rem 0.5rem', fontSize: '0.8rem', width: 'auto' }}
+                  />
+                  <button
+                    type="submit"
+                    className="btn btn-secondary"
+                    style={{ padding: '0.2rem 0.6rem', fontSize: '0.75rem' }}
+                  >
+                    Save
+                  </button>
+                  <span className="muted" style={{ fontSize: '0.7rem' }}>
+                    Used to judge freshness for routes that require recently-dated evidence.
+                  </span>
+                </form>
+                {(() => {
+                  const confirmations = data.issuerVerifications.get(doc.id) ?? [];
+                  if (confirmations.length === 0) return null;
+                  return (
+                    <details style={{ fontSize: '0.75rem' }}>
+                      <summary className="muted" style={{ cursor: 'pointer' }}>
+                        {confirmations.length} issuer confirmation
+                        {confirmations.length === 1 ? '' : 's'}
+                      </summary>
+                      <div
+                        style={{
+                          marginTop: '0.35rem',
+                          paddingLeft: '0.75rem',
+                          borderLeft: '2px solid var(--hairline-soft)',
+                        }}
+                      >
+                        {confirmations.map((c) => {
+                          const verification = classifyExpiry(c.validUntil, new Date());
                           return (
-                            <span className={`badge ${lifecycleBadge.tone}`}>
-                              {lifecycleBadge.label}
-                            </span>
+                            <p key={c.id} className="muted" style={{ margin: '0 0 0.3rem' }}>
+                              {verification.urgency === 'expired' ? '(expired) ' : ''}
+                              {verification.urgency === 'reminder'
+                                ? `(expires in ${verification.daysRemaining} day(s)) `
+                                : ''}
+                              {c.issuerIdentity}: "{c.exactClaim}", response: {c.response}, valid
+                              until {formatTimestampDate(c.validUntil)}
+                            </p>
                           );
-                        })()}
-                        {processingKey ? (
-                          <span
-                            className={`badge ${processingTone(doc.processingStatus)}`}
-                            aria-live="polite"
-                          >
-                            {t(processingKey)}
-                          </span>
-                        ) : null}
-                        {previewable ? (
-                          <form action={previewDocumentAction}>
-                            <input type="hidden" name="applicantId" value={id} />
-                            <input type="hidden" name="documentId" value={doc.id} />
-                            <button
-                              type="submit"
-                              className="btn btn-secondary"
-                              style={{ padding: '0.3rem 0.9rem', fontSize: '0.8rem' }}
-                            >
-                              Preview
-                            </button>
-                          </form>
-                        ) : null}
-                        {previewable &&
-                        getPlatformCapabilities().originalDownload === 'available' ? (
-                          <form action={downloadOriginalAction}>
-                            <input type="hidden" name="applicantId" value={id} />
-                            <input type="hidden" name="documentId" value={doc.id} />
-                            <button type="submit" className="btn btn-secondary">
-                              Download original
-                            </button>
-                          </form>
-                        ) : null}
-                      </span>
-                    </div>
-                    {doc.processingStatus && PROBLEM_NEXT_STEP[doc.processingStatus] ? (
-                      <p className="muted" style={{ fontSize: '0.75rem', margin: 0 }}>
-                        {PROBLEM_NEXT_STEP[doc.processingStatus]}
-                      </p>
-                    ) : null}
-                    {(() => {
-                      const wallet = data.wallet.get(doc.id);
-                      if (
-                        !wallet ||
-                        (wallet.usedInMissions.length === 0 && wallet.accessibleTo.length === 0)
-                      ) {
-                        return null;
-                      }
-                      return (
-                        <p className="muted" style={{ fontSize: '0.75rem', margin: 0 }}>
-                          {wallet.usedInMissions.length > 0
-                            ? `Used in ${wallet.usedInMissions.map((m) => m.missionTitle).join(', ')}`
-                            : null}
-                          {wallet.usedInMissions.length > 0 && wallet.accessibleTo.length > 0
-                            ? ' · '
-                            : null}
-                          {wallet.accessibleTo.length > 0
-                            ? `Shared with ${wallet.accessibleTo.map((a) => a.label).join(', ')}`
-                            : null}
-                        </p>
-                      );
-                    })()}
-                    <form
-                      action={setDocumentDateAction}
-                      style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}
-                    >
-                      <input type="hidden" name="applicantId" value={id} />
-                      <input type="hidden" name="documentId" value={doc.id} />
-                      <label
-                        className="muted"
-                        style={{ fontSize: '0.75rem' }}
-                        htmlFor={`date-${doc.id}`}
-                      >
-                        Document date
-                      </label>
-                      <input
-                        id={`date-${doc.id}`}
-                        name="documentDate"
-                        type="date"
-                        defaultValue={doc.documentDate ?? ''}
-                        max={new Date().toISOString().slice(0, 10)}
-                        className="input"
-                        style={{ padding: '0.2rem 0.5rem', fontSize: '0.8rem', width: 'auto' }}
-                      />
-                      <button
-                        type="submit"
-                        className="btn btn-secondary"
-                        style={{ padding: '0.2rem 0.6rem', fontSize: '0.75rem' }}
-                      >
-                        Save
-                      </button>
-                      <span className="muted" style={{ fontSize: '0.7rem' }}>
-                        Used to judge freshness for routes that require recently-dated evidence.
-                      </span>
-                    </form>
-                    {(() => {
-                      const confirmations = data.issuerVerifications.get(doc.id) ?? [];
-                      if (confirmations.length === 0) return null;
-                      return (
-                        <details style={{ fontSize: '0.75rem' }}>
-                          <summary className="muted" style={{ cursor: 'pointer' }}>
-                            {confirmations.length} issuer confirmation
-                            {confirmations.length === 1 ? '' : 's'}
-                          </summary>
-                          <div
-                            style={{
-                              marginTop: '0.35rem',
-                              paddingLeft: '0.75rem',
-                              borderLeft: '2px solid var(--hairline-soft)',
-                            }}
-                          >
-                            {confirmations.map((c) => {
-                              const verification = classifyExpiry(c.validUntil, new Date());
-                              return (
-                                <p key={c.id} className="muted" style={{ margin: '0 0 0.3rem' }}>
-                                  {verification.urgency === 'expired' ? '(expired) ' : ''}
-                                  {verification.urgency === 'reminder'
-                                    ? `(expires in ${verification.daysRemaining} day(s)) `
-                                    : ''}
-                                  {c.issuerIdentity}: "{c.exactClaim}", response: {c.response},
-                                  valid until {formatTimestampDate(c.validUntil)}
-                                </p>
-                              );
-                            })}
-                          </div>
-                        </details>
-                      );
-                    })()}
-                    {doc.pendingNameVersion ? (
-                      <NameReview
-                        applicantId={id}
-                        nameVersionId={doc.pendingNameVersion.id}
-                        originalName={doc.originalName}
-                        proposedName={doc.pendingNameVersion.proposedName}
-                        classification={doc.classification}
-                      />
-                    ) : doc.classification?.reviewRequired ? (
-                      <p className="muted" style={{ fontSize: '0.75rem' }}>
-                        Automatic classification needs review - not confident enough to propose a
-                        name.
-                      </p>
-                    ) : null}
-                    {(() => {
-                      if (!data.aiConfigured || !data.aiGranted || !doc.classification) return null;
-                      const versionId = doc.latestVersionId;
-                      if (!versionId) return null;
-                      const proposalsForDoc = data.pendingProposals.filter(
-                        (p) => p.proposal.documentVersionId === versionId,
-                      );
-                      return (
-                        <>
-                          {/* New AI extraction is new processing - blocked without core
+                        })}
+                      </div>
+                    </details>
+                  );
+                })()}
+                {doc.pendingNameVersion ? (
+                  <NameReview
+                    applicantId={id}
+                    nameVersionId={doc.pendingNameVersion.id}
+                    originalName={doc.originalName}
+                    proposedName={doc.pendingNameVersion.proposedName}
+                    classification={doc.classification}
+                  />
+                ) : doc.classification?.reviewRequired ? (
+                  <p className="muted" style={{ fontSize: '0.75rem' }}>
+                    Automatic classification needs review - not confident enough to propose a name.
+                  </p>
+                ) : null}
+                {(() => {
+                  if (!data.aiConfigured || !data.aiGranted || !doc.classification) return null;
+                  const versionId = doc.latestVersionId;
+                  if (!versionId) return null;
+                  const proposalsForDoc = data.pendingProposals.filter(
+                    (p) => p.proposal.documentVersionId === versionId,
+                  );
+                  return (
+                    <>
+                      {/* New AI extraction is new processing - blocked without core
                             processing consent, even though existing proposals below
                             (already-completed processing output) remain reviewable
                             (finding #23). */}
-                          {data.coreGranted ? (
-                            <RunAiExtractionButton applicantId={id} documentVersionId={versionId} />
-                          ) : null}
-                          {proposalsForDoc.map(({ proposal, evidence }) => (
-                            <AiProposalReview
-                              key={proposal.id}
-                              applicantId={id}
-                              canApprove={data.coreGranted}
-                              proposal={{
-                                id: proposal.id,
-                                type: proposal.type,
-                                fieldKey: proposal.fieldKey,
-                                value: proposal.value,
-                                confidence: proposal.confidence,
-                                rationale: proposal.rationale,
-                                evidence: evidence.map((e) => ({
-                                  snippet: e.snippet,
-                                  verified: e.verified,
-                                })),
-                              }}
-                            />
-                          ))}
-                        </>
-                      );
-                    })()}
-                    {(() => {
-                      // Part 8 AI-01 item 2: shown only on a genuine deterministic
-                      // gap (no classification yet reached, or one reached but not
-                      // confident) -- never offered once a confident deterministic
-                      // (or already-approved AI) classification already exists.
-                      if (
-                        !data.classificationConfigured ||
-                        !data.aiGranted ||
-                        !doc.classification
-                      ) {
-                        return null;
-                      }
-                      if (
-                        doc.classification.classifiedType !== null &&
-                        !doc.classification.reviewRequired
-                      ) {
-                        return null;
-                      }
-                      const versionId = doc.latestVersionId;
-                      if (!versionId) return null;
-                      const classificationProposal = data.pendingClassificationProposals.find(
-                        (p) => p.documentVersionId === versionId,
-                      );
-                      return (
-                        <>
-                          {data.coreGranted && !classificationProposal ? (
-                            <RunClassificationButton
-                              applicantId={id}
-                              documentVersionId={versionId}
-                            />
-                          ) : null}
-                          {classificationProposal ? (
-                            <DocumentTypeProposalReview
-                              applicantId={id}
-                              canApprove={data.coreGranted}
-                              proposal={{
-                                id: classificationProposal.id,
-                                suggestedType: classificationProposal.suggestedType,
-                                confidence: classificationProposal.confidence,
-                                rationale: classificationProposal.rationale,
-                              }}
-                            />
-                          ) : null}
-                        </>
-                      );
-                    })()}
-                    {(() => {
-                      if (!data.ocrConfigured || !data.ocrGranted || !doc.classification)
-                        return null;
-                      const versionId = doc.latestVersionId;
-                      if (!versionId) return null;
-                      const latestRun = data.ocrRuns.get(doc.id);
-                      return (
-                        <>
-                          {/* Same core-processing gate as AI extraction above - new OCR
+                      {data.coreGranted ? (
+                        <RunAiExtractionButton applicantId={id} documentVersionId={versionId} />
+                      ) : null}
+                      {proposalsForDoc.map(({ proposal, evidence }) => (
+                        <AiProposalReview
+                          key={proposal.id}
+                          applicantId={id}
+                          canApprove={data.coreGranted}
+                          proposal={{
+                            id: proposal.id,
+                            type: proposal.type,
+                            fieldKey: proposal.fieldKey,
+                            value: proposal.value,
+                            confidence: proposal.confidence,
+                            rationale: proposal.rationale,
+                            evidence: evidence.map((e) => ({
+                              snippet: e.snippet,
+                              verified: e.verified,
+                            })),
+                          }}
+                        />
+                      ))}
+                    </>
+                  );
+                })()}
+                {(() => {
+                  // Part 8 AI-01 item 2: shown only on a genuine deterministic
+                  // gap (no classification yet reached, or one reached but not
+                  // confident) -- never offered once a confident deterministic
+                  // (or already-approved AI) classification already exists.
+                  if (!data.classificationConfigured || !data.aiGranted || !doc.classification) {
+                    return null;
+                  }
+                  if (
+                    doc.classification.classifiedType !== null &&
+                    !doc.classification.reviewRequired
+                  ) {
+                    return null;
+                  }
+                  const versionId = doc.latestVersionId;
+                  if (!versionId) return null;
+                  const classificationProposal = data.pendingClassificationProposals.find(
+                    (p) => p.documentVersionId === versionId,
+                  );
+                  return (
+                    <>
+                      {data.coreGranted && !classificationProposal ? (
+                        <RunClassificationButton applicantId={id} documentVersionId={versionId} />
+                      ) : null}
+                      {classificationProposal ? (
+                        <DocumentTypeProposalReview
+                          applicantId={id}
+                          canApprove={data.coreGranted}
+                          proposal={{
+                            id: classificationProposal.id,
+                            suggestedType: classificationProposal.suggestedType,
+                            confidence: classificationProposal.confidence,
+                            rationale: classificationProposal.rationale,
+                          }}
+                        />
+                      ) : null}
+                    </>
+                  );
+                })()}
+                {(() => {
+                  if (!data.ocrConfigured || !data.ocrGranted || !doc.classification) return null;
+                  const versionId = doc.latestVersionId;
+                  if (!versionId) return null;
+                  const latestRun = data.ocrRuns.get(doc.id);
+                  return (
+                    <>
+                      {/* Same core-processing gate as AI extraction above - new OCR
                             is new processing, but an already-completed run's own
                             result remains viewable regardless. */}
-                          {data.coreGranted ? (
-                            <RunOcrButton applicantId={id} documentVersionId={versionId} />
-                          ) : null}
-                          {latestRun ? (
-                            <OcrResultView
-                              text={latestRun.extractedText ?? ''}
-                              reviewIssues={latestRun.reviewIssues ?? []}
-                              usedFallback={latestRun.triggeredByRunId !== null}
-                            />
-                          ) : null}
-                        </>
-                      );
-                    })()}
-                    {(() => {
-                      // Part 8 AI-01 item 4: same AI_EXTRACTION consent gate as
-                      // extraction/classification above -- the check sends the
-                      // document's own text plus the applicant's already-
-                      // confirmed TRUSTED profile facts, never a second document.
-                      if (!data.inconsistencyConfigured || !data.aiGranted || !doc.classification) {
-                        return null;
-                      }
-                      const versionId = doc.latestVersionId;
-                      if (!versionId) return null;
-                      const flagsForDoc = data.pendingInconsistencyFlags.filter(
-                        (f) => f.documentVersionId === versionId,
-                      );
-                      return (
-                        <>
-                          {data.coreGranted ? (
-                            <RunInconsistencyCheckButton
-                              applicantId={id}
-                              documentVersionId={versionId}
-                            />
-                          ) : null}
-                          {flagsForDoc.map((flag) => (
-                            <InconsistencyFlagReview
-                              key={flag.id}
-                              applicantId={id}
-                              flag={{
-                                id: flag.id,
-                                description: flag.description,
-                                confidence: flag.confidence,
-                                rationale: flag.rationale,
-                              }}
-                            />
-                          ))}
-                        </>
-                      );
-                    })()}
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </article>
-        <DocumentReviewPanel
-          applicantId={id}
-          previewAction={previewDocumentAction}
-          documents={data.documents.map((doc) => ({
-            id: doc.id,
-            name: doc.approvedName ?? doc.originalName,
-            safetyLabel: safetyBadge(doc.safetyStatus ?? 'PENDING', t).label,
-            safetyTone: safetyBadge(doc.safetyStatus ?? 'PENDING', t).tone.replace(
-              'badge-',
-              '',
-            ) as Tone,
-            processingLabel:
-              doc.processingStatus && PROCESSING_STATE_KEYS[doc.processingStatus]
-                ? t(PROCESSING_STATE_KEYS[doc.processingStatus] as MessageKey)
-                : 'Not yet checked',
-            previewAllowed:
-              doc.safetyStatus === 'CLEAN' &&
-              doc.processingStatus !== null &&
-              isServableProcessingState(doc.processingStatus),
-          }))}
-        />
-      </div>
+                      {data.coreGranted ? (
+                        <RunOcrButton applicantId={id} documentVersionId={versionId} />
+                      ) : null}
+                      {latestRun ? (
+                        <OcrResultView
+                          text={latestRun.extractedText ?? ''}
+                          reviewIssues={latestRun.reviewIssues ?? []}
+                          usedFallback={latestRun.triggeredByRunId !== null}
+                        />
+                      ) : null}
+                    </>
+                  );
+                })()}
+                {(() => {
+                  // Part 8 AI-01 item 4: same AI_EXTRACTION consent gate as
+                  // extraction/classification above -- the check sends the
+                  // document's own text plus the applicant's already-
+                  // confirmed TRUSTED profile facts, never a second document.
+                  if (!data.inconsistencyConfigured || !data.aiGranted || !doc.classification) {
+                    return null;
+                  }
+                  const versionId = doc.latestVersionId;
+                  if (!versionId) return null;
+                  const flagsForDoc = data.pendingInconsistencyFlags.filter(
+                    (f) => f.documentVersionId === versionId,
+                  );
+                  return (
+                    <>
+                      {data.coreGranted ? (
+                        <RunInconsistencyCheckButton
+                          applicantId={id}
+                          documentVersionId={versionId}
+                        />
+                      ) : null}
+                      {flagsForDoc.map((flag) => (
+                        <InconsistencyFlagReview
+                          key={flag.id}
+                          applicantId={id}
+                          flag={{
+                            id: flag.id,
+                            description: flag.description,
+                            confidence: flag.confidence,
+                            rationale: flag.rationale,
+                          }}
+                        />
+                      ))}
+                    </>
+                  );
+                })()}
+              </div>
+            ),
+          };
+        })}
+      />
     </>
   );
 }

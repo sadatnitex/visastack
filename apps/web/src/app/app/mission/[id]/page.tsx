@@ -34,6 +34,10 @@ import {
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import {
+  CasePreparationSummary,
+  CaseStageTracker,
+} from '../../../../components/case-preparation-summary';
 import { Disclosure, PageHeader, StatusBadge } from '../../../../components/ui';
 import { isExplanationConfigured } from '../../../../lib/ai';
 import { humanizeCode } from '../../../../lib/format-code';
@@ -548,8 +552,17 @@ export default async function MissionPage({
             )}
           </>
         }
-        actions={<SnapshotButton missionId={mission.id} />}
+        actions={
+          <>
+            <a className="btn btn-secondary" href="#evidence">
+              Add evidence
+            </a>
+            <SnapshotButton missionId={mission.id} />
+          </>
+        }
       />
+
+      <CaseStageTracker state={mission.state} labels={STATE_LABELS} nextStates={nextStates} />
 
       {data.isDirty ? (
         <div className="notice notice-warn" style={{ marginBottom: '1.5rem' }}>
@@ -609,6 +622,10 @@ export default async function MissionPage({
             ) : null}
             {data.readiness ? (
               <>
+                <CasePreparationSummary
+                  readiness={data.readiness}
+                  acknowledged={Boolean(data.liveAcknowledgedAt) && !data.isDirty}
+                />
                 <div className="rows" style={{ marginBottom: '1rem' }}>
                   <div className="row">
                     <span className="row-key">Required satisfied</span>

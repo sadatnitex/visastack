@@ -610,6 +610,8 @@ export interface DocumentSummary {
   readonly approvedName: string | null;
   readonly docType: string | null;
   readonly latestVersionId: string | null;
+  readonly latestVersionNumber?: number | null;
+  readonly updatedAt?: string;
   readonly safetyStatus: DocumentVersion['safetyStatus'] | null;
   readonly processingStatus: DocumentVersion['processingStatus'] | null;
   readonly createdAt: string;
@@ -689,6 +691,14 @@ export async function listDocumentsDetailed(
       approvedName: doc.approvedName,
       docType: doc.docType,
       latestVersionId: version?.id ?? null,
+      latestVersionNumber: version?.versionNumber ?? null,
+      updatedAt: new Date(
+        Math.max(
+          doc.updatedAt.getTime(),
+          version?.updatedAt.getTime() ?? 0,
+          nameVersion?.createdAt.getTime() ?? 0,
+        ),
+      ).toISOString(),
       safetyStatus: version?.safetyStatus ?? null,
       processingStatus: version?.processingStatus ?? null,
       createdAt: doc.createdAt.toISOString(),

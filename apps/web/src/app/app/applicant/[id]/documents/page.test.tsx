@@ -2,6 +2,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderServer, stub, stubProps, textOf } from '../../../../../lib/next-mocks.test-support';
 
 const mocks = vi.hoisted(() => ({
+  getApplicant: vi.fn(),
+  getWalletView: vi.fn(),
   listDocumentsDetailed: vi.fn(),
   hasConsent: vi.fn(),
   loadUploadQuotaConfig: vi.fn(),
@@ -9,12 +11,13 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('@visastack/services', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@visastack/services')>()),
+  getApplicant: mocks.getApplicant,
+  getWalletView: mocks.getWalletView,
   listDocumentsDetailed: mocks.listDocumentsDetailed,
   hasConsent: mocks.hasConsent,
   loadUploadQuotaConfig: mocks.loadUploadQuotaConfig,
   getApplicantEvidenceBytes: async () => 0,
   getLatestOcrRun: async () => undefined,
-  getWalletView: async () => ({ ok: true, value: [] }),
   listIssuerVerificationsForDocument: async () => [],
   listPendingDocumentTypeProposals: async () => [],
   listPendingInconsistencyFlags: async () => [],
@@ -66,13 +69,18 @@ function doc(id: string, processingStatus: string) {
   };
 }
 
-const render = async () =>
+const render = async (document?: string) =>
   renderServer(
-    DocumentsPage({ params: Promise.resolve({ id: 'a1' }), searchParams: Promise.resolve({}) }),
+    DocumentsPage({
+      params: Promise.resolve({ id: 'a1' }),
+      searchParams: Promise.resolve(document ? { document } : {}),
+    }),
   );
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mocks.getApplicant.mockResolvedValue({ id: 'a1', ownerAccountId: 'acct-1' });
+  mocks.getWalletView.mockResolvedValue({ ok: true, value: [] });
   mocks.hasConsent.mockResolvedValue(true);
   mocks.loadUploadQuotaConfig.mockReturnValue({
     maxUploadBytes: 5 * 1024 * 1024,
@@ -126,7 +134,7 @@ describe('a file that could not be used', () => {
       ok: true,
       value: [doc('a', 'FAILED'), doc('b', 'NEEDS_ATTENTION'), doc('c', 'REJECTED')],
     });
-    const text = textOf(await render());
+    const text = (await Promise.all(['a', 'b', 'c'].map((id) => render(id)))).map(textOf).join(' ');
     expect(text).toContain(
       'We could not finish checking this file. Try uploading it again. If it keeps failing, contact support.',
     );
@@ -162,5 +170,42 @@ describe('the upload form', () => {
     mocks.hasConsent.mockResolvedValue(false);
     mocks.listDocumentsDetailed.mockResolvedValue({ ok: true, value: [] });
     expect(stubProps(await render(), 'DocumentUploader')).toEqual([]);
+  });
+});
+
+describe('wallet ownership, explicit selection and truthful safety state', () => {
+  it('refuses a foreign owner before reading document metadata', async () => {
+    mocks.getApplicant.mockResolvedValue({ id: 'a1', ownerAccountId: 'foreign' });
+    await expect(render()).rejects.toThrow();
+    expect(mocks.listDocumentsDetailed).not.toHaveBeenCalled();
+    expect(mocks.getWalletView).not.toHaveBeenCalled();
+  });
+  it('keeps quarantined approved-looking records out of ready totals and blocks preview', async () => {
+    mocks.listDocumentsDetailed.mockResolvedValue({
+      ok: true,
+      value: [{ ...doc('unsafe', 'APPROVED'), safetyStatus: 'QUARANTINED' }],
+    });
+    mocks.getWalletView.mockResolvedValue({
+      ok: true,
+      value: [
+        { document: { id: 'unsafe' }, status: 'CURRENT', usedInMissions: [], accessibleTo: [] },
+      ],
+    });
+    const html = await render('unsafe');
+    expect(html).toMatch(/Ready to use<\/span><strong>0<\/strong>/);
+    expect(textOf(html)).toContain('Preview is blocked');
+    expect(html).not.toContain('>Preview</button>');
+  });
+  it('does not substitute an owned file for an unavailable explicit selection', async () => {
+    mocks.listDocumentsDetailed.mockResolvedValue({ ok: true, value: [doc('owned', 'APPROVED')] });
+    const html = await render('foreign-or-removed');
+    expect(textOf(html)).toContain('Selected document is unavailable');
+    expect(html).not.toContain('name="documentId"');
+  });
+  it('reports failed reads as unavailable rather than an empty wallet', async () => {
+    mocks.listDocumentsDetailed.mockResolvedValue({ ok: false, error: { code: 'forbidden' } });
+    const html = await render();
+    expect(textOf(html)).toContain('Unavailable records are not reported as an empty wallet');
+    expect(textOf(html)).not.toContain('No documents yet');
   });
 });
