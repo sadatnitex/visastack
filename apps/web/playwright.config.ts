@@ -18,6 +18,8 @@ const isCI = Boolean(getEnv('CI'));
 
 export default defineConfig({
   testDir: './e2e',
+  // Credentialed Neon checks have their own guarded staging configuration.
+  testIgnore: ['neon-staging-routes.spec.ts'],
   timeout: 30_000,
   expect: { timeout: 10_000 },
   fullyParallel: true,
