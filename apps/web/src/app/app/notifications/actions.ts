@@ -12,4 +12,5 @@ export async function markNotificationReadAction(formData: FormData): Promise<vo
   );
 
   revalidatePath('/app/notifications');
+  revalidatePath('/app', 'layout');
 }

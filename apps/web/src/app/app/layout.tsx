@@ -21,6 +21,7 @@ export default async function AppLayout({ children }: { readonly children: React
     <WorkspaceShell
       access={account}
       accountName={account.accountName}
+      toolbarState={account.toolbar}
       signOut={
         <form
           action={async () => {

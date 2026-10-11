@@ -1,5 +1,11 @@
 import 'server-only';
-import { type Db, listApplicants, listMembershipsForAccount } from '@visastack/services';
+import {
+  type Db,
+  type WorkspaceToolbarState,
+  listApplicants,
+  listMembershipsForAccount,
+  loadWorkspaceToolbarState,
+} from '@visastack/services';
 import { hasPlatformPermission, isPlatformAdmin, isPlatformOwnerAccount } from './admin';
 import type { WorkspaceAccess } from './workspace-navigation';
 
@@ -7,11 +13,14 @@ import type { WorkspaceAccess } from './workspace-navigation';
 export async function loadWorkspaceChrome(
   db: Db,
   actor: { readonly accountId: string; readonly email: string },
-): Promise<WorkspaceAccess & { readonly accountName: string }> {
-  const [people, memberships, platform] = await Promise.all([
+): Promise<
+  WorkspaceAccess & { readonly accountName: string; readonly toolbar: WorkspaceToolbarState }
+> {
+  const [people, memberships, platform, toolbar] = await Promise.all([
     listApplicants(db, actor.accountId),
     listMembershipsForAccount(db, actor.accountId),
     isPlatformAdmin(db, actor),
+    loadWorkspaceToolbarState(db, actor.accountId),
   ]);
   const permissions = platform
     ? await Promise.all([
@@ -21,6 +30,7 @@ export async function loadWorkspaceChrome(
       ])
     : null;
   return {
+    toolbar,
     accountName:
       people.find((person) => person.relationship === 'SELF')?.displayName ?? 'Your account',
     travellers: people.map((person) => ({

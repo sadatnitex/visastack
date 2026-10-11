@@ -46,6 +46,11 @@ vi.mock('@visastack/services', async (importOriginal) => ({
   listApplicants: async () => state.applicants,
   getConsents: async () => (state.coreGranted ? { CORE_PROCESSING: { granted: true } } : {}),
   listMembershipsForAccount: async () => state.memberships,
+  loadWorkspaceToolbarState: async () => ({
+    unread: state.notifications.filter((row) => !(row as { read?: boolean }).read).length,
+    personalPlan: null,
+    agencyPlans: [],
+  }),
 }));
 
 const { default: RootLayout } = await import('../app/layout');

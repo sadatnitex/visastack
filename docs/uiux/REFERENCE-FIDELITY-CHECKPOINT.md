@@ -20,7 +20,7 @@ Inventory covers every detected production JSX control and exported action; beha
 | --- | --- | --- |
 | CF-00 | Source inventory and ten-page reference inspection recorded | Authenticated baseline captures and full action activation are unverified |
 | CF-01 | Implemented locally, acceptance incomplete | Authenticated role/mobile/keyboard screenshots and journeys remain unverified |
-| CF-02 | Not implemented | Real scoped record search, account/status/menu and compact mobile header |
+| CF-02 | Implemented in an isolated worktree, release checks pending | Authenticated search/menu/mobile and exact header screenshots remain unverified |
 | CF-03 | Not implemented | Reference overview/profile regions with real authorized state |
 | CF-04 | Not implemented | Real wallet selection, case stages/progress and accurate sharing composer |
 | CF-05 | Not implemented | Agency pipeline, activity/requests and role-specific operation |
@@ -42,3 +42,7 @@ Next: real scoped record search and truthful toolbar state (CF-02). Preserve eve
 The shared shell selects an owned traveller, active agency membership or current platform role. It preserves secondary routes, owner guards and real case/snapshot subject binding. Case navigation waits for its server-authorized subject after hydration instead of assuming the default traveller. New routes expose bounded recent accessible case notes, an owner-only paginated account directory, and truthful security/settings entry points. No new permission grant, schema or provider activation is introduced.
 
 The source graph now includes 56 pages and 267 references without dangling or unreferenced routes; 733 control instances and the original 130 server-action handlers remain inventoried. This is source coverage, not full browser acceptance. Focused web checks passed 43 tests; the isolated PostgreSQL owner-directory suite passed four tests covering staff denial, revoked-owner denial, field minimization and bounded pagination. Final package checks are pending.
+
+## CF-02 implementation checkpoint
+
+The toolbar now uses real metadata search with selected-person and current agency membership/grant/assignment boundaries. Saved unread status counts all sent in-app notices; plan labels reflect recorded entitlements. Account controls retain the existing sign-out action. Component and endpoint checks cover debounce, cancellation, keyboard behavior, failure states, body/rate limits and trusted session identity. See [exact supported search scope](SCOPED-RECORD-SEARCH.md). Six isolated search tests, two saved-state tests, 35 focused endpoint/shell tests and four component behavior tests passed; workspace type checking passed. Full release verification and provider-backed screenshot acceptance remain pending.

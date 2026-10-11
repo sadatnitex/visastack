@@ -307,6 +307,7 @@ export default async function ApplicantDocumentsPage({
                 return (
                   <div
                     key={doc.id}
+                    id={`document-${doc.id}`}
                     style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}
                   >
                     <div className="row">
