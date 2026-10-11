@@ -1025,3 +1025,9 @@ export {
   type SignupNoticeInput,
 } from './signup-notices';
 export { listPlatformMembers, type PlatformMember } from './platform-directory';
+export {
+  searchWorkspaceRecords,
+  type WorkspaceSearchScope,
+  type WorkspaceSearchResult,
+} from './workspace-search';
+export { loadWorkspaceToolbarState, type WorkspaceToolbarState } from './workspace-toolbar';

@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({
   listApplicants: vi.fn(),
   listMembershipsForAccount: vi.fn(),
+  loadWorkspaceToolbarState: vi.fn(),
   isPlatformAdmin: vi.fn(),
   isPlatformOwnerAccount: vi.fn(),
   hasPlatformPermission: vi.fn(),
@@ -10,6 +11,7 @@ vi.mock('server-only', () => ({}));
 vi.mock('@visastack/services', () => ({
   listApplicants: mocks.listApplicants,
   listMembershipsForAccount: mocks.listMembershipsForAccount,
+  loadWorkspaceToolbarState: mocks.loadWorkspaceToolbarState,
 }));
 vi.mock('./admin', () => ({
   isPlatformAdmin: mocks.isPlatformAdmin,
@@ -28,6 +30,11 @@ beforeEach(() => {
     { organization: { id: 'revoked', name: 'Revoked Agency' }, active: false, role: 'ADMIN' },
   ]);
   mocks.isPlatformAdmin.mockResolvedValue(false);
+  mocks.loadWorkspaceToolbarState.mockResolvedValue({
+    unread: 0,
+    personalPlan: null,
+    agencyPlans: [],
+  });
 });
 describe('workspace chrome uses existing actor-scoped authorization reads', () => {
   it('passes the trusted actor to both owner and membership reads and excludes inactive contexts', async () => {

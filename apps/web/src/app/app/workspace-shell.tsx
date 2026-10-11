@@ -1,5 +1,6 @@
 'use client';
 
+import type { WorkspaceToolbarState } from '@visastack/services';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
@@ -12,8 +13,10 @@ import {
   useState,
 } from 'react';
 import { Icon } from '../../components/icons';
+import { isCurrentPath } from '../../lib/navigation';
 import { type WorkspaceAccess, workspaceNavigation } from '../../lib/workspace-navigation';
-import { AppNav, WorkspaceToolbar } from './app-nav';
+import { AppNav } from './app-nav';
+import { WorkspaceRecordToolbar } from './workspace-record-toolbar';
 
 type Subject = { readonly route: string; readonly applicantId: string };
 const SubjectContext = createContext<((subject: Subject) => void) | null>(null);
@@ -95,11 +98,13 @@ function WorkspaceSelector({
 export function WorkspaceShell({
   access,
   accountName,
+  toolbarState,
   signOut,
   children,
 }: {
   readonly access: WorkspaceAccess;
   readonly accountName: string;
+  readonly toolbarState?: WorkspaceToolbarState;
   readonly signOut: ReactNode;
   readonly children: ReactNode;
 }) {
@@ -125,21 +130,34 @@ export function WorkspaceShell({
           }
         >
           {nav.tools.length ? (
-            <details className="workspace-tools">
+            <details
+              className="workspace-tools"
+              open={nav.tools.some((item) => isCurrentPath(pathname, item))}
+            >
               <summary>More tools</summary>
               <nav className="app-shell-links" aria-label="Contextual tools">
                 {nav.tools.map((item) => (
-                  <Link key={item.href} href={item.href}>
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    aria-current={isCurrentPath(pathname, item) ? 'page' : undefined}
+                  >
                     {item.label}
                   </Link>
                 ))}
               </nav>
             </details>
           ) : null}
-          <div className="app-shell-switch">{signOut}</div>
         </AppNav>
         <div className="app-main">
-          <WorkspaceToolbar accountLabel={accountName} isAdmin={access.platform !== null} />
+          <WorkspaceRecordToolbar
+            key={`${nav.kind}:${nav.primary[0]?.href ?? 'none'}`}
+            accountName={accountName}
+            access={access}
+            navigation={nav}
+            {...(toolbarState ? { state: toolbarState } : {})}
+            signOut={signOut}
+          />
           {children}
         </div>
       </div>

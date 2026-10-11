@@ -1,11 +1,16 @@
 import {
   type FactAssuranceView,
+  getApplicant,
   hasConsent,
   listApplicantAssurance,
   listApplicantProfile,
 } from '@visastack/services';
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { notFound } from 'next/navigation';
+import { EmptyState, PageHeader } from '../../../../../components/ui';
+import { formatTimestampDate } from '../../../../../lib/format-date';
+import { PROFILE_FIELDS } from '../../../../../lib/profile-fields';
 import { withSession } from '../../../../../lib/session';
 import { type FieldAssurance, ProfileEditor } from '../profile-editor';
 
@@ -48,12 +53,15 @@ export default async function ApplicantProfilePage({
 }) {
   const { id } = await params;
   const data = await withSession(async ({ db, accountId }) => {
+    const applicant = await getApplicant(db, id);
+    if (!applicant || applicant.ownerAccountId !== accountId) return null;
     const [profile, coreGranted, assurance] = await Promise.all([
       listApplicantProfile(db, id),
       hasConsent(db, accountId, 'CORE_PROCESSING'),
       listApplicantAssurance(db, { actorAccountId: accountId, applicantId: id }),
     ]);
     return {
+      applicant,
       profile,
       coreGranted,
       // EVI-05: per-fact assurance is owner-only, same as the profile
@@ -62,6 +70,8 @@ export default async function ApplicantProfilePage({
       assurance: assurance.ok ? assurance.value : [],
     };
   });
+
+  if (!data) notFound();
 
   interface EntryValue {
     readonly factId: string;
@@ -99,36 +109,162 @@ export default async function ApplicantProfilePage({
   // guaranteed to be visible, independent of any particular case.
   const conflictedCount = data.profile.filter((p) => p.status === 'CONFLICTED').length;
 
+  const { nationality } = values;
+  const coreFields = PROFILE_FIELDS.filter((field) => field.pack === 'universal' && !field.group);
+  const completed = coreFields.filter((field) => values[field.key]?.value?.trim()).length;
+  const completeness = Math.round((completed / coreFields.length) * 100);
+  const changes = [...data.profile]
+    .filter((entry) => entry.updatedAt)
+    .sort(
+      (a, b) =>
+        new Date(b.updatedAt as string).getTime() - new Date(a.updatedAt as string).getTime(),
+    )
+    .slice(0, 5);
+  const confirmed = data.profile.filter((entry) => entry.status === 'APPLICANT_CONFIRMED').length;
+  const supported = data.profile.filter((entry) => entry.status === 'DOCUMENT_SUPPORTED').length;
+  const initials = data.applicant.displayName
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0])
+    .join('')
+    .toUpperCase();
   return (
-    <article className="card">
-      <p className="card-kicker">Master Profile</p>
-      <h2 className="card-title">Structured facts</h2>
-      <p className="card-body" style={{ marginBottom: '1.25rem' }}>
-        Every save appends an immutable, provenance-tracked version — earlier values are never
-        overwritten.
-      </p>
-      {conflictedCount > 0 ? (
-        <p className="notice notice-warn" role="alert" style={{ marginBottom: '1.25rem' }}>
-          {conflictedCount === 1
-            ? 'A document has proposed a value for one field that differs from what you last confirmed.'
-            : `Documents have proposed values for ${conflictedCount} fields that differ from what you last confirmed.`}{' '}
-          Review the field{conflictedCount === 1 ? '' : 's'} marked <strong>Conflicted</strong>{' '}
-          below.
-        </p>
-      ) : null}
-      {data.coreGranted ? (
-        <ProfileEditor
-          applicantId={id}
-          values={values}
-          repeatingValues={repeatingValues}
-          assurance={assuranceByFactId}
-        />
-      ) : (
-        <p className="muted">
-          Grant <strong>Core processing</strong> consent from <Link href="/app">Home</Link> to edit
-          this profile.
-        </p>
-      )}
-    </article>
+    <div className="master-profile">
+      <PageHeader
+        as="h2"
+        eyebrow="Your canonical record"
+        title="My profile"
+        description="One reusable set of details. Every saved change stays in your history."
+        actions={
+          data.coreGranted ? (
+            <a href="#profile-editor" className="btn btn-primary">
+              + Add information
+            </a>
+          ) : (
+            <Link className="btn btn-secondary" href="/app#permissions">
+              Review permissions
+            </Link>
+          )
+        }
+      />
+      <section
+        className="profile-identity-banner"
+        aria-label="Selected traveller and core field completeness"
+      >
+        <span className="profile-identity-avatar" aria-hidden="true">
+          {initials}
+        </span>
+        <div className="profile-identity-copy">
+          <h3>{data.applicant.displayName}</h3>
+          <p className="muted">
+            {nationality?.value || 'Nationality not recorded'} · Profile created{' '}
+            {formatTimestampDate(data.applicant.createdAt)}
+          </p>
+          <p className="muted">
+            {data.applicant.relationship === 'SELF'
+              ? 'Personal profile'
+              : 'Managed traveller profile'}
+            . Fact assurance is shown beside each field.
+          </p>
+        </div>
+        <div className="profile-completeness">
+          <span>Core field completeness</span>
+          <strong>{completeness}%</strong>
+          <div className="meter" aria-hidden="true">
+            <div className="meter-fill" style={{ width: `${completeness}%` }} />
+          </div>
+          <span className="muted">
+            {completed} of {coreFields.length} core fields have values. This does not verify
+            identity.
+          </span>
+        </div>
+      </section>
+      <div className="split profile-working-area">
+        <article className="card split-main">
+          {conflictedCount > 0 ? (
+            <p className="notice notice-warn" role="alert">
+              {conflictedCount} field{conflictedCount === 1 ? '' : 's'} have conflicting proposed
+              values. Review the fields marked <strong>Conflicted</strong> before relying on them.
+            </p>
+          ) : null}
+          {data.coreGranted ? (
+            <ProfileEditor
+              applicantId={id}
+              values={values}
+              repeatingValues={repeatingValues}
+              assurance={assuranceByFactId}
+            />
+          ) : (
+            <EmptyState
+              title="Choose whether to save your profile"
+              action={{ href: '/app#permissions', label: 'Review permissions' }}
+            >
+              Grant Core processing consent to edit this profile. Existing values are not changed.
+            </EmptyState>
+          )}
+          <p className="muted profile-version-note">
+            Every save appends an immutable version with its source. Earlier values remain in{' '}
+            <Link href={`/app/applicant/${id}/history`}>History</Link>.
+          </p>
+        </article>
+        <aside className="split-rail" aria-label="Profile health and latest changes">
+          <h3>Profile health</h3>
+          <article className="card rows">
+            <div className="row">
+              <span>Confirmed by applicant</span>
+              <strong>{confirmed}</strong>
+            </div>
+            <div className="row">
+              <span>Document-supported fields</span>
+              <strong>{supported}</strong>
+            </div>
+            <div className="row">
+              <span>Conflicting fields</span>
+              <strong>{conflictedCount}</strong>
+            </div>
+            <p className="muted">
+              These are distinct recorded states, not an overall verification score. Check field
+              details for agency reviews and issuer confirmations.
+            </p>
+            <Link href={`/app/applicant/${id}/expiry`}>Check document expiry →</Link>
+          </article>
+          <h3>Latest changes</h3>
+          <article className="card">
+            {changes.length ? (
+              <ol className="traveller-activity">
+                {changes.map((entry) => (
+                  <li key={entry.factId}>
+                    <Link href={`/app/applicant/${id}/history`}>
+                      <strong>
+                        {PROFILE_FIELDS.find((field) => field.key === entry.fieldKey)?.label ??
+                          'Profile detail'}
+                      </strong>
+                      <span>{entry.method ?? 'Recorded update'}</span>
+                    </Link>
+                    <time dateTime={entry.updatedAt as string}>
+                      {formatTimestampDate(entry.updatedAt as string)}
+                    </time>
+                  </li>
+                ))}
+              </ol>
+            ) : (
+              <EmptyState title="No saved changes yet">
+                Your saved field versions will appear here.
+              </EmptyState>
+            )}
+            <Link href={`/app/applicant/${id}/history`}>All profile history →</Link>
+          </article>
+          <div className="profile-review-note">
+            <strong>You decide what becomes a fact</strong>
+            <p>
+              AI suggestions do not change your profile until you approve them. Human and issuer
+              assurance remain separate.
+            </p>
+            <Link href={`/app/applicant/${id}/documents`}>Review document suggestions →</Link>
+          </div>
+        </aside>
+      </div>
+    </div>
   );
 }

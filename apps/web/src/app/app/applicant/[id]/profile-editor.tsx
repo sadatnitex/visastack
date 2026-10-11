@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useActionState, useId, useRef, useState } from 'react';
 import {
   FormMessage,
@@ -11,12 +12,14 @@ import { formatDateOnly } from '../../../../lib/format-date';
 import {
   PACK_DESCRIPTIONS,
   PACK_LABELS,
-  PACK_ORDER,
   type ProfileFieldDef,
   type ProfilePack,
-  repeatingGroups,
-  singleFields,
 } from '../../../../lib/profile-fields';
+import {
+  PROFILE_SECTIONS,
+  type ProfileSection,
+  fieldsInProfileSection,
+} from '../../../../lib/profile-sections';
 import { type ActionState, saveFactAction } from './actions';
 
 const INITIAL: ActionState = { ok: true, message: '' };
@@ -385,6 +388,7 @@ interface ProfileEditorProps {
 interface PackSectionProps {
   readonly applicantId: string;
   readonly pack: ProfilePack;
+  readonly fields?: readonly ProfileFieldDef[];
   readonly values: Readonly<Record<string, ProfileValue>>;
   readonly repeatingValues: Readonly<Record<string, Readonly<Record<string, ProfileValue>>>>;
   readonly assurance: ReadonlyMap<string, FieldAssurance>;
@@ -395,11 +399,6 @@ function matchesSearch(label: string, search: string): boolean {
   return search.trim() === '' || label.toLowerCase().includes(search.trim().toLowerCase());
 }
 
-/** Every field belonging to a pack, single or repeating — used to test "does this pack have any match". */
-function allFieldsInPack(pack: ProfilePack): readonly ProfileFieldDef[] {
-  return [...singleFields(pack), ...[...repeatingGroups(pack).values()].flat()];
-}
-
 function PackSection({
   applicantId,
   pack,
@@ -407,9 +406,17 @@ function PackSection({
   repeatingValues,
   assurance,
   search,
+  fields,
 }: PackSectionProps) {
-  const groups = repeatingGroups(pack);
-  const visibleSingleFields = singleFields(pack).filter((f) => matchesSearch(f.label, search));
+  const selectedFields =
+    fields ?? fieldsInProfileSection('additional').filter((f) => f.pack === pack);
+  const groups = new Map<string, ProfileFieldDef[]>();
+  for (const field of selectedFields) {
+    if (field.group) groups.set(field.group, [...(groups.get(field.group) ?? []), field]);
+  }
+  const visibleSingleFields = selectedFields.filter(
+    (f) => !f.group && matchesSearch(f.label, search),
+  );
 
   return (
     <>
@@ -473,15 +480,66 @@ export function ProfileEditor({
   repeatingValues,
   assurance,
 }: ProfileEditorProps) {
-  const [universalPack, ...targetGroupPacks] = PACK_ORDER;
   const [search, setSearch] = useState('');
+  const [selected, setSelected] = useState<ProfileSection>('personal');
   const searching = search.trim() !== '';
+  const visibleSections = PROFILE_SECTIONS.filter((section) =>
+    searching
+      ? fieldsInProfileSection(section.key).some((field) => matchesSearch(field.label, search))
+      : section.key === selected,
+  );
 
+  function selectSection(key: ProfileSection) {
+    setSelected(key);
+    setSearch('');
+  }
   return (
-    <div>
-      <div className="field-row" style={{ marginBottom: '1.25rem' }}>
+    <div id="profile-editor" tabIndex={-1}>
+      <div
+        className="profile-section-tabs"
+        role={searching ? undefined : 'tablist'}
+        aria-label="Profile sections"
+      >
+        {PROFILE_SECTIONS.map((section, index) => (
+          <button
+            key={section.key}
+            type="button"
+            role={searching ? undefined : 'tab'}
+            id={`profile-tab-${section.key}`}
+            aria-selected={searching ? undefined : selected === section.key}
+            aria-controls={`profile-panel-${section.key}`}
+            tabIndex={searching || selected === section.key ? 0 : -1}
+            onClick={() => selectSection(section.key)}
+            onKeyDown={(event) => {
+              const offset = event.key === 'ArrowRight' ? 1 : event.key === 'ArrowLeft' ? -1 : 0;
+              const next =
+                event.key === 'Home'
+                  ? 0
+                  : event.key === 'End'
+                    ? PROFILE_SECTIONS.length - 1
+                    : offset
+                      ? (index + offset + PROFILE_SECTIONS.length) % PROFILE_SECTIONS.length
+                      : null;
+              if (next !== null) {
+                event.preventDefault();
+                const target = PROFILE_SECTIONS[next];
+                if (target) {
+                  selectSection(target.key);
+                  document.getElementById(`profile-tab-${target.key}`)?.focus();
+                }
+              }
+            }}
+          >
+            {section.label}
+          </button>
+        ))}
+      </div>
+      <Link href={`/app/applicant/${applicantId}/history`} className="profile-history-link">
+        History →
+      </Link>
+      <div className="profile-field-search">
         <label className="field-label" htmlFor="profile-search">
-          Search fields
+          Search all profile fields
         </label>
         <input
           id="profile-search"
@@ -489,69 +547,57 @@ export function ProfileEditor({
           className="input"
           placeholder="e.g. passport, address, employer"
           value={search}
-          onChange={(e) => setSearch(e.target.value)}
+          onChange={(event) => setSearch(event.target.value)}
         />
       </div>
-
-      {!searching ? (
-        <nav aria-label="Profile sections" className="pill-list" style={{ marginBottom: '1.5rem' }}>
-          {PACK_ORDER.map((pack) => (
-            <a key={pack} href={`#profile-pack-${pack}`} className="pill">
-              {PACK_LABELS[pack]}
-            </a>
-          ))}
-        </nav>
+      {searching && visibleSections.length === 0 ? (
+        <output className="muted">No fields match. Try another field name.</output>
       ) : null}
-
-      {universalPack ? (
-        <div id={`profile-pack-${universalPack}`}>
-          <PackSection
-            applicantId={applicantId}
-            pack={universalPack}
-            values={values}
-            repeatingValues={repeatingValues}
-            assurance={assurance}
-            search={search}
-          />
-        </div>
-      ) : null}
-
-      {targetGroupPacks.map((pack) => {
-        const hasMatch =
-          searching && allFieldsInPack(pack).some((f) => matchesSearch(f.label, search));
+      {PROFILE_SECTIONS.map((section) => {
+        const visible = visibleSections.some((item) => item.key === section.key);
         return (
-          <details
-            key={pack}
-            id={`profile-pack-${pack}`}
-            style={{ marginTop: '1.75rem' }}
-            open={hasMatch || undefined}
+          <section
+            key={section.key}
+            id={`profile-panel-${section.key}`}
+            role={searching ? undefined : 'tabpanel'}
+            aria-labelledby={`profile-tab-${section.key}`}
+            hidden={!visible}
           >
-            <summary
-              style={{
-                cursor: 'pointer',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '0.15rem',
-              }}
-            >
-              <span className="card-kicker" style={{ margin: 0 }}>
-                {PACK_LABELS[pack]}
-              </span>
-              <span className="muted" style={{ fontSize: '0.8rem' }}>
-                {PACK_DESCRIPTIONS[pack]}
-              </span>
-            </summary>
-            <div style={{ marginTop: '1rem' }}>
+            <h3>{section.label}</h3>
+            {section.key === 'additional' ? (
+              (['business', 'medical', 'medical_attendant'] as const).map((pack) => (
+                <details
+                  key={pack}
+                  id={`profile-pack-${pack}`}
+                  className="profile-extra-pack"
+                  open={searching || undefined}
+                >
+                  <summary>
+                    <strong>{PACK_LABELS[pack]}</strong>
+                    <span className="muted">{PACK_DESCRIPTIONS[pack]}</span>
+                  </summary>
+                  <PackSection
+                    applicantId={applicantId}
+                    pack={pack}
+                    values={values}
+                    repeatingValues={repeatingValues}
+                    assurance={assurance}
+                    search={search}
+                  />
+                </details>
+              ))
+            ) : (
               <PackSection
                 applicantId={applicantId}
-                pack={pack}
+                pack={section.key === 'employment' ? 'professional' : 'universal'}
+                fields={fieldsInProfileSection(section.key)}
                 values={values}
                 repeatingValues={repeatingValues}
                 assurance={assurance}
                 search={search}
               />
-            </div>
-          </details>
+            )}
+          </section>
         );
       })}
     </div>
