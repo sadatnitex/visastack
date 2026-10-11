@@ -172,6 +172,22 @@ describe('agency collaboration — assignments, notes, evidence', () => {
     expect(isOk(note)).toBe(true);
     expect(await listNotes(db, org.value.id, applicantId, mission.value.id)).toHaveLength(1);
 
+    const later = await addNote(db, {
+      actorAccountId: agentAcc.value.id,
+      missionId: mission.value.id,
+      body: 'Newest case activity.',
+      visibility: 'AGENCY_INTERNAL',
+    });
+    if (!isOk(later)) throw new Error('later note');
+    const recent = await listNotes(db, org.value.id, applicantId, mission.value.id, { limit: 1 });
+    expect(recent.map((item) => item.id)).toEqual([later.value.id]);
+    expect(await listNotes(db, org.value.id, applicantId, mission.value.id)).toHaveLength(2);
+    expect(
+      await listNotes(db, '00000000-0000-4000-8000-000000000001', applicantId, mission.value.id, {
+        limit: 50,
+      }),
+    ).toEqual([]);
+
     // A non-admin cannot assign.
     const stranger = await provisionAccount(db, { email: 'stranger-coll@example.com' });
     if (!isOk(stranger)) throw new Error('provision');

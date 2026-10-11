@@ -16,6 +16,7 @@ export interface NavLink {
   readonly exact?: boolean;
   /** Further path prefixes that also belong to this link (pages that live elsewhere in the route tree). */
   readonly alsoCurrentFor?: readonly string[];
+  readonly alsoExactFor?: readonly string[];
 }
 
 /** Persistent primary navigation for a signed-in traveller. */
@@ -114,7 +115,9 @@ function underPrefix(path: string, prefix: string): boolean {
  * `/app/shared-with`), unless it is `exact`.
  */
 export function isCurrentPath(pathname: string, link: NavLink): boolean {
-  const path = stripTrailingSlash(pathname);
+  if (link.href.includes('#')) return pathname === link.href;
+  const path = stripTrailingSlash(pathname.split(/[?#]/)[0] ?? pathname);
+  if (link.alsoExactFor?.some((candidate) => path === stripTrailingSlash(candidate))) return true;
   if (link.exact) return path === stripTrailingSlash(link.href);
   if (underPrefix(path, stripTrailingSlash(link.href))) return true;
   return (link.alsoCurrentFor ?? []).some((prefix) => underPrefix(path, prefix));

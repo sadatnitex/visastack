@@ -1024,3 +1024,4 @@ export {
   acknowledgeSignupNotices,
   type SignupNoticeInput,
 } from './signup-notices';
+export { listPlatformMembers, type PlatformMember } from './platform-directory';

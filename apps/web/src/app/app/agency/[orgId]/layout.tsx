@@ -6,10 +6,8 @@ import {
   capabilityUnavailableMessage,
   getPlatformCapabilities,
 } from '../../../../lib/capabilities';
-import { agencyTabs } from '../../../../lib/navigation';
 import { withSession } from '../../../../lib/session';
 import { createStorage } from '../../../../lib/storage';
-import { SubNav } from '../../subnav';
 import { loadOrgAccess } from './console-data';
 import { ORG_STATUS } from './console-format';
 import { OrgBrandingHeader } from './org-branding-header';
@@ -17,15 +15,9 @@ import { OrgBrandingHeader } from './org-branding-header';
 export const dynamic = 'force-dynamic';
 
 /**
- * An agency's console (Commercial V1 Part 9 UX-01): one header and a bar of
- * sections, each a page of its own (Dashboard, Clients, Cases, Team, Usage &
- * billing, Settings). Clients, Team and Settings are administrator work and are
- * left out of the bar for a member who is not an administrator.
- *
- * This layout only decides what to show around the page. It is not what keeps an
- * outsider out: every page asks `loadOrgAccess` again, and the service functions
- * behind them refuse anyone who has no standing, exactly as before the console
- * was split.
+ * Retains current organization/member checks, branding and status.
+ * The shared shell supplies the agency sidebar without a duplicate section bar.
+ * Individual pages and services still authorize every read and action.
  */
 export default async function AgencyConsoleLayout({
   children,
@@ -69,7 +61,6 @@ export default async function AgencyConsoleLayout({
               {capabilityUnavailableMessage('agencyCollaboration')}
             </div>
           ) : null}
-          <SubNav links={agencyTabs(orgId, { admin: data.admin })} label="Organization sections" />
           {children}
         </>
       ) : (

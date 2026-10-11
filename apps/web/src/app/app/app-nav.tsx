@@ -16,6 +16,28 @@ const ICONS: Readonly<Record<string, IconName>> = {
   '/app/account': 'user',
 };
 
+const CONTEXT_ICONS: Readonly<Record<string, IconName>> = {
+  Overview: 'home',
+  'My profile': 'user',
+  Documents: 'folder',
+  'Visa cases': 'briefcase',
+  Sharing: 'share',
+  Notifications: 'bell',
+  Settings: 'settings',
+  'Help & support': 'shield',
+  Clients: 'users',
+  Cases: 'briefcase',
+  'Evidence requests': 'clipboard',
+  Team: 'users',
+  'Activity log': 'activity',
+  Members: 'users',
+  Organizations: 'building',
+  Activity: 'activity',
+  Providers: 'folder',
+  'Costs & plans': 'briefcase',
+  Security: 'shield',
+};
+
 /** How many links stay on the bar at the bottom of a phone; the rest sit under "More". */
 const BAR_LINKS = 4;
 
@@ -34,17 +56,33 @@ export function AppNav({
   links,
   children,
   accountLabel,
+  identity,
+  secondaryLinks = [],
+  footer,
 }: {
   readonly links: readonly NavLink[];
   readonly accountLabel?: string;
+  readonly identity?: ReactNode;
+  readonly secondaryLinks?: readonly NavLink[];
+  readonly footer?: ReactNode;
   /** The switch controls (Agency, Admin, Sign out), supplied by the server layout. */
   readonly children?: ReactNode;
 }) {
   const pathname = usePathname();
+  const [hash, setHash] = useState('');
   const [open, setOpen] = useState(false);
   const panelId = useId();
   const toggleRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
+
+  // Hash destinations are real sections; their selected state follows browser history too.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: pathname navigation can change the fragment
+  useEffect(() => {
+    const update = () => setHash(window.location.hash);
+    update();
+    window.addEventListener('hashchange', update);
+    return () => window.removeEventListener('hashchange', update);
+  }, [pathname]);
 
   // Moving to another page closes the sheet, so it never sits open over the next page.
   // biome-ignore lint/correctness/useExhaustiveDependencies: the sheet closes when the path changes, which is not read inside the effect
@@ -66,13 +104,20 @@ export function AppNav({
     return () => document.removeEventListener('keydown', onKey);
   }, [open]);
 
+  const activeFragment = links.find(
+    (item) => item.href.includes('#') && isCurrentPath(pathname + hash, item),
+  );
   const link = (item: NavLink) => (
     <Link
       key={item.href}
       href={item.href}
-      aria-current={isCurrentPath(pathname, item) ? 'page' : undefined}
+      aria-current={
+        (activeFragment ? activeFragment.href === item.href : isCurrentPath(pathname + hash, item))
+          ? 'page'
+          : undefined
+      }
     >
-      <Icon name={ICONS[item.href] ?? 'folder'} size={20} />
+      <Icon name={CONTEXT_ICONS[item.label] ?? ICONS[item.href] ?? 'folder'} size={20} />
       <span className="app-link-label">{item.label}</span>
     </Link>
   );
@@ -85,19 +130,21 @@ export function AppNav({
           VisaStack
         </Link>
       </div>
-      <Link href="/app/account" className="app-sidebar-account">
-        <Icon name="user" size={20} />
-        <span>
-          <b>
-            {pathname.startsWith('/app/admin')
-              ? 'Platform workspace'
-              : pathname.startsWith('/app/agency')
-                ? 'Agency workspace'
-                : 'Personal workspace'}
-          </b>
-          <small>{accountLabel ?? 'Account details'}</small>
-        </span>
-      </Link>
+      {identity ?? (
+        <Link href="/app/account" className="app-sidebar-account">
+          <Icon name="user" size={20} />
+          <span>
+            <b>
+              {pathname.startsWith('/app/admin')
+                ? 'Platform workspace'
+                : pathname.startsWith('/app/agency')
+                  ? 'Agency workspace'
+                  : 'Personal workspace'}
+            </b>
+            <small>{accountLabel ?? 'Account details'}</small>
+          </span>
+        </Link>
+      )}
       <p className="app-sidebar-context">Workspace</p>
       <div className="app-bar">
         <nav className="app-shell-links" aria-label="Workspace">
@@ -120,6 +167,12 @@ export function AppNav({
           {links.slice(BAR_LINKS).map(link)}
         </nav>
         {children}
+        {secondaryLinks.length ? (
+          <nav className="app-shell-links workspace-bottom-links" aria-label="Settings and support">
+            {secondaryLinks.map(link)}
+          </nav>
+        ) : null}
+        {footer}
       </div>
     </div>
   );
