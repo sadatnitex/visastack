@@ -72,7 +72,7 @@ import { reportServerError } from './server-error';
  */
 export async function triggerIntakeWorker(
   options: { readonly limit?: number } = {},
-): Promise<IntakeWorkerResult & { readonly queued?: boolean }> {
+): Promise<IntakeWorkerResult & { readonly queued?: boolean; readonly unavailable?: true }> {
   const provider = 'MALWARE_SCANNER_PROVIDER';
   if (process.env[provider] === 'github_clamav') {
     // Keep jobs PENDING. The isolated runner claims them using the same leases.
@@ -83,7 +83,7 @@ export async function triggerIntakeWorker(
   const connectionString = resolveDatabaseUrl(process.env);
   if (!connectionString) {
     console.error('[triggerIntakeWorker] database not configured');
-    return { processed: 0, failed: 0 };
+    return { processed: 0, failed: 0, unavailable: true };
   }
 
   const { db, pool } = createPooledDb(connectionString);
@@ -102,7 +102,7 @@ export async function triggerIntakeWorker(
     });
   } catch (error) {
     reportServerError('triggerIntakeWorker', error, { step: 'worker pass failed' });
-    return { processed: 0, failed: 0 };
+    return { processed: 0, failed: 0, unavailable: true };
   } finally {
     await pool.end();
   }
@@ -221,12 +221,12 @@ export async function triggerAccountExportExpirySweep(
  * since elapsed).
  */
 export async function triggerNotificationWorker(
-  options: { readonly limit?: number } = {},
-): Promise<NotificationWorkerResult> {
+  options: { readonly limit?: number; readonly timeBudgetMs?: number } = {},
+): Promise<NotificationWorkerResult & { readonly unavailable?: true }> {
   const connectionString = resolveDatabaseUrl(process.env);
   if (!connectionString) {
     console.error('[triggerNotificationWorker] database not configured');
-    return { sent: 0, retrying: 0, failed: 0 };
+    return { sent: 0, retrying: 0, failed: 0, unavailable: true };
   }
 
   const { db, pool } = createPooledDb(connectionString);
@@ -235,10 +235,13 @@ export async function triggerNotificationWorker(
   });
   try {
     const handle = db as unknown as Parameters<typeof runNotificationWorker>[0];
-    return await runNotificationWorker(handle, createEmailPort(), resolveBaseUrl(), options);
+    return await runNotificationWorker(handle, createEmailPort(), resolveBaseUrl(), {
+      timeBudgetMs: 35_000,
+      ...options,
+    });
   } catch (error) {
     reportServerError('triggerNotificationWorker', error, { step: 'worker pass failed' });
-    return { sent: 0, retrying: 0, failed: 0 };
+    return { sent: 0, retrying: 0, failed: 0, unavailable: true };
   } finally {
     await pool.end();
   }
@@ -255,13 +258,17 @@ export async function triggerNotificationWorker(
  */
 export async function triggerNotificationSweeps(
   options: { readonly limit?: number } = {},
-): Promise<{ readonly tasks: SweepResult; readonly expiry: ExpirySweepResult }> {
+): Promise<{
+  readonly tasks: SweepResult;
+  readonly expiry: ExpirySweepResult;
+  readonly unavailable?: true;
+}> {
   const connectionString = resolveDatabaseUrl(process.env);
   const empty: SweepResult = { checked: 0, enqueued: 0 };
   const emptyExpiry: ExpirySweepResult = { checked: 0, enqueued: 0, missionsDirtied: 0 };
   if (!connectionString) {
     console.error('[triggerNotificationSweeps] database not configured');
-    return { tasks: empty, expiry: emptyExpiry };
+    return { tasks: empty, expiry: emptyExpiry, unavailable: true };
   }
 
   const { db, pool } = createPooledDb(connectionString);
@@ -276,7 +283,7 @@ export async function triggerNotificationSweeps(
     return { tasks, expiry };
   } catch (error) {
     reportServerError('triggerNotificationSweeps', error, { step: 'sweep pass failed' });
-    return { tasks: empty, expiry: emptyExpiry };
+    return { tasks: empty, expiry: emptyExpiry, unavailable: true };
   } finally {
     await pool.end();
   }

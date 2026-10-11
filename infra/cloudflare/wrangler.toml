@@ -1,0 +1,10 @@
+name = "visastack-durable-jobs"
+main = "job-scheduler.mjs"
+compatibility_date = "2026-10-11"
+workers_dev = false
+
+[vars]
+APP_ORIGIN = "https://vs.obsidianglobal.studio"
+
+[triggers]
+crons = ["*/5 * * * *"]

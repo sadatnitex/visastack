@@ -44,6 +44,8 @@ export interface SendEmailInput {
   readonly to: string;
   readonly subject: string;
   readonly body: string;
+  /** Opaque stable outbox key, reused across retries; never an email address. */
+  readonly idempotencyKey?: string;
 }
 
 export interface SendEmailResult {

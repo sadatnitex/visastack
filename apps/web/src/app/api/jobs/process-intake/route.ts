@@ -39,6 +39,7 @@ export async function GET(request: Request): Promise<Response> {
   let totalFailed = 0;
   for (let batch = 0; batch < MAX_BATCHES_PER_SWEEP; batch++) {
     const result = await triggerIntakeWorker({ limit: BATCH_SIZE });
+    if (result.unavailable) return Response.json({ status: 'unavailable' }, { status: 503 });
     if (result.queued) return Response.json({ queued: true, processed: 0 }, { status: 202 });
     totalProcessed += result.processed;
     totalFailed += result.failed;

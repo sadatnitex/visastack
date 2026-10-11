@@ -5,7 +5,7 @@ import { schema } from '@visastack/db';
 import { eq } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/pglite';
 import { migrate } from 'drizzle-orm/pglite/migrator';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { provisionAccount } from './accounts';
 import { createApplicant } from './applicants';
 import { setConsent } from './consent';
@@ -303,6 +303,101 @@ describe('runNotificationWorker', () => {
 
     const row = (await db.select().from(schema.notifications))[0];
     expect(row?.providerMessageId).toBe('fake-message-1');
+    expect(emailPort.sent[0]?.idempotencyKey).toBe(`notification-${row?.id}`);
+  });
+
+  it('reuses the same opaque provider key when retrying a failed send', async () => {
+    const { account } = await seedOwner(db, 'stable-retry@example.com');
+    await enqueueNotification(db, {
+      eventType: 'EVIDENCE_REQUEST_CREATED',
+      channel: 'EMAIL',
+      resourceId: 'stable-retry',
+      recipientAccountId: account.id,
+      payload: PAYLOAD,
+    });
+    const attempts: SendEmailInput[] = [];
+    const port: EmailPort = {
+      async send(input) {
+        attempts.push(input);
+        if (attempts.length === 1) throw new Error('temporary failure');
+        return { providerMessageId: 'stable-provider-message' };
+      },
+    };
+    expect(await runNotificationWorker(db, port, 'https://app.example.com')).toEqual({
+      sent: 0,
+      retrying: 1,
+      failed: 0,
+    });
+    const row = (await db.select().from(schema.notifications))[0];
+    if (!row) throw new Error('missing row');
+    expect(
+      await runNotificationWorker(db, port, 'https://app.example.com', { now: row.nextAttemptAt }),
+    ).toEqual({ sent: 1, retrying: 0, failed: 0 });
+    expect(attempts).toHaveLength(2);
+    expect(attempts[0]?.idempotencyKey).toBe(`notification-${row.id}`);
+    expect(attempts[1]?.idempotencyKey).toBe(attempts[0]?.idempotencyKey);
+  });
+
+  it('keeps unconfigured email queued and removes private provider exception text', async () => {
+    const { account } = await seedOwner(db, 'not-sent@example.com');
+    await enqueueNotification(db, {
+      eventType: 'EVIDENCE_REQUEST_CREATED',
+      channel: 'EMAIL',
+      resourceId: 'not-sent',
+      recipientAccountId: account.id,
+      payload: PAYLOAD,
+    });
+    const port: EmailPort = {
+      async send() {
+        throw new Error('Email provider returned status 401; private@example.com; private-body');
+      },
+    };
+    expect(await runNotificationWorker(db, port, 'https://app.example.com')).toEqual({
+      sent: 0,
+      retrying: 1,
+      failed: 0,
+    });
+    const row = (await db.select().from(schema.notifications))[0];
+    expect(row?.status).toBe('QUEUED');
+    expect(row?.sentAt).toBeNull();
+    expect(row?.providerMessageId).toBeNull();
+    expect(row?.lastError).toBe('Email delivery failed; provider acceptance was not confirmed');
+  });
+
+  it('releases unattempted jobs without consuming attempts when its time budget expires', async () => {
+    const { account } = await seedOwner(db, 'budget@example.com');
+    for (const resourceId of ['budget-1', 'budget-2'])
+      await enqueueNotification(db, {
+        eventType: 'EVIDENCE_REQUEST_CREATED',
+        channel: 'EMAIL',
+        resourceId,
+        recipientAccountId: account.id,
+        payload: PAYLOAD,
+      });
+    let clock = 1000;
+    const spy = vi.spyOn(Date, 'now').mockImplementation(() => clock);
+    const port: EmailPort = {
+      async send() {
+        clock += 100;
+        return { providerMessageId: 'budget-provider' };
+      },
+    };
+    try {
+      expect(
+        await runNotificationWorker(db, port, 'https://app.example.com', { timeBudgetMs: 50 }),
+      ).toEqual({ sent: 1, retrying: 0, failed: 0, deferred: 1 });
+      const remaining = (await db.select().from(schema.notifications)).find(
+        (row) => row.status === 'QUEUED',
+      );
+      expect(remaining?.attempts).toBe(0);
+      expect(remaining?.leaseOwner).toBeNull();
+      expect(remaining?.leaseExpiresAt).toBeNull();
+      expect(
+        await runNotificationWorker(db, new FakeEmailPort(), 'https://app.example.com'),
+      ).toEqual({ sent: 1, retrying: 0, failed: 0 });
+    } finally {
+      spy.mockRestore();
+    }
   });
 
   it('never labels provider acceptance as delivered - SENT stays SENT until a real webhook would confirm DELIVERED (not modeled here)', async () => {
@@ -355,7 +450,9 @@ describe('runNotificationWorker', () => {
     const finalRow = (await db.select().from(schema.notifications))[0];
     expect(finalRow?.status).toBe('FAILED');
     expect(finalRow?.attempts).toBe(5);
-    expect(finalRow?.lastError).toContain('simulated transient provider failure');
+    expect(finalRow?.lastError).toBe(
+      'Email delivery failed; provider acceptance was not confirmed',
+    );
   });
 
   it('re-verifies authorization at SEND time, not merely at enqueue time - a removed org member never receives an org-scoped notification', async () => {
@@ -376,12 +473,13 @@ describe('runNotificationWorker', () => {
     const org = await createOrganization(db, { actorAccountId: requester.value.id, name: 'Acme' });
     if (!isOk(org)) throw new Error('org failed');
 
+    const stranger = await seedOwner(db, 'removed-org-member@example.com');
     // Enqueue an org-scoped notification for an account with NO membership in that org at all.
     await enqueueNotification(db, {
       eventType: 'MISSION_STATUS_CHANGED',
       channel: 'IN_APP',
       resourceId: 'decision-1',
-      recipientAccountId: requester.value.id,
+      recipientAccountId: stranger.account.id,
       applicantId: applicant.value.id,
       organizationId: org.value.id,
       payload: PAYLOAD,
@@ -417,6 +515,129 @@ describe('runNotificationWorker', () => {
 
     const result = await runNotificationWorker(db, new FakeEmailPort(), 'https://app.example.com');
     expect(result).toEqual({ sent: 1, retrying: 0, failed: 1 });
+  });
+
+  it('delivers traveller case notices with organization metadata to the current applicant owner', async () => {
+    const { account, applicantId } = await seedOwner(db, 'case-notice-owner@example.com');
+    const org = await createOrganization(db, { actorAccountId: account.id, name: 'Case agency' });
+    if (!isOk(org)) throw new Error('org failed');
+    await enqueueNotificationBothChannels(db, {
+      eventType: 'EVIDENCE_REVIEW_ACCEPTED',
+      resourceId: 'owner-case-update',
+      recipientAccountId: account.id,
+      applicantId,
+      organizationId: org.value.id,
+      payload: PAYLOAD,
+    });
+    const email = new FakeEmailPort();
+    expect(await runNotificationWorker(db, email, 'https://app.example.com')).toEqual({
+      sent: 2,
+      retrying: 0,
+      failed: 0,
+    });
+    expect(email.sent).toHaveLength(1);
+  });
+
+  it('requires a current accepted grant for agency recipients even when membership remains active', async () => {
+    const owner = await seedOwner(db, 'grant-owner@example.com');
+    const member = await seedOwner(db, 'grant-recipient@example.com');
+    const org = await createOrganization(db, {
+      actorAccountId: member.account.id,
+      name: 'Granted agency',
+    });
+    if (!isOk(org)) throw new Error('org failed');
+    await db
+      .update(schema.organizations)
+      .set({ status: 'ACTIVE' })
+      .where(eq(schema.organizations.id, org.value.id));
+    await db
+      .insert(schema.memberships)
+      .values({ accountId: member.account.id, organizationId: org.value.id, role: 'ADMIN' })
+      .onConflictDoNothing();
+    const grant = (
+      await db
+        .insert(schema.grants)
+        .values({
+          applicantId: owner.applicantId,
+          recipientOrganizationId: org.value.id,
+          actions: ['VIEW_METADATA'],
+          purpose: 'Synthetic case notice',
+          startAt: new Date(Date.now() - 60_000),
+          status: 'ACTIVE',
+          acceptedAt: new Date(),
+        })
+        .returning()
+    )[0];
+    if (!grant) throw new Error('grant failed');
+    const enqueue = (resourceId: string) =>
+      enqueueNotification(db, {
+        eventType: 'CASE_UPDATE',
+        channel: 'EMAIL',
+        resourceId,
+        recipientAccountId: member.account.id,
+        applicantId: owner.applicantId,
+        organizationId: org.value.id,
+        payload: PAYLOAD,
+      });
+    await enqueue('active-grant');
+    expect(await runNotificationWorker(db, new FakeEmailPort(), 'https://app.example.com')).toEqual(
+      { sent: 1, retrying: 0, failed: 0 },
+    );
+    await db.update(schema.grants).set({ status: 'REVOKED' }).where(eq(schema.grants.id, grant.id));
+    await enqueue('revoked-grant');
+    const email = new FakeEmailPort();
+    expect(await runNotificationWorker(db, email, 'https://app.example.com')).toEqual({
+      sent: 0,
+      retrying: 0,
+      failed: 1,
+    });
+    expect(email.sent).toHaveLength(0);
+  });
+
+  it('never overwrites cancellation or another worker lease after provider acceptance', async () => {
+    const { account } = await seedOwner(db, 'lease-race@example.com');
+    for (const kind of ['cancel', 'lease']) {
+      await enqueueNotification(db, {
+        eventType: 'CASE_UPDATE',
+        channel: 'EMAIL',
+        resourceId: kind,
+        recipientAccountId: account.id,
+        payload: PAYLOAD,
+      });
+      const port: EmailPort = {
+        async send() {
+          const row = (
+            await db
+              .select()
+              .from(schema.notifications)
+              .where(eq(schema.notifications.resourceId, kind))
+          )[0];
+          if (!row) throw new Error('row missing');
+          await db
+            .update(schema.notifications)
+            .set(kind === 'cancel' ? { status: 'CANCELLED' } : { leaseOwner: 'new-worker-owner' })
+            .where(eq(schema.notifications.id, row.id));
+          return { providerMessageId: 'race-provider-message' };
+        },
+      };
+      expect(await runNotificationWorker(db, port, 'https://app.example.com')).toEqual({
+        sent: 0,
+        retrying: 0,
+        failed: 0,
+        deferred: 1,
+      });
+      const row = (
+        await db
+          .select()
+          .from(schema.notifications)
+          .where(eq(schema.notifications.resourceId, kind))
+      )[0];
+      if (kind === 'cancel') expect(row?.status).toBe('CANCELLED');
+      else {
+        expect(row?.status).toBe('QUEUED');
+        expect(row?.leaseOwner).toBe('new-worker-owner');
+      }
+    }
   });
 
   it('claims at most `limit` due rows per pass', async () => {
