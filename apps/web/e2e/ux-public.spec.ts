@@ -664,10 +664,24 @@ test.describe('authoritative appearance on public routes', () => {
     ]) {
       test(`${route} keeps identical pixels under both device appearances at ${width}px`, async ({
         page,
+        browser,
+        baseURL,
       }) => {
         await page.setViewportSize({ width, height: width === 1600 ? 1000 : 844 });
+        if (route === '/status') {
+          // Compare the same completed health state and timestamp across fresh renders.
+          // The live clock and unfinished requests must not become appearance differences.
+          await page.clock.setFixedTime(new Date('2026-10-11T05:00:00.000Z'));
+        }
         await page.emulateMedia({ colorScheme: 'light', reducedMotion: 'reduce' });
         await page.goto(route);
+        if (route === '/status') {
+          await expect(page.getByRole('button', { name: 'Check now', exact: true })).toBeVisible();
+          await expect(
+            page.getByRole('button', { name: 'Check now', exact: true }),
+          ).not.toHaveAttribute('aria-disabled', 'true');
+          await expect(page.getByText(/^Updated /)).toBeVisible();
+        }
         await page.evaluate(() => document.fonts.ready);
         const light = await page.screenshot({
           path: test.info().outputPath('appearance-light.png'),
@@ -678,16 +692,43 @@ test.describe('authoritative appearance on public routes', () => {
         expect(await page.locator('html').evaluate((el) => getComputedStyle(el).colorScheme)).toBe(
           'light',
         );
-        // Chromium repaints rounded border edges at different subpixel positions
-        // when its native appearance changes. Compare complete fresh renders,
-        // retaining exact pixel equality and the runtime color-scheme assertion.
-        await page.reload();
-        await page.evaluate(() => document.fonts.ready);
-        const dark = await page.screenshot({
-          path: test.info().outputPath('appearance-dark.png'),
-          animations: 'disabled',
-          caret: 'hide',
+        // Render the second OS preference in a fresh context. Native appearance
+        // emulation can retain rounded-edge raster caches across page reloads.
+        // Both complete renders still have to match every pixel exactly.
+        if (!baseURL) throw new Error('A deployment URL is required');
+        const darkPage = await browser.newPage({
+          baseURL,
+          colorScheme: 'dark',
+          reducedMotion: 'reduce',
+          viewport: { width, height: width === 1600 ? 1000 : 844 },
         });
+        let dark: Buffer;
+        try {
+          if (route === '/status') {
+            await darkPage.clock.setFixedTime(new Date('2026-10-11T05:00:00.000Z'));
+          }
+          await darkPage.goto(route);
+          if (route === '/status') {
+            await expect(
+              darkPage.getByRole('button', { name: 'Check now', exact: true }),
+            ).toBeVisible();
+            await expect(
+              darkPage.getByRole('button', { name: 'Check now', exact: true }),
+            ).not.toHaveAttribute('aria-disabled', 'true');
+            await expect(darkPage.getByText(/^Updated /)).toBeVisible();
+          }
+          await darkPage.evaluate(() => document.fonts.ready);
+          expect(
+            await darkPage.locator('html').evaluate((el) => getComputedStyle(el).colorScheme),
+          ).toBe('light');
+          dark = await darkPage.screenshot({
+            path: test.info().outputPath('appearance-dark.png'),
+            animations: 'disabled',
+            caret: 'hide',
+          });
+        } finally {
+          await darkPage.close();
+        }
         expect(
           dark.equals(light),
           'changing the device preference changes no approved surface',

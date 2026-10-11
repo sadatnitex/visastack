@@ -4927,3 +4927,47 @@ The owner reported a new signup receiving no confirmation email. The production 
 Confirmation resend now distinguishes provider outages, rejected configuration and throttling from a successful request, using neutral unknown-account responses and fixed messages. Unconfirmed sign-in no longer claims a message was sent. Backup failures expose only an exact allowlist of configuration diagnostics, never arbitrary provider errors or credentials. The first live Actions backup failed; full capture and restore remain unverified.
 
 GitHub Actions resumed after the owner restored availability. The deployed smoke passed 11 checks and the exact-production Playwright workflow passed 191 checks. Main CI and new source verification remain pending at this checkpoint. Controlled-pilot and disabled real-applicant intake are retained. No schema migration, restore, existing account rewrite or role grant occurred.
+
+
+### Chunk 70 (2026-10-11): VisaStack auth email branding and existing-account signup
+
+The owner supplied Resend dashboard evidence that verification emails to ns@brtlcenter.com and salma.ahai24@gmail.com were Delivered. This means recipient mail servers accepted those messages; inbox placement remains unverified. Both auth identities were read-only verified as already confirmed. These messages predate the automatic-signup setting correction, so that configuration observation does not prove these messages were never sent.
+
+The production auth branch was matched to production NEON_AUTH_BASE_URL. The supported branch auth/config PATCH changed only the application name from NeonSadat to VisaStack. Fresh reads confirmed the name, unchanged auth base URL, unchanged email/password configuration and unchanged approved VisaStack SMTP sender. No test mail, account rewrite or role change occurred. New auth communications use the new application name; already delivered messages are unchanged. Actual newly generated branded email acceptance remains unverified.
+
+Signup checks registration through a parameterized SELECT EXISTS in the matching managed auth database, after single-use form and email/IP rate limits. It never writes auth tables or links identities. This is necessary because required-verification providers can return generic success for duplicates. Existing accounts get sign-in and password-reset links; lookup errors produce a temporary-service message. Provider duplicate codes cover concurrent registration errors. Recovery and sign-in failures retain neutral unknown-address responses. Explicit owner instructions authorize disclosure of existing-account status only in guarded signup. Native auth schema compatibility remains a managed-provider dependency; unsupported schemas fail closed without false account results.
+
+Production remains controlled_pilot with real applicant intake disabled. Full capture/restore, scanner worker activation, role lifecycle acceptance and commercial release certification remain incomplete. Verification and exact deployment evidence are recorded outside the checkout and reported separately; no pending check is counted as passed.
+
+The designated active preview branch was separately confirmed and received the same supported application-name update. Fresh reads verified VisaStack with unchanged auth endpoint, sender and email/password settings. Unrelated historical branches were not modified.
+
+
+### Chunk 71 (2026-10-11): registration fixture scan correction and backup database diagnosis
+
+PR 191 CI rejected credential-free, synthetic Neon endpoint fixtures in signup-account.test.ts. The original local supply-chain scan missed this new test because it was not yet tracked when scanned. Current tracked fixtures now carry precise reviewed line comments: the endpoint names are synthetic, both database resolver and query driver are mocked, and no network or credentials are used. Scanner rules and runtime source remain unchanged. The complete local build, tests and 192 browser checks remain valid for this comment-only correction; the tracked fixture scan and affected checks are repeated before pushing. No failed check is counted as passed.
+
+The authenticated encrypted backup run now reports an exact safe diagnostic: BACKUP_DATABASE_URL does not select the expected application database, visastackdev. Capture and restore remain unverified. The expected-database guard is retained rather than backing up the wrong database. Correcting this repository secret requires secure GitHub Actions settings access; no connection string should be sent in chat.
+
+
+### Chunk 72 (2026-10-11): compare completed live status renders at the same timestamp
+
+The deployed browser gate rejected the strict light/dark comparison for /status at phone width. That page performs real asynchronous health requests and updates a visible clock, while the comparison previously captured immediately after navigation and reload. The status appearance test now fixes browser Date and waits for completed health responses on both renders. It retains every pixel in the exact image comparison, both widths, actual health requests and the computed color-scheme assertion. No snapshot threshold, mask, skip or application theme change was introduced. Both deployed status comparisons passed after the correction, and deliberately changing actual rendered body colors caused the strict assertion to fail. The full deployed no-secret browser suite and affected checks are rerun before push; pending results are not counted as passed. The failed CI screenshot artifact was inaccessible from this environment, so no inspection of that artifact is claimed.
+
+
+### Chunk 73 (2026-10-11): complete-render comparison and successful application backup
+
+The first complete deployed browser rerun passed 175 checks and failed 17. Sixteen API-request failures were local EAI_AGAIN errors because the external test runner was not using the managed proxy; its local configuration now uses the inherited proxy and system certificate bundle with TLS verification retained. The remaining strict privacy comparison differed by 29 rounded navigation-button pixels within bounds (1488,103)-(1524,146). Both images were inspected through their pixel data. The visual test now renders the dark OS preference in a fresh browser context instead of reusing native-emulation raster caches across reloads. It preserves the dynamic computed color-scheme assertion, all exact image bytes, all routes and both dimensions. Both privacy and status comparisons passed at desktop and phone widths; an actual rendered color mutation still fails the exact comparison. No production CSS or test threshold changed.
+
+After the owner replaced BACKUP_DATABASE_URL with the unpooled visastackdev connection, Actions run 38116023195 succeeded on production commit bd4cfacef9bde99f0d32961b667e13a15a768592 and printed the authenticated encrypted-upload success marker. Application database capture and R2 publication are verified. Restore verification, key escrow/rotation and scanner worker activation remain incomplete. No restore, schema migration or account rewrite was performed.
+
+
+### Chunk 74 (2026-10-11): preserve header geometry and stabilize border paint
+
+Further pixel and DOM inspection located the 29-pixel variation on the rounded header border, rather than an action button. Fresh contexts and software/color-profile flags alone did not eliminate it; those experimental flags are not shipped. Applying background-clip: padding-box to the existing white header separates the background fill from the solid border paint. All 14 public route/width comparisons passed in the targeted deployed-style probe. The production stylesheet receives only that paint property: height, width, radius, spacing, color roles and typography remain unchanged. Full verification is rerun against the actual built stylesheet before push; no injected style remains in the committed tests. Strict pixel equality, computed color-scheme checks and negative rendered-color mutation coverage are retained.
+
+An independent read-only R2 probe confirmed the successful run 38116023195 manifest and ciphertext object, with matching stored size of 243098 bytes and restoreVerified false. No backup object was changed or deleted by the probe. Weekly capture remains scheduled for Sunday 06:00 UTC, noon in Dhaka. Recovery acceptance still needs an isolated restore drill and lifecycle/tombstone proof.
+
+
+### Chunk 75 (2026-10-11): complete verification of the final signup and header fix
+
+All twelve local verification gates passed against the actual final build, including 192 browser checks, strict public light/dark comparisons, workspace and web tests, scanner self-tests, dependency audit and supply-chain checks. No styling injection, image mask or relaxed comparison threshold is included. GitHub exact-commit checks and live deployment verification remain mandatory before release. The successful encrypted backup and independent R2 manifest/object evidence from Chunk 74 remain valid; a complete restore is still unverified.

@@ -12,7 +12,8 @@ import { consumeSignupForm, readSignupForm } from '../../lib/signup-form';
  * without scripts. Failure messages are fixed codes in the address, never text from the provider.
  * A wrong password and an unknown address look the same, and recovery and re-sending a
  * confirmation always give the same answer whether or not the address has an account, so the
- * forms cannot be used to find out who is registered. Every action refuses to run unless Neon
+ * recovery forms do not disclose who is registered. Signup offers existing-account guidance
+ * only after its registration and rate-limit guards. Every action refuses to run unless Neon
  * Auth is the selected sign-in system, and the email-sending ones are rate limited first.
  */
 
@@ -88,6 +89,14 @@ export async function signUpAction(formData: FormData): Promise<void> {
   });
   if (!allowed) redirect('/auth/sign-up?e=slow');
   if (!(await consumeSignupForm(signupForm))) redirect('/auth/sign-up?e=refresh');
+  const { signupAccountExists } = await import('../../lib/signup-account');
+  let registered: boolean;
+  try {
+    registered = await signupAccountExists(email);
+  } catch {
+    redirect('/auth/sign-up?e=unavailable');
+  }
+  if (registered) redirect('/auth/sign-up?e=exists');
   const { getNeonAuth } = await import('../../lib/neon-auth');
   const { error } = await getNeonAuth().signUp.email({
     email,
@@ -95,7 +104,16 @@ export async function signUpAction(formData: FormData): Promise<void> {
     name: name || email.split('@')[0] || 'Traveller',
     callbackURL: `${resolveBaseUrl()}/auth/sign-in?n=confirmed`,
   });
-  if (error) redirect('/auth/sign-up?e=failed');
+  if (error) {
+    if (
+      ['USER_ALREADY_EXISTS', 'USER_ALREADY_EXISTS_USE_ANOTHER_EMAIL', 'EMAIL_EXISTS'].includes(
+        error.code ?? '',
+      )
+    ) {
+      redirect('/auth/sign-up?e=exists');
+    }
+    redirect('/auth/sign-up?e=failed');
+  }
   redirect('/auth/verify-email?s=1');
 }
 

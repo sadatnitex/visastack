@@ -13,6 +13,8 @@ export const dynamic = 'force-dynamic';
 const ERRORS: Record<string, string> = {
   invalid: 'Enter a valid email address and a password of at least 8 characters.',
   failed: 'We could not create that account. Try a different email address or sign in instead.',
+  exists: 'An account already uses this email. Sign in or reset your password.',
+  unavailable: 'We could not check your account right now. Please try again shortly.',
   slow: 'Too many attempts. Please wait a little while and try again.',
   notices: 'Read and acknowledge the terms and privacy notice before creating your account.',
   refresh: 'Reload this page and try again. Your registration form could not be accepted.',
@@ -33,6 +35,12 @@ export default async function SignUpPage({
           : 'VisaStack is invite-only for now. You can create an account, but you can only get in if you have been invited.'}
       </p>
       <ErrorLine id="signup-error" message={error} />
+      {e === 'exists' && (
+        <p className="card-body">
+          <Link href="/auth/sign-in">Sign in</Link> or{' '}
+          <Link href="/auth/forgot-password">reset your password</Link>.
+        </p>
+      )}
       <div className="card" style={{ marginBottom: '1rem' }}>
         <form action={signUpAction} className="field-list">
           <input type="hidden" name="signupForm" value={signupForm} />

@@ -149,6 +149,7 @@ a:hover {
   margin: 30px auto 0;
   border: 1px solid var(--hairline-soft);
   border-radius: 38px;
+  background-clip: padding-box;
   flex-wrap: nowrap;
 }
 .brand {
