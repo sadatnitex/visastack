@@ -101,3 +101,8 @@ The staging preflight additionally refuses a preview using the production databa
 
 
 Follow-up focused checks passed 28 navigation/agency/password/report/probe tests, plus three production-probe tests after restoring its real preview-only guard. Temporarily removing that guard made the production refusal assertion fail. Source navigation checks cover 57 pages and 320 references without dangling or unreferenced destinations. Agency case-activity labels now describe the bounded note view, and stage counts retain actual canonical/legacy vocabulary order and an empty pipeline region. Full-package verification and actual authenticated acceptance remain pending.
+
+
+## Legacy acceptance retirement checkpoint
+
+The historical WorkOS acceptance workflow is explicitly retired for the Neon product: a manual dispatch reports blocked, never a successful skipped journey. The retained legacy authentication implementation and diagnostic spec remain available. Actual Neon tests use their dedicated guarded staging configuration; ordinary anonymous/public checks keep their existing collection behavior. No previously verified authenticated journey is removed or counted as passed. Deployment/resource configuration proof still cannot establish complete PDF, fixture, storage or lifecycle acceptance.

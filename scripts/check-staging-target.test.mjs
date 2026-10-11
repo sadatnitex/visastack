@@ -88,6 +88,15 @@ test('checks the exact SHA and rejects an immutable production deployment before
     ),
   );
   await assert.rejects(() =>
+    verifyStagingDeployment(
+      config,
+      request(deployment, {
+        ...proof,
+        neonAuthBaseUrl: 'https://auth-prod.example.test/another-path',
+      }),
+    ),
+  );
+  await assert.rejects(() =>
     verifyStagingDeployment({ ...config, STAGING_VERCEL_TOKEN: '' }, request(deployment)),
   );
 });
