@@ -254,3 +254,18 @@ test('isolated restore allows only manual main code and recovery secrets', () =>
   ])
     assert.equal(checkPreviewCredentials(repo({ [file]: unsafe })).status, 'failed');
 });
+
+test('Neon credentialed acceptance requires reviewed manual main code and staging proof', () => {
+  const safe =
+    "on:\n  workflow_dispatch: {}\njobs:\n  routes:\n    if: github.ref == 'refs/heads/main'\n    env:\n      STAGING_VERCEL_TOKEN: ${{ secrets.STAGING_VERCEL_TOKEN }}\n    steps:\n      - uses: actions/checkout@v4\n        with:\n          persist-credentials: false\n      - run: node scripts/check-staging-target.mjs\n";
+  const filename = '.github/workflows/neon-staging-routes.yml';
+  assert.equal(checkPreviewCredentials(repo({ [filename]: safe })).status, 'passed');
+  for (const bad of [
+    safe.replace("    if: github.ref == 'refs/heads/main'\n", ''),
+    safe.replace('          persist-credentials: false\n', ''),
+    safe.replace('node scripts/check-staging-target.mjs', 'echo missing proof'),
+    safe.replace('workflow_dispatch: {}', 'pull_request: {}'),
+  ]) {
+    assert.equal(checkPreviewCredentials(repo({ [filename]: bad })).status, 'failed');
+  }
+});

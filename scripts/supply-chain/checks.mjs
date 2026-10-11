@@ -501,7 +501,9 @@ export const SECRET_WORKFLOW_ALLOWLIST = {
   'database-restore-drill.yml':
     'manual main-only, private temporary PostgreSQL, restricted restore role, read-only R2 input',
   'db-migrate.yml': 'manual, main-only, protected environment',
-  'workos-staging-e2e.yml': 'staging-only test identity, skipped when absent',
+  'workos-staging-e2e.yml': 'legacy staging diagnostics only; never Neon acceptance',
+  'neon-staging-routes.yml':
+    'manual main-only reviewed revision, independent staging proof before synthetic credentials, no checkout credentials',
 };
 
 export function checkPreviewCredentials(root, files = trackedFiles(root)) {
@@ -527,6 +529,18 @@ export function checkPreviewCredentials(root, files = trackedFiles(root)) {
         !/^\s*persist-credentials:\s*false\s*$/m.test(text))
     ) {
       findings.push(`${f} must restrict backup secrets to main and discard checkout credentials`);
+    }
+    if (
+      base === 'neon-staging-routes.yml' &&
+      usesSecrets &&
+      (!/^\s*if:\s*github\.ref == 'refs\/heads\/main'\s*$/m.test(text) ||
+        !/^\s*persist-credentials:\s*false\s*$/m.test(text) ||
+        !/^\s*workflow_dispatch\s*:/m.test(text) ||
+        !text.includes('node scripts/check-staging-target.mjs'))
+    ) {
+      findings.push(
+        `${f} must use manual main-only reviewed code, discard checkout credentials and verify staging before login`,
+      );
     }
     if (base === 'database-restore-drill.yml') {
       const allowed = new Set([
