@@ -184,3 +184,10 @@ real branch connection strings and a restore point and calls
 `packages/adapters/src/backfill-protected-fields.ts`'s established
 operational-script shape - a runbook command an operator can run directly,
 not merely a library function requiring a one-off script.
+
+
+## Current operating correction (2026-10-11)
+
+Production uses private R2 storage; database-only encrypted archive recovery is verified, while complete document/key/lifecycle recovery remains open.
+
+Earlier implementation snapshots and provider-specific instructions above are retained as history. For current setup, incident response and availability, use [current operating guidance](current-platform.md). Original acceptance and security targets remain in force; this correction does not mark them complete or authorize migration, production restore, paid activation or sensitive-data intake.

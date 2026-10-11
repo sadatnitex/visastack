@@ -1,5 +1,7 @@
 # Recovery: objectives, what is covered, and the exact restore procedure
 
+> Historical setup and incident guidance. Provider, domain, migration and email-linking instructions below are superseded where they conflict with the latest approved decisions. Start with [current operating guidance](current-platform.md). Historical evidence and original acceptance targets are retained.
+
 Authority: Commercial V1 PRD OPS-02 and directive Part 9 section 12 (prepare), Part 10 section 5
 (perform the drill, acceptance test A30). Incident decisions are in
 [incidents/restore.md](./incidents/restore.md).
@@ -127,3 +129,10 @@ These are not footnotes. Each one needs a decision and an owner before Part 10's
 - The audit chain must verify after any restore. A break is a security incident.
 - A database restore is not a document backup, and a provider's version history is not a rehearsed
   procedure. Say which one you actually used.
+
+
+## Current operating correction (2026-10-11)
+
+Neon Auth is configured for production; legacy WorkOS references do not authorize email-only record linking or claim current staff MFA acceptance. Production uses private R2 storage; database-only encrypted archive recovery is verified, while complete document/key/lifecycle recovery remains open.
+
+Earlier implementation snapshots and provider-specific instructions above are retained as history. For current setup, incident response and availability, use [current operating guidance](current-platform.md). Original acceptance and security targets remain in force; this correction does not mark them complete or authorize migration, production restore, paid activation or sensitive-data intake.

@@ -229,3 +229,10 @@ one in `providers.ts`) is a design smell this PR doesn't resolve — see §4.
   correct design (a public liveness/readiness surface); this PR's fix is
   entirely in *what the route returns*, not in restricting who can view
   `/status`.
+
+
+## Current operating correction (2026-10-11)
+
+Neon Auth is configured for production; legacy WorkOS references do not authorize email-only record linking or claim current staff MFA acceptance.
+
+Earlier implementation snapshots and provider-specific instructions above are retained as history. For current setup, incident response and availability, use [current operating guidance](../operations/current-platform.md). Original acceptance and security targets remain in force; this correction does not mark them complete or authorize migration, production restore, paid activation or sensitive-data intake.

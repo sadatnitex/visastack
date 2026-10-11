@@ -318,3 +318,10 @@ Five real, bounded sub-slices (master directive §26 item 8), not exhaustive com
 10. Deployed authenticated-E2E regression once `WORKOS_STAGING_TEST_EMAIL`/`WORKOS_STAGING_TEST_PASSWORD` secrets are provisioned.
 11. Full app-wide translation beyond this round's wired EN/BN critical path, and a live screen-reader/assistive-tech walkthrough beyond this round's contrast/structure/label audit.
 12. Commercialization PR gate (§22) — after the Pilot-hardening PR, per the master directive's sequence.
+
+
+## Current operating correction (2026-10-11)
+
+Neon Auth is configured for production; legacy WorkOS references do not authorize email-only record linking or claim current staff MFA acceptance. Production uses private R2 storage; database-only encrypted archive recovery is verified, while complete document/key/lifecycle recovery remains open.
+
+Earlier implementation snapshots and provider-specific instructions above are retained as history. For current setup, incident response and availability, use [current operating guidance](../operations/current-platform.md). Original acceptance and security targets remain in force; this correction does not mark them complete or authorize migration, production restore, paid activation or sensitive-data intake.

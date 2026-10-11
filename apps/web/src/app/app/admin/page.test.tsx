@@ -230,3 +230,14 @@ describe('Platform > Operations', () => {
     expect(html).toContain('role="alert"');
   });
 });
+
+it('does not show zero spend or capacity meters when the readings are unavailable', async () => {
+  mocks.getPlatformEvidenceBytes.mockRejectedValue(new Error('synthetic unavailable'));
+  mocks.totalAiCostUnits.mockRejectedValue(new Error('synthetic unavailable'));
+  const html = await renderServer(await Page());
+  expect(textOf(html)).toContain('Evidence storage could not be read');
+  expect(textOf(html)).toContain('AI usage or its limit could not be read');
+  expect(html).not.toContain('meter-fill');
+  expect(textOf(html)).not.toContain('$0.00 of');
+  expect(mocks.collectOperationalSignals.mock.calls[0]?.[1]).not.toHaveProperty('ai');
+});

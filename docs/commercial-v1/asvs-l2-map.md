@@ -58,3 +58,10 @@ recorded in `assumptions-and-blockers.md`, since the only fully-reliable mechani
 session found (WorkOS's environment-wide `mfaEnabled` setting) is broader than the PRD's own
 stated scope (staff-only, not traveller-mandatory), a decision the product owner has since
 made (see the update above).
+
+
+## Current operating correction (2026-10-11)
+
+Neon Auth is configured for production; legacy WorkOS references do not authorize email-only record linking or claim current staff MFA acceptance.
+
+Earlier implementation snapshots and provider-specific instructions above are retained as history. For current setup, incident response and availability, use [current operating guidance](../operations/current-platform.md). Original acceptance and security targets remain in force; this correction does not mark them complete or authorize migration, production restore, paid activation or sensitive-data intake.

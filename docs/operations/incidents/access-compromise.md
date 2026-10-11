@@ -1,5 +1,7 @@
 # An account or session is taken over
 
+> Historical setup and incident guidance. Provider, domain, migration and email-linking instructions below are superseded where they conflict with the latest approved decisions. Start with [current operating guidance](../current-platform.md). Historical evidence and original acceptance targets are retained.
+
 Use this when someone other than the owner may be signed in as a traveller, an agency member
 or a platform administrator, or when the WorkOS dashboard login itself may be in the wrong
 hands. Read [README.md](./README.md) first (roles, severity, evidence, who to tell).
@@ -160,3 +162,10 @@ already hold, not a number in the account).
 Postmortem as in the README. Specific questions: would multi-factor sign-in for staff have stopped
 this, and should it now be enforced? Did anyone notice by themselves, or did the owner report it?
 Is an alert on unusual sign-ins worth setting up in WorkOS?
+
+
+## Current operating correction (2026-10-11)
+
+Neon Auth is configured for production; legacy WorkOS references do not authorize email-only record linking or claim current staff MFA acceptance.
+
+Earlier implementation snapshots and provider-specific instructions above are retained as history. For current setup, incident response and availability, use [current operating guidance](../current-platform.md). Original acceptance and security targets remain in force; this correction does not mark them complete or authorize migration, production restore, paid activation or sensitive-data intake.

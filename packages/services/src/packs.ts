@@ -232,40 +232,49 @@ export async function addRequirement(
   db: Db,
   input: { readonly actorAccountId: string; readonly packVersionId: string } & RequirementInput,
 ): Promise<Result<PackRequirement, ServiceError>> {
-  const version = await loadVersion(db, input.packVersionId);
-  if (!version) return err(serviceError('not_found', 'pack version not found'));
-  if (version.status !== 'DRAFT') {
-    return err(serviceError('invalid', 'requirements can only change while the version is DRAFT'));
-  }
-  if (input.citation.trim().length === 0) {
-    return err(serviceError('invalid', 'every requirement must carry a citation'));
-  }
-  if (input.kind === 'FIELD' && !input.fieldKey) {
-    return err(serviceError('invalid', 'a FIELD requirement needs a fieldKey'));
-  }
-  if (input.kind === 'DOCUMENT' && !input.docType) {
-    return err(serviceError('invalid', 'a DOCUMENT requirement needs a docType'));
-  }
-  if (input.maxAgeDays !== undefined) {
-    if (input.kind !== 'DOCUMENT') {
-      return err(serviceError('invalid', 'maxAgeDays only applies to a DOCUMENT requirement'));
-    }
-    if (!Number.isInteger(input.maxAgeDays) || input.maxAgeDays <= 0) {
-      return err(serviceError('invalid', 'maxAgeDays must be a positive integer'));
-    }
-  }
-  if (input.condition !== undefined && !isValidRuleCondition(input.condition)) {
-    return err(serviceError('invalid', 'condition is not a recognized rule shape'));
-  }
-  if (
-    input.sourceUrl !== undefined &&
-    input.sourceUrl.trim() !== '' &&
-    !isHttpUrl(input.sourceUrl)
-  ) {
-    return err(serviceError('invalid', 'sourceUrl must be an http or https URL'));
-  }
-
   return db.transaction(async (tx) => {
+    const version = first(
+      await tx
+        .select()
+        .from(schema.packVersions)
+        .where(eq(schema.packVersions.id, input.packVersionId))
+        .limit(1)
+        .for('update'),
+    );
+    if (!version) return err(serviceError('not_found', 'pack version not found'));
+    if (version.status !== 'DRAFT') {
+      return err(
+        serviceError('invalid', 'requirements can only change while the version is DRAFT'),
+      );
+    }
+    if (input.citation.trim().length === 0) {
+      return err(serviceError('invalid', 'every requirement must carry a citation'));
+    }
+    if (input.kind === 'FIELD' && !input.fieldKey) {
+      return err(serviceError('invalid', 'a FIELD requirement needs a fieldKey'));
+    }
+    if (input.kind === 'DOCUMENT' && !input.docType) {
+      return err(serviceError('invalid', 'a DOCUMENT requirement needs a docType'));
+    }
+    if (input.maxAgeDays !== undefined) {
+      if (input.kind !== 'DOCUMENT') {
+        return err(serviceError('invalid', 'maxAgeDays only applies to a DOCUMENT requirement'));
+      }
+      if (!Number.isInteger(input.maxAgeDays) || input.maxAgeDays <= 0) {
+        return err(serviceError('invalid', 'maxAgeDays must be a positive integer'));
+      }
+    }
+    if (input.condition !== undefined && !isValidRuleCondition(input.condition)) {
+      return err(serviceError('invalid', 'condition is not a recognized rule shape'));
+    }
+    if (
+      input.sourceUrl !== undefined &&
+      input.sourceUrl.trim() !== '' &&
+      !isHttpUrl(input.sourceUrl)
+    ) {
+      return err(serviceError('invalid', 'sourceUrl must be an http or https URL'));
+    }
+
     const requirement = required(
       first(
         await tx
@@ -313,6 +322,84 @@ export async function addRequirement(
   });
 }
 
+/** Record a human source review only while the version is still a draft. */
+export async function recordRequirementSourceReview(
+  db: Db,
+  input: {
+    readonly actorAccountId: string;
+    readonly requirementId: string;
+    readonly sourceUrl: string;
+    readonly sourceTitle: string;
+    readonly publisher: string;
+    readonly observedDate: Date;
+  },
+): Promise<Result<PackRequirement, ServiceError>> {
+  const now = new Date();
+  if (
+    !isHttpUrl(input.sourceUrl) ||
+    input.sourceUrl.length > 2048 ||
+    !input.sourceTitle.trim() ||
+    input.sourceTitle.length > 240 ||
+    !input.publisher.trim() ||
+    input.publisher.length > 160 ||
+    !Number.isFinite(input.observedDate.getTime()) ||
+    input.observedDate > now
+  ) {
+    return err(
+      serviceError('invalid', 'provide a source link, title, publisher and valid checked date'),
+    );
+  }
+  return db.transaction(async (tx) => {
+    const target = first(
+      await tx
+        .select({ requirement: schema.packRequirements, status: schema.packVersions.status })
+        .from(schema.packRequirements)
+        .innerJoin(
+          schema.packVersions,
+          eq(schema.packVersions.id, schema.packRequirements.packVersionId),
+        )
+        .where(eq(schema.packRequirements.id, input.requirementId))
+        .limit(1)
+        .for('update'),
+    );
+    if (!target) return err(serviceError('not_found', 'requirement not found'));
+    if (target.status !== 'DRAFT')
+      return err(
+        serviceError(
+          'invalid',
+          'source records are frozen after approval; create a new draft version',
+        ),
+      );
+    const updated = required(
+      first(
+        await tx
+          .update(schema.packRequirements)
+          .set({
+            sourceUrl: input.sourceUrl.trim(),
+            sourceTitle: input.sourceTitle.trim(),
+            publisher: input.publisher.trim(),
+            observedDate: input.observedDate,
+            sourceInaccessibleAt: null,
+          })
+          .where(eq(schema.packRequirements.id, input.requirementId))
+          .returning(),
+      ),
+      'requirement',
+    );
+    await appendAuditEvent(tx, {
+      eventType: 'PACK_REQUIREMENT_SOURCE_REVIEWED',
+      actorAccountId: input.actorAccountId,
+      action: 'MANAGE',
+      method: 'MANUAL',
+      result: 'ALLOWED',
+      resourceType: 'pack_version',
+      resourceId: updated.packVersionId,
+      metadata: { requirementId: updated.id, observedDate: input.observedDate.toISOString() },
+    });
+    return ok(updated);
+  });
+}
+
 export async function listRequirements(db: Db, packVersionId: string): Promise<PackRequirement[]> {
   return db
     .select()
@@ -347,6 +434,25 @@ export async function listPackVersions(db: Db, packId: string): Promise<PackVers
   return [...rows].sort((a, b) => b.version - a.version);
 }
 
+// Source records preserve human verification, not an automated legal judgment.
+function sourceRecordsComplete(requirements: readonly PackRequirement[], now: Date): boolean {
+  return (
+    requirements.length > 0 &&
+    !requirements.some(
+      (requirement) =>
+        !requirement.sourceUrl ||
+        !isHttpUrl(requirement.sourceUrl) ||
+        !requirement.sourceTitle?.trim() ||
+        !requirement.publisher?.trim() ||
+        !requirement.citation.trim() ||
+        !requirement.observedDate ||
+        !Number.isFinite(requirement.observedDate.getTime()) ||
+        requirement.observedDate.getTime() > now.getTime() ||
+        requirement.sourceInaccessibleAt !== null,
+    )
+  );
+}
+
 /**
  * Approve a DRAFT version (admin/reviewer action). Freezes the manifest +
  * checksum; the version becomes immutable content.
@@ -370,46 +476,67 @@ export async function approvePackVersion(
     readonly effectiveDate?: Date;
   },
 ): Promise<Result<PackVersion, ServiceError>> {
-  const version = await loadVersion(db, input.packVersionId);
-  if (!version) return err(serviceError('not_found', 'pack version not found'));
-  if (version.status !== 'DRAFT') {
-    return err(serviceError('invalid', 'only a DRAFT version can be approved'));
-  }
-  const requirements = await listRequirements(db, input.packVersionId);
-  if (requirements.length === 0) {
-    return err(serviceError('invalid', 'cannot approve a version with no requirements'));
-  }
-
-  const now = new Date();
-  const defaultNextReview = new Date(
-    now.getTime() + DEFAULT_REVIEW_INTERVAL_DAYS * 24 * 60 * 60 * 1000,
-  );
-  const nextReviewDate = input.nextReviewDate ?? defaultNextReview;
-  if (
-    nextReviewDate.getTime() > defaultNextReview.getTime() &&
-    (input.reviewIntervalReason === undefined || input.reviewIntervalReason.trim().length === 0)
-  ) {
-    return err(
-      serviceError(
-        'invalid',
-        `a next-review date more than ${DEFAULT_REVIEW_INTERVAL_DAYS} days out requires a documented reason`,
-      ),
-    );
-  }
-
-  const pack = await getPack(db, version.packId);
-  if (pack?.authoritative && version.authoredByAccountId === input.actorAccountId) {
-    return err(
-      serviceError(
-        'forbidden',
-        'this pack requires the reviewer to be different from the version author',
-      ),
-    );
-  }
-
-  const { manifest, checksum } = buildManifest(requirements);
-
   return db.transaction(async (tx) => {
+    const version = first(
+      await tx
+        .select()
+        .from(schema.packVersions)
+        .where(eq(schema.packVersions.id, input.packVersionId))
+        .limit(1)
+        .for('update'),
+    );
+    if (!version) return err(serviceError('not_found', 'pack version not found'));
+    if (version.status !== 'DRAFT') {
+      return err(serviceError('invalid', 'only a DRAFT version can be approved'));
+    }
+    const requirements = await listRequirements(tx, input.packVersionId);
+    if (requirements.length === 0) {
+      return err(serviceError('invalid', 'cannot approve a version with no requirements'));
+    }
+
+    const now = new Date();
+    const defaultNextReview = new Date(
+      now.getTime() + DEFAULT_REVIEW_INTERVAL_DAYS * 24 * 60 * 60 * 1000,
+    );
+    const nextReviewDate = input.nextReviewDate ?? defaultNextReview;
+    if (
+      nextReviewDate.getTime() > defaultNextReview.getTime() &&
+      (input.reviewIntervalReason === undefined || input.reviewIntervalReason.trim().length === 0)
+    ) {
+      return err(
+        serviceError(
+          'invalid',
+          `a next-review date more than ${DEFAULT_REVIEW_INTERVAL_DAYS} days out requires a documented reason`,
+        ),
+      );
+    }
+
+    const pack = await getPack(tx, version.packId);
+    if (pack?.authoritative && version.authoredByAccountId === input.actorAccountId) {
+      return err(
+        serviceError(
+          'forbidden',
+          'this pack requires the reviewer to be different from the version author',
+        ),
+      );
+    }
+
+    // Source metadata records human verification; it does not prove legal accuracy.
+    // Custom checklists keep their existing manual approval path.
+    if (pack?.authoritative) {
+      const incomplete = !sourceRecordsComplete(requirements, now);
+      if (incomplete) {
+        return err(
+          serviceError(
+            'invalid',
+            'authoritative requirements need accessible cited sources, publisher and a recorded verification date',
+          ),
+        );
+      }
+    }
+
+    const { manifest, checksum } = buildManifest(requirements);
+
     const updated = required(
       first(
         await tx
@@ -463,12 +590,39 @@ export async function publishPackVersion(
   db: Db,
   input: { readonly actorAccountId: string; readonly packVersionId: string },
 ): Promise<Result<PackVersion, ServiceError>> {
-  const version = await loadVersion(db, input.packVersionId);
-  if (!version) return err(serviceError('not_found', 'pack version not found'));
-  if (version.status !== 'APPROVED') {
-    return err(serviceError('invalid', 'only an APPROVED version can be published'));
-  }
   return db.transaction(async (tx) => {
+    const version = first(
+      await tx
+        .select()
+        .from(schema.packVersions)
+        .where(eq(schema.packVersions.id, input.packVersionId))
+        .limit(1)
+        .for('update'),
+    );
+    if (!version) return err(serviceError('not_found', 'pack version not found'));
+    if (version.status !== 'APPROVED') {
+      return err(serviceError('invalid', 'only an APPROVED version can be published'));
+    }
+    const pack = await getPack(tx, version.packId);
+    if (pack?.authoritative) {
+      const now = new Date();
+      const requirements = await listRequirements(tx, version.id);
+      if (
+        !version.approvedByAccountId ||
+        !version.approvedAt ||
+        version.approvedByAccountId === version.authoredByAccountId ||
+        !version.nextReviewDate ||
+        version.nextReviewDate <= now ||
+        !sourceRecordsComplete(requirements, now)
+      ) {
+        return err(
+          serviceError(
+            'invalid',
+            'official sources need a current, separate review before publication',
+          ),
+        );
+      }
+    }
     const now = new Date();
     const updated = required(
       first(

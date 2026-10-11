@@ -165,3 +165,10 @@ Full evidence log: `known-issues.md` (chunks 45 to 48 are the latest). Headline 
 1. Appoint the incident owner, rules owner and reviewer, privacy owner and support contact, and set the price. Nothing else can be attested without people.
 2. Commission the independent security review and approve a Neon test branch, funding document backup and key escrow, so the recovery drill and the review can finally run.
 3. Create the two staging test identities and the agency fixture, so the 15 customer journeys can be run for real.
+
+
+## Current operating correction (2026-10-11)
+
+Neon Auth is configured for production; legacy WorkOS references do not authorize email-only record linking or claim current staff MFA acceptance.
+
+Earlier implementation snapshots and provider-specific instructions above are retained as history. For current setup, incident response and availability, use [current operating guidance](../operations/current-platform.md). Original acceptance and security targets remain in force; this correction does not mark them complete or authorize migration, production restore, paid activation or sensitive-data intake.

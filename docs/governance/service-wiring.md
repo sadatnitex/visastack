@@ -1,5 +1,7 @@
 # Service Wiring (Neon, WorkOS) — required manual steps
 
+> Historical setup and incident guidance. Provider, domain, migration and email-linking instructions below are superseded where they conflict with the latest approved decisions. Start with [current operating guidance](../operations/current-platform.md). Historical evidence and original acceptance targets are retained.
+
 The app reads these at runtime from the Vercel environment. Connecting Neon
 and WorkOS at the account level does **not** by itself place their variables
 into this project's runtime — they must be present on the `visastack` Vercel
@@ -58,3 +60,10 @@ Either way, `GET /api/health/ready` should then report `db.schemaApplied: true`.
 
 - Preview URL: `…-git-<branch>-…vercel.app/api/health/ready` → full breakdown.
 - Production: `/api/health/ready` → `{ "status": "ready" }` when fully wired.
+
+
+## Current operating correction (2026-10-11)
+
+Neon Auth is configured for production; legacy WorkOS references do not authorize email-only record linking or claim current staff MFA acceptance.
+
+Earlier implementation snapshots and provider-specific instructions above are retained as history. For current setup, incident response and availability, use [current operating guidance](../operations/current-platform.md). Original acceptance and security targets remain in force; this correction does not mark them complete or authorize migration, production restore, paid activation or sensitive-data intake.

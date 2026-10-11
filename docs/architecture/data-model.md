@@ -86,3 +86,10 @@ store (Build Spec §15); Drizzle ORM with reviewed, reversible migrations.
 4. A `StorageObject` key never changes on rename.
 5. Row/object authorization is enforced in the service layer for every
    resource and tested for cross-tenant isolation.
+
+
+## Current operating correction (2026-10-11)
+
+Neon Auth is configured for production; legacy WorkOS references do not authorize email-only record linking or claim current staff MFA acceptance.
+
+Earlier implementation snapshots and provider-specific instructions above are retained as history. For current setup, incident response and availability, use [current operating guidance](../operations/current-platform.md). Original acceptance and security targets remain in force; this correction does not mark them complete or authorize migration, production restore, paid activation or sensitive-data intake.

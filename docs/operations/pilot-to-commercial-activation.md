@@ -1,5 +1,7 @@
 # Pilot-to-commercial activation (PR 11)
 
+> Historical setup and incident guidance. Provider, domain, migration and email-linking instructions below are superseded where they conflict with the latest approved decisions. Start with [current operating guidance](current-platform.md). Historical evidence and original acceptance targets are retained.
+
 Authority: `docs/roadmap/commercial-recovery-completion-ux-directive.md` §7 "PR
 11 — Commercial activation framework."
 
@@ -117,3 +119,10 @@ privacy notice (§3's `termsAndPrivacyNotice` gate), the pentest engagement,
 the legal/compliance review, or the `MalwareScannerPort` adapter's
 implementation. Each is real, separate work the gates above name but do not
 perform.
+
+
+## Current operating correction (2026-10-11)
+
+Neon Auth is configured for production; legacy WorkOS references do not authorize email-only record linking or claim current staff MFA acceptance. Production uses private R2 storage; database-only encrypted archive recovery is verified, while complete document/key/lifecycle recovery remains open.
+
+Earlier implementation snapshots and provider-specific instructions above are retained as history. For current setup, incident response and availability, use [current operating guidance](current-platform.md). Original acceptance and security targets remain in force; this correction does not mark them complete or authorize migration, production restore, paid activation or sensitive-data intake.

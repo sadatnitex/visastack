@@ -18,3 +18,10 @@ No production migrations, key rotation, paid upgrades, emails or signup resets w
 A supplemental cloud configuration draft was saved successfully on 2026-10-10. It adds api.github.com, cdn.playwright.dev and visastack-five.vercel.app to the five existing explicit destinations, preserving those destinations and the package-manager preset. Startup instructions now distinguish the built catalog failure and the unexecuted browser checks. Installation commands and secret bindings were not changed. User publication is still required; these blocked operations have not been retried or verified under the new policy.
 
 Owner standing instruction (2026-10-10): keep Neon projects below the reported ten-branch limit, with at most nine retained branches. Proactively remove confirmed unused branches after checking production, active deployments, open work, database/auth references, branch dependencies and recovery requirements. Protect working branches; capacity pressure does not authorize breaking them. Current cloud tools expose no Neon management API and no Neon management credential is present. Branch count and deletion eligibility cannot be verified here; no Neon branch was deleted. Database and Neon Auth connectivity do not confer branch-management access.
+
+
+## 2026-10-11 consolidated continuation
+
+The unpooled backup connection has been updated by the owner, and actual isolated database restore run 38128672220 passed. Those narrower database-backup setup questions are resolved; do not repeat them as outstanding credentials requests. Complete files/keys/lifecycle recovery remains open.
+
+See RELEASE-ACCEPTANCE-CHECKPOINT.md for remaining owner/provider evidence and PROVIDER-COST-REGISTER.md for measured-versus-missing capacity. Actual staging fixture/inbox acceptance, application mail delivery settings and receipts, optional scheduler management access/limits, maintained source sign-off, AI privacy/provider acceptance, document/key recovery, legal/privacy review and final release classification remain required. No secrets should be pasted into chat or documentation.

@@ -67,3 +67,10 @@ These are kept apart on purpose. A degraded mode at runtime never means a launch
 3. Commission a qualified legal review of terms, privacy notice and consent wording.
 4. Open business accounts with the AI providers, the email provider and a scanner host; record the data terms with a date and an approver.
 5. Confirm in the dashboards that every account is held by the VisaStack entity and has a second administrator.
+
+
+## Current operating correction (2026-10-11)
+
+Neon Auth is configured for production; legacy WorkOS references do not authorize email-only record linking or claim current staff MFA acceptance. Production uses private R2 storage; database-only encrypted archive recovery is verified, while complete document/key/lifecycle recovery remains open.
+
+Earlier implementation snapshots and provider-specific instructions above are retained as history. For current setup, incident response and availability, use [current operating guidance](../operations/current-platform.md). Original acceptance and security targets remain in force; this correction does not mark them complete or authorize migration, production restore, paid activation or sensitive-data intake.

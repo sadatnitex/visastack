@@ -171,3 +171,10 @@ purpose and time — and revoke future access at any time.
 6. **Launch:** closed Travel Router pilot → selected agencies → public travelers only after benchmarks, recovery and external security gates pass.
 
 **Definition of done:** implemented, tested, documented, observable, supportable, reversible and proven against acceptance criteria — not merely deployed.
+
+
+## Current operating correction (2026-10-11)
+
+Neon Auth is configured for production; legacy WorkOS references do not authorize email-only record linking or claim current staff MFA acceptance.
+
+Earlier implementation snapshots and provider-specific instructions above are retained as history. For current setup, incident response and availability, use [current operating guidance](../operations/current-platform.md). Original acceptance and security targets remain in force; this correction does not mark them complete or authorize migration, production restore, paid activation or sensitive-data intake.

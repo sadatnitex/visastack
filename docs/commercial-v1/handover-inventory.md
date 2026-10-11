@@ -37,3 +37,10 @@ Written 2026-10-06. Code: `a27cefb8bd40e0f766870309b02a848c1917307d`. For every 
 ## Test for "no critical system hangs on one person's account"
 
 FAIL. Source code, hosting, database, files, identity and the master key each sit in accounts whose ownership or second administrator is not confirmed, and the master key has no escrow. This is a launch blocker, listed in the final report.
+
+
+## Current operating correction (2026-10-11)
+
+Neon Auth is configured for production; legacy WorkOS references do not authorize email-only record linking or claim current staff MFA acceptance. Production uses private R2 storage; database-only encrypted archive recovery is verified, while complete document/key/lifecycle recovery remains open. Use https://vs.obsidianglobal.studio for the canonical production custom domain; verify preview aliases against their exact deployment.
+
+Earlier implementation snapshots and provider-specific instructions above are retained as history. For current setup, incident response and availability, use [current operating guidance](../operations/current-platform.md). Original acceptance and security targets remain in force; this correction does not mark them complete or authorize migration, production restore, paid activation or sensitive-data intake.

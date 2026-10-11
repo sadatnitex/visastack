@@ -74,3 +74,10 @@ closes). `packages/services/src/documents.test.ts` covers the serving-
 boundary gate. Re-run on every change to `packages/adapters/src/{scanner,
 docx-validation,zip-structure}.ts`, `packages/services/src/{documents,
 intake}.ts`, or `apps/web/src/app/api/blob/[key]/*`.
+
+
+## Current operating correction (2026-10-11)
+
+Production uses private R2 storage; database-only encrypted archive recovery is verified, while complete document/key/lifecycle recovery remains open.
+
+Earlier implementation snapshots and provider-specific instructions above are retained as history. For current setup, incident response and availability, use [current operating guidance](../operations/current-platform.md). Original acceptance and security targets remain in force; this correction does not mark them complete or authorize migration, production restore, paid activation or sensitive-data intake.

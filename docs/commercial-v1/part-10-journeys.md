@@ -30,3 +30,10 @@ Environment for the one live check: production (`visastack-five.vercel.app`), de
 2. Create the staging agency fixture (Agency A verified, the second identity a non-admin member, one assigned and one unassigned applicant) and set the four `E2E_AGENCY_*` repository variables.
 3. Dispatch `WorkOS Staging E2E (authenticated)` by hand on main, or let it run on a Production deployment. Then record, per journey: deployed commit, identities, fixture id, steps, result, the Playwright report artifact, and the failure-path result.
 4. A platform administrator identity and a published route are also needed for J02, J12, J13 and J15.
+
+
+## Current operating correction (2026-10-11)
+
+Neon Auth is configured for production; legacy WorkOS references do not authorize email-only record linking or claim current staff MFA acceptance.
+
+Earlier implementation snapshots and provider-specific instructions above are retained as history. For current setup, incident response and availability, use [current operating guidance](../operations/current-platform.md). Original acceptance and security targets remain in force; this correction does not mark them complete or authorize migration, production restore, paid activation or sensitive-data intake.

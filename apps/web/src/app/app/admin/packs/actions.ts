@@ -11,6 +11,7 @@ import {
   markRequirementSourceInaccessible,
   publishPackVersion,
   publishToPublicTrust,
+  recordRequirementSourceReview,
   setDocumentExpiryPolicy,
   setPublicTrustContent,
   unpublishFromPublicTrust,
@@ -110,6 +111,23 @@ export async function addRequirementAction(
   const key = String(formData.get('key') ?? '').trim();
   const citation = String(formData.get('citation') ?? '').trim();
   const optional = String(formData.get('optional') ?? '') === 'on';
+  const sourceUrl = String(formData.get('sourceUrl') ?? '').trim();
+  const sourceTitle = String(formData.get('sourceTitle') ?? '').trim();
+  const publisher = String(formData.get('publisher') ?? '').trim();
+  const observedRaw = String(formData.get('observedDate') ?? '').trim();
+  const observedDate = observedRaw ? new Date(observedRaw) : undefined;
+  if (
+    observedDate &&
+    (!/^\d{4}-\d{2}-\d{2}$/.test(observedRaw) ||
+      !Number.isFinite(observedDate.getTime()) ||
+      observedDate.toISOString().slice(0, 10) !== observedRaw ||
+      observedDate.getTime() > Date.now())
+  ) {
+    return {
+      ok: false,
+      message: 'Enter a valid date when the source was checked, no later than today.',
+    };
+  }
   const maxAgeDaysRaw = String(formData.get('maxAgeDays') ?? '').trim();
   if (key.length === 0) {
     return {
@@ -136,10 +154,53 @@ export async function addRequirementAction(
       ...(kind === 'FIELD' ? { fieldKey: key } : { docType: key }),
       citation,
       optional,
+      ...(sourceUrl ? { sourceUrl } : {}),
+      ...(sourceTitle ? { sourceTitle } : {}),
+      ...(publisher ? { publisher } : {}),
+      ...(observedDate ? { observedDate } : {}),
       ...(maxAgeDays !== undefined ? { maxAgeDays } : {}),
     });
     if (!added.ok) return { ok: false, message: added.error.message } satisfies ActionState;
     return { ok: true, message: 'Requirement added.' } satisfies ActionState;
+  });
+  if (result.ok) revalidatePath(`/app/admin/packs/${packId}`);
+  return result;
+}
+
+/** Save a draft requirement source record through the existing Pack Studio permission. */
+export async function recordRequirementSourceReviewAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const requirementId = String(formData.get('requirementId') ?? '').trim();
+  const packId = String(formData.get('packId') ?? '').trim();
+  const sourceUrl = String(formData.get('sourceUrl') ?? '').trim();
+  const sourceTitle = String(formData.get('sourceTitle') ?? '').trim();
+  const publisher = String(formData.get('publisher') ?? '').trim();
+  const observedRaw = String(formData.get('observedDate') ?? '').trim();
+  const observedDate = new Date(observedRaw);
+  if (
+    !requirementId ||
+    !/^\d{4}-\d{2}-\d{2}$/.test(observedRaw) ||
+    !Number.isFinite(observedDate.getTime()) ||
+    observedDate.toISOString().slice(0, 10) !== observedRaw ||
+    observedDate.getTime() > Date.now()
+  ) {
+    return { ok: false, message: 'Enter a valid source checked date, no later than today.' };
+  }
+  const result = await withSession(async ({ db, accountId, email }) => {
+    if (!(await hasPlatformPermission(db, { accountId, email }, 'PACK_MANAGE'))) return DENIED;
+    const saved = await recordRequirementSourceReview(db, {
+      actorAccountId: accountId,
+      requirementId,
+      sourceUrl,
+      sourceTitle,
+      publisher,
+      observedDate,
+    });
+    return saved.ok
+      ? { ok: true, message: 'Source review saved. Official packs still need separate approval.' }
+      : { ok: false, message: saved.error.message };
   });
   if (result.ok) revalidatePath(`/app/admin/packs/${packId}`);
   return result;

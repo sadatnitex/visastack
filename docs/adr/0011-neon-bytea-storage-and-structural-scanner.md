@@ -63,3 +63,10 @@ already in place (Vercel + Neon).
 - **Vercel Blob** — viable and better for large files, but the operator chose
   Neon-bytea to avoid enabling any additional Vercel feature; Blob remains a
   drop-in `BlobStore` if that changes.
+
+
+## Current operating correction (2026-10-11)
+
+Production uses private R2 storage; database-only encrypted archive recovery is verified, while complete document/key/lifecycle recovery remains open.
+
+Earlier implementation snapshots and provider-specific instructions above are retained as history. For current setup, incident response and availability, use [current operating guidance](../operations/current-platform.md). Original acceptance and security targets remain in force; this correction does not mark them complete or authorize migration, production restore, paid activation or sensitive-data intake.

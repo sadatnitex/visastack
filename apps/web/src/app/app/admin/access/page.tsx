@@ -58,8 +58,8 @@ export default async function AdminAccessPage() {
             <p className="card-kicker">Identity</p>
             <h2 className="card-title">Platform roles</h2>
             <p className="card-body" style={{ marginBottom: '1rem' }}>
-              Replaces the old ADMIN_EMAILS allowlist. A grant is never deleted, only revoked, so
-              the full history of who held what and why is always reconstructable.
+              Platform roles determine who can manage the service. Role history is retained when
+              access is revoked.
             </p>
             {data.roles.length === 0 ? (
               <p className="card-body" style={{ marginBottom: '1.25rem' }}>
@@ -172,11 +172,11 @@ export default async function AdminAccessPage() {
           {data.unboundAccounts.length > 0 ? (
             <article className="card" style={{ marginBottom: '1.5rem' }}>
               <p className="card-kicker">Identity</p>
-              <h2 className="card-title">Accounts awaiting WorkOS identity binding</h2>
+              <h2 className="card-title">Legacy sign-in references</h2>
               <p className="card-body" style={{ marginBottom: '1rem' }}>
-                Read-only migration report - resolves itself the moment each owner next signs in.
-                The
-                <code>workos_user_id</code> column becomes required only once this list is empty.
+                This report tracks the older sign-in system. A Neon Auth account can appear here
+                even when its current sign-in works. This list does not grant access or transfer
+                account records.
               </p>
               <div className="rows">
                 {data.unboundAccounts.map((a) => (

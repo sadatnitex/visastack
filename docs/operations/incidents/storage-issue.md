@@ -1,5 +1,7 @@
 # Object storage fails, or stored files go missing
 
+> Historical setup and incident guidance. Provider, domain, migration and email-linking instructions below are superseded where they conflict with the latest approved decisions. Start with [current operating guidance](../current-platform.md). Historical evidence and original acceptance targets are retained.
+
 Read [README.md](./README.md) first. "Storage" here means the place document bytes live. In
 production that is Vercel Private Blob (the app refuses to run uploads without
 `BLOB_READ_WRITE_TOKEN`, and the readiness check reports `documentUpload: available` only when the
@@ -122,3 +124,10 @@ Postmortem as in the README. The standing question for this scenario: what would
 every file had gone? Record the decision on an independent document backup (a second store, with
 version history and deletion protection, and a restore that has actually been rehearsed) and who owns
 it. Until that exists, this page cannot honestly say recovery is possible.
+
+
+## Current operating correction (2026-10-11)
+
+Production uses private R2 storage; database-only encrypted archive recovery is verified, while complete document/key/lifecycle recovery remains open.
+
+Earlier implementation snapshots and provider-specific instructions above are retained as history. For current setup, incident response and availability, use [current operating guidance](../current-platform.md). Original acceptance and security targets remain in force; this correction does not mark them complete or authorize migration, production restore, paid activation or sensitive-data intake.

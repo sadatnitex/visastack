@@ -506,3 +506,10 @@ Repository findings are pinned to the reviewed commit. The links below support t
 - [Authenticated E2E source](https://github.com/sadatnitex/visastack/blob/2cb47e0ac91e8ce323956aff607bae9cd343e5a0/apps/web/e2e/authenticated-workspace.spec.ts) — implemented cases plus eight skipped placeholders.
 - [Recovery document](https://github.com/sadatnitex/visastack/blob/2cb47e0ac91e8ce323956aff607bae9cd343e5a0/docs/operations/recovery.md) — historical recovery assumptions requiring reconciliation.
 - [Integration and cleanup directive](https://github.com/sadatnitex/visastack/blob/2cb47e0ac91e8ce323956aff607bae9cd343e5a0/docs/governance/integration-and-cleanup-directive.md) — preserve canonical implementations and applied migrations.
+
+
+## Current operating correction (2026-10-11)
+
+Neon Auth is configured for production; legacy WorkOS references do not authorize email-only record linking or claim current staff MFA acceptance. Production uses private R2 storage; database-only encrypted archive recovery is verified, while complete document/key/lifecycle recovery remains open.
+
+Earlier implementation snapshots and provider-specific instructions above are retained as history. For current setup, incident response and availability, use [current operating guidance](../operations/current-platform.md). Original acceptance and security targets remain in force; this correction does not mark them complete or authorize migration, production restore, paid activation or sensitive-data intake.

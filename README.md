@@ -6,41 +6,9 @@ through a governed, AI-assisted workflow - with an equivalent **no-AI manual
 path**. Applicants own their data; agencies get exactly the access they are
 granted, and every action is authorized, consent-gated, and audited.
 
-> **Status: VisaStack Controlled Pilot - internal and synthetic-data testing
-> only.** Not a commercial launch. The repository is mid-way through the
-> **VisaStack Commercial V1** implementation programme
-> ([`docs/roadmap/commercial-v1-implementation-directive.md`](docs/roadmap/commercial-v1-implementation-directive.md),
-> 10 parts): the software work is in place (Bangla translation is deferred by
-> the owner) and the release gate has been run. **Verdict on 2026-10-06: code complete,
-> commercial launch blocked** - see
-> [`docs/commercial-v1/final-report.md`](docs/commercial-v1/final-report.md)
-> and [`docs/commercial-v1/release-gate.md`](docs/commercial-v1/release-gate.md).
-> What blocks launch is mostly people and outside parties (independent
-> security review, restore rehearsal, published rules, live scanner, email and
-> AI accounts, named owners, legal review, price), not missing screens. The governing product contract is
-> [`docs/product/commercial-v1-prd-2026-09-16.md`](docs/product/commercial-v1-prd-2026-09-16.md)
-> plus the Build Specification; a feature is not "complete" until it is
-> verified end-to-end, not merely built. For the live, per-requirement
-> status and every implementation decision's own reasoning, see
-> [`docs/commercial-v1/requirements-ledger.md`](docs/commercial-v1/requirements-ledger.md)
-> and
-> [`docs/commercial-v1/known-issues.md`](docs/commercial-v1/known-issues.md) -
-> both are updated in the same PR as the work they describe, so they never
-> go stale the way a snapshot in this README would. The pre-Commercial-V1
-> audits below remain as point-in-time snapshots each was written from - see
-> the superseded notice at the top of each:
-> [`docs/audits/final-programme-verdict.md`](docs/audits/final-programme-verdict.md),
-> [`docs/audits/post-programme-defect-register.md`](docs/audits/post-programme-defect-register.md),
-> [`docs/audits/current-product-baseline.md`](docs/audits/current-product-baseline.md),
-> [`docs/audits/commercial-readiness-recovery-baseline.md`](docs/audits/commercial-readiness-recovery-baseline.md).
->
-> **Status legend used throughout this README and the linked audits:**
-> **Implemented** (built, not yet independently verified) ·
-> **Pilot verified** (exercised against the real controlled-pilot
-> deployment) · **Provider-unconfigured** (built, waiting on a credential/
-> provider that isn't provisioned) · **Commercial blocker** (must be closed
-> before commercial mode can activate) ·
-> **Commercially verified** (not yet true for anything in this repository).
+> **Current status (2026-10-11): controlled pilot, synthetic data only; public sensitive-data beta remains BETA_BLOCKED.**
+> Current configuration uses Neon Auth, Neon Postgres, private Cloudflare R2 storage and separate Resend authentication/application mail paths. Public-beta PR-01 through PR-09 acceptance is still being completed. A successful database-only restore does not establish complete disaster recovery.
+> Start with [current operating guidance](docs/operations/current-platform.md), [the product contract](docs/public-beta/PRODUCT-CONTRACT.md), [deployment actions](docs/public-beta/DEPLOYMENT-ACTIONS.md) and [release acceptance](docs/public-beta/RELEASE-ACCEPTANCE-CHECKPOINT.md). The Commercial V1 ledger, historical reports and original acceptance targets remain evidence; older code-complete/provider-default snapshots are not a current launch verdict.
 
 ## What's implemented
 
@@ -52,7 +20,7 @@ granted, and every action is authorized, consent-gated, and audited.
 | Area | Capability |
 | --- | --- |
 | **Applicant Core** | Accounts, six separately-revocable consent purposes (core processing / AI extraction / AI OCR / sharing / marketing / issuer contact), applicant + family + guarded-minor records, and a Master Profile whose every value is an immutable, atomically-approved `FactVersion` (no silent mutation). Full account data export (JSON/CSV) and consent-gated, legal-hold-aware deletion. |
-| **Document Vault** | Private storage keyed by opaque object IDs (never the filename); permission-aware access with step-up before original bytes are released. `VercelPrivateBlobStorage` is the active production backend when `BLOB_READ_WRITE_TOKEN` is configured; `NeonBlobStorage` (bytea in Postgres, reduced-control) is the local dev/test/PR-preview fallback only. Malware scanning is a real `ScannerPort`: the built-in structural scanner by default, or a real ClamAV adapter (`packages/adapters/src/clamav-scanner.ts`) when `MALWARE_SCANNER_PROVIDER=clamav` is configured - the same "implemented and wired, provider-selectable" pattern the AI Gateway uses. |
+| **Document Vault** | Private R2 storage keyed by opaque object IDs, with permission-aware original access and existing step-up checks. Vercel/Neon adapters remain compatible alternatives. Structural checks validate file types but are not antivirus; the existing ClamAV and github_clamav paths require their actual scanner/processing acceptance. |
 | **Document Intelligence / AI Gateway** | Deterministic passport-MRZ (TD3) parsing, embedded PDF/DOCX/TXT/MD text extraction, and rules-based document classification run first and always. A provider-agnostic `AiExtractionPort` behind an **admin-managed, DB-backed configuration console** (`/app/admin/ai-settings`) now has real adapters for **OpenAI, Anthropic, and Google Gemini** - every configuration is an immutable, versioned snapshot (DRAFT → ACTIVE → SUPERSEDED/DISABLED) with an encrypted API key, a reviewed-data-policy attestation, durable per-document/platform cost budgets, a kill switch, a synthetic connection test, and a 13-case evaluation harness run before activation. A separate `AiOcrPort` (its own consent purpose, its own privacy posture - raw image bytes, not text) has a baseline OpenAI adapter, a "Run OCR" trigger on the document page, and review-issue display (low quality / ambiguous date / unsupported script / missing text); it shares the same platform-wide budget ledger as text extraction and its own attempt cap. Anthropic/Gemini OCR adapters are the one piece of this row not yet built. The AI Gateway only ever **proposes** fields - a human approves, nothing is written silently. |
 | **Missions & Packs** | Cited, versioned, checksummed requirement packs (Pack Studio); parallel mission workspaces; a rules engine driving readiness as **completeness only** (never an approval probability); reviewer state machine; immutable, checksummed snapshots. |
 | **Agencies & Sharing** | Organization verification (no self-upgrade); scoped, accepted, time-limited, revocable grants; access transparency; agency case collaboration (assignments, notes, evidence requests) and bulk export. |
@@ -114,7 +82,7 @@ operation is policy-authorized, consent-gated where required, and audited
 atomically - it accepts a transaction-capable `Db` handle and never constructs a
 client (see [ADR-0009](docs/adr/0009-service-layer-transactional-driver.md)).
 The **adapters** package supplies concrete infrastructure behind the service
-ports: blob storage (Vercel/Neon), malware scanning (structural/ClamAV), and
+ports: blob storage (R2/Vercel/Neon), malware scanning (structural/ClamAV), and
 the multi-provider AI Gateway (OpenAI/Anthropic/Gemini extraction, OpenAI OCR)
 - each swappable without a domain change
 ([ADR-0011](docs/adr/0011-neon-bytea-storage-and-structural-scanner.md)). The
@@ -128,8 +96,8 @@ Everything external is injected behind an interface, so upgrades are edge-only:
 
 | Port | Pilot default | Local dev/test/PR-preview fallback | Real swap-in, already in-repo |
 | --- | --- | --- | --- |
-| `StoragePort` / `BlobStore` | `VercelPrivateBlobStorage` (real private access, signed `/api/blob/[key]` serving) - active when `BLOB_READ_WRITE_TOKEN` is set | `NeonBlobStorage` (bytea in Postgres) - reduced-control; a real deployment without the token fails closed instead of using this | An S3-compatible provider, for customer-managed keys/region requirements |
-| `ScannerPort` / `MalwareScannerPort` | `BasicSafetyScanner` (magic-byte allow-list + size limits) - **structural validation only, not antivirus** | same | `ClamAvScanner` - a real malware-scanning engine, selected via `MALWARE_SCANNER_PROVIDER=clamav` |
+| `StoragePort` / `BlobStore` | Current production: private R2 through the S3-compatible adapter | Alternate private Vercel and reduced-control Neon adapters according to explicit compatible provider selection; do not silently substitute them for production R2 | Retain private access and the object-key contract on upgrades |
+| `ScannerPort` / `MalwareScannerPort` | Configured scanner path; actual malware and lifecycle acceptance remains required | `BasicSafetyScanner` is structural validation only, not antivirus | Existing `clamav` and `github_clamav` paths behind the same boundary |
 | `AiExtractionPort` | Admin-selected, DB-configured `OpenAiExtractionAdapter` / `AnthropicExtractionAdapter` / `GeminiExtractionAdapter` - versioned, encrypted, budget- and kill-switch-governed | *(manual path - no AI required; the app is fully usable without it)* | Another model provider, behind the same port |
 | `AiOcrPort` | `OpenAiOcrAdapter` - wired to a manual "Run OCR" trigger on the document page, sharing text extraction's budget ledger | *(manual path - no OCR required)* | Anthropic/Gemini OCR adapters (tracked in `known-issues.md`) |
 
@@ -146,8 +114,7 @@ registry (`packages/core/src/deployment-mode.ts`,
 `apps/web/src/lib/capabilities.ts`) reports the real, current state
 (`available` / `degraded` / `disabled` / `unconfigured`) of every
 user-facing capability - the client never decides this. `GET
-/api/health/ready` always includes the current `deploymentMode` and the full
-registry, so it's independently checkable, not merely a written claim. Full
+/api/health/ready` exposes coarse readiness and platform states on deployed builds. Detailed configuration and operational diagnostics require the protected administrator dashboard. Full
 rationale and the exact controlled-pilot values:
 [`docs/audits/commercial-readiness-recovery-baseline.md`](docs/audits/commercial-readiness-recovery-baseline.md)§12
 · governing directive:
@@ -155,26 +122,27 @@ rationale and the exact controlled-pilot values:
 
 ## Environment variables
 
-Set these in Vercel (Production + Preview). The app reports *presence*, never
-values, on `/api/health/ready`.
+Set values separately for Production and the intended Preview scope. Public readiness never exposes secret values or detailed provider configuration. Use the protected administrator dashboard and current operating guide for diagnosis.
 
 | Variable | Purpose | Required for |
 | --- | --- | --- |
 | `DATABASE_URL` (or `POSTGRES_URL`, …) | Neon connection string | database + migrations |
-| `BLOB_READ_WRITE_TOKEN` | Vercel Blob private storage | production document storage (falls back to Neon-bytea when unset, non-production only) |
+| `STORAGE_PROVIDER=r2`, `R2_ENDPOINT_URL`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_REGION` | Configured private R2 document storage | current production storage; region defaults to auto and EU jurisdiction uses the EU account endpoint |
+| `BLOB_READ_WRITE_TOKEN` | Alternate Vercel private storage adapter | only an explicitly selected compatible deployment |
 | `BLOB_SIGNING_SECRET` | HMAC secret for signed blob URLs | document serving via the Neon-bytea fallback |
-| `WORKOS_API_KEY` / `WORKOS_CLIENT_ID` / `WORKOS_COOKIE_PASSWORD` | WorkOS AuthKit | the login flow |
-| `MALWARE_SCANNER_PROVIDER` (+ `CLAMAV_SOCKET_PATH` or `CLAMAV_HOST`/`CLAMAV_PORT`) | Selects `builtin` (default) or `clamav` | real malware scanning |
+| `IDENTITY_PROVIDER=neon_auth`, `NEON_AUTH_BASE_URL`, `NEON_AUTH_COOKIE_SECRET` | Configured Neon Auth sign-in | current production authentication; explicit legacy WorkOS deployments retain their own settings |
+| `EMAIL_PROVIDER=resend`, `RESEND_API_KEY`, `RESEND_FROM_ADDRESS`, `RESEND_WEBHOOK_SECRET` | Application email and signed delivery reconciliation | separate from Neon Auth SMTP |
+| `PROTECTED_FIELDS_PGCRYPTO=required` and existing application key settings | Native protected-field encryption writes | key recovery/rotation acceptance is still required |
+| `MALWARE_SCANNER_PROVIDER` (+ `CLAMAV_SOCKET_PATH` or `CLAMAV_HOST`/`CLAMAV_PORT`) | Selects the configured structural or actual scanner path, including `clamav` and `github_clamav` | real malware scanning |
 | `AI_ENABLED`, `OPENAI_API_KEY` (+ `ANTHROPIC_API_KEY`, `GEMINI_API_KEY` once those adapters are selected) | Env-based AI Gateway fallback | only the initial bootstrap before any admin-console AI provider configuration exists - once one is `ACTIVE`, the DB-backed, encrypted config in `/app/admin/ai-settings` is authoritative and these are ignored |
 
-Migrations run automatically at build time on Vercel (`pnpm --filter
-@visastack/db db:migrate && next build`).
+The current application build is `next build`. Production migrations require specific authorization and the reviewed migration workflow; a deployment does not authorize or run them automatically. See [current operating guidance](docs/operations/current-platform.md).
 
 ## Quickstart
 
 ```bash
 pnpm install
-pnpm run check          # lint + typecheck + test - 1,570+ tests, in-memory PGlite, no DB needed
+pnpm run check          # lint + typecheck + test with isolated synthetic fixtures
 pnpm run build          # build the workspace
 ```
 

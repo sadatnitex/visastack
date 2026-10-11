@@ -6,6 +6,7 @@ import {
   type ActionState,
   addRequirementAction,
   createPackAction,
+  recordRequirementSourceReviewAction,
   setDocumentExpiryPolicyAction,
   setPublicTrustContentAction,
   verifyChecksumAction,
@@ -149,6 +150,29 @@ export function AddRequirementForm({
           placeholder="Source rule / URL - required"
         />
       </div>
+      <p className="muted">
+        Official requirement packs need a source link, title, publisher and checked date before
+        approval. Custom checklists keep the manual approval path.
+      </p>
+      {[
+        { name: 'sourceUrl', label: 'Source link', type: 'url', maxLength: 2048 },
+        { name: 'sourceTitle', label: 'Source title', type: 'text', maxLength: 240 },
+        { name: 'publisher', label: 'Publisher', type: 'text', maxLength: 160 },
+        { name: 'observedDate', label: 'Date source checked', type: 'date', maxLength: 10 },
+      ].map((field) => (
+        <div className="field-row" key={field.name}>
+          <label className="field-label" htmlFor={field.name}>
+            {field.label}
+          </label>
+          <input
+            id={field.name}
+            name={field.name}
+            type={field.type}
+            className="input"
+            maxLength={field.maxLength}
+          />
+        </div>
+      ))}
       <div className="field-row">
         <label className="field-label" htmlFor="maxAgeDays">
           Max age in days (document only)
@@ -172,6 +196,88 @@ export function AddRequirementForm({
           pending={pending}
           idle="Add requirement"
           busy="Adding…"
+          className="btn btn-secondary"
+        />
+        <FormMessage result={state} />
+      </div>
+    </form>
+  );
+}
+
+export function RequirementSourceReviewForm({
+  packId,
+  requirementId,
+  sourceUrl,
+  sourceTitle,
+  publisher,
+  observedDate,
+}: {
+  readonly packId: string;
+  readonly requirementId: string;
+  readonly sourceUrl: string | null;
+  readonly sourceTitle: string | null;
+  readonly publisher: string | null;
+  readonly observedDate: string;
+}) {
+  const [state, formAction, pending] = useActionState(recordRequirementSourceReviewAction, INITIAL);
+  return (
+    <form action={formAction} className="field-list">
+      <input type="hidden" name="packId" value={packId} />
+      <input type="hidden" name="requirementId" value={requirementId} />
+      <p className="muted">
+        Record the source you checked. Official packs still require a separate reviewer to approve
+        the version.
+      </p>
+      {[
+        {
+          name: 'sourceUrl',
+          label: 'Source link',
+          type: 'url',
+          value: sourceUrl ?? '',
+          maxLength: 2048,
+        },
+        {
+          name: 'sourceTitle',
+          label: 'Source title',
+          type: 'text',
+          value: sourceTitle ?? '',
+          maxLength: 240,
+        },
+        {
+          name: 'publisher',
+          label: 'Publisher',
+          type: 'text',
+          value: publisher ?? '',
+          maxLength: 160,
+        },
+        {
+          name: 'observedDate',
+          label: 'Date source checked',
+          type: 'date',
+          value: observedDate,
+          maxLength: 10,
+        },
+      ].map((field) => (
+        <div className="field-row" key={field.name}>
+          <label className="field-label" htmlFor={`${requirementId}-${field.name}`}>
+            {field.label}
+          </label>
+          <input
+            id={`${requirementId}-${field.name}`}
+            name={field.name}
+            type={field.type}
+            required
+            defaultValue={field.value}
+            maxLength={field.maxLength}
+            className="input"
+          />
+        </div>
+      ))}
+      <div>
+        <SubmitButton
+          pending={pending}
+          idle="Save source review"
+          busy="Saving…"
           className="btn btn-secondary"
         />
         <FormMessage result={state} />

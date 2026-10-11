@@ -474,6 +474,7 @@ export {
   type RequirementInput,
   addPackVersion,
   addRequirement,
+  recordRequirementSourceReview,
   approvePackVersion,
   buildManifest,
   clearOfficialFeeStale,

@@ -1,5 +1,7 @@
 # Free-stack path to a public launch
 
+> Historical setup and incident guidance. Provider, domain, migration and email-linking instructions below are superseded where they conflict with the latest approved decisions. Start with [current operating guidance](../operations/current-platform.md). Historical evidence and original acceptance targets are retained.
+
 Written 2026-10-06 at the owner's request: get everything as capable as possible on free tools first, and upgrade to paid tools when commercial operation starts. This page says, for each launch blocker in `release-gate.md`, what free path exists, what it really achieves, and where it stops. It claims no approval. Nothing here switches the product from controlled pilot to public use; that is a separate decision the owner takes after reading the gate.
 
 Vendor limits below come from `cost-and-vendor-register.md` and general knowledge, not from today's official pages. Confirm each provider's current terms before relying on them.
@@ -52,3 +54,10 @@ Stage B includes real passports and identity papers. The gate exists because a l
 ## Update 2026-10-06: sign-in and email through Neon
 
 The owner asked for sign-in, sign-up and email to be done by Neon. See `neon-auth-migration-plan.md`. In short: Neon Auth can replace WorkOS for sign-in and sign-up (free up to 60,000 monthly users), but Neon does not send email itself. Neon Auth sends its own emails through an SMTP account you connect (2 an hour project-wide until you do), and the app's own emails need an SMTP account too. One free SMTP account can serve both. Items 2 and 9 in the table above change accordingly once phase 1 to 3 of that plan are done.
+
+
+## Current operating correction (2026-10-11)
+
+Neon Auth is configured for production; legacy WorkOS references do not authorize email-only record linking or claim current staff MFA acceptance.
+
+Earlier implementation snapshots and provider-specific instructions above are retained as history. For current setup, incident response and availability, use [current operating guidance](../operations/current-platform.md). Original acceptance and security targets remain in force; this correction does not mark them complete or authorize migration, production restore, paid activation or sensitive-data intake.

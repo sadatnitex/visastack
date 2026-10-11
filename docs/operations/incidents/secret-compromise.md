@@ -1,5 +1,7 @@
 # A secret or key leaks, or may have leaked
 
+> Historical setup and incident guidance. Provider, domain, migration and email-linking instructions below are superseded where they conflict with the latest approved decisions. Start with [current operating guidance](../current-platform.md). Historical evidence and original acceptance targets are retained.
+
 Use this when a credential may be in the wrong hands: pasted in a chat, email or document,
 committed to the repository (even if removed later), printed in a build or runtime log, found in
 the browser bundle, shown on a shared screen, on a lost device, or held by someone who has left.
@@ -120,3 +122,10 @@ Postmortem as in the README. Questions: how did it get there, and why was that p
 secret scan on every pull request have caught it (a secret scan of files and history now runs on every pull request and weekly; see [supply-chain.md](../../security/supply-chain.md))? Should a
 person who left lose access to a place they could read secrets from? Which secrets can we now make
 shorter-lived or narrower?
+
+
+## Current operating correction (2026-10-11)
+
+Neon Auth is configured for production; legacy WorkOS references do not authorize email-only record linking or claim current staff MFA acceptance. Production uses private R2 storage; database-only encrypted archive recovery is verified, while complete document/key/lifecycle recovery remains open.
+
+Earlier implementation snapshots and provider-specific instructions above are retained as history. For current setup, incident response and availability, use [current operating guidance](../current-platform.md). Original acceptance and security targets remain in force; this correction does not mark them complete or authorize migration, production restore, paid activation or sensitive-data intake.

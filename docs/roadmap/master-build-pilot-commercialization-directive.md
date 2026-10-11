@@ -188,7 +188,7 @@ duplicating thousands of words across two files.)
 ## 21. Commercial transition: what changes where
 
 Tracked in a dedicated companion document:
-[`docs/roadmap/pilot-to-commercial-transition.md`](./pilot-to-commercial-transition.md)
+[`docs/roadmap/pilot-to-commercial-transition.md`](../operations/pilot-to-commercial-activation.md)
 (to be created alongside the commercialization PR, §26 item 9) — a concrete
 per-system checklist (application code / Vercel / WorkOS / Neon / file storage /
 OpenAI / malware & conversion / legal & operations) for what changes between
@@ -265,3 +265,10 @@ End-of-session report must include: branch, PR, head commit, preview
 deployment, tests passed/skipped, manual verification, migrations, required env
 vars, pilot-ready / commercial-compatible / production-verified capabilities,
 remaining P0/P1 issues, commercial blockers, rollback procedure.
+
+
+## Current operating correction (2026-10-11)
+
+Neon Auth is configured for production; legacy WorkOS references do not authorize email-only record linking or claim current staff MFA acceptance. Production uses private R2 storage; database-only encrypted archive recovery is verified, while complete document/key/lifecycle recovery remains open.
+
+Earlier implementation snapshots and provider-specific instructions above are retained as history. For current setup, incident response and availability, use [current operating guidance](../operations/current-platform.md). Original acceptance and security targets remain in force; this correction does not mark them complete or authorize migration, production restore, paid activation or sensitive-data intake.

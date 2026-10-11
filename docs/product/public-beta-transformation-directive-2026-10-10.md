@@ -1306,3 +1306,10 @@ VisaStack must reach the point where:
 A new traveller can independently join the platform, maintain a reusable personal mobility record, manage documents and cases, collaborate with an authorized agency, receive notifications, understand the applicable requirements, control access and export their information. An agency can operate meaningful case workflows on the same platform. Neither needs to pay during Founding Access. Sensitive information remains protected and recoverable. The founder can measure product adoption, technical health and costs. Future growth and monetization build on the existing architecture without replacing its canonical foundation.
 That is the target.
 Implement it with the smallest correct set of changes, complete operational evidence, and no deviation from the existing domain architecture or the decisions in this directive.
+
+
+## Current operating correction (2026-10-11)
+
+Neon Auth is configured for production; legacy WorkOS references do not authorize email-only record linking or claim current staff MFA acceptance. Production uses private R2 storage; database-only encrypted archive recovery is verified, while complete document/key/lifecycle recovery remains open.
+
+Earlier implementation snapshots and provider-specific instructions above are retained as history. For current setup, incident response and availability, use [current operating guidance](../operations/current-platform.md). Original acceptance and security targets remain in force; this correction does not mark them complete or authorize migration, production restore, paid activation or sensitive-data intake.

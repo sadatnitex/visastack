@@ -18,6 +18,7 @@ import { formatDuration, formatMinorUnits, humanizeLabel } from '../../../lib/an
 import { evaluateCommercialReadiness } from '../../../lib/commercial-readiness';
 import { getDeploymentMode } from '../../../lib/deployment-mode';
 import { SHIPPED_MIGRATIONS } from '../../../lib/migration-journal';
+import { describeProviderOperations } from '../../../lib/provider-operations';
 import { evaluateReadiness } from '../../../lib/readiness';
 import { withSession } from '../../../lib/session';
 import { tolerantReader } from '../../../lib/tolerate';
@@ -113,11 +114,15 @@ export default async function AdminOperationsPage() {
       'operational signals',
       () =>
         collectOperationalSignals(db, {
-          ai: {
-            spentUnits: aiCostUnits,
-            warningUnits: aiWarningLimitUnits(),
-            limitUnits: aiLimits.budgetLimitUnits,
-          },
+          ...(!failedSections.includes('AI cost') && !failedSections.includes('AI limits')
+            ? {
+                ai: {
+                  spentUnits: aiCostUnits,
+                  warningUnits: aiWarningLimitUnits(),
+                  limitUnits: aiLimits.budgetLimitUnits,
+                },
+              }
+            : {}),
           ...(migrations ? { migrations } : {}),
         }),
       [],
@@ -150,6 +155,12 @@ export default async function AdminOperationsPage() {
       signals,
       readiness,
       failedSections,
+      providerOperations: describeProviderOperations({
+        ...(!failedSections.includes('evidence storage')
+          ? { evidenceBytes: platformEvidenceBytes }
+          : {}),
+        ...(!failedSections.includes('AI cost') ? { aiCostUnits } : {}),
+      }),
     };
   });
 
@@ -184,6 +195,9 @@ export default async function AdminOperationsPage() {
             </a>
             <a href="#admin-processing" className="pill">
               Processing failures
+            </a>
+            <a href="#admin-provider-operations" className="pill">
+              Providers and recovery
             </a>
             <a href="#admin-usage" className="pill">
               Capacity
@@ -538,6 +552,39 @@ export default async function AdminOperationsPage() {
             )}
           </article>
 
+          <article className="card" style={{ marginTop: '1.5rem' }} id="admin-provider-operations">
+            <p className="card-kicker">Providers and recovery</p>
+            <h2 className="card-title">Usage, costs and evidence</h2>
+            <p className="card-body">
+              Recorded usage, configured services and unverified readings are shown separately.
+              Check provider account limits before changing plans. Founding access stays
+              complimentary.
+            </p>
+            <p className="card-body">
+              <a
+                href="https://github.com/sadatnitex/visastack/actions/workflows/database-restore-drill.yml"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Backup recovery checks
+              </a>
+            </p>
+            <dl className="rows">
+              {data.providerOperations.map((row) => (
+                <div key={row.label} className="row" style={{ alignItems: 'flex-start' }}>
+                  <dt className="row-key" style={{ flex: '0 1 14rem' }}>
+                    {row.label}
+                  </dt>
+                  <dd style={{ margin: 0, flex: '1 1 18rem', minWidth: 0 }}>
+                    <strong>{row.reading}</strong>
+                    <p className="muted">{row.source}</p>
+                    <p>{row.detail}</p>
+                  </dd>
+                </div>
+              ))}
+            </dl>
+          </article>
+
           <article className="card" style={{ marginTop: '1.5rem' }} id="admin-usage">
             <p className="card-kicker">Capacity</p>
             <h2 className="card-title">Platform storage</h2>
@@ -546,12 +593,18 @@ export default async function AdminOperationsPage() {
               hits its hard stop; the warning threshold below is purely informational - it is not
               itself enforced anywhere.
             </p>
-            <UsageMeter
-              label="Evidence storage (platform-wide)"
-              usedBytes={data.platformEvidenceBytes}
-              limitBytes={data.quota.platformHardStopBytes}
-              warnBytes={data.quota.platformWarningBytes}
-            />
+            {data.failedSections.includes('evidence storage') ? (
+              <p className="card-body">
+                Evidence storage could not be read. Usage and remaining capacity are unavailable.
+              </p>
+            ) : (
+              <UsageMeter
+                label="Evidence storage (platform-wide)"
+                usedBytes={data.platformEvidenceBytes}
+                limitBytes={data.quota.platformHardStopBytes}
+                warnBytes={data.quota.platformWarningBytes}
+              />
+            )}
           </article>
 
           <article className="card" style={{ marginTop: '1.5rem' }}>
@@ -566,6 +619,17 @@ export default async function AdminOperationsPage() {
               per-configuration equivalent yet and always comes from the environment.
             </p>
             {(() => {
+              if (
+                data.failedSections.includes('AI cost') ||
+                data.failedSections.includes('AI limits')
+              ) {
+                return (
+                  <p className="card-body">
+                    AI usage or its limit could not be read. Spend and remaining capacity are
+                    unavailable.
+                  </p>
+                );
+              }
               const usedUsd = unitsToUsd(data.aiCostUnits);
               const limitUsd = unitsToUsd(data.aiLimits.budgetLimitUnits);
               const warnUsd = unitsToUsd(aiWarningLimitUnits());

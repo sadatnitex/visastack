@@ -1,5 +1,7 @@
 # Tabletop practice
 
+> Historical setup and incident guidance. Provider, domain, migration and email-linking instructions below are superseded where they conflict with the latest approved decisions. Start with [current operating guidance](../current-platform.md). Historical evidence and original acceptance targets are retained.
+
 Commercial V1 directive Part 9 section 11. Two parts: the desk check that has been done, and a
 scenario script to run with people.
 
@@ -83,3 +85,10 @@ Record: the time each step took, each place the runbook was wrong or unclear, ea
 could not be reached, and each tool that was not available. Fix the runbooks within a week and
 change the desk-check table above to say what was found. Only then may the line "no tabletop has
 been run" be changed, and only to give the date, the people present and what they found.
+
+
+## Current operating correction (2026-10-11)
+
+Neon Auth is configured for production; legacy WorkOS references do not authorize email-only record linking or claim current staff MFA acceptance.
+
+Earlier implementation snapshots and provider-specific instructions above are retained as history. For current setup, incident response and availability, use [current operating guidance](../current-platform.md). Original acceptance and security targets remain in force; this correction does not mark them complete or authorize migration, production restore, paid activation or sensitive-data intake.

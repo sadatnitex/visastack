@@ -4,13 +4,17 @@ This directory is the engineering source of truth. It is versioned with the
 code so that every decision, boundary, and plan is reviewable in the same PR
 that changes behavior.
 
+## Current public-beta work
+
+Start with [current operating guidance](operations/current-platform.md), [public-beta contract](public-beta/PRODUCT-CONTRACT.md), [deployment actions](public-beta/DEPLOYMENT-ACTIONS.md) and [release acceptance](public-beta/RELEASE-ACCEPTANCE-CHECKPOINT.md). Earlier Commercial V1 records and ADRs remain evidence and requirements, rather than current provider-setup instructions. See [the communications and documentation register](public-beta/DOCUMENTATION-COMMUNICATIONS-REGISTER.md).
+
 ## Map
 
 | Area | Path | Purpose |
 |------|------|---------|
-| **Commercial V1 (current programme)** | [`commercial-v1/requirements-ledger.md`](commercial-v1/requirements-ledger.md) | Living, per-requirement status (DONE/IN_PROGRESS/NOT_STARTED/BLOCKED) with every implementation decision's own reasoning. Updated in the same PR as the work it describes. |
+| **Commercial V1 requirements and history** | [`commercial-v1/requirements-ledger.md`](commercial-v1/requirements-ledger.md) | Living, per-requirement status (DONE/IN_PROGRESS/NOT_STARTED/BLOCKED) with every implementation decision's own reasoning. Updated in the same PR as the work it describes. |
 | - Known issues | [`commercial-v1/known-issues.md`](commercial-v1/known-issues.md) | Living log of every gap, defect, and deliberate deferral found during the Commercial V1 build, in narrative form. |
-| - Directive | [`../roadmap/commercial-v1-implementation-directive.md`](../roadmap/commercial-v1-implementation-directive.md) | The 10-part implementation programme this repository is currently executing. |
+| - Directive | [`../roadmap/commercial-v1-implementation-directive.md`](roadmap/commercial-v1-implementation-directive.md) | The preserved 10-part implementation programme; public-beta continuation is linked above. |
 | - Baseline | [`commercial-v1/baseline.md`](commercial-v1/baseline.md) | Part 1's point-in-time snapshot: governing directive/PRD receipt and hash verification, repository state at programme start. |
 | - Architecture decisions | [`commercial-v1/architecture-decisions.md`](commercial-v1/architecture-decisions.md) | Commercial-V1-specific decisions, in the style of `adr/`; extends the standing ADRs rather than replacing them. |
 | - Assumptions & blockers | [`commercial-v1/assumptions-and-blockers.md`](commercial-v1/assumptions-and-blockers.md) | Tracked programme-level assumptions and blockers (each marked resolved or open, never silently dropped). |
@@ -42,7 +46,7 @@ that changes behavior.
 The current governing product contract is
 [`product/commercial-v1-prd-2026-09-16.md`](product/commercial-v1-prd-2026-09-16.md),
 executed through
-[`../roadmap/commercial-v1-implementation-directive.md`](../roadmap/commercial-v1-implementation-directive.md).
+[`../roadmap/commercial-v1-implementation-directive.md`](roadmap/commercial-v1-implementation-directive.md).
 The original product contract remains in [`product/`](product/) as
 retained authority for anything the Commercial V1 PRD doesn't supersede:
 
@@ -59,3 +63,10 @@ and Build Specification as historical context beneath that. Where this
 documentation and those documents disagree, the higher authority wins and
 the docs here are corrected. Every feature PR links the clause(s) it
 implements.
+
+
+## Current operating correction (2026-10-11)
+
+Neon Auth is configured for production; legacy WorkOS references do not authorize email-only record linking or claim current staff MFA acceptance.
+
+Earlier implementation snapshots and provider-specific instructions above are retained as history. For current setup, incident response and availability, use [current operating guidance](operations/current-platform.md). Original acceptance and security targets remain in force; this correction does not mark them complete or authorize migration, production restore, paid activation or sensitive-data intake.

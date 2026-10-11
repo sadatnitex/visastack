@@ -1,5 +1,7 @@
 # Public beta: sign-in, sign-up, email and recovery (Neon Auth and Resend)
 
+> Historical setup and incident guidance. Provider, domain, migration and email-linking instructions below are superseded where they conflict with the latest approved decisions. Start with [current operating guidance](current-platform.md). Historical evidence and original acceptance targets are retained.
+
 Written 2026-10-09 at the owner's request: open VisaStack to the public for a while, non-commercial, with all features, using Neon Auth for accounts and Resend for email. This page is the setup runbook and the register of everything deliberately left for later. Nothing here approves a commercial launch.
 
 ## What the public beta is, and is not
@@ -56,3 +58,10 @@ Existing pilot people have WorkOS passwords that do not move. After the switch t
 The designated preview address is registered with Vercel as a verified project domain bound to `public-beta/r2-encrypted-recovery`. Production domains remain unbound to preview branches. A release must verify that the branch address resolves to its exact READY deployment. Preview absolute links and CSP select `VERCEL_BRANCH_URL`, then `VERCEL_URL`; production uses its configured canonical custom domain. Do not paste a deployment SHA into `gitSource.ref` when rebuilding a preview: branch-scoped environment values require the actual branch ref.
 
 Password recovery replaces the initial form with a check-email confirmation after a request. A separate expandable resend form is available, using the existing server-side limits of three sends per address per hour and ten per network address per hour. The response does not disclose whether an account exists. Service errors show a retry message; no delivery success is inferred from a provider outage. A password reset does not transfer a WorkOS-bound account to Neon Auth or grant a platform role.
+
+
+## Current operating correction (2026-10-11)
+
+Neon Auth is configured for production; legacy WorkOS references do not authorize email-only record linking or claim current staff MFA acceptance. Use https://vs.obsidianglobal.studio for the canonical production custom domain; verify preview aliases against their exact deployment. Email confirmation or password reset does not transfer existing account records or privileges.
+
+Earlier implementation snapshots and provider-specific instructions above are retained as history. For current setup, incident response and availability, use [current operating guidance](current-platform.md). Original acceptance and security targets remain in force; this correction does not mark them complete or authorize migration, production restore, paid activation or sensitive-data intake.
