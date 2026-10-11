@@ -30,8 +30,9 @@ describe('NullEmailPort', () => {
     delete process.env[DEPLOYMENT_MODE_KEY];
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const port = new NullEmailPort();
-    const result = await port.send({ to: 'a@example.com', subject: 'hi', body: 'hello' });
-    expect(result).toEqual({});
+    await expect(port.send({ to: 'a@example.com', subject: 'hi', body: 'hello' })).rejects.toThrow(
+      'Email provider not configured',
+    );
     expect(warnSpy).toHaveBeenCalledTimes(1);
     // Never logs the recipient or subject (SEC-02/PRV).
     const [message] = warnSpy.mock.calls[0] as [string];
@@ -99,24 +100,31 @@ describe('ResendEmailPort', () => {
     expect(url).toBe('https://staging.example.com/resend/emails');
   });
 
-  it('returns no providerMessageId when the response omits an id', async () => {
+  it('rejects an acknowledgement without a provider id', async () => {
     const fetchImpl = vi.fn().mockResolvedValue(jsonResponse(200, {}));
     const port = new ResendEmailPort({ apiKey: 'k', from: 'a@example.com', fetchImpl });
-    const result = await port.send({ to: 'a@example.com', subject: 's', body: 'b' });
-    expect(result).toEqual({});
+    await expect(port.send({ to: 'a@example.com', subject: 's', body: 'b' })).rejects.toThrow(
+      'Email provider did not confirm acceptance',
+    );
   });
 
-  it('tolerates a non-JSON 2xx body rather than throwing', async () => {
+  it('rejects a non-JSON success response', async () => {
     const fetchImpl = vi.fn().mockResolvedValue(new Response('not json', { status: 200 }));
     const port = new ResendEmailPort({ apiKey: 'k', from: 'a@example.com', fetchImpl });
-    const result = await port.send({ to: 'a@example.com', subject: 's', body: 'b' });
-    expect(result).toEqual({});
+    await expect(port.send({ to: 'a@example.com', subject: 's', body: 'b' })).rejects.toThrow(
+      'Email provider did not confirm acceptance',
+    );
   });
 
-  it('throws on a non-2xx response, naming only the provider status/body -- never the recipient or subject', async () => {
+  it('throws on a non-2xx response, retaining only the provider status -- never the recipient or subject', async () => {
     const fetchImpl = vi
       .fn()
-      .mockResolvedValue(new Response('{"message":"invalid API key"}', { status: 401 }));
+      .mockResolvedValue(
+        new Response(
+          '{"message":"invalid API key; applicant@example.com; Evidence requested; private body"}',
+          { status: 401 },
+        ),
+      );
     const port = new ResendEmailPort({ apiKey: 'bad-key', from: 'a@example.com', fetchImpl });
 
     let caught: Error | undefined;
@@ -133,16 +141,67 @@ describe('ResendEmailPort', () => {
     expect(caught).toBeDefined();
     const message = caught?.message ?? '';
     expect(message).toContain('401');
-    expect(message).toContain('invalid API key');
+    expect(message).not.toContain('invalid API key');
+    expect(message).not.toContain('private body');
     expect(message).not.toContain('applicant@example.com');
     expect(message).not.toContain('Evidence requested');
   });
 
-  it('propagates a network-level fetch rejection', async () => {
-    const fetchImpl = vi.fn().mockRejectedValue(new Error('DNS failure'));
+  it('sanitizes a network-level fetch rejection', async () => {
+    const fetchImpl = vi.fn().mockRejectedValue(new Error('DNS failure; private request body'));
     const port = new ResendEmailPort({ apiKey: 'k', from: 'a@example.com', fetchImpl });
     await expect(port.send({ to: 'a@example.com', subject: 's', body: 'b' })).rejects.toThrow(
-      'DNS failure',
+      'Email provider unavailable or request timed out',
     );
   });
+});
+
+describe('email acceptance and retry boundaries', () => {
+  it('reuses an opaque key across provider retries', async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockImplementation(async () => jsonResponse(200, { id: 'same-message' }));
+    const port = new ResendEmailPort({ apiKey: 'test', from: 'noreply@example.com', fetchImpl });
+    const input = {
+      to: 'synthetic@example.com',
+      subject: 'synthetic',
+      body: 'synthetic',
+      idempotencyKey: 'notification-opaque-id',
+    };
+    await port.send(input);
+    await port.send(input);
+    for (const call of fetchImpl.mock.calls) {
+      expect(new Headers(call[1].headers).get('Idempotency-Key')).toBe(input.idempotencyKey);
+      expect(call[1].signal).toBeInstanceOf(AbortSignal);
+    }
+  });
+  it('rejects a key containing an address without making a request', async () => {
+    const fetchImpl = vi.fn();
+    const port = new ResendEmailPort({ apiKey: 'test', from: 'noreply@example.com', fetchImpl });
+    await expect(
+      port.send({
+        to: 'synthetic@example.com',
+        subject: 'synthetic',
+        body: 'synthetic',
+        idempotencyKey: 'private@example.com',
+      }),
+    ).rejects.toThrow('Invalid email idempotency key');
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+  it('times out a stalled provider request', async () => {
+    const fetchImpl = vi.fn(
+      (_url: string | URL | Request, options: RequestInit = {}) =>
+        new Promise<Response>((_resolve, reject) => {
+          options.signal?.addEventListener(
+            'abort',
+            () => reject(new Error('private transport details')),
+            { once: true },
+          );
+        }),
+    );
+    const port = new ResendEmailPort({ apiKey: 'test', from: 'noreply@example.com', fetchImpl });
+    await expect(
+      port.send({ to: 'synthetic@example.com', subject: 'synthetic', body: 'synthetic' }),
+    ).rejects.toThrow('Email provider unavailable or request timed out');
+  }, 15_000);
 });

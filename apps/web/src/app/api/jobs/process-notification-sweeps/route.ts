@@ -43,5 +43,6 @@ export async function GET(request: Request): Promise<Response> {
   }
 
   const result = await triggerNotificationSweeps({ limit: 200 });
+  if (result.unavailable) return Response.json({ status: 'unavailable' }, { status: 503 });
   return Response.json(result);
 }

@@ -21,3 +21,9 @@ This is one dependency graph for the supplied mandate, not a competing roadmap. 
 ## 2026-10-11: approved flat interface assignment
 
 The owner-adopted UI-00 through UI-09 mandate is traced in [UI route coverage](../uiux/ROUTE-COVERAGE.md) and [reference mapping](../uiux/REFERENCE-MAPPING.md). This is a frontend continuation across public, identity, traveller, agency and administration surfaces. It retains PR-01 through PR-09 service and acceptance boundaries. Native-write configuration remains required; R2 activation, private PDF worker activation, live SQL capture/restore and authenticated acceptance remain independently outstanding. [UI release report](../uiux/FINAL-UIUX-RELEASE-REPORT.md) distinguishes implementation, automated verification and production release.
+
+## 2026-10-11: PR-06 through PR-09 continuation
+
+PR-06 adds honest email acceptance, stable retry keys, bounded dispatch, current recipient/lease checks, explicit outage responses and an optional external scheduler without replacing the durable database queues. See [scheduler operation](../operations/cloudflare-job-scheduler.md). Focused tests passed; complete verification and release are pending. The scheduler cannot yet be activated with the available R2-only credentials, so timing acceptance remains open.
+
+PR-07 retains manual processing and requires approved provider/privacy, pack-source and actual integration evidence. PR-08 must extend existing founder analytics with truthful measured resource and recovery indicators. PR-09 remains a consolidated acceptance and classification gate, with production-sensitive activation separate. The uploaded directives match the already recorded authoritative documents; no second roadmap was created. No package is marked complete on implementation alone.

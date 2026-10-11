@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type { Result } from '@visastack/core';
 import { err, ok } from '@visastack/core';
-import { and, asc, desc, eq, inArray, isNull, lte, or } from 'drizzle-orm';
+import { and, asc, desc, eq, gt, inArray, isNotNull, isNull, lte, or } from 'drizzle-orm';
 import { type Db, first, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
 import { listMembershipsForAccount } from './organizations';
@@ -251,7 +251,7 @@ async function checkRecipient(
   db: Db,
   notification: Pick<
     Notification,
-    'recipientAccountId' | 'recipientEmail' | 'applicantId' | 'organizationId'
+    'recipientAccountId' | 'recipientEmail' | 'applicantId' | 'organizationId' | 'missionId'
   >,
 ): Promise<RecipientCheck> {
   if (!notification.recipientAccountId) {
@@ -266,16 +266,8 @@ async function checkRecipient(
   );
   if (!account) return { authorized: false, email: null };
 
-  if (notification.organizationId) {
-    const memberships = await listMembershipsForAccount(db, notification.recipientAccountId);
-    const authorized = memberships.some(
-      (m) =>
-        m.organization.id === notification.organizationId &&
-        m.active &&
-        m.organization.status === 'ACTIVE',
-    );
-    return { authorized, email: account.email };
-  }
+  // Organization IDs also describe traveller-facing case events. Their
+  // presence must not disqualify the applicant's actual current owner.
   if (notification.applicantId) {
     const applicant = first(
       await db
@@ -284,11 +276,66 @@ async function checkRecipient(
         .where(eq(schema.applicants.id, notification.applicantId))
         .limit(1),
     );
-    return {
-      authorized: applicant?.ownerAccountId === notification.recipientAccountId,
-      email: account.email,
-    };
+    if (!applicant) return { authorized: false, email: null };
+    if (applicant.ownerAccountId === notification.recipientAccountId) {
+      return { authorized: true, email: account.email };
+    }
   }
+  if (notification.organizationId) {
+    const memberships = await listMembershipsForAccount(db, notification.recipientAccountId);
+    const member = memberships.find(
+      (m) =>
+        m.organization.id === notification.organizationId &&
+        m.active &&
+        m.organization.status === 'ACTIVE',
+    );
+    if (!member) return { authorized: false, email: null };
+    if (notification.applicantId) {
+      const now = new Date();
+      const grant = first(
+        await db
+          .select({ id: schema.grants.id })
+          .from(schema.grants)
+          .where(
+            and(
+              eq(schema.grants.applicantId, notification.applicantId),
+              eq(schema.grants.recipientOrganizationId, notification.organizationId),
+              eq(schema.grants.status, 'ACTIVE'),
+              isNotNull(schema.grants.acceptedAt),
+              lte(schema.grants.startAt, now),
+              or(isNull(schema.grants.expiryAt), gt(schema.grants.expiryAt, now)),
+              notification.missionId
+                ? or(
+                    isNull(schema.grants.missionId),
+                    eq(schema.grants.missionId, notification.missionId),
+                  )
+                : isNull(schema.grants.missionId),
+            ),
+          )
+          .limit(1),
+      );
+      if (!grant) return { authorized: false, email: null };
+      if (member.role !== 'OWNER' && member.role !== 'ADMIN') {
+        if (!notification.missionId) return { authorized: false, email: null };
+        const assignment = first(
+          await db
+            .select({ id: schema.assignments.id })
+            .from(schema.assignments)
+            .where(
+              and(
+                eq(schema.assignments.organizationId, notification.organizationId),
+                eq(schema.assignments.memberAccountId, notification.recipientAccountId),
+                eq(schema.assignments.missionId, notification.missionId),
+              ),
+            )
+            .limit(1),
+        );
+        if (!assignment) return { authorized: false, email: null };
+      }
+    }
+    return { authorized: true, email: account.email };
+  }
+  if (notification.applicantId) return { authorized: false, email: null };
   return { authorized: true, email: account.email };
 }
 
@@ -298,12 +345,26 @@ async function dispatchOne(
   emailPort: EmailPort,
   baseUrl: string,
   now: Date,
-): Promise<'sent' | 'failed' | 'retrying'> {
+): Promise<'sent' | 'failed' | 'retrying' | 'deferred'> {
+  if (!notification.leaseOwner) return 'deferred';
+  const ownedQueue = and(
+    eq(schema.notifications.id, notification.id),
+    eq(schema.notifications.leaseOwner, notification.leaseOwner),
+    eq(schema.notifications.status, 'QUEUED'),
+  );
   const recipient = await checkRecipient(db, notification);
+  const current = first(
+    await db
+      .select({ id: schema.notifications.id })
+      .from(schema.notifications)
+      .where(and(ownedQueue, gt(schema.notifications.leaseExpiresAt, new Date())))
+      .limit(1),
+  );
+  if (!current) return 'deferred';
   const attempts = notification.attempts + 1;
 
   if (!recipient.authorized) {
-    await db
+    const updated = await db
       .update(schema.notifications)
       .set({
         status: 'FAILED',
@@ -312,22 +373,24 @@ async function dispatchOne(
         leaseOwner: null,
         leaseExpiresAt: null,
       })
-      .where(eq(schema.notifications.id, notification.id));
-    return 'failed';
+      .where(ownedQueue)
+      .returning({ id: schema.notifications.id });
+    return updated.length ? 'failed' : 'deferred';
   }
 
   const payload = notification.payload as NotificationPayload;
 
   if (notification.channel === 'IN_APP') {
-    await db
+    const updated = await db
       .update(schema.notifications)
       .set({ status: 'SENT', attempts, sentAt: now, leaseOwner: null, leaseExpiresAt: null })
-      .where(eq(schema.notifications.id, notification.id));
-    return 'sent';
+      .where(ownedQueue)
+      .returning({ id: schema.notifications.id });
+    return updated.length ? 'sent' : 'deferred';
   }
 
   if (!recipient.email) {
-    await db
+    const updated = await db
       .update(schema.notifications)
       .set({
         status: 'FAILED',
@@ -336,8 +399,9 @@ async function dispatchOne(
         leaseOwner: null,
         leaseExpiresAt: null,
       })
-      .where(eq(schema.notifications.id, notification.id));
-    return 'failed';
+      .where(ownedQueue)
+      .returning({ id: schema.notifications.id });
+    return updated.length ? 'failed' : 'deferred';
   }
 
   try {
@@ -345,8 +409,9 @@ async function dispatchOne(
       to: recipient.email,
       subject: payload.subject,
       body: `${payload.summary}\n\n${baseUrl}${payload.deepLinkPath}`,
+      idempotencyKey: `notification-${notification.id}`,
     });
-    await db
+    const updated = await db
       .update(schema.notifications)
       .set({
         status: 'SENT',
@@ -356,19 +421,29 @@ async function dispatchOne(
         leaseOwner: null,
         leaseExpiresAt: null,
       })
-      .where(eq(schema.notifications.id, notification.id));
-    return 'sent';
+      .where(ownedQueue)
+      .returning({ id: schema.notifications.id });
+    return updated.length ? 'sent' : 'deferred';
   } catch (error) {
     const delay = nextRetryDelayMs(attempts);
-    const lastError = error instanceof Error ? error.message : String(error);
+    // Provider/network exceptions may contain message content or credentials.
+    // Retain only the adapter's exact fixed diagnostic vocabulary.
+    const message = error instanceof Error ? error.message : '';
+    const lastError =
+      /^(?:Email provider (?:not configured|unavailable or request timed out|did not confirm acceptance|returned status [1-5][0-9]{2})|Invalid email idempotency key)$/.test(
+        message,
+      )
+        ? message
+        : 'Email delivery failed; provider acceptance was not confirmed';
     if (delay === null) {
-      await db
+      const updated = await db
         .update(schema.notifications)
         .set({ status: 'FAILED', attempts, lastError, leaseOwner: null, leaseExpiresAt: null })
-        .where(eq(schema.notifications.id, notification.id));
-      return 'failed';
+        .where(ownedQueue)
+        .returning({ id: schema.notifications.id });
+      return updated.length ? 'failed' : 'deferred';
     }
-    await db
+    const updated = await db
       .update(schema.notifications)
       .set({
         attempts,
@@ -377,8 +452,9 @@ async function dispatchOne(
         leaseOwner: null,
         leaseExpiresAt: null,
       })
-      .where(eq(schema.notifications.id, notification.id));
-    return 'retrying';
+      .where(ownedQueue)
+      .returning({ id: schema.notifications.id });
+    return updated.length ? 'retrying' : 'deferred';
   }
 }
 
@@ -386,6 +462,8 @@ export interface NotificationWorkerResult {
   readonly sent: number;
   readonly retrying: number;
   readonly failed: number;
+  /** Claimed work not attempted. Queued budget-deferred work has its lease released. */
+  readonly deferred?: number;
 }
 
 /**
@@ -398,20 +476,52 @@ export async function runNotificationWorker(
   db: Db,
   emailPort: EmailPort,
   baseUrl: string,
-  options: { readonly limit?: number; readonly now?: Date } = {},
+  options: { readonly limit?: number; readonly now?: Date; readonly timeBudgetMs?: number } = {},
 ): Promise<NotificationWorkerResult> {
+  if (
+    options.timeBudgetMs !== undefined &&
+    (!Number.isFinite(options.timeBudgetMs) || options.timeBudgetMs < 0)
+  ) {
+    throw new Error('Invalid notification time budget');
+  }
+  const deadline =
+    options.timeBudgetMs === undefined
+      ? Number.POSITIVE_INFINITY
+      : Date.now() + options.timeBudgetMs;
   const now = options.now ?? new Date();
   const claimed = await claimNotifications(db, options.limit ?? DEFAULT_CLAIM_LIMIT, now);
   let sent = 0;
   let retrying = 0;
   let failed = 0;
-  for (const notification of claimed) {
+  let deferred = 0;
+  for (const [index, notification] of claimed.entries()) {
+    if (Date.now() >= deadline) {
+      const owner = notification.leaseOwner;
+      if (!owner) throw new Error('Notification lease missing');
+      const remaining = claimed.slice(index);
+      // Never release a lease that another invocation has already reclaimed.
+      await db
+        .update(schema.notifications)
+        .set({ leaseOwner: null, leaseExpiresAt: null })
+        .where(
+          and(
+            inArray(
+              schema.notifications.id,
+              remaining.map((row) => row.id),
+            ),
+            eq(schema.notifications.leaseOwner, owner),
+            eq(schema.notifications.status, 'QUEUED'),
+          ),
+        );
+      return { sent, retrying, failed, deferred: deferred + remaining.length };
+    }
     const outcome = await dispatchOne(db, notification, emailPort, baseUrl, now);
     if (outcome === 'sent') sent++;
     else if (outcome === 'retrying') retrying++;
+    else if (outcome === 'deferred') deferred++;
     else failed++;
   }
-  return { sent, retrying, failed };
+  return deferred ? { sent, retrying, failed, deferred } : { sent, retrying, failed };
 }
 
 // --- In-app read model ---------------------------------------------------

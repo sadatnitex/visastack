@@ -48,13 +48,28 @@ export async function GET(request: Request): Promise<Response> {
   let totalSent = 0;
   let totalRetrying = 0;
   let totalFailed = 0;
+  let totalDeferred = 0;
+  const deadline = Date.now() + 45_000;
   for (let batch = 0; batch < MAX_BATCHES_PER_SWEEP; batch++) {
-    const result = await triggerNotificationWorker({ limit: BATCH_SIZE });
+    const remaining = deadline - Date.now();
+    // Leave room for one bounded provider request and connection cleanup.
+    if (remaining <= 10_000) break;
+    const result = await triggerNotificationWorker({
+      limit: BATCH_SIZE,
+      timeBudgetMs: remaining - 10_000,
+    });
+    if (result.unavailable) return Response.json({ status: 'unavailable' }, { status: 503 });
     totalSent += result.sent;
     totalRetrying += result.retrying;
     totalFailed += result.failed;
-    if (result.sent + result.retrying + result.failed < BATCH_SIZE) break; // caught up
+    totalDeferred += result.deferred ?? 0;
+    if (result.deferred || result.sent + result.retrying + result.failed < BATCH_SIZE) break;
   }
 
-  return Response.json({ sent: totalSent, retrying: totalRetrying, failed: totalFailed });
+  return Response.json({
+    sent: totalSent,
+    retrying: totalRetrying,
+    failed: totalFailed,
+    deferred: totalDeferred,
+  });
 }

@@ -35,7 +35,7 @@ export class NullEmailPort implements EmailPort {
 
   async send(_input: SendEmailInput): Promise<SendEmailResult> {
     console.warn('[NullEmailPort] no email provider configured - not sent');
-    return {};
+    throw new Error('Email provider not configured');
   }
 }
 
@@ -81,28 +81,41 @@ export class ResendEmailPort implements EmailPort {
   }
 
   async send(input: SendEmailInput): Promise<SendEmailResult> {
-    const response = await this.fetchImpl(`${this.apiBaseUrl}/emails`, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${this.apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        from: this.from,
-        to: [input.to],
-        subject: input.subject,
-        text: input.body,
-      }),
-    });
+    if (input.idempotencyKey && !/^[A-Za-z0-9_-]{1,128}$/.test(input.idempotencyKey)) {
+      throw new Error('Invalid email idempotency key');
+    }
+    let response: Response;
+    try {
+      response = await this.fetchImpl(`${this.apiBaseUrl}/emails`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${this.apiKey}`,
+          'Content-Type': 'application/json',
+          ...(input.idempotencyKey ? { 'Idempotency-Key': input.idempotencyKey } : {}),
+        },
+        signal: AbortSignal.timeout(10_000),
+        body: JSON.stringify({
+          from: this.from,
+          to: [input.to],
+          subject: input.subject,
+          text: input.body,
+        }),
+      });
+    } catch {
+      throw new Error('Email provider unavailable or request timed out');
+    }
 
     if (!response.ok) {
       // Deliberately no `to`/`subject` in this message -- only the provider's
-      // own status/error shape, safe to surface in logs and lastError.
-      const errorBody = await response.text().catch(() => '');
-      throw new Error(`ResendEmailPort: provider returned ${response.status} ${errorBody}`.trim());
+      // status only. Provider response text can contain private message content.
+      await response.body?.cancel().catch(() => undefined);
+      throw new Error(`Email provider returned status ${response.status}`);
     }
 
     const body = (await response.json().catch(() => ({}))) as ResendSendResponse;
-    return body.id ? { providerMessageId: body.id } : {};
+    if (typeof body?.id !== 'string' || !/^[A-Za-z0-9_-]{1,128}$/.test(body.id)) {
+      throw new Error('Email provider did not confirm acceptance');
+    }
+    return { providerMessageId: body.id };
   }
 }

@@ -12,7 +12,7 @@
     "build": "turbo run build",
     "dev": "turbo run dev",
     "typecheck": "turbo run typecheck",
-    "test": "turbo run test && node --test scripts/check-flat-design.test.mjs scripts/check-route-navigation.test.mjs",
+    "test": "turbo run test && node --test scripts/check-flat-design.test.mjs scripts/check-route-navigation.test.mjs infra/cloudflare/job-scheduler.test.mjs",
     "lint": "biome check . && node scripts/check-flat-design.mjs && node scripts/check-route-navigation.mjs",
     "scan:supply-chain": "node scripts/supply-chain/scan.mjs",
     "test:supply-chain": "node --test scripts/supply-chain/checks.test.mjs",
