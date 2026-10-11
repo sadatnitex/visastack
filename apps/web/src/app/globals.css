@@ -4884,3 +4884,27 @@ body:has(.auth-shell) > .footer {
   font-size: 11px;
   color: var(--text-secondary);
 }
+
+.auth-password-input {
+  position: relative;
+}
+.auth-password-input input {
+  width: 100%;
+  padding-right: 54px;
+}
+.auth-password-input button {
+  position: absolute;
+  right: 3px;
+  top: 2px;
+  bottom: 2px;
+  display: grid;
+  place-items: center;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 8px;
+  border: 0;
+  border-radius: 8px;
+  color: var(--text-secondary);
+  background: #fff;
+  cursor: pointer;
+}

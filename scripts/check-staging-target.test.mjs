@@ -26,6 +26,7 @@ test('checks the exact SHA and rejects an immutable production deployment before
   const config = {
     ...env,
     STAGING_VERCEL_TOKEN: 'synthetic-not-a-secret',
+    STAGING_ATTESTATION_SECRET: 'synthetic-attestation-key-over-thirty-two-characters',
     E2E_STAGING_DEPLOYMENT_ID: 'synthetic-deployment',
     E2E_EXPECTED_SHA: 'a'.repeat(40),
   };
@@ -36,7 +37,36 @@ test('checks the exact SHA and rejects an immutable production deployment before
     url: new URL(env.PLAYWRIGHT_BASE_URL).hostname,
     meta: { githubCommitSha: config.E2E_EXPECTED_SHA },
   };
-  const request = (record) => async () => new Response(JSON.stringify(record));
+  const proof = {
+    deployment: config.E2E_EXPECTED_SHA,
+    databaseHost: 'ep-stage.example.test',
+    databaseName: 'stagingdb',
+    neonAuthBaseUrl: 'https://auth-stage.example.test/auth',
+    isolatedSyntheticConfiguration: true,
+  };
+  const request =
+    (record, bindings = proof) =>
+    async (url) => {
+      if (url.includes('/attestation')) return new Response(JSON.stringify(bindings));
+      if (url.includes('/decrypt') || url.includes('decrypt=true'))
+        return new Response(
+          JSON.stringify({
+            value: url.includes('/db-env?')
+              ? 'postgresql://synthetic:test@ep-prod.example.test/proddb'
+              : 'https://auth-prod.example.test/auth',
+          }),
+        );
+      if (url.includes('/env?'))
+        return new Response(
+          JSON.stringify({
+            envs: [
+              { id: 'db-env', key: 'DATABASE_URL', target: ['production'] },
+              { id: 'auth-env', key: 'NEON_AUTH_BASE_URL', target: ['production'] },
+            ],
+          }),
+        );
+      return new Response(JSON.stringify(record));
+    };
   assert.equal(await verifyStagingDeployment(config, request(deployment)), env.PLAYWRIGHT_BASE_URL);
   for (const invalid of [
     { ...deployment, target: 'production' },
@@ -45,6 +75,18 @@ test('checks the exact SHA and rejects an immutable production deployment before
     { ...deployment, projectId: 'other' },
   ])
     await assert.rejects(() => verifyStagingDeployment(config, request(invalid)));
+  await assert.rejects(() =>
+    verifyStagingDeployment(
+      config,
+      request(deployment, { ...proof, databaseHost: 'ep-prod.example.test' }),
+    ),
+  );
+  await assert.rejects(() =>
+    verifyStagingDeployment(
+      config,
+      request(deployment, { ...proof, neonAuthBaseUrl: 'https://auth-prod.example.test/auth' }),
+    ),
+  );
   await assert.rejects(() =>
     verifyStagingDeployment({ ...config, STAGING_VERCEL_TOKEN: '' }, request(deployment)),
   );

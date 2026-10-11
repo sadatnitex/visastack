@@ -96,7 +96,7 @@ export function workspaceNavigation(
             ]
           : []),
         ...(agency.admin ? [{ href: `${base}/team`, label: 'Team' }] : []),
-        { href: `${base}/activity`, label: 'Activity log' },
+        { href: `${base}/activity`, label: 'Case activity' },
       ],
       tools: [{ href: `${base}/plan`, label: 'Plan & usage' }],
       settings: [

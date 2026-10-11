@@ -30,6 +30,7 @@ const CONTEXT_ICONS: Readonly<Record<string, IconName>> = {
   'Evidence requests': 'clipboard',
   Team: 'users',
   'Activity log': 'activity',
+  'Case activity': 'activity',
   Members: 'users',
   Organizations: 'building',
   Activity: 'activity',
@@ -47,6 +48,7 @@ const MOBILE_LABELS: Readonly<Record<string, string>> = {
   'Add a traveller': 'Add traveller',
   'Evidence requests': 'Requests',
   'Activity log': 'Activity',
+  'Case activity': 'Activity',
 };
 
 /**

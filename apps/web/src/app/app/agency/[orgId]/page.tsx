@@ -1,3 +1,4 @@
+import { CANONICAL_CASE_STATES, LEGACY_ONLY_MISSION_STATES } from '@visastack/core';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { Checklist, EmptyState, StatusBadge } from '../../../../components/ui';
@@ -178,9 +179,17 @@ export default async function AgencyDashboardPage({
   for (const mission of data.missions) {
     stageCounts.set(mission.state, (stageCounts.get(mission.state) ?? 0) + 1);
   }
+  const stageOrder: readonly string[] = [...CANONICAL_CASE_STATES, ...LEGACY_ONLY_MISSION_STATES];
   const pipeline = [...stageCounts.entries()]
     .map(([state, count], index) => ({ state, count, index: index % 6 }))
-    .sort((a, b) => b.count - a.count);
+    .sort((a, b) => {
+      const left = stageOrder.indexOf(a.state);
+      const right = stageOrder.indexOf(b.state);
+      return (
+        (left < 0 ? stageOrder.length : left) - (right < 0 ? stageOrder.length : right) ||
+        a.state.localeCompare(b.state)
+      );
+    });
   const pipelineSummary = pipeline
     .map(
       (segment) => `${segment.count} ${STAGE_LABELS[segment.state] ?? humanizeCode(segment.state)}`,
@@ -258,7 +267,17 @@ export default async function AgencyDashboardPage({
                 ))}
               </div>
             </section>
-          ) : null}
+          ) : (
+            <section className="card pipeline-card" aria-labelledby="pipeline-heading">
+              <h2 className="card-title" id="pipeline-heading">
+                Where your cases are
+              </h2>
+              <EmptyState title="No case stages to show">
+                Actual stage counts appear when a case is shared and visible to you.
+              </EmptyState>
+              <Link href={`${base}/cases`}>Open cases</Link>
+            </section>
+          )}
 
           <section className="card" aria-labelledby="inbox-heading">
             <h2 className="card-title" id="inbox-heading">

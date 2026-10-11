@@ -45,6 +45,51 @@ export async function verifyStagingDeployment(env, request = fetch) {
     throw new Error(
       'BLOCKED: staging must be a READY non-production deployment of this exact revision.',
     );
+  if (!env.STAGING_ATTESTATION_SECRET)
+    throw new Error('BLOCKED: independent staging configuration proof is required before login.');
+  const proofResponse = await request(`${origin}/api/staging/attestation`, {
+    headers: { Authorization: `Bearer ${env.STAGING_ATTESTATION_SECRET}` },
+    redirect: 'error',
+  });
+  if (!proofResponse.ok)
+    throw new Error('BLOCKED: deployment cannot attest its staging resource bindings.');
+  const proof = await proofResponse.json();
+  if (
+    proof.deployment !== env.E2E_EXPECTED_SHA ||
+    proof.isolatedSyntheticConfiguration !== true ||
+    !proof.databaseHost ||
+    !proof.databaseName ||
+    !proof.neonAuthBaseUrl
+  )
+    throw new Error('BLOCKED: staging configuration proof is incomplete.');
+  const envResponse = await request(
+    'https://api.vercel.com/v9/projects/prj_RZcDRy1odwehHuDqsiGwvVGC0epe/env?teamId=team_YDtSBrhGH5u4NwrHUCCddXwS',
+    { headers: { Authorization: `Bearer ${env.STAGING_VERCEL_TOKEN}` } },
+  );
+  if (!envResponse.ok)
+    throw new Error('BLOCKED: production bindings cannot be independently checked.');
+  const configured = await envResponse.json();
+  const production = {};
+  for (const key of ['DATABASE_URL', 'NEON_AUTH_BASE_URL']) {
+    const item = configured.envs?.find(
+      (entry) => entry.key === key && entry.target.includes('production') && !entry.gitBranch,
+    );
+    if (!item) throw new Error('BLOCKED: production binding is unavailable.');
+    const response = await request(
+      `https://api.vercel.com/v9/projects/prj_RZcDRy1odwehHuDqsiGwvVGC0epe/env/${encodeURIComponent(item.id)}?teamId=team_YDtSBrhGH5u4NwrHUCCddXwS&decrypt=true`,
+      { headers: { Authorization: `Bearer ${env.STAGING_VERCEL_TOKEN}` } },
+    );
+    if (!response.ok) throw new Error('BLOCKED: production binding cannot be verified.');
+    const record = await response.json();
+    production[key] = record.value;
+  }
+  const database = new URL(production.DATABASE_URL);
+  const auth = new URL(production.NEON_AUTH_BASE_URL);
+  if (
+    proof.databaseHost === database.hostname.replace('-pooler.', '.') ||
+    new URL(proof.neonAuthBaseUrl).origin === auth.origin
+  )
+    throw new Error('BLOCKED: staging reuses a production database or Neon Auth binding.');
   return origin;
 }
 if (process.argv[1] && import.meta.url === new URL(`file://${process.argv[1]}`).href) {

@@ -191,6 +191,18 @@ export default async function AdminOperationsPage() {
         eyebrow="Platform"
         title="Operations"
         description="Platform health, readiness, capacity and pilot measurement."
+        actions={
+          data.admin ? (
+            <>
+              <a href="/app/admin/report" className="btn btn-secondary">
+                Export report
+              </a>
+              <a href="#admin-signals" className="btn btn-primary">
+                View alerts
+              </a>
+            </>
+          ) : undefined
+        }
       />
 
       {!data.admin ? (

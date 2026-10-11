@@ -88,3 +88,16 @@ Focused evidence before full-package verification: 291 page/form-accessibility t
 ## CF-09 execution correction and remaining acceptance
 
 The legacy WorkOS staging workflow is manual and explicitly labelled as legacy diagnostics. Missing credentials, missing isolation/exact non-production deployment proof, or skipped authenticated checks fail visibly. It cannot count as Neon acceptance. A separate manual Neon route-evidence workflow uses the real Neon form, independent synthetic roles, ten actual routes, desktop/mobile light/dark captures and selected cross-account/role checks. No authenticated execution has been performed: isolated Neon staging and synthetic fixture bindings remain unverified. See [Neon staging acceptance prerequisites and open journeys](NEON-STAGING-ACCEPTANCE.md). Complete PDF comparison, every significant action/lifecycle, provider-backed permission tests and operational acceptance remain open. CI success and fixture screenshots never close this gap.
+
+
+## CF-06/07 reference action follow-up
+
+The admin header adds an actual CSV report download from the same independently authorized aggregate reader and a direct link to operational alerts. The report contains closed metric labels, integers and UTC dates only; no account identities, applicant values, document bytes or credentials. Denial is 403 with private/no-store headers; failed reads return an explicit unavailable response. Original granular tools remain accessible.
+
+Authentication password fields add a keyboard-operable local show/hide button while retaining the same field name, value, constraints, autocomplete and server action. This does not change Neon Auth, form notices, rate limits or confirmation behavior. Focused regression and full release verification are pending; actual authenticated visual and workflow acceptance remains open.
+
+
+The staging preflight additionally refuses a preview using the production database endpoint or Neon Auth origin, independently of the manual isolation attestation. A preview-only bearer-protected probe supplies resource identifiers and exact revision without credentials; production bindings are read privately through the Vercel API and never printed. This avoids sending synthetic sign-in credentials to a preview that secretly reuses production. Actual fixture/data/storage isolation and all authenticated acceptance remain unverified.
+
+
+Follow-up focused checks passed 28 navigation/agency/password/report/probe tests, plus three production-probe tests after restoring its real preview-only guard. Temporarily removing that guard made the production refusal assertion fail. Source navigation checks cover 57 pages and 320 references without dangling or unreferenced destinations. Agency case-activity labels now describe the bounded note view, and stage counts retain actual canonical/legacy vocabulary order and an empty pipeline region. Full-package verification and actual authenticated acceptance remain pending.

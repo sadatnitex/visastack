@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { Icon } from '../../components/icons';
+import { PasswordInput } from './password-input';
 
 /** Shared pieces of the Neon Auth pages, so every form has the same labels, errors and spacing. */
 
@@ -73,15 +74,26 @@ export function TextField(props: {
       <label className="field-label" htmlFor={id}>
         {label}
       </label>
-      <input
-        id={id}
-        name={name}
-        type={type}
-        className="input"
-        aria-invalid={errorId ? true : undefined}
-        aria-describedby={errorId}
-        {...rest}
-      />
+      {type === 'password' ? (
+        <PasswordInput
+          id={id}
+          name={name}
+          className="input"
+          aria-invalid={errorId ? true : undefined}
+          aria-describedby={errorId}
+          {...rest}
+        />
+      ) : (
+        <input
+          id={id}
+          name={name}
+          type={type}
+          className="input"
+          aria-invalid={errorId ? true : undefined}
+          aria-describedby={errorId}
+          {...rest}
+        />
+      )}
     </div>
   );
 }

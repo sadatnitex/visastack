@@ -11,3 +11,10 @@ Required Actions variables: `E2E_STAGING_BASE_URL`, `E2E_STAGING_DEPLOYMENT_ID`,
 Current status: execution BLOCKED. No verified isolated staging deployment, independent Neon identities or approved synthetic fixture bindings are recorded in this session. The new workflow and route checks are implementation, not live acceptance evidence. Neon branch capacity remains a dependency; do not delete an unproven branch or reuse production to unblock these checks.
 
 Even after these checks pass, CF-09 remains incomplete until actual PDF comparisons and all significant workflows pass: versioned profile persistence, document upload/real processing/quarantine/preview/download, exact grant acceptance/pause/resume/revocation, agency assignment/evidence/review/export boundaries, specialized admin actions, mobile/keyboard discovery, failure/recovery states and required operational acceptance. A route capture or successful CI run cannot close that ledger by itself.
+
+
+## Independent resource binding proof
+
+Before login, the preflight now requires a separate `STAGING_ATTESTATION_SECRET`, configured only on the approved preview and in Actions. `/api/staging/attestation` is unavailable in production or without the explicit staging-isolation flag, and compares the separate bearer secret before reporting non-secret configuration identifiers. It never connects to the database or returns database usernames/passwords, cookies or keys. The preflight verifies the exact code revision and compares the preview database endpoint and Neon Auth origin against production bindings read privately through the Vercel API. Reusing either production resource blocks the run before any synthetic credentials are sent.
+
+These checks prove deployment/configuration separation; they do not prove a copied branch contains only synthetic data. Approved empty schema/fixtures, separate document processing/storage bindings and all lifecycle journeys still need evidence. Existing production credentials and databases are not changed by this module. Current execution remains blocked pending isolated staging provisioning and verified synthetic fixtures.
