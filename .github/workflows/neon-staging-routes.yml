@@ -77,3 +77,20 @@ jobs:
       - name: Remove raw authenticated diagnostic output
         if: always()
         run: rm -f "$RUNNER_TEMP/neon-routes.json" "$RUNNER_TEMP/neon-route-output.txt"
+
+  evidence-result:
+    name: Refuse skipped authenticated journey jobs
+    needs: actual-neon-routes
+    if: always()
+    runs-on: ubuntu-latest
+    env:
+      JOURNEY_RESULT: ${{ needs.actual-neon-routes.result }}
+    steps:
+      - name: Require actual successful Neon execution
+        run: |
+          if [ "$JOURNEY_RESULT" != "success" ]; then
+            echo "::error::BLOCKED: authenticated Neon journeys did not complete successfully. Skipped jobs are not acceptance evidence."
+            echo "Authenticated Neon route evidence is blocked; CF-09 remains incomplete." >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+          echo "Authenticated Neon route evidence ran successfully. Full PDF and significant lifecycle acceptance remain open." >> "$GITHUB_STEP_SUMMARY"
