@@ -36,8 +36,8 @@ export default async function AgencyPage() {
           <h2 className="card-title">Memberships</h2>
           {orgs.length === 0 ? (
             <EmptyState title="No organizations yet">
-              Create your agency on the right to start inviting clients, opening cases and
-              requesting evidence. You become the owner.
+              Apply to register your agency here. You become its owner, and a platform administrator
+              must verify it before it can work with clients.
             </EmptyState>
           ) : (
             <div className="rows" style={{ marginTop: '0.5rem' }}>
@@ -73,7 +73,7 @@ export default async function AgencyPage() {
 
         <article className="card">
           <p className="card-kicker">New</p>
-          <h2 className="card-title">Create an organization</h2>
+          <h2 className="card-title">Apply to register an agency</h2>
           <p className="card-body" style={{ marginBottom: '1.25rem' }}>
             You become the owner. New organizations start pending verification by a platform
             administrator.

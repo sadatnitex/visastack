@@ -37,11 +37,13 @@ describe('current contextual navigation contract', () => {
     expect(
       nav.primary.slice(0, 5).every((link) => link.href.startsWith(`/app/applicant/${p2}`)),
     ).toBe(true);
+    expect([...nav.primary, ...nav.tools, ...nav.settings].map((link) => link.href)).not.toContain(
+      '/app/privacy',
+    );
     expect(nav.tools.map((link) => link.label)).toEqual(
       expect.arrayContaining([
         'All travellers',
         'Shared with me',
-        'Privacy & consent',
         'Evidence requests',
         'Dates & expiry',
         'History',

@@ -31,10 +31,7 @@ export interface WorkspaceNavigation {
   readonly settings: readonly NavLink[];
 }
 
-const settings: readonly NavLink[] = [
-  { href: '/app/account', label: 'Settings' },
-  { href: '/app/help', label: 'Help & support' },
-];
+const settings: readonly NavLink[] = [];
 
 /** Navigation describes only the current server-authorized context list; it grants no access. */
 export function workspaceNavigation(
@@ -67,10 +64,7 @@ export function workspaceNavigation(
           ? [{ href: '/app/admin/complaints', label: 'Complaints' }]
           : []),
       ],
-      settings: [
-        { href: '/app/admin/settings', label: 'Settings' },
-        { href: '/app/help', label: 'Help & support' },
-      ],
+      settings: [{ href: '/app/admin/settings', label: 'Platform settings' }],
     };
   }
 
@@ -99,10 +93,7 @@ export function workspaceNavigation(
         { href: `${base}/activity`, label: 'Case activity' },
       ],
       tools: [{ href: `${base}/plan`, label: 'Plan & usage' }],
-      settings: [
-        ...(agency.admin ? [{ href: `${base}/settings`, label: 'Settings' }] : []),
-        { href: '/app/help', label: 'Help & support' },
-      ],
+      settings: [...(agency.admin ? [{ href: `${base}/settings`, label: 'Agency settings' }] : [])],
     };
   }
 
@@ -153,7 +144,6 @@ export function workspaceNavigation(
     tools: [
       { href: '/app/applicants', label: 'All travellers' },
       { href: '/app/shared', label: 'Shared with me' },
-      { href: '/app/privacy', label: 'Privacy & consent' },
       { href: '/app', label: 'Account overview', exact: true },
       ...(base
         ? [

@@ -24,6 +24,8 @@ const CONTEXT_ICONS: Readonly<Record<string, IconName>> = {
   Sharing: 'share',
   Notifications: 'bell',
   Settings: 'settings',
+  'Agency settings': 'settings',
+  'Platform settings': 'settings',
   'Help & support': 'shield',
   Clients: 'users',
   Cases: 'briefcase',
@@ -209,7 +211,11 @@ export function AppNav({
             <Icon name="close" size={20} />
           </button>
         </div>
-        <nav className="app-shell-links app-shell-links-more" aria-label="Account and privacy">
+        {identity ? <div className="app-mobile-identity">{identity}</div> : null}
+        <nav
+          className="app-shell-links app-shell-links-more"
+          aria-label="More workspace destinations"
+        >
           {links.slice(BAR_LINKS).map(link)}
         </nav>
         {children}
