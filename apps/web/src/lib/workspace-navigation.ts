@@ -33,7 +33,7 @@ export interface WorkspaceNavigation {
 
 const settings: readonly NavLink[] = [
   { href: '/app/account', label: 'Settings' },
-  { href: '/status', label: 'Help & support' },
+  { href: '/app/help', label: 'Help & support' },
 ];
 
 /** Navigation describes only the current server-authorized context list; it grants no access. */
@@ -69,7 +69,7 @@ export function workspaceNavigation(
       ],
       settings: [
         { href: '/app/admin/settings', label: 'Settings' },
-        { href: '/status', label: 'Help & support' },
+        { href: '/app/help', label: 'Help & support' },
       ],
     };
   }
@@ -96,12 +96,12 @@ export function workspaceNavigation(
             ]
           : []),
         ...(agency.admin ? [{ href: `${base}/team`, label: 'Team' }] : []),
-        { href: `${base}/activity`, label: 'Activity log' },
+        { href: `${base}/activity`, label: 'Case activity' },
       ],
       tools: [{ href: `${base}/plan`, label: 'Plan & usage' }],
       settings: [
         ...(agency.admin ? [{ href: `${base}/settings`, label: 'Settings' }] : []),
-        { href: '/status', label: 'Help & support' },
+        { href: '/app/help', label: 'Help & support' },
       ],
     };
   }

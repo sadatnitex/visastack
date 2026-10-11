@@ -1,3 +1,4 @@
+import { CANONICAL_CASE_STATES, LEGACY_ONLY_MISSION_STATES } from '@visastack/core';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { Checklist, EmptyState, StatusBadge } from '../../../../components/ui';
@@ -178,9 +179,17 @@ export default async function AgencyDashboardPage({
   for (const mission of data.missions) {
     stageCounts.set(mission.state, (stageCounts.get(mission.state) ?? 0) + 1);
   }
+  const stageOrder: readonly string[] = [...CANONICAL_CASE_STATES, ...LEGACY_ONLY_MISSION_STATES];
   const pipeline = [...stageCounts.entries()]
     .map(([state, count], index) => ({ state, count, index: index % 6 }))
-    .sort((a, b) => b.count - a.count);
+    .sort((a, b) => {
+      const left = stageOrder.indexOf(a.state);
+      const right = stageOrder.indexOf(b.state);
+      return (
+        (left < 0 ? stageOrder.length : left) - (right < 0 ? stageOrder.length : right) ||
+        a.state.localeCompare(b.state)
+      );
+    });
   const pipelineSummary = pipeline
     .map(
       (segment) => `${segment.count} ${STAGE_LABELS[segment.state] ?? humanizeCode(segment.state)}`,
@@ -232,201 +241,285 @@ export default async function AgencyDashboardPage({
         ) : null}
       </section>
 
-      {data.missions.length > 1 ? (
-        <section className="card pipeline-card" aria-labelledby="pipeline-heading">
-          <h2 className="card-title" id="pipeline-heading">
-            Where your cases are
-          </h2>
-          <div className="pipeline-bar" role="img" aria-label={pipelineSummary}>
-            {pipeline.map((segment) => (
-              <span
-                key={segment.state}
-                className={`pipeline-seg pipeline-seg-${segment.index}`}
-                style={{ flexGrow: segment.count }}
-              />
-            ))}
-          </div>
-          <ul className="pipeline-legend">
-            {pipeline.map((segment) => (
-              <li key={segment.state}>
-                <Link href={`/app/agency/${orgId}?stage=${segment.state}`}>
-                  <span
-                    className={`pipeline-dot pipeline-seg-${segment.index}`}
-                    aria-hidden="true"
-                  />
-                  {STAGE_LABELS[segment.state] ?? humanizeCode(segment.state)}
-                  <span className="pipeline-count">{segment.count}</span>
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </section>
-      ) : null}
+      <div className="agency-working-area">
+        <div className="agency-case-column">
+          {data.missions.length > 0 ? (
+            <section className="card pipeline-card" aria-labelledby="pipeline-heading">
+              <h2 className="card-title" id="pipeline-heading">
+                Where your cases are
+              </h2>
+              <p className="sr-only">{pipelineSummary}</p>
+              <div className="agency-pipeline-stages">
+                {pipeline.map((segment) => (
+                  <Link
+                    className="agency-stage-card"
+                    key={segment.state}
+                    href={`${base}?stage=${segment.state}`}
+                  >
+                    <span>{STAGE_LABELS[segment.state] ?? humanizeCode(segment.state)}</span>
+                    <strong>{segment.count}</strong>
+                    <progress
+                      max={data.missions.length}
+                      value={segment.count}
+                      aria-label={`${STAGE_LABELS[segment.state] ?? humanizeCode(segment.state)} cases`}
+                    />
+                  </Link>
+                ))}
+              </div>
+            </section>
+          ) : (
+            <section className="card pipeline-card" aria-labelledby="pipeline-heading">
+              <h2 className="card-title" id="pipeline-heading">
+                Where your cases are
+              </h2>
+              <EmptyState title="No case stages to show">
+                Actual stage counts appear when a case is shared and visible to you.
+              </EmptyState>
+              <Link href={`${base}/cases`}>Open cases</Link>
+            </section>
+          )}
 
-      <section className="card" aria-labelledby="inbox-heading">
-        <h2 className="card-title" id="inbox-heading">
-          Case inbox
-        </h2>
-        <p className="card-body" style={{ marginBottom: '1rem' }}>
-          Cases that need action come first. Search covers only the cases you are already allowed to
-          see, by traveller, case title, reference, destination or stage.
-        </p>
-        <CaseSearchForm
-          orgId={orgId}
-          members={data.members.map((m) => ({ accountId: m.accountId, email: m.email }))}
-          query={rawQuery}
-          stage={stageFilter}
-          destination={rawDestinationFilter}
-          assignee={assigneeFilter}
-        />
-        {data.missions.length === 0 ? (
-          <div style={{ marginTop: '1rem' }}>
-            <EmptyState title="No cases yet" icon="briefcase">
-              {data.admin
-                ? 'No cases are reachable yet - an applicant must grant this organization access to a specific case.'
-                : "You aren't assigned to any cases yet - ask an admin to assign you to one."}
-            </EmptyState>
-          </div>
-        ) : searched.length === 0 ? (
-          <p className="card-body" style={{ marginTop: '1rem' }}>
-            No cases match that search.
-          </p>
-        ) : (
-          <table className="data-table" style={{ marginTop: '1rem' }}>
-            <caption className="sr-only">Cases, most urgent first</caption>
-            <thead>
-              <tr>
-                <th scope="col">Case</th>
-                <th scope="col">Stage</th>
-                <th scope="col">Readiness</th>
-                <th scope="col">Needs attention</th>
-                <th scope="col">Assigned</th>
-                <th scope="col">Traveller confirmed</th>
-              </tr>
-            </thead>
-            <tbody>
-              {searched.map((row) => {
-                const { mission } = row;
-                const required = mission.readiness?.requiredCount ?? 0;
-                const satisfied = mission.readiness?.satisfiedRequired ?? 0;
-                return (
-                  <tr key={mission.missionId}>
-                    <th scope="row" className="cell-main">
-                      <Link href={`/app/agency/${orgId}/cases#mission-${mission.missionId}`}>
-                        {mission.applicantName} · {mission.title}
-                      </Link>
-                      {mission.destination ? (
-                        <span className="cell-sub">{mission.destination}</span>
-                      ) : null}
-                    </th>
-                    <td data-label="Stage">{STAGE_LABELS[mission.state] ?? mission.state}</td>
-                    <td data-label="Readiness">
-                      <StatusBadge
-                        tone={
-                          mission.manualMode
-                            ? 'warning'
-                            : mission.readiness?.ready
-                              ? 'success'
-                              : 'neutral'
-                        }
-                      >
-                        {mission.manualMode
-                          ? 'Manual mode'
-                          : !mission.packVersionId
-                            ? 'No pack attached'
-                            : mission.readiness
-                              ? mission.readiness.ready
-                                ? 'Ready'
-                                : `${required - satisfied} missing`
-                              : 'Readiness unavailable'}
-                      </StatusBadge>
-                      {mission.readiness && required > 0 && !mission.manualMode ? (
-                        <span className="cell-sub">
-                          {satisfied} of {required} required
-                        </span>
-                      ) : null}
-                    </td>
-                    <td data-label="Needs attention">
-                      <span className="case-row-badges">
-                        {row.openRequests > 0 ? (
-                          <StatusBadge tone="warning">
-                            {row.openRequests} open request{row.openRequests === 1 ? '' : 's'}
-                          </StatusBadge>
-                        ) : null}
-                        {row.reviewIssues > 0 ? (
-                          <StatusBadge tone="warning">
-                            {row.reviewIssues} needs replacement
-                          </StatusBadge>
-                        ) : null}
-                        {row.overdueTasks > 0 ? (
-                          <StatusBadge tone="danger">
-                            {row.overdueTasks} overdue task{row.overdueTasks === 1 ? '' : 's'}
-                          </StatusBadge>
-                        ) : null}
-                        {row.approaching ? (
-                          <StatusBadge tone="warning">
-                            {row.approaching.label} {formatDateOnly(row.approaching.date)}
-                          </StatusBadge>
-                        ) : null}
-                        {row.openRequests +
-                          row.reviewIssues +
-                          row.overdueTasks +
-                          (row.approaching ? 1 : 0) ===
-                        0 ? (
-                          <span className="muted">Nothing</span>
-                        ) : null}
-                      </span>
-                    </td>
-                    <td data-label="Assigned">
-                      {row.assignedToMe ? (
-                        <StatusBadge tone="neutral">Assigned to you</StatusBadge>
-                      ) : null}
-                      {mission.assignments.length === 0 ? (
-                        <StatusBadge tone="warning">Needs assignment</StatusBadge>
-                      ) : (
-                        <span className="cell-sub">
-                          {mission.assignments.map((a) => a.memberEmail).join(', ')}
-                        </span>
-                      )}
-                    </td>
-                    <td data-label="Traveller confirmed">
-                      {/* TRU-02 (Part 7 section 3): the applicant's own live sign-off status, not a
-                          reviewer's. This org can see whether it exists, never act on it. */}
-                      {mission.liveAcknowledgementAt
-                        ? `Acknowledged ${formatTimestampDate(mission.liveAcknowledgementAt)}`
-                        : 'Not yet acknowledged'}
-                    </td>
+          <section className="card" aria-labelledby="inbox-heading">
+            <h2 className="card-title" id="inbox-heading">
+              Case inbox
+            </h2>
+            <p className="card-body" style={{ marginBottom: '1rem' }}>
+              Cases that need action come first. Search covers only the cases you are already
+              allowed to see, by traveller, case title, reference, destination or stage.
+            </p>
+            <CaseSearchForm
+              orgId={orgId}
+              members={data.members.map((m) => ({ accountId: m.accountId, email: m.email }))}
+              query={rawQuery}
+              stage={stageFilter}
+              destination={rawDestinationFilter}
+              assignee={assigneeFilter}
+            />
+            {data.missions.length === 0 ? (
+              <div style={{ marginTop: '1rem' }}>
+                <EmptyState title="No cases yet" icon="briefcase">
+                  {data.admin
+                    ? 'No cases are reachable yet - an applicant must grant this organization access to a specific case.'
+                    : "You aren't assigned to any cases yet - ask an admin to assign you to one."}
+                </EmptyState>
+              </div>
+            ) : searched.length === 0 ? (
+              <p className="card-body" style={{ marginTop: '1rem' }}>
+                No cases match that search.
+              </p>
+            ) : (
+              <table className="data-table" style={{ marginTop: '1rem' }}>
+                <caption className="sr-only">Cases, most urgent first</caption>
+                <thead>
+                  <tr>
+                    <th scope="col">Case</th>
+                    <th scope="col">Stage</th>
+                    <th scope="col">Readiness</th>
+                    <th scope="col">Needs attention</th>
+                    <th scope="col">Assigned</th>
+                    <th scope="col">Traveller confirmed</th>
                   </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        )}
-      </section>
+                </thead>
+                <tbody>
+                  {searched.map((row) => {
+                    const { mission } = row;
+                    const required = mission.readiness?.requiredCount ?? 0;
+                    const satisfied = mission.readiness?.satisfiedRequired ?? 0;
+                    return (
+                      <tr key={mission.missionId}>
+                        <th scope="row" className="cell-main">
+                          <Link href={`/app/agency/${orgId}/cases#mission-${mission.missionId}`}>
+                            {mission.applicantName} · {mission.title}
+                          </Link>
+                          {mission.destination ? (
+                            <span className="cell-sub">{mission.destination}</span>
+                          ) : null}
+                        </th>
+                        <td data-label="Stage">{STAGE_LABELS[mission.state] ?? mission.state}</td>
+                        <td data-label="Readiness">
+                          <StatusBadge
+                            tone={
+                              mission.manualMode
+                                ? 'warning'
+                                : mission.readiness?.ready
+                                  ? 'success'
+                                  : 'neutral'
+                            }
+                          >
+                            {mission.manualMode
+                              ? 'Manual mode'
+                              : !mission.packVersionId
+                                ? 'No pack attached'
+                                : mission.readiness
+                                  ? mission.readiness.ready
+                                    ? 'Ready'
+                                    : `${required - satisfied} missing`
+                                  : 'Readiness unavailable'}
+                          </StatusBadge>
+                          {mission.readiness && required > 0 && !mission.manualMode ? (
+                            <span className="cell-sub">
+                              {satisfied} of {required} required
+                            </span>
+                          ) : null}
+                        </td>
+                        <td data-label="Needs attention">
+                          <span className="case-row-badges">
+                            {row.openRequests > 0 ? (
+                              <StatusBadge tone="warning">
+                                {row.openRequests} open request{row.openRequests === 1 ? '' : 's'}
+                              </StatusBadge>
+                            ) : null}
+                            {row.reviewIssues > 0 ? (
+                              <StatusBadge tone="warning">
+                                {row.reviewIssues} needs replacement
+                              </StatusBadge>
+                            ) : null}
+                            {row.overdueTasks > 0 ? (
+                              <StatusBadge tone="danger">
+                                {row.overdueTasks} overdue task{row.overdueTasks === 1 ? '' : 's'}
+                              </StatusBadge>
+                            ) : null}
+                            {row.approaching ? (
+                              <StatusBadge tone="warning">
+                                {row.approaching.label} {formatDateOnly(row.approaching.date)}
+                              </StatusBadge>
+                            ) : null}
+                            {row.openRequests +
+                              row.reviewIssues +
+                              row.overdueTasks +
+                              (row.approaching ? 1 : 0) ===
+                            0 ? (
+                              <span className="muted">Nothing</span>
+                            ) : null}
+                          </span>
+                        </td>
+                        <td data-label="Assigned">
+                          {row.assignedToMe ? (
+                            <StatusBadge tone="neutral">Assigned to you</StatusBadge>
+                          ) : null}
+                          {mission.assignments.length === 0 ? (
+                            <StatusBadge tone="warning">Needs assignment</StatusBadge>
+                          ) : (
+                            <span className="cell-sub">
+                              {mission.assignments.map((a) => a.memberEmail).join(', ')}
+                            </span>
+                          )}
+                        </td>
+                        <td data-label="Traveller confirmed">
+                          {/* TRU-02 (Part 7 section 3): the applicant's own live sign-off status, not a
+                          reviewer's. This org can see whether it exists, never act on it. */}
+                          {mission.liveAcknowledgementAt
+                            ? `Acknowledged ${formatTimestampDate(mission.liveAcknowledgementAt)}`
+                            : 'Not yet acknowledged'}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            )}
+          </section>
 
-      {data.admin && data.unassignedQueue.length > 0 ? (
-        <article className="card" style={{ marginBottom: '1.5rem' }}>
-          <p className="card-kicker">Needs attention</p>
-          <h2 className="card-title">Reassignment queue</h2>
-          <p className="card-body" style={{ marginBottom: '1.25rem' }}>
-            Active cases this organization can still act on but that currently have nobody assigned
-            - most often because the only assigned member was removed. Open one to assign someone in
-            the Cases section.
-          </p>
-          <div className="rows">
-            {data.unassignedQueue.map((m) => (
-              <Link
-                key={m.missionId}
-                href={`/app/agency/${orgId}/cases#mission-${m.missionId}`}
-                className="row row-link"
-              >
-                <span className="row-key">{m.title}</span>
-                <span className="muted">{m.applicantName}</span>
-              </Link>
-            ))}
-          </div>
-        </article>
-      ) : null}
+          {data.admin && data.unassignedQueue.length > 0 ? (
+            <article className="card" style={{ marginBottom: '1.5rem' }}>
+              <p className="card-kicker">Needs attention</p>
+              <h2 className="card-title">Reassignment queue</h2>
+              <p className="card-body" style={{ marginBottom: '1.25rem' }}>
+                Active cases this organization can still act on but that currently have nobody
+                assigned - most often because the only assigned member was removed. Open one to
+                assign someone in the Cases section.
+              </p>
+              <div className="rows">
+                {data.unassignedQueue.map((m) => (
+                  <Link
+                    key={m.missionId}
+                    href={`/app/agency/${orgId}/cases#mission-${m.missionId}`}
+                    className="row row-link"
+                  >
+                    <span className="row-key">{m.title}</span>
+                    <span className="muted">{m.applicantName}</span>
+                  </Link>
+                ))}
+              </div>
+            </article>
+          ) : null}
+        </div>
+        <aside className="agency-context-rail" aria-label="Requests and team">
+          {data.admin ? (
+            <>
+              <article className="card">
+                <h2 className="card-title">Evidence requests</h2>
+                <p className="card-body">Recent requests available to your administrator role.</p>
+                {data.requests.length ? (
+                  <ul className="agency-request-list">
+                    {data.requests.slice(0, 5).map((request) => (
+                      <li key={request.id}>
+                        <Link href={`${base}/clients#agency-evidence-requests`}>
+                          <strong>
+                            {request.docType ?? request.fieldKey ?? 'Evidence request'}
+                          </strong>
+                          <span>
+                            {request.applicantName ?? 'Traveller'} · {humanizeCode(request.status)}
+                          </span>
+                          {request.dueDate ? (
+                            <small>Due {formatTimestampDate(request.dueDate)}</small>
+                          ) : null}
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="muted">No evidence requests yet.</p>
+                )}
+                <Link
+                  href={`${base}/clients#agency-evidence-requests`}
+                  className="btn btn-secondary"
+                >
+                  Manage requests
+                </Link>
+              </article>
+              <article className="card">
+                <h2 className="card-title">Your team</h2>
+                <p className="card-body">
+                  {data.members.filter((member) => member.active).length} active members. Inactive
+                  memberships remain available in team management.
+                </p>
+                <ul className="agency-request-list">
+                  {data.members
+                    .filter((member) => member.active)
+                    .slice(0, 4)
+                    .map((member) => (
+                      <li key={member.accountId}>
+                        <strong>{member.email}</strong>
+                        <span>{humanizeCode(member.role)}</span>
+                      </li>
+                    ))}
+                </ul>
+                <Link href={`${base}/team`} className="btn btn-secondary">
+                  Manage team
+                </Link>
+              </article>
+            </>
+          ) : (
+            <article className="card">
+              <h2 className="card-title">Your case work</h2>
+              <p className="card-body">
+                Requests and team management belong to agency administrators. Your assigned case
+                tools remain available.
+              </p>
+              <Link href={`${base}/cases`}>Open assigned cases</Link>
+            </article>
+          )}
+          <article className="card">
+            <h2 className="card-title">Case activity</h2>
+            <p className="card-body">
+              Recent notes from cases you can currently access. This is not the full organization
+              audit log.
+            </p>
+            <Link href={`${base}/activity`}>View accessible case activity</Link>
+          </article>
+        </aside>
+      </div>
     </>
   );
 }

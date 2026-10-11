@@ -77,6 +77,8 @@ export default async function SharingPage({
     return {
       applicant,
       grants,
+      accessAvailable: access.ok,
+      documentsAvailable: documents.ok,
       documents: documents.ok ? documents.value : [],
       scopeExpansions,
       auditEvents: auditEvents.map((e) => ({ ...e, occurredAt: e.occurredAt.toISOString() })),
@@ -89,184 +91,228 @@ export default async function SharingPage({
     <>
       <PageHeader
         eyebrow="Sharing"
-        title={<>Access &amp; transparency</>}
+        title={<>Sharing &amp; access</>}
         description="You control every grant. Access is purpose-bound, takes effect only once accepted, and can be paused or revoked at any time."
         as="h2"
+        actions={
+          <a className="btn btn-primary" href="#new-sharing-request">
+            New sharing request
+          </a>
+        }
       />
 
       <div className="sharing-workspace">
-        <article className="card">
-          <p className="card-kicker">Transparency</p>
-          <h2 className="card-title">Who has access</h2>
-          {data.grants.length > 0 ? (
-            <p className="notice" style={{ marginBottom: '1rem' }}>
-              Pausing or revoking stops all <em>future</em> access immediately. It cannot remotely
-              erase copies the recipient already downloaded before that point.
+        <div className="sharing-access-column">
+          <article className="card">
+            <p className="card-kicker">Controlled collaboration</p>
+            <h2 className="card-title">Who has access</h2>
+            <p className="card-body">
+              {data.accessAvailable
+                ? `${data.grants.filter((grant) => grant.status === 'ACTIVE').length} active grants. Pending, paused and ended grants are labelled separately below.`
+                : 'Access records are unavailable. Reload before making changes.'}
             </p>
-          ) : null}
-          {data.grants.length === 0 ? (
-            <EmptyState title="Nobody has access yet">
-              Your profile and documents are private. When you share with someone, they appear here
-              with what they can see and until when.
-            </EmptyState>
-          ) : (
-            <div className="rows" style={{ marginTop: '0.5rem' }}>
-              {data.grants.map((grant) => {
-                const badge = grantStatusBadge(grant.status, t);
-                const canPause = grant.status === 'ACTIVE';
-                const canResume = grant.status === 'PAUSED';
-                const canRevoke =
-                  grant.status === 'ACTIVE' ||
-                  grant.status === 'PAUSED' ||
-                  grant.status === 'PENDING_ACCEPTANCE';
-                return (
-                  <div
-                    className="row"
-                    key={grant.id}
-                    style={{ flexDirection: 'column', alignItems: 'stretch', gap: '0.5rem' }}
-                  >
+            {data.grants.length > 0 ? (
+              <p className="notice" style={{ marginBottom: '1rem' }}>
+                Pausing or revoking stops all <em>future</em> access immediately. It cannot remotely
+                erase copies the recipient already downloaded before that point.
+              </p>
+            ) : null}
+            {!data.accessAvailable ? (
+              <p role="alert">
+                We could not load sharing records. This does not mean nobody has access.
+              </p>
+            ) : data.grants.length === 0 ? (
+              <EmptyState title="Nobody has access yet">
+                Your profile and documents are private. When you share with someone, they appear
+                here with what they can see and until when.
+              </EmptyState>
+            ) : (
+              <div className="rows" style={{ marginTop: '0.5rem' }}>
+                {data.grants.map((grant) => {
+                  const badge = grantStatusBadge(grant.status, t);
+                  const canPause = grant.status === 'ACTIVE';
+                  const canResume = grant.status === 'PAUSED';
+                  const canRevoke =
+                    grant.status === 'ACTIVE' ||
+                    grant.status === 'PAUSED' ||
+                    grant.status === 'PENDING_ACCEPTANCE';
+                  return (
                     <div
-                      style={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                        gap: '0.75rem',
-                      }}
+                      className="row sharing-grant"
+                      key={grant.id}
+                      style={{ flexDirection: 'column', alignItems: 'stretch', gap: '0.5rem' }}
                     >
-                      <span className="row-key">
-                        {grant.recipient.label}
-                        {grant.recipient.kind === 'organization' ? ' (organization)' : ''}
-                      </span>
-                      <span className={`badge ${badge.tone}`}>{badge.label}</span>
-                    </div>
-                    <p style={{ margin: 0, fontSize: '0.9rem' }}>
-                      {grant.recipient.label}{' '}
-                      {grant.status === 'ACTIVE' ? 'can' : 'would be able to'}{' '}
-                      {grant.actions.map((a) => (ACTION_LABELS[a] ?? a).toLowerCase()).join(', ')}{' '}
-                      {grant.missionId
-                        ? 'for one specific case'
-                        : grant.categories && grant.categories.length > 0
-                          ? `in ${grant.categories
-                              .map((c) => PACK_LABELS[c as keyof typeof PACK_LABELS] ?? c)
-                              .join(', ')}`
-                          : 'across your whole profile'}
-                      {grant.expiryAt ? `, until ${formatTimestampDate(grant.expiryAt)}` : ''}.
-                    </p>
-                    <p className="muted" style={{ margin: 0, fontSize: '0.8rem' }}>
-                      Purpose: {grant.purpose}
-                      {grant.expiryAt ? ` · expires ${formatTimestampDate(grant.expiryAt)}` : ''}
-                      {grant.acceptedAt
-                        ? ` · accepted ${formatTimestampDate(grant.acceptedAt)}`
-                        : ''}
-                    </p>
-                    <p className="muted" style={{ margin: 0, fontSize: '0.8rem' }}>
-                      Can: {grant.actions.map((a) => ACTION_LABELS[a] ?? a).join(', ')}
-                    </p>
-                    <p className="muted" style={{ margin: 0, fontSize: '0.8rem' }}>
-                      Scope:{' '}
-                      {grant.missionId
-                        ? 'one specific case'
-                        : grant.categories && grant.categories.length > 0
-                          ? grant.categories
-                              .map((c) => PACK_LABELS[c as keyof typeof PACK_LABELS] ?? c)
-                              .join(', ')
-                          : 'your whole profile'}
-                      {grant.documentIds && grant.documentIds.length > 0
-                        ? ` · ${grant.documentIds.length} specific document${grant.documentIds.length === 1 ? '' : 's'}`
-                        : ''}
-                    </p>
-                    {canPause || canResume || canRevoke ? (
-                      <p className="muted" style={{ margin: 0, fontSize: '0.8rem' }}>
-                        Pause stops access straight away and you can resume it later. Revoke ends
-                        this access.
+                      <div
+                        style={{
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          gap: '0.75rem',
+                        }}
+                      >
+                        <span className="row-key">
+                          {grant.recipient.label}
+                          {grant.recipient.kind === 'organization' ? ' (organization)' : ''}
+                        </span>
+                        <span className={`badge ${badge.tone}`}>{badge.label}</span>
+                      </div>
+                      <p style={{ margin: 0, fontSize: '0.9rem' }}>
+                        {grant.recipient.label}{' '}
+                        {grant.status === 'ACTIVE' ? 'can' : 'would be able to'}{' '}
+                        {grant.actions.map((a) => (ACTION_LABELS[a] ?? a).toLowerCase()).join(', ')}{' '}
+                        {grant.missionId
+                          ? 'for one specific case'
+                          : grant.categories && grant.categories.length > 0
+                            ? `in ${grant.categories
+                                .map((c) => PACK_LABELS[c as keyof typeof PACK_LABELS] ?? c)
+                                .join(', ')}`
+                            : 'across your whole profile'}
+                        {grant.expiryAt ? `, until ${formatTimestampDate(grant.expiryAt)}` : ''}.
                       </p>
-                    ) : null}
-                    {canPause || canResume || canRevoke ? (
-                      <GrantOpButtons
-                        applicantId={id}
-                        grantId={grant.id}
-                        ops={[
-                          ...(canPause
-                            ? [{ op: 'pause' as const, label: 'Pause', variant: 'btn-secondary' }]
-                            : []),
-                          ...(canResume
-                            ? [{ op: 'resume' as const, label: 'Resume', variant: 'btn-secondary' }]
-                            : []),
-                          ...(canRevoke
-                            ? [{ op: 'revoke' as const, label: 'Revoke', variant: 'btn-danger' }]
-                            : []),
-                        ]}
-                      />
-                    ) : null}
-                    {(() => {
-                      const candidates = data.scopeExpansions.get(grant.id);
-                      return candidates && candidates.length > 0 ? (
-                        <ScopeExpansionForm
+                      <p className="muted" style={{ margin: 0, fontSize: '0.8rem' }}>
+                        Purpose: {grant.purpose}
+                        {grant.expiryAt ? ` · expires ${formatTimestampDate(grant.expiryAt)}` : ''}
+                        {grant.acceptedAt
+                          ? ` · accepted ${formatTimestampDate(grant.acceptedAt)}`
+                          : ''}
+                      </p>
+                      <p className="muted" style={{ margin: 0, fontSize: '0.8rem' }}>
+                        Can: {grant.actions.map((a) => ACTION_LABELS[a] ?? a).join(', ')}
+                      </p>
+                      <p className="muted" style={{ margin: 0, fontSize: '0.8rem' }}>
+                        Scope:{' '}
+                        {grant.missionId
+                          ? 'one specific case'
+                          : grant.categories && grant.categories.length > 0
+                            ? grant.categories
+                                .map((c) => PACK_LABELS[c as keyof typeof PACK_LABELS] ?? c)
+                                .join(', ')
+                            : 'your whole profile'}
+                        {grant.documentIds && grant.documentIds.length > 0
+                          ? ` · ${grant.documentIds.length} specific document${grant.documentIds.length === 1 ? '' : 's'}`
+                          : ''}
+                      </p>
+                      {grant.documentIds && grant.documentIds.length > 0 ? (
+                        <ul
+                          className="sharing-document-scope"
+                          aria-label="Documents included in this grant"
+                        >
+                          {grant.documentIds.map((documentId) => {
+                            const document = data.documents.find(
+                              (record) => record.id === documentId,
+                            );
+                            return (
+                              <li key={documentId}>
+                                {document
+                                  ? (document.approvedName ?? document.originalName)
+                                  : 'Document details unavailable'}
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      ) : null}
+                      {canPause || canResume || canRevoke ? (
+                        <p className="muted" style={{ margin: 0, fontSize: '0.8rem' }}>
+                          Pause stops access straight away and you can resume it later. Revoke ends
+                          this access.
+                        </p>
+                      ) : null}
+                      {canPause || canResume || canRevoke ? (
+                        <GrantOpButtons
                           applicantId={id}
                           grantId={grant.id}
-                          candidates={candidates}
+                          ops={[
+                            ...(canPause
+                              ? [{ op: 'pause' as const, label: 'Pause', variant: 'btn-secondary' }]
+                              : []),
+                            ...(canResume
+                              ? [
+                                  {
+                                    op: 'resume' as const,
+                                    label: 'Resume',
+                                    variant: 'btn-secondary',
+                                  },
+                                ]
+                              : []),
+                            ...(canRevoke
+                              ? [{ op: 'revoke' as const, label: 'Revoke', variant: 'btn-danger' }]
+                              : []),
+                          ]}
                         />
-                      ) : null;
-                    })()}
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </article>
+                      ) : null}
+                      {(() => {
+                        const candidates = data.scopeExpansions.get(grant.id);
+                        return candidates && candidates.length > 0 ? (
+                          <ScopeExpansionForm
+                            applicantId={id}
+                            grantId={grant.id}
+                            candidates={candidates}
+                          />
+                        ) : null;
+                      })()}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </article>
 
-        <article className="card">
-          <p className="card-kicker">Share</p>
+          <article className="card">
+            <p className="card-kicker">Transparency</p>
+            <h2 className="card-title">Access log</h2>
+            <p className="card-body" style={{ marginBottom: '1rem' }}>
+              What actually happened to your data, not just what a grant permits - the most recent{' '}
+              {data.auditEvents.length} event{data.auditEvents.length === 1 ? '' : 's'}.
+            </p>
+            {data.auditEvents.length === 0 ? (
+              <EmptyState title="No activity yet">
+                Every time your information is opened, shared or changed, it is recorded here.
+              </EmptyState>
+            ) : (
+              <div className="rows" style={{ marginTop: '0.5rem' }}>
+                {data.auditEvents.map((e) => (
+                  <div className="row" key={e.seq}>
+                    <span className="row-key">
+                      {humanizeCode(e.eventType)}
+                      <span className="muted" style={{ fontSize: '0.8rem', marginLeft: '0.5rem' }}>
+                        {e.actorEmail ?? 'System'}
+                      </span>
+                    </span>
+                    <span className="row-end">
+                      {e.result ? (
+                        <StatusBadge tone={e.result === 'ALLOWED' ? 'success' : 'danger'}>
+                          {e.result === 'ALLOWED' ? 'Allowed' : 'Blocked'}
+                        </StatusBadge>
+                      ) : null}
+                      <span className="muted" style={{ fontSize: '0.8rem' }}>
+                        {formatTimestamp(e.occurredAt)}
+                      </span>
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </article>
+        </div>
+        <article className="card sharing-composer-card" id="new-sharing-request">
+          <p className="card-kicker">New sharing request</p>
           <h2 className="card-title">Grant access</h2>
           <p className="card-body" style={{ marginBottom: '1.25rem' }}>
             Share with an existing VisaStack user by email. They must accept before any access
             begins.
           </p>
-          <GrantForm
-            applicantId={id}
-            documents={data.documents.map((d) => ({
-              id: d.id,
-              displayName: d.approvedName ?? d.originalName,
-            }))}
-          />
-        </article>
-      </div>
-
-      <div className="grid" style={{ marginTop: '1.5rem' }}>
-        <article className="card">
-          <p className="card-kicker">Transparency</p>
-          <h2 className="card-title">Access log</h2>
-          <p className="card-body" style={{ marginBottom: '1rem' }}>
-            What actually happened to your data, not just what a grant permits - the most recent{' '}
-            {data.auditEvents.length} event{data.auditEvents.length === 1 ? '' : 's'}.
-          </p>
-          {data.auditEvents.length === 0 ? (
-            <EmptyState title="No activity yet">
-              Every time your information is opened, shared or changed, it is recorded here.
-            </EmptyState>
+          {data.documentsAvailable ? (
+            <GrantForm
+              applicantId={id}
+              documents={data.documents.map((d) => ({
+                id: d.id,
+                displayName: d.approvedName ?? d.originalName,
+              }))}
+            />
           ) : (
-            <div className="rows" style={{ marginTop: '0.5rem' }}>
-              {data.auditEvents.map((e) => (
-                <div className="row" key={e.seq}>
-                  <span className="row-key">
-                    {humanizeCode(e.eventType)}
-                    <span className="muted" style={{ fontSize: '0.8rem', marginLeft: '0.5rem' }}>
-                      {e.actorEmail ?? 'System'}
-                    </span>
-                  </span>
-                  <span className="row-end">
-                    {e.result ? (
-                      <StatusBadge tone={e.result === 'ALLOWED' ? 'success' : 'danger'}>
-                        {e.result === 'ALLOWED' ? 'Allowed' : 'Blocked'}
-                      </StatusBadge>
-                    ) : null}
-                    <span className="muted" style={{ fontSize: '0.8rem' }}>
-                      {formatTimestamp(e.occurredAt)}
-                    </span>
-                  </span>
-                </div>
-              ))}
-            </div>
+            <p role="alert">
+              Document records are unavailable. Reload to review the exact scope before sharing.
+            </p>
           )}
         </article>
       </div>

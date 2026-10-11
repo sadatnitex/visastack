@@ -152,4 +152,8 @@ jobs:
           retention-days: 30
 
       - name: Test
-        run: pnpm run test
+        # Keep all suites and root self-tests. Bound concurrent database-heavy packages
+        # and use two Vitest workers rather than the runner's one-worker default.
+        run: |
+          pnpm exec turbo run test --concurrency=2 -- --maxWorkers=2
+          node --test scripts/check-flat-design.test.mjs scripts/check-route-navigation.test.mjs scripts/check-staging-target.test.mjs scripts/check-authenticated-results.test.mjs infra/cloudflare/job-scheduler.test.mjs

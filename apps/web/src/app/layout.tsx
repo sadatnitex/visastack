@@ -58,7 +58,9 @@ export default async function RootLayout({ children }: { readonly children: Reac
         <a className="skip-link" href="#main">
           Skip to content
         </a>
-        <PilotBanner mode={deploymentMode} registrationOpen={isPublicBetaOpen()} />
+        {!signedIn ? (
+          <PilotBanner mode={deploymentMode} registrationOpen={isPublicBetaOpen()} />
+        ) : null}
         <header className="nav">
           <Link className="brand" href="/">
             <span className="brand-mark" aria-hidden="true" />

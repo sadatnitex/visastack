@@ -65,14 +65,14 @@ describe('current contextual navigation contract', () => {
       'Cases',
       'Evidence requests',
       'Team',
-      'Activity log',
+      'Case activity',
     ]);
     expect(nav.primary.every((link) => link.href.startsWith(`/app/agency/${o1}`))).toBe(true);
     expect(nav.tools).toContainEqual({ href: `/app/agency/${o1}/plan`, label: 'Plan & usage' });
   });
   it('does not offer administrator-only agency actions to a case worker', () => {
     const nav = workspaceNavigation(`/app/agency/${o2}/cases`, access);
-    expect(nav.primary.map((link) => link.label)).toEqual(['Overview', 'Cases', 'Activity log']);
+    expect(nav.primary.map((link) => link.label)).toEqual(['Overview', 'Cases', 'Case activity']);
     expect(nav.settings.some((link) => link.label === 'Settings')).toBe(false);
   });
   it('offers real platform categories and preserves specialized tools', () => {

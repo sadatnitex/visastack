@@ -66,6 +66,20 @@ async function query(value: string) {
   });
 }
 describe('actual toolbar component behavior, without provider-backed acceptance claims', () => {
+  it('exposes owned workspaces, privacy and support in the account disclosure and closes outside it', () => {
+    const menu = container.querySelector('nav[aria-label="Account menu"]');
+    expect(menu?.querySelector(`a[href="/app/applicant/${person}"]`)?.textContent).toBe(
+      'Synthetic Self',
+    );
+    expect(menu?.querySelector('a[href="/app/privacy"]')).not.toBeNull();
+    expect(menu?.querySelector('a[href="/status"]')).not.toBeNull();
+    expect(menu?.querySelector('a[href="/app/admin"]')).toBeNull();
+    const account = container.querySelector('details');
+    if (!account) throw new Error('Missing account disclosure');
+    account.open = true;
+    act(() => document.body.dispatchEvent(new Event('pointerdown', { bubbles: true })));
+    expect(account.open).toBe(false);
+  });
   it('debounces metadata requests and submits only the selected person scope', async () => {
     fetchMock.mockResolvedValue(
       new Response(

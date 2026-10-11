@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { type ReactNode, useEffect, useId, useRef, useState } from 'react';
+import { type CSSProperties, type ReactNode, useEffect, useId, useRef, useState } from 'react';
 import { Icon, type IconName } from '../../components/icons';
 import { type NavLink, PRIMARY_NAV, isCurrentPath } from '../../lib/navigation';
 
@@ -30,6 +30,7 @@ const CONTEXT_ICONS: Readonly<Record<string, IconName>> = {
   'Evidence requests': 'clipboard',
   Team: 'users',
   'Activity log': 'activity',
+  'Case activity': 'activity',
   Members: 'users',
   Organizations: 'building',
   Activity: 'activity',
@@ -40,6 +41,15 @@ const CONTEXT_ICONS: Readonly<Record<string, IconName>> = {
 
 /** How many links stay on the bar at the bottom of a phone; the rest sit under "More". */
 const BAR_LINKS = 4;
+const MOBILE_LABELS: Readonly<Record<string, string>> = {
+  'My profile': 'Profile',
+  'Visa cases': 'Cases',
+  'Choose a traveller': 'Travellers',
+  'Add a traveller': 'Add traveller',
+  'Evidence requests': 'Requests',
+  'Activity log': 'Activity',
+  'Case activity': 'Activity',
+};
 
 /**
  * The signed-in navigation (master directive section 7 "PR 7"; names in `lib/navigation.ts`).
@@ -100,8 +110,20 @@ export function AppNav({
         toggleRef.current?.focus();
       }
     };
+    const outside = (event: PointerEvent) => {
+      if (
+        event.target instanceof Node &&
+        !panelRef.current?.contains(event.target) &&
+        !toggleRef.current?.contains(event.target)
+      )
+        setOpen(false);
+    };
     document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
+    document.addEventListener('pointerdown', outside);
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      document.removeEventListener('pointerdown', outside);
+    };
   }, [open]);
 
   const activeFragment = links.find(
@@ -111,6 +133,8 @@ export function AppNav({
     <Link
       key={item.href}
       href={item.href}
+      aria-label={item.label}
+      onClick={() => setOpen(false)}
       aria-current={
         (activeFragment ? activeFragment.href === item.href : isCurrentPath(pathname + hash, item))
           ? 'page'
@@ -118,7 +142,10 @@ export function AppNav({
       }
     >
       <Icon name={CONTEXT_ICONS[item.label] ?? ICONS[item.href] ?? 'folder'} size={20} />
-      <span className="app-link-label">{item.label}</span>
+      <span className="app-link-label app-link-full">{item.label}</span>
+      <span className="app-link-label app-link-compact" aria-hidden="true">
+        {MOBILE_LABELS[item.label] ?? item.label}
+      </span>
     </Link>
   );
 
@@ -146,7 +173,12 @@ export function AppNav({
         </Link>
       )}
       <p className="app-sidebar-context">Workspace</p>
-      <div className="app-bar">
+      <div
+        className="app-bar"
+        style={
+          { '--mobile-nav-count': Math.max(1, Math.min(links.length, BAR_LINKS)) } as CSSProperties
+        }
+      >
         <nav className="app-shell-links" aria-label="Workspace">
           {links.slice(0, BAR_LINKS).map(link)}
         </nav>
@@ -163,6 +195,20 @@ export function AppNav({
         </button>
       </div>
       <div className="app-more" id={panelId} ref={panelRef}>
+        <div className="app-more-heading">
+          <strong>Workspace navigation</strong>
+          <button
+            type="button"
+            className="btn btn-secondary"
+            aria-label="Close navigation"
+            onClick={() => {
+              setOpen(false);
+              toggleRef.current?.focus();
+            }}
+          >
+            <Icon name="close" size={20} />
+          </button>
+        </div>
         <nav className="app-shell-links app-shell-links-more" aria-label="Account and privacy">
           {links.slice(BAR_LINKS).map(link)}
         </nav>

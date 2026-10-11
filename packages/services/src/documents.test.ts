@@ -1653,6 +1653,8 @@ describe('listDocumentsDetailed picks the right latest version, name proposal an
     expect(byId.size).toBe(3);
     const a = byId.get(first.id);
     expect(a?.latestVersionId).toBe(newer.value.version.id);
+    expect(a?.latestVersionNumber).toBe(newer.value.version.versionNumber);
+    expect(a?.updatedAt).toBeTruthy();
     expect(a?.processingStatus).toBe('AWAITING_REVIEW');
     expect(a?.pendingNameVersion?.proposedName).toBe('New name');
     expect(a?.classification?.classifiedType).toBe('passport');
@@ -1662,6 +1664,7 @@ describe('listDocumentsDetailed picks the right latest version, name proposal an
     expect(b?.classification).toBeNull();
     const c = byId.get(third.value.id);
     expect(c?.latestVersionId).toBeNull();
+    expect(c?.latestVersionNumber).toBeNull();
     expect(c?.safetyStatus).toBeNull();
   }, 60_000);
 });

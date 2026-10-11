@@ -454,7 +454,8 @@ test.describe
       const unownedEmail = `e2e-unowned-${Date.now()}@example.invalid`;
       await page.getByLabel('Recipient email').fill(unownedEmail);
       await page.getByLabel('Purpose').fill('E2E unowned-recipient safety check');
-      await page.getByRole('button', { name: 'Share access' }).click();
+      await page.getByRole('button', { name: 'Review and confirm' }).click();
+      await page.getByRole('button', { name: 'Confirm sharing request' }).click();
 
       await expect(page.getByText(/no visastack account found/i)).toBeVisible({ timeout: 10_000 });
       // No grant row for this address -- the failed attempt left no trace to
@@ -576,7 +577,8 @@ test.describe
       await page.goto(`${sharedFixture.applicantUrl}/sharing`);
       await page.getByLabel('Recipient email').fill(email2 ?? '');
       await page.getByLabel('Purpose').fill('E2E revoke before acceptance');
-      await page.getByRole('button', { name: 'Share access' }).click();
+      await page.getByRole('button', { name: 'Review and confirm' }).click();
+      await page.getByRole('button', { name: 'Confirm sharing request' }).click();
       const pendingRow = page.locator('.row', { hasText: 'E2E revoke before acceptance' });
       await expect(pendingRow).toBeVisible({ timeout: 10_000 });
       page.once('dialog', (dialog) => dialog.accept());
@@ -601,7 +603,8 @@ test.describe
       await page.getByLabel('Recipient email').fill(email2 ?? '');
       await page.getByLabel('Purpose').fill(sharedFixture.grantPurpose);
       await page.getByLabel('Preview documents').uncheck();
-      await page.getByRole('button', { name: 'Share access' }).click();
+      await page.getByRole('button', { name: 'Review and confirm' }).click();
+      await page.getByRole('button', { name: 'Confirm sharing request' }).click();
       await expect(page.locator('.row', { hasText: sharedFixture.grantPurpose })).toBeVisible({
         timeout: 10_000,
       });
