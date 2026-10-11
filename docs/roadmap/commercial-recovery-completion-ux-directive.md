@@ -1021,3 +1021,10 @@ verification rather than rebuilding the product. Only Phase 0 and PR 1 are
 completed first; the PR and preview evidence are returned for review
 before any further phase begins. This staged sequence is what prevents a
 large, attractive but insecure build from being merged into main.
+
+
+## Current operating correction (2026-10-11)
+
+Neon Auth is configured for production; legacy WorkOS references do not authorize email-only record linking or claim current staff MFA acceptance. Production uses private R2 storage; database-only encrypted archive recovery is verified, while complete document/key/lifecycle recovery remains open.
+
+Earlier implementation snapshots and provider-specific instructions above are retained as history. For current setup, incident response and availability, use [current operating guidance](../operations/current-platform.md). Original acceptance and security targets remain in force; this correction does not mark them complete or authorize migration, production restore, paid activation or sensitive-data intake.

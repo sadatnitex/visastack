@@ -1,5 +1,7 @@
 # Private PDF intake on an isolated runner
 
+> Historical storage setup guidance. Production now uses configured private R2. Earlier Vercel-first activation instructions below are superseded where they conflict with [current operating guidance](current-platform.md). Scanner, permission and lifecycle acceptance requirements remain.
+
 PDF admission and malware approval are separate. With
 `MALWARE_SCANNER_PROVIDER=github_clamav`, authenticated uploads accept supported PDF
 bytes into the existing private quarantine and enqueue the existing intake job.
@@ -78,3 +80,7 @@ to the account's budget settings. This is suitable for initial low volume, not u
 free scanning. No public upload processing is certified until the live acceptance
 above passes. Disabling the worker preserves queued uploads; reverting to `builtin`
 blocks new PDFs and cannot finish their scans, so it is not a processing fallback.
+
+## Current operating correction (2026-10-11)
+
+Private R2 is configured in production; its worker settings and compatibility reads still require their actual acceptance. Do not use earlier Vercel-first instructions to reverse the selected provider or activate real sensitive-data intake. Use [current operating guidance](current-platform.md). Historical evidence and original security targets remain intact.

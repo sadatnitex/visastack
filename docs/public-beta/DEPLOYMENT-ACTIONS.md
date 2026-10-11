@@ -71,3 +71,23 @@ Checked live: exact PR 191 merge 390845818e9546e9776a1abbcb78ad44bc655d71 and PR
 Not live yet: PR 193 notification/scheduler hardening and the PR-07/08 source-review/provider-panel continuation. Not yet checked: newly delivered branded email, complete document/key/lifecycle recovery, authenticated acceptance and provider billing headroom. Needs owner/provider evidence: see OWNER-ACTIONS.md and RELEASE-ACCEPTANCE-CHECKPOINT.md.
 
 Done: PR-00 and the narrow deployed changes above. In progress: PR-01 through PR-08, including PR-04 complete recovery and PR-06 real scheduling/delivery acceptance. Remaining: PR-09 complete journeys, staging/integrations/security/performance/legal/recovery/rollback and final classification. Current safe operating scope is controlled pilot with sensitive applicant intake disabled.
+
+
+## Current operating correction (2026-10-11)
+
+Neon Auth is configured for production; legacy WorkOS references do not authorize email-only record linking or claim current staff MFA acceptance.
+
+Earlier implementation snapshots and provider-specific instructions above are retained as history. For current setup, incident response and availability, use [current operating guidance](../operations/current-platform.md). Original acceptance and security targets remain in force; this correction does not mark them complete or authorize migration, production restore, paid activation or sensitive-data intake.
+
+## PR 193 verified production outcome (2026-10-11)
+
+| Area | What changed | What you will see | Who notices |
+| --- | --- | --- | --- |
+| Notifications | Lease ownership, permission checks, bounded work and stable provider retries | Safer queued processing without claiming delivery when the provider is unavailable | Travellers, agency staff and operators |
+| Scheduling | Optional independent Worker triggers with visible failures and intake opt-in | Deployment instructions; the optional Worker is not deployed | Founder and operators |
+
+Checked live: merge 535c91977126a80a47449fc6aa1d17a86b6cfac2, production deployment dpl_CbchxDkqSKgY6tVtiBme3vd8d6Kw, all required source/main checks, both deployment smoke workflows, readiness, native-write configuration and both aliases. All four protected job routes denied anonymous requests on both live aliases. No authorized production job or email was triggered by these probes.
+
+Not live yet: the combined PR 194 source-review, founder-control and current-guidance update. Not yet checked: actual notification delivery, signed provider receipts, scheduler timing/backlog and account billing/headroom. Needs owner/provider evidence: application-mail configuration and Worker management access before their own acceptance.
+
+Done: PR-00 and the verified notification hardening above. In progress: PR-01 through PR-08; PR-06 still needs real scheduling/delivery acceptance. Remaining: PR-09 isolated authenticated journeys, provider/legal/security/performance/full recovery evidence and final classification. Controlled pilot remains the operating scope; sensitive applicant intake stays disabled.

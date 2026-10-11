@@ -1,5 +1,7 @@
 # Plan: sign-in, sign-up and email through Neon
 
+> Historical setup and incident guidance. Provider, domain, migration and email-linking instructions below are superseded where they conflict with the latest approved decisions. Start with [current operating guidance](../operations/current-platform.md). Historical evidence and original acceptance targets are retained.
+
 Written 2026-10-06 at the owner's request ("email and sign-in / sign-up authentication should all be done by Neon"). Status: PHASE 1 BUILT (see 'Phase 1 result' at the end); phases 2 to 4 not started. Production is unchanged and still uses WorkOS. Reason: this replaces the sign-in system for every user and every staff action, it cannot be tested live from the build sandbox (the Neon documentation host and any Neon Auth project are unreachable from here), and parts of it cannot be undone once real accounts exist. The owner's decisions are listed at the end.
 
 ## What Neon offers (from search results, not read from Neon's own pages, which the sandbox cannot open)
@@ -80,3 +82,10 @@ Built on the owner's instruction to open a public beta on Neon Auth and Resend (
 - Public beta switch `PUBLIC_BETA_OPEN=true` skips the invitation list, only with Neon sign-in. It does not enable real-applicant data, payments or commercial claims.
 - Capability and readiness checks now follow the selected sign-in system.
 - Not done: any live check, staff second factor, the commercial readiness check on Neon (see register D1, D4, D8).
+
+
+## Current operating correction (2026-10-11)
+
+Neon Auth is configured for production; legacy WorkOS references do not authorize email-only record linking or claim current staff MFA acceptance.
+
+Earlier implementation snapshots and provider-specific instructions above are retained as history. For current setup, incident response and availability, use [current operating guidance](../operations/current-platform.md). Original acceptance and security targets remain in force; this correction does not mark them complete or authorize migration, production restore, paid activation or sensitive-data intake.

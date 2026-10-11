@@ -117,3 +117,10 @@ and the first two are the ones that would have caught the migration incident.
 - Scanner signature age is not read live. Which scanner is deployed is visible in the
   signal; whether it is a real signature-based scanner depends on provider configuration
   this page cannot see.
+
+
+## Current operating correction (2026-10-11)
+
+Neon Auth is configured for production; legacy WorkOS references do not authorize email-only record linking or claim current staff MFA acceptance.
+
+Earlier implementation snapshots and provider-specific instructions above are retained as history. For current setup, incident response and availability, use [current operating guidance](current-platform.md). Original acceptance and security targets remain in force; this correction does not mark them complete or authorize migration, production restore, paid activation or sensitive-data intake.

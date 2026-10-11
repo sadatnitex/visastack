@@ -198,3 +198,10 @@ Given §7's verdicts, PR 1 implements the registry with these controlled-pilot v
 - **`aiExtraction`:** computed from real env presence (`AI_ENABLED`/`OPENAI_API_KEY`), not hardcoded — currently unconfigured in this deployment, matching the existing baseline's own statement that AI is "fully inert... off by default."
 
 Full registry shape, exact controlled-pilot/commercial derivation rules, and the banner implementation are recorded in the PR 1 diff itself and summarized in the PR description.
+
+
+## Current operating correction (2026-10-11)
+
+Neon Auth is configured for production; legacy WorkOS references do not authorize email-only record linking or claim current staff MFA acceptance. Production uses private R2 storage; database-only encrypted archive recovery is verified, while complete document/key/lifecycle recovery remains open.
+
+Earlier implementation snapshots and provider-specific instructions above are retained as history. For current setup, incident response and availability, use [current operating guidance](../operations/current-platform.md). Original acceptance and security targets remain in force; this correction does not mark them complete or authorize migration, production restore, paid activation or sensitive-data intake.

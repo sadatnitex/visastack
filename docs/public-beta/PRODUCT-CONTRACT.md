@@ -15,3 +15,10 @@ Roles: traveller, authorized family/contributor, agency owner/member/case manage
 Not in scope: a second record database, case model, policy engine, notification system, billing catalog, broad visual redesign or Bangla translation.
 
 Delivery order: [traceability](IMPLEMENTATION-TRACEABILITY.md). Current scope and continuation: [checkpoint](EXECUTION-CHECKPOINT.md). No claim of unrestricted beta readiness follows from a successful cloud setup.
+
+
+## Current operating correction (2026-10-11)
+
+Neon Auth is configured for production; legacy WorkOS references do not authorize email-only record linking or claim current staff MFA acceptance.
+
+Earlier implementation snapshots and provider-specific instructions above are retained as history. For current setup, incident response and availability, use [current operating guidance](../operations/current-platform.md). Original acceptance and security targets remain in force; this correction does not mark them complete or authorize migration, production restore, paid activation or sensitive-data intake.

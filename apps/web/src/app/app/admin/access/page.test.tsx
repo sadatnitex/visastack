@@ -116,13 +116,16 @@ describe('Platform > Access', () => {
     expect(text).toContain('Only a platform owner can invite or revoke pilot access.');
   });
 
-  it('shows the accounts awaiting a sign-in identity only when there are some', async () => {
-    expect(textOf(await renderServer(Page()))).not.toContain('awaiting WorkOS identity binding');
+  it('explains legacy references without claiming current Neon sign-in is missing', async () => {
+    expect(textOf(await renderServer(Page()))).not.toContain('Legacy sign-in references');
     mocks.reportUnboundAccounts.mockResolvedValue([
       { id: 'a1', email: 'old@example.com', createdAt: new Date('2026-08-01'), applicantCount: 2 },
     ]);
     const text = textOf(await renderServer(Page()));
-    expect(text).toContain('Accounts awaiting WorkOS identity binding');
+    expect(text).toContain('Legacy sign-in references');
+    expect(text).toContain('even when its current sign-in works');
+    expect(text).not.toContain('resolves itself');
+    expect(text).not.toContain('column becomes required');
     expect(text).toContain('old@example.com');
     expect(text).toContain('2 applicants');
   });

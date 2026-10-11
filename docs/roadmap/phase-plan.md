@@ -152,3 +152,10 @@ Employer / law-firm / service-provider portals, corporate mobility, official
 form completion, appointment intelligence, settlement pathways, non-approval
 predictive intelligence, marketplace/integrations, native mobile. **None may
 bypass the canonical evidence, permission, audit, and snapshot model.**
+
+
+## Current operating correction (2026-10-11)
+
+Neon Auth is configured for production; legacy WorkOS references do not authorize email-only record linking or claim current staff MFA acceptance.
+
+Earlier implementation snapshots and provider-specific instructions above are retained as history. For current setup, incident response and availability, use [current operating guidance](../operations/current-platform.md). Original acceptance and security targets remain in force; this correction does not mark them complete or authorize migration, production restore, paid activation or sensitive-data intake.

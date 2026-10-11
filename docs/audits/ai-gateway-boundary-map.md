@@ -216,3 +216,10 @@ version produces a new key) without any explicit cache-busting logic.
 - **`unsupportedFieldRate` has no pass/fail threshold** (§4.4) — it's
   reported for human review, not gated, since a "good" value is
   document-dependent (see §4.2's note).
+
+
+## Current operating correction (2026-10-11)
+
+Neon Auth is configured for production; legacy WorkOS references do not authorize email-only record linking or claim current staff MFA acceptance.
+
+Earlier implementation snapshots and provider-specific instructions above are retained as history. For current setup, incident response and availability, use [current operating guidance](../operations/current-platform.md). Original acceptance and security targets remain in force; this correction does not mark them complete or authorize migration, production restore, paid activation or sensitive-data intake.

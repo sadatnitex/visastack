@@ -47,3 +47,10 @@ Written 2026-10-06 (Part 10 sections 1 to 4, first pass). Code under test: see t
 The full automated suite was green on the verified commit (see the checkpoint document); the table above says what that does and does not prove.
 
 **Update 2026-10-06 (Task 8, code `a27cefb`):** no row changed state. A30 and A35 remain BLOCKED (`part-10-security-scans.md`). A33 stays NOT_EXECUTED: load was re-run and met its target on one machine, but the PDF timing with a real scanner and the Neon rehearsal were not done. Final verdict: `final-report.md`.
+
+
+## Current operating correction (2026-10-11)
+
+Neon Auth is configured for production; legacy WorkOS references do not authorize email-only record linking or claim current staff MFA acceptance.
+
+Earlier implementation snapshots and provider-specific instructions above are retained as history. For current setup, incident response and availability, use [current operating guidance](../operations/current-platform.md). Original acceptance and security targets remain in force; this correction does not mark them complete or authorize migration, production restore, paid activation or sensitive-data intake.

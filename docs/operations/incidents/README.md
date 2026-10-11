@@ -153,3 +153,10 @@ the summary in two sentences; the timeline; who and what was affected; how it wa
 how long that took; the cause; what worked and what did not; and the changes to make, each with
 an owner and a date. If a runbook was wrong or missing a step, change it in the same week and
 say which incident taught you.
+
+
+## Current operating correction (2026-10-11)
+
+Neon Auth is configured for production; legacy WorkOS references do not authorize email-only record linking or claim current staff MFA acceptance.
+
+Earlier implementation snapshots and provider-specific instructions above are retained as history. For current setup, incident response and availability, use [current operating guidance](../current-platform.md). Original acceptance and security targets remain in force; this correction does not mark them complete or authorize migration, production restore, paid activation or sensitive-data intake.
