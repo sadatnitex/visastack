@@ -11,6 +11,7 @@ export const dynamic = 'force-dynamic';
 const ERRORS: Record<string, string> = {
   invalid: 'Enter a valid email address.',
   slow: 'Too many requests. Please wait a little while and try again.',
+  unavailable: 'We could not request your confirmation email right now. Please try again shortly.',
 };
 
 export default async function VerifyEmailPage({
@@ -23,7 +24,7 @@ export default async function VerifyEmailPage({
     <AuthShell title="Confirm your email address">
       <p className="card-body">
         {s === '1'
-          ? 'Check your inbox. We sent a link to confirm your address. It can take a few minutes, and it may land in your spam folder. Once you have opened it, sign in.'
+          ? 'Check your inbox. If your address needs confirmation, a link has been requested. It can take a few minutes, and it may land in your spam folder. Once you have opened it, sign in.'
           : 'You need to confirm your email address before you can use VisaStack. Enter it below and we will send you a new link.'}
       </p>
       {s === '1' ? <Notice>If you do not see it, you can ask for another below.</Notice> : null}

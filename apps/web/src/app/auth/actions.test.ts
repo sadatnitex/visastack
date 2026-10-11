@@ -109,7 +109,7 @@ describe('signInAction', () => {
     signInEmail.mockResolvedValue({ error: { code: 'EMAIL_NOT_VERIFIED', status: 403 } });
     expect(
       await destination(() => signInAction(form({ email: 'a@b.co', password: 'longenough' }))),
-    ).toBe('/auth/verify-email?s=1');
+    ).toBe('/auth/verify-email');
     signInEmail.mockResolvedValue({ error: { code: 'INVALID_ORIGIN', status: 403 } });
     expect(
       await destination(() => signInAction(form({ email: 'a@b.co', password: 'longenough' }))),
@@ -307,9 +307,35 @@ describe('password recovery', () => {
 });
 
 describe('resendConfirmationAction', () => {
+  it('reports provider outages, rejected sender settings and throttling without claiming delivery', async () => {
+    const { resendConfirmationAction } = await import('./actions');
+    for (const error of [
+      { status: 500, message: 'private provider detail' },
+      { status: 400, code: 'INVALID_ORIGIN' },
+      { status: 404, code: 'ROUTE_NOT_FOUND' },
+    ]) {
+      sendVerificationEmail.mockResolvedValue({ error });
+      expect(await destination(() => resendConfirmationAction(form({ email: 'a@b.co' })))).toBe(
+        '/auth/verify-email?e=unavailable',
+      );
+    }
+    sendVerificationEmail.mockRejectedValue(new Error('private network detail'));
+    expect(await destination(() => resendConfirmationAction(form({ email: 'a@b.co' })))).toBe(
+      '/auth/verify-email?e=unavailable',
+    );
+    sendVerificationEmail.mockResolvedValue({ error: { status: 429 } });
+    expect(await destination(() => resendConfirmationAction(form({ email: 'a@b.co' })))).toBe(
+      '/auth/verify-email?e=slow',
+    );
+    sendVerificationEmail.mockResolvedValue({ error: null });
+    expect(await destination(() => resendConfirmationAction(form({ email: 'a@b.co' })))).toBe(
+      '/auth/verify-email?s=1',
+    );
+  });
+
   it('gives the same answer for every address, and is limited', async () => {
     const { resendConfirmationAction } = await import('./actions');
-    sendVerificationEmail.mockResolvedValue({ error: { message: 'no such user' } });
+    sendVerificationEmail.mockResolvedValue({ error: { code: 'USER_NOT_FOUND' } });
     expect(await destination(() => resendConfirmationAction(form({ email: 'a@b.co' })))).toBe(
       '/auth/verify-email?s=1',
     );
