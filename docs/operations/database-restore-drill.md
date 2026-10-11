@@ -1,0 +1,13 @@
+# Isolated database-only restore drill
+
+The manual Actions workflow reads the existing encrypted R2 commit marker and referenced archive. It does not receive BACKUP_DATABASE_URL or any application connection string. It never writes to R2 or updates the backup manifest.
+
+PostgreSQL 18 runs on the private temporary job network with no published ports. The restore uses a fixed vs_restore role without superuser, database creation, role creation or replication privileges. The psql child receives only its fixed recovery connection and client settings, never cloud keys, backup encryption keys or inherited PG variables. No application or email worker starts.
+
+Before any SQL executes, the runner checks its recovery role and database, validates a bounded manifest, verifies the encrypted archive size and SHA-256, and authenticates the complete AES-GCM dump. Downloads and decrypted SQL use private scratch files; no SQL, record values or credentials enter logs or artifacts. Scratch files are removed on success or failure, and Actions removes the temporary database when the job ends. The current archive bound is 512 MiB to protect free-runner disk capacity; an oversized archive fails explicitly without changing production or backups.
+
+The drill checks that required application tables restored and that recovered pgcrypto performs a synthetic round trip. The report measures database-only elapsed time and backup age, records the chosen backup point and source commit/run, and explicitly leaves fullDisasterRecoveryVerified false. These measurements do not certify end-to-end RPO or RTO. Weekly capture cannot meet the unchanged 15-minute RPO target by itself.
+
+Remaining recovery acceptance includes original document objects and hashes, actual protected-field key recovery, audit chain/checkpoints, deletion tombstone replay, revoked grants, separate Auth recovery, key escrow and rotation, and end-to-end measured targets. This database-only drill does not enable real applicant data.
+
+Verification: all twelve repository checks passed, including 16 focused restore tests and 192 browser checks. Real authentication, ciphertext-hash, inherited-credential, restricted-role and workflow-secret guard removals were rejected by tests. A real synthetic pg_dump was encrypted and restored through the runner in a local network-disabled PostgreSQL 18 container; independent checks verified rows, functions, sequences, pgcrypto and immutable audit rules. The owned database, volume and synthetic SQL were removed. R2 download was mocked for that local synthetic drill. Actual restoration of the stored R2 backup remains unexecuted until this workflow reaches main and is dispatched using existing Actions secrets.
