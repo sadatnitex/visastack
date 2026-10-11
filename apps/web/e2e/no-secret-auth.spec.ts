@@ -16,6 +16,18 @@ test('account recovery explains verification without exposing an account', async
 });
 import { isNeonSignInRedirect } from '../scripts/auth-redirect.mjs';
 
+test('existing-account signup feedback offers sign-in and password recovery', async ({ page }) => {
+  await page.goto('/auth/sign-up?e=exists');
+  await expect(
+    page.getByText('An account already uses this email.', { exact: false }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole('link', { name: 'reset your password', exact: true }),
+  ).toHaveAttribute('href', '/auth/forgot-password');
+  await page.getByRole('link', { name: 'reset your password', exact: true }).click();
+  await expect(page.getByRole('textbox', { name: 'Email address' })).toBeVisible();
+});
+
 /**
  * No-secret authentication/deployment checks (master directive §8B).
  * These never require signed-in credentials and always run in ordinary CI.

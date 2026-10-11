@@ -7,6 +7,10 @@ vi.mock('next/navigation', () => ({ redirect: (to: string) => redirect(to) }));
 
 const signInEmail = vi.fn();
 const signUpEmail = vi.fn();
+const signupAccountExists = vi.fn();
+vi.mock('../../lib/signup-account', () => ({
+  signupAccountExists: (email: string) => signupAccountExists(email),
+}));
 const sendVerificationEmail = vi.fn();
 const requestPasswordReset = vi.fn();
 const resetPassword = vi.fn();
@@ -54,6 +58,7 @@ beforeEach(() => {
   withinAuthLimits.mockResolvedValue(true);
   readSignupForm.mockReturnValue({ formId: 'trusted-form' });
   consumeSignupForm.mockResolvedValue(true);
+  signupAccountExists.mockResolvedValue(false);
   vi.stubEnv('IDENTITY_PROVIDER', 'neon_auth');
 });
 
@@ -148,6 +153,29 @@ describe('signInAction', () => {
 });
 
 describe('signUpAction', () => {
+  it('offers recovery for a registered address without creating or changing its account', async () => {
+    signupAccountExists.mockResolvedValue(true);
+    const { signUpAction } = await import('./actions');
+    expect(await destination(() => signUpAction(signup()))).toBe('/auth/sign-up?e=exists');
+    expect(signUpEmail).not.toHaveBeenCalled();
+    expect(sendVerificationEmail).not.toHaveBeenCalled();
+  });
+
+  it('does not invent an account result when the lookup fails', async () => {
+    signupAccountExists.mockRejectedValue(new Error('database unavailable'));
+    const { signUpAction } = await import('./actions');
+    expect(await destination(() => signUpAction(signup()))).toBe('/auth/sign-up?e=unavailable');
+    expect(signUpEmail).not.toHaveBeenCalled();
+  });
+
+  it.each(['USER_ALREADY_EXISTS', 'USER_ALREADY_EXISTS_USE_ANOTHER_EMAIL', 'EMAIL_EXISTS'])(
+    'recognizes a concurrent registration reported as %s',
+    async (code) => {
+      signUpEmail.mockResolvedValue({ error: { code } });
+      const { signUpAction } = await import('./actions');
+      expect(await destination(() => signUpAction(signup()))).toBe('/auth/sign-up?e=exists');
+    },
+  );
   function signup(values: Record<string, string> = {}): FormData {
     return form({
       email: 'a@b.co',

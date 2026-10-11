@@ -284,3 +284,8 @@ UX-01, UX-02, SEC-02 and OPS-03 retain their existing acceptance status. Preview
 ### 2026-10-11 signup email follow-up (NTF-03, A18, public beta PR-01/PR-02)
 
 Production Neon Auth now requests a verification email automatically on signup; the previous required-verification configuration had automatic sending disabled. The existing approved Resend SMTP sender was retained. Confirmation resend reports fixed service-failure and rate-limit states without disclosing account existence. Delivery acceptance is still unverified, so NTF-03/A18 statuses remain unchanged. Application notifications have separate missing production provider/sender bindings. See known-issues.md Chunk 69 for evidence and remaining acceptance.
+
+
+### 2026-10-11 branding and registration follow-up (NTF-03, A18, public beta PR-01/PR-02)
+
+Production native auth application branding is VisaStack with the unchanged approved sender. Owner dashboard evidence confirms recipient-server acceptance for the two reported confirmation messages, without proving inbox placement or delivery of future messages. Guarded signup provides explicit existing-account guidance and recovery links, backed by a read-only matching-auth-database lookup. Account identities, roles and recovery privacy remain unchanged. NTF-03/A18 full acceptance statuses remain unchanged. See known-issues.md Chunk 70.
