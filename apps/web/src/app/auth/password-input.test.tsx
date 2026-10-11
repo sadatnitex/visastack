@@ -15,6 +15,7 @@ beforeEach(() => {
       <form>
         <label htmlFor="password">Password</label>
         <PasswordInput
+          label="Password"
           id="password"
           name="password"
           required
@@ -41,6 +42,7 @@ it('toggles the actual named field without losing its value, constraints or subm
     event.preventDefault();
     submitted = true;
   });
+  expect(input.getAttribute('aria-label')).toBe('Password');
   expect(input.type).toBe('password');
   expect(button.getAttribute('aria-label')).toBe('Show password');
   act(() => button.click());

@@ -76,6 +76,7 @@ export function TextField(props: {
       </label>
       {type === 'password' ? (
         <PasswordInput
+          label={label}
           id={id}
           name={name}
           className="input"

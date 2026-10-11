@@ -10,10 +10,7 @@ beforeEach(() => {
   vi.stubEnv('E2E_SYNTHETIC_ISOLATION_VERIFIED', 'true');
   vi.stubEnv('STAGING_ATTESTATION_SECRET', secret);
   vi.stubEnv('IDENTITY_PROVIDER', 'neon_auth');
-  vi.stubEnv(
-    'DATABASE_URL',
-    'postgresql://synthetic:test@ep-stage-pooler.example.test/stagingdb',
-  );
+  vi.stubEnv('DATABASE_URL', 'postgresql://synthetic:test@ep-stage-pooler.example.test/stagingdb');
   vi.stubEnv('NEON_AUTH_BASE_URL', 'https://auth-stage.example.test/stagingdb/auth');
   vi.stubEnv('VERCEL_GIT_COMMIT_SHA', 'a'.repeat(40));
 });
@@ -35,7 +32,8 @@ it('reports resource identifiers and exact code revision without passwords or ke
   expect(response.status).toBe(200);
   expect(body).toContain('ep-stage.example.test');
   expect(body).toContain('stagingdb');
-  expect(body).not.toContain('test');
+  expect(body).not.toContain('synthetic:test@');
+  expect(body).not.toContain('postgresql://');
   expect(body).not.toContain(secret);
   expect(response.headers.get('Cache-Control')).toBe('private, no-store');
   vi.stubEnv('DATABASE_URL', 'invalid');

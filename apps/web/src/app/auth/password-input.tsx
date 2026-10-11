@@ -2,11 +2,14 @@
 import { type InputHTMLAttributes, useState } from 'react';
 import { Icon } from '../../components/icons';
 /** Visibility is local only; the existing named password field is unchanged. */
-export function PasswordInput(props: InputHTMLAttributes<HTMLInputElement>) {
+export function PasswordInput({
+  label,
+  ...props
+}: InputHTMLAttributes<HTMLInputElement> & { label: string }) {
   const [visible, setVisible] = useState(false);
   return (
     <div className="auth-password-input">
-      <input {...props} type={visible ? 'text' : 'password'} />
+      <input {...props} aria-label={label} type={visible ? 'text' : 'password'} />
       <button
         type="button"
         aria-label={visible ? 'Hide password' : 'Show password'}
