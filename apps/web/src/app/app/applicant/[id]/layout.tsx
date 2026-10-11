@@ -28,11 +28,13 @@ export default async function ApplicantWorkspaceLayout({
 
   return (
     <section className="section container">
-      <PageHeader
-        eyebrow="Applicant"
-        title={applicant.displayName}
-        description={relationshipLabel(applicant.relationship, t)}
-      />
+      <div className="applicant-context-heading">
+        <PageHeader
+          eyebrow="Applicant"
+          title={applicant.displayName}
+          description={relationshipLabel(applicant.relationship, t)}
+        />
+      </div>
       {children}
     </section>
   );

@@ -1,4 +1,6 @@
 import {
+  computeReadiness,
+  getApplicant,
   hasConsent,
   listAccessForApplicant,
   listApplicantProfile,
@@ -9,33 +11,29 @@ import {
 } from '@visastack/services';
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { EmptyState, NextStepCard, StatusBadge } from '../../../../components/ui';
+import { notFound } from 'next/navigation';
+import { EmptyState, NextStepCard, PageHeader, StatusBadge } from '../../../../components/ui';
+import { formatTimestampDate } from '../../../../lib/format-date';
 import { PROFILE_FIELDS } from '../../../../lib/profile-fields';
 import { withSession } from '../../../../lib/session';
 import { STAGE_LABELS } from '../../agency/[orgId]/case-search-form';
 
-export const metadata: Metadata = { title: 'Applicant overview' };
-
+export const metadata: Metadata = { title: 'Traveller overview' };
 export const dynamic = 'force-dynamic';
-
 const TERMINAL_MISSION_STATES = new Set(['CLOSED', 'CANCELLED']);
-const UNIVERSAL_CORE_FIELDS = PROFILE_FIELDS.filter((f) => f.pack === 'universal' && !f.group);
+const CORE_FIELDS = PROFILE_FIELDS.filter((f) => f.pack === 'universal' && !f.group);
 
-/**
- * Applicant Overview (master directive §7 "PR 7"): synthesizes what used to
- * require visiting five separate pages into one summary — identity,
- * completeness, document health, missions, outstanding requests, current
- * sharing, and a single next action.
- */
 export default async function ApplicantOverviewPage({
   params,
 }: {
   readonly params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-
   const data = await withSession(async ({ db, accountId }) => {
-    const [profile, documents, coreGranted, pendingProposals, missions, evidenceRequests, access] =
+    // The page is independently guarded: parent layouts may render concurrently.
+    const applicant = await getApplicant(db, id);
+    if (!applicant || applicant.ownerAccountId !== accountId) return null;
+    const [profile, documents, coreGranted, proposals, missions, requests, access] =
       await Promise.all([
         listApplicantProfile(db, id),
         listDocumentsDetailed(db, accountId, id),
@@ -45,180 +43,350 @@ export default async function ApplicantOverviewPage({
         listEvidenceRequestsForApplicant(db, accountId, id),
         listAccessForApplicant(db, accountId, id),
       ]);
+    const active = missions.ok
+      ? missions.value
+          .filter((m) => !TERMINAL_MISSION_STATES.has(m.state))
+          .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime())
+      : [];
+    const featured = active[0];
+    const readiness = featured?.packVersionId ? await computeReadiness(db, featured.id) : null;
     return {
+      applicant,
       profile,
-      documents: documents.ok ? documents.value : [],
+      documents,
       coreGranted,
-      pendingProposals,
-      missions: missions.ok ? missions.value : [],
-      evidenceRequests: evidenceRequests.ok ? evidenceRequests.value : [],
-      activeGrants: access.ok ? access.value.filter((g) => g.status === 'ACTIVE').length : 0,
+      proposals,
+      missions,
+      requests,
+      access,
+      active,
+      featured,
+      readiness,
     };
   });
-
-  const filledUniversalKeys = new Set(
-    data.profile
-      .filter((entry) => entry.repeatingRecordKey === null && entry.value !== null)
-      .map((entry) => entry.fieldKey),
-  );
-  const completedCore = UNIVERSAL_CORE_FIELDS.filter((f) => filledUniversalKeys.has(f.key)).length;
-  const completenessPct =
-    UNIVERSAL_CORE_FIELDS.length > 0
-      ? Math.round((completedCore / UNIVERSAL_CORE_FIELDS.length) * 100)
-      : 0;
-
-  const activeMissions = data.missions.filter((m) => !TERMINAL_MISSION_STATES.has(m.state));
-  const openEvidenceRequests = data.evidenceRequests.filter((r) => r.status === 'OPEN');
-  const documentsNeedingAttention = data.documents.filter(
+  if (!data) notFound();
+  const documents = data.documents.ok ? data.documents.value : [];
+  const requests = data.requests.ok ? data.requests.value.filter((r) => r.status === 'OPEN') : [];
+  const flagged = documents.filter(
     (d) => d.safetyStatus === 'QUARANTINED' || d.classification?.reviewRequired,
   );
-
-  const nextAction = !data.coreGranted
+  const completed = CORE_FIELDS.filter((f) =>
+    data.profile.some(
+      (p) =>
+        p.fieldKey === f.key &&
+        p.repeatingRecordKey === null &&
+        p.value !== null &&
+        p.value.trim() !== '',
+    ),
+  ).length;
+  const completeness = Math.round((completed / CORE_FIELDS.length) * 100);
+  const attention = requests.length + data.proposals.length + flagged.length;
+  const next = !data.coreGranted
     ? {
-        href: '/app',
-        label: 'Turn on core processing from Home',
-        why: 'Profiles and documents cannot be saved until you allow this. You can turn it off again at any time.',
-        action: 'Go to Home',
+        href: '/app#permissions',
+        title: 'Allow core processing',
+        why: 'Choose whether your profile and documents may be saved. You can withdraw this permission.',
+        action: 'Review permissions',
       }
-    : openEvidenceRequests.length > 0
+    : requests.length
       ? {
           href: `/app/applicant/${id}/evidence`,
-          label: 'Reply to an evidence request',
-          why: 'An agency is waiting for a document before it can continue this case.',
+          title: 'Reply to an evidence request',
+          why: 'An agency is waiting for evidence before it can continue.',
           action: 'Open requests',
         }
-      : data.pendingProposals.length > 0
+      : data.proposals.length
         ? {
             href: `/app/applicant/${id}/documents`,
-            label: 'Decide on suggested details',
-            why: 'Details were read from a document. Nothing is added to the profile until you approve it.',
+            title: 'Review suggested details',
+            why: 'Nothing is added to your profile until you approve it.',
             action: 'Review suggestions',
           }
-        : documentsNeedingAttention.length > 0
+        : flagged.length
           ? {
               href: `/app/applicant/${id}/documents`,
-              label: 'Check a flagged document',
-              why: 'A document needs a second look before it can be relied on.',
+              title: 'Check a flagged document',
+              why: 'A document needs review before it can be relied on.',
               action: 'Open documents',
             }
-          : completenessPct < 100
+          : completeness < 100
             ? {
                 href: `/app/applicant/${id}/profile`,
-                label: 'Finish the Master Profile',
-                why: `${completedCore} of ${UNIVERSAL_CORE_FIELDS.length} core identity fields are filled. Cases reuse this profile, so you only enter it once.`,
-                action: 'Continue profile',
+                title: 'Continue your profile',
+                why: `${completed} of ${CORE_FIELDS.length} core fields have values. This is completeness, not verification.`,
+                action: 'Open profile',
               }
             : {
                 href: `/app/applicant/${id}/missions`,
-                label: 'Start or review a case',
-                why: 'The core profile is complete.',
+                title: 'Start or review a case',
+                why: 'Reuse your existing profile for the next visa route.',
                 action: 'Open cases',
               };
+  const agenda = data.active
+    .flatMap((m) => [
+      ...(m.targetDeadline
+        ? [
+            {
+              key: `${m.id}:deadline`,
+              label: `${m.title}: target deadline`,
+              date: m.targetDeadline,
+              href: `/app/mission/${m.id}`,
+            },
+          ]
+        : []),
+      ...(m.travelStartDate
+        ? [
+            {
+              key: `${m.id}:travel`,
+              label: `${m.title}: travel starts`,
+              date: m.travelStartDate,
+              href: `/app/mission/${m.id}`,
+            },
+          ]
+        : []),
+    ])
+    .filter((row) => row.date.getTime() >= new Date().setUTCHours(0, 0, 0, 0))
+    .sort((a, b) => a.date.getTime() - b.date.getTime())
+    .slice(0, 5);
+  const activity = [
+    ...documents.map((d) => ({
+      key: `document:${d.id}`,
+      label: 'Document uploaded',
+      detail: d.approvedName ?? d.originalName,
+      date: d.createdAt,
+      href: `/app/applicant/${id}/documents#document-${d.id}`,
+    })),
+    ...data.profile
+      .filter((p) => p.updatedAt)
+      .map((p) => ({
+        key: `fact:${p.factId}`,
+        label: 'Profile fact updated',
+        detail: PROFILE_FIELDS.find((f) => f.key === p.fieldKey)?.label ?? 'Profile detail',
+        date: p.updatedAt as string,
+        href: `/app/applicant/${id}/history`,
+      })),
+    ...data.active.map((m) => ({
+      key: `case:${m.id}`,
+      label: 'Case updated',
+      detail: m.title,
+      date: m.updatedAt.toISOString(),
+      href: `/app/mission/${m.id}`,
+    })),
+  ]
+    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+    .slice(0, 5);
+  const partial = !data.documents.ok || !data.missions.ok || !data.requests.ok || !data.access.ok;
 
   return (
-    <>
-      <div className="split">
+    <div className="traveller-overview">
+      <PageHeader
+        as="h2"
+        eyebrow="Your space"
+        title={`Welcome, ${data.applicant.displayName}`}
+        description={
+          partial
+            ? 'Some records could not be loaded. Try refreshing before relying on these totals.'
+            : attention
+              ? `${attention} items need a decision or a closer look.`
+              : 'Your next steps, documents and cases in one place.'
+        }
+        actions={
+          <Link className="btn btn-primary" href={`/app/applicant/${id}/missions`}>
+            + New visa case
+          </Link>
+        }
+      />
+      {partial ? (
+        <output className="notice notice-warn">
+          Some sections are unavailable. Unavailable totals are not reported as zero.
+        </output>
+      ) : null}
+      <div className="traveller-metrics">
+        <Link className="card traveller-metric" href={`/app/applicant/${id}/missions`}>
+          <span>Active visa cases</span>
+          <strong>{data.missions.ok ? data.active.length : 'Unavailable'}</strong>
+          <span className="muted">Closed and cancelled cases are excluded.</span>
+        </Link>
+        <Link className="card traveller-metric" href={`/app/applicant/${id}/documents`}>
+          <span>Documents in your wallet</span>
+          <strong>{data.documents.ok ? documents.length : 'Unavailable'}</strong>
+          <span className="muted">Open documents to review processing and safety.</span>
+        </Link>
+        <Link className="card traveller-metric" href={`/app/applicant/${id}/evidence`}>
+          <span>Items needing attention</span>
+          <strong>{data.documents.ok && data.requests.ok ? attention : 'Unavailable'}</strong>
+          <span className="muted">Requests, suggested details and flagged documents.</span>
+        </Link>
+      </div>
+      <div className="split traveller-working-area">
         <div className="split-main">
-          <NextStepCard
-            title={nextAction.label}
-            why={nextAction.why}
-            href={nextAction.href}
-            action={nextAction.action}
-            {...(nextAction.href.endsWith('/profile') || nextAction.href.endsWith('/missions')
-              ? {}
-              : { tone: 'warning' as const })}
-          />
-          <article className="card">
-            <p className="card-kicker">Cases</p>
-            <h2 className="card-title">Active cases</h2>
-            {activeMissions.length === 0 ? (
-              <div style={{ marginBottom: '0.75rem' }}>
-                <EmptyState title="No active case yet">
-                  A case checks this person's documents against the requirements of one visa route.
-                </EmptyState>
-              </div>
-            ) : (
-              <div className="rows" style={{ marginBottom: '0.75rem' }}>
-                {activeMissions.slice(0, 4).map((m) => (
-                  <Link className="row row-link" key={m.id} href={`/app/mission/${m.id}`}>
-                    <span className="row-key">{m.title}</span>
-                    <StatusBadge tone="neutral">
-                      {STAGE_LABELS[m.state] ?? 'In progress'}
-                    </StatusBadge>
+          <div className="traveller-section-heading">
+            <h3>Continue where you left off</h3>
+            <Link href={`/app/applicant/${id}/missions`}>All cases →</Link>
+          </div>
+          <article className="card traveller-featured-case">
+            {!data.missions.ok ? (
+              <EmptyState title="Cases are unavailable">Refresh to try again.</EmptyState>
+            ) : data.featured ? (
+              <>
+                <div className="traveller-section-heading">
+                  <h4>{data.featured.title}</h4>
+                  <StatusBadge tone="neutral">
+                    {STAGE_LABELS[data.featured.state] ?? 'In progress'}
+                  </StatusBadge>
+                </div>
+                <p className="muted">
+                  {data.featured.jurisdiction ?? 'Visa case'} ·{' '}
+                  {data.featured.serviceCategory ?? 'Personal application'}
+                </p>
+                <div className="traveller-checklist">
+                  <div className="meter-label">
+                    <strong>Checklist progress</strong>
+                    <span>
+                      {data.readiness?.ok
+                        ? `${data.readiness.value.satisfiedRequired} of ${data.readiness.value.requiredCount} required items`
+                        : 'Not calculated'}
+                    </span>
+                  </div>
+                  {data.readiness?.ok && data.readiness.value.requiredCount > 0 ? (
+                    <div className="meter" aria-hidden="true">
+                      <div
+                        className="meter-fill"
+                        style={{
+                          width: `${(data.readiness.value.satisfiedRequired / data.readiness.value.requiredCount) * 100}%`,
+                        }}
+                      />
+                    </div>
+                  ) : null}
+                  <p className="muted">
+                    {!data.featured.packVersionId
+                      ? 'This case uses manual requirements. Review its checklist in the case.'
+                      : 'Requirement completeness is not an approval prediction.'}
+                  </p>
+                </div>
+                <div className="traveller-section-heading">
+                  <Link className="btn btn-primary" href={`/app/mission/${data.featured.id}`}>
+                    Continue case →
                   </Link>
-                ))}
-              </div>
+                  <span className="muted">
+                    Updated {formatTimestampDate(data.featured.updatedAt)}
+                  </span>
+                </div>
+              </>
+            ) : (
+              <EmptyState
+                title="No active case yet"
+                action={{ href: `/app/applicant/${id}/missions`, label: 'Start a visa case' }}
+              >
+                Create a case to organize this traveller's requirements and documents.
+              </EmptyState>
             )}
-            <Link href={`/app/applicant/${id}/missions`} className="muted">
-              Open Cases →
-            </Link>
           </article>
+          {data.active.length > 1 ? (
+            <div className="card rows">
+              {data.active.slice(1, 4).map((m) => (
+                <Link className="row row-link" href={`/app/mission/${m.id}`} key={m.id}>
+                  <span className="row-key">{m.title}</span>
+                  <StatusBadge tone="neutral">{STAGE_LABELS[m.state] ?? 'In progress'}</StatusBadge>
+                </Link>
+              ))}
+            </div>
+          ) : null}
+          <h3>Needs your attention</h3>
+          <NextStepCard title={next.title} why={next.why} href={next.href} action={next.action} />
+          {attention > 0 ? (
+            <article className="card rows">
+              {requests.length ? (
+                <Link className="row row-link" href={`/app/applicant/${id}/evidence`}>
+                  <span className="row-key">Evidence requests waiting for a reply</span>
+                  <StatusBadge tone="warning">{requests.length}</StatusBadge>
+                </Link>
+              ) : null}
+              {data.proposals.length ? (
+                <Link className="row row-link" href={`/app/applicant/${id}/documents`}>
+                  <span className="row-key">Suggested details awaiting approval</span>
+                  <StatusBadge tone="warning">{data.proposals.length}</StatusBadge>
+                </Link>
+              ) : null}
+              {flagged.length ? (
+                <Link className="row row-link" href={`/app/applicant/${id}/documents`}>
+                  <span className="row-key">Documents needing review</span>
+                  <StatusBadge tone="warning">{flagged.length}</StatusBadge>
+                </Link>
+              ) : null}
+            </article>
+          ) : null}
         </div>
-        <aside className="split-rail" aria-label="Profile, documents and sharing">
+        <aside
+          className="split-rail"
+          aria-label="Upcoming dates, recent activity and profile health"
+        >
+          <h3>Upcoming</h3>
           <article className="card">
-            <p className="card-kicker">Master Profile</p>
-            <h2 className="card-title">Completeness</h2>
-            <div style={{ marginBottom: '1rem' }}>
-              <div className="meter-label">
-                <span>
-                  Core identity fields: {completedCore} of {UNIVERSAL_CORE_FIELDS.length}
-                </span>
-                <span>{completenessPct}%</span>
-              </div>
-              <div className="meter" aria-hidden="true">
-                <div className="meter-fill" style={{ width: `${completenessPct}%` }} />
-              </div>
-            </div>
-            <Link href={`/app/applicant/${id}/profile`} className="muted">
-              Open Profile →
-            </Link>
+            {agenda.length ? (
+              <ol className="traveller-agenda">
+                {agenda.map((row) => (
+                  <li key={row.key}>
+                    <Link href={row.href}>{row.label}</Link>
+                    <time dateTime={row.date.toISOString()}>{formatTimestampDate(row.date)}</time>
+                  </li>
+                ))}
+              </ol>
+            ) : (
+              <EmptyState
+                title={data.missions.ok ? 'No upcoming case dates' : 'Dates are unavailable'}
+              >
+                Set a target deadline or travel date in a case. Appointments remain in the
+                individual case calendar.
+              </EmptyState>
+            )}
+            <Link href={`/app/applicant/${id}/expiry`}>Document expiry centre →</Link>
+          </article>
+          <h3>Recent activity</h3>
+          <article className="card">
+            {activity.length ? (
+              <ol className="traveller-activity">
+                {activity.map((row) => (
+                  <li key={row.key}>
+                    <Link href={row.href}>
+                      <strong>{row.label}</strong>
+                      <span>{row.detail}</span>
+                    </Link>
+                    <time dateTime={row.date}>{formatTimestampDate(row.date)}</time>
+                  </li>
+                ))}
+              </ol>
+            ) : (
+              <EmptyState title="No recorded activity yet">
+                Profile changes, uploads and case updates will appear here. This is a recent-record
+                summary, not a complete audit log.
+              </EmptyState>
+            )}
+            <Link href={`/app/applicant/${id}/history`}>Profile history →</Link>
           </article>
           <article className="card">
-            <p className="card-kicker">Documents</p>
-            <h2 className="card-title">Document health</h2>
-            <div className="rows" style={{ marginBottom: '0.75rem' }}>
-              <div className="row">
-                <span className="row-key">Total uploaded</span>
-                <span className="row-val">{data.documents.length}</span>
-              </div>
-              <div className="row">
-                <span className="row-key">Needing attention</span>
-                <StatusBadge tone={documentsNeedingAttention.length > 0 ? 'warning' : 'neutral'}>
-                  {documentsNeedingAttention.length}
-                </StatusBadge>
-              </div>
-              <div className="row">
-                <span className="row-key">AI proposals to review</span>
-                <StatusBadge tone={data.pendingProposals.length > 0 ? 'warning' : 'neutral'}>
-                  {data.pendingProposals.length}
-                </StatusBadge>
-              </div>
+            <h3>Profile &amp; sharing</h3>
+            <div className="meter-label">
+              <span>Core fields with values</span>
+              <span>
+                {completed} / {CORE_FIELDS.length}
+              </span>
             </div>
-            <Link href={`/app/applicant/${id}/documents`} className="muted">
-              Open Documents →
-            </Link>
-          </article>
-          <article className="card">
-            <p className="card-kicker">Sharing &amp; requests</p>
-            <h2 className="card-title">Outstanding items</h2>
-            <div className="rows" style={{ marginBottom: '0.75rem' }}>
-              <div className="row">
-                <span className="row-key">Currently shared with</span>
-                <span className="row-val">{data.activeGrants}</span>
-              </div>
-              <div className="row">
-                <span className="row-key">Open evidence requests</span>
-                <StatusBadge tone={openEvidenceRequests.length > 0 ? 'warning' : 'neutral'}>
-                  {openEvidenceRequests.length}
-                </StatusBadge>
-              </div>
+            <div className="meter" aria-hidden="true">
+              <div className="meter-fill" style={{ width: `${completeness}%` }} />
             </div>
-            <Link href={`/app/applicant/${id}/sharing`} className="muted">
-              Open Sharing →
-            </Link>
+            <p className="muted">Completeness does not verify identity.</p>
+            <Link href={`/app/applicant/${id}/profile`}>Continue profile →</Link>
+            <p className="muted">
+              Active sharing grants:{' '}
+              {data.access.ok
+                ? data.access.value.filter((g) => g.status === 'ACTIVE').length
+                : 'Unavailable'}
+            </p>
+            <Link href={`/app/applicant/${id}/sharing`}>Manage sharing →</Link>
           </article>
         </aside>
       </div>
-    </>
+    </div>
   );
 }

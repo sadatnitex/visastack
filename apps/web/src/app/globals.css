@@ -3953,3 +3953,221 @@ body:has(.auth-shell) > .footer {
     display: none;
   }
 }
+
+/* Traveller composition follows reference pages 4 and 5. Solid surfaces, no decorative elevation. */
+.applicant-context-heading .page-header {
+  margin-bottom: 0.75rem;
+}
+.applicant-context-heading .eyebrow {
+  display: none;
+}
+.applicant-context-heading .page-title {
+  font-size: 0.95rem;
+}
+.applicant-context-heading .page-description {
+  font-size: 0.8rem;
+  margin-top: 0.2rem;
+}
+.traveller-overview > .page-header,
+.master-profile > .page-header {
+  margin-bottom: 2rem;
+}
+.traveller-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1.25rem;
+  margin-bottom: 2rem;
+}
+.traveller-metric {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  color: var(--text);
+  text-decoration: none;
+}
+.traveller-metric > strong {
+  font-size: 2.75rem;
+  line-height: 1.1;
+  overflow-wrap: anywhere;
+}
+.traveller-metric > span {
+  font-size: 0.8rem;
+}
+.traveller-section-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+.traveller-section-heading h3,
+.traveller-section-heading h4 {
+  margin: 0;
+}
+.traveller-working-area h3,
+.profile-working-area h3 {
+  font-size: 1rem;
+}
+.traveller-featured-case {
+  margin-top: 0.75rem;
+}
+.traveller-checklist {
+  margin: 1.5rem 0;
+}
+.traveller-checklist .muted {
+  margin-top: 0.75rem;
+}
+.traveller-agenda,
+.traveller-activity {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 1rem;
+}
+.traveller-agenda li,
+.traveller-activity li {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: 0.75rem 0;
+  border-bottom: 1px solid var(--hairline);
+  overflow-wrap: anywhere;
+}
+.traveller-activity a {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  text-decoration: none;
+}
+.traveller-activity span,
+.traveller-activity time,
+.traveller-agenda time {
+  font-size: 0.75rem;
+  color: var(--text-tertiary);
+}
+.profile-identity-banner {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+  border: 1px solid var(--hairline);
+  background: #f2f8f3;
+  border-radius: 1.25rem;
+  padding: 1.75rem;
+  margin-bottom: 1.75rem;
+}
+.profile-identity-avatar {
+  display: grid;
+  place-items: center;
+  flex: 0 0 5rem;
+  height: 5rem;
+  border-radius: 1.25rem;
+  background: #d6ebe1;
+  color: #236f59;
+  font-size: 1.75rem;
+  font-weight: 700;
+}
+.profile-identity-copy {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.profile-identity-copy h3 {
+  margin: 0;
+  font-size: 1.4rem;
+}
+.profile-identity-copy p {
+  font-size: 0.8rem;
+}
+.profile-completeness {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  flex: 0 1 16rem;
+  font-size: 0.8rem;
+}
+.profile-completeness > strong {
+  font-size: 1.75rem;
+}
+.profile-section-tabs {
+  display: flex;
+  gap: 1rem;
+  overflow-x: auto;
+  border-bottom: 1px solid var(--hairline);
+  margin-bottom: 0.75rem;
+}
+.profile-section-tabs button {
+  flex: 0 0 auto;
+  min-height: 44px;
+  padding: 0.5rem 0;
+  border: 0;
+  border-bottom: 3px solid transparent;
+  background: transparent;
+  color: var(--text-tertiary);
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.profile-section-tabs button[aria-selected="true"] {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+.profile-history-link {
+  display: inline-block;
+  margin-bottom: 1rem;
+  font-size: 0.8rem;
+}
+.profile-field-search {
+  display: flex;
+  gap: 0.75rem;
+  flex-direction: column;
+  margin-bottom: 1.25rem;
+}
+.profile-extra-pack {
+  padding: 1rem 0;
+  border-bottom: 1px solid var(--hairline);
+}
+.profile-extra-pack summary {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  cursor: pointer;
+}
+.profile-version-note {
+  margin-top: 1.5rem;
+  font-size: 0.8rem;
+}
+.profile-review-note {
+  padding: 1rem;
+  background: #e6f2e8;
+  border: 1px solid var(--hairline);
+  border-radius: 0.75rem;
+  font-size: 0.8rem;
+}
+@media (max-width: 760px) {
+  .traveller-metrics {
+    grid-template-columns: 1fr;
+    gap: 0.75rem;
+  }
+  .traveller-metric {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .traveller-metric > strong {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+    font-size: 2rem;
+  }
+  .profile-identity-banner {
+    flex-wrap: wrap;
+    padding: 1.25rem;
+  }
+  .profile-identity-avatar {
+    flex-basis: 3rem;
+    height: 3rem;
+    font-size: 1.25rem;
+    border-radius: 0.75rem;
+  }
+  .profile-completeness {
+    flex-basis: 100%;
+  }
+}

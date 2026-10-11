@@ -21,7 +21,7 @@ Inventory covers every detected production JSX control and exported action; beha
 | CF-00 | Source inventory and ten-page reference inspection recorded | Authenticated baseline captures and full action activation are unverified |
 | CF-01 | Implemented locally, acceptance incomplete | Authenticated role/mobile/keyboard screenshots and journeys remain unverified |
 | CF-02 | Implemented in an isolated worktree, release checks pending | Authenticated search/menu/mobile and exact header screenshots remain unverified |
-| CF-03 | Not implemented | Reference overview/profile regions with real authorized state |
+| CF-03 | Overview/profile implementation complete locally, release verification pending | Real authenticated desktop/mobile comparisons and full acceptance remain unverified |
 | CF-04 | Not implemented | Real wallet selection, case stages/progress and accurate sharing composer |
 | CF-05 | Not implemented | Agency pipeline, activity/requests and role-specific operation |
 | CF-06 | Not implemented | Platform members/metrics/trends/providers/costs and existing tools |
@@ -35,7 +35,7 @@ Session artifacts: /workspace/.cloud-tools/reference-fidelity/pdf/page-01.png th
 
 Neon Auth/Resend, private EU R2, native encryption, queues, canonical records, schemas, permissions, consent, quarantine, AI human review, agency grants/assignments, audit, privacy and complimentary access remain unchanged. Sensitive-data intake stays disabled. No production migrations, identity transfer, provider activation, staging branch creation or real applicant fixture writes occurred.
 
-Next: real scoped record search and truthful toolbar state (CF-02). Preserve every existing route/action; resolve missing PDF categories to actual bounded authorized views rather than decorative links. Use existing services; keep ordinary package release checks separate from final reference acceptance. Do not describe simplified fixture screenshots or device-theme parity as complete fidelity.
+Next: verify and publish CF-02/CF-03 together, then complete CF-04 wallet/case/sharing composition. Preserve every existing route/action; resolve missing PDF categories to actual bounded authorized views rather than decorative links. Use existing services; keep ordinary package release checks separate from final reference acceptance. Do not describe simplified fixture screenshots or device-theme parity as complete fidelity.
 
 ## CF-01 implementation checkpoint
 
@@ -46,3 +46,11 @@ The source graph now includes 56 pages and 267 references without dangling or un
 ## CF-02 implementation checkpoint
 
 The toolbar now uses real metadata search with selected-person and current agency membership/grant/assignment boundaries. Saved unread status counts all sent in-app notices; plan labels reflect recorded entitlements. Account controls retain the existing sign-out action. Component and endpoint checks cover debounce, cancellation, keyboard behavior, failure states, body/rate limits and trusted session identity. See [exact supported search scope](SCOPED-RECORD-SEARCH.md). Six isolated search tests, two saved-state tests, 35 focused endpoint/shell tests and four component behavior tests passed; workspace type checking passed. Full release verification and provider-backed screenshot acceptance remain pending.
+
+## CF-03 implementation checkpoint
+
+Selected-traveller overview now keeps the three real metrics, latest active case and actual requirement completeness, attention actions, upcoming saved case dates, and recent record changes. Empty and unavailable states retain the structural regions without inventing records or reporting failed reads as zero. The agenda explicitly leaves appointments in the individual case calendar. Case completeness is not an approval prediction.
+
+The profile uses the existing canonical field registry, divided into personal, passport/identity, travel, employment, finances and additional sections. Business, medical and attendant packs, repeating records, immutable saves, backdating, provenance and per-field assurance remain accessible. Keyboard tabs, all-field search and the history route remain functional. Completeness counts core fields with values; it does not imply identity or email verification. Health and latest changes use recorded fact states and timestamps. Both pages independently enforce current ownership before reading facts, even if layouts render concurrently.
+
+Focused checks passed 278 page/form-accessibility tests and four real profile-editor interaction tests. These include foreign-owner refusal, retained empty regions, actual case selection/progress, unavailable totals, consent-disabled editing, keyboard tabs, cross-section search and preserved repeating-record identifiers. This is implementation verification, not provider-backed authenticated screenshot acceptance. Full package checks and production publication are still pending.
