@@ -1031,3 +1031,5 @@ export {
   type WorkspaceSearchResult,
 } from './workspace-search';
 export { loadWorkspaceToolbarState, type WorkspaceToolbarState } from './workspace-toolbar';
+
+export { type PlatformOverview, getPlatformOverview } from './platform-overview';

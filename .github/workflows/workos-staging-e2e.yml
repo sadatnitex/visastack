@@ -1,34 +1,9 @@
-name: WorkOS Staging E2E (authenticated)
+name: Legacy WorkOS staging journeys (not Neon acceptance)
 
-# Optional authenticated E2E against WorkOS STAGING only (master directive
-# §8C). Runs only when the required repository secrets exist; clearly skipped
-# otherwise. Never touches production credentials, never logs credentials or
-# session tokens, uses a synthetic WorkOS-staging test identity, and creates
-# no real applicant data.
-#
-# Required repository secrets (names only — no values are ever committed):
-#   WORKOS_STAGING_TEST_EMAIL     — a synthetic WorkOS-staging test user email
-#   WORKOS_STAGING_TEST_PASSWORD  — that user's password
-#   E2E_BASE_URL (optional)       — target URL; defaults to the triggering
-#                                   deployment's URL, or the production URL
-#
-# For the eight cross-account tests (directive Part 10 section 2) also add:
-#   WORKOS_STAGING_TEST_EMAIL_2 / WORKOS_STAGING_TEST_PASSWORD_2
-#                                 - a SECOND, different synthetic identity
-#   E2E_AGENCY_ORG_ID, E2E_AGENCY_ASSIGNED_APPLICANT_NAME,
-#   E2E_AGENCY_UNASSIGNED_APPLICANT_ID, E2E_AGENCY_UNASSIGNED_APPLICANT_NAME
-#                                 - repository variables naming the staging
-#                                   agency fixture (see the spec's header)
-# Without them those tests are skipped and reported BLOCKED, never passed.
-#
-# Trusted code only: a deployment-triggered run needs the PRODUCTION
-# environment. A pull-request preview deployment never receives these secrets.
-#
-# To enable: add the two required secrets under
-# Settings → Secrets and variables → Actions. Leave them unset to keep this
-# workflow a no-op.
+# Manual legacy diagnostics only. Never proves Neon Auth acceptance.
+# An explicit isolated staging URL and synthetic-isolation attestation are required.
+# Missing credentials fail visibly; there is no production/deployment URL fallback.
 on:
-  deployment_status:
   workflow_dispatch: {}
 
 permissions:
@@ -50,17 +25,18 @@ jobs:
         run: |
           if [ "$HAS_EMAIL" = "true" ] && [ "$HAS_PASSWORD" = "true" ]; then
             echo "configured=true" >> "$GITHUB_OUTPUT"
-            echo "WORKOS_STAGING_TEST_EMAIL and WORKOS_STAGING_TEST_PASSWORD are both set — running the authenticated E2E spec."
+            echo "WORKOS_STAGING_TEST_EMAIL and WORKOS_STAGING_TEST_PASSWORD are both set - running the authenticated E2E spec."
           else
             echo "configured=false" >> "$GITHUB_OUTPUT"
             echo "Skipping: WORKOS_STAGING_TEST_EMAIL and/or WORKOS_STAGING_TEST_PASSWORD are not set on this repository."
-            echo "This is expected for a controlled pilot without staging test credentials configured yet — not a failure."
+            echo "::error::BLOCKED: legacy authenticated journeys did not run. This is not Neon Auth acceptance."
+            exit 1
           fi
 
   authenticated-e2e:
     name: Authenticated workspace journey (WorkOS staging)
     needs: check-configured
-    if: needs.check-configured.outputs.configured == 'true' && (github.event_name == 'workflow_dispatch' || (github.event.deployment_status.state == 'success' && github.event.deployment.environment == 'Production'))
+    if: needs.check-configured.outputs.configured == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -94,21 +70,39 @@ jobs:
       - name: Run the authenticated workspace journey
         working-directory: apps/web
         env:
-          PLAYWRIGHT_BASE_URL: ${{ vars.E2E_BASE_URL || github.event.deployment_status.environment_url || github.event.deployment_status.target_url }}
+          PLAYWRIGHT_BASE_URL: ${{ vars.E2E_BASE_URL }}
           WORKOS_STAGING_TEST_EMAIL: ${{ secrets.WORKOS_STAGING_TEST_EMAIL }}
           WORKOS_STAGING_TEST_PASSWORD: ${{ secrets.WORKOS_STAGING_TEST_PASSWORD }}
           WORKOS_STAGING_TEST_EMAIL_2: ${{ secrets.WORKOS_STAGING_TEST_EMAIL_2 }}
           WORKOS_STAGING_TEST_PASSWORD_2: ${{ secrets.WORKOS_STAGING_TEST_PASSWORD_2 }}
+          STAGING_VERCEL_TOKEN: ${{ secrets.STAGING_VERCEL_TOKEN }}
+          E2E_STAGING_DEPLOYMENT_ID: ${{ vars.E2E_STAGING_DEPLOYMENT_ID }}
+          E2E_EXPECTED_SHA: ${{ github.sha }}
+          E2E_AUTHENTICATED: 'true'
+          E2E_SYNTHETIC_ISOLATION_VERIFIED: ${{ vars.E2E_SYNTHETIC_ISOLATION_VERIFIED }}
           E2E_AGENCY_ORG_ID: ${{ vars.E2E_AGENCY_ORG_ID }}
           E2E_AGENCY_ASSIGNED_APPLICANT_NAME: ${{ vars.E2E_AGENCY_ASSIGNED_APPLICANT_NAME }}
           E2E_AGENCY_UNASSIGNED_APPLICANT_ID: ${{ vars.E2E_AGENCY_UNASSIGNED_APPLICANT_ID }}
           E2E_AGENCY_UNASSIGNED_APPLICANT_NAME: ${{ vars.E2E_AGENCY_UNASSIGNED_APPLICANT_NAME }}
-        run: npx playwright test authenticated-workspace.spec.ts
+        run: |
+          node ../../scripts/check-staging-target.mjs
+          PLAYWRIGHT_JSON_OUTPUT_FILE="$RUNNER_TEMP/legacy-journeys.json" npx playwright test authenticated-workspace.spec.ts --reporter=json
+          node ../../scripts/check-authenticated-results.mjs "$RUNNER_TEMP/legacy-journeys.json"
+          rm "$RUNNER_TEMP/legacy-journeys.json"
 
-      - name: Upload Playwright report
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: workos-staging-e2e-report
-          path: apps/web/playwright-report/
-          retention-days: 7
+
+  acceptance-result:
+    name: Legacy journey execution result (not Neon acceptance)
+    if: always()
+    needs: [check-configured, authenticated-e2e]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Refuse skipped or failed authenticated execution
+        env:
+          RESULT: ${{ needs.authenticated-e2e.result }}
+        run: |
+          if [ "$RESULT" != "success" ]; then
+            echo "::error::Authenticated journey execution is BLOCKED or failed. No acceptance evidence."
+            exit 1
+          fi
+          echo "Legacy WorkOS diagnostics executed. Neon and full CF-09 acceptance remain unverified." >> "$GITHUB_STEP_SUMMARY"

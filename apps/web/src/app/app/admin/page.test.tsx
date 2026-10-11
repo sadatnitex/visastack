@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
   getMigrationStatus: vi.fn(),
   collectOperationalSignals: vi.fn(),
   getPilotScorecard: vi.fn(),
+  getPlatformOverview: vi.fn(),
   getPlatformEvidenceBytes: vi.fn(),
   getProductAnalytics: vi.fn(),
   listFailedJobs: vi.fn(),
@@ -25,7 +26,10 @@ vi.mock('../../../lib/session', () => ({
   withSession: async (fn: (ctx: unknown) => Promise<unknown>) =>
     fn({ db: {}, accountId: 'acct-1', email: 'admin@example.com' }),
 }));
-vi.mock('../../../lib/admin', () => ({ isPlatformAdmin: mocks.isPlatformAdmin }));
+vi.mock('../../../lib/admin', () => ({
+  isPlatformAdmin: mocks.isPlatformAdmin,
+  bootstrapAdminEmails: () => [],
+}));
 vi.mock('@visastack/db', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@visastack/db')>()),
   getMigrationStatus: (...args: unknown[]) => mocks.getMigrationStatus(...args),
@@ -34,6 +38,7 @@ vi.mock('@visastack/services', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@visastack/services')>()),
   collectOperationalSignals: (...args: unknown[]) => mocks.collectOperationalSignals(...args),
   getPilotScorecard: (...args: unknown[]) => mocks.getPilotScorecard(...args),
+  getPlatformOverview: (...args: unknown[]) => mocks.getPlatformOverview(...args),
   getPlatformEvidenceBytes: (...args: unknown[]) => mocks.getPlatformEvidenceBytes(...args),
   getProductAnalytics: (...args: unknown[]) => mocks.getProductAnalytics(...args),
   listFailedJobs: (...args: unknown[]) => mocks.listFailedJobs(...args),
@@ -78,6 +83,17 @@ beforeEach(() => {
   vi.clearAllMocks();
   navigationState.pathname = '/app/admin';
   mocks.isPlatformAdmin.mockResolvedValue(true);
+  mocks.getPlatformOverview.mockResolvedValue({
+    ok: true,
+    value: {
+      accounts: 9,
+      travellers: 4,
+      agencies: 2,
+      approvedVersions: 0,
+      terminalVersions: 0,
+      activity: [],
+    },
+  });
   mocks.getDeploymentMode.mockReturnValue('controlled_pilot');
   mocks.getMigrationStatus.mockResolvedValue({
     checked: true,
@@ -127,6 +143,22 @@ beforeEach(() => {
 });
 
 describe('Platform > Operations', () => {
+  it('uses real aggregate totals, an explicit no-measurement state and a separate operational rail', async () => {
+    const html = await renderServer(Page());
+    const text = textOf(html);
+    expect(text).toContain('Registered accounts');
+    expect(text).toContain('Traveller records');
+    expect(text).toContain('Not measured');
+    expect(html).toContain('admin-reference-working-area');
+    expect(html).toContain('admin-reference-rail');
+    expect(text).toContain('Recorded activity, last 30 days');
+  });
+  it('shows unavailable global counts when the independent aggregate reader fails', async () => {
+    mocks.getPlatformOverview.mockRejectedValue(new Error('Read unavailable'));
+    const text = textOf(await renderServer(Page()));
+    expect(text).toContain('Activity counts are unavailable. No trend is inferred.');
+    expect(text).toContain('Unavailable');
+  });
   it('is the landing page of the platform area and names itself Operations', async () => {
     const html = await renderServer(Page());
     expect(html).toContain('>Operations<');

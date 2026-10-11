@@ -5,6 +5,7 @@ import {
   collectOperationalSignals,
   getPilotScorecard,
   getPlatformEvidenceBytes,
+  getPlatformOverview,
   getProductAnalytics,
   listFailedJobs,
   loadUploadQuotaConfig,
@@ -12,7 +13,7 @@ import {
 } from '@visastack/services';
 import type { Metadata } from 'next';
 import { PageHeader } from '../../../components/ui';
-import { isPlatformAdmin } from '../../../lib/admin';
+import { bootstrapAdminEmails, isPlatformAdmin } from '../../../lib/admin';
 import { aiWarningLimitUnits, defaultAiLimits, resolveAiLimits, unitsToUsd } from '../../../lib/ai';
 import { formatDuration, formatMinorUnits, humanizeLabel } from '../../../lib/analytics-format';
 import { evaluateCommercialReadiness } from '../../../lib/commercial-readiness';
@@ -128,6 +129,19 @@ export default async function AdminOperationsPage() {
       [],
     );
     const readiness = await t('platform readiness', () => evaluateReadiness(), null);
+    const overview = await t(
+      'platform overview',
+      async () => {
+        const result = await getPlatformOverview(db, {
+          accountId,
+          email,
+          bootstrapEmails: bootstrapAdminEmails(),
+        });
+        if (!result.ok) throw new Error('Overview unavailable');
+        return result.value;
+      },
+      null,
+    );
     const deploymentMode = getDeploymentMode();
     // Finding #35 (post-programme defect register): the full commercial-
     // readiness gate breakdown (pentest, backup-restore attestation,
@@ -143,6 +157,7 @@ export default async function AdminOperationsPage() {
         : undefined;
     return {
       admin: true as const,
+      overview,
       failedJobs,
       scorecard,
       analytics,
@@ -164,8 +179,14 @@ export default async function AdminOperationsPage() {
     };
   });
 
+  const activityMaximum = Math.max(
+    1,
+    ...(data.admin
+      ? (data.overview?.activity.flatMap((item) => [item.activated, item.cases]) ?? [])
+      : []),
+  );
   return (
-    <section className="section container">
+    <section className="section container platform-operations">
       <PageHeader
         eyebrow="Platform"
         title="Operations"
@@ -177,7 +198,78 @@ export default async function AdminOperationsPage() {
       ) : (
         <>
           <FailedSectionsBanner sections={data.failedSections} />
-          <nav aria-label="On this page" className="pill-list" style={{ marginBottom: '1.5rem' }}>
+          <div className="admin-reference-metrics">
+            {[
+              {
+                label: 'Registered accounts',
+                value: data.overview?.accounts,
+                hint: 'Current account records',
+              },
+              {
+                label: 'Traveller records',
+                value: data.overview?.travellers,
+                hint: 'Saved records, not active-user counts',
+              },
+              {
+                label: 'Agencies',
+                value: data.overview?.agencies,
+                hint: 'Current organization records',
+              },
+              {
+                label: 'Approved file versions',
+                value: data.overview
+                  ? data.overview.terminalVersions
+                    ? `${Math.round((100 * data.overview.approvedVersions) / data.overview.terminalVersions)}%`
+                    : 'Not measured'
+                  : undefined,
+                hint: 'Approved among terminal file-version outcomes',
+              },
+            ].map((metric) => (
+              <article className="card admin-summary-metric" key={metric.label}>
+                <span>{metric.label}</span>
+                <strong>{metric.value ?? 'Unavailable'}</strong>
+                <small>{metric.hint}</small>
+              </article>
+            ))}
+          </div>
+          <div className="admin-operational-summary">
+            <a href="#admin-signals" className="card admin-summary-metric">
+              <span>Signals needing attention</span>
+              <strong>
+                {data.failedSections.includes('operational signals')
+                  ? 'Unavailable'
+                  : data.signals.filter(
+                      (signal) => signal.status === 'warning' || signal.status === 'critical',
+                    ).length}
+              </strong>
+              <small>Warnings and critical signals, not unmeasured checks</small>
+            </a>
+            <a href="#admin-processing" className="card admin-summary-metric">
+              <span>Failed intake jobs</span>
+              <strong>
+                {data.failedSections.includes('failed jobs')
+                  ? 'Unavailable'
+                  : data.failedJobs.length}
+              </strong>
+              <small>Recorded failures available for review</small>
+            </a>
+            <a href="#admin-platform-readiness" className="card admin-summary-metric">
+              <span>Platform readiness</span>
+              <strong>
+                {data.readiness
+                  ? data.readiness.ready
+                    ? 'Ready'
+                    : 'Needs attention'
+                  : 'Unavailable'}
+              </strong>
+              <small>Deployment checks, separate from full beta acceptance</small>
+            </a>
+          </div>
+          <nav
+            aria-label="On this page"
+            className="pill-list admin-section-navigation"
+            style={{ marginBottom: '1.5rem' }}
+          >
             <a href="/status" className="pill">
               Public status page
             </a>
@@ -204,468 +296,541 @@ export default async function AdminOperationsPage() {
             </a>
           </nav>
 
-          <article className="card" style={{ marginBottom: '1.5rem' }}>
-            <p className="card-kicker">Pilot measurement</p>
-            <h2 className="card-title">Product scorecard</h2>
-            <p className="card-body" style={{ marginBottom: '1rem' }}>
-              Real usage milestones, counted from an append-only event log - no PII, no free-text
-              properties.
-            </p>
-            <div className="rows">
-              {data.scorecard.map((row) => (
-                <div className="row" key={row.eventType}>
-                  <span className="row-key">{SCORECARD_LABELS[row.eventType]}</span>
-                  <span className="row-end">
-                    <span className="muted" style={{ fontSize: '0.8rem' }}>
-                      {row.last7Days} last 7 days
-                    </span>
-                    <span className="badge badge-neutral">{row.total} total</span>
-                  </span>
-                </div>
-              ))}
-            </div>
-          </article>
-
-          <article className="card" style={{ marginBottom: '1.5rem' }} id="admin-signals">
-            <p className="card-kicker">Operations</p>
-            <h2 className="card-title">Operational signals</h2>
-            <p className="card-body" style={{ marginBottom: '1rem' }}>
-              What an operator needs to tell whether the platform is healthy. Counts, ages and
-              ratios only: nothing here names a person or a document. The thresholds are pilot
-              defaults that have not been calibrated against real traffic, and they only choose a
-              colour. "Not measured" means the application cannot see it from inside; the
-              explanation says where to look.
-            </p>
-            {data.signals.length === 0 ? (
-              <p className="card-body">The signals could not be loaded; see the notice above.</p>
-            ) : (
-              <div className="rows">
-                {data.signals.map((signal) => (
-                  <div
-                    className="row"
-                    key={signal.key}
-                    style={{ flexDirection: 'column', alignItems: 'stretch', gap: '0.35rem' }}
-                  >
+          <div className="admin-reference-working-area">
+            <div className="admin-reference-main">
+              <article className="card admin-activity-chart">
+                <p className="card-kicker">Activation and adoption</p>
+                <h2 className="card-title">Recorded activity, last 30 days</h2>
+                <p className="card-body">
+                  Accounts reaching their first case and cases started, grouped by UTC day. These
+                  are event counts, not a count of active users.
+                </p>
+                {data.overview ? (
+                  <>
+                    <div className="admin-chart-legend">
+                      <span>First-case activations</span>
+                      <span>Cases started</span>
+                    </div>
                     <div
-                      style={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                        gap: '0.75rem',
-                      }}
+                      className="admin-daily-chart"
+                      role="img"
+                      aria-label="Daily first-case activations and cases started, with exact counts in the table below"
                     >
-                      <span className="row-key">{signal.label}</span>
-                      <span className={`badge ${SIGNAL_STATUS_TONE[signal.status]}`}>
-                        {SIGNAL_STATUS_LABEL[signal.status]}
-                      </span>
+                      {data.overview.activity.map((day) => {
+                        return (
+                          <div
+                            key={day.day}
+                            title={`${day.day}: ${day.activated} activations, ${day.cases} cases`}
+                          >
+                            <span
+                              style={{ height: `${(100 * day.activated) / activityMaximum}%` }}
+                            />
+                            <span style={{ height: `${(100 * day.cases) / activityMaximum}%` }} />
+                          </div>
+                        );
+                      })}
                     </div>
-                    <span className="muted" style={{ fontSize: '0.85rem' }}>
-                      {signal.reading}
-                    </span>
                     <details>
-                      <summary className="muted" style={{ fontSize: '0.8rem', cursor: 'pointer' }}>
-                        What this means
-                      </summary>
-                      <p className="card-body" style={{ marginTop: '0.4rem' }}>
-                        {signal.detail}
-                      </p>
+                      <summary>Exact daily counts</summary>
+                      <table className="data-table">
+                        <caption>Recorded activity by UTC day</caption>
+                        <thead>
+                          <tr>
+                            <th scope="col">Day</th>
+                            <th scope="col">First-case activations</th>
+                            <th scope="col">Cases started</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {data.overview.activity.map((day) => (
+                            <tr key={day.day}>
+                              <th scope="row">{day.day}</th>
+                              <td>{day.activated}</td>
+                              <td>{day.cases}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
                     </details>
-                  </div>
-                ))}
-              </div>
-            )}
-          </article>
-
-          <article
-            className="card"
-            style={{ marginBottom: '1.5rem' }}
-            id="admin-platform-readiness"
-          >
-            <p className="card-kicker">Operations</p>
-            <h2 className="card-title">Platform readiness detail</h2>
-            <p className="card-body" style={{ marginBottom: '1rem' }}>
-              The detailed view behind the public readiness probe, which on a deployed build says
-              only "ready" or "degraded". It names missing configuration and pending migrations, so
-              it is shown to platform administrators only. It never shows a value.
-            </p>
-            {data.readiness === null ? (
-              <p className="card-body">Readiness could not be evaluated; see the notice above.</p>
-            ) : (
-              <div className="rows">
-                {(() => {
-                  const r = data.readiness;
-                  const missingSignIn = [
-                    ...Object.entries(r.env.workos)
-                      .filter(([, present]) => !present)
-                      .map(([name]) => name),
-                    ...(r.env.redirectUri ? [] : ['NEXT_PUBLIC_WORKOS_REDIRECT_URI']),
-                  ];
-                  const databaseConfigured = Object.values(r.env.database).some(Boolean);
-                  const rows: ReadonlyArray<readonly [string, string, boolean]> = [
-                    [
-                      'Overall',
-                      r.ready ? 'Ready' : 'Degraded: something required is missing',
-                      r.ready,
-                    ],
-                    ['Deployment mode', r.deploymentMode, true],
-                    [
-                      'Database',
-                      !databaseConfigured
-                        ? 'no connection string configured'
-                        : r.db.connected
-                          ? `connected${r.db.schemaApplied ? ', schema present' : ', schema missing'}`
-                          : 'could not connect',
-                      r.db.connected && r.db.schemaApplied,
-                    ],
-                    [
-                      'Migrations',
-                      r.migrations.checked
-                        ? r.migrations.pending.length === 0
-                          ? `${r.migrations.applied} of ${r.migrations.expected} applied`
-                          : `${r.migrations.pending.length} pending: ${r.migrations.pending.join(', ')}`
-                        : 'not checked',
-                      !r.migrations.checked || r.migrations.pending.length === 0,
-                    ],
-                    [
-                      'Provider settings',
-                      r.providers.valid ? 'valid' : (r.providers.error ?? 'invalid'),
-                      r.providers.valid,
-                    ],
-                    [
-                      'Sign-in configuration',
-                      missingSignIn.length === 0
-                        ? 'complete'
-                        : `missing: ${missingSignIn.join(', ')}`,
-                      missingSignIn.length === 0,
-                    ],
-                    [
-                      'Signed document links',
-                      r.capabilities.signedBlobStorage ? 'configured' : 'not configured',
-                      true,
-                    ],
-                    [
-                      'Scheduled job secret',
-                      r.capabilities.asyncIntakeSweep ? 'configured' : 'not configured',
-                      true,
-                    ],
-                  ];
-                  return rows.map(([label, value, good]) => (
-                    <div className="row" key={label}>
-                      <span className="row-key">{label}</span>
-                      <span
-                        className={good ? 'muted' : 'badge badge-danger'}
-                        style={{ fontSize: '0.85rem' }}
+                  </>
+                ) : (
+                  <p role="alert">Activity counts are unavailable. No trend is inferred.</p>
+                )}
+              </article>
+              <article className="card" id="admin-processing">
+                <p className="card-kicker">Processing</p>
+                <h2 className="card-title">Failed intake jobs</h2>
+                {data.failedJobs.length === 0 ? (
+                  <p className="card-body">
+                    No failed jobs. A job is parked here only after it exhausts every retry attempt.
+                  </p>
+                ) : (
+                  <div className="rows" style={{ marginTop: '0.5rem' }}>
+                    {data.failedJobs.map((job) => (
+                      <div
+                        className="row"
+                        key={job.id}
+                        style={{ flexDirection: 'column', alignItems: 'stretch', gap: '0.4rem' }}
                       >
-                        {value}
-                      </span>
-                    </div>
-                  ));
-                })()}
-              </div>
-            )}
-          </article>
-
-          <article className="card" style={{ marginBottom: '1.5rem' }} id="admin-analytics">
-            <p className="card-kicker">Pilot measurement</p>
-            <h2 className="card-title">Learning areas</h2>
-            <p className="card-body" style={{ marginBottom: '1rem' }}>
-              Aggregates only, from the same event log. Nothing here names a person, a case, a
-              document or what anyone wrote. Figures are counts and timings; they say how the pilot
-              is behaving, not whether any application will succeed.
-            </p>
-            {data.analytics.available ? (
-              <>
-                <div className="rows" style={{ marginBottom: '1.25rem' }}>
-                  {data.analytics.categories.map((category) => (
-                    <div className="row" key={category.key}>
-                      <span className="row-key">{category.label}</span>
+                        <div
+                          style={{
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            gap: '0.75rem',
+                          }}
+                        >
+                          <span className="row-key" style={{ wordBreak: 'break-word' }}>
+                            {job.documentName}
+                          </span>
+                          <span className="row-end">
+                            {job.errorCode ? (
+                              <span className="badge badge-neutral">{job.errorCode}</span>
+                            ) : null}
+                            <span className="badge badge-danger">
+                              {job.attempts}/{job.maxAttempts} attempts
+                            </span>
+                            <RetryJobButton jobId={job.id} />
+                          </span>
+                        </div>
+                        {job.lastError ? (
+                          <span
+                            className="muted"
+                            style={{ fontSize: '0.8rem', fontFamily: 'var(--font-mono)' }}
+                          >
+                            {job.lastError}
+                          </span>
+                        ) : null}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </article>
+              <article className="card" style={{ marginBottom: '1.5rem' }}>
+                <p className="card-kicker">Pilot measurement</p>
+                <h2 className="card-title">Product scorecard</h2>
+                <p className="card-body" style={{ marginBottom: '1rem' }}>
+                  Real usage milestones, counted from an append-only event log - no PII, no
+                  free-text properties.
+                </p>
+                <div className="rows admin-scorecard">
+                  {data.scorecard.map((row) => (
+                    <div className="row" key={row.eventType}>
+                      <span className="row-key">{SCORECARD_LABELS[row.eventType]}</span>
                       <span className="row-end">
                         <span className="muted" style={{ fontSize: '0.8rem' }}>
-                          {category.last7Days} last 7 days, {category.last30Days} last 30 days
+                          {row.last7Days} last 7 days
                         </span>
-                        <span className="badge badge-neutral">{category.total} total</span>
+                        <span className="badge badge-neutral">{row.total} total</span>
                       </span>
                     </div>
                   ))}
                 </div>
-                <div className="rows">
-                  {(
-                    [
-                      ['Intake to ready (first time)', data.analytics.intakeToReady],
-                      ['Complaint open to ended', data.analytics.complaintResolution],
-                      ['Sign-up to first case', data.analytics.activationDelay],
-                    ] as const
-                  ).map(([label, summary]) => (
-                    <div className="row" key={label}>
-                      <span className="row-key">{label}</span>
-                      <span className="muted" style={{ fontSize: '0.85rem' }}>
-                        {summary.count === 0
-                          ? 'no data yet'
-                          : `median ${formatDuration(summary.medianSeconds)}, 90th percentile ${formatDuration(summary.p90Seconds)} (${summary.count})`}
-                      </span>
-                    </div>
-                  ))}
-                  <div className="row">
-                    <span className="row-key">Agencies active, last 90 days</span>
-                    <span className="muted" style={{ fontSize: '0.85rem' }}>
-                      {data.analytics.agencyRepeatUse.activeOrganizations} created a case,{' '}
-                      {data.analytics.agencyRepeatUse.repeatOrganizations} in two or more different
-                      weeks
-                    </span>
-                  </div>
-                  <div className="row">
-                    <span className="row-key">AI proposals decided</span>
-                    <span className="muted" style={{ fontSize: '0.85rem' }}>
-                      {data.analytics.aiDecisions.accepted} accepted,{' '}
-                      {data.analytics.aiDecisions.corrected} corrected,{' '}
-                      {data.analytics.aiDecisions.rejected} rejected
-                    </span>
-                  </div>
-                  {(
-                    [
-                      ['Cases by stage entered', data.analytics.casesByStage],
-                      ['Case outcomes', data.analytics.outcomes],
-                      ['Plan limits reached', data.analytics.planLimitHits],
-                    ] as const
-                  ).map(([label, counts]) => (
-                    <div className="row" key={label}>
-                      <span className="row-key">{label}</span>
-                      <span className="muted" style={{ fontSize: '0.85rem' }}>
-                        {counts.length === 0
-                          ? 'none yet'
-                          : counts.map((c) => `${humanizeLabel(c.label)} ${c.count}`).join(', ')}
-                      </span>
-                    </div>
-                  ))}
-                  <div className="row">
-                    <span className="row-key">Cash collected (not invoiced)</span>
-                    <span className="muted" style={{ fontSize: '0.85rem' }}>
-                      {data.analytics.cashCollected.length === 0
-                        ? 'none recorded yet'
-                        : data.analytics.cashCollected
-                            .map(
-                              (c) =>
-                                `${formatMinorUnits(c.minorUnits, c.currency)} in ${c.collections}`,
-                            )
-                            .join(', ')}
-                    </span>
-                  </div>
-                </div>
-              </>
-            ) : (
-              <p className="card-body">
-                Waiting for a database update. These figures appear once the latest database
-                migration has been applied; nothing else is affected in the meantime.
-              </p>
-            )}
-          </article>
-
-          <article className="card" style={{ marginBottom: '1.5rem' }} id="admin-readiness">
-            <p className="card-kicker">Operational posture</p>
-            <h2 className="card-title">Commercial readiness</h2>
-            <p className="card-body" style={{ marginBottom: '1rem' }}>
-              The full per-gate breakdown behind commercial mode's guard - deliberately{' '}
-              <strong>not</strong> public. An unauthenticated caller (including the public{' '}
-              <code>/status</code> page) only ever sees the aggregate ready/not-ready boolean.
-            </p>
-            {!data.commercial ? (
-              <p className="card-body" style={{ marginBottom: 0 }}>
-                Deployment mode is <strong>{data.deploymentMode}</strong>, not{' '}
-                <code>commercial</code> - this guard does not apply yet.
-              </p>
-            ) : (
-              <>
-                <div className="toolbar" style={{ marginBottom: '1rem' }}>
-                  <span className="muted" style={{ fontSize: '0.85rem' }}>
-                    {data.commercial.gates.filter((g) => g.satisfied).length} of{' '}
-                    {data.commercial.gates.length} gates satisfied
-                  </span>
-                  <span
-                    className={data.commercial.ready ? 'badge badge-success' : 'badge badge-danger'}
-                  >
-                    {data.commercial.ready ? 'ready' : 'not ready'}
-                  </span>
-                </div>
-                <div className="rows">
-                  {data.commercial.gates.map((gate) => (
-                    <div className="row" key={gate.key}>
-                      <span className="row-key">{gate.label}</span>
-                      <span
-                        className={gate.satisfied ? 'badge badge-success' : 'badge badge-danger'}
-                      >
-                        {gate.satisfied ? 'satisfied' : 'unmet'}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </>
-            )}
-          </article>
-
-          <article className="card" style={{ marginTop: '1.5rem' }} id="admin-processing">
-            <p className="card-kicker">Processing</p>
-            <h2 className="card-title">Failed intake jobs</h2>
-            {data.failedJobs.length === 0 ? (
-              <p className="card-body">
-                No failed jobs. A job is parked here only after it exhausts every retry attempt.
-              </p>
-            ) : (
-              <div className="rows" style={{ marginTop: '0.5rem' }}>
-                {data.failedJobs.map((job) => (
-                  <div
-                    className="row"
-                    key={job.id}
-                    style={{ flexDirection: 'column', alignItems: 'stretch', gap: '0.4rem' }}
-                  >
-                    <div
-                      style={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                        gap: '0.75rem',
-                      }}
-                    >
-                      <span className="row-key" style={{ wordBreak: 'break-word' }}>
-                        {job.documentName}
-                      </span>
-                      <span className="row-end">
-                        {job.errorCode ? (
-                          <span className="badge badge-neutral">{job.errorCode}</span>
-                        ) : null}
-                        <span className="badge badge-danger">
-                          {job.attempts}/{job.maxAttempts} attempts
-                        </span>
-                        <RetryJobButton jobId={job.id} />
-                      </span>
-                    </div>
-                    {job.lastError ? (
-                      <span
-                        className="muted"
-                        style={{ fontSize: '0.8rem', fontFamily: 'var(--font-mono)' }}
-                      >
-                        {job.lastError}
-                      </span>
-                    ) : null}
-                  </div>
-                ))}
-              </div>
-            )}
-          </article>
-
-          <article className="card" style={{ marginTop: '1.5rem' }} id="admin-provider-operations">
-            <p className="card-kicker">Providers and recovery</p>
-            <h2 className="card-title">Usage, costs and evidence</h2>
-            <p className="card-body">
-              Recorded usage, configured services and unverified readings are shown separately.
-              Check provider account limits before changing plans. Founding access stays
-              complimentary.
-            </p>
-            <p className="card-body">
-              <a
-                href="https://github.com/sadatnitex/visastack/actions/workflows/database-restore-drill.yml"
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                Backup recovery checks
-              </a>
-            </p>
-            <dl className="rows">
-              {data.providerOperations.map((row) => (
-                <div key={row.label} className="row" style={{ alignItems: 'flex-start' }}>
-                  <dt className="row-key" style={{ flex: '0 1 14rem' }}>
-                    {row.label}
-                  </dt>
-                  <dd style={{ margin: 0, flex: '1 1 18rem', minWidth: 0 }}>
-                    <strong>{row.reading}</strong>
-                    <p className="muted">{row.source}</p>
-                    <p>{row.detail}</p>
-                  </dd>
-                </div>
-              ))}
-            </dl>
-          </article>
-
-          <article className="card" style={{ marginTop: '1.5rem' }} id="admin-usage">
-            <p className="card-kicker">Capacity</p>
-            <h2 className="card-title">Platform storage</h2>
-            <p className="card-body" style={{ marginBottom: '1.25rem' }}>
-              Tracked evidence bytes across every account. New uploads are refused once the platform
-              hits its hard stop; the warning threshold below is purely informational - it is not
-              itself enforced anywhere.
-            </p>
-            {data.failedSections.includes('evidence storage') ? (
-              <p className="card-body">
-                Evidence storage could not be read. Usage and remaining capacity are unavailable.
-              </p>
-            ) : (
-              <UsageMeter
-                label="Evidence storage (platform-wide)"
-                usedBytes={data.platformEvidenceBytes}
-                limitBytes={data.quota.platformHardStopBytes}
-                warnBytes={data.quota.platformWarningBytes}
-              />
-            )}
-          </article>
-
-          <article className="card" style={{ marginTop: '1.5rem' }}>
-            <p className="card-kicker">Capacity</p>
-            <h2 className="card-title">AI Gateway spend</h2>
-            <p className="card-body" style={{ marginBottom: '1.25rem' }}>
-              Lifetime-to-date spend against the configured pilot cap (never resets automatically -
-              raising the limit is a deliberate operator action, not a monthly rollover). A cache
-              hit costs nothing and does not add to this total. The cap shown here is whichever
-              currently governs dispatch -- an ACTIVE AI Gateway configuration's own budget once one
-              exists, environment variables otherwise; the warning threshold has no
-              per-configuration equivalent yet and always comes from the environment.
-            </p>
-            {(() => {
-              if (
-                data.failedSections.includes('AI cost') ||
-                data.failedSections.includes('AI limits')
-              ) {
-                return (
+              </article>
+            </div>
+            <aside className="admin-reference-rail" aria-label="Operational health and capacity">
+              {' '}
+              <article className="card" id="admin-signals">
+                <p className="card-kicker">Operations</p>
+                <h2 className="card-title">Operational signals</h2>
+                <p className="card-body" style={{ marginBottom: '1rem' }}>
+                  What an operator needs to tell whether the platform is healthy. Counts, ages and
+                  ratios only: nothing here names a person or a document. The thresholds are pilot
+                  defaults that have not been calibrated against real traffic, and they only choose
+                  a colour. "Not measured" means the application cannot see it from inside; the
+                  explanation says where to look.
+                </p>
+                {data.signals.length === 0 ? (
                   <p className="card-body">
-                    AI usage or its limit could not be read. Spend and remaining capacity are
+                    The signals could not be loaded; see the notice above.
+                  </p>
+                ) : (
+                  <div className="rows">
+                    {data.signals.map((signal) => (
+                      <div
+                        className="row"
+                        key={signal.key}
+                        style={{ flexDirection: 'column', alignItems: 'stretch', gap: '0.35rem' }}
+                      >
+                        <div
+                          style={{
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            gap: '0.75rem',
+                          }}
+                        >
+                          <span className="row-key">{signal.label}</span>
+                          <span className={`badge ${SIGNAL_STATUS_TONE[signal.status]}`}>
+                            {SIGNAL_STATUS_LABEL[signal.status]}
+                          </span>
+                        </div>
+                        <span className="muted" style={{ fontSize: '0.85rem' }}>
+                          {signal.reading}
+                        </span>
+                        <details>
+                          <summary
+                            className="muted"
+                            style={{ fontSize: '0.8rem', cursor: 'pointer' }}
+                          >
+                            What this means
+                          </summary>
+                          <p className="card-body" style={{ marginTop: '0.4rem' }}>
+                            {signal.detail}
+                          </p>
+                        </details>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </article>
+              <article
+                className="card"
+                style={{ marginTop: '1.5rem' }}
+                id="admin-provider-operations"
+              >
+                <p className="card-kicker">Providers and recovery</p>
+                <h2 className="card-title">Usage, costs and evidence</h2>
+                <p className="card-body">
+                  Recorded usage, configured services and unverified readings are shown separately.
+                  Check provider account limits before changing plans. Founding access stays
+                  complimentary.
+                </p>
+                <p className="card-body">
+                  <a
+                    href="https://github.com/sadatnitex/visastack/actions/workflows/database-restore-drill.yml"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    Backup recovery checks
+                  </a>
+                </p>
+                <dl className="rows">
+                  {data.providerOperations.map((row) => (
+                    <div key={row.label} className="row" style={{ alignItems: 'flex-start' }}>
+                      <dt className="row-key" style={{ flex: '0 1 14rem' }}>
+                        {row.label}
+                      </dt>
+                      <dd style={{ margin: 0, flex: '1 1 18rem', minWidth: 0 }}>
+                        <strong>{row.reading}</strong>
+                        <p className="muted">{row.source}</p>
+                        <p>{row.detail}</p>
+                      </dd>
+                    </div>
+                  ))}
+                </dl>
+              </article>
+              <article className="card" id="admin-usage">
+                <p className="card-kicker">Capacity</p>
+                <h2 className="card-title">Platform storage</h2>
+                <p className="card-body" style={{ marginBottom: '1.25rem' }}>
+                  Tracked evidence bytes across every account. New uploads are refused once the
+                  platform hits its hard stop; the warning threshold below is purely informational -
+                  it is not itself enforced anywhere.
+                </p>
+                {data.failedSections.includes('evidence storage') ? (
+                  <p className="card-body">
+                    Evidence storage could not be read. Usage and remaining capacity are
                     unavailable.
                   </p>
-                );
-              }
-              const usedUsd = unitsToUsd(data.aiCostUnits);
-              const limitUsd = unitsToUsd(data.aiLimits.budgetLimitUnits);
-              const warnUsd = unitsToUsd(aiWarningLimitUnits());
-              const fraction = limitUsd > 0 ? Math.min(1, usedUsd / limitUsd) : 0;
-              const tone =
-                usedUsd >= limitUsd ? 'meter-full' : usedUsd >= warnUsd ? 'meter-warn' : '';
-              return (
-                <div>
-                  <div className="meter-label">
-                    <span>AI extraction spend (approximate)</span>
-                    <span>
-                      ${usedUsd.toFixed(2)} of ${limitUsd.toFixed(2)} used
+                ) : (
+                  <UsageMeter
+                    label="Evidence storage (platform-wide)"
+                    usedBytes={data.platformEvidenceBytes}
+                    limitBytes={data.quota.platformHardStopBytes}
+                    warnBytes={data.quota.platformWarningBytes}
+                  />
+                )}
+              </article>
+              <article className="card" style={{ marginTop: '1.5rem' }}>
+                <p className="card-kicker">Capacity</p>
+                <h2 className="card-title">AI Gateway spend</h2>
+                <p className="card-body" style={{ marginBottom: '1.25rem' }}>
+                  Lifetime-to-date spend against the configured pilot cap (never resets
+                  automatically - raising the limit is a deliberate operator action, not a monthly
+                  rollover). A cache hit costs nothing and does not add to this total. The cap shown
+                  here is whichever currently governs dispatch -- an ACTIVE AI Gateway
+                  configuration's own budget once one exists, environment variables otherwise; the
+                  warning threshold has no per-configuration equivalent yet and always comes from
+                  the environment.
+                </p>
+                {(() => {
+                  if (
+                    data.failedSections.includes('AI cost') ||
+                    data.failedSections.includes('AI limits')
+                  ) {
+                    return (
+                      <p className="card-body">
+                        AI usage or its limit could not be read. Spend and remaining capacity are
+                        unavailable.
+                      </p>
+                    );
+                  }
+                  const usedUsd = unitsToUsd(data.aiCostUnits);
+                  const limitUsd = unitsToUsd(data.aiLimits.budgetLimitUnits);
+                  const warnUsd = unitsToUsd(aiWarningLimitUnits());
+                  const fraction = limitUsd > 0 ? Math.min(1, usedUsd / limitUsd) : 0;
+                  const tone =
+                    usedUsd >= limitUsd ? 'meter-full' : usedUsd >= warnUsd ? 'meter-warn' : '';
+                  return (
+                    <div>
+                      <div className="meter-label">
+                        <span>AI extraction spend (approximate)</span>
+                        <span>
+                          ${usedUsd.toFixed(2)} of ${limitUsd.toFixed(2)} used
+                        </span>
+                      </div>
+                      <div className="meter">
+                        <div
+                          className={`meter-fill ${tone}`.trim()}
+                          style={{ width: `${Math.round(fraction * 100)}%` }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })()}
+              </article>
+            </aside>
+          </div>
+          <div className="admin-specialized-details">
+            {' '}
+            <article
+              className="card"
+              style={{ marginBottom: '1.5rem' }}
+              id="admin-platform-readiness"
+            >
+              <p className="card-kicker">Operations</p>
+              <h2 className="card-title">Platform readiness detail</h2>
+              <p className="card-body" style={{ marginBottom: '1rem' }}>
+                The detailed view behind the public readiness probe, which on a deployed build says
+                only "ready" or "degraded". It names missing configuration and pending migrations,
+                so it is shown to platform administrators only. It never shows a value.
+              </p>
+              {data.readiness === null ? (
+                <p className="card-body">Readiness could not be evaluated; see the notice above.</p>
+              ) : (
+                <div className="rows">
+                  {(() => {
+                    const r = data.readiness;
+                    const missingSignIn = [
+                      ...Object.entries(r.env.workos)
+                        .filter(([, present]) => !present)
+                        .map(([name]) => name),
+                      ...(r.env.redirectUri ? [] : ['NEXT_PUBLIC_WORKOS_REDIRECT_URI']),
+                    ];
+                    const databaseConfigured = Object.values(r.env.database).some(Boolean);
+                    const rows: ReadonlyArray<readonly [string, string, boolean]> = [
+                      [
+                        'Overall',
+                        r.ready ? 'Ready' : 'Degraded: something required is missing',
+                        r.ready,
+                      ],
+                      ['Deployment mode', r.deploymentMode, true],
+                      [
+                        'Database',
+                        !databaseConfigured
+                          ? 'no connection string configured'
+                          : r.db.connected
+                            ? `connected${r.db.schemaApplied ? ', schema present' : ', schema missing'}`
+                            : 'could not connect',
+                        r.db.connected && r.db.schemaApplied,
+                      ],
+                      [
+                        'Migrations',
+                        r.migrations.checked
+                          ? r.migrations.pending.length === 0
+                            ? `${r.migrations.applied} of ${r.migrations.expected} applied`
+                            : `${r.migrations.pending.length} pending: ${r.migrations.pending.join(', ')}`
+                          : 'not checked',
+                        !r.migrations.checked || r.migrations.pending.length === 0,
+                      ],
+                      [
+                        'Provider settings',
+                        r.providers.valid ? 'valid' : (r.providers.error ?? 'invalid'),
+                        r.providers.valid,
+                      ],
+                      [
+                        'Sign-in configuration',
+                        missingSignIn.length === 0
+                          ? 'complete'
+                          : `missing: ${missingSignIn.join(', ')}`,
+                        missingSignIn.length === 0,
+                      ],
+                      [
+                        'Signed document links',
+                        r.capabilities.signedBlobStorage ? 'configured' : 'not configured',
+                        true,
+                      ],
+                      [
+                        'Scheduled job secret',
+                        r.capabilities.asyncIntakeSweep ? 'configured' : 'not configured',
+                        true,
+                      ],
+                    ];
+                    return rows.map(([label, value, good]) => (
+                      <div className="row" key={label}>
+                        <span className="row-key">{label}</span>
+                        <span
+                          className={good ? 'muted' : 'badge badge-danger'}
+                          style={{ fontSize: '0.85rem' }}
+                        >
+                          {value}
+                        </span>
+                      </div>
+                    ));
+                  })()}
+                </div>
+              )}
+            </article>
+            <article className="card" id="admin-analytics">
+              <p className="card-kicker">Pilot measurement</p>
+              <h2 className="card-title">Learning areas</h2>
+              <p className="card-body" style={{ marginBottom: '1rem' }}>
+                Aggregates only, from the same event log. Nothing here names a person, a case, a
+                document or what anyone wrote. Figures are counts and timings; they say how the
+                pilot is behaving, not whether any application will succeed.
+              </p>
+              {data.analytics.available ? (
+                <>
+                  <div className="rows" style={{ marginBottom: '1.25rem' }}>
+                    {data.analytics.categories.map((category) => (
+                      <div className="row" key={category.key}>
+                        <span className="row-key">{category.label}</span>
+                        <span className="row-end">
+                          <span className="muted" style={{ fontSize: '0.8rem' }}>
+                            {category.last7Days} last 7 days, {category.last30Days} last 30 days
+                          </span>
+                          <span className="badge badge-neutral">{category.total} total</span>
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="rows">
+                    {(
+                      [
+                        ['Intake to ready (first time)', data.analytics.intakeToReady],
+                        ['Complaint open to ended', data.analytics.complaintResolution],
+                        ['Sign-up to first case', data.analytics.activationDelay],
+                      ] as const
+                    ).map(([label, summary]) => (
+                      <div className="row" key={label}>
+                        <span className="row-key">{label}</span>
+                        <span className="muted" style={{ fontSize: '0.85rem' }}>
+                          {summary.count === 0
+                            ? 'no data yet'
+                            : `median ${formatDuration(summary.medianSeconds)}, 90th percentile ${formatDuration(summary.p90Seconds)} (${summary.count})`}
+                        </span>
+                      </div>
+                    ))}
+                    <div className="row">
+                      <span className="row-key">Agencies active, last 90 days</span>
+                      <span className="muted" style={{ fontSize: '0.85rem' }}>
+                        {data.analytics.agencyRepeatUse.activeOrganizations} created a case,{' '}
+                        {data.analytics.agencyRepeatUse.repeatOrganizations} in two or more
+                        different weeks
+                      </span>
+                    </div>
+                    <div className="row">
+                      <span className="row-key">AI proposals decided</span>
+                      <span className="muted" style={{ fontSize: '0.85rem' }}>
+                        {data.analytics.aiDecisions.accepted} accepted,{' '}
+                        {data.analytics.aiDecisions.corrected} corrected,{' '}
+                        {data.analytics.aiDecisions.rejected} rejected
+                      </span>
+                    </div>
+                    {(
+                      [
+                        ['Cases by stage entered', data.analytics.casesByStage],
+                        ['Case outcomes', data.analytics.outcomes],
+                        ['Plan limits reached', data.analytics.planLimitHits],
+                      ] as const
+                    ).map(([label, counts]) => (
+                      <div className="row" key={label}>
+                        <span className="row-key">{label}</span>
+                        <span className="muted" style={{ fontSize: '0.85rem' }}>
+                          {counts.length === 0
+                            ? 'none yet'
+                            : counts.map((c) => `${humanizeLabel(c.label)} ${c.count}`).join(', ')}
+                        </span>
+                      </div>
+                    ))}
+                    <div className="row">
+                      <span className="row-key">Cash collected (not invoiced)</span>
+                      <span className="muted" style={{ fontSize: '0.85rem' }}>
+                        {data.analytics.cashCollected.length === 0
+                          ? 'none recorded yet'
+                          : data.analytics.cashCollected
+                              .map(
+                                (c) =>
+                                  `${formatMinorUnits(c.minorUnits, c.currency)} in ${c.collections}`,
+                              )
+                              .join(', ')}
+                      </span>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <p className="card-body">
+                  Waiting for a database update. These figures appear once the latest database
+                  migration has been applied; nothing else is affected in the meantime.
+                </p>
+              )}
+            </article>
+            <article className="card" id="admin-readiness">
+              <p className="card-kicker">Operational posture</p>
+              <h2 className="card-title">Commercial readiness</h2>
+              <p className="card-body" style={{ marginBottom: '1rem' }}>
+                The full per-gate breakdown behind commercial mode's guard - deliberately{' '}
+                <strong>not</strong> public. An unauthenticated caller (including the public{' '}
+                <code>/status</code> page) only ever sees the aggregate ready/not-ready boolean.
+              </p>
+              {!data.commercial ? (
+                <p className="card-body" style={{ marginBottom: 0 }}>
+                  Deployment mode is <strong>{data.deploymentMode}</strong>, not{' '}
+                  <code>commercial</code> - this guard does not apply yet.
+                </p>
+              ) : (
+                <>
+                  <div className="toolbar" style={{ marginBottom: '1rem' }}>
+                    <span className="muted" style={{ fontSize: '0.85rem' }}>
+                      {data.commercial.gates.filter((g) => g.satisfied).length} of{' '}
+                      {data.commercial.gates.length} gates satisfied
+                    </span>
+                    <span
+                      className={
+                        data.commercial.ready ? 'badge badge-success' : 'badge badge-danger'
+                      }
+                    >
+                      {data.commercial.ready ? 'ready' : 'not ready'}
                     </span>
                   </div>
-                  <div className="meter">
-                    <div
-                      className={`meter-fill ${tone}`.trim()}
-                      style={{ width: `${Math.round(fraction * 100)}%` }}
-                    />
+                  <div className="rows">
+                    {data.commercial.gates.map((gate) => (
+                      <div className="row" key={gate.key}>
+                        <span className="row-key">{gate.label}</span>
+                        <span
+                          className={gate.satisfied ? 'badge badge-success' : 'badge badge-danger'}
+                        >
+                          {gate.satisfied ? 'satisfied' : 'unmet'}
+                        </span>
+                      </div>
+                    ))}
                   </div>
-                </div>
-              );
-            })()}
-          </article>
-
-          <article className="card" style={{ marginTop: '1.5rem' }}>
-            <p className="card-kicker">Storage integrity</p>
-            <h2 className="card-title">Orphan reconciliation</h2>
-            <p className="card-body" style={{ marginBottom: '1.25rem' }}>
-              Detects drift between storage metadata and actual bytes: dangling references, blobs
-              with no reference, duplicate references, and size/hash mismatches. Cleanup only ever
-              removes a metadata row with no backing bytes and no remaining document - it never
-              deletes bytes that still exist.
-            </p>
-            <ReconcileButtons />
-          </article>
+                </>
+              )}
+            </article>
+            <article className="card" style={{ marginTop: '1.5rem' }}>
+              <p className="card-kicker">Storage integrity</p>
+              <h2 className="card-title">Orphan reconciliation</h2>
+              <p className="card-body" style={{ marginBottom: '1.25rem' }}>
+                Detects drift between storage metadata and actual bytes: dangling references, blobs
+                with no reference, duplicate references, and size/hash mismatches. Cleanup only ever
+                removes a metadata row with no backing bytes and no remaining document - it never
+                deletes bytes that still exist.
+              </p>
+              <ReconcileButtons />
+            </article>
+          </div>
         </>
       )}
     </section>

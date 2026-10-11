@@ -26,11 +26,11 @@ export default defineConfig({
   reporter: isCI ? [['github'], ['list']] : [['list']],
   use: {
     baseURL,
-    trace: 'on-first-retry',
+    trace: getEnv('E2E_AUTHENTICATED') === 'true' ? 'off' : 'on-first-retry',
     // Never let a screenshot/trace on a redirected auth page linger with a
     // real session — retained only on failure, and pilot data policy forbids
     // real applicant data in any test run.
-    screenshot: 'only-on-failure',
+    screenshot: getEnv('E2E_AUTHENTICATED') === 'true' ? 'off' : 'only-on-failure',
   },
   projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
 });

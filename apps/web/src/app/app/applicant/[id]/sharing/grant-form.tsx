@@ -1,6 +1,6 @@
 'use client';
 
-import { useActionState, useState } from 'react';
+import { useActionState, useRef, useState } from 'react';
 import { FormMessage, SubmitButton } from '../../../../../components/form-feedback';
 import { PACK_LABELS, PACK_ORDER } from '../../../../../lib/profile-fields';
 import { type ActionState, createGrantAction } from './actions';
@@ -29,18 +29,19 @@ export function GrantForm({
 }) {
   const [state, formAction, pending] = useActionState(createGrantAction, INITIAL);
 
-  // Mirrors the native form's own state purely to drive the live,
-  // human-readable summary below (master directive §7 "PR 7" — "before
-  // creating a grant, show a human-readable summary"). The inputs
-  // themselves stay uncontrolled/native for submission; this is a read-only
-  // shadow of what's checked, not the source of truth.
+  // Native fields remain the server action's source of truth. Review is an
+  // explicit confirmation of their current scope, invalidated by any edit.
+  const form = useRef<HTMLFormElement>(null);
+  const review = useRef<HTMLDivElement>(null);
+  const [reviewed, setReviewed] = useState(false);
+  const [reviewError, setReviewError] = useState('');
   const [recipientEmail, setRecipientEmail] = useState('');
   const [purpose, setPurpose] = useState('');
   const [actions, setActions] = useState<readonly string[]>(
     SHAREABLE_ACTIONS.filter((a) => a.defaultOn).map((a) => a.value),
   );
   const [categories, setCategories] = useState<readonly string[]>([]);
-  const [selectedDocCount, setSelectedDocCount] = useState(0);
+  const [selectedDocuments, setSelectedDocuments] = useState<readonly string[]>([]);
   const [expiryDays, setExpiryDays] = useState('');
 
   const scopeLabel =
@@ -50,13 +51,53 @@ export function GrantForm({
   const docsLabel =
     documents.length === 0
       ? null
-      : selectedDocCount === 0
+      : selectedDocuments.length === 0
         ? 'every document'
-        : `${selectedDocCount} selected document${selectedDocCount === 1 ? '' : 's'}`;
+        : documents
+            .filter((document) => selectedDocuments.includes(document.id))
+            .map((document) => document.displayName)
+            .join(', ');
   const canDownload = actions.includes('DOWNLOAD_REDACTED');
 
+  function reviewScope() {
+    if (!form.current?.reportValidity()) return;
+    if (actions.length === 0) {
+      setReviewError('Select at least one permission before reviewing access.');
+      return;
+    }
+    setReviewError('');
+    setReviewed(true);
+    review.current?.focus();
+  }
+
   return (
-    <form action={formAction} className="field-list">
+    <form
+      ref={form}
+      action={formAction}
+      className="field-list sharing-composer"
+      onChange={() => {
+        setReviewed(false);
+        setReviewError('');
+      }}
+      onSubmit={(event) => {
+        if (!reviewed || actions.length === 0 || pending) {
+          event.preventDefault();
+          if (!pending) reviewScope();
+        }
+      }}
+      onReset={() => {
+        setRecipientEmail('');
+        setPurpose('');
+        setActions(
+          SHAREABLE_ACTIONS.filter((action) => action.defaultOn).map((action) => action.value),
+        );
+        setCategories([]);
+        setSelectedDocuments([]);
+        setExpiryDays('');
+        setReviewed(false);
+        setReviewError('');
+      }}
+    >
       <input type="hidden" name="applicantId" value={applicantId} />
 
       <div className="field-row">
@@ -143,7 +184,7 @@ export function GrantForm({
                   name="documentId"
                   value={doc.id}
                   onChange={(e) =>
-                    setSelectedDocCount((prev) => prev + (e.target.checked ? 1 : -1))
+                    setSelectedDocuments((prev) => toggled(prev, doc.id, e.target.checked))
                   }
                 />
                 <span>{doc.displayName}</span>
@@ -172,26 +213,47 @@ export function GrantForm({
         </p>
       </div>
 
-      <div className="notice" aria-live="polite">
+      <div className="sharing-scope-review" ref={review} tabIndex={-1} aria-live="polite">
+        <h3>{reviewed ? 'Confirm this access' : 'Your access summary'}</h3>
         <strong>{recipientEmail || 'This recipient'}</strong> will be able to{' '}
         {actions.length === 0
-          ? 'do nothing yet — select at least one permission'
+          ? 'do nothing yet - select at least one permission'
           : actions
               .map((a) => SHAREABLE_ACTIONS.find((s) => s.value === a)?.label.toLowerCase())
               .filter(Boolean)
               .join(', ')}
         {purpose ? <> for “{purpose}”</> : null}, scoped to {scopeLabel}
-        {docsLabel ? <> ({docsLabel})</> : null}. {canDownload ? 'Downloading is allowed. ' : ''}
+        {docsLabel ? <> ({docsLabel})</> : null}.{' '}
+        {canDownload
+          ? 'Redacted copies may be downloaded; original downloads are not included. '
+          : 'Downloads are not included. '}
         {expiryDays
           ? `Access expires in ${expiryDays} day${expiryDays === '1' ? '' : 's'}. `
           : 'Access expires in 30 days (the default) unless you set a different duration. '}
-        They must accept before anything is visible to them.
+        They must accept before anything is visible to them. You can pause or revoke future access
+        at any time; copies already downloaded cannot be recalled.
       </div>
 
-      <div>
+      {reviewError ? (
+        <p role="alert" className="field-msg field-msg-err">
+          {reviewError}
+        </p>
+      ) : null}
+      <div className="sharing-confirm-controls">
+        <button
+          type="button"
+          className="btn btn-secondary"
+          onClick={() => {
+            if (!pending) reviewScope();
+          }}
+          aria-disabled={pending || undefined}
+        >
+          Review and confirm
+        </button>
         <SubmitButton
+          unavailable={!reviewed || actions.length === 0}
           pending={pending}
-          idle="Share access"
+          idle="Confirm sharing request"
           busy="Sharing…"
           className="btn btn-primary"
         />
