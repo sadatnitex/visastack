@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { type ReactNode, useEffect, useId, useRef, useState } from 'react';
 import { Icon, type IconName } from '../../components/icons';
-import { type NavLink, isCurrentPath } from '../../lib/navigation';
+import { type NavLink, PRIMARY_NAV, isCurrentPath } from '../../lib/navigation';
 
 /** One icon per primary destination, keyed by its path. The words beside it carry the meaning. */
 const ICONS: Readonly<Record<string, IconName>> = {
@@ -33,8 +33,10 @@ const BAR_LINKS = 4;
 export function AppNav({
   links,
   children,
+  accountLabel,
 }: {
   readonly links: readonly NavLink[];
+  readonly accountLabel?: string;
   /** The switch controls (Agency, Admin, Sign out), supplied by the server layout. */
   readonly children?: ReactNode;
 }) {
@@ -78,9 +80,25 @@ export function AppNav({
   return (
     <div className="app-shell-nav" data-open={open ? 'true' : 'false'}>
       <div className="app-sidebar-heading">
-        <Icon name="folder" size={22} />
-        <span>Your workspace</span>
+        <Link className="brand" href="/">
+          <span className="brand-mark" aria-hidden="true" />
+          VisaStack
+        </Link>
       </div>
+      <Link href="/app/account" className="app-sidebar-account">
+        <Icon name="user" size={20} />
+        <span>
+          <b>
+            {pathname.startsWith('/app/admin')
+              ? 'Platform workspace'
+              : pathname.startsWith('/app/agency')
+                ? 'Agency workspace'
+                : 'Personal workspace'}
+          </b>
+          <small>{accountLabel ?? 'Account details'}</small>
+        </span>
+      </Link>
+      <p className="app-sidebar-context">Workspace</p>
       <div className="app-bar">
         <nav className="app-shell-links" aria-label="Workspace">
           {links.slice(0, BAR_LINKS).map(link)}
@@ -108,8 +126,38 @@ export function AppNav({
 }
 
 /** Existing destinations only. Context labels never grant or imply access. */
-export function WorkspaceToolbar({ accountLabel }: { readonly accountLabel?: string }) {
+export function WorkspaceToolbar({
+  accountLabel,
+  isAdmin = false,
+}: {
+  readonly accountLabel?: string;
+  readonly isAdmin?: boolean;
+}) {
   const pathname = usePathname();
+  const [query, setQuery] = useState('');
+  const finder = useRef<HTMLInputElement>(null);
+  const finderId = useId();
+  const destinations = [
+    ...PRIMARY_NAV,
+    { href: '/app/agency', label: 'Agency workspace' },
+    ...(isAdmin ? [{ href: '/app/admin', label: 'Platform administration' }] : []),
+  ];
+  const matches = destinations.filter((item) =>
+    item.label.toLowerCase().includes(query.trim().toLowerCase()),
+  );
+  // biome-ignore lint/correctness/useExhaustiveDependencies: navigation clears the finder
+  useEffect(() => setQuery(''), [pathname]);
+  useEffect(() => {
+    const shortcut = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
+        if (!finder.current?.getClientRects().length) return;
+        event.preventDefault();
+        finder.current.focus();
+      }
+    };
+    document.addEventListener('keydown', shortcut);
+    return () => document.removeEventListener('keydown', shortcut);
+  }, []);
   const context = pathname.startsWith('/app/admin')
     ? 'Platform administration'
     : pathname.startsWith('/app/agency')
@@ -117,8 +165,46 @@ export function WorkspaceToolbar({ accountLabel }: { readonly accountLabel?: str
       : 'Personal workspace';
   return (
     <header className="workspace-toolbar">
+      <Link href="/" className="brand workspace-brand">
+        <span className="brand-mark" aria-hidden="true" />
+        VisaStack
+      </Link>
+      <div className="workspace-finder">
+        <Icon name="search" size={19} />
+        <label className="sr-only" htmlFor={finderId}>
+          Find a page
+        </label>
+        <input
+          id={finderId}
+          ref={finder}
+          type="search"
+          placeholder="Find a page..."
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === 'Escape') setQuery('');
+          }}
+        />
+        <kbd className="workspace-finder-key">⌘ K</kbd>
+        {query.trim() ? (
+          <nav className="workspace-finder-results" aria-label="Matching pages">
+            {matches.length ? (
+              matches.map((item) => (
+                <Link key={item.href} href={item.href} onClick={() => setQuery('')}>
+                  {item.label}
+                </Link>
+              ))
+            ) : (
+              <p>No pages match. Try another name.</p>
+            )}
+          </nav>
+        ) : null}
+      </div>
       <p className="workspace-context">{context}</p>
       <nav aria-label="Workspace shortcuts" className="workspace-shortcuts">
+        <Link href="/status" aria-label="Help and service status">
+          <Icon name="alert" size={20} />
+        </Link>
         <Link href="/app/notifications" aria-label="Notifications">
           <Icon name="bell" size={20} />
         </Link>

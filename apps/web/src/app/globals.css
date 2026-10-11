@@ -1,5 +1,5 @@
 :root {
-  color-scheme: light dark;
+  color-scheme: light;
 
   /* Type. Existing self-hosted fonts and system fallbacks. Bengali falls through to the
      best installed Bengali face so mixed English and Bangla text keeps one rhythm. */
@@ -16,8 +16,7 @@
   --text-tertiary: #526862;
   --accent: #087a68;
   --accent-hover: #075d54;
-  /* Solid fills with white text on top (primary buttons): deep teal in light mode, a real
-     and different value in dark mode, see below. */
+  /* Solid primary fills retain accessible white text. */
   --accent-strong: #087a68;
   --brand: #087a68;
   --brand-bg: #d9f3e9;
@@ -29,8 +28,7 @@
   --warning: #865014;
   --warning-bg: #fff0db;
   --danger: #963932;
-  /* Solid red fills with white text: the same red in both schemes, because the lighter
-     dark-mode --danger is meant for text on a dark page. */
+  /* Danger fills retain accessible white text. */
   --danger-strong: #b94945;
   --danger-bg: #fbe9e5;
   --nav-material: #f9f8f5;
@@ -42,7 +40,7 @@
   --radius-pill: 980px;
   --container: 1152px;
   --container-wide: 1440px;
-  --header-height: 68px;
+  --header-height: 72px;
   --seg-0: #087a68;
   --seg-1: #304450;
   --seg-2: #075d54;
@@ -60,40 +58,8 @@
   --space-6: 2rem;
   --space-7: 3rem;
   --space-8: 4rem;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #102937;
-    --bg-elevated: #183844;
-    --bg-subtle: #203f4a;
-    --text: #f9f8f5;
-    --text-secondary: #d1e3dd;
-    --text-tertiary: #b4cdc5;
-    --accent: #9ae0c9;
-    --accent-hover: #075d54;
-    /* White text on a mint fill fails 4.5:1, so solid fills stay a deeper teal. */
-    --accent-strong: #075d54;
-    --brand: #9ae0c9;
-    --seg-0: #9ae0c9;
-    --seg-1: #d1e3dd;
-    --seg-2: #b4cdc5;
-    --seg-3: #f4ca89;
-    --seg-4: #ffb5ac;
-    --seg-5: #b4cdc5;
-    --brand-bg: #254b48;
-    --selected-text: #9ae0c9;
-    --hairline: #55756e;
-    --hairline-soft: #345651;
-    --success: #9ae0c9;
-    --success-bg: #254b48;
-    --warning: #f4ca89;
-    --warning-bg: #4a381f;
-    --danger: #ffb5ac;
-    --danger-strong: #b94945;
-    --danger-bg: #482b2c;
-    --nav-material: #102937;
-  }
+  --workspace-bg: #fafaf7;
+  --sidebar-bg: #f1f3ee;
 }
 
 * {
@@ -168,24 +134,30 @@ a:hover {
 }
 .nav {
   position: sticky;
-  top: 0;
+  top: 12px;
   z-index: 50;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
-  height: var(--header-height);
-  padding: 0 clamp(1rem, 4vw, 2.5rem);
-  background: var(--nav-material);
+  height: 72px;
+  padding: 0 23px 0 26px;
+  background: #ffffff;
   border-bottom: 1px solid var(--hairline);
+  width: calc(100% - clamp(32px, 9.5vw, 152px));
+  max-width: 1448px;
+  margin: 30px auto 0;
+  border: 1px solid var(--hairline-soft);
+  border-radius: 38px;
+  flex-wrap: nowrap;
 }
 .brand {
   display: inline-flex;
   align-items: center;
-  gap: 0.55rem;
-  font-weight: 700;
-  font-size: 1.125rem;
-  letter-spacing: -0.035em;
+  gap: 11px;
+  font-weight: 730;
+  font-size: 23px;
+  letter-spacing: -1.05px;
   color: var(--text);
 }
 .brand:hover {
@@ -194,20 +166,24 @@ a:hover {
 /* A small mark: two stacked bars, the stack in the name. Decorative. */
 .brand-mark {
   display: inline-block;
-  width: 1.8rem;
-  height: 1.8rem;
-  border-radius: 9px;
-  background: var(--accent-strong);
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  background: #075d54;
   position: relative;
 }
 .nav-links {
   display: flex;
-  gap: clamp(1rem, 3vw, 2rem);
+  gap: 24px;
   align-items: center;
+  width: 100%;
+  justify-content: space-between;
+  flex-wrap: nowrap;
 }
 .nav-links a {
   color: var(--text-secondary);
-  font-size: 0.875rem;
+  font-size: 12px;
+  font-weight: 650;
 }
 .nav-links a:not(.btn) {
   /* A link is at least 24 CSS px tall to tap or click (WCAG 2.2 SC 2.5.8). */
@@ -296,11 +272,11 @@ main {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 0.4rem;
-  font-size: 0.95rem;
-  font-weight: 600;
+  gap: 9px;
+  font-size: 13px;
+  font-weight: 640;
   line-height: 1.25;
-  padding: 0.65rem 1.25rem;
+  padding: 0 19px;
   border-radius: var(--radius-pill);
   border: 1px solid transparent;
   cursor: pointer;
@@ -587,13 +563,13 @@ main {
   width: 100%;
   min-width: 0;
   padding: 0.6rem 0.8rem;
-  border-radius: var(--radius-sm);
+  border-radius: 12px;
   border: 1px solid var(--hairline);
   background: var(--bg-elevated);
   color: var(--text);
-  font-size: 1rem;
+  font-size: 14px;
   font-family: inherit;
-  min-height: 2.6rem;
+  min-height: 49px;
 }
 .input:focus-visible {
   outline: 2px solid var(--accent);
@@ -720,26 +696,28 @@ main {
   grid-template-columns: var(--side-width) minmax(0, 1fr);
   align-items: stretch;
   /* A short page still gives the sidebar a panel that reaches the bottom of the screen. */
-  min-height: calc(100dvh - var(--header-height) - 3rem);
+  min-height: calc(100dvh - 44px);
   /* The sidebar's panel runs the full height of the page, whatever the sidebar holds. */
-  background: var(--bg-subtle);
+  background: var(--sidebar-bg);
 }
 .app-main {
   min-width: 0;
-  background: var(--bg);
+  background: var(--workspace-bg);
+  font-size: 14px;
 }
 .app-shell-nav {
   position: sticky;
-  top: var(--header-height);
+  top: 0;
   display: flex;
   flex-direction: column;
   gap: 0.15rem;
-  max-height: calc(100dvh - var(--header-height));
-  padding: 1.5rem 1rem;
+  max-height: 100dvh;
+  padding: 32px 18px 24px;
   overflow-y: auto;
-  background: var(--bg-subtle);
+  background: var(--sidebar-bg);
   border-right: 1px solid var(--hairline-soft);
   align-self: start;
+  min-height: calc(100dvh - 44px);
 }
 .app-bar {
   display: block;
@@ -751,6 +729,7 @@ main {
   display: flex;
   flex-direction: column;
   gap: 0.15rem;
+  flex-grow: 1;
 }
 .app-shell-links {
   display: flex;
@@ -762,13 +741,13 @@ main {
 .app-more-toggle {
   display: flex;
   align-items: center;
-  gap: 0.7rem;
+  gap: 13px;
   min-height: 44px;
-  padding: 0.45rem 0.75rem;
-  border-radius: var(--radius-sm);
+  padding: 0 14px;
+  border-radius: 11px;
   color: var(--text-secondary);
-  font-size: 0.95rem;
-  font-weight: 500;
+  font-size: 12px;
+  font-weight: 605;
   border: 1px solid transparent;
 }
 .app-more-toggle {
@@ -799,7 +778,7 @@ main {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
-  margin-top: 0.9rem;
+  margin-top: auto;
   padding-top: 1rem;
   border-top: 1px solid var(--hairline-soft);
 }
@@ -1001,9 +980,10 @@ main {
     display: block;
     min-height: 0;
     background: none;
+    padding-bottom: calc(5rem + env(safe-area-inset-bottom, 0px));
   }
   .app-main {
-    padding-bottom: calc(5rem + env(safe-area-inset-bottom, 0px));
+    padding-bottom: 0;
   }
   body:has(.app-shell-nav) .footer {
     padding-bottom: calc(6rem + env(safe-area-inset-bottom, 0px));
@@ -1488,14 +1468,15 @@ a.checklist-item:hover .checklist-label {
 
 /* App pages: headings sized for work, not for a landing page. */
 .app-main .section {
-  padding-block: clamp(1.5rem, 3vw, 2.25rem);
+  padding-block: 36px 42px;
 }
 .app-main .section-title {
   font-size: clamp(1.45rem, 2.4vw, 1.85rem);
   letter-spacing: -0.02em;
 }
 .app-main .container {
-  max-width: 74rem;
+  max-width: none;
+  padding: 36px 45px 42px;
 }
 @media print {
   .app-frame {
@@ -1542,10 +1523,10 @@ a.checklist-item:hover .checklist-label {
 }
 .page-title {
   margin: 0;
-  font-size: clamp(1.5rem, 2.6vw, 2rem);
-  line-height: 1.15;
-  letter-spacing: -0.025em;
-  font-weight: 700;
+  font-size: clamp(28px, 2.375vw, 38px);
+  line-height: 1.18;
+  letter-spacing: -1.7px;
+  font-weight: 670;
   overflow-wrap: anywhere;
   text-wrap: balance;
 }
@@ -1891,19 +1872,16 @@ a.checklist-item:hover .checklist-label {
   text-underline-offset: 0.2em;
 }
 
-/* ---------------------------------------------------------------------------------
-   Home page (landing). Everything is prefixed land- so no signed-in screen is touched.
-   Colour comes from the tokens above, so light and dark both work; the one dark band
-   fixes its own colours so it reads the same in either scheme.
-   --------------------------------------------------------------------------------- */
+/* Public page geometry follows the authoritative ten-screen reference. Navy is confined to intentional accent panels. */
 .land {
-  --land-wrap: 1180px;
+  --land-wrap: 1448px;
   overflow-x: clip;
 }
 .land-wrap {
   max-width: var(--land-wrap);
   margin: 0 auto;
-  padding: 0 clamp(1.25rem, 5vw, 2.5rem);
+  padding: 0;
+  width: calc(100% - clamp(40px, 9.5vw, 152px));
 }
 .land-section {
   padding-block: clamp(3.5rem, 9vw, 6.5rem);
@@ -1954,9 +1932,10 @@ a.checklist-item:hover .checklist-label {
   color: var(--text-secondary);
 }
 .land-btn {
-  padding: 0.85rem 1.5rem;
-  font-size: 1rem;
-  border-radius: var(--radius);
+  padding: 0 21px;
+  font-size: 13px;
+  border-radius: 24px;
+  min-height: 52px;
 }
 .land-btn .icon {
   transition: transform 0.2s ease;
@@ -1969,29 +1948,31 @@ a.checklist-item:hover .checklist-label {
 .land-hero {
   position: relative;
   overflow: clip;
-  padding-block: clamp(3rem, 8vw, 6rem) clamp(3.5rem, 8vw, 6.5rem);
+  padding-block: 0;
   background: var(--bg);
 }
 .land-hero-grid {
   position: relative;
   display: grid;
-  grid-template-columns: minmax(0, 1.02fr) minmax(0, 0.98fr);
-  align-items: center;
-  gap: clamp(2.5rem, 6vw, 5rem);
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  align-items: start;
+  gap: 55px;
+  min-height: 616px;
 }
 .land-pill {
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
-  margin-bottom: 1.4rem;
-  padding: 0.35rem 0.85rem;
+  margin-bottom: 25px;
+  padding: 5px 11px;
   border: 1px solid var(--hairline);
   border-radius: var(--radius-pill);
   background: var(--brand-bg);
-  font-size: 0.8rem;
+  font-size: 10px;
   font-weight: 650;
   color: var(--selected-text);
   border-color: var(--brand-bg);
+  line-height: 1.15;
 }
 .land-pill-dot {
   width: 0.5rem;
@@ -2001,31 +1982,35 @@ a.checklist-item:hover .checklist-label {
 }
 .land-title {
   margin: 0 0 1.25rem;
-  font-size: clamp(2.7rem, 5.4vw, 5rem);
-  line-height: 1;
-  letter-spacing: -0.045em;
-  font-weight: 730;
-  text-wrap: balance;
+  font-size: clamp(44px, 5.6875vw, 91px);
+  line-height: 0.99;
+  letter-spacing: -.068em;
+  font-weight: 545;
+  text-wrap: initial;
   background: none;
   color: var(--text);
-  max-width: 12ch;
+  max-width: none;
+  margin-bottom: 22px;
 }
 .land-lede {
   margin: 0 0 2rem;
-  max-width: 44ch;
-  font-size: clamp(1.1rem, 2.1vw, 1.35rem);
-  line-height: 1.5;
+  max-width: 58ch;
+  font-size: 17px;
+  line-height: 1.75;
   color: var(--text-secondary);
+  margin-bottom: 30px;
 }
 .land-assure {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.6rem 1.5rem;
+  gap: 10px 28px;
   margin: 1.75rem 0 0;
   padding: 0;
   list-style: none;
-  font-size: 0.9rem;
+  font-size: 12px;
   color: var(--text-secondary);
+  margin-top: 44px;
+  padding-top: 22px;
 }
 .land-assure li {
   display: inline-flex;
@@ -2037,29 +2022,34 @@ a.checklist-item:hover .checklist-label {
 }
 .land-stage {
   position: relative;
-  padding: 0;
+  padding: 76px 55px 0 0;
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 1rem;
+  gap: 16px;
 }
 .land-case {
   position: relative;
-  padding: 1.5rem;
-  border-radius: 20px;
+  padding: 25px 28px;
+  border-radius: 27px;
   transform-origin: initial;
   grid-column: 1 / -1;
   transform: none;
+  width: min(100%, 516px);
+  justify-self: end;
+  min-height: 382px;
 }
 .land-case-head {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  margin-bottom: 0.9rem;
+  justify-content: start;
+  gap: 17px;
+  margin-bottom: 0;
+  padding: 16px 0 20px;
+  border-bottom: 1px solid var(--hairline-soft);
 }
 .land-case-count {
   margin: 0.2rem 0 0;
-  font-size: 0.9rem;
+  font-size: 11px;
 }
 .land-case-meter {
   margin-bottom: 1rem;
@@ -2090,12 +2080,13 @@ a.checklist-item:hover .checklist-label {
 .land-example {
   position: static;
   z-index: auto;
-  width: auto;
-  padding: 0.9rem 1rem;
+  width: 100%;
+  padding: 21px;
   background: var(--bg-elevated);
   border: 1px solid var(--hairline);
-  border-radius: var(--radius);
+  border-radius: 22px;
   min-width: 0;
+  min-height: 131px;
 }
 .land-example-ai {
   right: auto;
@@ -2113,20 +2104,20 @@ a.checklist-item:hover .checklist-label {
   align-items: center;
   gap: 0.4rem;
   margin: 0 0 0.35rem;
-  font-size: 0.72rem;
+  font-size: 9px;
   font-weight: 700;
-  letter-spacing: 0.04em;
+  letter-spacing: 1.2px;
   text-transform: uppercase;
   color: var(--brand);
 }
 .land-example-line {
   margin: 0;
-  font-size: 0.92rem;
+  font-size: 13px;
   font-weight: 600;
 }
 .land-example-note {
   margin: 0.2rem 0 0;
-  font-size: 0.8rem;
+  font-size: 11px;
   color: var(--text-secondary);
 }
 .land-example-actions {
@@ -2319,16 +2310,16 @@ a.checklist-item:hover .checklist-label {
   color: var(--brand);
 }
 
-/* The dark trust band. Colours are fixed so it reads the same in both schemes. */
-.land-dark {
-  background: #102937;
-  color: #eaf1ff;
+/* Trust content retains the reference public paper surface. */
+.land-trust {
+  background: var(--bg);
+  color: var(--text);
 }
-.land-dark .land-kicker {
-  color: #5fd9c8;
+.land-trust .land-kicker {
+  color: var(--accent);
 }
-.land-dark .land-sub {
-  color: #b9c7de;
+.land-trust .land-sub {
+  color: var(--text-secondary);
 }
 .land-promises {
   display: grid;
@@ -2343,10 +2334,10 @@ a.checklist-item:hover .checklist-label {
   align-items: flex-start;
   gap: 0.9rem;
   padding: 1.15rem 1.2rem;
-  border: 1px solid #345651;
+  border: 1px solid var(--hairline-soft);
   border-radius: 16px;
-  background: #183844;
-  font-size: 1rem;
+  background: #ffffff;
+  font-size: 14px;
   line-height: 1.45;
 }
 .land-promise-icon {
@@ -2356,20 +2347,20 @@ a.checklist-item:hover .checklist-label {
   width: 2.4rem;
   height: 2.4rem;
   border-radius: 10px;
-  background: #183844;
-  color: #5fd9c8;
+  background: #d9f3e9;
+  color: #075d54;
 }
-.land-dark-link {
+.land-trust-link {
   margin: 1.75rem 0 0;
 }
-.land-dark-link a {
-  color: #9fc2ff;
+.land-trust-link a {
+  color: var(--accent);
   font-weight: 650;
   text-decoration: underline;
   text-underline-offset: 0.25em;
 }
-.land-dark-link a:hover {
-  color: #ffffff;
+.land-trust-link a:hover {
+  color: #075d54;
 }
 
 /* Where we are going */
@@ -2425,10 +2416,10 @@ a.checklist-item:hover .checklist-label {
 }
 .land-final-card {
   padding: clamp(2.5rem, 7vw, 5rem) clamp(1.5rem, 5vw, 4rem);
-  border-radius: 28px;
+  border-radius: 24px;
   text-align: center;
-  color: #ffffff;
-  background: #102937;
+  color: var(--text);
+  background: var(--brand-bg);
 }
 .land-final-title {
   margin: 0 0 0.8rem;
@@ -2441,7 +2432,7 @@ a.checklist-item:hover .checklist-label {
   margin: 0 auto 2rem;
   max-width: 40ch;
   font-size: clamp(1.05rem, 2vw, 1.25rem);
-  color: #d6e3ff;
+  color: var(--text-secondary);
 }
 .land-final-cta {
   justify-content: center;
@@ -2454,12 +2445,12 @@ a.checklist-item:hover .checklist-label {
   background: #d9f3e9;
 }
 .land-btn-ghost {
-  background: #183844;
-  color: #ffffff;
+  background: #ffffff;
+  color: #075d54;
   border-color: #d1e3dd;
 }
 .land-btn-ghost:hover {
-  background: #254b48;
+  background: #d9f3e9;
 }
 
 @media (max-width: 960px) {
@@ -2508,7 +2499,7 @@ a.checklist-item:hover .checklist-label {
   }
 }
 @media print {
-  .land-dark,
+  .land-trust,
   .land-final-card {
     background: #fff;
     color: #000;
@@ -2552,31 +2543,35 @@ a.checklist-item:hover .checklist-label {
   border-color: #55756e;
 }
 .land-assure {
-  padding-top: 1.5rem;
+  padding-top: 22px;
   border-top: 1px solid var(--hairline-soft);
+  font-size: 12px;
+  gap: 10px 28px;
+  margin-top: 44px;
 }
-.land-dark-link a {
-  color: #d9f3e9;
+.land-trust-link a {
+  color: var(--accent);
 }
 .land-final-sub {
-  color: #d1e3dd;
+  color: var(--text-secondary);
 }
-.land-dark .land-kicker {
-  color: #9ae0c9;
+.land-trust .land-kicker {
+  color: var(--accent);
 }
 .land-final-card .land-kicker {
-  color: #9ae0c9;
+  color: var(--selected-text);
 }
 .nav-links .btn-primary {
   color: #ffffff;
 }
 .app-sidebar-heading {
   display: flex;
-  align-items: center;
+  align-items: start;
   gap: 0.65rem;
-  padding: 0.25rem 0.75rem 1.5rem;
+  padding: 0 18px 26px;
   font-weight: 650;
   color: var(--text);
+  flex-direction: column;
 }
 .app-sidebar-heading .icon {
   color: var(--brand);
@@ -2585,16 +2580,18 @@ a.checklist-item:hover .checklist-label {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 1rem;
-  padding: 0.65rem clamp(1.25rem, 4vw, 2rem);
-  background: var(--bg-elevated);
+  gap: 16px;
+  padding: 0 44px;
+  background: #ffffff;
   border-bottom: 1px solid var(--hairline-soft);
+  min-height: 83px;
 }
 .workspace-context {
   margin: 0;
   color: var(--text-secondary);
-  font-size: 0.875rem;
+  font-size: 12px;
   font-weight: 600;
+  margin-left: auto;
 }
 .workspace-shortcuts {
   display: flex;
@@ -2613,38 +2610,46 @@ a.checklist-item:hover .checklist-label {
 }
 .auth-shell {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 46.25fr) minmax(0, 53.75fr);
   align-items: stretch;
-  gap: clamp(1.5rem, 5vw, 4rem);
-  max-width: 1152px;
+  gap: 0;
+  max-width: none;
+  min-height: calc(100dvh - 44px);
+  width: 100%;
 }
 .auth-introduction {
   display: flex;
   flex-direction: column;
-  align-self: start;
-  padding: clamp(1.5rem, 4vw, 3rem);
-  border-radius: var(--radius-lg);
+  align-self: stretch;
+  padding: 52px clamp(32px, 4.1875vw, 67px);
+  border-radius: 0;
   background: #102937;
   color: #ffffff;
 }
 .auth-introduction h2 {
-  margin: 1rem 0 1.5rem;
-  font-size: clamp(2.2rem, 4vw, 3.5rem);
-  letter-spacing: -0.045em;
-  line-height: 1.12;
+  margin: 27px 0;
+  font-size: clamp(44px, 4.125vw, 66px);
+  letter-spacing: -3.9px;
+  line-height: 1.1;
+  font-weight: 530;
 }
 .auth-introduction em {
-  color: #f5b4a5;
+  color: #dfb0a0;
+  letter-spacing: -3.5px;
 }
 .auth-introduction p {
   color: #d1e3dd;
+  font-size: 16px;
+  line-height: 1.75;
+  max-width: 510px;
 }
 .auth-kicker {
   margin: 0;
-  font-size: 0.75rem;
-  font-weight: 650;
-  letter-spacing: 0.08em;
+  font-size: 10px !important;
+  font-weight: 760;
+  letter-spacing: 2px;
   text-transform: uppercase;
+  color: #a5daca !important;
 }
 .auth-introduction ul {
   display: grid;
@@ -2664,21 +2669,34 @@ a.checklist-item:hover .checklist-label {
   color: #9ae0c9;
 }
 .auth-footnote {
-  font-size: 0.875rem;
+  font-size: 14px !important;
   margin-bottom: 0;
+  margin-top: auto;
+  padding-top: 28px;
+  border-top: 1px solid #56747a;
+  display: flex;
+  gap: 20px;
+  align-items: center;
 }
 .auth-form-panel {
   min-width: 0;
-  padding-top: 0.5rem;
+  width: min(480px, calc(100% - 64px));
+  margin: 0 auto;
+  padding: 150px 0 50px;
 }
 .auth-form-panel .page-title {
   margin: 0 0 1.25rem;
+  font-size: 41px;
+  font-weight: 640;
+  letter-spacing: -1.7px;
 }
 .auth-form-panel .card {
-  padding: clamp(1.1rem, 3vw, 1.75rem);
+  padding: 0;
+  background: none;
+  border: 0;
 }
 .auth-form-panel .field-list {
-  gap: 1.25rem;
+  gap: 23px;
 }
 .input,
 select,
@@ -2686,8 +2704,10 @@ textarea {
   font: inherit;
 }
 .input {
-  min-height: 44px;
+  min-height: 49px;
   border-color: var(--text-tertiary);
+  font-size: 14px;
+  border-radius: 12px;
 }
 button,
 a,
@@ -2696,11 +2716,6 @@ select,
 textarea,
 summary {
   scroll-margin-block: 6rem;
-}
-@media (prefers-color-scheme: dark) {
-  .land-title em {
-    color: #f5b4a5;
-  }
 }
 @media (max-width: 960px) {
   .app-sidebar-heading {
@@ -2846,5 +2861,725 @@ summary {
 @media (max-width: 700px) {
   .workspace-identity {
     display: none;
+  }
+}
+.land-hero-copy {
+  padding: 89px 0 0 31px;
+}
+.land-case .row {
+  padding: 11px 0;
+  min-height: 43px;
+  gap: 8px;
+}
+.land-case .row-key {
+  font-size: 12px;
+  font-weight: 635;
+}
+.land-case .attention-detail {
+  display: none !important;
+}
+.app-sidebar-heading .brand {
+  flex-direction: column;
+  align-items: start;
+  gap: 7px;
+}
+.app-sidebar-context {
+  font-size: 9px;
+  letter-spacing: 1.7px;
+  text-transform: uppercase;
+  font-weight: 760;
+  color: var(--text-tertiary);
+  margin: 24px 14px 10px;
+}
+.app-main .card-title {
+  font-size: 16px;
+  font-weight: 670;
+}
+.app-main .card-body {
+  font-size: 13px;
+  line-height: 1.7;
+}
+.app-main .field-label {
+  font-size: 12px;
+}
+.auth-message {
+  margin-top: 175px;
+}
+.auth-form-panel .btn-primary {
+  width: 100%;
+  min-height: 52px;
+  font-size: 14px;
+}
+/* Reference composition, retained across OS appearance preferences. */
+body:has(.app-frame) > .nav,
+body:has(.auth-shell) > .nav,
+body:has(.app-frame) > .footer,
+body:has(.auth-shell) > .footer {
+  display: none;
+}
+.site-navigation {
+  flex: 1;
+  min-width: 0;
+}
+.site-nav-pages {
+  display: flex;
+  align-items: center;
+  gap: clamp(20px, 2.94vw, 47px);
+  margin-inline: auto;
+}
+.site-nav-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.site-menu-toggle {
+  display: none;
+}
+.land-passport {
+  display: grid;
+  place-items: center;
+  width: 70px;
+  height: 82px;
+  flex: none;
+  border-radius: 10px;
+  background: #f0eee8;
+  color: #526862;
+}
+.land-case-head h2 {
+  font-size: 24px;
+  font-weight: 690;
+  letter-spacing: -1px;
+}
+.land-case .hero-preview-tag {
+  padding: 0;
+  border: 0;
+  font-size: 9px;
+  letter-spacing: 1.7px;
+}
+.land-summary-panel {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr);
+  gap: clamp(32px, 8vw, 128px);
+  align-items: center;
+  min-height: 225px;
+  padding: 38px 55px;
+  border-radius: 24px;
+  background: #102937;
+  color: #ffffff;
+}
+.land-summary-panel .land-kicker {
+  color: #a1d5c3;
+  font-size: 10px;
+}
+.land-summary-panel h2 {
+  margin: 14px 0 0;
+  font-size: 38px;
+  font-weight: 515;
+  letter-spacing: -1.75px;
+  line-height: 1.1;
+}
+.land-summary-panel h2 em {
+  font-family: Georgia, serif;
+  font-weight: 400;
+}
+.land-summary-panel ul {
+  display: grid;
+  gap: 16px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  font-size: 14px;
+}
+.land-summary-panel li {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+}
+.land-summary-panel .icon {
+  color: #8de0be;
+  flex: none;
+}
+.app-sidebar-account {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid var(--hairline-soft);
+  border-radius: 14px;
+  background: #ffffff;
+  color: var(--text);
+}
+.app-sidebar-account span {
+  min-width: 0;
+}
+.app-sidebar-account b,
+.app-sidebar-account small {
+  display: block;
+}
+.app-sidebar-account b {
+  font-size: 12px;
+}
+.app-sidebar-account small {
+  font-size: 11px;
+  color: var(--text-tertiary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 150px;
+}
+.workspace-brand {
+  display: none;
+}
+.workspace-finder {
+  display: flex;
+  position: relative;
+  align-items: center;
+  gap: 10px;
+  width: min(390px, 38%);
+  min-height: 44px;
+  padding: 0 14px;
+  border: 1px solid var(--hairline-soft);
+  border-radius: 12px;
+  background: var(--sidebar-bg);
+}
+.workspace-finder input {
+  width: 100%;
+  min-width: 0;
+  padding: 0;
+  background: none;
+  border: 0;
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  min-height: 44px;
+}
+.workspace-finder-key {
+  flex: none;
+  color: var(--text-tertiary);
+  font: inherit;
+  font-size: 10px;
+  white-space: nowrap;
+}
+.workspace-finder-results {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  width: max(100%, 240px);
+  z-index: 30;
+  padding: 8px;
+  border: 1px solid var(--hairline);
+  border-radius: 12px;
+  background: #ffffff;
+}
+.workspace-finder-results a {
+  display: flex;
+  align-items: center;
+  padding: 12px;
+  min-height: 44px;
+  color: var(--text);
+}
+.workspace-finder-results a:hover {
+  background: var(--brand-bg);
+}
+.workspace-finder-results p {
+  padding: 12px;
+  font-size: 13px;
+}
+.auth-brand {
+  color: #ffffff;
+}
+.auth-brand .brand-mark {
+  background: #def3e9;
+}
+.auth-brand .brand-mark::before,
+.auth-brand .brand-mark::after {
+  background: #075d54;
+}
+.auth-legal-links {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 24px;
+  margin-top: 30px;
+  padding-top: 21px;
+  border-top: 1px solid var(--hairline-soft);
+  font-size: 12px;
+}
+@media (max-width: 1100px) {
+  .land-hero-grid {
+    gap: 24px;
+    min-height: auto;
+    padding-block: 48px;
+  }
+  .land-hero-copy {
+    padding: 20px 0 0;
+  }
+  .land-stage {
+    padding: 0;
+  }
+  .land-case {
+    width: 100%;
+    padding: 22px;
+  }
+  .land-assure {
+    gap: 10px 16px;
+  }
+  .land-summary-panel {
+    gap: 32px;
+    padding: 32px;
+  }
+  .workspace-toolbar {
+    padding-inline: 24px;
+  }
+  .workspace-context {
+    font-size: 11px;
+  }
+  .auth-message {
+    margin-top: 120px;
+  }
+}
+@media (max-width: 960px) {
+  .app-shell-nav {
+    min-height: 0;
+    height: auto;
+    max-height: none;
+    padding: 0;
+  }
+  .app-sidebar-account,
+  .app-sidebar-context {
+    display: none;
+  }
+  .app-main .container {
+    padding: 28px 24px 40px;
+  }
+  .workspace-toolbar {
+    min-height: 68px;
+  }
+  .workspace-brand {
+    display: inline-flex;
+    font-size: 20px;
+    gap: 9px;
+  }
+  .workspace-brand .brand-mark {
+    width: 28px;
+    height: 28px;
+  }
+  .workspace-finder,
+  .workspace-context {
+    display: none;
+  }
+  .site-menu-toggle {
+    display: inline-flex;
+    gap: 8px;
+    align-items: center;
+    justify-content: center;
+    min-height: 44px;
+    padding: 0 14px;
+    border-radius: 22px;
+    border: 1px solid var(--hairline);
+    background: #ffffff;
+    color: var(--text);
+    font: inherit;
+    font-size: 13px;
+  }
+  .site-navigation {
+    flex: none;
+  }
+  .nav {
+    height: 64px;
+    margin-top: 16px;
+    padding-inline: 18px;
+    border-radius: 28px;
+    position: sticky;
+  }
+  .nav .brand {
+    font-size: 20px;
+    gap: 9px;
+  }
+  .nav .brand-mark {
+    width: 28px;
+    height: 28px;
+  }
+  .site-navigation .nav-links {
+    display: none;
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    width: min(320px, calc(100vw - 32px));
+    padding: 16px;
+    border: 1px solid var(--hairline);
+    border-radius: 18px;
+    background: #ffffff;
+  }
+  .site-navigation[data-open="true"] .nav-links {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+  .site-nav-pages,
+  .site-nav-actions {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    margin: 0;
+    gap: 4px;
+  }
+  .site-navigation .nav-links a,
+  .site-navigation .lang-switch {
+    display: flex;
+    align-items: center;
+    min-height: 44px;
+    padding: 10px 12px;
+    font-size: 14px;
+  }
+  .auth-shell {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
+  }
+  .auth-introduction {
+    padding: 40px 32px;
+  }
+  .auth-message {
+    margin-top: 96px;
+  }
+  .auth-introduction h2 {
+    font-size: 44px;
+    letter-spacing: -2.5px;
+  }
+  .auth-form-panel {
+    padding-top: 96px;
+  }
+  .auth-form-panel .page-title {
+    font-size: 32px;
+  }
+}
+@media (max-width: 700px) {
+  .land-hero-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 32px;
+    padding-block: 40px 32px;
+  }
+  .land-hero-copy {
+    padding: 0;
+  }
+  .land-title {
+    font-size: clamp(44px, 12vw, 60px);
+  }
+  .land-lede {
+    font-size: 16px;
+  }
+  .land-assure {
+    margin-top: 28px;
+    font-size: 12px;
+  }
+  .land-stage {
+    grid-template-columns: minmax(0, 1fr);
+    padding: 0;
+  }
+  .land-case {
+    grid-column: auto;
+    min-height: 0;
+    padding: 24px;
+  }
+  .land-case-head h2 {
+    font-size: 20px;
+  }
+  .land-passport {
+    width: 52px;
+    height: 66px;
+  }
+  .land-example {
+    min-height: 0;
+  }
+  .land-summary-panel {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 28px;
+    padding: 28px;
+  }
+  .land-summary-panel h2 {
+    font-size: 30px;
+    letter-spacing: -1px;
+  }
+  .land-summary-panel ul {
+    font-size: 13px;
+  }
+  .app-main .container {
+    padding: 24px 20px 36px;
+  }
+  .workspace-toolbar {
+    padding-inline: 16px;
+  }
+  .workspace-shortcuts a {
+    min-width: 40px;
+  }
+  .auth-shell {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .auth-introduction {
+    padding: 24px;
+  }
+  .auth-message {
+    margin-top: 24px;
+  }
+  .auth-introduction h2 {
+    margin-block: 16px;
+    font-size: 34px;
+    letter-spacing: -1.7px;
+  }
+  .auth-introduction h2 br {
+    display: none;
+  }
+  .auth-introduction h2 em {
+    display: inline;
+    letter-spacing: -1px;
+  }
+  .auth-introduction p {
+    font-size: 14px;
+  }
+  .auth-footnote {
+    display: none;
+  }
+  .auth-form-panel {
+    width: calc(100% - 48px);
+    padding: 32px 0;
+  }
+  .auth-form-panel .page-title {
+    font-size: 30px;
+  }
+  .input {
+    font-size: 16px;
+  }
+}
+
+/* Public trust: the second authoritative composition, including unavailable states. */
+.trust-story {
+  padding-top: 0;
+}
+.trust-hero {
+  min-height: 470px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 100px;
+  padding: 73px 40px 0;
+}
+.trust-hero .eyebrow {
+  display: block;
+  font-size: 10px;
+  letter-spacing: 2px;
+  font-weight: 760;
+  line-height: 1.2;
+  margin: 0;
+}
+.trust-hero h1 {
+  margin: 19px 0;
+  font-size: clamp(48px, 4.75vw, 76px);
+  font-weight: 570;
+  letter-spacing: -4.6px;
+  line-height: 1.02;
+}
+.trust-hero h1 em {
+  display: block;
+  font-family: Georgia, serif;
+  color: #b54a3e;
+  font-weight: 400;
+  letter-spacing: -3px;
+}
+.trust-hero p {
+  color: var(--text-tertiary);
+  line-height: 1.8;
+  font-size: 16px;
+  max-width: 555px;
+  margin-bottom: 26px;
+}
+.trust-control {
+  border: 1px solid var(--hairline-soft);
+  background: #ffffff;
+  border-radius: 26px;
+  padding: 27px 30px;
+  min-height: 374px;
+  align-self: start;
+}
+.trust-control .trust-example-label {
+  margin: 0 0 16px;
+  font-size: 10px;
+  letter-spacing: 1px;
+}
+.trust-window-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+.trust-window-head h2 {
+  font-size: 16px;
+  margin: 0;
+  font-weight: 720;
+}
+.trust-control-chip {
+  font-size: 11px;
+  color: #075d54;
+  background: #d9f3e9;
+  border-radius: 16px;
+  padding: 6px 11px;
+  white-space: nowrap;
+}
+.trust-person {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.trust-person > div {
+  flex: 1;
+  min-width: 0;
+}
+.trust-person b,
+.trust-person small {
+  display: block;
+}
+.trust-person b {
+  font-size: 13px;
+}
+.trust-person small {
+  color: var(--text-tertiary);
+  font-size: 11px;
+  margin-top: 5px;
+}
+.trust-avatar {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  color: #075d54;
+  background: #d9f3e9;
+}
+.trust-divider {
+  height: 1px;
+  background: var(--hairline-soft);
+  margin: 20px 0;
+}
+.trust-selection {
+  background: #f5f8f4;
+  border-radius: 14px;
+  padding: 12px 17px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 13px;
+  margin-top: 15px;
+  font-size: 12px;
+}
+.trust-selection span {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.trust-selection .icon {
+  color: var(--accent);
+  flex: none;
+}
+.trust-control .trust-revoke {
+  border-top: 1px solid var(--hairline-soft);
+  padding-top: 15px;
+  margin: 17px 0 0;
+  font-size: 12px;
+}
+.trust-story .trust-principles {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 19px;
+  margin: 34px 25px;
+}
+.trust-story .trust-principles .card {
+  padding: 26px;
+  border-radius: 23px;
+  min-height: 230px;
+}
+.trust-feature-icon {
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  border-radius: 16px;
+  background: #eaf4ee;
+  color: #136d5f;
+}
+.trust-story .card-title {
+  margin: 19px 0 8px;
+  font-size: 19px;
+  letter-spacing: -.6px;
+}
+.trust-story .card-body {
+  font-size: 12px;
+  line-height: 1.7;
+}
+.trust-bottom {
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin: 27px 29px 0;
+  padding-top: 23px;
+  border-top: 1px solid var(--hairline-soft);
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+.trust-bottom a {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-weight: 660;
+}
+@media (max-width: 1100px) {
+  .trust-hero {
+    gap: 32px;
+    padding: 48px 0 0;
+  }
+  .trust-story .trust-principles {
+    margin-inline: 0;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .trust-hero h1 {
+    letter-spacing: -2.5px;
+  }
+}
+@media (max-width: 700px) {
+  .trust-hero {
+    grid-template-columns: minmax(0, 1fr);
+    min-height: 0;
+    gap: 32px;
+    padding-top: 40px;
+  }
+  .trust-hero h1 {
+    font-size: clamp(40px, 11vw, 48px);
+    letter-spacing: -2px;
+  }
+  .trust-hero h1 em {
+    letter-spacing: -1.5px;
+  }
+  .trust-control {
+    padding: 24px;
+    min-height: 0;
+  }
+  .trust-window-head {
+    align-items: start;
+    flex-direction: column;
+  }
+  .trust-person {
+    flex-wrap: wrap;
+  }
+  .trust-selection {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .trust-story .trust-principles {
+    grid-template-columns: minmax(0, 1fr);
+    margin-block: 32px;
+  }
+  .trust-story .trust-principles .card {
+    min-height: 0;
+  }
+  .trust-bottom {
+    margin-inline: 0;
   }
 }

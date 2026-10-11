@@ -342,6 +342,10 @@ test.describe('signed-in layout building blocks on a narrow screen (real stylesh
       });
 
       test('the public header keeps its sign-in button on screen', async ({ page }) => {
+        // The raw workspace fixture blocks scripts; the real public menu needs hydration.
+        await page.unrouteAll({ behavior: 'wait' });
+        await page.goto('/');
+        await page.getByRole('button', { name: 'Menu', exact: true }).click();
         const button = page.locator('header.nav').getByRole('link', { name: /sign in|workspace/i });
         const box = await button.boundingBox();
         expect(box).not.toBeNull();
@@ -643,5 +647,182 @@ test.describe('flat UI reference geometry and interaction', () => {
         expect(effects, path).toEqual([]);
       }
     }
+  });
+});
+
+/** The approved appearance is independent of the device preference. */
+test.describe('authoritative appearance on public routes', () => {
+  for (const width of [1600, 390]) {
+    for (const route of [
+      '/',
+      '/trust',
+      '/auth/sign-up',
+      '/auth/sign-in',
+      '/privacy',
+      '/terms',
+      '/status',
+    ]) {
+      test(`${route} keeps identical pixels under both device appearances at ${width}px`, async ({
+        page,
+      }) => {
+        await page.setViewportSize({ width, height: width === 1600 ? 1000 : 844 });
+        await page.emulateMedia({ colorScheme: 'light', reducedMotion: 'reduce' });
+        await page.goto(route);
+        await page.evaluate(() => document.fonts.ready);
+        const light = await page.screenshot({
+          path: test.info().outputPath('appearance-light.png'),
+          animations: 'disabled',
+          caret: 'hide',
+        });
+        await page.emulateMedia({ colorScheme: 'dark' });
+        const dark = await page.screenshot({
+          path: test.info().outputPath('appearance-dark.png'),
+          animations: 'disabled',
+          caret: 'hide',
+        });
+        expect(
+          dark.equals(light),
+          'changing the device preference changes no approved surface',
+        ).toBe(true);
+        expect(await page.locator('html').evaluate((el) => getComputedStyle(el).colorScheme)).toBe(
+          'light',
+        );
+        await test.info().attach('approved-light', { body: light, contentType: 'image/png' });
+        await test.info().attach('approved-dark-device', { body: dark, contentType: 'image/png' });
+      });
+    }
+  }
+  test('phone site navigation opens, focuses a real destination and closes on Escape', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto('/');
+    const menu = page.getByRole('button', { name: 'Menu', exact: true });
+    await expect(page.locator('header.nav')).toHaveCSS('height', '64px');
+    await menu.click();
+    await expect(
+      page
+        .getByRole('navigation', { name: 'Site', exact: true })
+        .getByRole('link', { name: 'Features', exact: true }),
+    ).toBeFocused();
+    await page.keyboard.press('Escape');
+    await expect(menu).toBeFocused();
+    await expect(menu).toHaveAttribute('aria-expanded', 'false');
+    await menu.click();
+    await page.getByRole('link', { name: 'How it works', exact: true }).click();
+    await expect(menu).toHaveAttribute('aria-expanded', 'false');
+    await expect(page.locator('#land-how-title')).toBeInViewport();
+  });
+  test('homepage anchors resolve and desktop header follows the reference geometry', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1600, height: 1000 });
+    await page.goto('/');
+    const box = await page.locator('header.nav').boundingBox();
+    expect(box?.width).toBe(1448);
+    expect(box?.height).toBe(72);
+    await expect(page.locator('.land-title')).toHaveCSS('font-size', '91px');
+    await expect(page.locator('.land-summary-panel')).toHaveCSS(
+      'background-color',
+      'rgb(16, 41, 55)',
+    );
+    const missing = await page
+      .locator('a[href^="/#"]')
+      .evaluateAll((links) =>
+        links
+          .map((link) => link.getAttribute('href')?.slice(2))
+          .filter((id) => id && !document.getElementById(id)),
+      );
+    expect(missing).toEqual([]);
+    await page.goto('/trust');
+    await expect(page.locator('.trust-hero .eyebrow')).toHaveCSS('font-size', '10px');
+    const trustTitle = await page.locator('#trust-story-title').boundingBox();
+    const banner = await page.locator('.pilot-banner').boundingBox();
+    expect(trustTitle?.x).toBe(116);
+    expect(trustTitle?.y).toBeCloseTo(206 + (banner?.height ?? 0), 0);
+    await page.goto('/auth/sign-up');
+    expect((await page.locator('.auth-introduction').boundingBox())?.width).toBe(740);
+    expect((await page.locator('.auth-form-panel').boundingBox())?.width).toBe(480);
+  });
+});
+
+test.describe('authoritative appearance of actual workspace components', () => {
+  test.use({ bypassCSP: true });
+  for (const width of [1600, 390]) {
+    for (const mode of [
+      'overview',
+      'profile',
+      'documents',
+      'case',
+      'sharing',
+      'agency',
+      'admin',
+    ] as const) {
+      test(`${mode} keeps identical pixels under both device appearances at ${width}px`, async ({
+        page,
+      }) => {
+        await page.setViewportSize({ width, height: width === 1600 ? 1000 : 844 });
+        await page.emulateMedia({ colorScheme: 'light', reducedMotion: 'reduce' });
+        await openUiFixture(page, mode);
+        await page.evaluate(() => document.fonts.ready);
+        const light = await page.screenshot({
+          path: test.info().outputPath('appearance-light.png'),
+          animations: 'disabled',
+          caret: 'hide',
+        });
+        await page.emulateMedia({ colorScheme: 'dark' });
+        // Compare fresh renders, matching the desktop and phone capture protocol.
+        // Chromium can otherwise repaint fractional native-input edges during a media toggle.
+        await openUiFixture(page, mode);
+        await page.evaluate(() => document.fonts.ready);
+        const dark = await page.screenshot({
+          path: test.info().outputPath('appearance-dark.png'),
+          animations: 'disabled',
+          caret: 'hide',
+        });
+        await expect(page.locator('.app-main')).toHaveCSS('background-color', 'rgb(250, 250, 247)');
+        await expect(page.locator('header.nav')).toBeHidden();
+        if (width === 1600) {
+          expect((await page.locator('.app-shell-nav').boundingBox())?.width).toBe(256);
+          expect((await page.locator('.workspace-toolbar').boundingBox())?.height).toBe(83);
+        }
+        await test
+          .info()
+          .attach('synthetic-workspace-light', { body: light, contentType: 'image/png' });
+        await test
+          .info()
+          .attach('synthetic-workspace-dark-device', { body: dark, contentType: 'image/png' });
+        expect(
+          dark.equals(light),
+          'changing the device preference changes no workspace surface',
+        ).toBe(true);
+      });
+    }
+  }
+  test('page finder points to existing destinations and hides administration for ordinary users', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1600, height: 1000 });
+    await openUiFixture(page, 'overview');
+    await page.keyboard.press('Control+k');
+    const finder = page.getByRole('searchbox', { name: 'Find a page' });
+    await expect(finder).toBeFocused();
+    await finder.fill('applicants');
+    await expect(
+      page
+        .getByRole('navigation', { name: 'Matching pages' })
+        .getByRole('link', { name: 'Applicants' }),
+    ).toHaveAttribute('href', '/app/applicants');
+    await finder.fill('administration');
+    await expect(page.getByText('No pages match. Try another name.')).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(finder).toHaveValue('');
+    await openUiFixture(page, 'admin');
+    await page.getByRole('searchbox', { name: 'Find a page' }).fill('administration');
+    await expect(
+      page
+        .getByRole('navigation', { name: 'Matching pages' })
+        .getByRole('link', { name: 'Platform administration' }),
+    ).toHaveAttribute('href', '/app/admin');
   });
 });

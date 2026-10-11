@@ -271,3 +271,7 @@ synthetic clean/infected acceptance remain required; overall release gates uncha
 ## 2026-10-11 UI transformation traceability
 
 UX-01, UX-02 and UX-03 retain their historical IN_PROGRESS acceptance status. The approved UI assignment updates the shared visual system and existing navigation/forms across 52 page routes, adds safe metadata selection/search and improves mobile menu focus behavior. It does not erase the owed manual screen-reader, authenticated lifecycle or deferred language acceptance. Exact coverage, evidence and release status are recorded under [docs/uiux](../uiux/FINAL-UIUX-RELEASE-REPORT.md). No security, recovery or public-beta acceptance row is promoted by screenshots or synthetic fixtures.
+
+### Authoritative HTML correction, 2026-10-11
+
+UX-01, UX-02 and UX-03 remain IN_PROGRESS for full product acceptance. The owner's correction applies the original HTML identity to all 52 existing page routes, removes unintended device-dark substitution and adds a route graph guard plus rendered appearance parity checks. Ten desktop references are inspected before correction; tablet and phone layouts preserve existing actions and accessibility. Authenticated journeys, deferred translation and broader operational acceptance are not closed by this UI release. Final exact-head release evidence is recorded on its pull request.

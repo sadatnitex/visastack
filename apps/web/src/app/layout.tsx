@@ -3,6 +3,7 @@ import localFont from 'next/font/local';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { PilotBanner } from '../components/pilot-banner';
+import { SiteNavigation } from '../components/site-navigation';
 import { getDeploymentMode } from '../lib/deployment-mode';
 import { getLocale } from '../lib/locale';
 import { isPublicBetaOpen } from '../lib/public-beta';
@@ -37,12 +38,10 @@ export const metadata: Metadata = {
     'Keep your passport, documents and visa details in one private profile and reuse them for every application. Review changes and control what you share.',
 };
 
-// Match the browser chrome to the theme in both light and dark.
+// The approved reference stays light, independently of the device appearance.
 export const viewport: Viewport = {
-  themeColor: [
-    { media: '(prefers-color-scheme: light)', color: '#f9f8f5' },
-    { media: '(prefers-color-scheme: dark)', color: '#102937' },
-  ],
+  themeColor: '#f9f8f5',
+  colorScheme: 'light',
 };
 
 export default async function RootLayout({ children }: { readonly children: ReactNode }) {
@@ -65,22 +64,31 @@ export default async function RootLayout({ children }: { readonly children: Reac
             <span className="brand-mark" aria-hidden="true" />
             VisaStack
           </Link>
-          <nav className="nav-links" aria-label="Site">
-            <Link href="/#capabilities">Features</Link>
-            <Link href="/#for-agencies">For agencies</Link>
-            <Link href="/trust">Public trust</Link>
-            <Link href="/status">Status</Link>
-            <form action={setLocaleAction} aria-label="Language">
-              <input type="hidden" name="locale" value={locale === 'en' ? 'bn' : 'en'} />
-              {/* The label is written in the language it switches to, so say so (WCAG 3.1.2). */}
-              <button type="submit" className="lang-switch" lang={locale === 'en' ? 'bn' : 'en'}>
-                {locale === 'en' ? 'বাংলা' : 'English'}
-              </button>
-            </form>
-            <a className="btn btn-secondary nav-cta" href="/app">
-              {signedIn ? 'Workspace' : 'Sign in'}
-            </a>
-          </nav>
+          <SiteNavigation>
+            <div className="site-nav-pages">
+              <Link href="/#capabilities">Features</Link>
+              <Link href="/#for-agencies">For agencies</Link>
+              <Link href="/trust">Public trust</Link>
+              <Link href="/#land-how-title">How it works</Link>
+            </div>
+            <div className="site-nav-actions">
+              <form action={setLocaleAction} aria-label="Language">
+                <input type="hidden" name="locale" value={locale === 'en' ? 'bn' : 'en'} />
+                {/* The label is written in the language it switches to, so say so (WCAG 3.1.2). */}
+                <button type="submit" className="lang-switch" lang={locale === 'en' ? 'bn' : 'en'}>
+                  {locale === 'en' ? 'বাংলা' : 'English'}
+                </button>
+              </form>
+              <a className="btn btn-secondary nav-cta" href="/app">
+                {signedIn ? 'Workspace' : 'Sign in'}
+              </a>
+              {!signedIn && isPublicBetaOpen() ? (
+                <Link className="btn btn-primary nav-cta" href="/auth/sign-up">
+                  Get started
+                </Link>
+              ) : null}
+            </div>
+          </SiteNavigation>
         </header>
         <main id="main">{children}</main>
         <footer className="footer">
@@ -90,6 +98,8 @@ export default async function RootLayout({ children }: { readonly children: Reac
               <Link href="/#capabilities">Features</Link>
               <Link href="/trust">Public trust</Link>
               <Link href="/status">Status</Link>
+              <Link href="/privacy">Privacy</Link>
+              <Link href="/terms">Terms</Link>
               {/* A plain link, like the header's: `/app` sends a visitor on to the sign-in provider, and a
                   prefetch of it would be a blocked cross-origin request. */}
               <a href="/app">{signedIn ? 'Workspace' : 'Sign in'}</a>

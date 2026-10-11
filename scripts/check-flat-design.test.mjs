@@ -29,3 +29,8 @@ test('preserves outlines, legitimate progress and inert comments', () => {
     [],
   );
 });
+
+test('rejects automatic dark substitution while allowing designed navy surfaces', () => {
+  assert.ok(checkCss('@media (prefers-color-scheme: dark) { :root { --bg: #102937 } }').length > 0);
+  assert.deepEqual(checkCss('.intentional-accent { background: #102937; color: #ffffff }'), []);
+});

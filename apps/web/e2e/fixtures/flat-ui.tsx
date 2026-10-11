@@ -102,7 +102,7 @@ function Fixture({ mode }: { mode: Mode }) {
         </div>
       </AppNav>
       <div className="app-main">
-        <WorkspaceToolbar />
+        <WorkspaceToolbar isAdmin={mode === 'admin'} />
         <section className="section container">
           <PageHeader
             eyebrow="Synthetic test fixture"

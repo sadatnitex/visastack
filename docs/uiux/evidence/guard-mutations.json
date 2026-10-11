@@ -1,0 +1,22 @@
+[
+  {
+    "mutation": "reintroduce automatic dark override",
+    "exit": 1,
+    "evidence": "apps/web/src/app/globals.css:3578: automatic dark appearance\n"
+  },
+  {
+    "mutation": "break actual Applicants destination",
+    "exit": 1,
+    "evidence": "{\n  \"invalid\": [\n    {\n      \"target\": \"/app/definitely-missing\",\n      \"file\": \"apps/web/src/lib/navigation.ts\",\n      \"line\": 25,\n      \"kind\": \"destination\"\n    }\n  ],\n  \"unreferencedPages\": []\n}\n"
+  },
+  {
+    "mutation": "restored flat guard",
+    "exit": 0,
+    "evidence": "Flat UI source checks passed\n"
+  },
+  {
+    "mutation": "restored route guard",
+    "exit": 0,
+    "evidence": "Navigation: 52 pages, 208 source references, no dangling targets or unreferenced pages.\n"
+  }
+]

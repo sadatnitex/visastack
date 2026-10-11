@@ -6,14 +6,15 @@ import Link from 'next/link';
  * lost, and points at the official sources, because a person planning a trip should not be
  * left on a bare error screen.
  */
-export function TrustUnavailable() {
+export function TrustUnavailable({ withinPage = false }: { readonly withinPage?: boolean } = {}) {
+  const Heading = withinPage ? 'h2' : 'h1';
   return (
     <section className="section container">
       <article className="card" aria-labelledby="trust-unavailable-title">
         <p className="card-kicker">Route information</p>
-        <h1 className="card-title" id="trust-unavailable-title">
+        <Heading className="card-title" id="trust-unavailable-title">
           Route information is not available right now
-        </h1>
+        </Heading>
         <p className="card-body">
           We could not load this page. This is on our side, and nothing you entered anywhere is
           affected. Please try again in a few minutes. For an urgent question about a visa, use the

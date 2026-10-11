@@ -91,8 +91,10 @@ describe('page titles', () => {
 describe('landmarks', () => {
   const read = (file: string) => readFileSync(join(APP_DIR, file), 'utf8');
 
-  it('tells the two always-present navigation bars apart', () => {
-    expect(read('layout.tsx')).toContain('aria-label="Site"');
+  it('tells public and workspace navigation landmarks apart', () => {
+    expect(read('layout.tsx')).toContain('<SiteNavigation>');
+    expect(read('../components/site-navigation.tsx')).toContain('aria-label="Site"');
+    expect(read('layout.tsx')).toContain('aria-label="Footer"');
     expect(read('app/app-nav.tsx')).toContain('aria-label="Workspace"');
   });
 

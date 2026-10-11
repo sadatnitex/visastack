@@ -17,3 +17,9 @@ Reference SHA-256 identities:
 ## Refinement notes, 2026-10-11
 
 Light success and danger text use darker shades from the approved palette so their tinted status surfaces clear normal-text contrast. The opaque cream/teal/navy system and existing component architecture remain. The whole-system review evaluates clarity, relevant actions, mobile reachability, permission language, truthful unavailable states, readable density and capability preservation. It does not invent a committee approval or a WCAG certification.
+
+## Authoritative correction, 2026-10-11
+
+The original HTML is the precise visual authority for the entire existing product. This correction supersedes any earlier description of an operating-system-dependent light/dark theme. The approved appearance uses paper public backgrounds, white cards and headers, pale workspace and sidebar surfaces, teal actions, rust serif emphasis and deliberately limited navy accent sections. No separate dark theme is implemented.
+
+All ten original 1600 by 1000 compositions were rendered and inspected before this correction changed styles. Their geometry is measured alongside the implementation; token names alone are not acceptance evidence. Existing permission-aware navigation and multi-applicant routes remain. Minimum 44-pixel touch targets and the mandatory controlled-pilot notice are intentional accessibility and safety adaptations. The reference's decorative floating examples become aligned, solid bordered panels in their original hierarchy.

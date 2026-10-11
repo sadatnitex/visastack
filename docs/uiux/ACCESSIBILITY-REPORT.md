@@ -28,3 +28,7 @@ Measured sRGB relative-luminance ratios for the actual source tokens:
 All listed normal-text pairs clear 4.5:1. These token measurements are not a complete page audit. Final rendered-browser axe results and manual acceptance limits are reported separately. Initial lighter success/danger text measured below 4.5:1 and was corrected before release.
 
 Selected-label measurements: light 6.64:1, dark 6.37:1. Icons use the separate non-text threshold; no token-only result is presented as page certification.
+
+## Reference correction, 2026-10-11
+
+The public phone menu focuses its first actual destination, supports Escape and returns focus to its trigger. Workspace navigation retains its existing focus and role behavior. Native controls stay in the approved light scheme regardless of device preference. Existing skip links, language switching, readable validation, real sharing controls and secure document actions remain. Automated axe, responsive and browser-security checks are retained rather than replaced with token comparisons. Minimum 44-pixel primary targets intentionally exceed several smaller desktop reference controls.

@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { Icon } from '../../components/icons';
 
@@ -5,36 +6,34 @@ import { Icon } from '../../components/icons';
 
 export function AuthShell({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <section className="section container auth-shell">
+    <section className="auth-shell">
       <aside className="auth-introduction" aria-label="Your VisaStack account">
-        <p className="auth-kicker">Clarity. Control. Trust.</p>
-        <h2>
-          One profile.
-          <br />
-          <em>Every visa.</em>
-        </h2>
-        <p>Keep your details together. Reuse what you need, and choose what you share.</p>
-        <ul>
-          <li>
-            <Icon name="user" size={20} />
-            Your profile, kept in one place
-          </li>
-          <li>
-            <Icon name="lock" size={20} />
-            Documents private by default
-          </li>
-          <li>
-            <Icon name="share" size={20} />
-            Sharing you can stop at any time
-          </li>
-        </ul>
+        <Link href="/" className="brand auth-brand">
+          <span className="brand-mark" aria-hidden="true" />
+          VisaStack
+        </Link>
+        <div className="auth-message">
+          <p className="auth-kicker">Your record. Your terms.</p>
+          <h2>
+            A better way <br />
+            to prepare for <br />
+            <em>what's next.</em>
+          </h2>
+          <p>Keep your details together. Reuse what you need, and choose what you share.</p>
+        </div>
         <p className="auth-footnote">
+          <Icon name="shield" size={24} />
           You stay in control of your records and every suggestion you approve.
         </p>
       </aside>
       <div className="auth-form-panel">
         <h1 className="page-title">{title}</h1>
         {children}
+        <nav className="auth-legal-links" aria-label="Account information">
+          <Link href="/">Home</Link>
+          <Link href="/privacy">Privacy</Link>
+          <Link href="/terms">Terms</Link>
+        </nav>
       </div>
     </section>
   );

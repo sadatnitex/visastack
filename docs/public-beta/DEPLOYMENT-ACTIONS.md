@@ -45,3 +45,9 @@ Exact merge commit: 2c6d7c9ec31f5b10a17df23019d74d1364913407. Required main chec
 PR #187 contains the public, authentication, traveller, agency and administration interface update. It is pending verified merge and deployment; its final release outcome will be recorded on the pull request. See docs/uiux/EXECUTION-CHECKPOINT.md.
 
 Public-beta actions: PR-00 is done. PR-01 through PR-06 remain in progress, with privileged authentication, email/legal acceptance, quota acceptance, R2/PDF/key/backup evidence, authenticated lifecycle and job monitoring still outstanding. PR-07 reviewed packs/AI and PR-08 measured cost/control-room remain open. PR-09 release acceptance and activation remain gated. Interface implementation does not close these operational acceptance requirements.
+
+## 2026-10-11: whole-product reference correction
+
+PR #187 is verified merged and deployed on `2f07d915c37d6ff5895bdad27f482cec8903ad12`, with production readiness and both aliases checked. The subsequent owner correction requires the original HTML appearance independently of device preference and applies to all 52 page routes. The next UI-only release is pending exact-head verification; its pull request records the final merge and deployment outcome.
+
+PR-00 is done. PR-01 through PR-06 remain in progress: privileged identity and lifecycle acceptance, email/legal delivery, live quota acceptance, R2/PDF/key/backup evidence, authenticated collaboration and job operations remain outstanding. PR-07 reviewed packs/AI and PR-08 measured cost/control-room remain open. PR-09 release acceptance and activation remain gated. The UI correction does not change provider activation or open real-applicant intake.
