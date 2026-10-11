@@ -5,9 +5,21 @@ import { PasswordInput } from './password-input';
 
 /** Shared pieces of the Neon Auth pages, so every form has the same labels, errors and spacing. */
 
-export function AuthShell({ title, children }: { title: string; children: ReactNode }) {
+export function AuthShell({
+  title,
+  children,
+  eyebrow,
+  utility,
+  variant,
+}: {
+  title: string;
+  children: ReactNode;
+  eyebrow?: string;
+  utility?: ReactNode;
+  variant?: 'signup';
+}) {
   return (
-    <section className="auth-shell">
+    <section className={variant === 'signup' ? 'auth-shell auth-shell-signup' : 'auth-shell'}>
       <aside className="auth-introduction" aria-label="Your VisaStack account">
         <Link href="/" className="brand auth-brand">
           <span className="brand-mark" aria-hidden="true" />
@@ -28,6 +40,8 @@ export function AuthShell({ title, children }: { title: string; children: ReactN
         </p>
       </aside>
       <div className="auth-form-panel">
+        {utility ? <div className="auth-utility">{utility}</div> : null}
+        {eyebrow ? <p className="auth-beta-label">{eyebrow}</p> : null}
         <h1 className="page-title">{title}</h1>
         {children}
         <nav className="auth-legal-links" aria-label="Account information">

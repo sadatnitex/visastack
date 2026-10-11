@@ -106,3 +106,10 @@ Follow-up focused checks passed 28 navigation/agency/password/report/probe tests
 ## Legacy acceptance retirement checkpoint
 
 The historical WorkOS acceptance workflow is explicitly retired for the Neon product: a manual dispatch reports blocked, never a successful skipped journey. The retained legacy authentication implementation and diagnostic spec remain available. Actual Neon tests use their dedicated guarded staging configuration; ordinary anonymous/public checks keep their existing collection behavior. No previously verified authenticated journey is removed or counted as passed. Deployment/resource configuration proof still cannot establish complete PDF, fixture, storage or lifecycle acceptance.
+
+
+## Public signup frame correction
+
+The actual 1600 by 1000 public signup capture exposed a composition gap: context and notice copy moved the creation action below the reference frame. The signup variant restores the badge-before-headline order and top sign-in utility, retains the real required unchecked notice acknowledgement and signed form, condenses repeated guidance, and uses a solid sample from the reference's intentional dark introduction. Password visibility remains an accessible local control. Desktop action visibility and mobile overflow are checked against the real route; no private authenticated acceptance is implied.
+
+Neon acceptance credential policy is reviewed explicitly: manual trusted main code only, checkout credentials discarded, staging preflight before login. The security scanner still checks all tracked files and added history. Synthetic database URL fixtures use an unmistakable dummy password rather than secret-shaped literals; no real credential was introduced or exposed. Full authenticated staging, PDF and lifecycle acceptance remains open.

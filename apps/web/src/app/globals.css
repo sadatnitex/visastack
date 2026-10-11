@@ -2626,7 +2626,7 @@ a.checklist-item:hover .checklist-label {
   align-self: stretch;
   padding: 52px clamp(32px, 4.1875vw, 67px);
   border-radius: 0;
-  background: #102937;
+  background: #102d3b;
   color: #ffffff;
 }
 .auth-introduction h2 {
@@ -2967,7 +2967,7 @@ body:has(.auth-shell) > .footer {
   min-height: 225px;
   padding: 38px 55px;
   border-radius: 24px;
-  background: #102937;
+  background: #102d3b;
   color: #ffffff;
 }
 .land-summary-panel .land-kicker {
@@ -4907,4 +4907,81 @@ body:has(.auth-shell) > .footer {
   color: var(--text-secondary);
   background: #fff;
   cursor: pointer;
+}
+
+/* Keep the real signup acknowledgement inside the reference's desktop composition. */
+.auth-shell-signup .auth-form-panel {
+  position: relative;
+}
+.auth-utility {
+  position: absolute;
+  top: 12px;
+  right: 0;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+.auth-utility a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  font-weight: 650;
+}
+.auth-shell-signup .auth-beta-label {
+  margin: 0 0 24px;
+}
+.auth-shell-signup .page-title {
+  margin-bottom: 12px;
+}
+.auth-shell-signup .signup-introduction {
+  margin-bottom: 24px;
+  font-size: 14px;
+}
+.auth-shell-signup .signup-invite-note {
+  margin: -16px 0 24px;
+  font-size: 12px;
+}
+.auth-shell-signup .field-list {
+  gap: 16px;
+}
+.auth-shell-signup .field-label {
+  font-size: 12px;
+}
+.auth-shell-signup .signup-context .card-body {
+  margin-top: 8px;
+}
+.auth-shell-signup .signup-consent {
+  min-height: 44px;
+  font-size: 12px;
+  line-height: 1.6;
+  padding-block: 8px;
+}
+.auth-shell-signup .signup-notice-note,
+.auth-shell-signup .signup-confirmation-note {
+  font-size: 12px;
+  line-height: 1.6;
+}
+.auth-shell-signup .signup-notice-note {
+  margin-top: -8px;
+}
+.auth-shell-signup .signup-confirmation-note {
+  padding-top: 16px;
+  border-top: 1px solid var(--hairline);
+  text-align: center;
+}
+@media (min-width: 701px) {
+  .auth-utility {
+    top: 44px;
+  }
+}
+@media (max-width: 700px) {
+  .auth-shell-signup .auth-form-panel {
+    padding-top: 72px;
+  }
+  .auth-shell-signup .auth-beta-label {
+    margin-bottom: 16px;
+  }
 }

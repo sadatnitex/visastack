@@ -27,9 +27,9 @@ export function SignupContext() {
       </div>
       <p className="card-body" aria-live="polite">
         {intent === 'agency'
-          ? 'After confirming your email and signing in, create or choose your agency workspace from the account menu.'
-          : 'After confirming your email and signing in, add a traveller to start their reusable profile.'}{' '}
-        Your account can use both spaces.
+          ? 'After email confirmation and sign-in, choose or create an agency workspace.'
+          : 'After email confirmation and sign-in, add a traveller.'}{' '}
+        One account can use both spaces.
       </p>
     </fieldset>
   );

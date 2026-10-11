@@ -29,16 +29,20 @@ export default async function SignUpPage({
   const error = e ? ERRORS[e] : undefined;
   const signupForm = createSignupForm();
   return (
-    <AuthShell title="Create an account">
-      <p className="auth-beta-label">
-        {isPublicBetaOpen() ? 'Public beta · Free account' : 'Private pilot'}
-      </p>
-      <p className="card-body">One profile you can use again and again.</p>
-      <p className="card-body">
-        {isPublicBetaOpen()
-          ? 'VisaStack is in public beta. Anyone can create an account, and some features are still being finished.'
-          : 'VisaStack is invite-only for now. You can create an account, but you can only get in if you have been invited.'}
-      </p>
+    <AuthShell
+      title="Create your account"
+      variant="signup"
+      eyebrow={isPublicBetaOpen() ? 'Public beta · Free account' : 'Private pilot'}
+      utility={
+        <>
+          Already have an account? <Link href="/auth/sign-in">Sign in</Link>
+        </>
+      }
+    >
+      <p className="card-body signup-introduction">One profile you can use again and again.</p>
+      {!isPublicBetaOpen() ? (
+        <p className="card-body signup-invite-note">Access is by invitation.</p>
+      ) : null}
       <ErrorLine id="signup-error" message={error} />
       {e === 'exists' && (
         <p className="card-body">
@@ -75,26 +79,22 @@ export default async function SignUpPage({
             minLength={8}
             maxLength={128}
           />
-          <label className="card-body" htmlFor="accept-notices">
+          <label className="card-body signup-consent" htmlFor="accept-notices">
             <input id="accept-notices" type="checkbox" name="acceptNotices" value="yes" required />{' '}
             I agree to the <Link href="/terms">terms of use</Link> and acknowledge the{' '}
             <Link href="/privacy">privacy notice</Link>.
           </label>
-          <p className="card-body">
-            Account creation is free. Do not enter real applicant details or upload real identity
-            documents during the current test pilot. This acknowledgement does not enable marketing,
-            AI processing or sharing with an agency.
+          <p className="card-body signup-notice-note">
+            Do not enter real applicant details or upload real identity documents. This
+            acknowledgement does not enable marketing, AI processing or sharing with an agency.
           </p>
           <button type="submit" className="btn btn-primary">
-            Create account
+            Create free account
           </button>
         </form>
       </div>
-      <p className="card-body">
+      <p className="card-body signup-confirmation-note">
         We will email you a link to confirm your address before you can sign in.
-      </p>
-      <p className="card-body">
-        Already have an account? <Link href="/auth/sign-in">Sign in</Link>
       </p>
     </AuthShell>
   );
