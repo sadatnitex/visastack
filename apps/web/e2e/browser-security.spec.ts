@@ -190,7 +190,7 @@ test.describe('the app under the policy', () => {
       window.__spa = true;
     });
     await page
-      .getByRole('navigation', { name: 'Site' })
+      .getByRole('navigation', { name: 'Footer' })
       .getByRole('link', { name: 'Status' })
       .click();
     await expect(page).toHaveURL(/\/status$/);

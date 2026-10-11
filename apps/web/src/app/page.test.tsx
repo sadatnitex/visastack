@@ -140,7 +140,7 @@ describe('the public home page', () => {
   it('gives every section a name for screen readers and keeps one top heading', async () => {
     const html = await render();
     expect(html.match(/<h1[ >]/g)?.length).toBe(1);
-    expect(html.match(/<section[^>]*aria-labelledby="land-[a-z-]+"/g)?.length).toBe(8);
+    expect(html.match(/<section[^>]*aria-labelledby="land-[a-z-]+"/g)?.length).toBe(9);
     expect(html).toContain('id="land-hero-title"');
   });
 

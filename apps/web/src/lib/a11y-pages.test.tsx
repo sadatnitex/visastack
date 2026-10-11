@@ -279,6 +279,7 @@ describe('every public page, as a whole page', () => {
 
   it('names each landmark so a screen reader user can tell them apart', async () => {
     const html = await pageMarkup(PAGES[0] as Page);
-    expect(html).toContain('<nav class="nav-links" aria-label="Site">');
+    expect(html).toMatch(/<nav[^>]*class="nav-links"[^>]*aria-label="Site"/);
+    expect(html).toContain('aria-label="Footer"');
   });
 });

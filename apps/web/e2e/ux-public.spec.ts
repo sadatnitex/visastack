@@ -342,6 +342,8 @@ test.describe('signed-in layout building blocks on a narrow screen (real stylesh
       });
 
       test('the public header keeps its sign-in button on screen', async ({ page }) => {
+        // The raw workspace fixture blocks scripts; the real public menu needs hydration.
+        await page.unrouteAll({ behavior: 'wait' });
         await page.goto('/');
         await page.getByRole('button', { name: 'Menu', exact: true }).click();
         const button = page.locator('header.nav').getByRole('link', { name: /sign in|workspace/i });
@@ -732,6 +734,15 @@ test.describe('authoritative appearance on public routes', () => {
           .filter((id) => id && !document.getElementById(id)),
       );
     expect(missing).toEqual([]);
+    await page.goto('/trust');
+    await expect(page.locator('.trust-hero .eyebrow')).toHaveCSS('font-size', '10px');
+    const trustTitle = await page.locator('#trust-story-title').boundingBox();
+    const banner = await page.locator('.pilot-banner').boundingBox();
+    expect(trustTitle?.x).toBe(116);
+    expect(trustTitle?.y).toBeCloseTo(206 + (banner?.height ?? 0), 0);
+    await page.goto('/auth/sign-up');
+    expect((await page.locator('.auth-introduction').boundingBox())?.width).toBe(740);
+    expect((await page.locator('.auth-form-panel').boundingBox())?.width).toBe(480);
   });
 });
 

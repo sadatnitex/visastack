@@ -7,7 +7,7 @@ export function PublicTrustStory() {
     <section className="trust-story land-wrap" aria-labelledby="trust-story-title">
       <div className="trust-hero">
         <div>
-          <p className="eyebrow">The trust model</p>
+          <div className="eyebrow">The trust model</div>
           <h1 id="trust-story-title">
             Your documents.
             <em>Your decisions.</em>
