@@ -51,3 +51,7 @@ Public-beta actions: PR-00 is done. PR-01 through PR-06 remain in progress, with
 PR #187 is verified merged and deployed on `2f07d915c37d6ff5895bdad27f482cec8903ad12`, with production readiness and both aliases checked. The subsequent owner correction requires the original HTML appearance independently of device preference and applies to all 52 page routes. The next UI-only release is pending exact-head verification; its pull request records the final merge and deployment outcome.
 
 PR-00 is done. PR-01 through PR-06 remain in progress: privileged identity and lifecycle acceptance, email/legal delivery, live quota acceptance, R2/PDF/key/backup evidence, authenticated collaboration and job operations remain outstanding. PR-07 reviewed packs/AI and PR-08 measured cost/control-room remain open. PR-09 release acceptance and activation remain gated. The UI correction does not change provider activation or open real-applicant intake.
+
+## Preview and recovery follow-up checkpoint (2026-10-11)
+
+PR-188 is merged and deployed, with production browser appearance failures still under correction. Current source work adds preview-aware absolute links, matching content-security origins, explicit password-recovery confirmation/resend states and configurable R2 region. Its release checks remain pending at this checkpoint. Native encryption is already enabled; R2 reachability, authenticated owner access, live reset delivery, PDF processing and backup recovery remain unverified or blocked. No public-beta package is promoted to complete by these changes.

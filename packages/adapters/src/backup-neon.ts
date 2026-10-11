@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { Upload } from '@aws-sdk/lib-storage';
 import { encryptBackup, parseBackupKey } from './backup-encryption';
-import { R2_DOCUMENT_BUCKET, validateR2Endpoint } from './r2-storage';
+import { R2_DOCUMENT_BUCKET, readR2Region, validateR2Endpoint } from './r2-storage';
 
 function required(name: string): string {
   const value = process.env[name];
@@ -31,7 +31,7 @@ export async function runDatabaseBackup(): Promise<void> {
   const key = parseBackupKey(required('BACKUP_ENCRYPTION_KEY_BASE64'));
   const keyId = required('BACKUP_ENCRYPTION_KEY_ID');
   const client = new S3Client({
-    region: 'auto',
+    region: readR2Region(),
     forcePathStyle: true,
     endpoint: validateR2Endpoint(required('R2_ENDPOINT_URL')),
     credentials: {

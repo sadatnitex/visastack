@@ -120,6 +120,14 @@ export function cspHeaderName(mode: CspMode): string {
 export function resolveAppOrigin(
   readEnv: (name: string) => string | undefined,
 ): string | undefined {
+  // A preview must never mint links to production or an old deployment.
+  if (readEnv('VERCEL_ENV') === 'preview') {
+    const preview = readEnv('VERCEL_BRANCH_URL') || readEnv('VERCEL_URL');
+    if (preview) {
+      const origin = toOrigin(`https://${preview}`);
+      if (origin) return origin;
+    }
+  }
   const explicit = readEnv('NEXT_PUBLIC_APP_URL');
   if (explicit) return toOrigin(explicit);
   const vercel = readEnv('VERCEL_PROJECT_PRODUCTION_URL');

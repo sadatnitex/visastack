@@ -237,6 +237,24 @@ describe('password recovery', () => {
     });
   });
 
+  it('shows a retry message for provider outages and a wait message for throttling', async () => {
+    const { requestPasswordResetAction } = await import('./actions');
+    for (const status of [400, 401, 403, 404, 500, 503]) {
+      requestPasswordReset.mockResolvedValue({ error: { status } });
+      expect(await destination(() => requestPasswordResetAction(form({ email: 'a@b.co' })))).toBe(
+        '/auth/forgot-password?e=unavailable',
+      );
+    }
+    requestPasswordReset.mockRejectedValue(new Error('network failure'));
+    expect(await destination(() => requestPasswordResetAction(form({ email: 'a@b.co' })))).toBe(
+      '/auth/forgot-password?e=unavailable',
+    );
+    requestPasswordReset.mockResolvedValue({ error: { status: 429 } });
+    expect(await destination(() => requestPasswordResetAction(form({ email: 'a@b.co' })))).toBe(
+      '/auth/forgot-password?e=slow',
+    );
+  });
+
   it('rejects a bad address and over-limit requests before sending anything', async () => {
     const { requestPasswordResetAction } = await import('./actions');
     expect(await destination(() => requestPasswordResetAction(form({ email: 'nope' })))).toBe(

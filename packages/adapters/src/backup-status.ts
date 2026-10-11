@@ -1,4 +1,4 @@
-import { R2_DOCUMENT_BUCKET, validateR2Endpoint } from './r2-storage';
+import { R2_DOCUMENT_BUCKET, readR2Region, validateR2Endpoint } from './r2-storage';
 
 /** A completed encrypted dump is evidence of capture, never of restore. */
 export async function hasRecentDatabaseBackup(input: {
@@ -9,7 +9,7 @@ export async function hasRecentDatabaseBackup(input: {
 }): Promise<boolean> {
   const { GetObjectCommand, HeadObjectCommand, S3Client } = await import('@aws-sdk/client-s3');
   const client = new S3Client({
-    region: 'auto',
+    region: readR2Region(),
     forcePathStyle: true,
     endpoint: validateR2Endpoint(input.endpoint),
     credentials: { accessKeyId: input.accessKeyId, secretAccessKey: input.secretAccessKey },

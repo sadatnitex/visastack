@@ -50,3 +50,9 @@ Existing pilot people have WorkOS passwords that do not move. After the switch t
 | D11 | Staff screens still show the WorkOS id column for the access list; platform-role history keeps no Neon id snapshot | Cosmetic and audit detail for Neon accounts | DEFERRED |
 | D12 | Idle timeout for staff, hourly reminder sweeps, Bangla and translations | Unchanged from earlier records | DEFERRED |
 | D13 | Isolated staging environment | Does not exist; the first live check happens in production | OPEN |
+
+## Preview URL routing and recovery feedback (2026-10-11)
+
+The designated preview address is registered with Vercel as a verified project domain bound to `public-beta/r2-encrypted-recovery`. Production domains remain unbound to preview branches. A release must verify that the branch address resolves to its exact READY deployment. Preview absolute links and CSP select `VERCEL_BRANCH_URL`, then `VERCEL_URL`; production uses its configured canonical custom domain. Do not paste a deployment SHA into `gitSource.ref` when rebuilding a preview: branch-scoped environment values require the actual branch ref.
+
+Password recovery replaces the initial form with a check-email confirmation after a request. A separate expandable resend form is available, using the existing server-side limits of three sends per address per hour and ten per network address per hour. The response does not disclose whether an account exists. Service errors show a retry message; no delivery success is inferred from a provider outage. A password reset does not transfer a WorkOS-bound account to Neon Auth or grant a platform role.
