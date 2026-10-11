@@ -1,0 +1,63 @@
+name: Isolated encrypted database restore drill
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: isolated-database-restore-drill
+  cancel-in-progress: false
+
+jobs:
+  restore:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    container: postgres:18-bookworm@sha256:afc7e2d441324c0388fa80c3d24f733b4194a4eb7f47dd8ee2b08eb1a24a647c
+    timeout-minutes: 30
+    services:
+      recovery-postgres:
+        image: postgres:18-bookworm@sha256:afc7e2d441324c0388fa80c3d24f733b4194a4eb7f47dd8ee2b08eb1a24a647c
+        # Private ephemeral job network only, no published host ports.
+        env:
+          POSTGRES_HOST_AUTH_METHOD: trust
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    steps:
+      - name: Install runner prerequisites
+        run: apt-get update && apt-get install -y --no-install-recommends ca-certificates git
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Initialize restricted temporary recovery database
+        env:
+          PGHOST: recovery-postgres
+          PGDATABASE: postgres
+          PGUSER: postgres
+        run: |
+          psql -X --set=ON_ERROR_STOP=1 --quiet <<'SQL'
+          CREATE ROLE vs_restore LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION;
+          CREATE DATABASE vs_recovery OWNER vs_restore;
+          SQL
+      - name: Authenticate backup and restore only into the temporary database
+        env:
+          BACKUP_ENCRYPTION_KEY_BASE64: ${{ secrets.BACKUP_ENCRYPTION_KEY_BASE64 }}
+          BACKUP_ENCRYPTION_KEY_ID: ${{ vars.BACKUP_ENCRYPTION_KEY_ID }}
+          R2_REGION: ${{ secrets.R2_REGION }}
+          R2_ENDPOINT_URL: ${{ secrets.R2_ENDPOINT_URL }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+        run: pnpm --filter @visastack/adapters exec tsx src/database-restore-drill.ts
+      - name: Remove private recovery scratch files
+        if: always()
+        run: rm -rf /tmp/visastack-db-drill-*

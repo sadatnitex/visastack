@@ -238,3 +238,19 @@ test('private intake secrets require enabled main code and discarded checkout cr
   ])
     assert.equal(checkPreviewCredentials(repo({ [file]: unsafe })).status, 'failed');
 });
+
+test('isolated restore allows only manual main code and recovery secrets', () => {
+  const safe =
+    "on:\n  workflow_dispatch:\njobs:\n  restore:\n    if: github.ref == 'refs/heads/main'\n    steps:\n      - uses: actions/checkout@v4\n        with:\n          persist-credentials: false\n      - run: restore\n        env:\n          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}\n";
+  const file = '.github/workflows/database-restore-drill.yml';
+  assert.equal(checkPreviewCredentials(repo({ [file]: safe })).status, 'passed');
+  for (const unsafe of [
+    safe.replace("github.ref == 'refs/heads/main'", 'true'),
+    safe.replace('persist-credentials: false', 'persist-credentials: true'),
+    safe.replace('workflow_dispatch:', 'pull_request:'),
+    safe.replace('workflow_dispatch:', 'push:'),
+    safe.replace('secrets.R2_ACCESS_KEY_ID', 'secrets.BACKUP_DATABASE_URL'),
+    safe.replace('secrets.R2_ACCESS_KEY_ID', 'secrets.UNKNOWN_CREDENTIAL'),
+  ])
+    assert.equal(checkPreviewCredentials(repo({ [file]: unsafe })).status, 'failed');
+});

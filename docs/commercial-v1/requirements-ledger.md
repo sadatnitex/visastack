@@ -289,3 +289,8 @@ Production Neon Auth now requests a verification email automatically on signup; 
 ### 2026-10-11 branding and registration follow-up (NTF-03, A18, public beta PR-01/PR-02)
 
 Production native auth application branding is VisaStack with the unchanged approved sender. Owner dashboard evidence confirms recipient-server acceptance for the two reported confirmation messages, without proving inbox placement or delivery of future messages. Guarded signup provides explicit existing-account guidance and recovery links, backed by a read-only matching-auth-database lookup. Account identities, roles and recovery privacy remain unchanged. NTF-03/A18 full acceptance statuses remain unchanged. See known-issues.md Chunk 70.
+
+
+### Recovery follow-up (2026-10-11)
+
+OPS-02 remains IN_PROGRESS and A30 remains BLOCKED. Production encrypted SQL capture and independent R2 manifest/object checks succeeded in run 38116023195. A separate restricted, temporary PostgreSQL Actions restore drill is implemented with hash and whole-archive authentication before SQL execution. A real synthetic offline pg_dump restored rows, functions, sequences, pgcrypto and immutable audit rules through the runner; full repository verification and an actual Actions restore of the stored backup are still pending. Database-only results cannot certify document recovery, actual key recovery, checkpoint integrity, tombstone/revocation replay or full recovery targets. See known-issues.md Chunk 76 and docs/operations/database-restore-drill.md.
