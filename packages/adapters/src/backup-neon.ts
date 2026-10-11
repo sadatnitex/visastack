@@ -138,11 +138,39 @@ export async function runDatabaseBackup(): Promise<void> {
   }
 }
 
+/** Fixed diagnostics only. Provider errors may contain credentials or signed URLs. */
+export function backupFailureMessage(error: unknown): string {
+  const configurationMessages = [
+    'Backups require main',
+    'BACKUP_DATABASE_URL must be a direct Neon database connection',
+    'Backup connection does not select the expected application database',
+  ];
+  const requiredNames = [
+    'BACKUP_DATABASE_URL',
+    'BACKUP_EXPECTED_DATABASE',
+    'BACKUP_ENCRYPTION_KEY_BASE64',
+    'BACKUP_ENCRYPTION_KEY_ID',
+    'R2_ENDPOINT_URL',
+    'R2_ACCESS_KEY_ID',
+    'R2_SECRET_ACCESS_KEY',
+    'GITHUB_RUN_ID',
+    'GITHUB_RUN_ATTEMPT',
+    'GITHUB_SHA',
+  ];
+  if (error instanceof Error) {
+    for (const message of configurationMessages) {
+      if (error.message === message) return `Database backup failed: ${message}.`;
+    }
+    for (const name of requiredNames) {
+      if (error.message === `Missing ${name}`) return `Database backup failed: missing ${name}.`;
+    }
+  }
+  return 'Database backup failed. Check secure configuration and provider access.';
+}
+
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url))
-  runDatabaseBackup().catch(() => {
-    process.stderr.write(
-      'Database backup failed. Check secure configuration and provider access.\n',
-    );
+  runDatabaseBackup().catch((error: unknown) => {
+    process.stderr.write(`${backupFailureMessage(error)}\n`);
     process.exitCode = 1;
   });
 

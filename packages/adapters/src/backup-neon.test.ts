@@ -1,7 +1,7 @@
 import { EventEmitter } from 'node:events';
 import { PassThrough } from 'node:stream';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { runDatabaseBackup } from './backup-neon';
+import { backupFailureMessage, runDatabaseBackup } from './backup-neon';
 
 const mocks = vi.hoisted(() => ({
   spawn: vi.fn(),
@@ -75,6 +75,26 @@ function dump(code: number) {
 }
 
 describe('pg_dump backup commit boundary', () => {
+  it('identifies wrong database and missing settings without exposing arbitrary provider messages', () => {
+    expect(
+      backupFailureMessage(
+        new Error('Backup connection does not select the expected application database'),
+      ),
+    ).toContain('expected application database');
+    expect(backupFailureMessage(new Error('Missing BACKUP_ENCRYPTION_KEY_ID'))).toContain(
+      'missing BACKUP_ENCRYPTION_KEY_ID',
+    );
+    for (const error of [
+      new Error('postgresql://test:test@example.invalid/database'), // supply-chain-allow: synthetic nonexistent hostname to prove credential-bearing errors are suppressed; no connection or network call.
+      new Error('Missing BACKUP_DATABASE_URL private-secret'),
+      { message: 'private-secret' },
+      null,
+    ]) {
+      expect(backupFailureMessage(error)).toBe(
+        'Database backup failed. Check secure configuration and provider access.',
+      );
+    }
+  });
   it('refuses a different database before reading data or opening storage', async () => {
     vi.stubEnv('BACKUP_EXPECTED_DATABASE', 'visastackdev');
     try {
