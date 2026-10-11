@@ -1,9 +1,12 @@
 import { listPlatformMembers } from '@visastack/services';
+import type { Metadata } from 'next';
 import Link from 'next/link';
 import { PageHeader } from '../../../../components/ui';
 import { bootstrapAdminEmails } from '../../../../lib/admin';
 import { formatTimestampDate } from '../../../../lib/format-date';
 import { withSession } from '../../../../lib/session';
+
+export const metadata: Metadata = { title: 'Platform members' };
 
 export const dynamic = 'force-dynamic';
 

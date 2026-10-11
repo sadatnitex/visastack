@@ -1,8 +1,11 @@
+import type { Metadata } from 'next';
 import Link from 'next/link';
 import { PageHeader } from '../../../../components/ui';
 import { isPlatformAdmin } from '../../../../lib/admin';
 import { withSession } from '../../../../lib/session';
 import { AdminRestricted } from '../admin-restricted';
+
+export const metadata: Metadata = { title: 'Platform security' };
 
 export default async function PlatformSecurityPage() {
   const allowed = await withSession(({ db, accountId, email }) =>

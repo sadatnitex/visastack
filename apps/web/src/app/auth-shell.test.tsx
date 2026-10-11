@@ -24,6 +24,14 @@ vi.mock('../lib/locale', () => ({ getLocale: async () => 'en' }));
 vi.mock('../lib/deployment-mode', () => ({ getDeploymentMode: () => 'development' }));
 vi.mock('./actions', () => ({ setLocaleAction: vi.fn() }));
 vi.mock('../lib/admin', () => ({ isPlatformAdmin: async () => false }));
+vi.mock('../lib/workspace-chrome', () => ({
+  loadWorkspaceChrome: async () => ({
+    accountName: 'Your account',
+    travellers: [],
+    agencies: [],
+    platform: null,
+  }),
+}));
 vi.mock('../lib/session', () => ({
   withSession: (fn: (ctx: unknown) => unknown) =>
     fn({ db: {}, accountId: 'a1', email: 'a@example.com' }),
@@ -42,9 +50,13 @@ function formAction(node: ReactNode): (() => Promise<void>) | undefined {
     return undefined;
   }
   if (!isValidElement(node)) return undefined;
-  const element = node as ReactElement<{ children?: ReactNode; action?: () => Promise<void> }>;
+  const element = node as ReactElement<{
+    children?: ReactNode;
+    signOut?: ReactNode;
+    action?: () => Promise<void>;
+  }>;
   if (element.type === 'form' && element.props.action) return element.props.action;
-  return formAction(element.props.children);
+  return formAction(element.props.children) ?? formAction(element.props.signOut);
 }
 
 beforeEach(() => {

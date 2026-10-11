@@ -1,9 +1,12 @@
 import { listNotes } from '@visastack/services';
+import type { Metadata } from 'next';
 import Link from 'next/link';
 import { EmptyState, PageHeader } from '../../../../../components/ui';
 import { formatTimestampDate } from '../../../../../lib/format-date';
 import { withSession } from '../../../../../lib/session';
 import { loadOrgAccess, loadVisibleCaseList } from '../console-data';
+
+export const metadata: Metadata = { title: 'Agency activity' };
 
 export const dynamic = 'force-dynamic';
 

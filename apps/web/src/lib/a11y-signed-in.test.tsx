@@ -34,7 +34,11 @@ vi.mock('./session', () => ({
   withSession: async (fn: (ctx: unknown) => Promise<unknown>) =>
     fn({ db: {}, accountId: 'acct-1', email: 'traveller@example.com' }),
 }));
-vi.mock('./admin', () => ({ isPlatformAdmin: async () => state.isAdmin }));
+vi.mock('./admin', () => ({
+  isPlatformAdmin: async () => state.isAdmin,
+  isPlatformOwnerAccount: async () => state.isAdmin,
+  hasPlatformPermission: async () => state.isAdmin,
+}));
 vi.mock('@visastack/services', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@visastack/services')>()),
   listNotificationsForAccount: async () => state.notifications,
@@ -145,7 +149,11 @@ const SCREENS: readonly Screen[] = [
     setup: () => {
       state.isAdmin = true;
       state.memberships = [
-        { organization: { id: 'o1', name: 'Dhaka Visa Desk', status: 'ACTIVE' } },
+        {
+          active: true,
+          role: 'OWNER',
+          organization: { id: 'o1', name: 'Dhaka Visa Desk', status: 'ACTIVE' },
+        },
       ];
     },
     build: async () => await AccountPage(),
@@ -207,7 +215,7 @@ describe('signed-in pages, as whole pages in the signed-in shell', () => {
     const html = await shellMarkup(SCREENS[0] as Screen);
     const current = html.match(/<a [^>]*aria-current="page"[^>]*>.*?<\/a>/g) ?? [];
     expect(current).toHaveLength(1);
-    expect(current[0]).toContain('Alerts');
+    expect(current[0]).toContain('Notifications');
   });
 });
 
