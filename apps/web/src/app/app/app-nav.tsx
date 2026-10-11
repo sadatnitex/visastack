@@ -105,7 +105,14 @@ export function AppNav({
   // Escape closes the sheet, as people expect of anything that opens over the page.
   useEffect(() => {
     if (!open) return;
-    panelRef.current?.querySelector<HTMLAnchorElement>('a')?.focus();
+    // A closed workspace disclosure contains hidden links; focus its visible summary first.
+    const firstControl =
+      panelRef.current?.querySelector<HTMLElement>('.app-mobile-identity summary') ??
+      Array.from(panelRef.current?.querySelectorAll<HTMLAnchorElement>('a') ?? []).find(
+        (link) => link.getClientRects().length > 0,
+      ) ??
+      panelRef.current?.querySelector<HTMLElement>('.app-more-heading button');
+    firstControl?.focus();
     const onKey = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         setOpen(false);
