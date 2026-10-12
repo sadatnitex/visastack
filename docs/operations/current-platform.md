@@ -65,3 +65,8 @@ PR 198's exact production deployment and both aliases are live and ready, with c
 Isolated staging is now a separate Free Neon project, independent Auth endpoint, empty application schema and pgcrypto, without a production clone or production migration. Its unused compute was explicitly suspended. Five real synthetic Auth identities, role/record fixtures, application binding and isolated storage/processing remain unfinished. The GitHub connection cannot currently manage Actions secrets; configured database access does not imply those permissions. Use supported environment networking and TLS trust; never bypass the session proxy or copy credentials into files/logs.
 
 The application email backlog was empty at configuration review. Production has the verified VisaStack sender and encrypted webhook secret saved; the live callback accepted a correctly signed unknown event and refused an invalid signature without applying a delivery event. Real inbox receipt remains untested. Distinguish team email-bound acceptance from current client token-holder acceptance, and existing personal sharing from account-registration invitations. Details: invitation-journeys.md.
+
+
+## Document reading and isolated acceptance continuation: 2026-10-12
+
+See [the current CF acceptance checkpoint](../uiux/CF-04-09-ACCEPTANCE-2026-10-12.md) for implementation, actual evidence, the first failed diagnostic run and remaining limits. Personal sharing is implemented behind a default-disabled flag and requires reviewed migration 0085 before production activation. The private scanner worker has a free, bounded OCR reader in this candidate. Required checks and actual authenticated acceptance remain separate; sensitive intake is not enabled.

@@ -262,6 +262,34 @@ async function checkRecipient(
     | 'resourceId'
   >,
 ): Promise<RecipientCheck> {
+  if (notification.eventType === 'SHARING_INVITATION_CREATED') {
+    const invite =
+      notification.resourceId &&
+      first(
+        await db
+          .select()
+          .from(schema.sharingInvitations)
+          .where(eq(schema.sharingInvitations.id, notification.resourceId))
+          .limit(1),
+      );
+    const applicant =
+      invite &&
+      first(
+        await db
+          .select()
+          .from(schema.applicants)
+          .where(eq(schema.applicants.id, invite.applicantId))
+          .limit(1),
+      );
+    const authorized =
+      !!invite &&
+      !!applicant &&
+      invite.status === 'PENDING' &&
+      invite.expiresAt.getTime() > Date.now() &&
+      applicant.ownerAccountId === invite.invitedByAccountId &&
+      invite.email === notification.recipientEmail;
+    return { authorized, email: authorized ? notification.recipientEmail : null };
+  }
   if (['TEAM_INVITATION_CREATED', 'CLIENT_INVITATION_CREATED'].includes(notification.eventType)) {
     if (!notification.resourceId) return { authorized: false, email: null };
     const team = notification.eventType === 'TEAM_INVITATION_CREATED';
@@ -452,7 +480,12 @@ async function dispatchOne(
     if (payload.sealedInvitationLink) {
       if (!encryption || !notification.resourceId)
         throw new Error('Invitation email encryption unavailable');
-      const kind = notification.eventType === 'TEAM_INVITATION_CREATED' ? 'team' : 'client';
+      const kind =
+        notification.eventType === 'TEAM_INVITATION_CREATED'
+          ? 'team'
+          : notification.eventType === 'SHARING_INVITATION_CREATED'
+            ? 'sharing'
+            : 'client';
       path = await revealInvitationLink(
         payload.sealedInvitationLink,
         kind,

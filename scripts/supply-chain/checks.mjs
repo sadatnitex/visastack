@@ -265,7 +265,9 @@ export const STATIC_RULES = [
   { name: 'weak hash (md5/sha1)', re: /createHash\(\s*['"](?:md5|sha1)['"]/ },
   {
     name: 'shell execution',
-    re: /\b(?:exec|execSync)\s*\(\s*[`'"]|from\s+['"](?:node:)?child_process['"]/,
+    // Direct executable calls do not invoke a shell unless explicitly enabled.
+    // Keep rejecting all other child_process imports and shell-enabled options.
+    re: /\b(?:exec|execSync)\s*\(|shell\s*:\s*(?!false\b)[^\s,}]+|import\s+(?!\{\s*execFile(?:Sync)?\s*\}\s+from)[^;\n]*['"](?:node:)?child_process['"]|require\s*\(\s*['"](?:node:)?child_process['"]/,
   },
   {
     name: 'Math.random for security value',

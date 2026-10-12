@@ -30,7 +30,7 @@ jobs:
       - name: Install isolated scanner
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends clamav-daemon clamav
+          sudo apt-get install -y --no-install-recommends clamav-daemon clamav tesseract-ocr tesseract-ocr-eng poppler-utils
           sudo systemctl stop clamav-daemon clamav-freshclam
           sudo freshclam --stdout
           sudo python3 - <<'PY'
@@ -69,4 +69,6 @@ jobs:
           BLOB_READ_WRITE_TOKEN: ${{ secrets.BLOB_READ_WRITE_TOKEN }}
         run: |
           export CLAMAV_ENGINE_VERSION="$(clamscan --version)"
+          ocr_engine_output="$(tesseract --version 2>/dev/null)"
+          export OCR_ENGINE_VERSION="${ocr_engine_output%%$'\n'*}"
           sg clamav -c 'pnpm --filter @visastack/adapters exec tsx src/intake-runner.ts'

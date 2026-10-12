@@ -1,12 +1,8 @@
 /**
- * Deterministic text extraction port (Build Spec §6; master directive §11).
- *
- * Runs BEFORE any AI involvement, over embedded/native text only — this is
- * NOT OCR. A photographed/scanned image (PNG/JPEG) has no embedded text layer
- * and is therefore `unsupported_format` here; that is a real, current
- * limitation, not a bug to paper over. Real adapters live in
- * `@visastack/adapters` (unpdf for embedded PDF text, mammoth for DOCX); tests
- * inject a deterministic fake.
+ * Document conversion port before optional AI processing.
+ * The web adapter reads embedded PDF/DOCX/text content. The isolated scanner
+ * worker adds bounded private OCR for supported image/scanned-PDF inputs.
+ * Unsupported or unreadable content remains an explicit failure, never invented text.
  */
 
 /** Never retain unbounded extracted text (master directive §11). */

@@ -59,9 +59,9 @@ async function seedOwner(db: Db, email: string) {
 describe('documentLifecycleStatus (EVI-04)', () => {
   const now = new Date('2026-06-01T00:00:00Z');
 
-  it('is CURRENT with no expiry and no supersession', () => {
+  it('is UNKNOWN with no expiry and no supersession', () => {
     expect(documentLifecycleStatus({ expiresAt: null, supersededByDocumentId: null }, now)).toBe(
-      'CURRENT',
+      'UNKNOWN',
     );
   });
 
@@ -114,7 +114,7 @@ describe('getWalletView (EVI-04)', () => {
     expect(isOk(view)).toBe(true);
     if (isOk(view)) {
       expect(view.value).toHaveLength(1);
-      expect(view.value[0]?.status).toBe('CURRENT');
+      expect(view.value[0]?.status).toBe('UNKNOWN');
       expect(view.value[0]?.usedInMissions).toEqual([]);
       expect(view.value[0]?.accessibleTo).toEqual([]);
     }

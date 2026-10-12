@@ -124,3 +124,8 @@ The next navigation refinement separates personal account controls from workspac
 ## Invitation handoff continuation, 2026-10-12
 
 The invitation candidate adds a public explanation, private copy/share controls and preserved signup/confirmation return paths while retaining protected team/client acceptance, role checks and client consent/profile selection. It adds no theme or reference-composition replacement. Source and local browser checks remain distinct from actual authenticated Neon acceptance. CF-04 through CF-09 are not marked accepted by this change. See docs/operations/invitation-journeys.md for scope and current policy.
+
+
+## Current CF-04 through CF-09 continuation: 2026-10-12
+
+See [the current CF acceptance checkpoint](CF-04-09-ACCEPTANCE-2026-10-12.md) for implementation, actual evidence, the first failed diagnostic run and remaining limits. Personal sharing is implemented behind a default-disabled flag and requires reviewed migration 0085 before production activation. The private scanner worker has a free, bounded OCR reader in this candidate. Required checks and actual authenticated acceptance remain separate; sensitive intake is not enabled.

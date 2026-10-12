@@ -4,6 +4,7 @@ import {
   listAccessForApplicantDetailed,
   listAuditEventsForApplicant,
   listDocumentsDetailed,
+  listSharingInvitations,
   previewScopeExpansion,
 } from '@visastack/services';
 import type { Metadata } from 'next';
@@ -15,9 +16,12 @@ import { grantStatusBadge } from '../../../../../lib/grant-status';
 import { getLocale } from '../../../../../lib/locale';
 import { PACK_LABELS } from '../../../../../lib/profile-fields';
 import { withSession } from '../../../../../lib/session';
+import { revokeSharingInvitationAction } from './actions';
 import { GrantForm } from './grant-form';
 import { GrantOpButtons } from './grant-op-buttons';
 import { ScopeExpansionForm } from './scope-expansion-form';
+
+const sharingInvitationFlag = 'PERSONAL_SHARING_INVITATIONS_ENABLED';
 
 export const metadata: Metadata = { title: 'Sharing' };
 
@@ -75,6 +79,10 @@ export default async function SharingPage({
     const scopeExpansions = new Map(scopeExpansionEntries);
 
     return {
+      invitations:
+        process.env[sharingInvitationFlag] === 'true'
+          ? await listSharingInvitations(db, accountId, id)
+          : [],
       applicant,
       grants,
       accessAvailable: access.ok,
@@ -257,6 +265,46 @@ export default async function SharingPage({
             )}
           </article>
 
+          {data.invitations.length ? (
+            <details className="card sharing-invitation-history">
+              <summary>
+                Sharing invitations:{' '}
+                {
+                  data.invitations.filter(
+                    (invite) =>
+                      invite.status === 'PENDING' && invite.expiresAt.getTime() > Date.now(),
+                  ).length
+                }{' '}
+                pending
+              </summary>
+              <p>
+                No access starts until the recipient reviews and accepts. To resend, revoke a
+                pending invitation and create a new one.
+              </p>
+              {data.invitations.map((invitation) => (
+                <div className="row" key={invitation.id}>
+                  <span>
+                    {invitation.email}
+                    <br />
+                    {invitation.status === 'PENDING' && invitation.expiresAt.getTime() <= Date.now()
+                      ? 'Expired'
+                      : invitation.status.toLowerCase()}{' '}
+                    · {invitation.purpose}
+                  </span>
+                  {invitation.status === 'PENDING' &&
+                  invitation.expiresAt.getTime() > Date.now() ? (
+                    <form action={revokeSharingInvitationAction}>
+                      <input type="hidden" name="invitationId" value={invitation.id} />
+                      <input type="hidden" name="applicantId" value={id} />
+                      <button className="btn btn-secondary" type="submit">
+                        Revoke invitation
+                      </button>
+                    </form>
+                  ) : null}
+                </div>
+              ))}
+            </details>
+          ) : null}
           <article className="card">
             <p className="card-kicker">Transparency</p>
             <h2 className="card-title">Access log</h2>
@@ -298,8 +346,9 @@ export default async function SharingPage({
           <p className="card-kicker">New sharing request</p>
           <h2 className="card-title">Grant access</h2>
           <p className="card-body" style={{ marginBottom: '1.25rem' }}>
-            Share with an existing VisaStack user by email. They must accept before any access
-            begins.
+            {process.env[sharingInvitationFlag] === 'true'
+              ? 'Invite someone by email, even if they do not have an account yet. They must sign in with that email and accept before access begins.'
+              : 'Share with an existing VisaStack user by email. They must accept before any access begins.'}
           </p>
           {data.documentsAvailable ? (
             <GrantForm

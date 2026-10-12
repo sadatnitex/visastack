@@ -118,6 +118,25 @@ test('static analysis flags dangerous code in shipped source but not in tests', 
   assert.equal(checkStaticAnalysis(clean).status, 'passed');
 });
 
+test('static analysis distinguishes direct executable calls from shell execution', () => {
+  const safe = repo({
+    'packages/adapters/src/worker.ts':
+      "import { execFile } from 'node:child_process';\nexecFile('tesseract', ['input', 'stdout'], { timeout: 30000 });\n",
+  });
+  assert.equal(checkStaticAnalysis(safe).status, 'passed');
+  for (const code of [
+    "import { exec } from 'node:child_process';",
+    "import * as processes from 'node:child_process';",
+    "const processes = require('child_process');",
+    "execFile('tesseract', args, { shell: true });",
+    "execFile('tesseract', args, { shell: configuredShell });",
+    'exec(command);',
+  ]) {
+    const unsafe = repo({ 'packages/adapters/src/worker.ts': code });
+    assert.equal(checkStaticAnalysis(unsafe).status, 'failed', code);
+  }
+});
+
 test('browser bundle check is skipped without a build, fails on a leak, passes when clean', () => {
   const none = repo({ '.env.example': 'WORKOS_API_KEY=\n' });
   assert.equal(checkBrowserBundle(none).status, 'skipped');

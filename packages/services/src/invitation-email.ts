@@ -15,9 +15,9 @@ export interface SealedInvitationLink {
 export async function queueInvitationEmail(
   tx: Db,
   input: {
-    readonly kind: 'team' | 'client';
+    readonly kind: 'team' | 'client' | 'sharing';
     readonly invitationId: string;
-    readonly organizationId: string;
+    readonly organizationId?: string;
     readonly email: string;
     readonly rawToken: string;
     readonly encryption: KeyManagementPort;
@@ -30,20 +30,29 @@ export async function queueInvitationEmail(
   const path = `/invitation?kind=${input.kind}&token=${encodeURIComponent(input.rawToken)}`;
   const ciphertext = Buffer.concat([cipher.update(path, 'utf8'), cipher.final()]);
   await enqueueNotification(tx, {
-    eventType: input.kind === 'team' ? 'TEAM_INVITATION_CREATED' : 'CLIENT_INVITATION_CREATED',
+    eventType:
+      input.kind === 'team'
+        ? 'TEAM_INVITATION_CREATED'
+        : input.kind === 'sharing'
+          ? 'SHARING_INVITATION_CREATED'
+          : 'CLIENT_INVITATION_CREATED',
     channel: 'EMAIL',
     resourceId: input.invitationId,
     recipientEmail: input.email,
-    organizationId: input.organizationId,
+    ...(input.organizationId ? { organizationId: input.organizationId } : {}),
     payload: {
       subject:
         input.kind === 'team'
           ? 'Your VisaStack team invitation'
-          : 'Your VisaStack agency invitation',
+          : input.kind === 'sharing'
+            ? 'Your VisaStack sharing invitation'
+            : 'Your VisaStack agency invitation',
       summary:
         input.kind === 'team'
           ? 'You have been invited to join an agency team on VisaStack. Open the link, create an account or sign in using this email address, then review and accept your role. The link expires in 7 days. If you were not expecting it, ignore this email.'
-          : 'An agency has invited you to work together on VisaStack. Open the link, create an account or sign in, then review the agency and requested access. You choose your profile and confirm sharing before anything is connected. The link expires in 7 days. If you were not expecting it, ignore this email.',
+          : input.kind === 'sharing'
+            ? 'You have been invited to review shared information on VisaStack. Use this email address to create an account or sign in, review the purpose, permissions and expiry, then accept only if you agree. Opening the link grants no access. This link expires within 7 days. If you were not expecting it, ignore this email.'
+            : 'An agency has invited you to work together on VisaStack. Open the link, create an account or sign in, then review the agency and requested access. You choose your profile and confirm sharing before anything is connected. The link expires in 7 days. If you were not expecting it, ignore this email.',
       deepLinkPath: '/invitation',
       sealedInvitationLink: {
         keyVersion: dataKey.keyVersion,
@@ -58,7 +67,7 @@ export async function queueInvitationEmail(
 
 export async function revealInvitationLink(
   sealed: SealedInvitationLink,
-  kind: 'team' | 'client',
+  kind: 'team' | 'client' | 'sharing',
   invitationId: string,
   encryption: KeyManagementPort,
 ): Promise<string> {
@@ -73,7 +82,7 @@ export async function revealInvitationLink(
     decipher.update(Buffer.from(sealed.ciphertext, 'base64')),
     decipher.final(),
   ]).toString('utf8');
-  if (!/^\/invitation\?kind=(team|client)&token=[A-Za-z0-9_-]{43}$/.test(path)) {
+  if (!/^\/invitation\?kind=(team|client|sharing)&token=[A-Za-z0-9_-]{43}$/.test(path)) {
     throw new Error('Invalid invitation link');
   }
   return path;

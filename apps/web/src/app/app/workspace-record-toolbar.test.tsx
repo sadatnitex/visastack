@@ -69,8 +69,10 @@ describe('actual toolbar component behavior, without provider-backed acceptance 
   it('keeps personal controls separate from workspace navigation and closes outside it', () => {
     const menu = container.querySelector('nav[aria-label="Account menu"]');
     expect(menu?.querySelector(`a[href="/app/applicant/${person}"]`)).toBeNull();
-    expect(menu?.querySelector('a[href="/app/applicants"]')).toBeNull();
-    expect(menu?.querySelector('a[href="/app/agency"]')).toBeNull();
+    expect(menu?.querySelector('a[href="/app/applicants"]')?.textContent).toBe('Manage travellers');
+    expect(menu?.querySelector('a[href="/app/agency"]')?.textContent).toBe(
+      'Create or manage an agency',
+    );
     expect(menu?.querySelector('a[href="/app/shared"]')).toBeNull();
     expect(menu?.querySelector('a[href="/app/help"]')).not.toBeNull();
     const summary = container.querySelector('.record-account summary');

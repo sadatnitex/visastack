@@ -110,3 +110,33 @@ describe('grouped profile editor preserves real editing paths', () => {
     expect(records).toContain('existing-record');
   });
 });
+
+it('shows protected date states without trying to format them as dates', () => {
+  act(() =>
+    root.render(
+      <ProfileEditor
+        applicantId="synthetic-person"
+        values={{
+          date_of_birth: { factId: 'birth', value: '[protected]', status: 'DECLARED' },
+          passport_expiry: {
+            factId: 'expiry',
+            value: '[protected: could not decrypt]',
+            status: 'DECLARED',
+          },
+        }}
+        repeatingValues={{}}
+        assurance={new Map()}
+      />,
+    ),
+  );
+  expect(container.querySelector('#profile-panel-personal')?.textContent).toContain(
+    'Protected detail',
+  );
+  act(() => tab('Passports & IDs').click());
+  expect(container.querySelector('#profile-panel-identity')?.textContent).toContain(
+    'Could not read this detail',
+  );
+  expect(container.querySelector('.profile-read-summary')?.textContent).not.toContain(
+    'Invalid Date',
+  );
+});

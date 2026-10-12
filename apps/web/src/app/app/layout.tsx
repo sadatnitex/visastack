@@ -13,9 +13,7 @@ export const dynamic = 'force-dynamic';
  * Every destination retains its existing service and action authorization.
  */
 export default async function AppLayout({ children }: { readonly children: ReactNode }) {
-  const account = await withSession(({ db, accountId, email }) =>
-    loadWorkspaceChrome(db, { accountId, email }),
-  );
+  const account = await withSession(({ db, ...actor }) => loadWorkspaceChrome(db, actor));
 
   return (
     <WorkspaceShell

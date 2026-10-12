@@ -1,6 +1,6 @@
 'use client';
 
-import { useActionState } from 'react';
+import { useActionState, useEffect } from 'react';
 import { FormMessage, SubmitButton } from '../../../../../components/form-feedback';
 import { type ActionState, updateGrantAction } from './actions';
 
@@ -24,6 +24,9 @@ export function GrantOpButtons({
   }>;
 }) {
   const [state, formAction, pending] = useActionState(updateGrantAction, INITIAL);
+  useEffect(() => {
+    if (state.ok && state.refreshPath) window.location.assign(state.refreshPath);
+  }, [state]);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>

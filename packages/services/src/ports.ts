@@ -19,6 +19,8 @@
 
 /** A single authenticated identity, resolved by whichever identity provider is configured. */
 export interface ResolvedIdentity {
+  /** Display metadata only, never used for authorization or account binding. */
+  readonly displayName?: string;
   /** The provider's own immutable subject id (e.g. a WorkOS user id) — never a mutable email. */
   readonly providerId: string;
   readonly email: string;

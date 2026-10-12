@@ -7,6 +7,7 @@ import { formatDateOnly, formatTimestampDate } from '../../../../lib/format-date
 import { withSession } from '../../../../lib/session';
 import { CaseSearchForm, STAGE_LABELS } from './case-search-form';
 import {
+  loadApplicants,
   loadCases,
   loadEvidenceRequests,
   loadMembers,
@@ -70,13 +71,15 @@ export default async function AgencyDashboardPage({
     // The layout explains the "no role" case; there is nothing to load for it.
     if (!access?.member) return null;
     const members = await loadMembers(db, accountId, orgId, access);
-    const [requests, caseList, unassignedQueue] = await Promise.all([
+    const [requests, caseList, unassignedQueue, clients] = await Promise.all([
       loadEvidenceRequests(db, accountId, orgId, access),
       loadCases(db, accountId, orgId, members),
       loadUnassignedQueue(db, orgId, access),
+      loadApplicants(db, orgId, access),
     ]);
     return {
       admin: access.admin,
+      clients,
       members,
       requests,
       missions: caseList.cases,
@@ -175,7 +178,12 @@ export default async function AgencyDashboardPage({
       return weight(b) - weight(a);
     });
 
-  const stageCounts = new Map<string, number>();
+  const stageCounts = new Map<string, number>([
+    ['DRAFT', 0],
+    ['INTAKE', 0],
+    ['IN_REVIEW', 0],
+    ['SUBMISSION_READY', 0],
+  ]);
   for (const mission of data.missions) {
     stageCounts.set(mission.state, (stageCounts.get(mission.state) ?? 0) + 1);
   }
@@ -198,8 +206,47 @@ export default async function AgencyDashboardPage({
 
   return (
     <>
+      <section className="agency-reference-metrics" aria-label="Agency overview">
+        <Stat
+          label={data.admin ? 'Active clients' : 'Clients you can work with'}
+          value={
+            data.admin
+              ? data.clients.length
+              : new Set(data.missions.map((mission) => mission.applicantId)).size
+          }
+        />
+        <Stat
+          label="Open cases"
+          value={
+            data.missions.filter((mission) => !['CLOSED', 'CANCELLED'].includes(mission.state))
+              .length
+          }
+        />
+        <Stat
+          label="Pending requests"
+          value={
+            data.requests.filter((request) =>
+              ['OPEN', 'SUBMITTED', 'NEEDS_REPLACEMENT'].includes(request.status),
+            ).length
+          }
+        />
+        {data.admin ? (
+          <Stat
+            label="Team members"
+            value={data.members.filter((member) => member.active).length}
+          />
+        ) : (
+          <Stat label="Assigned cases" value={data.missions.length} />
+        )}
+      </section>
       {data.admin && setupSteps.some((step) => !step.done) ? (
-        <Checklist title="Set up your agency" items={setupSteps} />
+        <details className="agency-setup-disclosure">
+          <summary>
+            Finish agency setup: {setupSteps.filter((step) => step.done).length} of{' '}
+            {setupSteps.length} complete
+          </summary>
+          <Checklist title="Set up your agency" items={setupSteps} />
+        </details>
       ) : null}
 
       {!data.admin ? (
@@ -212,41 +259,12 @@ export default async function AgencyDashboardPage({
         </article>
       ) : null}
 
-      <section aria-labelledby="today-heading" className="stat-section">
-        <h2 className="section-label" id="today-heading">
-          What needs you first
-        </h2>
-        <div className="stat-strip">
-          <Stat label="Overdue tasks" value={summary.overdueTasks} tone="danger" />
-          {summary.needAssignment !== null ? (
-            <Stat
-              label="Cases with nobody assigned"
-              value={summary.needAssignment}
-              tone="warning"
-            />
-          ) : null}
-          {summary.openRequests !== null ? (
-            <Stat
-              label="Evidence requests waiting on the applicant"
-              value={summary.openRequests}
-              tone="warning"
-            />
-          ) : null}
-          <Stat label="Cases you can see" value={summary.cases} />
-        </div>
-        {needsYou === 0 ? (
-          <p className="stat-note">
-            Nothing is overdue, unassigned or waiting on an applicant right now.
-          </p>
-        ) : null}
-      </section>
-
       <div className="agency-working-area">
         <div className="agency-case-column">
           {data.missions.length > 0 ? (
             <section className="card pipeline-card" aria-labelledby="pipeline-heading">
               <h2 className="card-title" id="pipeline-heading">
-                Where your cases are
+                Case pipeline
               </h2>
               <p className="sr-only">{pipelineSummary}</p>
               <div className="agency-pipeline-stages">
@@ -270,7 +288,7 @@ export default async function AgencyDashboardPage({
           ) : (
             <section className="card pipeline-card" aria-labelledby="pipeline-heading">
               <h2 className="card-title" id="pipeline-heading">
-                Where your cases are
+                Case pipeline
               </h2>
               <EmptyState title="No case stages to show">
                 Actual stage counts appear when a case is shared and visible to you.
@@ -281,7 +299,7 @@ export default async function AgencyDashboardPage({
 
           <section className="card" aria-labelledby="inbox-heading">
             <h2 className="card-title" id="inbox-heading">
-              Case inbox
+              Cases and attention
             </h2>
             <p className="card-body" style={{ marginBottom: '1rem' }}>
               Cases that need action come first. Search covers only the cases you are already
@@ -520,6 +538,37 @@ export default async function AgencyDashboardPage({
           </article>
         </aside>
       </div>
+      <details className="agency-attention-disclosure">
+        <summary>Attention details: {needsYou} items need a response</summary>
+        <section aria-labelledby="today-heading" className="stat-section">
+          <h2 className="section-label" id="today-heading">
+            What needs you first
+          </h2>
+          <div className="stat-strip">
+            <Stat label="Overdue tasks" value={summary.overdueTasks} tone="danger" />
+            {summary.needAssignment !== null ? (
+              <Stat
+                label="Cases with nobody assigned"
+                value={summary.needAssignment}
+                tone="warning"
+              />
+            ) : null}
+            {summary.openRequests !== null ? (
+              <Stat
+                label="Evidence requests waiting on the applicant"
+                value={summary.openRequests}
+                tone="warning"
+              />
+            ) : null}
+            <Stat label="Cases you can see" value={summary.cases} />
+          </div>
+          {needsYou === 0 ? (
+            <p className="stat-note">
+              Nothing is overdue, unassigned or waiting on an applicant right now.
+            </p>
+          ) : null}
+        </section>
+      </details>
     </>
   );
 }

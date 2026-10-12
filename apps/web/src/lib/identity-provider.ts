@@ -29,7 +29,12 @@ export class WorkosIdentityPort implements IdentityPort {
 export interface NeonSessionReader {
   getSession(): Promise<{
     data: {
-      user?: { id: string; email?: string | null; emailVerified?: boolean | null } | null;
+      user?: {
+        name?: string | null;
+        id: string;
+        email?: string | null;
+        emailVerified?: boolean | null;
+      } | null;
     } | null;
   }>;
 }
@@ -51,6 +56,9 @@ export class NeonIdentityPort implements IdentityPort {
     const user = data?.user;
     if (!user?.email) return undefined;
     return {
+      ...(typeof user.name === 'string' && user.name.trim()
+        ? { displayName: user.name.trim() }
+        : {}),
       providerId: user.id,
       email: user.email,
       emailVerified: user.emailVerified === true,

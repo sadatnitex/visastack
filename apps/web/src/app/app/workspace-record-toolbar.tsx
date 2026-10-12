@@ -126,7 +126,7 @@ export function WorkspaceRecordToolbar({
       className="workspace-toolbar record-toolbar"
       data-search-open={mobileSearch ? 'true' : 'false'}
     >
-      <Link href="/" className="brand workspace-brand">
+      <Link href="/" className="brand workspace-brand" aria-label="VisaStack home">
         <span className="brand-mark" aria-hidden="true" />
         <span className="record-brand-label">VisaStack</span>
       </Link>
@@ -260,7 +260,12 @@ export function WorkspaceRecordToolbar({
         }}
       >
         <summary aria-label={`${accountName}, account menu`}>
-          <b>{accountName}</b>
+          <b className="account-name-desktop" dir="auto">
+            {accountName}
+          </b>
+          <b className="account-name-mobile" dir="auto">
+            {accountName.trim().split(/\s+/)[0] || 'Account'}
+          </b>
           <Icon name="chevronDown" size={14} />
           <span className="sr-only">Account menu</span>
         </summary>
@@ -271,7 +276,12 @@ export function WorkspaceRecordToolbar({
               account.current.open = false;
           }}
         >
+          <p className="record-menu-identity" dir="auto">
+            {accountName}
+          </p>
           <Link href="/app/account">Your account</Link>
+          <Link href="/app/applicants">Manage travellers</Link>
+          <Link href="/app/agency">Create or manage an agency</Link>
           <p className="record-menu-plan">{state?.personalPlan?.name ?? 'Plan information'}</p>
           <Link href="/app/privacy">Privacy & consent</Link>
           <p className="record-menu-heading">Support</p>

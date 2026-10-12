@@ -4,21 +4,31 @@ import { PERMISSION_ACTIONS, type PermissionAction } from '@visastack/core';
 import {
   STEP_UP_ACTIONS,
   createGrant,
+  createSharingInvitation,
   expandGrantScope,
   getAccountByEmail,
   pauseGrant,
   resumeGrant,
   revokeGrant,
+  revokeSharingInvitation,
 } from '@visastack/services';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
+import { after } from 'next/server';
+import { resolveBaseUrl } from '../../../../../lib/base-url';
+import { triggerNotificationWorker } from '../../../../../lib/jobs';
+import { createKeyManagementPort } from '../../../../../lib/providers';
 import { withSession } from '../../../../../lib/session';
 import { STEP_UP_NOT_CONFIGURED_MESSAGE, tryEstablishStepUp } from '../../../../../lib/step-up';
 
 /** Result surfaced back to the client for inline feedback. */
+const sharingInvitationFlag = 'PERSONAL_SHARING_INVITATIONS_ENABLED';
+
 export interface ActionState {
   readonly ok: boolean;
   readonly message: string;
+  readonly invitationUrl?: string;
+  readonly refreshPath?: string;
 }
 
 function isPermissionAction(value: string): value is PermissionAction {
@@ -60,13 +70,14 @@ export async function createGrantAction(
 
   const result = await withSession(async ({ db, accountId }) => {
     const recipient = await getAccountByEmail(db, recipientEmail);
-    if (!recipient) {
+    const invitationsEnabled = process.env[sharingInvitationFlag] === 'true';
+    if (!recipient && !invitationsEnabled) {
       return {
         ok: false,
         message: 'No VisaStack account found for that email. They must sign in once first.',
       } satisfies ActionState;
     }
-    if (recipient.id === accountId) {
+    if (recipient?.id === accountId) {
       return { ok: false, message: 'You cannot share with yourself.' } satisfies ActionState;
     }
     let stepUpSatisfied = false;
@@ -81,6 +92,31 @@ export async function createGrantAction(
       if (stepUp.kind === 'reauth_required') redirect(stepUp.reauthUrl);
       stepUpSatisfied = true;
     }
+    if (invitationsEnabled) {
+      const encryption = createKeyManagementPort();
+      if (!encryption)
+        return { ok: false, message: 'Invitations are temporarily unavailable. Try again later.' };
+      const invitation = await createSharingInvitation(db, {
+        actorAccountId: accountId,
+        applicantId,
+        email: recipientEmail,
+        actions,
+        purpose,
+        stepUpSatisfied,
+        encryption,
+        ...(categories.length ? { categories } : {}),
+        ...(documentIds.length ? { documentIds } : {}),
+        ...(expiryAt ? { expiryAt } : {}),
+      });
+      if (!invitation.ok) return { ok: false, message: invitation.error.message };
+      return {
+        ok: true,
+        message:
+          'Invitation created. Email queued. They can create an account or sign in, then review and accept. You can also share the link below.',
+        invitationUrl: `${resolveBaseUrl()}/invitation?kind=sharing&token=${invitation.value.rawToken}`,
+      };
+    }
+    if (!recipient) return { ok: false, message: 'Recipient account unavailable.' };
     const created = await createGrant(db, {
       actorAccountId: accountId,
       applicantId,
@@ -99,22 +135,21 @@ export async function createGrantAction(
     } satisfies ActionState;
   });
 
-  if (result.ok) revalidatePath(`/app/applicant/${applicantId}/sharing`);
+  if (result.ok) {
+    if (!result.invitationUrl) revalidatePath(`/app/applicant/${applicantId}/sharing`);
+    if (result.invitationUrl)
+      after(() =>
+        triggerNotificationWorker({ limit: 4, timeBudgetMs: 5000 }).then(() => undefined),
+      );
+  }
   return result;
 }
-
-const OP_LABELS: Record<string, string> = {
-  revoke: 'revoked',
-  pause: 'paused',
-  resume: 'resumed',
-};
 
 /** Revoke, pause, or resume a grant (applicant owner). */
 export async function updateGrantAction(
   _prev: ActionState,
   formData: FormData,
 ): Promise<ActionState> {
-  const applicantId = String(formData.get('applicantId') ?? '');
   const grantId = String(formData.get('grantId') ?? '');
   const op = String(formData.get('op') ?? '');
   if (grantId.length === 0) return { ok: false, message: 'Missing grant id.' };
@@ -128,8 +163,13 @@ export async function updateGrantAction(
   });
 
   if (!result.ok) return { ok: false, message: result.error.message };
-  revalidatePath(`/app/applicant/${applicantId}/sharing`);
-  return { ok: true, message: `Access ${OP_LABELS[op] ?? 'updated'}.` };
+  // A full page request refreshes the dynamic grant list after the result reaches
+  // the client. Never derive that destination from the hidden route identifier.
+  return {
+    ok: true,
+    message: 'Access updated.',
+    refreshPath: `/app/applicant/${result.value.applicantId}/sharing`,
+  };
 }
 
 /**
@@ -164,4 +204,18 @@ export async function expandGrantScopeAction(
 
   if (result.ok) revalidatePath(`/app/applicant/${applicantId}/sharing`);
   return result;
+}
+
+export async function revokeSharingInvitationAction(formData: FormData): Promise<void> {
+  if (process.env[sharingInvitationFlag] !== 'true') return;
+  const id = String(formData.get('invitationId') ?? '');
+  const result = await withSession(({ db, accountId }) =>
+    revokeSharingInvitation(db, accountId, id),
+  );
+  const applicantId = String(formData.get('applicantId') ?? '');
+  if (!result.ok)
+    redirect(
+      `/app/applicant/${encodeURIComponent(applicantId)}/sharing?error=${encodeURIComponent(result.error.message)}`,
+    );
+  revalidatePath(`/app/applicant/${applicantId}/sharing`);
 }

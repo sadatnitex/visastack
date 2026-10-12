@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useActionState, useId, useRef, useState } from 'react';
+import { useActionState, useEffect, useId, useRef, useState } from 'react';
 import {
   FormMessage,
   SubmitButton,
@@ -420,23 +420,57 @@ function PackSection({
 
   return (
     <>
-      <div className="field-list">
-        {visibleSingleFields.map((field) => {
-          const current = values[field.key];
-          return (
-            <FieldRow
-              key={field.key}
-              applicantId={applicantId}
-              field={field}
-              currentValue={current?.value ?? null}
-              status={current?.status ?? null}
-              updatedAt={current?.updatedAt}
-              effectiveFrom={current?.effectiveFrom}
-              assurance={current ? assurance.get(current.factId) : undefined}
-            />
-          );
-        })}
-      </div>
+      {visibleSingleFields.length > 0 ? (
+        <dl className="profile-read-summary">
+          {visibleSingleFields.map((field) => {
+            const current = values[field.key];
+            const value = current?.value;
+            return (
+              <div key={field.key}>
+                <dt>{field.label}</dt>
+                <dd>
+                  {value
+                    ? value === '[protected: could not decrypt]'
+                      ? 'Could not read this detail'
+                      : value === '[protected]'
+                        ? 'Protected detail'
+                        : field.type === 'date'
+                          ? formatDateOnly(value)
+                          : (field.options?.find((option) => option === value) ?? value)
+                    : current?.status && field.sensitivity !== 'STANDARD'
+                      ? 'Protected detail'
+                      : 'Not recorded'}
+                </dd>
+                {current?.status === 'CONFLICTED' ? (
+                  <span className="badge badge-warning">Needs review</span>
+                ) : null}
+              </div>
+            );
+          })}
+        </dl>
+      ) : null}
+      {visibleSingleFields.length > 0 ? (
+        <details className="profile-edit-section" open={search.trim() ? true : undefined}>
+          <summary>Edit these details</summary>
+          <div className="field-list">
+            {visibleSingleFields.map((field) => {
+              const current = values[field.key];
+              return (
+                <FieldRow
+                  key={field.key}
+                  applicantId={applicantId}
+                  field={field}
+                  currentValue={current?.value ?? null}
+                  status={current?.status ?? null}
+                  updatedAt={current?.updatedAt}
+                  effectiveFrom={current?.effectiveFrom}
+                  assurance={current ? assurance.get(current.factId) : undefined}
+                />
+              );
+            })}
+          </div>
+        </details>
+      ) : null}
 
       {[...groups.entries()]
         .filter(([, fields]) => fields.some((f) => matchesSearch(f.label, search)))
@@ -480,6 +514,35 @@ export function ProfileEditor({
   repeatingValues,
   assurance,
 }: ProfileEditorProps) {
+  const editor = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const openEditor = () => {
+      const details = editor.current?.querySelector<HTMLDetailsElement>(
+        '[id^="profile-panel-"]:not([hidden]) .profile-edit-section',
+      );
+      if (!details) return;
+      let parent: HTMLElement | null = details;
+      while (parent && parent !== editor.current) {
+        if (parent instanceof HTMLDetailsElement) parent.open = true;
+        parent = parent.parentElement;
+      }
+      details.querySelector<HTMLElement>('input:not([type="hidden"]), select')?.focus();
+    };
+    const hash = () => {
+      if (window.location.hash === '#profile-editor') openEditor();
+    };
+    const click = (event: MouseEvent) => {
+      if (event.target instanceof Element && event.target.closest('a[href="#profile-editor"]'))
+        openEditor();
+    };
+    window.addEventListener('hashchange', hash);
+    document.addEventListener('click', click);
+    hash();
+    return () => {
+      window.removeEventListener('hashchange', hash);
+      document.removeEventListener('click', click);
+    };
+  }, []);
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState<ProfileSection>('personal');
   const searching = search.trim() !== '';
@@ -494,7 +557,7 @@ export function ProfileEditor({
     setSearch('');
   }
   return (
-    <div id="profile-editor" tabIndex={-1}>
+    <div ref={editor} id="profile-editor" tabIndex={-1}>
       <div
         className="profile-section-tabs"
         role={searching ? undefined : 'tablist'}

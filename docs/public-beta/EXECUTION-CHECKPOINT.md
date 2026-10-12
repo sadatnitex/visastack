@@ -74,3 +74,12 @@ Earlier implementation snapshots and provider-specific instructions above are re
 Neon Auth remains authoritative. Reference-based navigation and operational layouts are implementation work, not completed authenticated acceptance. PR 198 is on the exact production aliases with current navigation CSS and ready health; its source checks passed. GitHub's main/deploy jobs failed before starting due to account payment/spending limits. After the owner reported a fix, the exact runs were retried. Invitation publication remains gated on successful completion.
 
 The separate Free staging database has its reviewed schema and pgcrypto installed, with no accounts or production-data clone. Actual synthetic Auth roles, app/storage isolation and ten-screen acceptance are not established. The team/client invitation candidate adds encrypted email outbox payloads, private copy/native sharing and preserved signup/confirmation return paths. Existing member addition and client token-holder policies remain explicit; personal sharing still needs an account. Essential current guidance is in README.md, current-platform.md, invitation-journeys.md, DEPLOYMENT-ACTIONS.md and RELEASE-ACCEPTANCE-CHECKPOINT.md.
+
+
+## Current continuation: invitations, document reading and actual route evidence: 2026-10-12
+
+See [the current CF acceptance checkpoint](../uiux/CF-04-09-ACCEPTANCE-2026-10-12.md) for implementation, actual evidence, the first failed diagnostic run and remaining limits. Personal sharing is implemented behind a default-disabled flag and requires reviewed migration 0085 before production activation. The private scanner worker has a free, bounded OCR reader in this candidate. Required checks and actual authenticated acceptance remain separate; sensitive intake is not enabled.
+
+### CF sharing and reference resume, 2026-10-12
+
+The isolated actual personal-sharing journey now passes, including recipient binding, single use, pause/resume and revocation. Compact menu/navigation and profile edit controls also pass real mobile checks. The seven supply-chain checks pass without skips after correcting the shell-free OCR distinction. The full PDF comparison and remaining acceptance limits are recorded in the [CF-04 through CF-09 checkpoint](../uiux/CF-04-09-ACCEPTANCE-2026-10-12.md). Production email invitations are still gated by explicit approval and verification of migration 0085; sensitive-data intake remains disabled.

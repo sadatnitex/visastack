@@ -26,6 +26,7 @@ import {
   rejectDocumentTypeProposal,
   rejectProposal,
   renderOcrSourceImage,
+  requestDocumentReExtraction,
   reserveUpload,
   runClassification,
   runExtraction,
@@ -774,4 +775,22 @@ export async function decideInconsistencyFlagAction(
 
   if (result.ok) revalidatePath(`/app/applicant/${applicantId}`, 'layout');
   return result;
+}
+
+/** Existing scan and normalization approval are prerequisites, never bypassed. */
+export async function requestDocumentReadingAction(formData: FormData): Promise<void> {
+  const applicantId = String(formData.get('applicantId') ?? '');
+  const documentId = String(formData.get('documentId') ?? '');
+  const result = await withSession(({ db, accountId }) =>
+    requestDocumentReExtraction(db, {
+      actorAccountId: accountId,
+      documentId,
+      expectedVersionId: String(formData.get('versionId') ?? ''),
+    }),
+  );
+  const base = `/app/applicant/${encodeURIComponent(applicantId)}/documents?document=${encodeURIComponent(documentId)}`;
+  if (!result.ok) redirect(`${base}&reading_error=${encodeURIComponent(result.error.message)}`);
+  revalidatePath(`/app/applicant/${applicantId}/documents`);
+  after(() => triggerIntakeWorker());
+  redirect(`${base}&reading_queued=true`);
 }

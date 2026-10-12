@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   loadMembers: vi.fn(),
   loadEvidenceRequests: vi.fn(),
   loadCases: vi.fn(),
+  loadApplicants: vi.fn(),
   loadUnassignedQueue: vi.fn(),
 }));
 
@@ -68,6 +69,7 @@ function asAdmin() {
     { id: 'r2', applicantId: 'ap1', status: 'NEEDS_REPLACEMENT' },
     { id: 'r3', applicantId: 'ap2', status: 'ACCEPTED' },
   ]);
+  mocks.loadApplicants.mockResolvedValue([{ id: 'ap1' }, { id: 'ap2' }]);
   mocks.loadCases.mockResolvedValue({ admin: true, cases: [inGoodShape, needsAttention] });
   mocks.loadUnassignedQueue.mockResolvedValue([
     { missionId: 'm1', title: 'UK Standard Visitor', applicantName: 'Rahim Uddin' },
@@ -176,6 +178,7 @@ describe('agency Dashboard', () => {
   });
 
   it('explains an empty inbox differently for an administrator and a member', async () => {
+    mocks.loadApplicants.mockResolvedValue([{ id: 'ap1' }, { id: 'ap2' }]);
     mocks.loadCases.mockResolvedValue({ admin: true, cases: [] });
     expect(textOf(await renderServer(Page(pageProps())))).toContain(
       'No cases are reachable yet - an applicant must grant this organization access',

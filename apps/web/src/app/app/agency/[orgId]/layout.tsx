@@ -1,7 +1,7 @@
 import { getOrganizationBrandingForDisplay } from '@visastack/services';
 import { notFound } from 'next/navigation';
 import type { ReactNode } from 'react';
-import { PageHeader, StatusBadge, type Tone } from '../../../../components/ui';
+import { StatusBadge, type Tone } from '../../../../components/ui';
 import {
   capabilityUnavailableMessage,
   getPlatformCapabilities,
@@ -11,6 +11,7 @@ import { createStorage } from '../../../../lib/storage';
 import { loadOrgAccess } from './console-data';
 import { ORG_STATUS } from './console-format';
 import { OrgBrandingHeader } from './org-branding-header';
+import { AgencyWorkspaceHeading } from './workspace-heading';
 
 export const dynamic = 'force-dynamic';
 
@@ -45,13 +46,12 @@ export default async function AgencyConsoleLayout({
 
   return (
     <section className="section container">
-      <PageHeader
-        back={{ href: '/app/agency', label: 'Organizations' }}
+      <AgencyWorkspaceHeading
+        organizationId={orgId}
+        name={data.org.name}
+        admin={data.member && data.admin}
         lead={<OrgBrandingHeader branding={data.branding} />}
-        eyebrow="Organization"
-        title={data.org.name}
-        description="Agency workspace"
-        actions={<StatusBadge tone={badgeTone}>{badge.label}</StatusBadge>}
+        status={<StatusBadge tone={badgeTone}>{badge.label}</StatusBadge>}
       />
 
       {data.member ? (

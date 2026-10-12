@@ -81,14 +81,12 @@ function WorkspaceSelector({
             {person.name}
           </Link>
         ))}
-        <Link href="/app/applicants">Manage travellers</Link>
         {access.agencies.length ? <p>Agencies</p> : null}
         {access.agencies.map((agency) => (
           <Link key={agency.id} href={`/app/agency/${agency.id}`}>
             {agency.name}
           </Link>
         ))}
-        <Link href="/app/agency">Manage or create an agency</Link>
         {access.platform ? <Link href="/app/admin">Platform operations</Link> : null}
       </nav>
     </details>

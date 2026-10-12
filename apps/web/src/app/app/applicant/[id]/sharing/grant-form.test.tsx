@@ -2,6 +2,7 @@
 import { act } from 'react';
 import { type Root, createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
 vi.mock('./actions', () => ({
   createGrantAction: async () => ({ ok: true, message: 'Awaiting acceptance' }),
 }));

@@ -134,10 +134,13 @@ const GRANT_DEFAULT_DURATION_DAYS = 30;
  * from a genuine WorkOS reauthentication, see `apps/web/src/lib/step-up.ts`).
  * An ordinary grant (view/preview/comment-only) needs no step-up.
  */
-export async function createGrant(
+export async function prepareGrantScope(
   db: Db,
   input: CreateGrantInput,
-): Promise<Result<Grant, ServiceError>> {
+  recipientRequired = false,
+): Promise<
+  Result<{ readonly expiryAt: Date; readonly documentScopeSnapshot: string[] | null }, ServiceError>
+> {
   if (!(await ownsApplicant(db, input.actorAccountId, input.applicantId))) {
     return err(serviceError('forbidden', 'only the applicant owner can grant access'));
   }
@@ -149,9 +152,8 @@ export async function createGrant(
   if (input.recipientAccountId && input.recipientOrganizationId) {
     return err(serviceError('invalid', 'a grant must name exactly one recipient type, not both'));
   }
-  if (!input.recipientAccountId && !input.recipientOrganizationId) {
+  if (recipientRequired && !input.recipientAccountId && !input.recipientOrganizationId)
     return err(serviceError('invalid', 'a grant must name a recipient'));
-  }
   if (input.actions.length === 0) {
     return err(serviceError('invalid', 'a grant needs at least one action'));
   }
@@ -175,6 +177,8 @@ export async function createGrant(
       return err(serviceError('invalid', `unknown category: ${invalidCategory}`));
   }
   const now = Date.now();
+  if (input.expiryAt && !Number.isFinite(input.expiryAt.getTime()))
+    return err(serviceError('invalid', 'expiry must be a valid date'));
   if (input.expiryAt) {
     if (input.expiryAt.getTime() <= now) {
       return err(serviceError('invalid', 'expiry must be in the future'));
@@ -252,6 +256,16 @@ export async function createGrant(
     ? await documentIdsMatchingCategories(db, input.applicantId, input.categories)
     : null;
 
+  return ok({ expiryAt: resolvedExpiryAt, documentScopeSnapshot });
+}
+
+export async function createGrant(
+  db: Db,
+  input: CreateGrantInput,
+): Promise<Result<Grant, ServiceError>> {
+  const prepared = await prepareGrantScope(db, input, true);
+  if (!prepared.ok) return prepared;
+  const { expiryAt: resolvedExpiryAt, documentScopeSnapshot } = prepared.value;
   return db.transaction(async (tx) => {
     const grant = required(
       first(

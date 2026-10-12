@@ -37,6 +37,7 @@ vi.mock('../../../../../lib/session', () => ({
 vi.mock('../download-actions', () => ({ downloadOriginalAction: async () => undefined }));
 vi.mock('../actions', () => ({
   previewDocumentAction: async () => undefined,
+  requestDocumentReadingAction: vi.fn(),
   setDocumentDateAction: async () => undefined,
 }));
 vi.mock('../ai-review', () => ({

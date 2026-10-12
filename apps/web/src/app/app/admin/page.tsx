@@ -188,8 +188,8 @@ export default async function AdminOperationsPage() {
   return (
     <section className="section container platform-operations">
       <PageHeader
-        eyebrow="Platform"
-        title="Operations"
+        eyebrow="VisaStack operations"
+        title="Platform overview"
         description="Platform health, readiness, capacity and pilot measurement."
         actions={
           data.admin ? (
@@ -244,70 +244,6 @@ export default async function AdminOperationsPage() {
               </article>
             ))}
           </div>
-          <div className="admin-operational-summary">
-            <a href="#admin-signals" className="card admin-summary-metric">
-              <span>Signals needing attention</span>
-              <strong>
-                {data.failedSections.includes('operational signals')
-                  ? 'Unavailable'
-                  : data.signals.filter(
-                      (signal) => signal.status === 'warning' || signal.status === 'critical',
-                    ).length}
-              </strong>
-              <small>Warnings and critical signals, not unmeasured checks</small>
-            </a>
-            <a href="#admin-processing" className="card admin-summary-metric">
-              <span>Failed intake jobs</span>
-              <strong>
-                {data.failedSections.includes('failed jobs')
-                  ? 'Unavailable'
-                  : data.failedJobs.length}
-              </strong>
-              <small>Recorded failures available for review</small>
-            </a>
-            <a href="#admin-platform-readiness" className="card admin-summary-metric">
-              <span>Platform readiness</span>
-              <strong>
-                {data.readiness
-                  ? data.readiness.ready
-                    ? 'Ready'
-                    : 'Needs attention'
-                  : 'Unavailable'}
-              </strong>
-              <small>Deployment checks, separate from full beta acceptance</small>
-            </a>
-          </div>
-          <nav
-            aria-label="On this page"
-            className="pill-list admin-section-navigation"
-            style={{ marginBottom: '1.5rem' }}
-          >
-            <a href="/status" className="pill">
-              Public status page
-            </a>
-            <a href="#admin-signals" className="pill">
-              Signals
-            </a>
-            <a href="#admin-platform-readiness" className="pill">
-              Readiness detail
-            </a>
-            <a href="#admin-analytics" className="pill">
-              Learning areas
-            </a>
-            <a href="#admin-readiness" className="pill">
-              Commercial readiness
-            </a>
-            <a href="#admin-processing" className="pill">
-              Processing failures
-            </a>
-            <a href="#admin-provider-operations" className="pill">
-              Providers and recovery
-            </a>
-            <a href="#admin-usage" className="pill">
-              Capacity
-            </a>
-          </nav>
-
           <div className="admin-reference-working-area">
             <div className="admin-reference-main">
               <article className="card admin-activity-chart">
@@ -442,67 +378,13 @@ export default async function AdminOperationsPage() {
             </div>
             <aside className="admin-reference-rail" aria-label="Operational health and capacity">
               {' '}
-              <article className="card" id="admin-signals">
-                <p className="card-kicker">Operations</p>
-                <h2 className="card-title">Operational signals</h2>
-                <p className="card-body" style={{ marginBottom: '1rem' }}>
-                  What an operator needs to tell whether the platform is healthy. Counts, ages and
-                  ratios only: nothing here names a person or a document. The thresholds are pilot
-                  defaults that have not been calibrated against real traffic, and they only choose
-                  a colour. "Not measured" means the application cannot see it from inside; the
-                  explanation says where to look.
-                </p>
-                {data.signals.length === 0 ? (
-                  <p className="card-body">
-                    The signals could not be loaded; see the notice above.
-                  </p>
-                ) : (
-                  <div className="rows">
-                    {data.signals.map((signal) => (
-                      <div
-                        className="row"
-                        key={signal.key}
-                        style={{ flexDirection: 'column', alignItems: 'stretch', gap: '0.35rem' }}
-                      >
-                        <div
-                          style={{
-                            display: 'flex',
-                            justifyContent: 'space-between',
-                            alignItems: 'center',
-                            gap: '0.75rem',
-                          }}
-                        >
-                          <span className="row-key">{signal.label}</span>
-                          <span className={`badge ${SIGNAL_STATUS_TONE[signal.status]}`}>
-                            {SIGNAL_STATUS_LABEL[signal.status]}
-                          </span>
-                        </div>
-                        <span className="muted" style={{ fontSize: '0.85rem' }}>
-                          {signal.reading}
-                        </span>
-                        <details>
-                          <summary
-                            className="muted"
-                            style={{ fontSize: '0.8rem', cursor: 'pointer' }}
-                          >
-                            What this means
-                          </summary>
-                          <p className="card-body" style={{ marginTop: '0.4rem' }}>
-                            {signal.detail}
-                          </p>
-                        </details>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </article>
               <article
                 className="card"
                 style={{ marginTop: '1.5rem' }}
                 id="admin-provider-operations"
               >
                 <p className="card-kicker">Providers and recovery</p>
-                <h2 className="card-title">Usage, costs and evidence</h2>
+                <h2 className="card-title">Providers</h2>
                 <p className="card-body">
                   Recorded usage, configured services and unverified readings are shown separately.
                   Check provider account limits before changing plans. Founding access stays
@@ -525,8 +407,11 @@ export default async function AdminOperationsPage() {
                       </dt>
                       <dd style={{ margin: 0, flex: '1 1 18rem', minWidth: 0 }}>
                         <strong>{row.reading}</strong>
-                        <p className="muted">{row.source}</p>
-                        <p>{row.detail}</p>
+                        <details>
+                          <summary>Source and explanation</summary>
+                          <p className="muted">{row.source}</p>
+                          <p>{row.detail}</p>
+                        </details>
                       </dd>
                     </div>
                   ))}
@@ -602,8 +487,131 @@ export default async function AdminOperationsPage() {
                   );
                 })()}
               </article>
+              <details className="admin-signals-disclosure">
+                <summary>All operational signals</summary>
+                <article className="card" id="admin-signals">
+                  <p className="card-kicker">Operations</p>
+                  <h2 className="card-title">Operational signals</h2>
+                  <p className="card-body" style={{ marginBottom: '1rem' }}>
+                    What an operator needs to tell whether the platform is healthy. Counts, ages and
+                    ratios only: nothing here names a person or a document. The thresholds are pilot
+                    defaults that have not been calibrated against real traffic, and they only
+                    choose a colour. "Not measured" means the application cannot see it from inside;
+                    the explanation says where to look.
+                  </p>
+                  {data.signals.length === 0 ? (
+                    <p className="card-body">
+                      The signals could not be loaded; see the notice above.
+                    </p>
+                  ) : (
+                    <div className="rows">
+                      {data.signals.map((signal) => (
+                        <div
+                          className="row"
+                          key={signal.key}
+                          style={{ flexDirection: 'column', alignItems: 'stretch', gap: '0.35rem' }}
+                        >
+                          <div
+                            style={{
+                              display: 'flex',
+                              justifyContent: 'space-between',
+                              alignItems: 'center',
+                              gap: '0.75rem',
+                            }}
+                          >
+                            <span className="row-key">{signal.label}</span>
+                            <span className={`badge ${SIGNAL_STATUS_TONE[signal.status]}`}>
+                              {SIGNAL_STATUS_LABEL[signal.status]}
+                            </span>
+                          </div>
+                          <span className="muted" style={{ fontSize: '0.85rem' }}>
+                            {signal.reading}
+                          </span>
+                          <details>
+                            <summary
+                              className="muted"
+                              style={{ fontSize: '0.8rem', cursor: 'pointer' }}
+                            >
+                              What this means
+                            </summary>
+                            <p className="card-body" style={{ marginTop: '0.4rem' }}>
+                              {signal.detail}
+                            </p>
+                          </details>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </article>
+              </details>
             </aside>
           </div>
+          <details className="admin-overview-controls">
+            <summary>More operational details and tools</summary>
+            <div className="admin-operational-summary">
+              <a href="#admin-signals" className="card admin-summary-metric">
+                <span>Signals needing attention</span>
+                <strong>
+                  {data.failedSections.includes('operational signals')
+                    ? 'Unavailable'
+                    : data.signals.filter(
+                        (signal) => signal.status === 'warning' || signal.status === 'critical',
+                      ).length}
+                </strong>
+                <small>Warnings and critical signals, not unmeasured checks</small>
+              </a>
+              <a href="#admin-processing" className="card admin-summary-metric">
+                <span>Failed intake jobs</span>
+                <strong>
+                  {data.failedSections.includes('failed jobs')
+                    ? 'Unavailable'
+                    : data.failedJobs.length}
+                </strong>
+                <small>Recorded failures available for review</small>
+              </a>
+              <a href="#admin-platform-readiness" className="card admin-summary-metric">
+                <span>Platform readiness</span>
+                <strong>
+                  {data.readiness
+                    ? data.readiness.ready
+                      ? 'Ready'
+                      : 'Needs attention'
+                    : 'Unavailable'}
+                </strong>
+                <small>Deployment checks, separate from full beta acceptance</small>
+              </a>
+            </div>
+            <nav
+              aria-label="On this page"
+              className="pill-list admin-section-navigation"
+              style={{ marginBottom: '1.5rem' }}
+            >
+              <a href="/status" className="pill">
+                Public status page
+              </a>
+              <a href="#admin-signals" className="pill">
+                Signals
+              </a>
+              <a href="#admin-platform-readiness" className="pill">
+                Readiness detail
+              </a>
+              <a href="#admin-analytics" className="pill">
+                Learning areas
+              </a>
+              <a href="#admin-readiness" className="pill">
+                Commercial readiness
+              </a>
+              <a href="#admin-processing" className="pill">
+                Processing failures
+              </a>
+              <a href="#admin-provider-operations" className="pill">
+                Providers and recovery
+              </a>
+              <a href="#admin-usage" className="pill">
+                Capacity
+              </a>
+            </nav>
+          </details>
           <div className="admin-specialized-details">
             {' '}
             <article

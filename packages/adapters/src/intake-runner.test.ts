@@ -31,7 +31,7 @@ vi.mock('./r2-storage', () => ({
   },
 }));
 vi.mock('./vercel-blob', () => ({ VercelPrivateBlobStorage: class {} }));
-vi.mock('./text-extraction', () => ({ DeterministicTextExtractor: class {} }));
+vi.mock('./ocr-extraction', () => ({ IsolatedOcrExtractor: class {} }));
 vi.mock('./content-limits', () => ({ BuiltinContentLimitsChecker: class {} }));
 
 beforeEach(() => {
@@ -39,6 +39,7 @@ beforeEach(() => {
   vi.stubEnv('GITHUB_REF', 'refs/heads/main');
   vi.stubEnv('INTAKE_DATABASE_URL', 'postgresql://fixture:fixture@ep-fixture.neon.tech/neondb'); // supply-chain-allow: nonexistent fixture hostname; DB factory mocked, no network.
   vi.stubEnv('CLAMAV_ENGINE_VERSION', 'ClamAV synthetic-test');
+  vi.stubEnv('OCR_ENGINE_VERSION', 'tesseract 5.synthetic');
   vi.stubEnv('INTAKE_STORAGE_PROVIDER', '');
   for (const name of [
     'BLOB_SIGNING_SECRET',
@@ -73,6 +74,7 @@ describe('isolated intake worker', () => {
     vi.stubEnv('CLAMAV_ENGINE_VERSION', 'unknown');
     await expect(runIsolatedIntake()).rejects.toThrow('not verified');
     vi.stubEnv('CLAMAV_ENGINE_VERSION', 'ClamAV synthetic-test');
+    vi.stubEnv('OCR_ENGINE_VERSION', 'tesseract 5.synthetic');
     mocks.fresh.mockResolvedValue({ fresh: false });
     await expect(runIsolatedIntake()).rejects.toThrow('stale');
     expect(mocks.pooled).not.toHaveBeenCalled();

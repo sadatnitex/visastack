@@ -15,7 +15,11 @@ export default async function InvitationPage({
   readonly searchParams: Promise<{ readonly kind?: string; readonly token?: string }>;
 }) {
   const { kind, token } = await searchParams;
-  if (!['team', 'client'].includes(kind ?? '') || !token || !/^[A-Za-z0-9_-]{43}$/.test(token)) {
+  if (
+    !['team', 'client', 'sharing'].includes(kind ?? '') ||
+    !token ||
+    !/^[A-Za-z0-9_-]{43}$/.test(token)
+  ) {
     return (
       <section className="section container">
         <h1 className="section-title">Incomplete invitation link</h1>
@@ -23,13 +27,22 @@ export default async function InvitationPage({
       </section>
     );
   }
-  const path = kind === 'team' ? '/app/invitations/accept' : '/app/client-invitations/accept';
+  const path =
+    kind === 'team'
+      ? '/app/invitations/accept'
+      : kind === 'sharing'
+        ? '/app/sharing-invitations/accept'
+        : '/app/client-invitations/accept';
   const next = encodeURIComponent(`${path}?token=${token}`);
   return (
     <section className="section container">
       <span className="eyebrow">VisaStack invitation</span>
       <h1 className="section-title">
-        {kind === 'team' ? 'Join an agency team' : 'Work with an agency'}
+        {kind === 'team'
+          ? 'Join an agency team'
+          : kind === 'sharing'
+            ? 'Review shared access'
+            : 'Work with an agency'}
       </h1>
       <article className="card">
         <p className="card-body">
@@ -39,7 +52,9 @@ export default async function InvitationPage({
         <p className="card-body">
           {kind === 'team'
             ? 'Use the email address that received the invitation. You will see the agency and your role before joining.'
-            : 'You will see the agency and requested access, choose your own profile and confirm sharing before connecting.'}
+            : kind === 'sharing'
+              ? 'Use the email address that received this invitation. Review the purpose, permissions and expiry before accepting. No access is active until you agree.'
+              : 'You will see the agency and requested access, choose your own profile and confirm sharing before connecting.'}
         </p>
         <div className="action-row">
           <Link className="btn btn-primary" href={`/auth/sign-up?next=${next}`}>
@@ -53,6 +68,10 @@ export default async function InvitationPage({
           Already signed in?{' '}
           {kind === 'team' ? (
             <Link href={`/app/invitations/accept?token=${token}`}>Review your invitation</Link>
+          ) : kind === 'sharing' ? (
+            <Link href={`/app/sharing-invitations/accept?token=${token}`}>
+              Review your invitation
+            </Link>
           ) : (
             <Link href={`/app/client-invitations/accept?token=${token}`}>
               Review your invitation
