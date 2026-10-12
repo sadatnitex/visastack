@@ -413,3 +413,61 @@ describe('reauthAction', () => {
     );
   });
 });
+
+describe('invitation account handoff', () => {
+  function signup(values: Record<string, string> = {}): FormData {
+    return form({
+      email: 'a@b.co',
+      password: 'longenough',
+      acceptNotices: 'yes',
+      signupForm: 'signed',
+      ...values,
+    });
+  }
+  const next = '/app/invitations/accept?token=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+  it('returns signup and confirmation to the exact invitation without accepting it', async () => {
+    signUpEmail.mockResolvedValue({ error: null });
+    sendVerificationEmail.mockResolvedValue({ error: null });
+    const { signUpAction, resendConfirmationAction } = await import('./actions');
+    const target = `&next=${encodeURIComponent(next)}`;
+    expect(await destination(() => signUpAction(signup({ next })))).toBe(
+      `/auth/verify-email?s=1${target}`,
+    );
+    expect(signUpEmail).toHaveBeenCalledWith(
+      expect.objectContaining({
+        callbackURL: `https://app.example.test/auth/sign-in?n=confirmed${target}`,
+      }),
+    );
+    expect(await destination(() => resendConfirmationAction(form({ email: 'a@b.co', next })))).toBe(
+      `/auth/verify-email?s=1${target}`,
+    );
+    expect(sendVerificationEmail).toHaveBeenCalledWith(
+      expect.objectContaining({
+        callbackURL: `https://app.example.test/auth/sign-in?n=confirmed${target}`,
+      }),
+    );
+  });
+  it('keeps invitation context on existing-account and unconfirmed-email outcomes', async () => {
+    const { signUpAction, signInAction } = await import('./actions');
+    signupAccountExists.mockResolvedValue(true);
+    expect(await destination(() => signUpAction(signup({ next })))).toBe(
+      `/auth/sign-up?e=exists&next=${encodeURIComponent(next)}`,
+    );
+    signInEmail.mockResolvedValue({ error: { code: 'EMAIL_NOT_VERIFIED' } });
+    expect(
+      await destination(() =>
+        signInAction(form({ email: 'a@b.co', password: 'longenough', next })),
+      ),
+    ).toBe(`/auth/verify-email?next=${encodeURIComponent(next)}`);
+  });
+  it('refuses an external signup return address', async () => {
+    signUpEmail.mockResolvedValue({ error: null });
+    const { signUpAction } = await import('./actions');
+    expect(await destination(() => signUpAction(signup({ next: '//evil.example' })))).toBe(
+      '/auth/verify-email?s=1',
+    );
+    expect(signUpEmail).toHaveBeenCalledWith(
+      expect.objectContaining({ callbackURL: 'https://app.example.test/auth/sign-in?n=confirmed' }),
+    );
+  });
+});

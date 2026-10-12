@@ -1,9 +1,14 @@
 import { previewOrganizationInvitation } from '@visastack/services';
 import type { Metadata } from 'next';
+import Link from 'next/link';
 import { withSession } from '../../../../lib/session';
 import { AcceptInvitationForm } from './accept-form';
 
-export const metadata: Metadata = { title: 'Team invitation' };
+export const metadata: Metadata = {
+  title: 'Team invitation',
+  robots: { index: false, follow: false },
+  referrer: 'no-referrer',
+};
 
 export const dynamic = 'force-dynamic';
 
@@ -62,7 +67,13 @@ export default async function AcceptInvitationPage({
               <p className="field-msg field-msg-err">
                 This invitation was sent to {preview.value.invitedEmail}, but you&apos;re signed in
                 with a different email address. Sign in as {preview.value.invitedEmail} to accept
-                it.
+                it.{' '}
+                <Link
+                  href={`/auth/sign-in?next=${encodeURIComponent(`/app/invitations/accept?token=${token}`)}`}
+                >
+                  Sign in with the invited email
+                </Link>
+                .
               </p>
             )}
           </>

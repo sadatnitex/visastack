@@ -119,3 +119,8 @@ Neon acceptance credential policy is reviewed explicitly: manual trusted main co
 PR 197 merged at e9e2645909e077e94f08eda6099467bba1189699 and deployed as dpl_3AxFsougzPaxaZeBy9TKG3Btz15z. All required checks passed on source and merged commits, deployment smoke checks passed, canonical/fallback aliases and readiness were verified, and twelve actual public captures had no horizontal overflow. Authenticated acceptance remains incomplete.
 
 The next navigation refinement separates personal account controls from workspace destinations, moves mobile workspace switching into More, uses name plus downward chevron without initials, and gives More a contrasting solid surface and border. No agency permission or destructive lifecycle policy is changed. See NAVIGATION-AND-LIFECYCLE-REVIEW.md for current agency/CRUD coverage and explicitly proposed policy decisions. The independent Free staging resource is provisioned, and its Auth endpoint responds after network publication; application schema, synthetic roles, storage/process isolation and authenticated acceptance are still pending.
+
+
+## Invitation handoff continuation, 2026-10-12
+
+The invitation candidate adds a public explanation, private copy/share controls and preserved signup/confirmation return paths while retaining protected team/client acceptance, role checks and client consent/profile selection. It adds no theme or reference-composition replacement. Source and local browser checks remain distinct from actual authenticated Neon acceptance. CF-04 through CF-09 are not marked accepted by this change. See docs/operations/invitation-journeys.md for scope and current policy.

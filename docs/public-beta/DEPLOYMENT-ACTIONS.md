@@ -91,3 +91,17 @@ Checked live: merge 535c91977126a80a47449fc6aa1d17a86b6cfac2, production deploym
 Not live yet: the combined PR 194 source-review, founder-control and current-guidance update. Not yet checked: actual notification delivery, signed provider receipts, scheduler timing/backlog and account billing/headroom. Needs owner/provider evidence: application-mail configuration and Worker management access before their own acceptance.
 
 Done: PR-00 and the verified notification hardening above. In progress: PR-01 through PR-08; PR-06 still needs real scheduling/delivery acceptance. Remaining: PR-09 isolated authenticated journeys, provider/legal/security/performance/full recovery evidence and final classification. Controlled pilot remains the operating scope; sensitive applicant intake stays disabled.
+
+
+## Navigation deployment and invitation continuation, 2026-10-12
+
+| Area | What changed | What users see | Who notices |
+| --- | --- | --- | --- |
+| PR 198 navigation | Account controls separate from workspace destinations; compact name/chevron; contrasting solid mobile More panel | Less duplication, clear opened navigation and visible keyboard focus | Signed-in travellers, agency staff and administrators |
+| Agency guidance | Creation labelled as an application pending independent verification | Approval expectations before client-facing operation | Prospective agency owners |
+| Invitation candidate | Encrypted email-before-registration, copy/native sharing and preserved Neon confirmation destination | Private links and explicit joining/sharing instructions after deployment | Agency owners, teammates and clients |
+| Application delivery | Existing verified sender and signed Resend callback configured | Existing notification tools can reconcile delivery outcomes | Operators |
+
+PR 198 merged as 08ac6c6b3c81fecf5d3f8cbbfb330d1c12519d6e. Exact READY deployment dpl_9YAEdFq3qNoqMRZoCBhSS9hJUdwM serves both production aliases, current navigation styles and ready health with sensitive intake disabled. Its required source checks passed. Main/deployment jobs initially never started because GitHub reported payments or spending-limit trouble. The owner reported the issue fixed; those exact failed runs were retried. Until their current attempts finish successfully, the release is not fully verified and the invitation candidate must not merge.
+
+Done: navigation source implementation, independent staging schema/pgcrypto foundation, invitation source and sender/callback configuration. In progress: exact main/deployment verification and invitation full local regression/release. Remaining: CF-04 through CF-08 authenticated PDF/action acceptance, CF-09 actual five-role journeys, staging app/storage isolation, actual invitation inbox evidence, staff MFA, key rotation/escrow and full independent document/lifecycle recovery. There is no new public sensitive-data activation or final beta-ready verdict.

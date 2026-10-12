@@ -3,6 +3,7 @@
 import { useActionState } from 'react';
 import { FormMessage, SubmitButton } from '../../../../components/form-feedback';
 import { type ActionState, addMemberAction } from './actions';
+import { InvitationLink } from './invitation-link';
 
 const INITIAL: ActionState = { ok: true, message: '' };
 
@@ -42,6 +43,7 @@ export function AddMemberForm({ organizationId }: { readonly organizationId: str
           className="btn btn-secondary"
         />
         <FormMessage result={state} />
+        {state.ok && state.invitationUrl ? <InvitationLink url={state.invitationUrl} /> : null}
       </div>
     </form>
   );

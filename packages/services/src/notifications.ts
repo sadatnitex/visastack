@@ -4,8 +4,9 @@ import { err, ok } from '@visastack/core';
 import { and, asc, desc, eq, gt, inArray, isNotNull, isNull, lte, or } from 'drizzle-orm';
 import { type Db, first, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
+import { type SealedInvitationLink, revealInvitationLink } from './invitation-email';
 import { listMembershipsForAccount } from './organizations';
-import type { EmailPort } from './ports';
+import type { EmailPort, KeyManagementPort } from './ports';
 
 /**
  * The Notification Outbox (NTF-02 + Part 5 §3): a transactional outbox.
@@ -76,6 +77,7 @@ export interface NotificationPayload {
   readonly subject: string;
   readonly summary: string;
   readonly deepLinkPath: string;
+  readonly sealedInvitationLink?: SealedInvitationLink;
 }
 
 /** Deterministic composition of "event; recipient; channel; threshold where applicable" plus the driving resource, so two different resources of the same event/recipient/channel never collide. */
@@ -251,9 +253,31 @@ async function checkRecipient(
   db: Db,
   notification: Pick<
     Notification,
-    'recipientAccountId' | 'recipientEmail' | 'applicantId' | 'organizationId' | 'missionId'
+    | 'recipientAccountId'
+    | 'recipientEmail'
+    | 'applicantId'
+    | 'organizationId'
+    | 'missionId'
+    | 'eventType'
+    | 'resourceId'
   >,
 ): Promise<RecipientCheck> {
+  if (['TEAM_INVITATION_CREATED', 'CLIENT_INVITATION_CREATED'].includes(notification.eventType)) {
+    if (!notification.resourceId) return { authorized: false, email: null };
+    const team = notification.eventType === 'TEAM_INVITATION_CREATED';
+    const table = team ? schema.organizationInvitations : schema.clientInvitations;
+    const invite = first(
+      await db.select().from(table).where(eq(table.id, notification.resourceId)).limit(1),
+    );
+    const email = invite && ('email' in invite ? invite.email : invite.contactDestination);
+    const authorized =
+      !!invite &&
+      invite.status === 'PENDING' &&
+      invite.expiresAt.getTime() > Date.now() &&
+      invite.organizationId === notification.organizationId &&
+      email === notification.recipientEmail;
+    return { authorized, email: authorized ? notification.recipientEmail : null };
+  }
   if (!notification.recipientAccountId) {
     return { authorized: true, email: notification.recipientEmail };
   }
@@ -266,6 +290,24 @@ async function checkRecipient(
   );
   if (!account) return { authorized: false, email: null };
 
+  if (notification.eventType === 'TEAM_MEMBER_ADDED') {
+    if (!notification.resourceId) return { authorized: false, email: null };
+    const membership = first(
+      await db
+        .select()
+        .from(schema.memberships)
+        .where(
+          and(
+            eq(schema.memberships.id, notification.resourceId),
+            eq(schema.memberships.accountId, notification.recipientAccountId),
+            eq(schema.memberships.organizationId, notification.organizationId ?? ''),
+            eq(schema.memberships.active, true),
+          ),
+        )
+        .limit(1),
+    );
+    return { authorized: !!membership, email: membership ? account.email : null };
+  }
   // Organization IDs also describe traveller-facing case events. Their
   // presence must not disqualify the applicant's actual current owner.
   if (notification.applicantId) {
@@ -345,6 +387,7 @@ async function dispatchOne(
   emailPort: EmailPort,
   baseUrl: string,
   now: Date,
+  encryption: KeyManagementPort | undefined,
 ): Promise<'sent' | 'failed' | 'retrying' | 'deferred'> {
   if (!notification.leaseOwner) return 'deferred';
   const ownedQueue = and(
@@ -405,10 +448,22 @@ async function dispatchOne(
   }
 
   try {
+    let path = payload.deepLinkPath;
+    if (payload.sealedInvitationLink) {
+      if (!encryption || !notification.resourceId)
+        throw new Error('Invitation email encryption unavailable');
+      const kind = notification.eventType === 'TEAM_INVITATION_CREATED' ? 'team' : 'client';
+      path = await revealInvitationLink(
+        payload.sealedInvitationLink,
+        kind,
+        notification.resourceId,
+        encryption,
+      );
+    }
     const sent = await emailPort.send({
       to: recipient.email,
       subject: payload.subject,
-      body: `${payload.summary}\n\n${baseUrl}${payload.deepLinkPath}`,
+      body: `${payload.summary}\n\n${baseUrl}${path}`,
       idempotencyKey: `notification-${notification.id}`,
     });
     const updated = await db
@@ -476,7 +531,12 @@ export async function runNotificationWorker(
   db: Db,
   emailPort: EmailPort,
   baseUrl: string,
-  options: { readonly limit?: number; readonly now?: Date; readonly timeBudgetMs?: number } = {},
+  options: {
+    readonly limit?: number;
+    readonly now?: Date;
+    readonly timeBudgetMs?: number;
+    readonly encryption?: KeyManagementPort;
+  } = {},
 ): Promise<NotificationWorkerResult> {
   if (
     options.timeBudgetMs !== undefined &&
@@ -515,7 +575,14 @@ export async function runNotificationWorker(
         );
       return { sent, retrying, failed, deferred: deferred + remaining.length };
     }
-    const outcome = await dispatchOne(db, notification, emailPort, baseUrl, now);
+    const outcome = await dispatchOne(
+      db,
+      notification,
+      emailPort,
+      baseUrl,
+      now,
+      options.encryption,
+    );
     if (outcome === 'sent') sent++;
     else if (outcome === 'retrying') retrying++;
     else if (outcome === 'deferred') deferred++;
@@ -532,6 +599,7 @@ export interface InAppNotificationView {
   readonly subject: string;
   readonly summary: string;
   readonly deepLinkPath: string;
+  readonly sealedInvitationLink?: SealedInvitationLink;
   readonly read: boolean;
   readonly createdAt: Date;
 }

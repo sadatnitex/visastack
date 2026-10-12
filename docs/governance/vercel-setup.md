@@ -55,3 +55,12 @@ Set the keys documented in `.env.example` under
 
 Baseline headers ship from `apps/web/next.config.mjs`. The full CSP and
 privacy caching rules (no sensitive PWA cache) are hardened in Phase 6.
+
+
+## Current setup precedence, 2026-10-12
+
+README.md and docs/operations/current-platform.md describe the current setup. Neon Auth is selected for production, with explicit legacy WorkOS paths retained only for compatibility. Set Production values independently of branch-specific Preview values. A gitBranch-scoped variable cannot target Production. Verify the immutable deployment commit and both canonical aliases instead of assuming a preview URL points at the current branch.
+
+R2 credentials are S3 object-storage access, not Cloudflare account-management access. The S3 client retains path-style routing, region auto and the verified EU jurisdiction endpoint; region auto does not repair an incorrect account/jurisdiction endpoint. Application email uses the verified VisaStack sender and its signed Resend callback, separate from Neon SMTP. Weekly pg_dump capture runs in Actions with its own backup and encryption credentials, not in a Vercel cron function. Save secrets securely and verify scopes without printing values.
+
+Production migrations, restores, sensitive-data activation and paid upgrades are not implicit in ordinary deployments. Current staging has a separate empty schema/Auth foundation but is not yet a verified five-role app/storage deployment. Reference-based UI source implementation, CI success and public screenshots do not close actual authenticated PDF acceptance. See docs/public-beta/DEPLOYMENT-ACTIONS.md for current release gates.

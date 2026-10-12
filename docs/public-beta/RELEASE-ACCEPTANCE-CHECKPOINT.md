@@ -41,3 +41,12 @@ For a UI/service rollback, select the last verified production deployment, confi
 
 
 Disclosure review found the public privacy notice still attributed all file storage to Vercel. The continuation names the selected R2 document provider and configured R2 archive storage, preserving the test-pilot, separate-consent and incomplete-recovery statements. Privacy notice version 2026-10-11.1 identifies the correction for future acknowledgements; existing recorded acknowledgements are not rewritten. This factual correction does not complete legal/privacy approval.
+
+
+## Current continuation, 2026-10-12
+
+The classification remains BETA_BLOCKED for sensitive applicant data. Public registration and synthetic pilot operation are separate from sensitive-data acceptance. PR 197 is a verified implementation release; CF-04 through CF-08 actual authenticated visual/function acceptance remains incomplete. PR 198's source checks and live deployment/aliases/readiness are established, while its initially unstarted GitHub main/deploy checks are being retried following the owner's account fix. A READY Vercel deployment alone does not close this check.
+
+The independent Free staging project now has an Auth endpoint, an empty application schema and pgcrypto. No production data was cloned or migrated. This is not a prepared five-role authenticated staging deployment: synthetic Auth identities, role/record fixtures and independent app/storage processing still need verification. WorkOS staging success or skipped Neon authenticated jobs cannot substitute for those journeys.
+
+Invitation source tests and public account handoffs are separate evidence from actual Neon acceptance, email callback outcomes and inbox receipt. A signed unknown-event callback probe acknowledged a valid signature and refused an invalid signature without modifying any delivery state; it did not send an email or establish actual delivery. Exact release checkpoints and remaining operator work are in DEPLOYMENT-ACTIONS.md and ../operations/invitation-journeys.md.

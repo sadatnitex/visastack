@@ -31,7 +31,7 @@ const pages = pageFiles(APP_DIR).map((file) => ({
   source: readFileSync(file, 'utf8'),
 }));
 
-const staticTitle = /export const metadata: Metadata = \{ title: '((?:[^'\\]|\\.)+)' \};/;
+const staticTitle = /export const metadata:\s*Metadata\s*=\s*\{\s*title:\s*'((?:[^'\\]|\\.)+)'/;
 
 describe('page titles', () => {
   it('finds the pages it is meant to check', () => {

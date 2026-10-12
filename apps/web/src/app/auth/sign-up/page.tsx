@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { selectedIdentityProvider } from '../../../lib/identity-selection';
+import { safeReturnPath } from '../../../lib/neon-recency';
 import { isPublicBetaOpen } from '../../../lib/public-beta';
 import { createSignupForm } from '../../../lib/signup-form';
 import { signUpAction } from '../actions';
@@ -23,9 +24,9 @@ const ERRORS: Record<string, string> = {
 
 export default async function SignUpPage({
   searchParams,
-}: { searchParams: Promise<{ e?: string }> }) {
+}: { searchParams: Promise<{ e?: string; next?: string }> }) {
   if (selectedIdentityProvider() !== 'neon_auth') notFound();
-  const { e } = await searchParams;
+  const { e, next } = await searchParams;
   const error = e ? ERRORS[e] : undefined;
   const signupForm = createSignupForm();
   return (
@@ -35,7 +36,10 @@ export default async function SignUpPage({
       eyebrow={isPublicBetaOpen() ? 'Public beta · Free account' : 'Private pilot'}
       utility={
         <>
-          Already have an account? <Link href="/auth/sign-in">Sign in</Link>
+          Already have an account?{' '}
+          <Link href={`/auth/sign-in?next=${encodeURIComponent(safeReturnPath(next))}`}>
+            Sign in
+          </Link>
         </>
       }
     >
@@ -46,12 +50,15 @@ export default async function SignUpPage({
       <ErrorLine id="signup-error" message={error} />
       {e === 'exists' && (
         <p className="card-body">
-          <Link href="/auth/sign-in">Sign in</Link> or{' '}
-          <Link href="/auth/forgot-password">reset your password</Link>.
+          <Link href={`/auth/sign-in?next=${encodeURIComponent(safeReturnPath(next))}`}>
+            Sign in
+          </Link>{' '}
+          or <Link href="/auth/forgot-password">reset your password</Link>.
         </p>
       )}
       <div className="card" style={{ marginBottom: '1rem' }}>
         <form action={signUpAction} className="field-list">
+          <input type="hidden" name="next" value={safeReturnPath(next)} />
           <input type="hidden" name="signupForm" value={signupForm} />
           <div hidden aria-hidden="true">
             <label htmlFor="signup-website">Leave this field empty</label>

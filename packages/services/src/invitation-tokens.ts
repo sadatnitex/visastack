@@ -4,7 +4,7 @@ import { createHash, randomBytes } from 'node:crypto';
  * Shared primitive for every hashed, single-use invitation token in this
  * codebase (`invitations.ts`'s organization invitations, `client-invitations.ts`'s
  * IAM-03 client invitations): a cryptographically random 256-bit token,
- * returned once to the caller and never persisted; only its SHA-256 hash is
+ * returned once to the caller and never persisted in plaintext; only its SHA-256 hash is
  * stored, so a database read alone can never reconstruct a working link.
  */
 

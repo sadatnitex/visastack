@@ -92,7 +92,7 @@ export function auditNavigation(cwd = process.cwd()) {
     function record(n, kind) {
       let v = value(n);
       if (v.startsWith('*')) {
-        const idx = v.search(/\/(?:app|auth)\//);
+        const idx = v.search(/\/(?:app|auth)\/|\/invitation(?:[?#]|$)/);
         if (idx > 0) v = v.slice(idx);
       }
       if (!v.startsWith('/') || v.startsWith('//')) return;
