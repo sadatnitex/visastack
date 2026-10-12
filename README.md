@@ -10,20 +10,21 @@ granted, and every action is authorized, consent-gated, and audited.
 > Current configuration uses Neon Auth, Neon Postgres, private Cloudflare R2 storage and separate Resend authentication/application mail paths. Public-beta PR-01 through PR-09 acceptance is still being completed. A successful database-only restore does not establish complete disaster recovery.
 > Start with [current operating guidance](docs/operations/current-platform.md), [the product contract](docs/public-beta/PRODUCT-CONTRACT.md), [deployment actions](docs/public-beta/DEPLOYMENT-ACTIONS.md) and [release acceptance](docs/public-beta/RELEASE-ACCEPTANCE-CHECKPOINT.md). The Commercial V1 ledger, historical reports and original acceptance targets remain evidence; older code-complete/provider-default snapshots are not a current launch verdict.
 
-## Current continuation
+## Current deployed state
 
-[Current operations](docs/operations/current-platform.md) is the setup and incident authority. [Invitation journeys](docs/operations/invitation-journeys.md) records team/client email, copy/share, account confirmation and acceptance, including the different recipient policies. [Navigation and lifecycle review](docs/uiux/NAVIGATION-AND-LIFECYCLE-REVIEW.md) records agency approval and existing delete, revoke, deactivate and close controls.
+Read [the current product and release state](docs/public-beta/CURRENT-STATE.md) first. It distinguishes deployed behavior, verified evidence and remaining acceptance from historical implementation reports.
 
-| Area | Current state | Remaining evidence |
+| Area | Current state | Still open |
 | --- | --- | --- |
-| Design and navigation | Reference-based flat public/workspace implementation; intentional navy accents; fixed appearance independent of device dark mode; compact mobile navigation and separate account controls | Actual authenticated ten-screen PDF comparison and desktop/mobile action acceptance |
-| Agency invitations | Encrypted email-before-registration and copy/native-sharing implementation in the current follow-up candidate; existing-account members receive notices | Exact candidate deployment, real inbox receipt and actual Neon acceptance |
-| Application email | Verified VisaStack sender and signed Resend callback configured; signed callback boundaries checked without sending email | Actual invite delivery, callback and inbox evidence; Neon Auth mail is configured separately |
-| Isolated staging | Separate Free Neon project, independent Auth endpoint, empty application schema and pgcrypto prepared; unused compute paused | Five actual synthetic Auth roles, isolated app/storage bindings and authenticated journeys |
-| Recovery and security | Native protected writes required; encrypted weekly database backup and database-only restore evidence | Independent document/lifecycle recovery, key rotation/escrow, staff MFA and sensitive-data acceptance |
-| Deployment | Required checks must pass on exact source and main commits; both deployment smoke checks, aliases and readiness must pass | GitHub temporarily refused jobs before startup; owner reported the account issue fixed and the exact main/deployment jobs were retried |
+| Product | Registration available; controlled pilot with synthetic records; real applicant data disabled | Public sensitive-data release acceptance and approval |
+| Identity and mail | Neon Auth; separate Resend application mail; configured VisaStack sender and signed callbacks | Full signup/reset/confirmation, physical inbox and staff MFA acceptance |
+| Documents | Private R2 with the existing private Blob mirror; native parsing and bounded private-worker OCR; PDF Buffer fix deployed | Real scanner/R2 and authenticated processing lifecycle; readiness reports malware scanning unconfigured |
+| Sharing and invitations | Team/client email and copy/share handoff deployed; personal invitations before signup enabled after specifically approved migration 0085 | Full recipient registration/acceptance and physical email receipt |
+| Interface | Reference-based traveller, agency and admin compositions; flat appearance, compact navigation and corrected hero spacing | CF-09 full authenticated desktop/mobile journeys and remaining route-state acceptance |
+| Recovery | Native protected writes required; encrypted weekly database backup and database-only restore evidence | Complete document/key/lifecycle recovery, key rotation/escrow and original recovery objectives |
+| Release | PR 201 merged and live; source checks and both deployment smokes passed | Post-merge main CI and real scanner/storage acceptance at the recorded checkpoint |
 
-Registration being open does not enable real applicant details or documents. A merged change or successful local test is not a completed acceptance verdict. The deployed personal-sharing flow still requires an existing account; its pending email-invitation implementation is default-disabled until migration 0085 and activation are verified; client invitations retain explicit profile choice and consent. Bangla translation remains deferred. Historical implementation snapshots remain available in Git and the append-only evidence records.
+Existing policies, consent, quarantine, audit and legal holds remain in place. Account confirmation does not transfer records or privileges. Invitation creation does not grant access. A provider delivery status does not prove inbox placement. Registration availability is separate from permission to use real applicant data. Bangla translation remains deferred.
 
 ## What's implemented
 

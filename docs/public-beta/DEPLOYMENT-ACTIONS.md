@@ -1,5 +1,7 @@
 # Public beta deployment actions
 
+> Current status: [product and verified release state](CURRENT-STATE.md), recorded 2026-10-12 18:48 Asia/Dhaka. Earlier dated candidate, activation and verification statements below are historical checkpoints, not current operating claims. Original policy and acceptance requirements remain in force.
+
 Update this log after each deployment. Each report must state what changed, what users will see, who is affected, live verification, and the done/in-progress/remaining actions below. A deployed repair does not complete its whole package.
 
 ## 2026-10-10: legacy authentication routes, PR #182
@@ -105,3 +107,16 @@ Done: PR-00 and the verified notification hardening above. In progress: PR-01 th
 PR 198 merged as 08ac6c6b3c81fecf5d3f8cbbfb330d1c12519d6e. Exact READY deployment dpl_9YAEdFq3qNoqMRZoCBhSS9hJUdwM serves both production aliases, current navigation styles and ready health with sensitive intake disabled. Its required source checks passed. Main/deployment jobs initially never started because GitHub reported payments or spending-limit trouble. The owner reported the issue fixed; those exact failed runs were retried. Until their current attempts finish successfully, the release is not fully verified and the invitation candidate must not merge.
 
 Done: navigation source implementation, independent staging schema/pgcrypto foundation, invitation source and sender/callback configuration. In progress: exact main/deployment verification and invitation full local regression/release. Remaining: CF-04 through CF-08 authenticated PDF/action acceptance, CF-09 actual five-role journeys, staging app/storage isolation, actual invitation inbox evidence, staff MFA, key rotation/escrow and full independent document/lifecycle recovery. There is no new public sensitive-data activation or final beta-ready verdict.
+
+## PR 200 and PR 201 current deployment report, 2026-10-12
+
+| Area | What changed | What users will see | Who notices |
+| --- | --- | --- | --- |
+| Personal sharing | Approved migration 0085 and Production activation; invitations before registration | Private copy/share link and explicit recipient acceptance | Travellers and intended recipients |
+| Interface | Reference-based wallet/case/sharing, agency and admin composition; compact account/mobile navigation | Existing tools remain accessible in the updated composition | Travellers, agency staff and administrators |
+| Homepage | Compact supporting cards and separation from the navy summary | Corrected desktop offsets and full-width mobile cards | Public visitors |
+| PDF reading | Normalize R2 Buffer input in extraction, preview and size checks | PDF byte handling no longer fails on the library's Buffer refusal | Document users and operators |
+
+Checked live: PR 200 required source/main and deployment checks, migration/flag, aliases and readiness; PR 201 source checks, both deployment smoke workflows, aliases, readiness and new hero CSS. Not yet checked: PR 201 post-merge main CI and real scanner/storage acceptance at this checkpoint. Needs owner: no further configuration was requested after the owner confirmed intake Actions variables/secrets; successful use is still unverified.
+
+Done: narrow changes and verification above. In progress: CF-04 through CF-08 and public-beta PR-01 through PR-08 acceptance gaps recorded in CURRENT-STATE.md. Remaining: CF-09 complete authenticated lifecycle, physical inbox, privileged MFA, full recovery and final release acceptance. No public sensitive-data activation or new migration occurred in PR 201 or this documentation update.

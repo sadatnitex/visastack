@@ -1,5 +1,7 @@
 # Reference fidelity checkpoint
 
+> Current status: [product and verified release state](../public-beta/CURRENT-STATE.md), recorded 2026-10-12 18:48 Asia/Dhaka. Earlier dated candidate, activation and verification statements below are historical checkpoints, not current operating claims. Original policy and acceptance requirements remain in force.
+
 Latest owner mandate: corrective UI/UX fidelity, navigation and functional completeness, 2026-10-11. PDF: VisaStack_10_Apple_Style_Website_Mockups (1).pdf. All ten pages have been rendered and visually inspected at 1600 x 1000 before any new styling changes.
 
 Baseline source: a6d37cfc518bfec12b7f82be9dbaea932157cd4b. Baseline main: dbeeddc97ee29253ffab6bedddad2ddd996445d0. The local main synchronization has the same source tree. PR 194 is merged and verified in production: all three required source/main checks, deployment smoke checks, exact READY deployment and canonical/fallback readiness passed. Production deployment: dpl_6QvxHMJK2AAmFbCSd4JwEarQHZUK. Its published source is not changed by corrective working-tree edits.

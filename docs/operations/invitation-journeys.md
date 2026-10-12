@@ -1,5 +1,7 @@
 # Invitations and account handoff
 
+> Current status: [product and verified release state](../public-beta/CURRENT-STATE.md), recorded 2026-10-12 18:48 Asia/Dhaka. Earlier dated candidate, activation and verification statements below are historical checkpoints, not current operating claims. Original policy and acceptance requirements remain in force.
+
 The current team and client invitation change is a release candidate until its exact commit is merged and checked on production. These journeys supplement the existing role, consent, expiry and agency-standing rules. They do not enable real applicant data or commercial operation.
 
 ## Agency team
@@ -39,3 +41,9 @@ Production configuration checkpoint, 2026-10-12: the pending application email q
 ## Personal sharing candidate: 2026-10-12
 
 See [the current CF acceptance checkpoint](../uiux/CF-04-09-ACCEPTANCE-2026-10-12.md) for implementation, actual evidence, the first failed diagnostic run and remaining limits. Personal sharing is implemented behind a default-disabled flag and requires reviewed migration 0085 before production activation. The private scanner worker has a free, bounded OCR reader in this candidate. Required checks and actual authenticated acceptance remain separate; sensitive intake is not enabled.
+
+## Deployed personal invitations and remaining acceptance, 2026-10-12
+
+PR 200 deployed personal invitations before registration after the specifically approved migration 0085 and verified Production activation. The owner creates a pending exact-email invitation with fixed scope and expiry. The intended recipient signs in or registers and explicitly accepts under the existing consent and authorization rules. No account is created by invitation issuance; no access is granted by visiting a link or matching email alone. The inviter can copy/share the link and revoke a pending invitation. This supersedes the earlier existing-account-only scope and candidate statements above.
+
+Team links remain email-bound, and existing team accounts retain immediate-add membership behavior. Agency client links remain authenticated token-holder links with explicit profile/consent choice. Do not describe all three policies as identical. Deployed creation, copy and account handoff are not physical inbox or complete recipient lifecycle proof. Those acceptance gaps remain open.

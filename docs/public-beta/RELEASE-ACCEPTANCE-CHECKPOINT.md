@@ -1,5 +1,7 @@
 # Public-beta release acceptance checkpoint
 
+> Current status: [product and verified release state](CURRENT-STATE.md), recorded 2026-10-12 18:48 Asia/Dhaka. Earlier dated candidate, activation and verification statements below are historical checkpoints, not current operating claims. Original policy and acceptance requirements remain in force.
+
 2026-10-11. This is preparation, not the final release-candidate approval.
 
 Current classification: **BETA_BLOCKED** for public use with sensitive applicant data. Existing controlled-pilot operation with synthetic data may continue; this does not assert LIMITED_BETA_ONLY acceptance or BETA_READY. No candidate SHA has been nominated.
