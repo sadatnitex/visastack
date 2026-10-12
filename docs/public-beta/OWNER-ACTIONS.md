@@ -1,5 +1,7 @@
 # External actions and inspection limits
 
+> Current status: [product and verified release state](CURRENT-STATE.md), recorded 2026-10-12 18:48 Asia/Dhaka. Earlier dated candidate, activation and verification statements below are historical checkpoints, not current operating claims. Original policy and acceptance requirements remain in force.
+
 Complete independent engineering before requesting these actions. Never supply credentials in chat.
 
 | System | Action / evidence needed | Why | Cost / reversibility |

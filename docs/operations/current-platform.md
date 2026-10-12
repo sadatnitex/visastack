@@ -1,5 +1,7 @@
 # Current VisaStack operating guidance
 
+> Current status: [product and verified release state](../public-beta/CURRENT-STATE.md), recorded 2026-10-12 18:48 Asia/Dhaka. Earlier dated candidate, activation and verification statements below are historical checkpoints, not current operating claims. Original policy and acceptance requirements remain in force.
+
 Updated 2026-10-11. Start here for current deployment and setup facts. Earlier runbooks remain historical records; their provider, automatic-migration, email-linking and recovery claims are superseded where they conflict with this page. Original security and acceptance targets still apply.
 
 ## Product and access

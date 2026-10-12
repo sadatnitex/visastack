@@ -1,5 +1,7 @@
 # Execution checkpoint
 
+> Current status: [product and verified release state](CURRENT-STATE.md), recorded 2026-10-12 18:48 Asia/Dhaka. Earlier dated candidate, activation and verification statements below are historical checkpoints, not current operating claims. Original policy and acceptance requirements remain in force.
+
 Updated 2026-10-10. Frozen baseline: 698442a4124fce7f966aca2bee38b9f0e16bbd98. Branch: public-beta/baseline-and-neon-session-wiring.
 
 Authority: [implementation contract](PRODUCT-CONTRACT.md), owner directive and execution protocol. Neon Auth + Resend decisions are settled. No production-sensitive change is authorized by this checkpoint.
