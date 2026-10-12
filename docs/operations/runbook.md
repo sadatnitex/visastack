@@ -63,3 +63,12 @@ first query — typically right after sign-in, on `/app`.
 - Security (audit tamper, data exposure, auth bypass): page the security owner.
 - Data-layer (Neon down, migration failure): page the platform owner.
 - All incidents: record a timeline; the audit trail is the system of record.
+
+
+## Current operating correction, 2026-10-12
+
+Use current-platform.md and invitation-journeys.md before older provider examples above. Production uses Neon Auth, Neon Postgres, private R2 with path-style addressing, region auto and the verified jurisdiction endpoint. Neon Auth SMTP and application Resend delivery are separate. Never relink accounts or records solely by matching an email. Signed callback acceptance and provider acceptance are not proof of inbox placement. Readiness is coarse; detailed diagnostics require administrator authorisation, and ordinary errors must not log emails or credentials.
+
+If GitHub refuses a job before startup due to payments or spending limits, record that the tests did not run. Ask the repository account owner to correct the account issue; do not increase budgets or remove required checks. After a confirmed fix, retry only the affected exact-commit runs, then verify source/main checks, deployment smokes, READY deployment and both aliases. The 2026-10-12 main/deployment jobs were retried after the owner's fix; completion remains a separate gate.
+
+Weekly encrypted SQL backups use Actions pg_dump, with an unpooled production database binding and separate recoverable encryption key. Database-only restore evidence does not prove document, key, revocation, deletion or full lifecycle recovery. Never run a production migration or restore as an automatic application rollback. Independent staging must be proven at Auth, database, roles, storage and processing boundaries before synthetic authenticated acceptance. Preserve the controlled-pilot sensitive-data gate and current Neon branch dependency protections.

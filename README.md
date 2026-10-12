@@ -6,9 +6,24 @@ through a governed, AI-assisted workflow - with an equivalent **no-AI manual
 path**. Applicants own their data; agencies get exactly the access they are
 granted, and every action is authorized, consent-gated, and audited.
 
-> **Current status (2026-10-11): controlled pilot, synthetic data only; public sensitive-data beta remains BETA_BLOCKED.**
+> **Current status (2026-10-12): controlled pilot, synthetic data only; public sensitive-data beta remains BETA_BLOCKED.**
 > Current configuration uses Neon Auth, Neon Postgres, private Cloudflare R2 storage and separate Resend authentication/application mail paths. Public-beta PR-01 through PR-09 acceptance is still being completed. A successful database-only restore does not establish complete disaster recovery.
 > Start with [current operating guidance](docs/operations/current-platform.md), [the product contract](docs/public-beta/PRODUCT-CONTRACT.md), [deployment actions](docs/public-beta/DEPLOYMENT-ACTIONS.md) and [release acceptance](docs/public-beta/RELEASE-ACCEPTANCE-CHECKPOINT.md). The Commercial V1 ledger, historical reports and original acceptance targets remain evidence; older code-complete/provider-default snapshots are not a current launch verdict.
+
+## Current continuation
+
+[Current operations](docs/operations/current-platform.md) is the setup and incident authority. [Invitation journeys](docs/operations/invitation-journeys.md) records team/client email, copy/share, account confirmation and acceptance, including the different recipient policies. [Navigation and lifecycle review](docs/uiux/NAVIGATION-AND-LIFECYCLE-REVIEW.md) records agency approval and existing delete, revoke, deactivate and close controls.
+
+| Area | Current state | Remaining evidence |
+| --- | --- | --- |
+| Design and navigation | Reference-based flat public/workspace implementation; intentional navy accents; fixed appearance independent of device dark mode; compact mobile navigation and separate account controls | Actual authenticated ten-screen PDF comparison and desktop/mobile action acceptance |
+| Agency invitations | Encrypted email-before-registration and copy/native-sharing implementation in the current follow-up candidate; existing-account members receive notices | Exact candidate deployment, real inbox receipt and actual Neon acceptance |
+| Application email | Verified VisaStack sender and signed Resend callback configured; signed callback boundaries checked without sending email | Actual invite delivery, callback and inbox evidence; Neon Auth mail is configured separately |
+| Isolated staging | Separate Free Neon project, independent Auth endpoint, empty application schema and pgcrypto prepared; unused compute paused | Five actual synthetic Auth roles, isolated app/storage bindings and authenticated journeys |
+| Recovery and security | Native protected writes required; encrypted weekly database backup and database-only restore evidence | Independent document/lifecycle recovery, key rotation/escrow, staff MFA and sensitive-data acceptance |
+| Deployment | Required checks must pass on exact source and main commits; both deployment smoke checks, aliases and readiness must pass | GitHub temporarily refused jobs before startup; owner reported the account issue fixed and the exact main/deployment jobs were retried |
+
+Registration being open does not enable real applicant details or documents. A merged change or successful local test is not a completed acceptance verdict. Personal sharing still requires an existing account; client invitations retain explicit profile choice and consent. Bangla translation remains deferred. Historical implementation snapshots remain available in Git and the append-only evidence records.
 
 ## What's implemented
 
@@ -25,9 +40,9 @@ granted, and every action is authorized, consent-gated, and audited.
 | **Missions & Packs** | Cited, versioned, checksummed requirement packs (Pack Studio); parallel mission workspaces; a rules engine driving readiness as **completeness only** (never an approval probability); reviewer state machine; immutable, checksummed snapshots. |
 | **Agencies & Sharing** | Organization verification (no self-upgrade); scoped, accepted, time-limited, revocable grants; access transparency; agency case collaboration (assignments, notes, evidence requests) and bulk export. |
 | **Public Trust & Content Governance** | Publish-reviewed, source-cited pack routes for unauthenticated public lookup, with staleness handling (fee amounts auto-removed once a review is overdue). |
-| **Billing & Notifications** | Plans, invoices, scheduled downgrades, real outbound email (Resend, with webhook-driven delivery status), a notification sweep pipeline, and a platform admin console over all of it. |
+| **Billing & Notifications** | Plans, invoices, scheduled downgrades, a real Resend outbound adapter with signed delivery reconciliation (configuration and actual inbox acceptance are separate), a notification sweep pipeline, and a platform admin console over all of it. |
 | **Applicant Trust & Lifecycle** | Truth-check attestations, acknowledgements, case state transitions, retention policies with eligibility-based purge, legal holds that **override deletion**, and a durable erasure outbox with lease-based recovery. |
-| **Reliability** | Liveness + readiness probes; English/Bangla i18n; incident runbook + RPO/RTO/restore-drill docs; a tamper-evident, hash-chained audit log on every mutation. |
+| **Reliability** | Liveness + readiness probes; existing i18n infrastructure with Bangla translation deferred; incident runbook + RPO/RTO/restore-drill docs; a tamper-evident, hash-chained audit log on every mutation. |
 
 ## Principles (enforced, not aspirational)
 
@@ -101,9 +116,7 @@ Everything external is injected behind an interface, so upgrades are edge-only:
 | `AiExtractionPort` | Admin-selected, DB-configured `OpenAiExtractionAdapter` / `AnthropicExtractionAdapter` / `GeminiExtractionAdapter` - versioned, encrypted, budget- and kill-switch-governed | *(manual path - no AI required; the app is fully usable without it)* | Another model provider, behind the same port |
 | `AiOcrPort` | `OpenAiOcrAdapter` - wired to a manual "Run OCR" trigger on the document page, sharing text extraction's budget ledger | *(manual path - no OCR required)* | Anthropic/Gemini OCR adapters (tracked in `known-issues.md`) |
 
-The built-in scanner is an **accepted, documented reduced control** when
-ClamAV isn't configured - it is not antivirus; it is paired with the human-
-approval gate. See ADR-0011.
+The built-in structural checker is a reduced control for synthetic pilot files, not antivirus. It does not certify PDF safety or authorise sensitive-document intake. Preserve quarantine, the configured actual scanning path and human approval. ADR-0011 is historical design context; current acceptance requirements still apply.
 
 ## Deployment modes and the capability registry
 
@@ -136,34 +149,33 @@ Set values separately for Production and the intended Preview scope. Public read
 | `MALWARE_SCANNER_PROVIDER` (+ `CLAMAV_SOCKET_PATH` or `CLAMAV_HOST`/`CLAMAV_PORT`) | Selects the configured structural or actual scanner path, including `clamav` and `github_clamav` | real malware scanning |
 | `AI_ENABLED`, `OPENAI_API_KEY` (+ `ANTHROPIC_API_KEY`, `GEMINI_API_KEY` once those adapters are selected) | Env-based AI Gateway fallback | only the initial bootstrap before any admin-console AI provider configuration exists - once one is `ACTIVE`, the DB-backed, encrypted config in `/app/admin/ai-settings` is authoritative and these are ignored |
 
+Weekly SQL capture runs in GitHub Actions with `pg_dump`, not inside a Vercel function. It uses `BACKUP_DATABASE_URL` for the unpooled `visastackdev` database, R2 credentials, `BACKUP_ENCRYPTION_KEY_BASE64` as an Actions secret and `BACKUP_ENCRYPTION_KEY_ID` as an Actions variable. Backup keys are separate from application keys. Vercel uses `CRON_SECRET` for protected jobs and `KMS_LOCAL_MASTER_KEY_BASE64` for the current pilot envelope provider, including encrypted invitation links. Never put secret values in documentation or chat.
+
 The current application build is `next build`. Production migrations require specific authorization and the reviewed migration workflow; a deployment does not authorize or run them automatically. See [current operating guidance](docs/operations/current-platform.md).
 
 ## Quickstart
 
 ```bash
-pnpm install
+pnpm install --frozen-lockfile
 pnpm run check          # lint + typecheck + test with isolated synthetic fixtures
 pnpm run build          # build the workspace
 ```
 
 Requires Node 22 (`.nvmrc`) and pnpm 10+. Tests run migrations against an
-in-memory Postgres (PGlite), so correctness - FK/enum/unique constraints, the
-append-only audit rules, and every service invariant - is proven in CI with zero
-external dependencies. CI (`.github/workflows/ci.yml`) runs lint, build,
+in-memory Postgres (PGlite), so service tests exercise FK/enum/unique constraints, append-only audit rules and permission invariants without a live provider. This does not prove real authentication, email, malware scanning, file storage, recovery or user journeys. CI (`.github/workflows/ci.yml`) runs lint, build,
 typecheck, and the full test suite as one required check; a 60-minute ceiling
 tracks the suite's own growth (see the in-file history comment).
 
 ## Web app
 
-- `/` - product landing (Apple-HIG design system: system font stack, light/dark,
-  accessible, responsive), with a global controlled-pilot banner stating the
-  current deployment mode on every page.
+- `/` - public product landing using the approved reference identity and flat refinement. Device dark appearance does not substitute a navy theme. The beta notice is hidden for signed-in users.
+- `/invitation` - public account handoff for the team/client invitation candidate; authenticated pages review and explicitly accept the request.
 - `/app` - the authenticated workspace (applicants, missions, documents,
   sharing, privacy/consent, notifications); `/app/admin/*` is the platform
   admin console (AI provider configuration, organizations, packs, complaints).
 - `/status` - live system status, polling the real health probes.
 - `/api/health/live`, `/api/health/ready` - liveness / readiness; readiness
-  always reports the current deployment mode and full capability registry.
+  exposes coarse readiness and platform states. Detailed diagnostics require an authorised administrator.
 - `/api/blob/[key]` - signed, expiring blob serving (returns `503` until
   storage is configured).
 - `/api/jobs/*` - background sweep endpoints (notifications, downgrades,

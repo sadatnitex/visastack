@@ -67,3 +67,10 @@ Focused continuation verification (2026-10-10): all seven account-provisioning t
 Neon Auth is configured for production; legacy WorkOS references do not authorize email-only record linking or claim current staff MFA acceptance.
 
 Earlier implementation snapshots and provider-specific instructions above are retained as history. For current setup, incident response and availability, use [current operating guidance](../operations/current-platform.md). Original acceptance and security targets remain in force; this correction does not mark them complete or authorize migration, production restore, paid activation or sensitive-data intake.
+
+
+## 2026-10-12 continuation
+
+Neon Auth remains authoritative. Reference-based navigation and operational layouts are implementation work, not completed authenticated acceptance. PR 198 is on the exact production aliases with current navigation CSS and ready health; its source checks passed. GitHub's main/deploy jobs failed before starting due to account payment/spending limits. After the owner reported a fix, the exact runs were retried. Invitation publication remains gated on successful completion.
+
+The separate Free staging database has its reviewed schema and pgcrypto installed, with no accounts or production-data clone. Actual synthetic Auth roles, app/storage isolation and ten-screen acceptance are not established. The team/client invitation candidate adds encrypted email outbox payloads, private copy/native sharing and preserved signup/confirmation return paths. Existing member addition and client token-holder policies remain explicit; personal sharing still needs an account. Essential current guidance is in README.md, current-platform.md, invitation-journeys.md, DEPLOYMENT-ACTIONS.md and RELEASE-ACCEPTANCE-CHECKPOINT.md.

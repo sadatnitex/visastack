@@ -56,3 +56,12 @@ Team and client invitation creation previously returned a link without sending e
 
 
 Production configuration checkpoint, 2026-10-12: the pending application email queue was empty at review. The existing Resend key has management access, and vs.obsidianglobal.studio is verified. EMAIL_PROVIDER=resend and the approved branded sender have been saved for Production. An enabled Resend webhook for delivery, bounce, complaint and failure events was registered on the existing application endpoint; its signing secret was saved as an encrypted Production variable. These settings activate with the next deployment. No real invitation email or inbox-receipt test was sent as part of configuration.
+
+
+## Current deployment, staging and queue checkpoint, 2026-10-12
+
+PR 198's exact production deployment and both aliases are live and ready, with current compact navigation styling and real applicant intake disabled. Required source checks passed. Required main/deployment checks were initially refused before job startup by GitHub account payment/spending limits. The owner reported the issue fixed; the exact failed runs were retried. Do not treat this as a test failure or waive the current-SHA checks. The invitation candidate remains gated on completed verification.
+
+Isolated staging is now a separate Free Neon project, independent Auth endpoint, empty application schema and pgcrypto, without a production clone or production migration. Its unused compute was explicitly suspended. Five real synthetic Auth identities, role/record fixtures, application binding and isolated storage/processing remain unfinished. The GitHub connection cannot currently manage Actions secrets; configured database access does not imply those permissions. Use supported environment networking and TLS trust; never bypass the session proxy or copy credentials into files/logs.
+
+The application email backlog was empty at configuration review. Production has the verified VisaStack sender and encrypted webhook secret saved; the live callback accepted a correctly signed unknown event and refused an invalid signature without applying a delivery event. Real inbox receipt remains untested. Distinguish team email-bound acceptance from current client token-holder acceptance, and existing personal sharing from account-registration invitations. Details: invitation-journeys.md.
