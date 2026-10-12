@@ -65,7 +65,10 @@ export async function signInAction(formData: FormData): Promise<void> {
   const { getNeonAuth } = await import('../../lib/neon-auth');
   const { error } = await getNeonAuth().signIn.email({ email, password });
   if (error) {
-    if (isUnconfirmed(error)) redirect('/auth/verify-email');
+    if (isUnconfirmed(error)) {
+      if (next === '/app') redirect('/auth/verify-email');
+      redirect(`/auth/verify-email?next=${encodeURIComponent(next)}`);
+    }
     redirect(`/auth/sign-in?e=failed${signInTarget(next)}`);
   }
   redirect(next);
@@ -73,36 +76,38 @@ export async function signInAction(formData: FormData): Promise<void> {
 
 export async function signUpAction(formData: FormData): Promise<void> {
   requireNeon();
+  const next = safeReturnPath(field(formData, 'next'));
+  const target = signInTarget(next);
   const email = field(formData, 'email').trim();
   const password = field(formData, 'password');
   const name = field(formData, 'name').trim().slice(0, 120);
-  if (!validCredentials(email, password)) redirect('/auth/sign-up?e=invalid');
-  if (field(formData, 'acceptNotices') !== 'yes') redirect('/auth/sign-up?e=notices');
-  if (field(formData, 'website')) redirect('/auth/sign-up?e=refresh');
+  if (!validCredentials(email, password)) redirect(`/auth/sign-up?e=invalid${target}`);
+  if (field(formData, 'acceptNotices') !== 'yes') redirect(`/auth/sign-up?e=notices${target}`);
+  if (field(formData, 'website')) redirect(`/auth/sign-up?e=refresh${target}`);
   const signupForm = readSignupForm(field(formData, 'signupForm'));
-  if (!signupForm) redirect('/auth/sign-up?e=refresh');
+  if (!signupForm) redirect(`/auth/sign-up?e=refresh${target}`);
   const allowed = await withinAuthLimits({
     email,
     byEmail: 'AUTH_SIGN_UP_EMAIL',
     byAddress: 'AUTH_SIGN_UP_IP',
     onFailure: 'deny',
   });
-  if (!allowed) redirect('/auth/sign-up?e=slow');
-  if (!(await consumeSignupForm(signupForm))) redirect('/auth/sign-up?e=refresh');
+  if (!allowed) redirect(`/auth/sign-up?e=slow${target}`);
+  if (!(await consumeSignupForm(signupForm))) redirect(`/auth/sign-up?e=refresh${target}`);
   const { signupAccountExists } = await import('../../lib/signup-account');
   let registered: boolean;
   try {
     registered = await signupAccountExists(email);
   } catch {
-    redirect('/auth/sign-up?e=unavailable');
+    redirect(`/auth/sign-up?e=unavailable${target}`);
   }
-  if (registered) redirect('/auth/sign-up?e=exists');
+  if (registered) redirect(`/auth/sign-up?e=exists${target}`);
   const { getNeonAuth } = await import('../../lib/neon-auth');
   const { error } = await getNeonAuth().signUp.email({
     email,
     password,
     name: name || email.split('@')[0] || 'Traveller',
-    callbackURL: `${resolveBaseUrl()}/auth/sign-in?n=confirmed`,
+    callbackURL: `${resolveBaseUrl()}/auth/sign-in?n=confirmed${target}`,
   });
   if (error) {
     if (
@@ -110,32 +115,33 @@ export async function signUpAction(formData: FormData): Promise<void> {
         error.code ?? '',
       )
     ) {
-      redirect('/auth/sign-up?e=exists');
+      redirect(`/auth/sign-up?e=exists${target}`);
     }
-    redirect('/auth/sign-up?e=failed');
+    redirect(`/auth/sign-up?e=failed${target}`);
   }
-  redirect('/auth/verify-email?s=1');
+  redirect(`/auth/verify-email?s=1${target}`);
 }
 
 /** Send the confirmation email again. Same answer for every address. */
 export async function resendConfirmationAction(formData: FormData): Promise<void> {
   requireNeon();
+  const target = signInTarget(safeReturnPath(field(formData, 'next')));
   const email = field(formData, 'email').trim();
-  if (!validEmail(email)) redirect('/auth/verify-email?e=invalid');
+  if (!validEmail(email)) redirect(`/auth/verify-email?e=invalid${target}`);
   const allowed = await withinAuthLimits({
     email,
     byEmail: 'AUTH_EMAIL_SEND_EMAIL',
     byAddress: 'AUTH_EMAIL_SEND_IP',
     onFailure: 'deny',
   });
-  if (!allowed) redirect('/auth/verify-email?e=slow');
+  if (!allowed) redirect(`/auth/verify-email?e=slow${target}`);
   const { getNeonAuth } = await import('../../lib/neon-auth');
   let unavailable = false;
   let throttled = false;
   try {
     const { error } = await getNeonAuth().sendVerificationEmail({
       email,
-      callbackURL: `${resolveBaseUrl()}/auth/sign-in?n=confirmed`,
+      callbackURL: `${resolveBaseUrl()}/auth/sign-in?n=confirmed${target}`,
     });
     throttled = error?.status === 429;
     const unknownAccount = error?.code === 'USER_NOT_FOUND' || error?.message === 'User not found';
@@ -143,9 +149,9 @@ export async function resendConfirmationAction(formData: FormData): Promise<void
   } catch {
     unavailable = true;
   }
-  if (throttled) redirect('/auth/verify-email?e=slow');
-  if (unavailable) redirect('/auth/verify-email?e=unavailable');
-  redirect('/auth/verify-email?s=1');
+  if (throttled) redirect(`/auth/verify-email?e=slow${target}`);
+  if (unavailable) redirect(`/auth/verify-email?e=unavailable${target}`);
+  redirect(`/auth/verify-email?s=1${target}`);
 }
 
 /** Start password recovery. Same answer for every address. */

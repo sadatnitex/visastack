@@ -35,7 +35,7 @@ import {
   getPlatformCapabilities,
 } from '../../../../lib/capabilities';
 import { triggerNotificationWorker } from '../../../../lib/jobs';
-import { createMalwareScanner } from '../../../../lib/providers';
+import { createKeyManagementPort, createMalwareScanner } from '../../../../lib/providers';
 import { withSession } from '../../../../lib/session';
 import { createStorage } from '../../../../lib/storage';
 
@@ -43,6 +43,7 @@ import { createStorage } from '../../../../lib/storage';
 export interface ActionState {
   readonly ok: boolean;
   readonly message: string;
+  readonly invitationUrl?: string;
 }
 
 /**
@@ -226,14 +227,7 @@ export async function cancelEvidenceRequestAction(
   return result;
 }
 
-/**
- * Add a member by email (org admin). When the email already has a VisaStack
- * account, membership is granted immediately. Otherwise this mints a secure,
- * single-use invitation (Commercial V1 Part 4 §5) instead of just erroring:
- * no real email adapter exists yet (Part 5 scope), so the accept link is
- * handed straight back to the admin to share, rather than the invitee never
- * being reachable at all.
- */
+/** Add or invite a teammate, with durable email and a private shareable link. */
 export async function addMemberAction(
   _prev: ActionState,
   formData: FormData,
@@ -250,23 +244,31 @@ export async function addMemberAction(
     // lookup all happen inside the service, in that order. Looking the account
     // up here first (as this action used to) made registration answerable
     // before any permission or limit check.
+    const encryption = createKeyManagementPort();
     const outcome = await addMemberByEmail(db, {
       actorAccountId: accountId,
       organizationId,
       email: memberEmail,
+      ...(encryption ? { encryption } : {}),
       role,
     });
     if (!outcome.ok) return { ok: false, message: outcome.error.message } satisfies ActionState;
     if (outcome.value.kind === 'added') {
       return { ok: true, message: `${memberEmail} added as ${role}.` } satisfies ActionState;
     }
-    const acceptUrl = `${resolveBaseUrl()}/app/invitations/accept?token=${outcome.value.rawToken}`;
+    const acceptUrl = `${resolveBaseUrl()}/invitation?kind=team&token=${outcome.value.rawToken}`;
     return {
       ok: true,
-      message: `No account yet for ${memberEmail}. Share this link (expires in 7 days): ${acceptUrl}`,
+      message: encryption
+        ? 'Invitation created. Email queued. You can also copy the link below. It expires in 7 days.'
+        : 'Invitation created. Email is unavailable. Copy and share the link below. It expires in 7 days.',
+      invitationUrl: acceptUrl,
     } satisfies ActionState;
   });
-  if (result.ok) revalidatePath(`/app/agency/${organizationId}`, 'layout');
+  if (result.ok) {
+    revalidatePath(`/app/agency/${organizationId}`, 'layout');
+    after(() => triggerNotificationWorker().then(() => undefined));
+  }
   return result;
 }
 
@@ -291,16 +293,7 @@ export async function revokeInvitationAction(
   return result;
 }
 
-/**
- * Invite a traveller as a new client (Commercial V1 Part 4 §6, IAM-03). The
- * agency never claims or picks the traveller's applicant profile, only a
- * minimal display name/contact/requested route/case owner, so the token
- * this mints is the only thing that changes hands; the traveller alone
- * decides what it attaches to when they accept. No real email adapter
- * exists yet (Part 5 scope), so the accept link is handed straight back to
- * the admin to share, the same interim pattern `addMemberAction` already
- * uses for a teammate with no account yet.
- */
+/** Invite a client without an account lookup or automatic wallet access. */
 export async function inviteClientAction(
   _prev: ActionState,
   formData: FormData,
@@ -317,22 +310,31 @@ export async function inviteClientAction(
   if (caseOwnerAccountId.length === 0) return { ok: false, message: 'Choose a case owner.' };
 
   const result = await withSession(async ({ db, accountId }) => {
+    const encryption = createKeyManagementPort();
     const invited = await createClientInvitation(db, {
       actorAccountId: accountId,
       organizationId,
       caseOwnerAccountId,
       displayName,
       contactDestination,
+      ...(encryption ? { encryption } : {}),
       ...(requestedRoute.length > 0 ? { requestedRoute } : {}),
     });
     if (!invited.ok) return { ok: false, message: invited.error.message } satisfies ActionState;
-    const acceptUrl = `${resolveBaseUrl()}/app/client-invitations/accept?token=${invited.value.rawToken}`;
+    const acceptUrl = `${resolveBaseUrl()}/invitation?kind=client&token=${invited.value.rawToken}`;
     return {
       ok: true,
-      message: `Invitation created for ${displayName}. Share this link (expires in 7 days): ${acceptUrl}`,
+      message:
+        encryption && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contactDestination)
+          ? 'Invitation created. Email queued. You can also copy the link below. It expires in 7 days.'
+          : 'Invitation created. Email is unavailable for this invitation. Copy and share the link below. It expires in 7 days.',
+      invitationUrl: acceptUrl,
     } satisfies ActionState;
   });
-  if (result.ok) revalidatePath(`/app/agency/${organizationId}`, 'layout');
+  if (result.ok) {
+    revalidatePath(`/app/agency/${organizationId}`, 'layout');
+    after(() => triggerNotificationWorker().then(() => undefined));
+  }
   return result;
 }
 

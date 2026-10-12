@@ -64,7 +64,10 @@ export default async function SignInPage({
         <Link href="/auth/forgot-password">Forgot your password?</Link>
       </p>
       <p className="card-body">
-        New here? <Link href="/auth/sign-up">Create an account</Link>
+        New here?{' '}
+        <Link href={`/auth/sign-up?next=${encodeURIComponent(safeReturnPath(next))}`}>
+          Create an account
+        </Link>
       </p>
     </AuthShell>
   );

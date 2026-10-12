@@ -6,9 +6,11 @@ import { createApplicant, getApplicant } from './applicants';
 import { appendAuditEvent } from './audit';
 import { type Db, first, required, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
+import { queueInvitationEmail } from './invitation-email';
 import { generateInvitationToken, hashInvitationToken } from './invitation-tokens';
 import { createMission } from './missions';
 import { isOrgAdmin } from './organizations';
+import type { KeyManagementPort } from './ports';
 import { RATE_LIMITS, checkRateLimits } from './rate-limit';
 import { acceptGrant, createGrant } from './sharing';
 
@@ -61,11 +63,12 @@ export interface CreateClientInvitationInput {
   readonly displayName: string;
   readonly contactDestination: string;
   readonly requestedRoute?: string;
+  readonly encryption?: KeyManagementPort;
 }
 
 export interface CreatedClientInvitation {
   readonly invitation: ClientInvitation;
-  /** The raw, unhashed token. Exists only here and in whatever link the caller hands to the invitee, never logged, never persisted. */
+  /** The raw, unhashed token. Exists only here and in whatever link the caller hands to the invitee, never logged or persisted in plaintext. */
   readonly rawToken: string;
 }
 
@@ -113,34 +116,46 @@ export async function createClientInvitation(
   const tokenHash = hashInvitationToken(rawToken);
   const expiresAt = new Date(Date.now() + DEFAULT_EXPIRY_DAYS * 24 * 60 * 60 * 1000);
 
-  const invitation = required(
-    first(
-      await db
-        .insert(schema.clientInvitations)
-        .values({
-          organizationId: input.organizationId,
-          caseOwnerAccountId: input.caseOwnerAccountId,
-          displayName,
-          contactDestination,
-          requestedRoute: input.requestedRoute?.trim() || null,
-          tokenHash,
-          invitedByAccountId: input.actorAccountId,
-          expiresAt,
-        })
-        .returning(),
-    ),
-    'client invitation',
-  );
-  await appendAuditEvent(db, {
-    eventType: 'CLIENT_INVITATION_CREATED',
-    actorAccountId: input.actorAccountId,
-    method: 'MANUAL',
-    result: 'ALLOWED',
-    resourceType: 'client_invitation',
-    resourceId: invitation.id,
-    metadata: { organizationId: input.organizationId },
+  return db.transaction(async (tx) => {
+    const invitation = required(
+      first(
+        await tx
+          .insert(schema.clientInvitations)
+          .values({
+            organizationId: input.organizationId,
+            caseOwnerAccountId: input.caseOwnerAccountId,
+            displayName,
+            contactDestination,
+            requestedRoute: input.requestedRoute?.trim() || null,
+            tokenHash,
+            invitedByAccountId: input.actorAccountId,
+            expiresAt,
+          })
+          .returning(),
+      ),
+      'client invitation',
+    );
+    await appendAuditEvent(tx, {
+      eventType: 'CLIENT_INVITATION_CREATED',
+      actorAccountId: input.actorAccountId,
+      method: 'MANUAL',
+      result: 'ALLOWED',
+      resourceType: 'client_invitation',
+      resourceId: invitation.id,
+      metadata: { organizationId: input.organizationId },
+    });
+    if (input.encryption && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contactDestination)) {
+      await queueInvitationEmail(tx, {
+        kind: 'client',
+        invitationId: invitation.id,
+        organizationId: input.organizationId,
+        email: contactDestination,
+        rawToken,
+        encryption: input.encryption,
+      });
+    }
+    return ok({ invitation, rawToken });
   });
-  return ok({ invitation, rawToken });
 }
 
 export interface ClientInvitationPreview {

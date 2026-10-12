@@ -48,3 +48,11 @@ Founding access stays complimentary. Actual provider bills, allowances and accou
 ### 2026-10-11 PDF fidelity correction checkpoint
 
 The latest corrective owner mandate uses the uploaded ten-page PDF for composition and the approved flat refinement. Earlier HTML palette/device-theme checks do not establish full PDF or authenticated functional acceptance. The [reference checkpoint](../uiux/REFERENCE-FIDELITY-CHECKPOINT.md) records the complete baseline route/control inventory, reference-to-function mapping and package status. Contextual navigation changes preserve existing owned-record, active-membership and platform-role boundaries; they do not establish new permissions. Final isolated authenticated screenshots and journeys remain unverified.
+
+
+## Invitation delivery candidate, 2026-10-12
+
+Team and client invitation creation previously returned a link without sending email. The follow-up candidate wires email-only recipients into the existing durable outbox, encrypts the usable invitation link, adds copy/native sharing and preserves the invitation through Neon signup and confirmation. Existing team accounts still use the current immediate-add policy and now receive membership notices. Phone-based client contacts need manual link sharing. See [invitation journeys](invitation-journeys.md) for exact acceptance and policy differences. Production delivery configuration and backlog review are tracked separately from source tests; neither queued nor provider-accepted messages prove inbox receipt.
+
+
+Production configuration checkpoint, 2026-10-12: the pending application email queue was empty at review. The existing Resend key has management access, and vs.obsidianglobal.studio is verified. EMAIL_PROVIDER=resend and the approved branded sender have been saved for Production. An enabled Resend webhook for delivery, bounce, complaint and failure events was registered on the existing application endpoint; its signing secret was saved as an encrypted Production variable. These settings activate with the next deployment. No real invitation email or inbox-receipt test was sent as part of configuration.

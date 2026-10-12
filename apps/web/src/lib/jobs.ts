@@ -235,8 +235,10 @@ export async function triggerNotificationWorker(
   });
   try {
     const handle = db as unknown as Parameters<typeof runNotificationWorker>[0];
+    const encryption = createKeyManagementPort();
     return await runNotificationWorker(handle, createEmailPort(), resolveBaseUrl(), {
       timeBudgetMs: 35_000,
+      ...(encryption ? { encryption } : {}),
       ...options,
     });
   } catch (error) {

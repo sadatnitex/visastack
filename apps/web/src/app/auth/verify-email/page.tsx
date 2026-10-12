@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { selectedIdentityProvider } from '../../../lib/identity-selection';
+import { safeReturnPath } from '../../../lib/neon-recency';
 import { resendConfirmationAction } from '../actions';
 import { AuthShell, ErrorLine, Notice, TextField } from '../auth-ui';
 
@@ -16,9 +17,9 @@ const ERRORS: Record<string, string> = {
 
 export default async function VerifyEmailPage({
   searchParams,
-}: { searchParams: Promise<{ e?: string; s?: string }> }) {
+}: { searchParams: Promise<{ e?: string; s?: string; next?: string }> }) {
   if (selectedIdentityProvider() !== 'neon_auth') notFound();
-  const { e, s } = await searchParams;
+  const { e, s, next } = await searchParams;
   const error = e ? ERRORS[e] : undefined;
   return (
     <AuthShell title="Confirm your email address">
@@ -31,6 +32,7 @@ export default async function VerifyEmailPage({
       <ErrorLine id="verify-error" message={error} />
       <div className="card" style={{ marginBottom: '1rem' }}>
         <form action={resendConfirmationAction} className="field-list">
+          <input type="hidden" name="next" value={safeReturnPath(next)} />
           <TextField
             id="email"
             name="email"
@@ -47,7 +49,9 @@ export default async function VerifyEmailPage({
         </form>
       </div>
       <p className="card-body">
-        <Link href="/auth/sign-in">Back to sign in</Link>
+        <Link href={`/auth/sign-in?next=${encodeURIComponent(safeReturnPath(next))}`}>
+          Back to sign in
+        </Link>
       </p>
     </AuthShell>
   );

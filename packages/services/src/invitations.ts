@@ -6,8 +6,11 @@ import { appendAuditEvent } from './audit';
 import { type Db, first, required, schema } from './db';
 import { checkInvitationEntitlement, checkSeatEntitlement } from './entitlement-enforcement';
 import { type ServiceError, serviceError } from './errors';
+import { queueInvitationEmail } from './invitation-email';
 import { generateInvitationToken, hashInvitationToken } from './invitation-tokens';
+import { enqueueNotificationBothChannels } from './notifications';
 import { addMembership, isOrgAdmin } from './organizations';
+import type { KeyManagementPort } from './ports';
 import { RATE_LIMITS, checkRateLimits } from './rate-limit';
 
 /**
@@ -19,7 +22,7 @@ import { RATE_LIMITS, checkRateLimits } from './rate-limit';
  * first.").
  *
  * A raw token is minted once at creation time, handed back only to the
- * caller, and never persisted; only its SHA-256 hash is stored, so a
+ * caller, and never persisted in plaintext; only its SHA-256 hash is stored in the invitation, so a
  * database read alone (a leaked backup, a compromised read replica) can
  * never reconstruct a working invitation link. Recipient-bound by `email`,
  * checked against the accepting account's own WorkOS-verified email at
@@ -39,11 +42,12 @@ export interface CreateOrganizationInvitationInput {
   readonly organizationId: string;
   readonly email: string;
   readonly role: MembershipRole;
+  readonly encryption?: KeyManagementPort;
 }
 
 export interface CreatedOrganizationInvitation {
   readonly invitation: OrganizationInvitation;
-  /** The raw, unhashed token. Exists only here and in whatever link the caller hands to the invitee, never logged, never persisted. */
+  /** The raw, unhashed token. Exists only here and in whatever link the caller hands to the invitee, never logged or persisted in plaintext. */
   readonly rawToken: string;
 }
 
@@ -135,6 +139,16 @@ async function issueOrganizationInvitation(
       resourceId: invitation.id,
       metadata: { organizationId: input.organizationId, role: input.role },
     });
+    if (input.encryption) {
+      await queueInvitationEmail(tx, {
+        kind: 'team',
+        invitationId: invitation.id,
+        organizationId: input.organizationId,
+        email,
+        rawToken,
+        encryption: input.encryption,
+      });
+    }
     return ok({ invitation, rawToken });
   });
 }
@@ -215,14 +229,28 @@ export async function addMemberByEmail(
 
   const existingAccount = await getAccountByEmail(db, email);
   if (existingAccount) {
-    const added = await addMembership(db, {
-      actorAccountId: input.actorAccountId,
-      organizationId: input.organizationId,
-      accountId: existingAccount.id,
-      role: input.role,
+    return db.transaction(async (tx) => {
+      const added = await addMembership(tx, {
+        actorAccountId: input.actorAccountId,
+        organizationId: input.organizationId,
+        accountId: existingAccount.id,
+        role: input.role,
+      });
+      if (!added.ok) return err(added.error);
+      await enqueueNotificationBothChannels(tx, {
+        eventType: 'TEAM_MEMBER_ADDED',
+        resourceId: added.value.id,
+        recipientAccountId: existingAccount.id,
+        organizationId: input.organizationId,
+        payload: {
+          subject: 'Your VisaStack team membership',
+          summary:
+            'You have been added to an agency team on VisaStack. Sign in to review your team and role. Contact the agency if this was unexpected.',
+          deepLinkPath: `/app/agency/${input.organizationId}/team`,
+        },
+      });
+      return ok({ kind: 'added' as const, membership: added.value });
     });
-    if (!added.ok) return err(added.error);
-    return ok({ kind: 'added', membership: added.value });
   }
 
   const invited = await issueOrganizationInvitation(db, input, email);

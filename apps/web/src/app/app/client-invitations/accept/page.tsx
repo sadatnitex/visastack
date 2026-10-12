@@ -10,7 +10,11 @@ import { createStorage } from '../../../../lib/storage';
 import { AcceptClientInvitationForm } from './accept-form';
 import { ConsentGate } from './consent-gate';
 
-export const metadata: Metadata = { title: 'Invitation from an agency' };
+export const metadata: Metadata = {
+  title: 'Invitation from an agency',
+  robots: { index: false, follow: false },
+  referrer: 'no-referrer',
+};
 
 export const dynamic = 'force-dynamic';
 

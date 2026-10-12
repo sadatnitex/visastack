@@ -306,3 +306,8 @@ RUL-01/RUL-02/RUL-05: draft source-review recording and separate official approv
 ### 2026-10-11: documentation and communications refresh
 
 Current operating guidance, source/disclosure inventory and dated corrections supersede stale provider, domain, automatic migration and email-only linking instructions without rewriting historical evidence or lowering release targets. The private legacy-reference report no longer treats missing WorkOS IDs as evidence that current Neon sign-in is broken. Public privacy notice is versioned 2026-10-11.1 with selected file/archive providers. Existing permissions, schemas, account IDs, acknowledgements, founding access and queued payloads are unchanged by the copy refresh. Complete staging isolation, authenticated journeys, signed application delivery, newly branded mail, full recovery, legal/privacy and measured capacity remain acceptance requirements.
+
+
+### IAM-03 / NTF-02 / NTF-03 invitation continuation, 2026-10-12
+
+Release candidate: team/client invite email reaches an email-only recipient without requiring an existing account; encrypted transactional outbox, dispatch-time pending/expiry/recipient checks, copy/native sharing and preserved Neon signup/confirmation return path. Existing-account member addition also enqueues both channels. Existing client token-holder policy and explicit profile/consent/grant rules are retained. Phone contacts use manual link sharing. Live provider delivery, callback/inbox verification and actual authenticated CF-09 journeys are not certified. Existing personal sharing still requires an account. Evidence and limitations: docs/operations/invitation-journeys.md.

@@ -40,7 +40,10 @@ const authkit = useNeon
  */
 async function neonMiddleware(request: NextRequest) {
   const { getNeonAuth } = await import('./lib/neon-auth');
-  return getNeonAuth().middleware({ loginUrl: '/auth/sign-in' })(request);
+  const next = `${request.nextUrl.pathname}${request.nextUrl.search}`;
+  return getNeonAuth().middleware({ loginUrl: `/auth/sign-in?next=${encodeURIComponent(next)}` })(
+    request,
+  );
 }
 
 /**
