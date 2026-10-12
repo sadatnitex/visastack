@@ -5047,3 +5047,8 @@ All required main checks and deployment smoke workflows for PR 200 passed. The n
 ## Current-documentation reconciliation: 2026-10-12 18:48 Asia/Dhaka
 
 README and essential operations, invitation, product, deployment, owner-action and acceptance entry points now route to docs/public-beta/CURRENT-STATE.md. Earlier dated records are explicitly historical. Live readiness and nonsecret Production flags were checked: Neon Auth, R2, required pgcrypto writes, Resend and personal invitations enabled; malware scanning unconfigured, real applicant data disabled. PR 200 migration/activation and PR 201 deployed hero/PDF correction are distinguished from incomplete CF-09, inbox, MFA and full recovery acceptance. Owner-confirmed Actions setup is not actual scanner proof. PR 201 main CI remains pending at the recorded inspection; both deployment smoke workflows passed. No schema, service, permissions or credentials changed.
+
+
+## Actual private scanner installation failure and repair, 2026-10-12
+
+PR 201 main CI and both deployment smoke workflows passed. Actual intake workflow run 38253171932 reached fresh official definition setup but failed because Ubuntu lists clamdscan as a suggested package; --no-install-recommends omitted it. Scanner controls and private storage acceptance did not execute. The dependency list now explicitly includes clamdscan, with early executable presence checks. No scan assertion, signature freshness requirement, queue guard, credentials or application policy was relaxed. PR 202 documentation is merged/deployed; required source and deployment smoke checks passed, main CI remains pending at this inspection.
