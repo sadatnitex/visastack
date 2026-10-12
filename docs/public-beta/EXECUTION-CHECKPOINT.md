@@ -79,3 +79,7 @@ The separate Free staging database has its reviewed schema and pgcrypto installe
 ## Current continuation: invitations, document reading and actual route evidence: 2026-10-12
 
 See [the current CF acceptance checkpoint](../uiux/CF-04-09-ACCEPTANCE-2026-10-12.md) for implementation, actual evidence, the first failed diagnostic run and remaining limits. Personal sharing is implemented behind a default-disabled flag and requires reviewed migration 0085 before production activation. The private scanner worker has a free, bounded OCR reader in this candidate. Required checks and actual authenticated acceptance remain separate; sensitive intake is not enabled.
+
+### CF sharing and reference resume, 2026-10-12
+
+The isolated actual personal-sharing journey now passes, including recipient binding, single use, pause/resume and revocation. Compact menu/navigation and profile edit controls also pass real mobile checks. The seven supply-chain checks pass without skips after correcting the shell-free OCR distinction. The full PDF comparison and remaining acceptance limits are recorded in the [CF-04 through CF-09 checkpoint](../uiux/CF-04-09-ACCEPTANCE-2026-10-12.md). Production email invitations are still gated by explicit approval and verification of migration 0085; sensitive-data intake remains disabled.

@@ -28,6 +28,7 @@ export interface ActionState {
   readonly ok: boolean;
   readonly message: string;
   readonly invitationUrl?: string;
+  readonly refreshPath?: string;
 }
 
 function isPermissionAction(value: string): value is PermissionAction {
@@ -144,18 +145,11 @@ export async function createGrantAction(
   return result;
 }
 
-const OP_LABELS: Record<string, string> = {
-  revoke: 'revoked',
-  pause: 'paused',
-  resume: 'resumed',
-};
-
 /** Revoke, pause, or resume a grant (applicant owner). */
 export async function updateGrantAction(
   _prev: ActionState,
   formData: FormData,
 ): Promise<ActionState> {
-  const applicantId = String(formData.get('applicantId') ?? '');
   const grantId = String(formData.get('grantId') ?? '');
   const op = String(formData.get('op') ?? '');
   if (grantId.length === 0) return { ok: false, message: 'Missing grant id.' };
@@ -169,8 +163,13 @@ export async function updateGrantAction(
   });
 
   if (!result.ok) return { ok: false, message: result.error.message };
-  revalidatePath(`/app/applicant/${applicantId}/sharing`);
-  return { ok: true, message: `Access ${OP_LABELS[op] ?? 'updated'}.` };
+  // A full page request refreshes the dynamic grant list after the result reaches
+  // the client. Never derive that destination from the hidden route identifier.
+  return {
+    ok: true,
+    message: 'Access updated.',
+    refreshPath: `/app/applicant/${result.value.applicantId}/sharing`,
+  };
 }
 
 /**

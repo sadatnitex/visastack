@@ -430,9 +430,13 @@ function PackSection({
                 <dt>{field.label}</dt>
                 <dd>
                   {value
-                    ? field.type === 'date'
-                      ? formatDateOnly(value)
-                      : (field.options?.find((option) => option === value) ?? value)
+                    ? value === '[protected: could not decrypt]'
+                      ? 'Could not read this detail'
+                      : value === '[protected]'
+                        ? 'Protected detail'
+                        : field.type === 'date'
+                          ? formatDateOnly(value)
+                          : (field.options?.find((option) => option === value) ?? value)
                     : current?.status && field.sensitivity !== 'STANDARD'
                       ? 'Protected detail'
                       : 'Not recorded'}
