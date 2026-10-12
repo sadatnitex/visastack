@@ -24,6 +24,8 @@ const CONTEXT_ICONS: Readonly<Record<string, IconName>> = {
   Sharing: 'share',
   Notifications: 'bell',
   Settings: 'settings',
+  'Agency settings': 'settings',
+  'Platform settings': 'settings',
   'Help & support': 'shield',
   Clients: 'users',
   Cases: 'briefcase',
@@ -103,7 +105,14 @@ export function AppNav({
   // Escape closes the sheet, as people expect of anything that opens over the page.
   useEffect(() => {
     if (!open) return;
-    panelRef.current?.querySelector<HTMLAnchorElement>('a')?.focus();
+    // A closed workspace disclosure contains hidden links; focus its visible summary first.
+    const firstControl =
+      panelRef.current?.querySelector<HTMLElement>('.app-mobile-identity summary') ??
+      Array.from(panelRef.current?.querySelectorAll<HTMLAnchorElement>('a') ?? []).find(
+        (link) => link.getClientRects().length > 0,
+      ) ??
+      panelRef.current?.querySelector<HTMLElement>('.app-more-heading button');
+    firstControl?.focus();
     const onKey = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         setOpen(false);
@@ -209,7 +218,11 @@ export function AppNav({
             <Icon name="close" size={20} />
           </button>
         </div>
-        <nav className="app-shell-links app-shell-links-more" aria-label="Account and privacy">
+        {identity ? <div className="app-mobile-identity">{identity}</div> : null}
+        <nav
+          className="app-shell-links app-shell-links-more"
+          aria-label="More workspace destinations"
+        >
           {links.slice(BAR_LINKS).map(link)}
         </nav>
         {children}

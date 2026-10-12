@@ -13,7 +13,6 @@ import type { WorkspaceAccess, WorkspaceNavigation } from '../../lib/workspace-n
 
 export function WorkspaceRecordToolbar({
   accountName,
-  access,
   navigation,
   state,
   signOut,
@@ -116,14 +115,6 @@ export function WorkspaceRecordToolbar({
     document.addEventListener('pointerdown', outside);
     return () => document.removeEventListener('pointerdown', outside);
   }, []);
-  const accountDestinations = [
-    ...navigation.tools.filter((item) => ['/app/privacy', '/app/shared'].includes(item.href)),
-    ...navigation.settings,
-  ].filter(
-    (item, index, items) =>
-      !['/app/account', '/app/applicants', '/app/agency', planHref].includes(item.href) &&
-      items.findIndex((other) => other.href === item.href) === index,
-  );
   const closeSearch = () => {
     setQuery('');
     setMobileSearch(false);
@@ -268,19 +259,10 @@ export function WorkspaceRecordToolbar({
           }
         }}
       >
-        <summary aria-label={`${accountName}, account and workspaces`}>
-          <span className="workspace-avatar" aria-hidden="true">
-            {accountName
-              .trim()
-              .split(/\s+/)
-              .slice(0, 2)
-              .map((part) => part.charAt(0))
-              .join('')
-              .toUpperCase()}
-          </span>
+        <summary aria-label={`${accountName}, account menu`}>
           <b>{accountName}</b>
-          <Icon name="chevron" size={14} />
-          <span className="sr-only">Account and workspaces</span>
+          <Icon name="chevronDown" size={14} />
+          <span className="sr-only">Account menu</span>
         </summary>
         <nav
           aria-label="Account menu"
@@ -290,33 +272,11 @@ export function WorkspaceRecordToolbar({
           }}
         >
           <Link href="/app/account">Your account</Link>
-          {planHref === '/app/account' ? (
-            <p className="record-menu-plan">{planLabel ?? 'Plan information'}</p>
-          ) : (
-            <Link href={planHref}>{planLabel ?? 'Plan information'}</Link>
-          )}
-          <p className="record-menu-heading">Personal space</p>
-          {access.travellers.slice(0, 5).map((person) => (
-            <Link href={`/app/applicant/${person.id}`} key={person.id}>
-              {person.name}
-            </Link>
-          ))}
-          <Link href="/app/applicants">Manage travellers</Link>
-          <p className="record-menu-heading">Workspaces</p>
-          {access.agencies.slice(0, 5).map((agency) => (
-            <Link href={`/app/agency/${agency.id}`} key={agency.id}>
-              {agency.name}
-            </Link>
-          ))}
-          <Link href="/app/agency">Manage or create an agency</Link>
-          {access.platform ? <Link href="/app/admin">Platform operations</Link> : null}
-          <p className="record-menu-heading">Tools and support</p>
+          <p className="record-menu-plan">{state?.personalPlan?.name ?? 'Plan information'}</p>
+          <Link href="/app/privacy">Privacy & consent</Link>
+          <p className="record-menu-heading">Support</p>
+          <Link href="/app/help">Help & support</Link>
           <Link href="/status">Service status</Link>
-          {accountDestinations.map((item) => (
-            <Link key={item.href} href={item.href}>
-              {item.label}
-            </Link>
-          ))}
           {signOut}
         </nav>
       </details>

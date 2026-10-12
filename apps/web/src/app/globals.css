@@ -4985,3 +4985,56 @@ body:has(.auth-shell) > .footer {
     margin-bottom: 16px;
   }
 }
+
+/* Workspace destinations and personal account controls have distinct homes. */
+.app-mobile-identity {
+  display: none;
+}
+.record-toolbar .record-account summary b {
+  display: block;
+  max-width: 128px;
+}
+.record-toolbar .record-account summary > .icon {
+  display: block;
+  flex: none;
+}
+.record-account[open] summary {
+  color: var(--accent);
+}
+@media (max-width: 1023px) {
+  .record-toolbar .record-account summary {
+    gap: 4px;
+    padding-inline: 6px;
+  }
+  .record-toolbar .record-account summary b {
+    max-width: clamp(48px, 16vw, 88px);
+  }
+  .app-shell-nav .app-more {
+    background: #e0f2eb;
+    border: 2px solid #075d54;
+    border-bottom: 0;
+    padding: 16px;
+  }
+  .app-more-heading {
+    color: #075d54;
+    border-bottom-color: #5b8f83;
+  }
+  .app-mobile-identity {
+    display: block;
+    padding-block: 12px;
+    border-bottom: 1px solid #5b8f83;
+  }
+  .app-mobile-identity .workspace-selector {
+    display: block;
+    margin: 0;
+    background: #fff;
+  }
+  .app-mobile-identity .workspace-selector nav {
+    position: static;
+    max-height: 40dvh;
+  }
+  .app-more .app-shell-links a,
+  .app-more .workspace-tools > summary {
+    color: #18343d;
+  }
+}

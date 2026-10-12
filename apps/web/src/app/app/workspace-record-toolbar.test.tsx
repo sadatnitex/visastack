@@ -66,11 +66,22 @@ async function query(value: string) {
   });
 }
 describe('actual toolbar component behavior, without provider-backed acceptance claims', () => {
-  it('exposes owned workspaces, privacy and support in the account disclosure and closes outside it', () => {
+  it('keeps personal controls separate from workspace navigation and closes outside it', () => {
     const menu = container.querySelector('nav[aria-label="Account menu"]');
-    expect(menu?.querySelector(`a[href="/app/applicant/${person}"]`)?.textContent).toBe(
-      'Synthetic Self',
-    );
+    expect(menu?.querySelector(`a[href="/app/applicant/${person}"]`)).toBeNull();
+    expect(menu?.querySelector('a[href="/app/applicants"]')).toBeNull();
+    expect(menu?.querySelector('a[href="/app/agency"]')).toBeNull();
+    expect(menu?.querySelector('a[href="/app/shared"]')).toBeNull();
+    expect(menu?.querySelector('a[href="/app/help"]')).not.toBeNull();
+    const summary = container.querySelector('.record-account summary');
+    expect(summary?.querySelector('.workspace-avatar')).toBeNull();
+    expect(summary?.querySelector('b')?.textContent).toBe('Synthetic Self');
+    expect(summary?.querySelector('.icon')).not.toBeNull();
+    const nav = workspaceNavigation(`/app/applicant/${person}`, access);
+    const workspacePaths = [...nav.primary, ...nav.tools, ...nav.settings].map((item) => item.href);
+    expect(workspacePaths).not.toContain('/app/privacy');
+    expect(workspacePaths).not.toContain('/app/account');
+    expect(workspacePaths).not.toContain('/app/help');
     expect(menu?.querySelector('a[href="/app/privacy"]')).not.toBeNull();
     expect(menu?.querySelector('a[href="/status"]')).not.toBeNull();
     expect(menu?.querySelector('a[href="/app/admin"]')).toBeNull();

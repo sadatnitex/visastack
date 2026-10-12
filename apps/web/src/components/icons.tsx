@@ -45,6 +45,7 @@ const PATHS = {
   ],
   logout: ['M10 4.5H5.5v15H10', 'm14 8 4 4-4 4M18 12H9'],
   chevron: ['m9 6 6 6-6 6'],
+  chevronDown: ['m6 9 6 6 6-6'],
   folder: ['M3.5 6.5h6l2 2.5h9v10h-17Z'],
   mail: ['M4 6.5h16v11H4Z', 'm4.5 7 7.5 6 7.5-6'],
   eye: [
