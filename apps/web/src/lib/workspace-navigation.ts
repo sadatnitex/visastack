@@ -142,7 +142,6 @@ export function workspaceNavigation(
           { href: '/app/notifications', label: 'Notifications' },
         ],
     tools: [
-      { href: '/app/applicants', label: 'All travellers' },
       { href: '/app/shared', label: 'Shared with me' },
       { href: '/app', label: 'Account overview', exact: true },
       ...(base

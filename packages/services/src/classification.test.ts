@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { CONFIDENCE_THRESHOLD, classifyDocumentText } from './classification';
+import { checkDigit, parseTd3 } from './mrz';
 
 // A valid ICAO TD3 specimen (same fixture as mrz test — check digits verified).
 const L1 = 'P<UTOERIKSSON<<ANNA<MARIA<<<<<<<<<<<<<<<<<<<';
@@ -14,10 +15,24 @@ describe('classifyDocumentText', () => {
     expect(result.mrz?.passportNumber).toBe('L898902C3');
   });
 
+  it('reads MRZ lines separated by OCR spacing without repairing failed check digits', () => {
+    const result = classifyDocumentText(`${L1.split('').join(' ')}\n${L2.split('').join(' ')}`);
+    expect(result.mrz?.expiryDate).toBe('2012-04-15');
+    expect(result.confidence).toBe(100);
+  });
+
   it('does not classify as passport when MRZ check digits fail (tampered/misread)', () => {
     const tampered = `L898902C46${L2.slice(10)}`;
     const result = classifyDocumentText(`PASSPORT\n${L1}\n${tampered}\n`);
     expect(result.classifiedType).not.toBe('PASSPORT');
+  });
+
+  it('rejects impossible calendar dates even when all MRZ check digits are valid', () => {
+    let line = `${L2.slice(0, 21)}321332${checkDigit('321332')}${L2.slice(28)}`;
+    const composite = line.slice(0, 10) + line.slice(13, 20) + line.slice(21, 43);
+    line = line.slice(0, 43) + checkDigit(composite);
+    expect(parseTd3([L1, line]).ok).toBe(false);
+    expect(classifyDocumentText(`${L1}\n${line}`).mrz).toBeUndefined();
   });
 
   it('classifies a bank statement from enough keyword hits', () => {

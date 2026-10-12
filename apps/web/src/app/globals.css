@@ -3077,7 +3077,7 @@ body:has(.auth-shell) > .footer {
   flex: none;
   border-radius: 50%;
   background: var(--brand-bg);
-  color: var(--brand);
+  color: var(--selected-text);
   font-size: 11px;
   font-weight: 700;
 }
@@ -4305,11 +4305,11 @@ body:has(.auth-shell) > .footer {
 }
 .case-stage-tracker {
   display: flex;
+  flex-wrap: wrap;
   list-style: none;
   gap: 1.5rem;
   padding: 1rem 0;
   margin: 0;
-  overflow-x: auto;
   border-top: 1px solid var(--hairline);
   border-bottom: 1px solid var(--hairline);
 }
@@ -5037,4 +5037,264 @@ body:has(.auth-shell) > .footer {
   .app-more .workspace-tools > summary {
     color: #18343d;
   }
+}
+
+/* Compact account trigger; complete identity stays in the menu and accessible label. */
+.record-toolbar .record-account summary .account-name-mobile {
+  display: none;
+}
+.record-account .record-menu-identity {
+  margin: 4px 8px 8px;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 1023px) {
+  .record-toolbar .record-account summary .account-name-desktop {
+    display: none;
+  }
+  .record-toolbar .record-account summary .account-name-mobile {
+    display: block;
+  }
+}
+
+.agency-reference-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 20px;
+}
+.agency-reference-metrics .stat {
+  background: #fff;
+  border: 1px solid var(--hairline);
+  border-radius: 12px;
+  padding: 16px;
+}
+.wallet-upload-disclosure,
+.agency-setup-disclosure,
+.agency-attention-disclosure,
+.admin-overview-controls,
+.admin-signals-disclosure {
+  margin-block: 16px;
+}
+.wallet-upload-disclosure > div {
+  margin-top: 16px;
+}
+.agency-setup-disclosure > summary,
+.agency-attention-disclosure > summary,
+.admin-overview-controls > summary,
+.admin-signals-disclosure > summary {
+  cursor: pointer;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  color: var(--selected-text);
+}
+.agency-setup-disclosure > summary::before,
+.agency-attention-disclosure > summary::before,
+.admin-overview-controls > summary::before,
+.admin-signals-disclosure > summary::before {
+  content: "+";
+}
+.agency-setup-disclosure[open] > summary::before,
+.agency-attention-disclosure[open] > summary::before,
+.admin-overview-controls[open] > summary::before,
+.admin-signals-disclosure[open] > summary::before {
+  content: "-";
+}
+@media (max-width: 767px) {
+  .agency-reference-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.profile-read-summary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1.25rem 2rem;
+  margin: 1.25rem 0;
+}
+.profile-read-summary dt {
+  color: var(--text-tertiary);
+  font-size: 0.65rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.profile-read-summary dd {
+  margin: 0.3rem 0 0;
+  font-size: 0.9rem;
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+.profile-edit-section {
+  border-top: 1px solid var(--hairline-soft);
+  margin-top: 1rem;
+}
+.profile-edit-section > summary {
+  color: var(--accent);
+  font-size: 0.85rem;
+  cursor: pointer;
+  padding: 0.85rem 0;
+  min-height: 44px;
+}
+@media (max-width: 479px) {
+  .profile-read-summary {
+    gap: 1rem;
+  }
+}
+
+.case-manual-notice {
+  margin: 0 0 1rem;
+  padding: 0.5rem 0.85rem;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-sm);
+  font-size: 0.8rem;
+  background: #eef6f1;
+}
+.case-manual-notice > summary,
+.case-details-edit > summary {
+  cursor: pointer;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  color: var(--accent);
+}
+.case-details-edit {
+  margin-top: 0.75rem;
+  border-top: 1px solid var(--hairline-soft);
+}
+.case-evidence-overview .case-preparation-summary {
+  grid-template-columns: 6.5rem minmax(0, 1fr);
+  gap: 1rem;
+  padding: 1rem;
+  margin: 1rem 0;
+  border: 1px solid var(--hairline-soft);
+  border-radius: var(--radius-sm);
+  background: #eef6f1;
+}
+.case-evidence-overview .case-preparation-ring > div {
+  padding: 0.8rem;
+}
+.case-evidence-overview .case-preparation-ring strong {
+  font-size: 1.5rem;
+}
+.case-evidence-overview .case-preparation-counts dl {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.35rem 0.75rem;
+  margin: 0.75rem 0;
+}
+.case-evidence-overview .case-preparation-counts dl > div {
+  font-size: 0.7rem;
+  padding: 0.35rem 0;
+}
+.case-checklist-heading {
+  margin-top: 1.5rem;
+  font-size: 1rem;
+}
+@media (max-width: 767px) {
+  .case-evidence-overview .case-preparation-summary {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .case-evidence-overview .case-preparation-ring {
+    width: 6.5rem;
+    margin: 0 auto;
+  }
+  .case-evidence-overview .case-preparation-counts dl {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.wallet-overview-strip {
+  gap: 0;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius);
+  background: var(--bg-elevated);
+  overflow: hidden;
+}
+.wallet-overview-strip button {
+  border: 0;
+  border-right: 1px solid var(--hairline-soft);
+  border-radius: 0;
+}
+.wallet-overview-strip button:last-child {
+  border-right: 0;
+}
+.wallet-document-select {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 7.5rem minmax(5.5rem, auto);
+  align-items: center;
+  gap: 0.25rem 1rem;
+  padding: 0.9rem 0.75rem;
+}
+.wallet-document-select .wallet-document-name {
+  grid-column: 1;
+  grid-row: 1;
+}
+.wallet-document-select > .muted:nth-child(2) {
+  grid-column: 1;
+  grid-row: 2;
+  font-size: 0.7rem;
+}
+.wallet-document-select .wallet-document-state {
+  grid-column: 3;
+  grid-row: 1 / span 2;
+}
+.wallet-document-select > .muted:last-child {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  font-size: 0.7rem;
+}
+.wallet-document-state > span:last-child {
+  font-size: 0.65rem;
+}
+@media (max-width: 767px) {
+  .wallet-document-select {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 0.5rem;
+  }
+  .wallet-document-select .wallet-document-state {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+  }
+  .wallet-document-select > .muted:last-child {
+    grid-column: 1;
+    grid-row: 3;
+  }
+  .wallet-overview-strip button:nth-child(2) {
+    border-right: 0;
+  }
+  .wallet-overview-strip button:nth-child(-n + 2) {
+    border-bottom: 1px solid var(--hairline-soft);
+  }
+}
+
+.case-context-strip {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+.case-context-strip .case-manual-notice,
+.case-context-strip .case-attention {
+  margin: 0;
+}
+.case-evidence-overview .case-preparation-counts > p {
+  margin: 0.4rem 0;
+  font-size: 0.75rem;
+}
+.case-evidence-overview .case-preparation-counts dl {
+  margin: 0.5rem 0;
+}
+.sharing-invitation-history > summary {
+  color: var(--accent);
+  font-size: 0.9rem;
+  font-weight: 600;
+  min-height: 44px;
+  cursor: pointer;
 }

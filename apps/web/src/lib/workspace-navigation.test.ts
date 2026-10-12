@@ -41,13 +41,7 @@ describe('current contextual navigation contract', () => {
       '/app/privacy',
     );
     expect(nav.tools.map((link) => link.label)).toEqual(
-      expect.arrayContaining([
-        'All travellers',
-        'Shared with me',
-        'Evidence requests',
-        'Dates & expiry',
-        'History',
-      ]),
+      expect.arrayContaining(['Shared with me', 'Evidence requests', 'Dates & expiry', 'History']),
     );
   });
   it('keeps first-person creation and agency entry available without fabricated records', () => {

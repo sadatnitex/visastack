@@ -113,6 +113,10 @@ const { GrantOpButtons } = await import('../app/app/applicant/[id]/sharing/grant
 const { ScopeExpansionForm } = await import(
   '../app/app/applicant/[id]/sharing/scope-expansion-form'
 );
+vi.mock('../app/app/sharing-invitations/accept/actions', standIn);
+const { AcceptSharingInvitationForm } = await import(
+  '../app/app/sharing-invitations/accept/accept-form'
+);
 const { AcceptClientInvitationForm } = await import(
   '../app/app/client-invitations/accept/accept-form'
 );
@@ -181,6 +185,10 @@ const PEOPLE: readonly Case[] = [
     <ConsentButton type="SHARING" granted locale="en" label="Sharing" />
   )),
   { name: 'accept an invitation', element: () => <AcceptInvitationForm token="t1" /> },
+  {
+    name: 'personal sharing invitation acceptance',
+    element: () => <AcceptSharingInvitationForm token="synthetic-token" />,
+  },
   {
     name: 'accept a client invitation',
     element: () => <AcceptClientInvitationForm token="t1" applicants={APPLICANTS} />,

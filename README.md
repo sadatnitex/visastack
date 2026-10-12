@@ -23,7 +23,7 @@ granted, and every action is authorized, consent-gated, and audited.
 | Recovery and security | Native protected writes required; encrypted weekly database backup and database-only restore evidence | Independent document/lifecycle recovery, key rotation/escrow, staff MFA and sensitive-data acceptance |
 | Deployment | Required checks must pass on exact source and main commits; both deployment smoke checks, aliases and readiness must pass | GitHub temporarily refused jobs before startup; owner reported the account issue fixed and the exact main/deployment jobs were retried |
 
-Registration being open does not enable real applicant details or documents. A merged change or successful local test is not a completed acceptance verdict. Personal sharing still requires an existing account; client invitations retain explicit profile choice and consent. Bangla translation remains deferred. Historical implementation snapshots remain available in Git and the append-only evidence records.
+Registration being open does not enable real applicant details or documents. A merged change or successful local test is not a completed acceptance verdict. The deployed personal-sharing flow still requires an existing account; its pending email-invitation implementation is default-disabled until migration 0085 and activation are verified; client invitations retain explicit profile choice and consent. Bangla translation remains deferred. Historical implementation snapshots remain available in Git and the append-only evidence records.
 
 ## What's implemented
 
@@ -203,3 +203,10 @@ tracks the suite's own growth (see the in-file history comment).
 ## License
 
 Proprietary and confidential. All rights reserved.
+
+
+### Current document, sharing and reference continuation (2026-10-12)
+
+The source candidate adds personal invitations before registration, free private passport-image/scanned-PDF reading, owner-requested rereading and reference layout/navigation corrections. Full account names come from the signed-in Neon identity; mobile shows a compact first name with a chevron and the full name inside the menu. Management entry points are in that account menu. Existing permissions, consent, record versions and real-data gates remain intact.
+
+Read [the current CF-04 through CF-09 acceptance checkpoint](docs/uiux/CF-04-09-ACCEPTANCE-2026-10-12.md). It distinguishes actual authenticated evidence from source checks, documents the failed first diagnostic run and explains migration/activation requirements. It does not certify complete beta acceptance.

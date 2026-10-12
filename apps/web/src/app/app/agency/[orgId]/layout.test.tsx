@@ -47,7 +47,8 @@ describe('agency console layout', () => {
     expect(text).toContain('Dhaka Visa Desk');
     expect(text).toContain('Active');
     expect(text).toContain('Agency workspace');
-    expect(tabLabels(html)).toEqual([]);
+    expect(tabLabels(html)).toEqual(['Invite traveller']);
+    expect(html).toContain('href="/app/agency/o1/clients"');
     expect(html).not.toContain('subnav');
     expect(html).toContain('id="page"');
     expect(html).not.toContain('aria-label="Organization sections"');

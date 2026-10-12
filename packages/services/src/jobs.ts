@@ -1,6 +1,10 @@
 import { randomUUID } from 'node:crypto';
+import { type Result, err, ok } from '@visastack/core';
 import { and, asc, desc, eq, gt, inArray, isNull, lt, lte, or, sql } from 'drizzle-orm';
+import { appendAuditEvent } from './audit';
+import { hasConsent } from './consent';
 import { type Db, first, required, schema } from './db';
+import { type ServiceError, serviceError } from './errors';
 import type { DocumentConverterPort } from './extraction';
 import type { ContentLimitsPort, MalwareScannerPort } from './intake';
 import { processIntake } from './intake';
@@ -37,6 +41,111 @@ const BACKOFF_BASE_SECONDS = 30;
 /** Generous relative to a single-document pass (seconds): bounds how long a crashed worker can strand a job before the next claim attempt reclaims it. */
 const LEASE_DURATION_MS = 5 * 60 * 1000;
 const CURRENT_INTAKE_PROCESSING_VERSION = 1;
+
+/** A single audited refresh for files read before the private OCR reader was available. */
+export async function requestDocumentReExtraction(
+  db: Db,
+  input: {
+    readonly actorAccountId: string;
+    readonly documentId: string;
+    readonly expectedVersionId: string;
+  },
+): Promise<Result<void, ServiceError>> {
+  if (
+    ![input.documentId, input.expectedVersionId].every((id) =>
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id),
+    )
+  )
+    return err(serviceError('invalid', 'Document reference is invalid.'));
+  return db.transaction(async (tx) => {
+    const document = first(
+      await tx
+        .select()
+        .from(schema.documents)
+        .where(eq(schema.documents.id, input.documentId))
+        .for('update'),
+    );
+    const person =
+      document &&
+      first(
+        await tx
+          .select()
+          .from(schema.applicants)
+          .where(eq(schema.applicants.id, document.applicantId))
+          .limit(1),
+      );
+    if (!document || person?.ownerAccountId !== input.actorAccountId)
+      return err(
+        serviceError('forbidden', 'Only the traveller owner can request another reading.'),
+      );
+    if (!(await hasConsent(tx, input.actorAccountId, 'CORE_PROCESSING')))
+      return err(serviceError('consent_required', 'Core processing consent is required.'));
+    const version = first(
+      await tx
+        .select()
+        .from(schema.documentVersions)
+        .where(eq(schema.documentVersions.documentId, document.id))
+        .orderBy(desc(schema.documentVersions.versionNumber))
+        .limit(1),
+    );
+    if (!version || version.id !== input.expectedVersionId)
+      return err(
+        serviceError('invalid', 'This document changed. Reload before requesting another reading.'),
+      );
+    if (
+      version.safetyStatus !== 'CLEAN' ||
+      !['AWAITING_REVIEW', 'APPROVED'].includes(version.processingStatus)
+    )
+      return err(
+        serviceError('invalid', 'The file must complete safety checks before another reading.'),
+      );
+    const active = first(
+      await tx
+        .select()
+        .from(schema.processingJobs)
+        .where(
+          and(
+            eq(schema.processingJobs.documentVersionId, version.id),
+            inArray(schema.processingJobs.status, ['PENDING', 'CLAIMED']),
+          ),
+        )
+        .limit(1),
+    );
+    if (active) return err(serviceError('invalid', 'This file is already queued or being read.'));
+    const processingVersion = 2;
+    const queued = await tx
+      .insert(schema.processingJobs)
+      .values({
+        documentVersionId: version.id,
+        jobType: 'INTAKE',
+        processingVersion,
+        idempotencyKey: idempotencyKeyFor(version.id, 'INTAKE', processingVersion),
+      })
+      .onConflictDoNothing()
+      .returning();
+    if (!queued.length)
+      return err(
+        serviceError(
+          'invalid',
+          'This copy has already used the current reader. Upload a clearer copy if details are still missing.',
+        ),
+      );
+    await tx
+      .update(schema.documentVersions)
+      .set({ processingStatus: 'EXTRACTING' })
+      .where(eq(schema.documentVersions.id, version.id));
+    await appendAuditEvent(tx, {
+      eventType: 'DOCUMENT_REEXTRACTION_REQUESTED',
+      actorAccountId: input.actorAccountId,
+      applicantId: person.id,
+      resourceType: 'document_version',
+      resourceId: version.id,
+      method: 'MANUAL',
+      result: 'ALLOWED',
+    });
+    return ok(undefined);
+  });
+}
 
 function idempotencyKeyFor(
   documentVersionId: string,

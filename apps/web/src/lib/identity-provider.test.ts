@@ -43,6 +43,21 @@ describe('WorkosIdentityPort', () => {
 describe('NeonIdentityPort', () => {
   const reader = (data: unknown) => () => ({ getSession: async () => ({ data }) }) as never;
 
+  it('passes a multiword Neon account name as display metadata without using it for identity binding', async () => {
+    const { NeonIdentityPort } = await import('./identity-provider');
+    const identity = await new NeonIdentityPort(
+      reader({
+        user: {
+          id: 'n_name',
+          name: 'Synthetic Noor Agency Owner',
+          email: 'name@example.test',
+          emailVerified: true,
+        },
+      }),
+    ).currentIdentity();
+    expect(identity?.displayName).toBe('Synthetic Noor Agency Owner');
+    expect(identity?.providerId).toBe('n_name');
+  });
   it('resolves a signed-in Neon user, passing the verification flag through', async () => {
     const { NeonIdentityPort } = await import('./identity-provider');
     const verified = await new NeonIdentityPort(

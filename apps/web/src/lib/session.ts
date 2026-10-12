@@ -70,17 +70,32 @@ async function releaseClaimBestEffort(db: Db, invitationId: string): Promise<voi
  * redirected to sign-in by `ensureSignedIn`.
  */
 export async function withSession<T>(
-  fn: (ctx: { readonly db: Db; readonly accountId: string; readonly email: string }) => Promise<T>,
+  fn: (ctx: {
+    readonly db: Db;
+    readonly accountId: string;
+    readonly email: string;
+    readonly displayName?: string;
+  }) => Promise<T>,
 ): Promise<T> {
   const neon = selectedIdentityProvider() === 'neon_auth';
   // Who is signed in, from the server-side session only. With Neon Auth, an address that has not
   // been confirmed yet is sent to the confirmation page and gets no account and no database work.
-  let user: { readonly id: string; readonly email: string; readonly emailVerified: boolean };
+  let user: {
+    readonly id: string;
+    readonly email: string;
+    readonly emailVerified: boolean;
+    readonly displayName?: string;
+  };
   if (neon) {
     const identity = await new NeonIdentityPort().currentIdentity();
     if (!identity) redirect('/auth/sign-in');
     if (!identity.emailVerified) redirect('/auth/verify-email');
-    user = { id: identity.providerId, email: identity.email, emailVerified: true };
+    user = {
+      id: identity.providerId,
+      email: identity.email,
+      emailVerified: true,
+      ...(identity.displayName ? { displayName: identity.displayName } : {}),
+    };
   } else {
     // Read-only: the middleware (with `middlewareAuth` enabled) has already
     // enforced sign-in and refreshed the token, so this never writes cookies
@@ -197,7 +212,12 @@ export async function withSession<T>(
     // write on most requests, see touchAccountActivity's own doc comment.
     await touchAccountActivity(handle, provisioned.value.id);
 
-    return await fn({ db: handle, accountId: provisioned.value.id, email: user.email });
+    return await fn({
+      db: handle,
+      accountId: provisioned.value.id,
+      email: user.email,
+      ...(user.displayName ? { displayName: user.displayName } : {}),
+    });
   } catch (error) {
     // The routine "not invited" redirect above is expected control flow, not
     // a failure — logging it as one would misleadingly flag every denied

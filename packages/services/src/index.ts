@@ -617,6 +617,7 @@ export {
   type IntakeWorkerResult,
   type ProcessingJob,
   enqueueIntakeJob,
+  requestDocumentReExtraction,
   listFailedJobs,
   retryFailedJob,
   runIntakeWorker,
@@ -1033,3 +1034,12 @@ export {
 export { loadWorkspaceToolbarState, type WorkspaceToolbarState } from './workspace-toolbar';
 
 export { type PlatformOverview, getPlatformOverview } from './platform-overview';
+
+export {
+  createSharingInvitation,
+  previewSharingInvitation,
+  acceptSharingInvitation,
+  listSharingInvitations,
+  revokeSharingInvitation,
+  type SharingInvitation,
+} from './sharing-invitations';

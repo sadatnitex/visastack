@@ -46,6 +46,13 @@ describe('workspace chrome uses existing actor-scoped authorization reads', () =
     expect(data.platform).toBeNull();
     expect(mocks.hasPlatformPermission).not.toHaveBeenCalled();
   });
+  it('uses the signed-in account name before any traveller record without changing permissions', async () => {
+    const namedActor = { ...actor, displayName: 'Synthetic Noor Agency Owner' };
+    const data = await loadWorkspaceChrome({} as never, namedActor);
+    expect(data.accountName).toBe('Synthetic Noor Agency Owner');
+    expect(data.platform).toBeNull();
+    expect(mocks.isPlatformAdmin).toHaveBeenCalledWith({}, namedActor);
+  });
   it('does not replace account identity with a managed family member or infer rights from email', async () => {
     mocks.listApplicants.mockResolvedValue([
       { id: 'child', displayName: 'Synthetic Child', relationship: 'MINOR_GUARDIAN' },

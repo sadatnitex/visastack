@@ -114,6 +114,18 @@ export function parseTd3(input: string | readonly [string, string]): Result<Td3R
   const personalCheck = digitAt(l2, 42);
   const compositeCheck = digitAt(l2, 43);
 
+  for (const [value, pivot] of [
+    [dob, 40],
+    [expiry, 80],
+  ] as const) {
+    if (!/^\d{6}$/.test(value))
+      return err({ code: 'bad_format', message: 'MRZ dates must contain six digits' });
+    const iso = toIsoDate(value, pivot);
+    const date = new Date(`${iso}T00:00:00Z`);
+    if (!Number.isFinite(date.getTime()) || date.toISOString().slice(0, 10) !== iso)
+      return err({ code: 'bad_format', message: 'MRZ contains an invalid calendar date' });
+  }
+
   const composite = l2.slice(0, 10) + l2.slice(13, 20) + l2.slice(21, 43);
   const checksValid =
     checkDigit(l2.slice(0, 9)) === passportCheck &&

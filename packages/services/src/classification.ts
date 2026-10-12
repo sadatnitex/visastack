@@ -26,7 +26,7 @@ export interface ClassificationResult {
 function findTd3Lines(text: string): readonly [string, string] | null {
   const lines = text
     .split(/\r?\n/)
-    .map((l) => l.trim())
+    .map((l) => l.trim().replace(/[ \t]/g, ''))
     .filter((l) => l.length > 0);
   for (let i = 0; i < lines.length - 1; i++) {
     const l1 = lines[i] ?? '';

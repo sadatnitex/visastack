@@ -5,8 +5,8 @@ import { createPooledDb } from '@visastack/db';
 import { type Db, loadUploadQuotaConfig, runIntakeWorker } from '@visastack/services';
 import { ClamAvScanner, checkSignatureFreshness } from './clamav-scanner';
 import { BuiltinContentLimitsChecker } from './content-limits';
+import { IsolatedOcrExtractor } from './ocr-extraction';
 import { R2Storage } from './r2-storage';
-import { DeterministicTextExtractor } from './text-extraction';
 import { VercelPrivateBlobStorage } from './vercel-blob';
 
 function required(name: string): string {
@@ -78,7 +78,7 @@ export async function runIsolatedIntake(): Promise<void> {
         return result;
       },
     };
-    const extractor = new DeterministicTextExtractor({ blobStore: storage });
+    const extractor = new IsolatedOcrExtractor(storage, required('OCR_ENGINE_VERSION'));
     const limits = new BuiltinContentLimitsChecker({
       blobStore: storage,
       config: loadUploadQuotaConfig(),

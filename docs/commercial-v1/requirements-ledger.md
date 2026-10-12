@@ -311,3 +311,8 @@ Current operating guidance, source/disclosure inventory and dated corrections su
 ### IAM-03 / NTF-02 / NTF-03 invitation continuation, 2026-10-12
 
 Release candidate: team/client invite email reaches an email-only recipient without requiring an existing account; encrypted transactional outbox, dispatch-time pending/expiry/recipient checks, copy/native sharing and preserved Neon signup/confirmation return path. Existing-account member addition also enqueues both channels. Existing client token-holder policy and explicit profile/consent/grant rules are retained. Phone contacts use manual link sharing. Live provider delivery, callback/inbox verification and actual authenticated CF-09 journeys are not certified. Existing personal sharing still requires an account. Evidence and limitations: docs/operations/invitation-journeys.md.
+
+
+### 2026-10-12: CF-04 through CF-09 and personal-sharing candidate
+
+The current candidate adds bounded private-worker OCR, checksum/calendar-validated passport expiry, audited rereading of a previously checked file, account-menu management links and reference-layout corrections. Personal sharing can notify an email before registration and creates no active grant until the exact recipient accepts. Its additive migration 0085 is applied only to isolated synthetic staging; production activation remains disabled pending a specifically authorized migration and verification. Actual Neon identities and routes replace fixture-only acceptance, but source checks and successful captures do not close full lifecycle, provider delivery, recovery or privileged-operation acceptance. See ../uiux/CF-04-09-ACCEPTANCE-2026-10-12.md for the current evidence boundary.

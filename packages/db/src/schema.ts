@@ -734,6 +734,43 @@ export const grants = pgTable(
   ],
 );
 
+// Personal invitations are inert proposals until the exact authenticated recipient accepts.
+export const sharingInvitations = pgTable(
+  'sharing_invitations',
+  {
+    missionId: uuid('mission_id').references(() => missions.id, { onDelete: 'cascade' }),
+    id: uuid('id').primaryKey().defaultRandom(),
+    applicantId: uuid('applicant_id')
+      .notNull()
+      .references(() => applicants.id, { onDelete: 'cascade' }),
+    invitedByAccountId: uuid('invited_by_account_id')
+      .notNull()
+      .references(() => accounts.id, { onDelete: 'cascade' }),
+    email: text('email').notNull(),
+    tokenHash: text('token_hash').notNull().unique(),
+    status: text('status').notNull().default('PENDING'),
+    purpose: text('purpose').notNull(),
+    actions: permissionAction('actions').array().notNull(),
+    categories: text('categories').array(),
+    documentIds: uuid('document_ids').array(),
+    documentScopeSnapshot: uuid('document_scope_snapshot').array(),
+    grantExpiryAt: timestamp('grant_expiry_at', { withTimezone: true }).notNull(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    stepUpSatisfied: boolean('step_up_satisfied').notNull().default(false),
+    acceptedGrantId: uuid('accepted_grant_id').references(() => grants.id, {
+      onDelete: 'set null',
+    }),
+    ...timestamps,
+  },
+  (table) => [
+    index('sharing_invitations_applicant_idx').on(table.applicantId, table.status),
+    check(
+      'sharing_invitations_status_check',
+      sql`${table.status} in ('PENDING', 'ACCEPTED', 'REVOKED')`,
+    ),
+  ],
+);
+
 // --- Document Vault (Build Spec §4.2) --------------------------------------
 // Encrypted bytes in private object storage. The key is an immutable UUID and
 // is never the display filename (Build Spec §7).

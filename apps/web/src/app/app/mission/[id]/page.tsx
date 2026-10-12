@@ -572,33 +572,36 @@ export default async function MissionPage({
         </div>
       ) : null}
 
-      {mission.manualMode ? (
-        <div className="notice notice-warn" style={{ marginBottom: '1.5rem' }}>
-          <strong>Manual mode.</strong> No automated requirement pack covers this route yet.
-          Readiness is not tracked automatically here - you are responsible for confirming what this
-          case needs yourself. This is never claimed as an official readiness assessment, on this
-          page or in any exported snapshot.
-        </div>
-      ) : null}
+      <div className="case-context-strip">
+        {mission.manualMode ? (
+          <details className="case-manual-notice">
+            <summary>Manual assessment: this route has no automated requirement pack</summary>
+            <p>
+              You are responsible for confirming what this case needs. Completeness is not an
+              official readiness assessment, on this page or in an exported snapshot.
+            </p>
+          </details>
+        ) : null}
 
-      <ul className="case-attention" aria-label="What needs attention on this case">
-        {attention.length === 0 ? (
-          <li>
-            <span className="case-attention-ok">
-              <StatusBadge tone="success">Nothing needs attention right now</StatusBadge>
-            </span>
-          </li>
-        ) : (
-          attention.map((item) => (
-            <li key={item.label}>
-              <a href={item.href}>
-                <StatusBadge tone={item.tone}>{item.count}</StatusBadge>
-                {item.label}
-              </a>
+        <ul className="case-attention" aria-label="What needs attention on this case">
+          {attention.length === 0 ? (
+            <li>
+              <span className="case-attention-ok">
+                <StatusBadge tone="success">Nothing needs attention right now</StatusBadge>
+              </span>
             </li>
-          ))
-        )}
-      </ul>
+          ) : (
+            attention.map((item) => (
+              <li key={item.label}>
+                <a href={item.href}>
+                  <StatusBadge tone={item.tone}>{item.count}</StatusBadge>
+                  {item.label}
+                </a>
+              </li>
+            ))
+          )}
+        </ul>
+      </div>
 
       <nav className="jump-nav" aria-label="Sections of this case">
         <a href="#readiness">Readiness</a>
@@ -611,9 +614,7 @@ export default async function MissionPage({
 
       <div className="split">
         <div className="split-main">
-          <article className="card" id="readiness">
-            <p className="card-kicker">Completeness</p>
-            <h2 className="card-title">Readiness</h2>
+          <article className="card case-evidence-overview" id="readiness">
             {data.selfReviewed ? (
               <p className="muted" style={{ fontSize: '0.85rem', marginBottom: '0.75rem' }}>
                 <span className="badge badge-neutral">Self-reviewed</span> No agency currently has
@@ -626,36 +627,23 @@ export default async function MissionPage({
                   readiness={data.readiness}
                   acknowledged={Boolean(data.liveAcknowledgedAt) && !data.isDirty}
                 />
-                <div className="rows" style={{ marginBottom: '1rem' }}>
-                  <div className="row">
-                    <span className="row-key">Required satisfied</span>
-                    <span className="row-val">
-                      {data.readiness.satisfiedRequired} / {data.readiness.requiredCount}
-                    </span>
-                  </div>
-                  <div className="row">
-                    <span className="row-key">Status</span>
-                    <span
-                      className={`badge ${OVERALL_STATE_META[data.readiness.overallState].tone}`}
-                    >
-                      {OVERALL_STATE_META[data.readiness.overallState].label}
-                    </span>
-                  </div>
-                </div>
-                <p className="muted" style={{ fontSize: '0.85rem', marginBottom: '1rem' }}>
-                  {data.readiness.overallState === 'READY_FOR_APPLICANT_REVIEW'
-                    ? t('mission.readiness.ready')
-                    : data.readiness.overallState === 'NEEDS_REVIEW'
-                      ? t('mission.readiness.needsReview', { count: data.requiredUnverifiedCount })
-                      : data.readiness.overallState === 'MANUAL_ONLY'
-                        ? t('mission.readiness.manualOnly')
-                        : t('mission.readiness.missing', { count: data.requiredHardGapCount })}
+                <p className={`badge ${OVERALL_STATE_META[data.readiness.overallState].tone}`}>
+                  {OVERALL_STATE_META[data.readiness.overallState].label}
                 </p>
+                {data.readiness.overallState !== 'MANUAL_ONLY' ? (
+                  <p className="muted" style={{ fontSize: '0.85rem', marginBottom: '1rem' }}>
+                    {data.readiness.overallState === 'READY_FOR_APPLICANT_REVIEW'
+                      ? t('mission.readiness.ready')
+                      : data.readiness.overallState === 'NEEDS_REVIEW'
+                        ? t('mission.readiness.needsReview', {
+                            count: data.requiredUnverifiedCount,
+                          })
+                        : t('mission.readiness.missing', { count: data.requiredHardGapCount })}
+                  </p>
+                ) : null}
                 {data.requirementDetails.length > 0 ? (
                   <>
-                    <p className="card-kicker" style={{ marginBottom: '0.5rem' }}>
-                      Every requirement
-                    </p>
+                    <h3 className="case-checklist-heading">Evidence checklist</h3>
                     <div className="rows">
                       {data.requirementDetails.map((r) => {
                         const meta = REQUIREMENT_STATE_META[r.state];
@@ -756,54 +744,61 @@ export default async function MissionPage({
             )}
           </article>
 
-          <div className="grid" id="evidence" style={{ marginTop: '1.5rem' }}>
-            <EvidenceSelectionPanel
-              missionId={mission.id}
-              candidates={data.candidates.map((c) => ({
-                packRequirementId: c.packRequirementId,
-                kind: c.kind,
-                label:
-                  c.kind === 'FIELD'
-                    ? (profileField(c.key)?.label ?? humanizeCode(c.key))
-                    : humanizeCode(c.key),
-                citation: c.citation,
-                factCandidates: c.factCandidates.map((f) => ({
-                  factId: f.factId,
-                  value: f.value,
-                  repeatingRecordKey: f.repeatingRecordKey,
-                  eligible: isFactStatusEligible(f.status),
-                })),
-                documentCandidates: c.documentCandidates.map((d) => ({
-                  documentId: d.documentId,
-                  displayName: d.displayName,
-                  eligible: d.eligible,
-                  staleness: d.staleness.status,
-                })),
-                selectedFactIds: c.selectedFactIds,
-                selectedDocumentIds: c.selectedDocumentIds,
-                selectionIdsByCandidate: data.selectionIdsByCandidate,
-              }))}
-            />
-          </div>
+          <Disclosure title="Select or update evidence" hint="Open when you need to make a change">
+            <div className="grid" id="evidence" style={{ marginTop: '1.5rem' }}>
+              <EvidenceSelectionPanel
+                missionId={mission.id}
+                candidates={data.candidates.map((c) => ({
+                  packRequirementId: c.packRequirementId,
+                  kind: c.kind,
+                  label:
+                    c.kind === 'FIELD'
+                      ? (profileField(c.key)?.label ?? humanizeCode(c.key))
+                      : humanizeCode(c.key),
+                  citation: c.citation,
+                  factCandidates: c.factCandidates.map((f) => ({
+                    factId: f.factId,
+                    value: f.value,
+                    repeatingRecordKey: f.repeatingRecordKey,
+                    eligible: isFactStatusEligible(f.status),
+                  })),
+                  documentCandidates: c.documentCandidates.map((d) => ({
+                    documentId: d.documentId,
+                    displayName: d.displayName,
+                    eligible: d.eligible,
+                    staleness: d.staleness.status,
+                  })),
+                  selectedFactIds: c.selectedFactIds,
+                  selectedDocumentIds: c.selectedDocumentIds,
+                  selectionIdsByCandidate: data.selectionIdsByCandidate,
+                }))}
+              />
+            </div>
+          </Disclosure>
 
-          <div className="grid" id="work" style={{ marginTop: '1.5rem' }}>
-            <TasksPanel missionId={mission.id} tasks={data.tasks} />
-            <AppointmentsPanel missionId={mission.id} appointments={data.appointments} />
-            <LettersPanel
-              missionId={mission.id}
-              letters={data.letters.map((l) => ({
-                id: l.id,
-                version: l.version,
-                content: l.content,
-                createdAt: l.createdAt.toISOString(),
-              }))}
-              canGenerate={data.candidates.some(
-                (c) =>
-                  c.factCandidates.some((f) => isFactStatusEligible(f.status)) ||
-                  c.documentCandidates.some((d) => d.eligible),
-              )}
-            />
-          </div>
+          <Disclosure
+            title="Tasks, appointments and letters"
+            hint="Open when you need to make a change"
+          >
+            <div className="grid" id="work" style={{ marginTop: '1.5rem' }}>
+              <TasksPanel missionId={mission.id} tasks={data.tasks} />
+              <AppointmentsPanel missionId={mission.id} appointments={data.appointments} />
+              <LettersPanel
+                missionId={mission.id}
+                letters={data.letters.map((l) => ({
+                  id: l.id,
+                  version: l.version,
+                  content: l.content,
+                  createdAt: l.createdAt.toISOString(),
+                }))}
+                canGenerate={data.candidates.some(
+                  (c) =>
+                    c.factCandidates.some((f) => isFactStatusEligible(f.status)) ||
+                    c.documentCandidates.some((d) => d.eligible),
+                )}
+              />
+            </div>
+          </Disclosure>
 
           <div id="notes">
             <Disclosure
@@ -860,18 +855,20 @@ export default async function MissionPage({
             </Disclosure>
           </div>
 
-          <div className="grid" id="outcome" style={{ marginTop: '1.5rem' }}>
-            <SubmissionReportPanel
-              missionId={mission.id}
-              submissions={data.submissions}
-              eligible={mission.state === 'SUBMISSION_READY'}
-            />
-            <OutcomePanel
-              missionId={mission.id}
-              outcomes={data.outcomes}
-              evidenceOptions={data.evidenceOptions}
-            />
-          </div>
+          <Disclosure title="Submission and outcome" hint="Open when you need to make a change">
+            <div className="grid" id="outcome" style={{ marginTop: '1.5rem' }}>
+              <SubmissionReportPanel
+                missionId={mission.id}
+                submissions={data.submissions}
+                eligible={mission.state === 'SUBMISSION_READY'}
+              />
+              <OutcomePanel
+                missionId={mission.id}
+                outcomes={data.outcomes}
+                evidenceOptions={data.evidenceOptions}
+              />
+            </div>
+          </Disclosure>
 
           <div style={{ marginTop: '1.5rem' }}>
             <Disclosure
@@ -893,15 +890,28 @@ export default async function MissionPage({
           <article className="card">
             <p className="card-kicker">Case</p>
             <h2 className="card-title">Case details</h2>
-            <CaseDetailsForm
-              missionId={mission.id}
-              jurisdiction={mission.jurisdiction}
-              serviceCategory={mission.serviceCategory}
-              travelStartDate={mission.travelStartDate}
-              travelEndDate={mission.travelEndDate}
-              targetDeadline={mission.targetDeadline}
-              manualMode={mission.manualMode}
-            />
+            <p className="card-body">
+              {mission.jurisdiction || 'Jurisdiction not set'}
+              {mission.serviceCategory ? ` · ${mission.serviceCategory}` : ''}
+            </p>
+            <p className="muted">
+              {mission.travelStartDate
+                ? formatDateOnly(mission.travelStartDate)
+                : 'Travel dates not set'}
+              {mission.travelEndDate ? ` to ${formatDateOnly(mission.travelEndDate)}` : ''}
+            </p>
+            <details className="case-details-edit">
+              <summary>Edit case details</summary>
+              <CaseDetailsForm
+                missionId={mission.id}
+                jurisdiction={mission.jurisdiction}
+                serviceCategory={mission.serviceCategory}
+                travelStartDate={mission.travelStartDate}
+                travelEndDate={mission.travelEndDate}
+                targetDeadline={mission.targetDeadline}
+                manualMode={mission.manualMode}
+              />
+            </details>
           </article>
           <article className="card">
             <p className="card-kicker">Requirements</p>

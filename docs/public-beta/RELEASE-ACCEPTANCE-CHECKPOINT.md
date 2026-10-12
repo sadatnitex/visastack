@@ -50,3 +50,8 @@ The classification remains BETA_BLOCKED for sensitive applicant data. Public reg
 The independent Free staging project now has an Auth endpoint, an empty application schema and pgcrypto. No production data was cloned or migrated. This is not a prepared five-role authenticated staging deployment: synthetic Auth identities, role/record fixtures and independent app/storage processing still need verification. WorkOS staging success or skipped Neon authenticated jobs cannot substitute for those journeys.
 
 Invitation source tests and public account handoffs are separate evidence from actual Neon acceptance, email callback outcomes and inbox receipt. A signed unknown-event callback probe acknowledged a valid signature and refused an invalid signature without modifying any delivery state; it did not send an email or establish actual delivery. Exact release checkpoints and remaining operator work are in DEPLOYMENT-ACTIONS.md and ../operations/invitation-journeys.md.
+
+
+## Authenticated evidence correction and remaining gate: 2026-10-12
+
+See [the current CF acceptance checkpoint](../uiux/CF-04-09-ACCEPTANCE-2026-10-12.md) for implementation, actual evidence, the first failed diagnostic run and remaining limits. Personal sharing is implemented behind a default-disabled flag and requires reviewed migration 0085 before production activation. The private scanner worker has a free, bounded OCR reader in this candidate. Required checks and actual authenticated acceptance remain separate; sensitive intake is not enabled.

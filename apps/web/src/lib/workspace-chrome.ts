@@ -12,7 +12,7 @@ import type { WorkspaceAccess } from './workspace-navigation';
 /** Existing owner and active-membership reads, never an email-based permission shortcut. */
 export async function loadWorkspaceChrome(
   db: Db,
-  actor: { readonly accountId: string; readonly email: string },
+  actor: { readonly accountId: string; readonly email: string; readonly displayName?: string },
 ): Promise<
   WorkspaceAccess & { readonly accountName: string; readonly toolbar: WorkspaceToolbarState }
 > {
@@ -32,7 +32,9 @@ export async function loadWorkspaceChrome(
   return {
     toolbar,
     accountName:
-      people.find((person) => person.relationship === 'SELF')?.displayName ?? 'Your account',
+      actor.displayName?.trim() ||
+      people.find((person) => person.relationship === 'SELF')?.displayName ||
+      'Your account',
     travellers: people.map((person) => ({
       id: person.id,
       name: person.displayName,

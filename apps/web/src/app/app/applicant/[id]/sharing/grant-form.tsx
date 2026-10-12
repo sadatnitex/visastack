@@ -1,7 +1,9 @@
 'use client';
 
-import { useActionState, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { useActionState, useEffect, useRef, useState } from 'react';
 import { FormMessage, SubmitButton } from '../../../../../components/form-feedback';
+import { InvitationLink } from '../../../../../components/invitation-link';
 import { PACK_LABELS, PACK_ORDER } from '../../../../../lib/profile-fields';
 import { type ActionState, createGrantAction } from './actions';
 
@@ -28,6 +30,11 @@ export function GrantForm({
   readonly documents: ReadonlyArray<{ readonly id: string; readonly displayName: string }>;
 }) {
   const [state, formAction, pending] = useActionState(createGrantAction, INITIAL);
+  const router = useRouter();
+  const invitationUrl = state.ok ? state.invitationUrl : undefined;
+  useEffect(() => {
+    if (invitationUrl) router.refresh();
+  }, [invitationUrl, router]);
 
   // Native fields remain the server action's source of truth. Review is an
   // explicit confirmation of their current scope, invalidated by any edit.
@@ -258,6 +265,7 @@ export function GrantForm({
           className="btn btn-primary"
         />
         <FormMessage result={state} />
+        {state.ok && state.invitationUrl ? <InvitationLink url={state.invitationUrl} /> : null}
       </div>
     </form>
   );

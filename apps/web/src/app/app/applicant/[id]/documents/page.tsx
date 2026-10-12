@@ -33,7 +33,11 @@ import { formatTimestampDate } from '../../../../../lib/format-date';
 import { getLocale } from '../../../../../lib/locale';
 import { isStillProcessing } from '../../../../../lib/resilience';
 import { withSession } from '../../../../../lib/session';
-import { previewDocumentAction, setDocumentDateAction } from '../actions';
+import {
+  previewDocumentAction,
+  requestDocumentReadingAction,
+  setDocumentDateAction,
+} from '../actions';
 import {
   AiProposalReview,
   DocumentTypeProposalReview,
@@ -102,6 +106,7 @@ function processingTone(status: string | null): string {
 
 /** EVI-04 wallet lifecycle: current/expiring/expired/superseded, distinct from pipeline/safety status above. */
 const LIFECYCLE_BADGES: Record<DocumentLifecycleStatus, { label: string; tone: string }> = {
+  UNKNOWN: { label: 'Expiry not confirmed', tone: 'badge-neutral' },
   CURRENT: { label: 'Current', tone: 'badge-success' },
   EXPIRING: { label: 'Expiring soon', tone: 'badge-warning' },
   EXPIRED: { label: 'Expired', tone: 'badge-danger' },
@@ -117,6 +122,8 @@ export default async function ApplicantDocumentsPage({
     readonly document?: string;
     readonly preview_error?: string;
     readonly date_error?: string;
+    readonly reading_error?: string;
+    readonly reading_queued?: string;
     readonly download_error?: string;
   }>;
 }) {
@@ -125,6 +132,8 @@ export default async function ApplicantDocumentsPage({
     document: initialSelection,
     preview_error: previewError,
     date_error: dateError,
+    reading_error: readingError,
+    reading_queued: readingQueued,
     download_error: downloadError,
   } = await searchParams;
   const locale = await getLocale();
@@ -244,6 +253,17 @@ export default async function ApplicantDocumentsPage({
           to upload them again.
         </p>
       ) : null}
+      {readingError ? (
+        <p className="notice notice-warn" role="alert">
+          {readingError}
+        </p>
+      ) : null}
+      {readingQueued === 'true' ? (
+        <output className="notice" aria-live="polite">
+          Another reading is queued. Keep this page open or return later. Confirm any suggested
+          information against the original.
+        </output>
+      ) : null}
       {previewError ? (
         <p className="notice notice-warn" role="alert" style={{ marginBottom: '1.5rem' }}>
           Couldn't open that preview - the document may no longer be available. Please try again.
@@ -255,65 +275,6 @@ export default async function ApplicantDocumentsPage({
           Couldn't save that date - enter a valid date that isn't in the future.
         </p>
       ) : null}
-
-      {/*
-       * Only upload and new processing/extraction are gated on core
-       * processing consent - existing documents must remain viewable
-       * regardless (docs/audits/post-programme-defect-register.md finding
-       * #23): "view existing data" and "permit new processing" are
-       * deliberately distinct here.
-       */}
-      {!data.coreGranted ? (
-        <article className="card" style={{ marginBottom: '1.5rem' }}>
-          <p className="card-body">
-            Grant <strong>Core processing</strong> consent from <Link href="/app">Home</Link> to
-            upload new documents or run processing. Your existing documents remain visible below.
-          </p>
-        </article>
-      ) : (
-        <>
-          {data.aiConfigured && !data.aiGranted ? (
-            <div className="card" style={{ marginBottom: '1.5rem' }}>
-              <p className="card-body">
-                Grant <strong>AI extraction</strong> consent from <Link href="/app">Home</Link> to
-                get automatic field suggestions from your documents - every suggestion still
-                requires your explicit approval before it changes your profile.
-              </p>
-            </div>
-          ) : null}
-
-          {data.ocrConfigured && !data.ocrGranted ? (
-            <div className="card" style={{ marginBottom: '1.5rem' }}>
-              <p className="card-body">
-                Grant <strong>AI OCR</strong> consent from <Link href="/app">Home</Link> to read
-                text from scanned or photographed documents - this sends the document's image, a
-                larger disclosure than AI extraction's text-only sharing.
-              </p>
-            </div>
-          ) : null}
-
-          <article className="card" style={{ marginBottom: '1.5rem' }}>
-            <p className="card-kicker">Upload</p>
-            <h2 className="card-title">Add a document</h2>
-            <p className="card-body" style={{ marginBottom: '1.25rem' }}>
-              Documents are stored privately and pass a structural safety scan before they can be
-              previewed.
-            </p>
-            <div style={{ marginBottom: '1.25rem' }}>
-              <UsageMeter
-                label="Evidence storage"
-                usedBytes={data.evidenceBytes}
-                limitBytes={data.quota.maxApplicantEvidenceBytes}
-              />
-            </div>
-            <DocumentUploader
-              applicantId={id}
-              limitLabel={mbLabel(data.quota.maxUploadBytes)}
-              virusScanning={getPlatformCapabilities().malwareScanning === 'available'}
-            />
-          </article>
-        </>
-      )}
 
       <DocumentWalletBrowser
         key={initialSelection ?? id}
@@ -330,6 +291,7 @@ export default async function ApplicantDocumentsPage({
             isServableProcessingState(doc.processingStatus);
           const lifecycle = data.wallet.get(doc.id)?.status;
           const needsReview =
+            (doc.docType === 'PASSPORT' && lifecycle === 'UNKNOWN') ||
             doc.safetyStatus === 'QUARANTINED' ||
             doc.processingStatus === 'AWAITING_REVIEW' ||
             doc.classification?.reviewRequired === true ||
@@ -350,7 +312,7 @@ export default async function ApplicantDocumentsPage({
               doc.safetyStatus === 'CLEAN' &&
               doc.processingStatus === 'APPROVED' &&
               !needsReview &&
-              (lifecycle === 'CURRENT' || lifecycle === 'EXPIRING'),
+              (lifecycle === 'CURRENT' || lifecycle === 'EXPIRING' || lifecycle === 'UNKNOWN'),
             needsReview,
             expiring: lifecycle === 'EXPIRING',
             safetyLabel: badge.label,
@@ -410,6 +372,21 @@ export default async function ApplicantDocumentsPage({
                     ) : null}
                   </span>
                 </div>
+                {(doc.classification?.reviewRequired === true ||
+                  !doc.classification ||
+                  (doc.docType === 'PASSPORT' && !doc.expiresAt)) &&
+                doc.safetyStatus === 'CLEAN' &&
+                doc.latestVersionId &&
+                ['AWAITING_REVIEW', 'APPROVED'].includes(doc.processingStatus ?? '') ? (
+                  <form action={requestDocumentReadingAction}>
+                    <input type="hidden" name="applicantId" value={id} />
+                    <input type="hidden" name="documentId" value={doc.id} />
+                    <input type="hidden" name="versionId" value={doc.latestVersionId} />
+                    <button className="btn btn-secondary" type="submit">
+                      Read this file again
+                    </button>
+                  </form>
+                ) : null}
                 {doc.processingStatus && PROBLEM_NEXT_STEP[doc.processingStatus] ? (
                   <p className="muted" style={{ fontSize: '0.75rem', margin: 0 }}>
                     {PROBLEM_NEXT_STEP[doc.processingStatus]}
@@ -657,6 +634,70 @@ export default async function ApplicantDocumentsPage({
           };
         })}
       />
+      <details className="wallet-upload-disclosure">
+        <summary className="btn btn-secondary">Upload a document</summary>
+        <div id="document-upload">
+          {/*
+           * Only upload and new processing/extraction are gated on core
+           * processing consent - existing documents must remain viewable
+           * regardless (docs/audits/post-programme-defect-register.md finding
+           * #23): "view existing data" and "permit new processing" are
+           * deliberately distinct here.
+           */}
+          {!data.coreGranted ? (
+            <article className="card" style={{ marginBottom: '1.5rem' }}>
+              <p className="card-body">
+                Grant <strong>Core processing</strong> consent from <Link href="/app">Home</Link> to
+                upload new documents or run processing. Your existing documents remain visible
+                above.
+              </p>
+            </article>
+          ) : (
+            <>
+              {data.aiConfigured && !data.aiGranted ? (
+                <div className="card" style={{ marginBottom: '1.5rem' }}>
+                  <p className="card-body">
+                    Grant <strong>AI extraction</strong> consent from <Link href="/app">Home</Link>{' '}
+                    to get automatic field suggestions from your documents - every suggestion still
+                    requires your explicit approval before it changes your profile.
+                  </p>
+                </div>
+              ) : null}
+
+              {data.ocrConfigured && !data.ocrGranted ? (
+                <div className="card" style={{ marginBottom: '1.5rem' }}>
+                  <p className="card-body">
+                    Grant <strong>AI OCR</strong> consent from <Link href="/app">Home</Link> to read
+                    text from scanned or photographed documents - this sends the document's image, a
+                    larger disclosure than AI extraction's text-only sharing.
+                  </p>
+                </div>
+              ) : null}
+
+              <article className="card" style={{ marginBottom: '1.5rem' }}>
+                <p className="card-kicker">Upload</p>
+                <h2 className="card-title">Add a document</h2>
+                <p className="card-body" style={{ marginBottom: '1.25rem' }}>
+                  Documents are stored privately and pass a structural safety scan before they can
+                  be previewed.
+                </p>
+                <div style={{ marginBottom: '1.25rem' }}>
+                  <UsageMeter
+                    label="Evidence storage"
+                    usedBytes={data.evidenceBytes}
+                    limitBytes={data.quota.maxApplicantEvidenceBytes}
+                  />
+                </div>
+                <DocumentUploader
+                  applicantId={id}
+                  limitLabel={mbLabel(data.quota.maxUploadBytes)}
+                  virusScanning={getPlatformCapabilities().malwareScanning === 'available'}
+                />
+              </article>
+            </>
+          )}
+        </div>
+      </details>
     </>
   );
 }

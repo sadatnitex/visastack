@@ -18,7 +18,7 @@ import { documentCategory, loadGrantsForPolicy } from './sharing';
  * preserves the old passport and flags cases using it").
  */
 
-export type DocumentLifecycleStatus = 'CURRENT' | 'EXPIRING' | 'EXPIRED' | 'SUPERSEDED';
+export type DocumentLifecycleStatus = 'UNKNOWN' | 'CURRENT' | 'EXPIRING' | 'EXPIRED' | 'SUPERSEDED';
 
 /**
  * The PRD gives no exact "expiring soon" window for this specific wallet
@@ -39,7 +39,7 @@ export function documentLifecycleStatus(
   now: Date = new Date(),
 ): DocumentLifecycleStatus {
   if (document.supersededByDocumentId) return 'SUPERSEDED';
-  if (!document.expiresAt) return 'CURRENT';
+  if (!document.expiresAt) return 'UNKNOWN';
   if (document.expiresAt.getTime() <= now.getTime()) return 'EXPIRED';
   const expiringThreshold = now.getTime() + EXPIRING_SOON_DAYS * 24 * 60 * 60 * 1000;
   if (document.expiresAt.getTime() <= expiringThreshold) return 'EXPIRING';

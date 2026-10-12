@@ -94,10 +94,10 @@ export function CasePreparationSummary({
         </div>
       </div>
       <div className="case-preparation-counts">
-        <h3>Preparation status</h3>
+        <h3>Evidence progress</h3>
         <p className="muted">
-          {readiness.satisfiedRequired} of {readiness.requiredCount} required items are satisfied.
-          Counts below include optional items and keep non-applicable items separate.
+          {readiness.satisfiedRequired} of {readiness.requiredCount} required items are on file.
+          Optional and non-applicable items are counted separately.
         </p>
         <dl>
           {(
@@ -121,8 +121,7 @@ export function CasePreparationSummary({
           {acknowledged ? 'Current snapshot confirmed' : 'Awaiting confirmation'}
         </p>
         <p className="muted">
-          Completeness is not an approval probability. Review the source, applicability and
-          assurance of each requirement below.
+          Completeness is not an approval probability. Review each requirement below.
         </p>
       </div>
     </section>

@@ -15,6 +15,7 @@ vi.mock('../../../../../lib/locale', () => ({ getLocale: async () => 'en' }));
 vi.mock('../../../../../lib/session', () => ({
   withSession: async (fn: (ctx: unknown) => Promise<unknown>) => fn({ db: {}, accountId: 'owner' }),
 }));
+vi.mock('./actions', () => ({ revokeSharingInvitationAction: vi.fn() }));
 vi.mock('./grant-form', () => ({ GrantForm: stub('GrantForm') }));
 vi.mock('./grant-op-buttons', () => ({ GrantOpButtons: stub('GrantOpButtons') }));
 vi.mock('./scope-expansion-form', () => ({ ScopeExpansionForm: stub('ScopeExpansionForm') }));
