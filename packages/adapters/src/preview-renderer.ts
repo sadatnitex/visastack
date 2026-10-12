@@ -99,7 +99,11 @@ async function renderPdf(bytes: Uint8Array, maxPdfPages: number): Promise<Previe
     // (rather than raw bytes) makes it reuse this same document instead of
     // resolving its own second one (`unpdf`'s own `withDocument` helper
     // explicitly supports either).
-    pdf = await withTimeout(getDocumentProxy(bytes), RENDER_TIMEOUT_MS, 'PDF structure parse');
+    pdf = await withTimeout(
+      getDocumentProxy(new Uint8Array(bytes)),
+      RENDER_TIMEOUT_MS,
+      'PDF structure parse',
+    );
     if (pdf.numPages > maxPdfPages) {
       return {
         rendered: false,

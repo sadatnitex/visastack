@@ -84,7 +84,11 @@ export class BuiltinContentLimitsChecker implements ContentLimitsPort {
       // -- confirmed by an isolated repro against this exact library version,
       // not theoretical; the same fix this session applied to
       // `preview-renderer.ts`'s `renderPdf`.
-      pdf = await withTimeout(getDocumentProxy(bytes), PDF_PARSE_TIMEOUT_MS, 'PDF structure parse');
+      pdf = await withTimeout(
+        getDocumentProxy(new Uint8Array(bytes)),
+        PDF_PARSE_TIMEOUT_MS,
+        'PDF structure parse',
+      );
       if (pdf.numPages > this.config.maxPdfPages) {
         return {
           withinLimits: false,

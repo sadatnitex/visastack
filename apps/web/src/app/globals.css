@@ -2025,10 +2025,10 @@ a.checklist-item:hover .checklist-label {
 }
 .land-stage {
   position: relative;
-  padding: 76px 55px 0 0;
+  padding: 76px 55px 40px 0;
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 16px;
+  gap: 12px 16px;
 }
 .land-case {
   position: relative;
@@ -2084,12 +2084,13 @@ a.checklist-item:hover .checklist-label {
   position: static;
   z-index: auto;
   width: 100%;
-  padding: 21px;
+  padding: 18px;
   background: var(--bg-elevated);
   border: 1px solid var(--hairline);
   border-radius: 22px;
   min-width: 0;
-  min-height: 131px;
+  min-height: 112px;
+  max-width: 300px;
 }
 .land-example-ai {
   right: auto;
@@ -2101,6 +2102,8 @@ a.checklist-item:hover .checklist-label {
   left: auto;
   bottom: auto;
   animation-delay: -3.5s;
+  justify-self: end;
+  margin-top: 12px;
 }
 .land-example-kicker {
   display: flex;
@@ -3441,6 +3444,10 @@ body:has(.auth-shell) > .footer {
   }
   .land-example {
     min-height: 0;
+    max-width: none;
+    margin-top: 0;
+    width: 100%;
+    justify-self: stretch;
   }
   .land-summary-panel {
     grid-template-columns: minmax(0, 1fr);
