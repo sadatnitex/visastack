@@ -22,7 +22,7 @@ Read [the current product and release state](docs/public-beta/CURRENT-STATE.md) 
 | Sharing and invitations | Team/client email and copy/share handoff deployed; personal invitations before signup enabled after specifically approved migration 0085 | Full recipient registration/acceptance and physical email receipt |
 | Interface | Reference-based traveller, agency and admin compositions; flat appearance, compact navigation and corrected hero spacing | CF-09 full authenticated desktop/mobile journeys and remaining route-state acceptance |
 | Recovery | Native protected writes required; encrypted weekly database backup and database-only restore evidence | Complete document/key/lifecycle recovery, key rotation/escrow and original recovery objectives |
-| Release | PR 201 merged and live; source checks and both deployment smokes passed | Post-merge main CI and real scanner/storage acceptance at the recorded checkpoint |
+| Release | PR 201 merged and live; source checks and both deployment smokes passed | PR 202 post-merge main CI; real scanner/storage acceptance blocked by missing scanner CLI package, with repair in review |
 
 Existing policies, consent, quarantine, audit and legal holds remain in place. Account confirmation does not transfer records or privileges. Invitation creation does not grant access. A provider delivery status does not prove inbox placement. Registration availability is separate from permission to use real applicant data. Bangla translation remains deferred.
 
