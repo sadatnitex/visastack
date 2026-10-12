@@ -70,3 +70,11 @@ The application email backlog was empty at configuration review. Production has 
 ## Document reading and isolated acceptance continuation: 2026-10-12
 
 See [the current CF acceptance checkpoint](../uiux/CF-04-09-ACCEPTANCE-2026-10-12.md) for implementation, actual evidence, the first failed diagnostic run and remaining limits. Personal sharing is implemented behind a default-disabled flag and requires reviewed migration 0085 before production activation. The private scanner worker has a free, bounded OCR reader in this candidate. Required checks and actual authenticated acceptance remain separate; sensitive intake is not enabled.
+
+### Private scanner and storage verification
+
+The existing `Private document scanning and processing` workflow has two manual modes on main: `process-queue` (the unchanged default) and `verify-synthetic`. Both retain the DOCUMENT_INTAKE_ENABLED gate. Configure repository Actions variables DOCUMENT_INTAKE_ENABLED=true and INTAKE_STORAGE_PROVIDER=r2; retain INTAKE_DATABASE_URL for the production visastackdev database, BLOB_READ_WRITE_TOKEN for the existing private mirror, and the verified R2 endpoint/access secrets. The mirror is intentional and must not be removed to bypass configuration.
+
+Before certifying scanner/storage acceptance, run verify-synthetic on the reviewed main revision. It installs fresh official ClamAV signatures, streams synthetic controls through the real storage adapters and scanner, checks native PDF extraction, verifies both storage copies and removes only its own opaque keys. It uses temporary in-memory metadata and never connects to the production database. Require the actual scanning/control steps to pass; a skipped worker is not acceptance. The in-cloud test container has no official definitions and is not production scanner proof.
+
+The R2 byte path exposed a Buffer incompatibility in the PDF parser. Extraction, preview and size checks normalize the exact supplied bytes into Uint8Array, preserving stored bytes and hashes. Production data intake remains disabled pending complete acceptance and owner sign-off.

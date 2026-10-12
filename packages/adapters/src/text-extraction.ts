@@ -31,7 +31,11 @@ async function extractPdf(bytes: Uint8Array): Promise<ExtractionOutcome> {
     // an undestroyed `PDFDocumentProxy` left open in a warm, reused process
     // corrupts pdfjs's in-process fake-worker transport for a later,
     // unrelated document's own PDF call.
-    pdf = await withTimeout(getDocumentProxy(bytes), EXTRACTION_TIMEOUT_MS, 'PDF structure parse');
+    pdf = await withTimeout(
+      getDocumentProxy(new Uint8Array(bytes)),
+      EXTRACTION_TIMEOUT_MS,
+      'PDF structure parse',
+    );
     const { totalPages, text } = await withTimeout(
       extractText(pdf, { mergePages: true }),
       EXTRACTION_TIMEOUT_MS,

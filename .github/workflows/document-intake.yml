@@ -4,6 +4,14 @@ on:
   schedule:
     - cron: '15 22 * * *'
   workflow_dispatch:
+    inputs:
+      mode:
+        description: 'Process the private queue or verify synthetic storage and scanner controls'
+        type: choice
+        options:
+          - process-queue
+          - verify-synthetic
+        default: process-queue
 
 permissions:
   contents: read
@@ -59,8 +67,9 @@ jobs:
           set -e
           rm /tmp/scanner-clean.txt /tmp/scanner-eicar.txt
           test "$scan_status" -eq 1
-      - name: Scan and process private queued documents
+      - name: Process the queue or verify isolated synthetic documents
         env:
+          INTAKE_MODE: ${{ inputs.mode || 'process-queue' }}
           INTAKE_STORAGE_PROVIDER: ${{ vars.INTAKE_STORAGE_PROVIDER || 'vercel_blob' }}
           INTAKE_DATABASE_URL: ${{ secrets.INTAKE_DATABASE_URL }}
           R2_ENDPOINT_URL: ${{ secrets.R2_ENDPOINT_URL }}
@@ -71,4 +80,12 @@ jobs:
           export CLAMAV_ENGINE_VERSION="$(clamscan --version)"
           ocr_engine_output="$(tesseract --version 2>/dev/null)"
           export OCR_ENGINE_VERSION="${ocr_engine_output%%$'\n'*}"
-          sg clamav -c 'pnpm --filter @visastack/adapters exec tsx src/intake-runner.ts'
+          case "$INTAKE_MODE" in
+            process-queue)
+              sg clamav -c 'pnpm --filter @visastack/adapters exec tsx src/intake-runner.ts'
+              ;;
+            verify-synthetic)
+              sg clamav -c 'pnpm --filter @visastack/adapters exec tsx src/private-document-acceptance.ts'
+              ;;
+            *) exit 1 ;;
+          esac
