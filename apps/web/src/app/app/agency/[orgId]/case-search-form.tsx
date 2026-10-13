@@ -109,7 +109,7 @@ export function CaseSearchForm({
           Search
         </button>
         {hasFilters ? (
-          <a href={`/app/agency/${orgId}`} className="muted" style={{ fontSize: '0.85rem' }}>
+          <a href={`/app/agency/${orgId}`} className="muted u-fs-085">
             Clear
           </a>
         ) : null}

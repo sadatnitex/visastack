@@ -41,7 +41,7 @@ export function SubmissionReportPanel({
       <p className="card-kicker">Filing</p>
       <h2 className="card-title">Submission report</h2>
       {submissions.length > 0 ? (
-        <div className="rows" style={{ marginBottom: '1.25rem' }}>
+        <div className="rows u-mb-125">
           {submissions.map((s) => (
             <div
               className="row"
@@ -62,9 +62,7 @@ export function SubmissionReportPanel({
           ))}
         </div>
       ) : (
-        <p className="card-body" style={{ marginBottom: '1.25rem' }}>
-          No submission reported yet.
-        </p>
+        <p className="card-body u-mb-125">No submission reported yet.</p>
       )}
       {eligible ? (
         <form action={formAction} className="field-list">
@@ -126,7 +124,7 @@ export function SubmissionReportPanel({
           </div>
         </form>
       ) : (
-        <p className="muted" style={{ fontSize: '0.85rem' }}>
+        <p className="muted u-fs-085">
           This case must reach "Submission ready" (with a live acknowledgement) before a submission
           can be reported.
         </p>

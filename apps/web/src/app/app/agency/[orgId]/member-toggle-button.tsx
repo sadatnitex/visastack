@@ -35,8 +35,7 @@ export function MemberToggleButton({
           pending={pending}
           idle={active ? 'Deactivate' : 'Reactivate'}
           busy="Updating…"
-          className="btn btn-secondary"
-          style={{ padding: '0.3rem 0.85rem', fontSize: '0.8rem' }}
+          className="btn btn-secondary u-btn-sm"
         />
       </form>
       <FormMessage result={state} />

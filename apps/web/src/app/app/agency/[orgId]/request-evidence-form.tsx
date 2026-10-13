@@ -45,7 +45,7 @@ export function RequestEvidenceForm({
           Applicant
         </label>
         {applicants.length === 0 ? (
-          <p className="muted" style={{ fontSize: '0.85rem' }}>
+          <p className="muted u-fs-085">
             No applicant has granted this organization access yet. Nothing to request from.
           </p>
         ) : (

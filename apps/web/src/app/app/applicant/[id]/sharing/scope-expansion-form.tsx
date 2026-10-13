@@ -36,7 +36,7 @@ export function ScopeExpansionForm({
       className="notice"
       style={{ marginTop: '0.5rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}
     >
-      <p style={{ margin: 0 }}>
+      <p className="u-m-0">
         {candidates.length} new document{candidates.length === 1 ? '' : 's'} now match{' '}
         {candidates.length === 1 ? 'this grant category' : 'this grant categories'}. They stay
         hidden from the recipient until you confirm including them.
@@ -71,8 +71,7 @@ export function ScopeExpansionForm({
             unavailable={selected.size === 0}
             idle={`Include ${selected.size} selected document${selected.size === 1 ? '' : 's'}`}
             busy="Including…"
-            className="btn btn-secondary"
-            style={{ padding: '0.3rem 0.85rem', fontSize: '0.8rem' }}
+            className="btn btn-secondary u-btn-sm"
           />
         </div>
         <FormMessage result={state} />

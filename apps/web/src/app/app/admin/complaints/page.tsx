@@ -68,14 +68,14 @@ export default async function AdminComplaintsPage() {
 
   return (
     <section className="section container">
-      <div style={{ marginBottom: '1.5rem' }}>
-        <Link href="/app/admin" className="muted" style={{ fontSize: '0.9rem' }}>
+      <div className="u-mb-150">
+        <Link href="/app/admin" className="muted u-fs-090">
           ← Admin
         </Link>
       </div>
       <PageHeader eyebrow="Quality" title={<>Complaint &amp; feedback triage</>} />
 
-      <article className="card" style={{ marginBottom: '1.5rem' }}>
+      <article className="card u-mb-150">
         <p className="card-kicker">Oversight</p>
         <h2 className="card-title">Complaints</h2>
         {data.complaints.length === 0 ? (
@@ -102,7 +102,7 @@ export default async function AdminComplaintsPage() {
                     Resolution: {c.resolution}
                   </p>
                 ) : null}
-                <p className="muted" style={{ fontSize: '0.75rem', margin: 0 }}>
+                <p className="muted u-fs-075-m0">
                   Filed {formatTimestampDate(c.createdAt)}
                   {c.ownerAccountId ? ` · Assigned to ${c.ownerAccountId}` : ' · Unassigned'}
                 </p>
@@ -122,7 +122,7 @@ export default async function AdminComplaintsPage() {
         <article className="card">
           <p className="card-kicker">Oversight</p>
           <h2 className="card-title">Private feedback</h2>
-          <p className="card-body" style={{ marginBottom: '1rem' }}>
+          <p className="card-body u-mb-100">
             Never visible to the agency being reviewed, and never a public review or ranking.
           </p>
           {data.feedback.length === 0 ? (
@@ -136,10 +136,8 @@ export default async function AdminComplaintsPage() {
                   style={{ flexDirection: 'column', alignItems: 'flex-start', gap: '0.2rem' }}
                 >
                   <span className="row-key">Case {f.missionId}</span>
-                  <span style={{ fontSize: '0.9rem' }}>{f.comments}</span>
-                  <span className="muted" style={{ fontSize: '0.75rem' }}>
-                    {formatTimestampDate(f.createdAt)}
-                  </span>
+                  <span className="u-fs-090">{f.comments}</span>
+                  <span className="muted u-fs-075">{formatTimestampDate(f.createdAt)}</span>
                 </div>
               ))}
             </div>

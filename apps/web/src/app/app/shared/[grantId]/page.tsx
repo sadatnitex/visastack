@@ -28,8 +28,8 @@ export default async function SharedWorkspacePage({
 
   return (
     <section className="section container">
-      <div style={{ marginBottom: '1.5rem' }}>
-        <Link href="/app/shared" className="muted" style={{ fontSize: '0.9rem' }}>
+      <div className="u-mb-150">
+        <Link href="/app/shared" className="muted u-fs-090">
           ← Shared with you
         </Link>
       </div>
@@ -52,7 +52,7 @@ export default async function SharedWorkspacePage({
       </p>
 
       {workspace.missionScopeUnavailable ? (
-        <div className="card" style={{ marginBottom: '1.5rem' }}>
+        <div className="card u-mb-150">
           <p className="card-body">
             This access is limited to a specific case. Case-scoped sharing isn't available yet -
             nothing is shown below until that support ships.
@@ -69,7 +69,7 @@ export default async function SharedWorkspacePage({
               This person has not shared any profile details with you for this purpose.
             </EmptyState>
           ) : (
-            <div className="rows" style={{ marginTop: '0.5rem' }}>
+            <div className="rows u-mt-050">
               {workspace.fields.map((field) => (
                 <div className="row" key={field.fieldKey}>
                   <span className="row-key">
@@ -101,7 +101,7 @@ export default async function SharedWorkspacePage({
                   </div>
                 ))}
               </div>
-              <p className="muted" style={{ fontSize: '0.8rem' }}>
+              <p className="muted u-fs-080">
                 Document preview isn't available yet. Real redacted renditions for third-party
                 viewing are a separate, upcoming milestone. This list shows only which documents
                 your grant covers.

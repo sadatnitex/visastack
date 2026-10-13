@@ -129,10 +129,9 @@ export function EvidenceRequestActions({
             name="reason"
             type="text"
             required
-            className="input"
+            className="input u-fs-080"
             aria-label="Reason"
             placeholder={REASON_PLACEHOLDER[reasonOutcome]}
-            style={{ fontSize: '0.8rem' }}
           />
           <SubmitButton
             pending={decidePending}

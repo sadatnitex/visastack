@@ -313,7 +313,7 @@ export default async function AdminOperationsPage() {
                     No failed jobs. A job is parked here only after it exhausts every retry attempt.
                   </p>
                 ) : (
-                  <div className="rows" style={{ marginTop: '0.5rem' }}>
+                  <div className="rows u-mt-050">
                     {data.failedJobs.map((job) => (
                       <div
                         className="row"
@@ -354,10 +354,10 @@ export default async function AdminOperationsPage() {
                   </div>
                 )}
               </article>
-              <article className="card" style={{ marginBottom: '1.5rem' }}>
+              <article className="card u-mb-150">
                 <p className="card-kicker">Pilot measurement</p>
                 <h2 className="card-title">Product scorecard</h2>
-                <p className="card-body" style={{ marginBottom: '1rem' }}>
+                <p className="card-body u-mb-100">
                   Real usage milestones, counted from an append-only event log - no PII, no
                   free-text properties.
                 </p>
@@ -366,9 +366,7 @@ export default async function AdminOperationsPage() {
                     <div className="row" key={row.eventType}>
                       <span className="row-key">{SCORECARD_LABELS[row.eventType]}</span>
                       <span className="row-end">
-                        <span className="muted" style={{ fontSize: '0.8rem' }}>
-                          {row.last7Days} last 7 days
-                        </span>
+                        <span className="muted u-fs-080">{row.last7Days} last 7 days</span>
                         <span className="badge badge-neutral">{row.total} total</span>
                       </span>
                     </div>
@@ -378,11 +376,7 @@ export default async function AdminOperationsPage() {
             </div>
             <aside className="admin-reference-rail" aria-label="Operational health and capacity">
               {' '}
-              <article
-                className="card"
-                style={{ marginTop: '1.5rem' }}
-                id="admin-provider-operations"
-              >
+              <article className="card u-mt-150" id="admin-provider-operations">
                 <p className="card-kicker">Providers and recovery</p>
                 <h2 className="card-title">Providers</h2>
                 <p className="card-body">
@@ -420,7 +414,7 @@ export default async function AdminOperationsPage() {
               <article className="card" id="admin-usage">
                 <p className="card-kicker">Capacity</p>
                 <h2 className="card-title">Platform storage</h2>
-                <p className="card-body" style={{ marginBottom: '1.25rem' }}>
+                <p className="card-body u-mb-125">
                   Tracked evidence bytes across every account. New uploads are refused once the
                   platform hits its hard stop; the warning threshold below is purely informational -
                   it is not itself enforced anywhere.
@@ -439,10 +433,10 @@ export default async function AdminOperationsPage() {
                   />
                 )}
               </article>
-              <article className="card" style={{ marginTop: '1.5rem' }}>
+              <article className="card u-mt-150">
                 <p className="card-kicker">Capacity</p>
                 <h2 className="card-title">AI Gateway spend</h2>
-                <p className="card-body" style={{ marginBottom: '1.25rem' }}>
+                <p className="card-body u-mb-125">
                   Lifetime-to-date spend against the configured pilot cap (never resets
                   automatically - raising the limit is a deliberate operator action, not a monthly
                   rollover). A cache hit costs nothing and does not add to this total. The cap shown
@@ -492,7 +486,7 @@ export default async function AdminOperationsPage() {
                 <article className="card" id="admin-signals">
                   <p className="card-kicker">Operations</p>
                   <h2 className="card-title">Operational signals</h2>
-                  <p className="card-body" style={{ marginBottom: '1rem' }}>
+                  <p className="card-body u-mb-100">
                     What an operator needs to tell whether the platform is healthy. Counts, ages and
                     ratios only: nothing here names a person or a document. The thresholds are pilot
                     defaults that have not been calibrated against real traffic, and they only
@@ -524,9 +518,7 @@ export default async function AdminOperationsPage() {
                               {SIGNAL_STATUS_LABEL[signal.status]}
                             </span>
                           </div>
-                          <span className="muted" style={{ fontSize: '0.85rem' }}>
-                            {signal.reading}
-                          </span>
+                          <span className="muted u-fs-085">{signal.reading}</span>
                           <details>
                             <summary
                               className="muted"
@@ -581,11 +573,7 @@ export default async function AdminOperationsPage() {
                 <small>Deployment checks, separate from full beta acceptance</small>
               </a>
             </div>
-            <nav
-              aria-label="On this page"
-              className="pill-list admin-section-navigation"
-              style={{ marginBottom: '1.5rem' }}
-            >
+            <nav aria-label="On this page" className="pill-list admin-section-navigation u-mb-150">
               <a href="/status" className="pill">
                 Public status page
               </a>
@@ -614,14 +602,10 @@ export default async function AdminOperationsPage() {
           </details>
           <div className="admin-specialized-details">
             {' '}
-            <article
-              className="card"
-              style={{ marginBottom: '1.5rem' }}
-              id="admin-platform-readiness"
-            >
+            <article className="card u-mb-150" id="admin-platform-readiness">
               <p className="card-kicker">Operations</p>
               <h2 className="card-title">Platform readiness detail</h2>
-              <p className="card-body" style={{ marginBottom: '1rem' }}>
+              <p className="card-body u-mb-100">
                 The detailed view behind the public readiness probe, which on a deployed build says
                 only "ready" or "degraded". It names missing configuration and pending migrations,
                 so it is shown to platform administrators only. It never shows a value.
@@ -705,19 +689,19 @@ export default async function AdminOperationsPage() {
             <article className="card" id="admin-analytics">
               <p className="card-kicker">Pilot measurement</p>
               <h2 className="card-title">Learning areas</h2>
-              <p className="card-body" style={{ marginBottom: '1rem' }}>
+              <p className="card-body u-mb-100">
                 Aggregates only, from the same event log. Nothing here names a person, a case, a
                 document or what anyone wrote. Figures are counts and timings; they say how the
                 pilot is behaving, not whether any application will succeed.
               </p>
               {data.analytics.available ? (
                 <>
-                  <div className="rows" style={{ marginBottom: '1.25rem' }}>
+                  <div className="rows u-mb-125">
                     {data.analytics.categories.map((category) => (
                       <div className="row" key={category.key}>
                         <span className="row-key">{category.label}</span>
                         <span className="row-end">
-                          <span className="muted" style={{ fontSize: '0.8rem' }}>
+                          <span className="muted u-fs-080">
                             {category.last7Days} last 7 days, {category.last30Days} last 30 days
                           </span>
                           <span className="badge badge-neutral">{category.total} total</span>
@@ -735,7 +719,7 @@ export default async function AdminOperationsPage() {
                     ).map(([label, summary]) => (
                       <div className="row" key={label}>
                         <span className="row-key">{label}</span>
-                        <span className="muted" style={{ fontSize: '0.85rem' }}>
+                        <span className="muted u-fs-085">
                           {summary.count === 0
                             ? 'no data yet'
                             : `median ${formatDuration(summary.medianSeconds)}, 90th percentile ${formatDuration(summary.p90Seconds)} (${summary.count})`}
@@ -744,7 +728,7 @@ export default async function AdminOperationsPage() {
                     ))}
                     <div className="row">
                       <span className="row-key">Agencies active, last 90 days</span>
-                      <span className="muted" style={{ fontSize: '0.85rem' }}>
+                      <span className="muted u-fs-085">
                         {data.analytics.agencyRepeatUse.activeOrganizations} created a case,{' '}
                         {data.analytics.agencyRepeatUse.repeatOrganizations} in two or more
                         different weeks
@@ -752,7 +736,7 @@ export default async function AdminOperationsPage() {
                     </div>
                     <div className="row">
                       <span className="row-key">AI proposals decided</span>
-                      <span className="muted" style={{ fontSize: '0.85rem' }}>
+                      <span className="muted u-fs-085">
                         {data.analytics.aiDecisions.accepted} accepted,{' '}
                         {data.analytics.aiDecisions.corrected} corrected,{' '}
                         {data.analytics.aiDecisions.rejected} rejected
@@ -767,7 +751,7 @@ export default async function AdminOperationsPage() {
                     ).map(([label, counts]) => (
                       <div className="row" key={label}>
                         <span className="row-key">{label}</span>
-                        <span className="muted" style={{ fontSize: '0.85rem' }}>
+                        <span className="muted u-fs-085">
                           {counts.length === 0
                             ? 'none yet'
                             : counts.map((c) => `${humanizeLabel(c.label)} ${c.count}`).join(', ')}
@@ -776,7 +760,7 @@ export default async function AdminOperationsPage() {
                     ))}
                     <div className="row">
                       <span className="row-key">Cash collected (not invoiced)</span>
-                      <span className="muted" style={{ fontSize: '0.85rem' }}>
+                      <span className="muted u-fs-085">
                         {data.analytics.cashCollected.length === 0
                           ? 'none recorded yet'
                           : data.analytics.cashCollected
@@ -799,7 +783,7 @@ export default async function AdminOperationsPage() {
             <article className="card" id="admin-readiness">
               <p className="card-kicker">Operational posture</p>
               <h2 className="card-title">Commercial readiness</h2>
-              <p className="card-body" style={{ marginBottom: '1rem' }}>
+              <p className="card-body u-mb-100">
                 The full per-gate breakdown behind commercial mode's guard - deliberately{' '}
                 <strong>not</strong> public. An unauthenticated caller (including the public{' '}
                 <code>/status</code> page) only ever sees the aggregate ready/not-ready boolean.
@@ -811,8 +795,8 @@ export default async function AdminOperationsPage() {
                 </p>
               ) : (
                 <>
-                  <div className="toolbar" style={{ marginBottom: '1rem' }}>
-                    <span className="muted" style={{ fontSize: '0.85rem' }}>
+                  <div className="toolbar u-mb-100">
+                    <span className="muted u-fs-085">
                       {data.commercial.gates.filter((g) => g.satisfied).length} of{' '}
                       {data.commercial.gates.length} gates satisfied
                     </span>
@@ -839,10 +823,10 @@ export default async function AdminOperationsPage() {
                 </>
               )}
             </article>
-            <article className="card" style={{ marginTop: '1.5rem' }}>
+            <article className="card u-mt-150">
               <p className="card-kicker">Storage integrity</p>
               <h2 className="card-title">Orphan reconciliation</h2>
-              <p className="card-body" style={{ marginBottom: '1.25rem' }}>
+              <p className="card-body u-mb-125">
                 Detects drift between storage metadata and actual bytes: dangling references, blobs
                 with no reference, duplicate references, and size/hash mismatches. Cleanup only ever
                 removes a metadata row with no backing bytes and no remaining document - it never

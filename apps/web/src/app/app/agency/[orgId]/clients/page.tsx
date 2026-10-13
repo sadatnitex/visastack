@@ -62,16 +62,16 @@ export default async function AgencyClientsPage({
 
   return (
     <>
-      <article className="card" style={{ marginBottom: '1.5rem' }}>
+      <article className="card u-mb-150">
         <p className="card-kicker">Intake</p>
         <h2 className="card-title">Clients</h2>
-        <p className="card-body" style={{ marginBottom: '1.25rem' }}>
+        <p className="card-body u-mb-125">
           Invite a traveller as a new client. They alone choose which of their own applicant
           profiles the resulting case attaches to, and their acceptance is what actually grants this
           organization access, never the invitation itself.
         </p>
         {data.clientInvitations.length > 0 ? (
-          <div className="rows" style={{ marginBottom: '1.5rem' }}>
+          <div className="rows u-mb-150">
             {data.clientInvitations.map((invitation) => (
               <div className="row" key={invitation.id}>
                 <span className="row-key">
@@ -103,10 +103,10 @@ export default async function AgencyClientsPage({
         />
       </article>
 
-      <article className="card" style={{ marginBottom: '1.5rem' }}>
+      <article className="card u-mb-150">
         <p className="card-kicker">Collect</p>
         <h2 className="card-title">Request evidence</h2>
-        <p className="card-body" style={{ marginBottom: '1.25rem' }}>
+        <p className="card-body u-mb-125">
           Ask an applicant for a specific field or document. They decide whether to fulfil it.
         </p>
         <RequestEvidenceForm
@@ -131,7 +131,7 @@ export default async function AgencyClientsPage({
             when it is overdue.
           </EmptyState>
         ) : (
-          <div className="rows" style={{ marginTop: '0.5rem' }}>
+          <div className="rows u-mt-050">
             {data.requests.map((req) => {
               const rb = REQ_STATUS[req.status] ?? {
                 label: req.status,
@@ -159,7 +159,7 @@ export default async function AgencyClientsPage({
                     </span>
                     <span className={`badge ${rb.tone}`}>{rb.label}</span>
                   </div>
-                  <span className="muted" style={{ fontSize: '0.8rem' }}>
+                  <span className="muted u-fs-080">
                     {req.applicantName}
                     {req.dueDate ? ` · due ${formatDateOnly(req.dueDate)}` : ''}
                   </span>

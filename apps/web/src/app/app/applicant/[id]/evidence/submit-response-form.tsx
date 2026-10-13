@@ -48,7 +48,7 @@ export function SubmitResponseForm({
 
   if (kind === 'FIELD' && candidateFacts.length === 0) {
     return (
-      <p className="muted" style={{ fontSize: '0.85rem' }}>
+      <p className="muted u-fs-085">
         You have not recorded this field yet. Add it on your{' '}
         <a href={`/app/applicant/${applicantId}/profile`}>profile</a> first, then come back to
         submit it.
@@ -57,7 +57,7 @@ export function SubmitResponseForm({
   }
   if (kind === 'DOCUMENT' && candidateDocuments.length === 0) {
     return (
-      <p className="muted" style={{ fontSize: '0.85rem' }}>
+      <p className="muted u-fs-085">
         You have not uploaded this document type yet. Upload it on your{' '}
         <a href={`/app/applicant/${applicantId}/documents`}>documents</a> page first, then come back
         to submit it.
@@ -109,7 +109,7 @@ export function SubmitResponseForm({
                 />
                 {d.displayName}
                 {!d.usable ? (
-                  <span className="muted" style={{ fontSize: '0.75rem' }}>
+                  <span className="muted u-fs-075">
                     ({d.statusLabel.toLowerCase()}, not ready yet)
                   </span>
                 ) : null}

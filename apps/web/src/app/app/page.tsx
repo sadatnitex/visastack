@@ -207,7 +207,7 @@ export default async function AppPage() {
 
   return (
     <section className="section container">
-      <div style={{ marginBottom: '1.5rem' }}>
+      <div className="u-mb-150">
         <span className="eyebrow">Home</span>
         <h1 className="section-title" style={{ margin: '0.25rem 0 0' }}>
           Welcome back
@@ -224,7 +224,7 @@ export default async function AppPage() {
       ) : null}
 
       {coreGranted && data.attention.length > 1 ? (
-        <article className="card" style={{ marginBottom: '1.5rem' }}>
+        <article className="card u-mb-150">
           <p className="card-kicker">Also waiting</p>
           <h2 className="card-title">Needs your attention</h2>
           <AttentionList
@@ -240,7 +240,7 @@ export default async function AppPage() {
       ) : null}
 
       {coreGranted ? (
-        <article className="card" style={{ marginBottom: '1.5rem' }}>
+        <article className="card u-mb-150">
           <p className="card-kicker">People and cases</p>
           <h2 className="card-title">Your applicants</h2>
           {data.perApplicant.length === 0 ? (
@@ -298,7 +298,7 @@ export default async function AppPage() {
           hint={`${grantedCount} of ${CONSENT_TYPES.length} on`}
           open={!coreGranted}
         >
-          <p className="card-body" style={{ marginBottom: '1rem' }}>
+          <p className="card-body u-mb-100">
             Each purpose is granted and revoked independently, at any time. Turning one off never
             requires turning another back on. Core processing is required before any applicant or
             profile records can be created; the others are optional.

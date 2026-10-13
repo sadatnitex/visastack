@@ -49,12 +49,12 @@ export default async function AgencyTeamPage({
     <article className="card">
       <p className="card-kicker">Team</p>
       <h2 className="card-title">Members</h2>
-      <p className="card-body" style={{ marginBottom: '1.25rem' }}>
+      <p className="card-body u-mb-125">
         Membership is organizational bookkeeping - it never grants access to an applicant's records
         on its own. Access is always an accepted grant.
       </p>
       {data.members.length > 0 ? (
-        <div className="rows" style={{ marginBottom: '1.5rem' }}>
+        <div className="rows u-mb-150">
           {data.members.map((m) => (
             <div className="row" key={m.membershipId}>
               <span className="row-key">
@@ -80,7 +80,7 @@ export default async function AgencyTeamPage({
         </div>
       ) : null}
       {data.invitations.length > 0 ? (
-        <div className="rows" style={{ marginBottom: '1.5rem' }}>
+        <div className="rows u-mb-150">
           {data.invitations.map((invitation) => (
             <div className="row" key={invitation.id}>
               <span className="row-key">

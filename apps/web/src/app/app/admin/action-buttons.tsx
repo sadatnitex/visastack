@@ -32,8 +32,7 @@ export function ReleaseHoldButton({ holdId }: { readonly holdId: string }) {
         pending={pending}
         idle="Release"
         busy="Releasing…"
-        className="btn btn-secondary"
-        style={{ padding: '0.3rem 0.85rem', fontSize: '0.8rem' }}
+        className="btn btn-secondary u-btn-sm"
       />
       <FormMessage result={state} />
     </form>
@@ -49,8 +48,7 @@ export function RetryJobButton({ jobId }: { readonly jobId: string }) {
         pending={pending}
         idle="Retry"
         busy="Retrying…"
-        className="btn btn-secondary"
-        style={{ padding: '0.3rem 0.85rem', fontSize: '0.8rem' }}
+        className="btn btn-secondary u-btn-sm"
       />
       <FormMessage result={state} />
     </form>
@@ -66,8 +64,7 @@ export function RetryErasureJobButton({ jobId }: { readonly jobId: string }) {
         pending={pending}
         idle="Retry"
         busy="Retrying…"
-        className="btn btn-secondary"
-        style={{ padding: '0.3rem 0.85rem', fontSize: '0.8rem' }}
+        className="btn btn-secondary u-btn-sm"
       />
       <FormMessage result={state} />
     </form>
@@ -96,8 +93,7 @@ export function RevokeRoleButton({ grantId }: { readonly grantId: string }) {
         pending={pending}
         idle="Revoke"
         busy="Revoking…"
-        className="btn btn-secondary"
-        style={{ padding: '0.3rem 0.85rem', fontSize: '0.8rem' }}
+        className="btn btn-secondary u-btn-sm"
       />
       <FormMessage result={state} />
     </form>
@@ -126,8 +122,7 @@ export function RevokeInvitationButton({ invitationId }: { readonly invitationId
         pending={pending}
         idle="Revoke"
         busy="Revoking…"
-        className="btn btn-secondary"
-        style={{ padding: '0.3rem 0.85rem', fontSize: '0.8rem' }}
+        className="btn btn-secondary u-btn-sm"
       />
       <FormMessage result={state} />
     </form>
@@ -148,8 +143,7 @@ export function OrgReviewButtons({ organizationId }: { readonly organizationId: 
             pending={pending}
             idle="Verify"
             busy="Verify"
-            className="btn btn-primary"
-            style={{ padding: '0.3rem 0.85rem', fontSize: '0.8rem' }}
+            className="btn btn-primary u-btn-sm"
           />
         </form>
         <form
@@ -164,8 +158,7 @@ export function OrgReviewButtons({ organizationId }: { readonly organizationId: 
             pending={pending}
             idle="Reject"
             busy="Reject"
-            className="btn btn-secondary"
-            style={{ padding: '0.3rem 0.85rem', fontSize: '0.8rem' }}
+            className="btn btn-secondary u-btn-sm"
           />
         </form>
       </div>
@@ -190,8 +183,7 @@ export function OrgSuspendButton({ organizationId }: { readonly organizationId: 
         pending={pending}
         idle="Suspend"
         busy="Suspending…"
-        className="btn btn-secondary"
-        style={{ padding: '0.3rem 0.85rem', fontSize: '0.8rem' }}
+        className="btn btn-secondary u-btn-sm"
       />
       <FormMessage result={state} />
     </form>
@@ -218,8 +210,7 @@ export function OrgTerminateButton({ organizationId }: { readonly organizationId
         pending={pending}
         idle="Terminate"
         busy="Terminating…"
-        className="btn btn-danger"
-        style={{ padding: '0.3rem 0.85rem', fontSize: '0.8rem' }}
+        className="btn btn-danger u-btn-sm"
       />
       <FormMessage result={state} />
     </form>

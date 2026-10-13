@@ -51,7 +51,7 @@ export default async function AcceptContributorRequestPage({
 
   return (
     <section className="section container">
-      <div style={{ marginBottom: '1.5rem' }}>
+      <div className="u-mb-150">
         <span className="eyebrow">Contributor request</span>
         <h1 className="section-title" style={{ margin: '0.25rem 0 0' }}>
           Provide one document
@@ -74,17 +74,13 @@ export default async function AcceptContributorRequestPage({
             <p className="card-body" style={{ fontWeight: 600, marginBottom: '0.25rem' }}>
               Why:
             </p>
-            <p className="card-body" style={{ marginBottom: '1rem' }}>
-              {data.preview.value.purpose}
-            </p>
+            <p className="card-body u-mb-100">{data.preview.value.purpose}</p>
             {data.preview.value.message ? (
               <>
                 <p className="card-body" style={{ fontWeight: 600, marginBottom: '0.25rem' }}>
                   Message:
                 </p>
-                <p className="card-body" style={{ marginBottom: '1rem' }}>
-                  {data.preview.value.message}
-                </p>
+                <p className="card-body u-mb-100">{data.preview.value.message}</p>
               </>
             ) : null}
 
@@ -92,11 +88,9 @@ export default async function AcceptContributorRequestPage({
               Who will see this:
             </p>
             <ul style={{ margin: '0 0 1rem', paddingLeft: '1.25rem' }}>
-              <li className="muted" style={{ fontSize: '0.9rem' }}>
-                {data.preview.value.applicantName} (the traveller)
-              </li>
+              <li className="muted u-fs-090">{data.preview.value.applicantName} (the traveller)</li>
               {data.preview.value.recipientOrganizationNames.map((name) => (
-                <li className="muted" style={{ fontSize: '0.9rem' }} key={name}>
+                <li className="muted u-fs-090" key={name}>
                   {name} (helping with this case)
                 </li>
               ))}
@@ -105,13 +99,13 @@ export default async function AcceptContributorRequestPage({
             <p className="card-body" style={{ fontWeight: 600, marginBottom: '0.25rem' }}>
               How long it's kept:
             </p>
-            <p className="card-body" style={{ marginBottom: '1rem' }}>
+            <p className="card-body u-mb-100">
               {retentionDays !== null
                 ? `${retentionDays} days from upload, under this platform's standard retention policy.`
                 : "This document type doesn't have a specific retention period configured yet."}
             </p>
 
-            <div className="notice notice-warn" style={{ marginBottom: '1.25rem' }}>
+            <div className="notice notice-warn u-mb-125">
               This document may be included in the case file the applicant reviews and submits for
               their case. Do not upload anything you would not want the applicant and anyone helping
               with their case to eventually see.

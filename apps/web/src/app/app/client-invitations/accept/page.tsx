@@ -72,7 +72,7 @@ export default async function AcceptClientInvitationPage({
 
   return (
     <section className="section container">
-      <div style={{ marginBottom: '1.5rem' }}>
+      <div className="u-mb-150">
         <span className="eyebrow">Invitation</span>
         <h1 className="section-title" style={{ margin: '0.25rem 0 0' }}>
           Work with an agency
@@ -136,7 +136,7 @@ export default async function AcceptClientInvitationPage({
             </p>
             <ul style={{ margin: '0 0 1.25rem', paddingLeft: '1.25rem' }}>
               {data.preview.value.grantActions.map((action) => (
-                <li key={action} className="muted" style={{ fontSize: '0.9rem' }}>
+                <li key={action} className="muted u-fs-090">
                   {GRANT_ACTION_LABELS[action] ?? action}
                 </li>
               ))}

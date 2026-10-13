@@ -109,9 +109,7 @@ export function BrandingForm({
             }}
           />
         ) : (
-          <span className="muted" style={{ fontSize: '0.8rem' }}>
-            No logo set yet.
-          </span>
+          <span className="muted u-fs-080">No logo set yet.</span>
         )}
         <form
           action={(formData) => {

@@ -67,7 +67,7 @@ export function DeletionPanel({ scheduledFor, impact, holds }: DeletionPanelProp
     const when = formatDate(scheduledFor);
     return (
       <div>
-        <div className="notice notice-warn" style={{ marginBottom: '1rem' }}>
+        <div className="notice notice-warn u-mb-100">
           <strong>Deletion pending.</strong> Your account and all owned data are scheduled for
           permanent deletion on {when}. Cancel any time before then to keep your account.
         </div>
@@ -122,7 +122,7 @@ export function DeletionPanel({ scheduledFor, impact, holds }: DeletionPanelProp
 
   return (
     <div>
-      <div className="notice" style={{ marginBottom: '1rem' }}>
+      <div className="notice u-mb-100">
         <strong>This deletes your entire account.</strong> There is no partial deletion - every
         applicant you own goes with it.
         <ul style={{ margin: '0.6rem 0 0', paddingLeft: '1.2rem' }}>

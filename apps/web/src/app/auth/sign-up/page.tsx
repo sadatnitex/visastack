@@ -56,7 +56,7 @@ export default async function SignUpPage({
           or <Link href="/auth/forgot-password">reset your password</Link>.
         </p>
       )}
-      <div className="card" style={{ marginBottom: '1rem' }}>
+      <div className="card u-mb-100">
         <form action={signUpAction} className="field-list">
           <input type="hidden" name="next" value={safeReturnPath(next)} />
           <input type="hidden" name="signupForm" value={signupForm} />

@@ -112,7 +112,7 @@ export default async function HistoryPage({
               className="card"
               key={`${fact.fieldKey}-${fact.repeatingRecordKey ?? 'single'}`}
             >
-              <h2 className="card-title" style={{ marginBottom: '1rem' }}>
+              <h2 className="card-title u-mb-100">
                 {profileField(fact.fieldKey)?.label ?? fact.fieldKey}
                 {fact.repeatingRecordKey ? (
                   <span

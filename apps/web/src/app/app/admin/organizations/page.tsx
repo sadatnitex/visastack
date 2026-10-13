@@ -51,7 +51,7 @@ export default async function AdminOrganizationsPage() {
         <>
           <FailedSectionsBanner sections={data.failedSections} />
 
-          <article className="card" style={{ marginTop: '1.5rem' }} id="admin-organizations">
+          <article className="card u-mt-150" id="admin-organizations">
             <p className="card-kicker">Verification</p>
             <h2 className="card-title">Organizations</h2>
             {data.orgs.length === 0 ? (
@@ -59,7 +59,7 @@ export default async function AdminOrganizationsPage() {
                 Organizations appear here when an agency registers and asks to be verified.
               </EmptyState>
             ) : (
-              <table className="data-table" style={{ marginTop: '0.5rem' }}>
+              <table className="data-table u-mt-050">
                 <caption className="sr-only">Organizations on the platform</caption>
                 <thead>
                   <tr>

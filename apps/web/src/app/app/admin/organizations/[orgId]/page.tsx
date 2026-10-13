@@ -154,8 +154,8 @@ export default async function AdminOrganizationPage({
 
   return (
     <section className="section container">
-      <div style={{ marginBottom: '1.5rem' }}>
-        <Link href="/app/admin/organizations" className="muted" style={{ fontSize: '0.9rem' }}>
+      <div className="u-mb-150">
+        <Link href="/app/admin/organizations" className="muted u-fs-090">
           ← Organizations
         </Link>
       </div>
@@ -165,10 +165,10 @@ export default async function AdminOrganizationPage({
         description={<>Status: {organizationStatusLabel(data.org.status)}</>}
       />
 
-      <article className="card" style={{ marginBottom: '1.5rem' }}>
+      <article className="card u-mb-150">
         <p className="card-kicker">Commerce</p>
         <h2 className="card-title">Plan &amp; subscription</h2>
-        <p className="card-body" style={{ marginBottom: '1rem' }}>
+        <p className="card-body u-mb-100">
           {data.currentPlan
             ? `Currently on ${data.currentPlan.name}.`
             : 'No plan has been manually activated for this organization -- there is no self-serve checkout.'}
@@ -193,9 +193,7 @@ export default async function AdminOrganizationPage({
                 {data.planById.get(data.pendingDowngrade.toPlanId)?.name ?? 'unknown plan'}{' '}
                 scheduled for {data.pendingDowngrade.effectiveAt.toDateString()}
               </span>
-              <span className="muted" style={{ fontSize: '0.8rem' }}>
-                {data.pendingDowngrade.reason}
-              </span>
+              <span className="muted u-fs-080">{data.pendingDowngrade.reason}</span>
               <div>
                 <CancelDowngradeButton
                   organizationId={orgId}
@@ -207,9 +205,9 @@ export default async function AdminOrganizationPage({
         ) : null}
 
         {data.usage ? (
-          <div className="rows" style={{ marginBottom: '1.25rem' }}>
+          <div className="rows u-mb-125">
             {data.usage.meters.map((meter) => (
-              <div key={meter.key} style={{ marginBottom: '1.25rem' }}>
+              <div key={meter.key} className="u-mb-125">
                 <div className="meter-label">
                   <span>{meter.label}</span>
                   <span>{formatMeterValue(meter)}</span>
@@ -238,37 +236,37 @@ export default async function AdminOrganizationPage({
           ) : null}
         </div>
         {data.currentPlan ? (
-          <div style={{ marginTop: '1rem' }}>
+          <div className="u-mt-100">
             <EndSubscriptionButton organizationId={orgId} />
           </div>
         ) : null}
       </article>
 
-      <article className="card" style={{ marginBottom: '1.5rem' }}>
+      <article className="card u-mb-150">
         <p className="card-kicker">Commerce</p>
         <h2 className="card-title">Billing</h2>
         {!data.billing ? (
           <>
-            <p className="card-body" style={{ marginBottom: '1rem' }}>
+            <p className="card-body u-mb-100">
               No billing account has been opened for this organization yet.
             </p>
             <OpenBillingAccountForm organizationId={orgId} />
           </>
         ) : (
           <>
-            <div className="toolbar" style={{ marginBottom: '1rem' }}>
+            <div className="toolbar u-mb-100">
               <span className={`badge ${BILLING_STATUS_TONE[data.billing.status]}`}>
                 {billingStatusLabel(data.billing.status)}
               </span>
             </div>
             {data.billingHistory.length > 0 ? (
-              <div className="rows" style={{ marginBottom: '1.25rem' }}>
+              <div className="rows u-mb-125">
                 {data.billingHistory.map((h) => (
                   <div className="row" key={h.id}>
                     <span className="row-key">
                       {h.fromStatus ?? 'opened'} → {h.toStatus}
                     </span>
-                    <span className="muted" style={{ fontSize: '0.8rem' }}>
+                    <span className="muted u-fs-080">
                       {formatTimestampDate(h.createdAt)} · {h.reason}
                     </span>
                   </div>
@@ -283,15 +281,13 @@ export default async function AdminOrganizationPage({
         )}
       </article>
 
-      <article className="card" style={{ marginBottom: '1.5rem' }}>
+      <article className="card u-mb-150">
         <p className="card-kicker">Commerce</p>
         <h2 className="card-title">Invoices</h2>
         {data.invoices.length === 0 ? (
-          <p className="card-body" style={{ marginBottom: '1.25rem' }}>
-            No invoices issued yet.
-          </p>
+          <p className="card-body u-mb-125">No invoices issued yet.</p>
         ) : (
-          <div className="rows" style={{ marginBottom: '1.25rem' }}>
+          <div className="rows u-mb-125">
             {data.invoices.map((invoice) => (
               <div
                 className="row"
@@ -304,7 +300,7 @@ export default async function AdminOrganizationPage({
                     {invoiceStatusLabel(invoice.status)}
                   </span>
                 </div>
-                <span className="muted" style={{ fontSize: '0.8rem' }}>
+                <span className="muted u-fs-080">
                   {invoiceAmount(invoice)} · due {invoice.dueDate.toDateString()}
                 </span>
                 {invoice.status === 'OPEN' || invoice.status === 'PARTIALLY_PAID' ? (
@@ -331,16 +327,14 @@ export default async function AdminOrganizationPage({
       <article className="card">
         <p className="card-kicker">Commerce</p>
         <h2 className="card-title">Commercial overrides</h2>
-        <p className="card-body" style={{ marginBottom: '1rem' }}>
+        <p className="card-body u-mb-100">
           A time-limited bypass of this organization's commercial capacity caps and any billing
           suspension. Never bypasses security, consent, or release gates.
         </p>
         {data.overrides.length === 0 ? (
-          <p className="card-body" style={{ marginBottom: '1.25rem' }}>
-            No overrides have ever been granted.
-          </p>
+          <p className="card-body u-mb-125">No overrides have ever been granted.</p>
         ) : (
-          <div className="rows" style={{ marginBottom: '1.25rem' }}>
+          <div className="rows u-mb-125">
             {data.overrides.map((o) => {
               const active = activeOverrides.some((a) => a.id === o.id);
               const status = o.revokedAt ? 'Revoked' : active ? 'Active' : 'Expired';
@@ -364,9 +358,7 @@ export default async function AdminOrganizationPage({
                       ) : null}
                     </span>
                   </div>
-                  <span className="muted" style={{ fontSize: '0.8rem' }}>
-                    {o.reason}
-                  </span>
+                  <span className="muted u-fs-080">{o.reason}</span>
                 </div>
               );
             })}

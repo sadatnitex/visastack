@@ -24,20 +24,20 @@ export default async function ForgotPasswordPage({
   return (
     <AuthShell title="Reset your password">
       {sent === '1' ? (
-        <div className="card" style={{ marginBottom: '1rem' }}>
+        <div className="card u-mb-100">
           <h2 className="card-title">Check your email</h2>
           <Notice>
             If an account uses that address, a password reset link will arrive shortly. Check your
             inbox and spam folder. If you do not have an account, you can create one instead.
           </Notice>
-          <details style={{ marginTop: '1rem' }}>
+          <details className="u-mt-100">
             <summary>Did not get a link? Send another</summary>
             <p className="card-body">
               Wait a few minutes, then enter your email to request a new link.
             </p>
             <RecoveryForm resend />
           </details>
-          <p className="card-body" style={{ marginTop: '1rem' }}>
+          <p className="card-body u-mt-100">
             <Link href="/auth/forgot-password">Use a different email address</Link>
             {' · '}
             <Link href="/auth/sign-up">Create an account</Link>
@@ -46,7 +46,7 @@ export default async function ForgotPasswordPage({
       ) : (
         <>
           <ErrorLine id="forgot-error" message={error} />
-          <div className="card" style={{ marginBottom: '1rem' }}>
+          <div className="card u-mb-100">
             <RecoveryForm error={error} />
           </div>
         </>

@@ -80,7 +80,7 @@ export default async function PrivacyPage() {
         <article className="card">
           <p className="card-kicker">Portability</p>
           <h2 className="card-title">Export your data</h2>
-          <p className="card-body" style={{ marginBottom: '1.25rem' }}>
+          <p className="card-body u-mb-125">
             Download a complete, structured snapshot of your account: identity, consents,
             applicants, Master Profile facts with full history, document metadata, and your audit
             trail.
@@ -99,7 +99,7 @@ export default async function PrivacyPage() {
         <article className="card">
           <p className="card-kicker">Erasure</p>
           <h2 className="card-title">Delete your account</h2>
-          <p className="card-body" style={{ marginBottom: '1.25rem' }}>
+          <p className="card-body u-mb-125">
             Deletion is reversible during a 7-day grace window, then permanent. Your audit trail is
             preserved and anonymized. An active legal hold blocks deletion until released.
           </p>
@@ -107,7 +107,7 @@ export default async function PrivacyPage() {
         </article>
       </div>
 
-      <article className="card" style={{ marginTop: '1.5rem' }}>
+      <article className="card u-mt-150">
         <p className="card-kicker">Transparency</p>
         <h2 className="card-title">Consent history</h2>
         {data.history.length === 0 ? (
@@ -115,7 +115,7 @@ export default async function PrivacyPage() {
             Each time you turn a permission on or off, it is recorded here with the date.
           </EmptyState>
         ) : (
-          <div className="rows" style={{ marginTop: '0.5rem' }}>
+          <div className="rows u-mt-050">
             {data.history.map((entry, i) => (
               <div className="row" key={`${entry.type}-${entry.at}-${i}`}>
                 <span className="row-key">{CONSENT_LABELS[entry.type] ?? entry.type}</span>
@@ -123,9 +123,7 @@ export default async function PrivacyPage() {
                   <span className={`badge ${entry.granted ? 'badge-success' : 'badge-neutral'}`}>
                     {entry.granted ? 'Granted' : 'Revoked'}
                   </span>
-                  <span className="muted" style={{ fontSize: '0.85rem' }}>
-                    {formatDateTime(entry.at)}
-                  </span>
+                  <span className="muted u-fs-085">{formatDateTime(entry.at)}</span>
                 </span>
               </div>
             ))}

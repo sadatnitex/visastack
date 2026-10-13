@@ -46,7 +46,7 @@ export default async function AgencySettingsPage({
 
   return (
     <>
-      <article className="card" style={{ marginBottom: '1.5rem' }}>
+      <article className="card u-mb-150">
         <p className="card-kicker">Settings</p>
         <h2 className="card-title">Review policy</h2>
         <div className="row">
@@ -64,10 +64,10 @@ export default async function AgencySettingsPage({
         </div>
       </article>
 
-      <article className="card" style={{ marginBottom: '1.5rem' }}>
+      <article className="card u-mb-150">
         <p className="card-kicker">Settings</p>
         <h2 className="card-title">Branding</h2>
-        <p className="card-body" style={{ marginBottom: '1.25rem' }}>
+        <p className="card-body u-mb-125">
           Approved logo, agency name, and one accessible accent color -- shown on this console and
           on invitations. "Powered by VisaStack" always stays alongside it, and this organization's
           branding never appears in another organization's workspace.
@@ -83,7 +83,7 @@ export default async function AgencySettingsPage({
       <article className="card">
         <p className="card-kicker">Export</p>
         <h2 className="card-title">Bulk export</h2>
-        <p className="card-body" style={{ marginBottom: '1.25rem' }}>
+        <p className="card-body u-mb-125">
           Download the profiles of every applicant who granted this organization an accepted export
           grant. Each applicant is re-checked by the policy engine at export time.
         </p>

@@ -103,16 +103,16 @@ function AssuranceDetail({ assurance }: { readonly assurance: FieldAssurance }) 
           borderLeft: '2px solid var(--hairline-soft)',
         }}
       >
-        <p className="muted" style={{ fontSize: '0.75rem', margin: 0 }}>
+        <p className="muted u-fs-075-m0">
           {assurance.applicantDeclared ? '✓ Declared by the applicant.' : '✗ Not yet declared.'}
         </p>
-        <p className="muted" style={{ fontSize: '0.75rem', margin: 0 }}>
+        <p className="muted u-fs-075-m0">
           {assurance.documentSupplied
             ? '✓ Backed by a supplied document.'
             : '✗ No supporting document supplied.'}
         </p>
         <div>
-          <p className="muted" style={{ fontSize: '0.75rem', margin: 0 }}>
+          <p className="muted u-fs-075-m0">
             Named machine checks: {assurance.machineChecks.length === 0 ? 'none performed.' : ''}
           </p>
           {assurance.machineChecks.map((c) => (
@@ -127,7 +127,7 @@ function AssuranceDetail({ assurance }: { readonly assurance: FieldAssurance }) 
           ))}
         </div>
         <div>
-          <p className="muted" style={{ fontSize: '0.75rem', margin: 0 }}>
+          <p className="muted u-fs-075-m0">
             Agency reviewed: {assurance.agencyReviews.length === 0 ? 'not yet.' : ''}
           </p>
           {assurance.agencyReviews.map((r) => (
@@ -142,7 +142,7 @@ function AssuranceDetail({ assurance }: { readonly assurance: FieldAssurance }) 
           ))}
         </div>
         <div>
-          <p className="muted" style={{ fontSize: '0.75rem', margin: 0 }}>
+          <p className="muted u-fs-075-m0">
             Issuer confirmed:{' '}
             {assurance.issuerConfirmations.length === 0 ? 'no evidence supports this yet.' : ''}
           </p>
@@ -264,14 +264,10 @@ function FieldRow({
         </div>
       </details>
       {effectiveFrom && updatedAt && !sameDay(effectiveFrom, updatedAt) ? (
-        <p className="muted" style={{ fontSize: '0.75rem', margin: 0 }}>
-          Effective as of {formatDateOnly(effectiveFrom)}
-        </p>
+        <p className="muted u-fs-075-m0">Effective as of {formatDateOnly(effectiveFrom)}</p>
       ) : null}
       {updatedAt ? (
-        <p className="muted" style={{ fontSize: '0.75rem', margin: 0 }}>
-          Last confirmed {formatDate(updatedAt)}
-        </p>
+        <p className="muted u-fs-075-m0">Last confirmed {formatDate(updatedAt)}</p>
       ) : null}
       {assurance ? <AssuranceDetail assurance={assurance} /> : null}
       <FormMessage id={messageId} result={state} />
@@ -308,9 +304,9 @@ function RepeatingGroup({
   const recordKeys = [...records.keys(), ...newRecordKeys];
 
   return (
-    <div style={{ marginTop: '1.5rem' }}>
+    <div className="u-mt-150">
       <div className="field-head" style={{ marginBottom: '0.75rem' }}>
-        <span className="card-kicker" style={{ margin: 0 }}>
+        <span className="card-kicker u-m-0">
           {groupLabel} {recordKeys.length > 0 ? `(${recordKeys.length})` : null}
         </span>
         <button
@@ -323,9 +319,7 @@ function RepeatingGroup({
         </button>
       </div>
       {recordKeys.length === 0 ? (
-        <p className="muted" style={{ fontSize: '0.9rem' }}>
-          None recorded yet.
-        </p>
+        <p className="muted u-fs-090">None recorded yet.</p>
       ) : (
         <div
           style={{

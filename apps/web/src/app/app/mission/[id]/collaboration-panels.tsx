@@ -53,7 +53,7 @@ export function TasksPanel({
       {openOrInProgress.length === 0 ? (
         <p className="card-body">No open tasks.</p>
       ) : (
-        <div className="rows" style={{ marginBottom: '1rem' }}>
+        <div className="rows u-mb-100">
           {openOrInProgress.map((task) => (
             <form
               action={decideAction}
@@ -124,11 +124,11 @@ export function TasksPanel({
       <FormMessage result={decideState} />
 
       {decided.length > 0 ? (
-        <details style={{ marginBottom: '1rem' }}>
+        <details className="u-mb-100">
           <summary className="muted" style={{ fontSize: '0.8rem', cursor: 'pointer' }}>
             {decided.length} completed/cancelled
           </summary>
-          <div className="rows" style={{ marginTop: '0.5rem' }}>
+          <div className="rows u-mt-050">
             {decided.map((task) => (
               <div className="row" key={task.id}>
                 <span className="row-key" style={{ textDecoration: 'line-through' }}>
@@ -223,11 +223,9 @@ export function AppointmentsPanel({
       <p className="card-kicker">Meetings</p>
       <h2 className="card-title">Appointments</h2>
       {upcoming.length === 0 ? (
-        <p className="card-body" style={{ marginBottom: '1rem' }}>
-          No appointments scheduled.
-        </p>
+        <p className="card-body u-mb-100">No appointments scheduled.</p>
       ) : (
-        <div className="rows" style={{ marginBottom: '1rem' }}>
+        <div className="rows u-mb-100">
           {upcoming.map((appt) => (
             <div
               key={appt.id}
@@ -235,7 +233,7 @@ export function AppointmentsPanel({
               style={{ flexDirection: 'column', alignItems: 'flex-start', gap: '0.3rem' }}
             >
               <span className="row-key">{appt.title}</span>
-              <span className="muted" style={{ fontSize: '0.8rem' }}>
+              <span className="muted u-fs-080">
                 {new Date(appt.localDateTime).toLocaleString(undefined, {
                   dateStyle: 'medium',
                   timeStyle: 'short',
@@ -258,8 +256,7 @@ export function AppointmentsPanel({
                     pending={decidePending}
                     idle="Done"
                     busy="Done"
-                    className="btn btn-secondary"
-                    style={{ padding: '0.2rem 0.6rem', fontSize: '0.75rem' }}
+                    className="btn btn-secondary u-btn-xs"
                     name="status"
                     value="DONE"
                   />
@@ -267,8 +264,7 @@ export function AppointmentsPanel({
                     pending={decidePending}
                     idle="Cancel"
                     busy="Cancel"
-                    className="btn btn-secondary"
-                    style={{ padding: '0.2rem 0.6rem', fontSize: '0.75rem' }}
+                    className="btn btn-secondary u-btn-xs"
                     name="status"
                     value="CANCELLED"
                   />
@@ -281,11 +277,11 @@ export function AppointmentsPanel({
       <FormMessage result={decideState} />
 
       {past.length > 0 ? (
-        <details style={{ marginBottom: '1rem' }}>
+        <details className="u-mb-100">
           <summary className="muted" style={{ fontSize: '0.8rem', cursor: 'pointer' }}>
             {past.length} past
           </summary>
-          <div className="rows" style={{ marginTop: '0.5rem' }}>
+          <div className="rows u-mt-050">
             {past.map((appt) => (
               <div className="row" key={appt.id}>
                 <span className="row-key" style={{ textDecoration: 'line-through' }}>
@@ -375,11 +371,9 @@ export function LettersPanel({
         deterministic and versioned.
       </p>
       {letters.length === 0 ? (
-        <p className="card-body" style={{ marginBottom: '1rem' }}>
-          No letters generated yet.
-        </p>
+        <p className="card-body u-mb-100">No letters generated yet.</p>
       ) : (
-        <div className="rows" style={{ marginBottom: '1rem' }}>
+        <div className="rows u-mb-100">
           {letters.map((letter) => (
             <details key={letter.id}>
               <summary style={{ cursor: 'pointer', fontSize: '0.85rem' }}>
@@ -505,8 +499,7 @@ export function EvidenceSelectionPanel({
                             pending={unselectPending}
                             idle="Selected - remove"
                             busy="Selected - remove"
-                            className="btn btn-secondary"
-                            style={{ padding: '0.2rem 0.6rem', fontSize: '0.75rem' }}
+                            className="btn btn-secondary u-btn-xs"
                           />
                         </form>
                       ) : (
@@ -522,8 +515,7 @@ export function EvidenceSelectionPanel({
                             pending={selectPending}
                             idle="Select"
                             busy="Select"
-                            className="btn btn-secondary"
-                            style={{ padding: '0.2rem 0.6rem', fontSize: '0.75rem' }}
+                            className="btn btn-secondary u-btn-xs"
                           />
                         </form>
                       )}
@@ -567,8 +559,7 @@ export function EvidenceSelectionPanel({
                             pending={unselectPending}
                             idle="Selected - remove"
                             busy="Selected - remove"
-                            className="btn btn-secondary"
-                            style={{ padding: '0.2rem 0.6rem', fontSize: '0.75rem' }}
+                            className="btn btn-secondary u-btn-xs"
                           />
                         </form>
                       ) : (
@@ -584,8 +575,7 @@ export function EvidenceSelectionPanel({
                             pending={selectPending}
                             idle="Select"
                             busy="Select"
-                            className="btn btn-secondary"
-                            style={{ padding: '0.2rem 0.6rem', fontSize: '0.75rem' }}
+                            className="btn btn-secondary u-btn-xs"
                           />
                         </form>
                       )}

@@ -265,13 +265,13 @@ export default async function ApplicantDocumentsPage({
         </output>
       ) : null}
       {previewError ? (
-        <p className="notice notice-warn" role="alert" style={{ marginBottom: '1.5rem' }}>
+        <p className="notice notice-warn u-mb-150" role="alert">
           Couldn't open that preview - the document may no longer be available. Please try again.
         </p>
       ) : null}
 
       {dateError ? (
-        <p className="notice notice-warn" role="alert" style={{ marginBottom: '1.5rem' }}>
+        <p className="notice notice-warn u-mb-150" role="alert">
           Couldn't save that date - enter a valid date that isn't in the future.
         </p>
       ) : null}
@@ -388,9 +388,7 @@ export default async function ApplicantDocumentsPage({
                   </form>
                 ) : null}
                 {doc.processingStatus && PROBLEM_NEXT_STEP[doc.processingStatus] ? (
-                  <p className="muted" style={{ fontSize: '0.75rem', margin: 0 }}>
-                    {PROBLEM_NEXT_STEP[doc.processingStatus]}
-                  </p>
+                  <p className="muted u-fs-075-m0">{PROBLEM_NEXT_STEP[doc.processingStatus]}</p>
                 ) : null}
                 {(() => {
                   const wallet = data.wallet.get(doc.id);
@@ -401,7 +399,7 @@ export default async function ApplicantDocumentsPage({
                     return null;
                   }
                   return (
-                    <p className="muted" style={{ fontSize: '0.75rem', margin: 0 }}>
+                    <p className="muted u-fs-075-m0">
                       {wallet.usedInMissions.length > 0
                         ? `Used in ${wallet.usedInMissions.map((m) => m.missionTitle).join(', ')}`
                         : null}
@@ -420,11 +418,7 @@ export default async function ApplicantDocumentsPage({
                 >
                   <input type="hidden" name="applicantId" value={id} />
                   <input type="hidden" name="documentId" value={doc.id} />
-                  <label
-                    className="muted"
-                    style={{ fontSize: '0.75rem' }}
-                    htmlFor={`date-${doc.id}`}
-                  >
+                  <label className="muted u-fs-075" htmlFor={`date-${doc.id}`}>
                     Document date
                   </label>
                   <input
@@ -436,11 +430,7 @@ export default async function ApplicantDocumentsPage({
                     className="input"
                     style={{ padding: '0.2rem 0.5rem', fontSize: '0.8rem', width: 'auto' }}
                   />
-                  <button
-                    type="submit"
-                    className="btn btn-secondary"
-                    style={{ padding: '0.2rem 0.6rem', fontSize: '0.75rem' }}
-                  >
+                  <button type="submit" className="btn btn-secondary u-btn-xs">
                     Save
                   </button>
                   <span className="muted" style={{ fontSize: '0.7rem' }}>
@@ -451,7 +441,7 @@ export default async function ApplicantDocumentsPage({
                   const confirmations = data.issuerVerifications.get(doc.id) ?? [];
                   if (confirmations.length === 0) return null;
                   return (
-                    <details style={{ fontSize: '0.75rem' }}>
+                    <details className="u-fs-075">
                       <summary className="muted" style={{ cursor: 'pointer' }}>
                         {confirmations.length} issuer confirmation
                         {confirmations.length === 1 ? '' : 's'}
@@ -489,7 +479,7 @@ export default async function ApplicantDocumentsPage({
                     classification={doc.classification}
                   />
                 ) : doc.classification?.reviewRequired ? (
-                  <p className="muted" style={{ fontSize: '0.75rem' }}>
+                  <p className="muted u-fs-075">
                     Automatic classification needs review - not confident enough to propose a name.
                   </p>
                 ) : null}
@@ -645,7 +635,7 @@ export default async function ApplicantDocumentsPage({
            * deliberately distinct here.
            */}
           {!data.coreGranted ? (
-            <article className="card" style={{ marginBottom: '1.5rem' }}>
+            <article className="card u-mb-150">
               <p className="card-body">
                 Grant <strong>Core processing</strong> consent from <Link href="/app">Home</Link> to
                 upload new documents or run processing. Your existing documents remain visible
@@ -655,7 +645,7 @@ export default async function ApplicantDocumentsPage({
           ) : (
             <>
               {data.aiConfigured && !data.aiGranted ? (
-                <div className="card" style={{ marginBottom: '1.5rem' }}>
+                <div className="card u-mb-150">
                   <p className="card-body">
                     Grant <strong>AI extraction</strong> consent from <Link href="/app">Home</Link>{' '}
                     to get automatic field suggestions from your documents - every suggestion still
@@ -665,7 +655,7 @@ export default async function ApplicantDocumentsPage({
               ) : null}
 
               {data.ocrConfigured && !data.ocrGranted ? (
-                <div className="card" style={{ marginBottom: '1.5rem' }}>
+                <div className="card u-mb-150">
                   <p className="card-body">
                     Grant <strong>AI OCR</strong> consent from <Link href="/app">Home</Link> to read
                     text from scanned or photographed documents - this sends the document's image, a
@@ -674,14 +664,14 @@ export default async function ApplicantDocumentsPage({
                 </div>
               ) : null}
 
-              <article className="card" style={{ marginBottom: '1.5rem' }}>
+              <article className="card u-mb-150">
                 <p className="card-kicker">Upload</p>
                 <h2 className="card-title">Add a document</h2>
-                <p className="card-body" style={{ marginBottom: '1.25rem' }}>
+                <p className="card-body u-mb-125">
                   Documents are stored privately and pass a structural safety scan before they can
                   be previewed.
                 </p>
-                <div style={{ marginBottom: '1.25rem' }}>
+                <div className="u-mb-125">
                   <UsageMeter
                     label="Evidence storage"
                     usedBytes={data.evidenceBytes}

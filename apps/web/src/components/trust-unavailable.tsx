@@ -20,7 +20,7 @@ export function TrustUnavailable({ withinPage = false }: { readonly withinPage?:
           affected. Please try again in a few minutes. For an urgent question about a visa, use the
           official website of the country you are applying to.
         </p>
-        <div className="cta-row" style={{ marginTop: '1rem' }}>
+        <div className="cta-row u-mt-100">
           <Link className="btn btn-primary" href="/trust">
             Try again
           </Link>

@@ -120,7 +120,7 @@ export default async function SharingPage({
                 : 'Access records are unavailable. Reload before making changes.'}
             </p>
             {data.grants.length > 0 ? (
-              <p className="notice" style={{ marginBottom: '1rem' }}>
+              <p className="notice u-mb-100">
                 Pausing or revoking stops all <em>future</em> access immediately. It cannot remotely
                 erase copies the recipient already downloaded before that point.
               </p>
@@ -135,7 +135,7 @@ export default async function SharingPage({
                 here with what they can see and until when.
               </EmptyState>
             ) : (
-              <div className="rows" style={{ marginTop: '0.5rem' }}>
+              <div className="rows u-mt-050">
                 {data.grants.map((grant) => {
                   const badge = grantStatusBadge(grant.status, t);
                   const canPause = grant.status === 'ACTIVE';
@@ -308,7 +308,7 @@ export default async function SharingPage({
           <article className="card">
             <p className="card-kicker">Transparency</p>
             <h2 className="card-title">Access log</h2>
-            <p className="card-body" style={{ marginBottom: '1rem' }}>
+            <p className="card-body u-mb-100">
               What actually happened to your data, not just what a grant permits - the most recent{' '}
               {data.auditEvents.length} event{data.auditEvents.length === 1 ? '' : 's'}.
             </p>
@@ -317,7 +317,7 @@ export default async function SharingPage({
                 Every time your information is opened, shared or changed, it is recorded here.
               </EmptyState>
             ) : (
-              <div className="rows" style={{ marginTop: '0.5rem' }}>
+              <div className="rows u-mt-050">
                 {data.auditEvents.map((e) => (
                   <div className="row" key={e.seq}>
                     <span className="row-key">
@@ -332,9 +332,7 @@ export default async function SharingPage({
                           {e.result === 'ALLOWED' ? 'Allowed' : 'Blocked'}
                         </StatusBadge>
                       ) : null}
-                      <span className="muted" style={{ fontSize: '0.8rem' }}>
-                        {formatTimestamp(e.occurredAt)}
-                      </span>
+                      <span className="muted u-fs-080">{formatTimestamp(e.occurredAt)}</span>
                     </span>
                   </div>
                 ))}
@@ -345,7 +343,7 @@ export default async function SharingPage({
         <article className="card sharing-composer-card" id="new-sharing-request">
           <p className="card-kicker">New sharing request</p>
           <h2 className="card-title">Grant access</h2>
-          <p className="card-body" style={{ marginBottom: '1.25rem' }}>
+          <p className="card-body u-mb-125">
             {process.env[sharingInvitationFlag] === 'true'
               ? 'Invite someone by email, even if they do not have an account yet. They must sign in with that email and accept before access begins.'
               : 'Share with an existing VisaStack user by email. They must accept before any access begins.'}

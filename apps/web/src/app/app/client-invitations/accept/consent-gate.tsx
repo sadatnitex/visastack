@@ -70,7 +70,7 @@ export function ConsentGate({
   readonly sharing: boolean;
 }) {
   return (
-    <div className="rows" style={{ marginBottom: '1.25rem' }}>
+    <div className="rows u-mb-125">
       <ConsentToggle type="CORE_PROCESSING" label="Core processing" granted={core} />
       <ConsentToggle type="SHARING" label="Sharing" granted={sharing} />
     </div>

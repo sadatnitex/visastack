@@ -32,7 +32,7 @@ export default async function SignInPage({
     <AuthShell title="Sign in">
       {notice ? <Notice>{notice}</Notice> : null}
       <ErrorLine id="signin-error" message={error} />
-      <div className="card" style={{ marginBottom: '1rem' }}>
+      <div className="card u-mb-100">
         <form action={signInAction} className="field-list">
           <input type="hidden" name="next" value={safeReturnPath(next)} />
           <TextField

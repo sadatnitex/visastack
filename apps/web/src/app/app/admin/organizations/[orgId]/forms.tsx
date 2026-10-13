@@ -92,9 +92,7 @@ export function ActivatePlanForm({
           Plan
         </label>
         {plans.length === 0 ? (
-          <p className="muted" style={{ fontSize: '0.85rem' }}>
-            No active plans in the catalog yet.
-          </p>
+          <p className="muted u-fs-085">No active plans in the catalog yet.</p>
         ) : (
           <select id="activate-planId" name="planId" required className="input" defaultValue="">
             <option value="" disabled>
@@ -164,9 +162,7 @@ export function ScheduleDowngradeForm({
           Target plan
         </label>
         {plans.length === 0 ? (
-          <p className="muted" style={{ fontSize: '0.85rem' }}>
-            No active plans in the catalog yet.
-          </p>
+          <p className="muted u-fs-085">No active plans in the catalog yet.</p>
         ) : (
           <select
             id="downgrade-toPlanId"
@@ -345,9 +341,7 @@ export function CreateInvoiceForm({
           Plan billed
         </label>
         {plans.length === 0 ? (
-          <p className="muted" style={{ fontSize: '0.85rem' }}>
-            No active plans in the catalog yet.
-          </p>
+          <p className="muted u-fs-085">No active plans in the catalog yet.</p>
         ) : (
           <select id="invoice-planId" name="planId" required className="input" defaultValue="">
             <option value="" disabled>
@@ -505,8 +499,7 @@ export function RecordPaymentForm({
           pending={pending}
           idle="Record payment"
           busy="Recording…"
-          className="btn btn-secondary"
-          style={{ padding: '0.3rem 0.85rem', fontSize: '0.8rem' }}
+          className="btn btn-secondary u-btn-sm"
         />
         <StatusMessage state={state} />
       </div>

@@ -267,8 +267,7 @@ export function TestConnectionButton({ configId }: { readonly configId: string }
         pending={pending}
         idle="Test connection"
         busy="Testing…"
-        className="btn btn-secondary"
-        style={{ padding: '0.3rem 0.85rem', fontSize: '0.8rem' }}
+        className="btn btn-secondary u-btn-sm"
       />
       <StatusMessage state={state} />
     </form>
@@ -294,8 +293,7 @@ export function RunEvaluationButton({ configId }: { readonly configId: string })
         pending={pending}
         idle="Run evaluation (13 cases)"
         busy="Evaluating…"
-        className="btn btn-secondary"
-        style={{ padding: '0.3rem 0.85rem', fontSize: '0.8rem' }}
+        className="btn btn-secondary u-btn-sm"
       />
       <StatusMessage state={state} />
     </form>
@@ -322,8 +320,7 @@ export function ActivateConfigButton({ configId }: { readonly configId: string }
         pending={pending}
         idle="Activate"
         busy="Activating…"
-        className="btn btn-primary"
-        style={{ padding: '0.3rem 0.85rem', fontSize: '0.8rem' }}
+        className="btn btn-primary u-btn-sm"
       />
       <StatusMessage state={state} />
     </form>
@@ -405,8 +402,7 @@ export function RevokeKeyButton({ configId }: { readonly configId: string }) {
         pending={pending}
         idle="Revoke key"
         busy="Revoking…"
-        className="btn btn-danger"
-        style={{ padding: '0.3rem 0.85rem', fontSize: '0.8rem' }}
+        className="btn btn-danger u-btn-sm"
       />
       <StatusMessage state={state} />
     </form>

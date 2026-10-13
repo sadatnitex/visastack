@@ -42,9 +42,7 @@ export function OrgBrandingHeader({
           }}
         />
       ) : null}
-      <span className="muted" style={{ fontSize: '0.75rem' }}>
-        Powered by VisaStack
-      </span>
+      <span className="muted u-fs-075">Powered by VisaStack</span>
     </div>
   );
 }

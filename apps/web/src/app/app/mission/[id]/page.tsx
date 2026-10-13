@@ -565,7 +565,7 @@ export default async function MissionPage({
       <CaseStageTracker state={mission.state} labels={STATE_LABELS} nextStates={nextStates} />
 
       {data.isDirty ? (
-        <div className="notice notice-warn" style={{ marginBottom: '1.5rem' }}>
+        <div className="notice notice-warn u-mb-150">
           <strong>This case has changed since it was last acknowledged.</strong> A material edit
           invalidated the previous sign-off. Capture a new snapshot and acknowledge it again before
           relying on this case as submission-ready.
@@ -678,7 +678,7 @@ export default async function MissionPage({
                               <span className={`badge ${meta.tone}`}>{meta.label}</span>
                             </div>
                             {meta.next ? (
-                              <span className="muted" style={{ fontSize: '0.8rem' }}>
+                              <span className="muted u-fs-080">
                                 {meta.next}
                                 {r.state === 'CONFLICTING' ? (
                                   <>
@@ -697,7 +697,7 @@ export default async function MissionPage({
                               </span>
                             ) : null}
                             {r.citation ? (
-                              <span className="muted" style={{ fontSize: '0.75rem' }}>
+                              <span className="muted u-fs-075">
                                 Cite: {sourceLine || r.citation}
                                 {r.observedDate ? ` · as of ${formatDateOnly(r.observedDate)}` : ''}
                                 {sourceHref ? (
@@ -745,7 +745,7 @@ export default async function MissionPage({
           </article>
 
           <Disclosure title="Select or update evidence" hint="Open when you need to make a change">
-            <div className="grid" id="evidence" style={{ marginTop: '1.5rem' }}>
+            <div className="grid u-mt-150" id="evidence">
               <EvidenceSelectionPanel
                 missionId={mission.id}
                 candidates={data.candidates.map((c) => ({
@@ -780,7 +780,7 @@ export default async function MissionPage({
             title="Tasks, appointments and letters"
             hint="Open when you need to make a change"
           >
-            <div className="grid" id="work" style={{ marginTop: '1.5rem' }}>
+            <div className="grid u-mt-150" id="work">
               <TasksPanel missionId={mission.id} tasks={data.tasks} />
               <AppointmentsPanel missionId={mission.id} appointments={data.appointments} />
               <LettersPanel
@@ -809,7 +809,7 @@ export default async function MissionPage({
                 <article className="card">
                   <p className="card-kicker">Delegate</p>
                   <h2 className="card-title">Ask a contributor</h2>
-                  <p className="card-body" style={{ marginBottom: '1.25rem' }}>
+                  <p className="card-body u-mb-125">
                     Ask a sponsor or family member - who never gets a wallet, profile, or case view
                     of any kind - for exactly one named document. They see only what you type below
                     before deciding whether to upload.
@@ -823,14 +823,12 @@ export default async function MissionPage({
                 <article className="card">
                   <p className="card-kicker">Collaboration</p>
                   <h2 className="card-title">Notes from your agency</h2>
-                  <p className="card-body" style={{ marginBottom: '1.25rem' }}>
+                  <p className="card-body u-mb-125">
                     Notes an agency working this case has chosen to share with you. An agency's own
                     internal notes are never shown here.
                   </p>
                   {data.notes.length === 0 ? (
-                    <p className="muted" style={{ fontSize: '0.9rem' }}>
-                      No notes shared with you yet.
-                    </p>
+                    <p className="muted u-fs-090">No notes shared with you yet.</p>
                   ) : (
                     <div className="rows">
                       {data.notes.map((n) => (
@@ -839,7 +837,7 @@ export default async function MissionPage({
                           key={n.id}
                           style={{ flexDirection: 'column', alignItems: 'flex-start' }}
                         >
-                          <span style={{ fontSize: '0.9rem' }}>{n.body}</span>
+                          <span className="u-fs-090">{n.body}</span>
                           <span
                             className="muted"
                             style={{ fontSize: '0.75rem', marginTop: '0.2rem' }}
@@ -856,7 +854,7 @@ export default async function MissionPage({
           </div>
 
           <Disclosure title="Submission and outcome" hint="Open when you need to make a change">
-            <div className="grid" id="outcome" style={{ marginTop: '1.5rem' }}>
+            <div className="grid u-mt-150" id="outcome">
               <SubmissionReportPanel
                 missionId={mission.id}
                 submissions={data.submissions}
@@ -870,7 +868,7 @@ export default async function MissionPage({
             </div>
           </Disclosure>
 
-          <div style={{ marginTop: '1.5rem' }}>
+          <div className="u-mt-150">
             <Disclosure
               title="Problems and feedback"
               hint="Raise a complaint or give feedback on this case"
@@ -927,9 +925,7 @@ export default async function MissionPage({
                     marginBottom: '0.5rem',
                   }}
                 >
-                  <span className="card-body" style={{ margin: 0 }}>
-                    {data.packInfo.name}
-                  </span>
+                  <span className="card-body u-m-0">{data.packInfo.name}</span>
                   <span
                     className={`badge ${data.packInfo.authoritative ? 'badge-success' : 'badge-neutral'}`}
                   >
@@ -951,7 +947,7 @@ export default async function MissionPage({
               </>
             ) : (
               <>
-                <p className="card-body" style={{ marginBottom: '1rem' }}>
+                <p className="card-body u-mb-100">
                   Attach a published requirement pack to compute readiness.
                 </p>
                 <AttachPackForm missionId={mission.id} options={data.packOptions} />
@@ -964,7 +960,7 @@ export default async function MissionPage({
             {nextStates.length === 0 ? (
               <p className="card-body">This case is in a terminal state.</p>
             ) : (
-              <div style={{ marginTop: '0.5rem' }}>
+              <div className="u-mt-050">
                 <TransitionButtons missionId={mission.id} nextStates={nextStates} />
               </div>
             )}
@@ -977,7 +973,7 @@ export default async function MissionPage({
                 No snapshots yet. Capture one to freeze this case's evidence and checksum.
               </p>
             ) : (
-              <div className="rows" style={{ marginTop: '0.5rem' }}>
+              <div className="rows u-mt-050">
                 {data.snapshots.map((snap) => {
                   const content = snap.content as { state?: string } | null;
                   const isPacket = content?.state ? PACKET_STATES.has(content.state) : false;
@@ -996,11 +992,7 @@ export default async function MissionPage({
                           </span>
                         ) : null}
                       </span>
-                      <span
-                        className="row-val"
-                        title={snap.checksum}
-                        style={{ fontSize: '0.75rem' }}
-                      >
+                      <span className="row-val u-fs-075" title={snap.checksum}>
                         {snap.checksum.slice(0, 12)}…
                       </span>
                     </Link>
@@ -1012,13 +1004,13 @@ export default async function MissionPage({
           <article className="card">
             <p className="card-kicker">Family trip</p>
             <h2 className="card-title">Itinerary reference</h2>
-            <p className="card-body" style={{ marginBottom: '1rem' }}>
+            <p className="card-body u-mb-100">
               An optional label linking this case to another family member's, purely for display.
               Access and permissions stay entirely separate per case.
             </p>
             <ItineraryForm missionId={mission.id} itineraryRef={mission.itineraryRef} />
             {data.linkedMissions.length > 0 ? (
-              <div className="rows" style={{ marginTop: '1rem' }}>
+              <div className="rows u-mt-100">
                 {data.linkedMissions.map((m) => (
                   <Link className="row row-link" key={m.id} href={`/app/mission/${m.id}`}>
                     <span className="row-key">{m.applicantName}</span>

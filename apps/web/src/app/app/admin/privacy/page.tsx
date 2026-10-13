@@ -68,12 +68,12 @@ export default async function AdminPrivacyPage() {
               <p className="card-kicker">Retention</p>
               <h2 className="card-title">Document retention policies</h2>
               {data.policies.length === 0 ? (
-                <p className="card-body" style={{ marginBottom: '1.25rem' }}>
+                <p className="card-body u-mb-125">
                   No retention policies configured. Without a policy, documents of a type are never
                   auto-purged.
                 </p>
               ) : (
-                <div className="rows" style={{ marginBottom: '1.25rem' }}>
+                <div className="rows u-mb-125">
                   {data.policies.map((p) => (
                     <div className="row" key={p.id}>
                       <span className="row-key">{documentTypeLabel(p.docType)}</span>
@@ -89,12 +89,12 @@ export default async function AdminPrivacyPage() {
               <p className="card-kicker">Legal holds</p>
               <h2 className="card-title">Active holds</h2>
               {data.holds.length === 0 ? (
-                <p className="card-body" style={{ marginBottom: '1.25rem' }}>
+                <p className="card-body u-mb-125">
                   No active legal holds. A hold blocks deletion and retention purge for an applicant
                   until released.
                 </p>
               ) : (
-                <div className="rows" style={{ marginBottom: '1.25rem' }}>
+                <div className="rows u-mb-125">
                   {data.holds.map((h) => (
                     <div
                       className="row"
@@ -114,10 +114,8 @@ export default async function AdminPrivacyPage() {
                         </span>
                         <ReleaseHoldButton holdId={h.id} />
                       </div>
-                      <span className="muted" style={{ fontSize: '0.8rem' }}>
-                        {h.reason}
-                      </span>
-                      <span style={{ fontSize: '0.8rem' }}>
+                      <span className="muted u-fs-080">{h.reason}</span>
+                      <span className="u-fs-080">
                         {h.reviewAt === null ? (
                           <span className="badge badge-danger">no review date set</span>
                         ) : h.reviewAt.getTime() < Date.now() ? (
@@ -140,7 +138,7 @@ export default async function AdminPrivacyPage() {
             </article>
           </div>
 
-          <article className="card" style={{ marginTop: '1.5rem' }} id="admin-deletion">
+          <article className="card u-mt-150" id="admin-deletion">
             <p className="card-kicker">Erasure</p>
             <h2 className="card-title">Erasure jobs needing attention</h2>
             {data.erasureJobs.length === 0 ? (
@@ -149,7 +147,7 @@ export default async function AdminPrivacyPage() {
                 retry attempt, or while it's waiting on a legal hold to clear.
               </p>
             ) : (
-              <div className="rows" style={{ marginTop: '0.5rem' }}>
+              <div className="rows u-mt-050">
                 {data.erasureJobs.map((job) => (
                   <div
                     className="row"
@@ -178,7 +176,7 @@ export default async function AdminPrivacyPage() {
                         <RetryErasureJobButton jobId={job.id} />
                       </span>
                     </div>
-                    <span className="muted" style={{ fontSize: '0.8rem' }}>
+                    <span className="muted u-fs-080">
                       {job.reason === 'ACCOUNT_DELETION' ? 'Account deletion' : 'Retention purge'}
                     </span>
                     {job.lastError ? (
@@ -195,7 +193,7 @@ export default async function AdminPrivacyPage() {
             )}
           </article>
 
-          <article className="card" style={{ marginTop: '1.5rem' }}>
+          <article className="card u-mt-150">
             <p className="card-kicker">Retention</p>
             <h2 className="card-title">Documents eligible for purge</h2>
             {data.purgeEligible.length === 0 ? (
@@ -205,15 +203,13 @@ export default async function AdminPrivacyPage() {
               </p>
             ) : (
               <>
-                <div className="rows" style={{ marginBottom: '1.25rem' }}>
+                <div className="rows u-mb-125">
                   {data.purgeEligible.map((doc) => (
                     <div className="row" key={doc.id}>
                       <span className="row-key" style={{ wordBreak: 'break-word' }}>
                         {doc.originalName}
                       </span>
-                      <span className="muted" style={{ fontSize: '0.8rem' }}>
-                        {applicantName(doc.applicantId)}
-                      </span>
+                      <span className="muted u-fs-080">{applicantName(doc.applicantId)}</span>
                     </div>
                   ))}
                 </div>

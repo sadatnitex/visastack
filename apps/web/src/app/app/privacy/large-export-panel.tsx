@@ -46,9 +46,7 @@ function StatusLine({ job }: { readonly job: LargeExportJobProps }) {
             Download ZIP
           </a>
           {job.expiresAt ? (
-            <span className="muted" style={{ fontSize: '0.85rem' }}>
-              expires {formatDateTime(job.expiresAt)}
-            </span>
+            <span className="muted u-fs-085">expires {formatDateTime(job.expiresAt)}</span>
           ) : null}
         </span>
       );

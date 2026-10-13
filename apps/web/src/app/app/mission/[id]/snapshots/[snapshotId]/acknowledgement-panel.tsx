@@ -58,7 +58,7 @@ export function AcknowledgementPanel({
     !live && history.some((entry) => entry.decision === 'ACKNOWLEDGED' && entry.invalidatedAt);
 
   return (
-    <article className="card" style={{ marginBottom: '1.5rem' }}>
+    <article className="card u-mb-150">
       <p className="card-kicker">Final review</p>
       <h2 className="card-title">Confirm this prepared file</h2>
       <p className="muted" style={{ fontSize: '0.85rem', marginBottom: '1rem' }}>
@@ -67,7 +67,7 @@ export function AcknowledgementPanel({
         approved by anyone -- only that you have reviewed this exact content.
       </p>
 
-      <div className="notice" style={{ marginBottom: '1rem' }}>
+      <div className="notice u-mb-100">
         <strong>What you are confirming</strong>
         <ul style={{ margin: '0.5rem 0 0', paddingLeft: '1.25rem' }}>
           <li>
@@ -84,20 +84,20 @@ export function AcknowledgementPanel({
       </div>
 
       {changedSince ? (
-        <p className="notice notice-warn" style={{ marginBottom: '1rem' }}>
+        <p className="notice notice-warn u-mb-100">
           The case changed after you last acknowledged it. Review this version and decide again.
         </p>
       ) : null}
 
       {live ? (
-        <div className="notice notice-ok" style={{ marginBottom: '1rem' }}>
+        <div className="notice notice-ok u-mb-100">
           <strong>Acknowledged</strong> on {formatTimestamp(live.createdAt)}. This is still the live
           acknowledgement for this case.
         </div>
       ) : null}
 
       {history.length > 0 ? (
-        <div className="rows" style={{ marginBottom: '1rem' }}>
+        <div className="rows u-mb-100">
           {history.map((entry) => (
             <div
               className="row"
@@ -108,15 +108,13 @@ export function AcknowledgementPanel({
                 <span className={`badge ${DECISION_TONES[entry.decision]}`}>
                   {DECISION_LABELS[entry.decision]}
                 </span>
-                <span className="muted" style={{ fontSize: '0.75rem' }}>
-                  {formatTimestamp(entry.createdAt)}
-                </span>
+                <span className="muted u-fs-075">{formatTimestamp(entry.createdAt)}</span>
               </div>
               {entry.reason ? (
                 <p style={{ margin: 0, fontSize: '0.85rem' }}>{entry.reason}</p>
               ) : null}
               {entry.invalidatedAt ? (
-                <p className="muted" style={{ margin: 0, fontSize: '0.75rem' }}>
+                <p className="muted u-fs-075-m0">
                   Historical -- the case changed after this decision, on{' '}
                   {formatTimestamp(entry.invalidatedAt)}. A new decision is needed.
                 </p>

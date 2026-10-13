@@ -218,7 +218,7 @@ export default async function HomePage({ searchParams }: HomePageProps) {
         <div className="land-wrap land-hero-grid">
           <div className="land-hero-copy">
             {authError ? (
-              <p className="notice notice-warn" role="alert" style={{ marginBottom: '1.25rem' }}>
+              <p className="notice notice-warn u-mb-125" role="alert">
                 Sign-in didn’t complete. Please try again. If it keeps happening, contact support
                 and quote reference <strong>{authError}</strong>.
               </p>

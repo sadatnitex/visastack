@@ -29,7 +29,7 @@ export function InvitationLink({ url }: { readonly url: string }) {
     }
   }
   return (
-    <div className="field-list" style={{ marginTop: '1rem' }}>
+    <div className="field-list u-mt-100">
       <label htmlFor={id} className="field-label">
         Private invitation link
       </label>

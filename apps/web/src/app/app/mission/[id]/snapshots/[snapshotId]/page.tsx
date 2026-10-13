@@ -144,13 +144,13 @@ export default async function MissionSnapshotPage({
       />
 
       {content.evidenceScope === 'all_applicant_evidence' ? (
-        <div className="notice notice-warn" style={{ marginBottom: '1.5rem' }}>
+        <div className="notice notice-warn u-mb-150">
           <strong>Not narrowed to this case.</strong> This case had no automated requirement pack
           attached when captured, so there is no case-specific selection to disclose from - the
           facts and documents below are this applicant's full record, not limited to this case.
         </div>
       ) : content.evidenceScope === undefined ? (
-        <div className="notice notice-warn" style={{ marginBottom: '1.5rem' }}>
+        <div className="notice notice-warn u-mb-150">
           <strong>Captured before case-scoped disclosure existed.</strong> This snapshot may include
           evidence unrelated to this case - later snapshots are narrowed to what this case actually
           uses.
@@ -158,7 +158,7 @@ export default async function MissionSnapshotPage({
       ) : null}
 
       {content.requirementMapping.length > 0 ? (
-        <article className="card" style={{ marginBottom: '1.5rem' }}>
+        <article className="card u-mb-150">
           <p className="card-kicker">Requirement mapping</p>
           <h2 className="card-title">What satisfies each requirement</h2>
           <p className="muted" style={{ fontSize: '0.8rem', marginBottom: '1rem' }}>
@@ -188,9 +188,7 @@ export default async function MissionSnapshotPage({
                       </span>
                     )}
                   </div>
-                  <p className="muted" style={{ margin: 0, fontSize: '0.75rem' }}>
-                    {m.citation}
-                  </p>
+                  <p className="muted u-fs-075-m0">{m.citation}</p>
                   {m.kind === 'FIELD' && m.facts && m.facts.length > 0 ? (
                     <p style={{ margin: 0, fontSize: '0.85rem' }}>
                       {m.facts
@@ -221,7 +219,7 @@ export default async function MissionSnapshotPage({
           {facts.length === 0 ? (
             <p className="card-body">No facts recorded.</p>
           ) : (
-            <div className="rows" style={{ marginTop: '0.5rem' }}>
+            <div className="rows u-mt-050">
               {facts.map((fact) => (
                 <div className="row" key={fact.factId}>
                   <span className="row-key">
@@ -241,7 +239,7 @@ export default async function MissionSnapshotPage({
           {content.documents.length === 0 ? (
             <p className="card-body">No documents recorded.</p>
           ) : (
-            <div className="rows" style={{ marginTop: '0.5rem' }}>
+            <div className="rows u-mt-050">
               {content.documents.map((doc) => (
                 <div className="row" key={doc.documentVersionId}>
                   <span className="row-key">{doc.displayName}</span>
@@ -255,7 +253,7 @@ export default async function MissionSnapshotPage({
         </article>
       </div>
 
-      <div style={{ marginTop: '1.5rem' }}>
+      <div className="u-mt-150">
         <AcknowledgementPanel
           missionId={mission.id}
           snapshotId={snapshot.id}
