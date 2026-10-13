@@ -39,7 +39,12 @@ describe('the status page', () => {
     const html = render();
     expect(textOf(html)).toContain('What works today');
     // <output> is the element whose changes a screen reader announces (a status region).
-    expect(html).toContain('<output class="badge badge-success">Everything is working</output>');
+    expect(html).toContain(
+      '<output class="badge badge-success status-verdict">Everything is working</output>',
+    );
+    // The answer comes before the list, the explanation and the refresh controls.
+    expect(html.indexOf('Everything is working')).toBeLessThan(html.indexOf('You can use now'));
+    expect(html.indexOf('Everything is working')).toBeLessThan(html.indexOf('Check now'));
   });
 
   it('lists each feature by name with what state it is in, and what is not switched on yet', () => {
@@ -49,6 +54,17 @@ describe('the status page', () => {
     expect(text).toContain('AI suggestions from documents Not set up yet');
     expect(text).toContain('Virus scanning of uploads Not set up yet');
     expect(text).toContain('Downloading original files Switched off for now');
+  });
+
+  it('splits features into what can be used now and what is not switched on yet', () => {
+    const html = render();
+    const now = html.slice(html.indexOf('You can use now'), html.indexOf('Not switched on yet'));
+    const later = html.slice(html.indexOf('Not switched on yet'));
+    expect(textOf(now)).toContain('Signing in');
+    expect(textOf(now)).not.toContain('Virus scanning');
+    expect(textOf(later)).toContain('Virus scanning of uploads');
+    expect(textOf(later)).toContain('Downloading original files');
+    expect(textOf(later)).not.toContain('Signing in');
   });
 
   it('never prints a raw key, a state code, a path or a tool name', () => {
@@ -84,7 +100,7 @@ describe('the status page', () => {
     const waiting = render({ live: null, ready: null, updatedAt: '' });
     expect(textOf(waiting)).toContain('Checking…');
     expect(textOf(waiting)).toContain('Loading…');
-    expect(textOf(render())).toContain('Updated 14:05:09. Checks again every 15 seconds.');
+    expect(textOf(render())).toContain('Updated 14:05:09. This page checks again by itself.');
   });
 
   it('shows the button as busy while a check is running, without taking focus away from it', () => {

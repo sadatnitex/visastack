@@ -38,9 +38,7 @@ describe('public and entry pages today', () => {
     expect(document.querySelector('input[name="email"]')?.getAttribute('autocomplete')).toBe(
       'email',
     );
-    expect(document.querySelector('input[name="password"]')?.getAttribute('type')).toBe(
-      'password',
-    );
+    expect(document.querySelector('input[name="password"]')?.getAttribute('type')).toBe('password');
     expect(document.querySelector('a[href="/auth/forgot-password"]')).not.toBeNull();
     expect(document.body.textContent).toContain('Sign in');
   });

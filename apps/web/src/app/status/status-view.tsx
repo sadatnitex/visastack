@@ -46,22 +46,60 @@ export function StatusView({
   const verdict = VERDICT_WORDS[verdictOf(live, ready)];
   const rows = capabilityRows(ready?.data.platform);
 
+  const usable = rows.filter((row) => row.tone !== 'neutral');
+  const notYet = rows.filter((row) => row.tone === 'neutral');
+  const featureList = (list: typeof rows) => (
+    <div className="rows u-mt-050">
+      {list.map((row) => (
+        <div className="row" key={row.key}>
+          <span className="row-key">{row.name}</span>
+          <span className={badgeClass(row.tone)}>{row.label}</span>
+        </div>
+      ))}
+    </div>
+  );
+
   return (
     <section className="section container">
-      <div className="section-head" style={{ textAlign: 'left', marginBottom: '2rem' }}>
+      <div className="section-head status-head">
         <span className="eyebrow">Live</span>
-        <h1 className="section-title" style={{ margin: '0 0 0.5rem' }}>
-          What works today
-        </h1>
+        <h1 className="section-title u-m-0">What works today</h1>
+        {/* The answer comes first. <output> is what a screen reader announces when it changes. */}
+        <output className={`${badgeClass(verdict.tone)} status-verdict`}>{verdict.label}</output>
         <p className="section-sub u-m-0">
-          This page checks the service every 15 seconds. Features that are not switched on yet are
-          listed too, so you always know what to expect.
+          Features that are not switched on yet are listed too, so you always know what to expect.
         </p>
       </div>
 
+      {rows.length === 0 ? (
+        <article className="card">
+          <h2 className="card-title">Features</h2>
+          <p className="muted u-m-0">
+            {ready === null
+              ? 'Checking which features are working…'
+              : 'The list of features is not available right now.'}
+          </p>
+        </article>
+      ) : (
+        <>
+          {usable.length > 0 ? (
+            <article className="card u-mb-125">
+              <h2 className="card-title">You can use now</h2>
+              {featureList(usable)}
+            </article>
+          ) : null}
+          {notYet.length > 0 ? (
+            <article className="card u-mb-125">
+              <h2 className="card-title">Not switched on yet</h2>
+              {featureList(notYet)}
+            </article>
+          ) : null}
+        </>
+      )}
+
       <div className="toolbar">
         <span className="muted u-fs-090">
-          {updatedAt ? `Updated ${updatedAt}. Checks again every 15 seconds.` : 'Loading…'}
+          {updatedAt ? `Updated ${updatedAt}. This page checks again by itself.` : 'Loading…'}
         </span>
         {/* Not `disabled`: this page re-checks by itself every 15 seconds, and a button that
             disables itself drops keyboard focus whenever that happens. */}
@@ -76,33 +114,6 @@ export function StatusView({
           {loading ? 'Checking…' : 'Check now'}
         </button>
       </div>
-
-      <article className="card u-mb-125">
-        <div className="toolbar u-m-0">
-          <h2 className="card-title u-m-0">Overall</h2>
-          <output className={badgeClass(verdict.tone)}>{verdict.label}</output>
-        </div>
-      </article>
-
-      <article className="card">
-        <h2 className="card-title">Features</h2>
-        {rows.length === 0 ? (
-          <p className="muted u-m-0">
-            {ready === null
-              ? 'Checking which features are working…'
-              : 'The list of features is not available right now.'}
-          </p>
-        ) : (
-          <div className="rows u-mt-050">
-            {rows.map((row) => (
-              <div className="row" key={row.key}>
-                <span className="row-key">{row.name}</span>
-                <span className={badgeClass(row.tone)}>{row.label}</span>
-              </div>
-            ))}
-          </div>
-        )}
-      </article>
     </section>
   );
 }

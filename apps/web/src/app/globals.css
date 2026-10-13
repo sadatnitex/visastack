@@ -59,6 +59,12 @@
   --space-7: 3rem;
   --space-8: 4rem;
 
+  /* Motion: three speeds and one curve for the whole product. Nothing bounces; reduced motion turns all of it off. */
+  --motion-press: 120ms;
+  --motion-state: 200ms;
+  --motion-arrive: 320ms;
+  --motion-ease: ease;
+
   /* Text scale: the six sizes new screens use. Older screens still carry their own values until they
      are moved onto the scale (see docs/uiux/EXPERIENCE-UPGRADE-HANDOFF.md, Phase 3). */
   --text-caption: 0.75rem;
@@ -290,7 +296,8 @@ main {
   border-radius: var(--radius-pill);
   border: 1px solid transparent;
   cursor: pointer;
-  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+  transition: background var(--motion-press) var(--motion-ease), color var(--motion-press)
+    var(--motion-ease), border-color var(--motion-press) var(--motion-ease);
   min-height: 44px;
 }
 .btn:hover {
@@ -508,7 +515,7 @@ main {
   height: 100%;
   border-radius: var(--radius-pill);
   background: var(--brand);
-  transition: width 0.2s ease;
+  transition: width var(--motion-state) var(--motion-ease);
 }
 .meter-fill.meter-warn {
   background: var(--warning);
@@ -561,7 +568,7 @@ main {
   text-decoration: none;
   color: inherit;
   cursor: pointer;
-  transition: opacity 0.15s ease;
+  transition: opacity var(--motion-press) var(--motion-ease);
 }
 .row-link:hover {
   opacity: 1;
@@ -1330,7 +1337,7 @@ main {
   content: "\25BE";
   color: var(--text-tertiary);
   margin-left: auto;
-  transition: transform 0.15s ease;
+  transition: transform var(--motion-press) var(--motion-ease);
 }
 .disclosure[open] > summary::after {
   transform: rotate(180deg);
@@ -2018,7 +2025,7 @@ a.checklist-item:hover .checklist-label {
   min-height: 52px;
 }
 .land-btn .icon {
-  transition: transform 0.2s ease;
+  transition: transform var(--motion-state) var(--motion-ease);
 }
 .land-btn:hover .icon {
   transform: translateX(3px);
@@ -2342,7 +2349,7 @@ a.checklist-item:hover .checklist-label {
   background: var(--bg-elevated);
   border: 1px solid var(--hairline);
   border-radius: 20px;
-  transition: border-color 0.15s ease;
+  transition: border-color var(--motion-press) var(--motion-ease);
 }
 .land-tile-half {
   grid-column: span 3;
@@ -5467,4 +5474,18 @@ body:has(.auth-shell) > .footer {
   background: var(--brand-bg);
   color: var(--selected-text);
   font-weight: 600;
+}
+
+/* Status page: the answer first, large (Phase 9). */
+.status-head {
+  text-align: left;
+  margin-bottom: var(--space-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  align-items: flex-start;
+}
+.status-verdict {
+  font-size: var(--text-lead);
+  padding: 0.4rem 1rem;
 }
