@@ -54,3 +54,8 @@ Never put credentials or usable invitation links in documentation. An unavailabl
 ## Subsequent checked result, 2026-10-12
 
 PR 202 documentation update merged as 0d6a3478dbe14d5e1cab09430a21ffe7be288232 and is deployed as dpl_FhSqgEe69fq4v2VN2LoS2jurVEWk. Required source checks, both deployment smoke workflows, aliases and readiness passed. Main CI remains pending at this follow-up inspection. PR 201 completed its main CI and both deployment smoke workflows. [Actual scanner run 38253171932](https://github.com/sadatnitex/visastack/actions/runs/38253171932) failed at installation; live engine controls and synthetic storage processing were skipped because of that failure, not counted as passed. The workflow repair does not change credentials, scanner policy, queue mode or the main/enablement gate.
+
+## Interface upgrade in progress, 2026-10-13
+
+An interface upgrade is under way and is recorded in [the experience upgrade handoff](../uiux/EXPERIENCE-UPGRADE-HANDOFF.md). Phase 0 (a counter that may only go down, page capture and screenshot comparison) and Phase 1 (plain words instead of stored codes, no visible long dashes) are built; the remaining phases are planned and each needs the owner's approval of a visual preview first. Nothing in this section changes any acceptance status above. Whether the pull request carrying them has merged and been verified live is stated in its own description and in the known-issues log.
+

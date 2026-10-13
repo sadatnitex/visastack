@@ -1,5 +1,7 @@
 # Changing the interface safely
 
+Full record of the experience upgrade, the decisions waiting on the owner and the next steps: [EXPERIENCE-UPGRADE-HANDOFF.md](EXPERIENCE-UPGRADE-HANDOFF.md).
+
 For anyone changing how VisaStack looks or reads, whether a person, Claude or Codex. The owner works with more than one tool in turn, so this page is the shared set of rules. It changes nothing about how the product behaves.
 
 ## Rules
