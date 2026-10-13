@@ -114,3 +114,42 @@ export const aiProviderLabel = (code: string) => pick(AI_PROVIDER_LABELS, code);
 export const documentTypeLabel = (code: string) => pick(DOCUMENT_TYPE_LABELS, code.toUpperCase());
 /** An audit event such as ACCOUNT_CREATED, as "Account Created". */
 export const eventTypeLabel = (code: string) => titleCase(code);
+
+/**
+ * The six consents in plain English, for English screens. Bangla screens keep the existing translated
+ * names until the Bangla work resumes. The meaning line says only what the product does.
+ */
+export const CONSENT_PLAIN: Readonly<
+  Record<string, { readonly name: string; readonly meaning: string }>
+> = {
+  CORE_PROCESSING: {
+    name: 'Let VisaStack process my details',
+    meaning: 'Needed before documents are stored and your profile can be filled.',
+  },
+  AI_EXTRACTION: {
+    name: 'Let AI read details from my documents',
+    meaning:
+      'The text of a document is sent to an AI service to suggest values. You approve each one.',
+  },
+  AI_OCR: {
+    name: 'Let AI read text from my scans',
+    meaning:
+      'The picture of a scan is sent to an AI service to read it. This shares more than text alone.',
+  },
+  SHARING: {
+    name: 'Let me share with others',
+    meaning: 'Needed before anything is shared with an agency or another person.',
+  },
+  MARKETING: {
+    name: 'Send me news and offers',
+    meaning: 'Optional. You can use VisaStack without it.',
+  },
+  ISSUER_CONTACT: {
+    name: 'Let an agency check a document with its issuer',
+    meaning:
+      'An agency may contact a bank, university or other issuer to confirm a fact or document for you.',
+  },
+};
+
+/** The plain name of a consent, or the readable words of its code when it is not listed. */
+export const consentName = (type: string) => CONSENT_PLAIN[type]?.name ?? titleCase(type);

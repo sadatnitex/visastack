@@ -201,7 +201,8 @@ export default async function ApplicantProfilePage({
               title="Choose whether to save your profile"
               action={{ href: '/app#permissions', label: 'Review permissions' }}
             >
-              Grant Core processing consent to edit this profile. Existing values are not changed.
+              Turn on “Let VisaStack process my details” on Home to edit this profile. Existing
+              values are not changed.
             </EmptyState>
           )}
           <p className="muted profile-version-note">

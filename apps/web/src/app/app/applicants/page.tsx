@@ -67,8 +67,8 @@ export default async function ApplicantsPage() {
             <AddApplicantForm />
           ) : (
             <p className="card-body">
-              Grant <strong>Core processing</strong> consent from <Link href="/app">Home</Link> to
-              start adding applicant records.
+              Turn on <strong>Let VisaStack process my details</strong> on{' '}
+              <Link href="/app">Home</Link> to start adding applicant records.
             </p>
           )}
         </article>

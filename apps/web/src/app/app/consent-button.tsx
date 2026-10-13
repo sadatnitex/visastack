@@ -21,7 +21,15 @@ export function ConsentButton({
 }) {
   const [state, formAction, pending] = useActionState(setConsentAction, INITIAL);
   const t = createTranslator(locale);
-  const action = granted ? t('consent.action.revoke') : t('consent.action.grant');
+  // English screens say Turn on / Turn off; Bangla keeps its existing words until that work resumes.
+  const english = locale === 'en';
+  const action = english
+    ? granted
+      ? 'Turn off'
+      : 'Turn on'
+    : granted
+      ? t('consent.action.revoke')
+      : t('consent.action.grant');
   return (
     <div
       style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.25rem' }}

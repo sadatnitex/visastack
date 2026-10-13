@@ -245,7 +245,9 @@ describe('what each state says, in plain words', () => {
   });
 
   it('explains why adding a person is not offered yet', async () => {
-    expect(textOf(await shellMarkup(SCREENS[5] as Screen))).toContain('Core processing');
+    expect(textOf(await shellMarkup(SCREENS[5] as Screen))).toContain(
+      'Let VisaStack process my details',
+    );
   });
 
   it('shows the error screen with a retry that is a real button', async () => {

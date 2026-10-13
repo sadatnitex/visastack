@@ -3,6 +3,7 @@
 import { useRouter } from 'next/navigation';
 import { useActionState, useEffect, useRef } from 'react';
 import { FormMessage, SubmitButton } from '../../../../components/form-feedback';
+import { consentName } from '../../../../lib/labels';
 import { type ActionState, setConsentAction } from '../../actions';
 
 const INITIAL: ActionState = { ok: true, message: '' };
@@ -41,16 +42,16 @@ function ConsentToggle({
     <div className="row">
       <span className="row-key">{label}</span>
       {granted ? (
-        <span className="badge badge-success">Granted</span>
+        <span className="badge badge-success">On</span>
       ) : (
         <form action={formAction}>
           <input type="hidden" name="type" value={type} />
           <input type="hidden" name="granted" value="true" />
           <SubmitButton
             pending={pending}
-            idle="Grant"
-            busy="Granting…"
-            label={`Grant: ${label}`}
+            idle="Turn on"
+            busy="Turning on…"
+            label={`Turn on: ${label}`}
             className="btn btn-primary"
             style={{ padding: '0.35rem 1rem', fontSize: '0.85rem' }}
           />
@@ -71,8 +72,8 @@ export function ConsentGate({
 }) {
   return (
     <div className="rows u-mb-125">
-      <ConsentToggle type="CORE_PROCESSING" label="Core processing" granted={core} />
-      <ConsentToggle type="SHARING" label="Sharing" granted={sharing} />
+      <ConsentToggle type="CORE_PROCESSING" label={consentName('CORE_PROCESSING')} granted={core} />
+      <ConsentToggle type="SHARING" label={consentName('SHARING')} granted={sharing} />
     </div>
   );
 }

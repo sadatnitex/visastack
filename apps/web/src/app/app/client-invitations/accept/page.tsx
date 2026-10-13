@@ -144,9 +144,7 @@ export default async function AcceptClientInvitationPage({
 
             {!coreGranted || !sharingGranted ? (
               <>
-                <p className="card-body">
-                  Grant these consents before accepting (both are required):
-                </p>
+                <p className="card-body">Turn these on before accepting (both are required):</p>
                 <ConsentGate core={coreGranted} sharing={sharingGranted} />
               </>
             ) : (

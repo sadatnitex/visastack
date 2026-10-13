@@ -11,7 +11,7 @@ Written 2026-10-13 for whoever continues this work next (Codex, Claude or a pers
 | 2 Loading, empty and error states | Merged (pull request 206, merge commit 15bf62d). Production deployment READY and the Deploy Smoke run passed. The live readiness page could not be read from the build session (a tool error, not a site error), so that one check is unconfirmed. |
 | 3 Shared sizes and spaces | Approved 2026-10-13. Built and proven by an unchanged screenshot compare (386 of 386 match). Shipped as its own pull request. |
 | 4 Traveller first hour | Approved 2026-10-13 with the camera button and no size number. Built; shipped with phases 5 to 8. |
-| 5 Trust screens | Approved. Sharing card, explicit scope choice and in-page revoke question built. Consent wording held for the owner's adviser (brief published to the owner). |
+| 5 Trust screens | Approved. Sharing card, explicit scope choice, in-page revoke question and the consent On/Off screen with plain names built. |
 | 6 Agency desk | Approved. Quick views and deadline column built. |
 | 7 Founder overview | Approved. Provider rows now lead with a status word and a plain sentence. |
 | 8 Phone and access | Approved. Mostly checking: the code already met contrast, tap height and spoken-name rules, so a guard test was added. The real-browser keyboard pass on signed-in screens still needs a staging test sign-in. |
@@ -64,6 +64,7 @@ How it was approached:
 | Evidence request form | `agency/[orgId]/request-evidence-form.tsx` (pull request 207) | Asks what is needed, then lists named profile details or documents; Other document adds a name box. Values sent are unchanged codes. | The form showed "Field key / document type" and passport_number. |
 | Sharing (Phase 5) | `applicant/[id]/sharing/page.tsx`, `grant-form.tsx`, `grant-op-buttons.tsx` | One sentence per grant; Everything or Only the parts I choose for the profile and for documents (choosing only some with nothing chosen is refused); the revoke question is inside the page. View metadata reads See document details. | "Leave all unchecked to share every category", repeated Can and Scope lines, and a browser pop-up. |
 | Agency list (Phase 6) | `agency/[orgId]/page.tsx` | Quick views Mine, Overdue, Waiting On Traveller, Unassigned (a `quick` setting in the address) with counts, and a Deadline column. | Search and four filters existed; no one-tap views. |
+| Consent On and Off (Phase 5c) | `lib/labels.ts` (`CONSENT_PLAIN`, `consentName`), `app/app/page.tsx`, `consent-button.tsx`, `client-invitations/accept/*`, `privacy/page.tsx`, and the pages that tell a person to turn a consent on | English screens show the plain name, a one-line meaning, an On or Off word and Turn on or Turn off buttons. Bangla keeps the old names and buttons. The values sent to the server are unchanged. End-to-end test names updated. | Internal names such as Core processing and Grant buttons. |
 | Founder rows (Phase 7) | `lib/provider-operations.ts`, `admin/page.tsx` | Each row has a status word and one sentence; the reading, source and caveat sit under Show technical detail. Set Up is never shown as proven. | Raw readings read by someone who knows the system. |
 | Access guards (Phase 8) | `lib/a11y-guards.test.ts` | Tests for text contrast, the 44 pixel button height and button spoken names. | Nothing prevented a later change from breaking them. |
 
@@ -112,7 +113,7 @@ Each needs a visual preview approved by the owner before it is built, a characte
 | 2 | Every state handled (built) | See section 3. Not done from the preview, on purpose: a Copy button for the error reference; converting the small in-panel "No ..." lines (for example "No open tasks.") into full empty states, because they are one-line notes that already say what will appear; more empty-state buttons, because elsewhere the form sits just below or only someone else can fill the list. Not yet seen: the menu staying on the error screen on a real signed-in page, and a test of the failed-export wording. |
 | 3 | Shared parts (3a and 3b built) | See section 3. 3c (snap off-scale sizes onto the scale) is not built and needs its own preview. Small parts such as Stack and Notice are not built. |
 | 4 | Traveller core (built) | See section 3. Next step cards and per-field saving already existed and were not rebuilt. The case summary counts box still uses older words. |
-| 5 | Trust screens (partly built) | Built: sharing and the in-page revoke question. Held: consent shown as On and Off with plain names, until the owner's adviser confirms the wording. Not built: AI review wording, documents showing checked and not checked, in-page confirmation for account deletion (still a browser pop-up, and the end-to-end test for it still expects one), the founder tool pop-ups, a re-login note. The sharing form already had a live access summary and a review step, which were kept. |
+| 5 | Trust screens (partly built) | Built: sharing and the in-page revoke question. Consent shown as On and Off with plain names is built for English (Bangla keeps its existing words). Not built: AI review wording, documents showing checked and not checked, in-page confirmation for account deletion (still a browser pop-up, and the end-to-end test for it still expects one), the founder tool pop-ups, a re-login note. The sharing form already had a live access summary and a review step, which were kept. |
 | 6 | Agency (built) | See section 3. A copy-ready message for an evidence request is not built. |
 | 7 | Founder and public (provider rows built) | The other founder panels (signals, commercial gates) were not reworded. The public "What works today" page was not touched. |
 | 8 | Phone and accessibility (guards built) | The More menu already closes on Escape, returns focus and closes on an outside tap. Contrast, tap height and spoken names pass and are now guarded. Still open: a real-browser keyboard pass on signed-in screens. |
@@ -131,7 +132,7 @@ Left out on purpose (separate decisions): fixing large-file uploads in code, an 
 8. Resolved 2026-10-13: Phase 2 approved in full. The owner said the wording choices were unclear and asked for the correct wording, so Claude chose it: "Go to your overview" (not "Back to home"), "Could not be made" for a failed export, "How sharing works" on Shared with me.
 9. Resolved: empty-state buttons only where a page already exists (two added).
 12. Resolved 2026-10-13: approve phases 3 to 8; ship the camera button without a size number; add Other document to the evidence form; later add a big shared list of documents, fields and categories (the form reads the shared document table in `lib/labels.ts` and the profile field list, so additions appear without form changes).
-13. Open: the six consent plain names, pending the owner's adviser. Do not change the live consent screens, their end-to-end test labels or the Bangla strings until confirmed.
+13. Resolved 2026-10-13 (owner's answers to the adviser brief): plain consent names approved; the travellers are Bangladeshi, so wording is for them; one On/Off switch that can be changed any time is enough; AI consents do not name the provider or cross-border transfer for now; no new separation of marketing and sharing from the rest (they already sit in the same list); the admin approves future wording changes. These are the owner's decisions, not a lawyer's sign-off, and nothing here is verified against Bangladeshi law.
 10. Freeing one Neon preview branch so previews can build again (see section 9). The owner said on 2026-10-13 not to touch Neon branches; each candidate must be confirmed by the owner before anything is deleted.
 
 ## 8. Targets and baselines
@@ -158,7 +159,7 @@ The owner has private pages from this session: the plan and mockups, the Phase 1
 ## 11. Next steps, in order
 
 1. Confirm the pull requests for phases 3 to 8 merged and production is healthy; read the CI result on `main` and the live readiness page.
-2. Take the adviser's answers on the consent wording, then build the consent On and Off screen and update the end-to-end test labels and the Bangla strings (Bangla stays deferred).
+2. Bangla consent names follow the English ones when the Bangla work resumes (deferred). The meaning lines should be read by someone who knows Bangladeshi data rules.
 3. Phase 3c (snap off-scale sizes) needs its own preview.
 4. Run the live upload size test (3, 8 and 18 MB made-up files) so the size line can come back.
 5. A staging test sign-in is needed for the real-browser keyboard pass (Phase 8) and to see signed-in screens.
