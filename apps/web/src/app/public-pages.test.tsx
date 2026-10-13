@@ -87,4 +87,49 @@ describe('public and entry pages today', () => {
     expect(document.querySelector('h1')?.textContent).toBe('Incomplete invitation link');
     expect(document.body.textContent).not.toContain('Opening the link');
   });
+
+  it('sign-up shows where you are, puts the made-up-data rule before the fields, and leaves consent unticked', async () => {
+    const { default: SignUp } = await import('./auth/sign-up/page');
+    const document = dom(renderToStaticMarkup(await SignUp(SEARCH())));
+    const steps = document.querySelector('ol.auth-steps');
+    expect(steps?.querySelector('[aria-current="step"]')?.textContent).toContain(
+      'Create your account',
+    );
+    const notice = [...document.querySelectorAll('.notice')].find((n) =>
+      n.textContent?.includes('Do not enter real applicant details'),
+    );
+    const firstField = document.querySelector('input[name="name"]');
+    expect(notice).toBeDefined();
+    expect(notice && firstField && notice.compareDocumentPosition(firstField) & 4).toBeTruthy();
+    const box = document.querySelector<HTMLInputElement>('input[name="acceptNotices"]');
+    expect(box?.checked).toBe(false);
+    expect(box?.required).toBe(true);
+    expect(document.body.textContent).toContain(
+      'This acknowledgement does not enable marketing, AI processing or sharing with an agency.',
+    );
+  });
+
+  it('sign-in and confirm-email name the task and the step', async () => {
+    const { default: SignIn } = await import('./auth/sign-in/page');
+    const { default: Verify } = await import('./auth/verify-email/page');
+    expect(dom(renderToStaticMarkup(await SignIn(SEARCH()))).querySelector('h1')?.textContent).toBe(
+      'Sign in to your workspace',
+    );
+    const verify = dom(renderToStaticMarkup(await Verify(SEARCH())));
+    expect(verify.querySelector('[aria-current="step"]')?.textContent).toContain(
+      'Confirm your email',
+    );
+  });
+
+  it('the invitation page leads with the fact that nothing is accepted and shows three steps', async () => {
+    const { default: Invitation } = await import('./invitation/page');
+    const document = dom(
+      renderToStaticMarkup(await Invitation(SEARCH({ kind: 'client', token: TOKEN }))),
+    );
+    const text = document.body.textContent ?? '';
+    expect(text.indexOf('Opening the link does not accept it')).toBeLessThan(
+      text.indexOf('Create an account or sign in to review'),
+    );
+    expect(document.querySelectorAll('ol.auth-steps li')).toHaveLength(3);
+  });
 });

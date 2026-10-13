@@ -47,6 +47,14 @@ export default async function SignUpPage({
       {!isPublicBetaOpen() ? (
         <p className="card-body signup-invite-note">Access is by invitation.</p>
       ) : null}
+      <ol className="auth-steps" aria-label="The three steps">
+        <li aria-current="step">1 Create your account</li>
+        <li>2 Confirm your email</li>
+        <li>3 Sign in</li>
+      </ol>
+      <p className="notice u-mb-100">
+        Do not enter real applicant details or upload real identity documents.
+      </p>
       <ErrorLine id="signup-error" message={error} />
       {e === 'exists' && (
         <p className="card-body">
@@ -92,8 +100,7 @@ export default async function SignUpPage({
             <Link href="/privacy">privacy notice</Link>.
           </label>
           <p className="card-body signup-notice-note">
-            Do not enter real applicant details or upload real identity documents. This
-            acknowledgement does not enable marketing, AI processing or sharing with an agency.
+            This acknowledgement does not enable marketing, AI processing or sharing with an agency.
           </p>
           <button type="submit" className="btn btn-primary">
             Create free account
