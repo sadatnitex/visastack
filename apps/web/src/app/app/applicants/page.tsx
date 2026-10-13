@@ -42,7 +42,7 @@ export default async function ApplicantsPage() {
               for every application.
             </EmptyState>
           ) : (
-            <div className="rows" style={{ marginTop: '0.5rem' }}>
+            <div className="rows u-mt-050">
               {data.applicants.map((a) => (
                 <Link className="row row-link" key={a.id} href={`/app/applicant/${a.id}`}>
                   <span className="row-key">{a.displayName}</span>

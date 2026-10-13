@@ -24,7 +24,7 @@ export default async function ReauthPage({
     <AuthShell title="Confirm it is you">
       <p className="card-body">For your safety, please type your password again to continue.</p>
       <ErrorLine id="reauth-error" message={error} />
-      <div className="card" style={{ marginBottom: '1rem' }}>
+      <div className="card u-mb-100">
         <form action={reauthAction} className="field-list">
           <input type="hidden" name="returnTo" value={safeReturnPath(returnTo)} />
           <TextField

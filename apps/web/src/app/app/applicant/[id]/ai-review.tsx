@@ -142,9 +142,7 @@ export function OcrResultView({
           {text}
         </p>
       ) : (
-        <p className="muted" style={{ fontSize: '0.8rem' }}>
-          No legible text was found.
-        </p>
+        <p className="muted u-fs-080">No legible text was found.</p>
       )}
     </div>
   );
@@ -250,9 +248,7 @@ export function AiProposalReview({
             />
           </>
         ) : (
-          <span className="muted" style={{ fontSize: '0.8rem' }}>
-            {proposal.value ?? '(no value)'}
-          </span>
+          <span className="muted u-fs-080">{proposal.value ?? '(no value)'}</span>
         )}
         <SubmitButton
           pending={pending}

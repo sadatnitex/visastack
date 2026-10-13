@@ -43,7 +43,7 @@ export default async function AcceptInvitationPage({
 
   return (
     <section className="section container">
-      <div style={{ marginBottom: '1.5rem' }}>
+      <div className="u-mb-150">
         <span className="eyebrow">Invitation</span>
         <h1 className="section-title" style={{ margin: '0.25rem 0 0' }}>
           Join an organization

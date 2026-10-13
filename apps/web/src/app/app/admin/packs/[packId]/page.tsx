@@ -120,9 +120,7 @@ export default async function PackDetailPage({
             return (
               <article className="card" key={version.id}>
                 <div className="toolbar" style={{ marginBottom: '1rem', alignItems: 'center' }}>
-                  <h2 className="card-title" style={{ margin: 0 }}>
-                    Version {version.version}
-                  </h2>
+                  <h2 className="card-title u-m-0">Version {version.version}</h2>
                   <span className={`badge ${badge.tone}`}>{badge.label}</span>
                 </div>
 
@@ -173,9 +171,7 @@ export default async function PackDetailPage({
                             {req.optional ? 'Optional' : 'Required'}
                           </span>
                         </div>
-                        <span className="muted" style={{ fontSize: '0.8rem' }}>
-                          Cite: {req.citation}
-                        </span>
+                        <span className="muted u-fs-080">Cite: {req.citation}</span>
                         {req.sourceUrl ? (
                           <p className="muted">
                             <a href={req.sourceUrl} target="_blank" rel="noopener noreferrer">
@@ -201,7 +197,7 @@ export default async function PackDetailPage({
                           </details>
                         ) : null}
                         {req.maxAgeDays !== null ? (
-                          <span className="muted" style={{ fontSize: '0.8rem' }}>
+                          <span className="muted u-fs-080">
                             Freshness: must be dated within {req.maxAgeDays} day(s)
                           </span>
                         ) : null}
@@ -232,8 +228,7 @@ export default async function PackDetailPage({
                       <VerifyChecksumForm packVersionId={version.id} />
                       <a
                         href={`/app/admin/packs/${packId}/versions/${version.id}/manifest`}
-                        className="btn btn-secondary"
-                        style={{ padding: '0.3rem 0.85rem', fontSize: '0.8rem' }}
+                        className="btn btn-secondary u-btn-sm"
                         download
                       >
                         Download manifest
@@ -347,7 +342,7 @@ export default async function PackDetailPage({
       )}
 
       {data.versions.length >= 2 ? (
-        <article className="card" style={{ marginTop: '1.5rem' }}>
+        <article className="card u-mt-150">
           <p className="card-kicker">RUL-05</p>
           <h2 className="card-title">Compare versions</h2>
           <p className="muted" style={{ margin: '0.35rem 0 1rem', fontSize: '0.85rem' }}>

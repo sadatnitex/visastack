@@ -30,7 +30,7 @@ export default async function VerifyEmailPage({
       </p>
       {s === '1' ? <Notice>If you do not see it, you can ask for another below.</Notice> : null}
       <ErrorLine id="verify-error" message={error} />
-      <div className="card" style={{ marginBottom: '1rem' }}>
+      <div className="card u-mb-100">
         <form action={resendConfirmationAction} className="field-list">
           <input type="hidden" name="next" value={safeReturnPath(next)} />
           <TextField

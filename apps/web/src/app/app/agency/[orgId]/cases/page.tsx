@@ -35,7 +35,7 @@ export default async function AgencyCasesPage({
     <article className="card">
       <p className="card-kicker">Collaborate</p>
       <h2 className="card-title">Cases</h2>
-      <p className="card-body" style={{ marginBottom: '1.25rem' }}>
+      <p className="card-body u-mb-125">
         {data.admin
           ? 'Assign a team member and leave case notes on any case this organization has a grant for.'
           : "Leave case notes and record decisions on cases you're assigned to."}

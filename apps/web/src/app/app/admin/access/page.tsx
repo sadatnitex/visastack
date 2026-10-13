@@ -54,19 +54,17 @@ export default async function AdminAccessPage() {
         <>
           <FailedSectionsBanner sections={data.failedSections} />
 
-          <article className="card" style={{ marginBottom: '1.5rem' }} id="admin-security">
+          <article className="card u-mb-150" id="admin-security">
             <p className="card-kicker">Identity</p>
             <h2 className="card-title">Platform roles</h2>
-            <p className="card-body" style={{ marginBottom: '1rem' }}>
+            <p className="card-body u-mb-100">
               Platform roles determine who can manage the service. Role history is retained when
               access is revoked.
             </p>
             {data.roles.length === 0 ? (
-              <p className="card-body" style={{ marginBottom: '1.25rem' }}>
-                No active grants.
-              </p>
+              <p className="card-body u-mb-125">No active grants.</p>
             ) : (
-              <div className="rows" style={{ marginBottom: '1.25rem' }}>
+              <div className="rows u-mb-125">
                 {data.roles.map((r) => (
                   <div
                     className="row"
@@ -83,15 +81,11 @@ export default async function AdminAccessPage() {
                     >
                       <span className="row-key">{PLATFORM_ROLE_LABELS[r.role] ?? r.role}</span>
                       <span className="row-end">
-                        <span className="muted" style={{ fontSize: '0.8rem' }}>
-                          {formatTimestampDate(r.assignedAt)}
-                        </span>
+                        <span className="muted u-fs-080">{formatTimestampDate(r.assignedAt)}</span>
                         {data.owner ? <RevokeRoleButton grantId={r.id} /> : null}
                       </span>
                     </div>
-                    <span className="muted" style={{ fontSize: '0.8rem' }}>
-                      {r.reason}
-                    </span>
+                    <span className="muted u-fs-080">{r.reason}</span>
                   </div>
                 ))}
               </div>
@@ -99,16 +93,14 @@ export default async function AdminAccessPage() {
             {data.owner ? (
               <GrantRoleForm />
             ) : (
-              <p className="muted" style={{ fontSize: '0.85rem' }}>
-                Only a platform owner can grant or revoke roles.
-              </p>
+              <p className="muted u-fs-085">Only a platform owner can grant or revoke roles.</p>
             )}
           </article>
 
-          <article className="card" style={{ marginBottom: '1.5rem' }} id="admin-pilot-access">
+          <article className="card u-mb-150" id="admin-pilot-access">
             <p className="card-kicker">Controlled pilot</p>
             <h2 className="card-title">Pilot access</h2>
-            <p className="card-body" style={{ marginBottom: '1rem' }}>
+            <p className="card-body u-mb-100">
               This is an invite-only controlled pilot: an authenticated identity that isn't invited
               or allowlisted is denied a local account. An invitation is never deleted, only revoked
               - the full history of who was invited, by whom, and why is always reconstructable.
@@ -116,11 +108,9 @@ export default async function AdminAccessPage() {
               provisioned from this invitation keeps its access.
             </p>
             {data.invitations.length === 0 ? (
-              <p className="card-body" style={{ marginBottom: '1.25rem' }}>
-                No invitations yet.
-              </p>
+              <p className="card-body u-mb-125">No invitations yet.</p>
             ) : (
-              <div className="rows" style={{ marginBottom: '1.25rem' }}>
+              <div className="rows u-mb-125">
                 {data.invitations.map((inv) => {
                   const status = inv.revokedAt
                     ? { label: 'Revoked', tone: 'badge-danger' }
@@ -151,7 +141,7 @@ export default async function AdminAccessPage() {
                           ) : null}
                         </span>
                       </div>
-                      <span className="muted" style={{ fontSize: '0.8rem' }}>
+                      <span className="muted u-fs-080">
                         {inv.reason ?? 'No reason given'} · invited{' '}
                         {formatTimestampDate(inv.invitedAt)}
                       </span>
@@ -163,17 +153,17 @@ export default async function AdminAccessPage() {
             {data.owner ? (
               <InviteForm />
             ) : (
-              <p className="muted" style={{ fontSize: '0.85rem' }}>
+              <p className="muted u-fs-085">
                 Only a platform owner can invite or revoke pilot access.
               </p>
             )}
           </article>
 
           {data.unboundAccounts.length > 0 ? (
-            <article className="card" style={{ marginBottom: '1.5rem' }}>
+            <article className="card u-mb-150">
               <p className="card-kicker">Identity</p>
               <h2 className="card-title">Legacy sign-in references</h2>
-              <p className="card-body" style={{ marginBottom: '1rem' }}>
+              <p className="card-body u-mb-100">
                 This report tracks the older sign-in system. A Neon Auth account can appear here
                 even when its current sign-in works. This list does not grant access or transfer
                 account records.
@@ -185,7 +175,7 @@ export default async function AdminAccessPage() {
                       {a.email}
                     </span>
                     <span className="row-end">
-                      <span className="muted" style={{ fontSize: '0.8rem' }}>
+                      <span className="muted u-fs-080">
                         since {formatTimestampDate(a.createdAt)}
                       </span>
                       <span

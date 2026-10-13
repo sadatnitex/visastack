@@ -176,9 +176,7 @@ export function MissionCollaboration({
     >
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.75rem' }}>
         <span className="row-key">{title}</span>
-        <span className="muted" style={{ fontSize: '0.8rem' }}>
-          {applicantName}
-        </span>
+        <span className="muted u-fs-080">{applicantName}</span>
       </div>
 
       <div style={{ marginTop: '0.6rem' }}>
@@ -186,9 +184,7 @@ export function MissionCollaboration({
           Assigned
         </p>
         {assignments.length === 0 ? (
-          <p className="muted" style={{ fontSize: '0.85rem' }}>
-            Nobody assigned yet.
-          </p>
+          <p className="muted u-fs-085">Nobody assigned yet.</p>
         ) : (
           <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', marginBottom: '0.5rem' }}>
             {assignments.map((a) => (
@@ -237,8 +233,7 @@ export function MissionCollaboration({
               pending={assignPending}
               idle="Assign"
               busy="Assigning…"
-              className="btn btn-secondary"
-              style={{ padding: '0.3rem 0.85rem', fontSize: '0.8rem' }}
+              className="btn btn-secondary u-btn-sm"
             />
           </form>
         ) : null}
@@ -264,12 +259,12 @@ export function MissionCollaboration({
             }}
           >
             {openTasks.map((t) => (
-              <div key={t.id} style={{ fontSize: '0.85rem' }}>
+              <div key={t.id} className="u-fs-085">
                 <span>{t.description}</span>{' '}
                 <span className="badge badge-neutral" style={{ fontSize: '0.65rem' }}>
                   {PRIORITY_LABELS[t.priority] ?? t.priority}
                 </span>{' '}
-                <span className="muted" style={{ fontSize: '0.75rem' }}>
+                <span className="muted u-fs-075">
                   {t.assigneeAccountId
                     ? (memberEmailByAccountId.get(t.assigneeAccountId) ?? 'unknown')
                     : 'unassigned'}
@@ -376,8 +371,7 @@ export function MissionCollaboration({
             pending={taskCreatePending}
             idle="Add"
             busy="Adding…"
-            className="btn btn-secondary"
-            style={{ padding: '0.3rem 0.85rem', fontSize: '0.8rem' }}
+            className="btn btn-secondary u-btn-sm"
           />
         </form>
         <FormMessage result={taskCreateState} />
@@ -403,9 +397,9 @@ export function MissionCollaboration({
             }}
           >
             {upcomingAppointments.map((a) => (
-              <div key={a.id} style={{ fontSize: '0.85rem' }}>
+              <div key={a.id} className="u-fs-085">
                 <span>{a.title}</span>{' '}
-                <span className="muted" style={{ fontSize: '0.75rem' }}>
+                <span className="muted u-fs-075">
                   {new Date(a.localDateTime).toLocaleString(undefined, {
                     dateStyle: 'medium',
                     timeStyle: 'short',
@@ -487,8 +481,7 @@ export function MissionCollaboration({
             pending={apptCreatePending}
             idle="Schedule"
             busy="Scheduling…"
-            className="btn btn-secondary"
-            style={{ padding: '0.3rem 0.85rem', fontSize: '0.8rem' }}
+            className="btn btn-secondary u-btn-sm"
           />
         </form>
         <FormMessage result={apptCreateState} />
@@ -513,7 +506,7 @@ export function MissionCollaboration({
             }}
           >
             {notes.map((n) => (
-              <div key={n.id} style={{ fontSize: '0.85rem' }}>
+              <div key={n.id} className="u-fs-085">
                 <span
                   className={`badge ${n.visibility === 'AGENCY_INTERNAL' ? 'badge-warning' : 'badge-success'}`}
                   style={{ fontSize: '0.65rem', marginRight: '0.35rem' }}
@@ -521,7 +514,7 @@ export function MissionCollaboration({
                   {n.visibility === 'AGENCY_INTERNAL' ? 'Internal' : 'Shared with traveller'}
                 </span>
                 <span>{n.body}</span>{' '}
-                <span className="muted" style={{ fontSize: '0.75rem' }}>
+                <span className="muted u-fs-075">
                   - {n.authorEmail}, {formatTimestampDate(n.createdAt)}
                 </span>
               </div>
@@ -557,8 +550,7 @@ export function MissionCollaboration({
             pending={notePending}
             idle="Add"
             busy="Adding…"
-            className="btn btn-secondary"
-            style={{ padding: '0.3rem 0.85rem', fontSize: '0.8rem' }}
+            className="btn btn-secondary u-btn-sm"
           />
         </form>
         <FormMessage result={noteState} />
@@ -583,13 +575,13 @@ export function MissionCollaboration({
               }}
             >
               {decisions.map((d) => (
-                <div key={d.id} style={{ fontSize: '0.85rem' }}>
+                <div key={d.id} className="u-fs-085">
                   <span
                     className={`badge ${d.outcome === 'ACCEPTED' ? 'badge-success' : 'badge-danger'}`}
                   >
                     {reviewDecisionLabel(d.outcome)}
                   </span>{' '}
-                  <span className="muted" style={{ fontSize: '0.75rem' }}>
+                  <span className="muted u-fs-075">
                     {requirements.find((r) => r.id === d.packRequirementId)?.label ??
                       d.packRequirementId}
                     {d.reason ? ` - ${d.reason}` : ''}, {formatTimestampDate(d.createdAt)}
@@ -641,8 +633,7 @@ export function MissionCollaboration({
                 pending={decisionPending}
                 idle="Record"
                 busy="Recording…"
-                className="btn btn-secondary"
-                style={{ padding: '0.3rem 0.85rem', fontSize: '0.8rem' }}
+                className="btn btn-secondary u-btn-sm"
               />
             </form>
           ) : (
@@ -673,11 +664,11 @@ export function MissionCollaboration({
               }}
             >
               {issuerVerifications.map((v) => (
-                <div key={v.id} style={{ fontSize: '0.85rem' }}>
+                <div key={v.id} className="u-fs-085">
                   <span className={`badge ${v.expired ? 'badge-neutral' : 'badge-success'}`}>
                     {v.expired ? 'Expired' : 'Confirmed'}
                   </span>{' '}
-                  <span className="muted" style={{ fontSize: '0.75rem' }}>
+                  <span className="muted u-fs-075">
                     {requirements.find((r) => r.id === v.packRequirementId)?.label ??
                       v.packRequirementId}
                     : {v.issuerIdentity}, "{v.exactClaim}", valid until{' '}
@@ -750,8 +741,7 @@ export function MissionCollaboration({
               pending={issuerPending}
               idle="Record confirmation"
               busy="Recording…"
-              className="btn btn-secondary"
-              style={{ padding: '0.3rem 0.85rem', fontSize: '0.8rem' }}
+              className="btn btn-secondary u-btn-sm"
             />
           </form>
           <p className="muted" style={{ fontSize: '0.75rem', marginTop: '0.35rem' }}>

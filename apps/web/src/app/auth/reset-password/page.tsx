@@ -37,7 +37,7 @@ export default async function ResetPasswordPage({
     <AuthShell title="Choose a new password">
       <meta name="referrer" content="no-referrer" />
       <ErrorLine id="reset-error" message={error} />
-      <div className="card" style={{ marginBottom: '1rem' }}>
+      <div className="card u-mb-100">
         <form action={resetPasswordAction} className="field-list">
           <input type="hidden" name="token" value={token} />
           <TextField

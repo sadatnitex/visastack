@@ -177,9 +177,7 @@ export function LegalHoldForm({ applicants }: LegalHoldFormProps) {
           Applicant
         </label>
         {applicants.length === 0 ? (
-          <p className="muted" style={{ fontSize: '0.85rem' }}>
-            No applicants exist yet.
-          </p>
+          <p className="muted u-fs-085">No applicants exist yet.</p>
         ) : (
           <select id="applicantId" name="applicantId" required className="input" defaultValue="">
             <option value="" disabled>

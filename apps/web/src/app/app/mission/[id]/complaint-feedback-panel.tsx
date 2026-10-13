@@ -57,12 +57,12 @@ export function ComplaintPanel({
     <article className="card">
       <p className="card-kicker">Oversight</p>
       <h2 className="card-title">Case complaint</h2>
-      <p className="card-body" style={{ marginBottom: '1rem' }}>
+      <p className="card-body u-mb-100">
         Reviewed only by authorized quality staff - the agency working this case never sees a
         complaint filed against it.
       </p>
       {complaints.length > 0 ? (
-        <div className="rows" style={{ marginBottom: '1.25rem' }}>
+        <div className="rows u-mb-125">
           {complaints.map((c) => (
             <div
               className="row"
@@ -161,22 +161,20 @@ export function FeedbackPanel({
     <article className="card">
       <p className="card-kicker">Oversight</p>
       <h2 className="card-title">Private feedback</h2>
-      <p className="card-body" style={{ marginBottom: '1rem' }}>
+      <p className="card-body u-mb-100">
         Only you and authorized quality staff ever see this - never the agency, and never published
         as a public review or ranking.
       </p>
       {feedback.length > 0 ? (
-        <div className="rows" style={{ marginBottom: '1.25rem' }}>
+        <div className="rows u-mb-125">
           {feedback.map((f) => (
             <div
               className="row"
               key={f.id}
               style={{ flexDirection: 'column', alignItems: 'stretch', gap: '0.2rem' }}
             >
-              <span style={{ fontSize: '0.9rem' }}>{f.comments}</span>
-              <span className="muted" style={{ fontSize: '0.75rem' }}>
-                {formatTimestampDate(f.createdAt)}
-              </span>
+              <span className="u-fs-090">{f.comments}</span>
+              <span className="muted u-fs-075">{formatTimestampDate(f.createdAt)}</span>
             </div>
           ))}
         </div>
@@ -201,7 +199,7 @@ export function FeedbackPanel({
           </div>
         </form>
       ) : (
-        <p className="muted" style={{ fontSize: '0.85rem' }}>
+        <p className="muted u-fs-085">
           Feedback becomes available once this case is closed or cancelled.
         </p>
       )}

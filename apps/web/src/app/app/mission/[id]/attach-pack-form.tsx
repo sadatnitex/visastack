@@ -21,11 +21,7 @@ export function AttachPackForm({
   const [state, formAction, pending] = useActionState(attachPackAction, INITIAL);
 
   if (options.length === 0) {
-    return (
-      <p className="muted" style={{ margin: 0 }}>
-        No published requirement packs are available yet.
-      </p>
-    );
+    return <p className="muted u-m-0">No published requirement packs are available yet.</p>;
   }
 
   return (

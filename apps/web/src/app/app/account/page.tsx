@@ -30,9 +30,7 @@ export default async function AccountPage() {
         <article className="card">
           <p className="card-kicker">Preferences</p>
           <h2 className="card-title">Language</h2>
-          <p className="card-body" style={{ marginBottom: '1.25rem' }}>
-            Applies immediately across the whole product.
-          </p>
+          <p className="card-body u-mb-125">Applies immediately across the whole product.</p>
           <form action={setLocaleAction}>
             <input type="hidden" name="locale" value={locale === 'en' ? 'bn' : 'en'} />
             <button type="submit" className="btn btn-secondary">
@@ -44,7 +42,7 @@ export default async function AccountPage() {
         <article className="card">
           <p className="card-kicker">Data rights</p>
           <h2 className="card-title">Privacy</h2>
-          <p className="card-body" style={{ marginBottom: '1.25rem' }}>
+          <p className="card-body u-mb-125">
             Export your data, review consent history, or delete your account.
           </p>
           <Link href="/app/privacy" className="btn btn-secondary">
@@ -56,7 +54,7 @@ export default async function AccountPage() {
           <article className="card">
             <p className="card-kicker">Roles</p>
             <h2 className="card-title">Other areas you can access</h2>
-            <div className="rows" style={{ marginTop: '0.5rem' }}>
+            <div className="rows u-mt-050">
               {data.hasAgencyAccess ? (
                 <Link className="row row-link" href="/app/agency">
                   <span className="row-key">Agency Desk</span>
@@ -80,9 +78,7 @@ export default async function AccountPage() {
         <article className="card">
           <p className="card-kicker">Session</p>
           <h2 className="card-title">Signed in</h2>
-          <p className="card-body" style={{ marginBottom: '1.25rem' }}>
-            Sign out of this device.
-          </p>
+          <p className="card-body u-mb-125">Sign out of this device.</p>
           <form
             action={async () => {
               'use server';

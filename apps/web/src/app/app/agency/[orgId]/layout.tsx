@@ -57,7 +57,7 @@ export default async function AgencyConsoleLayout({
       {data.member ? (
         <>
           {capabilities.agencyCollaboration !== 'available' ? (
-            <div className="notice notice-warn" style={{ marginBottom: '1.5rem' }}>
+            <div className="notice notice-warn u-mb-150">
               {capabilityUnavailableMessage('agencyCollaboration')}
             </div>
           ) : null}

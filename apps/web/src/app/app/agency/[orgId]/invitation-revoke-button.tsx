@@ -25,8 +25,7 @@ export function InvitationRevokeButton({
           pending={pending}
           idle="Revoke"
           busy="Revoking…"
-          className="btn btn-secondary"
-          style={{ padding: '0.3rem 0.85rem', fontSize: '0.8rem' }}
+          className="btn btn-secondary u-btn-sm"
         />
       </form>
       <FormMessage result={state} />

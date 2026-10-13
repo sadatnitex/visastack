@@ -72,7 +72,7 @@ export function PublishVersionButton({
 }) {
   const [state, formAction, pending] = useActionState(publishVersionAction, INITIAL);
   return (
-    <div style={{ marginTop: '1rem' }}>
+    <div className="u-mt-100">
       <form
         action={formAction}
         onSubmit={(e) => {
@@ -107,7 +107,7 @@ export function WithdrawVersionButton({
 }) {
   const [state, formAction, pending] = useActionState(withdrawVersionAction, INITIAL);
   return (
-    <div style={{ marginTop: '1rem' }}>
+    <div className="u-mt-100">
       <form
         action={formAction}
         onSubmit={(e) => {
@@ -235,8 +235,7 @@ export function SourceInaccessibleButton({
           pending={pending}
           idle={inaccessible ? 'Clear source-inaccessible' : 'Mark source inaccessible'}
           busy="…"
-          className="btn btn-secondary"
-          style={{ padding: '0.2rem 0.6rem', fontSize: '0.75rem' }}
+          className="btn btn-secondary u-btn-xs"
         />
       </form>
       <FormMessage result={state} style={{ display: 'inline' }} />

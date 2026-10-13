@@ -31,8 +31,8 @@ export default async function PackStudioPage() {
 
   return (
     <section className="section container">
-      <div style={{ marginBottom: '1.5rem' }}>
-        <Link href="/app/admin" className="muted" style={{ fontSize: '0.9rem' }}>
+      <div className="u-mb-150">
+        <Link href="/app/admin" className="muted u-fs-090">
           ← Admin
         </Link>
       </div>
@@ -54,7 +54,7 @@ export default async function PackStudioPage() {
             {data.packs.length === 0 ? (
               <p className="card-body">No packs yet.</p>
             ) : (
-              <div className="rows" style={{ marginTop: '0.5rem' }}>
+              <div className="rows u-mt-050">
                 {data.packs.map((pack) => (
                   <Link className="row row-link" key={pack.id} href={`/app/admin/packs/${pack.id}`}>
                     <span className="row-key">
@@ -83,7 +83,7 @@ export default async function PackStudioPage() {
                 Nothing due for review.
               </p>
             ) : (
-              <div className="rows" style={{ marginTop: '0.5rem' }}>
+              <div className="rows u-mt-050">
                 {data.reviewQueue.map((due) => (
                   <Link
                     className="row row-link"
@@ -96,9 +96,7 @@ export default async function PackStudioPage() {
                         v{due.version}
                       </span>
                     </span>
-                    <span className="muted" style={{ fontSize: '0.8rem' }}>
-                      due {formatDateOnly(due.nextReviewDate)}
-                    </span>
+                    <span className="muted u-fs-080">due {formatDateOnly(due.nextReviewDate)}</span>
                   </Link>
                 ))}
               </div>
@@ -116,7 +114,7 @@ export default async function PackStudioPage() {
                 Nothing published yet.
               </p>
             ) : (
-              <div className="rows" style={{ marginTop: '0.5rem' }}>
+              <div className="rows u-mt-050">
                 {data.publicTrust.map((route) => (
                   <a
                     className="row row-link"
@@ -126,9 +124,7 @@ export default async function PackStudioPage() {
                     rel="noreferrer"
                   >
                     <span className="row-key">{route.packName}</span>
-                    <span className="muted" style={{ fontSize: '0.8rem' }}>
-                      /trust/{route.packKey} ↗
-                    </span>
+                    <span className="muted u-fs-080">/trust/{route.packKey} ↗</span>
                   </a>
                 ))}
               </div>
@@ -149,7 +145,7 @@ export default async function PackStudioPage() {
               type below.
             </p>
             {data.expiryPolicies.length > 0 ? (
-              <div className="rows" style={{ marginBottom: '1.25rem' }}>
+              <div className="rows u-mb-125">
                 {data.expiryPolicies.map((p) => (
                   <div className="row" key={p.id}>
                     <span className="row-key">{documentTypeLabel(p.docType)}</span>

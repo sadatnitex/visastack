@@ -53,13 +53,13 @@ export function OutcomePanel({
     <article className="card">
       <p className="card-kicker">Decision</p>
       <h2 className="card-title">Case outcome</h2>
-      <p className="card-body" style={{ marginBottom: '1rem' }}>
+      <p className="card-body u-mb-100">
         The official wording and your own reading of a decision are kept separate - this is never
         blended into a single summary, and recording an outcome never changes this case's workflow
         state on its own.
       </p>
       {outcomes.length > 0 ? (
-        <div className="rows" style={{ marginBottom: '1.25rem' }}>
+        <div className="rows u-mb-125">
           {outcomes.map((o) => (
             <div
               className="row"
@@ -86,9 +86,7 @@ export function OutcomePanel({
           ))}
         </div>
       ) : (
-        <p className="card-body" style={{ marginBottom: '1.25rem' }}>
-          No outcome recorded yet.
-        </p>
+        <p className="card-body u-mb-125">No outcome recorded yet.</p>
       )}
       <form action={formAction} className="field-list">
         <input type="hidden" name="missionId" value={missionId} />

@@ -75,8 +75,8 @@ export default async function AiSettingsPage() {
 
   return (
     <section className="section container">
-      <div style={{ marginBottom: '1.5rem' }}>
-        <Link href="/app/admin" className="muted" style={{ fontSize: '0.9rem' }}>
+      <div className="u-mb-150">
+        <Link href="/app/admin" className="muted u-fs-090">
           ← Admin
         </Link>
       </div>
@@ -95,7 +95,7 @@ export default async function AiSettingsPage() {
       />
 
       {!data.hasAny ? (
-        <div className="notice" style={{ marginBottom: '1.5rem' }}>
+        <div className="notice u-mb-150">
           No AI provider has ever been configured here. AI extraction is currently running on
           whatever <code>AI_ENABLED</code>/<code>OPENAI_API_KEY</code> environment variables are set
           on this deployment, if any. Saving a draft below and activating it switches this platform
@@ -103,16 +103,16 @@ export default async function AiSettingsPage() {
           variables are no longer consulted.
         </div>
       ) : !data.hasActive ? (
-        <div className="notice notice-warn" style={{ marginBottom: '1.5rem' }}>
+        <div className="notice notice-warn u-mb-150">
           <strong>Nothing is currently ACTIVE.</strong> AI extraction is disabled platform-wide
           until a configuration below is activated or rolled back to.
         </div>
       ) : null}
 
-      <article className="card" style={{ marginBottom: '1.5rem' }}>
+      <article className="card u-mb-150">
         <p className="card-kicker">New configuration</p>
         <h2 className="card-title">Create draft</h2>
-        <p className="card-body" style={{ marginBottom: '1rem' }}>
+        <p className="card-body u-mb-100">
           Saving a draft has no effect on live traffic -- it only takes effect once activated below.
           The API key is write-only: it is encrypted immediately and never shown again, only a
           masked fingerprint.
@@ -147,7 +147,7 @@ export default async function AiSettingsPage() {
             return (
               <article className="card" key={config.id}>
                 <div className="toolbar" style={{ marginBottom: '1rem', alignItems: 'center' }}>
-                  <h2 className="card-title" style={{ margin: 0 }}>
+                  <h2 className="card-title u-m-0">
                     {config.provider} / {config.model}
                   </h2>
                   <span className={`badge ${badge.tone}`}>{badge.label}</span>
@@ -233,9 +233,7 @@ export default async function AiSettingsPage() {
                   ) : null}
                   <div className="row">
                     <span className="row-key">Created</span>
-                    <span className="muted" style={{ fontSize: '0.8rem' }}>
-                      {formatTimestamp(config.createdAt)}
-                    </span>
+                    <span className="muted u-fs-080">{formatTimestamp(config.createdAt)}</span>
                   </div>
                 </div>
                 {canTest || canEvaluate || canActivate || canRevoke ? (

@@ -65,7 +65,7 @@ export default async function MissionsPage({
               Start one on the right.
             </EmptyState>
           ) : (
-            <div className="rows" style={{ marginTop: '0.5rem' }}>
+            <div className="rows u-mt-050">
               {data.missions.map((mission) => (
                 <Link className="row row-link" key={mission.id} href={`/app/mission/${mission.id}`}>
                   <span className="row-key">{mission.title}</span>

@@ -40,7 +40,7 @@ export function ContributorRequestsPanel({
   return (
     <>
       {requests.length > 0 ? (
-        <div className="rows" style={{ marginBottom: '1.25rem' }}>
+        <div className="rows u-mb-125">
           {requests.map((r) => {
             const badge = STATUS_LABELS[r.status] ?? { label: r.status, tone: 'badge-neutral' };
             return (
@@ -55,7 +55,7 @@ export function ContributorRequestsPanel({
                   </span>
                   <span className={`badge ${badge.tone}`}>{badge.label}</span>
                 </div>
-                <span className="muted" style={{ fontSize: '0.8rem' }}>
+                <span className="muted u-fs-080">
                   {r.purpose}
                   {r.status === 'PENDING' ? ` · expires ${formatTimestampDate(r.expiresAt)}` : ''}
                 </span>

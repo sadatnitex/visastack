@@ -38,10 +38,10 @@ export default async function AdminAuditPage() {
         <>
           <FailedSectionsBanner sections={data.failedSections} />
 
-          <article className="card" style={{ marginTop: '1.5rem' }} id="admin-audit">
+          <article className="card u-mt-150" id="admin-audit">
             <p className="card-kicker">Transparency</p>
             <h2 className="card-title">Recent audit events</h2>
-            <p className="card-body" style={{ marginBottom: '1rem' }}>
+            <p className="card-body u-mb-100">
               The last {data.auditEvents.length} entries of the platform's append-only, hash-chained
               audit trail - every sensitive action across every tenant, newest first.
             </p>

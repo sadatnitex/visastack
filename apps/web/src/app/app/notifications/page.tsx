@@ -54,9 +54,7 @@ export default async function NotificationsPage() {
                       </span>
                     ) : null}
                   </span>
-                  <span className="muted" style={{ fontSize: '0.75rem' }}>
-                    {formatTimestampDate(n.createdAt)}
-                  </span>
+                  <span className="muted u-fs-075">{formatTimestampDate(n.createdAt)}</span>
                 </div>
                 <p className="muted" style={{ fontSize: '0.85rem', margin: 0 }}>
                   {n.summary}

@@ -182,21 +182,17 @@ export default async function EvidencePage({
                       </StatusBadge>
                     </span>
                   </div>
-                  <p className="case-row-meta" style={{ margin: 0 }}>
+                  <p className="case-row-meta u-m-0">
                     {req.message
                       ? `Why it is needed: \u201c${req.message}\u201d`
                       : 'The agency did not add a reason. Ask them if you are unsure.'}
                   </p>
                   {req.dueDate ? (
-                    <p className="case-row-meta" style={{ margin: 0 }}>
-                      Needed by {formatDateOnly(req.dueDate)}
-                    </p>
+                    <p className="case-row-meta u-m-0">Needed by {formatDateOnly(req.dueDate)}</p>
                   ) : null}
-                  <p className="case-row-meta" style={{ margin: 0 }}>
-                    {NEXT_HINT[req.status] ?? ''}
-                  </p>
+                  <p className="case-row-meta u-m-0">{NEXT_HINT[req.status] ?? ''}</p>
                   {latestDecision?.reason ? (
-                    <p className="field-msg field-msg-err" style={{ margin: 0 }}>
+                    <p className="field-msg field-msg-err u-m-0">
                       {DECISION_PREFIX[latestDecision.outcome] ?? ''}
                       {latestDecision.reason}
                     </p>

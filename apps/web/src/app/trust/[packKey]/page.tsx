@@ -112,7 +112,7 @@ export default async function PublicTrustRoutePage({
               <p className="card-body" style={{ fontSize: '1.5rem', fontWeight: 600 }}>
                 {formatPrice(route.officialFee.minorUnits, route.officialFee.currency)}
               </p>
-              <p className="muted" style={{ fontSize: '0.8rem' }}>
+              <p className="muted u-fs-080">
                 The official government fee only. Any agency you choose to work with charges its own
                 service fee separately - never included here.
               </p>
@@ -155,7 +155,7 @@ export default async function PublicTrustRoutePage({
           {officialSources.length === 0 ? (
             <p className="card-body">Not yet on file for this route.</p>
           ) : (
-            <div className="rows" style={{ marginTop: '0.5rem' }}>
+            <div className="rows u-mt-050">
               {officialSources.map(({ source, href }) => (
                 <div
                   className="row"
@@ -167,7 +167,7 @@ export default async function PublicTrustRoutePage({
                       'Official source'}
                   </span>
                   {href ? (
-                    <a href={href} target="_blank" rel="noreferrer" style={{ fontSize: '0.85rem' }}>
+                    <a href={href} target="_blank" rel="noreferrer" className="u-fs-085">
                       {href}
                     </a>
                   ) : null}
@@ -178,7 +178,7 @@ export default async function PublicTrustRoutePage({
         </article>
       </div>
 
-      <article className="card" style={{ marginTop: '1.5rem' }}>
+      <article className="card u-mt-150">
         <p className="card-kicker">Scam awareness</p>
         <h2 className="card-title">Warning signs to watch for</h2>
         <p className="muted" style={{ margin: '0.35rem 0 1rem', fontSize: '0.85rem' }}>
@@ -192,7 +192,7 @@ export default async function PublicTrustRoutePage({
             </li>
           ))}
         </ul>
-        <p className="card-body" style={{ marginTop: '1rem' }}>
+        <p className="card-body u-mt-100">
           If you suspect fraud, report it to the official immigration authority for the destination
           country and to your own country's consumer-protection or cybercrime authority.
           {officialReportingUrl ? (

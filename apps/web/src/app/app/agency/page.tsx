@@ -40,7 +40,7 @@ export default async function AgencyPage() {
               must verify it before it can work with clients.
             </EmptyState>
           ) : (
-            <div className="rows" style={{ marginTop: '0.5rem' }}>
+            <div className="rows u-mt-050">
               {orgs.map((m) => {
                 const badge = ORG_STATUS[m.organization.status] ?? {
                   label: humanizeCode(m.organization.status),
@@ -74,7 +74,7 @@ export default async function AgencyPage() {
         <article className="card">
           <p className="card-kicker">New</p>
           <h2 className="card-title">Apply to register an agency</h2>
-          <p className="card-body" style={{ marginBottom: '1.25rem' }}>
+          <p className="card-body u-mb-125">
             You become the owner. New organizations start pending verification by a platform
             administrator.
           </p>

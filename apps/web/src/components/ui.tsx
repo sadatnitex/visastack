@@ -163,7 +163,7 @@ export function Checklist({
 }) {
   const done = items.filter((item) => item.done).length;
   return (
-    <article className="card" style={{ marginBottom: '1.5rem' }}>
+    <article className="card u-mb-150">
       <p className="card-kicker">Get started</p>
       <h2 className="card-title">{title}</h2>
       <div className="meter-label">

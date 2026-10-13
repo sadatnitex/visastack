@@ -250,7 +250,7 @@ export default async function AgencyDashboardPage({
       ) : null}
 
       {!data.admin ? (
-        <article className="card" style={{ marginBottom: '1.5rem' }}>
+        <article className="card u-mb-150">
           <p className="card-body">
             You're a member of this organization but not an administrator. Requesting evidence, bulk
             export, and member management are admin-only - you can still collaborate on cases you're
@@ -301,7 +301,7 @@ export default async function AgencyDashboardPage({
             <h2 className="card-title" id="inbox-heading">
               Cases and attention
             </h2>
-            <p className="card-body" style={{ marginBottom: '1rem' }}>
+            <p className="card-body u-mb-100">
               Cases that need action come first. Search covers only the cases you are already
               allowed to see, by traveller, case title, reference, destination or stage.
             </p>
@@ -314,7 +314,7 @@ export default async function AgencyDashboardPage({
               assignee={assigneeFilter}
             />
             {data.missions.length === 0 ? (
-              <div style={{ marginTop: '1rem' }}>
+              <div className="u-mt-100">
                 <EmptyState title="No cases yet" icon="briefcase">
                   {data.admin
                     ? 'No cases are reachable yet - an applicant must grant this organization access to a specific case.'
@@ -322,11 +322,9 @@ export default async function AgencyDashboardPage({
                 </EmptyState>
               </div>
             ) : searched.length === 0 ? (
-              <p className="card-body" style={{ marginTop: '1rem' }}>
-                No cases match that search.
-              </p>
+              <p className="card-body u-mt-100">No cases match that search.</p>
             ) : (
-              <table className="data-table" style={{ marginTop: '1rem' }}>
+              <table className="data-table u-mt-100">
                 <caption className="sr-only">Cases, most urgent first</caption>
                 <thead>
                   <tr>
@@ -439,10 +437,10 @@ export default async function AgencyDashboardPage({
           </section>
 
           {data.admin && data.unassignedQueue.length > 0 ? (
-            <article className="card" style={{ marginBottom: '1.5rem' }}>
+            <article className="card u-mb-150">
               <p className="card-kicker">Needs attention</p>
               <h2 className="card-title">Reassignment queue</h2>
-              <p className="card-body" style={{ marginBottom: '1.25rem' }}>
+              <p className="card-body u-mb-125">
                 Active cases this organization can still act on but that currently have nobody
                 assigned - most often because the only assigned member was removed. Open one to
                 assign someone in the Cases section.

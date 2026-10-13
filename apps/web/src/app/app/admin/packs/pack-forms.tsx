@@ -295,8 +295,7 @@ export function VerifyChecksumForm({ packVersionId }: { readonly packVersionId: 
         pending={pending}
         idle="Verify checksum"
         busy="Verifying…"
-        className="btn btn-secondary"
-        style={{ padding: '0.3rem 0.85rem', fontSize: '0.8rem' }}
+        className="btn btn-secondary u-btn-sm"
       />
       <FormMessage result={state} />
     </form>

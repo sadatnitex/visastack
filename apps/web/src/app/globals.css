@@ -58,6 +58,15 @@
   --space-6: 2rem;
   --space-7: 3rem;
   --space-8: 4rem;
+
+  /* Text scale: the six sizes new screens use. Older screens still carry their own values until they
+     are moved onto the scale (see docs/uiux/EXPERIENCE-UPGRADE-HANDOFF.md, Phase 3). */
+  --text-caption: 0.75rem;
+  --text-small: 0.85rem;
+  --text-body: 1rem;
+  --text-lead: 1.15rem;
+  --text-title: 1.5rem;
+  --text-display: 1.9rem;
   --workspace-bg: #fafaf7;
   --sidebar-bg: #f1f3ee;
 }
@@ -5372,4 +5381,56 @@ body:has(.auth-shell) > .footer {
   font-weight: 600;
   min-height: 44px;
   cursor: pointer;
+}
+
+/* Shared spacing and text classes (Phase 3).
+   Each class carries exactly the value the pages used to write inline, so replacing an inline style
+   with one changes nothing on screen. The numbers in a name are the value in hundredths of a rem
+   (u-mb-125 is a 1.25rem bottom margin). !important keeps the same precedence an inline style had
+   over every other rule. A value that is not on the scale (0.8, 0.9, 1.25) is moved onto it in a
+   later, separately previewed step; until then it keeps its class name so the number stays visible. */
+.u-mb-100 {
+  margin-bottom: var(--space-4) !important;
+}
+.u-mb-125 {
+  margin-bottom: 1.25rem !important;
+}
+.u-mb-150 {
+  margin-bottom: var(--space-5) !important;
+}
+.u-mt-050 {
+  margin-top: var(--space-2) !important;
+}
+.u-mt-100 {
+  margin-top: var(--space-4) !important;
+}
+.u-mt-150 {
+  margin-top: var(--space-5) !important;
+}
+.u-m-0 {
+  margin: 0 !important;
+}
+.u-fs-075 {
+  font-size: var(--text-caption) !important;
+}
+.u-fs-080 {
+  font-size: 0.8rem !important;
+}
+.u-fs-085 {
+  font-size: var(--text-small) !important;
+}
+.u-fs-090 {
+  font-size: 0.9rem !important;
+}
+.u-fs-075-m0 {
+  font-size: var(--text-caption) !important;
+  margin: 0 !important;
+}
+.u-btn-sm {
+  padding: 0.3rem 0.85rem !important;
+  font-size: 0.8rem !important;
+}
+.u-btn-xs {
+  padding: 0.2rem 0.6rem !important;
+  font-size: var(--text-caption) !important;
 }

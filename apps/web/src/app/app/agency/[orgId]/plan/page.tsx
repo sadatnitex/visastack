@@ -60,7 +60,7 @@ export default async function OrgPlanPage({
         </article>
       ) : (
         <>
-          <article className="card" style={{ marginBottom: '1.5rem' }}>
+          <article className="card u-mb-150">
             <p className="card-kicker">Current plan</p>
             <h2 className="card-title">
               {data.usage.plan ? data.usage.plan.name : 'Access offer not recorded'}
@@ -90,9 +90,9 @@ export default async function OrgPlanPage({
           <article className="card">
             <p className="card-kicker">Entitlements</p>
             <h2 className="card-title">Meters</h2>
-            <div className="rows" style={{ marginTop: '1rem' }}>
+            <div className="rows u-mt-100">
               {data.usage.meters.map((meter) => (
-                <div key={meter.key} style={{ marginBottom: '1.25rem' }}>
+                <div key={meter.key} className="u-mb-125">
                   <div className="meter-label">
                     <span>{meter.label}</span>
                     <span>{formatMeterValue(meter)}</span>

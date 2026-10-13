@@ -41,8 +41,7 @@ export function ExplainGapButton({
           pending={pending}
           idle={explanation ? 'Refresh explanation' : 'Explain this with AI'}
           busy="Asking AI…"
-          className="btn btn-secondary"
-          style={{ padding: '0.2rem 0.6rem', fontSize: '0.75rem' }}
+          className="btn btn-secondary u-btn-xs"
         />
       </form>
       <FormMessage result={state} style={{ fontSize: '0.75rem' }} />

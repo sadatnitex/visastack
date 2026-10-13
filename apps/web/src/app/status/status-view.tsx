@@ -53,14 +53,14 @@ export function StatusView({
         <h1 className="section-title" style={{ margin: '0 0 0.5rem' }}>
           What works today
         </h1>
-        <p className="section-sub" style={{ margin: 0 }}>
+        <p className="section-sub u-m-0">
           This page checks the service every 15 seconds. Features that are not switched on yet are
           listed too, so you always know what to expect.
         </p>
       </div>
 
       <div className="toolbar">
-        <span className="muted" style={{ fontSize: '0.9rem' }}>
+        <span className="muted u-fs-090">
           {updatedAt ? `Updated ${updatedAt}. Checks again every 15 seconds.` : 'Loading…'}
         </span>
         {/* Not `disabled`: this page re-checks by itself every 15 seconds, and a button that
@@ -77,11 +77,9 @@ export function StatusView({
         </button>
       </div>
 
-      <article className="card" style={{ marginBottom: '1.25rem' }}>
-        <div className="toolbar" style={{ margin: 0 }}>
-          <h2 className="card-title" style={{ margin: 0 }}>
-            Overall
-          </h2>
+      <article className="card u-mb-125">
+        <div className="toolbar u-m-0">
+          <h2 className="card-title u-m-0">Overall</h2>
           <output className={badgeClass(verdict.tone)}>{verdict.label}</output>
         </div>
       </article>
@@ -89,13 +87,13 @@ export function StatusView({
       <article className="card">
         <h2 className="card-title">Features</h2>
         {rows.length === 0 ? (
-          <p className="muted" style={{ margin: 0 }}>
+          <p className="muted u-m-0">
             {ready === null
               ? 'Checking which features are working…'
               : 'The list of features is not available right now.'}
           </p>
         ) : (
-          <div className="rows" style={{ marginTop: '0.5rem' }}>
+          <div className="rows u-mt-050">
             {rows.map((row) => (
               <div className="row" key={row.key}>
                 <span className="row-key">{row.name}</span>

@@ -119,7 +119,7 @@ export default async function ExpiryCentrePage({
               before they run out.
             </EmptyState>
           ) : (
-            <div className="rows" style={{ marginTop: '0.5rem' }}>
+            <div className="rows u-mt-050">
               {data.intrinsic
                 .map(({ doc, thresholds }) => ({
                   doc,
@@ -174,7 +174,7 @@ export default async function ExpiryCentrePage({
               from the last 30 days. They appear here once a case uses such a route.
             </EmptyState>
           ) : (
-            <div className="rows" style={{ marginTop: '0.5rem' }}>
+            <div className="rows u-mt-050">
               {data.freshnessRows.map(({ mission, requirementKey, document }) => {
                 const badge = STALENESS_BADGE[document.staleness.status];
                 return (
@@ -205,7 +205,7 @@ export default async function ExpiryCentrePage({
               how long it stays valid appear here.
             </EmptyState>
           ) : (
-            <div className="rows" style={{ marginTop: '0.5rem' }}>
+            <div className="rows u-mt-050">
               {data.verifications.map(({ doc, verification }) => {
                 const classification = classifyExpiry(verification.validUntil, now);
                 const badge = URGENCY_BADGE[classification.urgency];
