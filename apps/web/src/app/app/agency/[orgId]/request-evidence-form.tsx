@@ -34,7 +34,7 @@ export function RequestEvidenceForm({
         </label>
         {applicants.length === 0 ? (
           <p className="muted" style={{ fontSize: '0.85rem' }}>
-            No applicant has granted this organization access yet — nothing to request from.
+            No applicant has granted this organization access yet. Nothing to request from.
           </p>
         ) : (
           <select id="applicantId" name="applicantId" required className="input" defaultValue="">
@@ -58,7 +58,7 @@ export function RequestEvidenceForm({
             <option value="">Applicant-wide (default)</option>
             {missions.map((m) => (
               <option key={m.missionId} value={m.missionId}>
-                {m.applicantName} — {m.title}
+                {m.applicantName}: {m.title}
               </option>
             ))}
           </select>

@@ -149,7 +149,7 @@ export default async function HistoryPage({
                       }}
                     >
                       <span className="row-key" style={{ fontFamily: 'var(--font-mono)' }}>
-                        {v.value ?? '—'}
+                        {v.value ?? '-'}
                       </span>
                       <span
                         className={`badge ${i === fact.versions.length - 1 ? 'badge-success' : 'badge-neutral'}`}

@@ -9,6 +9,7 @@ import type { Metadata } from 'next';
 import { PageHeader } from '../../../../components/ui';
 import { isPlatformAdmin } from '../../../../lib/admin';
 import { formatDateOnly } from '../../../../lib/format-date';
+import { documentTypeLabel } from '../../../../lib/labels';
 import { withSession } from '../../../../lib/session';
 import { tolerantReader } from '../../../../lib/tolerate';
 import { ReleaseHoldButton, RetryErasureJobButton } from '../action-buttons';
@@ -75,7 +76,7 @@ export default async function AdminPrivacyPage() {
                 <div className="rows" style={{ marginBottom: '1.25rem' }}>
                   {data.policies.map((p) => (
                     <div className="row" key={p.id}>
-                      <span className="row-key">{p.docType}</span>
+                      <span className="row-key">{documentTypeLabel(p.docType)}</span>
                       <span className="row-val">{p.retentionDays} days</span>
                     </div>
                   ))}

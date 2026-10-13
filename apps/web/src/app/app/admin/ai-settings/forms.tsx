@@ -3,6 +3,7 @@
 import type { AiProviderConfig } from '@visastack/services';
 import { useActionState } from 'react';
 import { FormMessage, SubmitButton } from '../../../../components/form-feedback';
+import { aiConfigStatusLabel, aiProviderLabel } from '../../../../lib/labels';
 import {
   type ActionState,
   activateAiProviderConfigAction,
@@ -224,7 +225,7 @@ export function CreateDraftConfigForm({
           <option value="">None</option>
           {existingConfigs.map((c) => (
             <option key={c.id} value={c.id}>
-              {c.provider} / {c.model} -- {c.status}
+              {aiProviderLabel(c.provider)}, {c.model}: {aiConfigStatusLabel(c.status)}
             </option>
           ))}
         </select>

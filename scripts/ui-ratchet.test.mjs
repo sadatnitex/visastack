@@ -10,12 +10,12 @@ test('counts inline style props and raw codes shown as page text', () => {
       <i title={m.role}>{label(m.role)}</i>
     </div>
   );`;
-  assert.deepEqual(measure(source), { inlineStyles: 2, rawCodes: 2 });
+  assert.deepEqual(measure(source), { inlineStyles: 2, rawCodes: 2, emDashes: 0 });
 });
 
 test('a fixed class name and a plain label are not counted', () => {
   const source = 'export const A = ({ doc }) => <p className="note">{LABELS[doc.docType]}</p>;';
-  assert.deepEqual(measure(source), { inlineStyles: 0, rawCodes: 0 });
+  assert.deepEqual(measure(source), { inlineStyles: 0, rawCodes: 0, emDashes: 0 });
 });
 
 test('fails when a file gains an inline style or a raw code, or a new file has any', () => {
@@ -31,4 +31,18 @@ test('fails when a file gains an inline style or a raw code, or a new file has a
   );
   assert.equal(compare({ inlineStyles: { 'b.tsx': 1 }, rawCodes: {} }, baseline).length, 1);
   assert.equal(compare({ inlineStyles: {}, rawCodes: { 'a.tsx': 2 } }, baseline).length, 1);
+});
+
+test('counts a long dash in page text and in strings, but not in a comment', () => {
+  const dash = String.fromCharCode(0x2014);
+  const source = `// note ${dash} ignored
+export const A = () => <p title="a ${dash} b">Visit ${dash} then go {'x ${dash} y'}</p>;`;
+  assert.equal(measure(source).emDashes, 3);
+  assert.equal(
+    compare(
+      { inlineStyles: {}, rawCodes: {}, emDashes: { 'a.tsx': 1 } },
+      { inlineStyles: {}, rawCodes: {} },
+    ).length,
+    1,
+  );
 });

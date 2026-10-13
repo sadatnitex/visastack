@@ -33,7 +33,7 @@ export function ReconcileButtons() {
           onSubmit={(e) => {
             if (
               !window.confirm(
-                'Clean up dangling references now? This only removes metadata rows with no backing bytes and no remaining document — it never deletes bytes that still exist.',
+                'Clean up dangling references now? This only removes metadata rows with no backing bytes and no remaining document. It never deletes bytes that still exist.',
               )
             ) {
               e.preventDefault();

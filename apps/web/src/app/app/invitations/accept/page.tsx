@@ -1,6 +1,7 @@
 import { previewOrganizationInvitation } from '@visastack/services';
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { membershipRoleLabel } from '../../../../lib/labels';
 import { withSession } from '../../../../lib/session';
 import { AcceptInvitationForm } from './accept-form';
 
@@ -59,7 +60,7 @@ export default async function AcceptInvitationPage({
           <>
             <p className="card-body">
               You&apos;ve been invited to join <strong>{preview.value.organizationName}</strong> as{' '}
-              <strong>{preview.value.role}</strong>.
+              <strong>{membershipRoleLabel(preview.value.role).toLowerCase()}</strong>.
             </p>
             {preview.value.emailMatches ? (
               <AcceptInvitationForm token={token} />

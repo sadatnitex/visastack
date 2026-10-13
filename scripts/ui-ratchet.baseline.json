@@ -108,22 +108,6 @@
     "apps/web/src/components/trust-unavailable.tsx": 1,
     "apps/web/src/components/ui.tsx": 3
   },
-  "rawCodes": {
-    "apps/web/src/app/app/admin/ai-settings/forms.tsx": 1,
-    "apps/web/src/app/app/admin/audit/page.tsx": 1,
-    "apps/web/src/app/app/admin/complaints/page.tsx": 1,
-    "apps/web/src/app/app/admin/organizations/[orgId]/page.tsx": 3,
-    "apps/web/src/app/app/admin/packs/page.tsx": 1,
-    "apps/web/src/app/app/admin/privacy/page.tsx": 1,
-    "apps/web/src/app/app/agency/[orgId]/mission-collaboration.tsx": 1,
-    "apps/web/src/app/app/agency/[orgId]/team/page.tsx": 2,
-    "apps/web/src/app/app/applicant/[id]/ai-review.tsx": 1,
-    "apps/web/src/app/app/contributor-requests/accept/page.tsx": 1,
-    "apps/web/src/app/app/invitations/accept/page.tsx": 1,
-    "apps/web/src/app/app/mission/[id]/complaint-feedback-panel.tsx": 1,
-    "apps/web/src/app/app/mission/[id]/contributor-requests-panel.tsx": 1,
-    "apps/web/src/app/app/mission/[id]/snapshots/[snapshotId]/page.tsx": 1,
-    "apps/web/src/app/app/shared/[grantId]/page.tsx": 1,
-    "apps/web/src/app/page.tsx": 1
-  }
+  "rawCodes": {},
+  "emDashes": {}
 }

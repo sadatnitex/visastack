@@ -11,6 +11,8 @@ import ts from 'typescript';
  * 2. Raw codes shown as page text: a database value such as PASSPORT or OWNER printed straight
  *    into a page instead of a plain label. The count must not rise in any file.
  *
+ * 3. Long dashes in text a person can read (page text and string values; comments are not counted).
+ *
  * The recorded starting point lives in scripts/ui-ratchet.baseline.json. Lower it with
  * `node scripts/ui-ratchet.mjs --lower` after a change reduces a count. Raising it needs a
  * deliberate edit to that file that a reviewer will see.
@@ -28,7 +30,11 @@ export const RAW_CODE_FIELDS = new Set([
   'suggestedType',
   'eventType',
   'kind',
+  'result',
 ]);
+
+/** Built from the code point so no tool rewrites it into the character itself. */
+const LONG_DASH = String.fromCharCode(0x2014);
 
 export function measure(source, filename = 'component.tsx') {
   const file = ts.createSourceFile(
@@ -40,7 +46,18 @@ export function measure(source, filename = 'component.tsx') {
   );
   let inlineStyles = 0;
   let rawCodes = 0;
+  let emDashes = 0;
   const visit = (node) => {
+    if (
+      (ts.isJsxText(node) ||
+        ts.isStringLiteral(node) ||
+        ts.isNoSubstitutionTemplateLiteral(node) ||
+        ts.isTemplateHead(node) ||
+        ts.isTemplateMiddle(node) ||
+        ts.isTemplateTail(node)) &&
+      node.text.includes(LONG_DASH)
+    )
+      emDashes += 1;
     if (ts.isJsxAttribute(node) && node.name.getText(file) === 'style') inlineStyles += 1;
     if (
       ts.isJsxExpression(node) &&
@@ -53,12 +70,13 @@ export function measure(source, filename = 'component.tsx') {
     ts.forEachChild(node, visit);
   };
   visit(file);
-  return { inlineStyles, rawCodes };
+  return { inlineStyles, rawCodes, emDashes };
 }
 
 export function measureTree(root) {
   const inlineStyles = {};
   const rawCodes = {};
+  const emDashes = {};
   const walk = (directory) => {
     for (const entry of readdirSync(directory, { withFileTypes: true })) {
       const full = join(directory, entry.name);
@@ -68,11 +86,12 @@ export function measureTree(root) {
         const key = relative(root, full).replaceAll('\\', '/');
         if (counts.inlineStyles) inlineStyles[key] = counts.inlineStyles;
         if (counts.rawCodes) rawCodes[key] = counts.rawCodes;
+        if (counts.emDashes) emDashes[key] = counts.emDashes;
       }
     }
   };
   walk(join(root, 'apps/web/src'));
-  return { inlineStyles, rawCodes };
+  return { inlineStyles, rawCodes, emDashes };
 }
 
 const total = (map) => Object.values(map).reduce((sum, value) => sum + value, 0);
@@ -82,12 +101,13 @@ export function compare(current, baseline) {
   for (const [label, key] of [
     ['inline style props', 'inlineStyles'],
     ['raw codes shown as page text', 'rawCodes'],
+    ['long dashes in visible text', 'emDashes'],
   ]) {
-    for (const [file, count] of Object.entries(current[key])) {
-      const allowed = baseline[key][file] ?? 0;
+    for (const [file, count] of Object.entries(current[key] ?? {})) {
+      const allowed = baseline[key]?.[file] ?? 0;
       if (count > allowed)
         errors.push(
-          `${file}: ${count} ${label}, up from ${allowed}. Use a shared class or a plain label.`,
+          `${file}: ${count} ${label}, up from ${allowed}. Use a shared class, a plain label or a full stop.`,
         );
     }
   }

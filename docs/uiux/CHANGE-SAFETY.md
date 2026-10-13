@@ -15,7 +15,7 @@ For anyone changing how VisaStack looks or reads, whether a person, Claude or Co
 
 | Tool | What it protects | Command |
 | --- | --- | --- |
-| UI ratchet | Inline style props and raw database codes shown as page text may not rise in any file | `pnpm run scan:ui-ratchet` (also part of `pnpm run lint`) |
+| UI ratchet | Inline style props, raw database codes shown as page text, and visible long dashes may not rise in any file | `pnpm run scan:ui-ratchet` (also part of `pnpm run lint`) |
 | Flat design check | No shadows, gradients, blur, translucent surfaces or automatic dark mode | `pnpm run scan:flat-ui` |
 | Route and link check | Every page is reachable and no link points nowhere | `node scripts/check-route-navigation.mjs` |
 | Plain language test | No engineering words on public pages | `apps/web/src/lib/plain-language.test.ts` |
@@ -39,6 +39,10 @@ node scripts/ui-baseline/compare.mjs /tmp/ui/before /tmp/ui/after
 ### Lowering a counter
 
 After a change removes inline styles or raw codes, run `node scripts/ui-ratchet.mjs --lower` and commit the updated `scripts/ui-ratchet.baseline.json`. Raising a number needs a hand edit to that file and a reason in the pull request.
+
+### Showing a stored code to a person
+
+Use a label from `apps/web/src/lib/labels.ts` (`membershipRoleLabel(role)`, `documentTypeLabel(type)` and so on). A stand-alone label has every word capitalised; inside a sentence, lower-case it. Where staff truly need the exact code (the audit log), show it with `ExactCode` next to the plain label. A new stored value without a label fails the type check and `labels.test.ts`.
 
 ## What is not covered yet
 

@@ -18,18 +18,18 @@ import { isSignedIn } from '../lib/signed-in';
 const PREVIEW_ROWS: readonly {
   readonly name: string;
   readonly detail: string;
-  readonly status: string;
+  readonly badge: string;
   readonly tone: Tone;
 }[] = [
-  { name: 'Passport', detail: 'Valid until 14 Mar 2031', status: 'Ready', tone: 'success' },
+  { name: 'Passport', detail: 'Valid until 14 Mar 2031', badge: 'Ready', tone: 'success' },
   {
     name: 'Bank statement',
     detail: 'Expires in 12 days',
-    status: 'Expiring soon',
+    badge: 'Expiring soon',
     tone: 'warning',
   },
-  { name: 'Employer letter', detail: 'Asked for by the agency', status: 'Missing', tone: 'danger' },
-  { name: 'Hotel booking', detail: 'Sent 3 Oct 2026', status: 'Under review', tone: 'neutral' },
+  { name: 'Employer letter', detail: 'Asked for by the agency', badge: 'Missing', tone: 'danger' },
+  { name: 'Hotel booking', detail: 'Sent 3 Oct 2026', badge: 'Under review', tone: 'neutral' },
 ];
 
 const HERO_HEADLINE = 'One profile. Every visa.';
@@ -274,7 +274,7 @@ export default async function HomePage({ searchParams }: HomePageProps) {
                         {row.detail}
                       </span>
                     </span>
-                    <StatusBadge tone={row.tone}>{row.status}</StatusBadge>
+                    <StatusBadge tone={row.tone}>{row.badge}</StatusBadge>
                   </div>
                 ))}
               </div>
