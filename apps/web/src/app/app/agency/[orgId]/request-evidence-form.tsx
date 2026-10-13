@@ -8,6 +8,9 @@ import { type ActionState, requestEvidenceAction } from './actions';
 
 const INITIAL: ActionState = { ok: true, message: '' };
 
+/** Chosen from the document list when the document is not one the product names yet. */
+const OTHER_DOCUMENT = '__other__';
+
 /** Profile details grouped by the part of the profile they belong to, in registry order. */
 const FIELD_GROUPS = Array.from(new Set(PROFILE_FIELDS.map((f) => f.pack))).map((pack) => ({
   pack,
@@ -32,6 +35,7 @@ export function RequestEvidenceForm({
 }: RequestEvidenceFormProps) {
   const [state, formAction, pending] = useActionState(requestEvidenceAction, INITIAL);
   const [kind, setKind] = useState<'FIELD' | 'DOCUMENT'>('FIELD');
+  const [documentChoice, setDocumentChoice] = useState('');
 
   return (
     <form action={formAction} className="field-list">
@@ -107,16 +111,38 @@ export function RequestEvidenceForm({
             ))}
           </select>
         ) : (
-          <select id="key" name="key" required className="input" defaultValue="" key="document-key">
-            <option value="" disabled>
-              Choose a document…
-            </option>
-            {Object.entries(DOCUMENT_TYPE_LABELS).map(([code, label]) => (
-              <option key={code} value={code}>
-                {label}
+          <>
+            <select
+              id="key"
+              required
+              className="input"
+              value={documentChoice}
+              onChange={(event) => setDocumentChoice(event.target.value)}
+            >
+              <option value="" disabled>
+                Choose a document…
               </option>
-            ))}
-          </select>
+              {Object.entries(DOCUMENT_TYPE_LABELS).map(([code, label]) => (
+                <option key={code} value={code}>
+                  {label}
+                </option>
+              ))}
+              <option value={OTHER_DOCUMENT}>Other document</option>
+            </select>
+            {documentChoice === OTHER_DOCUMENT ? (
+              <input
+                id="otherDocument"
+                name="key"
+                type="text"
+                required
+                className="input"
+                aria-label="Name of the other document"
+                placeholder="For example: Marriage Certificate"
+              />
+            ) : (
+              <input type="hidden" name="key" value={documentChoice} />
+            )}
+          </>
         )}
       </div>
       <div className="field-row">
