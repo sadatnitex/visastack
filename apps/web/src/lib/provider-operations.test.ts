@@ -73,17 +73,19 @@ it('gives every row a plain status and a one-sentence headline that never overcl
     expect(row.headline.length, row.label).toBeGreaterThan(10);
     expect(row.headline, row.label).not.toMatch(/\bgood\b|\bhealthy\b|\bverified\b/i);
   }
-  const status = (label: string) => rows.find((row) => row.label === label)?.status;
-  expect(status('Application email')).toBe('Set Up');
-  expect(status('Tracked evidence storage')).toBe('Recorded');
-  expect(status('Encryption key recovery')).toBe('Not Proven');
-  expect(status('Backup recovery')).toBe('Not Proven');
-  expect(status('Provider bills and free-plan headroom')).toBe('Not Measured');
+  const standing = (label: string) => rows.find((row) => row.label === label)?.standing;
+  expect(standing('Application email')).toBe('Set Up');
+  expect(standing('Tracked evidence storage')).toBe('Recorded');
+  expect(standing('Encryption key recovery')).toBe('Not Proven');
+  expect(standing('Backup recovery')).toBe('Not Proven');
+  expect(standing('Provider bills and free-plan headroom')).toBe('Not Measured');
   expect(JSON.stringify(rows)).not.toContain('private-marker');
 });
 
 it('says a missing sender is not set up instead of calling it set up', () => {
   const rows = describeProviderOperations({}, {});
-  expect(rows.find((row) => row.label === 'Application email')?.status).toBe('Not Set Up');
-  expect(rows.find((row) => row.label === 'Tracked evidence storage')?.status).toBe('Not Measured');
+  expect(rows.find((row) => row.label === 'Application email')?.standing).toBe('Not Set Up');
+  expect(rows.find((row) => row.label === 'Tracked evidence storage')?.standing).toBe(
+    'Not Measured',
+  );
 });

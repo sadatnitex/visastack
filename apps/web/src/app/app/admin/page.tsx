@@ -409,8 +409,8 @@ export default async function AdminOperationsPage() {
                         {row.label}
                       </dt>
                       <dd style={{ margin: 0, flex: '1 1 18rem', minWidth: 0 }}>
-                        <span className={`badge ${PROVIDER_STATUS_TONE[row.status]}`}>
-                          {row.status}
+                        <span className={`badge ${PROVIDER_STATUS_TONE[row.standing]}`}>
+                          {row.standing}
                         </span>{' '}
                         <strong>{row.headline}</strong>
                         <details>

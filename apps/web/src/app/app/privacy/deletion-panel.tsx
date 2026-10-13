@@ -161,7 +161,7 @@ export function DeletionPanel({ scheduledFor, impact, holds }: DeletionPanelProp
               Schedule permanent deletion of your account and all owned data? You will have a 7-day
               grace window to cancel.
             </p>
-            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginTop: '0.6rem' }}>
+            <div className="cta-row u-mt-050">
               <SubmitButton
                 pending={reqPending}
                 idle="Yes, schedule deletion"
