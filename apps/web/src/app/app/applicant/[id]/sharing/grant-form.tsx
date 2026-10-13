@@ -11,7 +11,7 @@ const INITIAL: ActionState = { ok: true, message: '' };
 
 /** Curated, launch-safe permission set (read + collaborate; no original download / manage). */
 const SHAREABLE_ACTIONS: ReadonlyArray<{ value: string; label: string; defaultOn?: boolean }> = [
-  { value: 'VIEW_METADATA', label: 'View metadata', defaultOn: true },
+  { value: 'VIEW_METADATA', label: 'See document details', defaultOn: true },
   { value: 'PREVIEW', label: 'Preview documents', defaultOn: true },
   { value: 'DOWNLOAD_REDACTED', label: 'Download redacted copies' },
   { value: 'COMMENT', label: 'Comment' },
@@ -48,12 +48,15 @@ export function GrantForm({
     SHAREABLE_ACTIONS.filter((a) => a.defaultOn).map((a) => a.value),
   );
   const [categories, setCategories] = useState<readonly string[]>([]);
+  /** Sharing everything is a visible choice, never what happens because nothing was ticked. */
+  const [profileScope, setProfileScope] = useState<'all' | 'some'>('all');
+  const [documentScope, setDocumentScope] = useState<'all' | 'some'>('all');
   const [selectedDocuments, setSelectedDocuments] = useState<readonly string[]>([]);
   const [expiryDays, setExpiryDays] = useState('');
 
   const scopeLabel =
     categories.length === 0
-      ? 'every profile category'
+      ? 'your whole profile'
       : categories.map((c) => PACK_LABELS[c as keyof typeof PACK_LABELS] ?? c).join(', ');
   const docsLabel =
     documents.length === 0
@@ -70,6 +73,14 @@ export function GrantForm({
     if (!form.current?.reportValidity()) return;
     if (actions.length === 0) {
       setReviewError('Select at least one permission before reviewing access.');
+      return;
+    }
+    if (profileScope === 'some' && categories.length === 0) {
+      setReviewError('Choose at least one part of your profile, or choose everything.');
+      return;
+    }
+    if (documentScope === 'some' && selectedDocuments.length === 0) {
+      setReviewError('Choose at least one document, or choose every document.');
       return;
     }
     setReviewError('');
@@ -99,6 +110,8 @@ export function GrantForm({
           SHAREABLE_ACTIONS.filter((action) => action.defaultOn).map((action) => action.value),
         );
         setCategories([]);
+        setProfileScope('all');
+        setDocumentScope('all');
         setSelectedDocuments([]);
         setExpiryDays('');
         setReviewed(false);
@@ -158,46 +171,94 @@ export function GrantForm({
       </fieldset>
 
       <fieldset className="fieldset">
-        <legend className="field-label">Limit to profile categories (optional)</legend>
-        <p className="muted" style={{ fontSize: '0.8rem', margin: '0 0 0.5rem' }}>
-          Leave all unchecked to share every category. Checking any narrows access to only those.
-        </p>
+        <legend className="field-label">What should they see from your profile?</legend>
         <div className="checks">
-          {PACK_ORDER.map((pack) => (
-            <label className="check" key={pack}>
-              <input
-                type="checkbox"
-                name="category"
-                value={pack}
-                onChange={(e) => setCategories((prev) => toggled(prev, pack, e.target.checked))}
-              />
-              <span>{PACK_LABELS[pack]}</span>
-            </label>
-          ))}
+          <label className="check">
+            <input
+              type="radio"
+              name="profileScope"
+              form="no-form"
+              checked={profileScope === 'all'}
+              onChange={() => {
+                setProfileScope('all');
+                setCategories([]);
+              }}
+            />
+            <span>Everything in my profile</span>
+          </label>
+          <label className="check">
+            <input
+              type="radio"
+              name="profileScope"
+              form="no-form"
+              checked={profileScope === 'some'}
+              onChange={() => setProfileScope('some')}
+            />
+            <span>Only the parts I choose</span>
+          </label>
         </div>
+        {profileScope === 'some' ? (
+          <div className="checks u-mt-050">
+            {PACK_ORDER.map((pack) => (
+              <label className="check" key={pack}>
+                <input
+                  type="checkbox"
+                  name="category"
+                  value={pack}
+                  onChange={(e) => setCategories((prev) => toggled(prev, pack, e.target.checked))}
+                />
+                <span>{PACK_LABELS[pack]}</span>
+              </label>
+            ))}
+          </div>
+        ) : null}
       </fieldset>
 
       {documents.length > 0 ? (
         <fieldset className="fieldset">
-          <legend className="field-label">Limit to specific documents (optional)</legend>
-          <p className="muted" style={{ fontSize: '0.8rem', margin: '0 0 0.5rem' }}>
-            Leave all unchecked to share every document.
-          </p>
+          <legend className="field-label">Which documents can they open?</legend>
           <div className="checks">
-            {documents.map((doc) => (
-              <label className="check" key={doc.id}>
-                <input
-                  type="checkbox"
-                  name="documentId"
-                  value={doc.id}
-                  onChange={(e) =>
-                    setSelectedDocuments((prev) => toggled(prev, doc.id, e.target.checked))
-                  }
-                />
-                <span>{doc.displayName}</span>
-              </label>
-            ))}
+            <label className="check">
+              <input
+                type="radio"
+                name="documentScope"
+                form="no-form"
+                checked={documentScope === 'all'}
+                onChange={() => {
+                  setDocumentScope('all');
+                  setSelectedDocuments([]);
+                }}
+              />
+              <span>Every document</span>
+            </label>
+            <label className="check">
+              <input
+                type="radio"
+                name="documentScope"
+                form="no-form"
+                checked={documentScope === 'some'}
+                onChange={() => setDocumentScope('some')}
+              />
+              <span>Only the documents I choose</span>
+            </label>
           </div>
+          {documentScope === 'some' ? (
+            <div className="checks u-mt-050">
+              {documents.map((doc) => (
+                <label className="check" key={doc.id}>
+                  <input
+                    type="checkbox"
+                    name="documentId"
+                    value={doc.id}
+                    onChange={(e) =>
+                      setSelectedDocuments((prev) => toggled(prev, doc.id, e.target.checked))
+                    }
+                  />
+                  <span>{doc.displayName}</span>
+                </label>
+              ))}
+            </div>
+          ) : null}
         </fieldset>
       ) : null}
 

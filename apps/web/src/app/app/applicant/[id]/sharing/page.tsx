@@ -29,7 +29,7 @@ export const dynamic = 'force-dynamic';
 
 /** Every PermissionAction this platform defines (@visastack/core), in plain language -- SHR-03's "show... scope," covering every grant regardless of which flow created it, not just this page's own curated share form. */
 const ACTION_LABELS: Record<string, string> = {
-  VIEW_METADATA: 'View metadata',
+  VIEW_METADATA: 'See document details',
   PREVIEW: 'Preview documents',
   COMMENT: 'Comment',
   PROPOSE_EDIT: 'Propose edits',
@@ -175,29 +175,15 @@ export default async function SharingPage({
                                 .map((c) => PACK_LABELS[c as keyof typeof PACK_LABELS] ?? c)
                                 .join(', ')}`
                             : 'across your whole profile'}
+                        {grant.documentIds && grant.documentIds.length > 0
+                          ? `, limited to ${grant.documentIds.length} specific document${grant.documentIds.length === 1 ? '' : 's'}`
+                          : ''}
                         {grant.expiryAt ? `, until ${formatTimestampDate(grant.expiryAt)}` : ''}.
                       </p>
                       <p className="muted" style={{ margin: 0, fontSize: '0.8rem' }}>
                         Purpose: {grant.purpose}
-                        {grant.expiryAt ? ` · expires ${formatTimestampDate(grant.expiryAt)}` : ''}
                         {grant.acceptedAt
                           ? ` · accepted ${formatTimestampDate(grant.acceptedAt)}`
-                          : ''}
-                      </p>
-                      <p className="muted" style={{ margin: 0, fontSize: '0.8rem' }}>
-                        Can: {grant.actions.map((a) => ACTION_LABELS[a] ?? a).join(', ')}
-                      </p>
-                      <p className="muted" style={{ margin: 0, fontSize: '0.8rem' }}>
-                        Scope:{' '}
-                        {grant.missionId
-                          ? 'one specific case'
-                          : grant.categories && grant.categories.length > 0
-                            ? grant.categories
-                                .map((c) => PACK_LABELS[c as keyof typeof PACK_LABELS] ?? c)
-                                .join(', ')
-                            : 'your whole profile'}
-                        {grant.documentIds && grant.documentIds.length > 0
-                          ? ` · ${grant.documentIds.length} specific document${grant.documentIds.length === 1 ? '' : 's'}`
                           : ''}
                       </p>
                       {grant.documentIds && grant.documentIds.length > 0 ? (

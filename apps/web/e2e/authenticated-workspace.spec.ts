@@ -581,8 +581,8 @@ test.describe
       await page.getByRole('button', { name: 'Confirm sharing request' }).click();
       const pendingRow = page.locator('.row', { hasText: 'E2E revoke before acceptance' });
       await expect(pendingRow).toBeVisible({ timeout: 10_000 });
-      page.once('dialog', (dialog) => dialog.accept());
       await pendingRow.getByRole('button', { name: 'Revoke' }).click();
+      await pendingRow.getByRole('button', { name: 'Yes, revoke access' }).click();
       await expect(page.locator('.row', { hasText: 'E2E revoke before acceptance' })).toContainText(
         /revoked/i,
         { timeout: 10_000 },

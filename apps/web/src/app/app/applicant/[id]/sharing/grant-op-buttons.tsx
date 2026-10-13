@@ -1,11 +1,14 @@
 'use client';
 
-import { useActionState, useEffect } from 'react';
+import { useActionState, useEffect, useState } from 'react';
 import { FormMessage, SubmitButton } from '../../../../../components/form-feedback';
 import { type ActionState, updateGrantAction } from './actions';
 
 const INITIAL: ActionState = { ok: true, message: '' };
 
+const CONFIRM_LABEL: Partial<Record<string, string>> = { revoke: 'Yes, revoke access' };
+
+/** Operations that ask first, with the question shown inside the page (never a browser pop-up). */
 const CONFIRM_MESSAGE: Partial<Record<string, string>> = {
   revoke: 'Revoke this access? The recipient will lose it on their next request.',
 };
@@ -24,6 +27,7 @@ export function GrantOpButtons({
   }>;
 }) {
   const [state, formAction, pending] = useActionState(updateGrantAction, INITIAL);
+  const [confirming, setConfirming] = useState<string | null>(null);
   useEffect(() => {
     if (state.ok && state.refreshPath) window.location.assign(state.refreshPath);
   }, [state]);
@@ -31,27 +35,51 @@ export function GrantOpButtons({
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
       <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-        {ops.map(({ op, label, variant }) => (
-          <form
-            action={formAction}
-            key={op}
-            onSubmit={(e) => {
-              const confirmMessage = CONFIRM_MESSAGE[op];
-              if (confirmMessage && !window.confirm(confirmMessage)) e.preventDefault();
-            }}
-          >
-            <input type="hidden" name="applicantId" value={applicantId} />
-            <input type="hidden" name="grantId" value={grantId} />
-            <input type="hidden" name="op" value={op} />
-            <SubmitButton
-              pending={pending}
-              idle={label}
-              busy={label}
-              className={`btn ${variant}`}
-              style={{ padding: '0.3rem 0.85rem', fontSize: '0.8rem' }}
-            />
-          </form>
-        ))}
+        {ops.map(({ op, label, variant }) => {
+          const question = CONFIRM_MESSAGE[op];
+          return (
+            <form action={formAction} key={op}>
+              <input type="hidden" name="applicantId" value={applicantId} />
+              <input type="hidden" name="grantId" value={grantId} />
+              <input type="hidden" name="op" value={op} />
+              {question && confirming === op ? (
+                <div className="notice" role="alert">
+                  <p className="u-m-0">{question}</p>
+                  <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                    <SubmitButton
+                      pending={pending}
+                      idle={CONFIRM_LABEL[op] ?? label}
+                      busy={label}
+                      className={`btn ${variant} u-btn-sm`}
+                    />
+                    <button
+                      type="button"
+                      className="btn btn-secondary u-btn-sm"
+                      onClick={() => setConfirming(null)}
+                    >
+                      Keep access
+                    </button>
+                  </div>
+                </div>
+              ) : question ? (
+                <button
+                  type="button"
+                  className={`btn ${variant} u-btn-sm`}
+                  onClick={() => setConfirming(op)}
+                >
+                  {label}
+                </button>
+              ) : (
+                <SubmitButton
+                  pending={pending}
+                  idle={label}
+                  busy={label}
+                  className={`btn ${variant} u-btn-sm`}
+                />
+              )}
+            </form>
+          );
+        })}
       </div>
       <FormMessage result={state} />
     </div>
