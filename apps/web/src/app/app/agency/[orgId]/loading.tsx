@@ -1,6 +1,6 @@
 import { PageLoading } from '../../../../components/page-loading';
 
-/** Shown inside an agency's console while a section reads its data; the header and the section bar stay put. */
+/** Shown while this page reads its data: the outline of a dashboard page, labelled for what is coming. */
 export default function AgencyConsoleLoading() {
-  return <PageLoading frame="panel" />;
+  return <PageLoading label="Loading your dashboard" shape="dashboard" frame="panel" />;
 }

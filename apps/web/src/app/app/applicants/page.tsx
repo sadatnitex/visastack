@@ -37,7 +37,7 @@ export default async function ApplicantsPage() {
             {data.applicants.length} {data.applicants.length === 1 ? 'person' : 'people'}
           </h2>
           {data.applicants.length === 0 ? (
-            <EmptyState title="No applicants yet">
+            <EmptyState icon="users" title="No applicants yet">
               Add yourself first. Your passport details and documents are entered once and reused
               for every application.
             </EmptyState>

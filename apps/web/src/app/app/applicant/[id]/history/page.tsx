@@ -97,6 +97,7 @@ export default async function HistoryPage({
       {data.facts.length === 0 ? (
         <article className="card">
           <EmptyState
+            icon="activity"
             title="No history yet"
             action={{ href: `/app/applicant/${id}/profile`, label: 'Open the profile' }}
           >

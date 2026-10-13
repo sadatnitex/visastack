@@ -290,7 +290,7 @@ export default async function AgencyDashboardPage({
               <h2 className="card-title" id="pipeline-heading">
                 Case pipeline
               </h2>
-              <EmptyState title="No case stages to show">
+              <EmptyState icon="briefcase" title="No case stages to show">
                 Actual stage counts appear when a case is shared and visible to you.
               </EmptyState>
               <Link href={`${base}/cases`}>Open cases</Link>

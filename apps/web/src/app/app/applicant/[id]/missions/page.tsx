@@ -60,7 +60,7 @@ export default async function MissionsPage({
           <p className="card-kicker">Your cases</p>
           <h2 className="card-title">Active &amp; past</h2>
           {data.missions.length === 0 ? (
-            <EmptyState title="No cases yet">
+            <EmptyState icon="briefcase" title="No cases yet">
               A case checks this person's documents against the requirements of one visa route.
               Start one on the right.
             </EmptyState>

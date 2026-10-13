@@ -24,14 +24,13 @@ export default function AppError({
   return (
     <section className="section container center">
       <span className="eyebrow">Something went wrong</span>
-      <h1 className="section-title" style={{ margin: '0.5rem 0 0' }}>
-        We hit a snag loading this page
-      </h1>
-      <p className="section-sub" style={{ margin: '0.75rem auto 1.5rem', maxWidth: '34rem' }}>
-        This is on our side, not yours. Nothing you had entered on this page was lost or damaged.
-        Try again in a moment; if it keeps happening, sign out and back in.
+      <h1 className="section-title error-title">We hit a snag loading this page</h1>
+      <p className="section-sub error-body">
+        This is on our side, not yours. Everything you already saved is safe. If you were typing
+        something, you may need to enter it again. Try again in a moment; if it keeps happening,
+        sign out and back in.
       </p>
-      <div className="cta-row" style={{ justifyContent: 'center' }}>
+      <div className="cta-row cta-row-center">
         <button type="button" className="btn btn-primary" onClick={() => reset()}>
           Try again
         </button>
@@ -39,11 +38,7 @@ export default function AppError({
           Back to home
         </Link>
       </div>
-      {error.digest ? (
-        <p className="muted" style={{ marginTop: '1.5rem', fontSize: '0.8rem' }}>
-          Reference: {error.digest}
-        </p>
-      ) : null}
+      {error.digest ? <p className="muted error-reference">Reference: {error.digest}</p> : null}
     </section>
   );
 }

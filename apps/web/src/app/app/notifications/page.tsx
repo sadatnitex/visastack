@@ -26,7 +26,7 @@ export default async function NotificationsPage() {
 
       <article className="card">
         {notifications.length === 0 ? (
-          <EmptyState title="No alerts yet">
+          <EmptyState icon="bell" title="No alerts yet">
             Updates about your cases, requests for evidence and documents nearing expiry will appear
             here, each with a button that takes you to what needs doing.
           </EmptyState>

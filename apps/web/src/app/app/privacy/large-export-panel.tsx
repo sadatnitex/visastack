@@ -53,7 +53,15 @@ function StatusLine({ job }: { readonly job: LargeExportJobProps }) {
         </span>
       );
     case 'FAILED':
-      return <span className="badge badge-danger">Failed - request a new one</span>;
+      return (
+        <span className="export-failed">
+          <span className="badge badge-danger">Could not be made</span>
+          <span className="muted">
+            Your data is safe and nothing was changed. Request it again below. If it fails twice,{' '}
+            <a href="/app/help">get help</a>.
+          </span>
+        </span>
+      );
     case 'EXPIRED':
       return <span className="badge badge-neutral">Expired</span>;
     default:

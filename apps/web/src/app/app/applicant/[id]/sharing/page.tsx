@@ -130,7 +130,7 @@ export default async function SharingPage({
                 We could not load sharing records. This does not mean nobody has access.
               </p>
             ) : data.grants.length === 0 ? (
-              <EmptyState title="Nobody has access yet">
+              <EmptyState icon="shield" title="Nobody has access yet">
                 Your profile and documents are private. When you share with someone, they appear
                 here with what they can see and until when.
               </EmptyState>
@@ -313,7 +313,7 @@ export default async function SharingPage({
               {data.auditEvents.length} event{data.auditEvents.length === 1 ? '' : 's'}.
             </p>
             {data.auditEvents.length === 0 ? (
-              <EmptyState title="No activity yet">
+              <EmptyState icon="activity" title="No activity yet">
                 Every time your information is opened, shared or changed, it is recorded here.
               </EmptyState>
             ) : (

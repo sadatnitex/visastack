@@ -35,7 +35,7 @@ export default async function AgencyPage() {
           <p className="card-kicker">Your organizations</p>
           <h2 className="card-title">Memberships</h2>
           {orgs.length === 0 ? (
-            <EmptyState title="No organizations yet">
+            <EmptyState icon="building" title="No organizations yet">
               Apply to register your agency here. You become its owner, and a platform administrator
               must verify it before it can work with clients.
             </EmptyState>

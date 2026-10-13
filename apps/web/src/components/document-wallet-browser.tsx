@@ -168,7 +168,10 @@ export function DocumentWalletBrowser({
               ))}
             </ul>
           ) : (
-            <EmptyState title={documents.length ? 'No documents match' : 'No documents yet'}>
+            <EmptyState
+              icon="file"
+              title={documents.length ? 'No documents match' : 'No documents yet'}
+            >
               {documents.length
                 ? 'Clear the search or choose another category or status.'
                 : 'Upload a document to organize it here. Only authorized recipients can open shared files.'}
@@ -230,6 +233,7 @@ export function DocumentWalletBrowser({
             </>
           ) : (
             <EmptyState
+              icon="alert"
               title={selectedId ? 'Selected document is unavailable' : 'Choose a document'}
             >
               Select an available row to review its metadata and authorized actions.

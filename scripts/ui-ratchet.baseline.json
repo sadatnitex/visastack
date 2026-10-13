@@ -93,7 +93,6 @@
     "apps/web/src/app/auth/sign-in/page.tsx": 1,
     "apps/web/src/app/auth/sign-up/page.tsx": 1,
     "apps/web/src/app/auth/verify-email/page.tsx": 1,
-    "apps/web/src/app/error.tsx": 4,
     "apps/web/src/app/global-error.tsx": 6,
     "apps/web/src/app/not-found.tsx": 3,
     "apps/web/src/app/page.tsx": 2,

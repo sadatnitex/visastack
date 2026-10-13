@@ -111,7 +111,7 @@ export default async function PrivacyPage() {
         <p className="card-kicker">Transparency</p>
         <h2 className="card-title">Consent history</h2>
         {data.history.length === 0 ? (
-          <EmptyState title="No changes yet">
+          <EmptyState icon="activity" title="No changes yet">
             Each time you turn a permission on or off, it is recorded here with the date.
           </EmptyState>
         ) : (
