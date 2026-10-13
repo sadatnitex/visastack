@@ -1,7 +1,15 @@
 import 'server-only';
+import { formatFileSize } from './format-size';
+
+/** A plain word for where a service stands. "Set Up" never means "proven to work". */
+export type ProviderStatus = 'Set Up' | 'Not Set Up' | 'Recorded' | 'Not Proven' | 'Not Measured';
 
 export interface ProviderOperationsRow {
   readonly label: string;
+  /** Where the service stands, in one plain word. */
+  readonly status: ProviderStatus;
+  /** One plain sentence for the founder. The exact reading, source and caveat stay in the detail. */
+  readonly headline: string;
   readonly reading: string;
   readonly source: 'Application records' | 'Configuration' | 'Not measured';
   readonly detail: string;
@@ -12,6 +20,14 @@ export function describeProviderOperations(
   input: { readonly evidenceBytes?: number; readonly aiCostUnits?: number },
   env: Readonly<Record<string, string | undefined>> = process.env,
 ): ProviderOperationsRow[] {
+  const rows = rawRows(input, env);
+  return rows.map((row) => ({ ...row, ...plain(row, input) }));
+}
+
+function rawRows(
+  input: { readonly evidenceBytes?: number; readonly aiCostUnits?: number },
+  env: Readonly<Record<string, string | undefined>>,
+): Omit<ProviderOperationsRow, 'status' | 'headline'>[] {
   const read = (name: string) => env[name];
   const configured = (names: readonly string[]) =>
     names.every((name) => Boolean(env[name]?.trim()));
@@ -96,4 +112,83 @@ export function describeProviderOperations(
         'Check current email, hosting, database, storage and AI account usage before upgrading. Missing measurements are not zero cost or unlimited capacity.',
     },
   ];
+}
+
+function plain(
+  row: Omit<ProviderOperationsRow, 'status' | 'headline'>,
+  input: { readonly evidenceBytes?: number; readonly aiCostUnits?: number },
+): { readonly status: ProviderStatus; readonly headline: string } {
+  const unmeasured = {
+    status: 'Not Measured' as const,
+    headline: 'This is not counted here. Check the provider account itself.',
+  };
+  switch (row.label) {
+    case 'Application email':
+      return row.reading === 'Configuration present'
+        ? {
+            status: 'Set Up',
+            headline: 'A sender is set up. That does not prove emails arrive.',
+          }
+        : { status: 'Not Set Up', headline: 'No application email sender is set up yet.' };
+    case 'Email delivery receipts':
+      return row.reading === 'Verification secret present'
+        ? {
+            status: 'Set Up',
+            headline:
+              'Receipt checking is switched on. Delivery is unproven until a real receipt arrives.',
+          }
+        : { status: 'Not Set Up', headline: 'Delivery receipts are not being checked yet.' };
+    case 'Document storage':
+      return row.reading === 'Configuration present'
+        ? {
+            status: 'Set Up',
+            headline:
+              'Storage settings are present. Not proven until a real file is stored and read back.',
+          }
+        : {
+            status: 'Not Set Up',
+            headline: 'Storage settings are incomplete. Check them before real documents are used.',
+          };
+    case 'Tracked evidence storage':
+      return input.evidenceBytes !== undefined && row.source === 'Application records'
+        ? {
+            status: 'Recorded',
+            headline: `${formatFileSize(input.evidenceBytes)} of files are recorded. This is not your storage bill.`,
+          }
+        : { status: 'Not Measured', headline: 'Storage use could not be counted.' };
+    case 'AI environment key':
+      return row.reading === 'Environment key present'
+        ? {
+            status: 'Set Up',
+            headline:
+              'An AI key is set. Settings in the admin area can still choose another provider.',
+          }
+        : {
+            status: 'Not Set Up',
+            headline:
+              'No AI key is set in the environment. A provider chosen in settings may still apply.',
+          };
+    case 'Tracked AI usage':
+      return row.source === 'Application records'
+        ? {
+            status: 'Recorded',
+            headline: 'Usage is recorded in the app. It is not the provider invoice.',
+          }
+        : { status: 'Not Measured', headline: 'AI usage could not be counted.' };
+    case 'Encryption key recovery':
+      return row.reading === 'Key not configured'
+        ? { status: 'Not Set Up', headline: 'No encryption key is set.' }
+        : {
+            status: 'Not Proven',
+            headline: 'A key is in place. Nobody has proven it can be recovered.',
+          };
+    case 'Backup recovery':
+      return {
+        status: 'Not Proven',
+        headline:
+          'Full recovery is not proven. Restoring the database alone does not bring back documents or keys.',
+      };
+    default:
+      return unmeasured;
+  }
 }
