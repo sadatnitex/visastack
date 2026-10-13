@@ -186,3 +186,9 @@ Times are UTC. "Owner" is the founder. Claude did all of this in one session; no
 Left open at the end of the day: the decisions in section 7, the Neon branch limit, viewing the error screen on a real signed-in page, and signed-in screens on a real sign-in.
 
 13. **Evening, 2026-10-13.** Pull request 206 (Phase 2) merged as 15bf62d; production deployed and the Deploy Smoke run passed. The owner reported the evidence form still showed passport_number; pull request 207 replaced it with named choices, then added Other document. The owner approved phases 3 to 8 and asked for the camera button without a size number and, if possible, the adviser's input on consent wording. Phase 3 was proven with an unchanged screenshot compare (386 of 386). Phases 4 to 8 were built with tests; the compare against Phase 3 changed only the screens meant to change (admin overview, agency list, sharing page) and added the new case form. Not in the screenshot set because no page test renders them: the case page, upload page and sharing form.
+
+### Session log addendum: phases 9 and 10, first part
+- Pull request 209 (phases 4 to 8) merged as af88a09 after its main check passed on the exact head.
+- Phase 9 and 10 first part built on a branch cut from that merge: tests that record how the public and entry pages behave, shared motion speeds, a verdict-first status page, a step line on sign-up, confirm-email and invitation pages, and a working example on the home page.
+- Confirm-email page cannot show the typed address (it only receives the next-step values), so the earlier mockup of a masked address and a mail-app button is not built.
+- Still held: Before you start box, privacy at a glance, WhatsApp link, agency made-up day, invitation sender name, invitation decline treatment.
