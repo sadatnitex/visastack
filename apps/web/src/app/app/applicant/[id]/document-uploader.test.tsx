@@ -19,11 +19,12 @@ describe('the upload form', () => {
     expect(textOf(html)).toContain('PDF, PNG, JPEG, DOCX, TXT or MD');
   });
 
-  it('states the limit it was given, not a number written into the form', () => {
-    expect(textOf(html)).toContain('up to 5 MB');
-    expect(textOf(renderToStaticMarkup(<DocumentUploader applicantId="a1" />))).toContain(
-      'up to 20 MB',
-    );
+  it('does not print a size limit it has not proven, and offers the camera', () => {
+    const text = textOf(html);
+    expect(text).not.toMatch(/up to \d+ ?MB/);
+    expect(text).toContain('Take a photo');
+    expect(html).toContain('type="file"');
+    expect(html).toContain('name="file"');
   });
 
   it('has its result regions in the page before anything happens, so the result is announced', () => {
