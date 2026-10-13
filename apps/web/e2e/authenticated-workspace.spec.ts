@@ -152,10 +152,10 @@ async function ensureConsent(page: import('@playwright/test').Page, title: strin
   await page.goto('/app');
   const row = page.locator('.row', { hasText: title });
   await expect(row).toBeVisible();
-  const grantButton = row.getByRole('button', { name: 'Grant' });
+  const grantButton = row.getByRole('button', { name: 'Turn on' });
   if (await grantButton.isVisible().catch(() => false)) {
     await grantButton.click();
-    await expect(row.getByRole('button', { name: 'Revoke' })).toBeVisible({ timeout: 10_000 });
+    await expect(row.getByRole('button', { name: 'Turn off' })).toBeVisible({ timeout: 10_000 });
   }
 }
 
@@ -333,25 +333,25 @@ test.describe
       page,
     }) => {
       await signIn(page);
-      await ensureConsent(page, 'Core processing consent');
-      await ensureConsent(page, 'Sharing consent');
+      await ensureConsent(page, 'Let VisaStack process my details');
+      await ensureConsent(page, 'Let me share with others');
 
       // Revoking one must never require re-granting the other (finding #22,
       // post-programme defect register) -- verified directly here, not just
       // at the unit level.
       await page.goto('/app');
-      const sharingRow = page.locator('.row', { hasText: 'Sharing consent' });
-      await sharingRow.getByRole('button', { name: 'Revoke' }).click();
-      await expect(sharingRow.getByRole('button', { name: 'Grant' })).toBeVisible({
+      const sharingRow = page.locator('.row', { hasText: 'Let me share with others' });
+      await sharingRow.getByRole('button', { name: 'Turn off' }).click();
+      await expect(sharingRow.getByRole('button', { name: 'Turn on' })).toBeVisible({
         timeout: 10_000,
       });
-      const coreRow = page.locator('.row', { hasText: 'Core processing consent' });
-      await expect(coreRow.getByRole('button', { name: 'Revoke' })).toBeVisible();
+      const coreRow = page.locator('.row', { hasText: 'Let VisaStack process my details' });
+      await expect(coreRow.getByRole('button', { name: 'Turn off' })).toBeVisible();
 
       // Re-grant sharing so later tests in this file that depend on it
       // (grant creation below) aren't left broken by this test's own cleanup.
-      await sharingRow.getByRole('button', { name: 'Grant' }).click();
-      await expect(sharingRow.getByRole('button', { name: 'Revoke' })).toBeVisible({
+      await sharingRow.getByRole('button', { name: 'Turn on' }).click();
+      await expect(sharingRow.getByRole('button', { name: 'Turn off' })).toBeVisible({
         timeout: 10_000,
       });
     });
@@ -367,7 +367,7 @@ test.describe
       // timeout before ever reaching its real (successful) terminal state.
       test.setTimeout(120_000);
       await signIn(page);
-      await ensureConsent(page, 'Core processing consent');
+      await ensureConsent(page, 'Let VisaStack process my details');
       const applicantUrl = await createApplicant(page, 'E2E Evidence');
 
       await page.goto(`${applicantUrl}/documents`);
@@ -420,12 +420,12 @@ test.describe
 
     test('creates a mission', async ({ page }) => {
       await signIn(page);
-      await ensureConsent(page, 'Core processing consent');
+      await ensureConsent(page, 'Let VisaStack process my details');
       const applicantUrl = await createApplicant(page, 'E2E Mission');
 
       await page.goto(`${applicantUrl}/missions`);
       const missionTitle = `E2E Mission ${Date.now()}`;
-      await page.getByLabel('Title').fill(missionTitle);
+      await page.getByLabel('What is this case for?').fill(missionTitle);
       await page.getByRole('button', { name: 'Create case' }).click();
       await expect(page.getByText(missionTitle)).toBeVisible({ timeout: 10_000 });
     });
@@ -446,8 +446,8 @@ test.describe
       // testing over this same, real safety guard, checking the app never
       // silently no-ops or half-creates a grant for an address nobody owns.
       await signIn(page);
-      await ensureConsent(page, 'Core processing consent');
-      await ensureConsent(page, 'Sharing consent');
+      await ensureConsent(page, 'Let VisaStack process my details');
+      await ensureConsent(page, 'Let me share with others');
       const applicantUrl = await createApplicant(page, 'E2E Sharing Safety');
 
       await page.goto(`${applicantUrl}/sharing`);
@@ -465,7 +465,7 @@ test.describe
 
     test('views fact history for an applicant', async ({ page }) => {
       await signIn(page);
-      await ensureConsent(page, 'Core processing consent');
+      await ensureConsent(page, 'Let VisaStack process my details');
       const applicantUrl = await createApplicant(page, 'E2E History');
 
       await page.goto(`${applicantUrl}/history`);
@@ -516,8 +516,8 @@ test.describe
       }
 
       try {
-        page.once('dialog', (dialog) => dialog.accept());
         await page.getByRole('button', { name: 'Request account deletion' }).click();
+        await page.getByRole('button', { name: 'Yes, schedule deletion' }).click();
         await expect(page.getByText(/deletion pending/i)).toBeVisible({ timeout: 10_000 });
       } finally {
         // Unconditional: runs whether the assertions above passed, failed,
@@ -567,8 +567,8 @@ test.describe
       baseURL,
     }) => {
       await signIn(page);
-      await ensureConsent(page, 'Core processing consent');
-      await ensureConsent(page, 'Sharing consent');
+      await ensureConsent(page, 'Let VisaStack process my details');
+      await ensureConsent(page, 'Let me share with others');
       sharedFixture.applicantUrl = await createApplicant(page, 'E2E Cross Account');
       sharedFixture.applicantName =
         (await page.locator('h1').first().textContent())?.trim() ?? 'E2E Cross Account';
@@ -581,8 +581,8 @@ test.describe
       await page.getByRole('button', { name: 'Confirm sharing request' }).click();
       const pendingRow = page.locator('.row', { hasText: 'E2E revoke before acceptance' });
       await expect(pendingRow).toBeVisible({ timeout: 10_000 });
-      page.once('dialog', (dialog) => dialog.accept());
       await pendingRow.getByRole('button', { name: 'Revoke' }).click();
+      await pendingRow.getByRole('button', { name: 'Yes, revoke access' }).click();
       await expect(page.locator('.row', { hasText: 'E2E revoke before acceptance' })).toContainText(
         /revoked/i,
         { timeout: 10_000 },

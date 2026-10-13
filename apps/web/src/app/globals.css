@@ -5279,6 +5279,14 @@ body:has(.auth-shell) > .footer {
   margin-top: 1.5rem;
   font-size: 1rem;
 }
+.case-group-heading {
+  margin: 1.25rem 0 0.25rem;
+  font-size: var(--text-small);
+  font-weight: 700;
+}
+.case-group-heading .muted {
+  font-weight: 500;
+}
 @media (max-width: 767px) {
   .case-evidence-overview .case-preparation-summary {
     grid-template-columns: minmax(0, 1fr);
@@ -5433,4 +5441,30 @@ body:has(.auth-shell) > .footer {
 .u-btn-xs {
   padding: 0.2rem 0.6rem !important;
   font-size: var(--text-caption) !important;
+}
+
+/* Quick views above the agency case list (Phase 6). */
+.quick-views {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.quick-view {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-height: 2.25rem;
+  padding: 0.3rem 0.85rem;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-pill);
+  background: var(--bg-elevated);
+  color: var(--text);
+  font-size: var(--text-small);
+  text-decoration: none;
+}
+.quick-view-on {
+  border-color: var(--accent);
+  background: var(--brand-bg);
+  color: var(--selected-text);
+  font-weight: 600;
 }

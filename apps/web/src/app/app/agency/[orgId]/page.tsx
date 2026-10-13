@@ -56,6 +56,7 @@ export default async function AgencyDashboardPage({
     readonly stage?: string;
     readonly destination?: string;
     readonly assignee?: string;
+    readonly quick?: string;
   }>;
 }) {
   const { orgId } = await params;
@@ -64,6 +65,7 @@ export default async function AgencyDashboardPage({
     stage: stageFilter = '',
     destination: rawDestinationFilter = '',
     assignee: assigneeFilter = '',
+    quick: rawQuick = '',
   } = await searchParams;
 
   const data = await withSession(async ({ db, accountId }) => {
@@ -132,7 +134,7 @@ export default async function AgencyDashboardPage({
 
   const q = rawQuery.trim().toLowerCase();
   const destinationQuery = rawDestinationFilter.trim().toLowerCase();
-  const searched = data.missions
+  const searchedAll = data.missions
     .filter((mission) => {
       if (q.length > 0) {
         const haystack =
@@ -177,6 +179,30 @@ export default async function AgencyDashboardPage({
         (x.approaching ? 1 : 0);
       return weight(b) - weight(a);
     });
+
+  // One-tap views over the cases already found. They only narrow the list; nothing is hidden for good.
+  const quickViews: readonly {
+    readonly key: string;
+    readonly label: string;
+    readonly test: (row: (typeof searchedAll)[number]) => boolean;
+  }[] = [
+    { key: 'mine', label: 'Mine', test: (row) => row.assignedToMe },
+    { key: 'overdue', label: 'Overdue', test: (row) => row.overdueTasks > 0 },
+    { key: 'waiting', label: 'Waiting On Traveller', test: (row) => row.openRequests > 0 },
+    { key: 'unassigned', label: 'Unassigned', test: (row) => row.mission.assignments.length === 0 },
+  ];
+  const activeQuick = quickViews.find((view) => view.key === rawQuick);
+  const searched = activeQuick ? searchedAll.filter(activeQuick.test) : searchedAll;
+  const quickHref = (key: string) => {
+    const params = new URLSearchParams();
+    if (rawQuery) params.set('q', rawQuery);
+    if (stageFilter) params.set('stage', stageFilter);
+    if (rawDestinationFilter) params.set('destination', rawDestinationFilter);
+    if (assigneeFilter) params.set('assignee', assigneeFilter);
+    if (key) params.set('quick', key);
+    const query = params.toString();
+    return `${base}${query ? `?${query}` : ''}`;
+  };
 
   const stageCounts = new Map<string, number>([
     ['DRAFT', 0],
@@ -313,6 +339,28 @@ export default async function AgencyDashboardPage({
               destination={rawDestinationFilter}
               assignee={assigneeFilter}
             />
+            {data.missions.length > 0 ? (
+              <nav className="quick-views u-mt-100" aria-label="Quick views of the case list">
+                <Link
+                  href={quickHref('')}
+                  className={`quick-view${activeQuick ? '' : ' quick-view-on'}`}
+                  aria-current={activeQuick ? undefined : 'true'}
+                >
+                  All <span className="muted">{searchedAll.length}</span>
+                </Link>
+                {quickViews.map((view) => (
+                  <Link
+                    key={view.key}
+                    href={quickHref(view.key)}
+                    className={`quick-view${activeQuick?.key === view.key ? ' quick-view-on' : ''}`}
+                    aria-current={activeQuick?.key === view.key ? 'true' : undefined}
+                  >
+                    {view.label}{' '}
+                    <span className="muted">{searchedAll.filter(view.test).length}</span>
+                  </Link>
+                ))}
+              </nav>
+            ) : null}
             {data.missions.length === 0 ? (
               <div className="u-mt-100">
                 <EmptyState title="No cases yet" icon="briefcase">
@@ -331,6 +379,7 @@ export default async function AgencyDashboardPage({
                     <th scope="col">Case</th>
                     <th scope="col">Stage</th>
                     <th scope="col">Readiness</th>
+                    <th scope="col">Deadline</th>
                     <th scope="col">Needs attention</th>
                     <th scope="col">Assigned</th>
                     <th scope="col">Traveller confirmed</th>
@@ -377,6 +426,13 @@ export default async function AgencyDashboardPage({
                               {satisfied} of {required} required
                             </span>
                           ) : null}
+                        </td>
+                        <td data-label="Deadline">
+                          {mission.targetDeadline ? (
+                            formatDateOnly(mission.targetDeadline)
+                          ) : (
+                            <span className="muted">Not set</span>
+                          )}
                         </td>
                         <td data-label="Needs attention">
                           <span className="case-row-badges">

@@ -172,6 +172,33 @@ describe('agency Dashboard', () => {
     expect(mine).not.toContain('Rahim Uddin');
   });
 
+  it('narrows the list with one-tap views and shows how many cases each holds', async () => {
+    mocks.loadUnassignedQueue.mockResolvedValue([]);
+    const all = textOf(await renderServer(Page(pageProps())));
+    expect(all).toContain('Mine 1');
+    expect(all).toContain('Overdue 1');
+    expect(all).toContain('Waiting On Traveller 1');
+    expect(all).toContain('Unassigned 1');
+    for (const [quick, shown, hidden] of [
+      ['mine', 'Nusrat Jahan', 'Rahim Uddin'],
+      ['overdue', 'Rahim Uddin', 'Nusrat Jahan'],
+      ['waiting', 'Rahim Uddin', 'Nusrat Jahan'],
+      ['unassigned', 'Rahim Uddin', 'Nusrat Jahan'],
+    ] as const) {
+      const text = textOf(await renderServer(Page(pageProps({ quick }))));
+      expect(text, quick).toContain(shown);
+      expect(text, quick).not.toContain(hidden);
+    }
+  });
+
+  it('keeps the search when a quick view is chosen and shows a deadline column', async () => {
+    const html = await renderServer(Page(pageProps({ q: 'rahim' })));
+    expect(html).toContain('quick=overdue');
+    expect(html).toContain('q=rahim');
+    expect(textOf(html)).toContain('Deadline');
+    expect(textOf(html)).toContain('Not set');
+  });
+
   it('says so when a search matches nothing', async () => {
     const text = textOf(await renderServer(Page(pageProps({ q: 'no such case' }))));
     expect(text).toContain('No cases match that search.');

@@ -637,9 +637,9 @@ export default async function ApplicantDocumentsPage({
           {!data.coreGranted ? (
             <article className="card u-mb-150">
               <p className="card-body">
-                Grant <strong>Core processing</strong> consent from <Link href="/app">Home</Link> to
-                upload new documents or run processing. Your existing documents remain visible
-                above.
+                Turn on <strong>Let VisaStack process my details</strong> on{' '}
+                <Link href="/app">Home</Link> to upload new documents or run processing. Your
+                existing documents remain visible above.
               </p>
             </article>
           ) : (
@@ -647,9 +647,10 @@ export default async function ApplicantDocumentsPage({
               {data.aiConfigured && !data.aiGranted ? (
                 <div className="card u-mb-150">
                   <p className="card-body">
-                    Grant <strong>AI extraction</strong> consent from <Link href="/app">Home</Link>{' '}
-                    to get automatic field suggestions from your documents - every suggestion still
-                    requires your explicit approval before it changes your profile.
+                    Turn on <strong>Let AI read details from my documents</strong> on{' '}
+                    <Link href="/app">Home</Link> to get automatic field suggestions from your
+                    documents - every suggestion still requires your explicit approval before it
+                    changes your profile.
                   </p>
                 </div>
               ) : null}
@@ -657,9 +658,9 @@ export default async function ApplicantDocumentsPage({
               {data.ocrConfigured && !data.ocrGranted ? (
                 <div className="card u-mb-150">
                   <p className="card-body">
-                    Grant <strong>AI OCR</strong> consent from <Link href="/app">Home</Link> to read
-                    text from scanned or photographed documents - this sends the document's image, a
-                    larger disclosure than AI extraction's text-only sharing.
+                    Turn on <strong>Let AI read text from my scans</strong> on{' '}
+                    <Link href="/app">Home</Link> to read text from scanned or photographed
+                    documents. This sends the document's image, which shares more than text alone.
                   </p>
                 </div>
               ) : null}

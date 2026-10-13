@@ -8,6 +8,7 @@ import {
 } from '@visastack/services';
 import type { Metadata } from 'next';
 import { EmptyState, PageHeader } from '../../../components/ui';
+import { consentName } from '../../../lib/labels';
 import { withSession } from '../../../lib/session';
 import { DeletionPanel } from './deletion-panel';
 import { LargeExportPanel } from './large-export-panel';
@@ -17,12 +18,12 @@ export const metadata: Metadata = { title: 'Privacy' };
 export const dynamic = 'force-dynamic';
 
 const CONSENT_LABELS: Record<ConsentType, string> = {
-  CORE_PROCESSING: 'Core processing',
-  AI_EXTRACTION: 'AI extraction',
-  AI_OCR: 'AI OCR',
-  SHARING: 'Sharing',
-  MARKETING: 'Marketing',
-  ISSUER_CONTACT: 'Issuer contact',
+  CORE_PROCESSING: consentName('CORE_PROCESSING'),
+  AI_EXTRACTION: consentName('AI_EXTRACTION'),
+  AI_OCR: consentName('AI_OCR'),
+  SHARING: consentName('SHARING'),
+  MARKETING: consentName('MARKETING'),
+  ISSUER_CONTACT: consentName('ISSUER_CONTACT'),
 };
 
 function formatDateTime(iso: string): string {

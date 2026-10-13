@@ -65,3 +65,18 @@ describe('plain labels for stored codes', () => {
     expect(aiProviderLabel('something-new')).toBe('Something New');
   });
 });
+
+describe('consent names', () => {
+  it('has a plain name and a meaning for every consent type, with no stored code showing', async () => {
+    const { CONSENT_TYPES } = await import('@visastack/core');
+    const { CONSENT_PLAIN, consentName } = await import('./labels');
+    for (const type of CONSENT_TYPES) {
+      const entry = CONSENT_PLAIN[type];
+      expect(entry, type).toBeDefined();
+      expect(entry?.name).not.toMatch(/_|consent|processing|OCR/i);
+      expect(entry?.meaning.length).toBeGreaterThan(20);
+      expect(consentName(type)).toBe(entry?.name);
+    }
+    expect(consentName('SOMETHING_NEW')).toBe('Something New');
+  });
+});

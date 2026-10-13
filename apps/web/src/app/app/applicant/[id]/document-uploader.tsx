@@ -45,11 +45,14 @@ function useSlow(active: boolean, afterMs: number): boolean {
 
 export function DocumentUploader({
   applicantId,
-  limitLabel = '20 MB',
   virusScanning = false,
 }: {
   readonly applicantId: string;
-  /** The real per-file limit, so the help text never states a number the server does not enforce. */
+  /**
+   * The configured per-file limit. Not shown to people for now: the website host may refuse a large
+   * file before the app sees it, so a number here could be wrong. It returns once an upload test on
+   * the live host has proven it.
+   */
   readonly limitLabel?: string;
   /** True only when a real virus scanner is switched on, so the page never claims one that is not. */
   readonly virusScanning?: boolean;
@@ -58,6 +61,9 @@ export function DocumentUploader({
   const slow = useSlow(pending, SLOW_AFTER_MS);
   const messageId = useId();
   const formRef = useRef<HTMLFormElement>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+  /** Set by the camera button so the next file picker opens the phone camera, then cleared. */
+  const cameraNext = useRef(false);
   const [picked, setPicked] = useState<{ readonly name: string; readonly size: number } | null>(
     null,
   );
@@ -67,11 +73,21 @@ export function DocumentUploader({
     <form ref={formRef} action={formAction} className="uploader">
       <input type="hidden" name="applicantId" value={applicantId} />
       <input
+        ref={fileRef}
         name="file"
         type="file"
         accept=".pdf,.png,.jpg,.jpeg,.docx,.txt,.md,image/png,image/jpeg,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,text/markdown"
         required
         className="input"
+        onClick={(event) => {
+          // Only the camera button asks for the camera; choosing a file the usual way never does.
+          if (cameraNext.current) {
+            event.currentTarget.setAttribute('capture', 'environment');
+            cameraNext.current = false;
+          } else {
+            event.currentTarget.removeAttribute('capture');
+          }
+        }}
         onChange={(event) => {
           const file = event.currentTarget.files?.[0];
           setPicked(file ? { name: file.name, size: file.size } : null);
@@ -79,6 +95,16 @@ export function DocumentUploader({
         aria-label="Document file"
         {...fieldProblem(state, 'file', messageId)}
       />
+      <button
+        type="button"
+        className="btn btn-secondary"
+        onClick={() => {
+          cameraNext.current = true;
+          fileRef.current?.click();
+        }}
+      >
+        Take a photo
+      </button>
       {picked ? (
         <output className="muted" style={{ display: 'block', fontSize: '0.85rem' }}>
           Ready to upload: {picked.name} ({formatFileSize(picked.size)})
@@ -97,7 +123,7 @@ export function DocumentUploader({
         pendingText={slow ? UPLOADING_SLOW_TEXT : UPLOADING_TEXT}
       />
       <p className="muted" style={{ fontSize: '0.8rem', margin: 0 }}>
-        PDF, PNG, JPEG, DOCX, TXT or MD · up to {limitLabel} ·{' '}
+        PDF, PNG, JPEG, DOCX, TXT or MD ·{' '}
         {virusScanning
           ? 'scanned for viruses on upload.'
           : 'file type and structure are checked on upload.'}

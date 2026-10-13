@@ -42,6 +42,10 @@ function ready() {
   change('recipientEmail', 'synthetic@example.com');
   change('purpose', 'Visa review');
 }
+function chooseSome(group: 'profileScope' | 'documentScope') {
+  const radios = container.querySelectorAll<HTMLInputElement>(`input[name="${group}"]`);
+  act(() => radios[1]?.click());
+}
 function review() {
   const button = [...container.querySelectorAll('button')].find(
     (node) => node.textContent === 'Review and confirm',
@@ -59,12 +63,13 @@ describe('native scoped sharing confirmation', () => {
     review();
     expect(submit?.disabled).toBe(false);
     expect(container.textContent).toContain('They must accept');
-    expect(container.textContent).toContain('every profile category');
+    expect(container.textContent).toContain('your whole profile');
     expect(container.textContent).toContain('every document');
     expect(document.activeElement?.className).toBe('sharing-scope-review');
   });
   it('shows selected document names and exact download scope without changing native payloads', () => {
     ready();
+    chooseSome('documentScope');
     act(() => container.querySelector<HTMLInputElement>('input[value="passport"]')?.click());
     act(() =>
       container.querySelector<HTMLInputElement>('input[value="DOWNLOAD_REDACTED"]')?.click(),
@@ -83,6 +88,40 @@ describe('native scoped sharing confirmation', () => {
     expect(data.getAll('action')).toEqual(['VIEW_METADATA', 'PREVIEW', 'DOWNLOAD_REDACTED']);
     expect(data.get('applicantId')).toBe('owned-person');
     expect(container.querySelector('input[value="DOWNLOAD_ORIGINAL"]')).toBeNull();
+  });
+  it('shares everything only as a visible choice and sends no scope fields for it', () => {
+    ready();
+    const form = container.querySelector('form');
+    if (!form) throw new Error('Form');
+    expect(container.textContent).toContain('Everything in my profile');
+    expect(container.textContent).not.toContain('Leave all unchecked');
+    const data = new FormData(form);
+    expect(data.getAll('category')).toEqual([]);
+    expect(data.getAll('documentId')).toEqual([]);
+    expect(data.has('profileScope')).toBe(false);
+    expect(data.has('documentScope')).toBe(false);
+  });
+  it('does not let a partial choice with nothing chosen quietly share everything', () => {
+    ready();
+    chooseSome('profileScope');
+    review();
+    expect(container.querySelector('[role="alert"]')?.textContent).toContain(
+      'Choose at least one part of your profile',
+    );
+    expect(container.querySelector<HTMLButtonElement>('button[type="submit"]')?.disabled).toBe(
+      true,
+    );
+    act(() =>
+      container
+        .querySelector<HTMLInputElement>('input[name="category"][value="universal"]')
+        ?.click(),
+    );
+    review();
+    expect(container.querySelector('[role="alert"]')?.textContent ?? '').not.toContain(
+      'Choose at least one',
+    );
+    const data = new FormData(container.querySelector('form') as HTMLFormElement);
+    expect(data.getAll('category')).toEqual(['universal']);
   });
   it('invalidates confirmation after edits and refuses a permission-free request', () => {
     ready();

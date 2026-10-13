@@ -34,6 +34,7 @@ import {
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { Fragment } from 'react';
 import {
   CasePreparationSummary,
   CaseStageTracker,
@@ -44,6 +45,7 @@ import { humanizeCode } from '../../../../lib/format-code';
 import { formatDateOnly, formatTimestampDate } from '../../../../lib/format-date';
 import { getLocale } from '../../../../lib/locale';
 import { profileField } from '../../../../lib/profile-fields';
+import { REQUIREMENT_GROUPS } from '../../../../lib/requirement-groups';
 import { withSession } from '../../../../lib/session';
 import { AttachPackForm, type PackOption } from './attach-pack-form';
 import {
@@ -108,36 +110,36 @@ const REQUIREMENT_STATE_META: Record<
   CRITICAL_GAP: {
     label: 'Missing',
     tone: 'badge-danger',
-    next: 'Required to move this case forward.',
+    next: 'Add this to move the case forward.',
     order: 0,
   },
   CONFLICTING: {
-    label: 'Conflicting values',
+    label: 'Two Values',
     tone: 'badge-danger',
-    next: 'Multiple conflicting values are on file. Resolve this on the profile before it can count.',
+    next: 'Two different values are on file. Pick the right one on your profile before it can count.',
     order: 1,
   },
   EXPIRING_STALE: {
-    label: 'Evidence too old',
+    label: 'Out Of Date',
     tone: 'badge-danger',
-    next: "The evidence on file is outside this route's freshness window. Upload a current version.",
+    next: 'The evidence on file is too old for this route. Add a current version.',
     order: 2,
   },
   UNVERIFIED: {
-    label: 'Unverified',
+    label: 'To Confirm',
     tone: 'badge-warning',
-    next: 'Whether this applies depends on other case details not yet confirmed.',
+    next: 'Whether this applies depends on case details that are not confirmed yet.',
     order: 3,
   },
   ATTENTION: {
-    label: 'Optional · not provided',
+    label: 'Optional',
     tone: 'badge-neutral',
     next: 'Optional for this case.',
     order: 4,
   },
-  SATISFIED: { label: 'On file', tone: 'badge-success', next: '', order: 5 },
+  SATISFIED: { label: 'On File', tone: 'badge-success', next: '', order: 5 },
   NOT_APPLICABLE: {
-    label: 'Not applicable',
+    label: 'Not Applicable',
     tone: 'badge-neutral',
     next: 'Does not apply to this case.',
     order: 6,
@@ -644,95 +646,113 @@ export default async function MissionPage({
                 {data.requirementDetails.length > 0 ? (
                   <>
                     <h3 className="case-checklist-heading">Evidence checklist</h3>
-                    <div className="rows">
-                      {data.requirementDetails.map((r) => {
-                        const meta = REQUIREMENT_STATE_META[r.state];
-                        const label =
-                          r.kind === 'FIELD'
-                            ? (profileField(r.key)?.label ?? humanizeCode(r.key))
-                            : humanizeCode(r.key);
-                        const sourceLine = [r.publisher, r.sourceTitle].filter(Boolean).join(' · ');
-                        const sourceHref = safeHttpUrl(r.sourceUrl);
-                        return (
-                          <div
-                            className="row"
-                            key={r.packRequirementId}
-                            style={{
-                              flexDirection: 'column',
-                              alignItems: 'stretch',
-                              gap: '0.3rem',
-                            }}
-                          >
-                            <div
-                              style={{
-                                display: 'flex',
-                                justifyContent: 'space-between',
-                                alignItems: 'center',
-                                gap: '0.75rem',
-                              }}
-                            >
-                              <span className="row-key">
-                                {label || '(unnamed)'}
-                                {r.optional ? ' · optional' : ''}
-                              </span>
-                              <span className={`badge ${meta.tone}`}>{meta.label}</span>
-                            </div>
-                            {meta.next ? (
-                              <span className="muted u-fs-080">
-                                {meta.next}
-                                {r.state === 'CONFLICTING' ? (
-                                  <>
-                                    {' '}
-                                    <Link href={`/app/applicant/${data.applicantId}/profile`}>
-                                      Resolve on profile →
-                                    </Link>
-                                  </>
-                                ) : null}
-                                {r.state === 'CRITICAL_GAP' || r.state === 'EXPIRING_STALE' ? (
-                                  <>
-                                    {' '}
-                                    <a href="#evidence">Provide evidence ↓</a>
-                                  </>
-                                ) : null}
-                              </span>
-                            ) : null}
-                            {r.citation ? (
-                              <span className="muted u-fs-075">
-                                Cite: {sourceLine || r.citation}
-                                {r.observedDate ? ` · as of ${formatDateOnly(r.observedDate)}` : ''}
-                                {sourceHref ? (
-                                  <>
-                                    {' · '}
-                                    <a href={sourceHref} target="_blank" rel="noreferrer">
-                                      source
-                                    </a>
-                                  </>
-                                ) : null}
-                              </span>
-                            ) : null}
-                            {r.sourceInaccessible ? (
-                              <span
-                                className="badge badge-danger"
-                                style={{ alignSelf: 'flex-start' }}
-                              >
-                                Source currently unreachable - under review
-                              </span>
-                            ) : null}
-                            {data.explanationConfigured &&
-                            (r.state === 'CRITICAL_GAP' || r.state === 'ATTENTION') ? (
-                              <ExplainGapButton
-                                missionId={data.mission.id}
-                                packRequirementId={r.packRequirementId}
-                                explanation={
-                                  data.explanationsByRequirement.get(r.packRequirementId)
-                                    ?.explanation ?? null
-                                }
-                              />
-                            ) : null}
+                    {REQUIREMENT_GROUPS.map((group) => {
+                      const groupRows = data.requirementDetails.filter((r) =>
+                        group.states.includes(r.state),
+                      );
+                      if (groupRows.length === 0) return null;
+                      return (
+                        <Fragment key={group.heading}>
+                          <h4 className="case-group-heading">
+                            {group.heading} <span className="muted">{groupRows.length}</span>
+                          </h4>
+                          <div className="rows">
+                            {groupRows.map((r) => {
+                              const meta = REQUIREMENT_STATE_META[r.state];
+                              const label =
+                                r.kind === 'FIELD'
+                                  ? (profileField(r.key)?.label ?? humanizeCode(r.key))
+                                  : humanizeCode(r.key);
+                              const sourceLine = [r.publisher, r.sourceTitle]
+                                .filter(Boolean)
+                                .join(' · ');
+                              const sourceHref = safeHttpUrl(r.sourceUrl);
+                              return (
+                                <div
+                                  className="row"
+                                  key={r.packRequirementId}
+                                  style={{
+                                    flexDirection: 'column',
+                                    alignItems: 'stretch',
+                                    gap: '0.3rem',
+                                  }}
+                                >
+                                  <div
+                                    style={{
+                                      display: 'flex',
+                                      justifyContent: 'space-between',
+                                      alignItems: 'center',
+                                      gap: '0.75rem',
+                                    }}
+                                  >
+                                    <span className="row-key">
+                                      {label || '(unnamed)'}
+                                      {r.optional ? ' · optional' : ''}
+                                    </span>
+                                    <span className={`badge ${meta.tone}`}>{meta.label}</span>
+                                  </div>
+                                  {meta.next ? (
+                                    <span className="muted u-fs-080">
+                                      {meta.next}
+                                      {r.state === 'CONFLICTING' ? (
+                                        <>
+                                          {' '}
+                                          <Link href={`/app/applicant/${data.applicantId}/profile`}>
+                                            Resolve on profile →
+                                          </Link>
+                                        </>
+                                      ) : null}
+                                      {r.state === 'CRITICAL_GAP' ||
+                                      r.state === 'EXPIRING_STALE' ? (
+                                        <>
+                                          {' '}
+                                          <a href="#evidence">Provide evidence ↓</a>
+                                        </>
+                                      ) : null}
+                                    </span>
+                                  ) : null}
+                                  {r.citation ? (
+                                    <span className="muted u-fs-075">
+                                      Cite: {sourceLine || r.citation}
+                                      {r.observedDate
+                                        ? ` · as of ${formatDateOnly(r.observedDate)}`
+                                        : ''}
+                                      {sourceHref ? (
+                                        <>
+                                          {' · '}
+                                          <a href={sourceHref} target="_blank" rel="noreferrer">
+                                            source
+                                          </a>
+                                        </>
+                                      ) : null}
+                                    </span>
+                                  ) : null}
+                                  {r.sourceInaccessible ? (
+                                    <span
+                                      className="badge badge-danger"
+                                      style={{ alignSelf: 'flex-start' }}
+                                    >
+                                      Source currently unreachable - under review
+                                    </span>
+                                  ) : null}
+                                  {data.explanationConfigured &&
+                                  (r.state === 'CRITICAL_GAP' || r.state === 'ATTENTION') ? (
+                                    <ExplainGapButton
+                                      missionId={data.mission.id}
+                                      packRequirementId={r.packRequirementId}
+                                      explanation={
+                                        data.explanationsByRequirement.get(r.packRequirementId)
+                                          ?.explanation ?? null
+                                      }
+                                    />
+                                  ) : null}
+                                </div>
+                              );
+                            })}
                           </div>
-                        );
-                      })}
-                    </div>
+                        </Fragment>
+                      );
+                    })}
                   </>
                 ) : null}
                 <p className="muted" style={{ fontSize: '0.8rem', marginTop: '1rem' }}>

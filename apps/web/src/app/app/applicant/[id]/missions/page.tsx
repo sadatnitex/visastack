@@ -90,7 +90,7 @@ export default async function MissionsPage({
             <CreateMissionForm applicantId={id} />
           ) : (
             <p className="card-body">
-              Grant <strong>Core processing</strong> consent to create cases.
+              Turn on <strong>Let VisaStack process my details</strong> on Home to create cases.
             </p>
           )}
         </article>

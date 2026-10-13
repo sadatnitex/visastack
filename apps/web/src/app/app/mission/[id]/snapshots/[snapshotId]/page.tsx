@@ -83,12 +83,12 @@ const PACKET_STATES: ReadonlySet<string> = new Set([
 // page this carries no "next action" links.
 const RESULT_STATE_LABELS: Record<RequirementResultState, { label: string; tone: string }> = {
   CRITICAL_GAP: { label: 'Missing', tone: 'badge-danger' },
-  CONFLICTING: { label: 'Conflicting values', tone: 'badge-danger' },
-  EXPIRING_STALE: { label: 'Evidence too old', tone: 'badge-danger' },
-  UNVERIFIED: { label: 'Unverified', tone: 'badge-warning' },
-  ATTENTION: { label: 'Optional · not provided', tone: 'badge-neutral' },
-  SATISFIED: { label: 'On file', tone: 'badge-success' },
-  NOT_APPLICABLE: { label: 'Not applicable', tone: 'badge-neutral' },
+  CONFLICTING: { label: 'Two Values', tone: 'badge-danger' },
+  EXPIRING_STALE: { label: 'Out Of Date', tone: 'badge-danger' },
+  UNVERIFIED: { label: 'To Confirm', tone: 'badge-warning' },
+  ATTENTION: { label: 'Optional', tone: 'badge-neutral' },
+  SATISFIED: { label: 'On File', tone: 'badge-success' },
+  NOT_APPLICABLE: { label: 'Not Applicable', tone: 'badge-neutral' },
 };
 
 export default async function MissionSnapshotPage({

@@ -19,7 +19,7 @@ import { formatDuration, formatMinorUnits, humanizeLabel } from '../../../lib/an
 import { evaluateCommercialReadiness } from '../../../lib/commercial-readiness';
 import { getDeploymentMode } from '../../../lib/deployment-mode';
 import { SHIPPED_MIGRATIONS } from '../../../lib/migration-journal';
-import { describeProviderOperations } from '../../../lib/provider-operations';
+import { type ProviderStatus, describeProviderOperations } from '../../../lib/provider-operations';
 import { evaluateReadiness } from '../../../lib/readiness';
 import { withSession } from '../../../lib/session';
 import { tolerantReader } from '../../../lib/tolerate';
@@ -85,6 +85,15 @@ const SIGNAL_STATUS_TONE: Record<OperationalSignal['status'], string> = {
  * carrying, and how is the pilot behaving. The other platform sections (Organizations,
  * Rules, AI, Privacy, Audit, Access) are pages of their own, reached from the bar above.
  */
+/** Colour never carries the meaning alone: every badge also says the word. "Set Up" is not green because it is not proof. */
+const PROVIDER_STATUS_TONE: Record<ProviderStatus, string> = {
+  'Set Up': 'badge-neutral',
+  'Not Set Up': 'badge-warning',
+  Recorded: 'badge-neutral',
+  'Not Proven': 'badge-warning',
+  'Not Measured': 'badge-neutral',
+};
+
 export default async function AdminOperationsPage() {
   const data = await withSession(async ({ db, accountId, email }) => {
     if (!(await isPlatformAdmin(db, { accountId, email }))) return { admin: false as const };
@@ -400,10 +409,16 @@ export default async function AdminOperationsPage() {
                         {row.label}
                       </dt>
                       <dd style={{ margin: 0, flex: '1 1 18rem', minWidth: 0 }}>
-                        <strong>{row.reading}</strong>
+                        <span className={`badge ${PROVIDER_STATUS_TONE[row.standing]}`}>
+                          {row.standing}
+                        </span>{' '}
+                        <strong>{row.headline}</strong>
                         <details>
-                          <summary>Source and explanation</summary>
-                          <p className="muted">{row.source}</p>
+                          <summary>Show technical detail</summary>
+                          <p>
+                            Reading: <strong>{row.reading}</strong>
+                          </p>
+                          <p className="muted">Source: {row.source}</p>
                           <p>{row.detail}</p>
                         </details>
                       </dd>

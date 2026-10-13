@@ -86,7 +86,7 @@ export default async function SharingInvitationPage({
             <AcceptSharingInvitationForm token={token} />
           ) : (
             <p>
-              Review and grant the required consent above to continue.{' '}
+              Review and turn on the required consent above to continue.{' '}
               <Link href="/privacy">Read the privacy policy</Link>.
             </p>
           )}

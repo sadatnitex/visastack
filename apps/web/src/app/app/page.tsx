@@ -20,6 +20,7 @@ import {
   NextStepCard,
   StatusBadge,
 } from '../../components/ui';
+import { CONSENT_PLAIN } from '../../lib/labels';
 import { getLocale } from '../../lib/locale';
 import { withSession } from '../../lib/session';
 import { ConsentButton } from './consent-button';
@@ -299,22 +300,30 @@ export default async function AppPage() {
           open={!coreGranted}
         >
           <p className="card-body u-mb-100">
-            Each purpose is granted and revoked independently, at any time. Turning one off never
-            requires turning another back on. Core processing is required before any applicant or
-            profile records can be created; the others are optional.
+            {locale === 'en'
+              ? 'Each one is on or off, and you can change it at any time. Turning one off never requires turning another back on. "Let VisaStack process my details" is needed before any applicant or profile can be created; the others are optional.'
+              : 'Each purpose is granted and revoked independently, at any time. Turning one off never requires turning another back on. Core processing is required before any applicant or profile records can be created; the others are optional.'}
           </p>
           <div className="rows">
-            {CONSENT_TYPES.map((type) => (
-              <div className="row" key={type}>
-                <span className="row-key">{t(CONSENT_MESSAGE_KEYS[type])}</span>
-                <ConsentButton
-                  type={type}
-                  granted={Boolean(data.consents[type])}
-                  locale={locale}
-                  label={t(CONSENT_MESSAGE_KEYS[type])}
-                />
-              </div>
-            ))}
+            {CONSENT_TYPES.map((type) => {
+              const plain = locale === 'en' ? CONSENT_PLAIN[type] : undefined;
+              const name = plain?.name ?? t(CONSENT_MESSAGE_KEYS[type]);
+              const on = Boolean(data.consents[type]);
+              return (
+                <div className="row" key={type}>
+                  <span className="row-key">
+                    {name}
+                    {plain ? <span className="cell-sub">{plain.meaning}</span> : null}
+                  </span>
+                  {plain ? (
+                    <span className={`badge ${on ? 'badge-success' : 'badge-neutral'}`}>
+                      {on ? 'On' : 'Off'}
+                    </span>
+                  ) : null}
+                  <ConsentButton type={type} granted={on} locale={locale} label={name} />
+                </div>
+              );
+            })}
           </div>
         </Disclosure>
       </div>
