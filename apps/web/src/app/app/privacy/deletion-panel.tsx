@@ -1,6 +1,6 @@
 'use client';
 
-import { useActionState } from 'react';
+import { useActionState, useState } from 'react';
 import { FormMessage, SubmitButton } from '../../../components/form-feedback';
 import { type ActionState, cancelDeletionAction, requestDeletionAction } from './actions';
 
@@ -62,6 +62,7 @@ function formatDate(iso: string): string {
 export function DeletionPanel({ scheduledFor, impact, holds }: DeletionPanelProps) {
   const [reqState, requestAction, reqPending] = useActionState(requestDeletionAction, INITIAL);
   const [cancelState, cancelAction, cancelPending] = useActionState(cancelDeletionAction, INITIAL);
+  const [confirming, setConfirming] = useState(false);
 
   if (scheduledFor) {
     const when = formatDate(scheduledFor);
@@ -138,18 +139,7 @@ export function DeletionPanel({ scheduledFor, impact, holds }: DeletionPanelProp
         </a>{' '}
         before deleting - it will not be possible afterward.
       </p>
-      <form
-        action={requestAction}
-        onSubmit={(e) => {
-          if (
-            !window.confirm(
-              'Schedule permanent deletion of your account and all owned data? You will have a 7-day grace window to cancel.',
-            )
-          ) {
-            e.preventDefault();
-          }
-        }}
-      >
+      <form action={requestAction}>
         <label
           className="field-label"
           htmlFor="del-reason"
@@ -165,12 +155,33 @@ export function DeletionPanel({ scheduledFor, impact, holds }: DeletionPanelProp
           placeholder="Helps us improve - not required"
           style={{ marginBottom: '0.85rem' }}
         />
-        <SubmitButton
-          pending={reqPending}
-          idle="Request account deletion"
-          busy="Scheduling…"
-          className="btn btn-danger"
-        />
+        {confirming ? (
+          <div className="notice" role="alert">
+            <p className="u-m-0">
+              Schedule permanent deletion of your account and all owned data? You will have a 7-day
+              grace window to cancel.
+            </p>
+            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginTop: '0.6rem' }}>
+              <SubmitButton
+                pending={reqPending}
+                idle="Yes, schedule deletion"
+                busy="Scheduling…"
+                className="btn btn-danger"
+              />
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => setConfirming(false)}
+              >
+                Keep my account
+              </button>
+            </div>
+          </div>
+        ) : (
+          <button type="button" className="btn btn-danger" onClick={() => setConfirming(true)}>
+            Request account deletion
+          </button>
+        )}
         <FormMessage result={reqState} />
       </form>
     </div>

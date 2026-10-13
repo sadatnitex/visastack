@@ -516,8 +516,8 @@ test.describe
       }
 
       try {
-        page.once('dialog', (dialog) => dialog.accept());
         await page.getByRole('button', { name: 'Request account deletion' }).click();
+        await page.getByRole('button', { name: 'Yes, schedule deletion' }).click();
         await expect(page.getByText(/deletion pending/i)).toBeVisible({ timeout: 10_000 });
       } finally {
         // Unconditional: runs whether the assertions above passed, failed,
