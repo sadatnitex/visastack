@@ -5068,3 +5068,12 @@ Nineteen places printed a stored database code straight onto a page (for example
 
 The first push of the safety-net branch was marked Blocked by the hosting provider because the commit was authored with an email the provider could not match to a team member. The commit was re-authored as noreply@anthropic.com and force-pushed on the unmerged branch (nothing else rewritten); the Blocked state cleared. The next preview then failed in about a second with "Resource provisioning failed", before any build started. The likely cause is the database project's branch limit (ten branches at inspection; the owner's rule is a maximum of nine). This is not confirmed on the database side and no branch was deleted. Effect: the two required checks that run after a successful preview deployment ("No-secret Playwright checks" and "No-secret smoke check") are reported as skipped for this branch, while "Lint, Build, Typecheck, Test" runs normally. The owner decides how to treat the skipped checks. Handoff record: docs/uiux/EXPERIENCE-UPGRADE-HANDOFF.md.
 
+
+## Merge result and corrected finding, 2026-10-13
+
+Pull request 204 (safety net, plain words, handoff record) was squash-merged as 9afdf3c after "Lint, Build, Typecheck, Test" passed on the exact head 88e4a4f. The other two required checks were skipped because the preview deployment failed to provision a database branch; the owner accepted merging on that basis. Production deployment for 9afdf3c reached READY with both aliases, Deploy Smoke and Playwright Deploy Smoke succeeded, and the live readiness page returned ready in controlled pilot mode with the same platform states as before. The push-triggered CI run on main (run 38406342710) had not finished when this was recorded. Not checked: any signed-in screen on a real sign-in.
+
+Correction: the earlier interface review counted 4 loading files and 1 error file against 59 pages as a gap. Those screens are inherited, so every signed-in page already has both. The real weaknesses are that they are identical for every page, that the error screen's promise that nothing entered was lost is stronger than can be proven, and that 27 of 31 empty states offer no next step. Phase 2 is scoped on the corrected reading. The inline style count of 861 comes from reading the code structure; the earlier 857 came from a text search.
+
+The database project's branch limit was read directly: free plan, limit 10, 10 branches present. No branch was deleted.
+
