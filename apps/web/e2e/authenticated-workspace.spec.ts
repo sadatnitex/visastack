@@ -425,7 +425,7 @@ test.describe
 
       await page.goto(`${applicantUrl}/missions`);
       const missionTitle = `E2E Mission ${Date.now()}`;
-      await page.getByLabel('Title').fill(missionTitle);
+      await page.getByLabel('What is this case for?').fill(missionTitle);
       await page.getByRole('button', { name: 'Create case' }).click();
       await expect(page.getByText(missionTitle)).toBeVisible({ timeout: 10_000 });
     });
