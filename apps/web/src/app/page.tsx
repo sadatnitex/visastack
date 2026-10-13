@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { HeroExample } from '../components/hero-example';
 import { Icon, type IconName } from '../components/icons';
 import { StatusBadge, type Tone } from '../components/ui';
 import { isPublicBetaOpen } from '../lib/public-beta';
@@ -280,28 +281,7 @@ export default async function HomePage({ searchParams }: HomePageProps) {
               </div>
             </aside>
 
-            <aside className="land-example land-example-ai" aria-label="Example suggestion">
-              <p className="land-example-kicker">
-                <Icon name="activity" size={14} />
-                Suggestion from your passport
-              </p>
-              <p className="land-example-line">
-                Passport number <strong className="mono">X1234567</strong>
-              </p>
-              <div className="land-example-actions" aria-hidden="true">
-                <span className="land-chip land-chip-yes">Approve</span>
-                <span className="land-chip">Reject</span>
-              </div>
-            </aside>
-
-            <aside className="land-example land-example-share" aria-label="Example sharing">
-              <p className="land-example-kicker">
-                <Icon name="lock" size={14} />
-                Shared with Sunrise Visa Services
-              </p>
-              <p className="land-example-line">3 items, until 30 Nov</p>
-              <p className="land-example-note">You can stop this at any time</p>
-            </aside>
+            <HeroExample />
           </div>
         </div>
       </section>
@@ -316,14 +296,6 @@ export default async function HomePage({ searchParams }: HomePageProps) {
               shouldn’t start <em>from zero.</em>
             </h2>
           </div>
-          <ul>
-            {AFTER.map((line) => (
-              <li key={line}>
-                <Icon name="check" size={18} />
-                {line}
-              </li>
-            ))}
-          </ul>
         </div>
       </section>
 

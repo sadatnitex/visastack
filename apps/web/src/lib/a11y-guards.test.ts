@@ -110,3 +110,20 @@ describe('what a button says matches what it shows', () => {
     expect(misses).toEqual([]);
   });
 });
+
+describe('motion stays on the shared speeds', () => {
+  it('defines three speeds and one curve, and no transition writes its own', () => {
+    const t = css.match(/--motion-(press|state|arrive|ease):/g) ?? [];
+    expect(t).toHaveLength(4);
+    const own = css
+      .split('\n')
+      .filter((line) => /^\s*transition:/.test(line) && /\b\d*\.?\d+m?s\b/.test(line));
+    expect(own).toEqual([]);
+  });
+
+  it('turns every transition and animation off for visitors who ask for less motion', () => {
+    expect(css).toMatch(
+      /@media \(prefers-reduced-motion: reduce\) \{\s*\* \{\s*animation: none !important;\s*transition: none !important;/,
+    );
+  });
+});

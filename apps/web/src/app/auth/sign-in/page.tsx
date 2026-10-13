@@ -29,7 +29,7 @@ export default async function SignInPage({
   const error = e ? ERRORS[e] : undefined;
   const notice = n ? NOTICES[n] : undefined;
   return (
-    <AuthShell title="Sign in">
+    <AuthShell title="Sign in to your workspace">
       {notice ? <Notice>{notice}</Notice> : null}
       <ErrorLine id="signin-error" message={error} />
       <div className="card u-mb-100">

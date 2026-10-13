@@ -44,11 +44,16 @@ export default async function InvitationPage({
             ? 'Review shared access'
             : 'Work with an agency'}
       </h1>
+      <ol className="auth-steps" aria-label="What happens next">
+        <li aria-current="step">1 Create an account or sign in</li>
+        <li>2 Review</li>
+        <li>3 You decide</li>
+      </ol>
       <article className="card">
         <p className="card-body">
-          Create an account or sign in to review this invitation. Opening the link does not accept
-          it.
+          <strong>Opening the link does not accept it.</strong>
         </p>
+        <p className="card-body">Create an account or sign in to review this invitation.</p>
         <p className="card-body">
           {kind === 'team'
             ? 'Use the email address that received the invitation. You will see the agency and your role before joining.'

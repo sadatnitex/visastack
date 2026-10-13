@@ -23,6 +23,11 @@ export default async function VerifyEmailPage({
   const error = e ? ERRORS[e] : undefined;
   return (
     <AuthShell title="Confirm your email address">
+      <ol className="auth-steps" aria-label="The three steps">
+        <li>1 Create your account</li>
+        <li aria-current="step">2 Confirm your email</li>
+        <li>3 Sign in</li>
+      </ol>
       <p className="card-body">
         {s === '1'
           ? 'Check your inbox. If your address needs confirmation, a link has been requested. It can take a few minutes, and it may land in your spam folder. Once you have opened it, sign in.'
