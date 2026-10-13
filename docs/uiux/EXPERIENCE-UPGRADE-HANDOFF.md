@@ -8,8 +8,13 @@ Written 2026-10-13 for whoever continues this work next (Codex, Claude or a pers
 | --- | --- |
 | 0 Safety net | Merged (pull request 204, merge commit 9afdf3c). Production deployment READY, both smoke runs passed, live readiness "ready". |
 | 1 Plain words | Merged in the same pull request. |
-| 2 Loading, empty and error states | Approved by the owner on 2026-10-13 ("go ahead with phase 2 fully"). Built and verified locally; the pull request titled "Make loading, empty and error states specific to the page" carries it. Merge result is recorded in the known-issues log. |
-| 3 to 8 | Planned, not built. |
+| 2 Loading, empty and error states | Merged (pull request 206, merge commit 15bf62d). Production deployment READY and the Deploy Smoke run passed. The live readiness page could not be read from the build session (a tool error, not a site error), so that one check is unconfirmed. |
+| 3 Shared sizes and spaces | Approved 2026-10-13. Built and proven by an unchanged screenshot compare (386 of 386 match). Shipped as its own pull request. |
+| 4 Traveller first hour | Approved 2026-10-13 with the camera button and no size number. Built; shipped with phases 5 to 8. |
+| 5 Trust screens | Approved. Sharing card, explicit scope choice and in-page revoke question built. Consent wording held for the owner's adviser (brief published to the owner). |
+| 6 Agency desk | Approved. Quick views and deadline column built. |
+| 7 Founder overview | Approved. Provider rows now lead with a status word and a plain sentence. |
+| 8 Phone and access | Approved. Mostly checking: the code already met contrast, tap height and spoken-name rules, so a guard test was added. The real-browser keyboard pass on signed-in screens still needs a staging test sign-in. |
 
 CI on `main` for 9afdf3c (run 38406342710) had not finished when this was written; read its result in Actions before relying on it.
 
@@ -51,6 +56,16 @@ How it was approached:
 | Empty states (Phase 2) | `apps/web/src/components/ui.tsx` (`EmptyState`) and 25 pages | Every empty state shows an icon (a folder by default); 27 got fitting icons; two gained a real action ("How sharing works", "Add a document"). | An empty list should never read as a broken one. |
 | Error screen (Phase 2) | `apps/web/src/app/app/error.tsx` (new), `apps/web/src/app/error.tsx` | A boundary inside the signed-in area so the menu should stay; honest promise (saved records are safe, anything being typed may need entering again); "Go to your overview" via a plain anchor to `/app`; help link and reference number. The top-level screen got the same honest wording and its three inline styles became classes. | The old promise ("nothing you had entered was lost") could be false, and "Back to home" led a signed-in person to the public page. |
 | Failed export (Phase 2) | `apps/web/src/app/app/privacy/large-export-panel.tsx` | "Could not be made", what is safe, and a help link. | "Failed - request a new one" gave no reason or help. |
+
+| Shared text and spacing (Phase 3) | `apps/web/src/app/globals.css` (text scale names, `u-` classes at the end), 80 page files | Six text sizes named as tokens. 14 `u-` classes each carry exactly the value pages used to write inline (the number in a name is the value in hundredths of a rem). 358 inline style props now use them. `!important` keeps the precedence an inline style had. Counter 857 to 500. Values off the scale (0.8, 0.9, 1.25 rem) keep their number in the class name until a separately previewed snap step (3c, not built). | Pages wrote spacing and sizes by hand 857 times. |
+| Case form (Phase 4b) | `applicant/[id]/missions/create-mission-form.tsx` | Asks "What is this case for?" and "Where are you going?" first; the other six boxes sit in a fold-out. Every field name is unchanged. The end-to-end test label was updated. | Eight boxes up front, one required. |
+| Case checklist (Phase 4c) | `mission/[id]/page.tsx`, `lib/requirement-groups.ts`, snapshot page | The seven outcomes are shown under Needs You, Needs A Check and Done, with plain badge words (Missing, Two Values, Out Of Date, To Confirm, On File, Optional, Not Applicable). The summary counts box above still uses its older words. | A single list sorted by seven technical outcomes. |
+| Upload (Phase 4a) | `applicant/[id]/document-uploader.tsx` | A Take a photo button opens the phone camera through the same file field. The page no longer prints a size limit; the configured value is still passed in and is kept for when a live upload test proves the real number. | The host may refuse large files before the app sees them. |
+| Evidence request form | `agency/[orgId]/request-evidence-form.tsx` (pull request 207) | Asks what is needed, then lists named profile details or documents; Other document adds a name box. Values sent are unchanged codes. | The form showed "Field key / document type" and passport_number. |
+| Sharing (Phase 5) | `applicant/[id]/sharing/page.tsx`, `grant-form.tsx`, `grant-op-buttons.tsx` | One sentence per grant; Everything or Only the parts I choose for the profile and for documents (choosing only some with nothing chosen is refused); the revoke question is inside the page. View metadata reads See document details. | "Leave all unchecked to share every category", repeated Can and Scope lines, and a browser pop-up. |
+| Agency list (Phase 6) | `agency/[orgId]/page.tsx` | Quick views Mine, Overdue, Waiting On Traveller, Unassigned (a `quick` setting in the address) with counts, and a Deadline column. | Search and four filters existed; no one-tap views. |
+| Founder rows (Phase 7) | `lib/provider-operations.ts`, `admin/page.tsx` | Each row has a status word and one sentence; the reading, source and caveat sit under Show technical detail. Set Up is never shown as proven. | Raw readings read by someone who knows the system. |
+| Access guards (Phase 8) | `lib/a11y-guards.test.ts` | Tests for text contrast, the 44 pixel button height and button spoken names. | Nothing prevented a later change from breaking them. |
 
 Evidence recorded: `docs/commercial-v1/known-issues.md` (two new chunks dated 2026-10-13), ledger row UX-01 (two update notes), and the pull request description.
 
@@ -95,12 +110,12 @@ Each needs a visual preview approved by the owner before it is built, a characte
 | Phase | Theme | Notes |
 | --- | --- | --- |
 | 2 | Every state handled (built) | See section 3. Not done from the preview, on purpose: a Copy button for the error reference; converting the small in-panel "No ..." lines (for example "No open tasks.") into full empty states, because they are one-line notes that already say what will appear; more empty-state buttons, because elsewhere the form sits just below or only someone else can fill the list. Not yet seen: the menu staying on the error screen on a real signed-in page, and a test of the failed-export wording. |
-| 3 | Shared parts | Spacing and text-size scales, then small parts (Stack, Text, Card, Button, Field, Notice). No page changes in this step. |
-| 4 | Traveller core | One next-step card on home, overview and case page; upload with camera and honest size text; grouped case checklist ("Needs You", "Needs A Check", "Done"); profile save as you go; case creation with two fields first. |
-| 5 | Trust screens | Sharing in plain sentences with three presets and a live "this person will see" line; consent shown as On and Off with a plain meaning; AI review with words first, "Today to Suggested" line and a "suggestion only" note; documents show checked and not checked; deletion with an in-page confirmation; re-login says why. |
-| 6 | Agency | Plain evidence request, copy-ready message, quick filters (Mine, Overdue, Waiting On Traveller, Unassigned), deadline column, reassignment link. |
-| 7 | Founder and public | Admin readiness rows in plain words with developer details behind a toggle; keep the "What works today" page honest. |
-| 8 | Phone and accessibility | More menu as a proper dialog, visible text matching spoken names, status in words not colour, real-browser keyboard and contrast checks on signed-in screens. |
+| 3 | Shared parts (3a and 3b built) | See section 3. 3c (snap off-scale sizes onto the scale) is not built and needs its own preview. Small parts such as Stack and Notice are not built. |
+| 4 | Traveller core (built) | See section 3. Next step cards and per-field saving already existed and were not rebuilt. The case summary counts box still uses older words. |
+| 5 | Trust screens (partly built) | Built: sharing and the in-page revoke question. Held: consent shown as On and Off with plain names, until the owner's adviser confirms the wording. Not built: AI review wording, documents showing checked and not checked, in-page confirmation for account deletion (still a browser pop-up, and the end-to-end test for it still expects one), the founder tool pop-ups, a re-login note. The sharing form already had a live access summary and a review step, which were kept. |
+| 6 | Agency (built) | See section 3. A copy-ready message for an evidence request is not built. |
+| 7 | Founder and public (provider rows built) | The other founder panels (signals, commercial gates) were not reworded. The public "What works today" page was not touched. |
+| 8 | Phone and accessibility (guards built) | The More menu already closes on Escape, returns focus and closes on an outside tap. Contrast, tap height and spoken names pass and are now guarded. Still open: a real-browser keyboard pass on signed-in screens. |
 
 Left out on purpose (separate decisions): fixing large-file uploads in code, an agency spreadsheet case report and fee tracking, neutral sign-up wording when an email exists (touches account logic), any Bangla work, legal review of cross-border rules.
 
@@ -115,6 +130,8 @@ Left out on purpose (separate decisions): fixing large-file uploads in code, an 
 7. Agency spreadsheet report and fee tracking: add to the roadmap?
 8. Resolved 2026-10-13: Phase 2 approved in full. The owner said the wording choices were unclear and asked for the correct wording, so Claude chose it: "Go to your overview" (not "Back to home"), "Could not be made" for a failed export, "How sharing works" on Shared with me.
 9. Resolved: empty-state buttons only where a page already exists (two added).
+12. Resolved 2026-10-13: approve phases 3 to 8; ship the camera button without a size number; add Other document to the evidence form; later add a big shared list of documents, fields and categories (the form reads the shared document table in `lib/labels.ts` and the profile field list, so additions appear without form changes).
+13. Open: the six consent plain names, pending the owner's adviser. Do not change the live consent screens, their end-to-end test labels or the Bangla strings until confirmed.
 10. Freeing one Neon preview branch so previews can build again (see section 9). The owner said on 2026-10-13 not to touch Neon branches; each candidate must be confirmed by the owner before anything is deleted.
 
 ## 8. Targets and baselines
@@ -140,11 +157,13 @@ The owner has private pages from this session: the plan and mockups, the Phase 1
 
 ## 11. Next steps, in order
 
-1. Confirm the Phase 2 pull request merged and production is healthy; read the CI result on `main` and the live readiness page.
-2. Look at the error screen on a real signed-in page (it should keep the menu) and note the result in the known-issues log.
-3. Take the open decisions in section 7 to the owner: usage counters, "items on file" instead of a green "Ready", button capitalisation, the Bangla switch, the upload test on staging, the agency backlog items, and the Neon branch (the owner asked to leave Neon alone for now).
-4. Phase 3 (shared parts: spacing and text-size scales, then small shared parts) is next. Show the owner a visual and the behaviour first.
-5. After any merge, record the result in `docs/commercial-v1/known-issues.md` and refresh the status table above.
+1. Confirm the pull requests for phases 3 to 8 merged and production is healthy; read the CI result on `main` and the live readiness page.
+2. Take the adviser's answers on the consent wording, then build the consent On and Off screen and update the end-to-end test labels and the Bangla strings (Bangla stays deferred).
+3. Phase 3c (snap off-scale sizes) needs its own preview.
+4. Run the live upload size test (3, 8 and 18 MB made-up files) so the size line can come back.
+5. A staging test sign-in is needed for the real-browser keyboard pass (Phase 8) and to see signed-in screens.
+6. Not built from the approved list: the AI review wording, documents showing checked and not checked, account deletion in-page confirmation, a copy-ready evidence message, and the Phase 7 panels beyond provider rows.
+7. After any merge, record the result in `docs/commercial-v1/known-issues.md` and refresh the status table.
 
 ## 12. Session log, 2026-10-13 (what happened, in order, so it can be traced)
 
@@ -163,3 +182,5 @@ Times are UTC. "Owner" is the founder. Claude did all of this in one session; no
 11. **Scheduled self check-ins** were used instead of polling CI. They are not stored in the repository and have no standing effect.
 
 Left open at the end of the day: the decisions in section 7, the Neon branch limit, viewing the error screen on a real signed-in page, and signed-in screens on a real sign-in.
+
+13. **Evening, 2026-10-13.** Pull request 206 (Phase 2) merged as 15bf62d; production deployed and the Deploy Smoke run passed. The owner reported the evidence form still showed passport_number; pull request 207 replaced it with named choices, then added Other document. The owner approved phases 3 to 8 and asked for the camera button without a size number and, if possible, the adviser's input on consent wording. Phase 3 was proven with an unchanged screenshot compare (386 of 386). Phases 4 to 8 were built with tests; the compare against Phase 3 changed only the screens meant to change (admin overview, agency list, sharing page) and added the new case form. Not in the screenshot set because no page test renders them: the case page, upload page and sharing form.
