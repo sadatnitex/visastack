@@ -2216,6 +2216,10 @@ a.checklist-item:hover .checklist-label {
   margin-top: 0.65rem;
 }
 .land-chip {
+  font: inherit;
+  background: transparent;
+  cursor: pointer;
+  min-height: 2.25rem;
   padding: 0.25rem 0.8rem;
   border: 1px solid var(--hairline);
   border-radius: var(--radius-pill);
@@ -3049,7 +3053,7 @@ body:has(.auth-shell) > .footer {
 }
 .land-summary-panel {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr);
+  grid-template-columns: minmax(0, 1fr);
   gap: clamp(32px, 8vw, 128px);
   align-items: center;
   min-height: 225px;
@@ -5505,4 +5509,14 @@ body:has(.auth-shell) > .footer {
 .auth-steps [aria-current="step"] {
   color: var(--selected-text);
   font-weight: 700;
+}
+
+.land-example-result {
+  display: block;
+  margin: 0.4rem 0 0;
+  font-size: var(--text-small);
+  font-weight: 600;
+}
+.land-example-result:empty {
+  display: none;
 }

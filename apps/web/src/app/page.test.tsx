@@ -13,6 +13,21 @@ const render = async (searchParams: { auth_error?: string } = {}) =>
   renderServer(HomePage({ searchParams: Promise.resolve(searchParams) }));
 
 describe('the public home page', () => {
+  it('says each promise once instead of repeating the same list', async () => {
+    const text = textOf(await render());
+    const count = (needle: string) => text.split(needle).length - 1;
+    expect(count('Enter your details once and reuse them everywhere')).toBe(1);
+    expect(text).toContain('shouldn’t start from zero.');
+  });
+
+  it('keeps the example labelled as made up and gives its buttons real names', async () => {
+    const text = textOf(await render());
+    expect(text).toContain('Example with made-up details');
+    expect(text).toContain('Approve');
+    expect(text).toContain('Reject');
+    expect(text).toContain('Stop sharing');
+  });
+
   it('says what the product is for in everyday words', async () => {
     const text = textOf(await render());
     expect(text).toContain('One profile. Every visa.');
