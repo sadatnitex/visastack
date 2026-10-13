@@ -144,7 +144,7 @@ export default async function EvidencePage({
 
       <article className="card">
         {data.requests.length === 0 ? (
-          <EmptyState title="No evidence requests">
+          <EmptyState icon="clipboard" title="No evidence requests">
             When an agency asks for a document or a detail, it appears here with what is needed,
             why, and the date it is needed by.
           </EmptyState>

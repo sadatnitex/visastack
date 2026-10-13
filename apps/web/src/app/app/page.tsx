@@ -245,6 +245,7 @@ export default async function AppPage() {
           <h2 className="card-title">Your applicants</h2>
           {data.perApplicant.length === 0 ? (
             <EmptyState
+              icon="users"
               title="No applicants yet"
               action={{ href: '/app/applicants', label: 'Add an applicant' }}
             >

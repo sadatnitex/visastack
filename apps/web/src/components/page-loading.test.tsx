@@ -32,4 +32,22 @@ describe('PageLoading', () => {
     expect(renderToStaticMarkup(<PageLoading />)).toContain('class="section container"');
     expect(renderToStaticMarkup(<PageLoading frame="panel" />)).not.toContain('section container');
   });
+
+  it('draws the outline of the page that is coming, whatever the shape', () => {
+    for (const shape of ['default', 'list', 'detail', 'dashboard', 'form'] as const) {
+      const html = renderToStaticMarkup(<PageLoading shape={shape} label={`Loading ${shape}`} />);
+      const shapes = html.match(/class="skeleton [^"]*"[^>]*>/g) ?? [];
+      expect(shapes.length, shape).toBeGreaterThanOrEqual(3);
+      for (const one of shapes) expect(one, shape).toContain('aria-hidden="true"');
+      expect(html, shape).toContain(`Loading ${shape}…`);
+    }
+    expect(renderToStaticMarkup(<PageLoading shape="list" />)).toContain('skeleton-row');
+    expect(renderToStaticMarkup(<PageLoading shape="detail" />)).toContain('skeleton-tab');
+    expect(renderToStaticMarkup(<PageLoading shape="dashboard" />)).toContain('skeleton-tile');
+    expect(renderToStaticMarkup(<PageLoading shape="form" />)).toContain('skeleton-field');
+  });
+
+  it('says nothing about being slow at first; the note only appears after a wait', () => {
+    expect(renderToStaticMarkup(<PageLoading shape="list" />)).not.toContain('Still loading');
+  });
 });

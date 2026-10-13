@@ -110,7 +110,11 @@ export default async function ExpiryCentrePage({
           <p className="card-kicker">Intrinsic expiry</p>
           <h2 className="card-title">Documents</h2>
           {data.intrinsic.length === 0 ? (
-            <EmptyState title="No documents yet">
+            <EmptyState
+              icon="file"
+              title="No documents yet"
+              action={{ href: `/app/applicant/${id}/documents`, label: 'Add a document' }}
+            >
               Documents with an expiry date, such as a passport, appear here so you hear about them
               before they run out.
             </EmptyState>
@@ -165,7 +169,7 @@ export default async function ExpiryCentrePage({
             document's own expiry.
           </p>
           {data.freshnessRows.length === 0 ? (
-            <EmptyState title="No date rules yet">
+            <EmptyState icon="calendar" title="No date rules yet">
               Some visa routes need a document dated within a set window, such as a bank statement
               from the last 30 days. They appear here once a case uses such a route.
             </EmptyState>
@@ -196,7 +200,7 @@ export default async function ExpiryCentrePage({
           <p className="card-kicker">Verification expiry</p>
           <h2 className="card-title">Issuer confirmations</h2>
           {data.verifications.length === 0 ? (
-            <EmptyState title="No confirmations yet">
+            <EmptyState icon="check" title="No confirmations yet">
               When an issuer, such as a bank or employer, confirms a document, the confirmation and
               how long it stays valid appear here.
             </EmptyState>

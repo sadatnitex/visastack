@@ -94,3 +94,18 @@ describe('Checklist', () => {
     expect(html).toContain('<span class="sr-only">Done</span>');
   });
 });
+
+describe('EmptyState icon', () => {
+  it('always shows an icon, a folder when none is given, so an empty list never reads as broken', () => {
+    const plain = renderToStaticMarkup(<EmptyState title="Nothing here">A reason.</EmptyState>);
+    expect(plain).toContain('icon-tile');
+    expect(plain).toContain('<svg');
+    const named = renderToStaticMarkup(
+      <EmptyState title="No alerts yet" icon="bell">
+        A reason.
+      </EmptyState>,
+    );
+    expect(named).toContain('icon-tile');
+    expect(named).not.toBe(plain);
+  });
+});

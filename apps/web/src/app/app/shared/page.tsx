@@ -36,7 +36,11 @@ export default async function SharedWithMePage() {
 
       <article className="card">
         {grants.length === 0 ? (
-          <EmptyState title="Nothing shared with you yet">
+          <EmptyState
+            icon="share"
+            title="Nothing shared with you yet"
+            action={{ href: '/app/help', label: 'How sharing works' }}
+          >
             When someone invites you to see their information, the invitation appears here. Nothing
             is shared until you accept.
           </EmptyState>

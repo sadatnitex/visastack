@@ -126,7 +126,7 @@ export default async function AgencyClientsPage({
           Evidence requests
         </h2>
         {data.requests.length === 0 ? (
-          <EmptyState title="No evidence requests yet">
+          <EmptyState icon="clipboard" title="No evidence requests yet">
             Ask a client for a specific document or detail. You will see here when it arrives and
             when it is overdue.
           </EmptyState>

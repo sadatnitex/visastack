@@ -65,7 +65,7 @@ export default async function SharedWorkspacePage({
           <p className="card-kicker">Profile</p>
           <h2 className="card-title">Shared fields</h2>
           {workspace.fields.length === 0 ? (
-            <EmptyState title="No profile details shared">
+            <EmptyState icon="user" title="No profile details shared">
               This person has not shared any profile details with you for this purpose.
             </EmptyState>
           ) : (
@@ -86,7 +86,7 @@ export default async function SharedWorkspacePage({
           <p className="card-kicker">Document Vault</p>
           <h2 className="card-title">Shared documents</h2>
           {workspace.documents.length === 0 ? (
-            <EmptyState title="No documents shared">
+            <EmptyState icon="file" title="No documents shared">
               This person has not shared any documents with you for this purpose.
             </EmptyState>
           ) : (

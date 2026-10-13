@@ -92,7 +92,7 @@ export function AttentionList({ items }: { readonly items: readonly AttentionEnt
   );
 }
 
-/** An empty area that says what it is for and what to do about it. */
+/** An empty area that says what it is for and what to do about it. It always shows an icon (a folder when none is given) so an empty list never reads as a broken one. */
 export function EmptyState({
   title,
   children,
@@ -106,7 +106,7 @@ export function EmptyState({
 }) {
   return (
     <div className="empty-state">
-      {icon ? <IconTile name={icon} /> : null}
+      <IconTile name={icon ?? 'folder'} />
       <p className="empty-state-title">{title}</p>
       <p className="empty-state-body">{children}</p>
       {action ? (

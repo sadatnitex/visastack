@@ -74,7 +74,7 @@ export default async function AgencyActivityPage({
             ))}
           </div>
         ) : (
-          <EmptyState title="No case activity recorded">
+          <EmptyState icon="activity" title="No case activity recorded">
             New case notes appear here when your team records them on an accessible case.
           </EmptyState>
         )}

@@ -251,6 +251,8 @@ describe('what each state says, in plain words', () => {
   it('shows the error screen with a retry that is a real button', async () => {
     const html = await shellMarkup(SCREENS[SCREENS.length - 1] as Screen);
     expect(html).toContain('<button type="button" class="btn btn-primary">Try again</button>');
-    expect(textOf(html)).toContain('Nothing you had entered on this page was lost');
+    expect(textOf(html)).toContain('Everything you already saved is safe');
+    // It must not promise that nothing was lost: a half-typed form may be.
+    expect(textOf(html)).not.toContain('was lost or damaged');
   });
 });

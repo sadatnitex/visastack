@@ -226,7 +226,9 @@ export default async function ApplicantOverviewPage({
           </div>
           <article className="card traveller-featured-case">
             {!data.missions.ok ? (
-              <EmptyState title="Cases are unavailable">Refresh to try again.</EmptyState>
+              <EmptyState icon="alert" title="Cases are unavailable">
+                Refresh to try again.
+              </EmptyState>
             ) : data.featured ? (
               <>
                 <div className="traveller-section-heading">
@@ -275,6 +277,7 @@ export default async function ApplicantOverviewPage({
               </>
             ) : (
               <EmptyState
+                icon="briefcase"
                 title="No active case yet"
                 action={{ href: `/app/applicant/${id}/missions`, label: 'Start a visa case' }}
               >
@@ -334,6 +337,7 @@ export default async function ApplicantOverviewPage({
               </ol>
             ) : (
               <EmptyState
+                icon="alert"
                 title={data.missions.ok ? 'No upcoming case dates' : 'Dates are unavailable'}
               >
                 Set a target deadline or travel date in a case. Appointments remain in the
@@ -357,7 +361,7 @@ export default async function ApplicantOverviewPage({
                 ))}
               </ol>
             ) : (
-              <EmptyState title="No recorded activity yet">
+              <EmptyState icon="activity" title="No recorded activity yet">
                 Profile changes, uploads and case updates will appear here. This is a recent-record
                 summary, not a complete audit log.
               </EmptyState>

@@ -197,6 +197,7 @@ export default async function ApplicantProfilePage({
             />
           ) : (
             <EmptyState
+              icon="lock"
               title="Choose whether to save your profile"
               action={{ href: '/app#permissions', label: 'Review permissions' }}
             >
@@ -249,7 +250,7 @@ export default async function ApplicantProfilePage({
                 ))}
               </ol>
             ) : (
-              <EmptyState title="No saved changes yet">
+              <EmptyState icon="activity" title="No saved changes yet">
                 Your saved field versions will appear here.
               </EmptyState>
             )}
