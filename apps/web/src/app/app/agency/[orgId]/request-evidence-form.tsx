@@ -1,11 +1,21 @@
 'use client';
 
-import { useActionState } from 'react';
+import { useActionState, useState } from 'react';
 import { FormMessage, SubmitButton } from '../../../../components/form-feedback';
-import { PROFILE_FIELDS } from '../../../../lib/profile-fields';
+import { DOCUMENT_TYPE_LABELS } from '../../../../lib/labels';
+import { PACK_LABELS, PROFILE_FIELDS } from '../../../../lib/profile-fields';
 import { type ActionState, requestEvidenceAction } from './actions';
 
 const INITIAL: ActionState = { ok: true, message: '' };
+
+/** Chosen from the document list when the document is not one the product names yet. */
+const OTHER_DOCUMENT = '__other__';
+
+/** Profile details grouped by the part of the profile they belong to, in registry order. */
+const FIELD_GROUPS = Array.from(new Set(PROFILE_FIELDS.map((f) => f.pack))).map((pack) => ({
+  pack,
+  fields: PROFILE_FIELDS.filter((f) => f.pack === pack),
+}));
 
 interface RequestEvidenceFormProps {
   readonly organizationId: string;
@@ -24,6 +34,8 @@ export function RequestEvidenceForm({
   missions = [],
 }: RequestEvidenceFormProps) {
   const [state, formAction, pending] = useActionState(requestEvidenceAction, INITIAL);
+  const [kind, setKind] = useState<'FIELD' | 'DOCUMENT'>('FIELD');
+  const [documentChoice, setDocumentChoice] = useState('');
 
   return (
     <form action={formAction} className="field-list">
@@ -66,33 +78,72 @@ export function RequestEvidenceForm({
       ) : null}
       <div className="field-row">
         <label className="field-label" htmlFor="kind">
-          Kind
+          What do you need?
         </label>
-        <select id="kind" name="kind" className="input" defaultValue="FIELD">
-          <option value="FIELD">Field</option>
-          <option value="DOCUMENT">Document</option>
+        <select
+          id="kind"
+          name="kind"
+          className="input"
+          value={kind}
+          onChange={(event) => setKind(event.target.value === 'DOCUMENT' ? 'DOCUMENT' : 'FIELD')}
+        >
+          <option value="FIELD">A detail from the profile</option>
+          <option value="DOCUMENT">A document</option>
         </select>
       </div>
       <div className="field-row">
         <label className="field-label" htmlFor="key">
-          Field key / document type
+          {kind === 'FIELD' ? 'Which detail?' : 'Which document?'}
         </label>
-        <input
-          id="key"
-          name="key"
-          type="text"
-          required
-          className="input"
-          placeholder="e.g. passport_number or bank_statement"
-          list="canonical-field-keys"
-        />
-        <datalist id="canonical-field-keys">
-          {PROFILE_FIELDS.map((field) => (
-            <option key={field.key} value={field.key}>
-              {field.label}
+        {kind === 'FIELD' ? (
+          <select id="key" name="key" required className="input" defaultValue="" key="field-key">
+            <option value="" disabled>
+              Choose a detail…
             </option>
-          ))}
-        </datalist>
+            {FIELD_GROUPS.map((group) => (
+              <optgroup key={group.pack} label={PACK_LABELS[group.pack]}>
+                {group.fields.map((field) => (
+                  <option key={field.key} value={field.key}>
+                    {field.label}
+                  </option>
+                ))}
+              </optgroup>
+            ))}
+          </select>
+        ) : (
+          <>
+            <select
+              id="key"
+              required
+              className="input"
+              value={documentChoice}
+              onChange={(event) => setDocumentChoice(event.target.value)}
+            >
+              <option value="" disabled>
+                Choose a document…
+              </option>
+              {Object.entries(DOCUMENT_TYPE_LABELS).map(([code, label]) => (
+                <option key={code} value={code}>
+                  {label}
+                </option>
+              ))}
+              <option value={OTHER_DOCUMENT}>Other document</option>
+            </select>
+            {documentChoice === OTHER_DOCUMENT ? (
+              <input
+                id="otherDocument"
+                name="key"
+                type="text"
+                required
+                className="input"
+                aria-label="Name of the other document"
+                placeholder="For example: Marriage Certificate"
+              />
+            ) : (
+              <input type="hidden" name="key" value={documentChoice} />
+            )}
+          </>
+        )}
       </div>
       <div className="field-row">
         <label className="field-label" htmlFor="message">
@@ -103,7 +154,7 @@ export function RequestEvidenceForm({
           name="message"
           type="text"
           className="input"
-          placeholder="Why you need it"
+          placeholder="For example: needed for the visa form"
         />
       </div>
       <div className="field-row">
