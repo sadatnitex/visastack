@@ -12,14 +12,17 @@
     "build": "turbo run build",
     "dev": "turbo run dev",
     "typecheck": "turbo run typecheck",
-    "test": "turbo run test && node --test scripts/check-flat-design.test.mjs scripts/check-route-navigation.test.mjs infra/cloudflare/job-scheduler.test.mjs",
-    "lint": "biome check . && node scripts/check-flat-design.mjs && node scripts/check-route-navigation.mjs",
+    "test": "turbo run test && node --test scripts/check-flat-design.test.mjs scripts/check-route-navigation.test.mjs scripts/ui-ratchet.test.mjs infra/cloudflare/job-scheduler.test.mjs",
+    "lint": "biome check . && node scripts/check-flat-design.mjs && node scripts/check-route-navigation.mjs && node scripts/ui-ratchet.mjs",
     "scan:supply-chain": "node scripts/supply-chain/scan.mjs",
     "test:supply-chain": "node --test scripts/supply-chain/checks.test.mjs",
     "lint:fix": "biome check --write .",
     "format": "biome format --write .",
     "check": "pnpm run lint && pnpm run typecheck && pnpm run test",
-    "scan:flat-ui": "node scripts/check-flat-design.mjs"
+    "scan:flat-ui": "node scripts/check-flat-design.mjs",
+    "scan:ui-ratchet": "node scripts/ui-ratchet.mjs",
+    "ui:baseline": "node scripts/ui-baseline/capture.mjs",
+    "ui:compare": "node scripts/ui-baseline/compare.mjs"
   },
   "devDependencies": {
     "@biomejs/biome": "1.9.4",
