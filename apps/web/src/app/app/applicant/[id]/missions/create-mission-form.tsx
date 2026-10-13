@@ -22,7 +22,7 @@ export function CreateMissionForm({ applicantId }: { readonly applicantId: strin
           type="text"
           required
           className="input"
-          placeholder="e.g. UK Student Visa — Autumn 2026"
+          placeholder="e.g. UK Student Visa - Autumn 2026"
         />
       </div>
       <div className="field-row">

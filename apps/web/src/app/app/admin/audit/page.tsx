@@ -1,9 +1,11 @@
 import { type AuditEventRow, listRecentAuditEvents } from '@visastack/services';
 import type { Metadata } from 'next';
+import { ExactCode } from '../../../../components/exact-code';
 import { EmptyState, StatusBadge } from '../../../../components/ui';
 import { PageHeader } from '../../../../components/ui';
 import { isPlatformAdmin } from '../../../../lib/admin';
 import { formatTimestamp } from '../../../../lib/format-date';
+import { auditResultLabel, eventTypeLabel } from '../../../../lib/labels';
 import { withSession } from '../../../../lib/session';
 import { tolerantReader } from '../../../../lib/tolerate';
 import { AdminRestricted } from '../admin-restricted';
@@ -63,13 +65,14 @@ export default async function AdminAuditPage() {
                   {data.auditEvents.map((event: AuditEventRow) => (
                     <tr key={event.seq}>
                       <td data-label="When">{formatTimestamp(event.occurredAt)}</td>
-                      <th scope="row" className="mono">
-                        {event.eventType}
+                      <th scope="row">
+                        {eventTypeLabel(event.eventType)}
+                        <ExactCode value={event.eventType} />
                       </th>
                       <td data-label="Result">
                         {event.result ? (
                           <StatusBadge tone={event.result === 'DENIED' ? 'danger' : 'neutral'}>
-                            {event.result}
+                            {auditResultLabel(event.result)}
                           </StatusBadge>
                         ) : (
                           <span className="muted">-</span>

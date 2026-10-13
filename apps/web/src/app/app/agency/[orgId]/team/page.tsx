@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { formatTimestampDate } from '../../../../../lib/format-date';
+import { membershipRoleLabel } from '../../../../../lib/labels';
 import { withSession } from '../../../../../lib/session';
 import { loadMembers, loadOrgAccess, loadPendingTeamInvitations } from '../console-data';
 import { InvitationRevokeButton } from '../invitation-revoke-button';
@@ -59,7 +60,7 @@ export default async function AgencyTeamPage({
               <span className="row-key">
                 {m.email}
                 <span className="muted" style={{ fontSize: '0.8rem', marginLeft: '0.5rem' }}>
-                  {m.role}
+                  {membershipRoleLabel(m.role)}
                 </span>
               </span>
               <span className="row-end">
@@ -85,7 +86,7 @@ export default async function AgencyTeamPage({
               <span className="row-key">
                 {invitation.email}
                 <span className="muted" style={{ fontSize: '0.8rem', marginLeft: '0.5rem' }}>
-                  {invitation.role}
+                  {membershipRoleLabel(invitation.role)}
                 </span>
               </span>
               <span className="row-end">

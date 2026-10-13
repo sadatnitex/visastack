@@ -7,6 +7,7 @@ import {
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { PageHeader } from '../../../../../../components/ui';
+import { documentTypeLabel } from '../../../../../../lib/labels';
 import { profileField } from '../../../../../../lib/profile-fields';
 import { withSession } from '../../../../../../lib/session';
 import { AcknowledgementPanel } from './acknowledgement-panel';
@@ -244,7 +245,9 @@ export default async function MissionSnapshotPage({
               {content.documents.map((doc) => (
                 <div className="row" key={doc.documentVersionId}>
                   <span className="row-key">{doc.displayName}</span>
-                  {doc.docType ? <span className="badge badge-neutral">{doc.docType}</span> : null}
+                  {doc.docType ? (
+                    <span className="badge badge-neutral">{documentTypeLabel(doc.docType)}</span>
+                  ) : null}
                 </div>
               ))}
             </div>

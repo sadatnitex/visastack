@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { EmptyState, PageHeader } from '../../../../components/ui';
 import { formatTimestampDate } from '../../../../lib/format-date';
+import { documentTypeLabel } from '../../../../lib/labels';
 import { profileField } from '../../../../lib/profile-fields';
 import { withSession } from '../../../../lib/session';
 
@@ -46,7 +47,7 @@ export default async function SharedWorkspacePage({
       />
 
       <p className="muted" style={{ fontSize: '0.85rem', marginBottom: '1.5rem' }}>
-        Every item below is re-checked against your grant's permissions on every visit — it never
+        Every item below is re-checked against your grant's permissions on every visit. It never
         shows more than what was shared with you, and never less than you're entitled to.
       </p>
 
@@ -95,13 +96,13 @@ export default async function SharedWorkspacePage({
                   <div className="row" key={doc.id}>
                     <span className="row-key">{doc.displayName}</span>
                     {doc.docType ? (
-                      <span className="badge badge-neutral">{doc.docType}</span>
+                      <span className="badge badge-neutral">{documentTypeLabel(doc.docType)}</span>
                     ) : null}
                   </div>
                 ))}
               </div>
               <p className="muted" style={{ fontSize: '0.8rem' }}>
-                Document preview isn't available yet — real redacted renditions for third-party
+                Document preview isn't available yet. Real redacted renditions for third-party
                 viewing are a separate, upcoming milestone. This list shows only which documents
                 your grant covers.
               </p>

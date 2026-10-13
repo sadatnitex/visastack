@@ -3,6 +3,7 @@
 import { useActionState } from 'react';
 import { FormMessage, SubmitButton } from '../../../../components/form-feedback';
 import { formatTimestampDate } from '../../../../lib/format-date';
+import { documentTypeLabel } from '../../../../lib/labels';
 import {
   type ActionState,
   createContributorRequestAction,
@@ -50,7 +51,7 @@ export function ContributorRequestsPanel({
               >
                 <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.75rem' }}>
                   <span className="row-key">
-                    {r.docType} · {r.contributorEmail}
+                    {documentTypeLabel(r.docType)} · {r.contributorEmail}
                   </span>
                   <span className={`badge ${badge.tone}`}>{badge.label}</span>
                 </div>

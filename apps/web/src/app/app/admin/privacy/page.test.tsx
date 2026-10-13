@@ -93,7 +93,8 @@ describe('Platform > Privacy', () => {
     const html = await renderServer(Page());
     const text = textOf(html);
     expect(text).toContain('Document retention policies');
-    expect(text).toContain('PASSPORT');
+    expect(text).toContain('Passport');
+    expect(text).not.toContain('PASSPORT');
     expect(text).toContain('365 days');
     expect(text).toContain('Rahim Uddin');
     expect(text).toContain('Nusrat Jahan');

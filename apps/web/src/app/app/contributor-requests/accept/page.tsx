@@ -1,5 +1,6 @@
 import { getRetentionPolicies, previewContributorRequest } from '@visastack/services';
 import type { Metadata } from 'next';
+import { documentTypeLabel } from '../../../../lib/labels';
 import { withSession } from '../../../../lib/session';
 import { SubmitEvidenceForm } from './submit-evidence-form';
 
@@ -66,9 +67,9 @@ export default async function AcceptContributorRequestPage({
         ) : (
           <>
             <p className="card-body">
-              <strong>{data.preview.value.applicantName}</strong> is asking you for{' '}
-              <strong>{data.preview.value.docType}</strong> to support their{' '}
-              <strong>{data.preview.value.missionTitle}</strong> case.
+              <strong>{data.preview.value.applicantName}</strong> is asking you for a document to
+              support their <strong>{data.preview.value.missionTitle}</strong> case:{' '}
+              <strong>{documentTypeLabel(data.preview.value.docType).toLowerCase()}</strong>.
             </p>
             <p className="card-body" style={{ fontWeight: 600, marginBottom: '0.25rem' }}>
               Why:

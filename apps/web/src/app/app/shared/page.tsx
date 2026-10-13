@@ -62,7 +62,7 @@ export default async function SharedWithMePage() {
                     }}
                   >
                     <span className="row-key">
-                      {applicantName} — {grant.purpose}
+                      {applicantName}: {grant.purpose}
                     </span>
                     <span className={`badge ${badge.tone}`}>{badge.label}</span>
                   </div>

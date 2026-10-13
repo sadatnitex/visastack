@@ -13,6 +13,8 @@ export default defineConfig({
   esbuild: { jsx: 'automatic' },
   test: {
     exclude: ['**/node_modules/**', '**/e2e/**'],
+    // Inert unless UI_BASELINE_DIR is set (see test/ui-capture-setup.ts).
+    setupFiles: ['./test/ui-capture-setup.ts'],
   },
   resolve: {
     alias: {

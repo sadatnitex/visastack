@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { PageHeader } from '../../../../components/ui';
 import { bootstrapAdminEmails, hasPlatformPermission } from '../../../../lib/admin';
 import { formatTimestampDate } from '../../../../lib/format-date';
+import { complaintStatusLabel } from '../../../../lib/labels';
 import { withSession } from '../../../../lib/session';
 import { AssignComplaintForm, UpdateComplaintStatusForm } from './forms';
 
@@ -90,7 +91,7 @@ export default async function AdminComplaintsPage() {
                 <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.75rem' }}>
                   <span className="row-key">Case {c.missionId}</span>
                   <span className={`badge ${STATUS_TONE[c.status] ?? 'badge-neutral'}`}>
-                    {c.status}
+                    {complaintStatusLabel(c.status)}
                   </span>
                 </div>
                 <p className="muted" style={{ fontSize: '0.85rem', margin: 0 }}>

@@ -3,6 +3,7 @@
 import { useActionState } from 'react';
 import { FormMessage, SubmitButton } from '../../../../components/form-feedback';
 import { formatTimestampDate } from '../../../../lib/format-date';
+import { complaintStatusLabel } from '../../../../lib/labels';
 import {
   type ActionState,
   fileComplaintAction,
@@ -71,7 +72,7 @@ export function ComplaintPanel({
               <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.75rem' }}>
                 <span className="row-key">{formatTimestampDate(c.createdAt)}</span>
                 <span className={`badge ${STATUS_TONES[c.status] ?? 'badge-neutral'}`}>
-                  {c.status}
+                  {complaintStatusLabel(c.status)}
                 </span>
               </div>
               <p className="muted" style={{ fontSize: '0.85rem', margin: 0 }}>

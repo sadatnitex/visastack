@@ -2,6 +2,7 @@
 
 import { useActionState, useState } from 'react';
 import { FormMessage, SubmitButton } from '../../../../components/form-feedback';
+import { documentTypeLabel } from '../../../../lib/labels';
 import { profileField } from '../../../../lib/profile-fields';
 import {
   type ActionState,
@@ -33,8 +34,8 @@ export function RunAiExtractionButton({
         <input type="hidden" name="documentVersionId" value={documentVersionId} />
         <SubmitButton
           pending={pending}
-          idle="Run AI extraction"
-          busy="Running AI extraction…"
+          idle="Read details from this document"
+          busy="Reading details…"
           className="btn btn-secondary"
           style={{ padding: '0.3rem 0.9rem', fontSize: '0.8rem' }}
         />
@@ -69,8 +70,8 @@ export function RunOcrButton({
         <input type="hidden" name="documentVersionId" value={documentVersionId} />
         <SubmitButton
           pending={pending}
-          idle="Run OCR"
-          busy="Running OCR…"
+          idle="Read text from this scan"
+          busy="Reading text…"
           className="btn btn-secondary"
           style={{ padding: '0.3rem 0.9rem', fontSize: '0.8rem' }}
         />
@@ -113,7 +114,7 @@ export function OcrResultView({
         <p style={{ marginBottom: '0.4rem' }}>
           <span
             className="badge badge-neutral"
-            title="The primary provider timed out or was rate-limited; this result came from the configured fallback provider instead (Part 8 §13)."
+            title="The first reader timed out or was too busy, so a backup reader was used. Please check the result."
           >
             Fallback provider used
           </span>
@@ -205,7 +206,7 @@ export function AiProposalReview({
         <span className="badge badge-neutral">
           {label} ({proposal.confidence}% confidence)
         </span>
-        {proposal.rationale ? ` — ${proposal.rationale}` : ''}
+        {proposal.rationale ? ` - ${proposal.rationale}` : ''}
       </p>
       {proposal.evidence.length > 0 ? (
         <p className="muted" style={{ fontSize: '0.75rem', marginBottom: '0.4rem' }}>
@@ -285,8 +286,8 @@ export function RunClassificationButton({
         <input type="hidden" name="documentVersionId" value={documentVersionId} />
         <SubmitButton
           pending={pending}
-          idle="Suggest document type with AI"
-          busy="Asking AI to suggest a type…"
+          idle="Suggest what kind of document this is"
+          busy="Looking at the document…"
           className="btn btn-secondary"
           style={{ padding: '0.3rem 0.9rem', fontSize: '0.8rem' }}
         />
@@ -313,8 +314,8 @@ export function RunInconsistencyCheckButton({
         <input type="hidden" name="documentVersionId" value={documentVersionId} />
         <SubmitButton
           pending={pending}
-          idle="Check for inconsistencies with AI"
-          busy="Checking for inconsistencies…"
+          idle="Look for mismatches in my details"
+          busy="Looking for mismatches…"
           className="btn btn-secondary"
           style={{ padding: '0.3rem 0.9rem', fontSize: '0.8rem' }}
         />
@@ -435,7 +436,8 @@ export function DocumentTypeProposalReview({
     >
       <p className="muted" style={{ fontSize: '0.75rem', marginBottom: '0.4rem' }}>
         <span className="badge badge-neutral">
-          AI suggests: {proposal.suggestedType} ({proposal.confidence}% confidence)
+          AI thinks this is a {documentTypeLabel(proposal.suggestedType).toLowerCase()} (
+          {proposal.confidence}% sure). Please check it.
         </span>
         {proposal.rationale ? ` - ${proposal.rationale}` : ''}
       </p>

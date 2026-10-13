@@ -19,6 +19,11 @@ import { notFound } from 'next/navigation';
 import { PageHeader } from '../../../../../components/ui';
 import { bootstrapAdminEmails, isPlatformOwnerAccount } from '../../../../../lib/admin';
 import { formatTimestamp, formatTimestampDate } from '../../../../../lib/format-date';
+import {
+  billingStatusLabel,
+  invoiceStatusLabel,
+  organizationStatusLabel,
+} from '../../../../../lib/labels';
 import { withSession } from '../../../../../lib/session';
 import {
   formatMeterValue,
@@ -157,7 +162,7 @@ export default async function AdminOrganizationPage({
       <PageHeader
         eyebrow="Organization admin"
         title={data.org.name}
-        description={<>Status: {data.org.status}</>}
+        description={<>Status: {organizationStatusLabel(data.org.status)}</>}
       />
 
       <article className="card" style={{ marginBottom: '1.5rem' }}>
@@ -253,7 +258,7 @@ export default async function AdminOrganizationPage({
           <>
             <div className="toolbar" style={{ marginBottom: '1rem' }}>
               <span className={`badge ${BILLING_STATUS_TONE[data.billing.status]}`}>
-                {data.billing.status}
+                {billingStatusLabel(data.billing.status)}
               </span>
             </div>
             {data.billingHistory.length > 0 ? (
@@ -296,7 +301,7 @@ export default async function AdminOrganizationPage({
                 <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.75rem' }}>
                   <span className="row-key">{invoice.invoiceRef}</span>
                   <span className={`badge ${INVOICE_STATUS_TONE[invoice.status]}`}>
-                    {invoice.status}
+                    {invoiceStatusLabel(invoice.status)}
                   </span>
                 </div>
                 <span className="muted" style={{ fontSize: '0.8rem' }}>

@@ -3,6 +3,7 @@
 import { useActionState } from 'react';
 import { FormMessage, SubmitButton } from '../../../../components/form-feedback';
 import { formatDateOnly, formatTimestampDate } from '../../../../lib/format-date';
+import { reviewDecisionLabel } from '../../../../lib/labels';
 import {
   type ActionState,
   addNoteAction,
@@ -586,7 +587,7 @@ export function MissionCollaboration({
                   <span
                     className={`badge ${d.outcome === 'ACCEPTED' ? 'badge-success' : 'badge-danger'}`}
                   >
-                    {d.outcome}
+                    {reviewDecisionLabel(d.outcome)}
                   </span>{' '}
                   <span className="muted" style={{ fontSize: '0.75rem' }}>
                     {requirements.find((r) => r.id === d.packRequirementId)?.label ??

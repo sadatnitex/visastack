@@ -68,9 +68,11 @@ describe('agency Team', () => {
   it('lists members with their role and whether they are active', async () => {
     const text = textOf(await renderServer(Page(props)));
     expect(text).toContain('owner@example.com');
-    expect(text).toContain('OWNER');
+    expect(text).toContain('Owner');
+    expect(text).not.toContain('OWNER');
     expect(text).toContain('rev@example.com');
-    expect(text).toContain('REVIEWER');
+    expect(text).toContain('Reviewer');
+    expect(text).not.toContain('REVIEWER');
     expect(text).toContain('Active');
     expect(text).toContain('Inactive');
   });
@@ -85,7 +87,8 @@ describe('agency Team', () => {
   it('shows pending invitations with a revoke control, and the add-member form', async () => {
     const html = await renderServer(Page(props));
     expect(textOf(html)).toContain('new@example.com');
-    expect(textOf(html)).toContain('CASE_MANAGER');
+    expect(textOf(html)).toContain('Case Manager');
+    expect(textOf(html)).not.toContain('CASE_MANAGER');
     expect(textOf(html)).toContain('Invited');
     expect(stubProps(html, 'InvitationRevokeButton')).toEqual([
       { organizationId: 'o1', invitationId: 'inv1' },
