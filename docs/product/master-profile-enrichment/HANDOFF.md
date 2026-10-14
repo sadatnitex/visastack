@@ -192,3 +192,10 @@ Phase 1 foundations. Phase 2 wiring. Phase 3 screens for new layers. Phase 4 cou
 - No existing grant widens. A category grant is frozen to the documents it was created with; a kind's documents join only a grant created afterwards, or one the owner expands after seeing the confirmation list. Proved with a test for each case.
 - This finishes the Phase 2 item "derive the document-to-category mapping from the catalogue". Still open in Phase 2: deriving the whole legacy field list from the catalogue (the live list is deliberately frozen; added fields sit beside it).
 
+
+### 2026-10-14, Claude: country entry and visa-route reference data (batch 001)
+
+- The owner's three sheets (156 countries, 61 routes, 85 requirement lines) are stored under `docs/product/master-profile-enrichment/country-intake/batch-001/` and built into `packages/core/src/destinations/batch-001.json` by `scripts/country-packs/build-destinations.mjs`. Read it through `@visastack/core/destinations` (`DESTINATIONS`, `DESTINATION_ROUTES`, `destinationByIso2`, `routesForCountry`, `lastCheckedOn`).
+- Owner decision: the data is trusted as given; every screen shows the source link and the "Checked on" date. 24 countries have only an official link and are `researched: false`.
+- `scripts/country-packs/validate-intake.mjs` checks future sheets (and `--live` checks links and quotes from a machine with internet). Both scripts have node tests, run in CI.
+- Not done: no screen shows this data yet, nothing is stored in the database, and no pack or readiness decision uses it.
