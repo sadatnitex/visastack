@@ -24,8 +24,14 @@ change the sheets, rebuild, and commit both.
 
 ## What the checker found (not changed, shown for follow-up)
 
-- 24 countries (South Korea, Vietnam, Kuwait, Bahrain and others) hold only an official link and no stated
-  facts. They are marked `researched: false` and must be shown as "not yet researched".
+- 24 countries (South Korea, Vietnam, Kuwait, Bahrain and others) held only an official link and no stated
+  facts. On 2026-10-14 the owner allowed well-known non-official sources for them. For 18 of the 24, only
+  the entry status (and, where sources agree, the way to apply) was filled from visa-information sites that
+  mostly agree. Each is marked source type "other", confidence LOW and "needs check", and carries no fee,
+  stay or passport rule, because those sources contradict each other. Saint Vincent and the Grenadines uses
+  the Tourism Authority's own page, which may be out of date. Kuwait, Mongolia, Djibouti, Madagascar, Sierra
+  Leone and Gambia stay "not yet researched" because the sources conflict (or only claim visa-free entry,
+  which is not loaded from non-official sources). Screens must show these as unconfirmed.
 - Only 4 routes list five or more requirements and 16 routes list none, so a route's list is not a full
   checklist. Do not use it to say a file is ready.
 - Some fees read 0 and some route lists look like templates; these were kept as given.

@@ -42,6 +42,13 @@ describe('destinations reference data', () => {
     expect(researchedDestinations().length).toBeLessThan(DESTINATIONS.length);
   });
 
+  it('flags every fact that did not come from an official page for a person to check', () => {
+    for (const d of DESTINATIONS) {
+      if (d.source === null) continue;
+      if (d.source.type === 'other') expect(d.source.needsCheck, d.country).toBe(true);
+    }
+  });
+
   it('points every route at a country in the list', () => {
     const names = new Set(DESTINATIONS.map((d) => d.country));
     const loose = DESTINATION_ROUTES.filter((r) => !names.has(r.country));
