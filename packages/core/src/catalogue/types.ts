@@ -184,6 +184,52 @@ export interface CatalogueField {
   readonly origin: Provenance;
   /** Where to look to re-check it, for example "bidesh365:previous_names". */
   readonly sourceRef: string;
+  /** The opt-in section this field belongs to. Set for every field once the catalogue is built. */
+  readonly module: string;
+  /**
+   * What the field is for beyond holding a value. Fields with a role are part of the "Other"
+   * mechanism and never count toward completion:
+   * other_detail: the text box that opens when a choice is "Other".
+   * other_item: a free entry for something the section has no field for.
+   */
+  readonly role?: FieldRole;
+  /** A choice field that accepts "Other" and then needs its companion `<key>_other` filled. */
+  readonly allowOther?: boolean;
+}
+
+export const FIELD_ROLES = ['other_detail', 'other_item'] as const;
+export type FieldRole = (typeof FIELD_ROLES)[number];
+
+/** The value a person picks when none of the listed choices fits. */
+export const OTHER_OPTION = 'Other' as const;
+
+/**
+ * An opt-in section of the profile. Every field belongs to exactly one module. Modules marked
+ * defaultOpen hold only fields that are live today and common to nearly everyone; every other
+ * module is visible but locked until the person ticks it, and opening one adds its fields to the
+ * completion calculation straight away. A module that already holds saved values is always open,
+ * so nothing a person entered is ever hidden.
+ */
+export interface CatalogueModule {
+  readonly key: string;
+  readonly label: string;
+  /** One plain sentence: what it holds and who needs it. */
+  readonly description: string;
+  readonly layer: LayerKey;
+  readonly pack: CataloguePack;
+  readonly defaultOpen: boolean;
+  /** Extra detail for a section that is open by default. Opens separately, never changes the base. */
+  readonly extends?: string;
+  /** Block keys from the field catalogue: "S:<section>" for single fields, "G:<record>" for a record. */
+  readonly blocks: readonly string[];
+  /** Internal sections hold shared plumbing (the Other Item records). They are never listed or counted. */
+  readonly internal?: boolean;
+  /** Live fields that belong here (these are not in the catalogue field list). */
+  readonly legacyFields?: readonly string[];
+  /** Live repeating records that belong here. */
+  readonly legacyGroups?: readonly string[];
+  /** Purpose families this section is suggested for. A suggestion only, never a requirement. */
+  readonly suggestedFor?: readonly PurposeFamilyKey[];
 }
 
 export const DOCUMENT_GROUP_KEYS = [

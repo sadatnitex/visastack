@@ -64,3 +64,16 @@ Title Case for the 81 existing labels (and the `'Passport number'` test assertio
 ## Phase 1 as delivered (2026-10-14)
 
 Delivered exactly as planned: catalogue types and conventions, 101 purposes, 200 curated document types (3 live, 158 from the other product, 39 proposed), 657 fields (each labelled with its origin, the other product or the owner vision; none marked proposed), guard tests that were each proven able to fail, a generated and drift-tested review report, a ledger update and a known-issues entry. Deviations: a fourteenth document group ("Other Documents") was added so nothing is forced into a wrong type; seven proposed sharing categories were defined instead of reusing the five live ones, because sensitive data must fail closed; religion and accessibility needs were placed in non-broad categories after a guard caught them in broad ones.
+
+## Revision 2026-10-14: progressive sections (owner requirement)
+
+Phase 2 now has these parts, in order, each a small merged step:
+1. **Catalogue v2 (done):** sections, completion, Other, Bangladesh tax slip, document field lists.
+2. **Wiring A:** document names and pick-lists from the catalogue; new requirements checked against it.
+3. **Wiring B:** AI reads only the fields a document type supports; types without a list keep today's behaviour.
+4. **Wiring C:** new sharing categories become known to the system; no document gets one without the owner's approval.
+5. **Wiring D:** the live field registry is built from the catalogue (live choice fields gain Other); new fields stay hidden until their section screen exists.
+6. **Storage:** a new table for opened sections and "does not apply" or "none" marks, with an audit event. Needs the owner's explicit go for the migration run.
+7. **Phase 3 screens:** locked-but-visible sections, checkbox to open, progress bar, suggestions. Previewed first.
+
+Counting rule (decided): every counted field is one unit. For a repeating record a field is answered when any record has it, or when the person marks the record "none". A field marked "does not apply" is answered. Other boxes and Other Items never count.

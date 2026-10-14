@@ -340,8 +340,8 @@ describe('document catalogue', () => {
 });
 
 describe('purposes', () => {
-  it('holds the 101 owner-approved purposes in 8 families', () => {
-    expect(CATALOGUE_PURPOSES).toHaveLength(101);
+  it('holds the 101 owner-approved purposes and one Other for each of the 8 families', () => {
+    expect(CATALOGUE_PURPOSES).toHaveLength(109);
     expect(CATALOGUE_PURPOSE_FAMILIES.map((f) => f.key).sort()).toEqual(
       [...PURPOSE_FAMILY_KEYS].sort(),
     );

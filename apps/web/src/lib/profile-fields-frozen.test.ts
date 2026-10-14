@@ -21,7 +21,10 @@ describe('live profile fields are frozen to the catalogue snapshot', () => {
     ...(f.group ? { group: f.group, groupLabel: f.groupLabel } : {}),
     ...(f.options ? { options: f.options } : {}),
   }));
-  const frozen = LEGACY_FIELD_SNAPSHOT.map(({ layer: _layer, ...rest }) => rest);
+  // The layer and the Other text box belong to the catalogue, not to the frozen identity of a field.
+  const frozen = LEGACY_FIELD_SNAPSHOT.map(
+    ({ layer: _layer, otherDetailKey: _other, ...rest }) => rest,
+  );
 
   it('matches the snapshot field by field, in order', () => {
     expect(live).toEqual(frozen);
