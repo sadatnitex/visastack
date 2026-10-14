@@ -1,7 +1,7 @@
 // Opens every web page named in the country sheets and saves its plain text, so a person (or Claude, which
 // cannot reach these sites from its own machine) can read what each page really says.
 // Meant to run on a GitHub-hosted runner, which has internet access. It reads and writes files only.
-// Usage: node scripts/country-packs/fetch-pages.mjs <batchFolder> <outFolder>
+// Usage: node scripts/country-packs/fetch-pages.mjs <batchFolder> <outFolder> [pageToPrint ...]
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -58,9 +58,25 @@ export async function fetchAll(urls, fetchPage, pool = 8) {
   return results;
 }
 
+/** One log line per wanted page: its address, how it went, and the start of its text. For reading in a run log. */
+export function pageLines(results, wanted, maxChars = 12000) {
+  const lines = [];
+  for (const url of wanted) {
+    const found = results.find((r) => r.url === url);
+    lines.push(
+      found
+        ? `PAGE ${url} [${found.status}] ${found.text.slice(0, maxChars)}`
+        : `PAGE ${url} [NOT_IN_SHEETS]`,
+    );
+  }
+  return lines;
+}
+
 async function main() {
-  const [batch, out] = process.argv.slice(2);
-  if (!batch || !out) throw new Error('usage: fetch-pages.mjs <batchFolder> <outFolder>');
+  const [batch, out, ...wanted] = process.argv.slice(2);
+  if (!batch || !out) {
+    throw new Error('usage: fetch-pages.mjs <batchFolder> <outFolder> [pageToPrint ...]');
+  }
   const sheets = Object.fromEntries(
     Object.keys(URL_COLUMNS).map((f) => [f, readFileSync(join(batch, f), 'utf8')]),
   );
@@ -82,6 +98,7 @@ async function main() {
   const counts = {};
   for (const r of results) counts[r.status] = (counts[r.status] ?? 0) + 1;
   process.stdout.write(`${JSON.stringify({ pages: results.length, counts }, null, 2)}\n`);
+  for (const line of pageLines(results, wanted)) process.stdout.write(`${line}\n`);
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) await main();
