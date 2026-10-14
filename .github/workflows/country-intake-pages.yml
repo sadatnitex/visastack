@@ -1,0 +1,51 @@
+name: Country intake pages
+
+# Manual only. Opens every web page named in the country sheets (GitHub's machines have internet access) and
+# saves what each page says, plus a check that the copied words appear on the cited page. It reads files and
+# public web pages only: no secrets, no database, no write access to the repository.
+on:
+  workflow_dispatch:
+    inputs:
+      batch:
+        description: Folder holding the three sheets
+        required: false
+        default: docs/product/master-profile-enrichment/country-intake/batch-001
+
+permissions:
+  contents: read
+
+concurrency:
+  group: country-intake-pages
+  cancel-in-progress: false
+
+jobs:
+  pages:
+    name: Fetch cited pages and check quotes
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+
+      - name: Save the text of every cited page
+        run: node scripts/country-packs/fetch-pages.mjs "${{ inputs.batch }}" out
+
+      - name: Check copied words against the cited pages
+        run: |
+          node scripts/country-packs/validate-intake.mjs \
+            --countries "${{ inputs.batch }}/0-countries.csv" \
+            --routes "${{ inputs.batch }}/1-routes.csv" \
+            --requirements "${{ inputs.batch }}/2-requirements.csv" \
+            --live --out out/live-report.csv || true
+
+      - name: Upload results
+        uses: actions/upload-artifact@v4
+        with:
+          name: country-intake-pages
+          path: out
+          retention-days: 7
