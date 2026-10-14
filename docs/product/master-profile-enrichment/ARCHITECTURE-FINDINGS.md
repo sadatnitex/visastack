@@ -56,3 +56,14 @@ Read-only findings from the 2026-10-14 investigation. Each item names the file s
 ## 9. Not verified
 
 Whether bidesh365 runs, its stored data, the contents of stored country rule packs, the exact reach of fact-level sharing to organisations, AI evaluation behaviour with a larger key set, and the legal wording of declarations.
+
+## 10. Findings added during Phase 1 (2026-10-14)
+
+- **Document categories are narrower than they look.** `DOC_TYPE_TO_PACK` in `sharing.ts` maps only Passport, Bank Statement and Employment Certificate. Every other type has no category and is invisible to category grants. Deriving the map from the catalogue in Phase 2 makes many more documents reachable by grants that include their pack. That is a privacy-relevant change and needs a per-type review first.
+- **The live refusal record sits in the universal category.** `visa_refusal` (including `refusal_reason`, SENSITIVE) is in `universal`. The new declarations category would be safer, but moving it changes who a universal grant can see. Decide in Phase 2.
+- **bidesh365 folds distinct documents into nearby types** (for example a fixed deposit receipt and a savings certificate become a bank statement; a refugee document becomes a passport). VisaStack stores `docType` as free text, so no fold is needed. The catalogue keeps them distinct and records only exact duplicates as aliases.
+- **bidesh365 stores variants of the same record twice** (education, police clearance, good conduct and legal clearances, passport lists). The catalogue merges them into one record each.
+- **The other product stores links to uploaded files as fields** (dozens ending in `_url`). VisaStack links a document to a fact through proof links, so none were ported.
+- **Raw biometrics are not ported.** Only the record of an appointment is stored.
+- **RESTRICTED values already need an explicit approval to be sent to a model** (`ai.ts`). New RESTRICTED fields inherit that, which is the intended safety net.
+- **Field keys per document type are the missing piece for AI extraction.** Each document type now lists the fields it `supports`; Phase 2 can use that to scope the allowed keys in the extraction prompt instead of sending every registered key.

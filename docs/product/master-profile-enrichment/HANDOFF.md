@@ -9,7 +9,7 @@ Living, append-only record for everyone who works on this programme (the owner, 
 | Gap analysis against bidesh365 | Done, recorded in `docs/product/master-profile-gap-analysis-2026-10-14.md` (PR 213) |
 | Architecture findings | Done, `ARCHITECTURE-FINDINGS.md` in this folder |
 | Implementation plan | Done, `IMPLEMENTATION-PLAN.md` in this folder |
-| Phase 1 (catalogue foundations, no screens, no migration, no behaviour change) | Not started. Next after this docs change merges |
+| Phase 1 (catalogue foundations, no screens, no migration, no behaviour change) | Built on branch `claude/keen-rubin-u4kzvp`, PR open. 657 new fields, 200 document types, 101 purposes, guards, generated report. See `CATALOGUE-REPORT.md` and `CATALOGUE-GUIDE.md` |
 | Phase 2 (wiring) | Not started. Waits for the owner to confirm after Phase 1 |
 | Title Case for the 81 existing field labels | Separate visible change, to be previewed first |
 
@@ -75,7 +75,7 @@ Phase 1 foundations. Phase 2 wiring. Phase 3 screens for new layers. Phase 4 cou
 
 | Area | Owner | State |
 |---|---|---|
-| `packages/core/src/catalogue/**` | Claude | Planned (Phase 1) |
+| `packages/core/src/catalogue/**` | Claude | Built (Phase 1). Other agents: read `CATALOGUE-GUIDE.md` and add through the rules there; do not edit guards |
 | `apps/web/src/lib/profile-fields.ts` | Nobody | Frozen until Phase 2. Do not change keys, packs, sensitivity or types |
 | `packages/services/src/{sharing,classification,packs,ai}.ts` | Nobody | Phase 2. Ask first |
 | `docs/product/master-profile-enrichment/**` | Everyone | Append only |
@@ -84,7 +84,14 @@ Phase 1 foundations. Phase 2 wiring. Phase 3 screens for new layers. Phase 4 cou
 
 (none yet)
 
-## 10. Session log
+## 10. Phase 1 summary
+
+- Data only. Nothing in the app reads the catalogue yet, and the 81 live fields are frozen by `profile-fields-frozen.test.ts`.
+- New sensitive data sits in sharing categories that do not exist yet, so no grant can reach it until Phase 2 creates them.
+- Document types keep the other product's lossy folds out (a fixed deposit receipt is not a bank statement); exact duplicates are aliases.
+- Open decisions for Phase 2 are listed at the end of `CATALOGUE-REPORT.md` and in `ARCHITECTURE-FINDINGS.md` section 10.
+
+## 11. Session log
 
 ### 2026-10-14, Claude: investigation and plan
 
@@ -97,3 +104,11 @@ Phase 1 foundations. Phase 2 wiring. Phase 3 screens for new layers. Phase 4 cou
 
 - Owner confirmed small connecting words stay lowercase in Title Case labels, and approved a pointer in `CLAUDE.md`, now added under section 2 (Authority).
 - Files: `CLAUDE.md`, this file.
+
+### 2026-10-14, Claude: Phase 1 catalogue
+
+- Added `packages/core/src/catalogue/` (types, naming rules, layers, 101 purposes, 200 document types, 657 fields in ten layers, frozen snapshot of the 81 live fields, lookups, report renderer).
+- Added guards: `catalogue.test.ts` (core), `profile-fields-frozen.test.ts` (web), `catalogue-consistency.test.ts` (services). Proved each can fail by breaking the real data 13 ways and restoring.
+- Added `CATALOGUE-REPORT.md` (generated, drift-tested) and `CATALOGUE-GUIDE.md`.
+- No database change, no behaviour change, no live field changed.
+- Left: owner sign-off on the lists, then Phase 2.
