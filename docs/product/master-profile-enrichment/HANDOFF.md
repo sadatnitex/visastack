@@ -186,3 +186,9 @@ Phase 1 foundations. Phase 2 wiring. Phase 3 screens for new layers. Phase 4 cou
 - Document type screen: each document on the documents page has "Kind of document" (every catalogue type, grouped, "Not set" to clear) and, for an Other type, a short name for what it is (stored in the existing `subject` column, no migration). `setDocumentType` in services: owner only, name checked against the catalogue and stored as the standard key, audited as DOCUMENT_TYPE_SET, and missions that use the document are told because readiness can change.
 - Still not done: the type is chosen by hand or by approving an AI suggestion; there is no bulk change. The name given to an Other document is not yet shown in lists outside the documents page. Purpose is still a simple family choice.
 
+### 2026-10-14, Claude: document kinds now map to sharing categories
+
+- `documentCategory` (and the grant snapshot, the recipient view and the wallet) now file every document kind under the category the catalogue gives it, by key or any alias. The three original kinds (Passport, Bank Statement, Employment Certificate) are looked up first and never change. A kind the catalogue does not know, or files under no category, still gets none and stays out of category-limited grants (fail closed).
+- No existing grant widens. A category grant is frozen to the documents it was created with; a kind's documents join only a grant created afterwards, or one the owner expands after seeing the confirmation list. Proved with a test for each case.
+- This finishes the Phase 2 item "derive the document-to-category mapping from the catalogue". Still open in Phase 2: deriving the whole legacy field list from the catalogue (the live list is deliberately frozen; added fields sit beside it).
+

@@ -1,6 +1,8 @@
 import { fileURLToPath } from 'node:url';
 import { PGlite } from '@electric-sql/pglite';
 import { isErr, isOk } from '@visastack/core';
+import { CATALOGUE_DOCUMENTS } from '@visastack/core/catalogue/documents';
+import { isSharingCategory } from '@visastack/core/catalogue/packs';
 import { schema } from '@visastack/db';
 import type { Membership } from '@visastack/policy';
 import { eq } from 'drizzle-orm';
@@ -11,7 +13,12 @@ import { provisionAccount } from './accounts';
 import { createApplicant } from './applicants';
 import { setConsent } from './consent';
 import type { Db } from './db';
-import { addDocumentVersion, previewDocument, registerDocument } from './documents';
+import {
+  addDocumentVersion,
+  previewDocument,
+  registerDocument,
+  setDocumentType,
+} from './documents';
 import { createMission } from './missions';
 import {
   addMembership,
@@ -26,6 +33,7 @@ import { RATE_LIMITS } from './rate-limit';
 import {
   acceptGrant,
   createGrant,
+  documentCategory,
   expandGrantScope,
   getRecipientWorkspace,
   listAccessForApplicant,
@@ -1142,5 +1150,129 @@ describe('category scope snapshotting and explicit expansion (PRD SHR-01, AD-11)
     });
     expect(isErr(denied)).toBe(true);
     if (isErr(denied)) expect(denied.error.code).toBe('invalid');
+  });
+});
+
+describe('document kinds and sharing categories', () => {
+  let db: Db;
+  beforeEach(async () => {
+    db = await freshDb();
+  });
+
+  const original = ['PASSPORT', 'BANK_STATEMENT', 'EMPLOYMENT_CERTIFICATE'];
+  const extra = CATALOGUE_DOCUMENTS.find(
+    (d) => d.pack === 'universal' && !original.includes(d.key),
+  );
+  const unfiled = CATALOGUE_DOCUMENTS.find((d) => d.pack === null);
+
+  it('keeps the three original categories exactly and files every other kind where the catalogue does', () => {
+    expect(documentCategory('PASSPORT')).toBe('universal');
+    expect(documentCategory('BANK_STATEMENT')).toBe('universal');
+    expect(documentCategory('EMPLOYMENT_CERTIFICATE')).toBe('professional');
+    expect(extra).toBeDefined();
+    expect(documentCategory(extra?.key ?? '')).toBe('universal');
+    expect(documentCategory(extra?.aliases[0] ?? '')).toBe('universal');
+    expect(documentCategory(null)).toBeUndefined();
+    expect(documentCategory('Totally Made Up Thing')).toBeUndefined();
+    expect(unfiled).toBeDefined();
+    expect(documentCategory(unfiled?.key ?? '')).toBeUndefined();
+  });
+
+  it('only ever files a document kind under a category a grant can name', () => {
+    for (const d of CATALOGUE_DOCUMENTS) {
+      if (d.pack !== null) expect(isSharingCategory(d.pack)).toBe(true);
+    }
+  });
+
+  async function ownerWithDocument(email: string, docType?: string) {
+    const p = await provisionAccount(db, { email });
+    if (!isOk(p)) throw new Error('provision');
+    const account = p.value;
+    for (const type of ['CORE_PROCESSING', 'SHARING'] as const) {
+      await setConsent(db, {
+        actorAccountId: account.id,
+        accountId: account.id,
+        type,
+        granted: true,
+      });
+    }
+    const applicant = await createApplicant(db, {
+      actorAccountId: account.id,
+      ownerAccountId: account.id,
+      displayName: 'Owner',
+    });
+    if (!isOk(applicant)) throw new Error('applicant');
+    const doc = await registerDocument(db, {
+      actorAccountId: account.id,
+      applicantId: applicant.value.id,
+      originalName: 'letter.pdf',
+      ...(docType ? { docType } : {}),
+    });
+    if (!isOk(doc)) throw new Error('doc');
+    const recipient = await provisionAccount(db, { email: `r-${email}` });
+    if (!isOk(recipient)) throw new Error('provision');
+    return { account, applicantId: applicant.value.id, documentId: doc.value.id, recipient };
+  }
+
+  it('a new category grant covers a document the owner has since given a kind', async () => {
+    const { account, applicantId, documentId, recipient } =
+      await ownerWithDocument('kind-new@example.com');
+    const typed = await setDocumentType(db, {
+      actorAccountId: account.id,
+      documentId,
+      docType: extra?.key ?? '',
+    });
+    expect(isOk(typed)).toBe(true);
+
+    const grant = await createGrant(db, {
+      actorAccountId: account.id,
+      applicantId,
+      recipientAccountId: recipient.value.id,
+      actions: ['VIEW_METADATA', 'PREVIEW'],
+      purpose: 'p',
+      categories: ['universal'],
+    });
+    if (!isOk(grant)) throw new Error('grant');
+    expect(grant.value.documentScopeSnapshot).toEqual([documentId]);
+    await acceptGrant(db, { actorAccountId: recipient.value.id, grantId: grant.value.id });
+    const view = await getRecipientWorkspace(db, {
+      actorAccountId: recipient.value.id,
+      grantId: grant.value.id,
+    });
+    expect(isOk(view) && view.value.documents.map((d) => d.id)).toEqual([documentId]);
+  });
+
+  it('never widens a grant that already exists: the document waits for an explicit expansion', async () => {
+    const { account, applicantId, documentId, recipient } =
+      await ownerWithDocument('kind-frozen@example.com');
+    const grant = await createGrant(db, {
+      actorAccountId: account.id,
+      applicantId,
+      recipientAccountId: recipient.value.id,
+      actions: ['VIEW_METADATA', 'PREVIEW'],
+      purpose: 'p',
+      categories: ['universal'],
+    });
+    if (!isOk(grant)) throw new Error('grant');
+    expect(grant.value.documentScopeSnapshot).toEqual([]);
+    await acceptGrant(db, { actorAccountId: recipient.value.id, grantId: grant.value.id });
+
+    await setDocumentType(db, {
+      actorAccountId: account.id,
+      documentId,
+      docType: extra?.key ?? '',
+    });
+
+    const view = await getRecipientWorkspace(db, {
+      actorAccountId: recipient.value.id,
+      grantId: grant.value.id,
+    });
+    expect(isOk(view) && view.value.documents).toEqual([]);
+
+    const candidates = await previewScopeExpansion(db, {
+      actorAccountId: account.id,
+      grantId: grant.value.id,
+    });
+    expect(isOk(candidates) && candidates.value.map((c) => c.id)).toEqual([documentId]);
   });
 });
