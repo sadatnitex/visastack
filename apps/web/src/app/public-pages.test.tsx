@@ -113,7 +113,7 @@ describe('public and entry pages today', () => {
     const { default: SignIn } = await import('./auth/sign-in/page');
     const { default: Verify } = await import('./auth/verify-email/page');
     expect(dom(renderToStaticMarkup(await SignIn(SEARCH()))).querySelector('h1')?.textContent).toBe(
-      'Sign in to your workspace',
+      'Sign in',
     );
     const verify = dom(renderToStaticMarkup(await Verify(SEARCH())));
     expect(verify.querySelector('[aria-current="step"]')?.textContent).toContain(
