@@ -107,18 +107,18 @@ export default async function PackVersionDiffPage({
                       </span>
                     </div>
                     {entry.change === 'changed' ? (
-                      <span className="muted u-fs-080">
+                      <span className="muted u-fs-085">
                         Changed: {entry.changedFields.join(', ')}
                       </span>
                     ) : null}
                     {entry.change === 'added' && entry.to ? (
-                      <span className="muted u-fs-080">Cite: {entry.to.citation}</span>
+                      <span className="muted u-fs-085">Cite: {entry.to.citation}</span>
                     ) : null}
                     {entry.change === 'removed' && entry.from ? (
-                      <span className="muted u-fs-080">Was cited: {entry.from.citation}</span>
+                      <span className="muted u-fs-085">Was cited: {entry.from.citation}</span>
                     ) : null}
                     {entry.change === 'unchanged' ? (
-                      <span className="muted u-fs-080">Cite: {req.citation}</span>
+                      <span className="muted u-fs-085">Cite: {req.citation}</span>
                     ) : null}
                   </div>
                 );

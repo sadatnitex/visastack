@@ -164,7 +164,7 @@ export default async function ExpiryCentrePage({
         <article className="card">
           <p className="card-kicker">Case-specific freshness</p>
           <h2 className="card-title">Route rules</h2>
-          <p className="muted" style={{ fontSize: '0.8rem', marginBottom: '0.75rem' }}>
+          <p className="muted" style={{ fontSize: 'var(--text-small)', marginBottom: '0.75rem' }}>
             Some requirements demand evidence dated within a set window, separate from the
             document's own expiry.
           </p>
@@ -184,7 +184,10 @@ export default async function ExpiryCentrePage({
                   >
                     <span className="row-key">
                       {requirementKey}
-                      <span className="muted" style={{ fontSize: '0.75rem', marginLeft: '0.5rem' }}>
+                      <span
+                        className="muted"
+                        style={{ fontSize: 'var(--text-caption)', marginLeft: '0.5rem' }}
+                      >
                         {mission.title}
                       </span>
                     </span>
@@ -213,7 +216,10 @@ export default async function ExpiryCentrePage({
                   <div className="row" key={verification.id}>
                     <span className="row-key">
                       {verification.issuerIdentity}
-                      <span className="muted" style={{ fontSize: '0.75rem', marginLeft: '0.5rem' }}>
+                      <span
+                        className="muted"
+                        style={{ fontSize: 'var(--text-caption)', marginLeft: '0.5rem' }}
+                      >
                         {doc.approvedName ?? doc.originalName}
                       </span>
                     </span>

@@ -88,9 +88,9 @@ export default async function AcceptContributorRequestPage({
               Who will see this:
             </p>
             <ul style={{ margin: '0 0 1rem', paddingLeft: '1.25rem' }}>
-              <li className="muted u-fs-090">{data.preview.value.applicantName} (the traveller)</li>
+              <li className="muted u-fs-085">{data.preview.value.applicantName} (the traveller)</li>
               {data.preview.value.recipientOrganizationNames.map((name) => (
-                <li className="muted u-fs-090" key={name}>
+                <li className="muted u-fs-085" key={name}>
                   {name} (helping with this case)
                 </li>
               ))}

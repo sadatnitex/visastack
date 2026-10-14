@@ -53,7 +53,7 @@ function ConsentToggle({
             busy="Turning on…"
             label={`Turn on: ${label}`}
             className="btn btn-primary"
-            style={{ padding: '0.35rem 1rem', fontSize: '0.85rem' }}
+            style={{ padding: '0.35rem 1rem', fontSize: 'var(--text-small)' }}
           />
           {/* A failed grant used to say nothing at all. */}
           <FormMessage result={state} />

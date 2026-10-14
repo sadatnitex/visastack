@@ -37,7 +37,7 @@ export function RunAiExtractionButton({
           idle="Read details from this document"
           busy="Reading details…"
           className="btn btn-secondary"
-          style={{ padding: '0.3rem 0.9rem', fontSize: '0.8rem' }}
+          style={{ padding: '0.3rem 0.9rem', fontSize: 'var(--text-small)' }}
         />
       </form>
       <FormMessage result={state} />
@@ -73,7 +73,7 @@ export function RunOcrButton({
           idle="Read text from this scan"
           busy="Reading text…"
           className="btn btn-secondary"
-          style={{ padding: '0.3rem 0.9rem', fontSize: '0.8rem' }}
+          style={{ padding: '0.3rem 0.9rem', fontSize: 'var(--text-small)' }}
         />
       </form>
       <FormMessage result={state} />
@@ -133,7 +133,7 @@ export function OcrResultView({
         <p
           className="muted"
           style={{
-            fontSize: '0.8rem',
+            fontSize: 'var(--text-small)',
             whiteSpace: 'pre-wrap',
             maxHeight: '10rem',
             overflowY: 'auto',
@@ -142,7 +142,7 @@ export function OcrResultView({
           {text}
         </p>
       ) : (
-        <p className="muted u-fs-080">No legible text was found.</p>
+        <p className="muted u-fs-085">No legible text was found.</p>
       )}
     </div>
   );
@@ -200,14 +200,14 @@ export function AiProposalReview({
         border: '1px solid var(--hairline-soft)',
       }}
     >
-      <p className="muted" style={{ fontSize: '0.75rem', marginBottom: '0.4rem' }}>
+      <p className="muted" style={{ fontSize: 'var(--text-caption)', marginBottom: '0.4rem' }}>
         <span className="badge badge-neutral">
           {label} ({proposal.confidence}% confidence)
         </span>
         {proposal.rationale ? ` - ${proposal.rationale}` : ''}
       </p>
       {proposal.evidence.length > 0 ? (
-        <p className="muted" style={{ fontSize: '0.75rem', marginBottom: '0.4rem' }}>
+        <p className="muted" style={{ fontSize: 'var(--text-caption)', marginBottom: '0.4rem' }}>
           Evidence: <q>{proposal.evidence[0]?.snippet}</q>
           {proposal.evidence[0]?.verified === false ? (
             <span
@@ -235,27 +235,31 @@ export function AiProposalReview({
               value={editedValue}
               onChange={(e) => setEditedValue(e.target.value)}
               className="input"
-              style={{ flex: '1 1 260px', fontSize: '0.85rem', padding: '0.4rem 0.65rem' }}
+              style={{
+                flex: '1 1 260px',
+                fontSize: 'var(--text-small)',
+                padding: '0.4rem 0.65rem',
+              }}
             />
             <SubmitButton
               pending={pending}
               idle="Approve"
               busy="Saving…"
               className="btn btn-primary"
-              style={{ padding: '0.35rem 0.9rem', fontSize: '0.8rem' }}
+              style={{ padding: '0.35rem 0.9rem', fontSize: 'var(--text-small)' }}
               name="proposalAction"
               value="approve"
             />
           </>
         ) : (
-          <span className="muted u-fs-080">{proposal.value ?? '(no value)'}</span>
+          <span className="muted u-fs-085">{proposal.value ?? '(no value)'}</span>
         )}
         <SubmitButton
           pending={pending}
           idle="Reject"
           busy="Reject"
           className="btn btn-secondary"
-          style={{ padding: '0.35rem 0.9rem', fontSize: '0.8rem' }}
+          style={{ padding: '0.35rem 0.9rem', fontSize: 'var(--text-small)' }}
           name="proposalAction"
           value="reject"
         />
@@ -285,7 +289,7 @@ export function RunClassificationButton({
           idle="Suggest what kind of document this is"
           busy="Looking at the document…"
           className="btn btn-secondary"
-          style={{ padding: '0.3rem 0.9rem', fontSize: '0.8rem' }}
+          style={{ padding: '0.3rem 0.9rem', fontSize: 'var(--text-small)' }}
         />
       </form>
       <FormMessage result={state} />
@@ -313,7 +317,7 @@ export function RunInconsistencyCheckButton({
           idle="Look for mismatches in my details"
           busy="Looking for mismatches…"
           className="btn btn-secondary"
-          style={{ padding: '0.3rem 0.9rem', fontSize: '0.8rem' }}
+          style={{ padding: '0.3rem 0.9rem', fontSize: 'var(--text-small)' }}
         />
       </form>
       <FormMessage result={state} />
@@ -356,7 +360,7 @@ export function InconsistencyFlagReview({
         border: '1px solid var(--hairline-soft)',
       }}
     >
-      <p className="muted" style={{ fontSize: '0.75rem', marginBottom: '0.4rem' }}>
+      <p className="muted" style={{ fontSize: 'var(--text-caption)', marginBottom: '0.4rem' }}>
         <span className="badge badge-warning">
           Possible inconsistency ({flag.confidence}% confidence)
         </span>{' '}
@@ -374,7 +378,7 @@ export function InconsistencyFlagReview({
           idle="Acknowledge"
           busy="Saving…"
           className="btn btn-primary"
-          style={{ padding: '0.35rem 0.9rem', fontSize: '0.8rem' }}
+          style={{ padding: '0.35rem 0.9rem', fontSize: 'var(--text-small)' }}
           name="flagAction"
           value="acknowledge"
         />
@@ -383,7 +387,7 @@ export function InconsistencyFlagReview({
           idle="Dismiss"
           busy="Dismiss"
           className="btn btn-secondary"
-          style={{ padding: '0.35rem 0.9rem', fontSize: '0.8rem' }}
+          style={{ padding: '0.35rem 0.9rem', fontSize: 'var(--text-small)' }}
           name="flagAction"
           value="dismiss"
         />
@@ -430,7 +434,7 @@ export function DocumentTypeProposalReview({
         border: '1px solid var(--hairline-soft)',
       }}
     >
-      <p className="muted" style={{ fontSize: '0.75rem', marginBottom: '0.4rem' }}>
+      <p className="muted" style={{ fontSize: 'var(--text-caption)', marginBottom: '0.4rem' }}>
         <span className="badge badge-neutral">
           AI thinks this is a {documentTypeLabel(proposal.suggestedType).toLowerCase()} (
           {proposal.confidence}% sure). Please check it.
@@ -449,7 +453,7 @@ export function DocumentTypeProposalReview({
             idle="Approve"
             busy="Saving…"
             className="btn btn-primary"
-            style={{ padding: '0.35rem 0.9rem', fontSize: '0.8rem' }}
+            style={{ padding: '0.35rem 0.9rem', fontSize: 'var(--text-small)' }}
             name="proposalAction"
             value="approve"
           />
@@ -459,7 +463,7 @@ export function DocumentTypeProposalReview({
           idle="Reject"
           busy="Reject"
           className="btn btn-secondary"
-          style={{ padding: '0.35rem 0.9rem', fontSize: '0.8rem' }}
+          style={{ padding: '0.35rem 0.9rem', fontSize: 'var(--text-small)' }}
           name="proposalAction"
           value="reject"
         />

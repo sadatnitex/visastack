@@ -43,7 +43,7 @@ export function BrandingForm({
       >
         <input type="hidden" name="organizationId" value={organizationId} />
         <label style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-          <span style={{ fontSize: '0.85rem', fontWeight: 600 }}>Agency name</span>
+          <span style={{ fontSize: 'var(--text-small)', fontWeight: 600 }}>Agency name</span>
           <input
             className="input"
             type="text"
@@ -54,8 +54,8 @@ export function BrandingForm({
           />
         </label>
         <label style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-          <span style={{ fontSize: '0.85rem', fontWeight: 600 }}>Accent color</span>
-          <span className="muted" style={{ fontSize: '0.78rem' }}>
+          <span style={{ fontSize: 'var(--text-small)', fontWeight: 600 }}>Accent color</span>
+          <span className="muted" style={{ fontSize: 'var(--text-caption)' }}>
             Must have at least 4.5:1 contrast against white (WCAG AA). Leave blank to clear it.
           </span>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
@@ -92,8 +92,8 @@ export function BrandingForm({
       </form>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', maxWidth: '28rem' }}>
-        <span style={{ fontSize: '0.85rem', fontWeight: 600 }}>Logo</span>
-        <span className="muted" style={{ fontSize: '0.78rem' }}>
+        <span style={{ fontSize: 'var(--text-small)', fontWeight: 600 }}>Logo</span>
+        <span className="muted" style={{ fontSize: 'var(--text-caption)' }}>
           PNG or JPEG, up to 2 MB. Scanned for safety before it's shown anywhere.
         </span>
         {logoUrl ? (
@@ -109,7 +109,7 @@ export function BrandingForm({
             }}
           />
         ) : (
-          <span className="muted u-fs-080">No logo set yet.</span>
+          <span className="muted u-fs-085">No logo set yet.</span>
         )}
         <form
           action={(formData) => {

@@ -62,7 +62,7 @@ export function AddApplicantForm() {
             display: 'flex',
             alignItems: 'flex-start',
             gap: '0.5rem',
-            fontSize: '0.85rem',
+            fontSize: 'var(--text-small)',
           }}
         >
           <input

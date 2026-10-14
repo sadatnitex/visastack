@@ -155,7 +155,7 @@ export default async function AdminOrganizationPage({
   return (
     <section className="section container">
       <div className="u-mb-150">
-        <Link href="/app/admin/organizations" className="muted u-fs-090">
+        <Link href="/app/admin/organizations" className="muted u-fs-085">
           ← Organizations
         </Link>
       </div>
@@ -193,7 +193,7 @@ export default async function AdminOrganizationPage({
                 {data.planById.get(data.pendingDowngrade.toPlanId)?.name ?? 'unknown plan'}{' '}
                 scheduled for {data.pendingDowngrade.effectiveAt.toDateString()}
               </span>
-              <span className="muted u-fs-080">{data.pendingDowngrade.reason}</span>
+              <span className="muted u-fs-085">{data.pendingDowngrade.reason}</span>
               <div>
                 <CancelDowngradeButton
                   organizationId={orgId}
@@ -225,12 +225,16 @@ export default async function AdminOrganizationPage({
 
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '2rem' }}>
           <div style={{ flex: '1 1 18rem' }}>
-            <h3 style={{ fontSize: '0.9rem', marginBottom: '0.5rem' }}>Activate a plan</h3>
+            <h3 style={{ fontSize: 'var(--text-small)', marginBottom: '0.5rem' }}>
+              Activate a plan
+            </h3>
             <ActivatePlanForm organizationId={orgId} plans={data.activePlans} />
           </div>
           {data.currentPlan && !data.pendingDowngrade ? (
             <div style={{ flex: '1 1 18rem' }}>
-              <h3 style={{ fontSize: '0.9rem', marginBottom: '0.5rem' }}>Schedule a downgrade</h3>
+              <h3 style={{ fontSize: 'var(--text-small)', marginBottom: '0.5rem' }}>
+                Schedule a downgrade
+              </h3>
               <ScheduleDowngradeForm organizationId={orgId} plans={data.activePlans} />
             </div>
           ) : null}
@@ -266,7 +270,7 @@ export default async function AdminOrganizationPage({
                     <span className="row-key">
                       {h.fromStatus ?? 'opened'} → {h.toStatus}
                     </span>
-                    <span className="muted u-fs-080">
+                    <span className="muted u-fs-085">
                       {formatTimestampDate(h.createdAt)} · {h.reason}
                     </span>
                   </div>
@@ -300,7 +304,7 @@ export default async function AdminOrganizationPage({
                     {invoiceStatusLabel(invoice.status)}
                   </span>
                 </div>
-                <span className="muted u-fs-080">
+                <span className="muted u-fs-085">
                   {invoiceAmount(invoice)} · due {invoice.dueDate.toDateString()}
                 </span>
                 {invoice.status === 'OPEN' || invoice.status === 'PARTIALLY_PAID' ? (
@@ -320,7 +324,7 @@ export default async function AdminOrganizationPage({
             ))}
           </div>
         )}
-        <h3 style={{ fontSize: '0.9rem', marginBottom: '0.5rem' }}>Create an invoice</h3>
+        <h3 style={{ fontSize: 'var(--text-small)', marginBottom: '0.5rem' }}>Create an invoice</h3>
         <CreateInvoiceForm organizationId={orgId} plans={data.activePlans} />
       </article>
 
@@ -358,13 +362,13 @@ export default async function AdminOrganizationPage({
                       ) : null}
                     </span>
                   </div>
-                  <span className="muted u-fs-080">{o.reason}</span>
+                  <span className="muted u-fs-085">{o.reason}</span>
                 </div>
               );
             })}
           </div>
         )}
-        <h3 style={{ fontSize: '0.9rem', marginBottom: '0.5rem' }}>Grant an override</h3>
+        <h3 style={{ fontSize: 'var(--text-small)', marginBottom: '0.5rem' }}>Grant an override</h3>
         <GrantOverrideForm organizationId={orgId} />
       </article>
     </section>

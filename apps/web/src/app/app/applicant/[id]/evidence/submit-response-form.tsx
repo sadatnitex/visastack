@@ -79,7 +79,7 @@ export function SubmitResponseForm({
                   display: 'flex',
                   alignItems: 'center',
                   gap: '0.5rem',
-                  fontSize: '0.85rem',
+                  fontSize: 'var(--text-small)',
                 }}
               >
                 <input
@@ -97,7 +97,7 @@ export function SubmitResponseForm({
                   display: 'flex',
                   alignItems: 'center',
                   gap: '0.5rem',
-                  fontSize: '0.85rem',
+                  fontSize: 'var(--text-small)',
                   opacity: d.usable ? 1 : 0.6,
                 }}
               >
@@ -123,7 +123,7 @@ export function SubmitResponseForm({
           idle="Submit"
           busy="Submitting…"
           className="btn btn-primary"
-          style={{ padding: '0.3rem 0.9rem', fontSize: '0.8rem' }}
+          style={{ padding: '0.3rem 0.9rem', fontSize: 'var(--text-small)' }}
         />
         <FormMessage result={state} />
       </div>

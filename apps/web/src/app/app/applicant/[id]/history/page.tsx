@@ -117,14 +117,21 @@ export default async function HistoryPage({
                 {fact.repeatingRecordKey ? (
                   <span
                     className="muted"
-                    style={{ fontSize: '0.75rem', fontWeight: 400, marginLeft: '0.5rem' }}
+                    style={{
+                      fontSize: 'var(--text-caption)',
+                      fontWeight: 400,
+                      marginLeft: '0.5rem',
+                    }}
                   >
                     (record {fact.repeatingRecordKey.slice(0, 8)})
                   </span>
                 ) : null}
               </h2>
               {fact.missionUse.length > 0 ? (
-                <p className="muted" style={{ fontSize: '0.8rem', marginBottom: '0.75rem' }}>
+                <p
+                  className="muted"
+                  style={{ fontSize: 'var(--text-small)', marginBottom: '0.75rem' }}
+                >
                   Used by:{' '}
                   {fact.missionUse.map((m, i) => (
                     <span key={m.missionId}>
@@ -158,7 +165,7 @@ export default async function HistoryPage({
                         {i === fact.versions.length - 1 ? 'Current' : 'Superseded'}
                       </span>
                     </div>
-                    <span className="muted" style={{ fontSize: '0.78rem' }}>
+                    <span className="muted" style={{ fontSize: 'var(--text-caption)' }}>
                       {STATUS_LABELS[v.status] ?? v.status} · {METHOD_LABELS[v.method] ?? v.method}{' '}
                       · {formatDateTime(v.createdAt)}
                       {v.reason ? ` · ${v.reason}` : ''}

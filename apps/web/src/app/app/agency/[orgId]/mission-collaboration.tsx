@@ -176,11 +176,11 @@ export function MissionCollaboration({
     >
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.75rem' }}>
         <span className="row-key">{title}</span>
-        <span className="muted u-fs-080">{applicantName}</span>
+        <span className="muted u-fs-085">{applicantName}</span>
       </div>
 
       <div style={{ marginTop: '0.6rem' }}>
-        <p className="muted" style={{ fontSize: '0.78rem', marginBottom: '0.35rem' }}>
+        <p className="muted" style={{ fontSize: 'var(--text-caption)', marginBottom: '0.35rem' }}>
           Assigned
         </p>
         {assignments.length === 0 ? (
@@ -202,7 +202,7 @@ export function MissionCollaboration({
                   idle="×"
                   busy="×"
                   className="btn btn-secondary"
-                  style={{ padding: '0.1rem 0.5rem', fontSize: '0.7rem' }}
+                  style={{ padding: '0.1rem 0.5rem', fontSize: 'var(--text-caption)' }}
                   title="Unassign"
                 />
               </form>
@@ -242,11 +242,11 @@ export function MissionCollaboration({
       </div>
 
       <div style={{ marginTop: '0.85rem' }}>
-        <p className="muted" style={{ fontSize: '0.78rem', marginBottom: '0.35rem' }}>
+        <p className="muted" style={{ fontSize: 'var(--text-caption)', marginBottom: '0.35rem' }}>
           Tasks
         </p>
         {openTasks.length === 0 ? (
-          <p className="muted" style={{ fontSize: '0.85rem', marginBottom: '0.5rem' }}>
+          <p className="muted" style={{ fontSize: 'var(--text-small)', marginBottom: '0.5rem' }}>
             No open tasks.
           </p>
         ) : (
@@ -261,7 +261,7 @@ export function MissionCollaboration({
             {openTasks.map((t) => (
               <div key={t.id} className="u-fs-085">
                 <span>{t.description}</span>{' '}
-                <span className="badge badge-neutral" style={{ fontSize: '0.65rem' }}>
+                <span className="badge badge-neutral" style={{ fontSize: 'var(--text-caption)' }}>
                   {PRIORITY_LABELS[t.priority] ?? t.priority}
                 </span>{' '}
                 <span className="muted u-fs-075">
@@ -278,7 +278,7 @@ export function MissionCollaboration({
                     <select
                       name="assigneeAccountId"
                       className="input"
-                      style={{ padding: '0.15rem 0.4rem', fontSize: '0.72rem' }}
+                      style={{ padding: '0.15rem 0.4rem', fontSize: 'var(--text-caption)' }}
                       defaultValue={t.assigneeAccountId ?? ''}
                       aria-label="Reassign task"
                     >
@@ -294,7 +294,7 @@ export function MissionCollaboration({
                       idle="Reassign"
                       busy="Reassign"
                       className="btn btn-secondary"
-                      style={{ padding: '0.15rem 0.5rem', fontSize: '0.72rem' }}
+                      style={{ padding: '0.15rem 0.5rem', fontSize: 'var(--text-caption)' }}
                     />
                   </form>
                   <form action={taskDecideAction} style={{ display: 'flex', gap: '0.3rem' }}>
@@ -307,7 +307,7 @@ export function MissionCollaboration({
                         idle="Start"
                         busy="Start"
                         className="btn btn-secondary"
-                        style={{ padding: '0.15rem 0.5rem', fontSize: '0.72rem' }}
+                        style={{ padding: '0.15rem 0.5rem', fontSize: 'var(--text-caption)' }}
                         name="status"
                         value="IN_PROGRESS"
                       />
@@ -317,7 +317,7 @@ export function MissionCollaboration({
                       idle="Done"
                       busy="Done"
                       className="btn btn-secondary"
-                      style={{ padding: '0.15rem 0.5rem', fontSize: '0.72rem' }}
+                      style={{ padding: '0.15rem 0.5rem', fontSize: 'var(--text-caption)' }}
                       name="status"
                       value="DONE"
                     />
@@ -326,7 +326,7 @@ export function MissionCollaboration({
                       idle="Cancel"
                       busy="Cancel"
                       className="btn btn-secondary"
-                      style={{ padding: '0.15rem 0.5rem', fontSize: '0.72rem' }}
+                      style={{ padding: '0.15rem 0.5rem', fontSize: 'var(--text-caption)' }}
                       name="status"
                       value="CANCELLED"
                     />
@@ -380,11 +380,11 @@ export function MissionCollaboration({
       </div>
 
       <div style={{ marginTop: '0.85rem' }}>
-        <p className="muted" style={{ fontSize: '0.78rem', marginBottom: '0.35rem' }}>
+        <p className="muted" style={{ fontSize: 'var(--text-caption)', marginBottom: '0.35rem' }}>
           Appointments
         </p>
         {upcomingAppointments.length === 0 ? (
-          <p className="muted" style={{ fontSize: '0.85rem', marginBottom: '0.5rem' }}>
+          <p className="muted" style={{ fontSize: 'var(--text-small)', marginBottom: '0.5rem' }}>
             No appointments scheduled.
           </p>
         ) : (
@@ -419,7 +419,7 @@ export function MissionCollaboration({
                     idle="Done"
                     busy="Done"
                     className="btn btn-secondary"
-                    style={{ padding: '0.15rem 0.5rem', fontSize: '0.72rem' }}
+                    style={{ padding: '0.15rem 0.5rem', fontSize: 'var(--text-caption)' }}
                     name="status"
                     value="DONE"
                   />
@@ -428,7 +428,7 @@ export function MissionCollaboration({
                     idle="Cancel"
                     busy="Cancel"
                     className="btn btn-secondary"
-                    style={{ padding: '0.15rem 0.5rem', fontSize: '0.72rem' }}
+                    style={{ padding: '0.15rem 0.5rem', fontSize: 'var(--text-caption)' }}
                     name="status"
                     value="CANCELLED"
                   />
@@ -489,11 +489,11 @@ export function MissionCollaboration({
       </div>
 
       <div style={{ marginTop: '0.85rem' }}>
-        <p className="muted" style={{ fontSize: '0.78rem', marginBottom: '0.35rem' }}>
+        <p className="muted" style={{ fontSize: 'var(--text-caption)', marginBottom: '0.35rem' }}>
           Notes
         </p>
         {notes.length === 0 ? (
-          <p className="muted" style={{ fontSize: '0.85rem', marginBottom: '0.5rem' }}>
+          <p className="muted" style={{ fontSize: 'var(--text-small)', marginBottom: '0.5rem' }}>
             No notes yet.
           </p>
         ) : (
@@ -509,7 +509,7 @@ export function MissionCollaboration({
               <div key={n.id} className="u-fs-085">
                 <span
                   className={`badge ${n.visibility === 'AGENCY_INTERNAL' ? 'badge-warning' : 'badge-success'}`}
-                  style={{ fontSize: '0.65rem', marginRight: '0.35rem' }}
+                  style={{ fontSize: 'var(--text-caption)', marginRight: '0.35rem' }}
                 >
                   {n.visibility === 'AGENCY_INTERNAL' ? 'Internal' : 'Shared with traveller'}
                 </span>
@@ -558,11 +558,11 @@ export function MissionCollaboration({
 
       {requirements.length > 0 ? (
         <div style={{ marginTop: '0.85rem' }}>
-          <p className="muted" style={{ fontSize: '0.78rem', marginBottom: '0.35rem' }}>
+          <p className="muted" style={{ fontSize: 'var(--text-caption)', marginBottom: '0.35rem' }}>
             Decisions
           </p>
           {decisions.length === 0 ? (
-            <p className="muted" style={{ fontSize: '0.85rem', marginBottom: '0.5rem' }}>
+            <p className="muted" style={{ fontSize: 'var(--text-small)', marginBottom: '0.5rem' }}>
               No decisions recorded yet.
             </p>
           ) : (
@@ -637,7 +637,7 @@ export function MissionCollaboration({
               />
             </form>
           ) : (
-            <p className="muted" style={{ fontSize: '0.78rem' }}>
+            <p className="muted" style={{ fontSize: 'var(--text-caption)' }}>
               Only an assigned member can record a decision.
             </p>
           )}
@@ -647,11 +647,11 @@ export function MissionCollaboration({
 
       {requirements.length > 0 ? (
         <div style={{ marginTop: '0.85rem' }}>
-          <p className="muted" style={{ fontSize: '0.78rem', marginBottom: '0.35rem' }}>
+          <p className="muted" style={{ fontSize: 'var(--text-caption)', marginBottom: '0.35rem' }}>
             Issuer confirmations (EVI-05)
           </p>
           {issuerVerifications.length === 0 ? (
-            <p className="muted" style={{ fontSize: '0.85rem', marginBottom: '0.5rem' }}>
+            <p className="muted" style={{ fontSize: 'var(--text-small)', marginBottom: '0.5rem' }}>
               No issuer confirmed yet. Lack of this is not a readiness failure on its own.
             </p>
           ) : (
@@ -744,7 +744,7 @@ export function MissionCollaboration({
               className="btn btn-secondary u-btn-sm"
             />
           </form>
-          <p className="muted" style={{ fontSize: '0.75rem', marginTop: '0.35rem' }}>
+          <p className="muted" style={{ fontSize: 'var(--text-caption)', marginTop: '0.35rem' }}>
             Requires evidence already selected for that requirement; a staff checkbox alone is never
             accepted as confirmation.
           </p>

@@ -161,7 +161,7 @@ export default async function MissionSnapshotPage({
         <article className="card u-mb-150">
           <p className="card-kicker">Requirement mapping</p>
           <h2 className="card-title">What satisfies each requirement</h2>
-          <p className="muted" style={{ fontSize: '0.8rem', marginBottom: '1rem' }}>
+          <p className="muted" style={{ fontSize: 'var(--text-small)', marginBottom: '1rem' }}>
             Each pack requirement resolved to the specific evidence backing it, as of this snapshot.
           </p>
           <div className="rows">
@@ -190,7 +190,7 @@ export default async function MissionSnapshotPage({
                   </div>
                   <p className="muted u-fs-075-m0">{m.citation}</p>
                   {m.kind === 'FIELD' && m.facts && m.facts.length > 0 ? (
-                    <p style={{ margin: 0, fontSize: '0.85rem' }}>
+                    <p style={{ margin: 0, fontSize: 'var(--text-small)' }}>
                       {m.facts
                         .filter((f) => f.eligible)
                         .map((f) => f.value)
@@ -198,7 +198,7 @@ export default async function MissionSnapshotPage({
                     </p>
                   ) : null}
                   {m.kind === 'DOCUMENT' && m.documents && m.documents.length > 0 ? (
-                    <p style={{ margin: 0, fontSize: '0.85rem' }}>
+                    <p style={{ margin: 0, fontSize: 'var(--text-small)' }}>
                       {m.documents
                         .filter((d) => d.eligible)
                         .map((d) => d.displayName)

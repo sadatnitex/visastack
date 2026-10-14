@@ -353,7 +353,10 @@ export default async function AdminOperationsPage() {
                         {job.lastError ? (
                           <span
                             className="muted"
-                            style={{ fontSize: '0.8rem', fontFamily: 'var(--font-mono)' }}
+                            style={{
+                              fontSize: 'var(--text-small)',
+                              fontFamily: 'var(--font-mono)',
+                            }}
                           >
                             {job.lastError}
                           </span>
@@ -375,7 +378,7 @@ export default async function AdminOperationsPage() {
                     <div className="row" key={row.eventType}>
                       <span className="row-key">{SCORECARD_LABELS[row.eventType]}</span>
                       <span className="row-end">
-                        <span className="muted u-fs-080">{row.last7Days} last 7 days</span>
+                        <span className="muted u-fs-085">{row.last7Days} last 7 days</span>
                         <span className="badge badge-neutral">{row.total} total</span>
                       </span>
                     </div>
@@ -537,7 +540,7 @@ export default async function AdminOperationsPage() {
                           <details>
                             <summary
                               className="muted"
-                              style={{ fontSize: '0.8rem', cursor: 'pointer' }}
+                              style={{ fontSize: 'var(--text-small)', cursor: 'pointer' }}
                             >
                               What this means
                             </summary>
@@ -691,7 +694,7 @@ export default async function AdminOperationsPage() {
                         <span className="row-key">{label}</span>
                         <span
                           className={good ? 'muted' : 'badge badge-danger'}
-                          style={{ fontSize: '0.85rem' }}
+                          style={{ fontSize: 'var(--text-small)' }}
                         >
                           {value}
                         </span>
@@ -716,7 +719,7 @@ export default async function AdminOperationsPage() {
                       <div className="row" key={category.key}>
                         <span className="row-key">{category.label}</span>
                         <span className="row-end">
-                          <span className="muted u-fs-080">
+                          <span className="muted u-fs-085">
                             {category.last7Days} last 7 days, {category.last30Days} last 30 days
                           </span>
                           <span className="badge badge-neutral">{category.total} total</span>

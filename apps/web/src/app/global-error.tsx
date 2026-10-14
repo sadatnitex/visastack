@@ -49,14 +49,14 @@ export default function GlobalError({
               border: 'none',
               background: '#0071e3',
               color: '#fff',
-              fontSize: '0.95rem',
+              fontSize: 'var(--text-body)',
               cursor: 'pointer',
             }}
           >
             Try again
           </button>
           {error.digest ? (
-            <p style={{ marginTop: '1.5rem', fontSize: '0.8rem', color: '#86868b' }}>
+            <p style={{ marginTop: '1.5rem', fontSize: 'var(--text-small)', color: '#86868b' }}>
               Reference: {error.digest}
             </p>
           ) : null}

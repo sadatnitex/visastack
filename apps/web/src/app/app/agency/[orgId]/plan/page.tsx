@@ -103,7 +103,10 @@ export default async function OrgPlanPage({
                       style={{ width: `${Math.round(meterFraction(meter) * 100)}%` }}
                     />
                   </div>
-                  <p className="muted" style={{ fontSize: '0.8rem', marginTop: '0.35rem' }}>
+                  <p
+                    className="muted"
+                    style={{ fontSize: 'var(--text-small)', marginTop: '0.35rem' }}
+                  >
                     {meter.definition}
                   </p>
                 </div>

@@ -81,11 +81,11 @@ export default async function AdminAccessPage() {
                     >
                       <span className="row-key">{PLATFORM_ROLE_LABELS[r.role] ?? r.role}</span>
                       <span className="row-end">
-                        <span className="muted u-fs-080">{formatTimestampDate(r.assignedAt)}</span>
+                        <span className="muted u-fs-085">{formatTimestampDate(r.assignedAt)}</span>
                         {data.owner ? <RevokeRoleButton grantId={r.id} /> : null}
                       </span>
                     </div>
-                    <span className="muted u-fs-080">{r.reason}</span>
+                    <span className="muted u-fs-085">{r.reason}</span>
                   </div>
                 ))}
               </div>
@@ -141,7 +141,7 @@ export default async function AdminAccessPage() {
                           ) : null}
                         </span>
                       </div>
-                      <span className="muted u-fs-080">
+                      <span className="muted u-fs-085">
                         {inv.reason ?? 'No reason given'} · invited{' '}
                         {formatTimestampDate(inv.invitedAt)}
                       </span>
@@ -175,7 +175,7 @@ export default async function AdminAccessPage() {
                       {a.email}
                     </span>
                     <span className="row-end">
-                      <span className="muted u-fs-080">
+                      <span className="muted u-fs-085">
                         since {formatTimestampDate(a.createdAt)}
                       </span>
                       <span

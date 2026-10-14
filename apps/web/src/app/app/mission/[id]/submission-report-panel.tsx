@@ -54,7 +54,7 @@ export function SubmissionReportPanel({
                   {CHANNEL_LABELS[s.channel] ?? s.channel}
                 </span>
               </div>
-              <p className="muted" style={{ fontSize: '0.8rem', margin: 0 }}>
+              <p className="muted" style={{ fontSize: 'var(--text-small)', margin: 0 }}>
                 {s.externalReportDescription}
                 {s.externalReference ? ` · Ref: ${s.externalReference}` : ''}
               </p>

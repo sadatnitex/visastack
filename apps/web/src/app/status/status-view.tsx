@@ -98,7 +98,7 @@ export function StatusView({
       )}
 
       <div className="toolbar">
-        <span className="muted u-fs-090">
+        <span className="muted u-fs-085">
           {updatedAt ? `Updated ${updatedAt}. This page checks again by itself.` : 'Loading…'}
         </span>
         {/* Not `disabled`: this page re-checks by itself every 15 seconds, and a button that

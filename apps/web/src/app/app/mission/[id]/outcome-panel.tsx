@@ -73,12 +73,12 @@ export function OutcomePanel({
                 </span>
               </div>
               {o.officialWording ? (
-                <p className="muted" style={{ fontSize: '0.8rem', margin: 0 }}>
+                <p className="muted" style={{ fontSize: 'var(--text-small)', margin: 0 }}>
                   Official: {o.officialWording}
                 </p>
               ) : null}
               {o.agencyInterpretation ? (
-                <p className="muted" style={{ fontSize: '0.8rem', margin: 0 }}>
+                <p className="muted" style={{ fontSize: 'var(--text-small)', margin: 0 }}>
                   Interpretation: {o.agencyInterpretation}
                 </p>
               ) : null}

@@ -618,7 +618,10 @@ export default async function MissionPage({
         <div className="split-main">
           <article className="card case-evidence-overview" id="readiness">
             {data.selfReviewed ? (
-              <p className="muted" style={{ fontSize: '0.85rem', marginBottom: '0.75rem' }}>
+              <p
+                className="muted"
+                style={{ fontSize: 'var(--text-small)', marginBottom: '0.75rem' }}
+              >
                 <span className="badge badge-neutral">Self-reviewed</span> No agency currently has
                 access to this case, so you are the only one assessing it.
               </p>
@@ -633,7 +636,10 @@ export default async function MissionPage({
                   {OVERALL_STATE_META[data.readiness.overallState].label}
                 </p>
                 {data.readiness.overallState !== 'MANUAL_ONLY' ? (
-                  <p className="muted" style={{ fontSize: '0.85rem', marginBottom: '1rem' }}>
+                  <p
+                    className="muted"
+                    style={{ fontSize: 'var(--text-small)', marginBottom: '1rem' }}
+                  >
                     {data.readiness.overallState === 'READY_FOR_APPLICANT_REVIEW'
                       ? t('mission.readiness.ready')
                       : data.readiness.overallState === 'NEEDS_REVIEW'
@@ -692,7 +698,7 @@ export default async function MissionPage({
                                     <span className={`badge ${meta.tone}`}>{meta.label}</span>
                                   </div>
                                   {meta.next ? (
-                                    <span className="muted u-fs-080">
+                                    <span className="muted u-fs-085">
                                       {meta.next}
                                       {r.state === 'CONFLICTING' ? (
                                         <>
@@ -755,7 +761,7 @@ export default async function MissionPage({
                     })}
                   </>
                 ) : null}
-                <p className="muted" style={{ fontSize: '0.8rem', marginTop: '1rem' }}>
+                <p className="muted" style={{ fontSize: 'var(--text-small)', marginTop: '1rem' }}>
                   Readiness is completeness only - never an approval likelihood.
                 </p>
               </>
@@ -848,7 +854,7 @@ export default async function MissionPage({
                     internal notes are never shown here.
                   </p>
                   {data.notes.length === 0 ? (
-                    <p className="muted u-fs-090">No notes shared with you yet.</p>
+                    <p className="muted u-fs-085">No notes shared with you yet.</p>
                   ) : (
                     <div className="rows">
                       {data.notes.map((n) => (
@@ -857,10 +863,10 @@ export default async function MissionPage({
                           key={n.id}
                           style={{ flexDirection: 'column', alignItems: 'flex-start' }}
                         >
-                          <span className="u-fs-090">{n.body}</span>
+                          <span className="u-fs-085">{n.body}</span>
                           <span
                             className="muted"
-                            style={{ fontSize: '0.75rem', marginTop: '0.2rem' }}
+                            style={{ fontSize: 'var(--text-caption)', marginTop: '0.2rem' }}
                           >
                             {n.authorEmail ?? 'Unknown'}, {formatTimestampDate(n.createdAt)}
                           </span>
@@ -955,12 +961,15 @@ export default async function MissionPage({
                   </span>
                 </div>
                 {data.packInfo.jurisdiction || data.packInfo.route ? (
-                  <p className="muted" style={{ fontSize: '0.85rem', margin: 0 }}>
+                  <p className="muted" style={{ fontSize: 'var(--text-small)', margin: 0 }}>
                     {[data.packInfo.jurisdiction, data.packInfo.route].filter(Boolean).join(' · ')}
                   </p>
                 ) : null}
                 {data.packInfo.effectiveDate ? (
-                  <p className="muted" style={{ fontSize: '0.8rem', margin: '0.35rem 0 0' }}>
+                  <p
+                    className="muted"
+                    style={{ fontSize: 'var(--text-small)', margin: '0.35rem 0 0' }}
+                  >
                     In effect since {formatDateOnly(data.packInfo.effectiveDate)}
                   </p>
                 ) : null}

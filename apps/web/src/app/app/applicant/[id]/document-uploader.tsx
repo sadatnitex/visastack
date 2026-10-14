@@ -106,7 +106,7 @@ export function DocumentUploader({
         Take a photo
       </button>
       {picked ? (
-        <output className="muted" style={{ display: 'block', fontSize: '0.85rem' }}>
+        <output className="muted" style={{ display: 'block', fontSize: 'var(--text-small)' }}>
           Ready to upload: {picked.name} ({formatFileSize(picked.size)})
         </output>
       ) : null}
@@ -122,13 +122,13 @@ export function DocumentUploader({
         pending={pending}
         pendingText={slow ? UPLOADING_SLOW_TEXT : UPLOADING_TEXT}
       />
-      <p className="muted" style={{ fontSize: '0.8rem', margin: 0 }}>
+      <p className="muted" style={{ fontSize: 'var(--text-small)', margin: 0 }}>
         PDF, PNG, JPEG, DOCX, TXT or MD ·{' '}
         {virusScanning
           ? 'scanned for viruses on upload.'
           : 'file type and structure are checked on upload.'}
       </p>
-      <p className="muted" style={{ fontSize: '0.8rem', margin: 0 }}>
+      <p className="muted" style={{ fontSize: 'var(--text-small)', margin: 0 }}>
         Stored privately. Only you and the people you choose to share with can open it.
       </p>
     </form>

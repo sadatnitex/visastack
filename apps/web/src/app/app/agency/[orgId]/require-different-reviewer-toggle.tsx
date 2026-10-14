@@ -27,7 +27,7 @@ export function RequireDifferentReviewerToggle({
           idle={required ? 'Turn off' : 'Require a different reviewer'}
           busy="Saving…"
           className={`btn ${required ? 'btn-secondary' : 'btn-primary'}`}
-          style={{ padding: '0.35rem 1rem', fontSize: '0.85rem' }}
+          style={{ padding: '0.35rem 1rem', fontSize: 'var(--text-small)' }}
         />
       </form>
       <FormMessage result={state} />

@@ -76,7 +76,7 @@ export default async function AiSettingsPage() {
   return (
     <section className="section container">
       <div className="u-mb-150">
-        <Link href="/app/admin" className="muted u-fs-090">
+        <Link href="/app/admin" className="muted u-fs-085">
           ← Admin
         </Link>
       </div>
@@ -233,7 +233,7 @@ export default async function AiSettingsPage() {
                   ) : null}
                   <div className="row">
                     <span className="row-key">Created</span>
-                    <span className="muted u-fs-080">{formatTimestamp(config.createdAt)}</span>
+                    <span className="muted u-fs-085">{formatTimestamp(config.createdAt)}</span>
                   </div>
                 </div>
                 {canTest || canEvaluate || canActivate || canRevoke ? (

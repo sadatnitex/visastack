@@ -50,7 +50,7 @@ export function NameReview({
         border: '1px solid var(--hairline-soft)',
       }}
     >
-      <p className="muted" style={{ fontSize: '0.75rem', marginBottom: '0.4rem' }}>
+      <p className="muted" style={{ fontSize: 'var(--text-caption)', marginBottom: '0.4rem' }}>
         Original: {originalName}
         {classification?.classifiedType ? (
           <>
@@ -78,14 +78,14 @@ export function NameReview({
           onChange={(e) => setEditedName(e.target.value)}
           className="input"
           {...fieldProblem(state, 'finalName', messageId)}
-          style={{ flex: '1 1 260px', fontSize: '0.85rem', padding: '0.4rem 0.65rem' }}
+          style={{ flex: '1 1 260px', fontSize: 'var(--text-small)', padding: '0.4rem 0.65rem' }}
         />
         <SubmitButton
           pending={pending}
           idle="Approve"
           busy="Saving…"
           className="btn btn-primary"
-          style={{ padding: '0.35rem 0.9rem', fontSize: '0.8rem' }}
+          style={{ padding: '0.35rem 0.9rem', fontSize: 'var(--text-small)' }}
           name="nameAction"
           value="accept"
         />
@@ -94,7 +94,7 @@ export function NameReview({
           idle="Reject"
           busy="Reject"
           className="btn btn-secondary"
-          style={{ padding: '0.35rem 0.9rem', fontSize: '0.8rem' }}
+          style={{ padding: '0.35rem 0.9rem', fontSize: 'var(--text-small)' }}
           name="nameAction"
           value="reject"
         />

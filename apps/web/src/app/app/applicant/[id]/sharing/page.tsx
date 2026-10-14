@@ -164,7 +164,7 @@ export default async function SharingPage({
                         </span>
                         <span className={`badge ${badge.tone}`}>{badge.label}</span>
                       </div>
-                      <p style={{ margin: 0, fontSize: '0.9rem' }}>
+                      <p style={{ margin: 0, fontSize: 'var(--text-small)' }}>
                         {grant.recipient.label}{' '}
                         {grant.status === 'ACTIVE' ? 'can' : 'would be able to'}{' '}
                         {grant.actions.map((a) => (ACTION_LABELS[a] ?? a).toLowerCase()).join(', ')}{' '}
@@ -180,7 +180,7 @@ export default async function SharingPage({
                           : ''}
                         {grant.expiryAt ? `, until ${formatTimestampDate(grant.expiryAt)}` : ''}.
                       </p>
-                      <p className="muted" style={{ margin: 0, fontSize: '0.8rem' }}>
+                      <p className="muted" style={{ margin: 0, fontSize: 'var(--text-small)' }}>
                         Purpose: {grant.purpose}
                         {grant.acceptedAt
                           ? ` · accepted ${formatTimestampDate(grant.acceptedAt)}`
@@ -206,7 +206,7 @@ export default async function SharingPage({
                         </ul>
                       ) : null}
                       {canPause || canResume || canRevoke ? (
-                        <p className="muted" style={{ margin: 0, fontSize: '0.8rem' }}>
+                        <p className="muted" style={{ margin: 0, fontSize: 'var(--text-small)' }}>
                           Pause stops access straight away and you can resume it later. Revoke ends
                           this access.
                         </p>
@@ -308,7 +308,10 @@ export default async function SharingPage({
                   <div className="row" key={e.seq}>
                     <span className="row-key">
                       {humanizeCode(e.eventType)}
-                      <span className="muted" style={{ fontSize: '0.8rem', marginLeft: '0.5rem' }}>
+                      <span
+                        className="muted"
+                        style={{ fontSize: 'var(--text-small)', marginLeft: '0.5rem' }}
+                      >
                         {e.actorEmail ?? 'System'}
                       </span>
                     </span>
@@ -318,7 +321,7 @@ export default async function SharingPage({
                           {e.result === 'ALLOWED' ? 'Allowed' : 'Blocked'}
                         </StatusBadge>
                       ) : null}
-                      <span className="muted u-fs-080">{formatTimestamp(e.occurredAt)}</span>
+                      <span className="muted u-fs-085">{formatTimestamp(e.occurredAt)}</span>
                     </span>
                   </div>
                 ))}

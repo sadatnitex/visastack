@@ -90,7 +90,7 @@ export interface FieldAssurance {
 function AssuranceDetail({ assurance }: { readonly assurance: FieldAssurance }) {
   return (
     <details style={{ marginTop: '0.3rem' }}>
-      <summary className="muted" style={{ fontSize: '0.75rem', cursor: 'pointer' }}>
+      <summary className="muted" style={{ fontSize: 'var(--text-caption)', cursor: 'pointer' }}>
         Assurance ({assurance.tier})
       </summary>
       <div
@@ -119,7 +119,7 @@ function AssuranceDetail({ assurance }: { readonly assurance: FieldAssurance }) 
             <p
               key={`${c.name}-${c.performedAt}`}
               className="muted"
-              style={{ fontSize: '0.75rem', margin: '0 0 0 0.75rem' }}
+              style={{ fontSize: 'var(--text-caption)', margin: '0 0 0 0.75rem' }}
             >
               {c.passed ? '✓' : '✗'} {c.name}, {formatDate(c.performedAt)}
               {c.detail ? `: ${c.detail}` : ''}
@@ -134,7 +134,7 @@ function AssuranceDetail({ assurance }: { readonly assurance: FieldAssurance }) 
             <p
               key={`${r.missionTitle}-${r.decidedAt}`}
               className="muted"
-              style={{ fontSize: '0.75rem', margin: '0 0 0 0.75rem' }}
+              style={{ fontSize: 'var(--text-caption)', margin: '0 0 0 0.75rem' }}
             >
               {r.outcome === 'ACCEPTED' ? '✓' : '✗'} {r.missionTitle}, {formatDate(r.decidedAt)}
               {r.reason ? `: ${r.reason}` : ''}
@@ -150,7 +150,7 @@ function AssuranceDetail({ assurance }: { readonly assurance: FieldAssurance }) 
             <p
               key={`${c.issuerIdentity}-${c.validUntil}`}
               className="muted"
-              style={{ fontSize: '0.75rem', margin: '0 0 0 0.75rem' }}
+              style={{ fontSize: 'var(--text-caption)', margin: '0 0 0 0.75rem' }}
             >
               {c.expired ? '✗ (expired)' : '✓'} {c.issuerIdentity}: "{c.exactClaim}", response:{' '}
               {c.response}, valid until {formatDate(c.validUntil)}
@@ -250,7 +250,7 @@ function FieldRow({
         <SubmitButton pending={pending} idle="Save" busy="Saving…" className="btn btn-secondary" />
       </div>
       <details style={{ marginTop: '-0.25rem' }}>
-        <summary className="muted" style={{ fontSize: '0.75rem', cursor: 'pointer' }}>
+        <summary className="muted" style={{ fontSize: 'var(--text-caption)', cursor: 'pointer' }}>
           Backdate this entry
         </summary>
         <div className="field-control" style={{ marginTop: '0.4rem' }}>
@@ -312,14 +312,14 @@ function RepeatingGroup({
         <button
           type="button"
           className="btn btn-secondary"
-          style={{ padding: '0.3rem 0.9rem', fontSize: '0.8rem' }}
+          style={{ padding: '0.3rem 0.9rem', fontSize: 'var(--text-small)' }}
           onClick={() => setNewRecordKeys((keys) => [...keys, crypto.randomUUID()])}
         >
           + Add {groupLabel.toLowerCase()}
         </button>
       </div>
       {recordKeys.length === 0 ? (
-        <p className="muted u-fs-090">None recorded yet.</p>
+        <p className="muted u-fs-085">None recorded yet.</p>
       ) : (
         <div
           style={{

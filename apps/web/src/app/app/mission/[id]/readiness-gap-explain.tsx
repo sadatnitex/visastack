@@ -30,7 +30,7 @@ export function ExplainGapButton({
   return (
     <div style={{ marginTop: '0.3rem' }}>
       {explanation ? (
-        <p className="muted" style={{ fontSize: '0.8rem', fontStyle: 'italic' }}>
+        <p className="muted" style={{ fontSize: 'var(--text-small)', fontStyle: 'italic' }}>
           {explanation}
         </p>
       ) : null}
@@ -44,7 +44,7 @@ export function ExplainGapButton({
           className="btn btn-secondary u-btn-xs"
         />
       </form>
-      <FormMessage result={state} style={{ fontSize: '0.75rem' }} />
+      <FormMessage result={state} style={{ fontSize: 'var(--text-caption)' }} />
     </div>
   );
 }

@@ -63,7 +63,7 @@ function ReasonPromptButton({
         idle={confirmedLabel}
         busy={pendingLabel}
         className={`btn ${tone}`}
-        style={{ padding: '0.3rem 0.85rem', fontSize: '0.8rem' }}
+        style={{ padding: '0.3rem 0.85rem', fontSize: 'var(--text-small)' }}
       />
       <StatusMessage state={state} />
     </form>

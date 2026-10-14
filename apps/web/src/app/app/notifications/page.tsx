@@ -56,14 +56,14 @@ export default async function NotificationsPage() {
                   </span>
                   <span className="muted u-fs-075">{formatTimestampDate(n.createdAt)}</span>
                 </div>
-                <p className="muted" style={{ fontSize: '0.85rem', margin: 0 }}>
+                <p className="muted" style={{ fontSize: 'var(--text-small)', margin: 0 }}>
                   {n.summary}
                 </p>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
                   <Link
                     href={n.deepLinkPath}
                     className="btn btn-secondary"
-                    style={{ padding: '0.3rem 0.9rem', fontSize: '0.8rem' }}
+                    style={{ padding: '0.3rem 0.9rem', fontSize: 'var(--text-small)' }}
                   >
                     Open
                   </Link>
@@ -73,7 +73,7 @@ export default async function NotificationsPage() {
                       <button
                         type="submit"
                         className="btn btn-secondary"
-                        style={{ padding: '0.3rem 0.9rem', fontSize: '0.8rem' }}
+                        style={{ padding: '0.3rem 0.9rem', fontSize: 'var(--text-small)' }}
                       >
                         Mark read
                       </button>
