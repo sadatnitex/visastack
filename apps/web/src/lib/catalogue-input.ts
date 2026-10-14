@@ -1,4 +1,4 @@
-import { isKnownFieldKey, resolveDocumentType } from '@visastack/core';
+import { isKnownFieldKey, resolveDocumentType } from '@visastack/core/catalogue';
 
 /**
  * Checks for the names an admin types when building a rule pack, a reminder ladder or a retention

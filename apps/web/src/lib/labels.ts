@@ -1,4 +1,5 @@
-import { type MembershipRole, type OrganizationStatus, documentTypeName } from '@visastack/core';
+import type { MembershipRole, OrganizationStatus } from '@visastack/core';
+import { documentTypeName } from '@visastack/core/catalogue/documents';
 import type { schema } from '@visastack/db';
 
 /**

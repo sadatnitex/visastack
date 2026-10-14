@@ -1,4 +1,8 @@
-import { CATALOGUE_FIELDS, LEGACY_FIELD_SNAPSHOT, LEGACY_GROUP_KEYS } from '@visastack/core';
+import {
+  CATALOGUE_FIELDS,
+  LEGACY_FIELD_SNAPSHOT,
+  LEGACY_GROUP_KEYS,
+} from '@visastack/core/catalogue';
 import { describe, expect, it } from 'vitest';
 import { DOCUMENT_TYPE_LABELS } from './labels';
 import { PROFILE_FIELDS } from './profile-fields';
@@ -43,7 +47,7 @@ describe('live profile fields are frozen to the catalogue snapshot', () => {
 
 describe('document names shown today agree with the catalogue', () => {
   it('shows the same name for the three types the product knows', async () => {
-    const { CATALOGUE_DOCUMENTS } = await import('@visastack/core');
+    const { CATALOGUE_DOCUMENTS } = await import('@visastack/core/catalogue');
     for (const [key, label] of Object.entries(DOCUMENT_TYPE_LABELS)) {
       expect(CATALOGUE_DOCUMENTS.find((d) => d.key === key)?.label, key).toBe(label);
     }

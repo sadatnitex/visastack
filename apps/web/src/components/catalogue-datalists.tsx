@@ -1,4 +1,4 @@
-import { CATALOGUE_DOCUMENTS, knownFieldOptions } from '@visastack/core';
+import { CATALOGUE_DOCUMENTS, knownFieldOptions } from '@visastack/core/catalogue';
 
 /**
  * The pick-lists behind the admin name boxes. Rendered on the server, so the catalogue never ships

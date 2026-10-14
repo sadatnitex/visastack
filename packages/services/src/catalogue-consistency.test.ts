@@ -1,4 +1,4 @@
-import { CATALOGUE_DOCUMENTS } from '@visastack/core';
+import { CATALOGUE_DOCUMENTS } from '@visastack/core/catalogue';
 import { describe, expect, it } from 'vitest';
 import { CLASSIFIABLE_DOCUMENT_TYPES } from './classification';
 import { documentCategory } from './sharing';
