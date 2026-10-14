@@ -1,0 +1,96 @@
+import { type FieldBlock, choice, date, money, text, yesNo } from './define';
+
+/** Travel Documents: passports and permits held, and visas received. */
+export const TRAVEL_DOCUMENT_BLOCKS: readonly FieldBlock[] = [
+  {
+    layer: 'travel_documents',
+    pack: 'universal',
+    origin: 'bidesh365',
+    sourceRef: 'bidesh365:current_passport,passport_contexts',
+    section: { key: 'current_passport_details', label: 'Current Passport Details' },
+    rows: [
+      choice('passport_type', 'Passport Type', ['Ordinary', 'Official', 'Diplomatic']),
+      text('passport_place_of_issue', 'Passport Place of Issue'),
+      text('passport_issuing_authority', 'Passport Issuing Authority'),
+      yesNo('passport_chip_present', 'Passport Has Electronic Chip'),
+    ],
+  },
+  {
+    layer: 'travel_documents',
+    pack: 'universal',
+    origin: 'bidesh365',
+    sourceRef: 'bidesh365:PassportIncident',
+    prefix: 'passport_incident',
+    group: { key: 'passport_incident', label: 'Passport Incident' },
+    rows: [
+      choice('type', 'Incident Type', ['Lost', 'Stolen', 'Damaged', 'Cancelled', 'Other']),
+      date('date', 'Incident Date'),
+      text('police_report_number', 'Police Report Number', 'identifier'),
+      text('replacement_passport_number', 'Replacement Passport Number', 'identifier'),
+      text('notes', 'Notes'),
+    ],
+  },
+  {
+    // Extends the live "prior_visa" record. Group label and pack stay as they are today.
+    layer: 'travel_documents',
+    pack: 'universal',
+    origin: 'bidesh365',
+    sourceRef: 'bidesh365:previous_visa_records',
+    prefix: 'prior_visa',
+    group: { key: 'prior_visa' },
+    rows: [
+      text('category', 'Visa Category'),
+      date('application_date', 'Application Date'),
+      date('issue_date', 'Issue Date'),
+      date('expiry_date', 'Expiry Date'),
+      choice('entries_allowed', 'Entries Allowed', [
+        'Single Entry',
+        'Double Entry',
+        'Multiple Entry',
+      ]),
+      text('duration_of_stay', 'Duration of Stay'),
+      text('issuing_post', 'Issuing Post'),
+      choice('status', 'Visa Status', ['Issued', 'Refused', 'Expired', 'Cancelled', 'Revoked']),
+    ],
+  },
+  {
+    layer: 'travel_documents',
+    pack: 'universal',
+    origin: 'bidesh365',
+    sourceRef: 'bidesh365:immigration_status,legal_status_abroad',
+    prefix: 'immigration_status',
+    group: { key: 'immigration_status', label: 'Immigration Status' },
+    rows: [
+      text('country', 'Country'),
+      choice('status', 'Status', [
+        'Citizen',
+        'Permanent Resident',
+        'Work Permit',
+        'Student Visa',
+        'Visitor',
+        'Undocumented',
+      ]),
+      text('permit_number', 'Permit Number', 'identifier'),
+      text('permit_type', 'Permit Type'),
+      date('valid_from', 'Valid From'),
+      date('expiry_date', 'Expiry Date'),
+    ],
+  },
+  {
+    layer: 'travel_documents',
+    pack: 'universal',
+    origin: 'bidesh365',
+    sourceRef: 'bidesh365:EXT:TravelInsuranceDetails',
+    prefix: 'travel_insurance',
+    group: { key: 'travel_insurance', label: 'Travel Insurance' },
+    rows: [
+      text('provider', 'Provider'),
+      text('policy_number', 'Policy Number', 'identifier'),
+      money('coverage_amount', 'Coverage Amount', 'coverage_currency', 'Coverage Currency'),
+      date('valid_from', 'Valid From'),
+      date('valid_until', 'Valid Until'),
+      text('coverage_countries', 'Countries Covered'),
+      yesNo('repatriation_covered', 'Repatriation Covered'),
+    ],
+  },
+];

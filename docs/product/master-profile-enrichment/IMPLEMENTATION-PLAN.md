@@ -60,3 +60,7 @@ Title Case for the 81 existing labels (and the `'Passport number'` test assertio
 | Renamed key breaks a rule | Aliases and requirement validation |
 | Sensitive wording is wrong in law | Structure only; wording held for the adviser |
 | Concurrent edits by Codex and Claude | Protocol and claimed areas in `HANDOFF.md` |
+
+## Phase 1 as delivered (2026-10-14)
+
+Delivered exactly as planned: catalogue types and conventions, 101 purposes, 200 curated document types (3 live, 158 from the other product, 39 proposed), 657 fields (each labelled with its origin, the other product or the owner vision; none marked proposed), guard tests that were each proven able to fail, a generated and drift-tested review report, a ledger update and a known-issues entry. Deviations: a fourteenth document group ("Other Documents") was added so nothing is forced into a wrong type; seven proposed sharing categories were defined instead of reusing the five live ones, because sensitive data must fail closed; religion and accessibility needs were placed in non-broad categories after a guard caught them in broad ones.

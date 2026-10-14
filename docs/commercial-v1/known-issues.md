@@ -5105,3 +5105,12 @@ Documentation only. The bidesh365 master profile (54 sections) was compared with
 - Documentation only. No source, schema, route or stored value changed.
 - Not verified: whether bidesh365 runs or what it stores; what stored country rule packs name; reach of fact-level sharing to organisations; AI evaluation behaviour with more keys; legal wording of declarations.
 - Next: Phase 1 (catalogue foundations), then pause for the owner.
+
+### 2026-10-14: Master Profile enrichment, Phase 1 (catalogue foundations)
+
+- Added the catalogue in `packages/core/src/catalogue`: 101 purposes in 8 families, 200 document types in 14 groups, 657 new fields in ten layers (54 new repeating records, 8 live records extended), a frozen snapshot of the 81 live fields, protection rules by kind of data, seven proposed sharing categories, lookups, and a generated review report (`docs/product/master-profile-enrichment/CATALOGUE-REPORT.md`) with a drift test.
+- Data only. No database change, no route, screen, rule, grant or AI prompt reads it. The live registry (`apps/web/src/lib/profile-fields.ts`) is unchanged and now guarded by `profile-fields-frozen.test.ts`.
+- Guards (each proven to fail by breaking the real data 13 ways, then restored): unique and well-formed keys, Title Case labels, protection never below the kind, named national identifiers RESTRICTED, special categories kept out of broad categories, live records extended without a new label or category, alias collisions, unknown supported fields, adviser-only purposes, live document categories and the classifier list agreeing with the catalogue, report drift.
+- Findings recorded in `ARCHITECTURE-FINDINGS.md` section 10: unmapped document types are invisible to category grants today, so Phase 2 must review each type before deriving the map; the live refusal record sits in the universal category; the other product folds distinct documents together and stores file links as fields (neither ported).
+- Not verified: any rule or legal wording; whether each "proposed" document type name matches what an official body calls it; the exact official names in the labour migration record; how the editor will render 657 more fields (Phase 3); AI extraction behaviour with scoped keys (Phase 2).
+- Next: owner sign-off on the lists, then Phase 2 (wiring), which changes behaviour and needs its own preview.
