@@ -10,7 +10,8 @@
   "exports": {
     ".": "./src/index.ts",
     "./catalogue": "./src/catalogue/index.ts",
-    "./catalogue/documents": "./src/catalogue/documents-entry.ts"
+    "./catalogue/documents": "./src/catalogue/documents-entry.ts",
+    "./catalogue/packs": "./src/catalogue/packs-entry.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit -p tsconfig.json",

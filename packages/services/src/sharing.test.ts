@@ -737,6 +737,46 @@ describe('getRecipientWorkspace — the actual permission-filtered read path (Re
     expect(workspace.value.fields.map((f) => f.fieldKey)).toEqual(['given_name']);
   });
 
+  it('accepts the new catalogue categories, shows only fields filed under them, and still refuses made-up names', async () => {
+    const { account, applicantId } = await ownerWithFieldAndDoc(db, 'ro5b@example.com');
+    await registerFieldDefinition(db, {
+      key: 'course_name',
+      dataType: 'string',
+      sensitivity: 'STANDARD',
+      packId: 'study',
+    });
+    await editFact(db, {
+      actorAccountId: account.id,
+      applicantId,
+      fieldKey: 'course_name',
+      value: 'MSc Data Science',
+    });
+    const recipient = await provisionAccount(db, { email: 'r5b@example.com' });
+    if (!isOk(recipient)) throw new Error('provision');
+    const base = {
+      actorAccountId: account.id,
+      applicantId,
+      recipientAccountId: recipient.value.id,
+      actions: ['VIEW_METADATA' as const],
+      purpose: 'p',
+    };
+
+    const madeUp = await createGrant(db, { ...base, categories: ['made_up'] });
+    expect(isErr(madeUp)).toBe(true);
+
+    const studyGrant = await createGrant(db, { ...base, categories: ['study'] });
+    if (!isOk(studyGrant)) throw new Error('grant');
+    await acceptGrant(db, { actorAccountId: recipient.value.id, grantId: studyGrant.value.id });
+    const workspace = await getRecipientWorkspace(db, {
+      actorAccountId: recipient.value.id,
+      grantId: studyGrant.value.id,
+    });
+    expect(isOk(workspace)).toBe(true);
+    if (!isOk(workspace)) return;
+    // Only the study-pack field is visible; the universal name is not shared.
+    expect(workspace.value.fields.map((f) => f.fieldKey)).toEqual(['course_name']);
+  });
+
   it('documentIds scope which documents are visible', async () => {
     const { account, applicantId, documentId } = await ownerWithFieldAndDoc(db, 'ro6@example.com');
     // A second, unlisted document.

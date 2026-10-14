@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import type { FactStatus, ProposalType } from '@visastack/core';
 import { type Result, err, isOk, ok } from '@visastack/core';
 import { and, desc, eq, gte, isNull, lt, sql } from 'drizzle-orm';
+import { scopeFieldKeys } from './ai-field-scope';
 import { getApplicant } from './applicants';
 import { appendAuditEvent } from './audit';
 import { CLASSIFIABLE_DOCUMENT_TYPES } from './classification';
@@ -763,6 +764,7 @@ function computeCacheKey(
   contentHash: string,
   parserVersion: string,
   cacheKeyComponents: AiCacheKeyComponents,
+  scopedFieldKeys?: readonly string[],
 ): string {
   const parts = [
     contentHash,
@@ -773,6 +775,9 @@ function computeCacheKey(
     cacheKeyComponents.schemaVersion,
     cacheKeyComponents.reasoningEffort ?? '',
   ];
+  // A reading limited to a document type's fields must never be served to, or from, a reading
+  // with a different list. Unscoped readings keep their existing key, so nothing already cached moves.
+  if (scopedFieldKeys) parts.push(`fields:${[...scopedFieldKeys].sort().join(',')}`);
   return createHash('sha256').update(parts.join('|')).digest('hex');
 }
 
@@ -1093,13 +1098,30 @@ async function reserveExtractionSlot(
       }
     }
 
-    const allowedFieldKeys = (
+    const registeredFieldKeys = (
       await tx.select({ key: schema.fieldDefinitions.key }).from(schema.fieldDefinitions)
     ).map((r) => r.key);
+    const documentRow = first(
+      await tx
+        .select({ docType: schema.documents.docType })
+        .from(schema.documentVersions)
+        .innerJoin(schema.documents, eq(schema.documents.id, schema.documentVersions.documentId))
+        .where(eq(schema.documentVersions.id, input.documentVersionId))
+        .limit(1),
+    );
+    // Narrowed to what this kind of document carries, so the model is never offered, and a person
+    // never sees a proposal for, a field the document cannot hold.
+    const fieldScope = scopeFieldKeys(registeredFieldKeys, documentRow?.docType ?? null);
+    const allowedFieldKeys = fieldScope.keys;
 
     const contentHash = createHash('sha256').update(input.text).digest('hex');
     const parserVersion = (await latestParserVersion(tx, input.documentVersionId)) ?? 'unknown';
-    const cacheKey = computeCacheKey(contentHash, parserVersion, ai.cacheKeyComponents());
+    const cacheKey = computeCacheKey(
+      contentHash,
+      parserVersion,
+      ai.cacheKeyComponents(),
+      fieldScope.scoped ? allowedFieldKeys : undefined,
+    );
 
     const cacheMaxAgeDays = input.cacheMaxAgeDays ?? DEFAULT_CACHE_MAX_AGE_DAYS;
     const cacheCutoff = new Date(Date.now() - cacheMaxAgeDays * 24 * 60 * 60 * 1000);

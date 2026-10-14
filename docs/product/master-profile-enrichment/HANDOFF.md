@@ -157,3 +157,12 @@ Phase 1 foundations. Phase 2 wiring. Phase 3 screens for new layers. Phase 4 cou
 - Proved the owner check and the name check can fail. Production migration is a separate step run through the migration workflow with the owner's go-ahead.
 - Still not done: wiring B, C, D and the screens (section cards, completion strip).
 
+### 2026-10-14, Claude: wiring B (AI reads only what a document carries) and wiring C (sharing names)
+
+- Migration 0086 ran on production on 2026-10-14 (87 migrations, both new tables present). The storage service is built; no screen uses it yet.
+- Wiring B: `ai-field-scope.ts` narrows the fields the model may propose to the registered fields the document type is known to carry (75 of 215 types have a list). A document with no type, or a type with no list, behaves as before. Where none of a type's listed fields is registered yet the full registered list is kept, so nothing stops reading: bank statements are in that state today (6 listed fields, none live). A narrowed reading has its own cache key; unnarrowed readings keep theirs.
+- Wiring C: `SHARING_CATEGORIES` (the five live packs plus the seven new ones) is the single list a grant may name. A new category matches nothing until fields or documents are filed under it, so no existing access widens. The grant screen is unchanged and still offers only the live packs.
+- The offline AI evaluation needs a real provider key and was not run; it passes its own fixed list, so this change does not touch it.
+- Found: the Deploy Smoke and Playwright Deploy Smoke workflows also fire for the migration workflow's own deployment record and fail with 404 against the job page. A false alarm, but noisy; filter by environment when next touching those workflows.
+- Still not done: wiring D (registry from the catalogue) and the section screens.
+
