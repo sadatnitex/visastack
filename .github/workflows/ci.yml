@@ -156,4 +156,4 @@ jobs:
         # and use two Vitest workers rather than the runner's one-worker default.
         run: |
           pnpm exec turbo run test --concurrency=2 -- --maxWorkers=2
-          node --test scripts/check-flat-design.test.mjs scripts/check-route-navigation.test.mjs scripts/check-staging-target.test.mjs scripts/check-authenticated-results.test.mjs infra/cloudflare/job-scheduler.test.mjs scripts/country-packs/validate-intake.test.mjs scripts/country-packs/build-destinations.test.mjs
+          node --test scripts/check-flat-design.test.mjs scripts/check-route-navigation.test.mjs scripts/check-staging-target.test.mjs scripts/check-authenticated-results.test.mjs infra/cloudflare/job-scheduler.test.mjs scripts/country-packs/validate-intake.test.mjs scripts/country-packs/build-destinations.test.mjs scripts/country-packs/fetch-pages.test.mjs

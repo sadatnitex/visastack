@@ -46,3 +46,10 @@ repeat the check; add `--live` on a machine with internet access to test the lin
 
 Six long dashes in quoted wording and publisher names (Brazil, Kyrgyzstan) were replaced with a plain hyphen,
 because the project does not use the long dash anywhere. No words changed.
+
+## Checking the cited pages
+
+The sandbox Claude works in has no internet, so pages cannot be opened there. The manual workflow
+"Country intake pages" (Actions tab, Run workflow) runs on GitHub's machines: it saves the text of every
+page named in the sheets and checks that the copied words appear on the cited page. Download the result
+named `country-intake-pages` (kept 7 days). It reads files and public pages only and changes nothing.

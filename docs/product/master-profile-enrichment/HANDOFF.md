@@ -200,3 +200,7 @@ Phase 1 foundations. Phase 2 wiring. Phase 3 screens for new layers. Phase 4 cou
 - `scripts/country-packs/validate-intake.mjs` checks future sheets (and `--live` checks links and quotes from a machine with internet). Both scripts have node tests, run in CI.
 - Not done: no screen shows this data yet, nothing is stored in the database, and no pack or readiness decision uses it.
 - Follow-up (same day): 18 of the 24 empty countries now carry an entry status taken from non-official visa-information sites (owner allowed this), flagged low confidence and needs-check; 6 stay not yet researched. See the country-intake README.
+
+### 2026-10-14, Claude: page fetch workflow for the country sheets
+
+- `scripts/country-packs/fetch-pages.mjs` and the manual workflow `.github/workflows/country-intake-pages.yml` save the text of every cited page and run the quote check on GitHub's machines. Use it to fill fees, stays and passport rules from the official pages themselves. It writes nothing to the repository.
