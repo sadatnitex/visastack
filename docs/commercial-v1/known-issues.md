@@ -5168,3 +5168,5 @@ Documentation only. The bidesh365 master profile (54 sections) was compared with
 - Not verified: with real documents in production (none are real in the pilot); the screen shows the category only through the existing sharing pages.
 - Effect to know: a medical or legal document given a kind will now be included when an owner creates a new grant for that category. That is the purpose of the category, and the owner picks the category and sees the list before confirming, but it is a change in what a new grant covers.
 
+
+- 2026-10-14, country entry and visa-route reference data (batch 001): 156 countries, 61 routes and 85 requirement lines supplied by the owner are stored as reference data in `packages/core/src/destinations` with their source link and checked-on date. The owner chose to trust them as given. The checker found 24 countries with no stated facts (shown as not yet researched), 16 routes with no requirement lines, template-like route lists and a few unproven fees; none were changed. Not verified: the cited pages (the build sandbox has no internet), and no screen or readiness rule uses the data yet.
