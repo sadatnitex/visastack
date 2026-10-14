@@ -1,4 +1,5 @@
 import type { MembershipRole, OrganizationStatus } from '@visastack/core';
+import { documentTypeName } from '@visastack/core/catalogue/documents';
 import type { schema } from '@visastack/db';
 
 /**
@@ -111,7 +112,8 @@ export const aiConfigStatusLabel = (code: string) => pick(AI_CONFIG_STATUS_LABEL
 export const auditResultLabel = (code: string) => pick(AUDIT_RESULT_LABELS, code);
 export const aiProviderLabel = (code: string) => pick(AI_PROVIDER_LABELS, code);
 /** "bank_statement" and "BANK_STATEMENT" both give "Bank Statement". */
-export const documentTypeLabel = (code: string) => pick(DOCUMENT_TYPE_LABELS, code.toUpperCase());
+export const documentTypeLabel = (code: string) =>
+  documentTypeName(code) ?? pick(DOCUMENT_TYPE_LABELS, code.toUpperCase());
 /** An audit event such as ACCOUNT_CREATED, as "Account Created". */
 export const eventTypeLabel = (code: string) => titleCase(code);
 

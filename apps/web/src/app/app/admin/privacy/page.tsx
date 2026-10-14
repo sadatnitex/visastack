@@ -6,6 +6,7 @@ import {
   listErasureJobsNeedingAttention,
 } from '@visastack/services';
 import type { Metadata } from 'next';
+import { DocumentTypeDatalist } from '../../../../components/catalogue-datalists';
 import { PageHeader } from '../../../../components/ui';
 import { isPlatformAdmin } from '../../../../lib/admin';
 import { formatDateOnly } from '../../../../lib/format-date';
@@ -82,7 +83,10 @@ export default async function AdminPrivacyPage() {
                   ))}
                 </div>
               )}
-              <RetentionPolicyForm />
+              <>
+                <DocumentTypeDatalist />
+                <RetentionPolicyForm />
+              </>
             </article>
 
             <article className="card">

@@ -6,6 +6,7 @@ export * from './purposes';
 export * from './documents';
 export { CATALOGUE_FIELDS } from './fields';
 export * from './modules';
+export * from './document-lookup';
 export * from './queries';
 export * from './completion';
 export * from './report';

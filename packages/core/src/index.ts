@@ -15,4 +15,3 @@ export * from './result';
 export * from './brand';
 export * from './domain';
 export * from './deployment-mode';
-export * from './catalogue';

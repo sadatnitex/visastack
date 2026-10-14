@@ -79,6 +79,9 @@ export interface AccountExport {
     }>;
     readonly grantsGranted: ReadonlyArray<typeof schema.grants.$inferSelect>;
     readonly evidenceRequests: ReadonlyArray<typeof schema.evidenceRequests.$inferSelect>;
+    /** Sections the person opened or closed, and fields or records they marked as not applying. */
+    readonly profileSections: ReadonlyArray<typeof schema.profileSectionStates.$inferSelect>;
+    readonly profileExemptions: ReadonlyArray<typeof schema.profileFieldExemptions.$inferSelect>;
     readonly aiRuns: ReadonlyArray<{
       readonly run: typeof schema.aiExtractionRuns.$inferSelect;
       readonly proposals: ReadonlyArray<typeof schema.fieldProposals.$inferSelect>;
@@ -200,7 +203,25 @@ export async function exportAccount(
         })),
       );
 
-      return { applicant, facts, documents, missions, grantsGranted, evidenceRequests, aiRuns };
+      const profileSections = await db
+        .select()
+        .from(schema.profileSectionStates)
+        .where(eq(schema.profileSectionStates.applicantId, applicant.id));
+      const profileExemptions = await db
+        .select()
+        .from(schema.profileFieldExemptions)
+        .where(eq(schema.profileFieldExemptions.applicantId, applicant.id));
+      return {
+        applicant,
+        facts,
+        documents,
+        missions,
+        grantsGranted,
+        evidenceRequests,
+        profileSections,
+        profileExemptions,
+        aiRuns,
+      };
     }),
   );
 

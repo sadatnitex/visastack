@@ -53,7 +53,9 @@ describe('plain labels for stored codes', () => {
   });
 
   it('a code with no hand-written label still shows as readable words, never the raw code', () => {
-    expect(documentTypeLabel('DRIVERS_LICENSE')).toBe('Drivers License');
+    expect(documentTypeLabel('SCRAPBOOK_PAGE')).toBe('Scrapbook Page');
+    // A name the catalogue knows (an alias) now shows its proper name.
+    expect(documentTypeLabel('DRIVERS_LICENSE')).toBe('Driving Licence');
     expect(membershipRoleLabel('FUTURE_ROLE')).toBe('Future Role');
     expect(eventTypeLabel('ACCOUNT_CREATED')).toBe('Account Created');
     expect(titleCase('')).toBe('');

@@ -133,7 +133,8 @@ export function RetentionPolicyForm() {
           type="text"
           required
           className="input"
-          placeholder="e.g. bank_statement"
+          list="catalogue-document-types"
+          placeholder="e.g. Bank Statement"
         />
       </div>
       <div className="field-row">

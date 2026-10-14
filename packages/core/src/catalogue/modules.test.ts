@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { PROFILE_PACKS } from '../domain';
+import { resolveDocumentType } from './document-lookup';
 import { CATALOGUE_DOCUMENTS } from './documents';
 import { CATALOGUE_FIELDS } from './fields';
 import { CATALOGUE_DOCUMENT_GROUPS, CATALOGUE_LAYERS, PROPOSED_PACKS } from './layers';
@@ -7,7 +8,7 @@ import { LEGACY_FIELD_SNAPSHOT } from './legacy';
 import { CATALOGUE_MODULES } from './modules';
 import { MAX_KEY_LENGTH, isFieldKey, isTitleCaseLabel } from './naming';
 import { CATALOGUE_PURPOSES } from './purposes';
-import { MODULE_FIELDS, moduleOfLegacyField, resolveDocumentType } from './queries';
+import { MODULE_FIELDS, moduleOfLegacyField } from './queries';
 import { LAYER_KEYS, OTHER_OPTION, PROPOSED_PACK_KEYS, PURPOSE_FAMILY_KEYS } from './types';
 
 const ALL_PACKS: readonly string[] = [...PROFILE_PACKS, ...PROPOSED_PACK_KEYS];
