@@ -125,20 +125,29 @@ export default async function PackDetailPage({
                 </div>
 
                 {isWithdrawn ? (
-                  <p className="muted" style={{ fontSize: '0.85rem', marginBottom: '1rem' }}>
+                  <p
+                    className="muted"
+                    style={{ fontSize: 'var(--text-small)', marginBottom: '1rem' }}
+                  >
                     Withdrawn {version.withdrawnAt ? formatTimestampDate(version.withdrawnAt) : ''}:{' '}
                     {version.withdrawnReason}
                   </p>
                 ) : null}
 
                 {(isPublished || isWithdrawn) && version.nextReviewDate ? (
-                  <p className="muted" style={{ fontSize: '0.85rem', marginBottom: '0.5rem' }}>
+                  <p
+                    className="muted"
+                    style={{ fontSize: 'var(--text-small)', marginBottom: '0.5rem' }}
+                  >
                     Next review: {formatDateOnly(version.nextReviewDate)}
                   </p>
                 ) : null}
 
                 {isPublished || isWithdrawn ? (
-                  <p className="muted" style={{ fontSize: '0.85rem', marginBottom: '1rem' }}>
+                  <p
+                    className="muted"
+                    style={{ fontSize: 'var(--text-small)', marginBottom: '1rem' }}
+                  >
                     {missionCount === 0
                       ? 'No cases currently attached to this version.'
                       : `${missionCount} case${missionCount === 1 ? '' : 's'} currently attached to this version.`}
@@ -171,7 +180,7 @@ export default async function PackDetailPage({
                             {req.optional ? 'Optional' : 'Required'}
                           </span>
                         </div>
-                        <span className="muted u-fs-080">Cite: {req.citation}</span>
+                        <span className="muted u-fs-085">Cite: {req.citation}</span>
                         {req.sourceUrl ? (
                           <p className="muted">
                             <a href={req.sourceUrl} target="_blank" rel="noopener noreferrer">
@@ -197,7 +206,7 @@ export default async function PackDetailPage({
                           </details>
                         ) : null}
                         {req.maxAgeDays !== null ? (
-                          <span className="muted u-fs-080">
+                          <span className="muted u-fs-085">
                             Freshness: must be dated within {req.maxAgeDays} day(s)
                           </span>
                         ) : null}
@@ -221,7 +230,10 @@ export default async function PackDetailPage({
 
                 {version.checksum ? (
                   <div style={{ marginTop: '0.75rem' }}>
-                    <p className="muted" style={{ fontSize: '0.75rem', marginBottom: '0.5rem' }}>
+                    <p
+                      className="muted"
+                      style={{ fontSize: 'var(--text-caption)', marginBottom: '0.5rem' }}
+                    >
                       Checksum: {version.checksum.slice(0, 16)}…
                     </p>
                     <div style={{ display: 'flex', gap: '0.6rem', alignItems: 'flex-start' }}>
@@ -324,7 +336,10 @@ export default async function PackDetailPage({
                           published={version.publicTrustPublishedAt !== null}
                         />
                         {version.publicTrustPublishedAt ? (
-                          <p className="muted" style={{ fontSize: '0.8rem', marginTop: '0.5rem' }}>
+                          <p
+                            className="muted"
+                            style={{ fontSize: 'var(--text-small)', marginTop: '0.5rem' }}
+                          >
                             Live at{' '}
                             <a href={`/trust/${data.pack.key}`} target="_blank" rel="noreferrer">
                               /trust/{data.pack.key}
@@ -345,7 +360,7 @@ export default async function PackDetailPage({
         <article className="card u-mt-150">
           <p className="card-kicker">RUL-05</p>
           <h2 className="card-title">Compare versions</h2>
-          <p className="muted" style={{ margin: '0.35rem 0 1rem', fontSize: '0.85rem' }}>
+          <p className="muted" style={{ margin: '0.35rem 0 1rem', fontSize: 'var(--text-small)' }}>
             See exactly which requirements were added, removed, or changed between two versions of
             this pack.
           </p>

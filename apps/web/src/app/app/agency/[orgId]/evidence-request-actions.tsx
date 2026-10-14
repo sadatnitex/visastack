@@ -61,7 +61,7 @@ export function EvidenceRequestActions({
               idle="Start review"
               busy="Starting…"
               className="btn btn-secondary"
-              style={{ padding: '0.3rem 0.75rem', fontSize: '0.8rem' }}
+              style={{ padding: '0.3rem 0.75rem', fontSize: 'var(--text-small)' }}
             />
           </form>
         ) : null}
@@ -74,13 +74,13 @@ export function EvidenceRequestActions({
             idle="Accept"
             busy="Accept"
             className="btn btn-primary"
-            style={{ padding: '0.3rem 0.75rem', fontSize: '0.8rem' }}
+            style={{ padding: '0.3rem 0.75rem', fontSize: 'var(--text-small)' }}
           />
         </form>
         <button
           type="button"
           className="btn btn-secondary"
-          style={{ padding: '0.3rem 0.75rem', fontSize: '0.8rem' }}
+          style={{ padding: '0.3rem 0.75rem', fontSize: 'var(--text-small)' }}
           onClick={() =>
             setReasonOutcome((v) => (v === 'NEEDS_REPLACEMENT' ? null : 'NEEDS_REPLACEMENT'))
           }
@@ -90,7 +90,7 @@ export function EvidenceRequestActions({
         <button
           type="button"
           className="btn btn-secondary"
-          style={{ padding: '0.3rem 0.75rem', fontSize: '0.8rem' }}
+          style={{ padding: '0.3rem 0.75rem', fontSize: 'var(--text-small)' }}
           onClick={() => setReasonOutcome((v) => (v === 'CONTRADICTION' ? null : 'CONTRADICTION'))}
         >
           Contradiction
@@ -98,7 +98,7 @@ export function EvidenceRequestActions({
         <button
           type="button"
           className="btn btn-secondary"
-          style={{ padding: '0.3rem 0.75rem', fontSize: '0.8rem' }}
+          style={{ padding: '0.3rem 0.75rem', fontSize: 'var(--text-small)' }}
           onClick={() =>
             setReasonOutcome((v) => (v === 'CORRECTION_PROPOSED' ? null : 'CORRECTION_PROPOSED'))
           }
@@ -113,7 +113,7 @@ export function EvidenceRequestActions({
             idle="Cancel request"
             busy="Cancelling…"
             className="btn btn-secondary"
-            style={{ padding: '0.3rem 0.75rem', fontSize: '0.8rem' }}
+            style={{ padding: '0.3rem 0.75rem', fontSize: 'var(--text-small)' }}
           />
         </form>
       </div>
@@ -129,7 +129,7 @@ export function EvidenceRequestActions({
             name="reason"
             type="text"
             required
-            className="input u-fs-080"
+            className="input u-fs-085"
             aria-label="Reason"
             placeholder={REASON_PLACEHOLDER[reasonOutcome]}
           />
@@ -138,7 +138,7 @@ export function EvidenceRequestActions({
             idle="Send"
             busy="Sending…"
             className="btn btn-secondary"
-            style={{ padding: '0.3rem 0.75rem', fontSize: '0.8rem' }}
+            style={{ padding: '0.3rem 0.75rem', fontSize: 'var(--text-small)' }}
           />
         </form>
       ) : null}

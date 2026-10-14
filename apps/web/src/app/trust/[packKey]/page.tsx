@@ -93,12 +93,12 @@ export default async function PublicTrustRoutePage({
           <h2 className="card-title">What this route is</h2>
           <p className="card-body">{route.routeDescription}</p>
           {route.effectiveDate ? (
-            <p className="muted" style={{ fontSize: '0.8rem', marginTop: '0.75rem' }}>
+            <p className="muted" style={{ fontSize: 'var(--text-small)', marginTop: '0.75rem' }}>
               In effect since {formatDateOnly(route.effectiveDate)}
             </p>
           ) : null}
           {route.nextReviewDate ? (
-            <p className="muted" style={{ fontSize: '0.8rem', marginTop: '0.25rem' }}>
+            <p className="muted" style={{ fontSize: 'var(--text-small)', marginTop: '0.25rem' }}>
               Next reviewed {formatDateOnly(route.nextReviewDate)}
             </p>
           ) : null}
@@ -112,7 +112,7 @@ export default async function PublicTrustRoutePage({
               <p className="card-body" style={{ fontSize: '1.5rem', fontWeight: 600 }}>
                 {formatPrice(route.officialFee.minorUnits, route.officialFee.currency)}
               </p>
-              <p className="muted u-fs-080">
+              <p className="muted u-fs-085">
                 The official government fee only. Any agency you choose to work with charges its own
                 service fee separately - never included here.
               </p>
@@ -120,7 +120,7 @@ export default async function PublicTrustRoutePage({
           ) : (
             <>
               <span className="badge badge-warning">Not currently verified</span>
-              <p className="muted" style={{ fontSize: '0.85rem', marginTop: '0.5rem' }}>
+              <p className="muted" style={{ fontSize: 'var(--text-small)', marginTop: '0.5rem' }}>
                 We do not show a fee amount here unless it is currently verified. Confirm the exact,
                 current fee at the official channel below before paying anyone.
               </p>
@@ -143,7 +143,7 @@ export default async function PublicTrustRoutePage({
           ) : (
             <p className="card-body">Not yet on file for this route.</p>
           )}
-          <p className="muted" style={{ fontSize: '0.8rem', marginTop: '0.75rem' }}>
+          <p className="muted" style={{ fontSize: 'var(--text-small)', marginTop: '0.75rem' }}>
             The only channel that actually decides your case. VisaStack and any agency you work with
             only help you prepare for it.
           </p>
@@ -181,7 +181,7 @@ export default async function PublicTrustRoutePage({
       <article className="card u-mt-150">
         <p className="card-kicker">Scam awareness</p>
         <h2 className="card-title">Warning signs to watch for</h2>
-        <p className="muted" style={{ margin: '0.35rem 0 1rem', fontSize: '0.85rem' }}>
+        <p className="muted" style={{ margin: '0.35rem 0 1rem', fontSize: 'var(--text-small)' }}>
           General guidance, the same for every route - not specific to this one, and never an
           accusation against any named person or agency.
         </p>

@@ -114,8 +114,8 @@ export default async function AdminPrivacyPage() {
                         </span>
                         <ReleaseHoldButton holdId={h.id} />
                       </div>
-                      <span className="muted u-fs-080">{h.reason}</span>
-                      <span className="u-fs-080">
+                      <span className="muted u-fs-085">{h.reason}</span>
+                      <span className="u-fs-085">
                         {h.reviewAt === null ? (
                           <span className="badge badge-danger">no review date set</span>
                         ) : h.reviewAt.getTime() < Date.now() ? (
@@ -176,13 +176,13 @@ export default async function AdminPrivacyPage() {
                         <RetryErasureJobButton jobId={job.id} />
                       </span>
                     </div>
-                    <span className="muted u-fs-080">
+                    <span className="muted u-fs-085">
                       {job.reason === 'ACCOUNT_DELETION' ? 'Account deletion' : 'Retention purge'}
                     </span>
                     {job.lastError ? (
                       <span
                         className="muted"
-                        style={{ fontSize: '0.8rem', fontFamily: 'var(--font-mono)' }}
+                        style={{ fontSize: 'var(--text-small)', fontFamily: 'var(--font-mono)' }}
                       >
                         {job.lastError}
                       </span>
@@ -209,7 +209,7 @@ export default async function AdminPrivacyPage() {
                       <span className="row-key" style={{ wordBreak: 'break-word' }}>
                         {doc.originalName}
                       </span>
-                      <span className="muted u-fs-080">{applicantName(doc.applicantId)}</span>
+                      <span className="muted u-fs-085">{applicantName(doc.applicantId)}</span>
                     </div>
                   ))}
                 </div>

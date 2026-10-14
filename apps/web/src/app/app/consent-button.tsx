@@ -40,7 +40,7 @@ export function ConsentButton({
         <SubmitButton
           pending={pending}
           className={`btn ${granted ? 'btn-secondary' : 'btn-primary'}`}
-          style={{ padding: '0.35rem 1rem', fontSize: '0.85rem' }}
+          style={{ padding: '0.35rem 1rem', fontSize: 'var(--text-small)' }}
           idle={action}
           busy="Saving…"
           {...(label ? { label: `${action}: ${label}` } : {})}

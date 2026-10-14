@@ -32,7 +32,7 @@ export default async function PackStudioPage() {
   return (
     <section className="section container">
       <div className="u-mb-150">
-        <Link href="/app/admin" className="muted u-fs-090">
+        <Link href="/app/admin" className="muted u-fs-085">
           ← Admin
         </Link>
       </div>
@@ -59,7 +59,10 @@ export default async function PackStudioPage() {
                   <Link className="row row-link" key={pack.id} href={`/app/admin/packs/${pack.id}`}>
                     <span className="row-key">
                       {pack.name}
-                      <span className="muted" style={{ fontSize: '0.8rem', marginLeft: '0.5rem' }}>
+                      <span
+                        className="muted"
+                        style={{ fontSize: 'var(--text-small)', marginLeft: '0.5rem' }}
+                      >
                         {pack.key}
                       </span>
                     </span>
@@ -75,7 +78,7 @@ export default async function PackStudioPage() {
           <article className="card">
             <p className="card-kicker">RUL-05</p>
             <h2 className="card-title">Review queue</h2>
-            <p className="muted" style={{ margin: '0.35rem 0 0', fontSize: '0.85rem' }}>
+            <p className="muted" style={{ margin: '0.35rem 0 0', fontSize: 'var(--text-small)' }}>
               Published versions whose next-review date has passed, most overdue first.
             </p>
             {data.reviewQueue.length === 0 ? (
@@ -92,11 +95,14 @@ export default async function PackStudioPage() {
                   >
                     <span className="row-key">
                       {due.packName}
-                      <span className="muted" style={{ fontSize: '0.8rem', marginLeft: '0.5rem' }}>
+                      <span
+                        className="muted"
+                        style={{ fontSize: 'var(--text-small)', marginLeft: '0.5rem' }}
+                      >
                         v{due.version}
                       </span>
                     </span>
-                    <span className="muted u-fs-080">due {formatDateOnly(due.nextReviewDate)}</span>
+                    <span className="muted u-fs-085">due {formatDateOnly(due.nextReviewDate)}</span>
                   </Link>
                 ))}
               </div>
@@ -106,7 +112,7 @@ export default async function PackStudioPage() {
           <article className="card">
             <p className="card-kicker">RUL-06</p>
             <h2 className="card-title">Public Trust Lite</h2>
-            <p className="muted" style={{ margin: '0.35rem 0 0', fontSize: '0.85rem' }}>
+            <p className="muted" style={{ margin: '0.35rem 0 0', fontSize: 'var(--text-small)' }}>
               Routes currently live on the public trust surface.
             </p>
             {data.publicTrust.length === 0 ? (
@@ -124,7 +130,7 @@ export default async function PackStudioPage() {
                     rel="noreferrer"
                   >
                     <span className="row-key">{route.packName}</span>
-                    <span className="muted u-fs-080">/trust/{route.packKey} ↗</span>
+                    <span className="muted u-fs-085">/trust/{route.packKey} ↗</span>
                   </a>
                 ))}
               </div>
@@ -140,7 +146,10 @@ export default async function PackStudioPage() {
           <article className="card">
             <p className="card-kicker">Expiry Centre</p>
             <h2 className="card-title">Reminder thresholds by document type</h2>
-            <p className="muted" style={{ margin: '0.35rem 0 1rem', fontSize: '0.85rem' }}>
+            <p
+              className="muted"
+              style={{ margin: '0.35rem 0 1rem', fontSize: 'var(--text-small)' }}
+            >
               Default for every document type: 90, 60, 30, 7 and 0 days before expiry. Override per
               type below.
             </p>

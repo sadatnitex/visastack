@@ -75,18 +75,22 @@ export function ComplaintPanel({
                   {complaintStatusLabel(c.status)}
                 </span>
               </div>
-              <p className="muted" style={{ fontSize: '0.85rem', margin: 0 }}>
+              <p className="muted" style={{ fontSize: 'var(--text-small)', margin: 0 }}>
                 {c.description}
               </p>
               {c.resolution ? (
-                <p className="muted" style={{ fontSize: '0.8rem', margin: 0 }}>
+                <p className="muted" style={{ fontSize: 'var(--text-small)', margin: 0 }}>
                   Resolution: {c.resolution}
                 </p>
               ) : null}
               {c.events.length > 0 ? (
                 <div style={{ marginTop: '0.25rem' }}>
                   {c.events.map((e) => (
-                    <p key={e.id} className="muted" style={{ fontSize: '0.72rem', margin: 0 }}>
+                    <p
+                      key={e.id}
+                      className="muted"
+                      style={{ fontSize: 'var(--text-caption)', margin: 0 }}
+                    >
                       {e.fromStatus ? `${e.fromStatus} → ${e.toStatus}` : `Filed (${e.toStatus})`} ·{' '}
                       {formatTimestampDate(e.createdAt)}
                       {e.note ? ` · ${e.note}` : ''}
@@ -173,7 +177,7 @@ export function FeedbackPanel({
               key={f.id}
               style={{ flexDirection: 'column', alignItems: 'stretch', gap: '0.2rem' }}
             >
-              <span className="u-fs-090">{f.comments}</span>
+              <span className="u-fs-085">{f.comments}</span>
               <span className="muted u-fs-075">{formatTimestampDate(f.createdAt)}</span>
             </div>
           ))}

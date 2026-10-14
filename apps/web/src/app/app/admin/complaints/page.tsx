@@ -69,7 +69,7 @@ export default async function AdminComplaintsPage() {
   return (
     <section className="section container">
       <div className="u-mb-150">
-        <Link href="/app/admin" className="muted u-fs-090">
+        <Link href="/app/admin" className="muted u-fs-085">
           ← Admin
         </Link>
       </div>
@@ -94,11 +94,11 @@ export default async function AdminComplaintsPage() {
                     {complaintStatusLabel(c.status)}
                   </span>
                 </div>
-                <p className="muted" style={{ fontSize: '0.85rem', margin: 0 }}>
+                <p className="muted" style={{ fontSize: 'var(--text-small)', margin: 0 }}>
                   {c.description}
                 </p>
                 {c.resolution ? (
-                  <p className="muted" style={{ fontSize: '0.8rem', margin: 0 }}>
+                  <p className="muted" style={{ fontSize: 'var(--text-small)', margin: 0 }}>
                     Resolution: {c.resolution}
                   </p>
                 ) : null}
@@ -136,7 +136,7 @@ export default async function AdminComplaintsPage() {
                   style={{ flexDirection: 'column', alignItems: 'flex-start', gap: '0.2rem' }}
                 >
                   <span className="row-key">Case {f.missionId}</span>
-                  <span className="u-fs-090">{f.comments}</span>
+                  <span className="u-fs-085">{f.comments}</span>
                   <span className="muted u-fs-075">{formatTimestampDate(f.createdAt)}</span>
                 </div>
               ))}

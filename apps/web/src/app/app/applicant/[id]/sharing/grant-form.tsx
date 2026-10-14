@@ -276,7 +276,7 @@ export function GrantForm({
           placeholder="30 (default), up to 90"
           onChange={(e) => setExpiryDays(e.target.value)}
         />
-        <p className="muted" style={{ fontSize: '0.75rem', margin: '0.3rem 0 0' }}>
+        <p className="muted" style={{ fontSize: 'var(--text-caption)', margin: '0.3rem 0 0' }}>
           Every grant expires. Leave blank for the 30-day default; the maximum is 90 days.
         </p>
       </div>

@@ -70,7 +70,7 @@ export default async function SharedWithMePage() {
                     </span>
                     <span className={`badge ${badge.tone}`}>{badge.label}</span>
                   </div>
-                  <p className="muted" style={{ margin: 0, fontSize: '0.8rem' }}>
+                  <p className="muted" style={{ margin: 0, fontSize: 'var(--text-small)' }}>
                     {grant.actions.length} permission{grant.actions.length === 1 ? '' : 's'}
                     {grant.expiryAt ? ` · expires ${formatTimestampDate(grant.expiryAt)}` : ''}
                   </p>
@@ -80,7 +80,7 @@ export default async function SharedWithMePage() {
                       <button
                         type="submit"
                         className="btn btn-primary"
-                        style={{ padding: '0.35rem 1rem', fontSize: '0.85rem' }}
+                        style={{ padding: '0.35rem 1rem', fontSize: 'var(--text-small)' }}
                       >
                         Accept access
                       </button>
@@ -92,7 +92,7 @@ export default async function SharedWithMePage() {
                       className="btn btn-secondary"
                       style={{
                         padding: '0.35rem 1rem',
-                        fontSize: '0.85rem',
+                        fontSize: 'var(--text-small)',
                         alignSelf: 'flex-start',
                       }}
                     >

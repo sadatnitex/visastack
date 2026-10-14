@@ -55,7 +55,7 @@ export function ContributorRequestsPanel({
                   </span>
                   <span className={`badge ${badge.tone}`}>{badge.label}</span>
                 </div>
-                <span className="muted u-fs-080">
+                <span className="muted u-fs-085">
                   {r.purpose}
                   {r.status === 'PENDING' ? ` · expires ${formatTimestampDate(r.expiresAt)}` : ''}
                 </span>

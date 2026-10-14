@@ -355,7 +355,7 @@ export default async function ApplicantDocumentsPage({
                         <button
                           type="submit"
                           className="btn btn-secondary"
-                          style={{ padding: '0.3rem 0.9rem', fontSize: '0.8rem' }}
+                          style={{ padding: '0.3rem 0.9rem', fontSize: 'var(--text-small)' }}
                         >
                           Preview
                         </button>
@@ -428,12 +428,16 @@ export default async function ApplicantDocumentsPage({
                     defaultValue={doc.documentDate ?? ''}
                     max={new Date().toISOString().slice(0, 10)}
                     className="input"
-                    style={{ padding: '0.2rem 0.5rem', fontSize: '0.8rem', width: 'auto' }}
+                    style={{
+                      padding: '0.2rem 0.5rem',
+                      fontSize: 'var(--text-small)',
+                      width: 'auto',
+                    }}
                   />
                   <button type="submit" className="btn btn-secondary u-btn-xs">
                     Save
                   </button>
-                  <span className="muted" style={{ fontSize: '0.7rem' }}>
+                  <span className="muted" style={{ fontSize: 'var(--text-caption)' }}>
                     Used to judge freshness for routes that require recently-dated evidence.
                   </span>
                 </form>

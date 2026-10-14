@@ -33,7 +33,12 @@ export function SubmitEvidenceForm({
             aria-label={docType}
           />
           <label
-            style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem' }}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem',
+              fontSize: 'var(--text-small)',
+            }}
           >
             <input type="checkbox" name="allowWalletReuse" value="true" />
             Also allow this document to be reused for the traveller's future cases (optional - off
@@ -45,7 +50,7 @@ export function SubmitEvidenceForm({
             busy="Uploading…"
             className="btn btn-primary"
           />
-          <p className="muted" style={{ fontSize: '0.8rem', margin: 0 }}>
+          <p className="muted" style={{ fontSize: 'var(--text-small)', margin: 0 }}>
             PDF, PNG, JPEG, DOCX, TXT or MD · file type and structure are checked on upload.
           </p>
         </form>

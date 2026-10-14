@@ -204,7 +204,7 @@ export function OfficialFeeStaleButton({
           idle={stale ? 'Restore fee' : 'Mark fee stale'}
           busy="…"
           className={`btn ${stale ? 'btn-secondary' : 'btn-danger'}`}
-          style={{ padding: '0.2rem 0.6rem', fontSize: '0.75rem' }}
+          style={{ padding: '0.2rem 0.6rem', fontSize: 'var(--text-caption)' }}
         />
       </form>
       <FormMessage result={state} style={{ display: 'inline' }} />

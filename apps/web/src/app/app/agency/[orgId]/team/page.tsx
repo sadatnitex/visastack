@@ -59,7 +59,10 @@ export default async function AgencyTeamPage({
             <div className="row" key={m.membershipId}>
               <span className="row-key">
                 {m.email}
-                <span className="muted" style={{ fontSize: '0.8rem', marginLeft: '0.5rem' }}>
+                <span
+                  className="muted"
+                  style={{ fontSize: 'var(--text-small)', marginLeft: '0.5rem' }}
+                >
                   {membershipRoleLabel(m.role)}
                 </span>
               </span>
@@ -85,7 +88,10 @@ export default async function AgencyTeamPage({
             <div className="row" key={invitation.id}>
               <span className="row-key">
                 {invitation.email}
-                <span className="muted" style={{ fontSize: '0.8rem', marginLeft: '0.5rem' }}>
+                <span
+                  className="muted"
+                  style={{ fontSize: 'var(--text-small)', marginLeft: '0.5rem' }}
+                >
                   {membershipRoleLabel(invitation.role)}
                 </span>
               </span>

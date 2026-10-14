@@ -76,7 +76,10 @@ export default async function AgencyClientsPage({
               <div className="row" key={invitation.id}>
                 <span className="row-key">
                   {invitation.displayName}
-                  <span className="muted" style={{ fontSize: '0.8rem', marginLeft: '0.5rem' }}>
+                  <span
+                    className="muted"
+                    style={{ fontSize: 'var(--text-small)', marginLeft: '0.5rem' }}
+                  >
                     {invitation.contactDestination}
                   </span>
                 </span>
@@ -159,7 +162,7 @@ export default async function AgencyClientsPage({
                     </span>
                     <span className={`badge ${rb.tone}`}>{rb.label}</span>
                   </div>
-                  <span className="muted u-fs-080">
+                  <span className="muted u-fs-085">
                     {req.applicantName}
                     {req.dueDate ? ` · due ${formatDateOnly(req.dueDate)}` : ''}
                   </span>
@@ -175,7 +178,7 @@ export default async function AgencyClientsPage({
             })}
           </div>
         )}
-        <p className="muted" style={{ fontSize: '0.85rem', marginTop: '1rem' }}>
+        <p className="muted" style={{ fontSize: 'var(--text-small)', marginTop: '1rem' }}>
           Each request belongs to a case. To work on a case, open it in{' '}
           <Link href={`/app/agency/${orgId}/cases`}>Cases</Link>.
         </p>

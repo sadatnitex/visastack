@@ -54,7 +54,10 @@ export default async function AgencyPage() {
                   >
                     <span className="row-key">
                       {m.organization.name}
-                      <span className="muted" style={{ fontSize: '0.8rem', marginLeft: '0.5rem' }}>
+                      <span
+                        className="muted"
+                        style={{ fontSize: 'var(--text-small)', marginLeft: '0.5rem' }}
+                      >
                         {humanizeCode(m.role)}
                       </span>
                     </span>

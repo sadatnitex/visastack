@@ -96,7 +96,14 @@ export function CaseDetailsForm({
           className="input"
         />
       </div>
-      <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem' }}>
+      <label
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '0.5rem',
+          fontSize: 'var(--text-small)',
+        }}
+      >
         <input type="checkbox" name="manualMode" value="true" defaultChecked={manualMode} />
         No automated requirement pack covers this route (manual mode)
       </label>

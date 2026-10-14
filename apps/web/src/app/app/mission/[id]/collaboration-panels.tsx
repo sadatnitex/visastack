@@ -70,17 +70,17 @@ export function TasksPanel({
                 {task.description}
                 <span
                   className={`badge ${task.priority === 'URGENT' || task.priority === 'HIGH' ? 'badge-warning' : 'badge-neutral'}`}
-                  style={{ fontSize: '0.65rem' }}
+                  style={{ fontSize: 'var(--text-caption)' }}
                 >
                   {PRIORITY_LABELS[task.priority] ?? task.priority}
                 </span>
                 {task.status === 'IN_PROGRESS' ? (
-                  <span className="badge badge-neutral" style={{ fontSize: '0.65rem' }}>
+                  <span className="badge badge-neutral" style={{ fontSize: 'var(--text-caption)' }}>
                     In progress
                   </span>
                 ) : null}
                 {task.dueDate ? (
-                  <span className="muted" style={{ fontSize: '0.7rem' }}>
+                  <span className="muted" style={{ fontSize: 'var(--text-caption)' }}>
                     due {formatDateOnly(task.dueDate)}
                     {task.dueTimezone ? ` (${task.dueTimezone})` : ''}
                   </span>
@@ -93,7 +93,7 @@ export function TasksPanel({
                     idle="Start"
                     busy="Start"
                     className="btn btn-secondary"
-                    style={{ padding: '0.25rem 0.7rem', fontSize: '0.78rem' }}
+                    style={{ padding: '0.25rem 0.7rem', fontSize: 'var(--text-caption)' }}
                     name="status"
                     value="IN_PROGRESS"
                   />
@@ -103,7 +103,7 @@ export function TasksPanel({
                   idle="Done"
                   busy="Done"
                   className="btn btn-secondary"
-                  style={{ padding: '0.25rem 0.7rem', fontSize: '0.78rem' }}
+                  style={{ padding: '0.25rem 0.7rem', fontSize: 'var(--text-caption)' }}
                   name="status"
                   value="DONE"
                 />
@@ -112,7 +112,7 @@ export function TasksPanel({
                   idle="Cancel"
                   busy="Cancel"
                   className="btn btn-secondary"
-                  style={{ padding: '0.25rem 0.7rem', fontSize: '0.78rem' }}
+                  style={{ padding: '0.25rem 0.7rem', fontSize: 'var(--text-caption)' }}
                   name="status"
                   value="CANCELLED"
                 />
@@ -125,7 +125,7 @@ export function TasksPanel({
 
       {decided.length > 0 ? (
         <details className="u-mb-100">
-          <summary className="muted" style={{ fontSize: '0.8rem', cursor: 'pointer' }}>
+          <summary className="muted" style={{ fontSize: 'var(--text-small)', cursor: 'pointer' }}>
             {decided.length} completed/cancelled
           </summary>
           <div className="rows u-mt-050">
@@ -233,7 +233,7 @@ export function AppointmentsPanel({
               style={{ flexDirection: 'column', alignItems: 'flex-start', gap: '0.3rem' }}
             >
               <span className="row-key">{appt.title}</span>
-              <span className="muted u-fs-080">
+              <span className="muted u-fs-085">
                 {new Date(appt.localDateTime).toLocaleString(undefined, {
                   dateStyle: 'medium',
                   timeStyle: 'short',
@@ -245,7 +245,11 @@ export function AppointmentsPanel({
                 <a
                   href={`/app/mission/${missionId}/appointments/${appt.id}/ics`}
                   className="btn btn-secondary"
-                  style={{ padding: '0.2rem 0.6rem', fontSize: '0.75rem', textDecoration: 'none' }}
+                  style={{
+                    padding: '0.2rem 0.6rem',
+                    fontSize: 'var(--text-caption)',
+                    textDecoration: 'none',
+                  }}
                 >
                   Add to calendar
                 </a>
@@ -278,7 +282,7 @@ export function AppointmentsPanel({
 
       {past.length > 0 ? (
         <details className="u-mb-100">
-          <summary className="muted" style={{ fontSize: '0.8rem', cursor: 'pointer' }}>
+          <summary className="muted" style={{ fontSize: 'var(--text-small)', cursor: 'pointer' }}>
             {past.length} past
           </summary>
           <div className="rows u-mt-050">
@@ -366,7 +370,7 @@ export function LettersPanel({
     <article className="card">
       <p className="card-kicker">Grounded documents</p>
       <h2 className="card-title">Cover letters</h2>
-      <p className="muted" style={{ fontSize: '0.8rem', marginBottom: '1rem' }}>
+      <p className="muted" style={{ fontSize: 'var(--text-small)', marginBottom: '1rem' }}>
         Generated strictly from confirmed, eligible evidence - nothing is invented. Not AI-written;
         deterministic and versioned.
       </p>
@@ -376,13 +380,13 @@ export function LettersPanel({
         <div className="rows u-mb-100">
           {letters.map((letter) => (
             <details key={letter.id}>
-              <summary style={{ cursor: 'pointer', fontSize: '0.85rem' }}>
+              <summary style={{ cursor: 'pointer', fontSize: 'var(--text-small)' }}>
                 Version {letter.version} · {formatTimestampDate(letter.createdAt)}
               </summary>
               <pre
                 style={{
                   whiteSpace: 'pre-wrap',
-                  fontSize: '0.8rem',
+                  fontSize: 'var(--text-small)',
                   marginTop: '0.5rem',
                   fontFamily: 'inherit',
                 }}
@@ -404,7 +408,7 @@ export function LettersPanel({
         />
       </form>
       {!canGenerate ? (
-        <p className="muted" style={{ fontSize: '0.78rem', marginTop: '0.5rem' }}>
+        <p className="muted" style={{ fontSize: 'var(--text-caption)', marginTop: '0.5rem' }}>
           Nothing eligible to ground a letter in yet.
         </p>
       ) : null}
@@ -459,7 +463,7 @@ export function EvidenceSelectionPanel({
     <article className="card">
       <p className="card-kicker">Precision</p>
       <h2 className="card-title">Select evidence</h2>
-      <p className="muted" style={{ fontSize: '0.8rem', marginBottom: '1rem' }}>
+      <p className="muted" style={{ fontSize: 'var(--text-small)', marginBottom: '1rem' }}>
         More than one instance is on file for these requirements - pick exactly which one backs
         each. Until you select, any eligible instance may count.
       </p>
@@ -482,7 +486,7 @@ export function EvidenceSelectionPanel({
                       key={fact.factId}
                       style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
                     >
-                      <span style={{ fontSize: '0.85rem', flex: 1 }}>
+                      <span style={{ fontSize: 'var(--text-small)', flex: 1 }}>
                         {fact.value}
                         {fact.repeatingRecordKey ? ` (${fact.repeatingRecordKey})` : ''}
                         {!fact.eligible ? (
@@ -533,7 +537,7 @@ export function EvidenceSelectionPanel({
                       key={doc.documentId}
                       style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
                     >
-                      <span style={{ fontSize: '0.85rem', flex: 1 }}>
+                      <span style={{ fontSize: 'var(--text-small)', flex: 1 }}>
                         {doc.displayName}
                         {!doc.eligible ? (
                           <span className="badge badge-danger" style={{ marginLeft: '0.4rem' }}>

@@ -192,3 +192,8 @@ Left open at the end of the day: the decisions in section 7, the Neon branch lim
 - Phase 9 and 10 first part built on a branch cut from that merge: tests that record how the public and entry pages behave, shared motion speeds, a verdict-first status page, a step line on sign-up, confirm-email and invitation pages, and a working example on the home page.
 - Confirm-email page cannot show the typed address (it only receives the next-step values), so the earlier mockup of a masked address and a mail-app button is not built.
 - Still held: Before you start box, privacy at a glance, WhatsApp link, agency made-up day, invitation sender name, invitation decline treatment.
+
+### Session log addendum: phase 3c
+- Small text sizes now snap to three sizes (caption, small, body). Script used: a one-off rewrite of font-size values in globals.css and inline fontSize on pages; not kept in the repo. Guard: apps/web/src/lib/type-scale.test.ts.
+- Expect slightly taller phone pages. If a narrow badge or table column wraps on a real device, adjust that spot rather than reintroducing an in-between size.
+- Next held items: WhatsApp "show your agent" link (owner said go, needs a preview first), invitation sender name (kept hidden), adviser wording review, staging sign-in and upload test (cannot be run from this session).

@@ -52,7 +52,7 @@ export default async function AgencySettingsPage({
         <div className="row">
           <span className="row-key" style={{ maxWidth: '32rem' }}>
             Require a different reviewer
-            <span className="muted" style={{ display: 'block', fontSize: '0.8rem' }}>
+            <span className="muted" style={{ display: 'block', fontSize: 'var(--text-small)' }}>
               When on, whoever raised an evidence request cannot also accept it or ask for a
               replacement; a different team member must. Off by default.
             </span>
@@ -100,7 +100,7 @@ export default async function AgencySettingsPage({
             <button type="button" className="btn btn-primary" disabled>
               Download bulk export
             </button>
-            <p className="muted" style={{ fontSize: '0.85rem', marginTop: '0.6rem' }}>
+            <p className="muted" style={{ fontSize: 'var(--text-small)', marginTop: '0.6rem' }}>
               {capabilityUnavailableMessage('bulkExport')}
             </p>
           </>

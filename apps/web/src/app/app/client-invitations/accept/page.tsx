@@ -128,7 +128,7 @@ export default async function AcceptClientInvitationPage({
               <strong>{data.preview.value.requestedRoute ?? data.preview.value.displayName}</strong>
               .
             </p>
-            <p className="muted" style={{ fontSize: '0.75rem', marginTop: '-0.75rem' }}>
+            <p className="muted" style={{ fontSize: 'var(--text-caption)', marginTop: '-0.75rem' }}>
               Powered by VisaStack
             </p>
             <p className="card-body" style={{ fontWeight: 600, marginBottom: '0.5rem' }}>
@@ -136,7 +136,7 @@ export default async function AcceptClientInvitationPage({
             </p>
             <ul style={{ margin: '0 0 1.25rem', paddingLeft: '1.25rem' }}>
               {data.preview.value.grantActions.map((action) => (
-                <li key={action} className="muted u-fs-090">
+                <li key={action} className="muted u-fs-085">
                   {GRANT_ACTION_LABELS[action] ?? action}
                 </li>
               ))}

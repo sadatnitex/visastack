@@ -29,7 +29,7 @@ export default async function SharedWorkspacePage({
   return (
     <section className="section container">
       <div className="u-mb-150">
-        <Link href="/app/shared" className="muted u-fs-090">
+        <Link href="/app/shared" className="muted u-fs-085">
           ← Shared with you
         </Link>
       </div>
@@ -46,7 +46,7 @@ export default async function SharedWorkspacePage({
         }
       />
 
-      <p className="muted" style={{ fontSize: '0.85rem', marginBottom: '1.5rem' }}>
+      <p className="muted" style={{ fontSize: 'var(--text-small)', marginBottom: '1.5rem' }}>
         Every item below is re-checked against your grant's permissions on every visit. It never
         shows more than what was shared with you, and never less than you're entitled to.
       </p>
@@ -101,7 +101,7 @@ export default async function SharedWorkspacePage({
                   </div>
                 ))}
               </div>
-              <p className="muted u-fs-080">
+              <p className="muted u-fs-085">
                 Document preview isn't available yet. Real redacted renditions for third-party
                 viewing are a separate, upcoming milestone. This list shows only which documents
                 your grant covers.

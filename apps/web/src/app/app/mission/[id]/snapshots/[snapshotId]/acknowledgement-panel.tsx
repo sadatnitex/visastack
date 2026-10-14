@@ -61,7 +61,7 @@ export function AcknowledgementPanel({
     <article className="card u-mb-150">
       <p className="card-kicker">Final review</p>
       <h2 className="card-title">Confirm this prepared file</h2>
-      <p className="muted" style={{ fontSize: '0.85rem', marginBottom: '1rem' }}>
+      <p className="muted" style={{ fontSize: 'var(--text-small)', marginBottom: '1rem' }}>
         This page is the exact evidence bundle, selected facts, and rule context this decision
         applies to. Acknowledging it does not mean it has been submitted, officially verified, or
         approved by anyone -- only that you have reviewed this exact content.
@@ -111,7 +111,7 @@ export function AcknowledgementPanel({
                 <span className="muted u-fs-075">{formatTimestamp(entry.createdAt)}</span>
               </div>
               {entry.reason ? (
-                <p style={{ margin: 0, fontSize: '0.85rem' }}>{entry.reason}</p>
+                <p style={{ margin: 0, fontSize: 'var(--text-small)' }}>{entry.reason}</p>
               ) : null}
               {entry.invalidatedAt ? (
                 <p className="muted u-fs-075-m0">
