@@ -5,10 +5,10 @@ import {
   type DocumentId,
   type MissionId,
   PERMISSION_ACTIONS,
-  PROFILE_PACKS,
   type PermissionAction,
 } from '@visastack/core';
 import { type Result, err, ok } from '@visastack/core';
+import { isSharingCategory } from '@visastack/core/catalogue/packs';
 import {
   type Actor as PolicyActor,
   type Grant as PolicyGrant,
@@ -170,9 +170,7 @@ export async function prepareGrantScope(
     return err(serviceError('invalid', 'a purpose is required'));
   }
   if (input.categories) {
-    const invalidCategory = input.categories.find(
-      (category) => !(PROFILE_PACKS as readonly string[]).includes(category),
-    );
+    const invalidCategory = input.categories.find((category) => !isSharingCategory(category));
     if (invalidCategory)
       return err(serviceError('invalid', `unknown category: ${invalidCategory}`));
   }

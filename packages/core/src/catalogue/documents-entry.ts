@@ -4,4 +4,4 @@
  * and out of every test that happens to touch a label.
  */
 export { CATALOGUE_DOCUMENTS } from './documents';
-export { documentTypeName, resolveDocumentType } from './document-lookup';
+export { documentTypeName, resolveDocumentType, supportedFieldKeys } from './document-lookup';

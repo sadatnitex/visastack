@@ -5137,3 +5137,10 @@ Documentation only. The bidesh365 master profile (54 sections) was compared with
 - Not verified: the migration has not run against production yet (needs the migration workflow with the owner's go-ahead, after this is merged). No screen uses the tables yet.
 - Correction to the wiring A note above: the 801 catalogue fields stay out of browser code, but document type names do ship in one browser chunk.
 
+### 2026-10-14, Master Profile: AI scoped per document type and sharing names
+
+- AI reading is limited to the registered fields a document type carries (core `supportedFieldKeys`, services `scopeFieldKeys`). Falls back to the full registered list when no listed field is registered, which is the case for bank statements today. Tests: 6 for the rule, 1 end to end (what the model receives, and that a narrowed reading never reuses an unnarrowed cache entry). Proved able to fail.
+- Grants accept the seven new catalogue categories as well as the five live packs (`SHARING_CATEGORIES`). A grant scoped to a new category shows only fields filed under it; unknown names are still refused. 1 new test, proved able to fail.
+- Not verified: the offline AI evaluation (needs a real provider key). No real document has been read with the narrowed list.
+- Deploy Smoke and Playwright Deploy Smoke fail with 404 on the migration workflow's own deployment record (their target is the job page). The runs against the real site pass. Not fixed.
+

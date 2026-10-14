@@ -30,3 +30,13 @@ export function resolveDocumentType(name: string): CatalogueDocument | undefined
 export function documentTypeName(name: string): string | undefined {
   return resolveDocumentType(name)?.label;
 }
+
+/**
+ * The profile fields a document type is known to carry, or undefined when the catalogue has no
+ * list for it (or does not know the type). Used to keep AI reading to the fields a document can
+ * actually hold. Undefined means "no narrowing", never "nothing".
+ */
+export function supportedFieldKeys(name: string): readonly string[] | undefined {
+  const document = resolveDocumentType(name);
+  return document && document.supports.length > 0 ? document.supports : undefined;
+}

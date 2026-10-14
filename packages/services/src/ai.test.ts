@@ -200,6 +200,44 @@ describe('AI Gateway — proposals never silently mutate', () => {
     db = await freshDb();
   });
 
+  it('offers the model only the fields this kind of document carries, and keeps readings with different lists apart in the cache', async () => {
+    const { account, applicantId, versionId } = await seedVersion(db, 'ai-scope@example.com');
+    await grantAiConsent(db, account.id);
+    await registerFieldDefinition(db, { key: 'passport_number', dataType: 'string' });
+    await registerFieldDefinition(db, { key: 'monthly_income', dataType: 'string' });
+    const seen: string[][] = [];
+    const capturing: AiExtractionPort = {
+      async extract(input) {
+        seen.push([...input.allowedFieldKeys]);
+        return { ok: true, result: { proposals, usage } };
+      },
+      cacheKeyComponents() {
+        return { model: 'gpt-5.6-terra', promptVersion: 'p1', schemaVersion: 's1' };
+      },
+    };
+    const run = {
+      actorAccountId: account.id,
+      applicantId,
+      documentVersionId: versionId,
+      text: 'MRZ...',
+      budgetLimitUnits: 100,
+    };
+
+    // No type yet: every registered field is offered, as before.
+    expect(isOk(await runExtraction(db, capturing, run))).toBe(true);
+    expect(seen[0]?.sort()).toEqual(['monthly_income', 'passport_number']);
+
+    // Typed as a passport: income is not a passport field, so it is not offered. A new list means a new
+    // reading, not a cache hit on the unscoped one.
+    await db
+      .update(schema.documents)
+      .set({ docType: 'PASSPORT' })
+      .where(eq(schema.documents.applicantId, applicantId));
+    expect(isOk(await runExtraction(db, capturing, run))).toBe(true);
+    expect(seen).toHaveLength(2);
+    expect(seen[1]).toEqual(['passport_number']);
+  });
+
   it('requires AI_EXTRACTION consent to run', async () => {
     const { account, applicantId, versionId } = await seedVersion(db, 'ai1@example.com');
     const denied = await runExtraction(db, stubAi(), {
