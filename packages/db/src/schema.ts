@@ -3660,3 +3660,63 @@ export const invoices = pgTable(
     ),
   ],
 );
+
+// --- Master Profile: opened sections and "does not apply" marks -------------
+// Owner decision 2026-10-14: every profile section is visible but locked until
+// the person ticks it, and a few common ones start open. Only the person's own
+// choices are stored here (a section they opened or closed on purpose); the
+// default-open set, and sections that already hold a saved value, are worked
+// out from the catalogue at read time so nothing here goes stale when the
+// catalogue grows. Section and field names are validated against the
+// catalogue by the service before they are written, never trusted from the
+// browser. Additive: no existing table or row is touched.
+export const profileSectionStates = pgTable(
+  'profile_section_states',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    applicantId: uuid('applicant_id')
+      .notNull()
+      .references(() => applicants.id, { onDelete: 'cascade' }),
+    sectionKey: text('section_key').notNull(),
+    isOpen: boolean('is_open').notNull(),
+    updatedByAccountId: uuid('updated_by_account_id').references(() => accounts.id, {
+      onDelete: 'set null',
+    }),
+    ...timestamps,
+  },
+  (table) => [
+    unique('profile_section_states_applicant_section_unique').on(
+      table.applicantId,
+      table.sectionKey,
+    ),
+    index('profile_section_states_applicant_idx').on(table.applicantId),
+  ],
+);
+
+export const PROFILE_EXEMPTION_KINDS = ['FIELD_NOT_APPLICABLE', 'RECORD_NONE'] as const;
+
+// A field the person says does not apply to them, or a repeating record (for
+// example visas) they say they have none of. Counts as answered in completion.
+export const profileFieldExemptions = pgTable(
+  'profile_field_exemptions',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    applicantId: uuid('applicant_id')
+      .notNull()
+      .references(() => applicants.id, { onDelete: 'cascade' }),
+    kind: text('kind', { enum: PROFILE_EXEMPTION_KINDS }).notNull(),
+    targetKey: text('target_key').notNull(),
+    createdByAccountId: uuid('created_by_account_id').references(() => accounts.id, {
+      onDelete: 'set null',
+    }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    unique('profile_field_exemptions_applicant_kind_target_unique').on(
+      table.applicantId,
+      table.kind,
+      table.targetKey,
+    ),
+    index('profile_field_exemptions_applicant_idx').on(table.applicantId),
+  ],
+);

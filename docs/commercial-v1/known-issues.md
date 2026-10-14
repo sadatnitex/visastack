@@ -5130,3 +5130,10 @@ Documentation only. The bidesh365 master profile (54 sections) was compared with
 - Found: the old admin hint suggested a lower-case document type (`bank_statement`) while scanned documents are stored in upper case (`BANK_STATEMENT`), and matching is exact, so a requirement typed that way would not match. Existing saved requirements, reminder ladders and retention rules have NOT been audited for this; a read-only look at the pilot data would show how many are affected (needs the owner's OK).
 - `@visastack/core` marked side-effect free; the pick-lists render on the server so the 801 catalogue fields stay out of browser bundles (checked in the build output).
 - Not done: wiring B (AI reads only the fields a document supports), C (new sharing categories), D (registry built from the catalogue), storage for opened sections, screens.
+
+### 2026-10-14, Master Profile: storage for opened sections
+
+- Added migration 0086 (two new tables, no existing data touched) for opened sections and "does not apply" marks, with owner-only, consent-checked, audited writes and inclusion in the data export. Tests: 7 new, owner check and name check proved able to fail.
+- Not verified: the migration has not run against production yet (needs the migration workflow with the owner's go-ahead, after this is merged). No screen uses the tables yet.
+- Correction to the wiring A note above: the 801 catalogue fields stay out of browser code, but document type names do ship in one browser chunk.
+

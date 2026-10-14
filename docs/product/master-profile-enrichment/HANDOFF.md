@@ -148,3 +148,12 @@ Phase 1 foundations. Phase 2 wiring. Phase 3 screens for new layers. Phase 4 cou
 
 - Added `lib/catalogue-input.ts`, `components/catalogue-datalists.tsx`, `document-lookup.ts` and `knownFieldOptions()`; changed the three admin actions and forms; `documentTypeLabel` now resolves aliases.
 - Found while doing it: the old admin hint suggested typing `bank_statement` in lower case, but scanned documents are stored as `BANK_STATEMENT`, so a requirement typed that way would never match. New entries are now saved in canonical form. Existing saved entries are not changed and have not been audited.
+
+### 2026-10-14, Claude: storage for opened sections (owner approved the migration)
+
+- Migration 0086 adds two new tables and changes nothing existing: `profile_section_states` (sections a person opened or closed) and `profile_field_exemptions` (a field marked "does not apply", or a repeating record marked "none"). Both delete with the applicant. The default-open set and sections that already hold data are worked out from the catalogue, not stored.
+- `profile-sections.ts` in services: `getProfileSectionState`, `setSectionOpen`, `setExemption`. Owner only, consent required, denials and every change audited, names checked against the catalogue. Always-open sections cannot be closed.
+- Both tables are in the person's own data export (JSON). Not added to the CSV tables or the manifest counts.
+- Proved the owner check and the name check can fail. Production migration is a separate step run through the migration workflow with the owner's go-ahead.
+- Still not done: wiring B, C, D and the screens (section cards, completion strip).
+

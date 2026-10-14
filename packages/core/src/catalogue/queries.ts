@@ -76,6 +76,24 @@ export function fieldsInModule(moduleKey: string): readonly ModuleField[] {
   return MODULE_FIELDS.filter((field) => field.module === moduleKey);
 }
 
+/** Sections a person can open or close. Internal plumbing sections are never offered. */
+export const OPENABLE_MODULE_KEYS: ReadonlySet<string> = new Set(
+  CATALOGUE_MODULES.filter((module) => !module.internal).map((module) => module.key),
+);
+
+export function isOpenableModuleKey(key: string): boolean {
+  return OPENABLE_MODULE_KEYS.has(key);
+}
+
+/** Repeating records a person can mark "none" (addresses, visas, and so on). */
+export const RECORD_GROUP_KEYS: ReadonlySet<string> = new Set(
+  MODULE_FIELDS.flatMap((field) => (field.group ? [field.group] : [])),
+);
+
+export function isKnownRecordGroupKey(key: string): boolean {
+  return RECORD_GROUP_KEYS.has(key);
+}
+
 /** A field the admin screens may name, for pick-lists. Live fields come first. */
 export interface KnownFieldOption {
   readonly key: string;

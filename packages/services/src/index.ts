@@ -105,6 +105,15 @@ export {
 } from './profile';
 
 export {
+  type ProfileSectionState,
+  type SetExemptionInput,
+  type SetSectionOpenInput,
+  getProfileSectionState,
+  setExemption,
+  setSectionOpen,
+} from './profile-sections';
+
+export {
   type FieldSensitivity,
   type ProtectedValue,
   type RevealValueInput,
