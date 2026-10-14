@@ -4229,6 +4229,144 @@ body:has(.auth-shell) > .footer {
   gap: 0.5rem;
   cursor: pointer;
 }
+/* Master Profile sections: open and locked cards, tick boxes, and the "something else" record. */
+.profile-section-card {
+  margin: 0 0 1rem;
+  padding: 1rem;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+}
+.profile-section-card.is-locked {
+  background: var(--bg-subtle);
+  border-style: dashed;
+}
+.profile-section-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+.profile-section-head h4 {
+  margin: 0 0 0.25rem;
+}
+.profile-section-head p {
+  margin: 0;
+}
+.profile-section-state {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.5rem;
+  font-size: var(--text-small);
+}
+.profile-section-progress {
+  margin: 0.75rem 0 0;
+  font-size: var(--text-small);
+}
+.profile-section-preview {
+  margin-top: 0.75rem;
+}
+.profile-section-preview > summary {
+  color: var(--accent);
+  font-size: var(--text-small);
+  cursor: pointer;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+}
+.profile-section-preview ul {
+  margin: 0 0 0.75rem;
+  padding-left: 1.25rem;
+  columns: 2;
+  color: var(--text-tertiary);
+}
+.profile-exempt {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+.profile-exempt-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 44px;
+  font-size: var(--text-small);
+  cursor: pointer;
+}
+.profile-field-item {
+  border-bottom: 1px solid var(--hairline-soft);
+  padding-bottom: 0.5rem;
+}
+.profile-group {
+  margin-top: 1.5rem;
+}
+.profile-group .field-head {
+  margin-bottom: 0.75rem;
+}
+.profile-group-records {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+.profile-group-record {
+  padding: 0.85rem;
+  border: 1px solid var(--hairline-soft);
+  border-radius: var(--radius-sm);
+}
+.profile-other-items {
+  margin-top: 1.5rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--hairline-soft);
+}
+.profile-other-items h5 {
+  margin: 0.5rem 0 0.25rem;
+}
+.profile-suggest {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-bottom: 1.25rem;
+  padding: 1rem;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-sm);
+  background: var(--bg-subtle);
+}
+.profile-suggest-pick {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.75rem;
+}
+.profile-suggest-pick .input {
+  min-width: 14rem;
+}
+.profile-suggest-open p {
+  margin: 0 0 0.5rem;
+}
+.field-badges {
+  display: flex;
+  gap: 0.4rem;
+}
+.field-backdate {
+  margin-top: -0.25rem;
+}
+.field-backdate > summary {
+  font-size: var(--text-caption);
+  cursor: pointer;
+}
+.field-backdate .field-control {
+  margin-top: 0.4rem;
+}
+.btn-compact {
+  padding: 0.3rem 0.9rem;
+  font-size: var(--text-small);
+}
+@media (max-width: 479px) {
+  .profile-section-preview ul {
+    columns: 1;
+  }
+}
 .profile-version-note {
   margin-top: 1.5rem;
   font-size: var(--text-small);

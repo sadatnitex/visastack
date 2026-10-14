@@ -25,9 +25,12 @@ function toggled(current: readonly string[], value: string, on: boolean): string
 export function GrantForm({
   applicantId,
   documents,
+  extraCategories = [],
 }: {
   readonly applicantId: string;
   readonly documents: ReadonlyArray<{ readonly id: string; readonly displayName: string }>;
+  /** New categories that already hold a saved detail, so only categories with something in them are offered. */
+  readonly extraCategories?: ReadonlyArray<{ readonly key: string; readonly label: string }>;
 }) {
   const [state, formAction, pending] = useActionState(createGrantAction, INITIAL);
   const router = useRouter();
@@ -57,7 +60,14 @@ export function GrantForm({
   const scopeLabel =
     categories.length === 0
       ? 'your whole profile'
-      : categories.map((c) => PACK_LABELS[c as keyof typeof PACK_LABELS] ?? c).join(', ');
+      : categories
+          .map(
+            (c) =>
+              PACK_LABELS[c as keyof typeof PACK_LABELS] ??
+              extraCategories.find((extra) => extra.key === c)?.label ??
+              c,
+          )
+          .join(', ');
   const docsLabel =
     documents.length === 0
       ? null
@@ -208,6 +218,19 @@ export function GrantForm({
                   onChange={(e) => setCategories((prev) => toggled(prev, pack, e.target.checked))}
                 />
                 <span>{PACK_LABELS[pack]}</span>
+              </label>
+            ))}
+            {extraCategories.map((extra) => (
+              <label className="check" key={extra.key}>
+                <input
+                  type="checkbox"
+                  name="category"
+                  value={extra.key}
+                  onChange={(e) =>
+                    setCategories((prev) => toggled(prev, extra.key, e.target.checked))
+                  }
+                />
+                <span>{extra.label}</span>
               </label>
             ))}
           </div>

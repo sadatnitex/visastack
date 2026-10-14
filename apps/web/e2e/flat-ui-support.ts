@@ -24,6 +24,7 @@ function fixtureBundle(): Promise<string> {
             enforce: 'pre',
             resolveId(id: string) {
               if (id === './actions') return fixture('actions.ts');
+              if (id === './section-actions') return fixture('section-actions.ts');
               return null;
             },
           },

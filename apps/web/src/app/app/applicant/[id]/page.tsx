@@ -1,6 +1,7 @@
 import {
   computeReadiness,
   getApplicant,
+  getProfileSectionState,
   hasConsent,
   listAccessForApplicant,
   listApplicantProfile,
@@ -14,14 +15,13 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { EmptyState, NextStepCard, PageHeader, StatusBadge } from '../../../../components/ui';
 import { formatTimestampDate } from '../../../../lib/format-date';
-import { PROFILE_FIELDS } from '../../../../lib/profile-fields';
+import { completionOf, fieldLabel } from '../../../../lib/master-profile';
 import { withSession } from '../../../../lib/session';
 import { STAGE_LABELS } from '../../agency/[orgId]/case-search-form';
 
 export const metadata: Metadata = { title: 'Traveller overview' };
 export const dynamic = 'force-dynamic';
 const TERMINAL_MISSION_STATES = new Set(['CLOSED', 'CANCELLED']);
-const CORE_FIELDS = PROFILE_FIELDS.filter((f) => f.pack === 'universal' && !f.group);
 
 export default async function ApplicantOverviewPage({
   params,
@@ -33,7 +33,7 @@ export default async function ApplicantOverviewPage({
     // The page is independently guarded: parent layouts may render concurrently.
     const applicant = await getApplicant(db, id);
     if (!applicant || applicant.ownerAccountId !== accountId) return null;
-    const [profile, documents, coreGranted, proposals, missions, requests, access] =
+    const [profile, documents, coreGranted, proposals, missions, requests, access, sectionChoices] =
       await Promise.all([
         listApplicantProfile(db, id),
         listDocumentsDetailed(db, accountId, id),
@@ -42,6 +42,7 @@ export default async function ApplicantOverviewPage({
         listMissions(db, accountId, id),
         listEvidenceRequestsForApplicant(db, accountId, id),
         listAccessForApplicant(db, accountId, id),
+        getProfileSectionState(db, id),
       ]);
     const active = missions.ok
       ? missions.value
@@ -62,6 +63,7 @@ export default async function ApplicantOverviewPage({
       active,
       featured,
       readiness,
+      sectionChoices,
     };
   });
   if (!data) notFound();
@@ -70,16 +72,9 @@ export default async function ApplicantOverviewPage({
   const flagged = documents.filter(
     (d) => d.safetyStatus === 'QUARANTINED' || d.classification?.reviewRequired,
   );
-  const completed = CORE_FIELDS.filter((f) =>
-    data.profile.some(
-      (p) =>
-        p.fieldKey === f.key &&
-        p.repeatingRecordKey === null &&
-        p.value !== null &&
-        p.value.trim() !== '',
-    ),
-  ).length;
-  const completeness = Math.round((completed / CORE_FIELDS.length) * 100);
+  const completion = completionOf(data.profile, data.sectionChoices);
+  const completed = completion.answered;
+  const completeness = completion.percent;
   const attention = requests.length + data.proposals.length + flagged.length;
   const next = !data.coreGranted
     ? {
@@ -113,7 +108,7 @@ export default async function ApplicantOverviewPage({
             ? {
                 href: `/app/applicant/${id}/profile`,
                 title: 'Continue your profile',
-                why: `${completed} of ${CORE_FIELDS.length} core fields have values. This is completeness, not verification.`,
+                why: `${completed} of ${completion.total} details in your open sections have values. This is completeness, not verification.`,
                 action: 'Open profile',
               }
             : {
@@ -161,7 +156,7 @@ export default async function ApplicantOverviewPage({
       .map((p) => ({
         key: `fact:${p.factId}`,
         label: 'Profile fact updated',
-        detail: PROFILE_FIELDS.find((f) => f.key === p.fieldKey)?.label ?? 'Profile detail',
+        detail: fieldLabel(p.fieldKey) ?? 'Profile detail',
         date: p.updatedAt as string,
         href: `/app/applicant/${id}/history`,
       })),
@@ -371,9 +366,9 @@ export default async function ApplicantOverviewPage({
           <article className="card">
             <h3>Profile &amp; sharing</h3>
             <div className="meter-label">
-              <span>Core fields with values</span>
+              <span>Details with values in open sections</span>
               <span>
-                {completed} / {CORE_FIELDS.length}
+                {completed} / {completion.total}
               </span>
             </div>
             <div className="meter" aria-hidden="true">

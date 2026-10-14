@@ -16,7 +16,7 @@ describe('profile field registry (Release F)', () => {
   });
 
   it('resolves a known key and returns undefined for an unknown one', () => {
-    expect(profileField('passport_number')?.label).toBe('Passport number');
+    expect(profileField('passport_number')?.label).toBe('Passport Number');
     expect(profileField('not_a_real_field')).toBeUndefined();
   });
 

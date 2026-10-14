@@ -44,7 +44,7 @@ import { isExplanationConfigured } from '../../../../lib/ai';
 import { humanizeCode } from '../../../../lib/format-code';
 import { formatDateOnly, formatTimestampDate } from '../../../../lib/format-date';
 import { getLocale } from '../../../../lib/locale';
-import { profileField } from '../../../../lib/profile-fields';
+import { fieldLabel } from '../../../../lib/master-profile';
 import { REQUIREMENT_GROUPS } from '../../../../lib/requirement-groups';
 import { withSession } from '../../../../lib/session';
 import { AttachPackForm, type PackOption } from './attach-pack-form';
@@ -667,7 +667,7 @@ export default async function MissionPage({
                               const meta = REQUIREMENT_STATE_META[r.state];
                               const label =
                                 r.kind === 'FIELD'
-                                  ? (profileField(r.key)?.label ?? humanizeCode(r.key))
+                                  ? (fieldLabel(r.key) ?? humanizeCode(r.key))
                                   : humanizeCode(r.key);
                               const sourceLine = [r.publisher, r.sourceTitle]
                                 .filter(Boolean)
@@ -779,7 +779,7 @@ export default async function MissionPage({
                   kind: c.kind,
                   label:
                     c.kind === 'FIELD'
-                      ? (profileField(c.key)?.label ?? humanizeCode(c.key))
+                      ? (fieldLabel(c.key) ?? humanizeCode(c.key))
                       : humanizeCode(c.key),
                   citation: c.citation,
                   factCandidates: c.factCandidates.map((f) => ({

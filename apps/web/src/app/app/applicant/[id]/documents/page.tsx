@@ -31,6 +31,7 @@ import {
 import { getPlatformCapabilities } from '../../../../../lib/capabilities';
 import { formatTimestampDate } from '../../../../../lib/format-date';
 import { getLocale } from '../../../../../lib/locale';
+import { fieldLabel } from '../../../../../lib/master-profile';
 import { isStillProcessing } from '../../../../../lib/resilience';
 import { withSession } from '../../../../../lib/session';
 import {
@@ -512,6 +513,9 @@ export default async function ApplicantDocumentsPage({
                             id: proposal.id,
                             type: proposal.type,
                             fieldKey: proposal.fieldKey,
+                            ...(proposal.fieldKey && fieldLabel(proposal.fieldKey)
+                              ? { fieldLabel: fieldLabel(proposal.fieldKey) as string }
+                              : {}),
                             value: proposal.value,
                             confidence: proposal.confidence,
                             rationale: proposal.rationale,

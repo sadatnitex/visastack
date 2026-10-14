@@ -23,7 +23,7 @@ import {
   listUnassignedActiveMissions,
   listVisibleMissionsForMember,
 } from '@visastack/services';
-import { profileField } from '../../../../lib/profile-fields';
+import { fieldLabel } from '../../../../lib/master-profile';
 
 /**
  * What each page of an agency's console reads (Commercial V1 Part 9 UX-01). The
@@ -254,7 +254,7 @@ export async function loadCases(
               id: r.id,
               label:
                 r.kind === 'FIELD'
-                  ? (profileField(r.fieldKey ?? '')?.label ?? r.fieldKey ?? '')
+                  ? (fieldLabel(r.fieldKey ?? '') ?? r.fieldKey ?? '')
                   : (r.docType ?? ''),
             }))
           : [],

@@ -11,6 +11,7 @@ const service = vi.hoisted(() => ({
   listAccessForApplicant: vi.fn(),
   computeReadiness: vi.fn(),
   listApplicantAssurance: vi.fn(),
+  getProfileSectionState: vi.fn(),
 }));
 vi.mock('@visastack/services', () => service);
 vi.mock('./session', () => ({
@@ -46,6 +47,11 @@ beforeEach(() => {
   service.listEvidenceRequestsForApplicant.mockResolvedValue({ ok: true, value: [] });
   service.listAccessForApplicant.mockResolvedValue({ ok: true, value: [] });
   service.listApplicantAssurance.mockResolvedValue({ ok: true, value: [] });
+  service.getProfileSectionState.mockResolvedValue({
+    activated: new Set(),
+    notApplicable: new Set(),
+    noneDeclared: new Set(),
+  });
 });
 describe('traveller composition and independent record guards', () => {
   it.each([
@@ -133,7 +139,7 @@ describe('traveller composition and independent record guards', () => {
     ]);
     const html = renderToStaticMarkup(await profile(params));
     for (const text of [
-      'Core field completeness',
+      'Profile completion',
       'Profile health',
       'Latest changes',
       'Conflicted',

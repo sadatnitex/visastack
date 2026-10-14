@@ -158,6 +158,8 @@ export interface AiProposalViewModel {
   readonly id: string;
   readonly type: string;
   readonly fieldKey: string | null;
+  /** The plain name of the field, resolved on the server so added fields are named too. */
+  readonly fieldLabel?: string;
   readonly value: string | null;
   /** 0-100. */
   readonly confidence: number;
@@ -187,7 +189,7 @@ export function AiProposalReview({
   const [editedValue, setEditedValue] = useState(proposal.value ?? '');
   const mappable = canApprove && proposal.type !== 'UNMAPPED' && Boolean(proposal.fieldKey);
   const label = proposal.fieldKey
-    ? (profileField(proposal.fieldKey)?.label ?? proposal.fieldKey)
+    ? (proposal.fieldLabel ?? profileField(proposal.fieldKey)?.label ?? proposal.fieldKey)
     : 'Unmapped (no matching field)';
 
   return (

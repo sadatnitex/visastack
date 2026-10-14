@@ -20,7 +20,7 @@ describe('RequestEvidenceForm wording', () => {
   it('shows plain words and no stored codes as visible text', () => {
     expect(visibleText).toContain('What do you need?');
     expect(visibleText).toContain('A detail from the profile');
-    expect(visibleText).toContain('Passport number');
+    expect(visibleText).toContain('Passport Number');
     expect(visibleText).not.toMatch(/passport_number|bank_statement|Field key/);
   });
 
