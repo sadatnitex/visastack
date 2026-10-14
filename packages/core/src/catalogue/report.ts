@@ -1,4 +1,5 @@
 import { PROFILE_PACKS } from '../domain';
+import { computeCompletion } from './completion';
 import { CATALOGUE_DOCUMENTS } from './documents';
 import { CATALOGUE_FIELDS } from './fields';
 import {
@@ -8,7 +9,9 @@ import {
   PROPOSED_PACKS,
 } from './layers';
 import { LEGACY_FIELD_SNAPSHOT } from './legacy';
+import { CATALOGUE_MODULES } from './modules';
 import { CATALOGUE_PURPOSES } from './purposes';
+import { MODULE_FIELDS } from './queries';
 import type { CatalogueField } from './types';
 
 /**
@@ -53,6 +56,16 @@ export function renderCatalogueReport(): string {
   push(`| Fields live today (frozen) | ${LEGACY_FIELD_SNAPSHOT.length} |`);
   push(`| Fields added by the catalogue | ${CATALOGUE_FIELDS.length} |`);
   push(
+    `| Of these, Other text boxes and Other Items (never counted) | ${count(CATALOGUE_FIELDS, (f) => f.role !== undefined)} |`,
+  );
+  push(`| Sections (opt-in) | ${CATALOGUE_MODULES.filter((m) => !m.internal).length} |`);
+  push(
+    `| Sections open from the start | ${CATALOGUE_MODULES.filter((m) => m.defaultOpen).length} |`,
+  );
+  push(
+    `| Fields counted when only the default sections are open | ${computeCompletion({ activated: new Set(), values: {} }).total} |`,
+  );
+  push(
     `| Repeating records added | ${new Set(CATALOGUE_FIELDS.filter((f) => f.group && f.groupLabel).map((f) => f.group)).size} |`,
   );
   push(
@@ -82,6 +95,51 @@ export function renderCatalogueReport(): string {
   }
   push();
 
+  push('## Sections');
+  push();
+  push(
+    'Every section is visible. Only the ones marked Open are open from the start; the rest are locked until the person ticks them. Opening a section adds its counted fields to the completion figure at once. A section that already holds a saved value is always open.',
+  );
+  push();
+  push('| Section | Layer | Category | Starts | Counted fields | Suggested for |');
+  push('|---|---|---|---|---|---|');
+  for (const module of CATALOGUE_MODULES.filter((m) => !m.internal)) {
+    const counted = MODULE_FIELDS.filter((f) => f.module === module.key && !f.role).length;
+    const start = module.defaultOpen
+      ? 'Open'
+      : module.extends
+        ? `Locked (extra detail for ${module.extends})`
+        : 'Locked';
+    push(
+      `| ${cell(module.label)} | ${module.layer} | ${module.pack} | ${start} | ${counted} | ${(module.suggestedFor ?? []).join(', ')} |`,
+    );
+  }
+  push();
+  push('### How the completion figure moves');
+  push();
+  push('| Situation | Fields counted | Answered | Percent |');
+  push('|---|---|---|---|');
+  const base = computeCompletion({ activated: new Set(), values: {} });
+  const allDefault = Object.fromEntries(
+    MODULE_FIELDS.filter(
+      (f) => !f.role && base.modules.some((m) => m.key === f.module && m.open),
+    ).map((f) => [f.key, ['x']]),
+  );
+  const done = computeCompletion({ activated: new Set(), values: allDefault });
+  push(
+    `| Nothing opened, nothing answered | ${base.total} | ${base.answered} | ${base.percent}% |`,
+  );
+  push(
+    `| Nothing opened, every default field answered | ${done.total} | ${done.answered} | ${done.percent}% |`,
+  );
+  for (const key of ['bangladesh_tax', 'self_employment', 'spouse_and_parents']) {
+    const opened = computeCompletion({ activated: new Set([key]), values: allDefault });
+    const label = CATALOGUE_MODULES.find((m) => m.key === key)?.label ?? key;
+    push(
+      `| Default answered, then "${label}" opened | ${opened.total} | ${opened.answered} | ${opened.percent}% |`,
+    );
+  }
+  push();
   push('## Sharing categories (packs)');
   push();
   push(
@@ -167,15 +225,15 @@ export function renderCatalogueReport(): string {
   push('## Fields added');
   push();
   push(
-    'Type is text or date. Records marked "extends" add fields to a record that is live today and keep its label and category.',
+    'Type is text or date. Records marked "extends" add fields to a record that is live today and keep its label and category. Every choice ends with Other and has a text box (named like the field plus _other) that opens beside it. Other Items are one optional free-entry record per category.',
   );
   push();
   for (const layer of CATALOGUE_LAYERS) {
     const items = CATALOGUE_FIELDS.filter((f) => f.layer === layer.key);
     push(`### ${layer.label} (${items.length})`);
     push();
-    push('| Key | Label | Type | Protection | Category | Block | Applies to | Origin |');
-    push('|---|---|---|---|---|---|---|---|');
+    push('| Key | Label | Type | Protection | Category | Section | Block | Applies to | Origin |');
+    push('|---|---|---|---|---|---|---|---|---|');
     for (const f of items) {
       const block = f.group
         ? f.groupLabel
@@ -185,7 +243,7 @@ export function renderCatalogueReport(): string {
           ? `Section: ${f.sectionLabel}`
           : '';
       push(
-        `| ${f.key} | ${cell(f.label)} | ${f.type} | ${f.sensitivity} | ${f.pack} | ${cell(block)} | ${cell(scope(f))} | ${f.origin} |`,
+        `| ${f.key} | ${cell(f.label)} | ${f.type} | ${f.sensitivity} | ${f.pack} | ${f.module} | ${cell(block)} | ${cell(scope(f))} | ${f.origin} |`,
       );
     }
     push();

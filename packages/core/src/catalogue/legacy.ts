@@ -25,6 +25,8 @@ export interface LegacyFieldSnapshot {
   readonly groupLabel?: string;
   readonly options?: readonly string[];
   readonly layer: LayerKey;
+  /** The catalogue field that holds the text when this choice is set to Other. Not part of the frozen identity. */
+  readonly otherDetailKey?: string;
 }
 
 export const LEGACY_CURRENCY_CODES: readonly string[] = [
@@ -123,6 +125,7 @@ export const LEGACY_FIELD_SNAPSHOT: readonly LegacyFieldSnapshot[] = [
     type: 'text',
     options: MARITAL_STATUS_OPTIONS,
     layer: 'identity',
+    otherDetailKey: 'marital_status_other',
   },
   {
     key: 'name_alternate',
@@ -252,6 +255,7 @@ export const LEGACY_FIELD_SNAPSHOT: readonly LegacyFieldSnapshot[] = [
     type: 'text',
     options: LEGACY_CURRENCY_CODES,
     layer: 'money',
+    otherDetailKey: 'annual_income_currency_other',
   },
   {
     key: 'funding_source',
@@ -513,7 +517,7 @@ export const LEGACY_FIELD_SNAPSHOT: readonly LegacyFieldSnapshot[] = [
     sensitivity: 'SENSITIVE',
     pack: 'professional',
     type: 'text',
-    layer: 'money',
+    layer: 'timelines',
   },
   {
     key: 'monthly_salary_currency',
@@ -522,7 +526,8 @@ export const LEGACY_FIELD_SNAPSHOT: readonly LegacyFieldSnapshot[] = [
     pack: 'professional',
     type: 'text',
     options: LEGACY_CURRENCY_CODES,
-    layer: 'money',
+    layer: 'timelines',
+    otherDetailKey: 'monthly_salary_currency_other',
   },
   {
     key: 'self_employment_nature',
@@ -554,7 +559,7 @@ export const LEGACY_FIELD_SNAPSHOT: readonly LegacyFieldSnapshot[] = [
     sensitivity: 'SENSITIVE',
     pack: 'professional',
     type: 'text',
-    layer: 'money',
+    layer: 'timelines',
   },
   {
     key: 'self_employment_income_currency',
@@ -563,7 +568,8 @@ export const LEGACY_FIELD_SNAPSHOT: readonly LegacyFieldSnapshot[] = [
     pack: 'professional',
     type: 'text',
     options: LEGACY_CURRENCY_CODES,
-    layer: 'money',
+    layer: 'timelines',
+    otherDetailKey: 'self_employment_income_currency_other',
   },
   {
     key: 'employer_name',
@@ -695,6 +701,7 @@ export const LEGACY_FIELD_SNAPSHOT: readonly LegacyFieldSnapshot[] = [
     type: 'text',
     options: LEGACY_CURRENCY_CODES,
     layer: 'purpose_packs',
+    otherDetailKey: 'investment_amount_currency_other',
   },
   {
     key: 'ownership_percentage',

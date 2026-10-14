@@ -7,12 +7,16 @@ export const MONEY_BLOCKS: readonly FieldBlock[] = [
     pack: 'bangladesh',
     countries: ['BD'],
     origin: 'bidesh365',
-    sourceRef: 'bidesh365:FinancialProfile (tax zone, circle, last tax year)',
+    sourceRef:
+      'bidesh365:FinancialProfile (tax zone, circle, last tax year, acknowledgement slip); owner decision 2026-10-14: the tax return acknowledgement slip is asked for by visa offices',
     section: { key: 'bangladesh_tax', label: 'Bangladesh Tax Details' },
     rows: [
       text('tax_zone', 'Tax Zone'),
       text('tax_circle', 'Tax Circle'),
       text('last_tax_year', 'Last Tax Year Filed'),
+      text('tax_assessment_year', 'Assessment Year'),
+      text('tax_ack_slip_number', 'Tax Acknowledgement Slip Number', 'identifier'),
+      date('tax_ack_slip_date', 'Tax Acknowledgement Slip Date'),
       ...money('tax_paid_amount', 'Tax Paid', 'tax_paid_currency', 'Tax Paid Currency'),
     ],
   },

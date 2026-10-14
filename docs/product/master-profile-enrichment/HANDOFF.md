@@ -80,6 +80,21 @@ Phase 1 foundations. Phase 2 wiring. Phase 3 screens for new layers. Phase 4 cou
 | `packages/services/src/{sharing,classification,packs,ai}.ts` | Nobody | Phase 2. Ask first |
 | `docs/product/master-profile-enrichment/**` | Everyone | Append only |
 
+### Owner requirements added 2026-10-14 (after Phase 1 merged)
+
+1. Keep all fields, without clutter: sections visible but locked, opened by a checkbox. A few common sections open by default.
+2. Completion counts only open fields; opening a section adds its fields immediately. (Built: `completion.ts`.)
+3. Bangladesh tax: the Tax Return Acknowledgement Slip is a document type and has fields. (Built.)
+4. "Other" always exists, for choices, sections, documents and purposes. (Built.)
+5. Fields must be fully synced and scoped, not labels only. Fields, documents (`supports`) and sections are cross-checked by tests.
+6. Decision 6 ("targets") means: follow the owner's overall requirements, no separate instruction.
+
+### Still to build for this to be usable (not done)
+
+- Storage for which sections a person opened, and for "does not apply" and "none" marks: needs a new database table (a migration, which needs the owner's explicit go for that run) plus an audit event.
+- The screens: locked-but-visible sections with a checkbox, a progress bar, "suggested for your plan". Needs a preview first.
+- Deriving the live registry, document names, sharing categories and AI field scoping from the catalogue (Phase 2 wiring).
+
 ### Requests
 
 (none yet)
@@ -112,3 +127,10 @@ Phase 1 foundations. Phase 2 wiring. Phase 3 screens for new layers. Phase 4 cou
 - Added `CATALOGUE-REPORT.md` (generated, drift-tested) and `CATALOGUE-GUIDE.md`.
 - No database change, no behaviour change, no live field changed.
 - Left: owner sign-off on the lists, then Phase 2.
+
+### 2026-10-14, Claude: sections, completion, Other, Bangladesh tax slip
+
+- Added `modules.ts` (82 sections: 10 open by default, 72 locked (5 live ones, 9 extra-detail, 58 new)), `completion.ts`, Other text boxes for every choice, one Other Item record per category, an Other document type per group, an Other purpose per family, the Tax Return Acknowledgement Slip (document and fields) and richer `supports` lists so documents and fields line up.
+- Default-open sections hold only live fields: 54 counted fields. The other 27 live fields (self-employment, dependants, business and investment, medical treatment, medical attendant) are locked until opened or until they hold data.
+- Added `modules.test.ts` and `completion.test.ts`. Proved the new guards can fail in 11 ways.
+- No database change, no behaviour change.

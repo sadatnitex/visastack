@@ -5,5 +5,7 @@ export * from './legacy';
 export * from './purposes';
 export * from './documents';
 export { CATALOGUE_FIELDS } from './fields';
+export * from './modules';
 export * from './queries';
+export * from './completion';
 export * from './report';
