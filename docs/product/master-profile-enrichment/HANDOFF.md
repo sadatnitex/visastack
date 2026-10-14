@@ -20,7 +20,7 @@ One profile that serves any Bangladeshi, anywhere, for any travel or purpose (vi
 ## 2. Owner rules for this programme
 
 - Power-first, production quality, no prototypes.
-- Capitalisation: terms and stand-alone labels in Title Case (Passport Number, Date of Birth). Sentences follow standard practice. Buttons stay in sentence style (earlier rule). Small connecting words (of, and, for, to) stay lowercase inside a label. This is an assumption, to be confirmed.
+- Capitalisation: terms and stand-alone labels in Title Case (Passport Number, Date of Birth). Sentences follow standard practice. Buttons stay in sentence style (earlier rule). Small connecting words (of, and, for, to) stay lowercase inside a label. Confirmed by the owner 2026-10-14.
 - No em dashes anywhere. Plain wording in anything a user sees.
 - Bangla and all translation work stays deferred.
 - Six standing decisions (defaults the owner accepted by silence): keep all purposes with adviser-only handling for protection and investor routes; sensitive declarations are structure only now, wording is held for the adviser; Bangladesh pack in v1 with the strongest protection on identifiers; first country packs are Schengen, US, UK, Canada, Gulf, Australia; household builds on the existing several-applicants-per-account feature and respects the IAM-04 limits; Phase 1 produces exact curated lists for sign-off.
@@ -54,9 +54,7 @@ Phase 1 foundations. Phase 2 wiring. Phase 3 screens for new layers. Phase 4 cou
 
 ## 7. Decisions still waiting on the owner
 
-- Confirm the Title Case assumption for small connecting words.
 - Approve the curated lists after Phase 1 produces them.
-- Approve a one-line pointer to this folder in `CLAUDE.md` (an `AGENTS.md` pointer is added now).
 - Adviser review of any marked wording (declarations, protection and investor routes).
 
 ## 8. Known problems and gotchas
@@ -94,3 +92,8 @@ Phase 1 foundations. Phase 2 wiring. Phase 3 screens for new layers. Phase 4 cou
 - Wrote the three documents in this folder and a root `AGENTS.md`.
 - Nothing in source, schema or stored data changed.
 - Left: Phase 1.
+
+### 2026-10-14, Claude: owner decisions
+
+- Owner confirmed small connecting words stay lowercase in Title Case labels, and approved a pointer in `CLAUDE.md`, now added under section 2 (Authority).
+- Files: `CLAUDE.md`, this file.
