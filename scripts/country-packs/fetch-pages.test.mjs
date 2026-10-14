@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { collectUrls, fetchAll } from './fetch-pages.mjs';
+import { collectUrls, fetchAll, pageLines } from './fetch-pages.mjs';
 
 test('collects each secure page once, from the country and route sheets', () => {
   const urls = collectUrls({
@@ -44,4 +44,11 @@ test('keeps going when a page fails, and records why', async () => {
   );
   assert.match(results[0].text, /fee is 25 usd/);
   assert.doesNotMatch(results[0].text, /x\(\)/);
+});
+
+test('prints one line per wanted page, with a cap, and says when a page is not in the sheets', () => {
+  const results = [{ url: 'https://a.example/', status: 'OK', text: 'x'.repeat(50) }];
+  const lines = pageLines(results, ['https://a.example/', 'https://z.example/'], 10);
+  assert.equal(lines[0], `PAGE https://a.example/ [OK] ${'x'.repeat(10)}`);
+  assert.equal(lines[1], 'PAGE https://z.example/ [NOT_IN_SHEETS]');
 });

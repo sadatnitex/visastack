@@ -10,6 +10,10 @@ on:
         description: Folder holding the three sheets
         required: false
         default: docs/product/master-profile-enrichment/country-intake/batch-001
+      show_pages:
+        description: Pages to print in the log, one address per space (optional, for reading them here)
+        required: false
+        default: ''
 
 permissions:
   contents: read
@@ -33,15 +37,23 @@ jobs:
           node-version-file: .nvmrc
 
       - name: Save the text of every cited page
-        run: node scripts/country-packs/fetch-pages.mjs "${{ inputs.batch }}" out
+        env:
+          BATCH: ${{ inputs.batch }}
+          SHOW_PAGES: ${{ inputs.show_pages }}
+        run: node scripts/country-packs/fetch-pages.mjs "$BATCH" out $SHOW_PAGES
 
       - name: Check copied words against the cited pages
+        env:
+          BATCH: ${{ inputs.batch }}
         run: |
           node scripts/country-packs/validate-intake.mjs \
-            --countries "${{ inputs.batch }}/0-countries.csv" \
-            --routes "${{ inputs.batch }}/1-routes.csv" \
-            --requirements "${{ inputs.batch }}/2-requirements.csv" \
+            --countries "$BATCH/0-countries.csv" \
+            --routes "$BATCH/1-routes.csv" \
+            --requirements "$BATCH/2-requirements.csv" \
             --live --out out/live-report.csv || true
+
+      - name: Print the quotes that were not found on their page
+        run: grep -E '"(ERROR|WARN)","(QUOTE_NOT_ON_PAGE|QUOTE_PARTIAL|PAGE_UNREACHABLE)"' out/live-report.csv || true
 
       - name: Upload results
         uses: actions/upload-artifact@v4
