@@ -1,4 +1,9 @@
-import type { EditorFieldDef, EditorSection, MasterProfileView } from './master-profile-types';
+import type {
+  ChoiceGroup,
+  EditorFieldDef,
+  EditorSection,
+  MasterProfileView,
+} from './master-profile-types';
 
 /**
  * A small, hand-written profile view for tests and visual fixtures. It has no link to the catalogue,
@@ -128,3 +133,38 @@ export function fixtureView(overrides: Partial<MasterProfileView> = {}): MasterP
     ...overrides,
   };
 }
+
+/** Pick-lists for the agency evidence form, hand-written so the form's tests stay light. */
+export const fixtureFieldGroups: readonly ChoiceGroup[] = [
+  {
+    key: 'universal',
+    label: 'Identity and Contact',
+    choices: [
+      { key: 'passport_number', label: 'Passport Number' },
+      { key: 'full_name', label: 'Full Name' },
+    ],
+  },
+  {
+    key: 'study',
+    label: 'Study',
+    choices: [{ key: 'study_institution_name', label: 'Institution Name' }],
+  },
+];
+
+export const fixtureDocumentGroups: readonly ChoiceGroup[] = [
+  {
+    key: 'identity_civil',
+    label: 'Identity and Civil',
+    choices: [{ key: 'PASSPORT', label: 'Passport' }],
+  },
+  {
+    key: 'financial',
+    label: 'Financial',
+    choices: [{ key: 'BANK_STATEMENT', label: 'Bank Statement' }],
+  },
+  {
+    key: 'other_documents',
+    label: 'Other Documents',
+    choices: [{ key: 'OTHER', label: 'Other Document' }],
+  },
+];

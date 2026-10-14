@@ -31,7 +31,7 @@ import {
 import { getPlatformCapabilities } from '../../../../../lib/capabilities';
 import { formatTimestampDate } from '../../../../../lib/format-date';
 import { getLocale } from '../../../../../lib/locale';
-import { fieldLabel } from '../../../../../lib/master-profile';
+import { evidenceDocumentGroups, fieldLabel } from '../../../../../lib/master-profile';
 import { isStillProcessing } from '../../../../../lib/resilience';
 import { withSession } from '../../../../../lib/session';
 import {
@@ -49,6 +49,7 @@ import {
   RunInconsistencyCheckButton,
   RunOcrButton,
 } from '../ai-review';
+import { DocumentTypeForm } from '../document-type-form';
 import { DocumentUploader } from '../document-uploader';
 import { downloadOriginalAction } from '../download-actions';
 import { NameReview } from '../name-review';
@@ -123,6 +124,7 @@ export default async function ApplicantDocumentsPage({
     readonly document?: string;
     readonly preview_error?: string;
     readonly date_error?: string;
+    readonly type_error?: string;
     readonly reading_error?: string;
     readonly reading_queued?: string;
     readonly download_error?: string;
@@ -133,12 +135,14 @@ export default async function ApplicantDocumentsPage({
     document: initialSelection,
     preview_error: previewError,
     date_error: dateError,
+    type_error: typeError,
     reading_error: readingError,
     reading_queued: readingQueued,
     download_error: downloadError,
   } = await searchParams;
   const locale = await getLocale();
   const t = createTranslator(locale);
+  const documentGroups = evidenceDocumentGroups();
 
   const data = await withSession(async ({ db, accountId }) => {
     const applicant = await getApplicant(db, id);
@@ -274,6 +278,12 @@ export default async function ApplicantDocumentsPage({
       {dateError ? (
         <p className="notice notice-warn u-mb-150" role="alert">
           Couldn't save that date - enter a valid date that isn't in the future.
+        </p>
+      ) : null}
+
+      {typeError ? (
+        <p className="notice notice-warn u-mb-150" role="alert">
+          Couldn't save that kind of document - pick one from the list, or choose Other Document.
         </p>
       ) : null}
 
@@ -442,6 +452,13 @@ export default async function ApplicantDocumentsPage({
                     Used to judge freshness for routes that require recently-dated evidence.
                   </span>
                 </form>
+                <DocumentTypeForm
+                  applicantId={id}
+                  documentId={doc.id}
+                  docType={doc.docType}
+                  subject={doc.subject}
+                  groups={documentGroups}
+                />
                 {(() => {
                   const confirmations = data.issuerVerifications.get(doc.id) ?? [];
                   if (confirmations.length === 0) return null;

@@ -2,7 +2,11 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { EmptyState } from '../../../../../components/ui';
 import { formatDateOnly, formatTimestampDate } from '../../../../../lib/format-date';
-import { fieldLabel } from '../../../../../lib/master-profile';
+import {
+  evidenceDocumentGroups,
+  evidenceFieldGroups,
+  fieldLabel,
+} from '../../../../../lib/master-profile';
 import { withSession } from '../../../../../lib/session';
 import { ClientInvitationForm } from '../client-invitation-form';
 import { ClientInvitationRevokeButton } from '../client-invitation-revoke-button';
@@ -114,6 +118,8 @@ export default async function AgencyClientsPage({
         </p>
         <RequestEvidenceForm
           organizationId={orgId}
+          fieldGroups={evidenceFieldGroups()}
+          documentGroups={evidenceDocumentGroups()}
           applicants={data.applicants}
           missions={data.cases.map((m) => ({
             missionId: m.missionId,

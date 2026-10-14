@@ -1,4 +1,5 @@
 import {
+  CATALOGUE_DOCUMENTS,
   CATALOGUE_MODULES,
   isKnownFieldKey,
   isKnownRecordGroupKey,
@@ -8,6 +9,8 @@ import {
   type MasterProfileInput,
   buildMasterProfileView,
   completionOf,
+  evidenceDocumentGroups,
+  evidenceFieldGroups,
   fieldLabel,
   savableField,
 } from './master-profile';
@@ -207,5 +210,47 @@ describe('field lookups for saving and naming', () => {
     expect(added?.packId).toBe('study');
     expect(added?.repeating).toBe(true);
     expect(savableField('made_up_field')).toBeUndefined();
+  });
+});
+
+describe('what an agency can ask for', () => {
+  const fields = evidenceFieldGroups().flatMap((group) => group.choices);
+
+  it('offers every live detail and every detail the catalogue added, each once, by plain name', () => {
+    const keys = fields.map((field) => field.key);
+    expect(new Set(keys).size).toBe(keys.length);
+    expect(fields.find((field) => field.key === 'passport_number')?.label).toBe('Passport Number');
+    const added = keys.filter(
+      (key) => !savableField(key) || savableField(key)?.packId !== 'universal',
+    );
+    expect(added.length).toBeGreaterThan(100);
+    for (const key of keys) {
+      expect(isKnownFieldKey(key)).toBe(true);
+      expect(fieldLabel(key)).toBeTruthy();
+    }
+  });
+
+  it('files each detail under the part of the profile it belongs to, with a plain group name', () => {
+    for (const group of evidenceFieldGroups()) {
+      expect(group.label).not.toMatch(/_/);
+      for (const choice of group.choices) {
+        expect(savableField(choice.key)?.packId ?? 'universal').toBe(group.key);
+      }
+    }
+    expect(evidenceFieldGroups().some((group) => group.key === 'study')).toBe(true);
+  });
+
+  it('never offers the boxes that only hold "something else" text', () => {
+    expect(fields.some((field) => field.key.startsWith('other_item_'))).toBe(false);
+  });
+
+  it('offers every document type once, including every Other type', () => {
+    const documents = evidenceDocumentGroups().flatMap((group) => group.choices);
+    expect(documents.map((document) => document.key).sort()).toEqual(
+      CATALOGUE_DOCUMENTS.map((document) => document.key).sort(),
+    );
+    const keys = new Set(documents.map((document) => document.key));
+    expect(keys.has('OTHER')).toBe(true);
+    expect(keys.has('OTHER_FINANCIAL_DOCUMENT')).toBe(true);
   });
 });

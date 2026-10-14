@@ -1,6 +1,7 @@
 'use server';
 
 import type { MembershipRole } from '@visastack/core';
+import { resolveDocumentType } from '@visastack/core/catalogue/documents';
 import {
   addMemberByEmail,
   addNote,
@@ -34,6 +35,7 @@ import {
   capabilityUnavailableMessage,
   getPlatformCapabilities,
 } from '../../../../lib/capabilities';
+import { parseFieldKeyInput } from '../../../../lib/catalogue-input';
 import { triggerNotificationWorker } from '../../../../lib/jobs';
 import { createKeyManagementPort, createMalwareScanner } from '../../../../lib/providers';
 import { withSession } from '../../../../lib/session';
@@ -101,13 +103,20 @@ export async function requestEvidenceAction(
     };
   }
 
+  // A detail must be one the product knows (its standard name is what gets stored). A document type is
+  // stored under its standard key when the catalogue knows it; a name typed for "something else" stays as typed.
+  const named = kind === 'FIELD' ? parseFieldKeyInput(key) : undefined;
+  if (named && !named.ok) return { ok: false, message: named.message };
+  const requestedKey =
+    kind === 'FIELD' ? (named?.ok ? named.key : key) : (resolveDocumentType(key)?.key ?? key);
+
   const result = await withSession(async ({ db, accountId }) => {
     const requested = await requestEvidence(db, {
       actorAccountId: accountId,
       organizationId,
       applicantId,
       kind,
-      ...(kind === 'FIELD' ? { fieldKey: key } : { docType: key }),
+      ...(kind === 'FIELD' ? { fieldKey: requestedKey } : { docType: requestedKey }),
       ...(message.length > 0 ? { message } : {}),
       // Threads the mission scope through when the requester picked one —
       // an organization whose only standing for this applicant is a

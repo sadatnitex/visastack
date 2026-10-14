@@ -3,6 +3,7 @@ import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
+import { fixtureDocumentGroups, fixtureFieldGroups } from '../../../../lib/master-profile-fixture';
 
 vi.mock('./actions', () => ({ requestEvidenceAction: vi.fn() }));
 
@@ -11,6 +12,8 @@ const { RequestEvidenceForm } = await import('./request-evidence-form');
 const html = renderToStaticMarkup(
   <RequestEvidenceForm
     organizationId="org-1"
+    fieldGroups={fixtureFieldGroups}
+    documentGroups={fixtureDocumentGroups}
     applicants={[{ applicantId: 'a-1', displayName: 'Test Applicant' }]}
   />,
 );
@@ -28,6 +31,12 @@ describe('RequestEvidenceForm wording', () => {
     expect(html).toContain('value="passport_number"');
     expect(html).toContain('name="key"');
   });
+
+  it('offers a detail that only the catalogue added, under its own group', () => {
+    expect(visibleText).toContain('Institution Name');
+    expect(html).toContain('value="study_institution_name"');
+    expect(html).toMatch(/<optgroup label="Study">/);
+  });
 });
 
 describe('RequestEvidenceForm document choice', () => {
@@ -40,6 +49,8 @@ describe('RequestEvidenceForm document choice', () => {
       root.render(
         <RequestEvidenceForm
           organizationId="org-1"
+          fieldGroups={fixtureFieldGroups}
+          documentGroups={fixtureDocumentGroups}
           applicants={[{ applicantId: 'a-1', displayName: 'Test Applicant' }]}
         />,
       );
@@ -59,7 +70,8 @@ describe('RequestEvidenceForm document choice', () => {
     await change(host.querySelector('#kind') as HTMLSelectElement, 'DOCUMENT');
     const choice = host.querySelector('#key') as HTMLSelectElement;
     expect(choice.textContent).toContain('Passport');
-    expect(choice.textContent).toContain('Other document');
+    expect(choice.textContent).toContain('Other Document');
+    expect(choice.textContent).toContain('Something else');
     await change(choice, 'BANK_STATEMENT');
     expect((host.querySelector('input[name="key"]') as HTMLInputElement).value).toBe(
       'BANK_STATEMENT',

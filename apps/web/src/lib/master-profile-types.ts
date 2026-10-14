@@ -77,3 +77,10 @@ export interface MasterProfileView {
   /** Locked sections the chosen purpose suggests. */
   readonly suggestedLockedCount: number;
 }
+
+/** A named group of choices for a pick-list, built on the server so the catalogue stays out of the browser. */
+export interface ChoiceGroup {
+  readonly key: string;
+  readonly label: string;
+  readonly choices: readonly { readonly key: string; readonly label: string }[];
+}

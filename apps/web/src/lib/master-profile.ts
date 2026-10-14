@@ -1,4 +1,6 @@
 import {
+  CATALOGUE_DOCUMENTS,
+  CATALOGUE_DOCUMENT_GROUPS,
   CATALOGUE_FIELDS,
   CATALOGUE_LAYERS,
   CATALOGUE_MODULES,
@@ -8,8 +10,10 @@ import {
   OTHER_OPTION,
   PROPOSED_PACKS,
   computeCompletion,
+  knownFieldOptions,
 } from '@visastack/core/catalogue';
 import type {
+  ChoiceGroup,
   EditorFieldDef,
   EditorGroup,
   EditorLayer,
@@ -318,4 +322,34 @@ export function newCategoriesWithData(
   return [...NEW_CATEGORIES.entries()]
     .filter(([key]) => found.has(key))
     .map(([key, label]) => ({ key, label }));
+}
+
+/**
+ * Every detail an agency can ask for, grouped by the part of the profile it belongs to: the live details
+ * and every one the catalogue added. Details that only exist to hold "Other" text are left out.
+ */
+export function evidenceFieldGroups(): readonly ChoiceGroup[] {
+  const groups = new Map<string, { key: string; label: string }[]>();
+  for (const option of knownFieldOptions()) {
+    const pack = savableField(option.key)?.packId ?? 'universal';
+    const list = groups.get(pack) ?? [];
+    list.push({ key: option.key, label: fieldLabel(option.key) ?? option.label });
+    groups.set(pack, list);
+  }
+  return [...groups.entries()].map(([pack, choices]) => ({
+    key: pack,
+    label: categoryLabel(pack),
+    choices,
+  }));
+}
+
+/** Every document type an agency can ask for, grouped as the catalogue groups them. "Other" types stay in. */
+export function evidenceDocumentGroups(): readonly ChoiceGroup[] {
+  return CATALOGUE_DOCUMENT_GROUPS.map((group) => ({
+    key: group.key,
+    label: group.label,
+    choices: CATALOGUE_DOCUMENTS.filter((document) => document.group === group.key).map(
+      (document) => ({ key: document.key, label: document.label }),
+    ),
+  })).filter((group) => group.choices.length > 0);
 }

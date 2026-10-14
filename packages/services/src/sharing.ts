@@ -8,6 +8,7 @@ import {
   type PermissionAction,
 } from '@visastack/core';
 import { type Result, err, ok } from '@visastack/core';
+import { resolveDocumentType } from '@visastack/core/catalogue/documents';
 import { isSharingCategory } from '@visastack/core/catalogue/packs';
 import {
   type Actor as PolicyActor,
@@ -598,10 +599,8 @@ export async function listAccessForApplicantDetailed(
 // (see `individual_recipient` in packages/policy). This is that missing
 // permission-filtered read path.
 
-/** Maps a document's deterministic classification to the same pack vocabulary
- * profile fields use, so one grant's `categories` allow-list can scope both
- * consistently. Unclassified/unrecognized types get no category — a grant
- * with a `categories` restriction will not surface them (fail closed).
+/** The three types that had a sharing category before the catalogue. They are looked up first and
+ * their category never changes, so a grant made earlier behaves exactly as it did.
  */
 const DOC_TYPE_TO_PACK: Readonly<Record<string, string>> = {
   PASSPORT: 'universal',
@@ -609,9 +608,25 @@ const DOC_TYPE_TO_PACK: Readonly<Record<string, string>> = {
   EMPLOYMENT_CERTIFICATE: 'professional',
 };
 
+/**
+ * The sharing category of a document type, in the same vocabulary profile fields use, so one grant's
+ * `categories` allow-list scopes both consistently. The three original types keep their category; every
+ * other type takes the category the catalogue files it under (by its key or any alias). A type the
+ * catalogue does not know, or files under no category, gets none, and a grant with a `categories`
+ * restriction will not surface it (fail closed).
+ *
+ * A category grant still covers only the documents it was frozen to when it was created
+ * (`documentScopeSnapshot`), so mapping more types never widens a grant that already exists: a new
+ * type's documents join a grant only when the owner creates a new grant or confirms an expansion.
+ */
+function categoryOfDocType(docType: string | null | undefined): string | undefined {
+  if (!docType) return undefined;
+  return DOC_TYPE_TO_PACK[docType] ?? resolveDocumentType(docType)?.pack ?? undefined;
+}
+
 /** Exported wrapper around `DOC_TYPE_TO_PACK` for callers outside this file (e.g. `wallet.ts`'s own category-scoped access computation) that need the identical mapping, never a second copy of it. */
 export function documentCategory(docType: string | null): string | undefined {
-  return docType ? DOC_TYPE_TO_PACK[docType] : undefined;
+  return categoryOfDocType(docType);
 }
 
 /**
@@ -633,7 +648,7 @@ async function documentIdsMatchingCategories(
     .where(eq(schema.documents.applicantId, applicantId));
   return rows
     .filter((d) => {
-      const category = d.docType ? DOC_TYPE_TO_PACK[d.docType] : undefined;
+      const category = categoryOfDocType(d.docType);
       return category !== undefined && categories.includes(category);
     })
     .map((d) => d.id);
@@ -782,7 +797,7 @@ export async function getRecipientWorkspace(
 
   const documents: RecipientDocumentView[] = [];
   for (const doc of documentRows) {
-    const category = doc.docType ? DOC_TYPE_TO_PACK[doc.docType] : undefined;
+    const category = categoryOfDocType(doc.docType);
     const decision = authorize({
       actor,
       action: 'PREVIEW',

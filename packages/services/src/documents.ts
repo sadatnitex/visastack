@@ -8,6 +8,7 @@ import type {
   Result,
 } from '@visastack/core';
 import { err, ok } from '@visastack/core';
+import { resolveDocumentType } from '@visastack/core/catalogue/documents';
 import { type Actor, type Grant as PolicyGrant, authorize } from '@visastack/policy';
 import { and, desc, eq, inArray, ne } from 'drizzle-orm';
 import { orgGrantPermits } from './agency';
@@ -488,6 +489,22 @@ export async function recordDocumentReview(
   });
 }
 
+/** The document type of the file a version belongs to, or null when it has none yet. */
+export async function getDocumentTypeOfVersion(
+  db: Db,
+  documentVersionId: string,
+): Promise<string | null> {
+  const row = first(
+    await db
+      .select({ docType: schema.documents.docType })
+      .from(schema.documentVersions)
+      .innerJoin(schema.documents, eq(schema.documents.id, schema.documentVersions.documentId))
+      .where(eq(schema.documentVersions.id, documentVersionId))
+      .limit(1),
+  );
+  return row?.docType ?? null;
+}
+
 /**
  * Set or clear a document's own claimed date (NTF-01, Part 5 §1
  * "case-specific freshness/staleness"): the "as of" date the Expiry
@@ -561,6 +578,95 @@ export async function setDocumentDate(
   });
 }
 
+/** True for the catalogue's "Other ..." types, the only ones that carry a name written by the person. */
+function isOtherDocumentType(key: string): boolean {
+  return key === 'OTHER' || key.startsWith('OTHER_');
+}
+
+/**
+ * Set or clear what kind of document a file is. The applicant owner only. The type must be one the
+ * catalogue knows (its key or any alias is accepted and stored as the one standard key), and an "Other"
+ * type may carry a short name for what the document is. Clearing the type (null) also clears that name.
+ * Missions that use the document are told, because what a document counts as can change their readiness.
+ */
+export async function setDocumentType(
+  db: Db,
+  input: {
+    readonly actorAccountId: string;
+    readonly documentId: string;
+    readonly docType: string | null;
+    /** What an "Other" document is. Ignored for every other type. */
+    readonly subject?: string | null;
+  },
+): Promise<Result<Document, ServiceError>> {
+  const document = first(
+    await db
+      .select()
+      .from(schema.documents)
+      .where(eq(schema.documents.id, input.documentId))
+      .limit(1),
+  );
+  if (!document) return err(serviceError('not_found', 'document not found'));
+
+  const applicant = await getApplicant(db, document.applicantId);
+  if (applicant?.ownerAccountId !== input.actorAccountId) {
+    return err(
+      serviceError('forbidden', 'only the owner can change what kind of document this is'),
+    );
+  }
+
+  let docType: string | null = null;
+  let subject: string | null = null;
+  if (input.docType !== null) {
+    const found = resolveDocumentType(input.docType);
+    if (!found) {
+      return err(
+        serviceError(
+          'invalid',
+          `"${input.docType.trim()}" is not a known document type. Pick one from the list, or use "Other Document".`,
+        ),
+      );
+    }
+    docType = found.key;
+    const named = (input.subject ?? '').trim();
+    if (isOtherDocumentType(found.key) && named.length > 0) {
+      if (named.length > 120) {
+        return err(
+          serviceError('invalid', 'the name of the document may be at most 120 characters'),
+        );
+      }
+      subject = named;
+    }
+  }
+
+  return db.transaction(async (tx) => {
+    const updated = required(
+      first(
+        await tx
+          .update(schema.documents)
+          .set({ docType, subject })
+          .where(eq(schema.documents.id, input.documentId))
+          .returning(),
+      ),
+      'document',
+    );
+    await appendAuditEvent(tx, {
+      eventType: 'DOCUMENT_TYPE_SET',
+      actorAccountId: input.actorAccountId,
+      method: 'MANUAL',
+      result: 'ALLOWED',
+      applicantId: document.applicantId,
+      resourceType: 'document',
+      resourceId: document.id,
+      metadata: { docType, previousDocType: document.docType },
+    });
+    for (const missionId of await missionsSelectingDocument(tx, document.id)) {
+      await incrementMaterialRevision(tx, missionId);
+    }
+    return ok(updated);
+  });
+}
+
 /** The current (most recent) review outcome for a document, or `undefined` if never reviewed. */
 export async function getCurrentDocumentReview(
   db: Db,
@@ -609,6 +715,8 @@ export interface DocumentSummary {
   readonly originalName: string;
   readonly approvedName: string | null;
   readonly docType: string | null;
+  /** What an "Other" document is, in the person's own words. */
+  readonly subject: string | null;
   readonly latestVersionId: string | null;
   readonly latestVersionNumber?: number | null;
   readonly updatedAt?: string;
@@ -690,6 +798,7 @@ export async function listDocumentsDetailed(
       originalName: doc.originalName,
       approvedName: doc.approvedName,
       docType: doc.docType,
+      subject: doc.subject,
       latestVersionId: version?.id ?? null,
       latestVersionNumber: version?.versionNumber ?? null,
       updatedAt: new Date(
