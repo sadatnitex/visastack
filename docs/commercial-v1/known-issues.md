@@ -5098,3 +5098,10 @@ The live browser check (Playwright Deploy Smoke) passed on every merge up to pul
 
 ### 2026-10-14 - Master Profile gap analysis against the bidesh365 repository (read-only)
 Documentation only. The bidesh365 master profile (54 sections) was compared with VisaStack's profile registry (81 fields, 5 packs), document types and case purposes. Registries and document lists were extracted from code with the TypeScript compiler and compared by script; each row was then judged by reading the fields. Result: of 54 bidesh365 sections none is fully covered, 23 are partly covered and 31 have no VisaStack equivalent. bidesh365 documents disagree with its code in several places (the field registry header claims 469 fields in 45 sections but holds 437 in 44; two document lists share only 58 of 193 names; 83 scanner types are folded onto stored types). Full table, port risks and a proposed five-phase order are in docs/product/master-profile-gap-analysis-2026-10-14.md. Nothing was built and nothing in bidesh365 was changed. Not verified: whether bidesh365 runs, what its database holds, what VisaStack's stored country rule packs already name, and the legal wording of any declaration.
+
+## 2026-10-14: Master Profile enrichment, investigation and plan recorded
+
+- Added `docs/product/master-profile-enrichment/` (HANDOFF.md, ARCHITECTURE-FINDINGS.md, IMPLEMENTATION-PLAN.md) and a root `AGENTS.md` so Codex and Claude sessions share one record of what is done, where and why.
+- Documentation only. No source, schema, route or stored value changed.
+- Not verified: whether bidesh365 runs or what it stores; what stored country rule packs name; reach of fact-level sharing to organisations; AI evaluation behaviour with more keys; legal wording of declarations.
+- Next: Phase 1 (catalogue foundations), then pause for the owner.
