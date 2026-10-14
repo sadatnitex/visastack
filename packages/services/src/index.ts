@@ -775,6 +775,7 @@ export {
   listDocumentReviews,
   listDocuments,
   listDocumentsDetailed,
+  prepareDocumentKind,
   previewDocument,
   recheckDocumentAccess,
   recordDocumentReview,

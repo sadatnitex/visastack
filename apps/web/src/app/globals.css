@@ -4512,6 +4512,10 @@ body:has(.auth-shell) > .footer {
   align-items: center;
   gap: 0.4rem;
 }
+.document-type-form > p {
+  flex-basis: 100%;
+  margin: 0;
+}
 .document-type-form .input {
   width: auto;
   max-width: 100%;

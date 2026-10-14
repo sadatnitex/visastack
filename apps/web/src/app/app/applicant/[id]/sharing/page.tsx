@@ -1,5 +1,6 @@
 import { createTranslator } from '@visastack/i18n';
 import {
+  documentCategory,
   getApplicant,
   listAccessForApplicantDetailed,
   listApplicantProfile,
@@ -346,6 +347,7 @@ export default async function SharingPage({
                 displayName: d.approvedName ?? d.originalName,
               }))}
               extraCategories={data.extraCategories}
+              unsortedDocuments={data.documents.filter((d) => !documentCategory(d.docType)).length}
             />
           ) : (
             <p role="alert">

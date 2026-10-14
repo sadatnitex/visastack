@@ -167,7 +167,17 @@ describe('the upload form', () => {
       await render(),
       'DocumentUploader',
     );
-    expect(uploader).toEqual({ applicantId: 'a1', limitLabel: '5 MB', virusScanning: false });
+    expect(uploader).toMatchObject({ applicantId: 'a1', limitLabel: '5 MB', virusScanning: false });
+  });
+
+  it('offers every catalogue kind of document, so a file can be filed under its category on upload', async () => {
+    mocks.listDocumentsDetailed.mockResolvedValue({ ok: true, value: [] });
+    const [uploader] = stubProps<{
+      kindGroups: { choices: { key: string; label: string }[] }[];
+    }>(await render(), 'DocumentUploader');
+    const keys = (uploader?.kindGroups ?? []).flatMap((g) => g.choices.map((c) => c.key));
+    expect(keys).toContain('PASSPORT');
+    expect(keys).toContain('OTHER');
   });
 
   it('is not shown until core processing consent is granted, as before', async () => {
@@ -240,5 +250,22 @@ describe('wallet ownership, explicit selection and truthful safety state', () =>
     const html = await render();
     expect(textOf(html)).toContain('Unavailable records are not reported as an empty wallet');
     expect(textOf(html)).not.toContain('No documents yet');
+  });
+});
+
+describe('filing each document under a category', () => {
+  it('shows the kind in plain words with the sharing category it files under', async () => {
+    mocks.listDocumentsDetailed.mockResolvedValue({
+      ok: true,
+      value: [
+        { ...doc('passport', 'APPROVED'), docType: 'PASSPORT' },
+        { ...doc('loose', 'APPROVED'), docType: null },
+      ],
+    });
+    const text = textOf(await render());
+    expect(text).toContain('Passport');
+    expect(text).toContain('Identity');
+    expect(text).toContain('Kind not set');
+    expect(text).toContain('1 document has no kind set yet');
   });
 });

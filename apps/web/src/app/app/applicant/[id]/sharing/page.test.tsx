@@ -90,6 +90,18 @@ describe('actual authorized sharing composition', () => {
         ?.extraCategories,
     ).toEqual([{ key: 'study', label: expect.any(String) }]);
   });
+  it('counts the documents that have no kind, because choosing parts of the profile leaves them out', async () => {
+    mocks.listDocumentsDetailed.mockResolvedValue({
+      ok: true,
+      value: [
+        { id: 'passport', originalName: 'Passport', approvedName: null, docType: 'PASSPORT' },
+        { id: 'loose', originalName: 'Scan', approvedName: null, docType: null },
+        { id: 'other', originalName: 'Other', approvedName: null, docType: 'NOT_A_KIND' },
+      ],
+    });
+    const [form] = stubProps<{ unsortedDocuments: number }>(await render(), 'GrantForm');
+    expect(form?.unsortedDocuments).toBe(2);
+  });
   it('withholds a composer when document scope cannot be loaded', async () => {
     mocks.listDocumentsDetailed.mockResolvedValue({ ok: false });
     const html = await render();

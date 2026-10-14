@@ -2,6 +2,7 @@ import { type MessageKey, type Translator, createTranslator } from '@visastack/i
 import {
   type DocumentLifecycleStatus,
   classifyExpiry,
+  documentCategory,
   getApplicant,
   getApplicantEvidenceBytes,
   getLatestOcrRun,
@@ -30,8 +31,13 @@ import {
 } from '../../../../../lib/ai';
 import { getPlatformCapabilities } from '../../../../../lib/capabilities';
 import { formatTimestampDate } from '../../../../../lib/format-date';
+import { documentTypeLabel } from '../../../../../lib/labels';
 import { getLocale } from '../../../../../lib/locale';
-import { evidenceDocumentGroups, fieldLabel } from '../../../../../lib/master-profile';
+import {
+  categoryLabel,
+  evidenceDocumentGroups,
+  fieldLabel,
+} from '../../../../../lib/master-profile';
 import { isStillProcessing } from '../../../../../lib/resilience';
 import { withSession } from '../../../../../lib/session';
 import {
@@ -313,10 +319,23 @@ export default async function ApplicantDocumentsPage({
             data.pendingProposals.some(
               ({ proposal }) => proposal.documentVersionId === doc.latestVersionId,
             );
+          const category = documentCategory(doc.docType);
+          const suggested = doc.docType
+            ? undefined
+            : data.pendingClassificationProposals.find(
+                (p) => p.documentVersionId === doc.latestVersionId,
+              );
           return {
             id: doc.id,
             name: doc.approvedName ?? doc.originalName,
-            category: doc.docType,
+            // An "Other" kind shows the name the person gave it, when there is one.
+            kind: doc.docType
+              ? doc.subject && (doc.docType === 'OTHER' || doc.docType.startsWith('OTHER_'))
+                ? doc.subject
+                : documentTypeLabel(doc.docType)
+              : null,
+            suggestedKind: suggested ? documentTypeLabel(suggested.suggestedType) : null,
+            category: category ? categoryLabel(category) : null,
             version: doc.latestVersionNumber ?? null,
             updatedAt: doc.updatedAt ?? null,
             ready:
@@ -708,6 +727,7 @@ export default async function ApplicantDocumentsPage({
                   applicantId={id}
                   limitLabel={mbLabel(data.quota.maxUploadBytes)}
                   virusScanning={getPlatformCapabilities().malwareScanning === 'available'}
+                  kindGroups={documentGroups}
                 />
               </article>
             </>

@@ -204,3 +204,11 @@ Phase 1 foundations. Phase 2 wiring. Phase 3 screens for new layers. Phase 4 cou
 ### 2026-10-14, Claude: page fetch workflow for the country sheets
 
 - `scripts/country-packs/fetch-pages.mjs` and the manual workflow `.github/workflows/country-intake-pages.yml` save the text of every cited page and run the quote check on GitHub's machines. Use it to fill fees, stays and passport rules from the official pages themselves. It writes nothing to the repository.
+
+### 2026-10-14, Claude: every document gets a kind, and the category is visible
+
+- Why "no categories" showed: a document has a category only when its kind is set (by hand, by approving an AI suggestion, or when the built-in reader is confident). Uploads started with no kind, so the Documents filter was empty and category sharing left those files out.
+- Upload form: an optional "Kind of document" choice (catalogue groups, "Not sure yet" first) and, for an Other kind, a name. `uploadDocumentAction` checks it with `prepareDocumentKind` (services, shared with `setDocumentType`) and stores the standard key; a wrong kind is refused on that field before any space is reserved. `registerDocument` and `registerDocumentWithVersion` now take an optional `subject`.
+- Documents list: shows the kind in plain words with the sharing category it files under ("Passport · Identity"), an AI suggestion labelled as a suggestion, a filter with "Not set yet", and a note counting documents with no kind with a "Show them" button.
+- Sharing page: when parts of the profile are chosen, a note says how many documents have no kind (they are left out) and links to the Documents page.
+- Not done: nothing sets a kind for existing uploads on its own (AI suggestions stay a person's decision); the old raw-body upload route does not take a kind (the form does not use it).

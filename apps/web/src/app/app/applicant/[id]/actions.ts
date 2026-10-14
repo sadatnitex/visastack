@@ -20,6 +20,7 @@ import {
   isAiDispatchAllowed,
   loadUploadQuotaConfig,
   mbLabel,
+  prepareDocumentKind,
   previewDocument,
   registerDocumentWithVersion,
   registerFieldDefinition,
@@ -163,6 +164,14 @@ export async function uploadDocumentAction(
     };
   }
 
+  // The kind of document is optional here and can be set any time later. When it is chosen, it is
+  // checked the same way as the per-document setting, so both store the same standard key.
+  const kind = prepareDocumentKind(
+    String(formData.get('docType') ?? ''),
+    String(formData.get('subject') ?? ''),
+  );
+  if (!kind.ok) return { ok: false, message: kind.error.message, field: 'docType' };
+
   const contentType = file.type || 'application/octet-stream';
   const originalName = file.name || 'document';
 
@@ -270,6 +279,8 @@ export async function uploadDocumentAction(
           applicantId,
           originalName,
           source: 'UPLOAD',
+          ...(kind.value.docType !== null ? { docType: kind.value.docType } : {}),
+          ...(kind.value.subject !== null ? { subject: kind.value.subject } : {}),
           bucket: 'QUARANTINE',
           objectKey: intent.objectKey,
           sizeBytes: bytes.byteLength,
