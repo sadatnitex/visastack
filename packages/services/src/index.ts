@@ -101,6 +101,7 @@ export {
   listApplicantProfile,
   listFactHistory,
   registerFieldDefinition,
+  registerFieldDefinitions,
   revealFactVersionValue,
 } from './profile';
 
@@ -769,6 +770,7 @@ export {
   downloadDocument,
   findDuplicateVersions,
   getCurrentDocumentReview,
+  getDocumentTypeOfVersion,
   isServableProcessingState,
   listDocumentReviews,
   listDocuments,
@@ -779,6 +781,7 @@ export {
   registerDocument,
   registerDocumentWithVersion,
   setDocumentDate,
+  setDocumentType,
 } from './documents';
 
 export {

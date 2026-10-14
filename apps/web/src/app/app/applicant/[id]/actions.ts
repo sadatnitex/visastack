@@ -33,6 +33,7 @@ import {
   runInconsistencyCheck,
   runOcr,
   setDocumentDate,
+  setDocumentType,
 } from '@visastack/services';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
@@ -43,6 +44,7 @@ import {
   resolveAiInconsistencyChecker,
   resolveOcrAdapter,
 } from '../../../../lib/ai';
+import { ensureDocumentFieldsRegistered } from '../../../../lib/field-registry';
 import { triggerIntakeWorker } from '../../../../lib/jobs';
 import { savableField } from '../../../../lib/master-profile';
 import { createKeyManagementPort, createPreviewRenderer } from '../../../../lib/providers';
@@ -426,6 +428,31 @@ export async function setDocumentDateAction(formData: FormData): Promise<void> {
 }
 
 /**
+ * Say what kind of document a file is. The name is checked against the catalogue and stored in its one
+ * standard form; an "Other" type can carry a short name for what the document is. An empty choice clears
+ * the type back to "not set".
+ */
+export async function setDocumentTypeAction(formData: FormData): Promise<void> {
+  const applicantId = String(formData.get('applicantId') ?? '');
+  const documentId = String(formData.get('documentId') ?? '');
+  const docTypeRaw = String(formData.get('docType') ?? '').trim();
+  const subjectRaw = String(formData.get('subject') ?? '').trim();
+
+  const result = await withSession(async ({ db, accountId }) => {
+    return setDocumentType(db, {
+      actorAccountId: accountId,
+      documentId,
+      docType: docTypeRaw.length > 0 ? docTypeRaw : null,
+      subject: subjectRaw,
+    });
+  });
+
+  revalidatePath(`/app/applicant/${applicantId}/documents`);
+  if (!result.ok) redirect(`/app/applicant/${applicantId}/documents?type_error=1`);
+  redirect(`/app/applicant/${applicantId}/documents`);
+}
+
+/**
  * Run AI extraction over a document's already deterministically-extracted
  * text (AI Gateway — master directive §8/§26 item 4). Produces PENDING
  * proposals only; nothing is written to the profile here.
@@ -452,6 +479,7 @@ export async function runAiExtractionAction(
         message: 'No extracted text available yet for this document.',
       } satisfies ActionState;
     }
+    await ensureDocumentFieldsRegistered(db, documentVersionId);
     const run = await runExtraction(db, resolved.ai, {
       actorAccountId: accountId,
       applicantId,

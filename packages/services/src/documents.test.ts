@@ -1,6 +1,7 @@
 import { fileURLToPath } from 'node:url';
 import { PGlite } from '@electric-sql/pglite';
 import { isErr, isOk } from '@visastack/core';
+import { resolveDocumentType } from '@visastack/core/catalogue/documents';
 import { schema } from '@visastack/db';
 import type { Membership } from '@visastack/policy';
 import { eq } from 'drizzle-orm';
@@ -17,6 +18,7 @@ import {
   downloadDocument,
   findDuplicateVersions,
   getCurrentDocumentReview,
+  getDocumentTypeOfVersion,
   listDocumentReviews,
   listDocuments,
   listDocumentsDetailed,
@@ -26,6 +28,7 @@ import {
   registerDocument,
   registerDocumentWithVersion,
   setDocumentDate,
+  setDocumentType,
 } from './documents';
 import { enqueueErasureJob } from './erasure';
 import { createOrganization, reviewOrganization } from './organizations';
@@ -1667,4 +1670,126 @@ describe('listDocumentsDetailed picks the right latest version, name proposal an
     expect(c?.latestVersionNumber).toBeNull();
     expect(c?.safetyStatus).toBeNull();
   }, 60_000);
+});
+
+describe('setDocumentType: what kind of document a file is', () => {
+  let db: Db;
+  beforeEach(async () => {
+    db = await freshDb();
+  });
+
+  it('stores the one standard key for any accepted name, and records who changed it', async () => {
+    const { account, document } = await seedOwnerWithDocument(db, 'type-owner@example.com');
+    const expected = resolveDocumentType('payslip')?.key ?? '';
+    expect(expected).not.toBe('');
+
+    const set = await setDocumentType(db, {
+      actorAccountId: account.id,
+      documentId: document.id,
+      docType: 'Pay Slip',
+    });
+    expect(isOk(set)).toBe(true);
+    if (isOk(set)) expect(set.value.docType).toBe(expected);
+
+    const events = await db
+      .select()
+      .from(schema.auditEvents)
+      .where(eq(schema.auditEvents.eventType, 'DOCUMENT_TYPE_SET'));
+    expect(events).toHaveLength(1);
+  });
+
+  it('keeps a name only for an Other type, and drops it when the type changes or is cleared', async () => {
+    const { account, document } = await seedOwnerWithDocument(db, 'type-other@example.com');
+
+    const other = await setDocumentType(db, {
+      actorAccountId: account.id,
+      documentId: document.id,
+      docType: 'OTHER',
+      subject: '  Marriage Certificate  ',
+    });
+    expect(isOk(other)).toBe(true);
+    if (isOk(other)) {
+      expect(other.value.docType).toBe('OTHER');
+      expect(other.value.subject).toBe('Marriage Certificate');
+    }
+
+    const named = await listDocumentsDetailed(db, account.id, document.applicantId);
+    expect(isOk(named) && named.value[0]?.subject).toBe('Marriage Certificate');
+
+    const ordinary = await setDocumentType(db, {
+      actorAccountId: account.id,
+      documentId: document.id,
+      docType: 'PASSPORT',
+      subject: 'ignored for a named type',
+    });
+    expect(isOk(ordinary) && ordinary.value.subject).toBeNull();
+
+    await setDocumentType(db, {
+      actorAccountId: account.id,
+      documentId: document.id,
+      docType: 'OTHER_FINANCIAL_DOCUMENT',
+      subject: 'Loan Letter',
+    });
+    const cleared = await setDocumentType(db, {
+      actorAccountId: account.id,
+      documentId: document.id,
+      docType: null,
+      subject: 'Loan Letter',
+    });
+    expect(isOk(cleared)).toBe(true);
+    if (isOk(cleared)) {
+      expect(cleared.value.docType).toBeNull();
+      expect(cleared.value.subject).toBeNull();
+    }
+  });
+
+  it('refuses an unknown type and an over-long name, and leaves the document as it was', async () => {
+    const { account, document } = await seedOwnerWithDocument(db, 'type-invalid@example.com');
+
+    const unknown = await setDocumentType(db, {
+      actorAccountId: account.id,
+      documentId: document.id,
+      docType: 'Totally Made Up Thing',
+    });
+    expect(isErr(unknown)).toBe(true);
+    if (isErr(unknown)) expect(unknown.error.code).toBe('invalid');
+
+    const tooLong = await setDocumentType(db, {
+      actorAccountId: account.id,
+      documentId: document.id,
+      docType: 'OTHER',
+      subject: 'x'.repeat(121),
+    });
+    expect(isErr(tooLong)).toBe(true);
+
+    const [row] = await db
+      .select()
+      .from(schema.documents)
+      .where(eq(schema.documents.id, document.id));
+    expect(row?.docType).toBe('passport');
+  });
+
+  it('is for the owner only', async () => {
+    const { document } = await seedOwnerWithDocument(db, 'type-denied-owner@example.com');
+    const stranger = await provisionAccount(db, { email: 'type-stranger@example.com' });
+    if (!isOk(stranger)) throw new Error('provision');
+
+    const denied = await setDocumentType(db, {
+      actorAccountId: stranger.value.id,
+      documentId: document.id,
+      docType: 'PASSPORT',
+    });
+    expect(isErr(denied)).toBe(true);
+    if (isErr(denied)) expect(denied.error.code).toBe('forbidden');
+  });
+
+  it('reads the type of the file a version belongs to', async () => {
+    const { document } = await seedOwnerWithDocument(db, 'type-version@example.com');
+    const [version] = await db
+      .select()
+      .from(schema.documentVersions)
+      .where(eq(schema.documentVersions.documentId, document.id));
+    expect(await getDocumentTypeOfVersion(db, version?.id ?? '')).toBe('passport');
+    expect(await getDocumentTypeOfVersion(db, '00000000-0000-4000-8000-000000000000')).toBeNull();
+  });
 });

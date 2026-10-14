@@ -4506,6 +4506,18 @@ body:has(.auth-shell) > .footer {
 .wallet-document-actions {
   margin-bottom: 1rem;
 }
+.document-type-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+}
+.document-type-form .input {
+  width: auto;
+  max-width: 100%;
+  padding: 0.2rem 0.5rem;
+  font-size: var(--text-small);
+}
 .wallet-ai-notice {
   margin-top: 1rem;
   padding: 1rem;

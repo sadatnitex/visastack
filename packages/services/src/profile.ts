@@ -43,6 +43,44 @@ export interface RegisterFieldInput {
 }
 
 /**
+ * Register every field that is not registered yet, in one round trip, and leave the rest untouched.
+ * First writer wins, exactly like `registerFieldDefinition`, so running it again (or at the same time
+ * as a first save) changes nothing. Returns how many were added.
+ */
+export async function registerFieldDefinitions(
+  db: Db,
+  inputs: readonly RegisterFieldInput[],
+): Promise<number> {
+  if (inputs.length === 0) return 0;
+  const known = new Set(
+    (await db.select({ key: schema.fieldDefinitions.key }).from(schema.fieldDefinitions)).map(
+      (row) => row.key,
+    ),
+  );
+  const seen = new Set<string>();
+  const missing = inputs.filter((input) => {
+    if (known.has(input.key) || seen.has(input.key)) return false;
+    seen.add(input.key);
+    return true;
+  });
+  if (missing.length === 0) return 0;
+  const added = await db
+    .insert(schema.fieldDefinitions)
+    .values(
+      missing.map((input) => ({
+        key: input.key,
+        dataType: input.dataType,
+        sensitivity: input.sensitivity ?? 'STANDARD',
+        repeating: input.repeating ?? false,
+        packId: input.packId ?? null,
+      })),
+    )
+    .onConflictDoNothing({ target: schema.fieldDefinitions.key })
+    .returning({ key: schema.fieldDefinitions.key });
+  return added.length;
+}
+
+/**
  * Register (or return the existing) canonical field definition. This is the
  * registry the manual and AI paths both draw from; idempotent by key.
  */

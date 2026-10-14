@@ -2,8 +2,7 @@
 
 import { useActionState, useState } from 'react';
 import { FormMessage, SubmitButton } from '../../../../components/form-feedback';
-import { DOCUMENT_TYPE_LABELS } from '../../../../lib/labels';
-import { PACK_LABELS, PROFILE_FIELDS } from '../../../../lib/profile-fields';
+import type { ChoiceGroup } from '../../../../lib/master-profile-types';
 import { type ActionState, requestEvidenceAction } from './actions';
 
 const INITIAL: ActionState = { ok: true, message: '' };
@@ -11,14 +10,12 @@ const INITIAL: ActionState = { ok: true, message: '' };
 /** Chosen from the document list when the document is not one the product names yet. */
 const OTHER_DOCUMENT = '__other__';
 
-/** Profile details grouped by the part of the profile they belong to, in registry order. */
-const FIELD_GROUPS = Array.from(new Set(PROFILE_FIELDS.map((f) => f.pack))).map((pack) => ({
-  pack,
-  fields: PROFILE_FIELDS.filter((f) => f.pack === pack),
-}));
-
 interface RequestEvidenceFormProps {
   readonly organizationId: string;
+  /** Every detail that can be asked for, grouped by part of the profile. Built on the server. */
+  readonly fieldGroups: readonly ChoiceGroup[];
+  /** Every document type that can be asked for, grouped. Built on the server. */
+  readonly documentGroups: readonly ChoiceGroup[];
   readonly applicants: readonly { readonly applicantId: string; readonly displayName: string }[];
   /** Missions this org can currently reach — lets a mission-scoped-only grant still succeed (Codex review, PR #65). */
   readonly missions?: readonly {
@@ -30,6 +27,8 @@ interface RequestEvidenceFormProps {
 
 export function RequestEvidenceForm({
   organizationId,
+  fieldGroups,
+  documentGroups,
   applicants,
   missions = [],
 }: RequestEvidenceFormProps) {
@@ -100,9 +99,9 @@ export function RequestEvidenceForm({
             <option value="" disabled>
               Choose a detail…
             </option>
-            {FIELD_GROUPS.map((group) => (
-              <optgroup key={group.pack} label={PACK_LABELS[group.pack]}>
-                {group.fields.map((field) => (
+            {fieldGroups.map((group) => (
+              <optgroup key={group.key} label={group.label}>
+                {group.choices.map((field) => (
                   <option key={field.key} value={field.key}>
                     {field.label}
                   </option>
@@ -122,12 +121,16 @@ export function RequestEvidenceForm({
               <option value="" disabled>
                 Choose a document…
               </option>
-              {Object.entries(DOCUMENT_TYPE_LABELS).map(([code, label]) => (
-                <option key={code} value={code}>
-                  {label}
-                </option>
+              {documentGroups.map((group) => (
+                <optgroup key={group.key} label={group.label}>
+                  {group.choices.map((document) => (
+                    <option key={document.key} value={document.key}>
+                      {document.label}
+                    </option>
+                  ))}
+                </optgroup>
               ))}
-              <option value={OTHER_DOCUMENT}>Other document</option>
+              <option value={OTHER_DOCUMENT}>Something else (type its name)</option>
             </select>
             {documentChoice === OTHER_DOCUMENT ? (
               <input

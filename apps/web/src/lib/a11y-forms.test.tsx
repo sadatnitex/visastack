@@ -8,7 +8,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import ts from 'typescript';
 import { describe, expect, it, vi } from 'vitest';
 import { axeViolations } from './axe.test-support';
-import { fixtureView } from './master-profile-fixture';
+import { fixtureDocumentGroups, fixtureFieldGroups, fixtureView } from './master-profile-fixture';
 import './next-mocks.test-support';
 
 /**
@@ -96,6 +96,7 @@ const { AddMemberForm } = await import('../app/app/agency/[orgId]/member-form');
 const { MemberToggleButton } = await import('../app/app/agency/[orgId]/member-toggle-button');
 const { MissionCollaboration } = await import('../app/app/agency/[orgId]/mission-collaboration');
 const { RequestEvidenceForm } = await import('../app/app/agency/[orgId]/request-evidence-form');
+const { DocumentTypeForm } = await import('../app/app/applicant/[id]/document-type-form');
 const { RequireDifferentReviewerToggle } = await import(
   '../app/app/agency/[orgId]/require-different-reviewer-toggle'
 );
@@ -946,8 +947,22 @@ const AGENCY: readonly Case[] = [
     element: () => (
       <RequestEvidenceForm
         organizationId="o1"
+        fieldGroups={fixtureFieldGroups}
+        documentGroups={fixtureDocumentGroups}
         applicants={[{ applicantId: 'a1', displayName: 'Rahim Uddin' }]}
         missions={[{ missionId: 'm1', title: 'UK visit', applicantName: 'Rahim Uddin' }]}
+      />
+    ),
+  },
+  {
+    name: 'say what kind of document this is',
+    element: () => (
+      <DocumentTypeForm
+        applicantId="a1"
+        documentId="d1"
+        docType="OTHER"
+        subject="Marriage Certificate"
+        groups={fixtureDocumentGroups}
       />
     ),
   },
@@ -956,6 +971,8 @@ const AGENCY: readonly Case[] = [
     element: () => (
       <RequestEvidenceForm
         organizationId="o1"
+        fieldGroups={fixtureFieldGroups}
+        documentGroups={fixtureDocumentGroups}
         applicants={[{ applicantId: 'a1', displayName: 'Rahim Uddin' }]}
       />
     ),

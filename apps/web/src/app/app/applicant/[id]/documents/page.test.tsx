@@ -39,6 +39,7 @@ vi.mock('../actions', () => ({
   previewDocumentAction: async () => undefined,
   requestDocumentReadingAction: vi.fn(),
   setDocumentDateAction: async () => undefined,
+  setDocumentTypeAction: async () => undefined,
 }));
 vi.mock('../ai-review', () => ({
   AiProposalReview: stub('AiProposalReview'),
@@ -67,6 +68,8 @@ function doc(id: string, processingStatus: string) {
     latestVersionId: `${id}-v1`,
     pendingNameVersion: null,
     documentDate: null,
+    docType: null,
+    subject: null,
   };
 }
 
@@ -171,6 +174,35 @@ describe('the upload form', () => {
     mocks.hasConsent.mockResolvedValue(false);
     mocks.listDocumentsDetailed.mockResolvedValue({ ok: true, value: [] });
     expect(stubProps(await render(), 'DocumentUploader')).toEqual([]);
+  });
+});
+
+describe('saying what kind of document a file is', () => {
+  it('shows the saved kind, offers Other types, and shows the name given to an Other document', async () => {
+    mocks.listDocumentsDetailed.mockResolvedValue({
+      ok: true,
+      value: [{ ...doc('letter', 'APPROVED'), docType: 'OTHER', subject: 'Marriage Certificate' }],
+    });
+    const html = await render('letter');
+    expect(html).toContain('Kind of document');
+    expect(html).toMatch(/<option value="OTHER" selected[^>]*>Other Document<\/option>/);
+    expect(html).toContain('value="OTHER_FINANCIAL_DOCUMENT"');
+    expect(html).toContain('value="Marriage Certificate"');
+    expect(html).toContain('name="docType"');
+  });
+
+  it('says plainly when a kind could not be saved', async () => {
+    mocks.listDocumentsDetailed.mockResolvedValue({
+      ok: true,
+      value: [doc('letter', 'APPROVED')],
+    });
+    const html = await renderServer(
+      DocumentsPage({
+        params: Promise.resolve({ id: 'a1' }),
+        searchParams: Promise.resolve({ type_error: '1' }),
+      }),
+    );
+    expect(textOf(html)).toContain("Couldn't save that kind of document");
   });
 });
 
