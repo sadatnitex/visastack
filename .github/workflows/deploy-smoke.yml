@@ -15,7 +15,10 @@ permissions:
 jobs:
   smoke:
     name: No-secret smoke check
-    if: github.event.deployment_status.state == 'success'
+    # The migration workflow also writes a GitHub deployment record (environment
+    # production-migrations) whose address is its own job page, not a website. It is not a
+    # site deployment, so it is left out here.
+    if: github.event.deployment_status.state == 'success' && github.event.deployment.environment != 'production-migrations'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
