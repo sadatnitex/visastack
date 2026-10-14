@@ -31,7 +31,15 @@ function sourceFiles(dir: string, out: string[] = []): string[] {
 describe('small text sizes stay on the scale', () => {
   it('the style sheet has no in-between font sizes', () => {
     const css = readFileSync(join(SRC, 'app/globals.css'), 'utf8');
-    const bad = [...css.matchAll(/font-size:\s*([0-9.]+(?:rem|px))\s*[;}]/g)]
+    // Selectors whose size is pinned to the design reference by an end-to-end test.
+    const pinned = ['.trust-hero .eyebrow'];
+    const rules = [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)].filter(
+      (rule) => !pinned.some((selector) => (rule[1] as string).trim().endsWith(selector)),
+    );
+    const bad = rules
+      .flatMap((rule) => [
+        ...(rule[2] as string).matchAll(/font-size:\s*([0-9.]+(?:rem|px))\s*;?/g),
+      ])
       .map((m) => m[1] as string)
       .filter(offScale);
     expect(bad).toEqual([]);

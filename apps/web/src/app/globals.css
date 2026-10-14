@@ -2739,7 +2739,7 @@ a.checklist-item:hover .checklist-label {
 }
 .auth-kicker {
   margin: 0;
-  font-size: 10px !important;
+  font-size: var(--text-caption) !important;
   font-weight: 760;
   letter-spacing: 2px;
   text-transform: uppercase;
@@ -2763,7 +2763,7 @@ a.checklist-item:hover .checklist-label {
   color: #9ae0c9;
 }
 .auth-footnote {
-  font-size: 14px !important;
+  font-size: var(--text-small) !important;
   margin-bottom: 0;
   margin-top: auto;
   padding-top: 28px;
@@ -3611,7 +3611,8 @@ body:has(.auth-shell) > .footer {
 }
 .trust-hero .eyebrow {
   display: block;
-  font-size: var(--text-caption);
+  /* Pinned to the design reference (checked by e2e/ux-public.spec.ts), so it stays off the shared scale. */
+  font-size: 10px;
   letter-spacing: 2px;
   font-weight: 760;
   line-height: 1.2;
