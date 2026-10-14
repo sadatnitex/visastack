@@ -8,6 +8,11 @@ import { EmptyState, StatusBadge } from './ui';
 export interface WalletBrowserDocument {
   readonly id: string;
   readonly name: string;
+  /** The kind of document in plain words (for example "Passport"), or null when it is not set. */
+  readonly kind: string | null;
+  /** The AI's suggested kind while nobody has approved it yet. Shown as a suggestion, never as the kind. */
+  readonly suggestedKind?: string | null;
+  /** The sharing category the kind files this document under (for example "Identity"), or null. */
   readonly category: string | null;
   readonly version: number | null;
   readonly updatedAt: string | null;
@@ -21,6 +26,8 @@ export interface WalletBrowserDocument {
 }
 type Filter = 'all' | 'ready' | 'review' | 'expiring';
 const PAGE_SIZE = 12;
+/** The filter choice for documents that no category holds yet. */
+const NOT_SORTED = '__not-sorted__';
 
 /** Metadata filters only. Byte access remains inside the existing authorized server actions. */
 export function DocumentWalletBrowser({
@@ -42,12 +49,14 @@ export function DocumentWalletBrowser({
       documents.map((doc) => doc.category).filter((value): value is string => Boolean(value)),
     ),
   ].sort();
+  const notSorted = documents.filter((doc) => doc.category === null).length;
   const matches = documents.filter(
     (doc) =>
-      (category === 'all' || doc.category === category) &&
+      (category === 'all' ||
+        (category === NOT_SORTED ? doc.category === null : doc.category === category)) &&
       (filter === 'all' ||
         (filter === 'ready' ? doc.ready : filter === 'review' ? doc.needsReview : doc.expiring)) &&
-      `${doc.name} ${doc.category ?? ''}`
+      `${doc.name} ${doc.kind ?? ''} ${doc.category ?? ''}`
         .toLocaleLowerCase()
         .includes(query.trim().toLocaleLowerCase()),
   );
@@ -105,6 +114,7 @@ export function DocumentWalletBrowser({
                     {value}
                   </option>
                 ))}
+                {notSorted > 0 ? <option value={NOT_SORTED}>Not set yet</option> : null}
               </select>
             </label>
             <label>
@@ -117,10 +127,29 @@ export function DocumentWalletBrowser({
                   setQuery(event.target.value);
                   setPage(0);
                 }}
-                placeholder="Search names or categories"
+                placeholder="Search names, kinds or categories"
               />
             </label>
           </div>
+          {notSorted > 0 ? (
+            <p className="notice" data-testid="wallet-not-sorted">
+              {notSorted} document{notSorted === 1 ? ' has' : 's have'} no kind set yet, so{' '}
+              {notSorted === 1 ? 'it is' : 'they are'} in no category and left out when you share by
+              category. Open a document and choose its kind.{' '}
+              {category === NOT_SORTED ? null : (
+                <button
+                  type="button"
+                  className="btn btn-secondary u-btn-xs"
+                  onClick={() => {
+                    setCategory(NOT_SORTED);
+                    setPage(0);
+                  }}
+                >
+                  Show {notSorted === 1 ? 'it' : 'them'}
+                </button>
+              )}
+            </p>
+          ) : null}
           <output className="muted">
             {matches.length} document{matches.length === 1 ? '' : 's'} match. Page {activePage + 1}{' '}
             of {pageCount}.
@@ -142,8 +171,12 @@ export function DocumentWalletBrowser({
                   >
                     <span className="wallet-document-name">{doc.name}</span>
                     <span className="muted">
-                      {doc.category ?? 'Not categorized'} ·{' '}
-                      {doc.version === null ? 'Version unavailable' : `Version ${doc.version}`}
+                      {doc.kind ?? 'Kind not set'}
+                      {doc.category ? ` · ${doc.category}` : ''}
+                      {doc.kind === null && doc.suggestedKind
+                        ? ` · AI suggests ${doc.suggestedKind}`
+                        : ''}{' '}
+                      · {doc.version === null ? 'Version unavailable' : `Version ${doc.version}`}
                     </span>
                     <span className="wallet-document-state">
                       <StatusBadge

@@ -7,7 +7,8 @@ import { DocumentWalletBrowser, type WalletBrowserDocument } from './document-wa
 const records: WalletBrowserDocument[] = Array.from({ length: 15 }, (_, index) => ({
   id: `doc-${index}`,
   name: `Synthetic document ${index}`,
-  category: index === 0 ? 'passport' : 'statement',
+  kind: index === 0 ? 'Passport' : 'Bank Statement',
+  category: index === 0 ? 'Identity' : 'Finance',
   version: index + 1,
   updatedAt: '2026-10-11T00:00:00Z',
   ready: index > 0,
@@ -97,5 +98,58 @@ describe('real wallet metadata controls and selected detail slots', () => {
       '0 documents match. Page 1 of 1',
     );
     expect(container.textContent).toContain('No documents match');
+  });
+});
+
+describe('documents with no kind set', () => {
+  const unsorted: WalletBrowserDocument[] = [
+    { ...(records[0] as WalletBrowserDocument), id: 'sorted', name: 'Sorted file' },
+    {
+      ...(records[1] as WalletBrowserDocument),
+      id: 'loose-a',
+      name: 'Loose file A',
+      kind: null,
+      category: null,
+      suggestedKind: 'Passport',
+    },
+    {
+      ...(records[2] as WalletBrowserDocument),
+      id: 'loose-b',
+      name: 'Loose file B',
+      kind: null,
+      category: null,
+    },
+  ];
+  beforeEach(() => {
+    act(() =>
+      root.render(<DocumentWalletBrowser applicantId="synthetic-person" documents={unsorted} />),
+    );
+  });
+
+  it('says how many have no kind and what that means for sharing by category', () => {
+    const note = container.querySelector('[data-testid="wallet-not-sorted"]')?.textContent ?? '';
+    expect(note).toContain('2 documents have no kind set yet');
+    expect(note).toContain('left out when you share by category');
+  });
+
+  it('shows the suggestion as a suggestion and not as the kind', () => {
+    const rows = [...container.querySelectorAll('.wallet-metadata-list li')].map(
+      (row) => row.textContent ?? '',
+    );
+    expect(rows.find((row) => row.includes('Loose file A'))).toContain('Kind not set');
+    expect(rows.find((row) => row.includes('Loose file A'))).toContain('AI suggests Passport');
+    expect(rows.find((row) => row.includes('Sorted file'))).toContain('Passport · Identity');
+  });
+
+  it('lists only those documents when "Not set yet" is chosen', () => {
+    const select = container.querySelector('select') as HTMLSelectElement;
+    expect([...select.options].map((option) => option.textContent)).toEqual([
+      'All categories',
+      'Identity',
+      'Not set yet',
+    ]);
+    act(() => button('Show them').click());
+    expect(container.querySelectorAll('.wallet-metadata-list li')).toHaveLength(2);
+    expect(container.textContent).not.toContain('Sorted file');
   });
 });

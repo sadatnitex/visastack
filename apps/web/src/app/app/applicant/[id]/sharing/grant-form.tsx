@@ -26,11 +26,14 @@ export function GrantForm({
   applicantId,
   documents,
   extraCategories = [],
+  unsortedDocuments = 0,
 }: {
   readonly applicantId: string;
   readonly documents: ReadonlyArray<{ readonly id: string; readonly displayName: string }>;
   /** New categories that already hold a saved detail, so only categories with something in them are offered. */
   readonly extraCategories?: ReadonlyArray<{ readonly key: string; readonly label: string }>;
+  /** Documents with no kind set. They belong to no category, so choosing parts of the profile leaves them out. */
+  readonly unsortedDocuments?: number;
 }) {
   const [state, formAction, pending] = useActionState(createGrantAction, INITIAL);
   const router = useRouter();
@@ -233,6 +236,16 @@ export function GrantForm({
                 <span>{extra.label}</span>
               </label>
             ))}
+            {unsortedDocuments > 0 ? (
+              <p className="muted u-fs-075" data-testid="unsorted-documents-note">
+                {unsortedDocuments} of your documents {unsortedDocuments === 1 ? 'has' : 'have'} no
+                kind set, so choosing parts leaves {unsortedDocuments === 1 ? 'it' : 'them'} out.{' '}
+                <a href={`/app/applicant/${applicantId}/documents`}>
+                  Set the kind of each document
+                </a>
+                , or pick documents one by one below.
+              </p>
+            ) : null}
           </div>
         ) : null}
       </fieldset>

@@ -74,6 +74,30 @@ describe('categories that hold saved details', () => {
     expect(container.textContent).toContain('Study');
   });
 
+  it('warns that documents with no kind are left out when parts are chosen, and links to set them', () => {
+    act(() =>
+      root.render(
+        <GrantForm
+          applicantId="owned-person"
+          documents={[{ id: 'passport', displayName: 'Passport summary' }]}
+          unsortedDocuments={2}
+        />,
+      ),
+    );
+    expect(container.querySelector('[data-testid="unsorted-documents-note"]')).toBeNull();
+    chooseSome('profileScope');
+    const note = container.querySelector('[data-testid="unsorted-documents-note"]');
+    expect(note?.textContent).toContain('2 of your documents have no kind set');
+    expect(note?.querySelector('a')?.getAttribute('href')).toBe(
+      '/app/applicant/owned-person/documents',
+    );
+  });
+
+  it('shows no such note when every document has a kind', () => {
+    chooseSome('profileScope');
+    expect(container.querySelector('[data-testid="unsorted-documents-note"]')).toBeNull();
+  });
+
   it('offers no extra categories unless some hold details', () => {
     chooseSome('profileScope');
     expect(container.querySelectorAll('input[name="category"]')).toHaveLength(5);

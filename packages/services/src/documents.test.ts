@@ -22,6 +22,7 @@ import {
   listDocumentReviews,
   listDocuments,
   listDocumentsDetailed,
+  prepareDocumentKind,
   previewDocument,
   recheckDocumentAccess,
   recordDocumentReview,
@@ -1791,5 +1792,69 @@ describe('setDocumentType: what kind of document a file is', () => {
       .where(eq(schema.documentVersions.documentId, document.id));
     expect(await getDocumentTypeOfVersion(db, version?.id ?? '')).toBe('passport');
     expect(await getDocumentTypeOfVersion(db, '00000000-0000-4000-8000-000000000000')).toBeNull();
+  });
+});
+
+describe('prepareDocumentKind: one way to check a chosen kind of document', () => {
+  it('treats no choice as not set, and stores the standard key for any accepted name', () => {
+    for (const blank of [null, undefined, '', '   ']) {
+      const result = prepareDocumentKind(blank, 'ignored');
+      expect(isOk(result) && result.value).toEqual({ docType: null, subject: null });
+    }
+    const expected = resolveDocumentType('payslip')?.key ?? '';
+    const named = prepareDocumentKind(' Pay Slip ', 'not kept');
+    expect(isOk(named) && named.value).toEqual({ docType: expected, subject: null });
+  });
+
+  it('keeps a name only for an Other type and refuses an unknown type or an over-long name', () => {
+    const other = 'OTHER';
+    const kept = prepareDocumentKind(other, '  Marriage Certificate ');
+    expect(isOk(kept) && kept.value).toEqual({ docType: other, subject: 'Marriage Certificate' });
+    expect(isErr(prepareDocumentKind('not a real kind'))).toBe(true);
+    expect(isErr(prepareDocumentKind(other, 'x'.repeat(121)))).toBe(true);
+  });
+});
+
+describe('registerDocumentWithVersion: a kind chosen at upload', () => {
+  let db: Db;
+  beforeEach(async () => {
+    db = await freshDb();
+  });
+
+  it('stores the chosen kind and its name on the new document', async () => {
+    const { account, applicant } = await seedOwner(db, 'upload-kind@example.com');
+    const other = 'OTHER';
+    const result = await registerDocumentWithVersion(db, {
+      actorAccountId: account.id,
+      applicantId: applicant.id,
+      originalName: 'scan.pdf',
+      source: 'UPLOAD',
+      docType: other,
+      subject: 'Marriage Certificate',
+      bucket: 'QUARANTINE',
+      objectKey: 'upload-kind-key',
+      sizeBytes: 10,
+      sha256: 'b'.repeat(64),
+    });
+    expect(isOk(result)).toBe(true);
+    const docs = await listDocumentsDetailed(db, account.id, applicant.id);
+    expect(isOk(docs)).toBe(true);
+    if (!isOk(docs)) return;
+    expect(docs.value[0]?.docType).toBe(other);
+    expect(docs.value[0]?.subject).toBe('Marriage Certificate');
+  });
+
+  it('still registers a document with no kind, as before', async () => {
+    const { account, applicant } = await seedOwner(db, 'upload-no-kind@example.com');
+    const result = await registerDocumentWithVersion(db, {
+      actorAccountId: account.id,
+      applicantId: applicant.id,
+      originalName: 'scan.pdf',
+      bucket: 'QUARANTINE',
+      objectKey: 'upload-no-kind-key',
+    });
+    expect(isOk(result)).toBe(true);
+    const docs = await listDocumentsDetailed(db, account.id, applicant.id);
+    if (isOk(docs)) expect(docs.value[0]?.docType).toBeNull();
   });
 });

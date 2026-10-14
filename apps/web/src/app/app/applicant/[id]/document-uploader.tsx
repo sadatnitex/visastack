@@ -8,6 +8,7 @@ import {
   useFocusInvalidField,
 } from '../../../../components/form-feedback';
 import { formatFileSize } from '../../../../lib/format-size';
+import type { ChoiceGroup } from '../../../../lib/master-profile-types';
 import { SLOW_AFTER_MS, guardNetwork } from '../../../../lib/resilience';
 import { type ActionState, uploadDocumentAction } from './actions';
 
@@ -43,11 +44,20 @@ function useSlow(active: boolean, afterMs: number): boolean {
   return slow;
 }
 
+/** The catalogue's "Other ..." kinds, the only ones that carry a name written by the person. */
+const isOtherKind = (key: string): boolean => key === 'OTHER' || key.startsWith('OTHER_');
+
 export function DocumentUploader({
   applicantId,
   virusScanning = false,
+  kindGroups = [],
 }: {
   readonly applicantId: string;
+  /**
+   * The kinds of document a person can pick, grouped as the catalogue groups them, built on the server.
+   * Choosing one when uploading files the document under the right sharing category from the start.
+   */
+  readonly kindGroups?: readonly ChoiceGroup[];
   /**
    * The configured per-file limit. Not shown to people for now: the website host may refuse a large
    * file before the app sees it, so a number here could be wrong. It returns once an upload test on
@@ -60,6 +70,9 @@ export function DocumentUploader({
   const [state, formAction, pending] = useActionState(guardedUpload, INITIAL);
   const slow = useSlow(pending, SLOW_AFTER_MS);
   const messageId = useId();
+  const kindId = useId();
+  const kindNameId = useId();
+  const [kind, setKind] = useState('');
   const formRef = useRef<HTMLFormElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   /** Set by the camera button so the next file picker opens the phone camera, then cleared. */
@@ -70,7 +83,15 @@ export function DocumentUploader({
   useFocusInvalidField(formRef, state);
 
   return (
-    <form ref={formRef} action={formAction} className="uploader">
+    <form
+      ref={formRef}
+      action={formAction}
+      className="uploader"
+      onReset={() => {
+        setKind('');
+        setPicked(null);
+      }}
+    >
       <input type="hidden" name="applicantId" value={applicantId} />
       <input
         ref={fileRef}
@@ -109,6 +130,51 @@ export function DocumentUploader({
         <output className="muted" style={{ display: 'block', fontSize: 'var(--text-small)' }}>
           Ready to upload: {picked.name} ({formatFileSize(picked.size)})
         </output>
+      ) : null}
+      {kindGroups.length > 0 ? (
+        <div className="document-type-form">
+          <label className="muted u-fs-075" htmlFor={kindId}>
+            Kind of document (optional)
+          </label>
+          <select
+            id={kindId}
+            name="docType"
+            className="input"
+            value={kind}
+            onChange={(event) => setKind(event.currentTarget.value)}
+            {...fieldProblem(state, 'docType', messageId)}
+          >
+            <option value="">Not sure yet</option>
+            {kindGroups.map((group) => (
+              <optgroup key={group.key} label={group.label}>
+                {group.choices.map((choice) => (
+                  <option key={choice.key} value={choice.key}>
+                    {choice.label}
+                  </option>
+                ))}
+              </optgroup>
+            ))}
+          </select>
+          {isOtherKind(kind) ? (
+            <>
+              <label className="muted u-fs-075" htmlFor={kindNameId}>
+                What is it?
+              </label>
+              <input
+                id={kindNameId}
+                name="subject"
+                type="text"
+                maxLength={120}
+                className="input"
+                placeholder="For example: Marriage Certificate"
+              />
+            </>
+          ) : null}
+          <p className="muted u-fs-075">
+            Choosing it now files the document under the right sharing category. You can change it
+            later.
+          </p>
+        </div>
       ) : null}
       <SubmitButton
         pending={pending}

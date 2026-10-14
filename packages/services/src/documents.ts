@@ -66,6 +66,8 @@ export interface RegisterDocumentInput {
   readonly applicantId: string;
   readonly originalName: string;
   readonly docType?: string;
+  /** What an "Other" document is, kept as given. Use `prepareDocumentKind` to check a choice first. */
+  readonly subject?: string;
   readonly source?: string;
   // CAS-08: whether this document appears in the applicant's own browsable
   // wallet. True for every normal, owner-initiated registration (the
@@ -118,6 +120,7 @@ export async function registerDocument(
             applicantId: input.applicantId,
             originalName: input.originalName.trim(),
             docType: input.docType ?? null,
+            subject: input.subject ?? null,
             source: input.source ?? null,
             uploaderAccountId: input.actorAccountId,
             walletVisible: input.walletVisible ?? true,
@@ -295,6 +298,7 @@ export interface RegisterDocumentWithVersionInput {
   readonly applicantId: string;
   readonly originalName: string;
   readonly docType?: string;
+  readonly subject?: string;
   readonly source?: string;
   readonly bucket: StorageBucket;
   readonly objectKey: string;
@@ -333,6 +337,7 @@ export async function registerDocumentWithVersion(
         applicantId: input.applicantId,
         originalName: input.originalName,
         ...(input.docType !== undefined ? { docType: input.docType } : {}),
+        ...(input.subject !== undefined ? { subject: input.subject } : {}),
         ...(input.source !== undefined ? { source: input.source } : {}),
         ...(input.walletVisible !== undefined ? { walletVisible: input.walletVisible } : {}),
         ...(input.onBehalfOfContributorRequestId !== undefined
@@ -584,6 +589,37 @@ function isOtherDocumentType(key: string): boolean {
 }
 
 /**
+ * Check a choice of "kind of document" before it is stored. The name must be one the catalogue knows (its
+ * key or any alias is accepted and stored as the one standard key). An "Other" type may carry a short name
+ * for what the document is; every other type drops it. No choice (null or blank) means "not set".
+ * Shared by the upload form and the per-document setting, so both store a kind the same way.
+ */
+export function prepareDocumentKind(
+  docType: string | null | undefined,
+  subject?: string | null,
+): Result<{ readonly docType: string | null; readonly subject: string | null }, ServiceError> {
+  const chosen = (docType ?? '').trim();
+  if (chosen.length === 0) return ok({ docType: null, subject: null });
+  const found = resolveDocumentType(chosen);
+  if (!found) {
+    return err(
+      serviceError(
+        'invalid',
+        `"${chosen}" is not a known document type. Pick one from the list, or use "Other Document".`,
+      ),
+    );
+  }
+  const named = (subject ?? '').trim();
+  if (!isOtherDocumentType(found.key) || named.length === 0) {
+    return ok({ docType: found.key, subject: null });
+  }
+  if (named.length > 120) {
+    return err(serviceError('invalid', 'the name of the document may be at most 120 characters'));
+  }
+  return ok({ docType: found.key, subject: named });
+}
+
+/**
  * Set or clear what kind of document a file is. The applicant owner only. The type must be one the
  * catalogue knows (its key or any alias is accepted and stored as the one standard key), and an "Other"
  * type may carry a short name for what the document is. Clearing the type (null) also clears that name.
@@ -615,29 +651,9 @@ export async function setDocumentType(
     );
   }
 
-  let docType: string | null = null;
-  let subject: string | null = null;
-  if (input.docType !== null) {
-    const found = resolveDocumentType(input.docType);
-    if (!found) {
-      return err(
-        serviceError(
-          'invalid',
-          `"${input.docType.trim()}" is not a known document type. Pick one from the list, or use "Other Document".`,
-        ),
-      );
-    }
-    docType = found.key;
-    const named = (input.subject ?? '').trim();
-    if (isOtherDocumentType(found.key) && named.length > 0) {
-      if (named.length > 120) {
-        return err(
-          serviceError('invalid', 'the name of the document may be at most 120 characters'),
-        );
-      }
-      subject = named;
-    }
-  }
+  const kind = prepareDocumentKind(input.docType, input.subject);
+  if (!kind.ok) return kind;
+  const { docType, subject } = kind.value;
 
   return db.transaction(async (tx) => {
     const updated = required(
