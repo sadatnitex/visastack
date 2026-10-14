@@ -27,6 +27,7 @@ import {
   hasPlatformPermission,
   isPlatformOwnerAccount,
 } from '../../../lib/admin';
+import { parseDocumentTypeInput } from '../../../lib/catalogue-input';
 import { triggerErasureWorker } from '../../../lib/jobs';
 import { withSession } from '../../../lib/session';
 import { STEP_UP_NOT_CONFIGURED_MESSAGE, tryEstablishStepUp } from '../../../lib/step-up';
@@ -47,7 +48,8 @@ export async function setRetentionPolicyAction(
 ): Promise<ActionState> {
   const docType = String(formData.get('docType') ?? '').trim();
   const retentionDays = Number(String(formData.get('retentionDays') ?? ''));
-  if (docType.length === 0) return { ok: false, message: 'Enter a document type.' };
+  const named = parseDocumentTypeInput(docType);
+  if (!named.ok) return { ok: false, message: named.message };
   if (!Number.isFinite(retentionDays) || retentionDays <= 0) {
     return { ok: false, message: 'Retention days must be a positive number.' };
   }
@@ -56,9 +58,16 @@ export async function setRetentionPolicyAction(
     if (!(await hasPlatformPermission(db, { accountId, email }, 'RETENTION_POLICY_SET'))) {
       return DENIED;
     }
-    const set = await setRetentionPolicy(db, { actorAccountId: accountId, docType, retentionDays });
+    const set = await setRetentionPolicy(db, {
+      actorAccountId: accountId,
+      docType: named.key,
+      retentionDays,
+    });
     if (!set.ok) return { ok: false, message: set.error.message } satisfies ActionState;
-    return { ok: true, message: `Retention for ${docType} set to ${retentionDays} days.` };
+    return {
+      ok: true,
+      message: `Retention for ${named.label ?? named.key} set to ${retentionDays} days.`,
+    };
   });
   if (result.ok) revalidatePath('/app/admin');
   return result;

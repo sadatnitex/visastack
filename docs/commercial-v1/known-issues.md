@@ -5122,3 +5122,11 @@ Documentation only. The bidesh365 master profile (54 sections) was compared with
 - Guards: every field in exactly one section; no section empty or mixed in category or layer; open-by-default sections hold only live fields; every live field claimed once; every choice ends with Other and has its text box; Other Items protected like their category; completion tests including the owner's example (opening a section adds its fields at once). Proved able to fail 11 ways.
 - Not built: storage for opened sections and "does not apply" or "none" marks (needs a new table and the owner's go for the migration), the screens, and the wiring of the catalogue into the live registry, document names, sharing categories and AI scoping.
 - Not verified: how 801 catalogue fields perform in the editor; AI behaviour with scoped fields on a live model; official names of the proposed documents.
+
+### 2026-10-14: Master Profile enrichment, wiring A (document names and pick-lists)
+
+- Owner confirmed the 54 common live fields as the default-open set.
+- Admin boxes for a pack requirement, a document reminder ladder and a retention rule now offer pick-lists from the catalogue and save the canonical key; an unknown name is refused with a hint. `documentTypeLabel` resolves catalogue names and aliases. New entries only: nothing already saved is changed.
+- Found: the old admin hint suggested a lower-case document type (`bank_statement`) while scanned documents are stored in upper case (`BANK_STATEMENT`), and matching is exact, so a requirement typed that way would not match. Existing saved requirements, reminder ladders and retention rules have NOT been audited for this; a read-only look at the pilot data would show how many are affected (needs the owner's OK).
+- `@visastack/core` marked side-effect free; the pick-lists render on the server so the 801 catalogue fields stay out of browser bundles (checked in the build output).
+- Not done: wiring B (AI reads only the fields a document supports), C (new sharing categories), D (registry built from the catalogue), storage for opened sections, screens.

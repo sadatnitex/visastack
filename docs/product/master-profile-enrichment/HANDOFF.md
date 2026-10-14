@@ -89,6 +89,15 @@ Phase 1 foundations. Phase 2 wiring. Phase 3 screens for new layers. Phase 4 cou
 5. Fields must be fully synced and scoped, not labels only. Fields, documents (`supports`) and sections are cross-checked by tests.
 6. Decision 6 ("targets") means: follow the owner's overall requirements, no separate instruction.
 
+### Owner decisions recorded
+
+- 2026-10-14: the 54 common live fields stay as the default-open set. The other 27 live fields (self-employment, dependants, business and investment, medical treatment, medical attendant) stay locked until opened or until they hold data.
+
+### Wiring progress
+
+- **Wiring A (document names and pick-lists), built:** `documentTypeLabel` resolves any catalogue name or alias; the admin boxes for a requirement, a reminder ladder and a retention rule now offer pick-lists and save the one canonical key (an unknown name is refused with a hint to use an Other type). New entries only; nothing saved is changed. The pick-lists render on the server, so the catalogue does not ship to the browser. `@visastack/core` is marked side-effect free so unused catalogue parts stay out of bundles.
+- Wiring B (AI reads only what a document supports), C (new sharing categories), D (registry built from the catalogue), storage and screens: not built.
+
 ### Still to build for this to be usable (not done)
 
 - Storage for which sections a person opened, and for "does not apply" and "none" marks: needs a new database table (a migration, which needs the owner's explicit go for that run) plus an audit event.
@@ -134,3 +143,8 @@ Phase 1 foundations. Phase 2 wiring. Phase 3 screens for new layers. Phase 4 cou
 - Default-open sections hold only live fields: 54 counted fields. The other 27 live fields (self-employment, dependants, business and investment, medical treatment, medical attendant) are locked until opened or until they hold data.
 - Added `modules.test.ts` and `completion.test.ts`. Proved the new guards can fail in 11 ways.
 - No database change, no behaviour change.
+
+### 2026-10-14, Claude: wiring A
+
+- Added `lib/catalogue-input.ts`, `components/catalogue-datalists.tsx`, `document-lookup.ts` and `knownFieldOptions()`; changed the three admin actions and forms; `documentTypeLabel` now resolves aliases.
+- Found while doing it: the old admin hint suggested typing `bank_statement` in lower case, but scanned documents are stored as `BANK_STATEMENT`, so a requirement typed that way would never match. New entries are now saved in canonical form. Existing saved entries are not changed and have not been audited.

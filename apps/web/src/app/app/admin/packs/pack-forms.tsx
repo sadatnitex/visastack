@@ -1,6 +1,6 @@
 'use client';
 
-import { useActionState } from 'react';
+import { useActionState, useState } from 'react';
 import { FormMessage, SubmitButton } from '../../../../components/form-feedback';
 import {
   type ActionState,
@@ -111,6 +111,7 @@ export function AddRequirementForm({
   readonly packVersionId: string;
 }) {
   const [state, formAction, pending] = useActionState(addRequirementAction, INITIAL);
+  const [kind, setKind] = useState<'FIELD' | 'DOCUMENT'>('FIELD');
   return (
     <form action={formAction} className="field-list">
       <input type="hidden" name="packId" value={packId} />
@@ -119,7 +120,13 @@ export function AddRequirementForm({
         <label className="field-label" htmlFor="kind">
           Kind
         </label>
-        <select id="kind" name="kind" className="input" defaultValue="FIELD">
+        <select
+          id="kind"
+          name="kind"
+          className="input"
+          value={kind}
+          onChange={(event) => setKind(event.target.value === 'DOCUMENT' ? 'DOCUMENT' : 'FIELD')}
+        >
           <option value="FIELD">Field</option>
           <option value="DOCUMENT">Document</option>
         </select>
@@ -134,7 +141,8 @@ export function AddRequirementForm({
           type="text"
           required
           className="input"
-          placeholder="e.g. passport_number or bank_statement"
+          list={kind === 'FIELD' ? 'catalogue-field-keys' : 'catalogue-document-types'}
+          placeholder={kind === 'FIELD' ? 'e.g. passport_number' : 'e.g. Bank Statement'}
         />
       </div>
       <div className="field-row">
@@ -449,7 +457,8 @@ export function SetDocumentExpiryPolicyForm() {
           type="text"
           required
           className="input"
-          placeholder="e.g. bank_statement"
+          list="catalogue-document-types"
+          placeholder="e.g. Bank Statement"
         />
       </div>
       <div className="field-row">

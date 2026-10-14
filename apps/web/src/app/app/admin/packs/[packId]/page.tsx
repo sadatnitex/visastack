@@ -6,6 +6,10 @@ import {
 } from '@visastack/services';
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
+import {
+  DocumentTypeDatalist,
+  FieldKeyDatalist,
+} from '../../../../../components/catalogue-datalists';
 import { PageHeader, StatusBadge } from '../../../../../components/ui';
 import { isPlatformAdmin } from '../../../../../lib/admin';
 import { formatDateOnly, formatTimestampDate } from '../../../../../lib/format-date';
@@ -252,7 +256,11 @@ export default async function PackDetailPage({
                 {isDraft ? (
                   <>
                     <div style={{ margin: '1.25rem 0' }}>
-                      <AddRequirementForm packId={packId} packVersionId={version.id} />
+                      <>
+                        <DocumentTypeDatalist />
+                        <FieldKeyDatalist />
+                        <AddRequirementForm packId={packId} packVersionId={version.id} />
+                      </>
                     </div>
                     {data.pack.authoritative ? (
                       <div style={{ margin: '1.25rem 0' }}>

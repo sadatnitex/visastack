@@ -6,6 +6,7 @@ import {
 } from '@visastack/services';
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { DocumentTypeDatalist } from '../../../../components/catalogue-datalists';
 import { PageHeader } from '../../../../components/ui';
 import { isPlatformAdmin } from '../../../../lib/admin';
 import { formatDateOnly } from '../../../../lib/format-date';
@@ -163,7 +164,10 @@ export default async function PackStudioPage() {
                 ))}
               </div>
             ) : null}
-            <SetDocumentExpiryPolicyForm />
+            <>
+              <DocumentTypeDatalist />
+              <SetDocumentExpiryPolicyForm />
+            </>
           </article>
         </div>
       )}

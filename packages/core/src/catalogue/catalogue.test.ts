@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { PROFILE_PACKS } from '../domain';
+import { resolveDocumentType } from './document-lookup';
 import { CATALOGUE_DOCUMENTS } from './documents';
 import { CATALOGUE_FIELDS } from './fields';
 import {
@@ -11,7 +12,7 @@ import {
 import { LEGACY_FIELD_SNAPSHOT, LEGACY_GROUP_KEYS } from './legacy';
 import { isDocumentKey, isFieldKey, isPurposeKey, isTitleCaseLabel } from './naming';
 import { CATALOGUE_PURPOSES } from './purposes';
-import { ALL_FIELD_KEYS, resolveDocumentType } from './queries';
+import { ALL_FIELD_KEYS } from './queries';
 import { renderCatalogueReport } from './report';
 import {
   COUNTRY_SCOPES,

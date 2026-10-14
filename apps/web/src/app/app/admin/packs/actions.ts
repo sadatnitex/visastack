@@ -21,6 +21,7 @@ import {
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { hasPlatformPermission } from '../../../../lib/admin';
+import { parseDocumentTypeInput, parseFieldKeyInput } from '../../../../lib/catalogue-input';
 import { withSession } from '../../../../lib/session';
 
 /** Result surfaced back to the client for inline feedback. */
@@ -129,12 +130,8 @@ export async function addRequirementAction(
     };
   }
   const maxAgeDaysRaw = String(formData.get('maxAgeDays') ?? '').trim();
-  if (key.length === 0) {
-    return {
-      ok: false,
-      message: kind === 'FIELD' ? 'Enter the field key.' : 'Enter the document type.',
-    };
-  }
+  const named = kind === 'FIELD' ? parseFieldKeyInput(key) : parseDocumentTypeInput(key);
+  if (!named.ok) return { ok: false, message: named.message };
   if (citation.length === 0) return { ok: false, message: 'Every requirement needs a citation.' };
   let maxAgeDays: number | undefined;
   if (maxAgeDaysRaw.length > 0) {
@@ -151,7 +148,7 @@ export async function addRequirementAction(
       actorAccountId: accountId,
       packVersionId,
       kind,
-      ...(kind === 'FIELD' ? { fieldKey: key } : { docType: key }),
+      ...(kind === 'FIELD' ? { fieldKey: named.key } : { docType: named.key }),
       citation,
       optional,
       ...(sourceUrl ? { sourceUrl } : {}),
@@ -274,7 +271,8 @@ export async function setDocumentExpiryPolicyAction(
 ): Promise<ActionState> {
   const docType = String(formData.get('docType') ?? '').trim();
   const thresholdDaysRaw = String(formData.get('thresholdDays') ?? '').trim();
-  if (docType.length === 0) return { ok: false, message: 'Enter the document type.' };
+  const named = parseDocumentTypeInput(docType);
+  if (!named.ok) return { ok: false, message: named.message };
   const thresholdDays = thresholdDaysRaw
     .split(',')
     .map((s) => s.trim())
@@ -291,13 +289,13 @@ export async function setDocumentExpiryPolicyAction(
     if (!(await hasPlatformPermission(db, { accountId, email }, 'PACK_MANAGE'))) return DENIED;
     const saved = await setDocumentExpiryPolicy(db, {
       actorAccountId: accountId,
-      docType,
+      docType: named.key,
       thresholdDays,
     });
     if (!saved.ok) return { ok: false, message: saved.error.message } satisfies ActionState;
     return {
       ok: true,
-      message: `Reminder thresholds saved for "${docType}".`,
+      message: `Reminder thresholds saved for "${named.label ?? named.key}".`,
     } satisfies ActionState;
   });
   if (result.ok) revalidatePath('/app/admin/packs');
