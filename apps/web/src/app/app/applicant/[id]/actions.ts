@@ -44,7 +44,7 @@ import {
   resolveOcrAdapter,
 } from '../../../../lib/ai';
 import { triggerIntakeWorker } from '../../../../lib/jobs';
-import { profileField } from '../../../../lib/profile-fields';
+import { savableField } from '../../../../lib/master-profile';
 import { createKeyManagementPort, createPreviewRenderer } from '../../../../lib/providers';
 import { withSession } from '../../../../lib/session';
 import { createStorage } from '../../../../lib/storage';
@@ -79,7 +79,7 @@ export async function saveFactAction(_prev: ActionState, formData: FormData): Pr
     typeof repeatingRecordKeyRaw === 'string' && repeatingRecordKeyRaw.length > 0
       ? repeatingRecordKeyRaw
       : null;
-  const def = profileField(fieldKey);
+  const def = savableField(fieldKey);
   if (!def) return { ok: false, message: 'Unknown field.' };
   if (value.length === 0) return { ok: false, message: 'Enter a value first.', field: 'value' };
 
@@ -101,8 +101,8 @@ export async function saveFactAction(_prev: ActionState, formData: FormData): Pr
       key: def.key,
       dataType: def.type === 'date' ? 'date' : 'string',
       sensitivity: def.sensitivity,
-      repeating: def.group !== undefined,
-      packId: def.pack,
+      repeating: def.repeating,
+      packId: def.packId,
     });
     const encryption = createKeyManagementPort();
     const edit = await editFact(db, {

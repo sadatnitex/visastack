@@ -35,7 +35,7 @@ const aCase = (id: string, applicantName: string) => ({
   notes: [{ id: 'n1' }],
   tasks: [{ id: 't1' }],
   appointments: [],
-  requirements: [{ id: 'q1', label: 'Passport number' }],
+  requirements: [{ id: 'q1', label: 'Passport Number' }],
   decisions: [],
   issuerVerifications: [],
   viewerAssigned: true,

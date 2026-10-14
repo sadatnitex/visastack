@@ -9,20 +9,24 @@ import {
   useFocusInvalidField,
 } from '../../../../components/form-feedback';
 import { formatDateOnly } from '../../../../lib/format-date';
-import {
-  PACK_DESCRIPTIONS,
-  PACK_LABELS,
-  type ProfileFieldDef,
-  type ProfilePack,
-} from '../../../../lib/profile-fields';
-import {
-  PROFILE_SECTIONS,
-  type ProfileSection,
-  fieldsInProfileSection,
-} from '../../../../lib/profile-sections';
+import type {
+  EditorFieldDef,
+  EditorGroup,
+  EditorSection,
+  MasterProfileView,
+} from '../../../../lib/master-profile-types';
 import { type ActionState, saveFactAction } from './actions';
+import {
+  openSuggestedSectionsAction,
+  saveOtherItemAction,
+  setExemptionAction,
+  setSectionOpenAction,
+} from './section-actions';
 
 const INITIAL: ActionState = { ok: true, message: '' };
+
+/** The choice that opens a free text box. Matches the catalogue's own wording. */
+const OTHER_CHOICE = 'Other';
 
 const STATUS_LABELS: Record<string, string> = {
   DECLARED: 'Declared',
@@ -164,13 +168,15 @@ function AssuranceDetail({ assurance }: { readonly assurance: FieldAssurance }) 
 
 interface FieldRowProps {
   readonly applicantId: string;
-  readonly field: ProfileFieldDef;
+  readonly field: EditorFieldDef;
   readonly repeatingRecordKey?: string;
   readonly currentValue: string | null;
   readonly status: string | null;
   readonly updatedAt?: string | null | undefined;
   readonly effectiveFrom?: string | null | undefined;
   readonly assurance?: FieldAssurance | undefined;
+  /** Called with the chosen option, so a choice that accepts "Other" can open its text box at once. */
+  readonly onChoice?: ((choice: string) => void) | undefined;
 }
 
 /** Same UTC day — the common case where a value is effective the moment it's saved. */
@@ -187,6 +193,7 @@ function FieldRow({
   updatedAt,
   effectiveFrom,
   assurance,
+  onChoice,
 }: FieldRowProps) {
   const [state, formAction, pending] = useActionState(saveFactAction, INITIAL);
   const formRef = useRef<HTMLFormElement>(null);
@@ -206,7 +213,7 @@ function FieldRow({
         <label className="field-label" htmlFor={inputId}>
           {field.label}
         </label>
-        <span style={{ display: 'flex', gap: '0.4rem' }}>
+        <span className="field-badges">
           {sensitivityLabel ? (
             <span
               className={`badge ${field.sensitivity === 'RESTRICTED' ? 'badge-danger' : 'badge-warning'}`}
@@ -227,6 +234,7 @@ function FieldRow({
             name="value"
             defaultValue={currentValue ?? ''}
             className="input"
+            onChange={(event) => onChoice?.(event.target.value)}
             {...fieldProblem(state, 'value', messageId)}
           >
             <option value="">Select…</option>
@@ -249,11 +257,9 @@ function FieldRow({
         )}
         <SubmitButton pending={pending} idle="Save" busy="Saving…" className="btn btn-secondary" />
       </div>
-      <details style={{ marginTop: '-0.25rem' }}>
-        <summary className="muted" style={{ fontSize: 'var(--text-caption)', cursor: 'pointer' }}>
-          Backdate this entry
-        </summary>
-        <div className="field-control" style={{ marginTop: '0.4rem' }}>
+      <details className="field-backdate">
+        <summary className="muted">Backdate this entry</summary>
+        <div className="field-control">
           <input
             type="date"
             name="effectiveFrom"
@@ -275,93 +281,6 @@ function FieldRow({
   );
 }
 
-interface RepeatingRecordValues {
-  readonly factId: string;
-  readonly value: string | null;
-  readonly status: string | null;
-  readonly updatedAt?: string | null;
-  readonly effectiveFrom?: string | null;
-}
-
-interface RepeatingGroupProps {
-  readonly applicantId: string;
-  readonly groupKey: string;
-  readonly groupLabel: string;
-  readonly fields: readonly ProfileFieldDef[];
-  /** recordKey -> fieldKey -> current value/status. */
-  readonly records: ReadonlyMap<string, ReadonlyMap<string, RepeatingRecordValues>>;
-  readonly assurance: ReadonlyMap<string, FieldAssurance>;
-}
-
-function RepeatingGroup({
-  applicantId,
-  groupLabel,
-  fields,
-  records,
-  assurance,
-}: RepeatingGroupProps) {
-  const [newRecordKeys, setNewRecordKeys] = useState<readonly string[]>([]);
-  const recordKeys = [...records.keys(), ...newRecordKeys];
-
-  return (
-    <div className="u-mt-150">
-      <div className="field-head" style={{ marginBottom: '0.75rem' }}>
-        <span className="card-kicker u-m-0">
-          {groupLabel} {recordKeys.length > 0 ? `(${recordKeys.length})` : null}
-        </span>
-        <button
-          type="button"
-          className="btn btn-secondary"
-          style={{ padding: '0.3rem 0.9rem', fontSize: 'var(--text-small)' }}
-          onClick={() => setNewRecordKeys((keys) => [...keys, crypto.randomUUID()])}
-        >
-          + Add {groupLabel.toLowerCase()}
-        </button>
-      </div>
-      {recordKeys.length === 0 ? (
-        <p className="muted u-fs-085">None recorded yet.</p>
-      ) : (
-        <div
-          style={{
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '1rem',
-          }}
-        >
-          {recordKeys.map((recordKey) => (
-            <div
-              key={recordKey}
-              className="field-list"
-              style={{
-                padding: '0.85rem',
-                border: '1px solid var(--hairline-soft)',
-                borderRadius: 'var(--radius-sm)',
-              }}
-            >
-              {fields.map((field) => {
-                const current = records.get(recordKey)?.get(field.key);
-                return (
-                  <FieldRow
-                    key={field.key}
-                    applicantId={applicantId}
-                    field={field}
-                    repeatingRecordKey={recordKey}
-                    currentValue={current?.value ?? null}
-                    status={current?.status ?? null}
-                    updatedAt={current?.updatedAt}
-                    effectiveFrom={current?.effectiveFrom}
-                    assurance={current ? assurance.get(current.factId) : undefined}
-                  />
-                );
-              })}
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
 export interface ProfileValue {
   readonly factId: string;
   readonly value: string | null;
@@ -370,70 +289,307 @@ export interface ProfileValue {
   readonly effectiveFrom?: string | null;
 }
 
-interface ProfileEditorProps {
+type RepeatingValues = Readonly<Record<string, Readonly<Record<string, ProfileValue>>>>;
+
+/** One field, plus the text box that opens when its choice is "Other". */
+function FieldWithOther({
+  applicantId,
+  field,
+  repeatingRecordKey,
+  lookup,
+  assurance,
+}: {
   readonly applicantId: string;
-  readonly values: Readonly<Record<string, ProfileValue>>;
-  /** fieldKey -> recordKey -> value/status, for repeating fields only. */
-  readonly repeatingValues: Readonly<Record<string, Readonly<Record<string, ProfileValue>>>>;
-  /** factId -> assurance breakdown (EVI-05), owner-only, empty when denied. */
+  readonly field: EditorFieldDef;
+  readonly repeatingRecordKey?: string;
+  readonly lookup: (fieldKey: string) => ProfileValue | undefined;
+  readonly assurance: ReadonlyMap<string, FieldAssurance>;
+}) {
+  const current = lookup(field.key);
+  const [choice, setChoice] = useState(current?.value ?? '');
+  const detail = field.otherDetail;
+  const detailCurrent = detail ? lookup(detail.key) : undefined;
+  return (
+    <>
+      <FieldRow
+        applicantId={applicantId}
+        field={field}
+        {...(repeatingRecordKey ? { repeatingRecordKey } : {})}
+        currentValue={current?.value ?? null}
+        status={current?.status ?? null}
+        updatedAt={current?.updatedAt}
+        effectiveFrom={current?.effectiveFrom}
+        assurance={current ? assurance.get(current.factId) : undefined}
+        onChoice={detail ? setChoice : undefined}
+      />
+      {detail && (choice === OTHER_CHOICE || detailCurrent?.value) ? (
+        <FieldRow
+          applicantId={applicantId}
+          field={detail}
+          {...(repeatingRecordKey ? { repeatingRecordKey } : {})}
+          currentValue={detailCurrent?.value ?? null}
+          status={detailCurrent?.status ?? null}
+          updatedAt={detailCurrent?.updatedAt}
+          effectiveFrom={detailCurrent?.effectiveFrom}
+          assurance={detailCurrent ? assurance.get(detailCurrent.factId) : undefined}
+        />
+      ) : null}
+    </>
+  );
+}
+
+/** A tick box that records "this does not apply to me" (a detail) or "I have none" (a whole record). */
+function ExemptionToggle({
+  applicantId,
+  kind,
+  targetKey,
+  on,
+  label,
+}: {
+  readonly applicantId: string;
+  readonly kind: 'FIELD_NOT_APPLICABLE' | 'RECORD_NONE';
+  readonly targetKey: string;
+  readonly on: boolean;
+  readonly label: string;
+}) {
+  const [state, formAction, pending] = useActionState(setExemptionAction, INITIAL);
+  const formRef = useRef<HTMLFormElement>(null);
+  const messageId = useId();
+  return (
+    <form ref={formRef} action={formAction} className="profile-exempt">
+      <input type="hidden" name="applicantId" value={applicantId} />
+      <input type="hidden" name="kind" value={kind} />
+      <input type="hidden" name="targetKey" value={targetKey} />
+      <input type="hidden" name="on" value={String(!on)} />
+      <label className="profile-exempt-label">
+        <input
+          type="checkbox"
+          checked={on}
+          aria-busy={pending}
+          onChange={() => {
+            if (!pending) formRef.current?.requestSubmit();
+          }}
+        />
+        {label}
+      </label>
+      <noscript>
+        <button type="submit" className="btn btn-secondary">
+          Apply
+        </button>
+      </noscript>
+      {state.ok ? null : <FormMessage id={messageId} result={state} />}
+    </form>
+  );
+}
+
+interface RepeatingGroupProps {
+  readonly applicantId: string;
+  readonly group: EditorGroup;
+  readonly repeatingValues: RepeatingValues;
   readonly assurance: ReadonlyMap<string, FieldAssurance>;
 }
 
-interface PackSectionProps {
-  readonly applicantId: string;
-  readonly pack: ProfilePack;
-  readonly fields?: readonly ProfileFieldDef[];
-  readonly values: Readonly<Record<string, ProfileValue>>;
-  readonly repeatingValues: Readonly<Record<string, Readonly<Record<string, ProfileValue>>>>;
-  readonly assurance: ReadonlyMap<string, FieldAssurance>;
-  readonly search: string;
+function RepeatingGroup({ applicantId, group, repeatingValues, assurance }: RepeatingGroupProps) {
+  const [newRecordKeys, setNewRecordKeys] = useState<readonly string[]>([]);
+  // Union of record keys across every field in the group: a record with only some fields filled in still shows up.
+  const savedKeys = new Set<string>();
+  for (const field of group.fields) {
+    for (const recordKey of Object.keys(repeatingValues[field.key] ?? {})) savedKeys.add(recordKey);
+  }
+  const recordKeys = [...savedKeys, ...newRecordKeys];
+
+  return (
+    <div className="profile-group">
+      <div className="field-head">
+        <span className="card-kicker u-m-0">
+          {group.label} {recordKeys.length > 0 ? `(${recordKeys.length})` : null}
+        </span>
+        {group.noneDeclared ? null : (
+          <button
+            type="button"
+            className="btn btn-secondary btn-compact"
+            onClick={() => setNewRecordKeys((keys) => [...keys, crypto.randomUUID()])}
+          >
+            + Add {group.label.toLowerCase()}
+          </button>
+        )}
+      </div>
+      {recordKeys.length === 0 ? (
+        <p className="muted u-fs-085">
+          {group.noneDeclared ? 'You said you have none.' : 'None recorded yet.'}
+        </p>
+      ) : (
+        <div className="profile-group-records">
+          {recordKeys.map((recordKey) => (
+            <div key={recordKey} className="field-list profile-group-record">
+              {group.fields.map((field) => (
+                <FieldWithOther
+                  key={field.key}
+                  applicantId={applicantId}
+                  field={field}
+                  repeatingRecordKey={recordKey}
+                  lookup={(fieldKey) => repeatingValues[fieldKey]?.[recordKey]}
+                  assurance={assurance}
+                />
+              ))}
+            </div>
+          ))}
+        </div>
+      )}
+      {recordKeys.length === 0 || group.noneDeclared ? (
+        <ExemptionToggle
+          applicantId={applicantId}
+          kind="RECORD_NONE"
+          targetKey={group.key}
+          on={group.noneDeclared}
+          label={`I have no ${group.label.toLowerCase()}`}
+        />
+      ) : null}
+    </div>
+  );
 }
 
 function matchesSearch(label: string, search: string): boolean {
   return search.trim() === '' || label.toLowerCase().includes(search.trim().toLowerCase());
 }
 
-function PackSection({
+function displayValue(field: EditorFieldDef, current: ProfileValue | undefined): string {
+  const value = current?.value;
+  if (!value) {
+    return current?.status && field.sensitivity !== 'STANDARD'
+      ? 'Protected detail'
+      : 'Not recorded';
+  }
+  if (value === '[protected: could not decrypt]') return 'Could not read this detail';
+  if (value === '[protected]') return 'Protected detail';
+  return field.type === 'date' ? formatDateOnly(value) : value;
+}
+
+/** The free "something else" record every section keeps, so nothing a person needs is left without a home. */
+function OtherItems({
   applicantId,
-  pack,
+  section,
+  repeatingValues,
+  assurance,
+}: {
+  readonly applicantId: string;
+  readonly section: EditorSection;
+  readonly repeatingValues: RepeatingValues;
+  readonly assurance: ReadonlyMap<string, FieldAssurance>;
+}) {
+  const [state, formAction, pending] = useActionState(saveOtherItemAction, INITIAL);
+  const formRef = useRef<HTMLFormElement>(null);
+  const messageId = useId();
+  const baseId = useId();
+  useFocusInvalidField(formRef, state);
+  useEffect(() => {
+    if (state.ok && state.message === 'Saved.') formRef.current?.reset();
+  }, [state]);
+  const { sectionFieldKey, fields } = section.otherItem;
+  const recordKeys = Object.entries(repeatingValues[sectionFieldKey] ?? {})
+    .filter(([, value]) => value.value === section.key)
+    .map(([recordKey]) => recordKey);
+  const [title, details, date, note] = fields;
+
+  return (
+    <div className="profile-other-items">
+      <h5>Something else in {section.label}</h5>
+      <p className="muted">
+        Not on the list? Add it here. It stays with this section and is saved like any other detail.
+      </p>
+      {recordKeys.map((recordKey) => (
+        <div key={recordKey} className="field-list profile-group-record">
+          {fields.map((field) => (
+            <FieldWithOther
+              key={field.key}
+              applicantId={applicantId}
+              field={field}
+              repeatingRecordKey={recordKey}
+              lookup={(fieldKey) => repeatingValues[fieldKey]?.[recordKey]}
+              assurance={assurance}
+            />
+          ))}
+        </div>
+      ))}
+      <details className="profile-edit-section">
+        <summary>+ Add something else</summary>
+        <form ref={formRef} action={formAction} className="field-list">
+          <input type="hidden" name="applicantId" value={applicantId} />
+          <input type="hidden" name="sectionKey" value={section.key} />
+          {(
+            [
+              ['title', title],
+              ['details', details],
+              ['date', date],
+              ['note', note],
+            ] as const
+          ).map(([name, field]) =>
+            field ? (
+              <div key={name} className="field-row">
+                <label className="field-label" htmlFor={`${baseId}-${name}`}>
+                  {field.label}
+                </label>
+                <input
+                  id={`${baseId}-${name}`}
+                  name={name}
+                  type={field.type === 'date' ? 'date' : 'text'}
+                  className="input"
+                  {...fieldProblem(state, name, messageId)}
+                />
+              </div>
+            ) : null,
+          )}
+          <SubmitButton
+            pending={pending}
+            idle="Save this item"
+            busy="Saving…"
+            className="btn btn-secondary"
+          />
+          <FormMessage id={messageId} result={state} />
+        </form>
+      </details>
+    </div>
+  );
+}
+
+function SectionFields({
+  applicantId,
+  section,
   values,
   repeatingValues,
   assurance,
   search,
-  fields,
-}: PackSectionProps) {
-  const selectedFields =
-    fields ?? fieldsInProfileSection('additional').filter((f) => f.pack === pack);
-  const groups = new Map<string, ProfileFieldDef[]>();
-  for (const field of selectedFields) {
-    if (field.group) groups.set(field.group, [...(groups.get(field.group) ?? []), field]);
-  }
-  const visibleSingleFields = selectedFields.filter(
-    (f) => !f.group && matchesSearch(f.label, search),
+}: {
+  readonly applicantId: string;
+  readonly section: EditorSection;
+  readonly values: Readonly<Record<string, ProfileValue>>;
+  readonly repeatingValues: RepeatingValues;
+  readonly assurance: ReadonlyMap<string, FieldAssurance>;
+  readonly search: string;
+}) {
+  const notApplicable = new Set(section.notApplicable);
+  const singles = section.singles.filter((field) => matchesSearch(field.label, search));
+  const groups = section.groups.filter(
+    (group) =>
+      matchesSearch(group.label, search) ||
+      group.fields.some((field) => matchesSearch(field.label, search)),
   );
-
   return (
     <>
-      {visibleSingleFields.length > 0 ? (
+      {singles.length > 0 ? (
         <dl className="profile-read-summary">
-          {visibleSingleFields.map((field) => {
+          {singles.map((field) => {
             const current = values[field.key];
-            const value = current?.value;
+            const otherText = field.otherDetail ? values[field.otherDetail.key]?.value : undefined;
             return (
               <div key={field.key}>
                 <dt>{field.label}</dt>
                 <dd>
-                  {value
-                    ? value === '[protected: could not decrypt]'
-                      ? 'Could not read this detail'
-                      : value === '[protected]'
-                        ? 'Protected detail'
-                        : field.type === 'date'
-                          ? formatDateOnly(value)
-                          : (field.options?.find((option) => option === value) ?? value)
-                    : current?.status && field.sensitivity !== 'STANDARD'
-                      ? 'Protected detail'
-                      : 'Not recorded'}
+                  {notApplicable.has(field.key)
+                    ? 'Does not apply'
+                    : current?.value === OTHER_CHOICE && otherText
+                      ? `Other: ${otherText}`
+                      : displayValue(field, current)}
                 </dd>
                 {current?.status === 'CONFLICTED' ? (
                   <span className="badge badge-warning">Needs review</span>
@@ -443,63 +599,254 @@ function PackSection({
           })}
         </dl>
       ) : null}
-      {visibleSingleFields.length > 0 ? (
+      {singles.length > 0 ? (
         <details className="profile-edit-section" open={search.trim() ? true : undefined}>
           <summary>Edit these details</summary>
           <div className="field-list">
-            {visibleSingleFields.map((field) => {
-              const current = values[field.key];
+            {singles.map((field) => {
+              const applies = !notApplicable.has(field.key);
+              const hasValue = Boolean(values[field.key]?.value || values[field.key]?.status);
               return (
-                <FieldRow
-                  key={field.key}
-                  applicantId={applicantId}
-                  field={field}
-                  currentValue={current?.value ?? null}
-                  status={current?.status ?? null}
-                  updatedAt={current?.updatedAt}
-                  effectiveFrom={current?.effectiveFrom}
-                  assurance={current ? assurance.get(current.factId) : undefined}
-                />
+                <div key={field.key} className="profile-field-item">
+                  {applies ? (
+                    <FieldWithOther
+                      applicantId={applicantId}
+                      field={field}
+                      lookup={(fieldKey) => values[fieldKey]}
+                      assurance={assurance}
+                    />
+                  ) : (
+                    <p className="muted">{field.label}: marked as not applying to you.</p>
+                  )}
+                  {hasValue && applies ? null : (
+                    <ExemptionToggle
+                      applicantId={applicantId}
+                      kind="FIELD_NOT_APPLICABLE"
+                      targetKey={field.key}
+                      on={!applies}
+                      label="This does not apply to me"
+                    />
+                  )}
+                </div>
               );
             })}
           </div>
         </details>
       ) : null}
-
-      {[...groups.entries()]
-        .filter(([, fields]) => fields.some((f) => matchesSearch(f.label, search)))
-        .map(([groupKey, fields]) => {
-          // Union of record keys across every field in this group — a record
-          // that only has some of its fields filled in still shows up.
-          const recordKeys = new Set<string>();
-          for (const field of fields) {
-            for (const recordKey of Object.keys(repeatingValues[field.key] ?? {})) {
-              recordKeys.add(recordKey);
-            }
-          }
-          const records = new Map<string, Map<string, ProfileValue>>();
-          for (const recordKey of recordKeys) {
-            const byField = new Map<string, ProfileValue>();
-            for (const field of fields) {
-              const value = repeatingValues[field.key]?.[recordKey];
-              if (value) byField.set(field.key, value);
-            }
-            records.set(recordKey, byField);
-          }
-          return (
-            <RepeatingGroup
-              key={groupKey}
-              applicantId={applicantId}
-              groupKey={groupKey}
-              groupLabel={fields[0]?.groupLabel ?? groupKey}
-              fields={fields}
-              records={records}
-              assurance={assurance}
-            />
-          );
-        })}
+      {groups.map((group) => (
+        <RepeatingGroup
+          key={group.key}
+          applicantId={applicantId}
+          group={group}
+          repeatingValues={repeatingValues}
+          assurance={assurance}
+        />
+      ))}
+      <OtherItems
+        applicantId={applicantId}
+        section={section}
+        repeatingValues={repeatingValues}
+        assurance={assurance}
+      />
     </>
   );
+}
+
+/** The tick box that opens or closes a section. Opening adds its details to the completion at once. */
+function SectionToggle({
+  applicantId,
+  section,
+}: {
+  readonly applicantId: string;
+  readonly section: EditorSection;
+}) {
+  const [state, formAction, pending] = useActionState(setSectionOpenAction, INITIAL);
+  const formRef = useRef<HTMLFormElement>(null);
+  const messageId = useId();
+  if (section.reason === 'default') {
+    return <span className="muted">Open for everyone</span>;
+  }
+  if (section.open && !section.canClose) {
+    return <span className="muted">Open because it holds your details</span>;
+  }
+  return (
+    <form ref={formRef} action={formAction} className="profile-exempt">
+      <input type="hidden" name="applicantId" value={applicantId} />
+      <input type="hidden" name="sectionKey" value={section.key} />
+      <input type="hidden" name="open" value={String(!section.open)} />
+      <label className="profile-exempt-label">
+        <input
+          type="checkbox"
+          checked={section.open}
+          aria-busy={pending}
+          onChange={() => {
+            if (!pending) formRef.current?.requestSubmit();
+          }}
+        />
+        Use this section
+      </label>
+      <noscript>
+        <button type="submit" className="btn btn-secondary">
+          Apply
+        </button>
+      </noscript>
+      <FormMessage id={messageId} result={state} />
+    </form>
+  );
+}
+
+function SectionCard({
+  applicantId,
+  section,
+  values,
+  repeatingValues,
+  assurance,
+  search,
+}: {
+  readonly applicantId: string;
+  readonly section: EditorSection;
+  readonly values: Readonly<Record<string, ProfileValue>>;
+  readonly repeatingValues: RepeatingValues;
+  readonly assurance: ReadonlyMap<string, FieldAssurance>;
+  readonly search: string;
+}) {
+  const headingId = useId();
+  const searching = search.trim() !== '';
+  return (
+    <article
+      id={`section-${section.key}`}
+      aria-labelledby={headingId}
+      className={`profile-section-card ${section.open ? 'is-open' : 'is-locked'}`}
+    >
+      <header className="profile-section-head">
+        <div>
+          <h4 id={headingId}>{section.label}</h4>
+          <p className="muted">{section.description}</p>
+          {section.extendsLabel ? <p className="muted">{section.extendsLabel}</p> : null}
+        </div>
+        <div className="profile-section-state">
+          <span className={`badge ${section.open ? 'badge-success' : 'badge-neutral'}`}>
+            {section.open ? 'Open' : 'Locked'}
+          </span>
+          {section.suggested ? <span className="badge badge-warning">Suggested</span> : null}
+          <SectionToggle applicantId={applicantId} section={section} />
+        </div>
+      </header>
+      {section.open ? (
+        <>
+          <p className="muted profile-section-progress">
+            {section.answered} of {section.total} details counted
+          </p>
+          <SectionFields
+            applicantId={applicantId}
+            section={section}
+            values={values}
+            repeatingValues={repeatingValues}
+            assurance={assurance}
+            search={search}
+          />
+        </>
+      ) : (
+        <details className="profile-section-preview" open={searching || undefined}>
+          <summary>See the {section.detailCount} details inside</summary>
+          <ul>
+            {section.previewLabels
+              .filter((label) => matchesSearch(label, search))
+              .map((label) => (
+                <li key={label}>{label}</li>
+              ))}
+          </ul>
+          <p className="muted">
+            Locked and not counted. Tick “Use this section” to fill it in; it then counts toward
+            your completion.
+          </p>
+        </details>
+      )}
+    </article>
+  );
+}
+
+function sectionMatches(section: EditorSection, search: string): boolean {
+  if (search.trim() === '') return true;
+  return (
+    matchesSearch(section.label, search) ||
+    matchesSearch(section.description, search) ||
+    section.previewLabels.some((label) => matchesSearch(label, search)) ||
+    section.singles.some((field) => matchesSearch(field.label, search)) ||
+    section.groups.some(
+      (group) =>
+        matchesSearch(group.label, search) ||
+        group.fields.some((field) => matchesSearch(field.label, search)),
+    )
+  );
+}
+
+function SuggestionBar({
+  applicantId,
+  view,
+}: {
+  readonly applicantId: string;
+  readonly view: MasterProfileView;
+}) {
+  const [state, formAction, pending] = useActionState(openSuggestedSectionsAction, INITIAL);
+  const messageId = useId();
+  return (
+    <div className="profile-suggest">
+      <form method="get" action="#profile-editor" className="profile-suggest-pick">
+        <label className="field-label" htmlFor="profile-purpose">
+          What is this profile for?
+        </label>
+        <select
+          id="profile-purpose"
+          name="for"
+          className="input"
+          defaultValue={view.suggestedFamily ?? ''}
+        >
+          <option value="">Choose a purpose…</option>
+          {view.families.map((family) => (
+            <option key={family.key} value={family.key}>
+              {family.label}
+            </option>
+          ))}
+        </select>
+        <button type="submit" className="btn btn-secondary">
+          Show suggestions
+        </button>
+      </form>
+      {view.suggestedFamily ? (
+        view.suggestedLockedCount > 0 ? (
+          <form action={formAction} className="profile-suggest-open">
+            <input type="hidden" name="applicantId" value={applicantId} />
+            <input type="hidden" name="family" value={view.suggestedFamily} />
+            <p>
+              {view.suggestedLockedCount} suggested section
+              {view.suggestedLockedCount === 1 ? ' is' : 's are'} still locked.
+            </p>
+            <SubmitButton
+              pending={pending}
+              idle="Open suggested sections"
+              busy="Opening…"
+              className="btn btn-primary"
+            />
+            <FormMessage id={messageId} result={state} />
+          </form>
+        ) : (
+          <p className="muted">Every section suggested for this purpose is already open.</p>
+        )
+      ) : null}
+    </div>
+  );
+}
+
+interface ProfileEditorProps {
+  readonly applicantId: string;
+  readonly values: Readonly<Record<string, ProfileValue>>;
+  /** fieldKey -> recordKey -> value/status, for repeating fields only. */
+  readonly repeatingValues: RepeatingValues;
+  /** factId -> assurance breakdown (EVI-05), owner-only, empty when denied. */
+  readonly assurance: ReadonlyMap<string, FieldAssurance>;
+  /** The sections, built on the server from the catalogue and what this person has opened. */
+  readonly view: MasterProfileView;
 }
 
 export function ProfileEditor({
@@ -507,6 +854,7 @@ export function ProfileEditor({
   values,
   repeatingValues,
   assurance,
+  view,
 }: ProfileEditorProps) {
   const editor = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -538,56 +886,57 @@ export function ProfileEditor({
     };
   }, []);
   const [search, setSearch] = useState('');
-  const [selected, setSelected] = useState<ProfileSection>('personal');
+  const [selected, setSelected] = useState<string>(view.layers[0]?.key ?? 'identity');
   const searching = search.trim() !== '';
-  const visibleSections = PROFILE_SECTIONS.filter((section) =>
+  const visibleLayers = view.layers.filter((layer) =>
     searching
-      ? fieldsInProfileSection(section.key).some((field) => matchesSearch(field.label, search))
-      : section.key === selected,
+      ? layer.sections.some((section) => sectionMatches(section, search))
+      : layer.key === selected,
   );
 
-  function selectSection(key: ProfileSection) {
+  function selectLayer(key: string) {
     setSelected(key);
     setSearch('');
   }
   return (
     <div ref={editor} id="profile-editor" tabIndex={-1}>
+      <SuggestionBar applicantId={applicantId} view={view} />
       <div
         className="profile-section-tabs"
         role={searching ? undefined : 'tablist'}
-        aria-label="Profile sections"
+        aria-label="Profile areas"
       >
-        {PROFILE_SECTIONS.map((section, index) => (
+        {view.layers.map((layer, index) => (
           <button
-            key={section.key}
+            key={layer.key}
             type="button"
             role={searching ? undefined : 'tab'}
-            id={`profile-tab-${section.key}`}
-            aria-selected={searching ? undefined : selected === section.key}
-            aria-controls={`profile-panel-${section.key}`}
-            tabIndex={searching || selected === section.key ? 0 : -1}
-            onClick={() => selectSection(section.key)}
+            id={`profile-tab-${layer.key}`}
+            aria-selected={searching ? undefined : selected === layer.key}
+            aria-controls={`profile-panel-${layer.key}`}
+            tabIndex={searching || selected === layer.key ? 0 : -1}
+            onClick={() => selectLayer(layer.key)}
             onKeyDown={(event) => {
               const offset = event.key === 'ArrowRight' ? 1 : event.key === 'ArrowLeft' ? -1 : 0;
               const next =
                 event.key === 'Home'
                   ? 0
                   : event.key === 'End'
-                    ? PROFILE_SECTIONS.length - 1
+                    ? view.layers.length - 1
                     : offset
-                      ? (index + offset + PROFILE_SECTIONS.length) % PROFILE_SECTIONS.length
+                      ? (index + offset + view.layers.length) % view.layers.length
                       : null;
               if (next !== null) {
                 event.preventDefault();
-                const target = PROFILE_SECTIONS[next];
+                const target = view.layers[next];
                 if (target) {
-                  selectSection(target.key);
+                  selectLayer(target.key);
                   document.getElementById(`profile-tab-${target.key}`)?.focus();
                 }
               }
             }}
           >
-            {section.label}
+            {layer.label}
           </button>
         ))}
       </div>
@@ -607,53 +956,36 @@ export function ProfileEditor({
           onChange={(event) => setSearch(event.target.value)}
         />
       </div>
-      {searching && visibleSections.length === 0 ? (
+      {searching && visibleLayers.length === 0 ? (
         <output className="muted">No fields match. Try another field name.</output>
       ) : null}
-      {PROFILE_SECTIONS.map((section) => {
-        const visible = visibleSections.some((item) => item.key === section.key);
+      {view.layers.map((layer) => {
+        const visible = visibleLayers.some((item) => item.key === layer.key);
         return (
           <section
-            key={section.key}
-            id={`profile-panel-${section.key}`}
+            key={layer.key}
+            id={`profile-panel-${layer.key}`}
             role={searching ? undefined : 'tabpanel'}
-            aria-labelledby={`profile-tab-${section.key}`}
+            aria-labelledby={`profile-tab-${layer.key}`}
             hidden={!visible}
           >
-            <h3>{section.label}</h3>
-            {section.key === 'additional' ? (
-              (['business', 'medical', 'medical_attendant'] as const).map((pack) => (
-                <details
-                  key={pack}
-                  id={`profile-pack-${pack}`}
-                  className="profile-extra-pack"
-                  open={searching || undefined}
-                >
-                  <summary>
-                    <strong>{PACK_LABELS[pack]}</strong>
-                    <span className="muted">{PACK_DESCRIPTIONS[pack]}</span>
-                  </summary>
-                  <PackSection
-                    applicantId={applicantId}
-                    pack={pack}
-                    values={values}
-                    repeatingValues={repeatingValues}
-                    assurance={assurance}
-                    search={search}
-                  />
-                </details>
-              ))
-            ) : (
-              <PackSection
-                applicantId={applicantId}
-                pack={section.key === 'employment' ? 'professional' : 'universal'}
-                fields={fieldsInProfileSection(section.key)}
-                values={values}
-                repeatingValues={repeatingValues}
-                assurance={assurance}
-                search={search}
-              />
-            )}
+            <h3>{layer.label}</h3>
+            <p className="muted">
+              {layer.description} {layer.openCount} of {layer.sections.length} sections open.
+            </p>
+            {layer.sections
+              .filter((section) => sectionMatches(section, search))
+              .map((section) => (
+                <SectionCard
+                  key={section.key}
+                  applicantId={applicantId}
+                  section={section}
+                  values={values}
+                  repeatingValues={repeatingValues}
+                  assurance={assurance}
+                  search={search}
+                />
+              ))}
           </section>
         );
       })}

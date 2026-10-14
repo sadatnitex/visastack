@@ -2,6 +2,7 @@ import { createTranslator } from '@visastack/i18n';
 import {
   getApplicant,
   listAccessForApplicantDetailed,
+  listApplicantProfile,
   listAuditEventsForApplicant,
   listDocumentsDetailed,
   listSharingInvitations,
@@ -14,7 +15,7 @@ import { humanizeCode } from '../../../../../lib/format-code';
 import { formatTimestamp, formatTimestampDate } from '../../../../../lib/format-date';
 import { grantStatusBadge } from '../../../../../lib/grant-status';
 import { getLocale } from '../../../../../lib/locale';
-import { PACK_LABELS } from '../../../../../lib/profile-fields';
+import { categoryLabel, newCategoriesWithData } from '../../../../../lib/master-profile';
 import { withSession } from '../../../../../lib/session';
 import { revokeSharingInvitationAction } from './actions';
 import { GrantForm } from './grant-form';
@@ -53,10 +54,11 @@ export default async function SharingPage({
   const data = await withSession(async ({ db, accountId }) => {
     const applicant = await getApplicant(db, id);
     if (!applicant || applicant.ownerAccountId !== accountId) return null;
-    const [access, documents, auditEvents] = await Promise.all([
+    const [access, documents, auditEvents, profileEntries] = await Promise.all([
       listAccessForApplicantDetailed(db, accountId, id),
       listDocumentsDetailed(db, accountId, id),
       listAuditEventsForApplicant(db, accountId, id),
+      listApplicantProfile(db, id),
     ]);
     const grants = access.ok ? access.value : [];
 
@@ -89,6 +91,7 @@ export default async function SharingPage({
       documentsAvailable: documents.ok,
       documents: documents.ok ? documents.value : [],
       scopeExpansions,
+      extraCategories: newCategoriesWithData(profileEntries),
       auditEvents: auditEvents.map((e) => ({ ...e, occurredAt: e.occurredAt.toISOString() })),
     };
   });
@@ -171,9 +174,7 @@ export default async function SharingPage({
                         {grant.missionId
                           ? 'for one specific case'
                           : grant.categories && grant.categories.length > 0
-                            ? `in ${grant.categories
-                                .map((c) => PACK_LABELS[c as keyof typeof PACK_LABELS] ?? c)
-                                .join(', ')}`
+                            ? `in ${grant.categories.map((c) => categoryLabel(c)).join(', ')}`
                             : 'across your whole profile'}
                         {grant.documentIds && grant.documentIds.length > 0
                           ? `, limited to ${grant.documentIds.length} specific document${grant.documentIds.length === 1 ? '' : 's'}`
@@ -344,6 +345,7 @@ export default async function SharingPage({
                 id: d.id,
                 displayName: d.approvedName ?? d.originalName,
               }))}
+              extraCategories={data.extraCategories}
             />
           ) : (
             <p role="alert">

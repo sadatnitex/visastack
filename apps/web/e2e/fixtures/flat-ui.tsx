@@ -15,6 +15,7 @@ import {
   PageHeader,
   StatusBadge,
 } from '../../src/components/ui';
+import { fixtureView } from '../../src/lib/master-profile-fixture';
 import { PRIMARY_NAV, agencyTabs, applicantTabs, platformTabs } from '../../src/lib/navigation';
 
 type Mode = 'overview' | 'profile' | 'documents' | 'case' | 'sharing' | 'agency' | 'admin';
@@ -116,6 +117,7 @@ function Fixture({ mode }: { mode: Mode }) {
               values={{}}
               repeatingValues={{}}
               assurance={new Map()}
+              view={fixtureView()}
             />
           ) : null}
           {mode === 'documents' ? (

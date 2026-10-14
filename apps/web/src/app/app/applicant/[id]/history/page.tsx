@@ -9,7 +9,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { EmptyState, PageHeader } from '../../../../../components/ui';
-import { profileField } from '../../../../../lib/profile-fields';
+import { fieldLabel } from '../../../../../lib/master-profile';
 import { withSession } from '../../../../../lib/session';
 
 export const metadata: Metadata = { title: 'History' };
@@ -113,7 +113,7 @@ export default async function HistoryPage({
               key={`${fact.fieldKey}-${fact.repeatingRecordKey ?? 'single'}`}
             >
               <h2 className="card-title u-mb-100">
-                {profileField(fact.fieldKey)?.label ?? fact.fieldKey}
+                {fieldLabel(fact.fieldKey) ?? fact.fieldKey}
                 {fact.repeatingRecordKey ? (
                   <span
                     className="muted"

@@ -8,7 +8,7 @@ import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { PageHeader } from '../../../../../../components/ui';
 import { documentTypeLabel } from '../../../../../../lib/labels';
-import { profileField } from '../../../../../../lib/profile-fields';
+import { fieldLabel } from '../../../../../../lib/master-profile';
 import { withSession } from '../../../../../../lib/session';
 import { AcknowledgementPanel } from './acknowledgement-panel';
 import {
@@ -166,7 +166,7 @@ export default async function MissionSnapshotPage({
           </p>
           <div className="rows">
             {content.requirementMapping.map((m) => {
-              const label = m.kind === 'FIELD' ? (profileField(m.key)?.label ?? m.key) : m.key;
+              const label = m.kind === 'FIELD' ? (fieldLabel(m.key) ?? m.key) : m.key;
               return (
                 <div
                   className="row"
@@ -223,7 +223,7 @@ export default async function MissionSnapshotPage({
               {facts.map((fact) => (
                 <div className="row" key={fact.factId}>
                   <span className="row-key">
-                    {profileField(fact.fieldKey)?.label ?? fact.fieldKey}
+                    {fieldLabel(fact.fieldKey) ?? fact.fieldKey}
                     {fact.repeatingRecordKey ? ` · ${fact.repeatingRecordKey}` : ''}
                   </span>
                   <span>{fact.value}</span>

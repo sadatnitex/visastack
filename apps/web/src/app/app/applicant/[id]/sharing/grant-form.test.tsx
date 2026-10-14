@@ -53,6 +53,33 @@ function review() {
   if (!button) throw new Error('Missing review');
   act(() => button.click());
 }
+describe('categories that hold saved details', () => {
+  it('lists the live parts plus any new category with a saved detail, and carries it in the form', () => {
+    act(() =>
+      root.render(
+        <GrantForm
+          applicantId="owned-person"
+          documents={[{ id: 'passport', displayName: 'Passport summary' }]}
+          extraCategories={[{ key: 'study', label: 'Study' }]}
+        />,
+      ),
+    );
+    chooseSome('profileScope');
+    const study = container.querySelector<HTMLInputElement>(
+      'input[name="category"][value="study"]',
+    );
+    expect(study).not.toBeNull();
+    expect(container.querySelector('input[name="category"][value="universal"]')).not.toBeNull();
+    act(() => study?.click());
+    expect(container.textContent).toContain('Study');
+  });
+
+  it('offers no extra categories unless some hold details', () => {
+    chooseSome('profileScope');
+    expect(container.querySelectorAll('input[name="category"]')).toHaveLength(5);
+  });
+});
+
 describe('native scoped sharing confirmation', () => {
   it('requires a valid recipient and purpose before enabling explicit confirmation', () => {
     const submit = container.querySelector<HTMLButtonElement>('button[type="submit"]');

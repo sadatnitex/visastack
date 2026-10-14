@@ -5,6 +5,7 @@ const mocks = vi.hoisted(() => ({
   listAccessForApplicantDetailed: vi.fn(),
   listDocumentsDetailed: vi.fn(),
   listAuditEventsForApplicant: vi.fn(),
+  listApplicantProfile: vi.fn(),
   previewScopeExpansion: vi.fn(),
 }));
 vi.mock('@visastack/services', async (original) => ({
@@ -44,6 +45,7 @@ beforeEach(() => {
     value: [{ id: 'passport', originalName: 'Passport summary', approvedName: null }],
   });
   mocks.listAuditEventsForApplicant.mockResolvedValue([]);
+  mocks.listApplicantProfile.mockResolvedValue([]);
 });
 describe('actual authorized sharing composition', () => {
   it('refuses foreign ownership before any sharing/document/audit read', async () => {
@@ -71,6 +73,22 @@ describe('actual authorized sharing composition', () => {
     const text = textOf(await render());
     expect(text).toContain('This does not mean nobody has access');
     expect(text).not.toContain('Nobody has access yet');
+  });
+  it('offers a new category only once it holds a saved detail, and never a category with nothing in it', async () => {
+    const none = await render();
+    expect(
+      stubProps<{ extraCategories: unknown[] }>(none, 'GrantForm')[0]?.extraCategories,
+    ).toEqual([]);
+    mocks.listApplicantProfile.mockResolvedValue([
+      { fieldKey: 'given_name', value: 'Rahim', status: 'DECLARED' },
+      { fieldKey: 'other_item_study_title', value: 'Scholarship letter', status: 'DECLARED' },
+      { fieldKey: 'other_item_settle_title', value: '', status: null },
+    ]);
+    const some = await render();
+    expect(
+      stubProps<{ extraCategories: { key: string; label: string }[] }>(some, 'GrantForm')[0]
+        ?.extraCategories,
+    ).toEqual([{ key: 'study', label: expect.any(String) }]);
   });
   it('withholds a composer when document scope cannot be loaded', async () => {
     mocks.listDocumentsDetailed.mockResolvedValue({ ok: false });

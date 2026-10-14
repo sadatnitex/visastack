@@ -5,7 +5,7 @@ import { notFound } from 'next/navigation';
 import { EmptyState, PageHeader } from '../../../../components/ui';
 import { formatTimestampDate } from '../../../../lib/format-date';
 import { documentTypeLabel } from '../../../../lib/labels';
-import { profileField } from '../../../../lib/profile-fields';
+import { fieldLabel } from '../../../../lib/master-profile';
 import { withSession } from '../../../../lib/session';
 
 export const metadata: Metadata = { title: 'Shared record' };
@@ -72,9 +72,7 @@ export default async function SharedWorkspacePage({
             <div className="rows u-mt-050">
               {workspace.fields.map((field) => (
                 <div className="row" key={field.fieldKey}>
-                  <span className="row-key">
-                    {profileField(field.fieldKey)?.label ?? field.fieldKey}
-                  </span>
+                  <span className="row-key">{fieldLabel(field.fieldKey) ?? field.fieldKey}</span>
                   <span>{field.value}</span>
                 </div>
               ))}

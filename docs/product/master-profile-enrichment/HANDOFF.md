@@ -166,3 +166,16 @@ Phase 1 foundations. Phase 2 wiring. Phase 3 screens for new layers. Phase 4 cou
 - Found: the Deploy Smoke and Playwright Deploy Smoke workflows also fire for the migration workflow's own deployment record and fail with 404 against the job page. A false alarm, but noisy; filter by environment when next touching those workflows.
 - Still not done: wiring D (registry from the catalogue) and the section screens.
 
+### 2026-10-14, Claude: the profile screen, registry fallback, sharing and Title Case
+
+- New profile screen (`profile-editor.tsx`, `profile/page.tsx`): ten areas (the catalogue layers) as tabs; inside each, a card per section. Common sections are open for everyone; every other section is visible but locked (its details are listed, nothing is editable) until the person ticks "Use this section". Opening a section adds its details to the completion at once; a section that already holds a detail is open and cannot be closed; a section opened on purpose can be closed. The percentage is `computeCompletion` and is the same on the profile page and the traveller overview.
+- Server builds the sections (`lib/master-profile.ts`, catalogue-heavy, server only) and passes plain data (`lib/master-profile-types.ts`) to the browser, so the catalogue stays out of browser code. `lib/master-profile-fixture.ts` is a small hand-written view for tests and the visual fixture.
+- Actions (`section-actions.ts`): open or close a section, open every closed section a chosen purpose suggests (the list is rebuilt on the server), "does not apply" for a detail and "none" for a record, and a free "something else" item per section (one record filed under the section's pack, section recorded by its key so completion treats that section as open).
+- Choices that accept Other get "Other" added in the view (the frozen live list is untouched) and a text box that opens as soon as Other is chosen.
+- Registry: saving works for any live or added field (`savableField`); live definitions always win. Added fields register on first save, as live ones do. `fieldLabel` names a detail wherever facts are listed (history, evidence, cases, shared view, AI review).
+- Sharing: the grant screen offers the five live parts and, in addition, a new category only once it holds a saved detail for the person (`newCategoriesWithData`).
+- The 60 distinct live labels were put into Title Case (small connecting words lowercase) in the live registry and its frozen snapshot together; the generated report did not change.
+- Accessibility rule kept: tick boxes stay enabled while saving and ignore a second click.
+- Not done: agencies can still request only the live fields in the evidence form; an AI reading can offer an added field only after it has been saved once (registration is at first use); document type "Other" is in the catalogue but not yet offered in a screen; purpose suggestion is a simple choice of family, not a stored purpose.
+- Standing rule from the owner (also in CLAUDE.md): keep Neon branches below 9 at all times and delete a branch once it is proven unneeded, after a deep investigation.
+

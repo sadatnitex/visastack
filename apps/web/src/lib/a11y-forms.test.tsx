@@ -8,6 +8,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import ts from 'typescript';
 import { describe, expect, it, vi } from 'vitest';
 import { axeViolations } from './axe.test-support';
+import { fixtureView } from './master-profile-fixture';
 import './next-mocks.test-support';
 
 /**
@@ -58,6 +59,7 @@ vi.mock('../app/app/admin/packs/actions', standIn);
 vi.mock('../app/app/agency/actions', standIn);
 vi.mock('../app/app/agency/[orgId]/actions', standIn);
 vi.mock('../app/app/applicant/[id]/actions', standIn);
+vi.mock('../app/app/applicant/[id]/section-actions', standIn);
 vi.mock('../app/app/applicant/[id]/evidence/actions', standIn);
 vi.mock('../app/app/applicant/[id]/missions/actions', standIn);
 vi.mock('../app/app/applicant/[id]/sharing/actions', standIn);
@@ -350,7 +352,13 @@ const PROFILE: readonly Case[] = [
   {
     name: 'profile editor (empty)',
     element: () => (
-      <ProfileEditor applicantId="a1" values={{}} repeatingValues={{}} assurance={new Map()} />
+      <ProfileEditor
+        applicantId="a1"
+        values={{}}
+        repeatingValues={{}}
+        assurance={new Map()}
+        view={fixtureView()}
+      />
     ),
     fields: ['value', 'effectiveFrom'],
   },
@@ -374,6 +382,7 @@ const PROFILE: readonly Case[] = [
           },
         }}
         repeatingValues={{}}
+        view={fixtureView()}
         assurance={
           new Map([
             [

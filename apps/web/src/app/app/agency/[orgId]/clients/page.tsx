@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { EmptyState } from '../../../../../components/ui';
 import { formatDateOnly, formatTimestampDate } from '../../../../../lib/format-date';
-import { profileField } from '../../../../../lib/profile-fields';
+import { fieldLabel } from '../../../../../lib/master-profile';
 import { withSession } from '../../../../../lib/session';
 import { ClientInvitationForm } from '../client-invitation-form';
 import { ClientInvitationRevokeButton } from '../client-invitation-revoke-button';
@@ -142,7 +142,7 @@ export default async function AgencyClientsPage({
               };
               const target =
                 req.kind === 'FIELD'
-                  ? ((req.fieldKey ? profileField(req.fieldKey)?.label : undefined) ?? req.fieldKey)
+                  ? ((req.fieldKey ? fieldLabel(req.fieldKey) : undefined) ?? req.fieldKey)
                   : req.docType;
               return (
                 <div

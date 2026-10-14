@@ -11,7 +11,7 @@ import { notFound } from 'next/navigation';
 import { EmptyState, PageHeader, StatusBadge, type Tone } from '../../../../../components/ui';
 import { humanizeCode } from '../../../../../lib/format-code';
 import { daysUntilDateOnly, formatDateOnly } from '../../../../../lib/format-date';
-import { PROFILE_FIELDS } from '../../../../../lib/profile-fields';
+import { fieldLabel } from '../../../../../lib/master-profile';
 import { withSession } from '../../../../../lib/session';
 import { SubmitResponseForm } from './submit-response-form';
 
@@ -66,8 +66,8 @@ function requestTarget(req: {
   readonly docType?: string | null;
 }): string {
   if (req.kind === 'FIELD') {
-    const field = PROFILE_FIELDS.find((f) => f.key === req.fieldKey);
-    return field?.label ?? (req.fieldKey ? humanizeCode(req.fieldKey) : 'Not specified');
+    const label = req.fieldKey ? fieldLabel(req.fieldKey) : undefined;
+    return label ?? (req.fieldKey ? humanizeCode(req.fieldKey) : 'Not specified');
   }
   return req.docType ? humanizeCode(req.docType) : 'Not specified';
 }

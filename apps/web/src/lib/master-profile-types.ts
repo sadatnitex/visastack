@@ -1,0 +1,79 @@
+/**
+ * What the profile screen needs to draw the sections, shaped so it can cross from the server to the
+ * browser as plain data. The catalogue itself never ships to the browser: the server builds these
+ * from it (master-profile.ts) and the screen only reads them.
+ */
+
+export interface EditorFieldDef {
+  readonly key: string;
+  readonly label: string;
+  readonly sensitivity: 'STANDARD' | 'SENSITIVE' | 'RESTRICTED';
+  readonly type?: 'text' | 'date';
+  readonly placeholder?: string;
+  /** A closed set of values. When the field accepts "Other" the list already ends with it. */
+  readonly options?: readonly string[];
+  /** The text field that opens when this choice is set to "Other". */
+  readonly otherDetail?: EditorFieldDef;
+}
+
+export interface EditorGroup {
+  readonly key: string;
+  readonly label: string;
+  readonly fields: readonly EditorFieldDef[];
+  /** The person said they have none of these. */
+  readonly noneDeclared: boolean;
+}
+
+export type SectionReason = 'default' | 'opened' | 'has_data' | 'locked';
+
+export interface EditorSection {
+  readonly key: string;
+  readonly label: string;
+  readonly description: string;
+  readonly layer: string;
+  readonly open: boolean;
+  readonly reason: SectionReason;
+  /** True only for a section the person opened on purpose and that holds no saved detail. */
+  readonly canClose: boolean;
+  /** Plain note for a section that adds extra detail to one that is open from the start. */
+  readonly extendsLabel?: string;
+  readonly suggested: boolean;
+  /** Number of details that count toward completion. */
+  readonly detailCount: number;
+  readonly answered: number;
+  readonly total: number;
+  /** Open sections only. */
+  readonly singles: readonly EditorFieldDef[];
+  readonly groups: readonly EditorGroup[];
+  /** Field keys the person marked "does not apply". */
+  readonly notApplicable: readonly string[];
+  /** Locked sections list what they hold, so nothing is hidden. */
+  readonly previewLabels: readonly string[];
+  /** The free "Something else" record for this section. */
+  readonly otherItem: {
+    readonly pack: string;
+    readonly sectionFieldKey: string;
+    readonly fields: readonly EditorFieldDef[];
+  };
+}
+
+export interface EditorLayer {
+  readonly key: string;
+  readonly label: string;
+  readonly description: string;
+  readonly sections: readonly EditorSection[];
+  readonly openCount: number;
+}
+
+export interface MasterProfileView {
+  readonly percent: number;
+  readonly answered: number;
+  readonly total: number;
+  readonly openSections: number;
+  readonly totalSections: number;
+  readonly layers: readonly EditorLayer[];
+  readonly families: readonly { readonly key: string; readonly label: string }[];
+  readonly suggestedFamily: string | null;
+  /** Locked sections the chosen purpose suggests. */
+  readonly suggestedLockedCount: number;
+}

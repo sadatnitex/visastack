@@ -1,6 +1,7 @@
 import {
   type FactAssuranceView,
   getApplicant,
+  getProfileSectionState,
   hasConsent,
   listApplicantAssurance,
   listApplicantProfile,
@@ -10,7 +11,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { EmptyState, PageHeader } from '../../../../../components/ui';
 import { formatTimestampDate } from '../../../../../lib/format-date';
-import { PROFILE_FIELDS } from '../../../../../lib/profile-fields';
+import { buildMasterProfileView, fieldLabel } from '../../../../../lib/master-profile';
 import { withSession } from '../../../../../lib/session';
 import { type FieldAssurance, ProfileEditor } from '../profile-editor';
 
@@ -48,22 +49,28 @@ export const dynamic = 'force-dynamic';
 
 export default async function ApplicantProfilePage({
   params,
+  searchParams,
 }: {
   readonly params: Promise<{ id: string }>;
+  readonly searchParams?: Promise<{ for?: string | string[] }>;
 }) {
   const { id } = await params;
+  const { for: suggestParam } = (await searchParams) ?? {};
+  const suggestFor = typeof suggestParam === 'string' && suggestParam !== '' ? suggestParam : null;
   const data = await withSession(async ({ db, accountId }) => {
     const applicant = await getApplicant(db, id);
     if (!applicant || applicant.ownerAccountId !== accountId) return null;
-    const [profile, coreGranted, assurance] = await Promise.all([
+    const [profile, coreGranted, assurance, sectionChoices] = await Promise.all([
       listApplicantProfile(db, id),
       hasConsent(db, accountId, 'CORE_PROCESSING'),
       listApplicantAssurance(db, { actorAccountId: accountId, applicantId: id }),
+      getProfileSectionState(db, id),
     ]);
     return {
       applicant,
       profile,
       coreGranted,
+      sectionChoices,
       // EVI-05: per-fact assurance is owner-only, same as the profile
       // itself. A denial here (a caller who somehow isn't the owner) just
       // means no breakdown renders, never a page error.
@@ -110,9 +117,14 @@ export default async function ApplicantProfilePage({
   const conflictedCount = data.profile.filter((p) => p.status === 'CONFLICTED').length;
 
   const { nationality } = values;
-  const coreFields = PROFILE_FIELDS.filter((field) => field.pack === 'universal' && !field.group);
-  const completed = coreFields.filter((field) => values[field.key]?.value?.trim()).length;
-  const completeness = Math.round((completed / coreFields.length) * 100);
+  const view = buildMasterProfileView({
+    entries: data.profile,
+    activated: data.sectionChoices.activated,
+    notApplicable: data.sectionChoices.notApplicable,
+    noneDeclared: data.sectionChoices.noneDeclared,
+    suggestFor,
+  });
+  const completeness = view.percent;
   const changes = [...data.profile]
     .filter((entry) => entry.updatedAt)
     .sort(
@@ -150,7 +162,7 @@ export default async function ApplicantProfilePage({
       />
       <section
         className="profile-identity-banner"
-        aria-label="Selected traveller and core field completeness"
+        aria-label="Selected traveller and profile completion"
       >
         <span className="profile-identity-avatar" aria-hidden="true">
           {initials}
@@ -169,13 +181,14 @@ export default async function ApplicantProfilePage({
           </p>
         </div>
         <div className="profile-completeness">
-          <span>Core field completeness</span>
+          <span>Profile completion</span>
           <strong>{completeness}%</strong>
           <div className="meter" aria-hidden="true">
             <div className="meter-fill" style={{ width: `${completeness}%` }} />
           </div>
           <span className="muted">
-            {completed} of {coreFields.length} core fields have values. This does not verify
+            {view.answered} of {view.total} details in your {view.openSections} open sections have
+            values. Opening a section adds its details to this number at once. This does not verify
             identity.
           </span>
         </div>
@@ -194,6 +207,7 @@ export default async function ApplicantProfilePage({
               values={values}
               repeatingValues={repeatingValues}
               assurance={assuranceByFactId}
+              view={view}
             />
           ) : (
             <EmptyState
@@ -238,10 +252,7 @@ export default async function ApplicantProfilePage({
                 {changes.map((entry) => (
                   <li key={entry.factId}>
                     <Link href={`/app/applicant/${id}/history`}>
-                      <strong>
-                        {PROFILE_FIELDS.find((field) => field.key === entry.fieldKey)?.label ??
-                          'Profile detail'}
-                      </strong>
+                      <strong>{fieldLabel(entry.fieldKey) ?? 'Profile detail'}</strong>
                       <span>{entry.method ?? 'Recorded update'}</span>
                     </Link>
                     <time dateTime={entry.updatedAt as string}>

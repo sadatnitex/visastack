@@ -5144,3 +5144,9 @@ Documentation only. The bidesh365 master profile (54 sections) was compared with
 - Not verified: the offline AI evaluation (needs a real provider key). No real document has been read with the narrowed list.
 - Deploy Smoke and Playwright Deploy Smoke fail with 404 on the migration workflow's own deployment record (their target is the job page). The runs against the real site pass. Not fixed.
 
+### 2026-10-14, Master Profile: sections on the profile screen
+
+- The profile screen now shows locked and open sections with a live completion number (one definition on the profile page and the overview), "Other" on choices and sections, "does not apply" and "none" marks, purpose suggestions, and a free item per section. Live labels are Title Case. Grants offer a new category once it holds a saved detail.
+- Verified locally: lint, typecheck, the full web suite, new tests for the builder (12), the actions (11), the editor (14) and sharing (3). The two accessibility cases that failed first (controls disabled while saving) were a real defect in the new screen and are fixed, not relaxed.
+- Not verified: the screen against a real signed-in session and database; browser checks of the new markup are in the visual fixture only; live Neon sign-in preview behaviour; agencies requesting an added field; protected choices set to Other without text count as answered (their text is not readable for completion).
+
