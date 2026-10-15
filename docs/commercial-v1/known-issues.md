@@ -5178,3 +5178,12 @@ Documentation only. The bidesh365 master profile (54 sections) was compared with
 - 2026-10-15, profile areas: the ten areas no longer scroll sideways. They are a side list with progress on a laptop and one Area box on a phone. Rendered and measured in a browser at both widths; not verified on production signed in.
 
 - 2026-10-15, countries screen: signed-in screen listing the 156 countries and their visa types with source, check date and warnings on every fact. Reference only; it does not drive any readiness rule. Rendered and tested here; not verified on production signed in. Data caveats are in the country-intake README (61 unreachable pages, flagged rows, Kazakhstan and Fiji to check first).
+
+### 2026-10-15, Agency branding: logo and workspace header
+
+- Cause of the broken logo: the logo address pointed at the document download route, which needs a per-file access token that an organisation logo never has, so the browser showed a broken picture. Fixed by a dedicated same-origin route `/api/branding/logo/[orgId]` (signed-in only; the stored file was already safety-scanned before it was saved; type checked again on read; `nosniff`, sandbox and same-origin headers). The address carries a short version tag so a replaced logo shows at once.
+- The workspace header, the settings preview and the client invitation now share one mark and one brand description (`apps/web/src/lib/agency-brand.ts`): logo on a white tile, or the agency's initials on its accent if there is no logo or it cannot load. The accent colours the top bar, the small label and the tint; text colour is chosen for readability. "Powered by VisaStack" stays on all three.
+- Settings: a live preview, eight ready-made accents (all pass the 4.5 to 1 reading check, tested), a colour picker, a typed code with a plain-words reading check, and logo upload, replace and remove.
+- Tests: logo route (2), service read path and version tag (new cases in `branding.test.ts`), brand values (7), mark fallback, scope and form (11). The fallback test was shown to fail when the error handler is removed.
+- Not verified: a signed-in look on production (this sandbox cannot sign in); the logo route is verified by tests, the route table and rendered screenshots only. No database change.
+- Direction for branded documents is in `docs/product/agency-brand-kit-direction.md`.

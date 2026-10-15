@@ -52,7 +52,7 @@ beforeEach(() => {
   mocks.loadOrgAccess.mockResolvedValue({ org, admin: true, member: true });
   mocks.getOrganizationBrandingForDisplay.mockResolvedValue({
     accentColor: '#1a56db',
-    logoUrl: 'https://blob.example/logo',
+    logoUrl: '/api/branding/logo/o1?v=abc',
   });
   mocks.getPlatformCapabilities.mockReturnValue({ bulkExport: 'available' });
 });
@@ -72,7 +72,7 @@ describe('agency Settings', () => {
       organizationId: 'o1',
       name: 'Dhaka Visa Desk',
       accentColor: '#1a56db',
-      logoUrl: 'https://blob.example/logo',
+      logoUrl: '/api/branding/logo/o1?v=abc',
     });
   });
 

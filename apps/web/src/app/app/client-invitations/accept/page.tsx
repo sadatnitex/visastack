@@ -5,8 +5,9 @@ import {
   previewClientInvitation,
 } from '@visastack/services';
 import type { Metadata } from 'next';
+import { agencyBrand } from '../../../../lib/agency-brand';
 import { withSession } from '../../../../lib/session';
-import { createStorage } from '../../../../lib/storage';
+import { AgencyBrandScope, AgencyMark } from '../../agency/[orgId]/org-branding-header';
 import { AcceptClientInvitationForm } from './accept-form';
 import { ConsentGate } from './consent-gate';
 
@@ -26,6 +27,28 @@ const GRANT_ACTION_LABELS: Readonly<Record<string, string>> = {
   PROPOSE_EDIT: 'Propose edits to your profile (you approve each one before it applies)',
   MANAGE: 'Manage your case: assign their staff, request evidence from you, add case notes',
 };
+
+/** The inviting agency as the traveller sees it: its mark, its name and the fixed "Powered by VisaStack". */
+function InvitingAgency({
+  name,
+  accentColor,
+  logoUrl,
+}: {
+  readonly name: string;
+  readonly accentColor: string | null;
+  readonly logoUrl: string | null;
+}) {
+  const brand = agencyBrand({ name, accentColor, logoUrl });
+  return (
+    <AgencyBrandScope brand={brand} className="invite-brand">
+      <AgencyMark brand={brand} size="md" />
+      <p className="invite-brand-text">
+        <strong>{brand.name}</strong>
+        <span>Powered by VisaStack</span>
+      </p>
+    </AgencyBrandScope>
+  );
+}
 
 /**
  * Accept an agency's client invitation (Commercial V1 Part 4 §6, IAM-03).
@@ -62,7 +85,7 @@ export default async function AcceptClientInvitationPage({
     const [consents, applicants, branding] = await Promise.all([
       getConsents(db, accountId),
       listApplicants(db, accountId),
-      getOrganizationBrandingForDisplay(db, createStorage(db), preview.value.organizationId),
+      getOrganizationBrandingForDisplay(db, preview.value.organizationId),
     ]);
     return { preview, consents, applicants, branding };
   });
@@ -87,49 +110,15 @@ export default async function AcceptClientInvitationPage({
           </p>
         ) : (
           <>
-            {data.branding?.logoUrl || data.branding?.accentColor ? (
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.6rem',
-                  marginBottom: '0.75rem',
-                }}
-              >
-                {data.branding.logoUrl ? (
-                  <img
-                    src={data.branding.logoUrl}
-                    alt={`${data.preview.value.organizationName} logo`}
-                    style={{
-                      height: '2.5rem',
-                      width: '2.5rem',
-                      objectFit: 'contain',
-                      borderRadius: '0.25rem',
-                      border: '1px solid var(--border, #ddd)',
-                    }}
-                  />
-                ) : null}
-                {data.branding.accentColor ? (
-                  <span
-                    aria-hidden="true"
-                    style={{
-                      display: 'inline-block',
-                      height: '0.6rem',
-                      width: '2rem',
-                      borderRadius: '999px',
-                      backgroundColor: data.branding.accentColor,
-                    }}
-                  />
-                ) : null}
-              </div>
-            ) : null}
+            <InvitingAgency
+              name={data.preview.value.organizationName}
+              accentColor={data.branding?.accentColor ?? null}
+              logoUrl={data.branding?.logoUrl ?? null}
+            />
             <p className="card-body">
               <strong>{data.preview.value.organizationName}</strong> wants to work with you on{' '}
               <strong>{data.preview.value.requestedRoute ?? data.preview.value.displayName}</strong>
               .
-            </p>
-            <p className="muted" style={{ fontSize: 'var(--text-caption)', marginTop: '-0.75rem' }}>
-              Powered by VisaStack
             </p>
             <p className="card-body" style={{ fontWeight: 600, marginBottom: '0.5rem' }}>
               If you accept, they will be able to:

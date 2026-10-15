@@ -895,7 +895,7 @@ const AGENCY: readonly Case[] = [
         organizationId="o1"
         name="Skyline Visa Services"
         accentColor="#1a5fb4"
-        logoUrl="https://example.com/logo.png"
+        logoUrl="/api/branding/logo/00000000-0000-4000-8000-000000000001?v=abc"
       />
     ),
   },
