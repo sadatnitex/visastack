@@ -15,7 +15,7 @@ function freshArrayBuffer(bytes: Uint8Array): ArrayBuffer {
 
 /**
  * An agency's logo, for the image tags in the agency workspace, the settings preview and an invitation.
- * It serves only what the safety scan already passed (PNG or JPEG, checked again when read), only to a
+ * It serves only what the upload check already passed (PNG or JPEG, checked again when read), only to a
  * signed-in person (the name and logo already show to anyone who can open the agency page), and never as
  * something a browser may run: nosniff, a sandboxing policy and an inline image type only. The address
  * carries a version that changes with the logo, so a long browser cache is safe.

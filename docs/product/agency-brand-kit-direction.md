@@ -9,7 +9,7 @@ An agency decides to use VisaStack partly by how it looks to its own customers. 
 ## What exists now
 
 - One brand description for an agency (`apps/web/src/lib/agency-brand.ts`): name, initials, accent, the text colour that stays readable on the accent, a soft tint, and the logo address. Screens and, later, documents take their values from here, so one change of accent or logo reaches all of them.
-- The logo is served by a dedicated same-origin route (`/api/branding/logo/[orgId]`, signed-in only, safety-scanned file, checked type, no-sniff and sandbox headers). The old route needed a document access token, which is why the logo showed as a broken picture.
+- The logo is served by a dedicated same-origin route (`/api/branding/logo/[orgId]`, signed-in only, a file already checked to be a real PNG or JPEG, type checked again, no-sniff and sandbox headers). The old route needed a document access token, which is why the logo showed as a broken picture.
 - A mark that never shows a broken picture: logo on a white tile, or the agency's initials on its accent.
 
 ## Where it goes next (not built)
@@ -21,7 +21,7 @@ An agency decides to use VisaStack partly by how it looks to its own customers. 
 | Categories | Template groups such as Client letters, Checklists, Billing, Embassy support | Agency-defined, with a few built-in starters |
 | Personalisation | Fields filled from the traveller, case and agency (name, route, dates, missing documents, consultant) | Only fields the agency is already allowed to see under its sharing grant |
 | Output | PDF first, then editable download | Generated on the server from the brand profile; the generated file is stored like any other file and scanned |
-| Guardrails | "Powered by VisaStack" footer always present; accent must pass the reading check; logo must pass the safety scan | Same rules as the screen |
+| Guardrails | "Powered by VisaStack" footer always present; accent must pass the reading check; logo must pass the image check (a virus scan is not part of this check today: the production health page lists malware scanning as not configured) | Same rules as the screen |
 
 ## Decisions to take before building
 

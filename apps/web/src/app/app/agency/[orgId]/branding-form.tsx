@@ -176,8 +176,8 @@ export function BrandingForm({
           <h3 className="brand-logo-title">Logo</h3>
           <p className="muted brand-hint">
             PNG or JPEG, up to 2 MB. A square or wide logo both work. It sits on a white tile, so a
-            logo with a see-through background looks clean. It is checked for safety before anyone
-            sees it.
+            logo with a see-through background looks clean. It is checked to be a real PNG or JPEG
+            image before anyone sees it.
           </p>
           <div className="brand-logo-current">
             <AgencyMark brand={brand} size="lg" />
