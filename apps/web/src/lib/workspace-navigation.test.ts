@@ -22,7 +22,7 @@ const labels = (path: string, actor = access) =>
   workspaceNavigation(path, actor).primary.map((link) => link.label);
 
 describe('current contextual navigation contract', () => {
-  it('uses the selected owned traveller for all six principal destinations', () => {
+  it('uses the selected owned traveller for the six principal destinations, then offers the country rules', () => {
     const nav = workspaceNavigation(`/app/applicant/${p2}/profile`, access);
     expect(nav.name).toBe('Synthetic Family');
     expect(nav.caption).toBe('Managed traveller');
@@ -33,7 +33,9 @@ describe('current contextual navigation contract', () => {
       'Visa cases',
       'Sharing',
       'Notifications',
+      'Countries',
     ]);
+    expect(nav.primary.at(-1)).toEqual({ href: '/app/countries', label: 'Countries' });
     expect(
       nav.primary.slice(0, 5).every((link) => link.href.startsWith(`/app/applicant/${p2}`)),
     ).toBe(true);
@@ -43,6 +45,19 @@ describe('current contextual navigation contract', () => {
     expect(nav.tools.map((link) => link.label)).toEqual(
       expect.arrayContaining(['Shared with me', 'Evidence requests', 'Dates & expiry', 'History']),
     );
+  });
+  it('offers the country rules even before a traveller exists, and marks them current on their own pages', () => {
+    const nav = workspaceNavigation('/app/countries/gb', {
+      travellers: [],
+      agencies: [],
+      platform: null,
+    });
+    const link = nav.primary.find((item) => item.label === 'Countries');
+    expect(link).toEqual({ href: '/app/countries', label: 'Countries' });
+    if (!link) throw new Error('fixture');
+    expect(isCurrentPath('/app/countries/gb', link)).toBe(true);
+    expect(isCurrentPath('/app/countries', link)).toBe(true);
+    expect(isCurrentPath('/app/privacy', link)).toBe(false);
   });
   it('keeps first-person creation and agency entry available without fabricated records', () => {
     const nav = workspaceNavigation('/app', { travellers: [], agencies: [], platform: null });
@@ -62,13 +77,21 @@ describe('current contextual navigation contract', () => {
       'Evidence requests',
       'Team',
       'Case activity',
+      'Countries',
     ]);
+    // The country rules open inside the agency workspace, so the sidebar does not switch to the personal space.
+    expect(nav.primary.at(-1)).toEqual({ href: `/app/agency/${o1}/countries`, label: 'Countries' });
     expect(nav.primary.every((link) => link.href.startsWith(`/app/agency/${o1}`))).toBe(true);
     expect(nav.tools).toContainEqual({ href: `/app/agency/${o1}/plan`, label: 'Plan & usage' });
   });
   it('does not offer administrator-only agency actions to a case worker', () => {
     const nav = workspaceNavigation(`/app/agency/${o2}/cases`, access);
-    expect(nav.primary.map((link) => link.label)).toEqual(['Overview', 'Cases', 'Case activity']);
+    expect(nav.primary.map((link) => link.label)).toEqual([
+      'Overview',
+      'Cases',
+      'Case activity',
+      'Countries',
+    ]);
     expect(nav.settings.some((link) => link.label === 'Settings')).toBe(false);
   });
   it('offers real platform categories and preserves specialized tools', () => {
