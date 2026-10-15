@@ -25,6 +25,54 @@ export function routesForCountry(country: string): readonly DestinationRoute[] {
   return DESTINATION_ROUTES.filter((r) => r.country === country);
 }
 
+/** The one shared route set the sheet files under the whole Schengen area. */
+export const SCHENGEN_ROUTE_COUNTRY = 'Schengen Area (30 European States)';
+
+/**
+ * The thirty states the sheet groups under the shared Schengen route (it includes Cyprus, which the sheet
+ * notes follows the same visa list by national alignment). Their short-stay visa is the one shared route.
+ */
+export const SCHENGEN_ISO2: readonly string[] = [
+  'AT',
+  'BE',
+  'BG',
+  'HR',
+  'CY',
+  'CZ',
+  'DK',
+  'EE',
+  'FI',
+  'FR',
+  'DE',
+  'GR',
+  'HU',
+  'IS',
+  'IT',
+  'LV',
+  'LI',
+  'LT',
+  'LU',
+  'MT',
+  'NL',
+  'NO',
+  'PL',
+  'PT',
+  'RO',
+  'SK',
+  'SI',
+  'ES',
+  'SE',
+  'CH',
+];
+
+/** Every route that applies to a destination: its own routes, plus the shared Schengen route for those states. */
+export function routesForDestination(destination: Destination): readonly DestinationRoute[] {
+  const own = routesForCountry(destination.country);
+  return SCHENGEN_ISO2.includes(destination.iso2)
+    ? [...routesForCountry(SCHENGEN_ROUTE_COUNTRY), ...own]
+    : own;
+}
+
 /** Countries that have stated facts, as opposed to just an official link. */
 export function researchedDestinations(): readonly Destination[] {
   return DESTINATIONS.filter((d) => d.researched);

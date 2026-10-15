@@ -2,10 +2,13 @@ import { describe, expect, it } from 'vitest';
 import {
   DESTINATIONS,
   DESTINATION_ROUTES,
+  SCHENGEN_ISO2,
+  SCHENGEN_ROUTE_COUNTRY,
   destinationByIso2,
   lastCheckedOn,
   researchedDestinations,
   routesForCountry,
+  routesForDestination,
 } from './index';
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -63,5 +66,22 @@ describe('destinations reference data', () => {
     expect(lastCheckedOn('United Kingdom')).toMatch(DATE);
     expect(lastCheckedOn('Nowhere')).toBeNull();
     expect(destinationByIso2('ZZ')).toBeUndefined();
+  });
+});
+
+describe('the shared Schengen route', () => {
+  it('lists thirty states that all exist in the sheet, once each', () => {
+    expect(SCHENGEN_ISO2).toHaveLength(30);
+    expect(new Set(SCHENGEN_ISO2).size).toBe(30);
+    for (const iso2 of SCHENGEN_ISO2) expect(destinationByIso2(iso2), iso2).toBeDefined();
+  });
+
+  it('gives each Schengen state the shared route, and other countries only their own', () => {
+    const austria = destinationByIso2('AT');
+    const gb = destinationByIso2('GB');
+    if (!austria || !gb) throw new Error('fixture');
+    expect(routesForDestination(austria).map((r) => r.country)).toContain(SCHENGEN_ROUTE_COUNTRY);
+    expect(routesForDestination(gb).every((r) => r.country === 'United Kingdom')).toBe(true);
+    expect(routesForDestination(gb).length).toBeGreaterThan(0);
   });
 });

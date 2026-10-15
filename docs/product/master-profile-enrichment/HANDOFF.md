@@ -226,3 +226,10 @@ Phase 1 foundations. Phase 2 wiring. Phase 3 screens for new layers. Phase 4 cou
 - Keyboard: up, down, left, right, Home and End move between areas. While a search shows results from every area, the list stops acting as tabs, as before.
 - Counts come from each section's `answered` and `total`; nothing new is stored or fetched.
 - Checked in a real browser at laptop and phone width (no sideways overflow). Not checked: a signed-in walk-through on production.
+
+### 2026-10-15, Claude: the countries screen
+
+- New signed-in screen `/app/countries` (main menu: "Countries") lists all 156 countries with search and filters by entry rule, and `/app/countries/[code]` shows one country: the short version (entry rule, stay, passport, how to apply, where to submit in Bangladesh, fee) and its visa types with what to submit.
+- Every fact shows its source link, "Checked on" date and warnings ("Not from an official page", "Needs checking before you rely on it"), and the words copied from the source are one tap away. A country not yet researched says so and never reads as "no visa needed". A visa type with fewer than five listed requirements says the list may be incomplete.
+- Data comes from `@visastack/core/destinations` on the server only; the list sends the browser a small summary (no full data). The thirty Schengen states share one Schengen visa type (`SCHENGEN_ISO2`, `routesForDestination`).
+- Not done: nothing here feeds readiness or any decision; agencies do not have the link in their own menu yet; the 61 unreachable source pages and the flagged rows still need a person.
