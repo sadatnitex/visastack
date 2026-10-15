@@ -595,9 +595,9 @@
         "exactWords": "2 Tourist Visa US$ 50 28 days",
         "translation": null,
         "where": "Visa Types & Fees table",
-        "confidence": "HIGH",
-        "needsCheck": false,
-        "note": "Tourist eVisa is USD 50 (28 days); Business eVisa is USD 70 (70 days)."
+        "confidence": "LOW",
+        "needsCheck": true,
+        "note": "Tourist eVisa is USD 50 (28 days); Business eVisa is USD 70 (70 days). Checked on 2026-10-15: the cited page did not contain the copied words (the page builds its text with scripts). Confirm on the official page before relying on it."
       }
     },
     {
@@ -5301,9 +5301,9 @@
         "exactWords": "This visa stream lets you visit Australia as a tourist, to go on a cruise or to visit family and friends.",
         "translation": null,
         "where": "Overview",
-        "confidence": "HIGH",
-        "needsCheck": false,
-        "note": null
+        "confidence": "LOW",
+        "needsCheck": true,
+        "note": "Checked on 2026-10-15: the cited page did not contain the copied words (the page builds its text with scripts). Confirm on the official page before relying on it."
       },
       "requirements": [
         {
@@ -5322,9 +5322,9 @@
             "exactWords": "Provide the pages of your current passport showing your photo, personal details and passport issue and expiry dates.",
             "translation": null,
             "where": "Step by step - Gather your documents (Identity)",
-            "confidence": "HIGH",
-            "needsCheck": false,
-            "note": null
+            "confidence": "LOW",
+            "needsCheck": true,
+            "note": "Checked on 2026-10-15: the cited page did not contain the copied words (the page builds its text with scripts). Confirm on the official page before relying on it."
           }
         },
         {
@@ -5343,9 +5343,9 @@
             "exactWords": "itemised personal bank statements for a 3 month period",
             "translation": null,
             "where": "Step by step - Gather your documents (Genuine visitor documents)",
-            "confidence": "HIGH",
-            "needsCheck": false,
-            "note": null
+            "confidence": "LOW",
+            "needsCheck": true,
+            "note": "Checked on 2026-10-15: the cited page did not contain the copied words (the page builds its text with scripts). Confirm on the official page before relying on it."
           }
         },
         {
@@ -5364,9 +5364,9 @@
             "exactWords": "Have all non-English documents translated into English.",
             "translation": null,
             "where": "Step by step - Gather your documents (Translate)",
-            "confidence": "HIGH",
-            "needsCheck": false,
-            "note": null
+            "confidence": "LOW",
+            "needsCheck": true,
+            "note": "Checked on 2026-10-15: the cited page did not contain the copied words (the page builds its text with scripts). Confirm on the official page before relying on it."
           }
         }
       ]
@@ -6914,9 +6914,9 @@
         "exactWords": "2 Tourist Visa US$ 50 28 days",
         "translation": null,
         "where": "Visa Types & Fees table",
-        "confidence": "HIGH",
-        "needsCheck": false,
-        "note": null
+        "confidence": "LOW",
+        "needsCheck": true,
+        "note": "Checked on 2026-10-15: the cited page did not contain the copied words (the page builds its text with scripts). Confirm on the official page before relying on it."
       },
       "requirements": []
     },
@@ -6948,9 +6948,9 @@
         "exactWords": "1 Business Visa US$ 70 70 days",
         "translation": null,
         "where": "Visa Types & Fees table",
-        "confidence": "HIGH",
-        "needsCheck": false,
-        "note": null
+        "confidence": "LOW",
+        "needsCheck": true,
+        "note": "Checked on 2026-10-15: the cited page did not contain the copied words (the page builds its text with scripts). Confirm on the official page before relying on it."
       },
       "requirements": []
     },
@@ -7404,9 +7404,9 @@
         "exactWords": "The E-Visa fee is QAR 100, which is non-refundable.",
         "translation": null,
         "where": "Hayya Tourist Visa (A1) FAQs",
-        "confidence": "HIGH",
-        "needsCheck": false,
-        "note": null
+        "confidence": "LOW",
+        "needsCheck": true,
+        "note": "Checked on 2026-10-15: the cited page did not contain the copied words (the page builds its text with scripts). Confirm on the official page before relying on it."
       },
       "requirements": [
         {
@@ -7425,9 +7425,9 @@
             "exactWords": "Minimum of 3 months passport validity from the date of arrival to the State of Qatar",
             "translation": null,
             "where": "What are the requirements for the Hayya Tourist Visa (A1)?",
-            "confidence": "HIGH",
-            "needsCheck": false,
-            "note": null
+            "confidence": "LOW",
+            "needsCheck": true,
+            "note": "Checked on 2026-10-15: the cited page did not contain the copied words (the page builds its text with scripts). Confirm on the official page before relying on it."
           }
         }
       ]
@@ -7786,9 +7786,9 @@
         "exactWords": "Single Entry 30 Days 62",
         "translation": null,
         "where": "Visa Fee table (USD)",
-        "confidence": "HIGH",
-        "needsCheck": false,
-        "note": null
+        "confidence": "LOW",
+        "needsCheck": true,
+        "note": "Checked on 2026-10-15: the cited page did not contain the copied words (the page builds its text with scripts). Confirm on the official page before relying on it."
       },
       "requirements": [
         {
@@ -7807,9 +7807,9 @@
             "exactWords": "Passport of the visa applicant which is valid for at least 6 months from the intended date of entry to Ethiopia.",
             "translation": null,
             "where": "Requirements",
-            "confidence": "HIGH",
-            "needsCheck": false,
-            "note": null
+            "confidence": "LOW",
+            "needsCheck": true,
+            "note": "Checked on 2026-10-15: the cited page did not contain the copied words (the page builds its text with scripts). Confirm on the official page before relying on it."
           }
         }
       ]

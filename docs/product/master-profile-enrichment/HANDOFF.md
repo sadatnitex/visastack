@@ -212,3 +212,10 @@ Phase 1 foundations. Phase 2 wiring. Phase 3 screens for new layers. Phase 4 cou
 - Documents list: shows the kind in plain words with the sharing category it files under ("Passport · Identity"), an AI suggestion labelled as a suggestion, a filter with "Not set yet", and a note counting documents with no kind with a "Show them" button.
 - Sharing page: when parts of the profile are chosen, a note says how many documents have no kind (they are left out) and links to the Documents page.
 - Not done: nothing sets a kind for existing uploads on its own (AI suggestions stay a person's decision); the old raw-body upload route does not take a kind (the form does not use it).
+
+### 2026-10-15, Claude: page check of the country sheets
+
+- Ran the manual page workflow (`country-intake-pages`) on all 187 cited pages: 126 opened, 61 did not. Details and decisions are in `country-intake/README.md`.
+- Corrected the 23 Schengen quotes (EU Regulation 2018/1806, Article 3(1); Annex I names Bangladesh) and Benin's quote; flagged rows whose pages do not hold the copied words (low confidence, needs check). Facts were not changed.
+- The quote checker now decodes HTML character codes and ignores a space before a full stop. `fetch-pages.mjs` can print the stretches around chosen words (`show_pages` input, `url|word,word`) and keeps original capitals.
+- Not done: the 61 unreachable pages (open them by hand or find another route), and Kazakhstan and Fiji (a person should check them first).

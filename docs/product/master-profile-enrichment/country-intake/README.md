@@ -53,3 +53,14 @@ The sandbox Claude works in has no internet, so pages cannot be opened there. Th
 "Country intake pages" (Actions tab, Run workflow) runs on GitHub's machines: it saves the text of every
 page named in the sheets and checks that the copied words appear on the cited page. Download the result
 named `country-intake-pages` (kept 7 days). It reads files and public pages only and changes nothing.
+
+## Page check results (2026-10-15)
+
+The manual workflow was run against all 187 cited pages. What it showed, and what was done:
+
+- 126 pages opened. 61 did not (connection refused, forbidden, errors, PDFs); those quotes are untested and need a person.
+- 23 Schengen countries cite EU Regulation 2018/1806. The page names Bangladesh in Annex I, so "visa required" is confirmed from the law itself. The old quote joined Article 3(1) to wording from Article 4(1), so it now holds the exact Article 3(1) sentence. The 90 days in any 180 days is the general short-stay rule, not part of that sentence.
+- Benin's quote was in French while the page is in English, so it now holds the real English wording.
+- Quotes with a dash, a middle dot or a space before a full stop were wrongly reported as missing. The checker now decodes the page's character codes and ignores that space, so Ireland, Belarus, Malawi and Brunei pass.
+- Australia, Qatar, Ethiopia, Myanmar, South Africa, Kenya, Kazakhstan and Fiji pages do not contain the copied words when fetched (several build their text with scripts). Their country, route and requirement rows are marked low confidence and "needs check"; the facts were not changed.
+- Two rows to look at first: Kazakhstan (the quote says visa-free for Bangladesh while the status says visa required, and the page never names Bangladesh) and Fiji (marked visa-free from a page that does not name Bangladesh).

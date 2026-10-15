@@ -308,3 +308,16 @@ test('turns HTML character codes into the characters they stand for, so a quote 
   const page = pageText("<p>&euro;60: Single entry &ndash; Short stay 'C' visa</p>");
   assert.equal(quoteStatus(page, "\u20ac60: Single entry \u2013 Short stay 'C' visa"), 'FOUND');
 });
+
+test('matches a quote even when the page puts a space before the full stop', () => {
+  const page = pageText(
+    '<li>International Health Travel Insurance . The policy must provide a minimum cover.</li>',
+  );
+  assert.equal(
+    quoteStatus(
+      page,
+      'International Health Travel Insurance. The policy must provide a minimum cover.',
+    ),
+    'FOUND',
+  );
+});

@@ -639,11 +639,14 @@ export function pageText(html) {
 
 /** FOUND (exact), PARTIAL (most of it), or MISSING. Ignores case, spacing and quote style. */
 export function quoteStatus(page, quote) {
-  const q = norm(quote)
-    .replace(/[^\p{L}\p{N}$€£%.,'"/ -]+/gu, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-  const p = page.replace(/[^\p{L}\p{N}$€£%.,'"/ -]+/gu, ' ').replace(/\s+/g, ' ');
+  // Web pages often put a space before a full stop or comma ("Insurance ."), which the words do not have.
+  const tidy = (text) =>
+    text
+      .replace(/[^\p{L}\p{N}$€£%.,'"/ -]+/gu, ' ')
+      .replace(/\s+/g, ' ')
+      .replace(/ ([.,])/g, '$1');
+  const q = tidy(norm(quote)).trim();
+  const p = tidy(page);
   if (q.length === 0) return 'MISSING';
   if (p.includes(q)) return 'FOUND';
   const words = q.split(' ');
