@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { collectUrls, fetchAll, pageLines } from './fetch-pages.mjs';
+import { collectUrls, fetchAll, pageLines, pageTextRaw } from './fetch-pages.mjs';
 
 test('collects each secure page once, from the country and route sheets', () => {
   const urls = collectUrls({
@@ -51,4 +51,17 @@ test('prints one line per wanted page, with a cap, and says when a page is not i
   const lines = pageLines(results, ['https://a.example/', 'https://z.example/'], 10);
   assert.equal(lines[0], `PAGE https://a.example/ [OK] ${'x'.repeat(10)}`);
   assert.equal(lines[1], 'PAGE https://z.example/ [NOT_IN_SHEETS]');
+});
+
+test('prints the stretches around chosen words, in the original capitals, and says when a word is absent', () => {
+  const raw = `${'a '.repeat(30)}Bangladesh is listed in Annex I.${' b'.repeat(30)}`;
+  const results = [{ url: 'https://a.example/', status: 'OK', text: raw.toLowerCase(), raw }];
+  const lines = pageLines(results, ['https://a.example/|bangladesh,Nepal'], 100, 20, 3);
+  assert.equal(lines.length, 2);
+  assert.match(lines[0], /^HIT https:\/\/a\.example\/ \[bangladesh\] \.\.\..*Bangladesh is listed/);
+  assert.equal(lines[1], 'HIT https://a.example/ [Nepal] NOT_ON_PAGE');
+});
+
+test('keeps the page text in its original capitals for quoting', () => {
+  assert.equal(pageTextRaw('<p>Fee &amp; <b>Stay</b></p><script>x()</script>'), 'Fee & Stay');
 });

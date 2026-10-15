@@ -570,27 +570,83 @@ export function validateIntake(sheets) {
 }
 
 /** Text of a page, lower-cased and whitespace-collapsed, for finding copied words. */
+const NAMED_ENTITIES = {
+  nbsp: ' ',
+  amp: '&',
+  lt: '<',
+  gt: '>',
+  quot: '"',
+  apos: "'",
+  ndash: '\u2013',
+  mdash: '\u2014',
+  middot: '\u00b7',
+  bull: '\u2022',
+  hellip: '\u2026',
+  lsquo: '\u2018',
+  rsquo: '\u2019',
+  ldquo: '\u201c',
+  rdquo: '\u201d',
+  laquo: '\u00ab',
+  raquo: '\u00bb',
+  euro: '\u20ac',
+  pound: '\u00a3',
+  yen: '\u00a5',
+  cent: '\u00a2',
+  copy: '\u00a9',
+  reg: '\u00ae',
+  deg: '\u00b0',
+  times: '\u00d7',
+  eacute: '\u00e9',
+  egrave: '\u00e8',
+  ecirc: '\u00ea',
+  agrave: '\u00e0',
+  acirc: '\u00e2',
+  ccedil: '\u00e7',
+  ocirc: '\u00f4',
+  ucirc: '\u00fb',
+  icirc: '\u00ee',
+  iuml: '\u00ef',
+  ntilde: '\u00f1',
+  uuml: '\u00fc',
+  ouml: '\u00f6',
+  auml: '\u00e4',
+  szlig: '\u00df',
+};
+
+/** Turns the common HTML character codes (named, decimal and hex) into the characters they stand for. */
+export function decodeEntities(text) {
+  return String(text).replace(/&(#x[0-9a-f]+|#\d+|[a-z]+);/gi, (whole, code) => {
+    if (code[0] === '#') {
+      const value =
+        code[1].toLowerCase() === 'x' ? Number.parseInt(code.slice(2), 16) : Number(code.slice(1));
+      return Number.isFinite(value) && value > 0 && value < 0x110000
+        ? String.fromCodePoint(value)
+        : whole;
+    }
+    return NAMED_ENTITIES[code.toLowerCase()] ?? whole;
+  });
+}
+
 export function pageText(html) {
   return norm(
-    String(html)
-      .replace(/<(script|style|noscript)[\s\S]*?<\/\1>/gi, ' ')
-      .replace(/<[^>]+>/g, ' ')
-      .replace(/&nbsp;/g, ' ')
-      .replace(/&amp;/g, '&')
-      .replace(/&quot;|&#34;/g, '"')
-      .replace(/&#39;|&apos;|&rsquo;|&lsquo;/g, "'")
-      .replace(/&euro;/g, '€')
-      .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(Number(n))),
+    decodeEntities(
+      String(html)
+        .replace(/<(script|style|noscript)[\s\S]*?<\/\1>/gi, ' ')
+        .replace(/<[^>]+>/g, ' '),
+    ),
   );
 }
 
 /** FOUND (exact), PARTIAL (most of it), or MISSING. Ignores case, spacing and quote style. */
 export function quoteStatus(page, quote) {
-  const q = norm(quote)
-    .replace(/[^\p{L}\p{N}$€£%.,'"/ -]+/gu, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-  const p = page.replace(/[^\p{L}\p{N}$€£%.,'"/ -]+/gu, ' ').replace(/\s+/g, ' ');
+  // Web pages often put a space before a full stop or comma ("Insurance ."), which the words do not have.
+  const tidy = (text) =>
+    text
+      .replace(/[^\p{L}\p{N}$€£%.,'"/ -]+/gu, ' ')
+      .replace(/\s+/g, ' ')
+      .replace(/ ([.,])/g, '$1');
+  const q = tidy(norm(quote)).trim();
+  const p = tidy(page);
   if (q.length === 0) return 'MISSING';
   if (p.includes(q)) return 'FOUND';
   const words = q.split(' ');
