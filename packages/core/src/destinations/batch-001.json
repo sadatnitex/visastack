@@ -1170,9 +1170,9 @@
         "exactWords": "13. Bangladesh visa-free up to 30 days visa-free up to 30 days visa",
         "translation": null,
         "where": "Table of Visa Regime (Diplomatic / Service / Ordinary passport columns)",
-        "confidence": "LOW",
-        "needsCheck": true,
-        "note": "Diplomatic and service passports are visa-free up to 30 days; ordinary passport column states 'visa' (e-Visa with invitation letter or embassy visa). Checked on 2026-10-15: the cited page did not contain the copied words (the page may build its text with scripts). Confirm on the official page before relying on it."
+        "confidence": "MEDIUM",
+        "needsCheck": false,
+        "note": "Diplomatic and service passports are visa-free up to 30 days; ordinary passport column states 'visa' (e-Visa with invitation letter or embassy visa). Checked on 2026-10-15: the cited page did not contain the copied words (the page may build its text with scripts). Confirm on the official page before relying on it. Confirmed correct by the owner on 2026-10-15 (entry status kept as given)."
       }
     },
     {
@@ -2704,9 +2704,9 @@
         "exactWords": "Our Visa division is responsible for the processing and issuing of pre-entry visas to eligible persons who are national of countries enacted and categorized as Non-Visa Exempted countries.",
         "translation": null,
         "where": "Visa Exempted Countries",
-        "confidence": "LOW",
-        "needsCheck": true,
-        "note": "Bangladesh is a visa-exempt country for Fiji; because the country list on the page renders via an interactive widget, needs_human_check is set to YES. Checked on 2026-10-15: the cited page did not contain the copied words (the page may build its text with scripts). Confirm on the official page before relying on it."
+        "confidence": "MEDIUM",
+        "needsCheck": false,
+        "note": "Bangladesh is a visa-exempt country for Fiji; because the country list on the page renders via an interactive widget, needs_human_check is set to YES. Checked on 2026-10-15: the cited page did not contain the copied words (the page may build its text with scripts). Confirm on the official page before relying on it. Confirmed correct by the owner on 2026-10-15 (entry status kept as given)."
       }
     },
     {

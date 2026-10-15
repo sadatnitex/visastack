@@ -241,3 +241,5 @@ Phase 1 foundations. Phase 2 wiring. Phase 3 screens for new layers. Phase 4 cou
 - The sidebar now lists the six principal destinations plus Countries. On a phone the bar still shows the first four links; Countries sits under "More".
 - Rendered the sidebar in a real browser at laptop and phone widths to confirm the link and icon.
 - 2026-10-15, agency branding: the logo no longer shows as a broken picture (own logo route), the workspace header, settings preview and invitation share one mark and brand description, and settings has a live preview with ready-made accents and a reading check. Rendered and tested here; not verified on production signed in. Later branded documents: `docs/product/agency-brand-kit-direction.md`.
+
+- 2026-10-15, country sheets: Kazakhstan and Fiji confirmed correct by the owner (flag cleared, confidence medium, note records it). One stale Neon preview branch deleted after proof (see known-issues).
