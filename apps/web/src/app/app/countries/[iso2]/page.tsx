@@ -23,7 +23,7 @@ export default async function CountryPage({
   if (!destination) notFound();
   return (
     <section className="section container">
-      <CountryView destination={destination} basePath="/app/countries" />
+      <CountryView destination={destination} backHref="/app/countries" />
     </section>
   );
 }

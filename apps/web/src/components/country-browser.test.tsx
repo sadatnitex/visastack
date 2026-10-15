@@ -15,15 +15,40 @@ const filters = [
 const items: CountryBrowserItem[] = [
   {
     iso2: 'GB',
+    href: '/app/countries/gb',
     name: 'United Kingdom',
     status: 'VISA_REQUIRED',
     stay: 'Up to 180 days',
     fee: 'BDT 22,450',
     unconfirmed: false,
   },
-  { iso2: 'JP', name: 'Japan', status: 'VISA_REQUIRED', stay: null, fee: null, unconfirmed: true },
-  { iso2: 'VN', name: 'Vietnam', status: 'E_VISA', stay: null, fee: null, unconfirmed: false },
-  { iso2: 'KW', name: 'Kuwait', status: 'NOT_FOUND', stay: null, fee: null, unconfirmed: false },
+  {
+    iso2: 'JP',
+    href: '/app/countries/jp',
+    name: 'Japan',
+    status: 'VISA_REQUIRED',
+    stay: null,
+    fee: null,
+    unconfirmed: true,
+  },
+  {
+    iso2: 'VN',
+    href: '/app/countries/vn',
+    name: 'Vietnam',
+    status: 'E_VISA',
+    stay: null,
+    fee: null,
+    unconfirmed: false,
+  },
+  {
+    iso2: 'KW',
+    href: '/app/countries/kw',
+    name: 'Kuwait',
+    status: 'NOT_FOUND',
+    stay: null,
+    fee: null,
+    unconfirmed: false,
+  },
 ];
 let root: Root;
 let container: HTMLDivElement;
@@ -100,13 +125,12 @@ describe('the country list controls', () => {
 });
 
 describe('where each country opens', () => {
-  it('links to the workspace it was given, and to the traveller space by default', () => {
-    expect(container.querySelector('a[href="/app/countries/gb"]')).not.toBeNull();
-    act(() =>
-      root.render(
-        <CountryBrowser items={items} filters={filters} basePath="/app/agency/org-1/countries" />,
-      ),
-    );
+  it('follows the address it was given, so a link stays in the workspace it was opened from', () => {
+    const agency = items.map((item) => ({
+      ...item,
+      href: `/app/agency/org-1/countries/${item.iso2.toLowerCase()}`,
+    }));
+    act(() => root.render(<CountryBrowser items={agency} filters={filters} />));
     expect(container.querySelector('a[href="/app/agency/org-1/countries/gb"]')).not.toBeNull();
     expect(container.querySelector('a[href="/app/countries/gb"]')).toBeNull();
   });

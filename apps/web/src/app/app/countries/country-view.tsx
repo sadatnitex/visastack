@@ -156,20 +156,20 @@ function Facts({ destination }: { readonly destination: Destination }) {
   );
 }
 
-/** One country's page. `basePath` is the list it came from, so the way back stays in the same workspace. */
+/** One country's page. `backHref` is the list it came from, so the way back stays in the same workspace. */
 export function CountryView({
   destination,
-  basePath,
+  backHref,
 }: {
   readonly destination: Destination;
-  readonly basePath: string;
+  readonly backHref: string;
 }) {
   const routes = routesForDestination(destination);
 
   return (
     <>
       <PageHeader
-        back={{ href: basePath, label: 'All countries' }}
+        back={{ href: backHref, label: 'All countries' }}
         eyebrow="Country"
         title={destination.country}
         description="For an ordinary Bangladeshi passport. Rules change, so confirm on the official page before you apply."

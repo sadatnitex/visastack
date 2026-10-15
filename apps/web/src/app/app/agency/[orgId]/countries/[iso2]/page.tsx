@@ -21,5 +21,5 @@ export default async function AgencyCountryPage({
   const { orgId, iso2 } = await params;
   const destination = destinationByIso2(iso2);
   if (!destination) notFound();
-  return <CountryView destination={destination} basePath={`/app/agency/${orgId}/countries`} />;
+  return <CountryView destination={destination} backHref={`/app/agency/${orgId}/countries`} />;
 }

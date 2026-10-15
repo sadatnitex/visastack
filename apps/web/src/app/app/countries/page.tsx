@@ -6,7 +6,7 @@ export const metadata: Metadata = { title: 'Countries' };
 export default function CountriesPage() {
   return (
     <section className="section container">
-      <CountriesView basePath="/app/countries" />
+      <CountriesView href="/app/countries/[code]" />
     </section>
   );
 }

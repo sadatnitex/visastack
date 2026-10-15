@@ -7,9 +7,15 @@ import {
   countryListItems,
 } from '../../../lib/country-view';
 
-/** The country list. `basePath` is where a country's own page lives (the traveller space or an agency's). */
-export function CountriesView({ basePath }: { readonly basePath: string }) {
-  const items = countryListItems();
+/**
+ * The country list. `href` is the address of a country's own page in the workspace this list is shown in,
+ * written like the route itself with `[code]` where the country's two-letter code goes.
+ */
+export function CountriesView({ href }: { readonly href: string }) {
+  const items = countryListItems().map((item) => ({
+    ...item,
+    href: href.replace('[code]', item.iso2.toLowerCase()),
+  }));
   const researched = items.filter((item) => item.status !== 'NOT_FOUND').length;
   const filters = ENTRY_ORDER.map((status) => ({
     status,
@@ -29,7 +35,7 @@ export function CountriesView({ basePath }: { readonly basePath: string }) {
         on the official page before you apply. This is guidance, not legal advice, and the
         destination decides your application.
       </p>
-      <CountryBrowser items={items} filters={filters} basePath={basePath} />
+      <CountryBrowser items={items} filters={filters} />
     </>
   );
 }
