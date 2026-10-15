@@ -4184,29 +4184,114 @@ body:has(.auth-shell) > .footer {
 .profile-completeness > strong {
   font-size: 1.75rem;
 }
-.profile-section-tabs {
-  display: flex;
-  gap: 1rem;
-  overflow-x: auto;
-  border-bottom: 1px solid var(--hairline);
-  margin-bottom: 0.75rem;
+/* Profile areas: a list down the left on a laptop, one "Area" box on a phone. Nothing scrolls sideways. */
+.profile-areas {
+  display: grid;
+  grid-template-columns: minmax(12rem, 15rem) minmax(0, 1fr);
+  gap: 1.5rem;
+  align-items: start;
 }
-.profile-section-tabs button {
-  flex: 0 0 auto;
+.profile-area-nav {
+  position: sticky;
+  top: 1rem;
+}
+.profile-area-rail {
+  display: grid;
+  gap: 2px;
+}
+.profile-area-rail button,
+.profile-area-picker-list button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
   min-height: 44px;
-  padding: 0.5rem 0;
+  padding: 0.5rem 0.75rem;
   border: 0;
-  border-bottom: 3px solid transparent;
+  border-radius: var(--radius-sm);
   background: transparent;
   color: var(--text-tertiary);
   font: inherit;
   font-size: var(--text-small);
   font-weight: 600;
+  text-align: left;
   cursor: pointer;
 }
-.profile-section-tabs button[aria-selected="true"] {
-  color: var(--accent);
-  border-bottom-color: var(--accent);
+.profile-area-rail button[aria-selected="true"],
+.profile-area-picker-list button[aria-current="true"] {
+  background: var(--brand-bg);
+  color: var(--selected-text);
+}
+.profile-area-count {
+  flex: 0 0 auto;
+  padding: 0.05rem 0.5rem;
+  border-radius: var(--radius-pill);
+  background: var(--bg-subtle);
+  color: var(--text-tertiary);
+  font-size: var(--text-caption);
+  font-weight: 600;
+}
+.profile-area-rail button[aria-selected="true"] .profile-area-count,
+.profile-area-picker-list button[aria-current="true"] .profile-area-count {
+  background: var(--bg-elevated);
+  color: var(--selected-text);
+}
+.profile-area-picker {
+  display: none;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elevated);
+}
+.profile-area-picker summary {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-height: 48px;
+  padding: 0.5rem 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  list-style: none;
+}
+.profile-area-picker summary::-webkit-details-marker {
+  display: none;
+}
+.profile-area-picker summary::after {
+  content: "\25BE";
+  margin-left: auto;
+  color: var(--text-tertiary);
+}
+.profile-area-picker[open] summary {
+  border-bottom: 1px solid var(--hairline-soft);
+}
+.profile-area-picker-label {
+  color: var(--text-tertiary);
+  font-size: var(--text-caption);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.profile-area-picker-list {
+  display: grid;
+  gap: 2px;
+  padding: 0.4rem;
+}
+.profile-area-content {
+  min-width: 0;
+}
+@media (max-width: 820px) {
+  .profile-areas {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 1rem;
+  }
+  .profile-area-nav {
+    position: static;
+  }
+  .profile-area-rail {
+    display: none;
+  }
+  .profile-area-picker {
+    display: block;
+  }
 }
 .profile-history-link {
   display: inline-block;
