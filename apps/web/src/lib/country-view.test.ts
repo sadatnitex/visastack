@@ -93,10 +93,10 @@ describe('the country list', () => {
   });
 
   it('marks a country flagged for checking as unconfirmed, and one with nothing known as not yet researched', () => {
-    const kazakhstan = destinationByIso2('KZ');
+    const flagged = destinationByIso2('AZ');
     const kuwait = destinationByIso2('KW');
-    if (!kazakhstan || !kuwait) throw new Error('fixture');
-    expect(countryListItem(kazakhstan).unconfirmed).toBe(true);
+    if (!flagged || !kuwait) throw new Error('fixture');
+    expect(countryListItem(flagged).unconfirmed).toBe(true);
     expect(countryListItem(kuwait).status).toBe('NOT_FOUND');
     expect(countryListItem(kuwait).unconfirmed).toBe(false);
   });

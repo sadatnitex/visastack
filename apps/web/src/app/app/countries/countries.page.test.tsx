@@ -41,7 +41,7 @@ describe('a country page', () => {
   });
 
   it('flags a country whose facts need checking', async () => {
-    const text = textOf(await detail('kz'));
+    const text = textOf(await detail('az'));
     expect(text).toContain('Needs checking before you rely on it.');
   });
 
