@@ -6,6 +6,8 @@ import { EmptyState, StatusBadge } from './ui';
 
 export interface CountryBrowserItem {
   readonly iso2: string;
+  /** Where this country's own page is, built by the page that knows which workspace it is in. */
+  readonly href: string;
   readonly name: string;
   readonly status: EntryStatus;
   readonly stay: string | null;
@@ -82,7 +84,7 @@ export function CountryBrowser({
         <ul className="country-list">
           {matches.map((item) => (
             <li key={item.iso2}>
-              <Link href={`/app/countries/${item.iso2.toLowerCase()}`} className="country-row">
+              <Link href={item.href} className="country-row">
                 <span className="country-row-name">{item.name}</span>
                 <span className="country-row-facts">
                   <StatusBadge tone={item.status === 'NOT_FOUND' ? 'warning' : 'neutral'}>

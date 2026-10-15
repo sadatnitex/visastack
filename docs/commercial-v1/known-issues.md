@@ -5179,6 +5179,7 @@ Documentation only. The bidesh365 master profile (54 sections) was compared with
 
 - 2026-10-15, countries screen: signed-in screen listing the 156 countries and their visa types with source, check date and warnings on every fact. Reference only; it does not drive any readiness rule. Rendered and tested here; not verified on production signed in. Data caveats are in the country-intake README (61 unreachable pages, flagged rows, Kazakhstan and Fiji to check first).
 
+- 2026-10-15, countries navigation: the first release put the Countries link only in the top-bar page finder (`PRIMARY_NAV`), not in the sidebar, so it was effectively hidden; a report said otherwise and was wrong. The link is now in the personal and agency sidebars (agency pages added at `/app/agency/[orgId]/countries`). Rendered in a browser; not yet verified signed in on production.
 ### 2026-10-15, Agency branding: logo and workspace header
 
 - Cause of the broken logo: the logo address pointed at the document download route, which needs a per-file access token that an organisation logo never has, so the browser showed a broken picture. Fixed by a dedicated same-origin route `/api/branding/logo/[orgId]` (signed-in only; the stored file was already safety-scanned before it was saved; type checked again on read; `nosniff`, sandbox and same-origin headers). The address carries a short version tag so a replaced logo shows at once.

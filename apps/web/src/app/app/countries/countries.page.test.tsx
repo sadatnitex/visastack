@@ -57,3 +57,11 @@ describe('a country page', () => {
     await expect(detail('zz')).rejects.toThrow('NEXT_NOT_FOUND');
   });
 });
+
+describe('the traveller space links', () => {
+  it('opens countries and goes back inside the traveller space', async () => {
+    const list = await renderServer(CountriesPage());
+    expect(list).toContain('href="/app/countries/gb"');
+    expect(await detail('gb')).toContain('href="/app/countries"');
+  });
+});

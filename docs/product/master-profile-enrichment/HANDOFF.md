@@ -234,4 +234,10 @@ Phase 1 foundations. Phase 2 wiring. Phase 3 screens for new layers. Phase 4 cou
 - Data comes from `@visastack/core/destinations` on the server only; the list sends the browser a small summary (no full data). The thirty Schengen states share one Schengen visa type (`SCHENGEN_ISO2`, `routesForDestination`).
 - Not done: nothing here feeds readiness or any decision; agencies do not have the link in their own menu yet; the 61 unreachable source pages and the flagged rows still need a person.
 
+### 2026-10-15, Claude: the Countries link was not in the sidebar (found and fixed)
+
+- Mistake found: the first Countries release added the link to `PRIMARY_NAV`, which feeds only the "Find a page" box in the top bar. The sidebar the person actually sees is built by `workspaceNavigation` (`lib/workspace-navigation.ts`), so "Countries" was reachable only by searching for it or typing the address. An earlier report said it was in the main menu; that was wrong.
+- Fix: "Countries" is now the last item in the personal sidebar (also before a traveller exists) and in the agency sidebar. The agency one opens `/app/agency/[orgId]/countries`, so the sidebar does not switch to the personal space; both use the same views (`countries/countries-view.tsx`, `countries/country-view.tsx`) with a `basePath`. The agency layout still checks membership.
+- The sidebar now lists the six principal destinations plus Countries. On a phone the bar still shows the first four links; Countries sits under "More".
+- Rendered the sidebar in a real browser at laptop and phone widths to confirm the link and icon.
 - 2026-10-15, agency branding: the logo no longer shows as a broken picture (own logo route), the workspace header, settings preview and invitation share one mark and brand description, and settings has a live preview with ready-made accents and a reading check. Rendered and tested here; not verified on production signed in. Later branded documents: `docs/product/agency-brand-kit-direction.md`.

@@ -24,6 +24,7 @@ const CONTEXT_ICONS: Readonly<Record<string, IconName>> = {
   'Visa cases': 'briefcase',
   Sharing: 'share',
   Notifications: 'bell',
+  Countries: 'globe',
   Settings: 'settings',
   'Agency settings': 'settings',
   'Platform settings': 'settings',
