@@ -219,3 +219,10 @@ Phase 1 foundations. Phase 2 wiring. Phase 3 screens for new layers. Phase 4 cou
 - Corrected the 23 Schengen quotes (EU Regulation 2018/1806, Article 3(1); Annex I names Bangladesh) and Benin's quote; flagged rows whose pages do not hold the copied words (low confidence, needs check). Facts were not changed.
 - The quote checker now decodes HTML character codes and ignores a space before a full stop. `fetch-pages.mjs` can print the stretches around chosen words (`show_pages` input, `url|word,word`) and keeps original capitals.
 - Not done: the 61 unreachable pages (open them by hand or find another route), and Kazakhstan and Fiji (a person should check them first).
+
+### 2026-10-15, Claude: profile areas without sideways scrolling
+
+- The ten profile areas are now a side list on a laptop, each with how many details are filled (for example 6/20; the pack areas that count none show no number), and one "Area" box on a phone that opens the same list. The row of tabs that scrolled sideways is gone (`profile-editor.tsx`, `.profile-area-*` in `globals.css`).
+- Keyboard: up, down, left, right, Home and End move between areas. While a search shows results from every area, the list stops acting as tabs, as before.
+- Counts come from each section's `answered` and `total`; nothing new is stored or fetched.
+- Checked in a real browser at laptop and phone width (no sideways overflow). Not checked: a signed-in walk-through on production.
