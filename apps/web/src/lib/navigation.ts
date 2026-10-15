@@ -30,8 +30,8 @@ export const PRIMARY_NAV: readonly NavLink[] = [
   },
   { href: '/app/shared', label: 'Shared with me' },
   { href: '/app/notifications', label: 'Alerts' },
-  { href: '/app/countries', label: 'Countries' },
   { href: '/app/privacy', label: 'Privacy' },
+  { href: '/app/countries', label: 'Countries' },
   { href: '/app/account', label: 'Account' },
 ];
 

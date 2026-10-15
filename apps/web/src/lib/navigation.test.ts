@@ -26,8 +26,16 @@ describe('traveller navigation names (directive Part 9 section 1)', () => {
     expect(offered).not.toContain('Missions');
   });
 
-  it('offers the country rules in the main bar', () => {
+  it('offers the country rules in the main menu without changing the phone bar or its first menu link', () => {
     expect(PRIMARY_NAV.find((l) => l.label === 'Countries')?.href).toBe('/app/countries');
+    // The phone bar holds the first four links; the sheet behind "More" opens on the fifth.
+    expect(labels(PRIMARY_NAV).slice(0, 5)).toEqual([
+      'Overview',
+      'Applicants',
+      'Shared with me',
+      'Alerts',
+      'Privacy',
+    ]);
   });
 
   it('keeps the existing route segments so bookmarks still work', () => {
