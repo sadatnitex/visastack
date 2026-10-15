@@ -5178,3 +5178,5 @@ Documentation only. The bidesh365 master profile (54 sections) was compared with
 - 2026-10-15, profile areas: the ten areas no longer scroll sideways. They are a side list with progress on a laptop and one Area box on a phone. Rendered and measured in a browser at both widths; not verified on production signed in.
 
 - 2026-10-15, countries screen: signed-in screen listing the 156 countries and their visa types with source, check date and warnings on every fact. Reference only; it does not drive any readiness rule. Rendered and tested here; not verified on production signed in. Data caveats are in the country-intake README (61 unreachable pages, flagged rows, Kazakhstan and Fiji to check first).
+
+- 2026-10-15, countries navigation: the first release put the Countries link only in the top-bar page finder (`PRIMARY_NAV`), not in the sidebar, so it was effectively hidden; a report said otherwise and was wrong. The link is now in the personal and agency sidebars (agency pages added at `/app/agency/[orgId]/countries`). Rendered in a browser; not yet verified signed in on production.

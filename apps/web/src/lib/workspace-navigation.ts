@@ -91,6 +91,7 @@ export function workspaceNavigation(
           : []),
         ...(agency.admin ? [{ href: `${base}/team`, label: 'Team' }] : []),
         { href: `${base}/activity`, label: 'Case activity' },
+        { href: `${base}/countries`, label: 'Countries' },
       ],
       tools: [{ href: `${base}/plan`, label: 'Plan & usage' }],
       settings: [...(agency.admin ? [{ href: `${base}/settings`, label: 'Agency settings' }] : [])],
@@ -132,6 +133,7 @@ export function workspaceNavigation(
           { href: `${base}/missions`, label: 'Visa cases', alsoCurrentFor: ['/app/mission/'] },
           { href: `${base}/sharing`, label: 'Sharing' },
           { href: '/app/notifications', label: 'Notifications' },
+          { href: '/app/countries', label: 'Countries' },
         ]
       : [
           { href: '/app', label: 'Overview', exact: true },
@@ -140,6 +142,7 @@ export function workspaceNavigation(
             label: access.travellers.length ? 'Choose a traveller' : 'Add a traveller',
           },
           { href: '/app/notifications', label: 'Notifications' },
+          { href: '/app/countries', label: 'Countries' },
         ],
     tools: [
       { href: '/app/shared', label: 'Shared with me' },

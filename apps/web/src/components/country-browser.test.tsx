@@ -98,3 +98,16 @@ describe('the country list controls', () => {
     expect(japan?.textContent).toContain('Needs checking');
   });
 });
+
+describe('where each country opens', () => {
+  it('links to the workspace it was given, and to the traveller space by default', () => {
+    expect(container.querySelector('a[href="/app/countries/gb"]')).not.toBeNull();
+    act(() =>
+      root.render(
+        <CountryBrowser items={items} filters={filters} basePath="/app/agency/org-1/countries" />,
+      ),
+    );
+    expect(container.querySelector('a[href="/app/agency/org-1/countries/gb"]')).not.toBeNull();
+    expect(container.querySelector('a[href="/app/countries/gb"]')).toBeNull();
+  });
+});
