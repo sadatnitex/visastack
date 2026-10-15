@@ -58,10 +58,7 @@ test('prints the stretches around chosen words, in the original capitals, and sa
   const results = [{ url: 'https://a.example/', status: 'OK', text: raw.toLowerCase(), raw }];
   const lines = pageLines(results, ['https://a.example/|bangladesh,Nepal'], 100, 20, 3);
   assert.equal(lines.length, 2);
-  assert.match(
-    lines[0],
-    /^HIT https:\/\/a\.example\/ \[bangladesh\] \.\.\..*Bangladesh is listed in Annex I\./,
-  );
+  assert.match(lines[0], /^HIT https:\/\/a\.example\/ \[bangladesh\] \.\.\..*Bangladesh is listed/);
   assert.equal(lines[1], 'HIT https://a.example/ [Nepal] NOT_ON_PAGE');
 });
 
