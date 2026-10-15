@@ -12,6 +12,7 @@ import {
   contrastRatio,
   getOrganizationBrandingForDisplay,
   isAccessibleAccentColor,
+  readOrganizationLogo,
   relativeLuminance,
   removeOrganizationLogo,
   updateOrganizationBranding,
@@ -21,13 +22,10 @@ import type { Db } from './db';
 import type { MalwareScannerPort } from './intake';
 import { addMembership, createOrganization, reviewOrganization } from './organizations';
 import type {
-  AccessRef,
   BlobStore,
-  IssueReadRefInput,
   ListObjectsPage,
   PutObjectInput,
   StorageBucket,
-  StoragePort,
   StoredBytes,
 } from './storage';
 
@@ -82,17 +80,6 @@ class FakeBlobStore implements BlobStore {
   }
   has(objectKey: string): boolean {
     return this.objects.has(objectKey);
-  }
-}
-
-class FakeStoragePort implements StoragePort {
-  async issueReadRef(input: IssueReadRefInput): Promise<AccessRef> {
-    return {
-      url: `https://blob.test/${input.bucket}/${input.objectKey}`,
-      expiresAt: new Date(Date.now() + input.expiresInSeconds * 1000).toISOString(),
-      disposition: input.disposition,
-      variant: input.variant,
-    };
   }
 }
 
@@ -381,16 +368,14 @@ describe('uploadOrganizationLogo / removeOrganizationLogo (COM-04)', () => {
 describe('getOrganizationBrandingForDisplay -- and tenant isolation (COM-04, A28)', () => {
   let db: Db;
   let storage: FakeBlobStore;
-  let storagePort: FakeStoragePort;
   beforeEach(async () => {
     db = await freshDb();
     storage = new FakeBlobStore();
-    storagePort = new FakeStoragePort();
   });
 
   it('returns the name with null accentColor/logoUrl when nothing has been set', async () => {
     const { organizationId } = await seedOrganization(db, 'display-default');
-    const branding = await getOrganizationBrandingForDisplay(db, storagePort, organizationId);
+    const branding = await getOrganizationBrandingForDisplay(db, organizationId);
     expect(branding?.name).toBe('Acme display-default');
     expect(branding?.accentColor).toBeNull();
     expect(branding?.logoUrl).toBeNull();
@@ -399,13 +384,12 @@ describe('getOrganizationBrandingForDisplay -- and tenant isolation (COM-04, A28
   it('returns undefined for an unknown organization', async () => {
     const branding = await getOrganizationBrandingForDisplay(
       db,
-      storagePort,
       '00000000-0000-0000-0000-000000000000',
     );
     expect(branding).toBeUndefined();
   });
 
-  it('reflects a set accent color and mints a fresh logo reference once a logo exists', async () => {
+  it('reflects a set accent color and points at the app logo route, with an address that changes when the logo does', async () => {
     const { organizationId, ownerAccountId } = await seedOrganization(db, 'display-set');
     await updateOrganizationBranding(db, {
       actorAccountId: ownerAccountId,
@@ -418,9 +402,20 @@ describe('getOrganizationBrandingForDisplay -- and tenant isolation (COM-04, A28
       contentType: 'image/png',
       bytes: PNG_MAGIC,
     });
-    const branding = await getOrganizationBrandingForDisplay(db, storagePort, organizationId);
+    const branding = await getOrganizationBrandingForDisplay(db, organizationId);
     expect(branding?.accentColor).toBe('#0000ff');
-    expect(branding?.logoUrl).toContain('QUARANTINE');
+    expect(branding?.logoUrl).toMatch(
+      new RegExp(`^/api/branding/logo/${organizationId}\\?v=[A-Za-z0-9]{1,12}$`),
+    );
+    const first = branding?.logoUrl;
+    await uploadOrganizationLogo(db, storage, cleanScanner, {
+      actorAccountId: ownerAccountId,
+      organizationId,
+      contentType: 'image/png',
+      bytes: PNG_MAGIC,
+    });
+    const replaced = await getOrganizationBrandingForDisplay(db, organizationId);
+    expect(replaced?.logoUrl).not.toBe(first);
   });
 
   it('never leaks one organization\'s branding into another\'s -- "Agency A branding can never appear in Agency B context"', async () => {
@@ -445,13 +440,56 @@ describe('getOrganizationBrandingForDisplay -- and tenant isolation (COM-04, A28
       accentColor: '#000000',
     });
 
-    const brandingA = await getOrganizationBrandingForDisplay(db, storagePort, orgA.organizationId);
-    const brandingB = await getOrganizationBrandingForDisplay(db, storagePort, orgB.organizationId);
+    const brandingA = await getOrganizationBrandingForDisplay(db, orgA.organizationId);
+    const brandingB = await getOrganizationBrandingForDisplay(db, orgB.organizationId);
     expect(brandingA?.name).toBe('Agency A');
     expect(brandingA?.accentColor).toBe('#0000ff');
     expect(brandingA?.logoUrl).not.toBeNull();
     expect(brandingB?.name).toBe('Agency B');
     expect(brandingB?.accentColor).toBe('#000000');
     expect(brandingB?.logoUrl).toBeNull(); // B never uploaded a logo -- never inherits A's
+  });
+});
+
+describe('readOrganizationLogo -- the bytes behind the logo route', () => {
+  let db: Db;
+  let storage: FakeBlobStore;
+  beforeEach(async () => {
+    db = await freshDb();
+    storage = new FakeBlobStore();
+  });
+
+  it('returns the stored image and its type, and nothing for an organization without a logo', async () => {
+    const { organizationId, ownerAccountId } = await seedOrganization(db, 'read-logo');
+    expect(await readOrganizationLogo(db, storage, organizationId)).toBeUndefined();
+    await uploadOrganizationLogo(db, storage, cleanScanner, {
+      actorAccountId: ownerAccountId,
+      organizationId,
+      contentType: 'image/png',
+      bytes: PNG_MAGIC,
+    });
+    const logo = await readOrganizationLogo(db, storage, organizationId);
+    expect(logo?.contentType).toBe('image/png');
+    expect(logo?.bytes.byteLength).toBe(PNG_MAGIC.byteLength);
+  });
+
+  it("never returns another organization's logo, an unknown organization, or a removed logo", async () => {
+    const a = await seedOrganization(db, 'read-a');
+    const b = await seedOrganization(db, 'read-b');
+    await uploadOrganizationLogo(db, storage, cleanScanner, {
+      actorAccountId: a.ownerAccountId,
+      organizationId: a.organizationId,
+      contentType: 'image/png',
+      bytes: PNG_MAGIC,
+    });
+    expect(await readOrganizationLogo(db, storage, b.organizationId)).toBeUndefined();
+    expect(
+      await readOrganizationLogo(db, storage, '00000000-0000-0000-0000-000000000000'),
+    ).toBeUndefined();
+    await removeOrganizationLogo(db, storage, {
+      actorAccountId: a.ownerAccountId,
+      organizationId: a.organizationId,
+    });
+    expect(await readOrganizationLogo(db, storage, a.organizationId)).toBeUndefined();
   });
 });

@@ -2,15 +2,14 @@ import { getOrganizationBrandingForDisplay } from '@visastack/services';
 import { notFound } from 'next/navigation';
 import type { ReactNode } from 'react';
 import { StatusBadge, type Tone } from '../../../../components/ui';
+import { agencyBrand } from '../../../../lib/agency-brand';
 import {
   capabilityUnavailableMessage,
   getPlatformCapabilities,
 } from '../../../../lib/capabilities';
 import { withSession } from '../../../../lib/session';
-import { createStorage } from '../../../../lib/storage';
 import { loadOrgAccess } from './console-data';
 import { ORG_STATUS } from './console-format';
-import { OrgBrandingHeader } from './org-branding-header';
 import { AgencyWorkspaceHeading } from './workspace-heading';
 
 export const dynamic = 'force-dynamic';
@@ -36,7 +35,7 @@ export default async function AgencyConsoleLayout({
     // Not member-gated: the name already renders for anyone who can reach this
     // page by URL, and branding (name, logo, accent colour) carries no more
     // sensitivity than that.
-    const branding = await getOrganizationBrandingForDisplay(db, createStorage(db), orgId);
+    const branding = await getOrganizationBrandingForDisplay(db, orgId);
     return { ...access, branding };
   });
   if (!data) notFound();
@@ -48,9 +47,12 @@ export default async function AgencyConsoleLayout({
     <section className="section container">
       <AgencyWorkspaceHeading
         organizationId={orgId}
-        name={data.org.name}
+        brand={agencyBrand({
+          name: data.org.name,
+          accentColor: data.branding?.accentColor ?? null,
+          logoUrl: data.branding?.logoUrl ?? null,
+        })}
         admin={data.member && data.admin}
-        lead={<OrgBrandingHeader branding={data.branding} />}
         status={<StatusBadge tone={badgeTone}>{badge.label}</StatusBadge>}
       />
 

@@ -6,7 +6,7 @@ import { type Db, first, required, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
 import type { MalwareScannerPort } from './intake';
 import { isOrgAdmin } from './organizations';
-import type { BlobStore, StoragePort } from './storage';
+import type { BlobStore } from './storage';
 
 /**
  * Agency branding (Commercial V1 COM-04, master directive Part 5 §9).
@@ -104,8 +104,22 @@ export function isAccessibleAccentColor(hex: string): boolean {
 export interface OrganizationBranding {
   readonly name: string;
   readonly accentColor: string | null;
-  /** A freshly-minted, short-lived signed reference -- never a raw or cacheable URL. `null` when no logo is set. */
+  /**
+   * The app's own address for this logo (`organizationLogoPath`), `null` when no logo is set. It is a plain
+   * same-origin path so an image tag can load it; the logo route decides who may fetch it. The path changes
+   * when the logo is replaced, so a browser never shows a stale one.
+   */
   readonly logoUrl: string | null;
+}
+
+/** Where the app serves an organization's logo. `version` changes whenever the logo does. */
+export function organizationLogoPath(organizationId: string, version: string): string {
+  return `/api/branding/logo/${organizationId}?v=${encodeURIComponent(version)}`;
+}
+
+/** A short, stable stand-in for a logo's stored key, used only to change the address when the logo changes. */
+function logoVersion(objectKey: string): string {
+  return objectKey.replace(/[^A-Za-z0-9]/g, '').slice(0, 12);
 }
 
 export interface UpdateOrganizationBrandingInput {
@@ -356,7 +370,6 @@ export async function removeOrganizationLogo(
  */
 export async function getOrganizationBrandingForDisplay(
   db: Db,
-  storage: StoragePort,
   organizationId: string,
 ): Promise<OrganizationBranding | undefined> {
   const organization = first(
@@ -367,16 +380,35 @@ export async function getOrganizationBrandingForDisplay(
       .limit(1),
   );
   if (!organization) return undefined;
-  let logoUrl: string | null = null;
-  if (organization.logoObjectKey) {
-    const ref = await storage.issueReadRef({
-      bucket: 'QUARANTINE',
-      objectKey: organization.logoObjectKey,
-      disposition: 'preview',
-      variant: 'original',
-      expiresInSeconds: 300,
-    });
-    logoUrl = ref.url;
+  return {
+    name: organization.name,
+    accentColor: organization.accentColor,
+    logoUrl: organization.logoObjectKey
+      ? organizationLogoPath(organization.id, logoVersion(organization.logoObjectKey))
+      : null,
+  };
+}
+
+/** The logo's bytes and image type, for the app's logo route (and, later, for documents an agency produces). */
+export async function readOrganizationLogo(
+  db: Db,
+  storage: Pick<BlobStore, 'getObject'>,
+  organizationId: string,
+): Promise<{ readonly bytes: Uint8Array; readonly contentType: string } | undefined> {
+  const organization = first(
+    await db
+      .select({
+        key: schema.organizations.logoObjectKey,
+        contentType: schema.organizations.logoContentType,
+      })
+      .from(schema.organizations)
+      .where(eq(schema.organizations.id, organizationId))
+      .limit(1),
+  );
+  if (!organization?.key || !organization.contentType) return undefined;
+  if (!(ALLOWED_LOGO_CONTENT_TYPES as readonly string[]).includes(organization.contentType)) {
+    return undefined;
   }
-  return { name: organization.name, accentColor: organization.accentColor, logoUrl };
+  const object = await storage.getObject(organization.key);
+  return object ? { bytes: object.bytes, contentType: organization.contentType } : undefined;
 }

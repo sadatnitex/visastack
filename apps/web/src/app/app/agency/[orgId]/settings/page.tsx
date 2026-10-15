@@ -5,7 +5,6 @@ import {
   getPlatformCapabilities,
 } from '../../../../../lib/capabilities';
 import { withSession } from '../../../../../lib/session';
-import { createStorage } from '../../../../../lib/storage';
 import { BrandingForm } from '../branding-form';
 import { loadOrgAccess } from '../console-data';
 import { RequireDifferentReviewerToggle } from '../require-different-reviewer-toggle';
@@ -31,7 +30,7 @@ export default async function AgencySettingsPage({
     const access = await loadOrgAccess(db, accountId, orgId);
     if (!access?.member) return null;
     if (!access.admin) return { admin: false as const };
-    const branding = await getOrganizationBrandingForDisplay(db, createStorage(db), orgId);
+    const branding = await getOrganizationBrandingForDisplay(db, orgId);
     return { admin: true as const, org: access.org, branding };
   });
   if (!data) return null;
@@ -68,9 +67,9 @@ export default async function AgencySettingsPage({
         <p className="card-kicker">Settings</p>
         <h2 className="card-title">Branding</h2>
         <p className="card-body u-mb-125">
-          Approved logo, agency name, and one accessible accent color -- shown on this console and
-          on invitations. "Powered by VisaStack" always stays alongside it, and this organization's
-          branding never appears in another organization's workspace.
+          Your logo, your agency name and one accent colour. They show across this workspace and on
+          the invitations you send. "Powered by VisaStack" always stays beside them, and your
+          branding never appears in another agency's workspace.
         </p>
         <BrandingForm
           organizationId={orgId}

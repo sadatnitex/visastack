@@ -341,6 +341,8 @@ export {
   contrastRatio,
   getOrganizationBrandingForDisplay,
   isAccessibleAccentColor,
+  organizationLogoPath,
+  readOrganizationLogo,
   relativeLuminance,
   removeOrganizationLogo,
   updateOrganizationBranding,
