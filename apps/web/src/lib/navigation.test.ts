@@ -26,6 +26,10 @@ describe('traveller navigation names (directive Part 9 section 1)', () => {
     expect(offered).not.toContain('Missions');
   });
 
+  it('offers the country rules in the main bar', () => {
+    expect(PRIMARY_NAV.find((l) => l.label === 'Countries')?.href).toBe('/app/countries');
+  });
+
   it('keeps the existing route segments so bookmarks still work', () => {
     const tabs = applicantTabs('abc');
     expect(tabs.find((t) => t.label === 'Cases')?.href).toBe('/app/applicant/abc/missions');

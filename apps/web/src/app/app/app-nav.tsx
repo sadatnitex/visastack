@@ -12,6 +12,7 @@ const ICONS: Readonly<Record<string, IconName>> = {
   '/app/applicants': 'users',
   '/app/shared': 'share',
   '/app/notifications': 'bell',
+  '/app/countries': 'globe',
   '/app/privacy': 'shield',
   '/app/account': 'user',
 };
