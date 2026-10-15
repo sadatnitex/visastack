@@ -117,9 +117,9 @@
         "exactWords": "Cost From AUD250.00 (concessions apply in limited circumstances).",
         "translation": null,
         "where": "Overview - Cost",
-        "confidence": "HIGH",
-        "needsCheck": false,
-        "note": "Online application via ImmiAccount; biometrics collected at VFS Global Dhaka."
+        "confidence": "LOW",
+        "needsCheck": true,
+        "note": "Online application via ImmiAccount; biometrics collected at VFS Global Dhaka. Checked on 2026-10-15: the cited page did not contain the copied words (the page may build its text with scripts). Confirm on the official page before relying on it."
       }
     },
     {
@@ -859,9 +859,9 @@
         "exactWords": "The Hayya Tourist Visa (A1) is for anyone who wishes to travel to Qatar for tourism or visit friends and family.",
         "translation": null,
         "where": "What is the Hayya Tourist Visa (A1)?",
-        "confidence": "HIGH",
-        "needsCheck": false,
-        "note": "Hayya Tourist Visa (A1) costs QAR 100 and is valid for 30 days."
+        "confidence": "LOW",
+        "needsCheck": true,
+        "note": "Hayya Tourist Visa (A1) costs QAR 100 and is valid for 30 days. Checked on 2026-10-15: the cited page did not contain the copied words (the page may build its text with scripts). Confirm on the official page before relying on it."
       }
     },
     {
@@ -1170,9 +1170,9 @@
         "exactWords": "13. Bangladesh visa-free up to 30 days visa-free up to 30 days visa",
         "translation": null,
         "where": "Table of Visa Regime (Diplomatic / Service / Ordinary passport columns)",
-        "confidence": "HIGH",
-        "needsCheck": false,
-        "note": "Diplomatic and service passports are visa-free up to 30 days; ordinary passport column states 'visa' (e-Visa with invitation letter or embassy visa)."
+        "confidence": "LOW",
+        "needsCheck": true,
+        "note": "Diplomatic and service passports are visa-free up to 30 days; ordinary passport column states 'visa' (e-Visa with invitation letter or embassy visa). Checked on 2026-10-15: the cited page did not contain the copied words (the page may build its text with scripts). Confirm on the official page before relying on it."
       }
     },
     {
@@ -1580,9 +1580,9 @@
         "exactWords": "All visitors including infants and children who intend to travel to the Republic of Kenya must have an approved Electronic Travel Authorisation (eTA) before the start of their journey.",
         "translation": null,
         "where": "Eligibility / Types of eTA",
-        "confidence": "HIGH",
-        "needsCheck": false,
-        "note": "Standard eTA fee is USD 30; Transit eTA is USD 20."
+        "confidence": "LOW",
+        "needsCheck": true,
+        "note": "Standard eTA fee is USD 30; Transit eTA is USD 20. Checked on 2026-10-15: the cited page did not contain the copied words (the page may build its text with scripts). Confirm on the official page before relying on it."
       }
     },
     {
@@ -1611,9 +1611,9 @@
         "exactWords": "Citizens of all countries in the globe are eligible for tourist visa provided that the below requirements are fulfilled.",
         "translation": null,
         "where": "Eligibility / Fee (Single Entry 30 Days 62 USD)",
-        "confidence": "HIGH",
-        "needsCheck": false,
-        "note": "30-day single-entry Tourist e-Visa fee is USD 62."
+        "confidence": "LOW",
+        "needsCheck": true,
+        "note": "30-day single-entry Tourist e-Visa fee is USD 62. Checked on 2026-10-15: the cited page did not contain the copied words (the page may build its text with scripts). Confirm on the official page before relying on it."
       }
     },
     {
@@ -1872,9 +1872,9 @@
         "exactWords": "All foreign citizens wishing to travel to South Africa will need a visa, except citizens from countries who are exempt.",
         "translation": null,
         "where": "Frequently Asked Questions",
-        "confidence": "HIGH",
-        "needsCheck": false,
-        "note": "South Africa High Commission in New Delhi / VFS Global handles applications for Bangladeshi residents."
+        "confidence": "LOW",
+        "needsCheck": true,
+        "note": "South Africa High Commission in New Delhi / VFS Global handles applications for Bangladeshi residents. Checked on 2026-10-15: the cited page did not contain the copied words (the page may build its text with scripts). Confirm on the official page before relying on it."
       }
     },
     {
@@ -1895,10 +1895,10 @@
         "title": "Foire aux questions - e-Visa République du Bénin",
         "publisher": "Direction de l'Émigration et de l'Immigration, République du Bénin",
         "type": "government",
-        "language": "French",
-        "checkedOn": "2026-10-14",
-        "exactWords": "Ce site permet à tout étranger désireux de visiter la République du Bénin de soumettre sa demande d'e-Visa en ligne. Cependant, les Africains peuvent visiter le Bénin sans visa pendant 90 jours.",
-        "translation": "Machine translation: This site allows any foreigner wishing to visit the Republic of Benin to submit their e-Visa application online. However, Africans can visit Benin visa-free for 90 days.",
+        "language": "English",
+        "checkedOn": "2026-10-15",
+        "exactWords": "This site allows any foreigner wishing to visit the Republic of Benin to submit their e-Visa application online. However, Africans can visit Benin without a visa for 90 days.",
+        "translation": null,
         "where": "1. Qui doit demander un e-Visa ?",
         "confidence": "HIGH",
         "needsCheck": false,
@@ -2704,9 +2704,9 @@
         "exactWords": "Our Visa division is responsible for the processing and issuing of pre-entry visas to eligible persons who are national of countries enacted and categorized as Non-Visa Exempted countries.",
         "translation": null,
         "where": "Visa Exempted Countries",
-        "confidence": "HIGH",
+        "confidence": "LOW",
         "needsCheck": true,
-        "note": "Bangladesh is a visa-exempt country for Fiji; because the country list on the page renders via an interactive widget, needs_human_check is set to YES."
+        "note": "Bangladesh is a visa-exempt country for Fiji; because the country list on the page renders via an interactive widget, needs_human_check is set to YES. Checked on 2026-10-15: the cited page did not contain the copied words (the page may build its text with scripts). Confirm on the official page before relying on it."
       }
     },
     {
@@ -2852,13 +2852,13 @@
         "publisher": "European Union (EUR-Lex / DG HOME)",
         "type": "government",
         "language": "English",
-        "checkedOn": "2026-10-14",
-        "exactWords": "Nationals of third countries listed in Annex I shall be required to be in possession of a visa when crossing the external borders of the Member States for stays of no more than 90 days in any 180-day period.",
+        "checkedOn": "2026-10-15",
+        "exactWords": "Nationals of third countries listed in Annex I shall be required to be in possession of a visa when crossing the external borders of the Member States.",
         "translation": null,
-        "where": "Article 3(1) and Annex I (1. STATES: Bangladesh)",
+        "where": "Article 3(1); Bangladesh is named in the list in Annex I",
         "confidence": "HIGH",
         "needsCheck": false,
-        "note": "Submission location: New Delhi / VFS Dhaka. Adult Schengen short-stay fee is EUR 90 per EC DG HOME."
+        "note": "Submission location: New Delhi / VFS Dhaka. Adult Schengen short-stay fee is EUR 90 per EC DG HOME. Checked on 2026-10-15: Article 3(1) and Annex I (which names Bangladesh) are on the cited page. The 90 days in any 180 days is the general short-stay rule, not part of this sentence."
       }
     },
     {
@@ -2914,13 +2914,13 @@
         "publisher": "European Union (EUR-Lex / DG HOME)",
         "type": "government",
         "language": "English",
-        "checkedOn": "2026-10-14",
-        "exactWords": "Nationals of third countries listed in Annex I shall be required to be in possession of a visa when crossing the external borders of the Member States for stays of no more than 90 days in any 180-day period.",
+        "checkedOn": "2026-10-15",
+        "exactWords": "Nationals of third countries listed in Annex I shall be required to be in possession of a visa when crossing the external borders of the Member States.",
         "translation": null,
-        "where": "Article 3(1) and Annex I (1. STATES: Bangladesh)",
+        "where": "Article 3(1); Bangladesh is named in the list in Annex I",
         "confidence": "HIGH",
         "needsCheck": false,
-        "note": "Submission location: New Delhi / VFS Global. Adult Schengen short-stay fee is EUR 90 per EC DG HOME."
+        "note": "Submission location: New Delhi / VFS Global. Adult Schengen short-stay fee is EUR 90 per EC DG HOME. Checked on 2026-10-15: Article 3(1) and Annex I (which names Bangladesh) are on the cited page. The 90 days in any 180 days is the general short-stay rule, not part of this sentence."
       }
     },
     {
@@ -2945,13 +2945,13 @@
         "publisher": "European Union (EUR-Lex / DG HOME)",
         "type": "government",
         "language": "English",
-        "checkedOn": "2026-10-14",
-        "exactWords": "Nationals of third countries listed in Annex I shall be required to be in possession of a visa when crossing the external borders of the Member States for stays of no more than 90 days in any 180-day period.",
+        "checkedOn": "2026-10-15",
+        "exactWords": "Nationals of third countries listed in Annex I shall be required to be in possession of a visa when crossing the external borders of the Member States.",
         "translation": null,
-        "where": "Article 3(1) and Annex I (1. STATES: Bangladesh)",
+        "where": "Article 3(1); Bangladesh is named in the list in Annex I",
         "confidence": "HIGH",
         "needsCheck": false,
-        "note": "Submission location: New Delhi / VFS Dhaka. Adult Schengen short-stay fee is EUR 90 per EC DG HOME."
+        "note": "Submission location: New Delhi / VFS Dhaka. Adult Schengen short-stay fee is EUR 90 per EC DG HOME. Checked on 2026-10-15: Article 3(1) and Annex I (which names Bangladesh) are on the cited page. The 90 days in any 180 days is the general short-stay rule, not part of this sentence."
       }
     },
     {
@@ -2976,13 +2976,13 @@
         "publisher": "European Union (EUR-Lex / DG HOME)",
         "type": "government",
         "language": "English",
-        "checkedOn": "2026-10-14",
-        "exactWords": "Nationals of third countries listed in Annex I shall be required to be in possession of a visa when crossing the external borders of the Member States for stays of no more than 90 days in any 180-day period.",
+        "checkedOn": "2026-10-15",
+        "exactWords": "Nationals of third countries listed in Annex I shall be required to be in possession of a visa when crossing the external borders of the Member States.",
         "translation": null,
-        "where": "Article 3(1) and Annex I (1. STATES: Bangladesh)",
+        "where": "Article 3(1); Bangladesh is named in the list in Annex I",
         "confidence": "HIGH",
         "needsCheck": false,
-        "note": "Submission location: New Delhi. Adult Schengen short-stay fee is EUR 90 per EC DG HOME."
+        "note": "Submission location: New Delhi. Adult Schengen short-stay fee is EUR 90 per EC DG HOME. Checked on 2026-10-15: Article 3(1) and Annex I (which names Bangladesh) are on the cited page. The 90 days in any 180 days is the general short-stay rule, not part of this sentence."
       }
     },
     {
@@ -3007,13 +3007,13 @@
         "publisher": "European Union (EUR-Lex / DG HOME)",
         "type": "government",
         "language": "English",
-        "checkedOn": "2026-10-14",
-        "exactWords": "Nationals of third countries listed in Annex I shall be required to be in possession of a visa when crossing the external borders of the Member States for stays of no more than 90 days in any 180-day period.",
+        "checkedOn": "2026-10-15",
+        "exactWords": "Nationals of third countries listed in Annex I shall be required to be in possession of a visa when crossing the external borders of the Member States.",
         "translation": null,
-        "where": "Article 3(1) and Annex I (1. STATES: Bangladesh)",
+        "where": "Article 3(1); Bangladesh is named in the list in Annex I",
         "confidence": "HIGH",
         "needsCheck": false,
-        "note": "Submission location: New Delhi. Adult Schengen short-stay fee is EUR 90 per EC DG HOME."
+        "note": "Submission location: New Delhi. Adult Schengen short-stay fee is EUR 90 per EC DG HOME. Checked on 2026-10-15: Article 3(1) and Annex I (which names Bangladesh) are on the cited page. The 90 days in any 180 days is the general short-stay rule, not part of this sentence."
       }
     },
     {
@@ -3038,13 +3038,13 @@
         "publisher": "European Union (EUR-Lex / DG HOME)",
         "type": "government",
         "language": "English",
-        "checkedOn": "2026-10-14",
-        "exactWords": "Nationals of third countries listed in Annex I shall be required to be in possession of a visa when crossing the external borders of the Member States for stays of no more than 90 days in any 180-day period.",
+        "checkedOn": "2026-10-15",
+        "exactWords": "Nationals of third countries listed in Annex I shall be required to be in possession of a visa when crossing the external borders of the Member States.",
         "translation": null,
-        "where": "Article 3(1) and Annex I (1. STATES: Bangladesh)",
+        "where": "Article 3(1); Bangladesh is named in the list in Annex I",
         "confidence": "HIGH",
         "needsCheck": false,
-        "note": "Submission location: Dhaka (VFS Global). Adult Schengen short-stay fee is EUR 90 per EC DG HOME."
+        "note": "Submission location: Dhaka (VFS Global). Adult Schengen short-stay fee is EUR 90 per EC DG HOME. Checked on 2026-10-15: Article 3(1) and Annex I (which names Bangladesh) are on the cited page. The 90 days in any 180 days is the general short-stay rule, not part of this sentence."
       }
     },
     {
@@ -3069,13 +3069,13 @@
         "publisher": "European Union (EUR-Lex / DG HOME)",
         "type": "government",
         "language": "English",
-        "checkedOn": "2026-10-14",
-        "exactWords": "Nationals of third countries listed in Annex I shall be required to be in possession of a visa when crossing the external borders of the Member States for stays of no more than 90 days in any 180-day period.",
+        "checkedOn": "2026-10-15",
+        "exactWords": "Nationals of third countries listed in Annex I shall be required to be in possession of a visa when crossing the external borders of the Member States.",
         "translation": null,
-        "where": "Article 3(1) and Annex I (1. STATES: Bangladesh)",
+        "where": "Article 3(1); Bangladesh is named in the list in Annex I",
         "confidence": "HIGH",
         "needsCheck": false,
-        "note": "Submission location: New Delhi. Adult Schengen short-stay fee is EUR 90 per EC DG HOME."
+        "note": "Submission location: New Delhi. Adult Schengen short-stay fee is EUR 90 per EC DG HOME. Checked on 2026-10-15: Article 3(1) and Annex I (which names Bangladesh) are on the cited page. The 90 days in any 180 days is the general short-stay rule, not part of this sentence."
       }
     },
     {
@@ -3131,13 +3131,13 @@
         "publisher": "European Union (EUR-Lex / DG HOME)",
         "type": "government",
         "language": "English",
-        "checkedOn": "2026-10-14",
-        "exactWords": "Nationals of third countries listed in Annex I shall be required to be in possession of a visa when crossing the external borders of the Member States for stays of no more than 90 days in any 180-day period.",
+        "checkedOn": "2026-10-15",
+        "exactWords": "Nationals of third countries listed in Annex I shall be required to be in possession of a visa when crossing the external borders of the Member States.",
         "translation": null,
-        "where": "Article 3(1) and Annex I (1. STATES: Bangladesh)",
+        "where": "Article 3(1); Bangladesh is named in the list in Annex I",
         "confidence": "HIGH",
         "needsCheck": false,
-        "note": "Submission location: Dhaka. Adult Schengen short-stay fee is EUR 90 per EC DG HOME."
+        "note": "Submission location: Dhaka. Adult Schengen short-stay fee is EUR 90 per EC DG HOME. Checked on 2026-10-15: Article 3(1) and Annex I (which names Bangladesh) are on the cited page. The 90 days in any 180 days is the general short-stay rule, not part of this sentence."
       }
     },
     {
@@ -3193,13 +3193,13 @@
         "publisher": "European Union (EUR-Lex / DG HOME)",
         "type": "government",
         "language": "English",
-        "checkedOn": "2026-10-14",
-        "exactWords": "Nationals of third countries listed in Annex I shall be required to be in possession of a visa when crossing the external borders of the Member States for stays of no more than 90 days in any 180-day period.",
+        "checkedOn": "2026-10-15",
+        "exactWords": "Nationals of third countries listed in Annex I shall be required to be in possession of a visa when crossing the external borders of the Member States.",
         "translation": null,
-        "where": "Article 3(1) and Annex I (1. STATES: Bangladesh)",
+        "where": "Article 3(1); Bangladesh is named in the list in Annex I",
         "confidence": "HIGH",
         "needsCheck": false,
-        "note": "Submission location: New Delhi / VFS Dhaka. Adult Schengen short-stay fee is EUR 90 per EC DG HOME."
+        "note": "Submission location: New Delhi / VFS Dhaka. Adult Schengen short-stay fee is EUR 90 per EC DG HOME. Checked on 2026-10-15: Article 3(1) and Annex I (which names Bangladesh) are on the cited page. The 90 days in any 180 days is the general short-stay rule, not part of this sentence."
       }
     },
     {
@@ -3224,13 +3224,13 @@
         "publisher": "European Union (EUR-Lex / DG HOME)",
         "type": "government",
         "language": "English",
-        "checkedOn": "2026-10-14",
-        "exactWords": "Nationals of third countries listed in Annex I shall be required to be in possession of a visa when crossing the external borders of the Member States for stays of no more than 90 days in any 180-day period.",
+        "checkedOn": "2026-10-15",
+        "exactWords": "Nationals of third countries listed in Annex I shall be required to be in possession of a visa when crossing the external borders of the Member States.",
         "translation": null,
-        "where": "Article 3(1) and Annex I (1. STATES: Bangladesh)",
+        "where": "Article 3(1); Bangladesh is named in the list in Annex I",
         "confidence": "HIGH",
         "needsCheck": false,
-        "note": "Submission location: Dhaka / New Delhi. Adult Schengen short-stay fee is EUR 90 per EC DG HOME."
+        "note": "Submission location: Dhaka / New Delhi. Adult Schengen short-stay fee is EUR 90 per EC DG HOME. Checked on 2026-10-15: Article 3(1) and Annex I (which names Bangladesh) are on the cited page. The 90 days in any 180 days is the general short-stay rule, not part of this sentence."
       }
     },
     {
@@ -3286,13 +3286,13 @@
         "publisher": "European Union (EUR-Lex / DG HOME)",
         "type": "government",
         "language": "English",
-        "checkedOn": "2026-10-14",
-        "exactWords": "Nationals of third countries listed in Annex I shall be required to be in possession of a visa when crossing the external borders of the Member States for stays of no more than 90 days in any 180-day period.",
+        "checkedOn": "2026-10-15",
+        "exactWords": "Nationals of third countries listed in Annex I shall be required to be in possession of a visa when crossing the external borders of the Member States.",
         "translation": null,
-        "where": "Article 3(1) and Annex I (1. STATES: Bangladesh)",
+        "where": "Article 3(1); Bangladesh is named in the list in Annex I",
         "confidence": "HIGH",
         "needsCheck": false,
-        "note": "Submission location: Dhaka (VFS Global). Adult Schengen short-stay fee is EUR 90 per EC DG HOME."
+        "note": "Submission location: Dhaka (VFS Global). Adult Schengen short-stay fee is EUR 90 per EC DG HOME. Checked on 2026-10-15: Article 3(1) and Annex I (which names Bangladesh) are on the cited page. The 90 days in any 180 days is the general short-stay rule, not part of this sentence."
       }
     },
     {
@@ -3348,13 +3348,13 @@
         "publisher": "European Union (EUR-Lex / DG HOME)",
         "type": "government",
         "language": "English",
-        "checkedOn": "2026-10-14",
-        "exactWords": "Nationals of third countries listed in Annex I shall be required to be in possession of a visa when crossing the external borders of the Member States for stays of no more than 90 days in any 180-day period.",
+        "checkedOn": "2026-10-15",
+        "exactWords": "Nationals of third countries listed in Annex I shall be required to be in possession of a visa when crossing the external borders of the Member States.",
         "translation": null,
-        "where": "Article 3(1) and Annex I (1. STATES: Bangladesh)",
+        "where": "Article 3(1); Bangladesh is named in the list in Annex I",
         "confidence": "HIGH",
         "needsCheck": false,
-        "note": "Submission location: Dhaka (via Embassy of Switzerland). Adult Schengen short-stay fee is EUR 90 per EC DG HOME."
+        "note": "Submission location: Dhaka (via Embassy of Switzerland). Adult Schengen short-stay fee is EUR 90 per EC DG HOME. Checked on 2026-10-15: Article 3(1) and Annex I (which names Bangladesh) are on the cited page. The 90 days in any 180 days is the general short-stay rule, not part of this sentence."
       }
     },
     {
@@ -3379,13 +3379,13 @@
         "publisher": "European Union (EUR-Lex / DG HOME)",
         "type": "government",
         "language": "English",
-        "checkedOn": "2026-10-14",
-        "exactWords": "Nationals of third countries listed in Annex I shall be required to be in possession of a visa when crossing the external borders of the Member States for stays of no more than 90 days in any 180-day period.",
+        "checkedOn": "2026-10-15",
+        "exactWords": "Nationals of third countries listed in Annex I shall be required to be in possession of a visa when crossing the external borders of the Member States.",
         "translation": null,
-        "where": "Article 3(1) and Annex I (1. STATES: Bangladesh)",
+        "where": "Article 3(1); Bangladesh is named in the list in Annex I",
         "confidence": "HIGH",
         "needsCheck": false,
-        "note": "Submission location: New Delhi. Adult Schengen short-stay fee is EUR 90 per EC DG HOME."
+        "note": "Submission location: New Delhi. Adult Schengen short-stay fee is EUR 90 per EC DG HOME. Checked on 2026-10-15: Article 3(1) and Annex I (which names Bangladesh) are on the cited page. The 90 days in any 180 days is the general short-stay rule, not part of this sentence."
       }
     },
     {
@@ -3441,13 +3441,13 @@
         "publisher": "European Union (EUR-Lex / DG HOME)",
         "type": "government",
         "language": "English",
-        "checkedOn": "2026-10-14",
-        "exactWords": "Nationals of third countries listed in Annex I shall be required to be in possession of a visa when crossing the external borders of the Member States for stays of no more than 90 days in any 180-day period.",
+        "checkedOn": "2026-10-15",
+        "exactWords": "Nationals of third countries listed in Annex I shall be required to be in possession of a visa when crossing the external borders of the Member States.",
         "translation": null,
-        "where": "Article 3(1) and Annex I (1. STATES: Bangladesh)",
+        "where": "Article 3(1); Bangladesh is named in the list in Annex I",
         "confidence": "HIGH",
         "needsCheck": false,
-        "note": "Submission location: New Delhi / VFS Dhaka. Adult Schengen short-stay fee is EUR 90 per EC DG HOME."
+        "note": "Submission location: New Delhi / VFS Dhaka. Adult Schengen short-stay fee is EUR 90 per EC DG HOME. Checked on 2026-10-15: Article 3(1) and Annex I (which names Bangladesh) are on the cited page. The 90 days in any 180 days is the general short-stay rule, not part of this sentence."
       }
     },
     {
@@ -3503,13 +3503,13 @@
         "publisher": "European Union (EUR-Lex / DG HOME)",
         "type": "government",
         "language": "English",
-        "checkedOn": "2026-10-14",
-        "exactWords": "Nationals of third countries listed in Annex I shall be required to be in possession of a visa when crossing the external borders of the Member States for stays of no more than 90 days in any 180-day period.",
+        "checkedOn": "2026-10-15",
+        "exactWords": "Nationals of third countries listed in Annex I shall be required to be in possession of a visa when crossing the external borders of the Member States.",
         "translation": null,
-        "where": "Article 3(1) and Annex I (1. STATES: Bangladesh)",
+        "where": "Article 3(1); Bangladesh is named in the list in Annex I",
         "confidence": "HIGH",
         "needsCheck": false,
-        "note": "Submission location: Dhaka (VFS Global). Adult Schengen short-stay fee is EUR 90 per EC DG HOME."
+        "note": "Submission location: Dhaka (VFS Global). Adult Schengen short-stay fee is EUR 90 per EC DG HOME. Checked on 2026-10-15: Article 3(1) and Annex I (which names Bangladesh) are on the cited page. The 90 days in any 180 days is the general short-stay rule, not part of this sentence."
       }
     },
     {
@@ -3565,13 +3565,13 @@
         "publisher": "European Union (EUR-Lex / DG HOME)",
         "type": "government",
         "language": "English",
-        "checkedOn": "2026-10-14",
-        "exactWords": "Nationals of third countries listed in Annex I shall be required to be in possession of a visa when crossing the external borders of the Member States for stays of no more than 90 days in any 180-day period.",
+        "checkedOn": "2026-10-15",
+        "exactWords": "Nationals of third countries listed in Annex I shall be required to be in possession of a visa when crossing the external borders of the Member States.",
         "translation": null,
-        "where": "Article 3(1) and Annex I (1. STATES: Bangladesh)",
+        "where": "Article 3(1); Bangladesh is named in the list in Annex I",
         "confidence": "HIGH",
         "needsCheck": false,
-        "note": "Submission location: New Delhi. Adult Schengen short-stay fee is EUR 90 per EC DG HOME."
+        "note": "Submission location: New Delhi. Adult Schengen short-stay fee is EUR 90 per EC DG HOME. Checked on 2026-10-15: Article 3(1) and Annex I (which names Bangladesh) are on the cited page. The 90 days in any 180 days is the general short-stay rule, not part of this sentence."
       }
     },
     {
@@ -3627,13 +3627,13 @@
         "publisher": "European Union (EUR-Lex / DG HOME)",
         "type": "government",
         "language": "English",
-        "checkedOn": "2026-10-14",
-        "exactWords": "Nationals of third countries listed in Annex I shall be required to be in possession of a visa when crossing the external borders of the Member States for stays of no more than 90 days in any 180-day period.",
+        "checkedOn": "2026-10-15",
+        "exactWords": "Nationals of third countries listed in Annex I shall be required to be in possession of a visa when crossing the external borders of the Member States.",
         "translation": null,
-        "where": "Article 3(1) and Annex I (1. STATES: Bangladesh)",
+        "where": "Article 3(1); Bangladesh is named in the list in Annex I",
         "confidence": "HIGH",
         "needsCheck": false,
-        "note": "Submission location: New Delhi. Adult Schengen short-stay fee is EUR 90 per EC DG HOME."
+        "note": "Submission location: New Delhi. Adult Schengen short-stay fee is EUR 90 per EC DG HOME. Checked on 2026-10-15: Article 3(1) and Annex I (which names Bangladesh) are on the cited page. The 90 days in any 180 days is the general short-stay rule, not part of this sentence."
       }
     },
     {
@@ -3689,13 +3689,13 @@
         "publisher": "European Union (EUR-Lex / DG HOME)",
         "type": "government",
         "language": "English",
-        "checkedOn": "2026-10-14",
-        "exactWords": "Nationals of third countries listed in Annex I shall be required to be in possession of a visa when crossing the external borders of the Member States for stays of no more than 90 days in any 180-day period.",
+        "checkedOn": "2026-10-15",
+        "exactWords": "Nationals of third countries listed in Annex I shall be required to be in possession of a visa when crossing the external borders of the Member States.",
         "translation": null,
-        "where": "Article 3(1) and Annex I (1. STATES: Bangladesh)",
+        "where": "Article 3(1); Bangladesh is named in the list in Annex I",
         "confidence": "HIGH",
         "needsCheck": false,
-        "note": "Submission location: Dhaka (BLS International). Adult Schengen short-stay fee is EUR 90 per EC DG HOME."
+        "note": "Submission location: Dhaka (BLS International). Adult Schengen short-stay fee is EUR 90 per EC DG HOME. Checked on 2026-10-15: Article 3(1) and Annex I (which names Bangladesh) are on the cited page. The 90 days in any 180 days is the general short-stay rule, not part of this sentence."
       }
     },
     {
@@ -3751,13 +3751,13 @@
         "publisher": "European Union (EUR-Lex / DG HOME)",
         "type": "government",
         "language": "English",
-        "checkedOn": "2026-10-14",
-        "exactWords": "Nationals of third countries listed in Annex I shall be required to be in possession of a visa when crossing the external borders of the Member States for stays of no more than 90 days in any 180-day period.",
+        "checkedOn": "2026-10-15",
+        "exactWords": "Nationals of third countries listed in Annex I shall be required to be in possession of a visa when crossing the external borders of the Member States.",
         "translation": null,
-        "where": "Article 3(1) and Annex I (1. STATES: Bangladesh)",
+        "where": "Article 3(1); Bangladesh is named in the list in Annex I",
         "confidence": "HIGH",
         "needsCheck": false,
-        "note": "Submission location: Dhaka (VFS Global). Adult Schengen short-stay fee is EUR 90 per EC DG HOME."
+        "note": "Submission location: Dhaka (VFS Global). Adult Schengen short-stay fee is EUR 90 per EC DG HOME. Checked on 2026-10-15: Article 3(1) and Annex I (which names Bangladesh) are on the cited page. The 90 days in any 180 days is the general short-stay rule, not part of this sentence."
       }
     },
     {
@@ -3782,13 +3782,13 @@
         "publisher": "European Union (EUR-Lex)",
         "type": "government",
         "language": "English",
-        "checkedOn": "2026-10-14",
-        "exactWords": "Nationals of third countries listed in Annex I shall be required to be in possession of a visa when crossing the external borders of the Member States for stays of no more than 90 days in any 180-day period.",
+        "checkedOn": "2026-10-15",
+        "exactWords": "Nationals of third countries listed in Annex I shall be required to be in possession of a visa when crossing the external borders of the Member States.",
         "translation": null,
-        "where": "Article 3(1) and Annex I (1. STATES: Bangladesh)",
+        "where": "Article 3(1); Bangladesh is named in the list in Annex I",
         "confidence": "HIGH",
         "needsCheck": true,
-        "note": "Andorra has no international airport and is accessed exclusively by crossing the external Schengen borders of France or Spain (requires a multiple-entry Schengen visa)."
+        "note": "Andorra has no international airport and is accessed exclusively by crossing the external Schengen borders of France or Spain (requires a multiple-entry Schengen visa). Checked on 2026-10-15: Article 3(1) and Annex I (which names Bangladesh) are on the cited page. The 90 days in any 180 days is the general short-stay rule, not part of this sentence."
       }
     },
     {
@@ -3813,13 +3813,13 @@
         "publisher": "European Union (EUR-Lex)",
         "type": "government",
         "language": "English",
-        "checkedOn": "2026-10-14",
-        "exactWords": "Nationals of third countries listed in Annex I shall be required to be in possession of a visa when crossing the external borders of the Member States for stays of no more than 90 days in any 180-day period.",
+        "checkedOn": "2026-10-15",
+        "exactWords": "Nationals of third countries listed in Annex I shall be required to be in possession of a visa when crossing the external borders of the Member States.",
         "translation": null,
-        "where": "Article 3(1) and Annex I (1. STATES: Bangladesh)",
+        "where": "Article 3(1); Bangladesh is named in the list in Annex I",
         "confidence": "HIGH",
         "needsCheck": false,
-        "note": "Monaco is part of the Schengen border area through France; applications in Bangladesh are submitted via the Embassy of France in Dhaka."
+        "note": "Monaco is part of the Schengen border area through France; applications in Bangladesh are submitted via the Embassy of France in Dhaka. Checked on 2026-10-15: Article 3(1) and Annex I (which names Bangladesh) are on the cited page. The 90 days in any 180 days is the general short-stay rule, not part of this sentence."
       }
     },
     {
@@ -3844,13 +3844,13 @@
         "publisher": "European Union (EUR-Lex)",
         "type": "government",
         "language": "English",
-        "checkedOn": "2026-10-14",
-        "exactWords": "Nationals of third countries listed in Annex I shall be required to be in possession of a visa when crossing the external borders of the Member States for stays of no more than 90 days in any 180-day period.",
+        "checkedOn": "2026-10-15",
+        "exactWords": "Nationals of third countries listed in Annex I shall be required to be in possession of a visa when crossing the external borders of the Member States.",
         "translation": null,
-        "where": "Article 3(1) and Annex I (1. STATES: Bangladesh)",
+        "where": "Article 3(1); Bangladesh is named in the list in Annex I",
         "confidence": "HIGH",
         "needsCheck": true,
-        "note": "San Marino is completely enclosed by Italy and accessed via Schengen external borders (Embassy of Italy in Dhaka / VFS Global)."
+        "note": "San Marino is completely enclosed by Italy and accessed via Schengen external borders (Embassy of Italy in Dhaka / VFS Global). Checked on 2026-10-15: Article 3(1) and Annex I (which names Bangladesh) are on the cited page. The 90 days in any 180 days is the general short-stay rule, not part of this sentence."
       }
     },
     {
@@ -3875,13 +3875,13 @@
         "publisher": "European Union (EUR-Lex)",
         "type": "government",
         "language": "English",
-        "checkedOn": "2026-10-14",
-        "exactWords": "Nationals of third countries listed in Annex I shall be required to be in possession of a visa when crossing the external borders of the Member States for stays of no more than 90 days in any 180-day period.",
+        "checkedOn": "2026-10-15",
+        "exactWords": "Nationals of third countries listed in Annex I shall be required to be in possession of a visa when crossing the external borders of the Member States.",
         "translation": null,
-        "where": "Article 3(1) and Annex I (1. STATES: Bangladesh)",
+        "where": "Article 3(1); Bangladesh is named in the list in Annex I",
         "confidence": "HIGH",
         "needsCheck": true,
-        "note": "Vatican City is enclosed by Rome, Italy and accessed via Schengen external borders (Embassy of Italy in Dhaka / VFS Global)."
+        "note": "Vatican City is enclosed by Rome, Italy and accessed via Schengen external borders (Embassy of Italy in Dhaka / VFS Global). Checked on 2026-10-15: Article 3(1) and Annex I (which names Bangladesh) are on the cited page. The 90 days in any 180 days is the general short-stay rule, not part of this sentence."
       }
     },
     {

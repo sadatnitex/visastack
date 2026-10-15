@@ -5,7 +5,7 @@
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { pageText, parseCsv } from './validate-intake.mjs';
+import { decodeEntities, pageText, parseCsv } from './validate-intake.mjs';
 
 const MAX_CHARS = 40000;
 const URL_COLUMNS = {
@@ -15,15 +15,11 @@ const URL_COLUMNS = {
 
 /** The page's words with their original capital letters, for quoting. The lower-case form is for checking only. */
 export function pageTextRaw(html) {
-  return String(html)
-    .replace(/<(script|style|noscript)[\s\S]*?<\/\1>/gi, ' ')
-    .replace(/<[^>]+>/g, ' ')
-    .replace(/&nbsp;/g, ' ')
-    .replace(/&amp;/g, '&')
-    .replace(/&quot;|&#34;/g, '"')
-    .replace(/&#39;|&apos;|&rsquo;|&lsquo;/g, "'")
-    .replace(/&euro;/g, '\u20ac')
-    .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(Number(n)))
+  return decodeEntities(
+    String(html)
+      .replace(/<(script|style|noscript)[\s\S]*?<\/\1>/gi, ' ')
+      .replace(/<[^>]+>/g, ' '),
+  )
     .replace(/\s+/g, ' ')
     .trim();
 }

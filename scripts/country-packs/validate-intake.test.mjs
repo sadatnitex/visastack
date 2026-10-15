@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
   SHEET_COLUMNS,
+  decodeEntities,
   liveChecks,
   numbersIn,
   pageText,
@@ -294,4 +295,16 @@ test('the live check finds, misses, and reports pages it cannot open; PDFs are s
     found.push(`${row}:${severity}:${code}`),
   );
   assert.deepEqual(found.sort(), ['3:ERROR:QUOTE_NOT_ON_PAGE', '4:WARN:PAGE_UNREACHABLE']);
+});
+
+test('turns HTML character codes into the characters they stand for, so a quote with a dash still matches', () => {
+  assert.equal(
+    decodeEntities(
+      '&euro;60: Single entry &ndash; Short stay &#39;C&#39; &#x27;visa&#x27; &middot; a&nbsp;b',
+    ),
+    "\u20ac60: Single entry \u2013 Short stay 'C' 'visa' \u00b7 a b",
+  );
+  assert.equal(decodeEntities('&notacode; &#999999999;'), '&notacode; &#999999999;');
+  const page = pageText("<p>&euro;60: Single entry &ndash; Short stay 'C' visa</p>");
+  assert.equal(quoteStatus(page, "\u20ac60: Single entry \u2013 Short stay 'C' visa"), 'FOUND');
 });
