@@ -12,6 +12,7 @@ import { formatDateOnly } from '../../../../lib/format-date';
 import type {
   EditorFieldDef,
   EditorGroup,
+  EditorLayer,
   EditorSection,
   MasterProfileView,
 } from '../../../../lib/master-profile-types';
@@ -838,6 +839,28 @@ function SuggestionBar({
   );
 }
 
+/** How many of an area's details are filled in, or null when the area counts none (a pack nobody has opened). */
+function layerProgress(layer: EditorLayer): { answered: number; total: number } | null {
+  let answered = 0;
+  let total = 0;
+  for (const section of layer.sections) {
+    answered += section.answered;
+    total += section.total;
+  }
+  return total > 0 ? { answered, total } : null;
+}
+
+function AreaCount({ layer }: { readonly layer: EditorLayer }) {
+  const progress = layerProgress(layer);
+  if (!progress) return null;
+  return (
+    <span className="profile-area-count">
+      {progress.answered}/{progress.total}
+      <span className="sr-only"> details filled</span>
+    </span>
+  );
+}
+
 interface ProfileEditorProps {
   readonly applicantId: string;
   readonly values: Readonly<Record<string, ProfileValue>>;
@@ -898,97 +921,141 @@ export function ProfileEditor({
     setSelected(key);
     setSearch('');
   }
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const current = view.layers.find((layer) => layer.key === selected) ?? view.layers[0];
+  function chooseFromPicker(key: string) {
+    selectLayer(key);
+    setPickerOpen(false);
+  }
+  /** Arrow keys move through the areas as in any list of tabs; Home and End jump to the ends. */
+  function moveBetweenAreas(event: React.KeyboardEvent, index: number) {
+    const step =
+      event.key === 'ArrowDown' || event.key === 'ArrowRight'
+        ? 1
+        : event.key === 'ArrowUp' || event.key === 'ArrowLeft'
+          ? -1
+          : 0;
+    const next =
+      event.key === 'Home'
+        ? 0
+        : event.key === 'End'
+          ? view.layers.length - 1
+          : step
+            ? (index + step + view.layers.length) % view.layers.length
+            : null;
+    if (next === null) return;
+    event.preventDefault();
+    const target = view.layers[next];
+    if (target) {
+      selectLayer(target.key);
+      document.getElementById(`profile-tab-${target.key}`)?.focus();
+    }
+  }
   return (
     <div ref={editor} id="profile-editor" tabIndex={-1}>
       <SuggestionBar applicantId={applicantId} view={view} />
-      <div
-        className="profile-section-tabs"
-        role={searching ? undefined : 'tablist'}
-        aria-label="Profile areas"
-      >
-        {view.layers.map((layer, index) => (
-          <button
-            key={layer.key}
-            type="button"
-            role={searching ? undefined : 'tab'}
-            id={`profile-tab-${layer.key}`}
-            aria-selected={searching ? undefined : selected === layer.key}
-            aria-controls={`profile-panel-${layer.key}`}
-            tabIndex={searching || selected === layer.key ? 0 : -1}
-            onClick={() => selectLayer(layer.key)}
-            onKeyDown={(event) => {
-              const offset = event.key === 'ArrowRight' ? 1 : event.key === 'ArrowLeft' ? -1 : 0;
-              const next =
-                event.key === 'Home'
-                  ? 0
-                  : event.key === 'End'
-                    ? view.layers.length - 1
-                    : offset
-                      ? (index + offset + view.layers.length) % view.layers.length
-                      : null;
-              if (next !== null) {
-                event.preventDefault();
-                const target = view.layers[next];
-                if (target) {
-                  selectLayer(target.key);
-                  document.getElementById(`profile-tab-${target.key}`)?.focus();
-                }
-              }
-            }}
+      <div className="profile-areas">
+        <div className="profile-area-nav">
+          <div
+            className="profile-area-rail"
+            role={searching ? undefined : 'tablist'}
+            aria-orientation={searching ? undefined : 'vertical'}
+            aria-label="Profile areas"
           >
-            {layer.label}
-          </button>
-        ))}
-      </div>
-      <Link href={`/app/applicant/${applicantId}/history`} className="profile-history-link">
-        History →
-      </Link>
-      <div className="profile-field-search">
-        <label className="field-label" htmlFor="profile-search">
-          Search all profile fields
-        </label>
-        <input
-          id="profile-search"
-          type="search"
-          className="input"
-          placeholder="e.g. passport, address, employer"
-          value={search}
-          onChange={(event) => setSearch(event.target.value)}
-        />
-      </div>
-      {searching && visibleLayers.length === 0 ? (
-        <output className="muted">No fields match. Try another field name.</output>
-      ) : null}
-      {view.layers.map((layer) => {
-        const visible = visibleLayers.some((item) => item.key === layer.key);
-        return (
-          <section
-            key={layer.key}
-            id={`profile-panel-${layer.key}`}
-            role={searching ? undefined : 'tabpanel'}
-            aria-labelledby={`profile-tab-${layer.key}`}
-            hidden={!visible}
+            {view.layers.map((layer, index) => (
+              <button
+                key={layer.key}
+                type="button"
+                role={searching ? undefined : 'tab'}
+                id={`profile-tab-${layer.key}`}
+                aria-selected={searching ? undefined : selected === layer.key}
+                aria-controls={`profile-panel-${layer.key}`}
+                tabIndex={searching || selected === layer.key ? 0 : -1}
+                onClick={() => selectLayer(layer.key)}
+                onKeyDown={(event) => moveBetweenAreas(event, index)}
+              >
+                <span className="profile-area-name">{layer.label}</span>
+                <AreaCount layer={layer} />
+              </button>
+            ))}
+          </div>
+          <details
+            className="profile-area-picker"
+            open={pickerOpen}
+            onToggle={(event) => setPickerOpen(event.currentTarget.open)}
           >
-            <h3>{layer.label}</h3>
-            <p className="muted">
-              {layer.description} {layer.openCount} of {layer.sections.length} sections open.
-            </p>
-            {layer.sections
-              .filter((section) => sectionMatches(section, search))
-              .map((section) => (
-                <SectionCard
-                  key={section.key}
-                  applicantId={applicantId}
-                  section={section}
-                  values={values}
-                  repeatingValues={repeatingValues}
-                  assurance={assurance}
-                  search={search}
-                />
+            <summary>
+              <span className="profile-area-picker-label">Area</span>
+              <span className="profile-area-name">{current?.label}</span>
+              {current ? <AreaCount layer={current} /> : null}
+            </summary>
+            <div className="profile-area-picker-list">
+              {view.layers.map((layer) => (
+                <button
+                  key={layer.key}
+                  type="button"
+                  aria-current={!searching && selected === layer.key ? 'true' : undefined}
+                  onClick={() => chooseFromPicker(layer.key)}
+                >
+                  <span className="profile-area-name">{layer.label}</span>
+                  <AreaCount layer={layer} />
+                </button>
               ))}
-          </section>
-        );
-      })}
+            </div>
+          </details>
+        </div>
+        <div className="profile-area-content">
+          <Link href={`/app/applicant/${applicantId}/history`} className="profile-history-link">
+            History →
+          </Link>
+          <div className="profile-field-search">
+            <label className="field-label" htmlFor="profile-search">
+              Search all profile fields
+            </label>
+            <input
+              id="profile-search"
+              type="search"
+              className="input"
+              placeholder="e.g. passport, address, employer"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+            />
+          </div>
+          {searching && visibleLayers.length === 0 ? (
+            <output className="muted">No fields match. Try another field name.</output>
+          ) : null}
+          {view.layers.map((layer) => {
+            const visible = visibleLayers.some((item) => item.key === layer.key);
+            return (
+              <section
+                key={layer.key}
+                id={`profile-panel-${layer.key}`}
+                role={searching ? undefined : 'tabpanel'}
+                aria-labelledby={`profile-tab-${layer.key}`}
+                hidden={!visible}
+              >
+                <h3>{layer.label}</h3>
+                <p className="muted">
+                  {layer.description} {layer.openCount} of {layer.sections.length} sections open.
+                </p>
+                {layer.sections
+                  .filter((section) => sectionMatches(section, search))
+                  .map((section) => (
+                    <SectionCard
+                      key={section.key}
+                      applicantId={applicantId}
+                      section={section}
+                      values={values}
+                      repeatingValues={repeatingValues}
+                      assurance={assurance}
+                      search={search}
+                    />
+                  ))}
+              </section>
+            );
+          })}
+        </div>
+      </div>
     </div>
   );
 }

@@ -64,7 +64,7 @@ afterEach(() => {
 });
 function tab(label: string) {
   const button = [...container.querySelectorAll<HTMLButtonElement>('[role="tab"]')].find(
-    (node) => node.textContent === label,
+    (node) => node.querySelector('.profile-area-name')?.textContent === label,
   );
   if (!button) throw new Error(`Missing profile tab ${label}`);
   return button;
@@ -329,4 +329,85 @@ it('shows protected date states without trying to format them as dates', () => {
   expect(container.querySelector('.profile-read-summary')?.textContent).not.toContain(
     'Invalid Date',
   );
+});
+
+describe('the list of profile areas', () => {
+  const counts = () =>
+    [...container.querySelectorAll('.profile-area-rail button')].map((button) => [
+      button.querySelector('.profile-area-name')?.textContent,
+      button.querySelector('.profile-area-count')?.textContent ?? null,
+    ]);
+
+  it('lists every area down the side with how many details are filled, and nothing scrolls sideways', () => {
+    const names = counts().map(([name]) => name);
+    expect(names).toEqual(fixtureView().layers.map((layer) => layer.label));
+    const identity = counts().find(([name]) => name === 'Identity and Civil Status');
+    expect(identity?.[1]).toMatch(/^\d+\/\d+ details filled$/);
+    expect(container.querySelector('.profile-section-tabs')).toBeNull();
+  });
+
+  it('names the count in words for a screen reader', () => {
+    const first = container.querySelector('.profile-area-rail .profile-area-count .sr-only');
+    expect(first?.textContent).toBe(' details filled');
+  });
+
+  it('moves between areas with the up and down arrows as well as left and right', () => {
+    const first = tab('Identity and Civil Status');
+    first.focus();
+    act(() =>
+      first.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true })),
+    );
+    expect(document.activeElement).toBe(tab('Travel Documents'));
+    act(() =>
+      tab('Travel Documents').dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true }),
+      ),
+    );
+    expect(document.activeElement).toBe(tab('Identity and Civil Status'));
+    act(() =>
+      tab('Identity and Civil Status').dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'End', bubbles: true }),
+      ),
+    );
+    expect(document.activeElement?.getAttribute('aria-selected')).toBe('true');
+  });
+
+  it('gives a phone one "Area" box showing the current area, which opens the same list and closes when one is chosen', () => {
+    const picker = container.querySelector<HTMLDetailsElement>('.profile-area-picker');
+    if (!picker) throw new Error('Missing area picker');
+    expect(picker.querySelector('summary')?.textContent).toContain('Area');
+    expect(picker.querySelector('summary .profile-area-name')?.textContent).toBe(
+      'Identity and Civil Status',
+    );
+    act(() => {
+      picker.open = true;
+      picker.dispatchEvent(new Event('toggle'));
+    });
+    const choice = [
+      ...picker.querySelectorAll<HTMLButtonElement>('.profile-area-picker-list button'),
+    ].find(
+      (button) => button.querySelector('.profile-area-name')?.textContent === 'Travel Documents',
+    );
+    if (!choice) throw new Error('Missing choice');
+    act(() => choice.click());
+    expect(picker.querySelector('summary .profile-area-name')?.textContent).toBe(
+      'Travel Documents',
+    );
+    expect(picker.open).toBe(false);
+    expect(container.querySelector('#profile-panel-travel_documents')?.hasAttribute('hidden')).toBe(
+      false,
+    );
+    expect(
+      picker.querySelector('.profile-area-picker-list [aria-current="true"] .profile-area-name')
+        ?.textContent,
+    ).toBe('Travel Documents');
+  });
+
+  it('stops pretending to be tabs while a search is showing results from every area', () => {
+    const search = container.querySelector<HTMLInputElement>('#profile-search');
+    if (!search) throw new Error('Missing search');
+    typeInto(search, 'passport');
+    expect(container.querySelector('.profile-area-rail')?.getAttribute('role')).toBeNull();
+    expect(container.querySelector('.profile-area-rail button[role="tab"]')).toBeNull();
+  });
 });
