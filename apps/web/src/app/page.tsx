@@ -1,44 +1,73 @@
 import Link from 'next/link';
-import { HeroExample } from '../components/hero-example';
 import { Icon, type IconName } from '../components/icons';
-import { StatusBadge, type Tone } from '../components/ui';
 import { isPublicBetaOpen } from '../lib/public-beta';
 import { isSignedIn } from '../lib/signed-in';
+import './landing-c1.css';
 
 /**
- * The public home page. Written for a traveller or an agency who has never heard of
- * the product: plain words, what it does and what is honestly not switched on yet.
- * No engineering vocabulary and no names of the tools behind it (guarded by
- * `lib/plain-language.test.ts`).
+ * The public home page, built on the frozen Harbor C1 reference (Programme X WP-L1).
+ * Written for a traveller or an agency who has never heard of the product: plain words,
+ * what it does and what is honestly not switched on yet. No engineering vocabulary and no
+ * names of the tools behind it (guarded by `lib/plain-language.test.ts`).
  *
- * The page tells one story in order: what is broken today, what one profile changes,
- * how it works, what you get, who it is for, why you can trust it, and where it is
- * going. Everything drawn here is made-up example data and says so.
+ * The Harbor hero and product chapter come first. The sections Harbor does not depict
+ * (problem, how it works, availability, agencies, trust, road ahead, closing call) are
+ * kept with Harbor colours only. Every drawn example is sample information and says so.
+ * Each statement on this page maps to a claim row in docs/upgrades/programme/COVERAGE-LEDGER.csv.
  */
 
-const PREVIEW_ROWS: readonly {
+const HERO_HEADLINE_FIRST = 'Your documents.';
+const HERO_HEADLINE_SECOND = 'Ready when you are.';
+
+interface PhoneFile {
   readonly name: string;
   readonly detail: string;
-  readonly badge: string;
-  readonly tone: Tone;
-}[] = [
-  { name: 'Passport', detail: 'Valid until 14 Mar 2031', badge: 'Ready', tone: 'success' },
-  {
-    name: 'Bank statement',
-    detail: 'Expires in 12 days',
-    badge: 'Expiring soon',
-    tone: 'warning',
-  },
-  { name: 'Employer letter', detail: 'Asked for by the agency', badge: 'Missing', tone: 'danger' },
-  { name: 'Hotel booking', detail: 'Sent 3 Oct 2026', badge: 'Under review', tone: 'neutral' },
+  readonly tag: string;
+  readonly warning?: boolean;
+}
+
+const PHONE_FILES: readonly PhoneFile[] = [
+  { name: 'Passport', detail: 'Current record · Version 2', tag: 'Current' },
+  { name: 'Employment letter', detail: 'Added to Japan case', tag: 'Added' },
+  { name: 'Bank statement', detail: 'Newer copy requested', tag: 'Update', warning: true },
 ];
 
-const HERO_HEADLINE = 'One profile. Every visa.';
+interface Float {
+  readonly id: 'c1-fc1' | 'c1-fc2' | 'c1-fc3' | 'c1-fc4';
+  readonly icon: string;
+  readonly title: string;
+  readonly detail: string;
+  readonly warning?: boolean;
+}
 
-const ASSURANCES: readonly { readonly icon: IconName; readonly text: string }[] = [
-  { icon: 'lock', text: 'Private by default' },
-  { icon: 'check', text: 'You approve every AI suggestion' },
-  { icon: 'share', text: 'Stop sharing at any time' },
+// CL04-CL07. The third card is the expiry reminder (D5); "Prepared again, faster" returns
+// only once Prepare again ships (WP-V6).
+const FLOATS: readonly Float[] = [
+  {
+    id: 'c1-fc1',
+    icon: '⌛',
+    title: 'Document needs updating',
+    detail: 'Bank statement · Japan case',
+    warning: true,
+  },
+  {
+    id: 'c1-fc2',
+    icon: '▤',
+    title: 'Previous version kept',
+    detail: 'History stays available to you',
+  },
+  {
+    id: 'c1-fc3',
+    icon: '◷',
+    title: 'Reminder before it expires',
+    detail: 'Passport · sample record',
+  },
+  {
+    id: 'c1-fc4',
+    icon: '◉',
+    title: 'Access ends 30 November',
+    detail: 'Three selected records shared',
+  },
 ];
 
 const BEFORE: readonly string[] = [
@@ -76,56 +105,6 @@ const STEPS: readonly Step[] = [
     title: 'Share only what is needed',
     body: 'Invite an agency to see specific items for a set time. You approve it, you can stop it, and you can see what they opened.',
     icon: 'share',
-  },
-];
-
-interface Feature {
-  readonly kicker: string;
-  readonly title: string;
-  readonly body: string;
-  readonly icon: IconName;
-  readonly span?: 'half' | 'full';
-}
-
-const FEATURES: readonly Feature[] = [
-  {
-    kicker: 'Profile',
-    title: 'One profile for every application',
-    body: 'Enter your details once: identity, passport, travel history, work and money. Every change is saved as a new version, so nothing is quietly overwritten.',
-    icon: 'user',
-    span: 'half',
-  },
-  {
-    kicker: 'Documents',
-    title: 'A private place for your papers',
-    body: 'Upload passports, bank statements and other documents. Only you and the people you choose can open them, and original files are never handed out without extra identity confirmation.',
-    icon: 'folder',
-    span: 'half',
-  },
-  {
-    kicker: 'Suggestions',
-    title: 'AI can help, but never decides',
-    body: 'AI can suggest details from a document, and you approve or reject each one. Nothing changes without your say. Prefer to type it yourself? Everything also works by hand.',
-    icon: 'activity',
-  },
-  {
-    kicker: 'Cases',
-    title: 'See what is still missing',
-    body: 'Check your documents against the official requirements for a visa route. You see how complete your file is and what is missing, never a guess at your chances of approval.',
-    icon: 'clipboard',
-  },
-  {
-    kicker: 'Agencies',
-    title: 'Share with an agency, on your terms',
-    body: 'Choose what an agency can see and for how long. They have to accept, you can stop sharing at any time, and you can see who looked at what.',
-    icon: 'share',
-  },
-  {
-    kicker: 'Privacy',
-    title: 'Your data stays yours',
-    body: 'Your information is kept only as long as it is needed, and you can ask for it to be deleted. If the law says it must be kept, deletion waits. Sharing decisions are recorded in a protected history.',
-    icon: 'shield',
-    span: 'full',
   },
 ];
 
@@ -214,88 +193,182 @@ export default async function HomePage({ searchParams }: HomePageProps) {
   const startHref = !signedIn && betaOpen ? '/auth/sign-up' : '/app';
 
   return (
-    <div className="land">
-      <section className="land-hero" aria-labelledby="land-hero-title">
-        <div className="land-wrap land-hero-grid">
-          <div className="land-hero-copy">
-            {authError ? (
-              <p className="notice notice-warn u-mb-125" role="alert">
-                Sign-in didn’t complete. Please try again. If it keeps happening, contact support
-                and quote reference <strong>{authError}</strong>.
-              </p>
-            ) : null}
-            <span className="land-pill">
-              <span className="land-pill-dot" aria-hidden="true" />
-              {betaOpen ? 'Public beta' : 'Invite-only pilot'}
+    <div className="c1">
+      <section className="c1-hero c1-shell" aria-labelledby="land-hero-title">
+        {authError ? (
+          <p className="notice notice-warn c1-alert" role="alert">
+            Sign-in didn’t complete. Please try again. If it keeps happening, contact support and
+            quote reference <strong>{authError}</strong>.
+          </p>
+        ) : null}
+        <p className="c1-nudge">{betaOpen ? 'Free public beta' : 'Invite-only pilot'}</p>
+        <h1 className="c1-headline" id="land-hero-title">
+          {HERO_HEADLINE_FIRST}
+          <br />
+          {HERO_HEADLINE_SECOND}
+        </h1>
+        <p className="c1-subline">
+          Keep a reusable travel record, prepare your next application and share only what you
+          choose.
+        </p>
+        <div className="c1-cta">
+          <a className="c1-pill" href={startHref}>
+            {startLabel}{' '}
+            <span className="c1-chevron" aria-hidden="true">
+              ↗
             </span>
-            <h1 className="land-title" id="land-hero-title">
-              {HERO_HEADLINE.slice(0, 12)} <em>{HERO_HEADLINE.slice(13)}</em>
-            </h1>
-            <p className="land-lede">
-              Keep your passport, documents and visa history in one private place, and reuse them
-              for every application. Share only what an agency needs, for as long as you choose.
-            </p>
-            <div className="cta-row">
-              <a className="btn btn-primary land-btn" href={startHref}>
-                {startLabel}
-                <Icon name="arrow" size={18} />
-              </a>
-              <Link className="btn btn-secondary land-btn" href="/status">
-                See what works today
-              </Link>
-            </div>
-            <ul className="land-assure">
-              {ASSURANCES.map((item) => (
-                <li key={item.text}>
-                  <Icon name={item.icon} size={16} />
-                  <span>{item.text}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
+          </a>
+          <Link className="c1-pill c1-pill-light" href="/status">
+            See what works today
+          </Link>
+        </div>
+        <p className="c1-meta">One personal record. Separate cases. Explicit sharing.</p>
 
-          <div className="land-stage">
-            <aside className="hero-preview land-case" aria-label="Example of a case">
-              <p className="hero-preview-tag">Example with made-up details</p>
-              <div className="land-case-head">
-                <span className="land-passport" aria-hidden="true">
-                  <Icon name="file" size={28} />
-                </span>
-                <div>
-                  <h2>Visitor visa, example traveller</h2>
-                  <p className="muted land-case-count">2 of 4 requirements ready</p>
-                </div>
+        <figure className="c1-devices" aria-label="Illustrative interface with sample information">
+          <div className="c1-phone">
+            <div className="c1-island" />
+            <div className="c1-statusbar" aria-hidden="true">
+              <span>9:41</span>
+              <span>●●● ▰</span>
+            </div>
+            <div className="c1-phonebody">
+              <p className="c1-tinycap">VisaStack / Personal record</p>
+              <p className="c1-phonename">
+                Ready for
+                <br />
+                what’s next.
+              </p>
+              <p className="c1-sample">Ayesha’s record · Example</p>
+              <div className="c1-segment" aria-hidden="true">
+                <span>Documents</span>
+                <span>Cases</span>
+                <span>Sharing</span>
               </div>
-              <div className="rows">
-                {PREVIEW_ROWS.map((row) => (
-                  <div className="row" key={row.name}>
-                    <span className="row-key">
-                      {row.name}
-                      <span className="attention-detail" style={{ display: 'block' }}>
-                        {row.detail}
-                      </span>
+              <div className="c1-phonepanel">
+                <p className="c1-tinycap c1-panelcap">Your documents</p>
+                {PHONE_FILES.map((file) => (
+                  <div className="c1-fileline" key={file.name}>
+                    <span className="c1-fileico" aria-hidden="true">
+                      ▤
                     </span>
-                    <StatusBadge tone={row.tone}>{row.badge}</StatusBadge>
+                    <span className="c1-fileinfo">
+                      <b>{file.name}</b>
+                      <small>{file.detail}</small>
+                    </span>
+                    <span className={file.warning ? 'c1-tag c1-tag-warning' : 'c1-tag'}>
+                      {file.tag}
+                    </span>
                   </div>
                 ))}
               </div>
-            </aside>
-
-            <HeroExample />
+              <div className="c1-phonepanel">
+                <p className="c1-next-label">NEXT ACTION</p>
+                <b className="c1-next-title">Replace bank statement</b>
+                <p className="c1-next-detail">Requested for your Japan visitor visa case.</p>
+                <span className="c1-capsule">Review request →</span>
+              </div>
+            </div>
+            <div className="c1-bottomnav" aria-hidden="true">
+              <span>▣ Home</span>
+              <span>▤ Record</span>
+              <span>◷ Cases</span>
+              <span>◯ Sharing</span>
+            </div>
           </div>
-        </div>
+          {FLOATS.map((float) => (
+            <div className={`c1-floatcard ${float.id}`} key={float.id}>
+              <span
+                className={float.warning ? 'c1-float-icon c1-float-icon-warning' : 'c1-float-icon'}
+                aria-hidden="true"
+              >
+                {float.icon}
+              </span>
+              <span>
+                <b>{float.title}</b>
+                <small>{float.detail}</small>
+              </span>
+            </div>
+          ))}
+          <figcaption className="c1-fineprint">Illustrative interface · Sample information</figcaption>
+        </figure>
       </section>
 
-      <section className="land-summary" aria-labelledby="land-summary-title">
-        <div className="land-wrap land-summary-panel">
-          <div>
-            <p className="land-kicker">A better start</p>
-            <h2 id="land-summary-title">
-              Your next application
-              <br />
-              shouldn’t start <em>from zero.</em>
-            </h2>
+      <section className="c1-darkstage" id="product" aria-labelledby="land-product-title">
+        <div className="c1-shell">
+          <div className="c1-darkintro">
+            <div>
+              <p className="c1-nudge">The product, not just the promise</p>
+              <h2 className="c1-sectionhead" id="land-product-title">
+                Less paperwork. More control.
+              </h2>
+            </div>
+            <p>
+              Your documents live in your personal record. Cases use selected versions. Agencies
+              receive only the access you choose, within the permissions the platform provides.
+            </p>
           </div>
+          <div className="c1-bento">
+            <article className="c1-feature c1-feature-glow c1-feature-big">
+              <span className="c1-small-label">01 / A reusable record</span>
+              <h3>
+                Keep the details.
+                <br />
+                Lose the repetition.
+              </h3>
+              <p>Find your current documents and see their earlier versions.</p>
+              <div className="c1-miniui" aria-hidden="true">
+                <b>Personal record</b>
+                <div className="c1-fileline">
+                  <span className="c1-fileico">▤</span>
+                  <span className="c1-fileinfo">
+                    <b>Passport</b>
+                    <small>Current version · Updated 8 Oct</small>
+                  </span>
+                  <span className="c1-tag">Current</span>
+                </div>
+              </div>
+            </article>
+            <article className="c1-feature c1-feature-mid">
+              <span className="c1-small-label">02 / Specific requests</span>
+              <h3>
+                See exactly
+                <br />
+                what’s missing.
+              </h3>
+              <p>One clear request, with the document needed and the action to take.</p>
+              <p className="c1-request" aria-hidden="true">
+                <span>✳ Employment letter</span>
+                <span className="c1-request-state">Requested</span>
+              </p>
+            </article>
+            <article className="c1-feature c1-feature-light">
+              <span className="c1-small-label">03 / Your choice</span>
+              <h3>
+                Share the part.
+                <br />
+                Not the whole.
+              </h3>
+              <p>
+                Select records, review the scope and, if you want, set an access end date before
+                agreeing to share.
+              </p>
+            </article>
+            <article className="c1-feature c1-feature-deep">
+              <span className="c1-small-label">04 / Historical accuracy</span>
+              <h3>
+                Yesterday stays
+                <br />
+                yesterday.
+              </h3>
+              <p>
+                Keep an accurate history of previous declarations, even when your circumstances
+                change.
+              </p>
+            </article>
+          </div>
+          <p className="c1-chapter-note">
+            Privacy and sharing are governed by actual product permissions.
+          </p>
         </div>
       </section>
 
@@ -338,7 +411,7 @@ export default async function HomePage({ searchParams }: HomePageProps) {
         </div>
       </section>
 
-      <section className="land-section" aria-labelledby="land-how-title">
+      <section className="land-section" id="how-it-works" aria-labelledby="land-how-title">
         <div className="land-wrap">
           <div className="land-head">
             <p className="land-kicker">Three simple steps</p>
@@ -372,29 +445,18 @@ export default async function HomePage({ searchParams }: HomePageProps) {
       >
         <div className="land-wrap">
           <div className="land-head">
-            <p className="land-kicker">Everything in one stack</p>
+            <p className="land-kicker">What works today</p>
             <h2 className="land-h2" id="land-cap-title">
-              What you can do
+              Switched on step by step
             </h2>
             <p className="land-sub">
               {betaOpen ? 'VisaStack is in public beta' : 'VisaStack is in a private pilot'}, so
               some features are still being switched on. The status page shows what works today.
+              Checking a file shows how complete it is, never a guess at your chances of approval.
             </p>
-          </div>
-          <div className="land-bento">
-            {FEATURES.map((feature) => (
-              <article
-                className={feature.span ? `land-tile land-tile-${feature.span}` : 'land-tile'}
-                key={feature.title}
-              >
-                <span className="land-tile-icon">
-                  <Icon name={feature.icon} size={22} />
-                </span>
-                <p className="land-step-kicker">{feature.kicker}</p>
-                <h3 className="land-h3">{feature.title}</h3>
-                <p className="land-body">{feature.body}</p>
-              </article>
-            ))}
+            <p className="land-trust-link">
+              <Link href="/status">See what works today</Link>
+            </p>
           </div>
         </div>
       </section>

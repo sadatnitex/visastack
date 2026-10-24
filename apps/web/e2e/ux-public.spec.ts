@@ -48,6 +48,53 @@ test.describe('responsive layout', () => {
   }
 });
 
+/** Programme X WP-L1 acceptance: Harbor landing with the signed corrections D4 and D15. */
+test.describe('Harbor landing (WP-L1)', () => {
+  for (const width of [320, 360, 390, 768, 1024, 1440]) {
+    test(`no sideways scroll and no card over the phone text at ${width}px`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 900 });
+      await page.goto('/');
+      const result = await page.evaluate(() => {
+        const phone = document.querySelector('.c1-phone')?.getBoundingClientRect();
+        const covered: string[] = [];
+        if (phone) {
+          const texts = [...document.querySelectorAll('.c1-phone .c1-phonename, .c1-phone .c1-phonepanel')];
+          for (const card of document.querySelectorAll('.c1-floatcard')) {
+            const c = card.getBoundingClientRect();
+            if (c.width === 0) continue;
+            for (const text of texts) {
+              const r = text.getBoundingClientRect();
+              // Only the part inside the phone frame is visible; the frame hides the rest.
+              const top = Math.max(r.top, phone.top);
+              const bottom = Math.min(r.bottom, phone.bottom);
+              const left = Math.max(r.left, phone.left);
+              const right = Math.min(r.right, phone.right);
+              if (c.left < right && left < c.right && c.top < bottom && top < c.bottom)
+                covered.push(card.className);
+            }
+          }
+        }
+        return {
+          overflow: document.documentElement.scrollWidth > window.innerWidth + 1,
+          covered,
+        };
+      });
+      expect(result).toEqual({ overflow: false, covered: [] });
+    });
+  }
+
+  test('headline, one primary action and the availability line show without scrolling at 360x640', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 360, height: 640 });
+    await page.goto('/');
+    await expect(page.locator('#land-hero-title')).toBeInViewport({ ratio: 1 });
+    await expect(page.locator('.c1-cta .c1-pill').first()).toBeInViewport({ ratio: 1 });
+    await expect(page.locator('.c1-hero .c1-nudge')).toBeInViewport({ ratio: 1 });
+    await expect(page.locator('.c1-hero .c1-nudge')).toHaveText(/public beta|pilot/i);
+  });
+});
+
 test.describe('keyboard navigation', () => {
   test('skip link is the first focus stop and jumps to main content', async ({ page }) => {
     await page.goto('/');
@@ -632,6 +679,9 @@ test.describe('flat UI reference geometry and interaction', () => {
         const effects = await page.locator('body').evaluate((body) =>
           [...body.querySelectorAll('*')]
             .filter((element) => {
+              // Owner decision D1: only the Harbor hero and product chapter on the landing may
+              // use soft shadows and gradients. Everything else stays flat, on every page.
+              if (element.closest('.c1-hero, .c1-darkstage')) return false;
               const css = getComputedStyle(element);
               return (
                 css.boxShadow !== 'none' ||
@@ -770,11 +820,10 @@ test.describe('authoritative appearance on public routes', () => {
     const box = await page.locator('header.nav').boundingBox();
     expect(box?.width).toBe(1448);
     expect(box?.height).toBe(72);
-    await expect(page.locator('.land-title')).toHaveCSS('font-size', '91px');
-    await expect(page.locator('.land-summary-panel')).toHaveCSS(
-      'background-color',
-      'rgb(16, 41, 55)',
-    );
+    // Harbor C1 geometry and colour (WP-L1): headline weight and size, and the navy stage.
+    await expect(page.locator('.c1-headline')).toHaveCSS('font-weight', '820');
+    await expect(page.locator('.c1-headline')).toHaveCSS('font-size', '97px');
+    await expect(page.locator('.c1-darkstage')).toHaveCSS('background-color', 'rgb(11, 26, 48)');
     const missing = await page
       .locator('a[href^="/#"]')
       .evaluateAll((links) =>

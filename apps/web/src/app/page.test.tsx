@@ -12,37 +12,55 @@ const { default: HomePage } = await import('./page');
 const render = async (searchParams: { auth_error?: string } = {}) =>
   renderServer(HomePage({ searchParams: Promise.resolve(searchParams) }));
 
-describe('the public home page', () => {
+describe('the public home page (Harbor C1, WP-L1)', () => {
   it('says each promise once instead of repeating the same list', async () => {
     const text = textOf(await render());
     const count = (needle: string) => text.split(needle).length - 1;
     expect(count('Enter your details once and reuse them everywhere')).toBe(1);
-    expect(text).toContain('shouldn’t start from zero.');
+    expect(count('Less paperwork. More control.')).toBe(1);
   });
 
-  it('keeps the example labelled as made up and gives its buttons real names', async () => {
-    const text = textOf(await render());
-    expect(text).toContain('Example with made-up details');
-    expect(text).toContain('Approve');
-    expect(text).toContain('Reject');
-    expect(text).toContain('Stop sharing');
+  it('labels the drawn interface as sample information', async () => {
+    const html = await render();
+    expect(textOf(html)).toContain('Illustrative interface · Sample information');
+    expect(textOf(html)).toContain('Ayesha’s record · Example');
+    expect(html).toContain('aria-label="Illustrative interface with sample information"');
   });
 
   it('says what the product is for in everyday words', async () => {
     const text = textOf(await render());
-    expect(text).toContain('One profile. Every visa.');
+    expect(text).toContain('Your documents.');
+    expect(text).toContain('Ready when you are.');
     expect(text).toContain('Invite-only pilot');
-    expect(text).toContain('Keep your passport, documents and visa history in one private place');
+    expect(text).toContain(
+      'Keep a reusable travel record, prepare your next application and share only what you choose.',
+    );
+    expect(text).toContain('One personal record. Separate cases. Explicit sharing.');
     for (const title of [
-      'One profile for every application',
-      'A private place for your papers',
-      'AI can help, but never decides',
-      'See what is still missing',
-      'Share with an agency, on your terms',
-      'Your data stays yours',
+      'Keep the details.',
+      'See exactly',
+      'Share the part.',
+      'Yesterday stays',
     ]) {
       expect(text).toContain(title);
     }
+  });
+
+  it('only claims what has shipped (claim register CL06, CL08, CL10, D5)', async () => {
+    const text = textOf(await render());
+    // CL08: comparing versions and reuse in a new case have not shipped yet.
+    expect(text).toContain('Find your current documents and see their earlier versions.');
+    expect(text).not.toContain('compare earlier versions');
+    expect(text).not.toContain('reuse the right information in a new case');
+    // D5: Prepare again has not shipped, so its card is replaced by the expiry reminder.
+    expect(text).not.toContain('Prepared again, faster');
+    expect(text).toContain('Reminder before it expires');
+    // D5: the phone's bottom tab is the Record, not Documents.
+    expect(text).toContain('▤ Record');
+    // CL10: the access end date is optional.
+    expect(text).toContain('if you want, set an access end date');
+    // CL12.
+    expect(text).toContain('Privacy and sharing are governed by actual product permissions.');
   });
 
   it('is honest that this is a private pilot with some features not switched on', async () => {
@@ -56,8 +74,6 @@ describe('the public home page', () => {
     const text = textOf(await render()).toLowerCase();
     // Readiness is how complete a file is, never a prediction.
     expect(text).toContain('never a guess at your chances of approval');
-    // Bangla is only partly available (the full translation is a later piece of work), so
-    // the page must not promise it yet.
     for (const overclaim of [
       'guarantee',
       'bank-grade',
@@ -67,6 +83,9 @@ describe('the public home page', () => {
       'nobody sees',
       'every action',
       'use everything',
+      'verified booking',
+      'certified copy',
+      'boarding pass',
     ]) {
       expect(text, overclaim).not.toContain(overclaim);
     }
@@ -80,6 +99,7 @@ describe('the public home page', () => {
       /\bNeon\b/,
       /Universal Core/,
       /\bports?\b/i,
+      /Harbor/,
     ]) {
       expect(text, String(jargon)).not.toMatch(jargon);
     }
@@ -87,18 +107,19 @@ describe('the public home page', () => {
 
   it('sends a visitor to sign in and to see what works today', async () => {
     const html = await render();
-    expect(html).toMatch(/<a class="btn btn-primary land-btn" href="\/app">Sign in to get started/);
+    expect(html).toMatch(/<a class="c1-pill" href="\/app">Sign in to get started/);
     expect(html.match(/href="\/app"/g)?.length).toBe(2);
-    expect(html.match(/href="\/status"/g)?.length).toBe(2);
-    expect(html).toContain('id="capabilities"');
+    expect(html.match(/href="\/status"/g)?.length).toBe(3);
+    for (const id of ['capabilities', 'for-agencies', 'land-how-title', 'how-it-works', 'product'])
+      expect(html).toContain(`id="${id}"`);
   });
 
-  it('uses the actual open-registration flag and states the at-your-own-risk terms plainly', async () => {
+  it('uses the open-registration flag and states the at-your-own-risk terms plainly', async () => {
     betaState.value = true;
     try {
       const html = await render();
       const text = textOf(html);
-      expect(text).toContain('Public beta');
+      expect(text).toContain('Free public beta');
       expect(text).toContain('Create your free account');
       expect(text).toContain('Registration is open for public beta');
       expect(text).toContain('free to use at your own risk');
@@ -124,12 +145,14 @@ describe('the public home page', () => {
     expect(await render()).not.toContain('role="alert"');
   });
 
-  it('tells the story in order, from the problem to the closing call to action', async () => {
+  it('tells the story in order, from the product to the closing call to action', async () => {
     const html = await render();
     const order = [
+      'Ready when you are.',
+      'Less paperwork. More control.',
       'Every visa starts with the same scramble',
       'Three simple steps',
-      'What you can do',
+      'Switched on step by step',
       'Calmer for the traveller, clearer for the agency',
       'How VisaStack treats your information',
       'Honest about where we are',
@@ -139,13 +162,10 @@ describe('the public home page', () => {
     expect([...order].sort((a, b) => a - b)).toEqual(order);
   });
 
-  it('shows the before and after, and every example is labelled as made up', async () => {
+  it('shows the before and after', async () => {
     const text = textOf(await render());
     expect(text).toContain('Without one profile');
     expect(text).toContain('With VisaStack');
-    expect(text).toContain('Example with made-up details');
-    expect(text).toContain('You approve every AI suggestion');
-    expect(text).toContain('You can stop this at any time');
   });
 
   it('is honest that the longer-term direction is an aim, not a promise', async () => {
