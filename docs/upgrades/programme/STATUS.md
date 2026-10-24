@@ -11,9 +11,9 @@ Keep this file between 250 and 400 words. Memory between sessions; evidence live
 - Completed ledger ids: X01-X14 baselines (local-lab, D16), U01-U10, E01-E04, W0-01 to W0-10, CR13, CR14, D12-D16
 - Files touched: under `docs/design/harbor-v2/`, `docs/upgrades/`, `scripts/programme/`, plus `biome.json` (one ignore entry), `CLAUDE.md` (approved lines) and `docs/commercial-v1/known-issues.md` (appended). Nothing under `apps/`, `packages/`, `infra/` or `.github/`
 - Checks: see the PR for exact results on the pushed head. Guard tests 11 of 11 pass; guard paths and `--no-emdash --exclude docs/design/harbor-v2` checked against the security branch base; Biome passes on the whole repo
-- Blockers: the required check `Lint · Build · Typecheck · Test` also runs `pnpm audit --prod --audit-level high`. After the Next.js upgrade, high advisories remain for zod (via `@neondatabase/auth`) and undici (via `@vercel/blob`). The owner limited the security PR to Next.js, so this needs the owner's decision. Three AI-settings test timeouts: waiting for CI on a pushed head; if CI also fails, propose a separate PR with explicit timeouts. Master Profile files on hold (D14)
+- Blockers: none of this package's own. The security PR #231 (Next.js 15.5.28, undici and zod overrides) must merge first; it carries the dependency fixes that let the CI audit gate pass. Three AI-settings test timeouts: waiting for CI to reach the test step; if CI also fails, propose a separate PR with explicit timeouts. Master Profile files on hold (D14)
 - Stop reason, if stopped: none
-- Next action: owner decides the zod and undici fix, gives the merge word for the security PR, reviews #230 and approves the landing preview; then WP-L1 on `claude/prog-l1-landing`
+- Next action: owner gives the merge word for the security PR #231, reviews #230 and approves the landing preview; then WP-L1 on `claude/prog-l1-landing`
 
 ## How to update
 
