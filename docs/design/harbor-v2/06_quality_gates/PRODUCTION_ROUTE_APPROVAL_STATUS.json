@@ -1,0 +1,216 @@
+{
+  "statusUpdated": "2026-10-22",
+  "scope": "Design package only, no live inspection",
+  "routes": [
+    {
+      "id": "R01",
+      "surface": "Public homepage",
+      "design": "source-frozen-marketing-reference; production-not-certified",
+      "production": "not audited",
+      "ownerScreenApproval": true
+    },
+    {
+      "id": "R02",
+      "surface": "Product explanation",
+      "design": "application-extension-review-required",
+      "production": "not audited",
+      "ownerScreenApproval": false
+    },
+    {
+      "id": "R03",
+      "surface": "For agencies",
+      "design": "application-extension-review-required",
+      "production": "not audited",
+      "ownerScreenApproval": false
+    },
+    {
+      "id": "R04",
+      "surface": "Trust/privacy details",
+      "design": "application-extension-review-required",
+      "production": "not audited",
+      "ownerScreenApproval": false
+    },
+    {
+      "id": "R05",
+      "surface": "Auth signup/signin/recovery",
+      "design": "application-extension-review-required",
+      "production": "not audited",
+      "ownerScreenApproval": false
+    },
+    {
+      "id": "R06",
+      "surface": "Account/context switcher",
+      "design": "application-extension-review-required",
+      "production": "not audited",
+      "ownerScreenApproval": false
+    },
+    {
+      "id": "R07",
+      "surface": "Traveler home and attention",
+      "design": "application-extension-review-required",
+      "production": "not audited",
+      "ownerScreenApproval": false
+    },
+    {
+      "id": "R08",
+      "surface": "My profile / personal record",
+      "design": "application-extension-review-required",
+      "production": "not audited",
+      "ownerScreenApproval": false
+    },
+    {
+      "id": "R09",
+      "surface": "Passports & identity",
+      "design": "application-extension-review-required",
+      "production": "not audited",
+      "ownerScreenApproval": false
+    },
+    {
+      "id": "R10",
+      "surface": "Travel/application history",
+      "design": "application-extension-review-required",
+      "production": "not audited",
+      "ownerScreenApproval": false
+    },
+    {
+      "id": "R11",
+      "surface": "Wallet/documents",
+      "design": "application-extension-review-required",
+      "production": "not audited",
+      "ownerScreenApproval": false
+    },
+    {
+      "id": "R12",
+      "surface": "Case list and start/reuse",
+      "design": "application-extension-review-required",
+      "production": "not audited",
+      "ownerScreenApproval": false
+    },
+    {
+      "id": "R13",
+      "surface": "Individual case",
+      "design": "application-extension-review-required",
+      "production": "not audited",
+      "ownerScreenApproval": false
+    },
+    {
+      "id": "R14",
+      "surface": "Agency requests / resumable intake",
+      "design": "application-extension-review-required",
+      "production": "not audited",
+      "ownerScreenApproval": false
+    },
+    {
+      "id": "R15",
+      "surface": "Change impact and consistency",
+      "design": "application-extension-review-required",
+      "production": "not audited",
+      "ownerScreenApproval": false
+    },
+    {
+      "id": "R16",
+      "surface": "Application memory",
+      "design": "application-extension-review-required",
+      "production": "not audited",
+      "ownerScreenApproval": false
+    },
+    {
+      "id": "R17",
+      "surface": "Needs Attention",
+      "design": "application-extension-review-required",
+      "production": "not audited",
+      "ownerScreenApproval": false
+    },
+    {
+      "id": "R18",
+      "surface": "Sharing and access",
+      "design": "application-extension-review-required",
+      "production": "not audited",
+      "ownerScreenApproval": false
+    },
+    {
+      "id": "R19",
+      "surface": "Handover, trip essentials, context export",
+      "design": "application-extension-review-required",
+      "production": "not audited",
+      "ownerScreenApproval": false
+    },
+    {
+      "id": "R20",
+      "surface": "Agency overview",
+      "design": "application-extension-review-required",
+      "production": "not audited",
+      "ownerScreenApproval": false
+    },
+    {
+      "id": "R21",
+      "surface": "Agency clients",
+      "design": "application-extension-review-required",
+      "production": "not audited",
+      "ownerScreenApproval": false
+    },
+    {
+      "id": "R22",
+      "surface": "Agency case detail",
+      "design": "application-extension-review-required",
+      "production": "not audited",
+      "ownerScreenApproval": false
+    },
+    {
+      "id": "R23",
+      "surface": "Agency intake/invitation",
+      "design": "application-extension-review-required",
+      "production": "not audited",
+      "ownerScreenApproval": false
+    },
+    {
+      "id": "R24",
+      "surface": "Agency evidence review",
+      "design": "application-extension-review-required",
+      "production": "not audited",
+      "ownerScreenApproval": false
+    },
+    {
+      "id": "R25",
+      "surface": "Agency team/membership",
+      "design": "application-extension-review-required",
+      "production": "not audited",
+      "ownerScreenApproval": false
+    },
+    {
+      "id": "R26",
+      "surface": "Agency activity/audit",
+      "design": "application-extension-review-required",
+      "production": "not audited",
+      "ownerScreenApproval": false
+    },
+    {
+      "id": "R27",
+      "surface": "Administrator overview",
+      "design": "application-extension-review-required",
+      "production": "not audited",
+      "ownerScreenApproval": false
+    },
+    {
+      "id": "R28",
+      "surface": "Administrator provider/AI settings",
+      "design": "application-extension-review-required",
+      "production": "not audited",
+      "ownerScreenApproval": false
+    },
+    {
+      "id": "R29",
+      "surface": "Administrator users/org/security",
+      "design": "application-extension-review-required",
+      "production": "not audited",
+      "ownerScreenApproval": false
+    },
+    {
+      "id": "R30",
+      "surface": "All utility/legal pages",
+      "design": "application-extension-review-required",
+      "production": "not audited",
+      "ownerScreenApproval": false
+    }
+  ]
+}

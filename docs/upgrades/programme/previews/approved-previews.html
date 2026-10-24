@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>VisaStack Programme X: screen previews</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--ink:#13243D;--body:#516174;--bd:#CAD4E2;--bd2:#E4E9F1;--pri:#1D4C98;--pri-d:#143B7A;--sel:#E8F0FC;--bg:#F7F9FE;--ok-b:#E8F4EE;--ok-t:#176E52;--wn-b:#FBEEE7;--wn-t:#92512F;--nt-b:#EDF1F5;--nt-t:#596879}
+*{box-sizing:border-box}
+body{margin:0;font-family:Inter,system-ui,-apple-system,"Segoe UI",sans-serif;background:#fff;color:var(--ink);padding:20px 14px 60px;line-height:1.45}
+h1{font-size:20px;margin:0 0 4px;letter-spacing:-.02em}
+.sub{color:var(--body);font-size:13px;margin:0 0 14px;max-width:640px}
+.row{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px}
+.tab{border:1px solid var(--bd);background:#fff;border-radius:10px;padding:8px 10px;font:600 12px Inter,system-ui,sans-serif;color:var(--ink);min-height:44px;cursor:pointer}
+.tab.on{border-color:var(--pri);color:var(--pri);background:var(--sel)}
+.badge{display:inline-block;font-size:11px;font-weight:700;padding:3px 8px;border-radius:980px;margin:6px 0 10px}
+.b-ok{background:var(--ok-b);color:var(--ok-t)}.b-wn{background:var(--wn-b);color:var(--wn-t)}
+.ex{font-size:13px;color:var(--body);max-width:640px;margin:12px 0}
+.ph,.dk{background:var(--bg);color:var(--ink);border:1px solid var(--bd);font-size:13px}
+.ph{width:100%;max-width:340px;margin:0 auto;border-radius:28px;overflow:hidden}
+.dk{width:820px;border-radius:12px;overflow:hidden;display:flex;transform-origin:top left}
+.tb{display:flex;justify-content:space-between;align-items:center;padding:12px 14px;background:#fff;border-bottom:1px solid var(--bd)}
+.lg{font-weight:700;display:flex;gap:6px;align-items:center}
+.mk{width:22px;height:22px;border-radius:6px;background:var(--pri);color:#fff;font-style:normal;display:inline-flex;align-items:center;justify-content:center;font-size:12px}
+.ctx{border:1px solid var(--bd);border-radius:980px;padding:4px 9px;font-size:12px;background:#fff}
+.pd{padding:14px}
+.eb{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--pri);font-weight:600}
+.h{font-size:21px;line-height:1.15;margin:4px 0 10px;font-weight:700;letter-spacing:-.02em}
+.em{color:var(--pri)}
+.cd{background:#fff;border:1px solid var(--bd);border-radius:16px;padding:12px;margin-bottom:10px}
+.k{font-size:11px;color:var(--body)}.t{font-weight:600;font-size:14px}.s{color:var(--body);margin:2px 0 8px}.p{color:var(--body);margin:0 0 12px}
+.bt,.bs{border-radius:10px;height:44px;padding:0 16px;font:700 13px Inter,system-ui,sans-serif;width:100%;margin-top:6px}
+.bt{background:var(--pri);color:#fff;border:1px solid var(--pri)}.bs{background:#fff;color:var(--ink);border:1px solid var(--bd)}
+.sm{width:auto;height:36px;padding:0 12px;font-size:12px;margin-top:0}
+.r{display:flex;align-items:center;gap:10px;padding:9px 0;border-top:1px solid var(--bd2)}.r.f{border-top:0}
+.ic{width:30px;height:30px;border-radius:8px;background:var(--sel);color:var(--pri);display:flex;align-items:center;justify-content:center;font-size:13px;flex:none;font-weight:700}
+.rt{flex:1;min-width:0}.rt b{display:block;font-weight:600;font-size:13px}.rt span{color:var(--body);font-size:12px}
+.bg{font-size:11px;font-weight:700;padding:3px 8px;border-radius:980px;white-space:nowrap}
+.ok{background:var(--ok-b);color:var(--ok-t)}.wn{background:var(--wn-b);color:var(--wn-t)}.nt{background:var(--nt-b);color:var(--nt-t)}
+.nav{display:flex;border-top:1px solid var(--bd);background:#fff}.nav div{flex:1;text-align:center;padding:10px 0 12px;font-size:11px;color:var(--body)}.nav div.on{color:var(--pri);font-weight:700}
+.cap{font-size:11px;color:var(--body);text-align:center;padding:2px 0 10px}
+.fld{border:1px solid #91A3BC;border-radius:10px;height:44px;padding:0 12px;display:flex;align-items:center;background:#fff;margin:4px 0 10px}
+.lb{font-size:12px;font-weight:600;margin-top:6px}
+.opt{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-bottom:10px}.opt.one{grid-template-columns:1fr}
+.o{border:1px solid var(--bd);border-radius:10px;min-height:44px;padding:8px 10px;background:#fff}.o b{display:block;font-size:13px}.o span{font-size:11px;color:var(--body)}.o.on{border-color:var(--pri);background:var(--sel)}
+.stp{display:flex;gap:4px;margin:2px 0 12px}.stp div{flex:1;height:4px;border-radius:2px;background:var(--bd)}.stp div.on{background:var(--pri)}
+.stl{display:flex;justify-content:space-between;font-size:10px;color:var(--body);margin:-8px 0 12px}.stl b{color:var(--pri)}
+.ntc{background:var(--nt-b);border-radius:10px;padding:8px 10px;color:var(--body);font-size:12px;margin:4px 0 8px}
+.alr{background:var(--wn-b);border:1px solid var(--wn-t);border-radius:16px;padding:12px;margin-bottom:10px}.alr .t{color:var(--wn-t)}
+.msg{background:var(--bg);border:1px solid var(--bd2);border-radius:10px;padding:8px 10px;font-size:12px;margin:2px 0 8px}
+.grp{font-size:12px;font-weight:700;margin:10px 0 2px}
+.chips{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}.chp{border:1px solid var(--bd);border-radius:980px;padding:4px 9px;font-size:12px;background:#fff}.chp.on{background:var(--sel);color:var(--pri);border-color:var(--pri);font-weight:700}
+.num{width:20px;height:20px;border-radius:50%;background:var(--sel);color:var(--pri);font-weight:700;font-size:11px;display:flex;align-items:center;justify-content:center;flex:none}
+.sd{width:190px;background:#fff;border-right:1px solid var(--bd);padding:14px 10px;flex:none}.sd .ni{padding:9px 10px;border-radius:10px;color:var(--body);font-size:13px}.sd .ni.on{background:var(--sel);color:var(--pri);font-weight:700}
+.mn{flex:1;padding:18px 20px;min-width:0}
+.tr{display:grid;grid-template-columns:28px 1.5fr 1.4fr 110px 70px 90px;gap:10px;align-items:center;padding:10px 0;border-top:1px solid var(--bd2)}.tr.hd{border-top:0;font-size:11px;color:var(--body);font-weight:600;padding:0 0 6px}
+</style>
+</head>
+<body>
+<h1>VisaStack Programme X: screen previews</h1>
+<p class="sub">Illustrative interface, made-up data. Harbor colours, Inter font, 44px controls. These are layout and wording previews for the product screens. They are not production code. The landing page preview is produced in WP-A0 from the Harbor package.</p>
+<div id="v" class="row"></div>
+<div id="st" class="row"></div>
+<div id="bd"></div>
+<div style="overflow-x:auto"><div id="fr"></div></div>
+<p id="ex" class="ex"></p>
+<script>
+var CAP='<div class="cap">Illustrative interface, made-up data</div>';
+var TB='<div class="tb"><span class="lg"><i class="mk">V</i>VisaStack</span><span class="ctx">Me, Example &#9662;</span></div>';
+var TB0='<div class="tb"><span class="lg"><i class="mk">V</i>VisaStack</span></div>';
+function nav(on){var n=['Home','Record','Cases','Sharing'],h='<div class="nav">';for(var i=0;i<4;i++){h+='<div'+(n[i]===on?' class="on"':'')+'>'+n[i]+'</div>';}return h+'</div>';}
+var AN='<div class="nav"><div class="on">Do next</div><div>Cases</div><div>Clients</div><div>More</div></div>';
+var ATB='<div class="tb"><span class="lg"><i class="mk">V</i>Example Visa Desk</span><span class="ctx">Agency &#9662;</span></div>';
+var STG='<div class="stp"><div class="on"></div><div class="on"></div><div></div><div></div><div></div></div><div class="stl"><span>Stage 1</span><b>Current stage</b><span>Stage 3</span><span>Stage 4</span><span>Stage 5</span></div>';
+var GRP='<div class="cd"><div class="grp" style="margin-top:0">Needs You <span class="bg wn" style="margin-left:6px">2</span></div><div class="r f"><div class="rt"><b>Bank statement</b><span>Out of date for this case</span></div></div><div class="r"><div class="rt"><b>Return flight</b><span>Missing</span></div></div><div class="grp">Needs A Check <span class="bg nt" style="margin-left:6px">1</span></div><div class="r f"><div class="rt"><b>Employment letter</b><span>Waiting for agency review</span></div></div><div class="grp">Done <span class="bg ok" style="margin-left:6px">4</span></div></div>';
+function row(n,t,s,b,c){return '<div class="r'+(n===1?' f':'')+'"><div class="num">'+n+'</div><div class="rt"><b>'+t+'</b><span>'+s+'</span></div><span class="bg '+c+'">'+b+'</span></div>';}
+var V=[
+{l:'1 First run',b:'ok',bt:'Approved',s:[
+{l:'Consent',x:'Screen 1 of first run. Core processing is the only consent shown, using the existing consent control. It states that AI reading, sharing and marketing stay off. Without it people can still browse countries and help (verify on staging).',h:function(){return '<div class="ph">'+TB0+'<div class="pd"><div class="eb">Step 1 of 2</div><div class="stp"><div class="on"></div><div></div></div><div class="h">Allow VisaStack to <span class="em">process your details</span></div><p class="p">This is needed before anything can be saved. You can turn it off at any time.</p><div class="ntc">This does not turn on AI reading, sharing with an agency or marketing. Those stay off until you choose them.</div><button class="bt">Allow core processing</button><button class="bs">Not now</button><p class="p" style="margin:10px 0 0;font-size:12px">Without it you can still browse countries and read help.</p></div>'+CAP+'</div>';}},
+{l:'Name: me',x:'Screen 2. Uses the existing create-applicant action. Values stay SELF, FAMILY_MEMBER and MINOR_GUARDIAN.',h:function(){return '<div class="ph">'+TB0+'<div class="pd"><div class="eb">Step 2 of 2</div><div class="stp"><div class="on"></div><div class="on"></div></div><div class="h">Who is this <span class="em">record for?</span></div><div class="opt"><div class="o on"><b>Me</b><span>My own papers</span></div><div class="o"><b>Someone I manage</b><span>A family member</span></div></div><div class="lb">Name as on the passport</div><div class="fld">Example Traveller</div><button class="bt">Continue</button><p class="p" style="margin:10px 0 0;font-size:12px">You can change this later. Nothing is shared with anyone.</p></div>'+CAP+'</div>';}},
+{l:'Name: someone I manage',x:'Correction to the earlier preview. Choosing Someone I manage reveals the second choice (Family member or Minor guardian) and the authority confirmation, which the server requires today.',h:function(){return '<div class="ph">'+TB0+'<div class="pd"><div class="eb">Step 2 of 2</div><div class="stp"><div class="on"></div><div class="on"></div></div><div class="h">Who is this <span class="em">record for?</span></div><div class="opt"><div class="o"><b>Me</b><span>My own papers</span></div><div class="o on"><b>Someone I manage</b><span>A family member</span></div></div><div class="opt"><div class="o on"><b>Family member</b><span>Adult relative</span></div><div class="o"><b>Minor (guardian)</b><span>A child in my care</span></div></div><div class="lb">Name as on the passport</div><div class="fld">Example Relative</div><div class="ntc">I confirm I have authority to create and manage this record on their behalf. This is never assumed from a shared name or address.</div><button class="bt">Continue</button></div>'+CAP+'</div>';}}
+]},
+{l:'2 Task first',b:'wn',bt:'REVISED, needs approval',s:[
+{l:'What to do',x:'Revised screen 3 (decision D8). It replaces the earlier purpose and destination screen, because v1.2 E01 says not to force a goal. It shows only choices whose destination has shipped. "Prepare a brief" appears when WP-V5 ships. Skip is always possible. A valid return path from an invitation skips this screen.',h:function(){return '<div class="ph">'+TB+'<div class="pd"><div class="h">What do you want <span class="em">to do?</span></div><div class="opt one"><div class="o"><b>Complete a request</b><span>An agency asked you for something</span></div><div class="o"><b>Update or find my records</b><span>Documents, details and dates</span></div></div><p class="p" style="margin:10px 0 0;font-size:12px"><u>Skip for now</u></p></div>'+CAP+'</div>';}}
+]},
+{l:'3 Home',b:'ok',bt:'Approved',s:[
+{l:'Home',x:'One Home. Lead next action with its reason, the record with plain freshness labels, and Prepare again with counts (counts arrive with WP-V4; before that the card links to Cases). The chip names whose records you are in.',h:function(){return '<div class="ph">'+TB+'<div class="pd"><div class="eb">Home</div><div class="h">Replace your <span class="em">bank statement</span></div><div class="cd"><div class="k">Next action</div><div class="t">Your bank statement is out of date</div><div class="s">Requested for your Japan visitor visa case. About 2 minutes.</div><button class="bt" style="margin-top:0">Upload new copy</button></div><div class="cd"><div class="t" style="margin-bottom:4px">Your record</div><div class="r f"><div class="ic">P</div><div class="rt"><b>Passport</b><span>Version 2, expires in 14 months</span></div><span class="bg ok">On File</span></div><div class="r"><div class="ic">B</div><div class="rt"><b>Bank statement</b><span>Newer copy requested</span></div><span class="bg wn">Out Of Date</span></div><div class="r"><div class="ic">E</div><div class="rt"><b>Employment letter</b><span>Expiry not entered</span></div><span class="bg nt">Unknown</span></div></div><div class="cd"><div class="t">Start another case</div><div class="s">Reuse 2 items. 1 needs a refresh. 0 missing.</div><button class="bs" style="margin-top:0">Prepare again</button></div></div>'+CAP+nav('Home')+'</div>';}}
+]},
+{l:'4 Case',b:'ok',bt:'Approved',s:[
+{l:'In progress',x:'Next step first. Stage words in production come from the real case state labels, not these sample ones. Requirement groups keep the existing three groups.',h:function(){return '<div class="ph">'+TB+'<div class="pd"><div class="eb">Case</div><div class="h">Japan <span class="em">visitor visa</span></div>'+STG+'<div class="cd"><div class="k">Next step</div><div class="t">Replace your bank statement</div><div class="s">The agency asked for a copy from the last 3 months.</div><button class="bt" style="margin-top:0">Upload new copy</button></div>'+GRP+'<button class="bs" style="margin-top:0">Open case details</button></div>'+CAP+nav('Cases')+'</div>';}},
+{l:'Changed since confirmed',x:'The existing changed-since-acknowledged notice, promoted under the stage tracker. The list of which fields changed arrives with WP-V3. Until then the alert keeps today\'s wording.',h:function(){return '<div class="ph">'+TB+'<div class="pd"><div class="eb">Case</div><div class="h">Japan <span class="em">visitor visa</span></div>'+STG+'<div class="alr"><div class="t">This case has changed since it was last acknowledged</div><div class="s" style="color:#13243D">A material edit invalidated the previous sign-off. Capture a new snapshot and acknowledge it again before relying on this case.</div><button class="bt" style="margin-top:8px">Capture new snapshot</button></div><div class="ntc">Your earlier confirmation is kept in History.</div>'+GRP+'</div>'+CAP+nav('Cases')+'</div>';}}
+]},
+{l:'5 Sharing',b:'ok',bt:'Approved',s:[
+{l:'Ready to share',x:'Review panel as a brief. Recipient is an email address, so no verified-organisation claim. End date or No end date in warning tone. The download sentence shows only with the Download permission and only with owner-approved wording.',h:function(){return '<div class="ph">'+TB+'<div class="pd"><div class="eb">Sharing</div><div class="h">Share with <span class="em">desk@example.com</span></div><div class="cd"><div class="k">For</div><div class="t">Review my Japan visitor visa documents</div><div class="k" style="margin-top:8px">Can open</div><div class="r f"><div class="rt"><b>Passport</b><span>Version 2</span></div></div><div class="r"><div class="rt"><b>Employment letter</b><span>Current copy</span></div></div></div><div class="cd"><div class="r f"><div class="rt"><b>They can</b><span>View details and preview</span></div></div><div class="r"><div class="rt"><b>Ends</b><span>30 November 2026</span></div></div><div class="r"><div class="rt"><b>Everything you did not select</b><span>Stays private</span></div></div></div><button class="bt" style="margin-top:0">Share these 2 items</button><button class="bs">Change what is shared</button></div>'+CAP+nav('Sharing')+'</div>';}},
+{l:'Broad scope, no end date',x:'Broad choices are never visually quiet: whole profile, every document and no end date use the warning tone. The download sentence appears because Download is selected.',h:function(){return '<div class="ph">'+TB+'<div class="pd"><div class="eb">Sharing</div><div class="h">Share with <span class="em">desk@example.com</span></div><div class="alr"><div class="t">Wide access</div><div class="s" style="color:#13243D;margin:0">Your whole profile and every document. No end date.</div></div><div class="cd"><div class="r f"><div class="rt"><b>They can</b><span>View details, preview and download</span></div></div><div class="r"><div class="rt"><b>Ends</b><span style="color:#92512F">No end date</span></div></div></div><div class="ntc">Revoking ends access on VisaStack. It cannot take back copies someone already downloaded. (Wording needs owner approval.)</div><button class="bt" style="margin-top:0">Confirm this access</button><button class="bs">Change what is shared</button></div>'+CAP+nav('Sharing')+'</div>';}}
+]},
+{l:'6 Agency',b:'ok',bt:'Approved',s:[
+{l:'Phone',x:'Do next. Built only from the E02 status mapping and data the person already loads, so non-admins see fewer items. The order shown is the proposed ranking and needs owner approval. The message is shown for review, copied by the person, never sent by the product.',h:function(){return '<div class="ph">'+ATB+'<div class="pd"><div class="eb">Do next</div><div class="h">Three things <span class="em">need you</span></div><div class="chips"><span class="chp on">All</span><span class="chp">Mine</span><span class="chp">Overdue</span><span class="chp">Waiting On Traveller</span><span class="chp">Unassigned</span></div><div class="cd" style="padding:4px 12px">'+row(1,'Example A. - Schengen visit','Bank statement not received','Overdue 2d','wn')+'<div class="msg">Hello, we still need a recent bank statement for your Schengen visit case. You can upload it in VisaStack. Thank you.</div><div style="padding-bottom:10px"><button class="bt sm">Copy message</button></div>'+row(2,'Example B. - UK study','Passport copy to review','To Review','ok')+'<div style="padding:0 0 10px 30px"><button class="bs sm">Open review</button></div>'+row(3,'New case - Japan visit','Nobody assigned yet','Unassigned','wn')+'<div style="padding:0 0 10px 30px"><button class="bs sm">Assign</button></div></div></div>'+CAP+AN+'</div>';}},
+{l:'Empty',x:'When nothing needs the worker the screen says so plainly and points to what waits on others.',h:function(){return '<div class="ph">'+ATB+'<div class="pd"><div class="eb">Do next</div><div class="h">Nothing needs <span class="em">you right now</span></div><div class="cd"><div class="t">6 cases are waiting on travellers</div><div class="s">Nothing is overdue. The oldest request is 3 days old.</div><button class="bs" style="margin-top:0">View waiting cases</button></div><div class="ntc">Showing only cases you are allowed to see.</div></div>'+CAP+AN+'</div>';}},
+{l:'Desktop',x:'Desktop agency desk, drawn narrower than the real container so it fits. Same ranking and the same reviewed message.',h:function(){return '<div class="dk"><div class="sd"><div class="lg" style="margin-bottom:14px"><i class="mk">V</i>Example Visa Desk</div><div class="ni on">Do next</div><div class="ni">Cases</div><div class="ni">Clients</div><div class="ni">Case Activity</div><div class="ni">Countries</div><div class="ni">Team</div></div><div class="mn"><div class="eb">Do next</div><div class="h">Three things <span class="em">need you</span></div><div class="chips"><span class="chp on">All</span><span class="chp">Mine</span><span class="chp">Overdue</span><span class="chp">Waiting On Traveller</span><span class="chp">Unassigned</span></div><div class="cd" style="padding:8px 14px"><div class="tr hd"><span>#</span><span>Client and case</span><span>Next action</span><span>Why</span><span>Owner</span><span>Due</span></div><div class="tr"><div class="num">1</div><div class="rt"><b>Example A.</b><span>Schengen visit</span></div><span>Follow up on bank statement</span><span class="bg wn" style="width:fit-content">Overdue 2d</span><span>You</span><span>21 Oct</span></div><div class="tr"><div class="num">2</div><div class="rt"><b>Example B.</b><span>UK study</span></div><span>Review passport copy</span><span class="bg ok" style="width:fit-content">To Review</span><span>You</span><span>24 Oct</span></div><div class="tr"><div class="num">3</div><div class="rt"><b>New case</b><span>Japan visit</span></div><span>Assign a case manager</span><span class="bg wn" style="width:fit-content">Unassigned</span><span>Admin</span><span>No date</span></div></div><div class="cd"><div class="k">Follow-up for Example A. (review before copying)</div><div class="msg" style="margin-top:6px">Hello, we still need a recent bank statement for your Schengen visit case. You can upload it in VisaStack. Thank you.</div><div style="display:flex;gap:8px"><button class="bt sm">Copy message</button><button class="bs sm">Edit first</button></div></div></div></div>';}}
+]}
+];
+var vi=0,si=0;
+function draw(){
+var cur=V[vi].s[si],fr=document.getElementById('fr');
+fr.innerHTML=cur.h();fr.style.height='';fr.style.width='';
+var dk=fr.querySelector('.dk');
+if(dk){var w=document.documentElement.clientWidth-28,sc=Math.max(0.5,Math.min(1,w/820));dk.style.transform='scale('+sc+')';fr.style.height=(dk.offsetHeight*sc)+'px';fr.style.width='820px';}
+document.getElementById('ex').textContent=cur.x;
+document.getElementById('bd').innerHTML='<span class="badge b-'+V[vi].b+'">'+V[vi].bt+'</span>';
+var v=document.getElementById('v'),s=document.getElementById('st');v.innerHTML='';s.innerHTML='';
+V.forEach(function(g,i){var b=document.createElement('button');b.className='tab'+(i===vi?' on':'');b.textContent=g.l;b.onclick=function(){vi=i;si=0;draw();};v.appendChild(b);});
+V[vi].s.forEach(function(x,j){var b=document.createElement('button');b.className='tab'+(j===si?' on':'');b.textContent=x.l;b.onclick=function(){si=j;draw();};s.appendChild(b);});
+}
+draw();
+</script>
+</body>
+</html>

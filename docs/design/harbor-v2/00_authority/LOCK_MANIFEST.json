@@ -1,0 +1,12 @@
+{
+  "reference": {
+    "path": "00_authority/CONCEPT1_FROZEN.html",
+    "sha256": "894253b7a9d8ebb56abd522d8237a8768476ad98555f779e5efced815d522a10"
+  },
+  "colorOverride": {
+    "path": "01_tokens/HARBOR_C1_COLOR_ONLY.css",
+    "sha256": "78248b2ff62027ad760a63c87294418004848e09e970e5ce55db2e9510dbf0db"
+  },
+  "productionColorAuthority": "01_tokens/HARBOR_TOKENS.json",
+  "sourceConformity": "all route-specific unknowns are pending, not implicitly approved"
+}

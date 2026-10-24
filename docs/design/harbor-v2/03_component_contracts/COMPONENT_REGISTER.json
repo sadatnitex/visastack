@@ -1,0 +1,739 @@
+{
+  "version": "2.0.0",
+  "items": [
+    {
+      "id": "C01",
+      "component": "Root canvas",
+      "authority": "FROZEN",
+      "sourceSelector": "body.variant1",
+      "visualOrBehaviorContract": "White/porcelain canvas; deep ink; never blue marketing fill",
+      "states": [
+        "default"
+      ]
+    },
+    {
+      "id": "C02",
+      "component": "Marketing header",
+      "authority": "FROZEN",
+      "sourceSelector": ".topnav",
+      "visualOrBehaviorContract": "78px desktop and 68px mobile; free horizontal layout, not pill container",
+      "states": [
+        "default",
+        "compact",
+        "keyboard"
+      ]
+    },
+    {
+      "id": "C03",
+      "component": "Brand lockup",
+      "authority": "FROZEN GEOMETRY / LOGO TBD",
+      "sourceSelector": ".brand,.mark",
+      "visualOrBehaviorContract": "22px / 760 brand; source 31px icon envelope; use verified asset",
+      "states": [
+        "light",
+        "dark",
+        "small"
+      ]
+    },
+    {
+      "id": "C04",
+      "component": "Navigation link",
+      "authority": "FROZEN",
+      "sourceSelector": ".links,.rightlinks",
+      "visualOrBehaviorContract": "13px / 590; clean baseline; no tile",
+      "states": [
+        "default",
+        "hover",
+        "focus",
+        "active"
+      ]
+    },
+    {
+      "id": "C05",
+      "component": "Hero eyebrow",
+      "authority": "FROZEN",
+      "sourceSelector": ".nudge",
+      "visualOrBehaviorContract": "11px / 760, .19em tracking and uppercase",
+      "states": [
+        "light",
+        "dark"
+      ]
+    },
+    {
+      "id": "C06",
+      "component": "Hero headline",
+      "authority": "FROZEN",
+      "sourceSelector": ".headline",
+      "visualOrBehaviorContract": "Clamp, 820 weight, -.073em tracking; centered; final copy review",
+      "states": [
+        "desktop",
+        "mobile",
+        "zoom"
+      ]
+    },
+    {
+      "id": "C07",
+      "component": "Hero subline",
+      "authority": "FROZEN",
+      "sourceSelector": ".subline",
+      "visualOrBehaviorContract": "20px /1.44 /660px; no multi-paragraph sales copy",
+      "states": [
+        "desktop",
+        "mobile"
+      ]
+    },
+    {
+      "id": "C08",
+      "component": "Hero primary action",
+      "authority": "FROZEN",
+      "sourceSelector": ".pill",
+      "visualOrBehaviorContract": "14px /700; padding 13px 23px, radius 100px",
+      "states": [
+        "default",
+        "hover",
+        "focus",
+        "loading",
+        "disabled"
+      ]
+    },
+    {
+      "id": "C09",
+      "component": "Reassurance microcopy",
+      "authority": "FROZEN",
+      "sourceSelector": ".meta",
+      "visualOrBehaviorContract": "12px low-emphasis, truthful plain words",
+      "states": [
+        "default",
+        "compact"
+      ]
+    },
+    {
+      "id": "C10",
+      "component": "Device stage",
+      "authority": "FROZEN",
+      "sourceSelector": ".devices",
+      "visualOrBehaviorContract": "Centered max 1140px, height 640px, mobile 560px",
+      "states": [
+        "desktop",
+        "mobile"
+      ]
+    },
+    {
+      "id": "C11",
+      "component": "Phone chassis",
+      "authority": "FROZEN",
+      "sourceSelector": ".phone,.island",
+      "visualOrBehaviorContract": "335x642px at -2.8deg, source bezel/radii and notch",
+      "states": [
+        "desktop",
+        "mobile"
+      ]
+    },
+    {
+      "id": "C12",
+      "component": "Device statusline",
+      "authority": "FROZEN",
+      "sourceSelector": ".statusbar",
+      "visualOrBehaviorContract": "Source inset, no added fake OS details",
+      "states": [
+        "desktop",
+        "mobile"
+      ]
+    },
+    {
+      "id": "C13",
+      "component": "Device segmented tabs",
+      "authority": "FROZEN",
+      "sourceSelector": ".segment",
+      "visualOrBehaviorContract": "Actual source 3-section rail; labels must represent supported views",
+      "states": [
+        "default",
+        "selected"
+      ]
+    },
+    {
+      "id": "C14",
+      "component": "Phone record panel",
+      "authority": "FROZEN",
+      "sourceSelector": ".phonepanel",
+      "visualOrBehaviorContract": "Source border, shadow dimensions and inset",
+      "states": [
+        "default",
+        "empty"
+      ]
+    },
+    {
+      "id": "C15",
+      "component": "Phone file row",
+      "authority": "FROZEN",
+      "sourceSelector": ".fileline,.fileinfo,.fileico",
+      "visualOrBehaviorContract": "Icon left, facts center, status right; exact densities",
+      "states": [
+        "ready",
+        "update",
+        "processing"
+      ]
+    },
+    {
+      "id": "C16",
+      "component": "Status tag source",
+      "authority": "FROZEN / DERIVED SEMANTICS",
+      "sourceSelector": ".tag",
+      "visualOrBehaviorContract": "Keep compact geometry; never call mere upload authenticated",
+      "states": [
+        "current",
+        "warning",
+        "waiting"
+      ]
+    },
+    {
+      "id": "C17",
+      "component": "Four floating events",
+      "authority": "FROZEN",
+      "sourceSelector": ".floatcard,.fc1,.fc2,.fc3,.fc4",
+      "visualOrBehaviorContract": "Exactly 4 desktop/2 mobile, source tilt and positions",
+      "states": [
+        "action",
+        "history",
+        "scope",
+        "expiry"
+      ]
+    },
+    {
+      "id": "C18",
+      "component": "Phone bottom nav",
+      "authority": "FROZEN",
+      "sourceSelector": ".bottomnav",
+      "visualOrBehaviorContract": "Source compact rail; no additional decorative tabs",
+      "states": [
+        "selected",
+        "inactive"
+      ]
+    },
+    {
+      "id": "C19",
+      "component": "Dark chapter",
+      "authority": "FROZEN",
+      "sourceSelector": ".darkstage",
+      "visualOrBehaviorContract": "Harbor stage #0B1A30, full bleed 110px/100px",
+      "states": [
+        "desktop",
+        "mobile"
+      ]
+    },
+    {
+      "id": "C20",
+      "component": "Dark intro",
+      "authority": "FROZEN",
+      "sourceSelector": ".darkintro,.sectionhead",
+      "visualOrBehaviorContract": "2-column 100px gap; source scale, no centered benefit boxes",
+      "states": [
+        "desktop",
+        "mobile"
+      ]
+    },
+    {
+      "id": "C21",
+      "component": "Bento feature",
+      "authority": "FROZEN",
+      "sourceSelector": ".bento,.feature",
+      "visualOrBehaviorContract": "1.2/.8, 15px gap, 25px radius, 34px padding",
+      "states": [
+        "major",
+        "minor"
+      ]
+    },
+    {
+      "id": "C22",
+      "component": "Angled preview",
+      "authority": "FROZEN",
+      "sourceSelector": ".miniui",
+      "visualOrBehaviorContract": "Source tilted document micro-preview",
+      "states": [
+        "desktop",
+        "mobile"
+      ]
+    },
+    {
+      "id": "C23",
+      "component": "Minimal footer",
+      "authority": "FROZEN",
+      "sourceSelector": ".foot",
+      "visualOrBehaviorContract": "No inflated sitemap, badges or endorsement strip",
+      "states": [
+        "default",
+        "mobile"
+      ]
+    },
+    {
+      "id": "C24",
+      "component": "App-shell navigation",
+      "authority": "PROPOSED",
+      "sourceSelector": "none",
+      "visualOrBehaviorContract": "No design in landing source; require owner-approved traveler/agency/admin shell",
+      "states": [
+        "expanded",
+        "collapsed",
+        "mobile"
+      ]
+    },
+    {
+      "id": "C25",
+      "component": "Page title and actions",
+      "authority": "DERIVED / APPROVAL",
+      "sourceSelector": "C05-C08 principles",
+      "visualOrBehaviorContract": "One purposeful H1, controlled primary action; operational size requires approval",
+      "states": [
+        "compact",
+        "long",
+        "empty"
+      ]
+    },
+    {
+      "id": "C26",
+      "component": "Breadcrumbs",
+      "authority": "PROPOSED",
+      "sourceSelector": "none",
+      "visualOrBehaviorContract": "No invented geometry; require route-level approval",
+      "states": [
+        "current",
+        "overflow"
+      ]
+    },
+    {
+      "id": "C27",
+      "component": "Command/search input",
+      "authority": "PROPOSED",
+      "sourceSelector": "none",
+      "visualOrBehaviorContract": "Search actual authorized objects only; visual approval first",
+      "states": [
+        "idle",
+        "focus",
+        "results",
+        "no-results",
+        "denied"
+      ]
+    },
+    {
+      "id": "C28",
+      "component": "Text entry",
+      "authority": "PROPOSED",
+      "sourceSelector": "none",
+      "visualOrBehaviorContract": "Explicit label/help, truthfully saved state; visual approval",
+      "states": [
+        "default",
+        "focus",
+        "error",
+        "disabled"
+      ]
+    },
+    {
+      "id": "C29",
+      "component": "Select/combobox",
+      "authority": "PROPOSED",
+      "sourceSelector": "none",
+      "visualOrBehaviorContract": "Keyboard and search with scoped real options",
+      "states": [
+        "open",
+        "selected",
+        "empty",
+        "error"
+      ]
+    },
+    {
+      "id": "C30",
+      "component": "Checkbox/radio/switch",
+      "authority": "PROPOSED",
+      "sourceSelector": "none",
+      "visualOrBehaviorContract": "State semantic, no decorative variants",
+      "states": [
+        "on",
+        "off",
+        "disabled",
+        "invalid"
+      ]
+    },
+    {
+      "id": "C31",
+      "component": "Date/expiry control",
+      "authority": "PROPOSED",
+      "sourceSelector": "none",
+      "visualOrBehaviorContract": "Absolute dates, locale/time-zone integrity",
+      "states": [
+        "editing",
+        "invalid",
+        "unknown"
+      ]
+    },
+    {
+      "id": "C32",
+      "component": "Upload zone",
+      "authority": "PROPOSED",
+      "sourceSelector": "C15 hierarchy principle",
+      "visualOrBehaviorContract": "Never show 'Ready' until validated and attached",
+      "states": [
+        "idle",
+        "uploading",
+        "scanning",
+        "success",
+        "rejected",
+        "failed"
+      ]
+    },
+    {
+      "id": "C33",
+      "component": "File row large",
+      "authority": "DERIVED / APPROVAL",
+      "sourceSelector": "C15",
+      "visualOrBehaviorContract": "Document metadata, owner, version, scope, freshness, actions",
+      "states": [
+        "current",
+        "processing",
+        "rejected",
+        "expired"
+      ]
+    },
+    {
+      "id": "C34",
+      "component": "File preview pane",
+      "authority": "PROPOSED",
+      "sourceSelector": "none",
+      "visualOrBehaviorContract": "No access via public URL; no raw PII in demo; preview rights server enforced",
+      "states": [
+        "loaded",
+        "loading",
+        "forbidden",
+        "unsupported"
+      ]
+    },
+    {
+      "id": "C35",
+      "component": "Document versions",
+      "authority": "PROPOSED",
+      "sourceSelector": "none",
+      "visualOrBehaviorContract": "Old selected version remains accessible under valid policy",
+      "states": [
+        "current",
+        "previous",
+        "pending-replacement"
+      ]
+    },
+    {
+      "id": "C36",
+      "component": "Table/data grid",
+      "authority": "PROPOSED",
+      "sourceSelector": "none",
+      "visualOrBehaviorContract": "Dense agency operations; contextual actions, not KPI cards",
+      "states": [
+        "sort",
+        "filter",
+        "selection",
+        "empty",
+        "loading",
+        "error"
+      ]
+    },
+    {
+      "id": "C37",
+      "component": "Case progress",
+      "authority": "PROPOSED",
+      "sourceSelector": "none",
+      "visualOrBehaviorContract": "Separate preparation, review, submission and outcome; never infer approval",
+      "states": [
+        "started",
+        "preparing",
+        "review",
+        "recorded-submitted",
+        "closed"
+      ]
+    },
+    {
+      "id": "C38",
+      "component": "Case request item",
+      "authority": "DERIVED / APPROVAL",
+      "sourceSelector": "C17 narrative hierarchy",
+      "visualOrBehaviorContract": "What, why, who, when, action; scoped to case",
+      "states": [
+        "missing",
+        "received",
+        "needs-correction",
+        "reviewed"
+      ]
+    },
+    {
+      "id": "C39",
+      "component": "Needs-attention feed",
+      "authority": "PROPOSED",
+      "sourceSelector": "none",
+      "visualOrBehaviorContract": "One deduplicated actionable inbox",
+      "states": [
+        "overdue",
+        "due",
+        "info",
+        "resolved"
+      ]
+    },
+    {
+      "id": "C40",
+      "component": "Timeline/history",
+      "authority": "PROPOSED",
+      "sourceSelector": "none",
+      "visualOrBehaviorContract": "Exact event time, actor/source, immutable record version",
+      "states": [
+        "event",
+        "correction",
+        "submission-claim"
+      ]
+    },
+    {
+      "id": "C41",
+      "component": "Side-by-side fact compare",
+      "authority": "PROPOSED",
+      "sourceSelector": "none",
+      "visualOrBehaviorContract": "Prior/current as-of context; neutral 'needs clarification'",
+      "states": [
+        "consistent",
+        "change",
+        "context",
+        "unknown"
+      ]
+    },
+    {
+      "id": "C42",
+      "component": "Grant/share preview",
+      "authority": "PROPOSED",
+      "sourceSelector": "none",
+      "visualOrBehaviorContract": "Recipient, exact selected items/versions, scope, expiry, actions",
+      "states": [
+        "draft",
+        "active",
+        "expired",
+        "revoked"
+      ]
+    },
+    {
+      "id": "C43",
+      "component": "Agency request composer",
+      "authority": "PROPOSED",
+      "sourceSelector": "none",
+      "visualOrBehaviorContract": "Specific item, reason, due date, clarification",
+      "states": [
+        "draft",
+        "sent",
+        "responded",
+        "closed"
+      ]
+    },
+    {
+      "id": "C44",
+      "component": "Drawer/side panel",
+      "authority": "PROPOSED",
+      "sourceSelector": "none",
+      "visualOrBehaviorContract": "Not a global 40% drawer default; full overlay/focus and route approval",
+      "states": [
+        "open",
+        "closed",
+        "unsaved"
+      ]
+    },
+    {
+      "id": "C45",
+      "component": "Dialog/confirmation",
+      "authority": "PROPOSED",
+      "sourceSelector": "none",
+      "visualOrBehaviorContract": "Escapes, focus trap, reversible path; exact geometry requires approval",
+      "states": [
+        "confirm",
+        "cancel",
+        "blocked"
+      ]
+    },
+    {
+      "id": "C46",
+      "component": "Toast/notification",
+      "authority": "PROPOSED",
+      "sourceSelector": "C17 is marketing illustration only",
+      "visualOrBehaviorContract": "In-app functional notification style not dictated by hero floatcards",
+      "states": [
+        "success",
+        "warning",
+        "error",
+        "undo"
+      ]
+    },
+    {
+      "id": "C47",
+      "component": "Tabs in app",
+      "authority": "DERIVED / APPROVAL",
+      "sourceSelector": ".segment",
+      "visualOrBehaviorContract": "Selection cues derive from source, operational sizing must be approved",
+      "states": [
+        "selected",
+        "hover",
+        "keyboard"
+      ]
+    },
+    {
+      "id": "C48",
+      "component": "Badge in app",
+      "authority": "DERIVED / APPROVAL",
+      "sourceSelector": ".tag",
+      "visualOrBehaviorContract": "Statuses not decorative; label + accessible color",
+      "states": [
+        "neutral",
+        "success",
+        "warning",
+        "danger"
+      ]
+    },
+    {
+      "id": "C49",
+      "component": "Role and organization switcher",
+      "authority": "PROPOSED",
+      "sourceSelector": "none",
+      "visualOrBehaviorContract": "Never grant underlying access because of client-side selection",
+      "states": [
+        "traveler",
+        "agency",
+        "admin",
+        "unauthorized"
+      ]
+    },
+    {
+      "id": "C50",
+      "component": "Settings/preferences",
+      "authority": "PROPOSED",
+      "sourceSelector": "none",
+      "visualOrBehaviorContract": "Legible hierarchy, serious actions isolated",
+      "states": [
+        "view",
+        "edit",
+        "saved",
+        "error"
+      ]
+    },
+    {
+      "id": "C51",
+      "component": "Danger zone",
+      "authority": "PROPOSED",
+      "sourceSelector": "none",
+      "visualOrBehaviorContract": "Revocation doesn't recall copies; deletion honors actual policy",
+      "states": [
+        "confirm",
+        "revoked",
+        "blocked"
+      ]
+    },
+    {
+      "id": "C52",
+      "component": "AI suggestion review",
+      "authority": "PROPOSED",
+      "sourceSelector": "none",
+      "visualOrBehaviorContract": "Proposal distinguished from fact; explicit approval before master write",
+      "states": [
+        "suggested",
+        "reviewed",
+        "rejected",
+        "applied"
+      ]
+    },
+    {
+      "id": "C53",
+      "component": "Export/packet preview",
+      "authority": "PROPOSED",
+      "sourceSelector": "none",
+      "visualOrBehaviorContract": "Output exactly reflects authorized selected versions",
+      "states": [
+        "preview",
+        "generated",
+        "denied",
+        "stale"
+      ]
+    },
+    {
+      "id": "C54",
+      "component": "Empty state",
+      "authority": "DERIVED / APPROVAL",
+      "sourceSelector": "C14 single purpose",
+      "visualOrBehaviorContract": "Explain next useful action, not emoji illustration or marketing card",
+      "states": [
+        "new",
+        "no-results",
+        "permission-limited"
+      ]
+    },
+    {
+      "id": "C55",
+      "component": "Loading/skeleton",
+      "authority": "PROPOSED",
+      "sourceSelector": "none",
+      "visualOrBehaviorContract": "No fake success and no spinning ornament; stable page geometry",
+      "states": [
+        "pending",
+        "slow",
+        "retry"
+      ]
+    },
+    {
+      "id": "C56",
+      "component": "Mobile operational navigation",
+      "authority": "PROPOSED",
+      "sourceSelector": ".bottomnav only within phone demo",
+      "visualOrBehaviorContract": "Source display rail is marketing illustration; auth app nav requires approval",
+      "states": [
+        "compact",
+        "open",
+        "keyboard"
+      ]
+    },
+    {
+      "id": "C57",
+      "component": "Admin system status",
+      "authority": "PROPOSED",
+      "sourceSelector": "none",
+      "visualOrBehaviorContract": "Only real monitoring values, distinguish simulated/unknown",
+      "states": [
+        "normal",
+        "degraded",
+        "unknown"
+      ]
+    },
+    {
+      "id": "C58",
+      "component": "Audit event",
+      "authority": "PROPOSED",
+      "sourceSelector": "none",
+      "visualOrBehaviorContract": "Actor/object/action/time with authenticated scope",
+      "states": [
+        "recorded",
+        "redacted",
+        "restricted"
+      ]
+    },
+    {
+      "id": "C59",
+      "component": "Invitation/claim entry",
+      "authority": "PROPOSED",
+      "sourceSelector": "none",
+      "visualOrBehaviorContract": "No PII in anonymous preview; identity-bound claim",
+      "states": [
+        "unclaimed",
+        "accepted",
+        "expired",
+        "wrong-account"
+      ]
+    },
+    {
+      "id": "C60",
+      "component": "Reusable record group",
+      "authority": "PROPOSED",
+      "sourceSelector": "C15 list hierarchy",
+      "visualOrBehaviorContract": "Structured sections, current facts, versions and provenance",
+      "states": [
+        "available",
+        "outdated",
+        "conflict"
+      ]
+    }
+  ]
+}

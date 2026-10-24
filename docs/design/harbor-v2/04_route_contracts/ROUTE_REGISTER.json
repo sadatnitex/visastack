@@ -1,0 +1,420 @@
+{
+  "routeNamesAreArchetypesNotVerifiedURLs": true,
+  "routes": [
+    {
+      "id": "R01",
+      "surface": "Public homepage",
+      "audience": "PUBLIC",
+      "approval": "FROZEN",
+      "componentIds": [
+        "C01",
+        "C02",
+        "C03",
+        "C04",
+        "C05",
+        "C06",
+        "C07",
+        "C08",
+        "C09",
+        "C10",
+        "C11",
+        "C17",
+        "C19",
+        "C20",
+        "C21"
+      ],
+      "journeyContract": "Hero to real signup; display honest product abilities; non-PII demo fixtures",
+      "acceptanceCases": "1440,1024,768,390; logo; navigation; 768 fix"
+    },
+    {
+      "id": "R02",
+      "surface": "Product explanation",
+      "audience": "PUBLIC",
+      "approval": "PROPOSED",
+      "componentIds": [
+        "C05",
+        "C06",
+        "C07",
+        "C21"
+      ],
+      "journeyContract": "Explain reusable records, case preparation, selected sharing",
+      "acceptanceCases": "Content claims audit; mobile headings; no unapproved new chapters"
+    },
+    {
+      "id": "R03",
+      "surface": "For agencies",
+      "audience": "PUBLIC",
+      "approval": "PROPOSED",
+      "componentIds": [
+        "C21",
+        "C36",
+        "C38"
+      ],
+      "journeyContract": "Describe request intake, case work and actual agency scope",
+      "acceptanceCases": "No invented partner claims or onboarding promises"
+    },
+    {
+      "id": "R04",
+      "surface": "Trust/privacy details",
+      "audience": "PUBLIC",
+      "approval": "PROPOSED",
+      "componentIds": [
+        "C07",
+        "C42",
+        "C51"
+      ],
+      "journeyContract": "Exact control/scope/grant/revocation/retention descriptions",
+      "acceptanceCases": "No 'bank grade' certification, hidden access, or copy recall claim"
+    },
+    {
+      "id": "R05",
+      "surface": "Auth signup/signin/recovery",
+      "audience": "AUTH",
+      "approval": "PROPOSED",
+      "componentIds": [
+        "C28",
+        "C29",
+        "C45",
+        "C55"
+      ],
+      "journeyContract": "Real Neon Auth flow; role selection does not grant agency rights",
+      "acceptanceCases": "Disabled, invalid, loading, verified, recovery, failure"
+    },
+    {
+      "id": "R06",
+      "surface": "Account/context switcher",
+      "audience": "APP",
+      "approval": "PROPOSED",
+      "componentIds": [
+        "C24",
+        "C49"
+      ],
+      "journeyContract": "Show available account capacities only after server authorization",
+      "acceptanceCases": "Wrong organization, revoked membership, expired session"
+    },
+    {
+      "id": "R07",
+      "surface": "Traveler home and attention",
+      "audience": "TRAVELER",
+      "approval": "PROPOSED",
+      "componentIds": [
+        "C25",
+        "C39",
+        "C54"
+      ],
+      "journeyContract": "One important next action, active case continuity, precise tasks",
+      "acceptanceCases": "Empty, overdue, interrupted, no notifications"
+    },
+    {
+      "id": "R08",
+      "surface": "My profile / personal record",
+      "audience": "TRAVELER",
+      "approval": "PROPOSED",
+      "componentIds": [
+        "C28",
+        "C30",
+        "C35",
+        "C60"
+      ],
+      "journeyContract": "Owner-confimable facts; provenance/version and as-of date",
+      "acceptanceCases": "Old value/new value, edits, conflicts, no forced completion"
+    },
+    {
+      "id": "R09",
+      "surface": "Passports & identity",
+      "audience": "TRAVELER",
+      "approval": "PROPOSED",
+      "componentIds": [
+        "C33",
+        "C35",
+        "C40",
+        "C60"
+      ],
+      "journeyContract": "Identity documents as repeating records, not a single mutable field",
+      "acceptanceCases": "Renewal, previous passport, unknown expiry, denied preview"
+    },
+    {
+      "id": "R10",
+      "surface": "Travel/application history",
+      "audience": "TRAVELER",
+      "approval": "PROPOSED",
+      "componentIds": [
+        "C35",
+        "C40",
+        "C41"
+      ],
+      "journeyContract": "History with exact prepared/acknowledged/reported submission distinctions",
+      "acceptanceCases": "Old declarations, corrections, refused/unknown outcome"
+    },
+    {
+      "id": "R11",
+      "surface": "Wallet/documents",
+      "audience": "TRAVELER",
+      "approval": "PROPOSED",
+      "componentIds": [
+        "C27",
+        "C32",
+        "C33",
+        "C34",
+        "C35"
+      ],
+      "journeyContract": "Find versions, preview, attach to case, replace safely",
+      "acceptanceCases": "Processing, quarantined, fail, unsupported preview, shared scope"
+    },
+    {
+      "id": "R12",
+      "surface": "Case list and start/reuse",
+      "audience": "TRAVELER",
+      "approval": "PROPOSED",
+      "componentIds": [
+        "C25",
+        "C35",
+        "C37",
+        "C54"
+      ],
+      "journeyContract": "Case initiation without recreating whole profile; reuse selected candidates",
+      "acceptanceCases": "Draft, reuse, stale, missing, permission-limited"
+    },
+    {
+      "id": "R13",
+      "surface": "Individual case",
+      "audience": "TRAVELER",
+      "approval": "PROPOSED",
+      "componentIds": [
+        "C37",
+        "C38",
+        "C40",
+        "C53"
+      ],
+      "journeyContract": "Requirements/action/selected evidence/version; not visa outcome promise",
+      "acceptanceCases": "Preparing, review, recorded-submitted, blocked"
+    },
+    {
+      "id": "R14",
+      "surface": "Agency requests / resumable intake",
+      "audience": "TRAVELER",
+      "approval": "PROPOSED",
+      "componentIds": [
+        "C28",
+        "C32",
+        "C38",
+        "C59"
+      ],
+      "journeyContract": "Authenticated case-bound request fulfilment with real save/resume",
+      "acceptanceCases": "New, partial, saved, wrong-account, expired claim, failure"
+    },
+    {
+      "id": "R15",
+      "surface": "Change impact and consistency",
+      "audience": "TRAVELER",
+      "approval": "PROPOSED",
+      "componentIds": [
+        "C35",
+        "C40",
+        "C41"
+      ],
+      "journeyContract": "Separate date/context differences from incompatible facts; neutral copy",
+      "acceptanceCases": "Legitimate change, unknown, conflict, correction"
+    },
+    {
+      "id": "R16",
+      "surface": "Application memory",
+      "audience": "TRAVELER",
+      "approval": "PROPOSED",
+      "componentIds": [
+        "C35",
+        "C40",
+        "C41",
+        "C53"
+      ],
+      "journeyContract": "Exact prepared/history snapshots and selected comparisons",
+      "acceptanceCases": "Prepared, approved, reported-submitted, outdated, unknown"
+    },
+    {
+      "id": "R17",
+      "surface": "Needs Attention",
+      "audience": "TRAVELER",
+      "approval": "PROPOSED",
+      "componentIds": [
+        "C39",
+        "C46"
+      ],
+      "journeyContract": "Deduplicated tasks, dates/expiry, case impacts",
+      "acceptanceCases": "Overdue, soon, corrected, no due date"
+    },
+    {
+      "id": "R18",
+      "surface": "Sharing and access",
+      "audience": "TRAVELER",
+      "approval": "PROPOSED",
+      "componentIds": [
+        "C42",
+        "C45",
+        "C51"
+      ],
+      "journeyContract": "Recipient+scope+versions+deadline and revocation, no unlimited access",
+      "acceptanceCases": "Draft, approved, active, expired, revoked, downloaded-copy notice"
+    },
+    {
+      "id": "R19",
+      "surface": "Handover, trip essentials, context export",
+      "audience": "TRAVELER",
+      "approval": "PROPOSED",
+      "componentIds": [
+        "C42",
+        "C53"
+      ],
+      "journeyContract": "Preview exactly included fields and files, redact by default",
+      "acceptanceCases": "Selected only, empty, expired grant, denied export"
+    },
+    {
+      "id": "R20",
+      "surface": "Agency overview",
+      "audience": "AGENCY",
+      "approval": "PROPOSED",
+      "componentIds": [
+        "C24",
+        "C36",
+        "C38"
+      ],
+      "journeyContract": "Exception-first operational queue, cases and evidence requests",
+      "acceptanceCases": "No cases, blocked, escalated, unassigned"
+    },
+    {
+      "id": "R21",
+      "surface": "Agency clients",
+      "audience": "AGENCY",
+      "approval": "PROPOSED",
+      "componentIds": [
+        "C27",
+        "C36",
+        "C49"
+      ],
+      "journeyContract": "Only agency-authorized case subjects with proper list scope",
+      "acceptanceCases": "Search, sort, no-results, terminated grant"
+    },
+    {
+      "id": "R22",
+      "surface": "Agency case detail",
+      "audience": "AGENCY",
+      "approval": "PROPOSED",
+      "componentIds": [
+        "C35",
+        "C36",
+        "C37",
+        "C38",
+        "C42"
+      ],
+      "journeyContract": "Assigned work/requests/review within exact scope",
+      "acceptanceCases": "Edit conflict, pending replacement, view-only"
+    },
+    {
+      "id": "R23",
+      "surface": "Agency intake/invitation",
+      "audience": "AGENCY",
+      "approval": "PROPOSED",
+      "componentIds": [
+        "C28",
+        "C38",
+        "C43",
+        "C59"
+      ],
+      "journeyContract": "Recipient-bound invite; token is not a record access key",
+      "acceptanceCases": "Draft, sent, expired, claimed, replay rejected"
+    },
+    {
+      "id": "R24",
+      "surface": "Agency evidence review",
+      "audience": "AGENCY",
+      "approval": "PROPOSED",
+      "componentIds": [
+        "C33",
+        "C34",
+        "C35",
+        "C38"
+      ],
+      "journeyContract": "Review and request corrections with provenance",
+      "acceptanceCases": "Not received, processing, rejected, reviewed"
+    },
+    {
+      "id": "R25",
+      "surface": "Agency team/membership",
+      "audience": "AGENCY",
+      "approval": "PROPOSED",
+      "componentIds": [
+        "C36",
+        "C45",
+        "C49"
+      ],
+      "journeyContract": "Role management, tenant isolation, no wallet inference",
+      "acceptanceCases": "Invite, revoked, disabled, permissions error"
+    },
+    {
+      "id": "R26",
+      "surface": "Agency activity/audit",
+      "audience": "AGENCY",
+      "approval": "PROPOSED",
+      "componentIds": [
+        "C40",
+        "C58"
+      ],
+      "journeyContract": "Actor, case, event with scoped visibility",
+      "acceptanceCases": "Full, redacted, missing scope"
+    },
+    {
+      "id": "R27",
+      "surface": "Administrator overview",
+      "audience": "ADMIN",
+      "approval": "PROPOSED",
+      "componentIds": [
+        "C24",
+        "C57",
+        "C58"
+      ],
+      "journeyContract": "Real operational health, exceptions and permissions",
+      "acceptanceCases": "Healthy, degraded, unknown, evidence absent"
+    },
+    {
+      "id": "R28",
+      "surface": "Administrator provider/AI settings",
+      "audience": "ADMIN",
+      "approval": "PROPOSED",
+      "componentIds": [
+        "C28",
+        "C30",
+        "C50",
+        "C57"
+      ],
+      "journeyContract": "Approved provider abstraction, budgets/limits, secure keys",
+      "acceptanceCases": "Change, validation failure, rollback, privileged reauth"
+    },
+    {
+      "id": "R29",
+      "surface": "Administrator users/org/security",
+      "audience": "ADMIN",
+      "approval": "PROPOSED",
+      "componentIds": [
+        "C36",
+        "C45",
+        "C49",
+        "C51"
+      ],
+      "journeyContract": "Scoped account controls, no PII browse by default",
+      "acceptanceCases": "Read-only, blocked, audit, confirm"
+    },
+    {
+      "id": "R30",
+      "surface": "All utility/legal pages",
+      "audience": "PUBLIC/APP",
+      "approval": "PROPOSED",
+      "componentIds": [
+        "C04",
+        "C25",
+        "C54",
+        "C55"
+      ],
+      "journeyContract": "404,403,500,consent,terms,privacy,notifications,settings",
+      "acceptanceCases": "Route not found, access denied, rate limited, server fail"
+    }
+  ]
+}
