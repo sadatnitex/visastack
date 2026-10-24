@@ -27,7 +27,7 @@ export const CAPABILITY_NAMES: { readonly [K in keyof PlatformCapabilities]: str
   packGeneration: 'Preparing application packs',
   publicSignup: 'Open sign-up for anyone',
   payments: 'Payments',
-  realApplicantData: 'Use with real personal data',
+  realApplicantData: 'All protections for real personal data in place',
   commercialClaims: null,
 };
 

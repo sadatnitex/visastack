@@ -27,8 +27,9 @@ export default function PrivacyPage() {
       <p>
         Account registration uses your name, email address and sign-in information to create and
         protect your account and send confirmation or recovery messages. Security controls record
-        registration attempts and notice versions. Use made-up applicant information and test files
-        during the current pilot; real sensitive-document intake is not enabled.
+        registration attempts and notice versions. During the free public beta you may add your own
+        information and documents at your own risk; some protections, such as virus scanning of
+        uploads, are not switched on yet.
       </p>
       <h2>Services that process information</h2>
       <p>

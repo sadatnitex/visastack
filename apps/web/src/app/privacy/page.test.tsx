@@ -13,7 +13,8 @@ it('discloses the configured R2 document and archive processor with the updated 
   expect(html).toContain('encrypted backup archives when backups are configured');
   expect(html).toContain(SIGNUP_PRIVACY_VERSION);
   expect(SIGNUP_PRIVACY_VERSION).not.toBe('2026-10-10.1');
-  expect(html).toContain('real sensitive-document intake is not enabled');
+  expect(html).toContain('at your own risk');
+  expect(html).toContain('virus scanning of uploads, are not switched on yet');
   expect(html).toContain('awaits legal review');
 });
 it('retains the alternate file provider without claiming that all deployments use R2 documents', () => {

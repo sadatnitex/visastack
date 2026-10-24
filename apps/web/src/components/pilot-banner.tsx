@@ -48,7 +48,7 @@ export function PilotBanner({
       ? {
           label: 'VisaStack public beta',
           detail:
-            'Registration is open. Please use made-up details, or documents with all personal information permanently blacked out.',
+            'Free to use at your own risk. Some protections, such as virus scanning of uploads, are not switched on yet.',
         }
       : PILOT_BANNER_COPY[mode];
   // A named region, so the notice is a landmark a screen reader user can find and skip,

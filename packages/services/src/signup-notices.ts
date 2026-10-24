@@ -2,8 +2,8 @@ import { appendAuditEvent } from './audit';
 import type { Db } from './db';
 import { checkRateLimit } from './rate-limit';
 
-export const SIGNUP_TERMS_VERSION = '2026-10-10.1';
-export const SIGNUP_PRIVACY_VERSION = '2026-10-11.1';
+export const SIGNUP_TERMS_VERSION = '2026-10-24.1';
+export const SIGNUP_PRIVACY_VERSION = '2026-10-24.1';
 export const SIGNUP_FORM_LIFETIME_MS = 20 * 60 * 1000;
 
 export interface SignupNoticeInput {

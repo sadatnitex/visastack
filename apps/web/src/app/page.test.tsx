@@ -93,7 +93,7 @@ describe('the public home page', () => {
     expect(html).toContain('id="capabilities"');
   });
 
-  it('uses the actual open-registration flag without relaxing the data restriction', async () => {
+  it('uses the actual open-registration flag and states the at-your-own-risk terms plainly', async () => {
     betaState.value = true;
     try {
       const html = await render();
@@ -101,7 +101,9 @@ describe('the public home page', () => {
       expect(text).toContain('Public beta');
       expect(text).toContain('Create your free account');
       expect(text).toContain('Registration is open for public beta');
-      expect(text).toContain('Real applicant details are not accepted yet');
+      expect(text).toContain('free to use at your own risk');
+      expect(text).toContain('virus scanning of uploads');
+      expect(text).not.toContain('Real applicant details are not accepted yet');
       expect(text).not.toContain('private pilot for invited users');
       expect(text).not.toContain('VisaStack is in a private pilot');
       expect(html.match(/href="\/auth\/sign-up"/g)?.length).toBe(2);
