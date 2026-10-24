@@ -19,3 +19,10 @@ scripts/check-flat-design.test.mjs
 docs/upgrades/programme/**
 docs/commercial-v1/known-issues.md
 # PROPOSED: apps/web/src/components/landing-*.test.tsx
+# D3 (approved 24 Oct 2026): the landing navigation destinations live in the shared header. Header links only;
+# added under the owner's autonomous-work mandate of 24 Oct 2026.
+apps/web/src/app/layout.tsx
+# Test harness only (24 Oct 2026): the workspace fixture mounts on the home page, so the new landing exposed a
+# capture race in its pixel comparison (main fails the same way on a neutral carrier). Wait for fonts and two
+# painted frames before capture. Same exact-pixel assertion; proven to still fail on a dark-only difference.
+apps/web/e2e/flat-ui-support.ts

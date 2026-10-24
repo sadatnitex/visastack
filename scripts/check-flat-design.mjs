@@ -4,7 +4,15 @@ import { fileURLToPath } from 'node:url';
 import postcss from 'postcss';
 import ts from 'typescript';
 
-export function checkCss(css, source = 'stylesheet') {
+/**
+ * Owner decision D1 (Programme X, 24 Oct 2026): the public landing keeps the approved Harbor
+ * look, which uses soft shadows, gradients and floating cards. Only this one stylesheet may
+ * use those effects. Automatic dark appearance stays forbidden in it, and every other file
+ * keeps the full flat rule.
+ */
+export const LANDING_EFFECTS_EXCEPTION = 'apps/web/src/app/landing-c1.css';
+
+export function checkCss(css, source = 'stylesheet', { allowEffects = false } = {}) {
   const errors = [];
   const ast = postcss.parse(css, { from: source });
   ast.walkAtRules('media', (rule) => {
@@ -12,6 +20,7 @@ export function checkCss(css, source = 'stylesheet') {
       errors.push(`${source}:${rule.source.start.line}: automatic dark appearance`);
   });
   ast.walkDecls((declaration) => {
+    if (allowEffects) return;
     const { prop, value } = declaration;
     if (/^(?:box-shadow|text-shadow|(?:-webkit-)?backdrop-filter)$/.test(prop) && value !== 'none')
       errors.push(`${source}:${declaration.source.start.line}: ${prop}`);
@@ -74,6 +83,13 @@ export function checkInline(source, filename = 'component.tsx') {
   return errors;
 }
 
+/** Checks one stylesheet by its path from the repository root, applying the single exception. */
+export function checkStylesheet(css, relativePath) {
+  return checkCss(css, relativePath, {
+    allowEffects: relativePath.split('\\').join('/') === LANDING_EFFECTS_EXCEPTION,
+  });
+}
+
 export function scan(root) {
   const errors = [];
   const walk = (directory) => {
@@ -81,7 +97,7 @@ export function scan(root) {
       const full = join(directory, entry.name);
       if (entry.isDirectory()) walk(full);
       else if (entry.name.endsWith('.css'))
-        errors.push(...checkCss(readFileSync(full, 'utf8'), relative(root, full)));
+        errors.push(...checkStylesheet(readFileSync(full, 'utf8'), relative(root, full)));
       else if (entry.name.endsWith('.tsx') && !entry.name.includes('.test'))
         errors.push(...checkInline(readFileSync(full, 'utf8'), relative(root, full)));
     }

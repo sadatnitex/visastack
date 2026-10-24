@@ -71,7 +71,7 @@ const visible = PUBLIC_FILES.flatMap((file) => {
 describe('the guard itself', () => {
   it('reads the public pages it is meant to check', () => {
     const text = visible.map((v) => v.text);
-    expect(text).toContain('One profile. Every visa.');
+    expect(text).toContain('Your documents.');
     expect(text).toContain('What works today');
     expect(text.some((t) => t.startsWith('Invite-only test version'))).toBe(true);
     expect(visible.length).toBeGreaterThan(40);
