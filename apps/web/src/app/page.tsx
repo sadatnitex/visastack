@@ -468,8 +468,9 @@ export default async function HomePage({ searchParams }: HomePageProps) {
               {betaOpen
                 ? 'Registration is open for public beta, and some features are not switched on yet.'
                 : 'This is a private pilot for invited users, and some features are not switched on yet.'}{' '}
-              Please use made-up details, or documents with all personal information permanently
-              blacked out. Real applicant details are not accepted yet.
+              {betaOpen
+                ? 'It is free to use at your own risk while we finish switching on protections such as virus scanning of uploads. The status page shows exactly what works today.'
+                : 'Please use made-up details, or documents with all personal information permanently blacked out. Real applicant details are not accepted yet.'}
             </p>
           </div>
           <ol className="land-horizons">

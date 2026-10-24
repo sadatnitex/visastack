@@ -11,10 +11,12 @@ export default function TermsPage() {
       <p className="card-body">
         Version {SIGNUP_TERMS_VERSION}. These beta terms await legal review.
       </p>
-      <h2>Current test pilot</h2>
+      <h2>Free public beta, at your own risk</h2>
       <p>
-        Use made-up applicant details and test documents only. Creating an account does not grant
-        access to an invited workspace or enable real-document intake.
+        VisaStack is a free public beta, provided as it is. You may use your own details and
+        documents, at your own risk: some protections, such as virus scanning of uploads, are not
+        switched on yet, and the status page lists what works today. Creating an account does not
+        grant access to an agency workspace.
       </p>
       <h2>Your information and access</h2>
       <p>

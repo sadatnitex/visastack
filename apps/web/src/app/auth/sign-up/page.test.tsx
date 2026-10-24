@@ -22,6 +22,6 @@ it('offers readable notices and an unchecked acknowledgement with a valid signed
   expect(document.querySelector('a[href="/privacy"]')?.textContent).toBe('privacy notice');
   const token = document.querySelector<HTMLInputElement>('input[name="signupForm"]')?.value;
   expect(token && readSignupForm(token)).toBeTruthy();
-  expect(document.body.textContent).toContain('Do not enter real applicant details');
+  expect(document.body.textContent).toContain('you do so at your own risk');
   expect(document.querySelector('input[name="website"]')?.closest('[hidden]')).not.toBeNull();
 });
