@@ -804,7 +804,7 @@ test.describe('authoritative appearance on public routes', () => {
     await expect(
       page
         .getByRole('navigation', { name: 'Site', exact: true })
-        .getByRole('link', { name: 'Features', exact: true }),
+        .getByRole('link', { name: 'Product', exact: true }),
     ).toBeFocused();
     await page.keyboard.press('Escape');
     await expect(menu).toBeFocused();
@@ -812,7 +812,7 @@ test.describe('authoritative appearance on public routes', () => {
     await menu.click();
     await page.getByRole('link', { name: 'How it works', exact: true }).click();
     await expect(menu).toHaveAttribute('aria-expanded', 'false');
-    await expect(page.locator('#land-how-title')).toBeInViewport();
+    await expect(page.locator('#how-it-works')).toBeInViewport();
   });
   test('homepage anchors resolve and desktop header follows the reference geometry', async ({
     page,

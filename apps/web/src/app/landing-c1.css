@@ -459,7 +459,8 @@
   background: color-mix(in srgb, var(--c1-accent) 9%, white);
 }
 .c1 .c1-segment span {
-  color: color-mix(in srgb, var(--c1-ink) 65%, white);
+  /* A11Y-EXCEPTION: the frozen mix measured 4.29:1 on the segment; fg-body gives 5.5:1. */
+  color: var(--c1-body-copy);
 }
 .c1 .c1-segment span:first-child {
   color: var(--c1-accent);
@@ -479,7 +480,8 @@
   color: var(--c1-accent);
 }
 .c1 .c1-fileinfo small {
-  color: color-mix(in srgb, var(--c1-ink) 54%, white);
+  /* A11Y-EXCEPTION: the frozen mix measured 3.53:1 on white; fg-muted gives 4.84:1. */
+  color: var(--c1-muted);
 }
 .c1 .c1-tag {
   background: color-mix(in srgb, var(--c1-positive) 14%, white);
@@ -708,5 +710,16 @@
   }
   .c1 .c1-feature {
     min-height: 260px;
+  }
+}
+
+/* OWNER-EXTENSION (D4, WP-L1): below 380px the headline wraps to four lines, so the hero's top spacing
+   tightens to keep the headline, the primary action and the availability line above the fold at 360x640. */
+@media (max-width: 379px) {
+  .c1 .c1-hero {
+    padding-top: 24px;
+  }
+  .c1 .c1-headline {
+    margin: 16px auto 12px;
   }
 }

@@ -68,10 +68,10 @@ export default async function RootLayout({ children }: { readonly children: Reac
           </Link>
           <SiteNavigation>
             <div className="site-nav-pages">
-              <Link href="/#capabilities">Features</Link>
+              <Link href="/#product">Product</Link>
               <Link href="/#for-agencies">For agencies</Link>
-              <Link href="/trust">Public trust</Link>
-              <Link href="/#land-how-title">How it works</Link>
+              <Link href="/trust">Privacy and control</Link>
+              <Link href="/#how-it-works">How it works</Link>
             </div>
             <div className="site-nav-actions">
               <form action={setLocaleAction} aria-label="Language">
