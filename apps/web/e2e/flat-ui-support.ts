@@ -59,13 +59,12 @@ export async function openUiFixture(
   }, mode);
   await page.locator('.app-frame').waitFor();
   // Let fonts finish and two frames paint, so a pixel capture never races the first raster.
-  await page.evaluate(
-    () =>
-      document.fonts.ready.then(
-        () =>
-          new Promise<void>((resolve) =>
-            requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
-          ),
-      ),
+  await page.evaluate(() =>
+    document.fonts.ready.then(
+      () =>
+        new Promise<void>((resolve) =>
+          requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+        ),
+    ),
   );
 }
