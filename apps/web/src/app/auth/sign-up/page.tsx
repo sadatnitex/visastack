@@ -53,8 +53,8 @@ export default async function SignUpPage({
         <li>3 Sign in</li>
       </ol>
       <p className="notice u-mb-100">
-        VisaStack is a free public beta. If you add real details or documents, you do so at your
-        own risk: some protections, such as virus scanning of uploads, are not switched on yet.
+        VisaStack is a free public beta. If you add real details or documents, you do so at your own
+        risk: some protections, such as virus scanning of uploads, are not switched on yet.
       </p>
       <ErrorLine id="signup-error" message={error} />
       {e === 'exists' && (

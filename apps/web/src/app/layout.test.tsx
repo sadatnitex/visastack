@@ -12,13 +12,13 @@ describe('public beta notice audience', () => {
   it('retains the public notice for a signed-out visitor', async () => {
     state.signedIn = false;
     expect(textOf(await renderServer(RootLayout({ children: <p>Public page</p> })))).toContain(
-      'Registration is open.',
+      'Free to use at your own risk.',
     );
   });
   it('does not render the notice for a signed-in user', async () => {
     state.signedIn = true;
     const html = await renderServer(RootLayout({ children: <p>Signed-in page</p> }));
     expect(html).not.toContain('pilot-banner');
-    expect(textOf(html)).not.toContain('Registration is open.');
+    expect(textOf(html)).not.toContain('Free to use at your own risk.');
   });
 });
