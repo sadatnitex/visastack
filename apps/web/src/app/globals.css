@@ -185,7 +185,8 @@ a:hover {
   width: 34px;
   height: 34px;
   border-radius: 10px;
-  background: #075d54;
+  /* The VisaStack V from the brand pack: below 32px of detail the single bolder V, never the sliced mark. */
+  background: url("/brand/visastack-v-tile.svg") center / 100% 100% no-repeat;
   position: relative;
 }
 .nav-links {
@@ -2601,22 +2602,6 @@ a.checklist-item:hover .checklist-label {
 }
 
 /* Shared geometry for public, identity and authorized workspaces. */
-.brand-mark::before,
-.brand-mark::after {
-  content: "";
-  position: absolute;
-  left: 22%;
-  width: 56%;
-  height: 12%;
-  border-radius: 2px;
-  background: #ffffff;
-}
-.brand-mark::before {
-  top: 32%;
-}
-.brand-mark::after {
-  top: 58%;
-}
 .land-title em,
 .auth-introduction em {
   display: block;
@@ -3331,12 +3316,9 @@ body:has(.auth-shell) > .footer {
 .auth-brand {
   color: #ffffff;
 }
+/* On the dark identity panel the brand pack's reversed colours apply: white tile, blue V. */
 .auth-brand .brand-mark {
-  background: #def3e9;
-}
-.auth-brand .brand-mark::before,
-.auth-brand .brand-mark::after {
-  background: #075d54;
+  background-image: url("/brand/visastack-v-tile-reversed.svg");
 }
 .auth-legal-links {
   display: flex;

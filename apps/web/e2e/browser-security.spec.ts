@@ -378,3 +378,60 @@ test.describe('violation report endpoint', () => {
     expect(wrongMethod.status()).toBe(405);
   });
 });
+
+test.describe('brand assets from the VisaStack brand pack', () => {
+  test('the page links its icons, manifest and share image, and each is served same-site', async ({
+    page,
+    request,
+  }) => {
+    await page.goto('/');
+    const head = await page.evaluate(() => ({
+      icons: [...document.querySelectorAll('link[rel="icon"], link[rel="apple-touch-icon"]')].map(
+        (link) => new URL((link as HTMLLinkElement).href).pathname,
+      ),
+      manifest: document.querySelector<HTMLLinkElement>('link[rel="manifest"]')?.href ?? '',
+      shareImage:
+        document.querySelector<HTMLMetaElement>('meta[property="og:image"]')?.content ?? '',
+    }));
+    expect(head.icons.some((path) => path.startsWith('/icon.svg'))).toBe(true);
+    expect(head.icons.some((path) => path.startsWith('/apple-icon.png'))).toBe(true);
+    expect(new URL(head.manifest).pathname).toBe('/manifest.webmanifest');
+    expect(new URL(head.shareImage).pathname).toMatch(/^\/opengraph-image\.png/);
+    for (const [path, type] of [
+      ['/icon.svg', 'image/svg+xml'],
+      ['/favicon.ico', 'image/x-icon'],
+      ['/apple-icon.png', 'image/png'],
+      ['/opengraph-image.png', 'image/png'],
+      ['/icons/icon-192.png', 'image/png'],
+      ['/icons/icon-maskable-512.png', 'image/png'],
+      ['/brand/visastack-v-tile.svg', 'image/svg+xml'],
+      ['/brand/visastack-v-tile-reversed.svg', 'image/svg+xml'],
+    ]) {
+      const response = await request.get(path);
+      expect(response.status(), path).toBe(200);
+      expect(response.headers()['content-type'], path).toContain(type);
+    }
+    const manifest = await (await request.get('/manifest.webmanifest')).json();
+    expect(manifest).toMatchObject({ name: 'VisaStack', theme_color: '#1D4C98' });
+  });
+
+  test('the header shows the brand V, loaded under the content security policy', async ({
+    page,
+  }) => {
+    const refused: string[] = [];
+    page.on('console', (message) => {
+      if (message.type() === 'error' && /Content Security Policy/i.test(message.text()))
+        refused.push(message.text());
+    });
+    const tile = page.waitForResponse((response) =>
+      response.url().endsWith('/brand/visastack-v-tile.svg'),
+    );
+    await page.goto('/');
+    expect((await tile).status()).toBe(200);
+    await expect(page.locator('header.nav .brand-mark')).toHaveCSS(
+      'background-image',
+      /\/brand\/visastack-v-tile\.svg/,
+    );
+    expect(refused).toEqual([]);
+  });
+});

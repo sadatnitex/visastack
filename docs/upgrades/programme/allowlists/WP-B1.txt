@@ -1,0 +1,18 @@
+# WP-B1 brand assets. Added 24 Oct 2026 on the owner's instruction to take the logo and brand assets from the
+# VisaStack design system, staying within the approved plans. Header mark, favicon set, app icons, manifest
+# and share images only. No copy, layout, colour token or route change.
+apps/web/public/brand/**
+apps/web/public/icons/**
+apps/web/src/app/icon.svg
+apps/web/src/app/favicon.ico
+apps/web/src/app/apple-icon.png
+apps/web/src/app/opengraph-image.png
+apps/web/src/app/opengraph-image.alt.txt
+apps/web/src/app/twitter-image.png
+apps/web/src/app/twitter-image.alt.txt
+apps/web/src/app/manifest.ts
+# globals.css: only the .brand-mark rules
+apps/web/src/app/globals.css
+apps/web/e2e/browser-security.spec.ts
+docs/upgrades/programme/**
+docs/commercial-v1/known-issues.md
