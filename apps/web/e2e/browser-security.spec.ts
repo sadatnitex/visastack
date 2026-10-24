@@ -397,7 +397,7 @@ test.describe('brand assets from the VisaStack brand pack', () => {
     expect(head.icons.some((path) => path.startsWith('/apple-icon.png'))).toBe(true);
     expect(new URL(head.manifest).pathname).toBe('/manifest.webmanifest');
     expect(new URL(head.shareImage).pathname).toMatch(/^\/opengraph-image\.png/);
-    for (const [path, type] of [
+    const assets: ReadonlyArray<readonly [string, string]> = [
       ['/icon.svg', 'image/svg+xml'],
       ['/favicon.ico', 'image/x-icon'],
       ['/apple-icon.png', 'image/png'],
@@ -406,7 +406,8 @@ test.describe('brand assets from the VisaStack brand pack', () => {
       ['/icons/icon-maskable-512.png', 'image/png'],
       ['/brand/visastack-v-tile.svg', 'image/svg+xml'],
       ['/brand/visastack-v-tile-reversed.svg', 'image/svg+xml'],
-    ]) {
+    ];
+    for (const [path, type] of assets) {
       const response = await request.get(path);
       expect(response.status(), path).toBe(200);
       expect(response.headers()['content-type'], path).toContain(type);
