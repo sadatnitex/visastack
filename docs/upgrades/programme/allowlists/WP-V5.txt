@@ -1,0 +1,18 @@
+# DRAFT from WP-A0. Needs the owner approval before this package edits any other file.
+# Lines starting with "# PROPOSED:" are suggested additions. They are not active until the owner approves
+# them and the line is uncommented.
+# Every package updates STATUS.md and the ledger, and the shared preamble asks for a known-issues chunk,
+# so docs/upgrades/programme/** and docs/commercial-v1/known-issues.md are included everywhere.
+packages/services/src/selected-output.ts
+packages/services/src/selected-output.test.ts
+packages/services/src/export-csv.ts
+packages/services/src/export-csv.test.ts
+packages/services/src/index.ts
+apps/web/src/app/app/applicant/[id]/outputs/**
+apps/web/src/components/selected-scope-summary.tsx
+apps/web/src/app/app/first-run.tsx
+apps/web/src/app/app/first-run.test.tsx
+apps/web/src/app/globals.css
+docs/upgrades/programme/**
+docs/commercial-v1/known-issues.md
+# Note: export.ts stays untouched. It is the full-account export and must not be filtered to make a brief.

@@ -1,0 +1,22 @@
+# DRAFT from WP-A0. Needs the owner approval before this package edits any other file.
+# Lines starting with "# PROPOSED:" are suggested additions. They are not active until the owner approves
+# them and the line is uncommented.
+# Every package updates STATUS.md and the ledger, and the shared preamble asks for a known-issues chunk,
+# so docs/upgrades/programme/** and docs/commercial-v1/known-issues.md are included everywhere.
+apps/web/src/lib/workspace-navigation.ts
+apps/web/src/lib/workspace-navigation.test.ts
+apps/web/src/app/app/app-nav.tsx
+apps/web/src/app/app/workspace-shell.tsx
+apps/web/src/app/app/page.tsx
+apps/web/src/app/app/page.test.tsx
+apps/web/src/app/app/first-run.tsx
+apps/web/src/app/app/first-run.test.tsx
+apps/web/src/app/app/consent-button.tsx
+apps/web/src/app/app/add-applicant-form.tsx
+apps/web/src/app/app/applicant/[id]/**
+apps/web/src/lib/profile-fields.ts
+apps/web/src/app/globals.css
+docs/upgrades/programme/**
+docs/commercial-v1/known-issues.md
+# PROPOSED from the ledger: packages/services/src/profile.ts (authorized history projection), packages/services/src/consistency.ts (from WP-V2)
+# Note: profile-fields.ts is frozen by the Master Profile handoff until its Phase 2. Ask before editing.

@@ -62,7 +62,8 @@ function longDashCount(base) {
   const dash = String.fromCharCode(0x2014);
   return diff
     .split('\n')
-    .filter((line) => line.startsWith('+') && !line.startsWith('+++') && line.includes(dash)).length;
+    .filter((line) => line.startsWith('+') && !line.startsWith('+++') && line.includes(dash))
+    .length;
 }
 
 function main(argv) {
@@ -71,7 +72,9 @@ function main(argv) {
   const baseIndex = args.indexOf('--base');
   const base = baseIndex >= 0 ? args[baseIndex + 1] : 'origin/main';
   if (!allowlistPath) {
-    console.error('Usage: check-allowed-paths.mjs <allowlist-file> [--base origin/main] [--no-emdash]');
+    console.error(
+      'Usage: check-allowed-paths.mjs <allowlist-file> [--base origin/main] [--no-emdash]',
+    );
     return 2;
   }
   const patterns = parseAllowlist(readFileSync(allowlistPath, 'utf8'));
@@ -88,14 +91,14 @@ function main(argv) {
     for (const path of violations) console.error(`  ${path}`);
     console.error('Stop. Ask the owner to approve an allowlist change before editing these files.');
   } else {
-    console.log(`OK: ${changed.length} changed file(s), all inside ${allowlistPath}.`);
+    process.stdout.write(`OK: ${changed.length} changed file(s), all inside ${allowlistPath}.\n`);
   }
   if (args.includes('--no-emdash')) {
     const count = longDashCount(base);
     if (count > 0) {
       failed = true;
       console.error(`${count} added line(s) contain a long dash. Replace each with a hyphen.`);
-    } else console.log('OK: no long dashes in added lines.');
+    } else process.stdout.write('OK: no long dashes in added lines.\n');
   }
   return failed ? 1 : 0;
 }

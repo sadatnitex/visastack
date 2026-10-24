@@ -1,0 +1,12 @@
+# DRAFT from WP-A0. Needs the owner approval before this package edits any other file.
+# Lines starting with "# PROPOSED:" are suggested additions. They are not active until the owner approves
+# them and the line is uncommented.
+# Every package updates STATUS.md and the ledger, and the shared preamble asks for a known-issues chunk,
+# so docs/upgrades/programme/** and docs/commercial-v1/known-issues.md are included everywhere.
+# Landing copy only
+apps/web/src/app/page.tsx
+apps/web/src/app/page.test.tsx
+apps/web/e2e/**
+docs/upgrades/**
+docs/commercial-v1/known-issues.md
+# PROPOSED: test files the acceptance run needs, listed by path once known
