@@ -3,3 +3,10 @@
 docs/design/harbor-v2/**
 docs/upgrades/**
 scripts/programme/**
+# Owner approvals 24 Oct 2026 (CR14, CLAUDE.md lines, known-issues append):
+# biome.json: one ignore line for docs/design/harbor-v2 only.
+biome.json
+# CLAUDE.md: the approved Programme X lines and the Harbor exclusion in the dash sweep only.
+CLAUDE.md
+# Append only.
+docs/commercial-v1/known-issues.md
