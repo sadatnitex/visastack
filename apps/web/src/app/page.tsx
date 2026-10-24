@@ -289,7 +289,9 @@ export default async function HomePage({ searchParams }: HomePageProps) {
               </span>
             </div>
           ))}
-          <figcaption className="c1-fineprint">Illustrative interface · Sample information</figcaption>
+          <figcaption className="c1-fineprint">
+            Illustrative interface · Sample information
+          </figcaption>
         </figure>
       </section>
 

@@ -440,10 +440,8 @@
 .c1 .c1-phone {
   background: var(--c1-paper-soft);
   border-color: var(--c1-ink);
-  box-shadow:
-    0 4px 0 var(--c1-ink),
-    0 0 0 2px color-mix(in srgb, var(--c1-ink) 55%, white),
-    0 42px 90px color-mix(in srgb, var(--c1-ink) 16%, transparent);
+  box-shadow: 0 4px 0 var(--c1-ink), 0 0 0 2px color-mix(in srgb, var(--c1-ink) 55%, white), 0 42px
+    90px color-mix(in srgb, var(--c1-ink) 16%, transparent);
 }
 .c1 .c1-island {
   background: var(--c1-ink);
@@ -540,13 +538,11 @@
   color: color-mix(in srgb, var(--c1-accent) 35%, white);
 }
 .c1 .c1-feature-glow {
-  background:
-    radial-gradient(
+  background: radial-gradient(
       circle at 85% 80%,
       color-mix(in srgb, var(--c1-accent) 82%, #ffffff 18%) 0,
       transparent 47%
-    ),
-    color-mix(in srgb, var(--c1-accent) 48%, var(--c1-stage));
+    ), color-mix(in srgb, var(--c1-accent) 48%, var(--c1-stage));
 }
 .c1 .c1-feature-mid {
   background: linear-gradient(

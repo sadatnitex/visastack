@@ -58,7 +58,9 @@ test.describe('Harbor landing (WP-L1)', () => {
         const phone = document.querySelector('.c1-phone')?.getBoundingClientRect();
         const covered: string[] = [];
         if (phone) {
-          const texts = [...document.querySelectorAll('.c1-phone .c1-phonename, .c1-phone .c1-phonepanel')];
+          const texts = [
+            ...document.querySelectorAll('.c1-phone .c1-phonename, .c1-phone .c1-phonepanel'),
+          ];
           for (const card of document.querySelectorAll('.c1-floatcard')) {
             const c = card.getBoundingClientRect();
             if (c.width === 0) continue;

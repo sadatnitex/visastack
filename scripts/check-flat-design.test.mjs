@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
+  LANDING_EFFECTS_EXCEPTION,
   checkCss,
   checkInline,
   checkStylesheet,
-  LANDING_EFFECTS_EXCEPTION,
 } from './check-flat-design.mjs';
 
 test('rejects effects hidden in variables and nested media rules', () => {
