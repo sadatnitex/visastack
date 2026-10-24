@@ -1,0 +1,5 @@
+# WP-A0 allowlist. Seeded verbatim from WORK-PACKAGES.md (WP-A0 "Allowlist seed").
+# Docs and scripts only. Nothing under apps/, packages/, infra/ or .github/.
+docs/design/harbor-v2/**
+docs/upgrades/**
+scripts/programme/**
