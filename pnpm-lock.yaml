@@ -8,7 +8,7 @@ overrides:
   sharp: '>=0.35.5 <1.0.0'
   postcss: '>=8.5.23'
   nanoid: '>=3.3.17 <4.0.0'
-  undici: '>=6.28.1 <7.0.0'
+  undici: '>=6.29.1 <7.0.0'
   '@xmldom/xmldom': '>=0.8.15 <0.9.0'
   source-map-js: '>=1.2.2 <2.0.0'
   vite: '>=6.4.3 <7.0.0'
@@ -2504,8 +2504,8 @@ packages:
   undici-types@6.21.0:
     resolution: {integrity: sha512-iwDZqg0QAGrg9Rav5H4n0M64c3mkR59cJ6wQp+7C4nI0gsmExaedaYLNO44eT4AtBBwjbTiGPMlt2Md0T9H9JQ==}
 
-  undici@6.29.0:
-    resolution: {integrity: sha512-R+RODBqp6i2pPflGdq+xIOUkl+RNfGgHwoinecKu/JCuf2uO06cOKoDbI2P7Dn6KcswdKwrczbU6IYJ6K8X+wg==}
+  undici@6.29.1:
+    resolution: {integrity: sha512-EvRlUt/QqAEvXdQeRMYUfwOQsfzpDztykrG2owGEE/rBOBoYv9uF39ZzsNDh4lTFHhTr2XOZjKkYgueD12ZmGA==}
     engines: {node: '>=18.17'}
 
   unpdf@1.8.1:
@@ -3631,7 +3631,7 @@ snapshots:
       is-buffer: 2.0.5
       is-node-process: 1.2.0
       throttleit: 2.1.0
-      undici: 6.29.0
+      undici: 6.29.1
 
   '@vercel/cli-config@0.2.0':
     dependencies:
@@ -4486,7 +4486,7 @@ snapshots:
 
   undici-types@6.21.0: {}
 
-  undici@6.29.0: {}
+  undici@6.29.1: {}
 
   unpdf@1.8.1(@napi-rs/canvas@1.0.9):
     optionalDependencies:
