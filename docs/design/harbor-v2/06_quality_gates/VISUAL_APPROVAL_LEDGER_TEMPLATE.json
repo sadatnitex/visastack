@@ -1,0 +1,27 @@
+{
+  "version": "2.0.0",
+  "instructions": "No entry approved automatically. Approval requires exact screenshots/sha, signed owner/date, tested states, existing functionality and security regression evidence.",
+  "entries": [
+    {
+      "routeArchetype": "R01",
+      "designAuthority": "C1 frozen source + Harbor palette",
+      "approvalType": "source reference accepted; live implementation NOT YET VERIFIED",
+      "sourceSha256": "894253b7a9d8ebb56abd522d8237a8768476ad98555f779e5efced815d522a10",
+      "ownerSignedProductionBaseline": false,
+      "exception768Px": "Open: original C1 source has horizontal overflow"
+    }
+  ],
+  "newRouteTemplate": {
+    "routeArchetype": "Rxx",
+    "actualCodePath": null,
+    "componentIds": [],
+    "proposedScreenshots": {"1440": null, "1024": null, "768": null, "390": null},
+    "approvedVisualHash": null,
+    "ownerApproved": false,
+    "ownerApprovalDate": null,
+    "accessibilityEvidence": null,
+    "functionalRegression": null,
+    "securityReview": null,
+    "remainingUnknowns": []
+  }
+}

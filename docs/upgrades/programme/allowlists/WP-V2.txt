@@ -1,0 +1,22 @@
+# APPROVED by the owner on 24 Oct 2026 (WP-A0 report). Additions still need the owner approval first.
+# Lines starting with "# PROPOSED:" are suggested additions. They are not active until the owner approves
+# them and the line is uncommented.
+# Every package updates STATUS.md and the ledger, and the shared preamble asks for a known-issues chunk,
+# so docs/upgrades/programme/** and docs/commercial-v1/known-issues.md are included everywhere.
+packages/services/src/profile.ts
+packages/services/src/profile-time.test.ts
+packages/services/src/material-revision.ts
+packages/services/src/material-revision.test.ts
+packages/services/src/documents.ts
+packages/services/src/documents.test.ts
+packages/services/src/wallet.ts
+packages/services/src/wallet.test.ts
+packages/services/src/acknowledgements.ts
+packages/services/src/acknowledgements.test.ts
+packages/services/src/consistency.ts
+packages/services/src/consistency.test.ts
+packages/services/src/index.ts
+docs/upgrades/programme/**
+docs/commercial-v1/known-issues.md
+# PROPOSED, only with owner approval of an additive migration: packages/db/src/schema.ts, packages/db/migrations/**
+# Reason: conflicts.field_proposal_id is NOT NULL (schema.ts:1878), so a general conflict cannot be stored without an AI proposal.

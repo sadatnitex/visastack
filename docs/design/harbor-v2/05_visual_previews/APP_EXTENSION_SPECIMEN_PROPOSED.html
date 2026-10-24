@@ -1,0 +1,66 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>VisaStack C1 Harbor — App Extension Candidate (Not Approved)</title><style>/* Design language is C1, Harbor is a locked brand skin. Do not change geometry here. */
+:root, [data-vs-theme="harbor"] {
+  --vs-brand-primary: #1D4C98;
+  --vs-brand-primary-hover: #143B7A;
+  --vs-brand-onPrimary: #FFFFFF;
+  --vs-fg-primary: #13243D;
+  --vs-fg-body: #516174;
+  --vs-fg-muted: #647386;
+  --vs-bg-canvas: #FFFFFF;
+  --vs-bg-subtle: #F7F9FE;
+  --vs-bg-chapter: #0B1A30;
+  --vs-state-success-fg: #176E52;
+  --vs-state-warning-fg: #92512F;
+  --vs-state-danger-fg: #A32935;
+  --vs-state-info-fg: #1D4C98;
+  --vs-state-neutral-fg: #596879;
+  --vs-state-success-bg: #E8F4EE;
+  --vs-state-warning-bg: #FBEEE7;
+  --vs-state-danger-bg: #FBEAEC;
+  --vs-state-info-bg: #E8F0FC;
+  --vs-state-neutral-bg: #EDF1F5;
+  --vs-stroke-subtle: #E4E9F1;
+  --vs-stroke-default: #CAD4E2;
+  --vs-stroke-strong: #91A3BC;
+  --vs-focus-ring: #1D4C98;
+  --vs-focus-offset: #FFFFFF;
+  --vs-text-onDark: #FFFFFF;
+  --vs-text-onDark-subtle: #C2CEDD;
+  --vs-overlay-scrim: #0B1A30CC;
+  --vs-field-bg: #FFFFFF;
+  --vs-field-disabled: #EEF2F7;
+  --vs-control-hoverBg: #EBF1FA;
+  --vs-selection-bg: #E8F0FC;
+  --vs-selected-border: #1D4C98;
+  --vs-icon-default: #516174;
+  --vs-icon-action: #1D4C98;
+  --vs-surface-elevated: #FFFFFF;
+  --vs-surface-warm: #F7F9FE;
+}
+/* APPLICATION EXTENSION CANDIDATE: do not import into production without owner-approved screen baselines.
+   Visual grammar derived from C1, new app geometry proposed separately in the measurements document. */
+.vs-ui{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;background:var(--vs-bg-canvas);color:var(--vs-fg-primary);-webkit-font-smoothing:antialiased}
+.vs-ui *{box-sizing:border-box}
+.vs-ui .vs-shell{display:grid;grid-template-columns:228px minmax(0,1fr);min-height:760px;background:var(--vs-bg-canvas)}
+.vs-ui .vs-side{background:var(--vs-bg-canvas);border-right:1px solid var(--vs-stroke-subtle);padding:24px 12px}
+.vs-ui .vs-logo{font-size:22px;font-weight:800;letter-spacing:-.065em;padding:0 12px 27px}
+.vs-ui .vs-nav{display:grid;gap:4px}.vs-ui .vs-nav a{color:var(--vs-fg-body);text-decoration:none;font-size:13px;font-weight:610;padding:13px 12px;display:flex;gap:12px;align-items:center;border-left:2px solid transparent}
+.vs-ui .vs-nav a[aria-current="page"]{background:var(--vs-selection-bg);border-left-color:var(--vs-brand-primary);color:var(--vs-fg-primary);font-weight:720}
+.vs-ui .vs-main{min-width:0}.vs-ui .vs-bar{height:64px;display:flex;align-items:center;justify-content:space-between;padding:0 32px;border-bottom:1px solid var(--vs-stroke-subtle);font-size:13px;color:var(--vs-fg-muted)}
+.vs-ui .vs-content{max-width:1320px;padding:36px 32px 64px;margin:0 auto}.vs-ui .vs-eyebrow{font-size:11px;letter-spacing:.19em;text-transform:uppercase;font-weight:760;color:var(--vs-brand-primary)}
+.vs-ui h1{font-size:34px;letter-spacing:-.055em;font-weight:790;line-height:1.06;margin:12px 0 9px}.vs-ui h2{font-size:21px;letter-spacing:-.04em;line-height:1.18;font-weight:760;margin:0}
+.vs-ui p{font-size:14px;line-height:1.5;color:var(--vs-fg-body)}.vs-ui .vs-muted{font-size:12px;line-height:1.45;color:var(--vs-fg-muted)}
+.vs-ui .vs-cta{border:0;background:var(--vs-brand-primary);color:var(--vs-brand-onPrimary);border-radius:100px;padding:0 18px;min-height:40px;font-size:14px;font-weight:700}.vs-ui .vs-cta:hover{background:var(--vs-brand-primary-hover)}
+.vs-ui .vs-secondary{background:white;color:var(--vs-fg-primary);border:1px solid var(--vs-stroke-default);border-radius:100px;min-height:40px;padding:0 18px;font-size:13px;font-weight:700}
+.vs-ui :is(a,button,input):focus-visible{outline:3px solid var(--vs-focus-ring);outline-offset:3px}
+.vs-ui .vs-panel{background:var(--vs-surface-elevated);border:1px solid var(--vs-stroke-subtle);border-radius:17px;padding:20px}
+.vs-ui .vs-row{display:flex;align-items:center;gap:12px;padding:14px 16px;border-bottom:1px solid var(--vs-stroke-subtle);min-height:52px;font-size:13px}
+.vs-ui .vs-row:last-child{border-bottom:none}.vs-ui .vs-row strong{font-weight:710}.vs-ui .vs-row small{display:block;color:var(--vs-fg-muted);margin-top:4px;font-size:11px}
+.vs-ui .vs-icon{width:32px;height:36px;display:grid;place-items:center;border-radius:7px;background:var(--vs-selection-bg);color:var(--vs-brand-primary);font-size:15px;flex-shrink:0}
+.vs-ui .vs-chip{border-radius:6px;font-size:11px;font-weight:720;padding:6px 8px;white-space:nowrap}.vs-ui .vs-chip.ok{background:var(--vs-state-success-bg);color:var(--vs-state-success-fg)}.vs-ui .vs-chip.warn{background:var(--vs-state-warning-bg);color:var(--vs-state-warning-fg)}.vs-ui .vs-chip.error{background:var(--vs-state-danger-bg);color:var(--vs-state-danger-fg)}
+.vs-ui .vs-fieldlabel{font-size:12px;font-weight:690;margin:0 0 8px;display:block}.vs-ui .vs-input{width:100%;height:44px;border:1px solid var(--vs-stroke-default);border-radius:10px;padding:0 13px;background:var(--vs-field-bg);font-size:13px;color:var(--vs-fg-primary)}
+.vs-ui .vs-cols{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(300px,.65fr);gap:16px}
+.vs-ui .vs-table{width:100%;border-collapse:collapse;text-align:left;font-size:13px}.vs-ui .vs-table th{height:44px;color:var(--vs-fg-muted);background:var(--vs-bg-subtle);font-size:11px;font-weight:680;text-transform:uppercase;letter-spacing:.06em;padding:0 14px}.vs-ui .vs-table td{height:52px;border-bottom:1px solid var(--vs-stroke-subtle);padding:12px 14px}.vs-ui .vs-table tr:last-child td{border-bottom:0}
+@media(max-width:760px){.vs-ui .vs-shell{display:block;min-height:0}.vs-ui .vs-side{display:none}.vs-ui .vs-bar{padding:0 18px}.vs-ui .vs-content{padding:30px 18px}.vs-ui h1{font-size:28px}.vs-ui .vs-cols{grid-template-columns:1fr}.vs-ui .vs-table{font-size:12px}}
+@media(max-width:760px){.vs-ui .vs-panel:has(.vs-table){overflow-x:auto}.vs-ui .vs-table{min-width:490px}}
+</style></head><body style="margin:0"><div class="vs-ui"><div class="vs-shell"><aside class="vs-side"><div class="vs-logo">VisaStack</div><div class="vs-nav"><a href="#" aria-current="page">Overview</a><a href="#">My profile</a><a href="#">Documents</a><a href="#">Cases</a><a href="#">Sharing & access</a><a href="#">Notifications</a></div></aside><div class="vs-main"><header class="vs-bar"><span>Personal record / Ayesha Rahman · Illustrative</span><span>Account</span></header><div class="vs-content"><div class="vs-eyebrow">Your personal record</div><div style="display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap"><div><h1>Documents</h1><p>Current versions, previous records and selected access in one place.</p></div><button class="vs-cta">Upload document ↗</button></div><div class="vs-cols" style="margin-top:25px"><section class="vs-panel" style="padding:0;overflow:hidden"><div style="padding:20px 20px 14px;display:flex;align-items:center;justify-content:space-between"><h2>Your wallet</h2><span class="vs-muted">Sample records</span></div><div class="vs-row"><span class="vs-icon">▤</span><div style="flex:1"><strong>Passport</strong><small>Current version · Updated 8 Oct</small></div><span class="vs-chip ok">Current</span></div><div class="vs-row"><span class="vs-icon">▤</span><div style="flex:1"><strong>Bank statement</strong><small>New copy needed · Japan visitor case</small></div><span class="vs-chip warn">Needs update</span></div><div class="vs-row"><span class="vs-icon">▤</span><div style="flex:1"><strong>Employment certificate</strong><small>Previous version retained</small></div><span class="vs-chip ok">Received</span></div><div class="vs-row"><span class="vs-icon">▤</span><div style="flex:1"><strong>Travel history</strong><small>Owner confirmed · Previous declarations separate</small></div><span class="vs-chip ok">Saved</span></div></section><section class="vs-panel"><h2>Sharing controls</h2><p>Only selected records go to a chosen agency; permissions remain case-specific.</p><div style="margin:24px 0"><label class="vs-fieldlabel" for="agency">Recipient agency</label><input id="agency" class="vs-input" readonly value="Sample agency (not shared)"></div><span class="vs-muted">Recipient, selected versions and end date appear before confirmation.</span><div style="margin-top:25px"><button class="vs-secondary" type="button">Preview access</button></div></section></div><section class="vs-panel" style="margin-top:16px"><h2>Agency case queue — density proposal</h2><p>Operational rows are not the marketing hero's floating cards.</p><table class="vs-table"><thead><tr><th>Case</th><th>Current action</th><th>Owner</th><th>Status</th></tr></thead><tbody><tr><td>Japan visitor — A. Rahman</td><td>Newer statement requested</td><td>Agency member</td><td><span class="vs-chip warn">Needs document</span></td></tr><tr><td>UK business — M. Hasan</td><td>Employer letter in review</td><td>Agency member</td><td><span class="vs-chip ok">Received</span></td></tr></tbody></table></section><p class="vs-muted" style="padding-top:20px">EXTENSION PROPOSAL. Not a production screenshot, not a verified workflow, and not yet owner-approved geometry.</p></div></div></div></div></body></html>

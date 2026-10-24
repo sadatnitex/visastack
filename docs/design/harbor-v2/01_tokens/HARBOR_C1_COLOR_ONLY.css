@@ -1,0 +1,65 @@
+/* VisaStack C1 Design Lock: ONLY COLOUR-SAFE DECLARATIONS BELOW.
+   Never add geometry, spacing, typography, border radius, animation,
+   layout, position or sizing declarations in this file. */
+:root {
+  --c1-accent: #1D4C98;
+  --c1-accent-hover: #143B7A;
+  --c1-action-foreground: #FFFFFF;
+  --c1-ink: #13243D;
+  --c1-body-copy: #516174;
+  --c1-muted: #647386;
+  --c1-stage: #0B1A30;
+  --c1-paper: #FFFFFF;
+  --c1-paper-soft: #F7F9FE;
+  --c1-positive: #176E52;
+  --c1-warning: #92512F;
+}
+.variant1 {background:var(--c1-paper); color:var(--c1-ink)}
+.variant1 .topnav,.variant1 .brand,.variant1 .links,.variant1 .rightlinks{color:var(--c1-ink)}
+.variant1 .mark {background:var(--c1-accent);color:var(--c1-action-foreground)}
+.variant1 .pill {background:var(--c1-accent);color:var(--c1-action-foreground)}
+.variant1 .pill.light {background:var(--c1-paper);color:var(--c1-ink)}
+.variant1 .pill:hover {background:var(--c1-accent-hover)}
+.variant1 .nudge{color:var(--c1-accent)}
+.variant1 .headline{color:var(--c1-ink)}
+.variant1 .subline {color:var(--c1-body-copy)}
+.variant1 .meta {color:var(--c1-muted)}
+.variant1 .phone {background:var(--c1-paper-soft);border-color:var(--c1-ink);box-shadow:0 4px 0 var(--c1-ink),0 0 0 2px color-mix(in srgb,var(--c1-ink) 55%,white),0 42px 90px color-mix(in srgb,var(--c1-ink) 16%,transparent)}
+.variant1 .island {background:var(--c1-ink)}
+.variant1 .statusbar {color:var(--c1-ink)}
+.variant1 .tinycap {color:var(--c1-accent)}
+.variant1 .muted {color:var(--c1-muted)}
+.variant1 .phonepanel {border-color:color-mix(in srgb,var(--c1-accent) 15%,white);box-shadow:0 4px 15px color-mix(in srgb,var(--c1-accent) 4%,transparent)}
+.variant1 .segment {background:color-mix(in srgb,var(--c1-accent) 9%,white)}
+.variant1 .segment span{color:color-mix(in srgb,var(--c1-ink) 65%,white)}
+.variant1 .segment span:first-child {color:var(--c1-accent);background:var(--c1-paper);box-shadow:0 1px 3px color-mix(in srgb,var(--c1-accent) 10%,transparent)}
+.variant1 .fileline{border-color:color-mix(in srgb,var(--c1-accent) 11%,white)}
+.variant1 .fileico{background:color-mix(in srgb,var(--c1-accent) 11%,white);color:var(--c1-accent)}
+.variant1 .fileinfo small{color:color-mix(in srgb,var(--c1-ink) 54%,white)}
+.variant1 .tag{background:color-mix(in srgb,var(--c1-positive) 14%,white);color:var(--c1-positive)}
+.variant1 .tag.warning{background:color-mix(in srgb,var(--c1-warning) 12%,white);color:var(--c1-warning)}
+.variant1 .tag.wait{background:color-mix(in srgb,var(--c1-accent) 15%,white);color:var(--c1-accent)}
+.variant1 .bottomnav{border-color:color-mix(in srgb,var(--c1-accent) 16%,white);color:var(--c1-muted);background:var(--c1-paper)}
+.variant1 .bottomnav span:first-child{color:var(--c1-accent)}
+.variant1 .floatcard{background:var(--c1-paper);border-color:color-mix(in srgb,var(--c1-accent) 11%,white);box-shadow:0 14px 42px color-mix(in srgb,var(--c1-ink) 13%,transparent)}
+.variant1 .floatcard small{color:var(--c1-muted)}
+.variant1 .float-icon{background:color-mix(in srgb,var(--c1-accent) 12%,white);color:var(--c1-accent)}
+.variant1 .float-icon.purple{background:color-mix(in srgb,var(--c1-accent) 12%,white);color:var(--c1-accent)}
+.variant1 .float-icon.orange{background:color-mix(in srgb,var(--c1-warning) 12%,white);color:var(--c1-warning)}
+.variant1 .fineprint{color:var(--c1-muted)}
+.variant1 .darkstage{background:var(--c1-stage);color:#FFFFFF}
+.variant1 .darkstage .nudge{color:color-mix(in srgb,var(--c1-accent) 35%,white) !important}
+.variant1 .darkintro p{color:color-mix(in srgb,var(--c1-ink) 25%,white)}
+.variant1 .feature{background:color-mix(in srgb,var(--c1-accent) 21%,var(--c1-stage))}
+.variant1 .feature.purple{background:radial-gradient(circle at 85% 80%,color-mix(in srgb,var(--c1-accent) 82%,#ffffff 18%) 0,transparent 47%),color-mix(in srgb,var(--c1-accent) 48%,var(--c1-stage))}
+.variant1 .feature.mid{background:linear-gradient(140deg,var(--c1-stage),color-mix(in srgb,var(--c1-accent) 36%,var(--c1-stage)))}
+.variant1 .feature.lime{background:color-mix(in srgb,var(--c1-accent) 15%,white);color:var(--c1-ink)}
+.variant1 .feature.lime p{color:color-mix(in srgb,var(--c1-ink) 73%,white)}
+.variant1 .feature.lime .small-label{color:var(--c1-accent)}
+.variant1 .feature .small-label{color:color-mix(in srgb,var(--c1-accent) 35%,white)}
+.variant1 .feature p{color:#DBE8E4}
+.variant1 .feature.lime p{color:color-mix(in srgb,var(--c1-ink) 75%,white)}
+.variant1 .feature#how{background:color-mix(in srgb,var(--c1-ink) 55%,var(--c1-stage)) !important}
+.variant1 .miniui{background:var(--c1-paper-soft);color:var(--c1-ink)}
+.variant1 .capsule{background:color-mix(in srgb,var(--c1-accent) 12%,white);color:var(--c1-accent)}
+.variant1 .foot{color:var(--c1-muted)}

@@ -1,0 +1,26 @@
+/* APPLICATION EXTENSION CANDIDATE: do not import into production without owner-approved screen baselines.
+   Visual grammar derived from C1, new app geometry proposed separately in the measurements document. */
+.vs-ui{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;background:var(--vs-bg-canvas);color:var(--vs-fg-primary);-webkit-font-smoothing:antialiased}
+.vs-ui *{box-sizing:border-box}
+.vs-ui .vs-shell{display:grid;grid-template-columns:228px minmax(0,1fr);min-height:760px;background:var(--vs-bg-canvas)}
+.vs-ui .vs-side{background:var(--vs-bg-canvas);border-right:1px solid var(--vs-stroke-subtle);padding:24px 12px}
+.vs-ui .vs-logo{font-size:22px;font-weight:800;letter-spacing:-.065em;padding:0 12px 27px}
+.vs-ui .vs-nav{display:grid;gap:4px}.vs-ui .vs-nav a{color:var(--vs-fg-body);text-decoration:none;font-size:13px;font-weight:610;padding:13px 12px;display:flex;gap:12px;align-items:center;border-left:2px solid transparent}
+.vs-ui .vs-nav a[aria-current="page"]{background:var(--vs-selection-bg);border-left-color:var(--vs-brand-primary);color:var(--vs-fg-primary);font-weight:720}
+.vs-ui .vs-main{min-width:0}.vs-ui .vs-bar{height:64px;display:flex;align-items:center;justify-content:space-between;padding:0 32px;border-bottom:1px solid var(--vs-stroke-subtle);font-size:13px;color:var(--vs-fg-muted)}
+.vs-ui .vs-content{max-width:1320px;padding:36px 32px 64px;margin:0 auto}.vs-ui .vs-eyebrow{font-size:11px;letter-spacing:.19em;text-transform:uppercase;font-weight:760;color:var(--vs-brand-primary)}
+.vs-ui h1{font-size:34px;letter-spacing:-.055em;font-weight:790;line-height:1.06;margin:12px 0 9px}.vs-ui h2{font-size:21px;letter-spacing:-.04em;line-height:1.18;font-weight:760;margin:0}
+.vs-ui p{font-size:14px;line-height:1.5;color:var(--vs-fg-body)}.vs-ui .vs-muted{font-size:12px;line-height:1.45;color:var(--vs-fg-muted)}
+.vs-ui .vs-cta{border:0;background:var(--vs-brand-primary);color:var(--vs-brand-onPrimary);border-radius:100px;padding:0 18px;min-height:40px;font-size:14px;font-weight:700}.vs-ui .vs-cta:hover{background:var(--vs-brand-primary-hover)}
+.vs-ui .vs-secondary{background:white;color:var(--vs-fg-primary);border:1px solid var(--vs-stroke-default);border-radius:100px;min-height:40px;padding:0 18px;font-size:13px;font-weight:700}
+.vs-ui :is(a,button,input):focus-visible{outline:3px solid var(--vs-focus-ring);outline-offset:3px}
+.vs-ui .vs-panel{background:var(--vs-surface-elevated);border:1px solid var(--vs-stroke-subtle);border-radius:17px;padding:20px}
+.vs-ui .vs-row{display:flex;align-items:center;gap:12px;padding:14px 16px;border-bottom:1px solid var(--vs-stroke-subtle);min-height:52px;font-size:13px}
+.vs-ui .vs-row:last-child{border-bottom:none}.vs-ui .vs-row strong{font-weight:710}.vs-ui .vs-row small{display:block;color:var(--vs-fg-muted);margin-top:4px;font-size:11px}
+.vs-ui .vs-icon{width:32px;height:36px;display:grid;place-items:center;border-radius:7px;background:var(--vs-selection-bg);color:var(--vs-brand-primary);font-size:15px;flex-shrink:0}
+.vs-ui .vs-chip{border-radius:6px;font-size:11px;font-weight:720;padding:6px 8px;white-space:nowrap}.vs-ui .vs-chip.ok{background:var(--vs-state-success-bg);color:var(--vs-state-success-fg)}.vs-ui .vs-chip.warn{background:var(--vs-state-warning-bg);color:var(--vs-state-warning-fg)}.vs-ui .vs-chip.error{background:var(--vs-state-danger-bg);color:var(--vs-state-danger-fg)}
+.vs-ui .vs-fieldlabel{font-size:12px;font-weight:690;margin:0 0 8px;display:block}.vs-ui .vs-input{width:100%;height:44px;border:1px solid var(--vs-stroke-default);border-radius:10px;padding:0 13px;background:var(--vs-field-bg);font-size:13px;color:var(--vs-fg-primary)}
+.vs-ui .vs-cols{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(300px,.65fr);gap:16px}
+.vs-ui .vs-table{width:100%;border-collapse:collapse;text-align:left;font-size:13px}.vs-ui .vs-table th{height:44px;color:var(--vs-fg-muted);background:var(--vs-bg-subtle);font-size:11px;font-weight:680;text-transform:uppercase;letter-spacing:.06em;padding:0 14px}.vs-ui .vs-table td{height:52px;border-bottom:1px solid var(--vs-stroke-subtle);padding:12px 14px}.vs-ui .vs-table tr:last-child td{border-bottom:0}
+@media(max-width:760px){.vs-ui .vs-shell{display:block;min-height:0}.vs-ui .vs-side{display:none}.vs-ui .vs-bar{padding:0 18px}.vs-ui .vs-content{padding:30px 18px}.vs-ui h1{font-size:28px}.vs-ui .vs-cols{grid-template-columns:1fr}.vs-ui .vs-table{font-size:12px}}
+@media(max-width:760px){.vs-ui .vs-panel:has(.vs-table){overflow-x:auto}.vs-ui .vs-table{min-width:490px}}

@@ -1,0 +1,24 @@
+# APPROVED by the owner on 24 Oct 2026 (WP-A0 report). Additions still need the owner approval first.
+# Lines starting with "# PROPOSED:" are suggested additions. They are not active until the owner approves
+# them and the line is uncommented.
+# Every package updates STATUS.md and the ledger, and the shared preamble asks for a known-issues chunk,
+# so docs/upgrades/programme/** and docs/commercial-v1/known-issues.md are included everywhere.
+packages/services/src/missions.ts
+packages/services/src/missions.test.ts
+packages/services/src/packs.ts
+packages/services/src/packs.test.ts
+packages/services/src/agency.ts
+packages/services/src/agency.test.ts
+# notification-sweep: only where the ledger proves a change
+packages/services/src/notification-sweep.ts
+packages/services/src/notification-sweep.test.ts
+apps/web/src/app/app/agency/[orgId]/**
+apps/web/src/app/app/applicant/[id]/**
+apps/web/src/app/app/page.tsx
+apps/web/src/lib/ics.ts
+apps/web/src/lib/ics.test.ts
+docs/adr/**
+apps/web/src/app/globals.css
+docs/upgrades/programme/**
+docs/commercial-v1/known-issues.md
+# Note: packs.ts is claimed by Master Profile Phase 2 in docs/product/master-profile-enrichment/HANDOFF.md. Ask first.

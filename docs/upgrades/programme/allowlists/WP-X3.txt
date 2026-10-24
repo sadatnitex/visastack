@@ -1,0 +1,12 @@
+# APPROVED by the owner on 24 Oct 2026 (WP-A0 report). Additions still need the owner approval first.
+# Lines starting with "# PROPOSED:" are suggested additions. They are not active until the owner approves
+# them and the line is uncommented.
+# Every package updates STATUS.md and the ledger, and the shared preamble asks for a known-issues chunk,
+# so docs/upgrades/programme/** and docs/commercial-v1/known-issues.md are included everywhere.
+apps/web/src/app/app/app-nav.tsx
+apps/web/src/app/app/app-nav.test.tsx
+apps/web/src/app/app/workspace-shell.tsx
+apps/web/src/app/app/workspace-record-toolbar.tsx
+apps/web/src/app/globals.css
+docs/upgrades/programme/**
+docs/commercial-v1/known-issues.md

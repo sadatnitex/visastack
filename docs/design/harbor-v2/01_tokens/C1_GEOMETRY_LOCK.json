@@ -1,0 +1,142 @@
+{
+  "sourceSha256": "894253b7a9d8ebb56abd522d8237a8768476ad98555f779e5efced815d522a10",
+  "sourceSelectors": {
+    ".topnav": {
+      "height.desktop": "78px",
+      "height.mobile": "68px"
+    },
+    ".shell": {
+      "max-width": "1320px",
+      "padding-inline.desktop": "48px",
+      "padding-inline.mobile": "18px"
+    },
+    ".hero-center": {
+      "padding-top.desktop": "50px",
+      "padding-top.mobile": "43px"
+    },
+    ".headline": {
+      "font-size.desktop": "clamp(58px,6.3vw,97px)",
+      "font-size.mobile": "clamp(47px,12vw,74px)",
+      "font-weight": "820",
+      "letter-spacing.desktop": "-.073em",
+      "letter-spacing.mobile": "-.077em",
+      "line-height.desktop": ".99",
+      "line-height.mobile": "1.01",
+      "max-width": "1160px"
+    },
+    ".subline": {
+      "font-size.desktop": "20px",
+      "font-size.mobile": "16px",
+      "max-width": "660px",
+      "line-height": "1.44"
+    },
+    ".nudge": {
+      "font-size.desktop": "11px",
+      "font-size.mobile": "10px",
+      "font-weight": "760",
+      "letter-spacing": ".19em",
+      "text-transform": "uppercase"
+    },
+    ".devices": {
+      "height.desktop": "640px",
+      "height.mobile": "560px",
+      "max-width": "1140px",
+      "margin-top": "50px"
+    },
+    ".phone": {
+      "width.desktop": "335px",
+      "height.desktop": "642px",
+      "width.mobile": "292px",
+      "height.mobile": "555px",
+      "border-width": "8px",
+      "border-radius.desktop": "48px",
+      "border-radius.mobile": "44px",
+      "transform": "translateX(-50%) rotate(-2.8deg)"
+    },
+    ".floatcard": {
+      "radius": "13px",
+      "count.desktop": 4,
+      "count.mobile": 2
+    },
+    ".fc1": {
+      "left.desktop": "7%",
+      "top.desktop": "115px",
+      "rotate": "-3deg",
+      "left.mobile": "0",
+      "top.mobile": "97px"
+    },
+    ".fc2": {
+      "right.desktop": "2%",
+      "top.desktop": "214px",
+      "rotate": "3deg",
+      "right.mobile": "-10px",
+      "top.mobile": "230px"
+    },
+    ".fc3": {
+      "left.desktop": "5%",
+      "top.desktop": "362px",
+      "rotate": "2deg",
+      "mobile": "hidden"
+    },
+    ".fc4": {
+      "right.desktop": "8%",
+      "top.desktop": "443px",
+      "rotate": "-3deg",
+      "mobile": "hidden"
+    },
+    ".darkstage": {
+      "padding-top.desktop": "110px",
+      "padding-bottom.desktop": "100px",
+      "padding-block.mobile": "75px"
+    },
+    ".darkintro": {
+      "columns.desktop": "1fr 1fr",
+      "gap.desktop": "100px",
+      "columns.mobile": "1",
+      "gap.mobile": "10px"
+    },
+    ".bento": {
+      "columns.desktop": "1.2fr .8fr",
+      "gap.desktop": "15px",
+      "columns.mobile": "1"
+    },
+    ".feature": {
+      "radius": "25px",
+      "min-height": "280px",
+      "padding": "34px"
+    },
+    ".feature.bigmock": {
+      "min-height": "375px"
+    },
+    ".sectionhead": {
+      "font-size.desktop": "60px",
+      "font-size.mobile": "43px",
+      "font-weight": "790",
+      "letter-spacing": "-.065em",
+      "line-height": "1.04"
+    },
+    ".pill": {
+      "padding": "13px 23px",
+      "font-size": "14px",
+      "font-weight": "700",
+      "radius": "100px"
+    }
+  },
+  "sourceViewportTargets": [
+    1440,
+    1024,
+    768,
+    390
+  ],
+  "knownDefects": [
+    {
+      "viewport": 768,
+      "issue": "navigation can overflow; requires explicit narrowly scoped exception before production"
+    }
+  ],
+  "typography": {
+    "fontStack": "-apple-system,BlinkMacSystemFont,\"Segoe UI\",Arial,sans-serif",
+    "additionalFamilies": "forbidden without change request"
+  },
+  "applicationValues": "Do not naively reuse marketing sizes. App extension patterns require approval with grounded prototypes."
+}
