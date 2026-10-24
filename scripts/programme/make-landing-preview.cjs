@@ -46,6 +46,8 @@ const css = `
  .fineprint{position:static;transform:none;text-align:center;margin-top:4px}
 }
 @media(max-width:420px){.rightlinks .pill{display:none}.topnav{gap:8px}}
+/* D15 (part of D4): smallest reposition at 901-1100px so fc1 and fc4 clear the phone. 1440 unchanged. */
+@media(min-width:901px) and (max-width:1100px){.fc1{left:2%}.fc4{right:2%}}
 /* OWNER-EXTENSION end */
 `;
 html = html.replace('</style></head>', `${css}</style></head>`);

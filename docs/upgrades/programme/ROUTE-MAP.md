@@ -81,4 +81,4 @@ Measured by `scripts/programme/measure-landing-preview.cjs` on `05_visual_previe
 | 390 | none | fc1, fc2 | yes | none |
 | 360 | 379px | fc1, fc2 | yes | none |
 
-The corrected preview (`previews/landing-preview-corrected.html`) removes the sideways scroll at 768 and 360, stacks the floats under the phone at 900px and below, moves the caption under the phone, and adds a phone menu with the four site links and Sign in. At 1024 the frozen layout is kept, so fc1 and fc4 still overlap the sample phone text there. The owner decides whether 1024 also needs a correction.
+The corrected preview (`previews/landing-preview-corrected.html`) removes the sideways scroll at 768 and 360, stacks the floats under the phone at 900px and below, moves the caption under the phone, and adds a phone menu with the four site links and Sign in. At 901-1100px fc1 and fc4 move outward by the smallest step (D15), so nothing covers the phone at 1024. 1440 is unchanged. Results: `previews/landing/measurements.txt`.

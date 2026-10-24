@@ -36,8 +36,18 @@ const file = process.argv[2];
         b[1] < a[3];
       const texts = ['.phonename', '.phonepanel', '.tinycap', '.fileline'].flatMap((s) =>
         [...document.querySelectorAll(`.phone ${s}`)].map((e) => {
+          // The phone hides overflowing content, so only the part inside its frame can be covered.
           const r = e.getBoundingClientRect();
-          return [s, [r.left, r.top, r.right, r.bottom]];
+          const f = document.querySelector('.phone').getBoundingClientRect();
+          return [
+            s,
+            [
+              Math.max(r.left, f.left),
+              Math.max(r.top, f.top),
+              Math.min(r.right, f.right),
+              Math.min(r.bottom, f.bottom),
+            ],
+          ];
         }),
       );
       const floats = ['.fc1', '.fc2', '.fc3', '.fc4'].map((s) => [s, box(s)]);

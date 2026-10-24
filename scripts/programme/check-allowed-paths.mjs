@@ -1,8 +1,11 @@
 #!/usr/bin/env node
 // Programme drift guard.
 // Usage: node scripts/programme/check-allowed-paths.mjs <allowlist-file> [--base origin/main] [--no-emdash]
+//        [--exclude <folder>]...
 // Exits 1 when the branch changes a file that the package allowlist does not cover,
-// or (with --no-emdash) when an added line contains a long dash.
+// or (with --no-emdash) when an added line contains a long dash. --exclude leaves a folder out
+// of the long-dash count only (owner decision CR13: docs/design/harbor-v2 is an immutable
+// external reference). Excluded files must still be inside the allowlist.
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -57,8 +60,33 @@ function changedFiles(base) {
   ].sort();
 }
 
-function longDashCount(base) {
-  const diff = git(['diff', '--text', `${base}...HEAD`]);
+const USAGE =
+  'Usage: check-allowed-paths.mjs <allowlist-file> [--base origin/main] [--no-emdash] [--exclude <folder>]...';
+
+/** Flags that take a value, so their value is never mistaken for the allowlist path. */
+export function parseArgs(args) {
+  const excludes = [];
+  let base = 'origin/main';
+  let allowlistPath;
+  for (let i = 0; i < args.length; i += 1) {
+    const arg = args[i];
+    if (arg === '--base' || arg === '--exclude') {
+      const value = args[i + 1];
+      if (value === undefined || value.startsWith('--')) return { error: `${arg} needs a value` };
+      if (arg === '--base') base = value;
+      else excludes.push(value.replace(/\/+$/, ''));
+      i += 1;
+    } else if (!arg.startsWith('--') && allowlistPath === undefined) allowlistPath = arg;
+  }
+  return { allowlistPath, base, excludes, noEmdash: args.includes('--no-emdash') };
+}
+
+export function excludePathspecs(excludes) {
+  return excludes.map((folder) => `:(exclude)${folder}`);
+}
+
+function longDashCount(base, excludes) {
+  const diff = git(['diff', '--text', `${base}...HEAD`, '--', '.', ...excludePathspecs(excludes)]);
   const dash = String.fromCharCode(0x2014);
   return diff
     .split('\n')
@@ -67,16 +95,12 @@ function longDashCount(base) {
 }
 
 function main(argv) {
-  const args = argv.slice(2);
-  const allowlistPath = args.find((arg) => !arg.startsWith('--'));
-  const baseIndex = args.indexOf('--base');
-  const base = baseIndex >= 0 ? args[baseIndex + 1] : 'origin/main';
-  if (!allowlistPath) {
-    console.error(
-      'Usage: check-allowed-paths.mjs <allowlist-file> [--base origin/main] [--no-emdash]',
-    );
+  const parsed = parseArgs(argv.slice(2));
+  if (parsed.error || !parsed.allowlistPath) {
+    console.error(parsed.error ?? USAGE);
     return 2;
   }
+  const { allowlistPath, base, excludes, noEmdash } = parsed;
   const patterns = parseAllowlist(readFileSync(allowlistPath, 'utf8'));
   if (patterns.length === 0) {
     console.error(`Allowlist ${allowlistPath} is empty. Refusing to pass.`);
@@ -93,12 +117,15 @@ function main(argv) {
   } else {
     process.stdout.write(`OK: ${changed.length} changed file(s), all inside ${allowlistPath}.\n`);
   }
-  if (args.includes('--no-emdash')) {
-    const count = longDashCount(base);
+  if (noEmdash) {
+    const count = longDashCount(base, excludes);
+    const scope = excludes.length > 0 ? ` (excluding ${excludes.join(', ')})` : '';
     if (count > 0) {
       failed = true;
-      console.error(`${count} added line(s) contain a long dash. Replace each with a hyphen.`);
-    } else process.stdout.write('OK: no long dashes in added lines.\n');
+      console.error(
+        `${count} added line(s)${scope} contain a long dash. Replace each with a hyphen.`,
+      );
+    } else process.stdout.write(`OK: no long dashes in added lines${scope}.\n`);
   }
   return failed ? 1 : 0;
 }

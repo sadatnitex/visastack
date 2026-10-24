@@ -56,6 +56,8 @@ Rules:
 | CR10 | v1.2 says legacy provider code is not removed incidentally. The owner decided WorkOS is retired | Removal happens only inside WP-P0, with its own approved brief, never incidentally | D10 |
 | CR11 | Earlier UX idea of an in-app feedback table stores user-written text. v1.2 allows only metadata-only instrumentation | Held out of this programme until the owner decides | D11 |
 | CR12 | Earlier UX idea of a separate Do next ranking. v1.2 forbids a second case state machine | Do next is built on the E02 state mapping after WP-V4, never on its own vocabulary | WP-V4 |
+| CR13 | The Harbor package carries long dashes, but its files are hash-locked. The repo's no-long-dash rule would require editing them | `docs/design/harbor-v2/` is an immutable external reference, exempt from the dash rule. The drift guard runs with `--exclude docs/design/harbor-v2`; the `CLAUDE.md` sweep excludes the same folder. Everything else keeps the rule | Owner 24 Oct 2026 |
+| CR14 | Harbor JSON and CSS are not in the repo's Biome format, and reformatting breaks the lock | `biome.json` ignores `docs/design/harbor-v2/**` (one entry). Biome still checks every other file | Owner 24 Oct 2026 |
 
 ---
 
@@ -76,6 +78,11 @@ All eleven decisions were answered "all recommended" by the owner on 24 October 
 | D9 | Colour layer ships as one global token PR with evidence for every route family, not family by family (the stylesheet is global, so splitting would duplicate it) | Yes | WP-C1 | APPROVED 24 Oct 2026 (recommended answer) |
 | D10 | WorkOS retirement as its own package with its own approved brief, gated on Neon Auth journeys passing on staging | Yes | WP-P0 | APPROVED 24 Oct 2026 (recommended answer) |
 | D11 | Hold the feedback capture table. Drop the Guest-first Preview. Chart colour palette is a later proposal | Yes | none | APPROVED 24 Oct 2026 (recommended answer) |
+| D12 | Declined evidence requests (WP-V4): a neutral "Declined" label with its date, no warning colour, never counted as overdue or blocked, never read as a negative signal. If no such status exists, ask before adding one | As stated | WP-V4 | APPROVED 24 Oct 2026 (owner instruction) |
+| D13 | General conflict storage (WP-V2): an additive change only if the W0 check proves nothing existing fits. Prove it on staging and in PGlite tests. The production migration needs a separate owner go | As stated | WP-V2 | APPROVED 24 Oct 2026 (owner instruction) |
+| D14 | Master Profile files (`packs.ts`, `profile-fields.ts`): hold. Before WP-V3 starts, report what the Master Profile HANDOFF.md claim says; the owner then decides | Hold | WP-V3, WP-V4 | APPROVED 24 Oct 2026 (owner instruction) |
+| D15 | The 1024px float overlap on the landing is part of D4: fixed inside WP-L1 with the smallest reposition, no change at 1440, before and after shown | As stated | WP-L1 | APPROVED 24 Oct 2026 (owner instruction) |
+| D16 | Scorecard baselines taken in WP-A0 are labelled local-lab with their method, and repeated on the live site when it is reachable | As stated | WP-A0, WP-V6 | APPROVED 24 Oct 2026 (owner instruction) |
 
 Package-level approvals (wording, ranking, tints) are listed inside each work package.
 
@@ -186,7 +193,7 @@ The landing page (Harbor R01) is the first production change. It is its own PR, 
 | G3 Harbor | For the landing and colour packages: Harbor gates A-F, four viewports 1440, 1024, 768, 390, plus 360. Every CSS change labelled `C1-FROZEN`, `HARBOR-COLOR`, `EXISTING-PRESERVED`, `OWNER-EXTENSION`, `A11Y-EXCEPTION` or `FUNCTIONAL-EXCEPTION`. Unlabelled CSS blocks the PR | Change-classification table |
 | G4 v1.2 | The T and R tests assigned to the package pass against real services and routes, not mocks. Security negatives included | Ledger rows with exact command and outcome |
 | G5 Scorecard | Every X measure the package claims to move has an after value beside its baseline | Scorecard table |
-| G6 Drift | `node scripts/programme/check-allowed-paths.mjs <allowlist>` exits 0. PR ends with "What I did not touch" covering routes, actions, permissions, consent, data model | Script output |
+| G6 Drift | `node scripts/programme/check-allowed-paths.mjs <allowlist> --no-emdash --exclude docs/design/harbor-v2` exits 0. PR ends with "What I did not touch" covering routes, actions, permissions, consent, data model | Script output |
 | G7 Owner | The approvals listed for the package are recorded, with date | Approval list |
 
 PR report format (plain language, as `CLAUDE.md` requires): a table with Area, What changed, What you will see, Who notices. Then: Checked live, Not live yet, Not yet checked, Needs you. End with what was done and one concrete next step. No em dashes anywhere.
@@ -195,7 +202,7 @@ PR report format (plain language, as `CLAUDE.md` requires): a table with Area, W
 
 ## 11. Drift prevention
 
-1. **Allowlist.** Each package has `docs/upgrades/programme/allowlists/<WP>.txt`. It is the first commit of the package branch. Any file outside it needs the owner's approval first. `check-allowed-paths.mjs` enforces it.
+1. **Allowlist.** Each package has `docs/upgrades/programme/allowlists/<WP>.txt`. It is the first commit of the package branch. Any file outside it needs the owner's approval first. `check-allowed-paths.mjs` enforces it. Standing rule (owner, 24 Oct 2026): every package allowlist includes `docs/upgrades/programme/STATUS.md`, `docs/upgrades/programme/COVERAGE-LEDGER.csv` and `docs/commercial-v1/known-issues.md` (append only). Run the guard with `--no-emdash --exclude docs/design/harbor-v2`.
 2. **One session, one package.** Stop at the package boundary. Do not start the next package, do not do "while I am here" fixes, do not implement anything in the exclusion lists.
 3. **One writer per worktree.** No parallel agents on the same scope. No subagents (`CLAUDE.md` section 5).
 4. **Read narrowly.** `rg` for symbols, then bounded ranges. Never dump large files, logs, lockfiles or snapshots into context.

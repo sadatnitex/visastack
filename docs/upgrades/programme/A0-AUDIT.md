@@ -42,9 +42,9 @@ One primary status per item, from existing values only. Freshness, sharing and s
 
 Open point for WP-V4: `DECLINED` means the traveller declined. v1.2 says withheld information stays unknown, never an adverse label, so it should show as "Declined" with no warning tone. The owner confirms the wording in WP-V4.
 
-## 4. Scorecard baselines
+## 4. Scorecard baselines (local-lab, D16)
 
-Values, methods and limits are in `COVERAGE-LEDGER.csv` rows X01-X14. Summary:
+Every browser number below is local-lab: measured on a local production build, to be repeated on the live site when it is reachable. Values, methods and limits are in `COVERAGE-LEDGER.csv` rows X01-X14. Summary:
 
 | ID | Baseline | Method |
 | --- | --- | --- |
@@ -77,32 +77,37 @@ How to rerun: `pnpm --filter @visastack/web build`, then from `apps/web` run `ne
 | D5 | The "Prepared again, faster" float becomes "Reminder before it expires" (expiry reminders exist today) |
 | House rule | Two long dashes in the source become a hyphen and a comma |
 
-Not corrected: at 1024 the frozen layout is kept, and floats fc1 and fc4 still overlap the sample phone text. Links still point where the Harbor source points; D3 destinations are applied in WP-L1 code, not in this preview. This is a preview, not production code.
+| D15 (part of D4) | At 901-1100px only, fc1 moves to `left:2%` and fc4 to `right:2%`, so neither covers the phone at 1024. 1440 is unchanged: its screenshot is byte-identical before and after this change |
 
-## 6. Conflicts found outside the register (stop items)
+Measured result (`previews/landing/measurements.txt`): after the corrections no float covers phone text and nothing scrolls sideways at any of the five widths. The script counts only the part of the phone screen that is actually visible: a panel that runs past the phone frame is hidden by the frame and cannot be covered. WP-L1 builds the same corrections in production code. Links still point where the Harbor source points; D3 destinations are applied in WP-L1 code, not in this preview. This is a preview, not production code.
+
+## 6. Conflicts found outside the register (resolved by the owner on 24 Oct 2026)
+
+Both are now recorded in `PROGRAMME.md` section 3. CR13: the Harbor folder is an immutable external reference, exempt from the dash rule; the guard has `--exclude` and the `CLAUDE.md` sweep excludes the folder. CR14: `biome.json` ignores the Harbor folder. The table below is the original finding.
 
 | ID | Conflict | Options | Recommendation |
 | --- | --- | --- | --- |
 | CR13 | 59 lines in the hash-locked Harbor files contain long dashes. The repo's no-long-dash sweep and `check-allowed-paths.mjs --no-emdash` fail on these files alone | (a) treat `docs/design/harbor-v2/**` as a verbatim third-party reference, exempt from the dash rule, with an `--exclude` option in the guard; (b) keep only the original zip in the repo instead of extracted files; (c) edit the dashes and re-sign the lock | (a): the lock exists to prove the files are exactly as supplied |
 | CR14 | `pnpm run lint` runs `biome check .`, which fails on 9 Harbor JSON and CSS files. Reformatting breaks the lock (`HARBOR_C1_COLOR_ONLY.css` is hashed) | (a) add `"docs/design/harbor-v2/**"` to `files.ignore` in `biome.json`; (b) same as CR13 (b) | (a): one line, outside the WP-A0 allowlist, so it needs your approval |
 
-Until both are decided, the required check `Lint · Build · Typecheck · Test` fails on this branch. Nothing else is expected to fail. See STATUS.md for the local verification results.
+
 
 ## 7. Drift guard wiring (proposal, not applied)
 
 - Root `package.json` `test` script: add `scripts/programme/check-allowed-paths.test.mjs` to the existing `node --test` list.
 - `.github/workflows/ci.yml`: add the same test file to the `node --test` line at about line 159, next to the other script tests.
-- Programme branches only: one CI step that runs `node scripts/programme/check-allowed-paths.mjs docs/upgrades/programme/allowlists/<WP>.txt --no-emdash` when the branch name matches `claude/prog-*`, with `<WP>` taken from the branch name. It needs a full fetch of `origin/main`. Apply CR13 (a) first or the dash check fails on every package.
+- Programme branches only: one CI step that runs `node scripts/programme/check-allowed-paths.mjs docs/upgrades/programme/allowlists/<WP>.txt --no-emdash` when the branch name matches `claude/prog-*`, with `<WP>` taken from the branch name. It needs a full fetch of `origin/main`. Run it with `--no-emdash --exclude docs/design/harbor-v2` (CR13).
 
 All three touch files outside every allowlist, so they need your decision and their own small PR.
 
-## 8. CLAUDE.md addition (proposal, not applied)
+## 8. CLAUDE.md addition (applied with the owner's approval)
 
-The text is in `CLAUDE-MD-ADDITION.md`, unchanged. The package brief calls it a "6-line addition", but the file holds 4 lines. Apply it as written. One suggested change: in its third line, the guard command should end with `--no-emdash` to match the shared preamble.
+The four lines from `CLAUDE-MD-ADDITION.md` are in `CLAUDE.md` section 2, with the approved tweak: the guard command ends with `--no-emdash --exclude docs/design/harbor-v2`. The dash sweep in section 3 now excludes the Harbor folder. The package brief calls it a "6-line addition"; the file held 4 lines, and those 4 were applied.
 
 ## 9. Not verified in this package
 
 - The live site: the landing, `/api/health/ready` and all browser numbers were measured on a local build. The live domain was unreachable from this container.
 - Auth pages (`/auth/*`): they returned 404 locally because this container has no Neon Auth configuration, so they have no screenshots and no accessibility count.
 - Signed-in screens: X03 is from code reading; X10, X11 and the Home LCP were not measured.
-- Known-issues log: the shared preamble asks for a known-issues chunk, but `docs/commercial-v1/known-issues.md` is outside the WP-A0 allowlist. The draft allowlists for later packages include it. This list is the WP-A0 record until you approve that path.
+- Known-issues log: the WP-A0 chunk is appended to `docs/commercial-v1/known-issues.md` (approved addition to the allowlist).
+- The deployed Next.js version: the Vercel connector was refused access to the team (403), so it was not read from the deployment.

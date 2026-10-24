@@ -2,18 +2,18 @@
 
 Keep this file between 250 and 400 words. Memory between sessions; evidence lives in `COVERAGE-LEDGER.csv`. Overwritten each time; history stays in git.
 
-- Last updated: 24 October 2026, end of WP-A0
-- Current main SHA: `84cc84ef18b3486c09c6537c25ecaed51539d499` (unchanged since planning; main CI run 644 green)
-- Branch: `claude/prog-a0-audit` (draft PR)
-- Current package: WP-A0 done, waiting for the owner
+- Last updated: 24 October 2026, WP-A0 after the owner's decisions
+- Current main SHA: `84cc84ef18b3486c09c6537c25ecaed51539d499` (main CI run 644 green on 15 Oct, before the new advisories)
+- Branch: `claude/prog-a0-audit` (draft PR #230), rebased on `claude/prog-sec-next-15-5-28` (draft security PR, Next.js 15.5.28)
+- Current package: WP-A0, waiting for the owner's review and merge word. The security PR merges first
 - Packages merged with the owner's word: none
-- Owner decisions: D1 to D11 approved 24 October 2026. Still pending: revised first-run preview (before WP-V3), derived tints and dark-surface colours (before WP-C1), the landing preview in `previews/landing/` (before WP-L1 merge), all 12 draft allowlists, CR13 and CR14
-- Completed ledger ids: X01-X14 baselines (some "not measured", with reason), U01-U10, E01-E04, W0-01 to W0-10, CR13, CR14 added; T and R rows list related existing tests
-- Files touched: 81, all under `docs/design/harbor-v2/`, `docs/upgrades/` and `scripts/programme/`. Nothing under `apps/`, `packages/`, `infra/` or `.github/`
-- Checks on this branch: typecheck pass; web Vitest pass (142 files); `pnpm run test` fail (3 tests in `apps/web/src/lib/ai.test.ts` timed out at 15 s in the parallel turbo run; they passed in the standalone web run; no code changed here); `pnpm run lint` fail on 9 Harbor files only (CR14), the other lint guards pass; web build pass; `pnpm audit --prod --audit-level high` fail: 1 critical, 3 high, new since main last ran CI (Next.js 15.5.25, fixed in 15.5.28; zod; undici); lockfile unchanged here; guard test 7 of 7 pass; guard proven to fail on a file outside the allowlist; `check-allowed-paths.mjs WP-A0.txt` paths OK (81 files), `--no-emdash` fails on 59 Harbor lines only (CR13)
-- Blockers: URGENT, outside this package: the Next.js advisory covers the locked version (deployed version not verified) and needs its own bounded upgrade PR on a branch the owner names. CR13 (Harbor long dashes) and CR14 (Harbor format) need the owner's decision; until then the required lint check fails on this branch. Known-issues chunk not written because that file is outside the WP-A0 allowlist
-- Stop reason, if stopped: conflicts CR13 and CR14 are outside the conflict register
-- Next action: owner approves the Next.js security PR, decides CR13 and CR14, approves the allowlists and the landing preview, approves the CLAUDE.md lines; then WP-L1 on `claude/prog-l1-landing`
+- Owner decisions: D1 to D16, CR13 and CR14 approved 24 Oct 2026; allowlists approved (WP-P0 list follows its brief). Still pending: landing preview approval (after review of #230), revised first-run preview (before WP-V3), derived tints and dark-surface colours (before WP-C1)
+- Completed ledger ids: X01-X14 baselines (local-lab, D16), U01-U10, E01-E04, W0-01 to W0-10, CR13, CR14, D12-D16
+- Files touched: under `docs/design/harbor-v2/`, `docs/upgrades/`, `scripts/programme/`, plus `biome.json` (one ignore entry), `CLAUDE.md` (approved lines) and `docs/commercial-v1/known-issues.md` (appended). Nothing under `apps/`, `packages/`, `infra/` or `.github/`
+- Checks: see the PR for exact results on the pushed head. Guard tests 11 of 11 pass; guard paths and `--no-emdash --exclude docs/design/harbor-v2` checked against the security branch base; Biome passes on the whole repo
+- Blockers: the required check `Lint · Build · Typecheck · Test` also runs `pnpm audit --prod --audit-level high`. After the Next.js upgrade, high advisories remain for zod (via `@neondatabase/auth`) and undici (via `@vercel/blob`). The owner limited the security PR to Next.js, so this needs the owner's decision. Three AI-settings test timeouts: waiting for CI on a pushed head; if CI also fails, propose a separate PR with explicit timeouts. Master Profile files on hold (D14)
+- Stop reason, if stopped: none
+- Next action: owner decides the zod and undici fix, gives the merge word for the security PR, reviews #230 and approves the landing preview; then WP-L1 on `claude/prog-l1-landing`
 
 ## How to update
 

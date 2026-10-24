@@ -1,6 +1,12 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { findViolations, globToRegExp, parseAllowlist } from './check-allowed-paths.mjs';
+import {
+  excludePathspecs,
+  findViolations,
+  globToRegExp,
+  parseAllowlist,
+  parseArgs,
+} from './check-allowed-paths.mjs';
 
 test('parseAllowlist ignores blanks and comments', () => {
   assert.deepEqual(parseAllowlist('# note\n\n  apps/web/src/a.ts  \n'), ['apps/web/src/a.ts']);
@@ -42,4 +48,39 @@ test('findViolations lists only files outside the allowlist', () => {
 
 test('an empty change set has no violations', () => {
   assert.deepEqual(findViolations([], ['a']), []);
+});
+
+test('parseArgs keeps flag values apart from the allowlist path', () => {
+  const parsed = parseArgs([
+    '--exclude',
+    'docs/design/harbor-v2/',
+    'list.txt',
+    '--no-emdash',
+    '--base',
+    'origin/x',
+  ]);
+  assert.deepEqual(parsed, {
+    allowlistPath: 'list.txt',
+    base: 'origin/x',
+    excludes: ['docs/design/harbor-v2'],
+    noEmdash: true,
+  });
+});
+
+test('parseArgs accepts several excludes and defaults the base', () => {
+  const parsed = parseArgs(['list.txt', '--exclude', 'a', '--exclude', 'b']);
+  assert.deepEqual(parsed.excludes, ['a', 'b']);
+  assert.equal(parsed.base, 'origin/main');
+  assert.equal(parsed.noEmdash, false);
+});
+
+test('parseArgs refuses a flag with no value', () => {
+  assert.ok(parseArgs(['list.txt', '--exclude']).error);
+  assert.ok(parseArgs(['list.txt', '--exclude', '--no-emdash']).error);
+});
+
+test('excludePathspecs builds git exclude pathspecs', () => {
+  assert.deepEqual(excludePathspecs(['docs/design/harbor-v2']), [
+    ':(exclude)docs/design/harbor-v2',
+  ]);
 });

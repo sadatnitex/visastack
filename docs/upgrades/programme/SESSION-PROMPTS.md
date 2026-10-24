@@ -28,7 +28,7 @@ Rules:
   If it does not exist, draft it from the package's allowlist seed, commit it,
   and tell the owner it needs approval before you edit any other file.
 - Before finishing run: node scripts/programme/check-allowed-paths.mjs
-  docs/upgrades/programme/allowlists/<package>.txt --no-emdash
+  docs/upgrades/programme/allowlists/<package>.txt --no-emdash --exclude docs/design/harbor-v2
   It must exit 0.
 - Verify current code before trusting any "head start" fact. If a fact is false,
   stop and report it. Do not assume historical v1.2 observations are current.
