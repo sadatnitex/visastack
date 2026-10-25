@@ -610,6 +610,13 @@
       "when": 1791968896076,
       "tag": "0086_master_profile_section_states",
       "breakpoints": true
+    },
+    {
+      "idx": 87,
+      "version": "7",
+      "when": 1792936958267,
+      "tag": "0087_document_protection_settings",
+      "breakpoints": true
     }
   ]
 }

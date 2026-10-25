@@ -2,6 +2,7 @@ import { getApplicant } from '@visastack/services';
 import { notFound } from 'next/navigation';
 import type { ReactNode } from 'react';
 import { withSession } from '../../../../lib/session';
+import { RecordSections } from './record-sections';
 
 export const dynamic = 'force-dynamic';
 
@@ -21,5 +22,10 @@ export default async function ApplicantWorkspaceLayout({
   });
   if (!applicant) notFound();
 
-  return <section className="section container">{children}</section>;
+  return (
+    <section className="section container">
+      <RecordSections applicantId={applicant.id} />
+      {children}
+    </section>
+  );
 }
