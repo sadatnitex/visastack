@@ -156,9 +156,27 @@ export {
   CONSISTENCY_REASON_TEXT,
   CONSISTENCY_RESULTS,
   classifyDeclarationChange,
+  compareAuthorizedFactVersions,
   compareFactVersions,
   isFixedFieldKey,
 } from './consistency';
+export {
+  type ApplicationMemory,
+  type CaseDetailField,
+  type ChangesSinceConfirmed,
+  type MemoryCase,
+  type MemoryChange,
+  type MemoryEvent,
+  type MemoryShare,
+  type SnapshotChanges,
+  type SnapshotDetailComparison,
+  type SnapshotReview,
+  CASE_DETAIL_FIELDS,
+  compareSnapshotDetail,
+  getApplicationMemory,
+  listChangesSinceConfirmed,
+  listChangesSinceSnapshot,
+} from './application-memory';
 export type {
   AmountBasis,
   Classification,
