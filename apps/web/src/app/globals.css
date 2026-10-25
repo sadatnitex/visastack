@@ -5820,6 +5820,9 @@ body:has(.auth-shell) > .footer {
     overflow: hidden;
     clip-path: inset(50%);
     white-space: nowrap;
+  }
+}
+
 /* WP-X2 grant review brief (approved preview). Plain rows for what is being
    shared; broad choices (whole profile, every document, no end date) in the
    existing warning tone. Colours are existing Harbor tokens. */
