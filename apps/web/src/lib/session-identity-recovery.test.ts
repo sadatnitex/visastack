@@ -20,6 +20,7 @@ vi.mock('@visastack/db', () => ({
   createPooledDb: () => ({ db: {}, pool: { on: vi.fn(), end: mocks.end } }),
 }));
 vi.mock('@visastack/services', () => ({
+  ACTIVITY_TOUCH_THROTTLE_MS: 60 * 60 * 1000,
   provisionNeonAccount: mocks.provision,
   provisionAccount: vi.fn(),
   claimInvitation: vi.fn(async () => true),
