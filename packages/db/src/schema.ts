@@ -1938,7 +1938,8 @@ export const aiProviderConfigTerms = pgTable(
 // --- "Only Use AI Providers That Do Not Train on Inputs" (owner 2026-10-25) --
 // One platform switch, off by default: when on, the AI gateway uses a
 // configuration only if its newest ai_provider_config_terms row says the
-// provider does not train on inputs. Append-only like the terms: the newest
+// provider does not train on inputs, with the terms address and the date
+// checked (anything less is "incomplete terms"). Append-only like the terms: the newest
 // row is the setting in force, older rows are its history, and every change
 // is also written to the audit chain. No row (or no table yet) means off.
 export const aiDataRuleSettings = pgTable(

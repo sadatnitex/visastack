@@ -49,9 +49,11 @@ export interface AiDataCheck {
 export async function checkAiDataTerms(
   db: Db,
   config: AiProviderConfig | undefined,
+  /** The setting when the caller has already read it, so it is read once. */
+  knownSetting?: AiDataRuleSetting,
 ): Promise<AiDataCheck> {
   const mode = currentAiDataMode();
-  const setting = await loadAiDataRuleSetting(db);
+  const setting = knownSetting ?? (await loadAiDataRuleSetting(db));
   const terms = config
     ? aiProviderTermsFor(await loadAiProviderDataTerms(db, [config.id]), config.id)
     : unknownAiProviderDataTerms(ENVIRONMENT_ONLY_ID);
@@ -70,6 +72,7 @@ export async function isAiDataUseAllowed(
 ): Promise<boolean> {
   // With the setting off every answer is "allowed" (decideAiProviderUse), so
   // skip reading the terms: this runs on every AI call and page check.
-  if (!(await loadAiDataRuleSetting(db)).requireNoTraining) return true;
-  return (await checkAiDataTerms(db, config)).decision.allowed;
+  const setting = await loadAiDataRuleSetting(db);
+  if (!setting.requireNoTraining) return true;
+  return (await checkAiDataTerms(db, config, setting)).decision.allowed;
 }

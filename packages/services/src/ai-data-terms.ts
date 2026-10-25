@@ -407,8 +407,9 @@ export interface AiDataRuleSetting {
   /**
    * `saved`: read from the newest row. `default`: no row yet, or the table is
    * not there yet (off). `read_failed`: the setting could not be read for
-   * another reason, so it is treated as ON until it can be: a failure must
-   * never quietly turn a switched-on protection off.
+   * another reason; it is treated as off and reported, and the admin page
+   * says so (owner 2026-10-25: a passing database error must never stop AI,
+   * free tier included).
    */
   readonly source: 'saved' | 'default' | 'read_failed';
 }
@@ -417,7 +418,8 @@ export interface AiDataRuleSetting {
  * The setting in force. No permission check (the gateway reads it for an
  * already authorized request). Runs in its own savepoint. A missing table
  * reads as off, the owner's chosen default, so a deploy before the migration
- * behaves exactly as before; any other failure reads as on and is reported.
+ * behaves exactly as before; any other failure also reads as off, and is
+ * reported.
  */
 export async function loadAiDataRuleSetting(db: Db): Promise<AiDataRuleSetting> {
   try {

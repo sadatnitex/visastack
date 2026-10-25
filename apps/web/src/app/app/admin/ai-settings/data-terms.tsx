@@ -150,8 +150,8 @@ export function DataTermsPanel(props: DataTermsPanelProps) {
       </div>
       {!props.termsAvailable ? (
         <div className="notice notice-warn u-mb-100">
-          Data terms cannot be read yet because the latest database update has not been applied.
-          Every provider reads as not recorded until it is.
+          Data terms cannot be read right now, usually because the latest database update has not
+          been applied yet. Every provider reads as not recorded until they can be read.
         </div>
       ) : null}
       {props.setting.source === 'read_failed' ? (
