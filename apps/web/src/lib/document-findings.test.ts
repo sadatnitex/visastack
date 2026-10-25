@@ -41,7 +41,7 @@ describe('comparing a reading with the profile, on the server', () => {
       [
         entry('given_name', 'Ayesha'),
         entry('family_name', 'Khan'),
-        entry('occupation', 'Teacher', { status: 'AI_SUGGESTED' }),
+        entry('occupation', 'Teacher', { status: 'EXTRACTED_PENDING' }),
         entry('address_city', 'Sylhet', { repeatingRecordKey: 'r1' }),
       ],
       true,
