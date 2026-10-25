@@ -150,10 +150,11 @@ function literals(node: ts.Node): string[] {
 }
 
 function decode(text: string): string {
+  // &amp; last, so "&amp;apos;" stays "&apos;" (no double decoding).
   return text
-    .replace(/&amp;/g, '&')
     .replace(/&apos;|&#39;/g, "'")
-    .replace(/&nbsp;/g, ' ');
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&');
 }
 
 function attribute(element: ts.JsxOpeningLikeElement, name: string): string {
