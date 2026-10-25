@@ -12,11 +12,6 @@ on:
 
 permissions:
   contents: read
-  deployments: read
-
-concurrency:
-  group: live-signed-in-check
-  cancel-in-progress: true
 
 jobs:
   live:
@@ -24,38 +19,62 @@ jobs:
     if: >-
       github.event_name == 'workflow_dispatch' ||
       (github.event.deployment_status.state == 'success' &&
+       github.event.deployment.environment != 'production-migrations' &&
        (github.event.deployment.production_environment ||
         github.event.deployment.environment == 'Production'))
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
+    # One check at a time, and a new one waits rather than cancelling a check
+    # in progress. At job level, so skipped preview events never touch it.
+    concurrency:
+      group: live-signed-in-check
+      cancel-in-progress: false
     env:
       LIVE_CHECK_EMAIL: ${{ secrets.LIVE_CHECK_EMAIL }}
       LIVE_CHECK_PASSWORD: ${{ secrets.LIVE_CHECK_PASSWORD }}
       E2E_AUTHENTICATED: 'true'
     steps:
+      - name: Check the test account secrets are set
+        id: secrets
+        run: |
+          if [ -n "$LIVE_CHECK_EMAIL" ] && [ -n "$LIVE_CHECK_PASSWORD" ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "Skipped: the LIVE_CHECK_EMAIL and LIVE_CHECK_PASSWORD secrets are not set, so nothing was checked." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
       - name: Checkout
+        if: steps.secrets.outputs.ready == 'true'
         uses: actions/checkout@v4
         with:
           ref: ${{ github.event.deployment.sha || github.sha }}
 
       - name: Install pnpm
+        if: steps.secrets.outputs.ready == 'true'
         uses: pnpm/action-setup@v4
 
       - name: Setup Node
+        if: steps.secrets.outputs.ready == 'true'
         uses: actions/setup-node@v4
         with:
           node-version-file: .nvmrc
           cache: pnpm
 
       - name: Install dependencies
+        if: steps.secrets.outputs.ready == 'true'
         run: pnpm install --frozen-lockfile
 
       - name: Install Playwright Chromium
+        if: steps.secrets.outputs.ready == 'true'
         working-directory: apps/web
         run: npx playwright install --with-deps chromium
 
       - name: Run the live signed-in check
+        if: steps.secrets.outputs.ready == 'true'
         working-directory: apps/web
         env:
-          PLAYWRIGHT_BASE_URL: ${{ github.event.deployment_status.environment_url || 'https://visastack-five.vercel.app' }}
+          # Always the production address, never the one-off address in the
+          # event, so the test account only ever signs in on the real site.
+          PLAYWRIGHT_BASE_URL: https://vs.obsidianglobal.studio
         run: npx playwright test live-signed-in.spec.ts --reporter=list
