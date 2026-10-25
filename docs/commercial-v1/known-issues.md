@@ -5384,6 +5384,12 @@ Documentation only. The bidesh365 master profile (54 sections) was compared with
 - Shipped: each open profile section lists the kinds of document that back its details (from the catalogue's `supports` links), shows "Uploaded" or "Not Uploaded Yet", and links to the upload form with that kind already chosen. 26 more catalogue document types are marked as usually needed in original; the profile and the upload form say so in plain words ("usually"), never as a rule. No database change.
 - Checks: master profile view, profile editor and upload form tests cover the list, the counts, the link and the original note; the view test was proved to fail when the original flag is dropped.
 
+### 2026-10-25, schema and migration drift guard, weekly dependency updates
+- New test packages/db/src/schema-drift.test.ts (adopted from a reference prototype, brought onto current main): it runs drizzle-kit generate against a throwaway copy of the committed migrations, offline, and fails if a schema change has no migration, if the journal, SQL files and snapshots disagree, or if drizzle.config.ts writes migrations anywhere other than the folder production migrates from (src/paths.ts). It never writes to the real migrations folder and fails closed when drizzle-kit would need an interactive answer.
+- Proven able to fail: a table added to the schema without a migration turns the generate check red; pointing drizzle.config.ts "out" elsewhere turns both checks red.
+- renovate.json: weekly grouped update PRs (Monday before 06:00 UTC), nothing merges on its own, at most 5 open and 1 new per hour, major upgrades wait for approval on the dependency dashboard, GitHub Actions grouped, pnpm overrides and the Node/pnpm versions never touched, 3-day minimum release age.
+- Not active yet: Renovate does nothing until the owner installs the Renovate GitHub app on the repository. Dependabot security alerts are separate and also need the owner to enable them in repository settings.
+
 ### 2026-10-25, AI review experience (Phase 1): check what we found
 
 - Owner direction 25 Oct 2026: extracted data must be reviewed and approved before it reaches the profile, in a review people of every background can finish on a phone. `ai.ts` released for this work (HANDOFF note).
