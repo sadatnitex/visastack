@@ -9,7 +9,11 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { provisionAccount } from '../accounts';
 import { createApplicant } from '../applicants';
 import { setConsent } from '../consent';
-import { beginContributorSubmission, createContributorRequest } from '../contributor-requests';
+import {
+  beginContributorSubmission,
+  completeContributorSubmission,
+  createContributorRequest,
+} from '../contributor-requests';
 import type { Db } from '../db';
 import { registerDocument } from '../documents';
 import type { ServiceError } from '../errors';
@@ -23,8 +27,8 @@ import {
 } from '../organizations';
 import { acceptGrant, createGrant, pauseGrant } from '../sharing';
 import { SUPPORT_ACCESS_PURPOSE, createSupportGrant } from '../support-access';
-import { accountPrincipal, staffPrincipal, systemPrincipal } from './principal';
-import { EACH_GRANT, requireAccess } from './require-access';
+import { StaffScope, accountPrincipal, staffPrincipal, systemPrincipal } from './principal';
+import { AuthorizedApplicant, EACH_GRANT, requireAccess } from './require-access';
 
 const migrationsFolder = fileURLToPath(new URL('../../../db/migrations', import.meta.url));
 
@@ -462,8 +466,9 @@ describe('requireAccess - central applicant authorization gate', () => {
         accountId: sponsorId,
         contributorRequestId,
       });
+    // A case-scoped request never reaches the whole profile (policy law 5).
     expect(
-      isOk(
+      errorCode(
         await requireAccess(
           db,
           sponsor,
@@ -472,7 +477,7 @@ describe('requireAccess - central applicant authorization gate', () => {
           { purpose: 'x', contributorRequestId },
         ),
       ),
-    ).toBe(true);
+    ).toBe('forbidden');
 
     // Never a view, never without the request, never another case, never someone else's document.
     expect(
@@ -639,5 +644,207 @@ describe('requireAccess - central applicant authorization gate', () => {
         ),
       ),
     ).toBe('forbidden');
+    expect(StaffScope.isGenuine(bootstrap.value)).toBe(true);
+    expect(StaffScope.isGenuine({ ...bootstrap.value })).toBe(false);
+  });
+
+  it('binds a contributor document to the in-flight request, never to an earlier one', async () => {
+    const sponsorId = await account(db, 'sponsor@example.com');
+    const sponsor = accountPrincipal(sponsorId);
+    async function claim(onMission: string) {
+      const created = await createContributorRequest(db, {
+        actorAccountId: ownerId,
+        missionId: onMission,
+        contributorEmail: 'sponsor@example.com',
+        docType: 'bank_statement',
+        purpose: 'sponsor evidence',
+      });
+      if (!isOk(created)) throw new Error(`request: ${created.error.message}`);
+      const begun = await beginContributorSubmission(db, {
+        rawToken: created.value.rawToken,
+        actorAccountId: sponsorId,
+        actorEmail: 'sponsor@example.com',
+        allowWalletReuse: false,
+      });
+      if (!isOk(begun)) throw new Error('begin');
+      return created.value.request.id;
+    }
+    async function submit(requestId: string, docType = 'bank_statement') {
+      const doc = await registerDocument(db, {
+        actorAccountId: sponsorId,
+        applicantId,
+        originalName: 'evidence.pdf',
+        docType,
+        source: 'CONTRIBUTOR',
+        onBehalfOfContributorRequestId: requestId,
+      });
+      if (!isOk(doc)) throw new Error(`register: ${doc.error.message}`);
+      return doc.value.id;
+    }
+
+    // Request 1 on the first case: handed over and completed.
+    const first = await claim(missionId);
+    const firstDoc = await submit(first);
+    const completed = await completeContributorSubmission(db, {
+      contributorRequestId: first,
+      documentId: firstDoc,
+    });
+    if (!isOk(completed)) throw new Error('complete');
+
+    // Request 2 on another case, now in flight.
+    const otherMission = await createMission(db, { actorAccountId: ownerId, applicantId, title: 'B' });
+    if (!isOk(otherMission)) throw new Error('mission');
+    const second = await claim(otherMission.value.id);
+    const opts = { purpose: 'x', contributorRequestId: second };
+
+    // The earlier request's document is out of reach through the new request.
+    expect(
+      errorCode(await requireAccess(db, sponsor, 'PROPOSE_EDIT', { documentId: firstDoc }, opts)),
+    ).toBe('forbidden');
+    // So is the first case itself.
+    expect(errorCode(await requireAccess(db, sponsor, 'PROPOSE_EDIT', { missionId }, opts))).toBe(
+      'forbidden',
+    );
+
+    // The document handed over under request 2 is reachable through it.
+    const secondDoc = await submit(second);
+    expect(
+      isOk(await requireAccess(db, sponsor, 'PROPOSE_EDIT', { documentId: secondDoc }, opts)),
+    ).toBe(true);
+    // A document of a different type than was asked for is not.
+    const wrongType = await submit(second, 'payslip');
+    expect(
+      errorCode(await requireAccess(db, sponsor, 'PROPOSE_EDIT', { documentId: wrongType }, opts)),
+    ).toBe('forbidden');
+  });
+
+  it('judges organization access only on that organization grants, and refuses to guess between relationships', async () => {
+    // A personal grant plus an unrelated organization membership.
+    const { agentId, organizationId } = await orgWithGrant({ actions: ['MANAGE'] });
+    const personal = await createGrant(db, {
+      actorAccountId: ownerId,
+      applicantId,
+      recipientAccountId: agentId,
+      actions: ['PREVIEW'],
+      purpose: 'visa-review',
+    });
+    if (!isOk(personal)) throw new Error(`grant: ${personal.error.message}`);
+    const accepted = await acceptGrant(db, { actorAccountId: agentId, grantId: personal.value.id });
+    if (!isOk(accepted)) throw new Error('accept');
+    const agent = accountPrincipal(agentId);
+
+    // PREVIEW comes only from the personal grant: reported as individual access.
+    const preview = await requireAccess(
+      db,
+      agent,
+      'PREVIEW',
+      { documentId },
+      { purpose: 'visa-review' },
+    );
+    expect(isOk(preview)).toBe(true);
+    if (isOk(preview)) {
+      expect(preview.value.actor).toEqual({ kind: 'individual_recipient', accountId: agentId });
+    }
+    // Acting for the organization, the personal grant does not count.
+    expect(
+      errorCode(
+        await requireAccess(
+          db,
+          agent,
+          'PREVIEW',
+          { documentId },
+          { purpose: 'visa-review', actingFor: { organizationId } },
+        ),
+      ),
+    ).toBe('forbidden');
+    // MANAGE comes only from the organization grant.
+    const manage = await requireAccess(
+      db,
+      agent,
+      'MANAGE',
+      { applicantId },
+      { purpose: 'visa-review' },
+    );
+    expect(isOk(manage)).toBe(true);
+    if (isOk(manage)) expect(manage.value.actor.kind).toBe('organization_member');
+    expect(
+      errorCode(
+        await requireAccess(
+          db,
+          agent,
+          'MANAGE',
+          { applicantId },
+          { purpose: 'visa-review', actingFor: 'individual' },
+        ),
+      ),
+    ).toBe('forbidden');
+
+    // Both relationships allow MANAGE once a personal grant also has it: ambiguous.
+    const both = await createGrant(db, {
+      actorAccountId: ownerId,
+      applicantId,
+      recipientAccountId: agentId,
+      actions: ['MANAGE'],
+      purpose: 'visa-review',
+    });
+    if (!isOk(both)) throw new Error('grant');
+    await acceptGrant(db, { actorAccountId: agentId, grantId: both.value.id });
+    expect(
+      errorCode(
+        await requireAccess(db, agent, 'MANAGE', { applicantId }, { purpose: 'visa-review' }),
+      ),
+    ).toBe('invalid');
+    const named = await requireAccess(
+      db,
+      agent,
+      'MANAGE',
+      { applicantId },
+      { purpose: 'visa-review', actingFor: { organizationId } },
+    );
+    expect(isOk(named)).toBe(true);
+    if (isOk(named)) expect(named.value.actor.kind).toBe('organization_member');
+  });
+
+  it('never treats an ordinary grant as support access', async () => {
+    const operatorId = await account(db, 'support-friend@example.com');
+    for (const purpose of ['family-help', SUPPORT_ACCESS_PURPOSE]) {
+      const grant = await createGrant(db, {
+        actorAccountId: ownerId,
+        applicantId,
+        recipientAccountId: operatorId,
+        actions: ['PREVIEW'],
+        purpose,
+      });
+      if (!isOk(grant)) throw new Error(`grant: ${grant.error.message}`);
+      const accepted = await acceptGrant(db, { actorAccountId: operatorId, grantId: grant.value.id });
+      if (!isOk(accepted)) throw new Error('accept');
+      expect(
+        errorCode(
+          await requireAccess(
+            db,
+            accountPrincipal(operatorId, { asSupport: true }),
+            'PREVIEW',
+            { documentId },
+            { purpose },
+          ),
+        ),
+      ).toBe('forbidden');
+    }
+  });
+
+  it('issues proofs nothing else can copy or construct', async () => {
+    const proof = await requireAccess(
+      db,
+      accountPrincipal(ownerId),
+      'MANAGE',
+      { applicantId },
+      { purpose: 'self' },
+    );
+    if (!isOk(proof)) throw new Error('proof');
+    expect(AuthorizedApplicant.isGenuine(proof.value, 'MANAGE')).toBe(true);
+    expect(AuthorizedApplicant.isGenuine(proof.value, 'PREVIEW')).toBe(false);
+    expect(AuthorizedApplicant.isGenuine({ ...proof.value }, 'MANAGE')).toBe(false);
+    const Ctor = AuthorizedApplicant as unknown as new (fields: unknown) => unknown;
+    expect(() => new Ctor({ ...proof.value })).toThrow(/requireAccess/);
   });
 });

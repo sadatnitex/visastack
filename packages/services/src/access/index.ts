@@ -1,14 +1,15 @@
 /**
- * The central authorization gate (see require-access.ts). The brand symbols
- * in brand.ts are intentionally not re-exported.
+ * The central authorization gate (see require-access.ts and principal.ts).
+ * The proof and scope classes are exported for their types and their
+ * `isGenuine` checks; their constructors refuse to run outside access/.
  */
 
 export {
   type AccountPrincipal,
   type Principal,
-  type StaffScope,
   type SystemJob,
-  type SystemScope,
+  StaffScope,
+  SystemScope,
   SYSTEM_JOBS,
   accountPrincipal,
   staffPrincipal,
@@ -17,10 +18,11 @@ export {
 export {
   type AccessActor,
   type AccessPurpose,
+  type ActingFor,
   type ApplicantResourceRef,
-  type AuthorizedApplicant,
   type AuthorizedResource,
   type RequireAccessOptions,
+  AuthorizedApplicant,
   CONTRIBUTOR_ACTIONS,
   EACH_GRANT,
   requireAccess,

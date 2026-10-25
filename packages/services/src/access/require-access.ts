@@ -16,27 +16,28 @@ import {
   type Resource as PolicyResource,
   authorize,
 } from '@visastack/policy';
-import { eq } from 'drizzle-orm';
+import { and, eq, ne } from 'drizzle-orm';
 import { type Applicant, getApplicant } from '../applicants';
-import { isInFlightContributorSubmission } from '../contributor-requests';
+import { type ContributorRequest, isInFlightContributorRow } from '../contributor-requests';
 import { type Db, first, schema } from '../db';
 import { type ServiceError, serviceError } from '../errors';
 import { listMembershipsForAccount } from '../organizations';
 import { documentCategory, loadGrantsForPolicy } from '../sharing';
 import { loadSupportGrantsForPolicy } from '../support-access';
-import { AUTHORIZED_APPLICANT } from './brand';
 import type { AccountPrincipal, Principal } from './principal';
 
 /**
  * The central authorization gate for applicant-owned records.
  *
  * `requireAccess` resolves who the caller is relative to one applicant
- * record from live database state (never from anything the caller claims),
- * loads the grants the same way document access does, and asks the existing
- * default-deny policy engine (`@visastack/policy`'s `authorize`). On success
- * it returns an `AuthorizedApplicant`, a branded value nothing outside
- * `access/` can build, which service functions can demand as a parameter so
- * the type system proves a check happened. Nothing here writes data.
+ * record from live database state (never from anything the caller claims)
+ * and asks the existing default-deny policy engine (`@visastack/policy`'s
+ * `authorize`). On success it returns an `AuthorizedApplicant`: a class
+ * instance with a private constructor and a `#private` brand, so nothing
+ * outside this module can build one, and a spread copy (`{ ...proof }`) is
+ * not one, at compile time or at run time. Service functions can demand it
+ * as a parameter so the type system proves a check happened. Nothing here
+ * writes data.
  */
 
 /**
@@ -56,9 +57,17 @@ export type ApplicantResourceRef =
   | { readonly documentId: string; readonly applicantId?: never; readonly missionId?: never };
 
 /**
+ * Which relationship a non-owner acts through. Omitted, every relationship
+ * is tried; if more than one would allow the request, `requireAccess`
+ * refuses with `invalid` rather than guess, because the relationship decides
+ * whose access is used and recorded.
+ */
+export type ActingFor = { readonly organizationId: string } | 'individual';
+
+/**
  * The only actions an in-flight contributor (CAS-08) may be authorized for:
- * handing over the one piece of evidence they were asked for. A contributor
- * never gets a wallet, profile or case view.
+ * handing over the one piece of evidence they were asked for, on that one
+ * case. A contributor never gets a wallet, profile or case view.
  */
 export const CONTRIBUTOR_ACTIONS: readonly PermissionAction[] = ['PROPOSE_EDIT'];
 
@@ -78,19 +87,70 @@ export type AuthorizedResource =
   | { readonly kind: 'mission'; readonly applicantId: string; readonly mission: MissionRow }
   | { readonly kind: 'document'; readonly applicantId: string; readonly document: DocumentRow };
 
-/**
- * Proof that `action` on `resource` was authorized for `actor` inside
- * `tx`. Only `requireAccess` can produce one; the brand property is keyed by
- * a symbol that is not exported outside `access/`.
- */
-export interface AuthorizedApplicant<A extends PermissionAction = PermissionAction> {
-  readonly [AUTHORIZED_APPLICANT]: A;
+interface ProofFields<A extends PermissionAction> {
   readonly tx: Db;
   readonly applicant: Applicant;
   readonly actor: AccessActor;
   readonly resource: AuthorizedResource;
   readonly action: A;
   readonly purpose: AccessPurpose;
+}
+
+// Module-private minting: the constructor refuses to run unless this flag is
+// set, and only the function assigned in the static block (never exported)
+// sets it.
+let minting = false;
+let mint: <A extends PermissionAction>(fields: ProofFields<A>) => AuthorizedApplicant<A>;
+
+/**
+ * Proof that `action` on `resource` was authorized for `actor` inside `tx`.
+ * Only `requireAccess` can produce one. The action is part of the type, so a
+ * proof for one action is never accepted where another is required.
+ */
+export class AuthorizedApplicant<A extends PermissionAction> {
+  readonly #action: A;
+  readonly tx: Db;
+  readonly applicant: Applicant;
+  readonly actor: AccessActor;
+  readonly resource: AuthorizedResource;
+  readonly action: A;
+  readonly purpose: AccessPurpose;
+
+  private constructor(fields: ProofFields<A>) {
+    if (!minting) throw new Error('an AuthorizedApplicant can only be issued by requireAccess()');
+    this.#action = fields.action;
+    this.tx = fields.tx;
+    this.applicant = fields.applicant;
+    this.actor = fields.actor;
+    this.resource = fields.resource;
+    this.action = fields.action;
+    this.purpose = fields.purpose;
+    Object.freeze(this);
+  }
+
+  /** Run-time check that `value` is a genuine proof for `action`, not a copy. */
+  static isGenuine<B extends PermissionAction>(
+    value: unknown,
+    action: B,
+  ): value is AuthorizedApplicant<B> {
+    return (
+      typeof value === 'object' &&
+      value !== null &&
+      #action in value &&
+      (value as AuthorizedApplicant<PermissionAction>).#action === action
+    );
+  }
+
+  static {
+    mint = <B extends PermissionAction>(fields: ProofFields<B>): AuthorizedApplicant<B> => {
+      minting = true;
+      try {
+        return new AuthorizedApplicant(fields);
+      } finally {
+        minting = false;
+      }
+    };
+  }
 }
 
 export interface RequireAccessOptions {
@@ -105,6 +165,8 @@ export interface RequireAccessOptions {
   readonly now?: Date;
   /** CAS-08: the claimed contributor request this call acts under, verified live, never trusted. */
   readonly contributorRequestId?: string;
+  /** Which non-owner relationship to act through; see `ActingFor`. */
+  readonly actingFor?: ActingFor;
 }
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -130,7 +192,11 @@ function refTarget(ref: ApplicantResourceRef): { key: RefKey; id: unknown } | un
   return { key, id: (ref as Partial<Record<RefKey, unknown>>)[key] };
 }
 
-async function loadResource(tx: Db, key: RefKey, id: string): Promise<LoadedResource | undefined> {
+async function loadResource(
+  tx: Db,
+  key: RefKey,
+  id: string,
+): Promise<LoadedResource | undefined> {
   switch (key) {
     case 'applicantId': {
       const applicant = await getApplicant(tx, id);
@@ -190,12 +256,7 @@ function decide(
   stepUpSatisfied: boolean,
 ): Decision {
   if (typeof purpose === 'string') {
-    return authorize({
-      actor,
-      action,
-      resource,
-      context: { now, purpose, stepUpSatisfied, grants },
-    });
+    return authorize({ actor, action, resource, context: { now, purpose, stepUpSatisfied, grants } });
   }
   // EACH_GRANT: every grant is judged against its own purpose, one at a
   // time, exactly like orgGrantPermits. The base checks (membership,
@@ -242,24 +303,13 @@ function denied(reason: DenyReason): ServiceError {
   return serviceError('forbidden', `access denied (${reason})`);
 }
 
-function authorized<A extends PermissionAction>(
-  tx: Db,
-  loaded: LoadedResource,
-  actor: AccessActor,
-  action: A,
-  purpose: AccessPurpose,
-): AuthorizedApplicant<A> {
-  return Object.freeze({
-    [AUTHORIZED_APPLICANT]: action,
-    tx,
-    applicant: loaded.applicant,
-    actor,
-    resource: loaded.resource,
-    action,
-    purpose,
-  });
-}
-
+/**
+ * CAS-08 contributor check. The request must be in flight for this account
+ * and applicant (the same rule documents.ts applies), and the resource must
+ * sit inside that one request: its case, or the document handed over under
+ * it. Never the applicant as a whole (policy law 5), never another case, and
+ * never a document from an earlier request.
+ */
 async function contributorPermits(
   tx: Db,
   principal: AccountPrincipal,
@@ -268,43 +318,75 @@ async function contributorPermits(
   contributorRequestId: string,
 ): Promise<boolean> {
   if (!CONTRIBUTOR_ACTIONS.includes(action) || !isUuid(contributorRequestId)) return false;
-  // Same check documents.ts uses for a contributor registering evidence.
-  const inFlight = await isInFlightContributorSubmission(tx, {
-    contributorRequestId,
-    actorAccountId: principal.accountId,
-    applicantId: loaded.applicant.id,
-  });
-  if (!inFlight) return false;
   const { resource } = loaded;
-  if (resource.kind === 'mission') {
-    const request = first(
-      await tx
-        .select({ missionId: schema.contributorRequests.missionId })
-        .from(schema.contributorRequests)
-        .where(eq(schema.contributorRequests.id, contributorRequestId))
-        .limit(1),
-    );
-    return request?.missionId === resource.mission.id;
+  if (resource.kind === 'applicant') return false;
+  const request: ContributorRequest | undefined = first(
+    await tx
+      .select()
+      .from(schema.contributorRequests)
+      .where(eq(schema.contributorRequests.id, contributorRequestId))
+      .limit(1),
+  );
+  if (
+    !request ||
+    !isInFlightContributorRow(request, {
+      actorAccountId: principal.accountId,
+      applicantId: loaded.applicant.id,
+    })
+  ) {
+    return false;
   }
-  if (resource.kind === 'document') {
-    // A contributor may only touch a document it uploaded itself.
-    return resource.document.uploaderAccountId === principal.accountId;
+  if (resource.kind === 'mission') return request.missionId === resource.mission.id;
+
+  // A document belongs to this request only if this contributor uploaded it
+  // as contributor evidence of the requested type after claiming this
+  // request, and no other request already holds it. The claim time is
+  // compared with the row's database-set creation time, so a document from
+  // an earlier request can never qualify (clock skew fails closed).
+  const { document } = resource;
+  if (
+    request.submittedAt === null ||
+    document.uploaderAccountId !== principal.accountId ||
+    document.source !== 'CONTRIBUTOR' ||
+    document.docType !== request.docType ||
+    document.createdAt.getTime() < request.submittedAt.getTime()
+  ) {
+    return false;
   }
-  return true;
+  const heldElsewhere = first(
+    await tx
+      .select({ id: schema.contributorRequests.id })
+      .from(schema.contributorRequests)
+      .where(
+        and(
+          eq(schema.contributorRequests.submittedDocumentId, document.id),
+          ne(schema.contributorRequests.id, request.id),
+        ),
+      )
+      .limit(1),
+  );
+  return heldElsewhere === undefined;
 }
 
 /**
  * Authorize `principal` to perform `action` on one applicant-owned record.
  *
- * Resolution order, all from live state: the applicant's owner; an
- * in-flight CAS-08 contributor (only with `contributorRequestId`, only for
- * `CONTRIBUTOR_ACTIONS`); each of the account's organization memberships
- * (the policy engine itself denies an inactive membership or a suspended or
- * closed organization, SHR-02); then a direct individual recipient. With
- * `asSupport` only the support path is tried, which needs an approved
- * just-in-time support grant. System and staff principals are refused here:
- * they act through `SystemScope` and `StaffScope`, never through applicant
- * grants.
+ * Resolution, all from live state:
+ * - the applicant's owner;
+ * - an in-flight CAS-08 contributor (only with `contributorRequestId`, only
+ *   for `CONTRIBUTOR_ACTIONS`, only inside that request's case);
+ * - each of the account's organization memberships, judged only against
+ *   grants made to that organization (the policy engine itself denies an
+ *   inactive membership or a suspended or closed organization, SHR-02);
+ * - the account as a direct individual recipient, judged only against grants
+ *   made to the account personally.
+ * `actingFor` restricts the last two to one relationship. Without it, if
+ * more than one relationship would allow the request the result is
+ * `invalid`, never a silent pick.
+ *
+ * With `asSupport` only approved just-in-time support grants are
+ * considered, never ordinary sharing grants. System and staff principals are
+ * refused here: they act through `SystemScope` and `StaffScope`.
  *
  * Unknown or malformed ids return `not_found`; a refusal returns `forbidden`,
  * or `step_up_required` when the caller is otherwise allowed but has not
@@ -321,9 +403,7 @@ export async function requireAccess<A extends PermissionAction>(
   if (!target) {
     return err(serviceError('invalid', 'name exactly one applicant, case or document'));
   }
-  if (principal.kind !== 'account') {
-    return err(denied('default_deny'));
-  }
+  if (principal.kind !== 'account') return err(denied('default_deny'));
   if (!isUuid(principal.accountId)) return err(denied('default_deny'));
   if (!isUuid(target.id)) return err(serviceError('not_found', 'record not found'));
 
@@ -334,76 +414,84 @@ export async function requireAccess<A extends PermissionAction>(
   const now = opts.now ?? new Date();
   const stepUpSatisfied = opts.stepUpSatisfied ?? false;
   const accountId = principal.accountId as AccountId;
+  const issue = (actor: AccessActor): AuthorizedApplicant<A> =>
+    mint({ tx, applicant, actor, resource: loaded.resource, action, purpose: opts.purpose });
+  const evaluate = (actor: Actor, grants: readonly PolicyGrant[]): Decision =>
+    decide(actor, action, policyResource, grants, opts.purpose, now, stepUpSatisfied);
 
   if (principal.asSupport === true) {
     const actor: Actor = { kind: 'support_admin', accountId };
-    const grants = [
-      ...(await loadGrantsForPolicy(tx, applicant.id)),
-      ...(await loadSupportGrantsForPolicy(tx, applicant.id)),
-    ];
-    const decision = decide(
-      actor,
-      action,
-      policyResource,
-      grants,
-      opts.purpose,
-      now,
-      stepUpSatisfied,
-    );
+    const decision = evaluate(actor, await loadSupportGrantsForPolicy(tx, applicant.id));
     if (!decision.allowed) return err(denied(decision.reason));
-    return ok(authorized(tx, loaded, actor, action, opts.purpose));
+    return ok(issue(actor));
   }
 
   if (applicant.ownerAccountId === principal.accountId) {
     const actor: Actor = { kind: 'applicant_owner', applicantId: applicant.id as ApplicantId };
-    const decision = decide(actor, action, policyResource, [], opts.purpose, now, stepUpSatisfied);
+    const decision = evaluate(actor, []);
     if (!decision.allowed) return err(denied(decision.reason));
-    return ok(authorized(tx, loaded, actor, action, opts.purpose));
+    return ok(issue(actor));
   }
 
   if (
     opts.contributorRequestId !== undefined &&
     (await contributorPermits(tx, principal, action, loaded, opts.contributorRequestId))
   ) {
-    const actor: AccessActor = {
-      kind: 'contributor',
-      accountId,
-      contributorRequestId: opts.contributorRequestId,
-    };
-    return ok(authorized(tx, loaded, actor, action, opts.purpose));
+    return ok(
+      issue({ kind: 'contributor', accountId, contributorRequestId: opts.contributorRequestId }),
+    );
   }
 
-  const grants = await loadGrantsForPolicy(tx, applicant.id);
-  const memberships = await listMembershipsForAccount(tx, principal.accountId);
-  const candidates: Actor[] = [
-    ...memberships.map(
-      (membership): Actor => ({
+  const [grants, memberships] = await Promise.all([
+    loadGrantsForPolicy(tx, applicant.id),
+    listMembershipsForAccount(tx, principal.accountId),
+  ]);
+  const actingFor = opts.actingFor;
+  const candidates: { actor: Actor; grants: readonly PolicyGrant[] }[] = [];
+  for (const membership of memberships) {
+    const organizationId = membership.organization.id;
+    if (actingFor !== undefined && (actingFor === 'individual' || actingFor.organizationId !== organizationId)) {
+      continue;
+    }
+    candidates.push({
+      actor: {
         kind: 'organization_member',
         accountId,
         membership: {
-          organizationId: membership.organization.id as AgencyId,
+          organizationId: organizationId as AgencyId,
           role: membership.role,
           active: membership.active,
           organizationActive: membership.organization.status === 'ACTIVE',
         },
-      }),
-    ),
-    { kind: 'individual_recipient', accountId },
-  ];
+      },
+      grants: grants.filter((g) => g.recipientOrganizationId === organizationId),
+    });
+  }
+  if (actingFor === undefined || actingFor === 'individual') {
+    candidates.push({
+      actor: { kind: 'individual_recipient', accountId },
+      grants: grants.filter(
+        (g) => g.recipientAccountId === accountId && g.recipientOrganizationId === undefined,
+      ),
+    });
+  }
 
+  const allowed: Actor[] = [];
   let reason: DenyReason | undefined;
-  for (const actor of candidates) {
-    const decision = decide(
-      actor,
-      action,
-      policyResource,
-      grants,
-      opts.purpose,
-      now,
-      stepUpSatisfied,
+  for (const candidate of candidates) {
+    const decision = evaluate(candidate.actor, candidate.grants);
+    if (decision.allowed) allowed.push(candidate.actor);
+    else reason = pickReason(reason, decision.reason);
+  }
+  const [only, ...others] = allowed;
+  if (only !== undefined && others.length === 0) return ok(issue(only));
+  if (only !== undefined) {
+    return err(
+      serviceError(
+        'invalid',
+        'more than one relationship allows this; say which organization (or individual access) to act for',
+      ),
     );
-    if (decision.allowed) return ok(authorized(tx, loaded, actor, action, opts.purpose));
-    reason = pickReason(reason, decision.reason);
   }
   return err(denied(reason ?? 'default_deny'));
 }

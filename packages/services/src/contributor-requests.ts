@@ -302,6 +302,18 @@ export async function isInFlightContributorSubmission(
       .limit(1),
   );
   if (!row) return false;
+  return isInFlightContributorRow(row, input);
+}
+
+/**
+ * The in-flight test itself, on an already-loaded row: claimed (SUBMITTED),
+ * bound to this account, naming this applicant, and not yet completed.
+ * Shared with the access gate so both apply exactly the same rule.
+ */
+export function isInFlightContributorRow(
+  row: ContributorRequest,
+  input: { readonly actorAccountId: string; readonly applicantId: string },
+): boolean {
   return (
     row.applicantId === input.applicantId &&
     row.status === 'SUBMITTED' &&
