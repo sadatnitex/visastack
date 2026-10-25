@@ -1,3 +1,4 @@
+import { rejectUnauthorizedCron } from '../../../../lib/cron-auth';
 import { triggerAccountDeletionSweep, triggerErasureWorker } from '../../../../lib/jobs';
 
 /**
@@ -15,19 +16,9 @@ import { triggerAccountDeletionSweep, triggerErasureWorker } from '../../../../l
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
-/** Variable-keyed env read (satisfies both TS index-signature and Biome rules). */
-function readEnv(name: string): string | undefined {
-  return process.env[name];
-}
-
 export async function GET(request: Request): Promise<Response> {
-  const secret = readEnv('CRON_SECRET');
-  if (!secret) {
-    return new Response('CRON_SECRET not configured', { status: 503 });
-  }
-  if (request.headers.get('authorization') !== `Bearer ${secret}`) {
-    return new Response('forbidden', { status: 403 });
-  }
+  const denied = rejectUnauthorizedCron(request);
+  if (denied) return denied;
 
   const { executed } = await triggerAccountDeletionSweep();
   // Each executed deletion enqueues erasure jobs; run a bounded pass now

@@ -1,5 +1,6 @@
-import { createHash, timingSafeEqual } from 'node:crypto';
 import { hasRecentDatabaseBackup } from '@visastack/adapters';
+import { rejectUnauthorizedCron } from '../../../../lib/cron-auth';
+import { readEnv } from '../../../../lib/env';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -8,14 +9,8 @@ export const maxDuration = 60;
 /** Weekly verification, one hour after the runner schedule. Dispatch only
  * when no fresh backup exists. An accepted dispatch is never completion. */
 export async function GET(request: Request): Promise<Response> {
-  const secret = readEnv('CRON_SECRET');
-  if (!secret) return new Response('Backup scheduling unavailable', { status: 503 });
-  const digest = (value: string) => createHash('sha256').update(value).digest();
-  if (
-    !timingSafeEqual(digest(request.headers.get('authorization') ?? ''), digest(`Bearer ${secret}`))
-  ) {
-    return new Response('forbidden', { status: 403 });
-  }
+  const denied = rejectUnauthorizedCron(request);
+  if (denied) return denied;
   if (readEnv('VERCEL_ENV') !== 'production')
     return new Response('Production only', { status: 403 });
   const endpoint = readEnv('R2_ENDPOINT_URL');
@@ -58,8 +53,4 @@ export async function GET(request: Request): Promise<Response> {
   } catch {
     return new Response('Backup dispatch failed', { status: 502 });
   }
-}
-
-function readEnv(name: string): string | undefined {
-  return process.env[name];
 }

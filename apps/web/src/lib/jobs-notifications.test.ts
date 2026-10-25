@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, beforeEach, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   resolve: vi.fn(),
@@ -30,9 +30,16 @@ afterEach(() => {
   vi.resetAllMocks();
 });
 
+// Loading the jobs module pulls in the whole service graph. Do it once, outside any test's 5 s
+// limit: under full-suite load a cold load can exceed it, and the timed-out run then leaks into
+// the next test.
+let triggerNotificationWorker: typeof import('./jobs').triggerNotificationWorker;
+beforeAll(async () => {
+  ({ triggerNotificationWorker } = await import('./jobs'));
+}, 60_000);
+
 it('reports missing database configuration without pretending the queue is empty', async () => {
   mocks.resolve.mockReturnValue(undefined);
-  const { triggerNotificationWorker } = await import('./jobs');
   expect(await triggerNotificationWorker()).toEqual({
     sent: 0,
     retrying: 0,
@@ -44,7 +51,6 @@ it('reports missing database configuration without pretending the queue is empty
 });
 it('reports database outages and releases its own pool', async () => {
   mocks.worker.mockRejectedValue(new Error('synthetic database unavailable'));
-  const { triggerNotificationWorker } = await import('./jobs');
   expect(await triggerNotificationWorker()).toEqual({
     sent: 0,
     retrying: 0,
@@ -55,7 +61,6 @@ it('reports database outages and releases its own pool', async () => {
 });
 it('passes the bounded budget and preserves the actual worker result', async () => {
   mocks.worker.mockResolvedValue({ sent: 1, retrying: 0, failed: 0, deferred: 2 });
-  const { triggerNotificationWorker } = await import('./jobs');
   expect(await triggerNotificationWorker({ limit: 3, timeBudgetMs: 12_000 })).toEqual({
     sent: 1,
     retrying: 0,
@@ -70,7 +75,6 @@ it('passes configured invitation encryption to the durable worker', async () => 
   const encryption = { currentKeyVersion: () => 'test-v1' };
   mocks.encryption.mockReturnValue(encryption);
   mocks.worker.mockResolvedValue({ sent: 1, retrying: 0, failed: 0 });
-  const { triggerNotificationWorker } = await import('./jobs');
   expect((await triggerNotificationWorker()).sent).toBe(1);
   expect(mocks.worker.mock.calls[0]?.[3]).toEqual({ timeBudgetMs: 35_000, encryption });
   expect(end).toHaveBeenCalledOnce();
