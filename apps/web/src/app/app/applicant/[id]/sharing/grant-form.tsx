@@ -39,6 +39,7 @@ export function GrantForm({
   documents,
   extraCategories = [],
   unsortedDocuments = 0,
+  initialDocumentId,
 }: {
   readonly applicantId: string;
   readonly documents: ReadonlyArray<{ readonly id: string; readonly displayName: string }>;
@@ -46,7 +47,16 @@ export function GrantForm({
   readonly extraCategories?: ReadonlyArray<{ readonly key: string; readonly label: string }>;
   /** Documents with no kind set. They belong to no category, so choosing parts of the profile leaves them out. */
   readonly unsortedDocuments?: number;
+  /**
+   * A document chosen before arriving, from Share on the Record (WP-V3 part 2). It only starts the
+   * form on "Only the documents I choose" with that one ticked; the person still reviews and
+   * confirms, and the server checks the scope as it always does.
+   */
+  readonly initialDocumentId?: string;
 }) {
+  const preselected = documents.some((document) => document.id === initialDocumentId)
+    ? initialDocumentId
+    : undefined;
   const [state, formAction, pending] = useActionState(createGrantAction, INITIAL);
   const router = useRouter();
   const invitationUrl = state.ok ? state.invitationUrl : undefined;
@@ -68,8 +78,10 @@ export function GrantForm({
   const [categories, setCategories] = useState<readonly string[]>([]);
   /** Sharing everything is a visible choice, never what happens because nothing was ticked. */
   const [profileScope, setProfileScope] = useState<'all' | 'some'>('all');
-  const [documentScope, setDocumentScope] = useState<'all' | 'some'>('all');
-  const [selectedDocuments, setSelectedDocuments] = useState<readonly string[]>([]);
+  const [documentScope, setDocumentScope] = useState<'all' | 'some'>(preselected ? 'some' : 'all');
+  const [selectedDocuments, setSelectedDocuments] = useState<readonly string[]>(
+    preselected ? [preselected] : [],
+  );
   const [expiryDays, setExpiryDays] = useState('');
 
   const categoryLabels = categories.map(
@@ -308,6 +320,7 @@ export function GrantForm({
                     type="checkbox"
                     name="documentId"
                     value={doc.id}
+                    defaultChecked={selectedDocuments.includes(doc.id)}
                     onChange={(e) =>
                       setSelectedDocuments((prev) => toggled(prev, doc.id, e.target.checked))
                     }

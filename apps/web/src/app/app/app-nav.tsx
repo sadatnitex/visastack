@@ -19,6 +19,8 @@ const ICONS: Readonly<Record<string, IconName>> = {
 };
 
 const CONTEXT_ICONS: Readonly<Record<string, IconName>> = {
+  Home: 'home',
+  Record: 'file',
   Overview: 'home',
   'My Profile': 'user',
   Documents: 'folder',
@@ -44,7 +46,10 @@ const CONTEXT_ICONS: Readonly<Record<string, IconName>> = {
   Security: 'shield',
 };
 
-/** How many links stay on the bar at the bottom of a phone; the rest sit under "More". */
+/**
+ * How many links stay on the bar at the bottom of a phone; the rest sit under "More". For a
+ * traveller these are the four tabs Home, Record, Cases and Sharing (WP-V3 part 2).
+ */
 const BAR_LINKS = 4;
 const MOBILE_LABELS: Readonly<Record<string, string>> = {
   'My Profile': 'Profile',
