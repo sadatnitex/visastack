@@ -24,3 +24,7 @@ apps/web/src/app/layout.tsx
 apps/web/src/app/auth/auth-ui.tsx
 apps/web/src/app/app/app-nav.tsx
 apps/web/src/app/app/workspace-record-toolbar.tsx
+# Owner request 25 Oct 2026: shorten the version banner on phones (follow-up logged in WP-L1).
+apps/web/src/components/pilot-banner.tsx
+apps/web/src/components/pilot-banner.test.tsx
+apps/web/e2e/ux-public.spec.ts

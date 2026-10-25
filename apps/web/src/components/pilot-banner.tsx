@@ -16,6 +16,8 @@ import type { DeploymentMode } from '@visastack/core';
 interface BannerCopy {
   readonly label: string;
   readonly detail: string;
+  /** Phone version: the same meaning in a few words, so the notice stays one or two lines. */
+  readonly short: string;
 }
 
 /**
@@ -28,10 +30,12 @@ export const PILOT_BANNER_COPY = {
     label: 'VisaStack private pilot',
     detail:
       'Invite-only test version. Please use made-up details, or documents with all personal information permanently blacked out.',
+    short: 'Test version. Made-up details only.',
   },
   development: {
     label: 'VisaStack test build',
     detail: 'Test build. Not for real personal data.',
+    short: 'Not for real personal data.',
   },
 } as const satisfies Partial<Record<DeploymentMode, BannerCopy>>;
 
@@ -49,6 +53,7 @@ export function PilotBanner({
           label: 'VisaStack public beta',
           detail:
             'Free to use at your own risk. Some protections, such as virus scanning of uploads, are not switched on yet.',
+          short: 'Free, at your own risk.',
         }
       : PILOT_BANNER_COPY[mode];
   // A named region, so the notice is a landmark a screen reader user can find and skip,
@@ -56,7 +61,9 @@ export function PilotBanner({
   return (
     <section className="pilot-banner" aria-label="About this version">
       <span className="pilot-banner-label">{copy.label}</span>
+      {/* One of these two shows, by screen width; the link below gives the full list either way. */}
       <span className="pilot-banner-detail">{copy.detail}</span>
+      <span className="pilot-banner-short">{copy.short}</span>
       <a className="pilot-banner-link" href="/status">
         What works today
       </a>

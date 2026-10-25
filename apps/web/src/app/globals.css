@@ -365,6 +365,22 @@ main {
 .pilot-banner-detail {
   color: var(--warning);
 }
+.pilot-banner-short {
+  display: none;
+}
+/* Phones: the short wording keeps the notice to one or two lines instead of a sixth of the screen. */
+@media (max-width: 700px) {
+  .pilot-banner {
+    gap: 0.2rem 0.6rem;
+    padding: 0.45rem 0.75rem;
+  }
+  .pilot-banner-detail {
+    display: none;
+  }
+  .pilot-banner-short {
+    display: inline;
+  }
+}
 .pilot-banner-link {
   display: inline-block;
   padding: 0.2rem 0;

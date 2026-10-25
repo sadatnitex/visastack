@@ -49,6 +49,20 @@ describe('the banner every page carries', () => {
     }
   });
 
+  it('keeps the same meaning in its short phone wording', async () => {
+    const beta = await renderServer(<PilotBanner mode="controlled_pilot" registrationOpen />);
+    expect(beta).toContain('<span class="pilot-banner-short">Free, at your own risk.</span>');
+    const pilot = await renderServer(<PilotBanner mode="controlled_pilot" />);
+    expect(pilot).toContain(
+      '<span class="pilot-banner-short">Test version. Made-up details only.</span>',
+    );
+    const dev = await renderServer(<PilotBanner mode="development" />);
+    expect(dev).toContain('<span class="pilot-banner-short">Not for real personal data.</span>');
+    // The full sentence stays in the page for wider screens, and the link to the full list stays everywhere.
+    expect(beta).toContain('virus scanning of uploads');
+    expect(beta).toContain('href="/status"');
+  });
+
   it('shows nothing in commercial mode', async () => {
     expect(await renderServer(<PilotBanner mode="commercial" />)).toBe('');
   });

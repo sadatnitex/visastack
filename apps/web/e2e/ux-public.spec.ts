@@ -97,6 +97,24 @@ test.describe('Harbor landing (WP-L1)', () => {
   });
 });
 
+test.describe('version banner on phones', () => {
+  test('uses the short wording on a phone and the full sentence on a wide screen', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 360, height: 640 });
+    await page.goto('/status');
+    const banner = page.locator('.pilot-banner');
+    await expect(banner.locator('.pilot-banner-short')).toBeVisible();
+    await expect(banner.locator('.pilot-banner-detail')).toBeHidden();
+    await expect(banner.getByRole('link', { name: 'What works today' })).toBeVisible();
+    // Two short lines at most, instead of the sixth of the screen the full sentence took.
+    expect((await banner.boundingBox())?.height ?? 999).toBeLessThanOrEqual(64);
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await expect(banner.locator('.pilot-banner-detail')).toBeVisible();
+    await expect(banner.locator('.pilot-banner-short')).toBeHidden();
+  });
+});
+
 test.describe('keyboard navigation', () => {
   test('skip link is the first focus stop and jumps to main content', async ({ page }) => {
     await page.goto('/');
