@@ -25,7 +25,10 @@ function Steps({ current }: { readonly current: 1 | 2 }) {
   );
 }
 
-export function FirstRunConsent({ locale }: { readonly locale: Locale }) {
+export function FirstRunConsent({
+  locale,
+  laterHref = SETUP_LATER_HREF,
+}: { readonly locale: Locale; readonly laterHref?: string }) {
   return (
     <section className="section container first-run" aria-labelledby="first-run-title">
       <Steps current={1} />
@@ -46,7 +49,7 @@ export function FirstRunConsent({ locale }: { readonly locale: Locale }) {
         text="Allow core processing"
       />
       <p className="first-run-later">
-        <Link href={SETUP_LATER_HREF}>Not now</Link>
+        <Link href={laterHref}>Not now</Link>
       </p>
       <p className="muted first-run-note">
         Without it you can still browse countries and read help.{' '}
@@ -56,7 +59,7 @@ export function FirstRunConsent({ locale }: { readonly locale: Locale }) {
   );
 }
 
-export function FirstRunName() {
+export function FirstRunName({ laterHref = SETUP_LATER_HREF }: { readonly laterHref?: string }) {
   return (
     <section className="section container first-run" aria-labelledby="first-run-title">
       <Steps current={2} />
@@ -65,7 +68,7 @@ export function FirstRunName() {
       </h1>
       <AddApplicantForm firstRun />
       <p className="first-run-later">
-        <Link href={SETUP_LATER_HREF}>Not now</Link>
+        <Link href={laterHref}>Not now</Link>
       </p>
     </section>
   );

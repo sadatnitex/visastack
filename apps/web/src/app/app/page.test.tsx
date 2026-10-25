@@ -167,8 +167,17 @@ describe('task-first first run (WP-V3, D8)', () => {
     const html = await page({ next });
     expect(textOf(html)).toContain('Step 2 of 2');
     expect(stubProps(html, 'AddApplicantForm')).toHaveLength(1);
+    // "Not now" goes to the task too, rather than leaving the invitation behind.
+    expect(html).toContain(`href="${next.replaceAll('&', '&amp;')}"`);
     data.applicants = [SELF];
     await expect(page({ next })).rejects.toThrow(`NEXT_REDIRECT:${next}`);
+  });
+
+  it('"Not now" also skips the welcome redirect', async () => {
+    data.consents = CORE;
+    const text = textOf(await page({ setup: 'later', welcome: '1' }));
+    expect(text).toContain('Welcome back');
+    expect(text).not.toContain('Step 2 of 2');
   });
 
   it('never follows a return path that leaves the site, or one back to home', async () => {
@@ -182,6 +191,11 @@ describe('task-first first run (WP-V3, D8)', () => {
       '/api/health/ready',
       '/auth/sign-in',
       '/invitationx',
+      '/app/../privacy/export',
+      '/app/./../api/jobs/x',
+      '/app/%2e%2e/api/x',
+      '/app%2f..%2fapi/x',
+      '/invitation/../api/x',
     ]) {
       const text = textOf(await page({ next }));
       expect(text).toContain('Welcome back');

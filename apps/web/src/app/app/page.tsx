@@ -26,7 +26,7 @@ import { getLocale } from '../../lib/locale';
 import { safeReturnPath } from '../../lib/neon-recency';
 import { withSession } from '../../lib/session';
 import { ConsentButton } from './consent-button';
-import { FirstRunConsent, FirstRunName, FirstRunTask } from './first-run';
+import { FirstRunConsent, FirstRunName, FirstRunTask, SETUP_LATER_HREF } from './first-run';
 
 export const metadata: Metadata = { title: 'Overview' };
 
@@ -141,11 +141,20 @@ interface SearchParams {
  * never anything else on the site (an API route, a sign-in page), or null when there is none.
  */
 function returnTask(value: string | string[] | undefined): string | null {
-  if (typeof value !== 'string') return null;
-  const path = safeReturnPath(value);
-  return path.startsWith('/app/') || path === '/invitation' || path.startsWith('/invitation?')
-    ? path
-    : null;
+  // Encoded dots or slashes have no place in a task link; refusing them closes "%2e%2e" tricks.
+  if (typeof value !== 'string' || /%2e|%2f|%5c/i.test(value)) return null;
+  const safe = safeReturnPath(value);
+  if (safe === '/app') return null;
+  // Resolve "." and ".." the way a browser will, then check the path that would actually load.
+  let url: URL;
+  try {
+    url = new URL(safe, 'https://visastack.invalid');
+  } catch {
+    return null;
+  }
+  if (url.origin !== 'https://visastack.invalid') return null;
+  const allowed = url.pathname.startsWith('/app/') || url.pathname === '/invitation';
+  return allowed ? `${url.pathname}${url.search}` : null;
 }
 
 export default async function AppPage({
@@ -164,12 +173,14 @@ export default async function AppPage({
   const task = returnTask(params.next);
   const later = params.setup === 'later';
   const newcomer = !coreGranted && grantedCount === 0 && data.applicants.length === 0;
-  if (!later && newcomer) return <FirstRunConsent locale={locale} />;
+  // "Not now" with a task goes to that task (it has its own checks); otherwise to the ordinary home.
+  const laterHref = task ?? SETUP_LATER_HREF;
+  if (!later && newcomer) return <FirstRunConsent locale={locale} laterHref={laterHref} />;
   if (!later && coreGranted && data.applicants.length === 0) {
     // Ask the name on the page that comes next, so once the applicant is saved the refreshed page
     // is already "what do you want to do?" (or, with a task, goes straight to it).
     if (!task && params.welcome !== '1') redirect('/app?welcome=1');
-    return <FirstRunName />;
+    return <FirstRunName laterHref={laterHref} />;
   }
   if (coreGranted && data.applicants.length > 0) {
     // Set up: go straight to the task someone came for, or ask what they want to do once.
