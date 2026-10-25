@@ -11,6 +11,7 @@ import {
 } from '@visastack/services';
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
+import { SelectedScopeSummary } from '../../../../../components/selected-scope-summary';
 import { EmptyState, PageHeader, StatusBadge } from '../../../../../components/ui';
 import { humanizeCode } from '../../../../../lib/format-code';
 import { formatTimestamp, formatTimestampDate } from '../../../../../lib/format-date';
@@ -168,44 +169,47 @@ export default async function SharingPage({
                         </span>
                         <span className={`badge ${badge.tone}`}>{badge.label}</span>
                       </div>
-                      <p style={{ margin: 0, fontSize: 'var(--text-small)' }}>
-                        {grant.recipient.label}{' '}
-                        {grant.status === 'ACTIVE' ? 'can' : 'would be able to'}{' '}
-                        {grant.actions.map((a) => (ACTION_LABELS[a] ?? a).toLowerCase()).join(', ')}{' '}
-                        {grant.missionId
-                          ? 'for one specific case'
-                          : grant.categories && grant.categories.length > 0
-                            ? `in ${grant.categories.map((c) => categoryLabel(c)).join(', ')}`
-                            : 'across your whole profile'}
-                        {grant.documentIds && grant.documentIds.length > 0
-                          ? `, limited to ${grant.documentIds.length} specific document${grant.documentIds.length === 1 ? '' : 's'}`
-                          : ''}
-                        {grant.expiryAt ? `, until ${formatTimestampDate(grant.expiryAt)}` : ''}.
-                      </p>
-                      <p className="muted" style={{ margin: 0, fontSize: 'var(--text-small)' }}>
-                        Purpose: {grant.purpose}
-                        {grant.acceptedAt
-                          ? ` · accepted ${formatTimestampDate(grant.acceptedAt)}`
-                          : ''}
-                      </p>
-                      {grant.documentIds && grant.documentIds.length > 0 ? (
-                        <ul
-                          className="sharing-document-scope"
-                          aria-label="Documents included in this grant"
-                        >
-                          {grant.documentIds.map((documentId) => {
-                            const document = data.documents.find(
-                              (record) => record.id === documentId,
-                            );
-                            return (
-                              <li key={documentId}>
-                                {document
-                                  ? (document.approvedName ?? document.originalName)
-                                  : 'Document details unavailable'}
-                              </li>
-                            );
-                          })}
-                        </ul>
+                      <SelectedScopeSummary
+                        recipient={`${grant.recipient.label}${grant.recipient.kind === 'organization' ? ' (organization)' : ''}`}
+                        purpose={grant.purpose}
+                        permissions={grant.actions.map((a) =>
+                          (ACTION_LABELS[a] ?? a).toLowerCase(),
+                        )}
+                        profile={
+                          grant.missionId
+                            ? { kind: 'case' }
+                            : grant.categories && grant.categories.length > 0
+                              ? {
+                                  kind: 'parts',
+                                  labels: grant.categories.map((c) => categoryLabel(c)),
+                                }
+                              : { kind: 'whole' }
+                        }
+                        documents={
+                          grant.documentIds && grant.documentIds.length > 0
+                            ? {
+                                kind: 'chosen',
+                                names: grant.documentIds.map((documentId) => {
+                                  const document = data.documents.find(
+                                    (record) => record.id === documentId,
+                                  );
+                                  return document
+                                    ? (document.approvedName ?? document.originalName)
+                                    : 'Document details unavailable';
+                                }),
+                              }
+                            : grant.missionId
+                              ? { kind: 'none' }
+                              : grant.categories && grant.categories.length > 0
+                                ? { kind: 'everyInParts' }
+                                : { kind: 'every' }
+                        }
+                        endsOn={grant.expiryAt ? formatTimestampDate(grant.expiryAt) : null}
+                      />
+                      {grant.acceptedAt ? (
+                        <p className="muted" style={{ margin: 0, fontSize: 'var(--text-small)' }}>
+                          Accepted {formatTimestampDate(grant.acceptedAt)}
+                        </p>
                       ) : null}
                       {canPause || canResume || canRevoke ? (
                         <p className="muted" style={{ margin: 0, fontSize: 'var(--text-small)' }}>

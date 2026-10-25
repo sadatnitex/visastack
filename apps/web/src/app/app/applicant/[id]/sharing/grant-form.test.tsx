@@ -201,3 +201,59 @@ describe('native scoped sharing confirmation', () => {
     expect(container.textContent).toContain('Confirm this access');
   });
 });
+
+describe('grant review brief (WP-X2)', () => {
+  function posted(): [string, string][] {
+    const form = container.querySelector('form');
+    if (!form) throw new Error('Form');
+    return [...new FormData(form).entries()].map(([k, v]) => [k, String(v)]);
+  }
+  const BASE: [string, string][] = [
+    ['applicantId', 'owned-person'],
+    ['recipientEmail', 'synthetic@example.com'],
+    ['purpose', 'Visa review'],
+    ['action', 'VIEW_METADATA'],
+    ['action', 'PREVIEW'],
+  ];
+
+  it('posts exactly the fields it posted before, for whole-profile, narrow and every-document cases', () => {
+    ready();
+    review();
+    expect(posted()).toEqual([...BASE, ['expiryDays', '']]);
+
+    chooseSome('profileScope');
+    act(() => container.querySelector<HTMLInputElement>('input[value="universal"]')?.click());
+    review();
+    expect(posted()).toEqual([...BASE, ['category', 'universal'], ['expiryDays', '']]);
+
+    chooseSome('documentScope');
+    act(() => container.querySelector<HTMLInputElement>('input[value="passport"]')?.click());
+    review();
+    expect(posted()).toEqual([
+      ...BASE,
+      ['category', 'universal'],
+      ['documentId', 'passport'],
+      ['expiryDays', ''],
+    ]);
+  });
+
+  it('shows the brief as rows, with broad choices in warning tone and the real end date', () => {
+    ready();
+    review();
+    const brief = container.querySelector('.scope-summary');
+    expect(brief?.querySelector('.scope-row-warning dd')?.textContent).toBe('your whole profile');
+    expect(brief?.querySelectorAll('.scope-row-warning')).toHaveLength(2);
+    expect(brief?.textContent).toContain('in 30 days, the default');
+    expect(brief?.textContent).toContain('Everything you did not select stays private.');
+  });
+
+  it('still requires review before confirming', () => {
+    ready();
+    const submit = container.querySelector<HTMLButtonElement>('button[type="submit"]');
+    expect(submit?.disabled).toBe(true);
+    review();
+    expect(submit?.disabled).toBe(false);
+    change('purpose', 'Changed purpose');
+    expect(submit?.disabled).toBe(true);
+  });
+});

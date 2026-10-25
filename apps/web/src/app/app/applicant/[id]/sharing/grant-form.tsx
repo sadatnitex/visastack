@@ -4,10 +4,23 @@ import { useRouter } from 'next/navigation';
 import { useActionState, useEffect, useRef, useState } from 'react';
 import { FormMessage, SubmitButton } from '../../../../../components/form-feedback';
 import { InvitationLink } from '../../../../../components/invitation-link';
+import {
+  type DocumentScope,
+  type ProfileScope,
+  SelectedScopeSummary,
+} from '../../../../../components/selected-scope-summary';
 import { PACK_LABELS, PACK_ORDER } from '../../../../../lib/profile-fields';
 import { type ActionState, createGrantAction } from './actions';
 
 const INITIAL: ActionState = { ok: true, message: '' };
+
+/** Every grant ends; with no days given the service applies its 30-day default. */
+const DEFAULT_EXPIRY_DAYS = 30;
+const END_DATE = new Intl.DateTimeFormat('en-GB', {
+  day: 'numeric',
+  month: 'short',
+  year: 'numeric',
+});
 
 /** Curated, launch-safe permission set (read + collaborate; no original download / manage). */
 const SHAREABLE_ACTIONS: ReadonlyArray<{ value: string; label: string; defaultOn?: boolean }> = [
@@ -60,27 +73,33 @@ export function GrantForm({
   const [selectedDocuments, setSelectedDocuments] = useState<readonly string[]>([]);
   const [expiryDays, setExpiryDays] = useState('');
 
-  const scopeLabel =
-    categories.length === 0
-      ? 'your whole profile'
-      : categories
-          .map(
-            (c) =>
-              PACK_LABELS[c as keyof typeof PACK_LABELS] ??
-              extraCategories.find((extra) => extra.key === c)?.label ??
-              c,
-          )
-          .join(', ');
-  const docsLabel =
-    documents.length === 0
-      ? null
-      : selectedDocuments.length === 0
-        ? 'every document'
-        : documents
-            .filter((document) => selectedDocuments.includes(document.id))
-            .map((document) => document.displayName)
-            .join(', ');
+  const categoryLabels = categories.map(
+    (c) =>
+      PACK_LABELS[c as keyof typeof PACK_LABELS] ??
+      extraCategories.find((extra) => extra.key === c)?.label ??
+      c,
+  );
   const canDownload = actions.includes('DOWNLOAD_REDACTED');
+  const profileSummary: ProfileScope =
+    categories.length === 0 ? { kind: 'whole' } : { kind: 'parts', labels: categoryLabels };
+  const documentSummary: DocumentScope =
+    documents.length === 0
+      ? { kind: 'none' }
+      : selectedDocuments.length > 0
+        ? {
+            kind: 'chosen',
+            names: documents
+              .filter((document) => selectedDocuments.includes(document.id))
+              .map((document) => document.displayName),
+          }
+        : categories.length > 0
+          ? { kind: 'everyInParts' }
+          : { kind: 'every' };
+  const days = Number(expiryDays) > 0 ? Number(expiryDays) : DEFAULT_EXPIRY_DAYS;
+  const endsOn = END_DATE.format(new Date(Date.now() + days * 24 * 60 * 60 * 1000));
+  const endsNote = expiryDays
+    ? `in ${expiryDays} day${expiryDays === '1' ? '' : 's'}`
+    : `in ${DEFAULT_EXPIRY_DAYS} days, the default`;
 
   function reviewScope() {
     if (!form.current?.reportValidity()) return;
@@ -319,23 +338,28 @@ export function GrantForm({
 
       <div className="sharing-scope-review" ref={review} tabIndex={-1} aria-live="polite">
         <h3>{reviewed ? 'Confirm this access' : 'Your access summary'}</h3>
-        <strong>{recipientEmail || 'This recipient'}</strong> will be able to{' '}
-        {actions.length === 0
-          ? 'do nothing yet - select at least one permission'
-          : actions
-              .map((a) => SHAREABLE_ACTIONS.find((s) => s.value === a)?.label.toLowerCase())
-              .filter(Boolean)
-              .join(', ')}
-        {purpose ? <> for “{purpose}”</> : null}, scoped to {scopeLabel}
-        {docsLabel ? <> ({docsLabel})</> : null}.{' '}
-        {canDownload
-          ? 'Redacted copies may be downloaded; original downloads are not included. '
-          : 'Downloads are not included. '}
-        {expiryDays
-          ? `Access expires in ${expiryDays} day${expiryDays === '1' ? '' : 's'}. `
-          : 'Access expires in 30 days (the default) unless you set a different duration. '}
-        They must accept before anything is visible to them. You can pause or revoke future access
-        at any time; copies already downloaded cannot be recalled.
+        <SelectedScopeSummary
+          recipient={recipientEmail || 'This recipient'}
+          purpose={purpose || null}
+          permissions={
+            actions.length === 0
+              ? ['nothing yet - select at least one permission']
+              : actions
+                  .map((a) => SHAREABLE_ACTIONS.find((s) => s.value === a)?.label.toLowerCase())
+                  .filter((label): label is string => Boolean(label))
+          }
+          profile={profileSummary}
+          documents={documentSummary}
+          endsOn={endsOn}
+          endsNote={endsNote}
+        />
+        <p className="scope-summary-note">
+          {canDownload
+            ? 'Redacted copies may be downloaded; original downloads are not included. '
+            : 'Downloads are not included. '}
+          They must accept before anything is visible to them. You can pause or revoke future access
+          at any time; copies already downloaded cannot be recalled.
+        </p>
       </div>
 
       {reviewError ? (
