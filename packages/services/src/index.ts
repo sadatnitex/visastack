@@ -704,6 +704,7 @@ export {
   approveDocumentTypeProposal,
   approveProposal,
   isClearReading,
+  isTrustedFactStatus,
   countAiClassificationAttempts,
   countAiExtractionAttempts,
   countAiInconsistencyAttempts,

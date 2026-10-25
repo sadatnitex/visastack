@@ -9,7 +9,10 @@ import {
   getLatestOcrRun,
   getWalletView,
   hasConsent,
+  isClearReading,
   isServableProcessingState,
+  isTrustedFactStatus,
+  listApplicantProfile,
   listDocumentsDetailed,
   listIssuerVerificationsForDocument,
   listPendingDocumentTypeProposals,
@@ -38,6 +41,7 @@ import {
   categoryLabel,
   evidenceDocumentGroups,
   fieldLabel,
+  savableField,
 } from '../../../../../lib/master-profile';
 import { isStillProcessing } from '../../../../../lib/resilience';
 import { withSession } from '../../../../../lib/session';
@@ -47,7 +51,7 @@ import {
   setDocumentDateAction,
 } from '../actions';
 import {
-  AiProposalReview,
+  DocumentFindings,
   DocumentTypeProposalReview,
   InconsistencyFlagReview,
   OcrResultView,
@@ -208,6 +212,14 @@ export default async function ApplicantDocumentsPage({
       ),
     );
     const ocrRuns = new Map(documentRows.map((doc, i) => [doc.id, ocrRunLists[i]] as const));
+    // What the profile already holds, read only when there are readings to compare it with.
+    const profile = pendingProposals.length > 0 ? await listApplicantProfile(db, id) : [];
+    const currentValues = new Map(
+      profile
+        .filter((entry) => entry.repeatingRecordKey === null && entry.status !== null)
+        .filter((entry) => isTrustedFactStatus(entry.status as never))
+        .map((entry) => [entry.fieldKey, entry.value] as const),
+    );
     return {
       documents: documentRows,
       recordsUnavailable: !documents.ok || !wallet.ok,
@@ -220,6 +232,7 @@ export default async function ApplicantDocumentsPage({
       inconsistencyConfigured,
       evidenceBytes,
       pendingProposals,
+      currentValues,
       pendingClassificationProposals,
       pendingInconsistencyFlags,
       quota: loadUploadQuotaConfig(),
@@ -549,12 +562,22 @@ export default async function ApplicantDocumentsPage({
                       {data.coreGranted ? (
                         <RunAiExtractionButton applicantId={id} documentVersionId={versionId} />
                       ) : null}
-                      {proposalsForDoc.map(({ proposal, evidence }) => (
-                        <AiProposalReview
-                          key={proposal.id}
-                          applicantId={id}
-                          canApprove={data.coreGranted}
-                          proposal={{
+                      <DocumentFindings
+                        applicantId={id}
+                        canApprove={data.coreGranted}
+                        proposals={proposalsForDoc.map(({ proposal, evidence }) => {
+                          const field = proposal.fieldKey
+                            ? savableField(proposal.fieldKey)
+                            : undefined;
+                          const hasCurrent =
+                            proposal.fieldKey !== null && data.currentValues.has(proposal.fieldKey);
+                          const current = proposal.fieldKey
+                            ? data.currentValues.get(proposal.fieldKey)
+                            : undefined;
+                          // A protected value is not shown here (null): treat it as a difference to settle.
+                          const differs =
+                            hasCurrent && (current === null || current !== proposal.value);
+                          return {
                             id: proposal.id,
                             type: proposal.type,
                             fieldKey: proposal.fieldKey,
@@ -568,9 +591,12 @@ export default async function ApplicantDocumentsPage({
                               snippet: e.snippet,
                               verified: e.verified,
                             })),
-                          }}
-                        />
-                      ))}
+                            clear: isClearReading(proposal, evidence),
+                            sensitive: field !== undefined && field.sensitivity !== 'STANDARD',
+                            ...(differs ? { difference: { current: current ?? null } } : {}),
+                          };
+                        })}
+                      />
                     </>
                   );
                 })()}

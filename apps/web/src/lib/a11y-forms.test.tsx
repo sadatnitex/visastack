@@ -277,6 +277,48 @@ const DOCS: readonly Case[] = [
       }}
     />
   )),
+  row('check what we found in a document', () => (
+    <aiReview.DocumentFindings
+      applicantId="a1"
+      canApprove
+      proposals={[
+        {
+          id: 'pr3',
+          type: 'NEW',
+          fieldKey: 'given_name',
+          fieldLabel: 'Given Name',
+          value: 'Ayesha',
+          confidence: 95,
+          rationale: null,
+          evidence: [{ snippet: 'Ayesha', verified: true }],
+          clear: true,
+        },
+        {
+          id: 'pr4',
+          type: 'NEW',
+          fieldKey: 'occupation',
+          fieldLabel: 'Occupation',
+          value: 'Engineer',
+          confidence: 95,
+          rationale: null,
+          evidence: [{ snippet: 'Engineer', verified: true }],
+          clear: true,
+        },
+        {
+          id: 'pr5',
+          type: 'NEW',
+          fieldKey: 'city',
+          fieldLabel: 'City',
+          value: 'Dhaka',
+          confidence: 90,
+          rationale: null,
+          evidence: [{ snippet: 'Dhaka', verified: true }],
+          clear: true,
+          difference: { current: 'Chittagong' },
+        },
+      ]}
+    />
+  )),
   row('review a mismatch flag', () => (
     <aiReview.InconsistencyFlagReview
       applicantId="a1"

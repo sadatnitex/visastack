@@ -2547,6 +2547,11 @@ const TRUSTED_FACT_STATUSES: readonly FactStatus[] = [
   'AGENCY_REVIEWED',
 ];
 
+/** Whether a saved value is one the person or a reviewer stands behind (a reading may not overwrite it silently). */
+export function isTrustedFactStatus(status: FactStatus): boolean {
+  return TRUSTED_FACT_STATUSES.includes(status);
+}
+
 async function findExistingFactId(
   db: Db,
   applicantId: string,

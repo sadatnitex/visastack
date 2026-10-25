@@ -369,7 +369,8 @@ export function DocumentFindings({
     .map((proposal) => proposal.id);
   const count = proposals.length;
   return (
-    <section className="document-findings" aria-labelledby={headingId}>
+    // A group, not a landmark: several documents on one page each have one, all with this heading.
+    <div className="document-findings" role="group" aria-labelledby={headingId}>
       <h3 id={headingId}>Check What We Found</h3>
       <p className="muted">
         We read this document and found {count === 1 ? 'one detail' : `${count} details`}. Nothing
@@ -402,7 +403,7 @@ export function DocumentFindings({
           canApprove={canApprove}
         />
       ))}
-    </section>
+    </div>
   );
 }
 
