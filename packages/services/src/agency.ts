@@ -1064,6 +1064,8 @@ export interface OrgCaseSummary {
   readonly packVersionId: string | null;
   readonly targetDeadline: string | null;
   readonly travelStartDate: string | null;
+  /** When the case was opened. Used only to keep agency lists in a stable order. */
+  readonly createdAt: string;
   readonly updatedAt: string;
 }
 
@@ -1107,6 +1109,7 @@ export async function listVisibleMissionsForMember(
       packVersionId: schema.missions.packVersionId,
       targetDeadline: schema.missions.targetDeadline,
       travelStartDate: schema.missions.travelStartDate,
+      createdAt: schema.missions.createdAt,
       updatedAt: schema.missions.updatedAt,
     })
     .from(schema.missions)
@@ -1136,6 +1139,7 @@ export async function listVisibleMissionsForMember(
       packVersionId: detail?.packVersionId ?? null,
       targetDeadline: detail?.targetDeadline?.toISOString() ?? null,
       travelStartDate: detail?.travelStartDate?.toISOString() ?? null,
+      createdAt: detail?.createdAt.toISOString() ?? new Date(0).toISOString(),
       updatedAt: detail?.updatedAt.toISOString() ?? new Date(0).toISOString(),
     };
   });
@@ -1622,6 +1626,341 @@ export async function listEvidenceRequestsForOrgDetailed(
     applicantName: names.get(request.applicantId) ?? 'Unknown applicant',
   }));
   return ok(result);
+}
+
+// ---------------------------------------------------------------------------
+// E02 agency triage (Programme X WP-V4, PROGRAMME.md section 8, W0 ledger
+// section 2). One primary group per item, mapped from statuses the product
+// already stores. Freshness, safety, due dates, case stage and task state are
+// separate indicators and never change the group on their own. Pure: no
+// database read, so nothing here can widen who sees what. Callers pass only
+// rows they were already allowed to load.
+// ---------------------------------------------------------------------------
+
+/** The five item-level E02 groups, in the order a summary shows them. */
+export const TRIAGE_GROUPS = [
+  'MISSING',
+  'PROCESSING',
+  'RECEIVED',
+  'NEEDS_CORRECTION',
+  'REVIEWED',
+] as const;
+export type TriageGroup = (typeof TRIAGE_GROUPS)[number];
+
+/**
+ * Indicators shown beside an item's group. They explain the group; they never
+ * replace it.
+ */
+export type TriageIndicator =
+  | 'OPTIONAL'
+  | 'OUT_OF_DATE'
+  | 'ANSWER_NEEDED'
+  | 'DOES_NOT_MATCH'
+  | 'NOT_ACCEPTED'
+  | 'SENT_BACK'
+  | 'REVIEW_STARTED'
+  | 'COULD_NOT_BE_USED';
+
+/**
+ * The case-level outcome: Ready for review only when the existing readiness
+ * check says every required item is in and nothing on the case still waits
+ * on anyone. A case checked by hand never gets this claim (W0 table H), and a
+ * case without a checklist has nothing to measure.
+ */
+export type CaseTriageState = 'READY_FOR_REVIEW' | 'NOT_READY' | 'CHECKED_BY_HAND' | 'NO_CHECKLIST';
+
+type DocumentProcessingState = (typeof schema.documentState.enumValues)[number];
+type DocumentSafetyState = (typeof schema.documentSafetyStatus.enumValues)[number];
+
+/** The responding document's latest version, when the caller already holds it. */
+export interface TriageDocumentState {
+  readonly processingStatus: DocumentProcessingState;
+  readonly safetyStatus: DocumentSafetyState;
+}
+
+const STILL_PROCESSING: ReadonlySet<DocumentProcessingState> = new Set([
+  'UPLOADING',
+  'QUARANTINED',
+  'SCANNING',
+  'NORMALIZING',
+  'EXTRACTING',
+]);
+const UNUSABLE_PROCESSING: ReadonlySet<DocumentProcessingState> = new Set([
+  'NEEDS_ATTENTION',
+  'FAILED',
+  'REJECTED',
+]);
+
+/**
+ * One request's primary group (W0 ledger 2.1, first match wins). `null` means
+ * closed: cancelled, or a legacy Fulfilled or Declined row with no current
+ * writer, which must never read as Reviewed (W0 L4).
+ *
+ * `document` is the responding document's latest version. Leave it out when it
+ * was not loaded: the request status alone then decides, which is exact for
+ * the statuses that matter (a request only becomes Received after its document
+ * passed safety and processing, W0 L3). Pass `null` when the responding
+ * document was looked up and no longer exists (for example, erased): the item
+ * then needs a new upload.
+ */
+export function evidenceRequestTriageGroup(
+  request: Pick<EvidenceRequest, 'status' | 'kind'>,
+  document?: TriageDocumentState | null,
+): TriageGroup | null {
+  switch (request.status) {
+    case 'CANCELLED':
+    case 'FULFILLED':
+    case 'DECLINED':
+      return null;
+    case 'ACCEPTED':
+      return 'REVIEWED';
+    case 'NEEDS_REPLACEMENT':
+      return 'NEEDS_CORRECTION';
+    case 'RECEIVED':
+    case 'UNDER_REVIEW': {
+      if (request.kind !== 'DOCUMENT' || document === undefined) return 'RECEIVED';
+      if (document === null) return 'NEEDS_CORRECTION';
+      if (document.safetyStatus === 'QUARANTINED' || document.safetyStatus === 'FAILED') {
+        return 'NEEDS_CORRECTION';
+      }
+      if (UNUSABLE_PROCESSING.has(document.processingStatus)) return 'NEEDS_CORRECTION';
+      if (
+        STILL_PROCESSING.has(document.processingStatus) ||
+        document.safetyStatus === 'PENDING' ||
+        document.safetyStatus === 'SCANNING'
+      ) {
+        return 'PROCESSING';
+      }
+      return 'RECEIVED';
+    }
+    case 'OPEN':
+      return 'MISSING';
+  }
+}
+
+/** Requirement result states (readiness), as `computeReadiness` reports them. */
+type TriageRequirementState =
+  | 'SATISFIED'
+  | 'ATTENTION'
+  | 'CRITICAL_GAP'
+  | 'UNVERIFIED'
+  | 'CONFLICTING'
+  | 'EXPIRING_STALE'
+  | 'NOT_APPLICABLE';
+
+/**
+ * One checklist requirement's group from its readiness state and the latest
+ * reviewer decision on it (W0 tables F and G). Received is never Reviewed: a
+ * requirement is Reviewed only when its evidence is present AND a reviewer
+ * accepted it. A rejected decision always reads as needing a correction.
+ * `null`: the requirement does not apply to this case.
+ */
+export function requirementTriageGroup(
+  state: TriageRequirementState,
+  latestDecision: 'ACCEPTED' | 'REJECTED' | null,
+): TriageGroup | null {
+  if (state === 'NOT_APPLICABLE') return null;
+  if (latestDecision === 'REJECTED') return 'NEEDS_CORRECTION';
+  switch (state) {
+    case 'SATISFIED':
+      return latestDecision === 'ACCEPTED' ? 'REVIEWED' : 'RECEIVED';
+    case 'CRITICAL_GAP':
+    case 'ATTENTION':
+      return 'MISSING';
+    case 'CONFLICTING':
+    case 'EXPIRING_STALE':
+    case 'UNVERIFIED':
+      return 'NEEDS_CORRECTION';
+  }
+}
+
+function requirementIndicators(
+  state: TriageRequirementState,
+  optional: boolean,
+  latestDecision: 'ACCEPTED' | 'REJECTED' | null,
+): TriageIndicator[] {
+  const indicators: TriageIndicator[] = [];
+  if (optional) indicators.push('OPTIONAL');
+  if (latestDecision === 'REJECTED') indicators.push('NOT_ACCEPTED');
+  if (state === 'EXPIRING_STALE') indicators.push('OUT_OF_DATE');
+  if (state === 'UNVERIFIED') indicators.push('ANSWER_NEEDED');
+  if (state === 'CONFLICTING') indicators.push('DOES_NOT_MATCH');
+  return indicators;
+}
+
+function requestIndicators(
+  request: Pick<EvidenceRequest, 'status'>,
+  group: TriageGroup,
+): TriageIndicator[] {
+  if (request.status === 'NEEDS_REPLACEMENT') return ['SENT_BACK'];
+  if (request.status === 'UNDER_REVIEW' && group === 'RECEIVED') return ['REVIEW_STARTED'];
+  if (group === 'NEEDS_CORRECTION') return ['COULD_NOT_BE_USED'];
+  return [];
+}
+
+/** A request as the triage summary needs it. Dates may be Date objects or ISO strings. */
+export interface TriageRequestInput {
+  readonly id: string;
+  readonly missionId: string | null;
+  readonly packRequirementId: string | null;
+  readonly kind: EvidenceRequest['kind'];
+  readonly fieldKey: string | null;
+  readonly docType: string | null;
+  readonly status: EvidenceRequest['status'];
+  readonly dueDate: Date | string | null;
+  readonly createdAt: Date | string;
+}
+
+export interface CaseTriageInput {
+  readonly missionId: string;
+  readonly manualMode: boolean;
+  /** `computeReadiness` for this case, or null when there is none (manual case, no checklist, or not loaded). */
+  readonly readiness: {
+    readonly overallState: string;
+    readonly requirementResults: readonly {
+      readonly packRequirementId: string;
+      readonly kind: 'FIELD' | 'DOCUMENT';
+      readonly key: string;
+      readonly optional: boolean;
+      readonly state: TriageRequirementState;
+    }[];
+  } | null;
+  /** Reviewer decisions the viewer may already read for this case. */
+  readonly decisions: readonly {
+    readonly packRequirementId: string;
+    readonly outcome: 'ACCEPTED' | 'REJECTED';
+    readonly createdAt: Date | string;
+  }[];
+  /**
+   * Requests the viewer may already read. Only those that name this case are
+   * used: an applicant-wide request belongs to the traveller, not to any one
+   * case, so it is never counted here (W0 structural flag 2).
+   */
+  readonly requests: readonly TriageRequestInput[];
+}
+
+export interface CaseTriageItem {
+  /** Stable within one summary; never shown. */
+  readonly key: string;
+  readonly kind: 'FIELD' | 'DOCUMENT';
+  /** The field key or document type, for the caller to turn into words. */
+  readonly subject: string | null;
+  readonly packRequirementId: string | null;
+  readonly requestId: string | null;
+  readonly group: TriageGroup;
+  readonly indicators: readonly TriageIndicator[];
+  /** Set only when the agency actually set one. Never guessed. */
+  readonly dueDate: string | null;
+}
+
+export interface CaseTriageSummary {
+  readonly state: CaseTriageState;
+  readonly items: readonly CaseTriageItem[];
+  readonly counts: Readonly<Record<TriageGroup, number>>;
+}
+
+const ms = (value: Date | string) => new Date(value).getTime();
+const iso = (value: Date | string | null) =>
+  value === null ? null : new Date(value).toISOString();
+
+/**
+ * The case-level E02 summary: one primary group per item, built from the case's
+ * checklist (readiness and reviewer decisions) and the requests that name the
+ * case. A live request for a checklist item is the most specific current step,
+ * so it decides that item's group; an accepted request reads as Reviewed only
+ * when the checklist also finds the evidence present, so a later gap is never
+ * hidden behind an old acceptance. Requests for something outside the
+ * checklist are their own items. The order is the checklist order, then
+ * requests oldest first, so the summary never jumps around.
+ */
+export function summarizeCaseTriage(input: CaseTriageInput): CaseTriageSummary {
+  const latestDecision = new Map<string, { outcome: 'ACCEPTED' | 'REJECTED'; at: number }>();
+  for (const decision of input.decisions) {
+    const at = ms(decision.createdAt);
+    const seen = latestDecision.get(decision.packRequirementId);
+    if (!seen || at > seen.at) {
+      latestDecision.set(decision.packRequirementId, { outcome: decision.outcome, at });
+    }
+  }
+
+  const live = input.requests
+    .filter((r) => r.missionId === input.missionId)
+    .filter((r) => evidenceRequestTriageGroup(r) !== null)
+    .sort((a, b) => ms(a.createdAt) - ms(b.createdAt) || a.id.localeCompare(b.id));
+  // The newest live request per checklist item decides that item.
+  const requestForRequirement = new Map<string, TriageRequestInput>();
+  for (const request of live) {
+    if (request.packRequirementId) requestForRequirement.set(request.packRequirementId, request);
+  }
+
+  const items: CaseTriageItem[] = [];
+  const requirementIds = new Set<string>();
+  for (const result of input.readiness?.requirementResults ?? []) {
+    requirementIds.add(result.packRequirementId);
+    const decision = latestDecision.get(result.packRequirementId)?.outcome ?? null;
+    const fromChecklist = requirementTriageGroup(result.state, decision);
+    if (fromChecklist === null) continue;
+    const request = requestForRequirement.get(result.packRequirementId);
+    const fromRequest = request ? evidenceRequestTriageGroup(request) : null;
+    let group = fromChecklist;
+    let indicators = requirementIndicators(result.state, result.optional, decision);
+    let dueDate: string | null = null;
+    if (request && fromRequest === 'REVIEWED') {
+      // An accepted response is a person's review, but only while the evidence is still there.
+      if (result.state === 'SATISFIED' && decision !== 'REJECTED') group = 'REVIEWED';
+    } else if (request && fromRequest !== null) {
+      group = fromRequest;
+      indicators = requestIndicators(request, fromRequest);
+      if (result.optional) indicators.unshift('OPTIONAL');
+      dueDate = iso(request.dueDate);
+    }
+    items.push({
+      key: `requirement:${result.packRequirementId}`,
+      kind: result.kind,
+      subject: result.key,
+      packRequirementId: result.packRequirementId,
+      requestId: request?.id ?? null,
+      group,
+      indicators,
+      dueDate,
+    });
+  }
+  for (const request of live) {
+    if (request.packRequirementId && requirementIds.has(request.packRequirementId)) continue;
+    const group = evidenceRequestTriageGroup(request);
+    if (group === null) continue;
+    items.push({
+      key: `request:${request.id}`,
+      kind: request.kind,
+      subject: request.kind === 'FIELD' ? request.fieldKey : request.docType,
+      packRequirementId: request.packRequirementId,
+      requestId: request.id,
+      group,
+      indicators: requestIndicators(request, group),
+      dueDate: iso(request.dueDate),
+    });
+  }
+
+  const counts: Record<TriageGroup, number> = {
+    MISSING: 0,
+    PROCESSING: 0,
+    RECEIVED: 0,
+    NEEDS_CORRECTION: 0,
+    REVIEWED: 0,
+  };
+  for (const item of items) counts[item.group] += 1;
+
+  let state: CaseTriageState;
+  if (input.manualMode) state = 'CHECKED_BY_HAND';
+  else if (!input.readiness) state = 'NO_CHECKLIST';
+  else if (
+    input.readiness.overallState === 'READY_FOR_APPLICANT_REVIEW' &&
+    counts.MISSING + counts.PROCESSING + counts.NEEDS_CORRECTION === 0
+  ) {
+    state = 'READY_FOR_REVIEW';
+  } else state = 'NOT_READY';
+
+  return { state, items, counts };
 }
 
 /** An applicant who has granted this organization something — the legitimate targets for an evidence request. */

@@ -6,6 +6,8 @@ import { drizzle } from 'drizzle-orm/pglite';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { provisionAccount } from './accounts';
 import {
+  type TRIAGE_GROUPS,
+  type TriageRequestInput,
   addNote,
   assignMember,
   bulkExport,
@@ -15,6 +17,7 @@ import {
   decideAppointmentForOrg,
   decideEvidenceResponse,
   decideTaskForOrg,
+  evidenceRequestTriageGroup,
   listApplicantsForOrganization,
   listAppointmentsForOrg,
   listAssignedMissionIds,
@@ -32,8 +35,10 @@ import {
   listVisibleMissionsForMember,
   recordMissionDecision,
   requestEvidence,
+  requirementTriageGroup,
   startEvidenceReview,
   submitEvidenceResponse,
+  summarizeCaseTriage,
   unassignMember,
   updateTaskForOrg,
 } from './agency';
@@ -2311,6 +2316,7 @@ describe('CAS-02 - case workspace: authorized visibility, search fields, task ro
       [
         'applicantId',
         'applicantName',
+        'createdAt',
         'destination',
         'jurisdiction',
         'manualMode',
@@ -2982,5 +2988,314 @@ describe('OPS-04 (Commercial V1 Part 9): evidence analytics', () => {
     });
     expect(isErr(refused)).toBe(true);
     expect(await events('EVIDENCE_REQUESTED')).toEqual([]);
+  });
+});
+
+describe('E02 agency triage mapping (Programme X WP-V4, R03)', () => {
+  const statuses = schema.evidenceRequestStatus.enumValues;
+
+  it('gives every stored request status exactly one group, or none when the request is closed', () => {
+    const expected: Record<(typeof statuses)[number], string | null> = {
+      OPEN: 'MISSING',
+      RECEIVED: 'RECEIVED',
+      UNDER_REVIEW: 'RECEIVED',
+      ACCEPTED: 'REVIEWED',
+      NEEDS_REPLACEMENT: 'NEEDS_CORRECTION',
+      CANCELLED: null,
+      // Legacy values with no current writer: never shown as Reviewed (W0 L4).
+      FULFILLED: null,
+      DECLINED: null,
+    };
+    for (const status of statuses) {
+      for (const kind of ['FIELD', 'DOCUMENT'] as const) {
+        expect(evidenceRequestTriageGroup({ status, kind }), `${status} ${kind}`).toBe(
+          expected[status],
+        );
+      }
+    }
+  });
+
+  it('uses the responding document only when it is known, so a received file still processing or unsafe is never Received', () => {
+    const received = { status: 'RECEIVED', kind: 'DOCUMENT' } as const;
+    const clean = { processingStatus: 'AWAITING_REVIEW', safetyStatus: 'CLEAN' } as const;
+    expect(evidenceRequestTriageGroup(received, clean)).toBe('RECEIVED');
+    for (const processingStatus of [
+      'UPLOADING',
+      'QUARANTINED',
+      'SCANNING',
+      'NORMALIZING',
+      'EXTRACTING',
+    ] as const) {
+      expect(
+        evidenceRequestTriageGroup(received, { processingStatus, safetyStatus: 'CLEAN' }),
+      ).toBe('PROCESSING');
+    }
+    for (const safetyStatus of ['PENDING', 'SCANNING'] as const) {
+      expect(
+        evidenceRequestTriageGroup(received, { processingStatus: 'AWAITING_REVIEW', safetyStatus }),
+      ).toBe('PROCESSING');
+    }
+    for (const safetyStatus of ['QUARANTINED', 'FAILED'] as const) {
+      expect(
+        evidenceRequestTriageGroup(received, { processingStatus: 'AWAITING_REVIEW', safetyStatus }),
+      ).toBe('NEEDS_CORRECTION');
+    }
+    for (const processingStatus of ['NEEDS_ATTENTION', 'FAILED', 'REJECTED'] as const) {
+      expect(
+        evidenceRequestTriageGroup(received, { processingStatus, safetyStatus: 'CLEAN' }),
+      ).toBe('NEEDS_CORRECTION');
+    }
+    // A document marked approved by processing is still only received: review comes from a person.
+    expect(
+      evidenceRequestTriageGroup(received, { processingStatus: 'APPROVED', safetyStatus: 'CLEAN' }),
+    ).toBe('RECEIVED');
+    // Looked up and gone (for example erased): it needs a new upload.
+    expect(evidenceRequestTriageGroup(received, null)).toBe('NEEDS_CORRECTION');
+    // A field answer has no document to check.
+    expect(evidenceRequestTriageGroup({ status: 'RECEIVED', kind: 'FIELD' }, null)).toBe(
+      'RECEIVED',
+    );
+    // An accepted request stays Reviewed whatever is passed: the decision was made by a person.
+    expect(evidenceRequestTriageGroup({ status: 'ACCEPTED', kind: 'DOCUMENT' }, clean)).toBe(
+      'REVIEWED',
+    );
+  });
+
+  it('maps checklist states with reviewer decisions, and never calls received evidence reviewed', () => {
+    expect(requirementTriageGroup('SATISFIED', null)).toBe('RECEIVED');
+    expect(requirementTriageGroup('SATISFIED', 'ACCEPTED')).toBe('REVIEWED');
+    expect(requirementTriageGroup('SATISFIED', 'REJECTED')).toBe('NEEDS_CORRECTION');
+    expect(requirementTriageGroup('CRITICAL_GAP', null)).toBe('MISSING');
+    expect(requirementTriageGroup('ATTENTION', null)).toBe('MISSING');
+    // An old acceptance never lifts a gap that appeared later.
+    expect(requirementTriageGroup('CRITICAL_GAP', 'ACCEPTED')).toBe('MISSING');
+    expect(requirementTriageGroup('CONFLICTING', null)).toBe('NEEDS_CORRECTION');
+    expect(requirementTriageGroup('EXPIRING_STALE', 'ACCEPTED')).toBe('NEEDS_CORRECTION');
+    expect(requirementTriageGroup('UNVERIFIED', null)).toBe('NEEDS_CORRECTION');
+    expect(requirementTriageGroup('NOT_APPLICABLE', 'ACCEPTED')).toBeNull();
+  });
+
+  const request = (overrides: Partial<TriageRequestInput>): TriageRequestInput => ({
+    id: 'r1',
+    missionId: 'm1',
+    packRequirementId: 'req-passport',
+    kind: 'DOCUMENT',
+    fieldKey: null,
+    docType: 'PASSPORT',
+    status: 'OPEN',
+    dueDate: null,
+    createdAt: '2026-10-01T09:00:00.000Z',
+    ...overrides,
+  });
+  const readiness = (
+    state: 'SATISFIED' | 'CRITICAL_GAP',
+    overallState = state === 'SATISFIED' ? 'READY_FOR_APPLICANT_REVIEW' : 'NEEDS_ACTION',
+  ) => ({
+    overallState,
+    requirementResults: [
+      {
+        packRequirementId: 'req-passport',
+        kind: 'DOCUMENT' as const,
+        key: 'PASSPORT',
+        optional: false,
+        state,
+      },
+    ],
+  });
+
+  it('follows one item through request, receipt, replacement, a new receipt and review with the summary agreeing at each step', () => {
+    const steps: readonly [string, Parameters<typeof summarizeCaseTriage>[0], string, string][] = [
+      [
+        'asked for',
+        {
+          missionId: 'm1',
+          manualMode: false,
+          readiness: readiness('CRITICAL_GAP'),
+          decisions: [],
+          requests: [request({ status: 'OPEN' })],
+        },
+        'MISSING',
+        'NOT_READY',
+      ],
+      [
+        'received',
+        {
+          missionId: 'm1',
+          manualMode: false,
+          readiness: readiness('SATISFIED'),
+          decisions: [],
+          requests: [request({ status: 'RECEIVED' })],
+        },
+        'RECEIVED',
+        'READY_FOR_REVIEW',
+      ],
+      [
+        'sent back',
+        {
+          missionId: 'm1',
+          manualMode: false,
+          readiness: readiness('CRITICAL_GAP'),
+          decisions: [],
+          requests: [request({ status: 'NEEDS_REPLACEMENT' })],
+        },
+        'NEEDS_CORRECTION',
+        'NOT_READY',
+      ],
+      [
+        'received again, review started',
+        {
+          missionId: 'm1',
+          manualMode: false,
+          readiness: readiness('SATISFIED'),
+          decisions: [],
+          requests: [request({ status: 'UNDER_REVIEW' })],
+        },
+        'RECEIVED',
+        'READY_FOR_REVIEW',
+      ],
+      [
+        'accepted',
+        {
+          missionId: 'm1',
+          manualMode: false,
+          readiness: readiness('SATISFIED'),
+          decisions: [],
+          requests: [request({ status: 'ACCEPTED' })],
+        },
+        'REVIEWED',
+        'READY_FOR_REVIEW',
+      ],
+    ];
+    for (const [label, input, group, state] of steps) {
+      const summary = summarizeCaseTriage(input);
+      expect(summary.items, label).toHaveLength(1);
+      expect(summary.items[0]?.group, label).toBe(group);
+      expect(summary.counts[group as (typeof TRIAGE_GROUPS)[number]], label).toBe(1);
+      expect(summary.state, label).toBe(state);
+    }
+  });
+
+  it('never shows Ready for review while something on the case is still missing or waiting, even if the checklist is complete', () => {
+    const withExtraOpen = summarizeCaseTriage({
+      missionId: 'm1',
+      manualMode: false,
+      readiness: readiness('SATISFIED'),
+      decisions: [],
+      requests: [
+        request({
+          id: 'r-extra',
+          packRequirementId: null,
+          docType: 'BANK_STATEMENT',
+          status: 'OPEN',
+        }),
+      ],
+    });
+    expect(withExtraOpen.state).toBe('NOT_READY');
+    expect(withExtraOpen.counts.MISSING).toBe(1);
+    expect(withExtraOpen.counts.RECEIVED).toBe(1);
+    // A case checked by hand never gets the claim, and a case with no checklist has nothing to measure.
+    expect(
+      summarizeCaseTriage({
+        missionId: 'm1',
+        manualMode: true,
+        readiness: null,
+        decisions: [],
+        requests: [],
+      }).state,
+    ).toBe('CHECKED_BY_HAND');
+    expect(
+      summarizeCaseTriage({
+        missionId: 'm1',
+        manualMode: false,
+        readiness: null,
+        decisions: [],
+        requests: [],
+      }).state,
+    ).toBe('NO_CHECKLIST');
+  });
+
+  it('counts only requests that name this case, uses the newest live request per item, and is stable', () => {
+    const input = {
+      missionId: 'm1',
+      manualMode: false,
+      readiness: readiness('CRITICAL_GAP'),
+      decisions: [
+        {
+          packRequirementId: 'req-passport',
+          outcome: 'REJECTED' as const,
+          createdAt: '2026-10-02T00:00:00.000Z',
+        },
+        {
+          packRequirementId: 'req-passport',
+          outcome: 'ACCEPTED' as const,
+          createdAt: '2026-10-01T00:00:00.000Z',
+        },
+      ],
+      requests: [
+        // Another case of the same traveller, and a request for the traveller in general.
+        request({ id: 'r-other', missionId: 'm2', status: 'RECEIVED' }),
+        request({ id: 'r-wide', missionId: null, packRequirementId: null, status: 'OPEN' }),
+        // Closed requests are history only.
+        request({ id: 'r-old', status: 'CANCELLED', createdAt: '2026-09-01T00:00:00.000Z' }),
+        request({
+          id: 'r-new',
+          status: 'RECEIVED',
+          createdAt: '2026-10-05T00:00:00.000Z',
+          dueDate: '2026-10-20T00:00:00.000Z',
+        }),
+        request({
+          id: 'r-mid',
+          status: 'NEEDS_REPLACEMENT',
+          createdAt: '2026-10-03T00:00:00.000Z',
+        }),
+      ],
+    };
+    const summary = summarizeCaseTriage(input);
+    expect(summary.items.map((item) => [item.key, item.group, item.requestId])).toEqual([
+      ['requirement:req-passport', 'RECEIVED', 'r-new'],
+    ]);
+    expect(summary.items[0]?.dueDate).toBe('2026-10-20T00:00:00.000Z');
+    expect(summary.items[0]?.indicators).toEqual([]);
+    // With no live request, the latest reviewer decision decides.
+    const decisionOnly = summarizeCaseTriage({ ...input, requests: [] });
+    expect(decisionOnly.items[0]?.group).toBe('NEEDS_CORRECTION');
+    expect(decisionOnly.items[0]?.indicators).toEqual(['NOT_ACCEPTED']);
+    // Same input in any order gives the same summary.
+    expect(summarizeCaseTriage({ ...input, requests: [...input.requests].reverse() })).toEqual(
+      summary,
+    );
+  });
+
+  describe('case open date', () => {
+    let db: Db;
+    beforeEach(async () => {
+      db = await freshDb();
+    });
+
+    it('reports the case open date with the other case fields, for stable ordering', async () => {
+      const { account, applicantId } = await consentedApplicant(db, 'triage-created@example.com');
+      const mission = await createMission(db, {
+        actorAccountId: account.id,
+        applicantId,
+        title: 'Created at',
+      });
+      if (!isOk(mission)) throw new Error('mission');
+      const agentAcc = await provisionAccount(db, { email: 'triage-created-agent@acme.com' });
+      if (!isOk(agentAcc)) throw new Error('provision');
+      const org = await createOrganization(db, { actorAccountId: agentAcc.value.id, name: 'Acme' });
+      if (!isOk(org)) throw new Error('org');
+      await activateOrg(db, org.value.id);
+      const grant = await createGrant(db, {
+        actorAccountId: account.id,
+        applicantId,
+        recipientOrganizationId: org.value.id,
+        actions: ['MANAGE'],
+        purpose: 'collaboration',
+      });
+      if (!isOk(grant)) throw new Error('grant');
+      await acceptGrant(db, { actorAccountId: agentAcc.value.id, grantId: grant.value.id });
+      const { missions } = await listVisibleMissionsForMember(db, org.value.id, agentAcc.value.id);
+      expect(missions[0]?.createdAt).toBe(mission.value.createdAt.toISOString());
+    });
   });
 });
