@@ -1,15 +1,17 @@
 'use server';
 
 import { createHash } from 'node:crypto';
-import type { ApplicantId } from '@visastack/core';
-import type { Actor, Db } from '@visastack/services';
+import type { ApplicantId, Result } from '@visastack/core';
+import type { Actor, Db, DocumentKindSuggestion, ServiceError } from '@visastack/services';
 import type { AddDocumentVersionResult } from '@visastack/services';
 import {
+  accountPrincipal,
   acknowledgeInconsistencyFlag,
   approveClearProposals,
   approveDocumentTypeProposal,
   approveProposal,
   decideDocumentName,
+  decideDocumentSuggestion,
   dismissInconsistencyFlag,
   editFact,
   enqueueIntakeJob,
@@ -30,13 +32,14 @@ import {
   rejectProposal,
   renderOcrSourceImage,
   requestDocumentReExtraction,
+  requireAccess,
   reserveUpload,
-  runClassification,
   runExtraction,
   runInconsistencyCheck,
   runOcr,
   setDocumentDate,
   setDocumentType,
+  suggestDocumentKind,
 } from '@visastack/services';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
@@ -55,6 +58,7 @@ import { withSession } from '../../../../lib/session';
 import { createStorage } from '../../../../lib/storage';
 import { permitsPdfAdmission, validateUploadBytes } from '../../../../lib/upload-preflight';
 import { describeClearAcceptance } from './ai-review-messages';
+import { recordGroupOfDocType } from './record-groups';
 
 /** Result surfaced back to the client for inline feedback. */
 export interface ActionState {
@@ -508,10 +512,13 @@ export async function runAiExtractionAction(
       killSwitchCheck: () => isAiDispatchAllowed(db),
       ...(resolved.fallback ? { fallback: resolved.fallback } : {}),
     });
+    // The same reading also says what kind of document this is and suggests a name (owner
+    // request 2026-10-25). Its own failure never undoes or hides the details read above.
+    const kind = await suggestKindWithAi(db, accountId, applicantId, documentVersionId);
     if (!run.ok) return { ok: false, message: run.error.message } satisfies ActionState;
     return {
       ok: true,
-      message: `AI extraction proposed ${run.value.proposals.length} field(s) for review.`,
+      message: `AI extraction proposed ${run.value.proposals.length} field(s) for review.${kindSentence(kind)}`,
     } satisfies ActionState;
   });
 
@@ -592,39 +599,128 @@ export async function runClassificationAction(
   const documentVersionId = String(formData.get('documentVersionId') ?? '');
 
   const result = await withSession(async ({ db, accountId }) => {
-    if (!(await assertOwned(db, accountId, applicantId))) {
-      return { ok: false, message: 'Not authorized.' } satisfies ActionState;
-    }
-    const resolved = await resolveAiClassifier(db, createKeyManagementPort());
-    if (!resolved) {
+    const kind = await suggestKindWithAi(db, accountId, applicantId, documentVersionId);
+    if (!kind) {
       return { ok: false, message: 'AI classification is not configured.' } satisfies ActionState;
     }
-    const text = await getLatestExtractedText(db, documentVersionId);
-    if (!text) {
-      return {
-        ok: false,
-        message: 'No extracted text available yet for this document.',
-      } satisfies ActionState;
-    }
-    const run = await runClassification(db, resolved.ai, {
-      actorAccountId: accountId,
-      applicantId,
-      documentVersionId,
-      text,
-      budgetLimitUnits: resolved.limits.budgetLimitUnits,
-      perDocumentBudgetLimitUnits: resolved.limits.perDocumentBudgetLimitUnits,
-      maxAttemptsPerDocument: resolved.limits.maxAttemptsPerDocument,
-      maxPagesPerDocument: resolved.limits.maxPagesPerDocument,
-      cacheMaxAgeDays: resolved.limits.cacheMaxAgeDays,
-      maxConcurrentCalls: resolved.limits.maxConcurrentCalls,
-      killSwitchCheck: () => isAiDispatchAllowed(db),
-    });
-    if (!run.ok) return { ok: false, message: run.error.message } satisfies ActionState;
+    if (!kind.ok) return { ok: false, message: plainError(kind.error) } satisfies ActionState;
     return {
       ok: true,
-      message: run.value.proposal
-        ? `AI suggested a document type: ${run.value.proposal.suggestedType} - review below.`
-        : 'AI classification ran, but could not confidently suggest a document type.',
+      message:
+        kindSentence(kind).trim() ||
+        'We could not tell what kind of document this is. Choose the kind above.',
+    } satisfies ActionState;
+  });
+
+  if (result.ok) revalidatePath(`/app/applicant/${applicantId}`, 'layout');
+  return result;
+}
+
+/**
+ * Ask the AI what kind of document a file is and suggest a name for it (owner request
+ * 2026-10-25), through the access gate as the applicant's owner. Undefined when no AI provider
+ * is set up for this, so the caller can say so; the rules' own suggestion is untouched either way.
+ */
+async function suggestKindWithAi(
+  db: Db,
+  accountId: string,
+  applicantId: string,
+  documentVersionId: string,
+): Promise<Result<DocumentKindSuggestion, ServiceError> | undefined> {
+  const resolved = await resolveAiClassifier(db, createKeyManagementPort());
+  if (!resolved) return undefined;
+  const access = await requireAccess(
+    db,
+    accountPrincipal(accountId),
+    'MANAGE',
+    { applicantId },
+    { purpose: 'owner_document_suggestion' },
+  );
+  if (!access.ok) return access;
+  return suggestDocumentKind(access.value, resolved.ai, {
+    documentVersionId,
+    budgetLimitUnits: resolved.limits.budgetLimitUnits,
+    perDocumentBudgetLimitUnits: resolved.limits.perDocumentBudgetLimitUnits,
+    maxAttemptsPerDocument: resolved.limits.maxAttemptsPerDocument,
+    maxPagesPerDocument: resolved.limits.maxPagesPerDocument,
+    cacheMaxAgeDays: resolved.limits.cacheMaxAgeDays,
+    maxConcurrentCalls: resolved.limits.maxConcurrentCalls,
+    killSwitchCheck: () => isAiDispatchAllowed(db),
+  });
+}
+
+/** One plain sentence on what the AI said about the kind, or nothing when it had nothing new to say. */
+function kindSentence(kind: Result<DocumentKindSuggestion, ServiceError> | undefined): string {
+  if (!kind?.ok) return '';
+  if (kind.value.status === 'suggested') {
+    return ' It also suggested what kind of document this is and a name for it. Check them below.';
+  }
+  return '';
+}
+
+/** A service refusal as a sentence a person can read. */
+function plainError(error: ServiceError): string {
+  const text = error.message.trim();
+  if (text.length === 0) return 'Something went wrong. Try again.';
+  return `${text.charAt(0).toUpperCase()}${text.slice(1)}${/[.!?]$/.test(text) ? '' : '.'}`;
+}
+
+/**
+ * Accept, edit or skip what we think a document is and what to call it (owner request
+ * 2026-10-25). Accepting saves the kind and the name together; skipping changes nothing. The
+ * owner only, through the access gate.
+ */
+export async function decideDocumentSuggestionAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const applicantId = String(formData.get('applicantId') ?? '');
+  const documentId = String(formData.get('documentId') ?? '');
+  const optionalId = (key: string): string | null => {
+    const value = String(formData.get(key) ?? '').trim();
+    return value.length > 0 ? value : null;
+  };
+  const nameVersionId = optionalId('nameVersionId');
+  const typeProposalId = optionalId('typeProposalId');
+  const decision = String(formData.get('suggestionAction') ?? '');
+  const docType = String(formData.get('docType') ?? '').trim();
+  const subject = String(formData.get('subject') ?? '').trim();
+  const name = String(formData.get('name') ?? '').trim();
+
+  if (decision !== 'accept' && decision !== 'skip') {
+    return { ok: false, message: 'Unknown action.' };
+  }
+  if (decision === 'accept' && docType.length === 0) {
+    return { ok: false, message: 'Choose what kind of document this is.', field: 'docType' };
+  }
+  if (decision === 'accept' && name.length === 0) {
+    return { ok: false, message: 'Enter a name for this document.', field: 'name' };
+  }
+
+  const result = await withSession(async ({ db, accountId }) => {
+    const access = await requireAccess(
+      db,
+      accountPrincipal(accountId),
+      'MANAGE',
+      { documentId },
+      { purpose: 'owner_document_suggestion' },
+    );
+    if (!access.ok || access.value.applicant.id !== applicantId) {
+      return { ok: false, message: 'Not authorized.' } satisfies ActionState;
+    }
+    const decided = await decideDocumentSuggestion(
+      access.value,
+      decision === 'accept'
+        ? { decision, nameVersionId, typeProposalId, docType, subject, name }
+        : { decision, nameVersionId, typeProposalId },
+    );
+    if (!decided.ok) return { ok: false, message: plainError(decided.error) } satisfies ActionState;
+    return {
+      ok: true,
+      message:
+        decided.value.decision === 'accept'
+          ? `Saved. It is listed under ${recordGroupOfDocType(decided.value.docType)} on your Record.`
+          : 'Skipped. Nothing was changed.',
     } satisfies ActionState;
   });
 

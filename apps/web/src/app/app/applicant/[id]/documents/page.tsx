@@ -47,7 +47,6 @@ import {
 } from '../actions';
 import {
   DocumentFindings,
-  DocumentTypeProposalReview,
   InconsistencyFlagReview,
   OcrResultView,
   RunAiExtractionButton,
@@ -55,10 +54,11 @@ import {
   RunInconsistencyCheckButton,
   RunOcrButton,
 } from '../ai-review';
+import { documentSuggestionView } from '../document-suggestion';
+import { DocumentSuggestionCard } from '../document-suggestion-card';
 import { DocumentTypeForm } from '../document-type-form';
 import { DocumentUploader } from '../document-uploader';
 import { downloadOriginalAction } from '../download-actions';
-import { NameReview } from '../name-review';
 import { UsageMeter } from '../usage-meter';
 
 const ORIGINAL_KINDS: readonly string[] = [...ORIGINAL_DOCUMENT_KEYS];
@@ -217,6 +217,7 @@ export default async function ApplicantDocumentsPage({
     const ocrRuns = new Map(documentRows.map((doc, i) => [doc.id, ocrRunLists[i]] as const));
     const confirmed = confirmedValues(profile, encryption !== undefined);
     return {
+      displayName: applicant.displayName ?? 'Unknown',
       documents: documentRows,
       recordsUnavailable: !documents.ok || !wallet.ok,
       coreGranted,
@@ -325,12 +326,20 @@ export default async function ApplicantDocumentsPage({
             doc.processingStatus !== null &&
             isServableProcessingState(doc.processingStatus);
           const lifecycle = data.wallet.get(doc.id)?.status;
+          // A waiting AI kind for the file as it is now (an older file's suggestion no longer applies).
+          const waitingKind = data.pendingClassificationProposals.find(
+            (p) => p.documentVersionId === doc.latestVersionId,
+          );
+          // What we think this document is and what to call it: nothing is saved until the
+          // person accepts (owner request 2026-10-25).
+          const suggestion = documentSuggestionView(doc, waitingKind, data.displayName);
           const needsReview =
             (doc.docType === 'PASSPORT' && lifecycle === 'UNKNOWN') ||
             doc.safetyStatus === 'QUARANTINED' ||
             doc.processingStatus === 'AWAITING_REVIEW' ||
             doc.classification?.reviewRequired === true ||
             doc.pendingNameVersion !== null ||
+            suggestion !== null ||
             ['QUARANTINED', 'REJECTED', 'FAILED', 'NEEDS_ATTENTION'].includes(
               doc.processingStatus ?? '',
             ) ||
@@ -338,11 +347,7 @@ export default async function ApplicantDocumentsPage({
               ({ proposal }) => proposal.documentVersionId === doc.latestVersionId,
             );
           const category = documentCategory(doc.docType);
-          const suggested = doc.docType
-            ? undefined
-            : data.pendingClassificationProposals.find(
-                (p) => p.documentVersionId === doc.latestVersionId,
-              );
+          const suggested = doc.docType ? undefined : waitingKind;
           return {
             id: doc.id,
             name: doc.approvedName ?? doc.originalName,
@@ -529,17 +534,15 @@ export default async function ApplicantDocumentsPage({
                     </details>
                   );
                 })()}
-                {doc.pendingNameVersion ? (
-                  <NameReview
+                {suggestion ? (
+                  <DocumentSuggestionCard
                     applicantId={id}
-                    nameVersionId={doc.pendingNameVersion.id}
-                    originalName={doc.originalName}
-                    proposedName={doc.pendingNameVersion.proposedName}
-                    classification={doc.classification}
+                    suggestion={suggestion}
+                    groups={documentGroups}
                   />
                 ) : doc.classification?.reviewRequired ? (
                   <p className="muted u-fs-075">
-                    Automatic classification needs review - not confident enough to propose a name.
+                    We could not tell what kind of document this is. Choose the kind above.
                   </p>
                 ) : null}
                 {(() => {
@@ -584,28 +587,9 @@ export default async function ApplicantDocumentsPage({
                   }
                   const versionId = doc.latestVersionId;
                   if (!versionId) return null;
-                  const classificationProposal = data.pendingClassificationProposals.find(
-                    (p) => p.documentVersionId === versionId,
-                  );
-                  return (
-                    <>
-                      {data.coreGranted && !classificationProposal ? (
-                        <RunClassificationButton applicantId={id} documentVersionId={versionId} />
-                      ) : null}
-                      {classificationProposal ? (
-                        <DocumentTypeProposalReview
-                          applicantId={id}
-                          canApprove={data.coreGranted}
-                          proposal={{
-                            id: classificationProposal.id,
-                            suggestedType: classificationProposal.suggestedType,
-                            confidence: classificationProposal.confidence,
-                            rationale: classificationProposal.rationale,
-                          }}
-                        />
-                      ) : null}
-                    </>
-                  );
+                  // A waiting AI kind is shown in the card above, decided with its name.
+                  if (waitingKind || !data.coreGranted || doc.docType) return null;
+                  return <RunClassificationButton applicantId={id} documentVersionId={versionId} />;
                 })()}
                 {(() => {
                   if (!data.ocrConfigured || !data.ocrGranted || !doc.classification) return null;

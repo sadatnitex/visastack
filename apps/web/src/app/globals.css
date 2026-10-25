@@ -6391,3 +6391,33 @@ body:has(.auth-shell) > .footer {
     grid-column: 1 / -1;
   }
 }
+/* WP-AI3 naming and sorting: the one card that shows what we think a document is, its suggested
+   name and where the Record lists it. It reuses the Check What We Found card; only the two facts
+   and the button row are new. Buttons stay at least 44px tall and everything wraps on a phone. */
+.document-suggestion-facts {
+  display: grid;
+  gap: 4px;
+  margin: 8px 0;
+}
+.document-suggestion-facts > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 8px;
+  min-width: 0;
+}
+.document-suggestion-facts dt {
+  font-weight: 600;
+}
+.document-suggestion-facts dd {
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.document-suggestion-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.document-suggestion-actions .btn {
+  min-height: 44px;
+}

@@ -112,6 +112,9 @@ const { CreateMissionForm } = await import(
   '../app/app/applicant/[id]/missions/create-mission-form'
 );
 const { NameReview } = await import('../app/app/applicant/[id]/name-review');
+const { DocumentSuggestionCard } = await import(
+  '../app/app/applicant/[id]/document-suggestion-card'
+);
 const { ProfileEditor } = await import('../app/app/applicant/[id]/profile-editor');
 const { GrantForm } = await import('../app/app/applicant/[id]/sharing/grant-form');
 const { GrantOpButtons } = await import('../app/app/applicant/[id]/sharing/grant-op-buttons');
@@ -228,6 +231,42 @@ const DOCS: readonly Case[] = [
       originalName="IMG_20240101.jpg"
       proposedName="document.jpg"
       classification={null}
+    />
+  )),
+  row('check the suggested kind and name', () => (
+    <DocumentSuggestionCard
+      applicantId="a1"
+      groups={fixtureDocumentGroups}
+      suggestion={{
+        documentId: 'd1',
+        nameVersionId: 'n1',
+        typeProposalId: 'k1',
+        kind: 'BANK_STATEMENT',
+        kindLabel: 'Bank Statement',
+        recordGroup: 'Money',
+        source: 'ai',
+        clear: true,
+        proposedName: 'Bank Statement - Anna Eriksson.pdf',
+        currentKindLabel: 'Salary Slip',
+      }}
+    />
+  )),
+  row('choose a kind and name for a document', () => (
+    <DocumentSuggestionCard
+      applicantId="a1"
+      groups={fixtureDocumentGroups}
+      suggestion={{
+        documentId: 'd2',
+        nameVersionId: 'n2',
+        typeProposalId: null,
+        kind: null,
+        kindLabel: null,
+        recordGroup: null,
+        source: 'rules',
+        clear: false,
+        proposedName: 'Document - Anna Eriksson.pdf',
+        currentKindLabel: null,
+      }}
     />
   )),
   row('read a document with the text reader', () => (
