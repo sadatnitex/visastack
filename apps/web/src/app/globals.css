@@ -6081,6 +6081,11 @@ body:has(.auth-shell) > .footer {
 .first-run-later {
   margin: 0.9rem 0 0;
 }
+.first-run-later a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+}
 .first-run-note {
   margin: 0.6rem 0 0;
   font-size: var(--text-small);

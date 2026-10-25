@@ -3,8 +3,6 @@ import { act } from 'react';
 import { type Root, createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const router = vi.hoisted(() => ({ replace: vi.fn() }));
-vi.mock('next/navigation', () => ({ useRouter: () => router }));
 vi.mock('./actions', () => ({
   createApplicantAction: vi.fn(),
   setConsentAction: vi.fn(),
@@ -36,7 +34,7 @@ const radio = (label: string) =>
 
 describe('first-run "Who is this record for?"', () => {
   it('starts with Me and sends the same value as the existing form (SELF)', () => {
-    act(() => root.render(<AddApplicantForm firstRun={{ afterHref: '/app?welcome=1' }} />));
+    act(() => root.render(<AddApplicantForm firstRun />));
     expect(container.textContent).toContain('Who is this record for?');
     expect(container.textContent).toContain('Name as on the passport');
     expect(posted()).toEqual([
@@ -44,11 +42,14 @@ describe('first-run "Who is this record for?"', () => {
       ['displayName', ''],
     ]);
     expect(container.querySelector('input[name="authorityConfirmed"]')).toBeNull();
-    expect(container.querySelector('button[type="submit"]')?.textContent).toBe('Continue');
+    const submit = container.querySelector<HTMLButtonElement>('button[type="submit"]');
+    expect(submit?.textContent).toBe('Continue');
+    // Ready once mounted: Continue is not held back after the page has loaded.
+    expect(submit?.disabled).toBe(false);
   });
 
   it('Someone I manage reveals Family member or Minor and the authority confirmation', () => {
-    act(() => root.render(<AddApplicantForm firstRun={{ afterHref: '/app?welcome=1' }} />));
+    act(() => root.render(<AddApplicantForm firstRun />));
     act(() => radio('Someone I manage')?.click());
     expect(container.textContent).toContain('Family member');
     expect(container.textContent).toContain('Minor (guardian)');
@@ -62,7 +63,13 @@ describe('first-run "Who is this record for?"', () => {
     expect(container.querySelector('input[name="authorityConfirmed"]')).toBeNull();
   });
 
-  it('the existing form is unchanged without firstRun', () => {
+  it('holds Continue back until the page is ready, so an early tap cannot save the wrong person', async () => {
+    const { renderToString } = await import('react-dom/server');
+    const html = renderToString(<AddApplicantForm firstRun />);
+    expect(html).toMatch(/<button[^>]*type="submit"[^>]*disabled/);
+  });
+
+  it('the existing form is unchanged without firstRun, and needs no router', () => {
     act(() => root.render(<AddApplicantForm />));
     expect(container.querySelector('select[name="relationship"]')).not.toBeNull();
     expect(container.querySelector('button[type="submit"]')?.textContent).toBe('Add applicant');

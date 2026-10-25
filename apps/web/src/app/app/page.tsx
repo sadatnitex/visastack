@@ -136,11 +136,16 @@ interface SearchParams {
   readonly welcome?: string | string[];
 }
 
-/** A same-site task to return to after first run, or null when there is none. */
+/**
+ * A task to return to after first run: a workspace page or an invitation, never home itself and
+ * never anything else on the site (an API route, a sign-in page), or null when there is none.
+ */
 function returnTask(value: string | string[] | undefined): string | null {
   if (typeof value !== 'string') return null;
   const path = safeReturnPath(value);
-  return path === '/app' || path.startsWith('/app?') || path.startsWith('/app#') ? null : path;
+  return path.startsWith('/app/') || path === '/invitation' || path.startsWith('/invitation?')
+    ? path
+    : null;
 }
 
 export default async function AppPage({
@@ -158,10 +163,13 @@ export default async function AppPage({
   // gets the ordinary home so every consent control stays in reach. "Not now" also leads there.
   const task = returnTask(params.next);
   const later = params.setup === 'later';
-  const newcomer = !coreGranted && grantedCount === 0;
+  const newcomer = !coreGranted && grantedCount === 0 && data.applicants.length === 0;
   if (!later && newcomer) return <FirstRunConsent locale={locale} />;
   if (!later && coreGranted && data.applicants.length === 0) {
-    return <FirstRunName afterHref={task ?? '/app?welcome=1'} />;
+    // Ask the name on the page that comes next, so once the applicant is saved the refreshed page
+    // is already "what do you want to do?" (or, with a task, goes straight to it).
+    if (!task && params.welcome !== '1') redirect('/app?welcome=1');
+    return <FirstRunName />;
   }
   if (coreGranted && data.applicants.length > 0) {
     // Set up: go straight to the task someone came for, or ask what they want to do once.

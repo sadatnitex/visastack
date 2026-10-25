@@ -133,6 +133,13 @@ describe('task-first first run (WP-V3, D8)', () => {
     expect(stubProps(html, 'ConsentButton')).toHaveLength(6);
   });
 
+  it('a returning person with records who turned every permission off gets the ordinary home', async () => {
+    data.applicants = [SELF];
+    const html = await page();
+    expect(textOf(html)).not.toContain('Step 1 of 2');
+    expect(stubProps(html, 'ConsentButton')).toHaveLength(6);
+  });
+
   it('someone who turned core processing off with another consent still on keeps every control', async () => {
     data.consents = { MARKETING: { grantedAt: new Date() } };
     const html = await page();
@@ -140,23 +147,26 @@ describe('task-first first run (WP-V3, D8)', () => {
     expect(stubProps(html, 'ConsentButton')).toHaveLength(6);
   });
 
-  it('then asks who the record is for, and moves on to "what do you want to do?"', async () => {
+  it('then asks who the record is for on the page that becomes "what do you want to do?"', async () => {
     data.consents = CORE;
-    const html = await page();
+    await expect(page()).rejects.toThrow('NEXT_REDIRECT:/app?welcome=1');
+    const html = await page({ welcome: '1' });
     expect(textOf(html)).toContain('Step 2 of 2');
-    expect(stubProps<{ firstRun: { afterHref: string } }>(html, 'AddApplicantForm')).toEqual([
-      { firstRun: { afterHref: '/app?welcome=1' } },
+    expect(stubProps<{ firstRun: boolean }>(html, 'AddApplicantForm')).toEqual([
+      { firstRun: true },
     ]);
     expect(stubProps(html, 'ConsentButton')).toHaveLength(0);
+    // Once the applicant is saved, the same page asks what to do next.
+    data.applicants = [SELF];
+    expect(textOf(await page({ welcome: '1' }))).toContain('What do you want to do?');
   });
 
   it('with a valid return path, finishes the two screens and goes to that task instead', async () => {
     data.consents = CORE;
     const next = '/invitation?kind=client&token=abc';
     const html = await page({ next });
-    expect(stubProps<{ firstRun: { afterHref: string } }>(html, 'AddApplicantForm')[0]).toEqual({
-      firstRun: { afterHref: next },
-    });
+    expect(textOf(html)).toContain('Step 2 of 2');
+    expect(stubProps(html, 'AddApplicantForm')).toHaveLength(1);
     data.applicants = [SELF];
     await expect(page({ next })).rejects.toThrow(`NEXT_REDIRECT:${next}`);
   });
@@ -164,7 +174,15 @@ describe('task-first first run (WP-V3, D8)', () => {
   it('never follows a return path that leaves the site, or one back to home', async () => {
     data.consents = CORE;
     data.applicants = [SELF];
-    for (const next of ['//evil.example', 'https://evil.example', '/app', '/app?welcome=1']) {
+    for (const next of [
+      '//evil.example',
+      'https://evil.example',
+      '/app',
+      '/app?welcome=1',
+      '/api/health/ready',
+      '/auth/sign-in',
+      '/invitationx',
+    ]) {
       const text = textOf(await page({ next }));
       expect(text).toContain('Welcome back');
     }

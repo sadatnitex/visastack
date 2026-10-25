@@ -56,14 +56,14 @@ export function FirstRunConsent({ locale }: { readonly locale: Locale }) {
   );
 }
 
-export function FirstRunName({ afterHref }: { readonly afterHref: string }) {
+export function FirstRunName() {
   return (
     <section className="section container first-run" aria-labelledby="first-run-title">
       <Steps current={2} />
       <h1 className="section-title" id="first-run-title">
         Who is this <em>record for?</em>
       </h1>
-      <AddApplicantForm firstRun={{ afterHref }} />
+      <AddApplicantForm firstRun />
       <p className="first-run-later">
         <Link href={SETUP_LATER_HREF}>Not now</Link>
       </p>
