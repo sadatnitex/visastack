@@ -58,7 +58,7 @@ describe('safeReturnPath', () => {
     for (const hostile of [
       `//evil.example/app/client-invitations/accept?token=${token}`,
       `https://evil.example/app/client-invitations/accept?token=${token}`,
-      `/\\evil.example/app/client-invitations/accept`,
+      '/\\evil.example/app/client-invitations/accept',
     ]) {
       expect(safeReturnPath(hostile)).toBe('/app');
     }
