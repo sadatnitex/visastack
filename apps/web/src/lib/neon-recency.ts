@@ -19,7 +19,9 @@ export async function neonSessionAgeSeconds(
   now: () => number = Date.now,
 ): Promise<number> {
   const source =
-    reader ?? ((await import('./neon-auth')).getNeonAuth() as unknown as SessionReader);
+    reader ??
+    // One Neon Auth read per page request, shared with the identity check (neon-request-session.ts).
+    ((await import('./neon-request-session')).requestSessionReader() as unknown as SessionReader);
   const { data } = await source.getSession();
   const created = data?.session?.createdAt;
   if (!created) return Number.POSITIVE_INFINITY;

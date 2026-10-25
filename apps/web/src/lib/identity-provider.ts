@@ -22,8 +22,11 @@ export interface NeonSessionReader {
  */
 export class NeonIdentityPort implements IdentityPort {
   constructor(
+    // The default shares one Neon Auth read per page request (see neon-request-session.ts).
     private readonly reader: () => NeonSessionReader | Promise<NeonSessionReader> = async () =>
-      (await import('./neon-auth')).getNeonAuth() as unknown as NeonSessionReader,
+      (
+        await import('./neon-request-session')
+      ).requestSessionReader() as unknown as NeonSessionReader,
   ) {}
 
   async currentIdentity(): Promise<ResolvedIdentity | undefined> {
