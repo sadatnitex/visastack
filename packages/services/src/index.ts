@@ -29,11 +29,15 @@ export {
   StaffScope,
   SystemScope,
   EACH_GRANT,
+  RESTRICTED_DOCUMENT_TYPES,
   SYSTEM_JOBS,
+  StepUpProof,
   accountPrincipal,
+  isRestrictedDocumentType,
   requireAccess,
   staffPrincipal,
   systemPrincipal,
+  verifyStepUp,
 } from './access';
 export { type ServiceError, type ServiceErrorCode, serviceError } from './errors';
 

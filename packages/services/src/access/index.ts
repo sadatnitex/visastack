@@ -25,5 +25,8 @@ export {
   AuthorizedApplicant,
   CONTRIBUTOR_ACTIONS,
   EACH_GRANT,
+  RESTRICTED_DOCUMENT_TYPES,
+  isRestrictedDocumentType,
   requireAccess,
 } from './require-access';
+export { StepUpProof, verifyStepUp } from './step-up-proof';

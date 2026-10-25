@@ -1,4 +1,4 @@
-import { readFileSync, realpathSync } from 'node:fs';
+import { readFileSync, readdirSync, realpathSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import ts from 'typescript';
@@ -7,9 +7,19 @@ import { describe, expect, it } from 'vitest';
 /**
  * Ratchet: every exported service function that reads or writes an
  * applicant-owned table must take a gate type (`AuthorizedApplicant`,
- * `SystemScope`, `StaffScope` or `Principal`) as a parameter, or be listed in
+ * `SystemScope` or `StaffScope`) as a parameter, or be listed in
  * `enforcement-baseline.json`. The baseline can only shrink: a new violation
  * fails, and so does a baseline entry that now complies or no longer exists.
+ *
+ * - A bare `Principal` does not count: anyone can name an account id, so it
+ *   proves nothing. Only access/ (the gate itself) takes one.
+ * - Calling an exported function that is itself ungated counts as touching
+ *   the table, so a new function cannot reach applicant data through an
+ *   older, baselined one.
+ * - An export built by wrapping a function (`export const f = wrap(async ...)`)
+ *   is judged by the functions it wraps.
+ * - `systemPrincipal` (a scheduled job's scope) may only be used by the job
+ *   routes in apps/web/src/app/api/jobs.
  *
  * Everything here is resolved through the TypeScript type checker, not text:
  * a table counts only if the identifier resolves to the table's declaration in
@@ -27,7 +37,9 @@ const baselineFile = path.join(accessDir, 'enforcement-baseline.json');
 
 /** A table is applicant-owned when it has any of these columns. */
 const OWNED_COLUMNS = new Set(['applicant_id', 'mission_id', 'document_id', 'owner_account_id']);
-const GATE_TYPES = ['AuthorizedApplicant', 'SystemScope', 'StaffScope', 'Principal'] as const;
+const GATE_TYPES = ['AuthorizedApplicant', 'SystemScope', 'StaffScope'] as const;
+const webSrcDir = path.resolve(servicesDir, '../../apps/web/src');
+const jobsDir = path.join(webSrcDir, 'app', 'api', 'jobs');
 
 function isTestFile(fileName: string): boolean {
   return /\.test\.ts$/.test(fileName) || /\.test-support\.ts$/.test(fileName);
@@ -199,11 +211,23 @@ function exportedFunctions(
       if (ts.isVariableDeclaration(decl) && decl.initializer) {
         const init = unwrapExpression(decl.initializer);
         if (ts.isArrowFunction(init) || ts.isFunctionExpression(init)) fns.push(init);
+        else if (ts.isCallExpression(init)) fns.push(...wrappedFunctions(init));
       }
     }
     if (fns.length > 0) result.set(exported.name, fns);
   }
   return result;
+}
+
+/** The functions passed, at any depth, into a wrapping call such as `wrap(async () => ...)`. */
+function wrappedFunctions(call: ts.CallExpression): FunctionLike[] {
+  const found: FunctionLike[] = [];
+  for (const arg of call.arguments) {
+    const unwrapped = unwrapExpression(arg);
+    if (ts.isArrowFunction(unwrapped) || ts.isFunctionExpression(unwrapped)) found.push(unwrapped);
+    else if (ts.isCallExpression(unwrapped)) found.push(...wrappedFunctions(unwrapped));
+  }
+  return found;
 }
 
 /** Local names in `sf` that import an owned table under another name. */
@@ -216,6 +240,20 @@ function importedTableAliases(sf: ts.SourceFile, tableNames: Set<string>): Set<s
     for (const element of bindings.elements) {
       const imported = (element.propertyName ?? element.name).text;
       if (tableNames.has(imported)) aliases.add(element.name.text);
+    }
+  }
+  return aliases;
+}
+
+/** Local name to imported name for each `import { a as b }` in `sf`. */
+function renamedImports(sf: ts.SourceFile): Map<string, string> {
+  const aliases = new Map<string, string>();
+  for (const statement of sf.statements) {
+    if (!ts.isImportDeclaration(statement)) continue;
+    const bindings = statement.importClause?.namedBindings;
+    if (!bindings || !ts.isNamedImports(bindings)) continue;
+    for (const element of bindings.elements) {
+      if (element.propertyName) aliases.set(element.name.text, element.propertyName.text);
     }
   }
   return aliases;
@@ -251,6 +289,11 @@ interface FileScan {
   readonly helpers: Map<string, ts.Node[]>;
   /** Memo per private helper declaration; `false` while in progress breaks recursion. */
   readonly memo: Map<ts.Node, boolean>;
+  /** Names and declarations of exported functions found ungated so far, in any module. */
+  readonly ungatedNames: Set<string>;
+  readonly ungatedDecls: Set<ts.Node>;
+  /** Local name to imported name, for every renamed named import in this file. */
+  readonly importAliases: Map<string, string>;
 }
 
 /**
@@ -266,9 +309,17 @@ function touchesOwnedTable(scan: FileScan, root: ts.Node): boolean {
     // private helper are resolved, which keeps the checker away from
     // unrelated expressions.
     if (ts.isIdentifier(node)) {
-      if (scan.candidateNames.has(node.text)) {
+      if (
+        scan.candidateNames.has(node.text) ||
+        scan.ungatedNames.has(node.text) ||
+        scan.ungatedNames.has(scan.importAliases.get(node.text) ?? '')
+      ) {
         const symbol = resolve(scan.checker, scan.checker.getSymbolAtLocation(node));
-        if ((symbol?.declarations ?? []).some((d) => scan.tableDecls.has(d))) {
+        if (
+          (symbol?.declarations ?? []).some(
+            (d) => scan.tableDecls.has(d) || scan.ungatedDecls.has(d),
+          )
+        ) {
           touches = true;
           return;
         }
@@ -312,7 +363,34 @@ interface Analysis {
   readonly violations: Set<string>;
   readonly exportedFunctionIds: Set<string>;
   readonly ownedTableNames: Set<string>;
-  readonly brandImporters: string[];
+  readonly systemScopeUsers: string[];
+}
+
+function sourceFilesUnder(dir: string): string[] {
+  const files: string[] = [];
+  for (const entry of readdirSync(dir, { recursive: true, withFileTypes: true })) {
+    if (!entry.isFile() || !/\.(ts|tsx)$/.test(entry.name)) continue;
+    files.push(path.join(entry.parentPath, entry.name));
+  }
+  return files;
+}
+
+/**
+ * Files outside access/ and the job routes that mention `systemPrincipal`.
+ * Plain text on purpose: a comment or a renamed import fails closed too. The
+ * services index re-exports it and is the one allowed exception.
+ */
+function systemScopeUsers(serviceFiles: readonly string[]): string[] {
+  const indexFile = path.join(srcDir, 'index.ts');
+  const users: string[] = [];
+  for (const file of [...serviceFiles.map(real), ...sourceFilesUnder(webSrcDir)]) {
+    if (file.startsWith(accessDir + path.sep) || file === indexFile) continue;
+    if (file.startsWith(jobsDir + path.sep)) continue;
+    if (/\bsystemPrincipal\b/.test(readFileSync(file, 'utf8'))) {
+      users.push(path.relative(path.resolve(servicesDir, '../..'), file).replace(/\\/g, '/'));
+    }
+  }
+  return users.sort();
 }
 
 function analyse(): Analysis {
@@ -321,8 +399,17 @@ function analyse(): Analysis {
   const tables = ownedTables(sourceFileAt(program, schemaFile));
   const gateDecls = gateDeclarations(program, checker);
 
-  const violations = new Set<string>();
-  const exportedFunctionIds = new Set<string>();
+  interface ExportedFn {
+    readonly id: string;
+    readonly name: string;
+    readonly fns: FunctionLike[];
+    readonly decls: ts.Node[];
+    readonly scan: FileScan;
+    readonly inAccess: boolean;
+  }
+  const ungatedNames = new Set<string>();
+  const ungatedDecls = new Set<ts.Node>();
+  const exported: ExportedFn[] = [];
   for (const sf of program.getSourceFiles()) {
     const fileName = real(sf.fileName);
     if (sf.isDeclarationFile || !fileName.startsWith(srcDir + path.sep) || isTestFile(fileName)) {
@@ -334,27 +421,53 @@ function analyse(): Analysis {
       candidateNames: new Set([...tables.names, ...importedTableAliases(sf, tables.names)]),
       helpers: privateHelpers(sf),
       memo: new Map(),
+      ungatedNames,
+      ungatedDecls,
+      importAliases: renamedImports(sf),
     };
+    const moduleSymbol = checker.getSymbolAtLocation(sf);
     for (const [name, fns] of exportedFunctions(checker, sf)) {
-      const id = `${moduleId(fileName)}#${name}`;
-      exportedFunctionIds.add(id);
-      const touches = fns.some((fn) => touchesOwnedTable(scan, fn));
-      if (touches && !complies(checker, fns, gateDecls)) violations.add(id);
+      const symbol = moduleSymbol
+        ? checker.getExportsOfModule(moduleSymbol).find((e) => e.name === name)
+        : undefined;
+      exported.push({
+        id: `${moduleId(fileName)}#${name}`,
+        name,
+        fns,
+        decls: (resolve(checker, symbol)?.declarations ?? []).filter(
+          (d) => d.getSourceFile() === sf,
+        ),
+        scan,
+        inAccess: fileName.startsWith(accessDir + path.sep),
+      });
     }
   }
 
-  // The brand symbols must never leave access/ (tests included).
-  const brandImporters: string[] = [];
-  for (const fileName of configFileNames) {
-    const file = real(fileName);
-    if (file.startsWith(accessDir + path.sep)) continue;
-    const imports = ts.preProcessFile(readFileSync(file, 'utf8'), true, true).importedFiles;
-    if (imports.some((i) => /(^|\/)access\/brand(\.ts|\.js)?$/.test(i.fileName))) {
-      brandImporters.push(moduleId(file));
+  // Repeat until nothing new turns up: a function that calls an ungated one
+  // is ungated too, unless it takes a gate itself.
+  const violations = new Set<string>();
+  const exportedFunctionIds = new Set(exported.map((e) => e.id));
+  for (let changed = true; changed; ) {
+    changed = false;
+    for (const entry of exported) {
+      if (violations.has(entry.id) || entry.inAccess) continue;
+      entry.scan.memo.clear();
+      const touches = entry.fns.some((fn) => touchesOwnedTable(entry.scan, fn));
+      if (touches && !complies(checker, entry.fns, gateDecls)) {
+        violations.add(entry.id);
+        ungatedNames.add(entry.name);
+        for (const decl of entry.decls) ungatedDecls.add(decl);
+        changed = true;
+      }
     }
   }
 
-  return { violations, exportedFunctionIds, ownedTableNames: tables.names, brandImporters };
+  return {
+    violations,
+    exportedFunctionIds,
+    ownedTableNames: tables.names,
+    systemScopeUsers: systemScopeUsers(configFileNames),
+  };
 }
 
 function readBaseline(): string[] {
@@ -380,7 +493,10 @@ describe('access gate enforcement ratchet', () => {
     expect(analysis.exportedFunctionIds.has('access/require-access#requireAccess')).toBe(true);
     expect(analysis.violations.has('access/require-access#requireAccess')).toBe(false);
 
-    expect(analysis.brandImporters, 'only access/ may import access/brand').toEqual([]);
+    expect(
+      analysis.systemScopeUsers,
+      'only the job routes in apps/web/src/app/api/jobs may use systemPrincipal',
+    ).toEqual([]);
 
     const duplicates = baseline.filter((entry, i) => baseline.indexOf(entry) !== i);
     expect(duplicates, 'duplicate baseline entries').toEqual([]);

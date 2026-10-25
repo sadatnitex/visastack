@@ -8,6 +8,7 @@ import type {
   Result,
 } from '@visastack/core';
 import { err, ok } from '@visastack/core';
+import { resolveDocumentType } from '@visastack/core/catalogue/documents';
 import {
   type Actor,
   type Decision,
@@ -25,6 +26,7 @@ import { listMembershipsForAccount } from '../organizations';
 import { documentCategory, loadGrantsForPolicy } from '../sharing';
 import { loadSupportGrantsForPolicy } from '../support-access';
 import type { AccountPrincipal, Principal } from './principal';
+import { StepUpProof } from './step-up-proof';
 
 /**
  * The central authorization gate for applicant-owned records.
@@ -156,17 +158,42 @@ export class AuthorizedApplicant<A extends PermissionAction> {
 export interface RequireAccessOptions {
   readonly purpose: AccessPurpose;
   /**
-   * Whether a genuine, recent reauthentication backs this request. Never
-   * defaults to satisfied. A later step replaces this boolean with a typed
-   * step-up proof.
+   * A recent identity confirmation for this exact account, action and record
+   * (`verifyStepUp`). Anything else, including a copy, counts as none. There
+   * is no boolean: a caller cannot simply claim a step-up happened.
    */
-  readonly stepUpSatisfied?: boolean;
-  /** Evaluation time (tests). Defaults to now. */
-  readonly now?: Date;
+  readonly stepUp?: StepUpProof;
   /** CAS-08: the claimed contributor request this call acts under, verified live, never trusted. */
   readonly contributorRequestId?: string;
   /** Which non-owner relationship to act through; see `ActingFor`. */
   readonly actingFor?: ActingFor;
+}
+
+/**
+ * Document types whose preview or download needs a recent identity
+ * confirmation: identity, tax and bank documents (SEC-03 names
+ * passport, NID, tax and bank identifiers). Matched on the catalogue's
+ * standard key, so an alias of one of these is restricted too.
+ */
+export const RESTRICTED_DOCUMENT_TYPES: ReadonlySet<string> = new Set([
+  'PASSPORT',
+  'SPOUSE_PASSPORT',
+  'HOST_PASSPORT',
+  'NID',
+  'TAX_RETURN',
+  'TIN_CERTIFICATE',
+  'TAX_RESIDENCY_CERTIFICATE',
+  'TAX_ACKNOWLEDGEMENT_SLIP',
+  'BANK_STATEMENT',
+  'BUSINESS_BANK_STATEMENT',
+  'HOST_BANK_STATEMENT',
+  'BANK_REFERENCE_LETTER',
+]);
+
+export function isRestrictedDocumentType(docType: string | null): boolean {
+  if (!docType) return false;
+  const key = resolveDocumentType(docType)?.key ?? docType;
+  return RESTRICTED_DOCUMENT_TYPES.has(key);
 }
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -192,11 +219,7 @@ function refTarget(ref: ApplicantResourceRef): { key: RefKey; id: unknown } | un
   return { key, id: (ref as Partial<Record<RefKey, unknown>>)[key] };
 }
 
-async function loadResource(
-  tx: Db,
-  key: RefKey,
-  id: string,
-): Promise<LoadedResource | undefined> {
+async function loadResource(tx: Db, key: RefKey, id: string): Promise<LoadedResource | undefined> {
   switch (key) {
     case 'applicantId': {
       const applicant = await getApplicant(tx, id);
@@ -240,6 +263,7 @@ async function loadResource(
           applicantId: applicant.id as ApplicantId,
           documentId: document.id as DocumentId,
           ...(category !== undefined ? { category } : {}),
+          ...(isRestrictedDocumentType(document.docType) ? { restricted: true } : {}),
         },
       };
     }
@@ -256,7 +280,12 @@ function decide(
   stepUpSatisfied: boolean,
 ): Decision {
   if (typeof purpose === 'string') {
-    return authorize({ actor, action, resource, context: { now, purpose, stepUpSatisfied, grants } });
+    return authorize({
+      actor,
+      action,
+      resource,
+      context: { now, purpose, stepUpSatisfied, grants },
+    });
   }
   // EACH_GRANT: every grant is judged against its own purpose, one at a
   // time, exactly like orgGrantPermits. The base checks (membership,
@@ -411,8 +440,13 @@ export async function requireAccess<A extends PermissionAction>(
   if (!loaded) return err(serviceError('not_found', 'record not found'));
 
   const { applicant, policyResource } = loaded;
-  const now = opts.now ?? new Date();
-  const stepUpSatisfied = opts.stepUpSatisfied ?? false;
+  // Always the real time: a caller-chosen clock could revive an expired grant.
+  const now = new Date();
+  const stepUpSatisfied = StepUpProof.covers(opts.stepUp, {
+    accountId: principal.accountId,
+    action,
+    resourceId: target.id,
+  });
   const accountId = principal.accountId as AccountId;
   const issue = (actor: AccessActor): AuthorizedApplicant<A> =>
     mint({ tx, applicant, actor, resource: loaded.resource, action, purpose: opts.purpose });
@@ -450,7 +484,10 @@ export async function requireAccess<A extends PermissionAction>(
   const candidates: { actor: Actor; grants: readonly PolicyGrant[] }[] = [];
   for (const membership of memberships) {
     const organizationId = membership.organization.id;
-    if (actingFor !== undefined && (actingFor === 'individual' || actingFor.organizationId !== organizationId)) {
+    if (
+      actingFor !== undefined &&
+      (actingFor === 'individual' || actingFor.organizationId !== organizationId)
+    ) {
       continue;
     }
     candidates.push({

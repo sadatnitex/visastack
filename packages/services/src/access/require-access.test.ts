@@ -5,7 +5,7 @@ import { type Result, isErr, isOk } from '@visastack/core';
 import { schema } from '@visastack/db';
 import { drizzle } from 'drizzle-orm/pglite';
 import { migrate } from 'drizzle-orm/pglite/migrator';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { provisionAccount } from '../accounts';
 import { createApplicant } from '../applicants';
 import { setConsent } from '../consent';
@@ -26,9 +26,33 @@ import {
   suspendOrganization,
 } from '../organizations';
 import { acceptGrant, createGrant, pauseGrant } from '../sharing';
+import { issueStepUpAssurance } from '../step-up';
 import { SUPPORT_ACCESS_PURPOSE, createSupportGrant } from '../support-access';
 import { StaffScope, accountPrincipal, staffPrincipal, systemPrincipal } from './principal';
-import { AuthorizedApplicant, EACH_GRANT, requireAccess } from './require-access';
+import {
+  AuthorizedApplicant,
+  EACH_GRANT,
+  isRestrictedDocumentType,
+  requireAccess,
+} from './require-access';
+import { StepUpProof, verifyStepUp } from './step-up-proof';
+
+const STEP_UP_SECRET = 'test-step-up-secret';
+
+function stepUpFor(accountId: string, action: string, resourceId: string): StepUpProof {
+  const token = issueStepUpAssurance(STEP_UP_SECRET, { accountId, action, resourceId });
+  const proof = verifyStepUp(STEP_UP_SECRET, token, {
+    accountId,
+    action: action as never,
+    resourceId,
+  });
+  if (!proof) throw new Error('step-up proof');
+  return proof;
+}
+
+afterEach(() => {
+  vi.useRealTimers();
+});
 
 const migrationsFolder = fileURLToPath(new URL('../../../db/migrations', import.meta.url));
 
@@ -148,9 +172,68 @@ describe('requireAccess - central applicant authorization gate', () => {
       owner,
       'DOWNLOAD_ORIGINAL',
       { documentId },
-      { purpose: 'self', stepUpSatisfied: true },
+      { purpose: 'self', stepUp: stepUpFor(ownerId, 'DOWNLOAD_ORIGINAL', documentId) },
     );
     expect(isOk(withStepUp)).toBe(true);
+  });
+
+  it('accepts a step-up only for the same account, action and record, and never a copy', async () => {
+    const owner = accountPrincipal(ownerId);
+    const download = (stepUp: StepUpProof) =>
+      requireAccess(db, owner, 'DOWNLOAD_ORIGINAL', { documentId }, { purpose: 'self', stepUp });
+    const otherId = await account(db, 'other-step-up@example.com');
+    for (const wrong of [
+      stepUpFor(otherId, 'DOWNLOAD_ORIGINAL', documentId),
+      stepUpFor(ownerId, 'SHARE', documentId),
+      stepUpFor(ownerId, 'DOWNLOAD_ORIGINAL', applicantId),
+    ]) {
+      expect(errorCode(await download(wrong))).toBe('step_up_required');
+    }
+    const genuine = stepUpFor(ownerId, 'DOWNLOAD_ORIGINAL', documentId);
+    const copy = { ...genuine } as unknown as StepUpProof;
+    expect(StepUpProof.isGenuine(copy)).toBe(false);
+    expect(errorCode(await download(copy))).toBe('step_up_required');
+    // A token signed with another secret, or an empty secret, never becomes a proof.
+    const token = issueStepUpAssurance('another-secret', {
+      accountId: ownerId,
+      action: 'DOWNLOAD_ORIGINAL',
+      resourceId: documentId,
+    });
+    const expected = {
+      accountId: ownerId,
+      action: 'DOWNLOAD_ORIGINAL' as const,
+      resourceId: documentId,
+    };
+    expect(verifyStepUp(STEP_UP_SECRET, token, expected)).toBeUndefined();
+    expect(verifyStepUp('', token, expected)).toBeUndefined();
+  });
+
+  it('asks for a step-up before previewing an identity, tax or bank document', async () => {
+    expect(isRestrictedDocumentType('PASSPORT')).toBe(true);
+    expect(isRestrictedDocumentType('BANK_STATEMENT')).toBe(true);
+    expect(isRestrictedDocumentType('EMPLOYMENT_CERTIFICATE')).toBe(false);
+    expect(isRestrictedDocumentType(null)).toBe(false);
+    const passport = await registerDocument(db, {
+      actorAccountId: ownerId,
+      applicantId,
+      originalName: 'passport.pdf',
+      docType: 'PASSPORT',
+    });
+    if (!isOk(passport)) throw new Error('passport');
+    const owner = accountPrincipal(ownerId);
+    const ref = { documentId: passport.value.id };
+    expect(errorCode(await requireAccess(db, owner, 'PREVIEW', ref, { purpose: 'self' }))).toBe(
+      'step_up_required',
+    );
+    const confirmed = await requireAccess(db, owner, 'PREVIEW', ref, {
+      purpose: 'self',
+      stepUp: stepUpFor(ownerId, 'PREVIEW', passport.value.id),
+    });
+    expect(isOk(confirmed)).toBe(true);
+    // An ordinary document still previews without one.
+    expect(
+      isOk(await requireAccess(db, owner, 'PREVIEW', { documentId }, { purpose: 'self' })),
+    ).toBe(true);
   });
 
   it('forbids a stranger', async () => {
@@ -327,13 +410,17 @@ describe('requireAccess - central applicant authorization gate', () => {
 
     const live = await orgWithGrant({ actions: ['VIEW_METADATA'] });
     const farFuture = new Date(Date.now() + 400 * 24 * 60 * 60 * 1000);
+    // The gate always uses the real clock; only the clock itself can move it.
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(farFuture);
     const expired = await requireAccess(
       db,
       accountPrincipal(live.agentId),
       'VIEW_METADATA',
       { applicantId },
-      { purpose: 'visa-review', now: farFuture },
+      { purpose: 'visa-review' },
     );
+    vi.useRealTimers();
     expect(errorCode(expired)).toBe('forbidden');
     if (isErr(expired)) expect(expired.error.message).toContain('grant_expired');
   });
@@ -692,7 +779,11 @@ describe('requireAccess - central applicant authorization gate', () => {
     if (!isOk(completed)) throw new Error('complete');
 
     // Request 2 on another case, now in flight.
-    const otherMission = await createMission(db, { actorAccountId: ownerId, applicantId, title: 'B' });
+    const otherMission = await createMission(db, {
+      actorAccountId: ownerId,
+      applicantId,
+      title: 'B',
+    });
     if (!isOk(otherMission)) throw new Error('mission');
     const second = await claim(otherMission.value.id);
     const opts = { purpose: 'x', contributorRequestId: second };
@@ -816,7 +907,10 @@ describe('requireAccess - central applicant authorization gate', () => {
         purpose,
       });
       if (!isOk(grant)) throw new Error(`grant: ${grant.error.message}`);
-      const accepted = await acceptGrant(db, { actorAccountId: operatorId, grantId: grant.value.id });
+      const accepted = await acceptGrant(db, {
+        actorAccountId: operatorId,
+        grantId: grant.value.id,
+      });
       if (!isOk(accepted)) throw new Error('accept');
       expect(
         errorCode(

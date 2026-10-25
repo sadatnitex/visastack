@@ -5,13 +5,20 @@
  * forgery.test.ts both go red. Never imported at run time.
  */
 import type { Applicant } from '../applicants';
-import { AuthorizedApplicant, type StaffScope, type SystemScope } from './index';
+import {
+  AuthorizedApplicant,
+  type RequireAccessOptions,
+  type StaffScope,
+  StepUpProof,
+  type SystemScope,
+} from './index';
 
 declare const proof: AuthorizedApplicant<'MANAGE'>;
 declare const previewProof: AuthorizedApplicant<'PREVIEW'>;
 declare const applicantY: Applicant;
 declare const staff: StaffScope<'PACK_MANAGE'>;
 declare const job: SystemScope<'process-erasure'>;
+declare const stepUp: StepUpProof;
 
 // A spread copy loses the #private brand, so it is not a proof.
 // @ts-expect-error spread forgery of a proof
@@ -36,3 +43,17 @@ export const forgedJob: SystemScope<'process-erasure'> = { ...job };
 
 // @ts-expect-error a system scope for one job used for another
 export const otherJob: SystemScope<'process-intake'> = job;
+
+// @ts-expect-error spread forgery of a step-up proof
+export const forgedStepUp: StepUpProof = { ...stepUp };
+
+// @ts-expect-error direct construction of a step-up proof
+export const builtStepUp = new StepUpProof('a', 'PREVIEW', 'b');
+
+// A step-up is never a boolean a caller can claim.
+// @ts-expect-error step-up claimed as a boolean
+export const claimedStepUp: RequireAccessOptions = { purpose: 'self', stepUpSatisfied: true };
+
+// The evaluation time is never caller-chosen.
+// @ts-expect-error caller-chosen clock
+export const chosenClock: RequireAccessOptions = { purpose: 'self', now: new Date(0) };
