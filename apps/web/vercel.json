@@ -71,5 +71,11 @@
       "path": "/api/jobs/process-database-backup",
       "schedule": "0 7 * * 0"
     }
-  ]
+  ],
+  "git": {
+    "deploymentEnabled": {
+      "**": false,
+      "main": true
+    }
+  }
 }

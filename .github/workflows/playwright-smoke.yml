@@ -1,6 +1,7 @@
 name: Playwright Deploy Smoke
 
-# Browser-level verification of the deployed preview/production URL — no
+# Browser-level verification of the deployed URL (production only since
+# 2026-10-25; pull requests run the same specs in pr-browser-checks.yml), with no
 # secrets required. Runs both no-secret specs (master directive §8B);
 # the credential-gated authenticated spec lives in workos-staging-e2e.yml.
 # ux-public.spec.ts (axe/responsive/keyboard/i18n/404 checks) previously
@@ -23,7 +24,11 @@ jobs:
     # The migration workflow also writes a GitHub deployment record (environment
     # production-migrations) whose address is its own job page, not a website. It is not a
     # site deployment, so it is left out here.
-    if: github.event.deployment_status.state == 'success' && github.event.deployment.environment != 'production-migrations'
+    # The live signed-in check (environment live-check) writes one too, pointing at its job page.
+    if: >-
+      github.event.deployment_status.state == 'success' &&
+      github.event.deployment.environment != 'production-migrations' &&
+      github.event.deployment.environment != 'live-check'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
