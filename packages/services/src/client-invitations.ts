@@ -1,6 +1,6 @@
 import type { PermissionAction } from '@visastack/core';
 import { type Result, err, ok } from '@visastack/core';
-import { and, desc, eq, lt, or } from 'drizzle-orm';
+import { and, desc, eq, lt, or, sql } from 'drizzle-orm';
 import { assignMember, isActiveMember } from './agency';
 import { createApplicant, getApplicant } from './applicants';
 import { appendAuditEvent } from './audit';
@@ -50,6 +50,19 @@ function boundEmail(contactDestination: string): string | undefined {
   return value.includes('@') ? value : undefined;
 }
 
+/**
+ * A contact is either an email address or something shaped like a phone
+ * number (digits with the usual +, spaces, dashes, dots and brackets; 7 to 15
+ * digits), so free text such as "jane at example.com" cannot slip through as
+ * an unbound contact.
+ */
+function isValidContact(contact: string): boolean {
+  if (contact.includes('@')) return isEmailAddress(contact.toLowerCase());
+  if (contact.length > 32 || !/^\+?[0-9\s().-]+$/.test(contact)) return false;
+  const digits = contact.replace(/[^0-9]/g, '').length;
+  return digits >= 7 && digits <= 15;
+}
+
 /** Whether `accountId` may see and accept an invitation sent to `contactDestination`. */
 async function isIntendedRecipient(
   db: Db,
@@ -71,7 +84,12 @@ async function isIntendedRecipient(
 /** The same neutral refusal sharing invitations give: it names no person, route or case. */
 const WRONG_RECIPIENT_MESSAGE = 'Use the email address that received this invitation.';
 
-/** Audits a refused wrong-account attempt: ids only, never an address or a name. */
+/**
+ * Audits a refused wrong-account attempt: ids only, never an address or a
+ * name. Once per account, invitation and stage, so refreshing a page cannot
+ * fill the permanent audit log. A failure to record never changes the
+ * refusal the person sees.
+ */
 async function recordWrongRecipient(
   db: Db,
   actorAccountId: string,
@@ -79,18 +97,37 @@ async function recordWrongRecipient(
   organizationId: string,
   stage: 'preview' | 'accept',
 ): Promise<void> {
-  await db.transaction(async (tx) => {
-    await appendAuditEvent(tx, {
-      eventType: 'CLIENT_INVITATION_WRONG_RECIPIENT',
-      actorAccountId,
-      method: 'MANUAL',
-      result: 'DENIED',
-      resourceType: 'client_invitation',
-      resourceId: invitationId,
-      reason: 'wrong_recipient',
-      metadata: { organizationId, stage },
+  try {
+    const already = first(
+      await db
+        .select({ seq: schema.auditEvents.seq })
+        .from(schema.auditEvents)
+        .where(
+          and(
+            eq(schema.auditEvents.eventType, 'CLIENT_INVITATION_WRONG_RECIPIENT'),
+            eq(schema.auditEvents.actorAccountId, actorAccountId),
+            eq(schema.auditEvents.resourceId, invitationId),
+            sql`${schema.auditEvents.metadata}->>'stage' = ${stage}`,
+          ),
+        )
+        .limit(1),
+    );
+    if (already) return;
+    await db.transaction(async (tx) => {
+      await appendAuditEvent(tx, {
+        eventType: 'CLIENT_INVITATION_WRONG_RECIPIENT',
+        actorAccountId,
+        method: 'MANUAL',
+        result: 'DENIED',
+        resourceType: 'client_invitation',
+        resourceId: invitationId,
+        reason: 'wrong_recipient',
+        metadata: { organizationId, stage },
+      });
     });
-  });
+  } catch {
+    // The refusal stands either way; only the record of it is missing.
+  }
 }
 
 /**
@@ -154,7 +191,7 @@ export async function createClientInvitation(
   }
   // An address must be a real one: a malformed address would bind the
   // invitation to nobody (see boundEmail) and no email could be sent.
-  if (contactDestination.includes('@') && !isEmailAddress(contactDestination.toLowerCase())) {
+  if (!isValidContact(contactDestination)) {
     return err(serviceError('invalid', 'Enter a valid email address, or a phone number.'));
   }
 
@@ -210,7 +247,8 @@ export async function createClientInvitation(
       resourceId: invitation.id,
       metadata: { organizationId: input.organizationId },
     });
-    const emailQueued = input.encryption !== undefined && isEmailAddress(contactDestination);
+    const emailQueued =
+      input.encryption !== undefined && isEmailAddress(contactDestination.toLowerCase());
     if (input.encryption && emailQueued) {
       await queueInvitationEmail(tx, {
         kind: 'client',

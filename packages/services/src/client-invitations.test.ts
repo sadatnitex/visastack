@@ -652,13 +652,18 @@ describe('client invitations - agency invites a traveller as a new client (Comme
         'jane@example..com',
         'jane@localhost',
         'jane@example.com, bob@example.com',
+        'jane at example.com',
+        '12345',
+        'call me',
       ]) {
         const refused = await invite({ contactDestination });
         expect(isErr(refused) && refused.error.code).toBe('invalid');
       }
-      const phone = await invite({ contactDestination: '+880 1711 000000' });
-      expect(isOk(phone) && phone.value.emailQueued).toBe(false);
-    });
+      for (const contactDestination of ['+880 1711 000000', '(020) 7946-0958', '01711.000.000']) {
+        const phone = await invite({ contactDestination });
+        expect(isOk(phone) && phone.value.emailQueued).toBe(false);
+      }
+    }, 30_000);
 
     it('binds a malformed stored address to nobody rather than opening it to anyone (fails closed)', async () => {
       const created = await invite();
@@ -701,6 +706,15 @@ describe('client invitations - agency invites a traveller as a new client (Comme
         'preview',
       ]);
       expect(JSON.stringify(events)).not.toMatch(/jane|someone-else|Jane Traveller/i);
+
+      // Refreshing does not add rows: once per account, invitation and stage.
+      await previewClientInvitation(db, created.value.rawToken, strangerId);
+      await previewClientInvitation(db, created.value.rawToken, strangerId);
+      const after = await db
+        .select()
+        .from(dbSchema.auditEvents)
+        .where(eq(dbSchema.auditEvents.eventType, 'CLIENT_INVITATION_WRONG_RECIPIENT'));
+      expect(after).toHaveLength(2);
     }, 30_000);
 
     it('keeps a phone-contact invitation claimable by the signed-in holder (unverifiable contact, recorded residual)', async () => {
