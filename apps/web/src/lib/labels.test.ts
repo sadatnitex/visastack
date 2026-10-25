@@ -1,10 +1,12 @@
 import { MEMBERSHIP_ROLES, ORGANIZATION_STATUSES, PERMISSION_ACTIONS } from '@visastack/core';
 import { schema } from '@visastack/db';
+import { TRIAGE_GROUPS } from '@visastack/services';
 import { describe, expect, it } from 'vitest';
 import {
   AI_CONFIG_STATUS_LABELS,
   AUDIT_RESULT_LABELS,
   BILLING_STATUS_LABELS,
+  CASE_TRIAGE_STATE_LABELS,
   COMPLAINT_STATUS_LABELS,
   DOCUMENT_TYPE_LABELS,
   INVOICE_STATUS_LABELS,
@@ -12,6 +14,8 @@ import {
   ORGANIZATION_STATUS_LABELS,
   PERMISSION_ACTION_LABELS,
   REVIEW_DECISION_LABELS,
+  TRIAGE_GROUP_LABELS,
+  TRIAGE_INDICATOR_LABELS,
   aiProviderLabel,
   documentTypeLabel,
   eventTypeLabel,
@@ -100,5 +104,30 @@ describe('sharing permission names', () => {
     expect(permissionActionLabel('DOWNLOAD_REDACTED')).toBe('Download Safe Copies');
     expect(Object.values(PERMISSION_ACTION_LABELS).join(' ')).not.toMatch(/redact/i);
     expect(permissionActionLabel('SOMETHING_NEW')).toBe('Something New');
+  });
+});
+
+describe('agency triage words (Programme X E02)', () => {
+  it('names each of the five item groups once, in the programme vocabulary', () => {
+    expect(Object.keys(TRIAGE_GROUP_LABELS).sort()).toEqual([...TRIAGE_GROUPS].sort());
+    expect(TRIAGE_GROUPS.map((group) => TRIAGE_GROUP_LABELS[group])).toEqual([
+      'Missing',
+      'Processing',
+      'Received or Awaiting Confirmation',
+      'Needs Correction or Clarification',
+      'Reviewed',
+    ]);
+    expect(CASE_TRIAGE_STATE_LABELS.READY_FOR_REVIEW).toBe('Ready for Review');
+  });
+
+  it('never uses a word that claims more than the product knows', () => {
+    const words = [
+      ...Object.values(TRIAGE_GROUP_LABELS),
+      ...Object.values(CASE_TRIAGE_STATE_LABELS),
+      ...Object.values(TRIAGE_INDICATOR_LABELS),
+    ].join(' | ');
+    expect(words).not.toMatch(/verified|approved|guarantee|submitted/i);
+    // A received item is not reviewed: only the Reviewed group may say so.
+    expect(TRIAGE_GROUP_LABELS.RECEIVED).not.toMatch(/review/i);
   });
 });

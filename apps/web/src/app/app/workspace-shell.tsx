@@ -156,12 +156,15 @@ function WorkspaceSelector({
 export function WorkspaceShell({
   access,
   accountName,
+  accountEmail,
   toolbarState,
   signOut,
   children,
 }: {
   readonly access: WorkspaceAccess;
   readonly accountName: string;
+  /** The signed-in address from the session the layout already holds; no extra read. */
+  readonly accountEmail?: string | undefined;
   readonly toolbarState?: WorkspaceToolbarState;
   readonly signOut: ReactNode;
   readonly children: ReactNode;
@@ -220,6 +223,7 @@ export function WorkspaceShell({
               />
             }
             accountName={accountName}
+            accountEmail={accountEmail}
             access={access}
             navigation={nav}
             {...(toolbarState ? { state: toolbarState } : {})}

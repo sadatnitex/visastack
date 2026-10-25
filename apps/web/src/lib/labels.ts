@@ -1,6 +1,7 @@
 import type { MembershipRole, OrganizationStatus, PermissionAction } from '@visastack/core';
 import { documentTypeName } from '@visastack/core/catalogue/documents';
 import type { schema } from '@visastack/db';
+import type { CaseTriageState, TriageGroup, TriageIndicator } from '@visastack/services';
 
 /**
  * Plain words for the codes the database stores. Display only: nothing here is ever saved,
@@ -134,6 +135,44 @@ export const invoiceStatusLabel = (code: string) => pick(INVOICE_STATUS_LABELS, 
 export const aiConfigStatusLabel = (code: string) => pick(AI_CONFIG_STATUS_LABELS, code);
 export const auditResultLabel = (code: string) => pick(AUDIT_RESULT_LABELS, code);
 export const aiProviderLabel = (code: string) => pick(AI_PROVIDER_LABELS, code);
+/**
+ * The agency triage groups (Programme X E02, PROGRAMME.md section 8): one primary group per item.
+ * Received is never Reviewed, and Ready for Review is a statement about the whole case.
+ */
+export const TRIAGE_GROUP_LABELS: Readonly<Record<TriageGroup, string>> = {
+  MISSING: 'Missing',
+  PROCESSING: 'Processing',
+  RECEIVED: 'Received or Awaiting Confirmation',
+  NEEDS_CORRECTION: 'Needs Correction or Clarification',
+  REVIEWED: 'Reviewed',
+};
+
+/** The case-level line above a triage summary. Completeness only, never a chance of approval. */
+export const CASE_TRIAGE_STATE_LABELS: Readonly<Record<CaseTriageState, string>> = {
+  READY_FOR_REVIEW: 'Ready for Review',
+  NOT_READY: 'Not Ready for Review',
+  CHECKED_BY_HAND: 'Checked by Hand',
+  NO_CHECKLIST: 'No Checklist Attached',
+};
+
+/**
+ * The complete-checklist line for someone who cannot see the agency's requests. Without them we
+ * cannot say nothing is still waiting, so we never call the case Ready for Review for them.
+ */
+export const CHECKLIST_COMPLETE_LABEL = 'Checklist Complete';
+
+/** Short notes beside an item's group. They explain the group and never replace it. */
+export const TRIAGE_INDICATOR_LABELS: Readonly<Record<TriageIndicator, string>> = {
+  OPTIONAL: 'Optional',
+  OUT_OF_DATE: 'Out of Date',
+  ANSWER_NEEDED: 'Answer Needed First',
+  DOES_NOT_MATCH: 'Does Not Match Other Details',
+  NOT_ACCEPTED: 'Not Accepted',
+  SENT_BACK: 'Sent Back for a Fix',
+  REVIEW_STARTED: 'Review Started',
+  COULD_NOT_BE_USED: 'Could Not Be Used',
+};
+
 /** "bank_statement" and "BANK_STATEMENT" both give "Bank Statement". */
 export const documentTypeLabel = (code: string) =>
   documentTypeName(code) ?? pick(DOCUMENT_TYPE_LABELS, code.toUpperCase());
