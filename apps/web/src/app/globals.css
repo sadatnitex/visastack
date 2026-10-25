@@ -4503,6 +4503,18 @@ body:has(.auth-shell) > .footer {
     width: 32px;
     height: 32px;
   }
+}
+/* The sliced mark is 4px wider than the old one; on the narrowest phones the toolbar gives that
+   back from its own spacing, so the bar still fits 320px with enlarged text spacing. */
+@media (max-width: 360px) {
+  .record-toolbar {
+    padding-inline: 8px;
+  }
+  .record-toolbar .workspace-brand {
+    gap: 6px;
+  }
+}
+@media (max-width: 1023px) {
   .record-plan-badge {
     display: none;
   }
