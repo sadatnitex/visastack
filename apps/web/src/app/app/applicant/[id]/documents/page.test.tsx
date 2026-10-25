@@ -327,3 +327,25 @@ describe('the way to the document insights', () => {
     expect(textOf(html)).toContain('See Document Insights');
   });
 });
+
+describe('visa photo sizes on a passport photo', () => {
+  it('offers Visa Photo Sizes on a ready Photograph document and nowhere else', async () => {
+    mocks.listDocumentsDetailed.mockResolvedValue({
+      ok: true,
+      value: [{ ...doc('photo', 'APPROVED'), docType: 'PHOTO' }],
+    });
+    expect(textOf(await render('photo'))).toContain('Visa Photo Sizes');
+
+    mocks.listDocumentsDetailed.mockResolvedValue({
+      ok: true,
+      value: [{ ...doc('photo', 'SCANNING'), docType: 'PHOTO' }],
+    });
+    expect(textOf(await render('photo'))).not.toContain('Visa Photo Sizes');
+
+    mocks.listDocumentsDetailed.mockResolvedValue({
+      ok: true,
+      value: [{ ...doc('passport', 'APPROVED'), docType: 'PASSPORT' }],
+    });
+    expect(textOf(await render('passport'))).not.toContain('Visa Photo Sizes');
+  });
+});
