@@ -1,5 +1,6 @@
 import { CATALOGUE_MODULES } from '../modules';
 import type { CatalogueField } from '../types';
+import { AMOUNT_BASIS_BLOCKS } from './amount-basis';
 import { COUNTRY_PACK_BLOCKS } from './country-packs';
 import { DECLARATION_BLOCKS } from './declarations';
 import { buildFields } from './define';
@@ -40,5 +41,6 @@ export const CATALOGUE_FIELDS: readonly CatalogueField[] = buildFields([
   ...PURPOSE_PACK_BLOCKS,
   ...COUNTRY_PACK_BLOCKS,
   ...LEGACY_OTHER_BLOCKS,
+  ...AMOUNT_BASIS_BLOCKS,
   ...OTHER_ITEM_BLOCKS,
 ]).map((field) => ({ ...field, module: MODULE_OF_BLOCK.get(blockKeyOf(field)) ?? '' }));

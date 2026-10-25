@@ -9,6 +9,7 @@ import {
   type ModuleField,
   OTHER_OPTION,
   PROPOSED_PACKS,
+  amountKeyOfTaxBasis,
   computeCompletion,
   knownFieldOptions,
 } from '@visastack/core/catalogue';
@@ -170,7 +171,8 @@ export function buildMasterProfileView(input: MasterProfileInput): MasterProfile
       const reason = status?.reason ?? 'locked';
       const fields = FIELDS_BY_MODULE.get(module.key) ?? [];
       const counted = fields.filter((field) => !field.role);
-      const hasData = counted.some((field) => (values[field.key]?.length ?? 0) > 0);
+      // Any saved answer keeps its section open, as completion does, so it is never hidden.
+      const hasData = fields.some((field) => (values[field.key]?.length ?? 0) > 0);
       const suggested =
         !open &&
         suggestFor !== null &&
@@ -187,6 +189,22 @@ export function buildMasterProfileView(input: MasterProfileInput): MasterProfile
           }
           const resolved = resolveEditorField(field);
           if (resolved) singles.push(resolved);
+        }
+        // An optional fact about an amount (before or after tax) sits right after the amount and
+        // its currency. It never counts toward completion.
+        // When the amount itself does not apply, nothing is asked about it unless already answered.
+        for (const field of fields) {
+          if (field.role !== 'amount_detail' || field.group) continue;
+          const amountKey = amountKeyOfTaxBasis(field.key);
+          if (!amountKey) continue;
+          if (input.notApplicable.has(amountKey) && !(values[field.key]?.length ?? 0)) continue;
+          const base = resolveBase(field.key);
+          if (!base) continue;
+          const resolved: EditorFieldDef = { ...base, optional: true };
+          const after = singles.findLastIndex(
+            (single) => single.key === amountKey || single.key === `${amountKey}_currency`,
+          );
+          singles.splice(after < 0 ? singles.length : after + 1, 0, resolved);
         }
       }
       const groups: EditorGroup[] = [...groupFields.entries()].map(([groupKey, members]) => ({

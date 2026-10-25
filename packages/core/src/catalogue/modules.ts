@@ -104,7 +104,7 @@ export const CATALOGUE_MODULES: readonly CatalogueModule[] = [
     layer: 'timelines',
     pack: 'professional',
     defaultOpen: true,
-    blocks: ['S:other_salary_currency'],
+    blocks: ['S:other_salary_currency', 'S:salary_tax_basis'],
     legacyFields: ['current_employer', 'job_title', 'monthly_salary', 'monthly_salary_currency'],
     legacyGroups: ['employment_history'],
   }),
@@ -125,7 +125,7 @@ export const CATALOGUE_MODULES: readonly CatalogueModule[] = [
     layer: 'money',
     pack: 'universal',
     defaultOpen: true,
-    blocks: ['S:other_income_currency'],
+    blocks: ['S:other_income_currency', 'S:income_tax_basis'],
     legacyFields: ['annual_income', 'annual_income_currency', 'funding_source'],
   }),
   m({
@@ -146,7 +146,7 @@ export const CATALOGUE_MODULES: readonly CatalogueModule[] = [
     description: 'For freelancers and sole traders: what you do, since when and what you earn.',
     layer: 'timelines',
     pack: 'professional',
-    blocks: ['S:other_self_employment_currency'],
+    blocks: ['S:other_self_employment_currency', 'S:self_employment_tax_basis'],
     legacyFields: [
       'self_employment_nature',
       'self_employment_business_name',

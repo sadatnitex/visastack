@@ -14,6 +14,11 @@ export interface EditorFieldDef {
   readonly options?: readonly string[];
   /** The text field that opens when this choice is set to "Other". */
   readonly otherDetail?: EditorFieldDef;
+  /**
+   * Optional and never counted (before or after tax): blank already means not recorded, so it
+   * offers no "does not apply" control.
+   */
+  readonly optional?: boolean;
 }
 
 export interface EditorGroup {

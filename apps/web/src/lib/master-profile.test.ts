@@ -147,6 +147,78 @@ describe('master profile view', () => {
     expect(marital?.options?.filter((option) => option === 'Other')).toHaveLength(1);
   });
 
+  it('asks whether each income amount is before or after tax, right after it, without counting it', () => {
+    const view = buildMasterProfileView({
+      ...none(),
+      activated: new Set(['self_employment']),
+    });
+    const keysOf = (key: string) =>
+      sectionsOf(view)
+        .find((section) => section.key === key)
+        ?.singles.map((field) => field.key) ?? [];
+    const income = keysOf('income_and_funding');
+    expect(income.slice(0, 3)).toEqual([
+      'annual_income',
+      'annual_income_currency',
+      'annual_income_tax_basis',
+    ]);
+    const salary = keysOf('employment');
+    expect(salary.indexOf('monthly_salary_tax_basis')).toBe(
+      salary.indexOf('monthly_salary_currency') + 1,
+    );
+    const self = keysOf('self_employment');
+    expect(self.indexOf('self_employment_income_tax_basis')).toBe(
+      self.indexOf('self_employment_income_currency') + 1,
+    );
+    const basis = sectionsOf(view)
+      .flatMap((section) => section.singles)
+      .find((field) => field.key === 'annual_income_tax_basis');
+    expect(basis?.options).toEqual(['Before tax', 'After tax', 'Not sure']);
+    // Blank already means not recorded and "Not sure" undoes a mistaken pick, so it offers no
+    // "does not apply" control.
+    expect(basis?.optional).toBe(true);
+    // A section whose only answer is the tax basis keeps it visible: it cannot be closed.
+    const onlyBasis = buildMasterProfileView({
+      ...none(),
+      activated: new Set(['self_employment']),
+      entries: [
+        { fieldKey: 'self_employment_income_tax_basis', value: 'After tax', status: 'DECLARED' },
+      ],
+    });
+    expect(
+      sectionsOf(onlyBasis).find((section) => section.key === 'self_employment')?.canClose,
+    ).toBe(false);
+    expect(basis?.label).toBe('Annual Income Before or After Tax');
+    // Never counted: the default figure stays 54, and answering it adds nothing.
+    expect(buildMasterProfileView(none()).total).toBe(54);
+    const answered = completionOf(
+      [{ fieldKey: 'annual_income_tax_basis', value: 'Before tax', status: 'DECLARED' }],
+      { activated: new Set(), notApplicable: new Set(), noneDeclared: new Set() },
+    );
+    expect(answered.answered).toBe(0);
+    // It saves with the amount's own category, so it is shared exactly where the amount is.
+    expect(savableField('annual_income_tax_basis')?.packId).toBe('universal');
+    expect(savableField('monthly_salary_tax_basis')?.packId).toBe('professional');
+  });
+
+  it('does not ask about tax when the amount does not apply, unless it was already answered', () => {
+    const keysOf = (view: ReturnType<typeof buildMasterProfileView>) =>
+      sectionsOf(view)
+        .find((section) => section.key === 'employment')
+        ?.singles.map((field) => field.key) ?? [];
+    const exempt = buildMasterProfileView({
+      ...none(),
+      notApplicable: new Set(['monthly_salary']),
+    });
+    expect(keysOf(exempt)).not.toContain('monthly_salary_tax_basis');
+    const answered = buildMasterProfileView({
+      ...none(),
+      notApplicable: new Set(['monthly_salary']),
+      entries: [{ fieldKey: 'monthly_salary_tax_basis', value: 'After tax', status: 'DECLARED' }],
+    });
+    expect(keysOf(answered)).toContain('monthly_salary_tax_basis');
+  });
+
   it('gives every section a free something-else record that points at real fields', () => {
     const view = buildMasterProfileView(none());
     for (const section of sectionsOf(view)) {

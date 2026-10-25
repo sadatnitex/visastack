@@ -1,5 +1,5 @@
 import type { AiProviderConfig, Db, KeyManagementPort } from '@visastack/services';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
  * AI Gateway configuration (master directive §8/§21 cost controls, §7 "PR 6"
@@ -60,6 +60,14 @@ function setEnv(name: string, value: string): void {
 function unsetEnv(name: string): void {
   delete process.env[name];
 }
+
+// Load the module once before any test, with its own generous limit. The first import transforms
+// the whole services package (seconds alone, much longer while every package's tests run at once),
+// and that one-time cost belongs to setup, not to the first test's own time limit. Nothing here
+// resets modules, and the module reads its settings when called, so later imports reuse this one.
+beforeAll(async () => {
+  await import('./ai');
+}, 120_000);
 
 beforeEach(() => {
   for (const key of ENV_KEYS) ORIGINAL[key] = process.env[key];

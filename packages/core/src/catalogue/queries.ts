@@ -2,7 +2,7 @@ import { CATALOGUE_FIELDS } from './fields';
 import { LEGACY_FIELD_SNAPSHOT } from './legacy';
 import { CATALOGUE_MODULES } from './modules';
 import { CATALOGUE_PURPOSES } from './purposes';
-import type { CatalogueField, CataloguePurpose, LayerKey } from './types';
+import type { CatalogueField, CataloguePurpose, FieldRole, LayerKey } from './types';
 
 /** Every field key that is live today or added by the catalogue. */
 export const ALL_FIELD_KEYS: ReadonlySet<string> = new Set([
@@ -30,7 +30,7 @@ export interface ModuleField {
   readonly group?: string;
   /** The field holding the text for an "Other" choice, if this field offers one. */
   readonly otherDetailKey?: string;
-  readonly role?: 'other_detail' | 'other_item';
+  readonly role?: FieldRole;
 }
 
 const LEGACY_MODULE_BY_FIELD: ReadonlyMap<string, string> = new Map(

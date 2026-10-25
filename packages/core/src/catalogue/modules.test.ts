@@ -93,8 +93,12 @@ describe('modules (the opt-in sections)', () => {
     for (const m of MODULES.filter((x) => x.defaultOpen)) {
       expect(m.extends, m.key).toBeUndefined();
       for (const f of CATALOGUE_FIELDS.filter((c) => c.module === m.key)) {
-        // Only the box that opens beside an "Other" choice may sit in an open-by-default section.
-        expect(f.role, `${f.key} would change the default completion figure`).toBe('other_detail');
+        // Only fields that never count may sit in an open-by-default section: the box beside an
+        // "Other" choice, or an optional fact about a live amount (whether it is before or after tax).
+        expect(
+          ['other_detail', 'amount_detail'],
+          `${f.key} would change the default completion figure`,
+        ).toContain(f.role);
       }
     }
   });
