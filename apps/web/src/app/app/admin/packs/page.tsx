@@ -39,7 +39,7 @@ export default async function PackStudioPage() {
       </div>
       <PageHeader
         eyebrow="Pack Studio"
-        title="Requirement packs"
+        title="Requirement Packs"
         description="Author versioned, cited requirement packs. A published version becomes attachable by cases."
       />
 
@@ -78,7 +78,7 @@ export default async function PackStudioPage() {
 
           <article className="card">
             <p className="card-kicker">RUL-05</p>
-            <h2 className="card-title">Review queue</h2>
+            <h2 className="card-title">Review Queue</h2>
             <p className="muted" style={{ margin: '0.35rem 0 0', fontSize: 'var(--text-small)' }}>
               Published versions whose next-review date has passed, most overdue first.
             </p>
@@ -140,13 +140,13 @@ export default async function PackStudioPage() {
 
           <article className="card">
             <p className="card-kicker">New</p>
-            <h2 className="card-title">Create a pack</h2>
+            <h2 className="card-title">Create a Pack</h2>
             <CreatePackForm />
           </article>
 
           <article className="card">
             <p className="card-kicker">Expiry Centre</p>
-            <h2 className="card-title">Reminder thresholds by document type</h2>
+            <h2 className="card-title">Reminder Thresholds by Document Type</h2>
             <p
               className="muted"
               style={{ margin: '0.35rem 0 1rem', fontSize: 'var(--text-small)' }}

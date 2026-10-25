@@ -18,7 +18,7 @@ export interface AcknowledgementHistoryEntry {
 const DECISION_LABELS: Record<AcknowledgementHistoryEntry['decision'], string> = {
   ACKNOWLEDGED: 'Acknowledged',
   REJECTED: 'Rejected',
-  CORRECTION_REQUESTED: 'Correction requested',
+  CORRECTION_REQUESTED: 'Correction Requested',
 };
 
 const DECISION_TONES: Record<AcknowledgementHistoryEntry['decision'], string> = {
@@ -59,8 +59,8 @@ export function AcknowledgementPanel({
 
   return (
     <article className="card u-mb-150">
-      <p className="card-kicker">Final review</p>
-      <h2 className="card-title">Confirm this prepared file</h2>
+      <p className="card-kicker">Final Review</p>
+      <h2 className="card-title">Confirm This Prepared File</h2>
       <p className="muted" style={{ fontSize: 'var(--text-small)', marginBottom: '1rem' }}>
         This page is the exact evidence bundle, selected facts, and rule context this decision
         applies to. Acknowledging it does not mean it has been submitted, officially verified, or
@@ -151,8 +151,8 @@ export function AcknowledgementPanel({
           />
           <SubmitButton
             pending={pending}
-            idle="Request correction"
-            busy="Request correction"
+            idle="Request Correction"
+            busy="Request Correction"
             className="btn btn-secondary"
             name="decision"
             value="CORRECTION_REQUESTED"

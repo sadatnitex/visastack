@@ -8,7 +8,7 @@ import { getLocale } from '../../../lib/locale';
 import { withSession } from '../../../lib/session';
 import { acceptGrantAction } from './actions';
 
-export const metadata: Metadata = { title: 'Shared with me' };
+export const metadata: Metadata = { title: 'Shared with Me' };
 
 export const dynamic = 'force-dynamic';
 
@@ -38,8 +38,8 @@ export default async function SharedWithMePage() {
         {grants.length === 0 ? (
           <EmptyState
             icon="share"
-            title="Nothing shared with you yet"
-            action={{ href: '/app/help', label: 'How sharing works' }}
+            title="Nothing Shared with You Yet"
+            action={{ href: '/app/help', label: 'How Sharing Works' }}
           >
             When someone invites you to see their information, the invitation appears here. Nothing
             is shared until you accept.
@@ -82,7 +82,7 @@ export default async function SharedWithMePage() {
                         className="btn btn-primary"
                         style={{ padding: '0.35rem 1rem', fontSize: 'var(--text-small)' }}
                       >
-                        Accept access
+                        Accept Access
                       </button>
                     </form>
                   ) : null}
@@ -96,7 +96,7 @@ export default async function SharedWithMePage() {
                         alignSelf: 'flex-start',
                       }}
                     >
-                      Open workspace
+                      Open Workspace
                     </Link>
                   ) : null}
                 </div>

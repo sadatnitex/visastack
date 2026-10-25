@@ -157,12 +157,12 @@ function ApplicantForm() {
     >
       <div>
         <label className="field-label" htmlFor="displayName">
-          Full name
+          Full Name
         </label>
         <input
           id="displayName"
           name="displayName"
-          placeholder="Full name"
+          placeholder="Full Name"
           required
           className="input"
           {...fieldProblem(state, 'displayName', messageId)}
@@ -182,8 +182,8 @@ function ApplicantForm() {
           style={{ width: '100%', marginTop: '0.35rem' }}
         >
           <option value="SELF">Myself</option>
-          <option value="FAMILY_MEMBER">Family member</option>
-          <option value="MINOR_GUARDIAN">Minor (guardian)</option>
+          <option value="FAMILY_MEMBER">Family Member</option>
+          <option value="MINOR_GUARDIAN">Minor (Guardian)</option>
         </select>
       </div>
       {needsAuthority ? (
@@ -207,7 +207,7 @@ function ApplicantForm() {
       ) : null}
       <SubmitButton
         pending={pending}
-        idle="Add applicant"
+        idle="Add Applicant"
         busy="Adding…"
         className="btn btn-primary"
       />

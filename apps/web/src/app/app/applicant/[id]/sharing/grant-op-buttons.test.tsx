@@ -39,7 +39,7 @@ describe('GrantOpButtons', () => {
     expect(host.querySelector('input[name="op"][value="revoke"]')).not.toBeNull();
 
     await act(async () => {
-      find('Keep access')?.click();
+      find('Keep Access')?.click();
     });
     expect(find('Yes, revoke access')).toBeUndefined();
     expect(find('Revoke')).toBeDefined();

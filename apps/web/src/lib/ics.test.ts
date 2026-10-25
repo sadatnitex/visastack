@@ -8,7 +8,7 @@ describe('buildIcsForAppointment - a real, importable .ics file (Commercial V1 P
     localDateTime: new Date('2026-12-01T09:00:00.000Z'),
     timezone: 'Asia/Dhaka',
     place: 'Agency office' as string | null,
-    channel: 'In person' as string | null,
+    channel: 'In Person' as string | null,
   };
 
   it('produces a well-formed VCALENDAR/VEVENT with the required fields, CRLF line endings', () => {
@@ -19,7 +19,7 @@ describe('buildIcsForAppointment - a real, importable .ics file (Commercial V1 P
     expect(ics).toContain('UID:appointment-appt-1@visastack');
     expect(ics).toContain('SUMMARY:Visa interview prep');
     expect(ics).toContain('LOCATION:Agency office');
-    expect(ics).toContain('DESCRIPTION:Channel: In person');
+    expect(ics).toContain('DESCRIPTION:Channel: In Person');
     expect(ics).toContain('END:VEVENT\r\n');
     expect(ics.endsWith('END:VCALENDAR\r\n')).toBe(true);
   });

@@ -32,7 +32,7 @@ const PROVIDER_OPTIONS = [
 ] as const;
 
 const REASONING_EFFORT_OPTIONS = [
-  { value: '', label: 'Use model default' },
+  { value: '', label: 'Use Model Default' },
   { value: 'low', label: 'Low' },
   { value: 'medium', label: 'Medium' },
   { value: 'high', label: 'High' },
@@ -87,7 +87,7 @@ export function CreateDraftConfigForm({
       </div>
       <div className="field-row">
         <label className="field-label" htmlFor="reasoningEffort">
-          Reasoning effort
+          Reasoning Effort
         </label>
         <select id="reasoningEffort" name="reasoningEffort" className="input" defaultValue="">
           {REASONING_EFFORT_OPTIONS.map((r) => (
@@ -99,7 +99,7 @@ export function CreateDraftConfigForm({
       </div>
       <div className="field-row">
         <label className="field-label" htmlFor="apiKey">
-          API key
+          API Key
         </label>
         <input
           id="apiKey"
@@ -120,7 +120,7 @@ export function CreateDraftConfigForm({
       </label>
       <div className="field-row">
         <label className="field-label" htmlFor="budgetLimitUsd">
-          Monthly budget (USD)
+          Monthly Budget (USD)
         </label>
         <input
           id="budgetLimitUsd"
@@ -135,7 +135,7 @@ export function CreateDraftConfigForm({
       </div>
       <div className="field-row">
         <label className="field-label" htmlFor="perDocumentBudgetLimitUsd">
-          Per-document budget (USD, optional)
+          Per-Document Budget (USD, Optional)
         </label>
         <input
           id="perDocumentBudgetLimitUsd"
@@ -149,7 +149,7 @@ export function CreateDraftConfigForm({
       </div>
       <div className="field-row">
         <label className="field-label" htmlFor="maxAttemptsPerDocument">
-          Max attempts per document (optional)
+          Max Attempts per Document (Optional)
         </label>
         <input
           id="maxAttemptsPerDocument"
@@ -163,7 +163,7 @@ export function CreateDraftConfigForm({
       </div>
       <div className="field-row">
         <label className="field-label" htmlFor="maxPagesPerDocument">
-          Max pages per document (optional)
+          Max Pages per Document (Optional)
         </label>
         <input
           id="maxPagesPerDocument"
@@ -177,7 +177,7 @@ export function CreateDraftConfigForm({
       </div>
       <div className="field-row">
         <label className="field-label" htmlFor="cacheMaxAgeDays">
-          Cache max age, days (optional)
+          Cache Max Age, Days (Optional)
         </label>
         <input
           id="cacheMaxAgeDays"
@@ -191,7 +191,7 @@ export function CreateDraftConfigForm({
       </div>
       <div className="field-row">
         <label className="field-label" htmlFor="maxConcurrentCalls">
-          Max concurrent calls (optional)
+          Max Concurrent Calls (Optional)
         </label>
         <input
           id="maxConcurrentCalls"
@@ -214,7 +214,7 @@ export function CreateDraftConfigForm({
       </label>
       <div className="field-row">
         <label className="field-label" htmlFor="fallbackProviderConfigId">
-          Fallback configuration (optional)
+          Fallback Configuration (Optional)
         </label>
         <select
           id="fallbackProviderConfigId"
@@ -232,14 +232,14 @@ export function CreateDraftConfigForm({
       </div>
       <div className="field-row">
         <label className="field-label" htmlFor="notes">
-          Notes (optional)
+          Notes (Optional)
         </label>
         <input id="notes" name="notes" type="text" className="input" placeholder="Internal notes" />
       </div>
       <div>
         <SubmitButton
           pending={pending}
-          idle="Save draft"
+          idle="Save Draft"
           busy="Saving…"
           className="btn btn-primary"
         />
@@ -265,7 +265,7 @@ export function TestConnectionButton({ configId }: { readonly configId: string }
       <input type="hidden" name="configId" value={configId} />
       <SubmitButton
         pending={pending}
-        idle="Test connection"
+        idle="Test Connection"
         busy="Testing…"
         className="btn btn-secondary u-btn-sm"
       />
@@ -291,7 +291,7 @@ export function RunEvaluationButton({ configId }: { readonly configId: string })
       <input type="hidden" name="configId" value={configId} />
       <SubmitButton
         pending={pending}
-        idle="Run evaluation (13 cases)"
+        idle="Run Evaluation (13 Cases)"
         busy="Evaluating…"
         className="btn btn-secondary u-btn-sm"
       />
@@ -344,7 +344,7 @@ export function RollbackConfigButton() {
     >
       <SubmitButton
         pending={pending}
-        idle="Roll back"
+        idle="Roll Back"
         busy="Rolling back…"
         className="btn btn-secondary"
       />
@@ -373,7 +373,7 @@ export function EmergencyDisableButton() {
     >
       <SubmitButton
         pending={pending}
-        idle="Emergency disable"
+        idle="Emergency Disable"
         busy="Disabling…"
         className="btn btn-danger"
       />
@@ -400,7 +400,7 @@ export function RevokeKeyButton({ configId }: { readonly configId: string }) {
       <input type="hidden" name="configId" value={configId} />
       <SubmitButton
         pending={pending}
-        idle="Revoke key"
+        idle="Revoke Key"
         busy="Revoking…"
         className="btn btn-danger u-btn-sm"
       />

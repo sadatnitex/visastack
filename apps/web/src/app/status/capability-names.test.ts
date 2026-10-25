@@ -44,15 +44,15 @@ describe('capabilityRows', () => {
   it('puts each state in its own words', () => {
     const rows = new Map(capabilityRows(platform).map((row) => [row.key, row]));
     expect(rows.get('authentication')).toMatchObject({ name: 'Signing in', label: 'Working' });
-    expect(rows.get('aiExtraction')).toMatchObject({ label: 'Not set up yet', tone: 'neutral' });
-    expect(rows.get('originalDownload')).toMatchObject({ label: 'Switched off for now' });
-    expect(rows.get('sharing')).toMatchObject({ label: 'Working with limits', tone: 'warning' });
+    expect(rows.get('aiExtraction')).toMatchObject({ label: 'Not Set Up Yet', tone: 'neutral' });
+    expect(rows.get('originalDownload')).toMatchObject({ label: 'Switched Off for Now' });
+    expect(rows.get('sharing')).toMatchObject({ label: 'Working with Limits', tone: 'warning' });
   });
 
   it('keeps "not set up yet" and "switched off" apart, and never shows the hidden one', () => {
     const labels = new Set(capabilityRows(platform).map((row) => row.label));
     expect(labels).toEqual(
-      new Set(['Working', 'Not set up yet', 'Switched off for now', 'Working with limits']),
+      new Set(['Working', 'Not Set Up Yet', 'Switched Off for Now', 'Working with Limits']),
     );
     expect(capabilityRows(platform).map((row) => row.key)).not.toContain('commercialClaims');
   });

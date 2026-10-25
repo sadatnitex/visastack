@@ -35,17 +35,17 @@ export const dynamic = 'force-dynamic';
 
 /** Every PermissionAction this platform defines (@visastack/core), in plain language -- SHR-03's "show... scope," covering every grant regardless of which flow created it, not just this page's own curated share form. */
 const ACTION_LABELS: Record<string, string> = {
-  VIEW_METADATA: 'See document details',
-  PREVIEW: 'Preview documents',
+  VIEW_METADATA: 'See Document Details',
+  PREVIEW: 'Preview Documents',
   COMMENT: 'Comment',
-  PROPOSE_EDIT: 'Propose edits',
-  APPROVE_EDIT: 'Approve edits',
-  DOWNLOAD_ORIGINAL: 'Download originals',
-  DOWNLOAD_REDACTED: 'Download redacted copies',
-  DOWNLOAD_PACK: 'Download the application pack',
-  EXPORT_PROFILE: 'Export the full profile',
+  PROPOSE_EDIT: 'Propose Edits',
+  APPROVE_EDIT: 'Approve Edits',
+  DOWNLOAD_ORIGINAL: 'Download Originals',
+  DOWNLOAD_REDACTED: 'Download Redacted Copies',
+  DOWNLOAD_PACK: 'Download the Application Pack',
+  EXPORT_PROFILE: 'Export the Full Profile',
   SHARE: 'Re-share access',
-  MANAGE: 'Manage the case',
+  MANAGE: 'Manage the Case',
 };
 
 export default async function SharingPage({
@@ -120,7 +120,7 @@ export default async function SharingPage({
       <div className="sharing-workspace">
         <div className="sharing-access-column">
           <article className="card">
-            <p className="card-kicker">Controlled collaboration</p>
+            <p className="card-kicker">Controlled Collaboration</p>
             <h2 className="card-title">Who has access</h2>
             <p className="card-body">
               {data.accessAvailable
@@ -288,7 +288,7 @@ export default async function SharingPage({
                       <input type="hidden" name="invitationId" value={invitation.id} />
                       <input type="hidden" name="applicantId" value={id} />
                       <button className="btn btn-secondary" type="submit">
-                        Revoke invitation
+                        Revoke Invitation
                       </button>
                     </form>
                   ) : null}
@@ -298,13 +298,13 @@ export default async function SharingPage({
           ) : null}
           <article className="card">
             <p className="card-kicker">Transparency</p>
-            <h2 className="card-title">Access log</h2>
+            <h2 className="card-title">Access Log</h2>
             <p className="card-body u-mb-100">
               What actually happened to your data, not just what a grant permits - the most recent{' '}
               {data.auditEvents.length} event{data.auditEvents.length === 1 ? '' : 's'}.
             </p>
             {data.auditEvents.length === 0 ? (
-              <EmptyState icon="activity" title="No activity yet">
+              <EmptyState icon="activity" title="No Activity Yet">
                 Every time your information is opened, shared or changed, it is recorded here.
               </EmptyState>
             ) : (
@@ -335,8 +335,8 @@ export default async function SharingPage({
           </article>
         </div>
         <article className="card sharing-composer-card" id="new-sharing-request">
-          <p className="card-kicker">New sharing request</p>
-          <h2 className="card-title">Grant access</h2>
+          <p className="card-kicker">New Sharing Request</p>
+          <h2 className="card-title">Grant Access</h2>
           <p className="card-body u-mb-125">
             {process.env[sharingInvitationFlag] === 'true'
               ? 'Invite someone by email, even if they do not have an account yet. They must sign in with that email and accept before access begins.'

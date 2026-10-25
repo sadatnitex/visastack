@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import { CountriesView } from '../../../countries/countries-view';
 
-export const metadata: Metadata = { title: 'Agency country rules' };
+export const metadata: Metadata = { title: 'Agency Country Rules' };
 
 /** The same country rules the traveller space shows, inside the agency workspace. The agency layout checks membership. */
 export default async function AgencyCountriesPage({

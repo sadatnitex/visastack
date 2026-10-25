@@ -19,7 +19,7 @@ import { completionOf, fieldLabel } from '../../../../lib/master-profile';
 import { withSession } from '../../../../lib/session';
 import { STAGE_LABELS } from '../../agency/[orgId]/case-search-form';
 
-export const metadata: Metadata = { title: 'Traveller overview' };
+export const metadata: Metadata = { title: 'Traveller Overview' };
 export const dynamic = 'force-dynamic';
 const TERMINAL_MISSION_STATES = new Set(['CLOSED', 'CANCELLED']);
 
@@ -79,43 +79,43 @@ export default async function ApplicantOverviewPage({
   const next = !data.coreGranted
     ? {
         href: '/app#permissions',
-        title: 'Allow core processing',
+        title: 'Allow Core Processing',
         why: 'Choose whether your profile and documents may be saved. You can withdraw this permission.',
-        action: 'Review permissions',
+        action: 'Review Permissions',
       }
     : requests.length
       ? {
           href: `/app/applicant/${id}/evidence`,
-          title: 'Reply to an evidence request',
+          title: 'Reply to an Evidence Request',
           why: 'An agency is waiting for evidence before it can continue.',
-          action: 'Open requests',
+          action: 'Open Requests',
         }
       : data.proposals.length
         ? {
             href: `/app/applicant/${id}/documents`,
-            title: 'Review suggested details',
+            title: 'Review Suggested Details',
             why: 'Nothing is added to your profile until you approve it.',
-            action: 'Review suggestions',
+            action: 'Review Suggestions',
           }
         : flagged.length
           ? {
               href: `/app/applicant/${id}/documents`,
-              title: 'Check a flagged document',
+              title: 'Check a Flagged Document',
               why: 'A document needs review before it can be relied on.',
-              action: 'Open documents',
+              action: 'Open Documents',
             }
           : completeness < 100
             ? {
                 href: `/app/applicant/${id}/profile`,
-                title: 'Continue your profile',
+                title: 'Continue Your Profile',
                 why: `${completed} of ${completion.total} details in your open sections have values. This is completeness, not verification.`,
-                action: 'Open profile',
+                action: 'Open Profile',
               }
             : {
                 href: `/app/applicant/${id}/missions`,
-                title: 'Start or review a case',
+                title: 'Start or Review a Case',
                 why: 'Reuse your existing profile for the next visa route.',
-                action: 'Open cases',
+                action: 'Open Cases',
               };
   const agenda = data.active
     .flatMap((m) => [
@@ -146,7 +146,7 @@ export default async function ApplicantOverviewPage({
   const activity = [
     ...documents.map((d) => ({
       key: `document:${d.id}`,
-      label: 'Document uploaded',
+      label: 'Document Uploaded',
       detail: d.approvedName ?? d.originalName,
       date: d.createdAt,
       href: `/app/applicant/${id}/documents#document-${d.id}`,
@@ -155,14 +155,14 @@ export default async function ApplicantOverviewPage({
       .filter((p) => p.updatedAt)
       .map((p) => ({
         key: `fact:${p.factId}`,
-        label: 'Profile fact updated',
+        label: 'Profile Fact Updated',
         detail: fieldLabel(p.fieldKey) ?? 'Profile detail',
         date: p.updatedAt as string,
         href: `/app/applicant/${id}/history`,
       })),
     ...data.active.map((m) => ({
       key: `case:${m.id}`,
-      label: 'Case updated',
+      label: 'Case Updated',
       detail: m.title,
       date: m.updatedAt.toISOString(),
       href: `/app/mission/${m.id}`,
@@ -216,8 +216,8 @@ export default async function ApplicantOverviewPage({
       <div className="split traveller-working-area">
         <div className="split-main">
           <div className="traveller-section-heading">
-            <h3>Continue where you left off</h3>
-            <Link href={`/app/applicant/${id}/missions`}>All cases →</Link>
+            <h3>Continue Where You Left Off</h3>
+            <Link href={`/app/applicant/${id}/missions`}>All Cases →</Link>
           </div>
           <article className="card traveller-featured-case">
             {!data.missions.ok ? (
@@ -229,16 +229,16 @@ export default async function ApplicantOverviewPage({
                 <div className="traveller-section-heading">
                   <h4>{data.featured.title}</h4>
                   <StatusBadge tone="neutral">
-                    {STAGE_LABELS[data.featured.state] ?? 'In progress'}
+                    {STAGE_LABELS[data.featured.state] ?? 'In Progress'}
                   </StatusBadge>
                 </div>
                 <p className="muted">
-                  {data.featured.jurisdiction ?? 'Visa case'} ·{' '}
+                  {data.featured.jurisdiction ?? 'Visa Case'} ·{' '}
                   {data.featured.serviceCategory ?? 'Personal application'}
                 </p>
                 <div className="traveller-checklist">
                   <div className="meter-label">
-                    <strong>Checklist progress</strong>
+                    <strong>Checklist Progress</strong>
                     <span>
                       {data.readiness?.ok
                         ? `${data.readiness.value.satisfiedRequired} of ${data.readiness.value.requiredCount} required items`
@@ -263,7 +263,7 @@ export default async function ApplicantOverviewPage({
                 </div>
                 <div className="traveller-section-heading">
                   <Link className="btn btn-primary" href={`/app/mission/${data.featured.id}`}>
-                    Continue case →
+                    Continue Case →
                   </Link>
                   <span className="muted">
                     Updated {formatTimestampDate(data.featured.updatedAt)}
@@ -273,8 +273,8 @@ export default async function ApplicantOverviewPage({
             ) : (
               <EmptyState
                 icon="briefcase"
-                title="No active case yet"
-                action={{ href: `/app/applicant/${id}/missions`, label: 'Start a visa case' }}
+                title="No Active Case Yet"
+                action={{ href: `/app/applicant/${id}/missions`, label: 'Start a Visa Case' }}
               >
                 Create a case to organize this traveller's requirements and documents.
               </EmptyState>
@@ -285,30 +285,30 @@ export default async function ApplicantOverviewPage({
               {data.active.slice(1, 4).map((m) => (
                 <Link className="row row-link" href={`/app/mission/${m.id}`} key={m.id}>
                   <span className="row-key">{m.title}</span>
-                  <StatusBadge tone="neutral">{STAGE_LABELS[m.state] ?? 'In progress'}</StatusBadge>
+                  <StatusBadge tone="neutral">{STAGE_LABELS[m.state] ?? 'In Progress'}</StatusBadge>
                 </Link>
               ))}
             </div>
           ) : null}
-          <h3>Needs your attention</h3>
+          <h3>Needs Your Attention</h3>
           <NextStepCard title={next.title} why={next.why} href={next.href} action={next.action} />
           {attention > 0 ? (
             <article className="card rows">
               {requests.length ? (
                 <Link className="row row-link" href={`/app/applicant/${id}/evidence`}>
-                  <span className="row-key">Evidence requests waiting for a reply</span>
+                  <span className="row-key">Evidence Requests Waiting for a Reply</span>
                   <StatusBadge tone="warning">{requests.length}</StatusBadge>
                 </Link>
               ) : null}
               {data.proposals.length ? (
                 <Link className="row row-link" href={`/app/applicant/${id}/documents`}>
-                  <span className="row-key">Suggested details awaiting approval</span>
+                  <span className="row-key">Suggested Details Awaiting Approval</span>
                   <StatusBadge tone="warning">{data.proposals.length}</StatusBadge>
                 </Link>
               ) : null}
               {flagged.length ? (
                 <Link className="row row-link" href={`/app/applicant/${id}/documents`}>
-                  <span className="row-key">Documents needing review</span>
+                  <span className="row-key">Documents Needing Review</span>
                   <StatusBadge tone="warning">{flagged.length}</StatusBadge>
                 </Link>
               ) : null}
@@ -339,9 +339,9 @@ export default async function ApplicantOverviewPage({
                 individual case calendar.
               </EmptyState>
             )}
-            <Link href={`/app/applicant/${id}/expiry`}>Document expiry centre →</Link>
+            <Link href={`/app/applicant/${id}/expiry`}>Document Expiry Centre →</Link>
           </article>
-          <h3>Recent activity</h3>
+          <h3>Recent Activity</h3>
           <article className="card">
             {activity.length ? (
               <ol className="traveller-activity">
@@ -356,15 +356,15 @@ export default async function ApplicantOverviewPage({
                 ))}
               </ol>
             ) : (
-              <EmptyState icon="activity" title="No recorded activity yet">
+              <EmptyState icon="activity" title="No Recorded Activity Yet">
                 Profile changes, uploads and case updates will appear here. This is a recent-record
                 summary, not a complete audit log.
               </EmptyState>
             )}
-            <Link href={`/app/applicant/${id}/history`}>Profile history →</Link>
+            <Link href={`/app/applicant/${id}/history`}>Profile History →</Link>
           </article>
           <article className="card">
-            <h3>Profile &amp; sharing</h3>
+            <h3>Profile &amp; Sharing</h3>
             <div className="meter-label">
               <span>Details with values in open sections</span>
               <span>
@@ -375,14 +375,14 @@ export default async function ApplicantOverviewPage({
               <div className="meter-fill" style={{ width: `${completeness}%` }} />
             </div>
             <p className="muted">Completeness does not verify identity.</p>
-            <Link href={`/app/applicant/${id}/profile`}>Continue profile →</Link>
+            <Link href={`/app/applicant/${id}/profile`}>Continue Profile →</Link>
             <p className="muted">
               Active sharing grants:{' '}
               {data.access.ok
                 ? data.access.value.filter((g) => g.status === 'ACTIVE').length
                 : 'Unavailable'}
             </p>
-            <Link href={`/app/applicant/${id}/sharing`}>Manage sharing →</Link>
+            <Link href={`/app/applicant/${id}/sharing`}>Manage Sharing →</Link>
           </article>
         </aside>
       </div>

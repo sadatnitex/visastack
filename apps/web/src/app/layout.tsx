@@ -70,9 +70,9 @@ export default async function RootLayout({ children }: { readonly children: Reac
           <SiteNavigation>
             <div className="site-nav-pages">
               <Link href="/#product">Product</Link>
-              <Link href="/#for-agencies">For agencies</Link>
-              <Link href="/trust">Privacy and control</Link>
-              <Link href="/#how-it-works">How it works</Link>
+              <Link href="/#for-agencies">For Agencies</Link>
+              <Link href="/trust">Privacy and Control</Link>
+              <Link href="/#how-it-works">How It Works</Link>
             </div>
             <div className="site-nav-actions">
               <form action={setLocaleAction} aria-label="Language">
@@ -87,7 +87,7 @@ export default async function RootLayout({ children }: { readonly children: Reac
               </a>
               {!signedIn && isPublicBetaOpen() ? (
                 <Link className="btn btn-primary nav-cta" href="/auth/sign-up">
-                  Get started
+                  Get Started
                 </Link>
               ) : null}
             </div>
@@ -99,7 +99,7 @@ export default async function RootLayout({ children }: { readonly children: Reac
             <span>© {new Date().getFullYear()} VisaStack. Proprietary and confidential.</span>
             <nav className="footer-links" aria-label="Footer">
               <Link href="/#capabilities">Features</Link>
-              <Link href="/trust">Public trust</Link>
+              <Link href="/trust">Public Trust</Link>
               <Link href="/status">Status</Link>
               <Link href="/privacy">Privacy</Link>
               <Link href="/terms">Terms</Link>

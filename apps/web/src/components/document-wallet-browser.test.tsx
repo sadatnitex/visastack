@@ -144,7 +144,7 @@ describe('documents with no kind set', () => {
   it('lists only those documents when "Not set yet" is chosen', () => {
     const select = container.querySelector('select') as HTMLSelectElement;
     expect([...select.options].map((option) => option.textContent)).toEqual([
-      'All categories',
+      'All Categories',
       'Identity',
       'Not set yet',
     ]);

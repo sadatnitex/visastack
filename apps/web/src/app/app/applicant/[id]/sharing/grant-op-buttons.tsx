@@ -57,7 +57,7 @@ export function GrantOpButtons({
                       className="btn btn-secondary u-btn-sm"
                       onClick={() => setConfirming(null)}
                     >
-                      Keep access
+                      Keep Access
                     </button>
                   </div>
                 </div>

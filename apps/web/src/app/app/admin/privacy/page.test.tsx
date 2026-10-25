@@ -92,7 +92,7 @@ describe('Platform > Privacy', () => {
   it('shows retention policies and every active legal hold with the applicant named', async () => {
     const html = await renderServer(Page());
     const text = textOf(html);
-    expect(text).toContain('Document retention policies');
+    expect(text).toContain('Document Retention Policies');
     expect(text).toContain('Passport');
     expect(text).not.toContain('PASSPORT');
     expect(text).toContain('365 days');

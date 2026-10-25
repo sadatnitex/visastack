@@ -34,7 +34,7 @@ export async function loadWorkspaceChrome(
     accountName:
       actor.displayName?.trim() ||
       people.find((person) => person.relationship === 'SELF')?.displayName ||
-      'Your account',
+      'Your Account',
     travellers: people.map((person) => ({
       id: person.id,
       name: person.displayName,

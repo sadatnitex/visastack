@@ -45,37 +45,37 @@ export function workspaceNavigation(
     return {
       kind: 'platform',
       name: 'VisaStack',
-      caption: 'Platform operations',
+      caption: 'Platform Operations',
       primary: [
         { href: '/app/admin', label: 'Overview', exact: true },
         ...(access.platform.owner ? [{ href: '/app/admin/members', label: 'Members' }] : []),
         { href: '/app/admin/organizations', label: 'Organizations' },
         { href: '/app/admin/audit', label: 'Activity' },
         { href: '/app/admin#admin-provider-operations', label: 'Providers', exact: true },
-        { href: '/app/admin#admin-usage', label: 'Costs & plans', exact: true },
+        { href: '/app/admin#admin-usage', label: 'Costs & Plans', exact: true },
         { href: '/app/admin/security', label: 'Security' },
       ],
       tools: [
-        { href: '/app/admin/packs', label: 'Rules & packs' },
-        ...(access.platform.ai ? [{ href: '/app/admin/ai-settings', label: 'AI settings' }] : []),
-        { href: '/app/admin/privacy', label: 'Privacy operations' },
-        { href: '/app/admin/access', label: 'Platform access' },
+        { href: '/app/admin/packs', label: 'Rules & Packs' },
+        ...(access.platform.ai ? [{ href: '/app/admin/ai-settings', label: 'AI Settings' }] : []),
+        { href: '/app/admin/privacy', label: 'Privacy Operations' },
+        { href: '/app/admin/access', label: 'Platform Access' },
         ...(access.platform.complaints
           ? [{ href: '/app/admin/complaints', label: 'Complaints' }]
           : []),
       ],
-      settings: [{ href: '/app/admin/settings', label: 'Platform settings' }],
+      settings: [{ href: '/app/admin/settings', label: 'Platform Settings' }],
     };
   }
 
   if (segments[1] === 'agency' && segments[2]) {
     const agency = access.agencies.find((item) => item.id === segments[2]);
-    if (!agency) return unavailable('Agency access unavailable');
+    if (!agency) return unavailable('Agency Access Unavailable');
     const base = `/app/agency/${agency.id}`;
     return {
       kind: 'agency',
       name: agency.name,
-      caption: 'Agency workspace',
+      caption: 'Agency Workspace',
       primary: [
         { href: base, label: 'Overview', exact: true },
         ...(agency.admin ? [{ href: `${base}/clients`, label: 'Clients', exact: true }] : []),
@@ -84,17 +84,17 @@ export function workspaceNavigation(
           ? [
               {
                 href: `${base}/clients#agency-evidence-requests`,
-                label: 'Evidence requests',
+                label: 'Evidence Requests',
                 exact: true,
               },
             ]
           : []),
         ...(agency.admin ? [{ href: `${base}/team`, label: 'Team' }] : []),
-        { href: `${base}/activity`, label: 'Case activity' },
+        { href: `${base}/activity`, label: 'Case Activity' },
         { href: `${base}/countries`, label: 'Countries' },
       ],
-      tools: [{ href: `${base}/plan`, label: 'Plan & usage' }],
-      settings: [...(agency.admin ? [{ href: `${base}/settings`, label: 'Agency settings' }] : [])],
+      tools: [{ href: `${base}/plan`, label: 'Plan & Usage' }],
+      settings: [...(agency.admin ? [{ href: `${base}/settings`, label: 'Agency Settings' }] : [])],
     };
   }
 
@@ -114,23 +114,23 @@ export function workspaceNavigation(
         (access.travellers.length === 1 ? access.travellers[0] : undefined))
       : undefined;
 
-  if (segments[1] === 'applicant' && !person) return unavailable('Traveller access unavailable');
+  if (segments[1] === 'applicant' && !person) return unavailable('Traveller Access Unavailable');
   const base = person ? `/app/applicant/${person.id}` : null;
   return {
     kind: 'personal',
-    name: person?.name ?? (casePath ? 'Visa case' : 'Personal space'),
+    name: person?.name ?? (casePath ? 'Visa Case' : 'Personal Space'),
     caption:
       person?.relationship === 'SELF'
-        ? 'Personal space'
+        ? 'Personal Space'
         : person
-          ? 'Managed traveller'
-          : 'Choose a traveller',
+          ? 'Managed Traveller'
+          : 'Choose a Traveller',
     primary: base
       ? [
           { href: base, label: 'Overview', exact: true, alsoExactFor: ['/app'] },
-          { href: `${base}/profile`, label: 'My profile' },
+          { href: `${base}/profile`, label: 'My Profile' },
           { href: `${base}/documents`, label: 'Documents' },
-          { href: `${base}/missions`, label: 'Visa cases', alsoCurrentFor: ['/app/mission/'] },
+          { href: `${base}/missions`, label: 'Visa Cases', alsoCurrentFor: ['/app/mission/'] },
           { href: `${base}/sharing`, label: 'Sharing' },
           { href: '/app/notifications', label: 'Notifications' },
           { href: '/app/countries', label: 'Countries' },
@@ -139,18 +139,18 @@ export function workspaceNavigation(
           { href: '/app', label: 'Overview', exact: true },
           {
             href: '/app/applicants',
-            label: access.travellers.length ? 'Choose a traveller' : 'Add a traveller',
+            label: access.travellers.length ? 'Choose a Traveller' : 'Add a Traveller',
           },
           { href: '/app/notifications', label: 'Notifications' },
           { href: '/app/countries', label: 'Countries' },
         ],
     tools: [
-      { href: '/app/shared', label: 'Shared with me' },
-      { href: '/app', label: 'Account overview', exact: true },
+      { href: '/app/shared', label: 'Shared with Me' },
+      { href: '/app', label: 'Account Overview', exact: true },
       ...(base
         ? [
-            { href: `${base}/evidence`, label: 'Evidence requests' },
-            { href: `${base}/expiry`, label: 'Dates & expiry' },
+            { href: `${base}/evidence`, label: 'Evidence Requests' },
+            { href: `${base}/expiry`, label: 'Dates & Expiry' },
             { href: `${base}/history`, label: 'History' },
           ]
         : []),
@@ -163,7 +163,7 @@ function unavailable(name: string): WorkspaceNavigation {
   return {
     kind: 'unavailable',
     name,
-    caption: 'Choose an available workspace',
+    caption: 'Choose an Available Workspace',
     primary: [],
     tools: [],
     settings,

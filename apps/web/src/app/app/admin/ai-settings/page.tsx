@@ -20,7 +20,7 @@ import {
   TestConnectionButton,
 } from './forms';
 
-export const metadata: Metadata = { title: 'AI settings' };
+export const metadata: Metadata = { title: 'AI Settings' };
 
 export const dynamic = 'force-dynamic';
 // The "run task evaluation" action below makes up to 13 sequential real
@@ -82,7 +82,7 @@ export default async function AiSettingsPage() {
       </div>
       <PageHeader
         eyebrow="Admin · AI Gateway"
-        title="AI provider settings"
+        title="AI Provider Settings"
         description="Configure, activate, and roll back the AI extraction provider (master directive Part 8 §5). Every version below is a permanent, immutable snapshot -- nothing is ever edited in place."
         actions={
           data.hasAny ? (
@@ -110,8 +110,8 @@ export default async function AiSettingsPage() {
       ) : null}
 
       <article className="card u-mb-150">
-        <p className="card-kicker">New configuration</p>
-        <h2 className="card-title">Create draft</h2>
+        <p className="card-kicker">New Configuration</p>
+        <h2 className="card-title">Create Draft</h2>
         <p className="card-body u-mb-100">
           Saving a draft has no effect on live traffic -- it only takes effect once activated below.
           The API key is write-only: it is encrypted immediately and never shown again, only a
@@ -154,17 +154,17 @@ export default async function AiSettingsPage() {
                 </div>
                 <div className="rows">
                   <div className="row">
-                    <span className="row-key">API key</span>
+                    <span className="row-key">API Key</span>
                     <span className="row-val">{config.apiKeyFingerprint}</span>
                   </div>
                   {config.reasoningEffort !== null ? (
                     <div className="row">
-                      <span className="row-key">Reasoning effort</span>
+                      <span className="row-key">Reasoning Effort</span>
                       <span className="row-val">{config.reasoningEffort}</span>
                     </div>
                   ) : null}
                   <div className="row">
-                    <span className="row-key">Data policy</span>
+                    <span className="row-key">Data Policy</span>
                     <span
                       className={`badge ${config.dataPolicyApproved ? 'badge-success' : 'badge-neutral'}`}
                     >
@@ -172,14 +172,14 @@ export default async function AiSettingsPage() {
                     </span>
                   </div>
                   <div className="row">
-                    <span className="row-key">Monthly budget</span>
+                    <span className="row-key">Monthly Budget</span>
                     <span className="row-val">
                       ${unitsToUsd(config.budgetLimitUnits).toFixed(2)}
                     </span>
                   </div>
                   {config.perDocumentBudgetLimitUnits !== null ? (
                     <div className="row">
-                      <span className="row-key">Per-document budget</span>
+                      <span className="row-key">Per-Document Budget</span>
                       <span className="row-val">
                         ${unitsToUsd(config.perDocumentBudgetLimitUnits).toFixed(2)}
                       </span>
@@ -199,13 +199,13 @@ export default async function AiSettingsPage() {
                   ) : null}
                   {config.cacheMaxAgeDays !== null ? (
                     <div className="row">
-                      <span className="row-key">Cache max age</span>
+                      <span className="row-key">Cache Max Age</span>
                       <span className="row-val">{config.cacheMaxAgeDays} days</span>
                     </div>
                   ) : null}
                   {config.maxConcurrentCalls !== null ? (
                     <div className="row">
-                      <span className="row-key">Max concurrent calls</span>
+                      <span className="row-key">Max Concurrent Calls</span>
                       <span className="row-val">{config.maxConcurrentCalls}</span>
                     </div>
                   ) : null}
@@ -217,7 +217,7 @@ export default async function AiSettingsPage() {
                   ) : null}
                   {config.keyRevokedAt !== null ? (
                     <div className="row">
-                      <span className="row-key">Key revoked</span>
+                      <span className="row-key">Key Revoked</span>
                       <span className="row-val">{formatTimestamp(config.keyRevokedAt)}</span>
                     </div>
                   ) : null}

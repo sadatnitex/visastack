@@ -19,7 +19,7 @@ import { AdminRestricted } from '../admin-restricted';
 import { FailedSectionsBanner } from '../failed-sections-banner';
 import { PurgeButton } from '../purge-button';
 
-export const metadata: Metadata = { title: 'Platform privacy' };
+export const metadata: Metadata = { title: 'Platform Privacy' };
 
 export const dynamic = 'force-dynamic';
 
@@ -67,7 +67,7 @@ export default async function AdminPrivacyPage() {
           <div className="grid" id="admin-retention">
             <article className="card">
               <p className="card-kicker">Retention</p>
-              <h2 className="card-title">Document retention policies</h2>
+              <h2 className="card-title">Document Retention Policies</h2>
               {data.policies.length === 0 ? (
                 <p className="card-body u-mb-125">
                   No retention policies configured. Without a policy, documents of a type are never
@@ -90,8 +90,8 @@ export default async function AdminPrivacyPage() {
             </article>
 
             <article className="card">
-              <p className="card-kicker">Legal holds</p>
-              <h2 className="card-title">Active holds</h2>
+              <p className="card-kicker">Legal Holds</p>
+              <h2 className="card-title">Active Holds</h2>
               {data.holds.length === 0 ? (
                 <p className="card-body u-mb-125">
                   No active legal holds. A hold blocks deletion and retention purge for an applicant
@@ -144,7 +144,7 @@ export default async function AdminPrivacyPage() {
 
           <article className="card u-mt-150" id="admin-deletion">
             <p className="card-kicker">Erasure</p>
-            <h2 className="card-title">Erasure jobs needing attention</h2>
+            <h2 className="card-title">Erasure Jobs Needing Attention</h2>
             {data.erasureJobs.length === 0 ? (
               <p className="card-body">
                 No erasure jobs are failed or blocked. A job parks here only after it exhausts every
@@ -199,7 +199,7 @@ export default async function AdminPrivacyPage() {
 
           <article className="card u-mt-150">
             <p className="card-kicker">Retention</p>
-            <h2 className="card-title">Documents eligible for purge</h2>
+            <h2 className="card-title">Documents Eligible for Purge</h2>
             {data.purgeEligible.length === 0 ? (
               <p className="card-body">
                 No documents are currently past their retention policy (or all are under an active

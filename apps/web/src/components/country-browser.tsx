@@ -93,7 +93,7 @@ export function CountryBrowser({
                   {item.stay ? <span className="muted">{item.stay}</span> : null}
                   {item.fee ? <span className="muted">{item.fee}</span> : null}
                   {item.unconfirmed ? (
-                    <span className="badge badge-warning">Needs checking</span>
+                    <span className="badge badge-warning">Needs Checking</span>
                   ) : null}
                 </span>
               </Link>
@@ -101,7 +101,7 @@ export function CountryBrowser({
           ))}
         </ul>
       ) : (
-        <EmptyState icon="search" title="No countries match">
+        <EmptyState icon="search" title="No Countries Match">
           Clear the search or choose another filter.
         </EmptyState>
       )}

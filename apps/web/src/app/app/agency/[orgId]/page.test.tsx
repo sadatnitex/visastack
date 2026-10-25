@@ -85,11 +85,11 @@ beforeEach(() => {
 describe('agency Dashboard', () => {
   it('shows an administrator the four counts, each agreeing with the case list below', async () => {
     const text = textOf(await renderServer(Page(pageProps())));
-    expect(text).toContain('What needs you first');
+    expect(text).toContain('What Needs You First');
     expect(text).toMatch(/Cases you can see 2/);
-    expect(text).toMatch(/Cases with nobody assigned 1/);
-    expect(text).toMatch(/Evidence requests waiting on the applicant 1/);
-    expect(text).toMatch(/Overdue tasks 1/);
+    expect(text).toMatch(/Cases with Nobody Assigned 1/);
+    expect(text).toMatch(/Evidence Requests Waiting on the Applicant 1/);
+    expect(text).toMatch(/Overdue Tasks 1/);
   });
 
   it('puts the case that needs the most attention first', async () => {
@@ -114,13 +114,13 @@ describe('agency Dashboard', () => {
 
   it('lists the reassignment queue for an administrator, linking to each case workspace', async () => {
     const html = await renderServer(Page(pageProps()));
-    expect(textOf(html)).toContain('Reassignment queue');
+    expect(textOf(html)).toContain('Reassignment Queue');
     expect(html).toMatch(/<a href="\/app\/agency\/o1\/cases#mission-m1" class="row row-link">/);
   });
 
   it('leaves out the queue when nothing is unassigned', async () => {
     mocks.loadUnassignedQueue.mockResolvedValue([]);
-    expect(textOf(await renderServer(Page(pageProps())))).not.toContain('Reassignment queue');
+    expect(textOf(await renderServer(Page(pageProps())))).not.toContain('Reassignment Queue');
   });
 
   it('tells a member who is not an administrator what they can do, and hides what they cannot', async () => {
@@ -132,10 +132,10 @@ describe('agency Dashboard', () => {
     const text = textOf(await renderServer(Page(pageProps())));
     expect(text).toContain("You're a member of this organization but not an administrator");
     expect(text).toMatch(/Cases you can see 1/);
-    expect(text).not.toContain('Cases with nobody assigned');
-    expect(text).not.toContain('Evidence requests waiting on the applicant');
-    expect(text).toMatch(/Overdue tasks 0/);
-    expect(text).not.toContain('Reassignment queue');
+    expect(text).not.toContain('Cases with Nobody Assigned');
+    expect(text).not.toContain('Evidence Requests Waiting on the Applicant');
+    expect(text).toMatch(/Overdue Tasks 0/);
+    expect(text).not.toContain('Reassignment Queue');
   });
 
   it('renders nothing, and reads nothing further, for someone with no role', async () => {
@@ -177,7 +177,7 @@ describe('agency Dashboard', () => {
     const all = textOf(await renderServer(Page(pageProps())));
     expect(all).toContain('Mine 1');
     expect(all).toContain('Overdue 1');
-    expect(all).toContain('Waiting On Traveller 1');
+    expect(all).toContain('Waiting on Traveller 1');
     expect(all).toContain('Unassigned 1');
     for (const [quick, shown, hidden] of [
       ['mine', 'Nusrat Jahan', 'Rahim Uddin'],

@@ -23,7 +23,7 @@ export default function AppError({
 
   return (
     <section className="section container center">
-      <span className="eyebrow">Something went wrong</span>
+      <span className="eyebrow">Something Went Wrong</span>
       <h1 className="section-title error-title">We hit a snag loading this page</h1>
       <p className="section-sub error-body">
         This is on our side, not yours. Everything you already saved is safe. If you were typing
@@ -32,10 +32,10 @@ export default function AppError({
       </p>
       <div className="cta-row cta-row-center">
         <button type="button" className="btn btn-primary" onClick={() => reset()}>
-          Try again
+          Try Again
         </button>
         <Link className="btn btn-secondary" href="/">
-          Back to home
+          Back to Home
         </Link>
       </div>
       {error.digest ? <p className="muted error-reference">Reference: {error.digest}</p> : null}

@@ -83,7 +83,7 @@ describe('phone navigation and the context chip (WP-X3)', () => {
     expect(summary?.querySelector('b')?.textContent).toBe('Synthetic');
     expect(summary?.querySelector('.workspace-avatar')?.getAttribute('aria-hidden')).toBe('true');
     expect(summary?.textContent?.replace(/\s+/g, ' ')).toContain(
-      'Synthetic Self, acting as this person, Personal space',
+      'Synthetic Self, acting as this person, Personal Space',
     );
     // The same places to switch to as the full selector, from the same data.
     const links = [...(chip()?.querySelectorAll('nav a') ?? [])].map((a) => a.getAttribute('href'));
@@ -145,7 +145,7 @@ describe('phone navigation and the context chip (WP-X3)', () => {
     act(() => root.render(<span />));
     mount({ ...FULL, platform: { owner: true, ai: false, complaints: false } });
     expect(chip()?.querySelector('b')?.textContent).toBe('Platform');
-    expect(chip()?.querySelector('summary')?.textContent).toContain('Platform operations');
+    expect(chip()?.querySelector('summary')?.textContent).toContain('Platform Operations');
     expect(chip()?.querySelector('.workspace-avatar')).toBeNull();
   });
 
@@ -174,7 +174,7 @@ describe('phone navigation and the context chip (WP-X3)', () => {
     route.pathname = '/app/agency/20000000-0000-4000-8000-000000000001';
     mount(FULL);
     expect(chip()?.querySelector('summary')?.textContent).toBe(
-      'Synthetic Agency, current workspace: Agency workspace',
+      'Synthetic Agency, current workspace: Agency Workspace',
     );
   });
 });
@@ -196,7 +196,7 @@ describe('the chip is a phone-only part of the stylesheet', () => {
     expect(css).toMatch(/\.record-toolbar-shortcuts a\[href="\/app\/help"\] \{\s*display: none;/);
     const { readFileSync: read } = await import('node:fs');
     const toolbar = read(`${process.cwd()}/src/app/app/workspace-record-toolbar.tsx`, 'utf8');
-    expect(toolbar).toContain('<Link href="/app/help">Help & support</Link>');
+    expect(toolbar).toContain('<Link href="/app/help">Help & Support</Link>');
     // The label trims by its own class, not by position after the initials.
     expect(css).toMatch(/\.workspace-chip \.workspace-chip-label \{\s*min-width: 0;\s*flex: 1;/);
   });

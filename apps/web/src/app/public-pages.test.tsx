@@ -23,11 +23,11 @@ describe('public and entry pages today', () => {
     const { default: Terms } = await import('./terms/page');
     const document = dom(renderToStaticMarkup(<Terms />));
     expect(document.querySelectorAll('h1')).toHaveLength(1);
-    expect(document.querySelector('h1')?.textContent).toBe('Terms of use');
+    expect(document.querySelector('h1')?.textContent).toBe('Terms of Use');
     expect(document.body.textContent).toContain('Account creation is free');
     expect(document.body.textContent).toContain('await legal review');
     expect([...document.querySelectorAll('h2')].map((h) => h.textContent)).toContain(
-      'Visa decisions',
+      'Visa Decisions',
     );
   });
 
@@ -55,7 +55,7 @@ describe('public and entry pages today', () => {
     const { default: Verify } = await import('./auth/verify-email/page');
     const document = dom(renderToStaticMarkup(await Verify(SEARCH({ s: '1' }))));
     expect(document.querySelector('input[name="email"]')).not.toBeNull();
-    expect(document.body.textContent).toContain('Send the link again');
+    expect(document.body.textContent).toContain('Send the Link Again');
     expect(document.querySelector('a[href^="/auth/sign-in"]')).not.toBeNull();
   });
 
@@ -84,7 +84,7 @@ describe('public and entry pages today', () => {
   it('the invitation page shows nothing about the invitation when the link is incomplete', async () => {
     const { default: Invitation } = await import('./invitation/page');
     const document = dom(renderToStaticMarkup(await Invitation(SEARCH({ kind: 'team' }))));
-    expect(document.querySelector('h1')?.textContent).toBe('Incomplete invitation link');
+    expect(document.querySelector('h1')?.textContent).toBe('Incomplete Invitation Link');
     expect(document.body.textContent).not.toContain('Opening the link');
   });
 
@@ -93,7 +93,7 @@ describe('public and entry pages today', () => {
     const document = dom(renderToStaticMarkup(await SignUp(SEARCH())));
     const steps = document.querySelector('ol.auth-steps');
     expect(steps?.querySelector('[aria-current="step"]')?.textContent).toContain(
-      'Create your account',
+      'Create Your Account',
     );
     const notice = [...document.querySelectorAll('.notice')].find((n) =>
       n.textContent?.includes('at your own risk'),
@@ -117,7 +117,7 @@ describe('public and entry pages today', () => {
     );
     const verify = dom(renderToStaticMarkup(await Verify(SEARCH())));
     expect(verify.querySelector('[aria-current="step"]')?.textContent).toContain(
-      'Confirm your email',
+      'Confirm Your Email',
     );
   });
 

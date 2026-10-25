@@ -93,7 +93,7 @@ const SCREENS: readonly Screen[] = [
         },
         {
           id: 'n2',
-          subject: 'Evidence requested',
+          subject: 'Evidence Requested',
           summary: 'An agency asked for a bank statement.',
           deepLinkPath: '/app/applicant/a1/evidence',
           read: true,
@@ -222,22 +222,22 @@ describe('signed-in pages, as whole pages in the signed-in shell', () => {
 
 describe('what each state says, in plain words', () => {
   it('tells a person with no alerts what will appear here', async () => {
-    expect(textOf(await shellMarkup(SCREENS[0] as Screen))).toContain('No alerts yet');
+    expect(textOf(await shellMarkup(SCREENS[0] as Screen))).toContain('No Alerts Yet');
   });
 
   it('shows a pending share as waiting for the person, with the one action that moves it on', async () => {
     const text = textOf(await shellMarkup(SCREENS[3] as Screen));
     expect(text).toContain('Awaiting your acceptance');
-    expect(text).toContain('Accept access');
-    expect(text).toContain('Open workspace');
+    expect(text).toContain('Accept Access');
+    expect(text).toContain('Open Workspace');
     expect(text).toContain('Revoked');
     expect(text).toContain('Expired');
   });
 
   it('does not offer a way into an access that is revoked, expired or paused', async () => {
     const html = await shellMarkup(SCREENS[3] as Screen);
-    expect(html.match(/Open workspace/g)?.length).toBe(1);
-    expect(html.match(/Accept access/g)?.length).toBe(1);
+    expect(html.match(/Open Workspace/g)?.length).toBe(1);
+    expect(html.match(/Accept Access/g)?.length).toBe(1);
   });
 
   it('explains why adding a person is not offered yet', async () => {
@@ -248,7 +248,7 @@ describe('what each state says, in plain words', () => {
 
   it('shows the error screen with a retry that is a real button', async () => {
     const html = await shellMarkup(SCREENS[SCREENS.length - 1] as Screen);
-    expect(html).toContain('<button type="button" class="btn btn-primary">Try again</button>');
+    expect(html).toContain('<button type="button" class="btn btn-primary">Try Again</button>');
     expect(textOf(html)).toContain('Everything you already saved is safe');
     // It must not promise that nothing was lost: a half-typed form may be.
     expect(textOf(html)).not.toContain('was lost or damaged');

@@ -72,7 +72,7 @@ describe('the guard itself', () => {
   it('reads the public pages it is meant to check', () => {
     const text = visible.map((v) => v.text);
     expect(text).toContain('Your documents.');
-    expect(text).toContain('What works today');
+    expect(text).toContain('What Works Today');
     expect(text.some((t) => t.startsWith('Invite-only test version'))).toBe(true);
     expect(visible.length).toBeGreaterThan(40);
   });
@@ -109,7 +109,7 @@ describe('the guard itself', () => {
       'We support Bangla',
       'Report a problem',
       'Your data is kept only as long as it is needed',
-      'VisaStack private pilot',
+      'VisaStack Private Pilot',
     ];
     for (const sentence of ordinary) {
       for (const rule of ENGINEERING_TALK) {

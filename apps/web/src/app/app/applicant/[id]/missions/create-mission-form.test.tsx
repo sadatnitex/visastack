@@ -13,7 +13,7 @@ describe('CreateMissionForm', () => {
     expect(opening).toContain('What is this case for?');
     expect(opening).toContain('Where are you going?');
     expect(opening).not.toContain('name="purpose"');
-    expect(html).toContain('Add more details (optional)');
+    expect(html).toContain('Add More Details (Optional)');
   });
 
   it('still sends every field it sent before, with the same names', () => {

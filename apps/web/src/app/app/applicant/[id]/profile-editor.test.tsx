@@ -290,10 +290,10 @@ describe('section cards keep every real editing path', () => {
 
   it('offers purpose suggestions and a way to open them all at once', () => {
     expect(container.querySelector('#profile-purpose')).not.toBeNull();
-    expect(container.textContent).not.toContain('Open suggested sections');
+    expect(container.textContent).not.toContain('Open Suggested Sections');
     render({ view: fixtureView({ suggestedFamily: 'study', suggestedLockedCount: 3 }) });
     expect(container.textContent).toContain('3 suggested sections are still locked.');
-    expect(container.textContent).toContain('Open suggested sections');
+    expect(container.textContent).toContain('Open Suggested Sections');
     const data = new FormData(container.querySelector('.profile-suggest-open') as HTMLFormElement);
     expect(data.get('family')).toBe('study');
     render({ view: fixtureView({ suggestedFamily: 'study', suggestedLockedCount: 0 }) });

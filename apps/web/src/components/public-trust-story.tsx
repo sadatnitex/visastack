@@ -7,7 +7,7 @@ export function PublicTrustStory() {
     <section className="trust-story land-wrap" aria-labelledby="trust-story-title">
       <div className="trust-hero">
         <div>
-          <div className="eyebrow">The trust model</div>
+          <div className="eyebrow">The Trust Model</div>
           <h1 id="trust-story-title">
             Your documents.
             <em>Your decisions.</em>
@@ -24,18 +24,18 @@ export function PublicTrustStory() {
         <aside className="trust-control" aria-label="Example of sharing permissions">
           <p className="trust-example-label">Illustration with made-up details</p>
           <div className="trust-window-head">
-            <h2>Sharing permissions</h2>
-            <span className="trust-control-chip">You choose</span>
+            <h2>Sharing Permissions</h2>
+            <span className="trust-control-chip">You Choose</span>
           </div>
           <div className="trust-person">
             <span className="trust-avatar">
               <Icon name="user" size={20} />
             </span>
             <div>
-              <b>Example traveller</b>
+              <b>Example Traveller</b>
               <small>Owner of this example file</small>
             </div>
-            <span className="trust-control-chip">Your records</span>
+            <span className="trust-control-chip">Your Records</span>
           </div>
           <div className="trust-divider" />
           <div className="trust-person">
@@ -43,7 +43,7 @@ export function PublicTrustStory() {
               <Icon name="building" size={20} />
             </span>
             <div>
-              <b>Example agency</b>
+              <b>Example Agency</b>
               <small>Selected items for a limited time</small>
             </div>
           </div>
@@ -69,7 +69,7 @@ export function PublicTrustStory() {
           <span className="trust-feature-icon">
             <Icon name="shield" size={24} />
           </span>
-          <h2 className="card-title">Private by design</h2>
+          <h2 className="card-title">Private by Design</h2>
           <p className="card-body">
             Your records belong to you. Choose the recipient, purpose, items and time limit for each
             sharing request.

@@ -128,7 +128,7 @@ describe('the documents page while the server is still working on a file', () =>
     mocks.listDocumentsDetailed.mockResolvedValue({ ok: true, value: [] });
     const html = await render();
     expect(stubProps<{ active: boolean }>(html, 'AutoRefresh')).toEqual([{ active: false }]);
-    expect(textOf(html)).toContain('No documents yet');
+    expect(textOf(html)).toContain('No Documents Yet');
   });
 });
 
@@ -194,7 +194,7 @@ describe('saying what kind of document a file is', () => {
       value: [{ ...doc('letter', 'APPROVED'), docType: 'OTHER', subject: 'Marriage Certificate' }],
     });
     const html = await render('letter');
-    expect(html).toContain('Kind of document');
+    expect(html).toContain('Kind of Document');
     expect(html).toMatch(/<option value="OTHER" selected[^>]*>Other Document<\/option>/);
     expect(html).toContain('value="OTHER_FINANCIAL_DOCUMENT"');
     expect(html).toContain('value="Marriage Certificate"');
@@ -249,7 +249,7 @@ describe('wallet ownership, explicit selection and truthful safety state', () =>
     mocks.listDocumentsDetailed.mockResolvedValue({ ok: false, error: { code: 'forbidden' } });
     const html = await render();
     expect(textOf(html)).toContain('Unavailable records are not reported as an empty wallet');
-    expect(textOf(html)).not.toContain('No documents yet');
+    expect(textOf(html)).not.toContain('No Documents Yet');
   });
 });
 

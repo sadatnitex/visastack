@@ -9,7 +9,7 @@ import {
 import { withSession } from '../../../../lib/session';
 import { AdminRestricted } from '../admin-restricted';
 
-export const metadata: Metadata = { title: 'Platform settings' };
+export const metadata: Metadata = { title: 'Platform Settings' };
 
 export default async function PlatformSettingsPage() {
   const access = await withSession(async ({ db, accountId, email }) => {
@@ -26,35 +26,35 @@ export default async function PlatformSettingsPage() {
   return (
     <section className="section container">
       <PageHeader
-        eyebrow="Platform operations"
+        eyebrow="Platform Operations"
         title="Settings"
         description="Configuration you can manage, using the existing permission and confirmation requirements."
       />
       <div className="grid">
         {access.owner ? (
           <article className="card">
-            <h2 className="card-title">Staff access & plans</h2>
-            <Link href="/app/admin/access">Manage platform roles</Link>
+            <h2 className="card-title">Staff Access & Plans</h2>
+            <Link href="/app/admin/access">Manage Platform Roles</Link>
             <p>
-              <Link href="/app/admin/organizations">Open organization plans</Link>
+              <Link href="/app/admin/organizations">Open Organization Plans</Link>
             </p>
           </article>
         ) : null}
         {access.ai ? (
           <article className="card">
-            <h2 className="card-title">AI configuration</h2>
-            <Link href="/app/admin/ai-settings">Manage approved provider settings</Link>
+            <h2 className="card-title">AI Configuration</h2>
+            <Link href="/app/admin/ai-settings">Manage Approved Provider Settings</Link>
           </article>
         ) : null}
         {access.retention ? (
           <article className="card">
-            <h2 className="card-title">Retention policy</h2>
-            <Link href="/app/admin/privacy">Manage privacy policy controls</Link>
+            <h2 className="card-title">Retention Policy</h2>
+            <Link href="/app/admin/privacy">Manage Privacy Policy Controls</Link>
           </article>
         ) : null}
         {!access.owner && !access.ai && !access.retention ? (
           <article className="card">
-            <h2 className="card-title">No configuration permission</h2>
+            <h2 className="card-title">No Configuration Permission</h2>
             <p className="card-body">
               Your current role provides operational access, without these configuration changes.
               Ask a platform owner if your responsibilities have changed.
@@ -62,8 +62,8 @@ export default async function PlatformSettingsPage() {
           </article>
         ) : null}
         <article className="card">
-          <h2 className="card-title">Your account</h2>
-          <Link href="/app/account">Open account settings</Link>
+          <h2 className="card-title">Your Account</h2>
+          <Link href="/app/account">Open Account Settings</Link>
         </article>
       </div>
     </section>

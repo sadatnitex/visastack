@@ -78,7 +78,7 @@ export function DocumentWalletBrowser({
             ['all', 'All documents'],
             ['ready', 'Ready to use'],
             ['review', 'Need review'],
-            ['expiring', 'Expiring soon'],
+            ['expiring', 'Expiring Soon'],
           ] as const
         ).map(([key, label]) => (
           <button
@@ -108,7 +108,7 @@ export function DocumentWalletBrowser({
                   setPage(0);
                 }}
               >
-                <option value="all">All categories</option>
+                <option value="all">All Categories</option>
                 {categories.map((value) => (
                   <option key={value} value={value}>
                     {value}
@@ -203,7 +203,7 @@ export function DocumentWalletBrowser({
           ) : (
             <EmptyState
               icon="file"
-              title={documents.length ? 'No documents match' : 'No documents yet'}
+              title={documents.length ? 'No documents match' : 'No Documents Yet'}
             >
               {documents.length
                 ? 'Clear the search or choose another category or status.'
@@ -237,7 +237,7 @@ export function DocumentWalletBrowser({
           className="card wallet-selected-document"
           aria-label="Selected document details"
         >
-          <h3>Selected document</h3>
+          <h3>Selected Document</h3>
           {selected ? (
             <>
               {!matches.some((doc) => doc.id === selected.id) ? (
@@ -257,7 +257,7 @@ export function DocumentWalletBrowser({
               </p>
               {selected.details}
               <Link className="btn btn-secondary" href={`/app/applicant/${applicantId}/sharing`}>
-                Review sharing permissions
+                Review Sharing Permissions
               </Link>
               <p className="wallet-ai-notice">
                 Sharing requires consent, an exact reviewed scope and recipient acceptance. AI

@@ -6,7 +6,7 @@ import { withSession } from '../../../../lib/session';
 import { AcceptInvitationForm } from './accept-form';
 
 export const metadata: Metadata = {
-  title: 'Team invitation',
+  title: 'Team Invitation',
   robots: { index: false, follow: false },
   referrer: 'no-referrer',
 };
@@ -46,7 +46,7 @@ export default async function AcceptInvitationPage({
       <div className="u-mb-150">
         <span className="eyebrow">Invitation</span>
         <h1 className="section-title" style={{ margin: '0.25rem 0 0' }}>
-          Join an organization
+          Join an Organization
         </h1>
       </div>
       <article className="card">
@@ -72,7 +72,7 @@ export default async function AcceptInvitationPage({
                 <Link
                   href={`/auth/sign-in?next=${encodeURIComponent(`/app/invitations/accept?token=${token}`)}`}
                 >
-                  Sign in with the invited email
+                  Sign In with the Invited Email
                 </Link>
                 .
               </p>

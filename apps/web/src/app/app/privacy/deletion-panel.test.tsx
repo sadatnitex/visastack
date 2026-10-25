@@ -32,18 +32,18 @@ describe('DeletionPanel', () => {
     const find = (text: string) =>
       Array.from(host.querySelectorAll('button')).find((b) => b.textContent === text);
 
-    expect(find('Yes, schedule deletion')).toBeUndefined();
+    expect(find('Yes, Schedule Deletion')).toBeUndefined();
     await act(async () => {
-      find('Request account deletion')?.click();
+      find('Request Account Deletion')?.click();
     });
     expect(host.textContent).toContain('You will have a 7-day grace window to cancel.');
-    expect(find('Yes, schedule deletion')?.getAttribute('type')).toBe('submit');
+    expect(find('Yes, Schedule Deletion')?.getAttribute('type')).toBe('submit');
 
     await act(async () => {
       find('Keep my account')?.click();
     });
-    expect(find('Yes, schedule deletion')).toBeUndefined();
-    expect(find('Request account deletion')).toBeDefined();
+    expect(find('Yes, Schedule Deletion')).toBeUndefined();
+    expect(find('Request Account Deletion')).toBeDefined();
     expect(confirmSpy).not.toHaveBeenCalled();
   });
 });

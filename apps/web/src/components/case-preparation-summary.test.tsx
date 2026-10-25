@@ -33,7 +33,7 @@ describe('case progress represents preparation and actual workflow state', () =>
     expect(html).toContain('25%');
     for (const text of [
       'Missing required',
-      'Needs review',
+      'Needs Review',
       'Unknown applicability',
       'Not applicable',
       'Optional not provided',
@@ -41,7 +41,7 @@ describe('case progress represents preparation and actual workflow state', () =>
       'not an approval probability',
     ])
       expect(html).toContain(text);
-    expect(html).toContain('<dt>Needs review</dt><dd>2</dd>');
+    expect(html).toContain('<dt>Needs Review</dt><dd>2</dd>');
     expect(html).toContain('<dt>Not applicable</dt><dd>1</dd>');
   });
   it('does not claim 100 percent when no required items exist', () => {
@@ -60,9 +60,9 @@ describe('case progress represents preparation and actual workflow state', () =>
       <CaseStageTracker
         state="UNDER_REVIEW"
         labels={{
-          UNDER_REVIEW: 'Under review',
-          IN_PROGRESS: 'In progress',
-          READY_TO_EXPORT: 'Ready to export',
+          UNDER_REVIEW: 'Under Review',
+          IN_PROGRESS: 'In Progress',
+          READY_TO_EXPORT: 'Ready to Export',
           CANCELLED: 'Cancelled',
         }}
         nextStates={['READY_TO_EXPORT', 'IN_PROGRESS', 'CANCELLED']}
@@ -70,9 +70,9 @@ describe('case progress represents preparation and actual workflow state', () =>
     );
     expect(html.match(/aria-current="step"/g)).toHaveLength(1);
     expect(html).toContain(
-      'aria-current="step"><span class="case-stage-marker" aria-hidden="true"></span><span>Under review',
+      'aria-current="step"><span class="case-stage-marker" aria-hidden="true"></span><span>Under Review',
     );
-    expect(html).toContain('Ready to export, In progress, Cancelled next');
+    expect(html).toContain('Ready to Export, In Progress, Cancelled next');
     expect(html).toContain('not a completed-stage history');
     expect(html).not.toContain('<button');
   });

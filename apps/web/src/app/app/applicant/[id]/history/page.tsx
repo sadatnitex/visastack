@@ -29,7 +29,7 @@ const STATUS_LABELS: Record<string, string> = {
 
 const METHOD_LABELS: Record<string, string> = {
   MANUAL: 'Manual',
-  DOCUMENT: 'From document',
+  DOCUMENT: 'From Document',
   API: 'API',
   SYSTEM: 'System',
 };
@@ -89,7 +89,7 @@ export default async function HistoryPage({
     <>
       <PageHeader
         eyebrow="Provenance"
-        title="Fact history"
+        title="Fact History"
         description="Every value is an immutable version - nothing is ever overwritten. This is the full, ordered trail with its provenance."
         as="h2"
       />
@@ -98,8 +98,8 @@ export default async function HistoryPage({
         <article className="card">
           <EmptyState
             icon="activity"
-            title="No history yet"
-            action={{ href: `/app/applicant/${id}/profile`, label: 'Open the profile' }}
+            title="No History Yet"
+            action={{ href: `/app/applicant/${id}/profile`, label: 'Open the Profile' }}
           >
             Every detail you add to the profile is kept with its date, so you can see what changed
             and when.

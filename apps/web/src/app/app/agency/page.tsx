@@ -11,7 +11,7 @@ export const metadata: Metadata = { title: 'Agencies' };
 export const dynamic = 'force-dynamic';
 
 const ORG_STATUS: Record<string, { label: string; tone: string }> = {
-  PENDING_VERIFICATION: { label: 'Pending verification', tone: 'badge-warning' },
+  PENDING_VERIFICATION: { label: 'Pending Verification', tone: 'badge-warning' },
   ACTIVE: { label: 'Active', tone: 'badge-success' },
   REJECTED: { label: 'Rejected', tone: 'badge-danger' },
   SUSPENDED: { label: 'Suspended', tone: 'badge-danger' },
@@ -32,10 +32,10 @@ export default async function AgencyPage() {
 
       <div className="grid">
         <article className="card">
-          <p className="card-kicker">Your organizations</p>
+          <p className="card-kicker">Your Organizations</p>
           <h2 className="card-title">Memberships</h2>
           {orgs.length === 0 ? (
-            <EmptyState icon="building" title="No organizations yet">
+            <EmptyState icon="building" title="No Organizations Yet">
               Apply to register your agency here. You become its owner, and a platform administrator
               must verify it before it can work with clients.
             </EmptyState>
@@ -76,7 +76,7 @@ export default async function AgencyPage() {
 
         <article className="card">
           <p className="card-kicker">New</p>
-          <h2 className="card-title">Apply to register an agency</h2>
+          <h2 className="card-title">Apply to Register an Agency</h2>
           <p className="card-body u-mb-125">
             You become the owner. New organizations start pending verification by a platform
             administrator.

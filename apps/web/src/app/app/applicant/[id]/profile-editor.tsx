@@ -259,7 +259,7 @@ function FieldRow({
         <SubmitButton pending={pending} idle="Save" busy="Saving…" className="btn btn-secondary" />
       </div>
       <details className="field-backdate">
-        <summary className="muted">Add the date this became true</summary>
+        <summary className="muted">Add the Date This Became True</summary>
         <div className="field-control">
           <input
             type="date"
@@ -542,7 +542,7 @@ function OtherItems({
           )}
           <SubmitButton
             pending={pending}
-            idle="Save this item"
+            idle="Save This Item"
             busy="Saving…"
             className="btn btn-secondary"
           />
@@ -593,7 +593,7 @@ function SectionFields({
                       : displayValue(field, current)}
                 </dd>
                 {current?.status === 'CONFLICTED' ? (
-                  <span className="badge badge-warning">Needs review</span>
+                  <span className="badge badge-warning">Needs Review</span>
                 ) : null}
               </div>
             );
@@ -602,7 +602,7 @@ function SectionFields({
       ) : null}
       {singles.length > 0 ? (
         <details className="profile-edit-section" open={search.trim() ? true : undefined}>
-          <summary>Edit these details</summary>
+          <summary>Edit These Details</summary>
           <div className="field-list">
             {singles.map((field) => {
               const applies = !notApplicable.has(field.key);
@@ -811,7 +811,7 @@ function SuggestionBar({
           ))}
         </select>
         <button type="submit" className="btn btn-secondary">
-          Show suggestions
+          Show Suggestions
         </button>
       </form>
       {view.suggestedFamily ? (
@@ -825,7 +825,7 @@ function SuggestionBar({
             </p>
             <SubmitButton
               pending={pending}
-              idle="Open suggested sections"
+              idle="Open Suggested Sections"
               busy="Opening…"
               className="btn btn-primary"
             />

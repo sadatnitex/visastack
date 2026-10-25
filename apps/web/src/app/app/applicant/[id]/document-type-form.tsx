@@ -26,7 +26,7 @@ export function DocumentTypeForm({
       <input type="hidden" name="applicantId" value={applicantId} />
       <input type="hidden" name="documentId" value={documentId} />
       <label className="muted u-fs-075" htmlFor={selectId}>
-        Kind of document
+        Kind of Document
       </label>
       <select id={selectId} name="docType" className="input" defaultValue={docType ?? ''}>
         <option value="">Not set</option>

@@ -20,7 +20,7 @@ export function InvitationLink({ url }: { readonly url: string }) {
     if (!navigator.share) return copy();
     try {
       await navigator.share({
-        title: 'VisaStack invitation',
+        title: 'VisaStack Invitation',
         text: 'Review your invitation on VisaStack. Create an account or sign in, then follow the instructions.',
         url,
       });
@@ -31,15 +31,15 @@ export function InvitationLink({ url }: { readonly url: string }) {
   return (
     <div className="field-list u-mt-100">
       <label htmlFor={id} className="field-label">
-        Private invitation link
+        Private Invitation Link
       </label>
       <input ref={input} id={id} className="input" value={url} readOnly />
       <div className="action-row">
         <button type="button" className="btn btn-secondary" onClick={copy}>
-          Copy link
+          Copy Link
         </button>
         <button type="button" className="btn btn-secondary" onClick={share}>
-          Share link
+          Share Link
         </button>
       </div>
       <p className="muted">

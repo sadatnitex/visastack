@@ -5,7 +5,7 @@ import { PageHeader } from '../../../../../../components/ui';
 import { isPlatformAdmin } from '../../../../../../lib/admin';
 import { withSession } from '../../../../../../lib/session';
 
-export const metadata: Metadata = { title: 'Rule pack changes' };
+export const metadata: Metadata = { title: 'Rule Pack Changes' };
 
 export const dynamic = 'force-dynamic';
 
@@ -59,7 +59,7 @@ export default async function PackVersionDiffPage({
       <PageHeader
         back={{ href: `/app/admin/packs/${packId}`, label: data.pack.name }}
         eyebrow={`Pack · ${data.pack.key} · RUL-05`}
-        title="Version diff"
+        title="Version Diff"
         description={
           data.diff
             ? `Version ${data.diff.fromVersion.version} to Version ${data.diff.toVersion.version}`
@@ -73,7 +73,7 @@ export default async function PackVersionDiffPage({
         </article>
       ) : data.diff ? (
         <article className="card">
-          <p className="card-kicker">Requirement changes</p>
+          <p className="card-kicker">Requirement Changes</p>
           <h2 className="card-title">
             {data.diff.entries.length} requirement{data.diff.entries.length === 1 ? '' : 's'} total
           </h2>

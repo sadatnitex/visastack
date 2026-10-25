@@ -25,12 +25,12 @@ describe('current contextual navigation contract', () => {
   it('uses the selected owned traveller for the six principal destinations, then offers the country rules', () => {
     const nav = workspaceNavigation(`/app/applicant/${p2}/profile`, access);
     expect(nav.name).toBe('Synthetic Family');
-    expect(nav.caption).toBe('Managed traveller');
+    expect(nav.caption).toBe('Managed Traveller');
     expect(nav.primary.map((link) => link.label)).toEqual([
       'Overview',
-      'My profile',
+      'My Profile',
       'Documents',
-      'Visa cases',
+      'Visa Cases',
       'Sharing',
       'Notifications',
       'Countries',
@@ -43,7 +43,7 @@ describe('current contextual navigation contract', () => {
       '/app/privacy',
     );
     expect(nav.tools.map((link) => link.label)).toEqual(
-      expect.arrayContaining(['Shared with me', 'Evidence requests', 'Dates & expiry', 'History']),
+      expect.arrayContaining(['Shared with Me', 'Evidence Requests', 'Dates & Expiry', 'History']),
     );
   });
   it('offers the country rules even before a traveller exists, and marks them current on their own pages', () => {
@@ -61,7 +61,7 @@ describe('current contextual navigation contract', () => {
   });
   it('keeps first-person creation and agency entry available without fabricated records', () => {
     const nav = workspaceNavigation('/app', { travellers: [], agencies: [], platform: null });
-    expect(nav.primary).toContainEqual({ href: '/app/applicants', label: 'Add a traveller' });
+    expect(nav.primary).toContainEqual({ href: '/app/applicants', label: 'Add a Traveller' });
     expect(nav.primary.some((link) => link.href.includes('undefined'))).toBe(false);
   });
   it('never selects a stale or unauthorized traveller or organization', () => {
@@ -74,22 +74,22 @@ describe('current contextual navigation contract', () => {
       'Overview',
       'Clients',
       'Cases',
-      'Evidence requests',
+      'Evidence Requests',
       'Team',
-      'Case activity',
+      'Case Activity',
       'Countries',
     ]);
     // The country rules open inside the agency workspace, so the sidebar does not switch to the personal space.
     expect(nav.primary.at(-1)).toEqual({ href: `/app/agency/${o1}/countries`, label: 'Countries' });
     expect(nav.primary.every((link) => link.href.startsWith(`/app/agency/${o1}`))).toBe(true);
-    expect(nav.tools).toContainEqual({ href: `/app/agency/${o1}/plan`, label: 'Plan & usage' });
+    expect(nav.tools).toContainEqual({ href: `/app/agency/${o1}/plan`, label: 'Plan & Usage' });
   });
   it('does not offer administrator-only agency actions to a case worker', () => {
     const nav = workspaceNavigation(`/app/agency/${o2}/cases`, access);
     expect(nav.primary.map((link) => link.label)).toEqual([
       'Overview',
       'Cases',
-      'Case activity',
+      'Case Activity',
       'Countries',
     ]);
     expect(nav.settings.some((link) => link.label === 'Settings')).toBe(false);
@@ -101,14 +101,14 @@ describe('current contextual navigation contract', () => {
       'Organizations',
       'Activity',
       'Providers',
-      'Costs & plans',
+      'Costs & Plans',
       'Security',
     ]);
     expect(workspaceNavigation('/app/admin', access).tools.map((link) => link.label)).toEqual([
-      'Rules & packs',
-      'AI settings',
-      'Privacy operations',
-      'Platform access',
+      'Rules & Packs',
+      'AI Settings',
+      'Privacy Operations',
+      'Platform Access',
       'Complaints',
     ]);
   });
@@ -116,7 +116,7 @@ describe('current contextual navigation contract', () => {
     const limited = { ...access, platform: { owner: false, ai: false, complaints: false } };
     expect(labels('/app/admin', limited)).not.toContain('Members');
     const tools = workspaceNavigation('/app/admin', limited).tools.map((link) => link.label);
-    expect(tools).not.toContain('AI settings');
+    expect(tools).not.toContain('AI Settings');
     expect(tools).not.toContain('Complaints');
     expect(workspaceNavigation('/app/admin', { ...access, platform: null }).kind).toBe(
       'unavailable',
@@ -129,9 +129,9 @@ describe('current contextual navigation contract', () => {
     expect(nav.name).toBe('Synthetic Family');
     expect(
       nav.primary.filter((link) => isCurrentPath(path, link)).map((link) => link.label),
-    ).toEqual(['Visa cases']);
+    ).toEqual(['Visa Cases']);
     expect(workspaceNavigation('/app/mission/another-case', access, subject).name).toBe(
-      'Visa case',
+      'Visa Case',
     );
   });
   it('does not accept a subject outside the existing owner-authorized context list', () => {

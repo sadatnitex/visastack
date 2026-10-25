@@ -36,7 +36,7 @@ export default async function SignInPage({
             id="email"
             name="email"
             type="email"
-            label="Email address"
+            label="Email Address"
             autoComplete="email"
             required
             maxLength={254}
@@ -63,7 +63,7 @@ export default async function SignInPage({
       <p className="card-body">
         New here?{' '}
         <Link href={`/auth/sign-up?next=${encodeURIComponent(safeReturnPath(next))}`}>
-          Create an account
+          Create an Account
         </Link>
       </p>
     </AuthShell>

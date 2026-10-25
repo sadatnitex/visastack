@@ -124,7 +124,7 @@ export function DocumentUploader({
           fileRef.current?.click();
         }}
       >
-        Take a photo
+        Take a Photo
       </button>
       {picked ? (
         <output className="muted" style={{ display: 'block', fontSize: 'var(--text-small)' }}>
@@ -134,7 +134,7 @@ export function DocumentUploader({
       {kindGroups.length > 0 ? (
         <div className="document-type-form">
           <label className="muted u-fs-075" htmlFor={kindId}>
-            Kind of document (optional)
+            Kind of Document (Optional)
           </label>
           <select
             id={kindId}
@@ -178,7 +178,7 @@ export function DocumentUploader({
       ) : null}
       <SubmitButton
         pending={pending}
-        idle="Upload document"
+        idle="Upload Document"
         busy="Uploading…"
         className="btn btn-primary"
       />

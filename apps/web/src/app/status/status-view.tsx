@@ -63,7 +63,7 @@ export function StatusView({
     <section className="section container">
       <div className="section-head status-head">
         <span className="eyebrow">Live</span>
-        <h1 className="section-title u-m-0">What works today</h1>
+        <h1 className="section-title u-m-0">What Works Today</h1>
         {/* The answer comes first. <output> is what a screen reader announces when it changes. */}
         <output className={`${badgeClass(verdict.tone)} status-verdict`}>{verdict.label}</output>
         <p className="section-sub u-m-0">

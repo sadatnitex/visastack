@@ -31,8 +31,8 @@ export function ConsentButton({
   const english = locale === 'en';
   const action = english
     ? granted
-      ? 'Turn off'
-      : 'Turn on'
+      ? 'Turn Off'
+      : 'Turn On'
     : granted
       ? t('consent.action.revoke')
       : t('consent.action.grant');

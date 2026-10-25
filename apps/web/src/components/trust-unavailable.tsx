@@ -11,7 +11,7 @@ export function TrustUnavailable({ withinPage = false }: { readonly withinPage?:
   return (
     <section className="section container">
       <article className="card" aria-labelledby="trust-unavailable-title">
-        <p className="card-kicker">Route information</p>
+        <p className="card-kicker">Route Information</p>
         <Heading className="card-title" id="trust-unavailable-title">
           Route information is not available right now
         </Heading>
@@ -22,10 +22,10 @@ export function TrustUnavailable({ withinPage = false }: { readonly withinPage?:
         </p>
         <div className="cta-row u-mt-100">
           <Link className="btn btn-primary" href="/trust">
-            Try again
+            Try Again
           </Link>
           <Link className="btn btn-secondary" href="/">
-            Back to home
+            Back to Home
           </Link>
         </div>
       </article>

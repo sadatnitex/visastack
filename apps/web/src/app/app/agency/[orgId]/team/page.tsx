@@ -7,7 +7,7 @@ import { InvitationRevokeButton } from '../invitation-revoke-button';
 import { AddMemberForm } from '../member-form';
 import { MemberToggleButton } from '../member-toggle-button';
 
-export const metadata: Metadata = { title: 'Agency team' };
+export const metadata: Metadata = { title: 'Agency Team' };
 
 export const dynamic = 'force-dynamic';
 

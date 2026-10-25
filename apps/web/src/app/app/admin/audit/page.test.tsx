@@ -41,7 +41,7 @@ describe('Platform > Audit', () => {
   it('lists the newest audit events and says how many it shows', async () => {
     const html = await renderServer(Page());
     const text = textOf(html);
-    expect(text).toContain('Recent audit events');
+    expect(text).toContain('Recent Audit Events');
     expect(text).toContain('The last 2 entries');
     expect(text).toContain('ACCESS_DENIED');
     expect(text).toContain('MISSION_CREATED');
@@ -51,7 +51,7 @@ describe('Platform > Audit', () => {
 
   it('says there is nothing yet rather than an empty box', async () => {
     mocks.listRecentAuditEvents.mockResolvedValue([]);
-    expect(textOf(await renderServer(Page()))).toContain('No audit events yet');
+    expect(textOf(await renderServer(Page()))).toContain('No Audit Events Yet');
   });
 
   it('refuses anyone who is not a platform administrator, without reading the trail', async () => {

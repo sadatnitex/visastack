@@ -145,12 +145,12 @@ describe('Platform > Operations', () => {
   it('uses real aggregate totals, an explicit no-measurement state and a separate operational rail', async () => {
     const html = await renderServer(Page());
     const text = textOf(html);
-    expect(text).toContain('Registered accounts');
-    expect(text).toContain('Traveller records');
+    expect(text).toContain('Registered Accounts');
+    expect(text).toContain('Traveller Records');
     expect(text).toContain('Not measured');
     expect(html).toContain('admin-reference-working-area');
     expect(html).toContain('admin-reference-rail');
-    expect(text).toContain('Recorded activity, last 30 days');
+    expect(text).toContain('Recorded Activity, Last 30 Days');
   });
   it('shows unavailable global counts when the independent aggregate reader fails', async () => {
     mocks.getPlatformOverview.mockRejectedValue(new Error('Read unavailable'));
@@ -167,7 +167,7 @@ describe('Platform > Operations', () => {
   it('shows every signal with its status and the explanation behind it', async () => {
     const html = await renderServer(Page());
     const text = textOf(html);
-    expect(text).toContain('Operational signals');
+    expect(text).toContain('Operational Signals');
     expect(text).toContain('Database migrations');
     expect(text).toContain('1 migration pending');
     expect(text).toContain('Critical');
@@ -187,7 +187,7 @@ describe('Platform > Operations', () => {
   it('shows the readiness detail, naming what is missing but never a value', async () => {
     const html = await renderServer(Page());
     const text = textOf(html);
-    expect(text).toContain('Platform readiness detail');
+    expect(text).toContain('Platform Readiness Detail');
     expect(text).toContain('Degraded: something required is missing');
     expect(text).toContain('1 pending: 0083_example');
     expect(text).toContain('missing: NEON_AUTH_COOKIE_SECRET');
@@ -196,14 +196,14 @@ describe('Platform > Operations', () => {
 
   it('labels the pilot scorecard in product words', async () => {
     const text = textOf(await renderServer(Page()));
-    expect(text).toContain('Product scorecard');
-    expect(text).toContain('Cases started');
-    expect(text).toContain('Accounts created');
+    expect(text).toContain('Product Scorecard');
+    expect(text).toContain('Cases Started');
+    expect(text).toContain('Accounts Created');
   });
 
   it('explains that the learning-area figures wait for a database update instead of showing zeros', async () => {
     const text = textOf(await renderServer(Page()));
-    expect(text).toContain('Learning areas');
+    expect(text).toContain('Learning Areas');
     expect(text).toContain('Waiting for a database update');
   });
 
@@ -221,7 +221,7 @@ describe('Platform > Operations', () => {
 
   it('says commercial mode does not apply yet while the deployment is a controlled pilot', async () => {
     const text = textOf(await renderServer(Page()));
-    expect(text).toContain('Commercial readiness');
+    expect(text).toContain('Commercial Readiness');
     expect(text).toContain('controlled_pilot');
     expect(text).toContain('this guard does not apply yet');
     expect(mocks.evaluateCommercialReadiness).not.toHaveBeenCalled();
@@ -256,8 +256,8 @@ describe('Platform > Operations', () => {
     expect(text).toContain('AI cost');
     expect(text).toContain('product scorecard');
     // the rest of the page is still there
-    expect(text).toContain('Operational signals');
-    expect(text).toContain('Platform readiness detail');
+    expect(text).toContain('Operational Signals');
+    expect(text).toContain('Platform Readiness Detail');
     expect(html).toContain('role="alert"');
   });
 });

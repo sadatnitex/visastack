@@ -32,7 +32,7 @@ describe('traveller navigation names (directive Part 9 section 1)', () => {
     expect(labels(PRIMARY_NAV).slice(0, 5)).toEqual([
       'Overview',
       'Applicants',
-      'Shared with me',
+      'Shared with Me',
       'Alerts',
       'Privacy',
     ]);
@@ -102,7 +102,7 @@ describe('agency navigation (directive Part 9 section 1)', () => {
       'Clients',
       'Cases',
       'Team',
-      'Usage & billing',
+      'Usage & Billing',
       'Settings',
     ]);
   });
@@ -111,7 +111,7 @@ describe('agency navigation (directive Part 9 section 1)', () => {
     expect(labels(agencyTabs('o1', { admin: false }))).toEqual([
       'Dashboard',
       'Cases',
-      'Usage & billing',
+      'Usage & Billing',
     ]);
   });
 
@@ -140,7 +140,7 @@ describe('agency navigation (directive Part 9 section 1)', () => {
     expect(onlyCurrent('/app/agency/o1/clients')).toEqual(['Clients']);
     expect(onlyCurrent('/app/agency/o1/cases')).toEqual(['Cases']);
     expect(onlyCurrent('/app/agency/o1/team')).toEqual(['Team']);
-    expect(onlyCurrent('/app/agency/o1/plan')).toEqual(['Usage & billing']);
+    expect(onlyCurrent('/app/agency/o1/plan')).toEqual(['Usage & Billing']);
     expect(onlyCurrent('/app/agency/o1/settings')).toEqual(['Settings']);
   });
 });

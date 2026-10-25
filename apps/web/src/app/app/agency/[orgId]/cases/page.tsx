@@ -4,7 +4,7 @@ import { withSession } from '../../../../../lib/session';
 import { loadCases, loadMembers, loadOrgAccess } from '../console-data';
 import { MissionCollaboration } from '../mission-collaboration';
 
-export const metadata: Metadata = { title: 'Agency cases' };
+export const metadata: Metadata = { title: 'Agency Cases' };
 
 export const dynamic = 'force-dynamic';
 
@@ -42,10 +42,10 @@ export default async function AgencyCasesPage({
       </p>
       {data.cases.length === 0 ? (
         <EmptyState
-          title="No cases yet"
+          title="No Cases Yet"
           icon="briefcase"
           {...(data.admin
-            ? { action: { href: `/app/agency/${orgId}/clients`, label: 'Invite a client' } }
+            ? { action: { href: `/app/agency/${orgId}/clients`, label: 'Invite a Client' } }
             : {})}
         >
           {data.admin

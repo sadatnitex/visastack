@@ -14,16 +14,16 @@ import { GrantRoleForm, InviteForm } from '../admin-forms';
 import { AdminRestricted } from '../admin-restricted';
 import { FailedSectionsBanner } from '../failed-sections-banner';
 
-export const metadata: Metadata = { title: 'Platform access' };
+export const metadata: Metadata = { title: 'Platform Access' };
 
 export const dynamic = 'force-dynamic';
 
 const PLATFORM_ROLE_LABELS: Record<string, string> = {
-  PLATFORM_OWNER: 'Platform owner',
-  SECURITY_ADMIN: 'Security admin',
-  COMPLIANCE_ADMIN: 'Compliance admin',
-  SUPPORT_ADMIN: 'Support admin',
-  QUALITY_ADMIN: 'Quality admin',
+  PLATFORM_OWNER: 'Platform Owner',
+  SECURITY_ADMIN: 'Security Admin',
+  COMPLIANCE_ADMIN: 'Compliance Admin',
+  SUPPORT_ADMIN: 'Support Admin',
+  QUALITY_ADMIN: 'Quality Admin',
 };
 
 /** Platform roles, pilot sign-in invitations, and accounts still waiting to be tied to a sign-in identity. */
@@ -56,7 +56,7 @@ export default async function AdminAccessPage() {
 
           <article className="card u-mb-150" id="admin-security">
             <p className="card-kicker">Identity</p>
-            <h2 className="card-title">Platform roles</h2>
+            <h2 className="card-title">Platform Roles</h2>
             <p className="card-body u-mb-100">
               Platform roles determine who can manage the service. Role history is retained when
               access is revoked.
@@ -98,8 +98,8 @@ export default async function AdminAccessPage() {
           </article>
 
           <article className="card u-mb-150" id="admin-pilot-access">
-            <p className="card-kicker">Controlled pilot</p>
-            <h2 className="card-title">Pilot access</h2>
+            <p className="card-kicker">Controlled Pilot</p>
+            <h2 className="card-title">Pilot Access</h2>
             <p className="card-body u-mb-100">
               This is an invite-only controlled pilot: an authenticated identity that isn't invited
               or allowlisted is denied a local account. An invitation is never deleted, only revoked
@@ -162,7 +162,7 @@ export default async function AdminAccessPage() {
           {data.unboundAccounts.length > 0 ? (
             <article className="card u-mb-150">
               <p className="card-kicker">Identity</p>
-              <h2 className="card-title">Legacy sign-in references</h2>
+              <h2 className="card-title">Legacy Sign-In References</h2>
               <p className="card-body u-mb-100">
                 This report tracks the older sign-in system. A Neon Auth account can appear here
                 even when its current sign-in works. This list does not grant access or transfer

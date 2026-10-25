@@ -17,7 +17,7 @@ import {
   normalizeSnapshotFacts,
 } from './snapshot-facts';
 
-export const metadata: Metadata = { title: 'Case snapshot' };
+export const metadata: Metadata = { title: 'Case Snapshot' };
 
 export const dynamic = 'force-dynamic';
 
@@ -84,7 +84,7 @@ const PACKET_STATES: ReadonlySet<string> = new Set([
 const RESULT_STATE_LABELS: Record<RequirementResultState, { label: string; tone: string }> = {
   CRITICAL_GAP: { label: 'Missing', tone: 'badge-danger' },
   CONFLICTING: { label: 'Two Values', tone: 'badge-danger' },
-  EXPIRING_STALE: { label: 'Out Of Date', tone: 'badge-danger' },
+  EXPIRING_STALE: { label: 'Out of Date', tone: 'badge-danger' },
   UNVERIFIED: { label: 'To Confirm', tone: 'badge-warning' },
   ATTENTION: { label: 'Optional', tone: 'badge-neutral' },
   SATISFIED: { label: 'On File', tone: 'badge-success' },
@@ -130,7 +130,7 @@ export default async function MissionSnapshotPage({
     <section className="section container">
       <PageHeader
         back={{ href: `/app/mission/${mission.id}`, label: mission.title }}
-        eyebrow={isPacket ? 'Application packet' : 'Working snapshot'}
+        eyebrow={isPacket ? 'Application Packet' : 'Working snapshot'}
         title={`Version ${snapshot.version}`}
         description={`Captured while ${content.state} · checksum ${snapshot.checksum}`}
         actions={
@@ -159,8 +159,8 @@ export default async function MissionSnapshotPage({
 
       {content.requirementMapping.length > 0 ? (
         <article className="card u-mb-150">
-          <p className="card-kicker">Requirement mapping</p>
-          <h2 className="card-title">What satisfies each requirement</h2>
+          <p className="card-kicker">Requirement Mapping</p>
+          <h2 className="card-title">What Satisfies Each Requirement</h2>
           <p className="muted" style={{ fontSize: 'var(--text-small)', marginBottom: '1rem' }}>
             Each pack requirement resolved to the specific evidence backing it, as of this snapshot.
           </p>
@@ -215,7 +215,7 @@ export default async function MissionSnapshotPage({
       <div className="grid">
         <article className="card">
           <p className="card-kicker">Profile</p>
-          <h2 className="card-title">Facts at this snapshot</h2>
+          <h2 className="card-title">Facts at This Snapshot</h2>
           {facts.length === 0 ? (
             <p className="card-body">No facts recorded.</p>
           ) : (
@@ -235,7 +235,7 @@ export default async function MissionSnapshotPage({
 
         <article className="card">
           <p className="card-kicker">Document Vault</p>
-          <h2 className="card-title">Documents at this snapshot</h2>
+          <h2 className="card-title">Documents at This Snapshot</h2>
           {content.documents.length === 0 ? (
             <p className="card-body">No documents recorded.</p>
           ) : (

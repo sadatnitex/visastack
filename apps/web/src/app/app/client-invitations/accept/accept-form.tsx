@@ -55,7 +55,7 @@ export function AcceptClientInvitationForm({
       {selection === 'new' ? (
         <div className="field-row">
           <label className="field-label" htmlFor="newDisplayName">
-            Profile name (optional)
+            Profile Name (Optional)
           </label>
           <input
             id="newDisplayName"
@@ -69,7 +69,7 @@ export function AcceptClientInvitationForm({
       <div>
         <SubmitButton
           pending={pending}
-          idle="Grant access"
+          idle="Grant Access"
           busy="Granting access…"
           className="btn btn-primary"
         />

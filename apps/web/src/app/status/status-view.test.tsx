@@ -37,7 +37,7 @@ function render(props: Partial<Parameters<typeof StatusView>[0]> = {}) {
 describe('the status page', () => {
   it('opens with one plain verdict that is announced to screen readers', () => {
     const html = render();
-    expect(textOf(html)).toContain('What works today');
+    expect(textOf(html)).toContain('What Works Today');
     // <output> is the element whose changes a screen reader announces (a status region).
     expect(html).toContain(
       '<output class="badge badge-success status-verdict">Everything is working</output>',
@@ -51,9 +51,9 @@ describe('the status page', () => {
     const text = textOf(render());
     expect(text).toContain('Signing in Working');
     expect(text).toContain('Uploading documents Working');
-    expect(text).toContain('AI suggestions from documents Not set up yet');
-    expect(text).toContain('Virus scanning of uploads Not set up yet');
-    expect(text).toContain('Downloading original files Switched off for now');
+    expect(text).toContain('AI suggestions from documents Not Set Up Yet');
+    expect(text).toContain('Virus scanning of uploads Not Set Up Yet');
+    expect(text).toContain('Downloading original files Switched Off for Now');
   });
 
   it('splits features into what can be used now and what is not switched on yet', () => {

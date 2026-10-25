@@ -7,21 +7,21 @@ it('keeps unavailable figures distinct from measured zero and provider bills', (
       { ...(value === undefined ? {} : { evidenceBytes: value, aiCostUnits: value }) },
       {},
     );
-    expect(rows.find((row) => row.label === 'Tracked evidence storage')?.reading).toBe(
+    expect(rows.find((row) => row.label === 'Tracked Evidence Storage')?.reading).toBe(
       'Unavailable',
     );
-    expect(rows.find((row) => row.label === 'Tracked AI usage')?.reading).toBe('Unavailable');
+    expect(rows.find((row) => row.label === 'Tracked AI Usage')?.reading).toBe('Unavailable');
   }
   const zero = describeProviderOperations({ evidenceBytes: 0, aiCostUnits: 0 }, {});
-  expect(zero.find((row) => row.label === 'Tracked evidence storage')?.reading).toBe('0 bytes');
-  expect(zero.find((row) => row.label === 'Provider bills and free-plan headroom')?.source).toBe(
+  expect(zero.find((row) => row.label === 'Tracked Evidence Storage')?.reading).toBe('0 bytes');
+  expect(zero.find((row) => row.label === 'Provider Bills and Free-Plan Headroom')?.source).toBe(
     'Not measured',
   );
 });
 it('does not infer configured application delivery from a key alone', () => {
   const rows = describeProviderOperations({}, { RESEND_API_KEY: 'private-marker' });
-  expect(rows.find((row) => row.label === 'Application email')?.reading).toBe('Not configured');
-  expect(rows.find((row) => row.label === 'Email delivery receipts')?.reading).toBe(
+  expect(rows.find((row) => row.label === 'Application Email')?.reading).toBe('Not configured');
+  expect(rows.find((row) => row.label === 'Email Delivery Receipts')?.reading).toBe(
     'Not configured',
   );
 });
@@ -36,10 +36,10 @@ it('never exposes credentials or treats their presence as recovery proof', () =>
       KMS_LOCAL_MASTER_KEY_BASE64: 'private-marker',
     },
   );
-  expect(rows.find((row) => row.label === 'Application email')?.reading).toBe(
+  expect(rows.find((row) => row.label === 'Application Email')?.reading).toBe(
     'Configuration present',
   );
-  expect(rows.find((row) => row.label === 'Encryption key recovery')?.reading).toBe(
+  expect(rows.find((row) => row.label === 'Encryption Key Recovery')?.reading).toBe(
     'Key present; recovery unverified',
   );
   expect(JSON.stringify(rows)).not.toContain('private-marker');
@@ -48,11 +48,11 @@ it('never exposes credentials or treats their presence as recovery proof', () =>
 
 it('does not mistake environment-key absence for database-managed AI status', () => {
   const absent = describeProviderOperations({}, {});
-  const row = absent.find((item) => item.label === 'AI environment key');
+  const row = absent.find((item) => item.label === 'AI Environment Key');
   expect(row?.reading).toBe('No supported environment key');
   expect(row?.detail).toContain('database-managed provider');
   const present = describeProviderOperations({}, { OPENAI_API_KEY: 'private-marker' });
-  expect(present.find((item) => item.label === 'AI environment key')?.reading).toBe(
+  expect(present.find((item) => item.label === 'AI Environment Key')?.reading).toBe(
     'Environment key present',
   );
   expect(JSON.stringify(present)).not.toContain('private-marker');
@@ -74,18 +74,18 @@ it('gives every row a plain status and a one-sentence headline that never overcl
     expect(row.headline, row.label).not.toMatch(/\bgood\b|\bhealthy\b|\bverified\b/i);
   }
   const standing = (label: string) => rows.find((row) => row.label === label)?.standing;
-  expect(standing('Application email')).toBe('Set Up');
-  expect(standing('Tracked evidence storage')).toBe('Recorded');
-  expect(standing('Encryption key recovery')).toBe('Not Proven');
-  expect(standing('Backup recovery')).toBe('Not Proven');
-  expect(standing('Provider bills and free-plan headroom')).toBe('Not Measured');
+  expect(standing('Application Email')).toBe('Set Up');
+  expect(standing('Tracked Evidence Storage')).toBe('Recorded');
+  expect(standing('Encryption Key Recovery')).toBe('Not Proven');
+  expect(standing('Backup Recovery')).toBe('Not Proven');
+  expect(standing('Provider Bills and Free-Plan Headroom')).toBe('Not Measured');
   expect(JSON.stringify(rows)).not.toContain('private-marker');
 });
 
 it('says a missing sender is not set up instead of calling it set up', () => {
   const rows = describeProviderOperations({}, {});
-  expect(rows.find((row) => row.label === 'Application email')?.standing).toBe('Not Set Up');
-  expect(rows.find((row) => row.label === 'Tracked evidence storage')?.standing).toBe(
+  expect(rows.find((row) => row.label === 'Application Email')?.standing).toBe('Not Set Up');
+  expect(rows.find((row) => row.label === 'Tracked Evidence Storage')?.standing).toBe(
     'Not Measured',
   );
 });

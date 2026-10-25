@@ -66,7 +66,7 @@ export function RequestEvidenceForm({
             Case (only needed if this organization's access is limited to one case)
           </label>
           <select id="missionId" name="missionId" className="input" defaultValue="">
-            <option value="">Applicant-wide (default)</option>
+            <option value="">Applicant-Wide (Default)</option>
             {missions.map((m) => (
               <option key={m.missionId} value={m.missionId}>
                 {m.applicantName}: {m.title}
@@ -86,8 +86,8 @@ export function RequestEvidenceForm({
           value={kind}
           onChange={(event) => setKind(event.target.value === 'DOCUMENT' ? 'DOCUMENT' : 'FIELD')}
         >
-          <option value="FIELD">A detail from the profile</option>
-          <option value="DOCUMENT">A document</option>
+          <option value="FIELD">A Detail from the Profile</option>
+          <option value="DOCUMENT">A Document</option>
         </select>
       </div>
       <div className="field-row">
@@ -130,7 +130,7 @@ export function RequestEvidenceForm({
                   ))}
                 </optgroup>
               ))}
-              <option value={OTHER_DOCUMENT}>Something else (type its name)</option>
+              <option value={OTHER_DOCUMENT}>Something Else (Type Its Name)</option>
             </select>
             {documentChoice === OTHER_DOCUMENT ? (
               <input
@@ -150,7 +150,7 @@ export function RequestEvidenceForm({
       </div>
       <div className="field-row">
         <label className="field-label" htmlFor="message">
-          Message (optional)
+          Message (Optional)
         </label>
         <input
           id="message"
@@ -162,14 +162,14 @@ export function RequestEvidenceForm({
       </div>
       <div className="field-row">
         <label className="field-label" htmlFor="dueDate">
-          Due date (optional)
+          Due Date (Optional)
         </label>
         <input id="dueDate" name="dueDate" type="date" className="input" />
       </div>
       <div>
         <SubmitButton
           pending={pending}
-          idle="Request evidence"
+          idle="Request Evidence"
           busy="Sending…"
           className="btn btn-primary"
         />

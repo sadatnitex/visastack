@@ -28,7 +28,7 @@ export function OpenVersionButton({ packId }: { readonly packId: string }) {
         <input type="hidden" name="packId" value={packId} />
         <SubmitButton
           pending={pending}
-          idle="Open new draft version"
+          idle="Open New Draft Version"
           busy="Opening…"
           className="btn btn-secondary"
         />
@@ -53,7 +53,7 @@ export function ApproveVersionButton({
         <input type="hidden" name="packVersionId" value={packVersionId} />
         <SubmitButton
           pending={pending}
-          idle="Approve version"
+          idle="Approve Version"
           busy="Approving…"
           className="btn btn-primary"
         />
@@ -87,7 +87,7 @@ export function PublishVersionButton({
         <input type="hidden" name="packVersionId" value={packVersionId} />
         <SubmitButton
           pending={pending}
-          idle="Publish version"
+          idle="Publish Version"
           busy="Publishing…"
           className="btn btn-primary"
         />
@@ -127,7 +127,7 @@ export function WithdrawVersionButton({
         <input type="hidden" name="reason" value="" />
         <SubmitButton
           pending={pending}
-          idle="Withdraw version"
+          idle="Withdraw Version"
           busy="Withdrawing…"
           className="btn btn-danger"
         />

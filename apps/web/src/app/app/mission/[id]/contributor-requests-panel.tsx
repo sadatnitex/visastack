@@ -71,7 +71,7 @@ export function ContributorRequestsPanel({
         <input type="hidden" name="missionId" value={missionId} />
         <div className="field-row">
           <label className="field-label" htmlFor="contributorEmail">
-            Contributor email
+            Contributor Email
           </label>
           <input
             id="contributorEmail"
@@ -84,7 +84,7 @@ export function ContributorRequestsPanel({
         </div>
         <div className="field-row">
           <label className="field-label" htmlFor="docType">
-            What's needed (exactly one document)
+            What's Needed (Exactly One Document)
           </label>
           <input
             id="docType"
@@ -110,14 +110,14 @@ export function ContributorRequestsPanel({
         </div>
         <div className="field-row">
           <label className="field-label" htmlFor="message">
-            Message (optional)
+            Message (Optional)
           </label>
           <input id="message" name="message" type="text" className="input" />
         </div>
         <div>
           <SubmitButton
             pending={pending}
-            idle="Ask for this"
+            idle="Ask for This"
             busy="Creating…"
             className="btn btn-secondary"
           />

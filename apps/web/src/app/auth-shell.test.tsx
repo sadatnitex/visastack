@@ -20,7 +20,7 @@ vi.mock('./actions', () => ({ setLocaleAction: vi.fn() }));
 vi.mock('../lib/admin', () => ({ isPlatformAdmin: async () => false }));
 vi.mock('../lib/workspace-chrome', () => ({
   loadWorkspaceChrome: async () => ({
-    accountName: 'Your account',
+    accountName: 'Your Account',
     travellers: [],
     agencies: [],
     platform: null,

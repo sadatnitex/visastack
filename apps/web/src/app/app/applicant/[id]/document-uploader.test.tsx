@@ -22,7 +22,7 @@ describe('the upload form', () => {
   it('does not print a size limit it has not proven, and offers the camera', () => {
     const text = textOf(html);
     expect(text).not.toMatch(/up to \d+ ?MB/);
-    expect(text).toContain('Take a photo');
+    expect(text).toContain('Take a Photo');
     expect(html).toContain('type="file"');
     expect(html).toContain('name="file"');
   });
@@ -34,7 +34,7 @@ describe('the upload form', () => {
 
   it('is a normal submit button that does not become disabled while an upload runs', () => {
     expect(html).toContain('type="submit"');
-    expect(html).toContain('>Upload document</button>');
+    expect(html).toContain('>Upload Document</button>');
     expect(html).not.toContain('disabled');
   });
 

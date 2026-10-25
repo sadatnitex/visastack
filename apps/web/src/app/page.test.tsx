@@ -31,7 +31,7 @@ describe('the public home page (Harbor C1, WP-L1)', () => {
     const text = textOf(await render());
     expect(text).toContain('Your documents.');
     expect(text).toContain('Ready when you are.');
-    expect(text).toContain('Invite-only pilot');
+    expect(text).toContain('Invite-Only Pilot');
     expect(text).toContain(
       'Keep a reusable travel record, prepare your next application and share only what you choose.',
     );
@@ -54,7 +54,7 @@ describe('the public home page (Harbor C1, WP-L1)', () => {
     expect(text).not.toContain('reuse the right information in a new case');
     // D5: Prepare again has not shipped, so its card is replaced by the expiry reminder.
     expect(text).not.toContain('Prepared again, faster');
-    expect(text).toContain('Reminder before it expires');
+    expect(text).toContain('Reminder Before It Expires');
     // D5: the phone's bottom tab is the Record, not Documents.
     expect(text).toContain('▤ Record');
     // CL10: the access end date is optional.
@@ -151,10 +151,10 @@ describe('the public home page (Harbor C1, WP-L1)', () => {
       'Ready when you are.',
       'Less paperwork. More control.',
       'Every visa starts with the same scramble',
-      'Three simple steps',
-      'Switched on step by step',
+      'Three Simple Steps',
+      'Switched On Step by Step',
       'Calmer for the traveller, clearer for the agency',
-      'How VisaStack treats your information',
+      'How VisaStack Treats Your Information',
       'Honest about where we are',
       'Stop starting from zero.',
     ].map((heading) => html.indexOf(heading));

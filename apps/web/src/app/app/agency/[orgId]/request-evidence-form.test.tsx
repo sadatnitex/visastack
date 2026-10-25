@@ -22,7 +22,7 @@ const visibleText = html.replace(/<[^>]*>/g, '|');
 describe('RequestEvidenceForm wording', () => {
   it('shows plain words and no stored codes as visible text', () => {
     expect(visibleText).toContain('What do you need?');
-    expect(visibleText).toContain('A detail from the profile');
+    expect(visibleText).toContain('A Detail from the Profile');
     expect(visibleText).toContain('Passport Number');
     expect(visibleText).not.toMatch(/passport_number|bank_statement|Field key/);
   });
@@ -71,7 +71,7 @@ describe('RequestEvidenceForm document choice', () => {
     const choice = host.querySelector('#key') as HTMLSelectElement;
     expect(choice.textContent).toContain('Passport');
     expect(choice.textContent).toContain('Other Document');
-    expect(choice.textContent).toContain('Something else');
+    expect(choice.textContent).toContain('Something Else');
     await change(choice, 'BANK_STATEMENT');
     expect((host.querySelector('input[name="key"]') as HTMLInputElement).value).toBe(
       'BANK_STATEMENT',

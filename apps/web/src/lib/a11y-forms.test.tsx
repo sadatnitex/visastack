@@ -163,7 +163,7 @@ const APPLICANTS = [
 ];
 const DOCUMENTS = [
   { id: 'd1', displayName: 'Passport' },
-  { id: 'd2', displayName: 'Bank statement' },
+  { id: 'd2', displayName: 'Bank Statement' },
 ];
 
 /** A different id each time, so two copies of a row component do not share one. */
@@ -1031,7 +1031,7 @@ const AGENCY: readonly Case[] = [
         ]}
         requirements={[
           { id: 'req1', label: 'Valid passport' },
-          { id: 'req2', label: 'Bank statement' },
+          { id: 'req2', label: 'Bank Statement' },
         ]}
         decisions={[
           {

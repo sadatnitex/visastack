@@ -3,13 +3,13 @@ import { expect, test } from '@playwright/test';
 test('account recovery explains verification without exposing an account', async ({ page }) => {
   await page.goto('/auth/account-recovery');
   await expect(
-    page.getByRole('heading', { name: 'Account access needs verification' }),
+    page.getByRole('heading', { name: 'Account Access Needs Verification' }),
   ).toBeVisible();
   await expect(
     page.getByText('Resetting a password confirms access to your email.', { exact: false }),
   ).toBeVisible();
   await expect(page.getByRole('button', { name: 'Sign out', exact: true })).toBeVisible();
-  await expect(page.getByRole('link', { name: 'Back to home', exact: true })).toHaveAttribute(
+  await expect(page.getByRole('link', { name: 'Back to Home', exact: true })).toHaveAttribute(
     'href',
     '/',
   );
@@ -25,7 +25,7 @@ test('existing-account signup feedback offers sign-in and password recovery', as
     page.getByRole('link', { name: 'reset your password', exact: true }),
   ).toHaveAttribute('href', '/auth/forgot-password');
   await page.getByRole('link', { name: 'reset your password', exact: true }).click();
-  await expect(page.getByRole('textbox', { name: 'Email address' })).toBeVisible();
+  await expect(page.getByRole('textbox', { name: 'Email Address' })).toBeVisible();
 });
 
 /**

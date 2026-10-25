@@ -9,7 +9,7 @@ import {
   meterTone,
 } from '../../../../../lib/usage-format';
 
-export const metadata: Metadata = { title: 'Agency usage and billing' };
+export const metadata: Metadata = { title: 'Agency Usage and Billing' };
 
 export const dynamic = 'force-dynamic';
 
@@ -21,7 +21,7 @@ export const dynamic = 'force-dynamic';
  * itself (creating plans, activating one for an org) is a platform-owner,
  * step-up-gated action -- see `/app/admin/organizations/[orgId]` (ADM-01).
  *
- * This is the "Usage & billing" section of the agency console (Part 9 UX-01);
+ * This is the "Usage & Billing" section of the agency console (Part 9 UX-01);
  * the organization header and the section bar come from the console's layout,
  * which also answers for an organization that does not exist.
  */
@@ -61,7 +61,7 @@ export default async function OrgPlanPage({
       ) : (
         <>
           <article className="card u-mb-150">
-            <p className="card-kicker">Current plan</p>
+            <p className="card-kicker">Current Plan</p>
             <h2 className="card-title">
               {data.usage.plan ? data.usage.plan.name : 'Access offer not recorded'}
             </h2>

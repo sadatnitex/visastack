@@ -106,7 +106,7 @@ test.describe('version banner on phones', () => {
     const banner = page.locator('.pilot-banner');
     await expect(banner.locator('.pilot-banner-short')).toBeVisible();
     await expect(banner.locator('.pilot-banner-detail')).toBeHidden();
-    await expect(banner.getByRole('link', { name: 'What works today' })).toBeVisible();
+    await expect(banner.getByRole('link', { name: 'What Works Today' })).toBeVisible();
     // Two short lines at most, instead of the sixth of the screen the full sentence took.
     expect((await banner.boundingBox())?.height ?? 999).toBeLessThanOrEqual(64);
     await page.setViewportSize({ width: 1440, height: 900 });
@@ -206,7 +206,7 @@ function fixtureHtml(): string {
       <button type="button" class="app-more-toggle" aria-expanded="false" aria-controls="fixture-more" onclick="const n=this.closest('.app-shell-nav');const o=n.dataset.open!=='true';n.dataset.open=String(o);this.setAttribute('aria-expanded',String(o))">${icon}<span class="app-link-label">More</span></button>
     </div>
     <div class="app-more" id="fixture-more">
-      <nav class="app-shell-links app-shell-links-more" aria-label="Account and privacy">${secondary}</nav>
+      <nav class="app-shell-links app-shell-links-more" aria-label="Account and Privacy">${secondary}</nav>
       <div class="app-shell-switch">
         <p class="app-shell-switch-label">Switch area</p>
         <a href="/app/agency" class="btn btn-secondary nav-cta">Agency</a>
@@ -248,14 +248,14 @@ function fixtureHtml(): string {
         <p class="card-kicker">Profile</p>
         <h2 class="card-title">Edit a field</h2>
         <div class="field-list"><div class="field-row">
-          <div class="field-head"><label class="field-label" for="fixture-passport">Passport number</label><span class="badge badge-warning">Needs review</span></div>
+          <div class="field-head"><label class="field-label" for="fixture-passport">Passport number</label><span class="badge badge-warning">Needs Review</span></div>
           <div class="field-control"><input id="fixture-passport" class="input" value="A01234567"><button class="btn btn-primary" type="button">Save</button></div>
         </div></div>
         <div class="checks" style="margin-top:1rem">
           <label class="check"><input type="checkbox"> Allow the agency to read my passport page</label>
           <label class="check"><input type="checkbox"> Allow downloads</label>
         </div>
-        <div style="display:flex;gap:.6rem;margin-top:1rem;flex-wrap:wrap"><a class="btn btn-primary" href="#">Create case</a><button class="btn btn-secondary" type="button">Cancel</button><button class="btn btn-danger" type="button">Request account deletion</button></div>
+        <div style="display:flex;gap:.6rem;margin-top:1rem;flex-wrap:wrap"><a class="btn btn-primary" href="#">Create Case</a><button class="btn btn-secondary" type="button">Cancel</button><button class="btn btn-danger" type="button">Request Account Deletion</button></div>
       </article>
     </div>
     <div class="notice notice-warn" style="margin-top:1.5rem">A notice with a warning, in the warning colours.</div>
@@ -563,8 +563,8 @@ test.describe('route information page (answers with data or says plainly it is u
       expect(scrollWidth).toBeLessThanOrEqual(clientWidth + 1);
       const unavailable = page.getByText('Route information is not available right now');
       if (await unavailable.count()) {
-        await expect(page.getByRole('link', { name: 'Try again' })).toBeVisible();
-        await expect(page.getByRole('link', { name: 'Back to home' })).toBeVisible();
+        await expect(page.getByRole('link', { name: 'Try Again' })).toBeVisible();
+        await expect(page.getByRole('link', { name: 'Back to Home' })).toBeVisible();
       }
     });
   }
@@ -635,10 +635,10 @@ test.describe('flat UI reference geometry and interaction', () => {
   test('document selection never offers an unchecked preview', async ({ page }) => {
     await openUiFixture(page, 'documents');
     await page.getByLabel('Choose a document').selectOption('synthetic-pending');
-    await expect(page.getByRole('button', { name: 'Open secure preview' })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Open Secure Preview' })).toHaveCount(0);
     await expect(page.locator('main iframe, main object, main embed')).toHaveCount(0);
     await page.getByLabel('Choose a document').selectOption('synthetic-clean');
-    await page.getByRole('button', { name: 'Open secure preview' }).click();
+    await page.getByRole('button', { name: 'Open Secure Preview' }).click();
     await expect
       .poll(() => page.evaluate(() => window.__uiFixtureActions))
       .toEqual(['synthetic-clean']);
@@ -647,17 +647,17 @@ test.describe('flat UI reference geometry and interaction', () => {
     page,
   }) => {
     await openUiFixture(page, 'documents');
-    const search = page.getByRole('searchbox', { name: 'Find a document' });
+    const search = page.getByRole('searchbox', { name: 'Find a Document' });
     await search.fill('no-such-document');
     await expect(
       page.getByText('No documents match. Try another name or clear your search.'),
     ).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Open secure preview' })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Open Secure Preview' })).toHaveCount(0);
     await search.clear();
     await expect(page.getByLabel('Choose a document').locator('option')).toHaveCount(2);
     await search.fill('letter');
     await expect(page.getByLabel('Choose a document').locator('option')).toHaveCount(1);
-    await expect(page.getByRole('button', { name: 'Open secure preview' })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Open Secure Preview' })).toHaveCount(0);
   });
   for (const colorScheme of ['light', 'dark'] as const) {
     for (const mode of ['profile', 'documents', 'sharing', 'agency', 'admin'] as const) {
@@ -828,7 +828,7 @@ test.describe('authoritative appearance on public routes', () => {
     await expect(menu).toBeFocused();
     await expect(menu).toHaveAttribute('aria-expanded', 'false');
     await menu.click();
-    await page.getByRole('link', { name: 'How it works', exact: true }).click();
+    await page.getByRole('link', { name: 'How It Works', exact: true }).click();
     await expect(menu).toHaveAttribute('aria-expanded', 'false');
     await expect(page.locator('#how-it-works')).toBeInViewport();
   });
@@ -923,7 +923,7 @@ test.describe('authoritative appearance of actual workspace components', () => {
     await page.setViewportSize({ width: 1600, height: 1000 });
     await openUiFixture(page, 'overview');
     await page.keyboard.press('Control+k');
-    const finder = page.getByRole('searchbox', { name: 'Find a page' });
+    const finder = page.getByRole('searchbox', { name: 'Find a Page' });
     await expect(finder).toBeFocused();
     await finder.fill('applicants');
     await expect(
@@ -936,11 +936,11 @@ test.describe('authoritative appearance of actual workspace components', () => {
     await page.keyboard.press('Escape');
     await expect(finder).toHaveValue('');
     await openUiFixture(page, 'admin');
-    await page.getByRole('searchbox', { name: 'Find a page' }).fill('administration');
+    await page.getByRole('searchbox', { name: 'Find a Page' }).fill('administration');
     await expect(
       page
         .getByRole('navigation', { name: 'Matching pages' })
-        .getByRole('link', { name: 'Platform administration' }),
+        .getByRole('link', { name: 'Platform Administration' }),
     ).toHaveAttribute('href', '/app/admin');
   });
 });
@@ -950,13 +950,13 @@ test('password recovery confirms the request and offers an explicit resend witho
 }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/auth/forgot-password?sent=1');
-  await expect(page.getByRole('heading', { name: 'Check your email' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Check Your Email' })).toBeVisible();
   await expect(page.getByText('If an account uses that address', { exact: false })).toBeVisible();
-  await expect(page.getByLabel('Email address')).toBeHidden();
+  await expect(page.getByLabel('Email Address')).toBeHidden();
   await page.getByText('Did not get a link? Send another', { exact: true }).click();
-  await expect(page.getByLabel('Email address')).toBeVisible();
+  await expect(page.getByLabel('Email Address')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Send another link' })).toBeVisible();
-  await page.getByRole('link', { name: 'Use a different email address' }).click();
+  await page.getByRole('link', { name: 'Use a Different Email Address' }).click();
   await expect(page.getByRole('button', { name: 'Send me a link' })).toBeVisible();
   await page.goto('/auth/forgot-password?e=unavailable');
   await expect(

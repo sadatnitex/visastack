@@ -9,7 +9,7 @@ import { BrandingForm } from '../branding-form';
 import { loadOrgAccess } from '../console-data';
 import { RequireDifferentReviewerToggle } from '../require-different-reviewer-toggle';
 
-export const metadata: Metadata = { title: 'Agency settings' };
+export const metadata: Metadata = { title: 'Agency Settings' };
 
 export const dynamic = 'force-dynamic';
 
@@ -47,7 +47,7 @@ export default async function AgencySettingsPage({
     <>
       <article className="card u-mb-150">
         <p className="card-kicker">Settings</p>
-        <h2 className="card-title">Review policy</h2>
+        <h2 className="card-title">Review Policy</h2>
         <div className="row">
           <span className="row-key" style={{ maxWidth: '32rem' }}>
             Require a different reviewer
@@ -81,7 +81,7 @@ export default async function AgencySettingsPage({
 
       <article className="card">
         <p className="card-kicker">Export</p>
-        <h2 className="card-title">Bulk export</h2>
+        <h2 className="card-title">Bulk Export</h2>
         <p className="card-body u-mb-125">
           Download the profiles of every applicant who granted this organization an accepted export
           grant. Each applicant is re-checked by the policy engine at export time.
@@ -97,7 +97,7 @@ export default async function AgencySettingsPage({
         ) : (
           <>
             <button type="button" className="btn btn-primary" disabled>
-              Download bulk export
+              Download Bulk Export
             </button>
             <p className="muted" style={{ fontSize: 'var(--text-small)', marginTop: '0.6rem' }}>
               {capabilityUnavailableMessage('bulkExport')}

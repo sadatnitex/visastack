@@ -233,7 +233,7 @@ describe('case page as it is today (WP-X1 characterization)', () => {
     expect(text).toContain(
       'A material edit invalidated the previous sign-off. Capture a new snapshot and acknowledge it again before relying on this case as submission-ready.',
     );
-    expect(text).toContain('Changed since confirmed');
+    expect(text).toContain('Changed Since Confirmed');
   });
 });
 
@@ -242,7 +242,7 @@ describe('case journey view (WP-X1)', () => {
     setUp({ openTasks: 2 });
     const html = await render();
     const text = textOf(html);
-    expect(text).toContain('Next step');
+    expect(text).toContain('Next Step');
     expect(text).toContain('Finish 2 open tasks');
     const [tracker, card, list] = order(html, [
       'aria-label="Actual case workflow state"',
@@ -277,7 +277,7 @@ describe('case journey view (WP-X1)', () => {
     // The alert's button is the primary, clearly named one; the header keeps its defaults.
     expect(stubProps(html, 'SnapshotButton')).toEqual([
       { missionId: 'synthetic-case' },
-      { missionId: 'synthetic-case', label: 'Take a new snapshot', primary: true, align: 'start' },
+      { missionId: 'synthetic-case', label: 'Take a New Snapshot', primary: true, align: 'start' },
     ]);
     expect(html.slice(alert, strip)).not.toContain('role=');
   });

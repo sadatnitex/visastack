@@ -37,9 +37,9 @@ export type StateTone = 'success' | 'warning' | 'neutral';
 export const STATE_WORDS: { readonly [S in CapabilityState]: { label: string; tone: StateTone } } =
   {
     available: { label: 'Working', tone: 'success' },
-    degraded: { label: 'Working with limits', tone: 'warning' },
-    unconfigured: { label: 'Not set up yet', tone: 'neutral' },
-    disabled: { label: 'Switched off for now', tone: 'neutral' },
+    degraded: { label: 'Working with Limits', tone: 'warning' },
+    unconfigured: { label: 'Not Set Up Yet', tone: 'neutral' },
+    disabled: { label: 'Switched Off for Now', tone: 'neutral' },
   };
 
 export interface CapabilityRow {

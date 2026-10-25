@@ -12,7 +12,7 @@ import { AcceptClientInvitationForm } from './accept-form';
 import { ConsentGate } from './consent-gate';
 
 export const metadata: Metadata = {
-  title: 'Invitation from an agency',
+  title: 'Invitation from an Agency',
   robots: { index: false, follow: false },
   referrer: 'no-referrer',
 };
@@ -21,9 +21,9 @@ export const dynamic = 'force-dynamic';
 
 /** What each default grant action actually lets the agency do, in plain language: shown before the traveller commits to anything. */
 const GRANT_ACTION_LABELS: Readonly<Record<string, string>> = {
-  VIEW_METADATA: 'View your profile information',
-  PREVIEW: 'Preview your documents',
-  COMMENT: 'Comment on your case',
+  VIEW_METADATA: 'View Your Profile Information',
+  PREVIEW: 'Preview Your Documents',
+  COMMENT: 'Comment on Your Case',
   PROPOSE_EDIT: 'Propose edits to your profile (you approve each one before it applies)',
   MANAGE: 'Manage your case: assign their staff, request evidence from you, add case notes',
 };
@@ -98,7 +98,7 @@ export default async function AcceptClientInvitationPage({
       <div className="u-mb-150">
         <span className="eyebrow">Invitation</span>
         <h1 className="section-title" style={{ margin: '0.25rem 0 0' }}>
-          Work with an agency
+          Work with an Agency
         </h1>
       </div>
       <article className="card">

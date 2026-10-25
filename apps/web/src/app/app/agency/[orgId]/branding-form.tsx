@@ -81,7 +81,7 @@ export function BrandingForm({
         <AgencyBrandScope brand={brand} className="agency-hero agency-hero-preview">
           <AgencyMark brand={brand} size="lg" />
           <div className="agency-hero-text">
-            <span className="eyebrow">Agency workspace</span>
+            <span className="eyebrow">Agency Workspace</span>
             <p className="page-title agency-preview-name">{brand.name}</p>
             <p className="agency-hero-attribution">Powered by VisaStack</p>
           </div>
@@ -97,7 +97,7 @@ export function BrandingForm({
           <input type="hidden" name="organizationId" value={organizationId} />
           <div className="field-row">
             <label className="field-label" htmlFor="brand-name">
-              Agency name
+              Agency Name
             </label>
             <input
               id="brand-name"
@@ -112,7 +112,7 @@ export function BrandingForm({
           </div>
 
           <fieldset className="brand-accent">
-            <legend className="field-label">Accent colour</legend>
+            <legend className="field-label">Accent Colour</legend>
             <p className="muted brand-hint">
               Used for your mark and highlights. Pick one, or type a colour. It must be easy to read
               on white. Leave it empty to use the VisaStack green.
@@ -164,7 +164,7 @@ export function BrandingForm({
           <div>
             <SubmitButton
               pending={brandingPending}
-              idle="Save branding"
+              idle="Save Branding"
               busy="Saving…"
               className="btn btn-primary"
             />
@@ -215,7 +215,7 @@ export function BrandingForm({
               <input type="hidden" name="organizationId" value={organizationId} />
               <SubmitButton
                 pending={removePending}
-                idle="Remove logo"
+                idle="Remove Logo"
                 busy="Removing…"
                 className="btn btn-secondary"
               />

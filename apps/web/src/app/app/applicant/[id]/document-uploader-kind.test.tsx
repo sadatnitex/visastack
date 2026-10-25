@@ -40,7 +40,7 @@ describe('choosing the kind of document on the upload form', () => {
       'Other Document',
     ]);
     expect(host.querySelector(`label[for="${select.id}"]`)?.textContent).toContain(
-      'Kind of document',
+      'Kind of Document',
     );
     expect(host.textContent).toContain('right sharing category');
   });

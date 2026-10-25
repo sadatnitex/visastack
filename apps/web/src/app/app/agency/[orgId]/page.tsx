@@ -34,7 +34,7 @@ function Stat({
   );
 }
 
-export const metadata: Metadata = { title: 'Agency dashboard' };
+export const metadata: Metadata = { title: 'Agency Dashboard' };
 
 export const dynamic = 'force-dynamic';
 
@@ -104,28 +104,28 @@ export default async function AgencyDashboardPage({
   const setupSteps = [
     {
       key: 'client',
-      label: 'Invite a client',
+      label: 'Invite a Client',
       hint: 'A traveller who agrees to work with you.',
       done: data.missions.length > 0 || data.requests.length > 0,
       href: `${base}/clients`,
     },
     {
       key: 'case',
-      label: 'Open a case',
+      label: 'Open a Case',
       hint: 'A case appears once a client shares one with you.',
       done: data.missions.length > 0,
       href: `${base}/cases`,
     },
     {
       key: 'request',
-      label: 'Ask for a document',
+      label: 'Ask for a Document',
       hint: 'You will see here when it arrives and when it is overdue.',
       done: data.requests.length > 0,
       href: `${base}/clients`,
     },
     {
       key: 'team',
-      label: 'Add a colleague',
+      label: 'Add a Colleague',
       hint: 'Give staff their own access to the cases you assign them.',
       done: data.members.length > 1,
       href: `${base}/team`,
@@ -188,7 +188,7 @@ export default async function AgencyDashboardPage({
   }[] = [
     { key: 'mine', label: 'Mine', test: (row) => row.assignedToMe },
     { key: 'overdue', label: 'Overdue', test: (row) => row.overdueTasks > 0 },
-    { key: 'waiting', label: 'Waiting On Traveller', test: (row) => row.openRequests > 0 },
+    { key: 'waiting', label: 'Waiting on Traveller', test: (row) => row.openRequests > 0 },
     { key: 'unassigned', label: 'Unassigned', test: (row) => row.mission.assignments.length === 0 },
   ];
   const activeQuick = quickViews.find((view) => view.key === rawQuick);
@@ -242,14 +242,14 @@ export default async function AgencyDashboardPage({
           }
         />
         <Stat
-          label="Open cases"
+          label="Open Cases"
           value={
             data.missions.filter((mission) => !['CLOSED', 'CANCELLED'].includes(mission.state))
               .length
           }
         />
         <Stat
-          label="Pending requests"
+          label="Pending Requests"
           value={
             data.requests.filter((request) =>
               ['OPEN', 'SUBMITTED', 'NEEDS_REPLACEMENT'].includes(request.status),
@@ -258,11 +258,11 @@ export default async function AgencyDashboardPage({
         />
         {data.admin ? (
           <Stat
-            label="Team members"
+            label="Team Members"
             value={data.members.filter((member) => member.active).length}
           />
         ) : (
-          <Stat label="Assigned cases" value={data.missions.length} />
+          <Stat label="Assigned Cases" value={data.missions.length} />
         )}
       </section>
       {data.admin && setupSteps.some((step) => !step.done) ? (
@@ -271,7 +271,7 @@ export default async function AgencyDashboardPage({
             Finish agency setup: {setupSteps.filter((step) => step.done).length} of{' '}
             {setupSteps.length} complete
           </summary>
-          <Checklist title="Set up your agency" items={setupSteps} />
+          <Checklist title="Set Up Your Agency" items={setupSteps} />
         </details>
       ) : null}
 
@@ -290,7 +290,7 @@ export default async function AgencyDashboardPage({
           {data.missions.length > 0 ? (
             <section className="card pipeline-card" aria-labelledby="pipeline-heading">
               <h2 className="card-title" id="pipeline-heading">
-                Case pipeline
+                Case Pipeline
               </h2>
               <p className="sr-only">{pipelineSummary}</p>
               <div className="agency-pipeline-stages">
@@ -314,18 +314,18 @@ export default async function AgencyDashboardPage({
           ) : (
             <section className="card pipeline-card" aria-labelledby="pipeline-heading">
               <h2 className="card-title" id="pipeline-heading">
-                Case pipeline
+                Case Pipeline
               </h2>
-              <EmptyState icon="briefcase" title="No case stages to show">
+              <EmptyState icon="briefcase" title="No Case Stages to Show">
                 Actual stage counts appear when a case is shared and visible to you.
               </EmptyState>
-              <Link href={`${base}/cases`}>Open cases</Link>
+              <Link href={`${base}/cases`}>Open Cases</Link>
             </section>
           )}
 
           <section className="card" aria-labelledby="inbox-heading">
             <h2 className="card-title" id="inbox-heading">
-              Cases and attention
+              Cases and Attention
             </h2>
             <p className="card-body u-mb-100">
               Cases that need action come first. Search covers only the cases you are already
@@ -363,7 +363,7 @@ export default async function AgencyDashboardPage({
             ) : null}
             {data.missions.length === 0 ? (
               <div className="u-mt-100">
-                <EmptyState title="No cases yet" icon="briefcase">
+                <EmptyState title="No Cases Yet" icon="briefcase">
                   {data.admin
                     ? 'No cases are reachable yet - an applicant must grant this organization access to a specific case.'
                     : "You aren't assigned to any cases yet - ask an admin to assign you to one."}
@@ -380,9 +380,9 @@ export default async function AgencyDashboardPage({
                     <th scope="col">Stage</th>
                     <th scope="col">Readiness</th>
                     <th scope="col">Deadline</th>
-                    <th scope="col">Needs attention</th>
+                    <th scope="col">Needs Attention</th>
                     <th scope="col">Assigned</th>
-                    <th scope="col">Traveller confirmed</th>
+                    <th scope="col">Traveller Confirmed</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -434,7 +434,7 @@ export default async function AgencyDashboardPage({
                             <span className="muted">Not set</span>
                           )}
                         </td>
-                        <td data-label="Needs attention">
+                        <td data-label="Needs Attention">
                           <span className="case-row-badges">
                             {row.openRequests > 0 ? (
                               <StatusBadge tone="warning">
@@ -477,7 +477,7 @@ export default async function AgencyDashboardPage({
                             </span>
                           )}
                         </td>
-                        <td data-label="Traveller confirmed">
+                        <td data-label="Traveller Confirmed">
                           {/* TRU-02 (Part 7 section 3): the applicant's own live sign-off status, not a
                           reviewer's. This org can see whether it exists, never act on it. */}
                           {mission.liveAcknowledgementAt
@@ -494,8 +494,8 @@ export default async function AgencyDashboardPage({
 
           {data.admin && data.unassignedQueue.length > 0 ? (
             <article className="card u-mb-150">
-              <p className="card-kicker">Needs attention</p>
-              <h2 className="card-title">Reassignment queue</h2>
+              <p className="card-kicker">Needs Attention</p>
+              <h2 className="card-title">Reassignment Queue</h2>
               <p className="card-body u-mb-125">
                 Active cases this organization can still act on but that currently have nobody
                 assigned - most often because the only assigned member was removed. Open one to
@@ -520,7 +520,7 @@ export default async function AgencyDashboardPage({
           {data.admin ? (
             <>
               <article className="card">
-                <h2 className="card-title">Evidence requests</h2>
+                <h2 className="card-title">Evidence Requests</h2>
                 <p className="card-body">Recent requests available to your administrator role.</p>
                 {data.requests.length ? (
                   <ul className="agency-request-list">
@@ -547,11 +547,11 @@ export default async function AgencyDashboardPage({
                   href={`${base}/clients#agency-evidence-requests`}
                   className="btn btn-secondary"
                 >
-                  Manage requests
+                  Manage Requests
                 </Link>
               </article>
               <article className="card">
-                <h2 className="card-title">Your team</h2>
+                <h2 className="card-title">Your Team</h2>
                 <p className="card-body">
                   {data.members.filter((member) => member.active).length} active members. Inactive
                   memberships remain available in team management.
@@ -568,27 +568,27 @@ export default async function AgencyDashboardPage({
                     ))}
                 </ul>
                 <Link href={`${base}/team`} className="btn btn-secondary">
-                  Manage team
+                  Manage Team
                 </Link>
               </article>
             </>
           ) : (
             <article className="card">
-              <h2 className="card-title">Your case work</h2>
+              <h2 className="card-title">Your Case Work</h2>
               <p className="card-body">
                 Requests and team management belong to agency administrators. Your assigned case
                 tools remain available.
               </p>
-              <Link href={`${base}/cases`}>Open assigned cases</Link>
+              <Link href={`${base}/cases`}>Open Assigned Cases</Link>
             </article>
           )}
           <article className="card">
-            <h2 className="card-title">Case activity</h2>
+            <h2 className="card-title">Case Activity</h2>
             <p className="card-body">
               Recent notes from cases you can currently access. This is not the full organization
               audit log.
             </p>
-            <Link href={`${base}/activity`}>View accessible case activity</Link>
+            <Link href={`${base}/activity`}>View Accessible Case Activity</Link>
           </article>
         </aside>
       </div>
@@ -596,20 +596,20 @@ export default async function AgencyDashboardPage({
         <summary>Attention details: {needsYou} items need a response</summary>
         <section aria-labelledby="today-heading" className="stat-section">
           <h2 className="section-label" id="today-heading">
-            What needs you first
+            What Needs You First
           </h2>
           <div className="stat-strip">
-            <Stat label="Overdue tasks" value={summary.overdueTasks} tone="danger" />
+            <Stat label="Overdue Tasks" value={summary.overdueTasks} tone="danger" />
             {summary.needAssignment !== null ? (
               <Stat
-                label="Cases with nobody assigned"
+                label="Cases with Nobody Assigned"
                 value={summary.needAssignment}
                 tone="warning"
               />
             ) : null}
             {summary.openRequests !== null ? (
               <Stat
-                label="Evidence requests waiting on the applicant"
+                label="Evidence Requests Waiting on the Applicant"
                 value={summary.openRequests}
                 tone="warning"
               />

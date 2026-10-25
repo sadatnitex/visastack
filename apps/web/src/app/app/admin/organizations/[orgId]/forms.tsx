@@ -122,7 +122,7 @@ export function ActivatePlanForm({
       <div>
         <SubmitButton
           pending={pending}
-          idle="Activate plan"
+          idle="Activate Plan"
           busy="Activating…"
           className="btn btn-primary"
         />
@@ -159,7 +159,7 @@ export function ScheduleDowngradeForm({
       <input type="hidden" name="organizationId" value={organizationId} />
       <div className="field-row">
         <label className="field-label" htmlFor="downgrade-toPlanId">
-          Target plan
+          Target Plan
         </label>
         {plans.length === 0 ? (
           <p className="muted u-fs-085">No active plans in the catalog yet.</p>
@@ -204,7 +204,7 @@ export function ScheduleDowngradeForm({
       <div>
         <SubmitButton
           pending={pending}
-          idle="Schedule downgrade"
+          idle="Schedule Downgrade"
           busy="Scheduling…"
           className="btn btn-primary"
         />
@@ -239,11 +239,11 @@ export function OpenBillingAccountForm({ organizationId }: { readonly organizati
       <input type="hidden" name="organizationId" value={organizationId} />
       <div className="field-row">
         <label className="field-label" htmlFor="open-initialStatus">
-          Starting status
+          Starting Status
         </label>
         <select id="open-initialStatus" name="initialStatus" className="input" defaultValue="TRIAL">
           <option value="TRIAL">Trial</option>
-          <option value="ACTIVE">Active (terms already agreed)</option>
+          <option value="ACTIVE">Active (Terms Already Agreed)</option>
         </select>
       </div>
       <div className="field-row">
@@ -262,7 +262,7 @@ export function OpenBillingAccountForm({ organizationId }: { readonly organizati
       <div>
         <SubmitButton
           pending={pending}
-          idle="Open billing account"
+          idle="Open Billing Account"
           busy="Opening…"
           className="btn btn-primary"
         />
@@ -286,7 +286,7 @@ export function TransitionBillingStatusForm({
       <input type="hidden" name="organizationId" value={organizationId} />
       <div className="field-row">
         <label className="field-label" htmlFor="transition-toStatus">
-          New status
+          New Status
         </label>
         <select id="transition-toStatus" name="toStatus" required className="input" defaultValue="">
           <option value="" disabled>
@@ -315,7 +315,7 @@ export function TransitionBillingStatusForm({
       <div>
         <SubmitButton
           pending={pending}
-          idle="Change status"
+          idle="Change Status"
           busy="Changing…"
           className="btn btn-primary"
         />
@@ -338,7 +338,7 @@ export function CreateInvoiceForm({
       <input type="hidden" name="organizationId" value={organizationId} />
       <div className="field-row">
         <label className="field-label" htmlFor="invoice-planId">
-          Plan billed
+          Plan Billed
         </label>
         {plans.length === 0 ? (
           <p className="muted u-fs-085">No active plans in the catalog yet.</p>
@@ -357,7 +357,7 @@ export function CreateInvoiceForm({
       </div>
       <div className="field-row">
         <label className="field-label" htmlFor="invoice-ref">
-          Invoice reference
+          Invoice Reference
         </label>
         <input
           id="invoice-ref"
@@ -398,26 +398,26 @@ export function CreateInvoiceForm({
       </div>
       <div className="field-row">
         <label className="field-label" htmlFor="invoice-periodStart">
-          Period start
+          Period Start
         </label>
         <input id="invoice-periodStart" name="periodStart" type="date" required className="input" />
       </div>
       <div className="field-row">
         <label className="field-label" htmlFor="invoice-periodEnd">
-          Period end
+          Period End
         </label>
         <input id="invoice-periodEnd" name="periodEnd" type="date" required className="input" />
       </div>
       <div className="field-row">
         <label className="field-label" htmlFor="invoice-dueDate">
-          Due date
+          Due Date
         </label>
         <input id="invoice-dueDate" name="dueDate" type="date" required className="input" />
       </div>
       <div>
         <SubmitButton
           pending={pending}
-          idle="Create invoice"
+          idle="Create Invoice"
           busy="Creating…"
           className="btn btn-primary"
         />
@@ -445,7 +445,7 @@ export function RecordPaymentForm({
       <input type="hidden" name="invoiceId" value={invoiceId} />
       <div className="field-row">
         <label className="field-label" htmlFor={`payment-amount-${invoiceId}`}>
-          Payment amount (minor units)
+          Payment Amount (Minor Units)
         </label>
         <input
           id={`payment-amount-${invoiceId}`}
@@ -458,7 +458,7 @@ export function RecordPaymentForm({
       </div>
       <div className="field-row">
         <label className="field-label" htmlFor={`payment-date-${invoiceId}`}>
-          Collected date
+          Collected Date
         </label>
         <input
           id={`payment-date-${invoiceId}`}
@@ -470,7 +470,7 @@ export function RecordPaymentForm({
       </div>
       <div className="field-row">
         <label className="field-label" htmlFor={`payment-ref-${invoiceId}`}>
-          Payment reference
+          Payment Reference
         </label>
         <input
           id={`payment-ref-${invoiceId}`}
@@ -497,7 +497,7 @@ export function RecordPaymentForm({
       <div>
         <SubmitButton
           pending={pending}
-          idle="Record payment"
+          idle="Record Payment"
           busy="Recording…"
           className="btn btn-secondary u-btn-sm"
         />
@@ -533,7 +533,7 @@ export function GrantOverrideForm({ organizationId }: { readonly organizationId:
       <input type="hidden" name="organizationId" value={organizationId} />
       <div className="field-row">
         <label className="field-label" htmlFor="override-durationDays">
-          Duration (days, max 30)
+          Duration (Days, Max 30)
         </label>
         <input
           id="override-durationDays"
@@ -562,7 +562,7 @@ export function GrantOverrideForm({ organizationId }: { readonly organizationId:
       <div>
         <SubmitButton
           pending={pending}
-          idle="Grant override"
+          idle="Grant Override"
           busy="Granting…"
           className="btn btn-primary"
         />

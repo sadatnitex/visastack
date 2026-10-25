@@ -23,7 +23,7 @@ import { EVIDENCE_DECIDABLE_STATUSES, REQ_STATUS } from '../console-format';
 import { EvidenceRequestActions } from '../evidence-request-actions';
 import { RequestEvidenceForm } from '../request-evidence-form';
 
-export const metadata: Metadata = { title: 'Agency clients' };
+export const metadata: Metadata = { title: 'Agency Clients' };
 
 export const dynamic = 'force-dynamic';
 
@@ -125,7 +125,7 @@ export default async function AgencyClientsPage({
 
       <article className="card u-mb-150">
         <p className="card-kicker">Collect</p>
-        <h2 className="card-title">Request evidence</h2>
+        <h2 className="card-title">Request Evidence</h2>
         <p className="card-body u-mb-125">
           Ask an applicant for a specific field or document. They decide whether to fulfil it.
         </p>
@@ -145,10 +145,10 @@ export default async function AgencyClientsPage({
       <article className="card">
         <p className="card-kicker">Activity</p>
         <h2 className="card-title" id="agency-evidence-requests">
-          Evidence requests
+          Evidence Requests
         </h2>
         {data.requests.length === 0 ? (
-          <EmptyState icon="clipboard" title="No evidence requests yet">
+          <EmptyState icon="clipboard" title="No Evidence Requests Yet">
             Ask a client for a specific document or detail. You will see here when it arrives and
             when it is overdue.
           </EmptyState>

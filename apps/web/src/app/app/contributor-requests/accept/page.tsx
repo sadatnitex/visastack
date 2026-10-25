@@ -4,7 +4,7 @@ import { documentTypeLabel } from '../../../../lib/labels';
 import { withSession } from '../../../../lib/session';
 import { SubmitEvidenceForm } from './submit-evidence-form';
 
-export const metadata: Metadata = { title: 'Add evidence for a request' };
+export const metadata: Metadata = { title: 'Add Evidence for a Request' };
 
 export const dynamic = 'force-dynamic';
 
@@ -52,9 +52,9 @@ export default async function AcceptContributorRequestPage({
   return (
     <section className="section container">
       <div className="u-mb-150">
-        <span className="eyebrow">Contributor request</span>
+        <span className="eyebrow">Contributor Request</span>
         <h1 className="section-title" style={{ margin: '0.25rem 0 0' }}>
-          Provide one document
+          Provide One Document
         </h1>
       </div>
       <article className="card">

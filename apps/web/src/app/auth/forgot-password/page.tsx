@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { requestPasswordResetAction } from '../actions';
 import { AuthShell, ErrorLine, Notice, TextField } from '../auth-ui';
 
-export const metadata: Metadata = { title: 'Reset your password' };
+export const metadata: Metadata = { title: 'Reset Your Password' };
 export const dynamic = 'force-dynamic';
 
 const ERRORS: Record<string, string> = {
@@ -19,10 +19,10 @@ export default async function ForgotPasswordPage({
   const { e, sent } = await searchParams;
   const error = e ? ERRORS[e] : undefined;
   return (
-    <AuthShell title="Reset your password">
+    <AuthShell title="Reset Your Password">
       {sent === '1' ? (
         <div className="card u-mb-100">
-          <h2 className="card-title">Check your email</h2>
+          <h2 className="card-title">Check Your Email</h2>
           <Notice>
             If an account uses that address, a password reset link will arrive shortly. Check your
             inbox and spam folder. If you do not have an account, you can create one instead.
@@ -35,9 +35,9 @@ export default async function ForgotPasswordPage({
             <RecoveryForm resend />
           </details>
           <p className="card-body u-mt-100">
-            <Link href="/auth/forgot-password">Use a different email address</Link>
+            <Link href="/auth/forgot-password">Use a Different Email Address</Link>
             {' · '}
-            <Link href="/auth/sign-up">Create an account</Link>
+            <Link href="/auth/sign-up">Create an Account</Link>
           </p>
         </div>
       ) : (
@@ -49,7 +49,7 @@ export default async function ForgotPasswordPage({
         </>
       )}
       <p className="card-body">
-        <Link href="/auth/sign-in">Back to sign in</Link>
+        <Link href="/auth/sign-in">Back to Sign In</Link>
       </p>
     </AuthShell>
   );
@@ -62,7 +62,7 @@ function RecoveryForm({ error, resend = false }: { error?: string | undefined; r
         id={resend ? 'resend-email' : 'email'}
         name="email"
         type="email"
-        label="Email address"
+        label="Email Address"
         autoComplete="email"
         required
         maxLength={254}

@@ -6,7 +6,7 @@ import { TrustUnavailable } from '../../components/trust-unavailable';
 import { withPublicDb } from '../../lib/public-db';
 import { reportServerError } from '../../lib/server-error';
 
-export const metadata: Metadata = { title: 'Route information' };
+export const metadata: Metadata = { title: 'Route Information' };
 
 export const dynamic = 'force-dynamic';
 
@@ -35,12 +35,12 @@ export default async function PublicTrustCatalogPage() {
       <PublicTrustStory />
       <section
         className="section container trust-catalog"
-        aria-label="Maintained route information"
+        aria-label="Maintained Route Information"
       >
         <div className="section-head" style={{ marginBottom: '2rem' }}>
           <span className="eyebrow">Public Trust</span>
           <h2 className="section-title" style={{ margin: '0.25rem 0 0.5rem' }}>
-            Maintained route information
+            Maintained Route Information
           </h2>
           <p className="section-sub">
             Source-backed official fees, application channels, and scam-warning guidance for

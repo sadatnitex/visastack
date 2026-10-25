@@ -8,22 +8,22 @@ import {
 
 /** What each entry status means for a traveller, in plain words. */
 export const ENTRY_LABEL: Readonly<Record<EntryStatus, string>> = {
-  VISA_REQUIRED: 'Visa needed before you travel',
+  VISA_REQUIRED: 'Visa Needed Before You Travel',
   E_VISA: 'Online visa (e-visa)',
-  VISA_ON_ARRIVAL: 'Visa on arrival',
+  VISA_ON_ARRIVAL: 'Visa on Arrival',
   ETA: 'Online travel permission (eTA)',
-  VISA_FREE: 'No visa needed',
-  NOT_FOUND: 'Not yet researched',
+  VISA_FREE: 'No Visa Needed',
+  NOT_FOUND: 'Not Yet Researched',
 };
 
 /** The shorter name used on filter buttons. */
 export const ENTRY_SHORT_LABEL: Readonly<Record<EntryStatus, string>> = {
-  VISA_REQUIRED: 'Visa needed',
+  VISA_REQUIRED: 'Visa Needed',
   E_VISA: 'E-visa',
-  VISA_ON_ARRIVAL: 'Visa on arrival',
+  VISA_ON_ARRIVAL: 'Visa on Arrival',
   ETA: 'eTA',
-  VISA_FREE: 'No visa needed',
-  NOT_FOUND: 'Not yet researched',
+  VISA_FREE: 'No Visa Needed',
+  NOT_FOUND: 'Not Yet Researched',
 };
 
 export const ENTRY_ORDER: readonly EntryStatus[] = [

@@ -20,12 +20,12 @@ const HOW_TO_APPLY: Readonly<Record<string, string>> = {
   EMBASSY: 'At the embassy or consulate',
   APPLICATION_CENTRE: 'Through a visa application centre',
   ON_ARRIVAL: 'At the border when you arrive',
-  NONE: 'No application needed',
+  NONE: 'No Application Needed',
 };
 
 const KIND_LABEL: Readonly<Record<string, string>> = {
   DOCUMENT: 'Documents',
-  DETAIL: 'Details to give',
+  DETAIL: 'Details to Give',
   PROCESS_STEP: 'Steps',
 };
 const KIND_ORDER = ['DOCUMENT', 'DETAIL', 'PROCESS_STEP'] as const;
@@ -52,7 +52,7 @@ function Requirement({ item }: { readonly item: DestinationRequirement }) {
       {item.maxAgeDays !== null ? (
         <span className="muted"> Must be dated within {item.maxAgeDays} days.</span>
       ) : null}
-      {warn ? <span className="badge badge-warning">Needs checking</span> : null}
+      {warn ? <span className="badge badge-warning">Needs Checking</span> : null}
     </li>
   );
 }
@@ -67,17 +67,17 @@ function RouteCard({ route }: { readonly route: DestinationRoute }) {
       <dl className="country-facts">
         {fee ? <Fact label="Fee">{fee}</Fact> : null}
         {route.channelUrl ? (
-          <Fact label="Where to apply">
+          <Fact label="Where to Apply">
             <a href={route.channelUrl} target="_blank" rel="noopener noreferrer">
               {route.channelName ?? route.channelUrl}
             </a>
           </Fact>
         ) : null}
         {route.rulesTakeEffectOn ? (
-          <Fact label="Rules take effect">{route.rulesTakeEffectOn}</Fact>
+          <Fact label="Rules Take Effect">{route.rulesTakeEffectOn}</Fact>
         ) : null}
         {route.fraudReportingUrl ? (
-          <Fact label="Report a scam">
+          <Fact label="Report a Scam">
             <a href={route.fraudReportingUrl} target="_blank" rel="noopener noreferrer">
               Official reporting page
             </a>
@@ -122,7 +122,7 @@ function Facts({ destination }: { readonly destination: Destination }) {
   const stay = stayLabel(destination.maximumStayDays);
   return (
     <article className="card">
-      <p className="card-kicker">The short version</p>
+      <p className="card-kicker">The Short Version</p>
       <h2 className="card-title">{ENTRY_LABEL[destination.entryStatus]}</h2>
       <dl className="country-facts">
         {stay || destination.stayPeriodRule ? (
@@ -134,7 +134,7 @@ function Facts({ destination }: { readonly destination: Destination }) {
           <Fact label="Passport">{destination.passportValidityRule}</Fact>
         ) : null}
         {destination.howToApply ? (
-          <Fact label="How to apply">
+          <Fact label="How to Apply">
             {HOW_TO_APPLY[destination.howToApply] ?? humanizeCode(destination.howToApply)}
             {destination.applyUrl ? (
               <>
@@ -147,7 +147,7 @@ function Facts({ destination }: { readonly destination: Destination }) {
           </Fact>
         ) : null}
         {destination.bangladeshLocation ? (
-          <Fact label="Where to submit in Bangladesh">{destination.bangladeshLocation}</Fact>
+          <Fact label="Where to Submit in Bangladesh">{destination.bangladeshLocation}</Fact>
         ) : null}
         {fee ? <Fact label="Fee">{fee}</Fact> : null}
       </dl>
@@ -169,7 +169,7 @@ export function CountryView({
   return (
     <>
       <PageHeader
-        back={{ href: backHref, label: 'All countries' }}
+        back={{ href: backHref, label: 'All Countries' }}
         eyebrow="Country"
         title={destination.country}
         description="For an ordinary Bangladeshi passport. Rules change, so confirm on the official page before you apply."
@@ -182,7 +182,7 @@ export function CountryView({
       {destination.researched ? (
         <Facts destination={destination} />
       ) : (
-        <EmptyState icon="search" title="Not yet researched">
+        <EmptyState icon="search" title="Not Yet Researched">
           We have not collected the rules for {destination.country} yet. That does not mean no visa
           is needed.
           {destination.source ? (
@@ -197,7 +197,7 @@ export function CountryView({
           ) : null}
         </EmptyState>
       )}
-      <h2 className="country-routes-heading">Visa types</h2>
+      <h2 className="country-routes-heading">Visa Types</h2>
       {routes.length === 0 ? (
         <p className="muted">
           The visa types for {destination.country} have not been added yet. Check the official page.

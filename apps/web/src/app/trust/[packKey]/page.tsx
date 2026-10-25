@@ -32,7 +32,7 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { packKey } = await params;
   const { route } = await loadRoute(packKey);
-  return { title: route ? route.packName : 'Route information' };
+  return { title: route ? route.packName : 'Route Information' };
 }
 
 /**
@@ -105,8 +105,8 @@ export default async function PublicTrustRoutePage({
         </article>
 
         <article className="card">
-          <p className="card-kicker">Official fee</p>
-          <h2 className="card-title">What the government charges</h2>
+          <p className="card-kicker">Official Fee</p>
+          <h2 className="card-title">What the Government Charges</h2>
           {route.officialFee ? (
             <>
               <p className="card-body" style={{ fontSize: '1.5rem', fontWeight: 600 }}>
@@ -129,8 +129,8 @@ export default async function PublicTrustRoutePage({
         </article>
 
         <article className="card">
-          <p className="card-kicker">Official channel</p>
-          <h2 className="card-title">Where to actually apply</h2>
+          <p className="card-kicker">Official Channel</p>
+          <h2 className="card-title">Where to Actually Apply</h2>
           {officialChannelUrl ? (
             <a
               className="btn btn-primary"
@@ -150,8 +150,8 @@ export default async function PublicTrustRoutePage({
         </article>
 
         <article className="card">
-          <p className="card-kicker">Official source</p>
-          <h2 className="card-title">Where this information comes from</h2>
+          <p className="card-kicker">Official Source</p>
+          <h2 className="card-title">Where This Information Comes From</h2>
           {officialSources.length === 0 ? (
             <p className="card-body">Not yet on file for this route.</p>
           ) : (
@@ -164,7 +164,7 @@ export default async function PublicTrustRoutePage({
                 >
                   <span className="row-key">
                     {[source.publisher, source.sourceTitle].filter(Boolean).join(' · ') ||
-                      'Official source'}
+                      'Official Source'}
                   </span>
                   {href ? (
                     <a href={href} target="_blank" rel="noreferrer" className="u-fs-085">
@@ -179,8 +179,8 @@ export default async function PublicTrustRoutePage({
       </div>
 
       <article className="card u-mt-150">
-        <p className="card-kicker">Scam awareness</p>
-        <h2 className="card-title">Warning signs to watch for</h2>
+        <p className="card-kicker">Scam Awareness</p>
+        <h2 className="card-title">Warning Signs to Watch For</h2>
         <p className="muted" style={{ margin: '0.35rem 0 1rem', fontSize: 'var(--text-small)' }}>
           General guidance, the same for every route - not specific to this one, and never an
           accusation against any named person or agency.

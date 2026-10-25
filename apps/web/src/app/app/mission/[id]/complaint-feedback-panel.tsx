@@ -56,7 +56,7 @@ export function ComplaintPanel({
   return (
     <article className="card">
       <p className="card-kicker">Oversight</p>
-      <h2 className="card-title">Case complaint</h2>
+      <h2 className="card-title">Case Complaint</h2>
       <p className="card-body u-mb-100">
         Reviewed only by authorized quality staff - the agency working this case never sees a
         complaint filed against it.
@@ -119,7 +119,7 @@ export function ComplaintPanel({
         <input type="hidden" name="missionId" value={missionId} />
         <div className="field-row">
           <label className="field-label" htmlFor="complaint-description">
-            File a new complaint
+            File a New Complaint
           </label>
           <textarea
             id="complaint-description"
@@ -132,7 +132,7 @@ export function ComplaintPanel({
         <div>
           <SubmitButton
             pending={filePending}
-            idle="File complaint"
+            idle="File Complaint"
             busy="Filing…"
             className="btn btn-secondary"
           />
@@ -164,7 +164,7 @@ export function FeedbackPanel({
   return (
     <article className="card">
       <p className="card-kicker">Oversight</p>
-      <h2 className="card-title">Private feedback</h2>
+      <h2 className="card-title">Private Feedback</h2>
       <p className="card-body u-mb-100">
         Only you and authorized quality staff ever see this - never the agency, and never published
         as a public review or ranking.
@@ -195,7 +195,7 @@ export function FeedbackPanel({
           <div>
             <SubmitButton
               pending={pending}
-              idle="Submit feedback"
+              idle="Submit Feedback"
               busy="Submitting…"
               className="btn btn-secondary"
             />

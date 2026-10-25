@@ -186,7 +186,7 @@ export function WorkspaceRecordToolbar({
           type="search"
           placeholder={
             !scope
-              ? 'Choose an available workspace'
+              ? 'Choose an Available Workspace'
               : selectedOrg
                 ? 'Search accessible cases and clients...'
                 : navigation.kind === 'platform'
@@ -234,11 +234,11 @@ export function WorkspaceRecordToolbar({
         </Link>
       ) : (
         <Link className="record-plan-badge" href={planHref}>
-          Plan information
+          Plan Information
         </Link>
       )}
       <nav className="record-toolbar-shortcuts" aria-label="Help and notifications">
-        <Link href="/app/help" aria-label="Help and support">
+        <Link href="/app/help" aria-label="Help and Support">
           <Icon name="alert" size={20} />
         </Link>
         <Link
@@ -288,14 +288,14 @@ export function WorkspaceRecordToolbar({
           <p className="record-menu-identity" dir="auto">
             {accountName}
           </p>
-          <Link href="/app/account">Your account</Link>
-          <Link href="/app/applicants">Manage travellers</Link>
-          <Link href="/app/agency">Create or manage an agency</Link>
-          <p className="record-menu-plan">{state?.personalPlan?.name ?? 'Plan information'}</p>
-          <Link href="/app/privacy">Privacy & consent</Link>
+          <Link href="/app/account">Your Account</Link>
+          <Link href="/app/applicants">Manage Travellers</Link>
+          <Link href="/app/agency">Create or Manage an Agency</Link>
+          <p className="record-menu-plan">{state?.personalPlan?.name ?? 'Plan Information'}</p>
+          <Link href="/app/privacy">Privacy & Consent</Link>
           <p className="record-menu-heading">Support</p>
-          <Link href="/app/help">Help & support</Link>
-          <Link href="/status">Service status</Link>
+          <Link href="/app/help">Help & Support</Link>
+          <Link href="/status">Service Status</Link>
           {signOut}
         </nav>
       </details>

@@ -9,8 +9,8 @@ export function SignupContext() {
       <legend className="sr-only">How would you like to start?</legend>
       <div className="signup-context-options">
         {[
-          { value: 'traveller', label: "I'm a traveller", icon: 'user' as const },
-          { value: 'agency', label: "I'm an agency", icon: 'briefcase' as const },
+          { value: 'traveller', label: "I'm a Traveller", icon: 'user' as const },
+          { value: 'agency', label: "I'm an Agency", icon: 'briefcase' as const },
         ].map((option) => (
           <label key={option.value} data-selected={intent === option.value}>
             <input

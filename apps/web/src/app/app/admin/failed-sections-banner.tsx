@@ -11,7 +11,7 @@ export function FailedSectionsBanner({ sections }: { readonly sections: readonly
       role="alert"
       style={{ marginBottom: '1.5rem', borderColor: 'var(--danger, #b42318)' }}
     >
-      <p className="card-kicker">Incomplete page</p>
+      <p className="card-kicker">Incomplete Page</p>
       <h2 className="card-title">Some sections could not be loaded</h2>
       <p className="card-body">
         {sections.join(', ')}. The sections on this page are shown empty or at zero because they

@@ -29,39 +29,39 @@ import { AdminRestricted } from './admin-restricted';
 import { FailedSectionsBanner } from './failed-sections-banner';
 import { ReconcileButtons } from './reconcile-buttons';
 
-export const metadata: Metadata = { title: 'Platform operations' };
+export const metadata: Metadata = { title: 'Platform Operations' };
 
 export const dynamic = 'force-dynamic';
 
 const SCORECARD_LABELS: Record<ProductEventType, string> = {
-  ACCOUNT_CREATED: 'Accounts created',
-  APPLICANT_CREATED: 'Applicant records added',
-  DOCUMENT_UPLOADED: 'Documents uploaded',
-  MISSION_CREATED: 'Cases started',
-  GRANT_CREATED: 'Grants created',
+  ACCOUNT_CREATED: 'Accounts Created',
+  APPLICANT_CREATED: 'Applicant Records Added',
+  DOCUMENT_UPLOADED: 'Documents Uploaded',
+  MISSION_CREATED: 'Cases Started',
+  GRANT_CREATED: 'Grants Created',
   AI_EXTRACTION_RUN: 'AI extractions run',
   AI_OCR_RUN: 'AI OCR runs',
   AI_CLASSIFICATION_RUN: 'AI classifications run',
   AI_INCONSISTENCY_RUN: 'AI inconsistency checks run',
-  MISSION_STAGE_CHANGED: 'Case stage changes',
-  MISSION_READY_REACHED: 'Cases first reaching ready',
-  EVIDENCE_REQUESTED: 'Evidence requested',
-  EVIDENCE_RECEIVED: 'Evidence received',
-  EVIDENCE_REWORK_REQUESTED: 'Evidence sent back for rework',
-  TASK_OVERDUE: 'Tasks gone overdue',
-  READINESS_GAPS_DETECTED: 'Readiness checks at capture',
-  ACKNOWLEDGEMENT_RECORDED: 'Applicant acknowledgement decisions',
-  ACKNOWLEDGEMENT_INVALIDATED: 'Acknowledgements voided by a change',
-  SOURCE_REVIEWED: 'Official source reviews',
+  MISSION_STAGE_CHANGED: 'Case Stage Changes',
+  MISSION_READY_REACHED: 'Cases First Reaching Ready',
+  EVIDENCE_REQUESTED: 'Evidence Requested',
+  EVIDENCE_RECEIVED: 'Evidence Received',
+  EVIDENCE_REWORK_REQUESTED: 'Evidence Sent Back for Rework',
+  TASK_OVERDUE: 'Tasks Gone Overdue',
+  READINESS_GAPS_DETECTED: 'Readiness Checks at Capture',
+  ACKNOWLEDGEMENT_RECORDED: 'Applicant Acknowledgement Decisions',
+  ACKNOWLEDGEMENT_INVALIDATED: 'Acknowledgements Voided by a Change',
+  SOURCE_REVIEWED: 'Official Source Reviews',
   AI_PROPOSAL_ACCEPTED: 'AI proposals accepted',
   AI_PROPOSAL_CORRECTED: 'AI proposals corrected',
   AI_PROPOSAL_REJECTED: 'AI proposals rejected',
-  OUTCOME_RECORDED: 'Case outcomes recorded',
-  COMPLAINT_RESOLVED: 'Complaints ended',
+  OUTCOME_RECORDED: 'Case Outcomes Recorded',
+  COMPLAINT_RESOLVED: 'Complaints Ended',
   ACCOUNT_ACTIVATED: 'Accounts activated (first case)',
-  PLAN_CHANGED: 'Plan changes',
-  PLAN_LIMIT_REACHED: 'Plan limits reached',
-  CASH_COLLECTED: 'Cash collections recorded',
+  PLAN_CHANGED: 'Plan Changes',
+  PLAN_LIMIT_REACHED: 'Plan Limits Reached',
+  CASH_COLLECTED: 'Cash Collections Recorded',
 };
 
 const SIGNAL_STATUS_LABEL: Record<OperationalSignal['status'], string> = {
@@ -198,7 +198,7 @@ export default async function AdminOperationsPage() {
     <section className="section container platform-operations">
       <PageHeader
         eyebrow="VisaStack operations"
-        title="Platform overview"
+        title="Platform Overview"
         description="Platform health, readiness, capacity and pilot measurement."
         actions={
           data.admin ? (
@@ -222,12 +222,12 @@ export default async function AdminOperationsPage() {
           <div className="admin-reference-metrics">
             {[
               {
-                label: 'Registered accounts',
+                label: 'Registered Accounts',
                 value: data.overview?.accounts,
                 hint: 'Current account records',
               },
               {
-                label: 'Traveller records',
+                label: 'Traveller Records',
                 value: data.overview?.travellers,
                 hint: 'Saved records, not active-user counts',
               },
@@ -237,7 +237,7 @@ export default async function AdminOperationsPage() {
                 hint: 'Current organization records',
               },
               {
-                label: 'Approved file versions',
+                label: 'Approved File Versions',
                 value: data.overview
                   ? data.overview.terminalVersions
                     ? `${Math.round((100 * data.overview.approvedVersions) / data.overview.terminalVersions)}%`
@@ -256,8 +256,8 @@ export default async function AdminOperationsPage() {
           <div className="admin-reference-working-area">
             <div className="admin-reference-main">
               <article className="card admin-activity-chart">
-                <p className="card-kicker">Activation and adoption</p>
-                <h2 className="card-title">Recorded activity, last 30 days</h2>
+                <p className="card-kicker">Activation and Adoption</p>
+                <h2 className="card-title">Recorded Activity, Last 30 Days</h2>
                 <p className="card-body">
                   Accounts reaching their first case and cases started, grouped by UTC day. These
                   are event counts, not a count of active users.
@@ -288,14 +288,14 @@ export default async function AdminOperationsPage() {
                       })}
                     </div>
                     <details>
-                      <summary>Exact daily counts</summary>
+                      <summary>Exact Daily Counts</summary>
                       <table className="data-table">
                         <caption>Recorded activity by UTC day</caption>
                         <thead>
                           <tr>
                             <th scope="col">Day</th>
-                            <th scope="col">First-case activations</th>
-                            <th scope="col">Cases started</th>
+                            <th scope="col">First-Case Activations</th>
+                            <th scope="col">Cases Started</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -316,7 +316,7 @@ export default async function AdminOperationsPage() {
               </article>
               <article className="card" id="admin-processing">
                 <p className="card-kicker">Processing</p>
-                <h2 className="card-title">Failed intake jobs</h2>
+                <h2 className="card-title">Failed Intake Jobs</h2>
                 {data.failedJobs.length === 0 ? (
                   <p className="card-body">
                     No failed jobs. A job is parked here only after it exhausts every retry attempt.
@@ -367,8 +367,8 @@ export default async function AdminOperationsPage() {
                 )}
               </article>
               <article className="card u-mb-150">
-                <p className="card-kicker">Pilot measurement</p>
-                <h2 className="card-title">Product scorecard</h2>
+                <p className="card-kicker">Pilot Measurement</p>
+                <h2 className="card-title">Product Scorecard</h2>
                 <p className="card-body u-mb-100">
                   Real usage milestones, counted from an append-only event log - no PII, no
                   free-text properties.
@@ -389,7 +389,7 @@ export default async function AdminOperationsPage() {
             <aside className="admin-reference-rail" aria-label="Operational health and capacity">
               {' '}
               <article className="card u-mt-150" id="admin-provider-operations">
-                <p className="card-kicker">Providers and recovery</p>
+                <p className="card-kicker">Providers and Recovery</p>
                 <h2 className="card-title">Providers</h2>
                 <p className="card-body">
                   Recorded usage, configured services and unverified readings are shown separately.
@@ -417,7 +417,7 @@ export default async function AdminOperationsPage() {
                         </span>{' '}
                         <strong>{row.headline}</strong>
                         <details>
-                          <summary>Show technical detail</summary>
+                          <summary>Show Technical Detail</summary>
                           <p>
                             Reading: <strong>{row.reading}</strong>
                           </p>
@@ -431,7 +431,7 @@ export default async function AdminOperationsPage() {
               </article>
               <article className="card" id="admin-usage">
                 <p className="card-kicker">Capacity</p>
-                <h2 className="card-title">Platform storage</h2>
+                <h2 className="card-title">Platform Storage</h2>
                 <p className="card-body u-mb-125">
                   Tracked evidence bytes across every account. New uploads are refused once the
                   platform hits its hard stop; the warning threshold below is purely informational -
@@ -444,7 +444,7 @@ export default async function AdminOperationsPage() {
                   </p>
                 ) : (
                   <UsageMeter
-                    label="Evidence storage (platform-wide)"
+                    label="Evidence Storage (Platform-Wide)"
                     usedBytes={data.platformEvidenceBytes}
                     limitBytes={data.quota.platformHardStopBytes}
                     warnBytes={data.quota.platformWarningBytes}
@@ -453,7 +453,7 @@ export default async function AdminOperationsPage() {
               </article>
               <article className="card u-mt-150">
                 <p className="card-kicker">Capacity</p>
-                <h2 className="card-title">AI Gateway spend</h2>
+                <h2 className="card-title">AI Gateway Spend</h2>
                 <p className="card-body u-mb-125">
                   Lifetime-to-date spend against the configured pilot cap (never resets
                   automatically - raising the limit is a deliberate operator action, not a monthly
@@ -500,10 +500,10 @@ export default async function AdminOperationsPage() {
                 })()}
               </article>
               <details className="admin-signals-disclosure">
-                <summary>All operational signals</summary>
+                <summary>All Operational Signals</summary>
                 <article className="card" id="admin-signals">
                   <p className="card-kicker">Operations</p>
-                  <h2 className="card-title">Operational signals</h2>
+                  <h2 className="card-title">Operational Signals</h2>
                   <p className="card-body u-mb-100">
                     What an operator needs to tell whether the platform is healthy. Counts, ages and
                     ratios only: nothing here names a person or a document. The thresholds are pilot
@@ -542,7 +542,7 @@ export default async function AdminOperationsPage() {
                               className="muted"
                               style={{ fontSize: 'var(--text-small)', cursor: 'pointer' }}
                             >
-                              What this means
+                              What This Means
                             </summary>
                             <p className="card-body" style={{ marginTop: '0.4rem' }}>
                               {signal.detail}
@@ -557,7 +557,7 @@ export default async function AdminOperationsPage() {
             </aside>
           </div>
           <details className="admin-overview-controls">
-            <summary>More operational details and tools</summary>
+            <summary>More Operational Details and Tools</summary>
             <div className="admin-operational-summary">
               <a href="#admin-signals" className="card admin-summary-metric">
                 <span>Signals needing attention</span>
@@ -585,7 +585,7 @@ export default async function AdminOperationsPage() {
                   {data.readiness
                     ? data.readiness.ready
                       ? 'Ready'
-                      : 'Needs attention'
+                      : 'Needs Attention'
                     : 'Unavailable'}
                 </strong>
                 <small>Deployment checks, separate from full beta acceptance</small>
@@ -622,7 +622,7 @@ export default async function AdminOperationsPage() {
             {' '}
             <article className="card u-mb-150" id="admin-platform-readiness">
               <p className="card-kicker">Operations</p>
-              <h2 className="card-title">Platform readiness detail</h2>
+              <h2 className="card-title">Platform Readiness Detail</h2>
               <p className="card-body u-mb-100">
                 The detailed view behind the public readiness probe, which on a deployed build says
                 only "ready" or "degraded". It names missing configuration and pending migrations,
@@ -702,8 +702,8 @@ export default async function AdminOperationsPage() {
               )}
             </article>
             <article className="card" id="admin-analytics">
-              <p className="card-kicker">Pilot measurement</p>
-              <h2 className="card-title">Learning areas</h2>
+              <p className="card-kicker">Pilot Measurement</p>
+              <h2 className="card-title">Learning Areas</h2>
               <p className="card-body u-mb-100">
                 Aggregates only, from the same event log. Nothing here names a person, a case, a
                 document or what anyone wrote. Figures are counts and timings; they say how the
@@ -742,7 +742,7 @@ export default async function AdminOperationsPage() {
                       </div>
                     ))}
                     <div className="row">
-                      <span className="row-key">Agencies active, last 90 days</span>
+                      <span className="row-key">Agencies Active, Last 90 Days</span>
                       <span className="muted u-fs-085">
                         {data.analytics.agencyRepeatUse.activeOrganizations} created a case,{' '}
                         {data.analytics.agencyRepeatUse.repeatOrganizations} in two or more
@@ -750,7 +750,7 @@ export default async function AdminOperationsPage() {
                       </span>
                     </div>
                     <div className="row">
-                      <span className="row-key">AI proposals decided</span>
+                      <span className="row-key">AI Proposals Decided</span>
                       <span className="muted u-fs-085">
                         {data.analytics.aiDecisions.accepted} accepted,{' '}
                         {data.analytics.aiDecisions.corrected} corrected,{' '}
@@ -759,9 +759,9 @@ export default async function AdminOperationsPage() {
                     </div>
                     {(
                       [
-                        ['Cases by stage entered', data.analytics.casesByStage],
-                        ['Case outcomes', data.analytics.outcomes],
-                        ['Plan limits reached', data.analytics.planLimitHits],
+                        ['Cases by Stage Entered', data.analytics.casesByStage],
+                        ['Case Outcomes', data.analytics.outcomes],
+                        ['Plan Limits Reached', data.analytics.planLimitHits],
                       ] as const
                     ).map(([label, counts]) => (
                       <div className="row" key={label}>
@@ -796,8 +796,8 @@ export default async function AdminOperationsPage() {
               )}
             </article>
             <article className="card" id="admin-readiness">
-              <p className="card-kicker">Operational posture</p>
-              <h2 className="card-title">Commercial readiness</h2>
+              <p className="card-kicker">Operational Posture</p>
+              <h2 className="card-title">Commercial Readiness</h2>
               <p className="card-body u-mb-100">
                 The full per-gate breakdown behind commercial mode's guard - deliberately{' '}
                 <strong>not</strong> public. An unauthenticated caller (including the public{' '}
@@ -839,8 +839,8 @@ export default async function AdminOperationsPage() {
               )}
             </article>
             <article className="card u-mt-150">
-              <p className="card-kicker">Storage integrity</p>
-              <h2 className="card-title">Orphan reconciliation</h2>
+              <p className="card-kicker">Storage Integrity</p>
+              <h2 className="card-title">Orphan Reconciliation</h2>
               <p className="card-body u-mb-125">
                 Detects drift between storage metadata and actual bytes: dangling references, blobs
                 with no reference, duplicate references, and size/hash mismatches. Cleanup only ever

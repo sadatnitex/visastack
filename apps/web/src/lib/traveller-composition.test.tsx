@@ -70,11 +70,11 @@ describe('traveller composition and independent record guards', () => {
       'Active visa cases',
       'Documents in your wallet',
       'Items needing attention',
-      'Continue where you left off',
-      'Needs your attention',
+      'Continue Where You Left Off',
+      'Needs Your Attention',
       'Upcoming',
-      'Recent activity',
-      'No active case yet',
+      'Recent Activity',
+      'No Active Case Yet',
       'No upcoming case dates',
     ])
       expect(html).toContain(text);
@@ -140,11 +140,11 @@ describe('traveller composition and independent record guards', () => {
     const html = renderToStaticMarkup(await profile(params));
     for (const text of [
       'Profile completion',
-      'Profile health',
-      'Latest changes',
+      'Profile Health',
+      'Latest Changes',
       'Conflicted',
       'Versioned editor',
-      'You decide what becomes a fact',
+      'You Decide What Becomes a Fact',
       'This does not verify identity',
     ])
       expect(html).toContain(text);

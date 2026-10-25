@@ -94,7 +94,7 @@ export function CasePreparationSummary({
         </div>
       </div>
       <div className="case-preparation-counts">
-        <h3>Evidence progress</h3>
+        <h3>Evidence Progress</h3>
         <p className="muted">
           {readiness.satisfiedRequired} of {readiness.requiredCount} required items are on file.
           Optional and non-applicable items are counted separately.
@@ -104,7 +104,7 @@ export function CasePreparationSummary({
             [
               ['On file', counts.satisfied],
               ['Missing required', counts.missing],
-              ['Needs review', counts.review],
+              ['Needs Review', counts.review],
               ['Unknown applicability', counts.unknown],
               ['Not applicable', counts.notApplicable],
               ['Optional not provided', counts.optionalMissing],
