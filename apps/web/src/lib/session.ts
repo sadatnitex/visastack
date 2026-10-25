@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto';
 import { isOk } from '@visastack/core';
 import { createPooledDb, resolveDatabaseUrl } from '@visastack/db';
 import {
+  ACTIVITY_TOUCH_THROTTLE_MS,
   type Db,
   attributeInvitation,
   claimInvitation,
@@ -62,17 +63,16 @@ async function releaseClaimBestEffort(db: Db, invitationId: string): Promise<voi
 }
 
 /**
- * How often the "still active" timestamp is rewritten for one account. It is the same hour the
- * database write itself already waits (ACTIVITY_TOUCH_THROTTLE_MS in
- * packages/services/src/accounts.ts), so this check only skips writes the database would have
- * ignored anyway. A shorter value here would just send writes that change nothing.
+ * How often the "still active" timestamp is rewritten for one account: the same window the
+ * database write itself already waits (ACTIVITY_TOUCH_THROTTLE_MS, imported from the service so
+ * the two cannot drift apart). This check only skips writes the database would have ignored.
  *
  * Why an hour is safe for the inactive-account rules (account-retention.ts): the warning goes out
  * after 12 months without activity and deletion needs a further 30 days, so a timestamp that is
  * at most an hour old can never tip either decision. An account that has already been warned is
  * cleared straight away on its first request, before the page is shown (see `activityWriteNeeded`).
  */
-export const ACTIVITY_WRITE_INTERVAL_MS = 60 * 60 * 1000;
+export const ACTIVITY_WRITE_INTERVAL_MS = ACTIVITY_TOUCH_THROTTLE_MS;
 
 export type ActivityWrite = 'none' | 'background' | 'now';
 
@@ -122,7 +122,6 @@ interface SharedPool {
   readonly db: Db;
   readonly pool: Pool;
   users: number;
-  ended: boolean;
 }
 
 interface SignedInAccount {
@@ -145,7 +144,7 @@ const requestScope = cache((): RequestScope => ({ shared: null, resolution: null
 
 function acquirePool(scope: RequestScope, connectionString: string): SharedPool {
   if (!scope.shared) {
-    scope.shared = { ...openPool(connectionString, 'withSession'), users: 0, ended: false };
+    scope.shared = { ...openPool(connectionString, 'withSession'), users: 0 };
   }
   scope.shared.users += 1;
   return scope.shared;
@@ -158,9 +157,8 @@ function acquirePool(scope: RequestScope, connectionString: string): SharedPool 
  */
 async function releasePool(scope: RequestScope, shared: SharedPool): Promise<void> {
   shared.users -= 1;
-  if (shared.users > 0 || shared.ended) return;
-  shared.ended = true;
-  if (scope.shared === shared) scope.shared = null;
+  if (shared.users > 0) return;
+  scope.shared = null;
   await shared.pool.end();
 }
 
@@ -192,7 +190,20 @@ async function scheduleActivityWrite(
     after(() => recordActivityAfterResponse(accountId, connectionString));
   } catch {
     // `after()` only works inside a Next.js request. Anywhere else, write straight away as before.
+    await touchActivitySafely(db, accountId, 'activity write failed');
+  }
+}
+
+/**
+ * The activity timestamp is retention bookkeeping, never a sign-in gate: a failed write is logged
+ * and the request carries on. The next request retries, because the stored timestamp (or the
+ * pending warning) is still there.
+ */
+async function touchActivitySafely(db: Db, accountId: string, step: string): Promise<void> {
+  try {
     await touchAccountActivity(db, accountId);
+  } catch (error) {
+    reportServerError('withSession', error, { step });
   }
 }
 
@@ -290,7 +301,11 @@ async function resolveSignedInAccount(
   // Part 7 §11 inactive-account policy bookkeeping, decided from the row we already have.
   const activity = activityWriteNeeded(provisioned.value);
   if (activity === 'now') {
-    await touchAccountActivity(db, provisioned.value.id);
+    await touchActivitySafely(
+      db,
+      provisioned.value.id,
+      'clearing a pending inactivity warning failed',
+    );
   } else if (activity === 'background') {
     await scheduleActivityWrite(db, provisioned.value.id, connectionString);
   }

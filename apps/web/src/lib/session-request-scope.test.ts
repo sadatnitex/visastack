@@ -65,6 +65,7 @@ vi.mock('@visastack/db', () => ({
   },
 }));
 vi.mock('@visastack/services', () => ({
+  ACTIVITY_TOUCH_THROTTLE_MS: 60 * 60 * 1000,
   provisionNeonAccount: h.provision,
   claimInvitation: h.claimInvitation,
   releaseInvitationClaim: h.release,
@@ -97,6 +98,8 @@ const tick = () => new Promise((resolve) => setTimeout(resolve, 0));
 
 beforeEach(() => {
   vi.clearAllMocks();
+  // Tests below change how the activity write behaves; never let that leak into the next test.
+  h.touch.mockReset();
   h.newRequest();
   h.state.pools = [];
   h.state.afterThrows = false;
@@ -268,6 +271,23 @@ describe('withSession activity bookkeeping', () => {
     const { withSession } = await import('./session');
     await withSession(async () => undefined);
     expect(h.touch).toHaveBeenCalledWith({ pool: 1 }, 'acct-1');
+  });
+
+  it('still shows the page when clearing a pending warning fails, and logs it', async () => {
+    h.provision.mockResolvedValue(account({ inactivityNoticeSentAt: new Date() }));
+    h.touch.mockRejectedValue(new Error('database unavailable'));
+    const { withSession } = await import('./session');
+    await expect(withSession(async () => 'page')).resolves.toBe('page');
+    expect(h.report).toHaveBeenCalledOnce();
+  });
+
+  it('still shows the page when the inline fallback write fails, and logs it', async () => {
+    h.state.afterThrows = true;
+    h.provision.mockResolvedValue(account({ lastActiveAt: new Date(Date.now() - 2 * HOUR) }));
+    h.touch.mockRejectedValue(new Error('database unavailable'));
+    const { withSession } = await import('./session');
+    await expect(withSession(async () => 'page')).resolves.toBe('page');
+    expect(h.report).toHaveBeenCalledOnce();
   });
 
   it('logs a failed background write without throwing', async () => {
