@@ -15,24 +15,57 @@ import { RATE_LIMITS, checkRateLimits } from './rate-limit';
 import { acceptGrant, createGrant } from './sharing';
 
 /**
- * Agency invites a traveller (Commercial V1 Part 4 §6, IAM-03 exactly).
+ * Agency invites a traveller (Commercial V1 Part 4 §6, IAM-03; v1.2 PR1/S1 B09).
  *
- * Deliberately never keyed by email at acceptance and never checked against
- * an existing account at creation, unlike `invitations.ts`'s organization
- * invitations: the PRD is explicit that an agency "may not... claim an
- * existing wallet" or "expose whether email already has VisaStack account."
- * Acceptance is gated purely on holding the token plus being authenticated
- * as ANY account, never on an email match, the only design that cannot
- * leak account-existence information back to the inviting agency. The
- * agency supplies only a minimal display name/contact/route/case-owner; the
- * accepting traveller alone chooses which of their own applicant profiles
- * (existing or newly created) the resulting grant and mission attach to,
- * so the agency can never claim or preload into a wallet it does not own.
+ * Never checked against an existing account at creation: the PRD is explicit that an agency "may
+ * not... claim an existing wallet" or "expose whether email already has VisaStack account", so the
+ * agency learns nothing about accounts from creating, previewing or the outcome of an invitation.
+ *
+ * Bound to its intended recipient (v1.2 PR1/S1): when the agency gave an email address, only an
+ * account signed in with that same address may see the invitation's details or accept it. A
+ * forwarded link or an unrelated account gets a neutral refusal that names no person, route or
+ * case, and the check happens at acceptance, never at creation, so it reveals nothing to the
+ * agency. A phone contact cannot be verified, so such an invitation stays claimable by any
+ * signed-in holder of the link (recorded in known-issues as a residual).
+ *
+ * The agency supplies only a minimal display name/contact/route/case-owner; the accepting
+ * traveller alone chooses which of their own applicant profiles (existing or newly created) the
+ * resulting grant and mission attach to, so the agency can never claim or preload into a wallet it
+ * does not own.
  */
 
 export type ClientInvitation = typeof schema.clientInvitations.$inferSelect;
 
 const DEFAULT_EXPIRY_DAYS = 7;
+
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+/** The address an invitation is bound to, or undefined for a phone contact (not verifiable). */
+function boundEmail(contactDestination: string): string | undefined {
+  const value = contactDestination.trim().toLowerCase();
+  return EMAIL_PATTERN.test(value) ? value : undefined;
+}
+
+/** Whether `accountId` may see and accept an invitation sent to `contactDestination`. */
+async function isIntendedRecipient(
+  db: Db,
+  contactDestination: string,
+  accountId: string,
+): Promise<boolean> {
+  const bound = boundEmail(contactDestination);
+  if (!bound) return true;
+  const account = first(
+    await db
+      .select({ email: schema.accounts.email })
+      .from(schema.accounts)
+      .where(eq(schema.accounts.id, accountId))
+      .limit(1),
+  );
+  return account?.email.trim().toLowerCase() === bound;
+}
+
+/** The same neutral refusal sharing invitations give: it names no person, route or case. */
+const WRONG_RECIPIENT_MESSAGE = 'Use the email address that received this invitation.';
 
 /**
  * What an agency actually receives once a client invitation is accepted:
@@ -144,7 +177,7 @@ export async function createClientInvitation(
       resourceId: invitation.id,
       metadata: { organizationId: input.organizationId },
     });
-    if (input.encryption && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contactDestination)) {
+    if (input.encryption && EMAIL_PATTERN.test(contactDestination)) {
       await queueInvitationEmail(tx, {
         kind: 'client',
         invitationId: invitation.id,
@@ -158,10 +191,13 @@ export async function createClientInvitation(
   });
 }
 
+/**
+ * What the intended recipient sees before deciding. The agency-typed person name is deliberately
+ * absent (v1.2 B09: no applicant name in a preview); the traveller names their own profile.
+ */
 export interface ClientInvitationPreview {
   readonly organizationId: string;
   readonly organizationName: string;
-  readonly displayName: string;
   readonly requestedRoute: string | null;
   readonly grantActions: readonly PermissionAction[];
   readonly expiresAt: Date;
@@ -170,11 +206,13 @@ export interface ClientInvitationPreview {
 /**
  * Read-only lookup, deliberately never consuming the token (same reasoning
  * as `invitations.ts`'s `previewOrganizationInvitation`): a GET request must
- * never spend a one-time token as a side effect of rendering.
+ * never spend a one-time token as a side effect of rendering. Only the
+ * intended recipient (`viewerAccountId`) sees the details.
  */
 export async function previewClientInvitation(
   db: Db,
   rawToken: string,
+  viewerAccountId: string,
 ): Promise<Result<ClientInvitationPreview, ServiceError>> {
   const tokenHash = hashInvitationToken(rawToken);
   const row = first(
@@ -182,7 +220,7 @@ export async function previewClientInvitation(
       .select({
         organizationId: schema.clientInvitations.organizationId,
         organizationName: schema.organizations.name,
-        displayName: schema.clientInvitations.displayName,
+        contactDestination: schema.clientInvitations.contactDestination,
         requestedRoute: schema.clientInvitations.requestedRoute,
         expiresAt: schema.clientInvitations.expiresAt,
         status: schema.clientInvitations.status,
@@ -202,10 +240,12 @@ export async function previewClientInvitation(
   if (row.expiresAt.getTime() < Date.now()) {
     return err(serviceError('invalid', 'this invitation has expired'));
   }
+  if (!(await isIntendedRecipient(db, row.contactDestination, viewerAccountId))) {
+    return err(serviceError('forbidden', WRONG_RECIPIENT_MESSAGE));
+  }
   return ok({
     organizationId: row.organizationId,
     organizationName: row.organizationName,
-    displayName: row.displayName,
     requestedRoute: row.requestedRoute,
     grantActions: DEFAULT_CLIENT_GRANT_ACTIONS,
     expiresAt: row.expiresAt,
@@ -263,6 +303,10 @@ export async function acceptClientInvitation(
   }
   if (invitation.expiresAt.getTime() < Date.now()) {
     return err(serviceError('invalid', 'this invitation has expired'));
+  }
+  // Checked before anything is claimed or created: a forwarded link cannot spend the invitation.
+  if (!(await isIntendedRecipient(db, invitation.contactDestination, input.actorAccountId))) {
+    return err(serviceError('forbidden', WRONG_RECIPIENT_MESSAGE));
   }
   if (input.applicantChoice.kind === 'existing') {
     const applicant = await getApplicant(db, input.applicantChoice.applicantId);

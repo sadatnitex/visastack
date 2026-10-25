@@ -45,6 +45,25 @@ describe('safeReturnPath', () => {
     }
   });
 
+  it('returns an invited person to their invitation after sign-in, token and all (v1.2 R01)', () => {
+    const token = 'a'.repeat(43);
+    for (const path of [
+      `/app/client-invitations/accept?token=${token}`,
+      `/app/sharing-invitations/accept?token=${token}`,
+      `/app/invitations/accept?token=${token}`,
+    ]) {
+      expect(safeReturnPath(path)).toBe(path);
+    }
+    // Look-alikes that would leave the site are replaced, never followed.
+    for (const hostile of [
+      `//evil.example/app/client-invitations/accept?token=${token}`,
+      `https://evil.example/app/client-invitations/accept?token=${token}`,
+      `/\\evil.example/app/client-invitations/accept`,
+    ]) {
+      expect(safeReturnPath(hostile)).toBe('/app');
+    }
+  });
+
   it('builds the re-check address from a safe path only', () => {
     expect(neonReauthUrl('/app/privacy')).toBe('/auth/reauth?returnTo=%2Fapp%2Fprivacy');
     expect(neonReauthUrl('//evil.test')).toBe('/auth/reauth?returnTo=%2Fapp');
