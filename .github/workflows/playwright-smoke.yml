@@ -1,7 +1,7 @@
 name: Playwright Deploy Smoke
 
 # Browser-level verification of the deployed URL (production only since
-# 2026-10-25; pull requests run the same specs in pr-browser-checks.yml) — no
+# 2026-10-25; pull requests run the same specs in pr-browser-checks.yml), with no
 # secrets required. Runs both no-secret specs (master directive §8B);
 # the credential-gated authenticated spec lives in workos-staging-e2e.yml.
 # ux-public.spec.ts (axe/responsive/keyboard/i18n/404 checks) previously
