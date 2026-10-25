@@ -2,6 +2,7 @@ import { fileURLToPath } from 'node:url';
 import { PGlite } from '@electric-sql/pglite';
 import { isErr, isOk } from '@visastack/core';
 import { schema } from '@visastack/db';
+import { eq } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/pglite';
 import { migrate } from 'drizzle-orm/pglite/migrator';
 import { beforeEach, describe, expect, it } from 'vitest';
@@ -326,6 +327,14 @@ describe('supersedeDocument (EVI-04)', () => {
       packRequirementId: requirement.value.id,
       documentId: oldDoc.value.id,
     });
+    const revisionOf = async () =>
+      (
+        await db
+          .select({ revision: schema.missions.materialRevision })
+          .from(schema.missions)
+          .where(eq(schema.missions.id, mission.value.id))
+      )[0]?.revision;
+    const revisionBefore = await revisionOf();
 
     const superseded = await supersedeDocument(db, {
       actorAccountId: account.id,
@@ -334,6 +343,9 @@ describe('supersedeDocument (EVI-04)', () => {
     });
     expect(isOk(superseded)).toBe(true);
     if (isOk(superseded)) expect(superseded.value.flaggedMissionIds).toEqual([mission.value.id]);
+    // A replaced document is a material change (v1.2 E03, W0-04): the case revision moves,
+    // so a live acknowledgement made with the old document no longer stands.
+    expect(await revisionOf()).toBe((revisionBefore ?? 0) + 1);
 
     const tasks = await listTasks(db, account.id, mission.value.id);
     expect(isOk(tasks)).toBe(true);

@@ -7,6 +7,7 @@ import { appendAuditEvent } from './audit';
 import { type Db, first, schema } from './db';
 import type { Document } from './documents';
 import { type ServiceError, serviceError } from './errors';
+import { incrementMaterialRevision } from './material-revision';
 import { createTask } from './missions';
 import { documentCategory, loadGrantsForPolicy } from './sharing';
 
@@ -251,6 +252,10 @@ export async function supersedeDocument(
       .where(eq(schema.documents.id, input.oldDocumentId));
 
     for (const { missionId } of affectedMissions) {
+      // A replaced document is a material change (v1.2 E03): bump the case
+      // revision in this same transaction, which also voids a live
+      // acknowledgement made with the old document. Snapshots stay exact.
+      await incrementMaterialRevision(tx, missionId);
       await createTask(tx, {
         actorAccountId: input.actorAccountId,
         missionId,
