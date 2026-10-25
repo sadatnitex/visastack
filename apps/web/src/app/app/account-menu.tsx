@@ -85,7 +85,9 @@ export function AccountMenu({
 }) {
   const pathname = usePathname();
   const account = useRef<HTMLDetailsElement>(null);
+  const panel = useRef<HTMLElement>(null);
   const panelId = useId();
+  const groupId = useId();
   const initials = accountInitials(name);
   const current = stripSlash(pathname.split(/[?#]/)[0] ?? pathname);
 
@@ -116,8 +118,7 @@ export function AccountMenu({
     return () => document.removeEventListener('pointerdown', outside);
   }, []);
 
-  const rows = () =>
-    Array.from(account.current?.querySelectorAll<HTMLElement>(`nav ${ROW_SELECTOR}`) ?? []);
+  const rows = () => Array.from(panel.current?.querySelectorAll<HTMLElement>(ROW_SELECTOR) ?? []);
 
   const onKeyDown = (event: KeyboardEvent<HTMLDetailsElement>) => {
     const details = account.current;
@@ -168,7 +169,7 @@ export function AccountMenu({
 
   return (
     <details className="record-account" ref={account} onKeyDown={onKeyDown} onBlur={onBlur}>
-      <summary aria-label={`${name}, account menu`} aria-controls={panelId}>
+      <summary aria-label={`${name}, Account Menu`} aria-controls={panelId}>
         <b className="account-name-desktop" dir="auto">
           {name}
         </b>
@@ -180,12 +181,12 @@ export function AccountMenu({
           <Icon name="user" size={20} />
         </span>
         <Icon name="chevronDown" size={14} />
-        <span className="sr-only">Account menu</span>
       </summary>
       <nav
         id={panelId}
         className="account-menu-panel"
-        aria-label="Account menu"
+        ref={panel}
+        aria-label="Account Menu"
         onClickCapture={(event) => {
           if ((event.target as HTMLElement).closest('a')) close(false);
         }}
@@ -228,8 +229,15 @@ export function AccountMenu({
         {/* Plain rows, not list items: the product underlines links inside lists and sentences. */}
         {ACCOUNT_MENU_GROUPS.map((group) => (
           <div className="account-menu-group" key={group.id}>
-            <p className="account-menu-label">{group.label}</p>
-            <div className="account-menu-list">
+            <p className="account-menu-label" id={`${groupId}-${group.id}`}>
+              {group.label}
+            </p>
+            <div
+              className="account-menu-list"
+              // biome-ignore lint/a11y/useSemanticElements: a fieldset groups form controls; these are links
+              role="group"
+              aria-labelledby={`${groupId}-${group.id}`}
+            >
               {group.links.map((link) => (
                 <Link
                   key={link.href}

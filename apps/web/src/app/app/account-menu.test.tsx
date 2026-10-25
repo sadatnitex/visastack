@@ -50,7 +50,7 @@ function mount(props: Partial<Props> = {}) {
 }
 const details = () => container.querySelector('details') as HTMLDetailsElement;
 const summary = () => container.querySelector('summary') as HTMLElement;
-const panel = () => container.querySelector('nav[aria-label="Account menu"]') as HTMLElement;
+const panel = () => container.querySelector('nav[aria-label="Account Menu"]') as HTMLElement;
 const key = (target: Element, name: string) =>
   act(() => {
     target.dispatchEvent(new KeyboardEvent('keydown', { key: name, bubbles: true }));
@@ -127,12 +127,25 @@ describe('account menu structure', () => {
 
 describe('account menu accessibility', () => {
   it('ties the trigger to the panel and marks only the current page', () => {
-    expect(summary().getAttribute('aria-label')).toBe('Synthetic Self, account menu');
+    expect(summary().getAttribute('aria-label')).toBe('Synthetic Self, Account Menu');
     expect(summary().getAttribute('aria-controls')).toBe(panel().id);
     const current = [...panel().querySelectorAll('[aria-current]')];
     expect(
       current.map((row) => [row.getAttribute('href'), row.getAttribute('aria-current')]),
     ).toEqual([['/app/privacy', 'page']]);
+  });
+
+  it('names each group by its visible label so screen readers hear Account and Support', () => {
+    const groups = [...panel().querySelectorAll('[role="group"]')];
+    expect(groups).toHaveLength(2);
+    const names = groups.map((group) => {
+      const id = group.getAttribute('aria-labelledby') ?? '';
+      return document.getElementById(id)?.textContent;
+    });
+    expect(names).toEqual(['Account', 'Support']);
+    expect(groups.map((group) => group.querySelectorAll('a').length)).toEqual([4, 2]);
+    // The trigger's name comes from its label alone; no hidden duplicate text inside it.
+    expect(summary().querySelector('.sr-only')).toBeNull();
   });
 
   it('closes on Escape and returns focus to the trigger', () => {

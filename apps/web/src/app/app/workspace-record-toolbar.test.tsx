@@ -67,7 +67,7 @@ async function query(value: string) {
 }
 describe('actual toolbar component behavior, without provider-backed acceptance claims', () => {
   it('keeps personal controls separate from workspace navigation and closes outside it', () => {
-    const menu = container.querySelector('nav[aria-label="Account menu"]');
+    const menu = container.querySelector('nav[aria-label="Account Menu"]');
     expect(menu?.querySelector(`a[href="/app/applicant/${person}"]`)).toBeNull();
     expect(menu?.querySelector('a[href="/app/applicants"]')?.textContent).toBe('Manage Travellers');
     expect(menu?.querySelector('a[href="/app/agency"]')?.textContent).toBe(
