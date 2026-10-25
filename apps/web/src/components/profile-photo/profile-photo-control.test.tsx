@@ -206,6 +206,28 @@ describe('ProfilePhotoControl', () => {
     }
   });
 
+  it('says where the photo sits once a drag ends, not on every step of the drag', async () => {
+    await mount(null);
+    await choose(jpeg());
+    const area = button('Photo Position');
+    const before = position();
+    const pointer = (type: string, clientX: number) =>
+      act(async () => {
+        area.dispatchEvent(
+          Object.assign(new MouseEvent(type, { bubbles: true, clientX, clientY: 0 }), {
+            pointerId: 1,
+          }),
+        );
+      });
+    await pointer('pointerdown', 100);
+    await pointer('pointermove', 90);
+    await pointer('pointermove', 80);
+    expect(lastCrop().x).toBe(-80);
+    expect(position()).toBe(before);
+    await pointer('pointerup', 80);
+    expect(position()).toBe('Showing 65% from the left and the full height, zoom 1.0 times.');
+  });
+
   it('saves the cropped square JPEG, announces progress and success, and shows the new photo', async () => {
     let finish: (value: unknown) => void = () => undefined;
     mocks.save.mockReturnValue(

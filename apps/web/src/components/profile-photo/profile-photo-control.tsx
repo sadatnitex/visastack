@@ -87,6 +87,18 @@ export function ProfilePhotoControl({
     if (crop && photo.current && canvas.current) drawPreview(canvas.current, photo.current, crop);
   }, [crop]);
 
+  // What the position region says. It changes after a key or button move, a zoom, or when a drag
+  // ends, never on each step of a drag, so a screen reader is not flooded while dragging.
+  const [spokenPosition, setSpokenPosition] = useState('');
+  useEffect(() => {
+    if (crop && !drag.current) setSpokenPosition(describeCrop(crop));
+  }, [crop]);
+  const endDrag = () => {
+    if (!drag.current) return;
+    drag.current = null;
+    if (crop) setSpokenPosition(describeCrop(crop));
+  };
+
   // Focus goes back to the photo button once it is on the page again, so keyboard and screen
   // reader users stay where they were after the crop step closes or a removal finishes.
   const returnFocus = useRef(false);
@@ -248,17 +260,13 @@ export function ProfilePhotoControl({
             onKeyDown={onKeyDown}
             onPointerDown={onPointerDown}
             onPointerMove={onPointerMove}
-            onPointerUp={() => {
-              drag.current = null;
-            }}
-            onPointerCancel={() => {
-              drag.current = null;
-            }}
+            onPointerUp={endDrag}
+            onPointerCancel={endDrag}
           >
             <canvas ref={canvas} width={VIEW} height={VIEW} />
           </button>
-          {/* Where the photo sits, read out after each move or zoom. */}
-          <output className="sr-only profile-photo-position">{describeCrop(crop)}</output>
+          {/* Where the photo sits, read out after each move, zoom or finished drag. */}
+          <output className="sr-only profile-photo-position">{spokenPosition}</output>
           <div className="profile-photo-moves">
             {MOVE_BUTTONS.map(([label, dx, dy]) => (
               <button

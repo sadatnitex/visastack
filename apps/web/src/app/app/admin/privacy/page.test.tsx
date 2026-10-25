@@ -136,8 +136,8 @@ describe('Platform > Privacy', () => {
     const text = textOf(html);
     expect(text).toContain('Blocked by hold');
     expect(text).toContain('5/5 attempts');
-    expect(text).toContain('Account deletion');
-    expect(text).toContain('Retention purge');
+    expect(text).toContain('Account Deletion');
+    expect(text).toContain('Retention Purge');
     expect(text).toContain('Photo Removal');
     expect(text).toContain('storage unreachable');
     expect(stubProps<{ jobId: string }>(html, 'RetryErasureJobButton').map((p) => p.jobId)).toEqual(
