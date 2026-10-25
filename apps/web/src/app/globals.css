@@ -6246,3 +6246,238 @@ body:has(.auth-shell) > .footer {
   display: inline-block;
   margin-top: 8px;
 }
+
+/* ==========================================================================
+   WP-V4 agency (Programme X): Do Next list, follow-up message, and where a
+   case stands in the triage groups. Existing tokens only, flat Harbor Blue,
+   44px targets, nothing wider than its container at 320px.
+   ========================================================================== */
+.do-next {
+  margin-block: 16px;
+}
+.do-next-intro {
+  margin-bottom: 12px;
+  color: var(--text-secondary);
+}
+.do-next-empty {
+  margin: 0;
+  color: var(--text-secondary);
+}
+.do-next-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0;
+}
+.do-next-item {
+  display: grid;
+  gap: 6px;
+  padding: 14px 0 14px 12px;
+  border-bottom: 1px solid var(--hairline-soft);
+  border-left: 3px solid var(--hairline);
+  min-width: 0;
+}
+.do-next-item:last-child {
+  border-bottom: 0;
+}
+.do-next-tier-1 {
+  border-left-color: var(--danger);
+}
+.do-next-tier-2 {
+  border-left-color: var(--accent);
+}
+.do-next-tier-3 {
+  border-left-color: var(--warning);
+}
+.do-next-item-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+  min-width: 0;
+}
+.do-next-tier {
+  font-size: var(--text-caption);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--text-secondary);
+}
+.do-next-title {
+  margin: 0;
+  font-size: var(--text-body);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.do-next-context {
+  margin: 0;
+  font-size: var(--text-small);
+  color: var(--text-secondary);
+  overflow-wrap: anywhere;
+}
+.do-next-facts {
+  margin: 0;
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 2px 12px;
+  font-size: var(--text-small);
+}
+.do-next-facts > div {
+  display: contents;
+}
+.do-next-facts dt {
+  color: var(--text-secondary);
+}
+.do-next-facts dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.do-next-action {
+  min-width: 0;
+}
+.do-next-link {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+}
+.do-next-more {
+  margin: 12px 0 0;
+  font-size: var(--text-small);
+}
+.do-next-follow-up {
+  min-width: 0;
+}
+.do-next-follow-up-toggle {
+  cursor: pointer;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  color: var(--selected-text);
+}
+.do-next-follow-up-toggle::before {
+  content: "+";
+}
+.do-next-follow-up[open] > .do-next-follow-up-toggle::before {
+  content: "-";
+}
+.do-next-follow-up-body {
+  display: grid;
+  gap: 8px;
+  margin-top: 8px;
+  padding: 12px;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-sm);
+  background: var(--bg-subtle);
+  min-width: 0;
+}
+.do-next-follow-up-hint {
+  margin: 0;
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--warning-bg);
+  color: var(--text);
+  font-size: var(--text-small);
+}
+.do-next-follow-up-text {
+  width: 100%;
+  max-width: 100%;
+  min-height: 10rem;
+  resize: vertical;
+  font: inherit;
+  font-size: var(--text-small);
+  line-height: 1.5;
+  white-space: pre-wrap;
+  user-select: text;
+}
+.do-next-follow-up-note {
+  margin: 0;
+  font-size: var(--text-small);
+}
+.do-next-follow-up .btn {
+  min-height: 44px;
+}
+.do-next-follow-up-status {
+  display: block;
+  min-height: 1.25rem;
+  font-size: var(--text-small);
+  color: var(--success);
+}
+.case-triage {
+  margin-top: 12px;
+  padding: 12px;
+  border: 1px solid var(--hairline-soft);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elevated);
+  min-width: 0;
+}
+.case-triage-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.case-triage-title {
+  margin: 0;
+  font-size: var(--text-small);
+  font-weight: 600;
+}
+.case-triage-empty {
+  margin: 8px 0 0;
+  font-size: var(--text-small);
+}
+.case-triage-groups,
+.case-triage-items {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.case-triage-groups {
+  display: grid;
+  gap: 10px;
+  margin-top: 10px;
+}
+.case-triage-group-name {
+  margin: 0 0 4px;
+  font-size: var(--text-small);
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+.case-triage-count {
+  display: inline-block;
+  min-width: 1.5rem;
+  padding: 0 6px;
+  border-radius: var(--radius-pill);
+  background: var(--brand-bg);
+  color: var(--selected-text);
+  text-align: center;
+}
+.case-triage-items li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 8px;
+  padding: 4px 0;
+  font-size: var(--text-small);
+  overflow-wrap: anywhere;
+}
+.case-triage-notes {
+  color: var(--text-secondary);
+}
+@media (max-width: 480px) {
+  .do-next-item {
+    padding-left: 10px;
+  }
+  .do-next-facts {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .do-next-facts dd {
+    margin-bottom: 4px;
+  }
+  .do-next-link,
+  .do-next-follow-up .btn {
+    width: 100%;
+    justify-content: center;
+  }
+}
