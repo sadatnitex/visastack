@@ -6391,3 +6391,97 @@ body:has(.auth-shell) > .footer {
     grid-column: 1 / -1;
   }
 }
+
+/* WP-PH1 profile photos: a person's photo in the spots that show initials, and the Add, Replace
+   and Remove controls with the in-page square crop step. The photo fills its avatar shape; when
+   there is none the initials show exactly as before. */
+.person-avatar-photo {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: inherit;
+}
+.workspace-avatar[data-photo="true"],
+.profile-identity-avatar[data-photo="true"],
+.profile-photo-card-avatar[data-photo="true"] {
+  overflow: hidden;
+  background: var(--brand-bg);
+}
+.profile-photo-control {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.625rem;
+  flex: 0 0 auto;
+  min-width: 0;
+}
+.profile-photo-control .profile-identity-avatar {
+  flex: none;
+  width: 5rem;
+  height: 5rem;
+}
+.profile-photo-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.profile-photo-card-avatar {
+  display: grid;
+  place-items: center;
+  width: 4.5rem;
+  height: 4.5rem;
+  border-radius: 50%;
+  background: var(--brand-tint-4);
+  color: var(--accent);
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+.profile-photo-crop {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  max-width: 17.5rem;
+}
+.profile-photo-crop h3 {
+  margin: 0;
+  font-size: 1.05rem;
+}
+.profile-photo-crop p {
+  margin: 0;
+  font-size: var(--text-small);
+}
+.profile-photo-crop-area {
+  display: block;
+  width: 240px;
+  max-width: 100%;
+  aspect-ratio: 1;
+  padding: 0;
+  border: 1px solid var(--hairline);
+  border-radius: 1rem;
+  overflow: hidden;
+  background: #ffffff;
+  cursor: grab;
+  touch-action: none;
+}
+.profile-photo-crop-area:active {
+  cursor: grabbing;
+}
+.profile-photo-crop-area canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.profile-photo-crop input[type="range"] {
+  width: 100%;
+  min-height: 44px;
+}
+@media (max-width: 760px) {
+  .profile-photo-control .profile-identity-avatar {
+    width: 3rem;
+    height: 3rem;
+  }
+  .profile-identity-banner .profile-photo-control {
+    width: 100%;
+  }
+}

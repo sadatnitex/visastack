@@ -12,9 +12,12 @@ import {
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { initialsOf } from '../../../../../components/profile-photo/crop';
+import { ProfilePhotoControl } from '../../../../../components/profile-photo/profile-photo-control';
 import { EmptyState, PageHeader } from '../../../../../components/ui';
 import { formatTimestampDate } from '../../../../../lib/format-date';
 import { buildMasterProfileView, fieldLabel } from '../../../../../lib/master-profile';
+import { displayPhotoUrl } from '../../../../../lib/profile-photos';
 import { withSession } from '../../../../../lib/session';
 import { type FieldAssurance, ProfileEditor } from '../profile-editor';
 
@@ -73,6 +76,7 @@ export default async function ApplicantProfilePage({
         listDocumentsDetailed(db, accountId, id),
       ]),
     ]);
+    const photoUrl = await displayPhotoUrl(db, accountId, id);
     // How many usable copies of each kind are in the wallet, so each section can say what backs
     // it. Usable: shown in the wallet, not expired or replaced, and not failed or quarantined.
     // When either list cannot load, the counts stay unknown rather than reading as "none".
@@ -91,6 +95,7 @@ export default async function ApplicantProfilePage({
     }
     return {
       applicant,
+      photoUrl,
       profile,
       coreGranted,
       sectionChoices,
@@ -161,13 +166,6 @@ export default async function ApplicantProfilePage({
     .slice(0, 5);
   const confirmed = data.profile.filter((entry) => entry.status === 'APPLICANT_CONFIRMED').length;
   const supported = data.profile.filter((entry) => entry.status === 'DOCUMENT_SUPPORTED').length;
-  const initials = data.applicant.displayName
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0])
-    .join('')
-    .toUpperCase();
   return (
     <div className="master-profile">
       <PageHeader
@@ -191,9 +189,12 @@ export default async function ApplicantProfilePage({
         className="profile-identity-banner"
         aria-label="Selected traveller and profile completion"
       >
-        <span className="profile-identity-avatar" aria-hidden="true">
-          {initials}
-        </span>
+        <ProfilePhotoControl
+          applicantId={data.applicant.id}
+          initials={initialsOf(data.applicant.displayName)}
+          photoUrl={data.photoUrl}
+          avatarClassName="profile-identity-avatar"
+        />
         <div className="profile-identity-copy">
           <h3>{data.applicant.displayName}</h3>
           <p className="muted">
