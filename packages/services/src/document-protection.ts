@@ -24,8 +24,8 @@ import { type ServiceError, serviceError } from './errors';
  *   the default.
  * - `requireAccess` reads the effective rule in its own transaction
  *   (access/restricted-documents.ts `loadDocumentProtectionSettings`). If the
- *   switches cannot be read, it falls back to the defaults, never to
- *   "nothing is restricted".
+ *   switches cannot be read, every group and every unknown type is
+ *   restricted (and the failure is reported), never "nothing is restricted".
  * - `setDocumentProtection` needs a `StaffScope` for DOCUMENT_PROTECTION_MANAGE
  *   (a live role check), a recent identity re-check for any change that
  *   removes protection, and writes an audit event in the same transaction.
@@ -35,8 +35,10 @@ export type DocumentProtectionScope = (typeof schema.DOCUMENT_PROTECTION_SCOPES)
 export type DocumentProtectionRow = typeof schema.documentProtectionSettings.$inferSelect;
 
 export const DOCUMENT_PROTECTION_AUDIT_EVENT = 'DOCUMENT_PROTECTION_CHANGED';
-export const DOCUMENT_PROTECTION_UNKNOWN_KEY = schema.DOCUMENT_PROTECTION_UNKNOWN_KEY;
-export const DOCUMENT_PROTECTION_REASON_MAX = schema.DOCUMENT_PROTECTION_REASON_MAX;
+// Plain copies of the schema's constants (a test pins them equal): reading `schema` at module
+// load would break every package whose tests replace @visastack/db with a partial mock.
+export const DOCUMENT_PROTECTION_UNKNOWN_KEY = 'unknown';
+export const DOCUMENT_PROTECTION_REASON_MAX = 500;
 /** The refusal when protection would be removed without a reason (owner decision 2026-10-25). */
 export const DOCUMENT_PROTECTION_REASON_REQUIRED =
   'Say why you are removing this protection before saving.';

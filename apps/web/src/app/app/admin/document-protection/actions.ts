@@ -37,6 +37,15 @@ const REASON_FIRST: FormResult = {
   field: 'reason',
 };
 
+// "Use Standard Setting" sent without the on-page confirmation, but the live
+// state says it removes protection: the page was out of date, so it showed no
+// confirmation to answer. Reloading shows the current state and the right control.
+const PAGE_OUT_OF_DATE: FormResult = {
+  ok: false,
+  message:
+    'This switch changed since the page was opened, and going back to the standard setting now turns protection off. Reload the page to see the current setting, then try again.',
+};
+
 const DONE: Record<Choice, string> = {
   on: 'Saved. Travellers and agencies now confirm it is them before opening these documents.',
   off: 'Saved. These documents now open without a fresh sign-in check.',
@@ -100,13 +109,17 @@ export async function setDocumentProtectionAction(
     if (!result.ok) {
       if (result.error.code === 'forbidden') return DENIED;
       // Going back to a standard setting that is off is a removal too.
-      if (result.error.message === DOCUMENT_PROTECTION_REASON_REQUIRED) return REASON_FIRST;
+      if (result.error.message === DOCUMENT_PROTECTION_REASON_REQUIRED) {
+        return removalConfirmed ? REASON_FIRST : PAGE_OUT_OF_DATE;
+      }
       return {
         ok: false,
         message: 'This change could not be saved. Reload the page and try again.',
       };
     }
-    if (result.value.confirmationRequired) return CONFIRM_FIRST;
+    if (result.value.confirmationRequired) {
+      return removalConfirmed ? CONFIRM_FIRST : PAGE_OUT_OF_DATE;
+    }
     if (!result.value.changed) {
       return { ok: true, message: 'Nothing to change. This switch already works this way.' };
     }

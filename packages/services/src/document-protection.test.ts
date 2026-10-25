@@ -19,7 +19,9 @@ import { setConsent } from './consent';
 import type { Db } from './db';
 import {
   DOCUMENT_PROTECTION_AUDIT_EVENT,
+  DOCUMENT_PROTECTION_REASON_MAX,
   DOCUMENT_PROTECTION_REASON_REQUIRED,
+  DOCUMENT_PROTECTION_UNKNOWN_KEY,
   type SetDocumentProtectionInput,
   getDocumentProtectionOverview,
   readDocumentProtectionSettings,
@@ -559,5 +561,12 @@ describe('document protection switches', () => {
         reported.mockRestore();
       }
     });
+  });
+});
+
+describe('the service copies of the schema constants', () => {
+  it('match the schema the table and its checks are built from', () => {
+    expect(DOCUMENT_PROTECTION_UNKNOWN_KEY).toBe(schema.DOCUMENT_PROTECTION_UNKNOWN_KEY);
+    expect(DOCUMENT_PROTECTION_REASON_MAX).toBe(schema.DOCUMENT_PROTECTION_REASON_MAX);
   });
 });

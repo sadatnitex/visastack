@@ -5439,3 +5439,10 @@ Documentation only. The bidesh365 master profile (54 sections) was compared with
 - Accessibility: every reason field has its own name for screen readers ("Reason (optional) for Medical"), focus moves to the reason when a confirmation opens and back to the button that opened it after Cancel.
 - Tests: 13 service tests, 25 web tests for the page, actions, form and settings card, and the form accessibility scan. 16 more guards were broken on purpose and each turned a test red.
 - Not done, by agreement: refused attempts are not audited; readDocumentProtectionSettings stays exported; the savepoint needs a driver that supports transactions (the neon-http client used by stateless probes does not, and would then restrict everything rather than fail open).
+
+### 2026-10-25, document protection switches: re-review fixes before merge
+
+- Correction to the entry above: when the switches table is missing, the admin page no longer says "The standard protection rules are in force." It says every document needs a fresh sign-in check, which is what actually happens (commit c8a96c9).
+- Independent re-review: no blocker, all nine earlier review items confirmed in the code. Fixed from it: a stale page that sends "Use Standard Setting" for a switch that now removes protection gets a plain "Reload the page" message instead of asking for a confirmation it cannot show; the service comment now describes the restrict-everything fallback.
+- Full local check found two real faults, both fixed: the migration snapshot and journal were not in the repo's file format, and the service read two schema constants at load time, which crashed every other package whose tests replace the database module (the health check tests and the intake runner tests). The service now keeps plain copies, and a test pins them to the schema.
+- Sign-in check: asked only for changes that remove protection; turning protection on needs none (lower friction, same protection).

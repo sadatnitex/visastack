@@ -116,7 +116,7 @@ describe('setDocumentProtectionAction', () => {
     expect(mocks.revalidatePath).toHaveBeenCalledWith('/app/admin/document-protection');
   });
 
-  it('asks for confirmation when going back to a standard setting removes protection', async () => {
+  it('tells the admin to reload when a stale page resets a switch that now removes protection', async () => {
     mocks.setDocumentProtection.mockResolvedValue({
       ok: true,
       value: {
@@ -127,10 +127,19 @@ describe('setDocumentProtectionAction', () => {
       },
     });
     const result = await setDocumentProtectionAction(INITIAL, form({ choice: 'default' }));
-    expect(result).toEqual({
+    expect(result).toMatchObject({ ok: false });
+    expect(result.message).toContain('Reload the page');
+    // The same stale reset refused by the service for a missing reason gets the same answer,
+    // because the page showed no confirmation or required reason to fill in.
+    mocks.setDocumentProtection.mockResolvedValue({
       ok: false,
-      message: 'Confirm that you want to turn this protection off.',
+      error: {
+        code: 'invalid',
+        message: 'Say why you are removing this protection before saving.',
+      },
     });
+    const refused = await setDocumentProtectionAction(INITIAL, form({ choice: 'default' }));
+    expect(refused.message).toContain('Reload the page');
     expect(mocks.setDocumentProtection.mock.calls[0]?.[2]).toMatchObject({
       restricted: null,
       removalConfirmed: false,
