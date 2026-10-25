@@ -13,7 +13,8 @@
   --bg-subtle: #edf1f5;
   --text: #13243d;
   --text-secondary: #516174;
-  --text-tertiary: #647386;
+  /* Harbor state.neutral.fg: fg.muted (#647386) measured 4.26:1 on the neutral ground #edf1f5. */
+  --text-tertiary: #596879;
   --accent: #1d4c98;
   --accent-hover: #143b7a;
   /* Solid primary fills retain accessible white text. */

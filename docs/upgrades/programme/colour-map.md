@@ -13,7 +13,7 @@ Every colour the application stylesheet used before WP-C1, and what it is now. S
 | `--sidebar-bg` | `#f1f3ee` | `#edf1f5` | `state.neutral.bg` |
 | `--text` | `#152b37` | `#13243d` | `fg.primary` |
 | `--text-secondary` | `#304450` | `#516174` | `fg.body` |
-| `--text-tertiary` | `#526862` | `#647386` | `fg.muted` |
+| `--text-tertiary` | `#526862` | `#596879` | `state.neutral.fg` (deviation: the plan named `fg.muted` `#647386`, which measured 4.26:1 on the neutral ground `#edf1f5` used by the sidebar and count chips; axe flagged it on six workspace screens) |
 | `--accent`, `--accent-strong`, `--brand` | `#087a68` | `#1d4c98` | `brand.primary` |
 | `--accent-hover` | `#075d54` | `#143b7a` | `brand.primary.hover` |
 | `--brand-bg` | `#d9f3e9` | `#e8f0fc` | `selection.bg` |
