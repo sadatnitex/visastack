@@ -3720,3 +3720,51 @@ export const profileFieldExemptions = pgTable(
     index('profile_field_exemptions_applicant_idx').on(table.applicantId),
   ],
 );
+
+// --- Document protection switches (owner decision 2026-10-25) ---------------
+// Which documents need a fresh sign-in check before anyone previews or
+// downloads them. The code holds the defaults
+// (packages/services/src/access/restricted-documents.ts); a row here is a
+// platform admin's switch that overrides one default, so an absent row always
+// means "use the default". One row per switch: a document group key
+// (CATEGORY), a catalogue document type key (DOCUMENT_TYPE), or the single
+// rule for documents whose type is not known yet (UNKNOWN_TYPE, key
+// 'unknown'). Every change is also written to the audit chain.
+export const DOCUMENT_PROTECTION_SCOPES = ['CATEGORY', 'DOCUMENT_TYPE', 'UNKNOWN_TYPE'] as const;
+export const DOCUMENT_PROTECTION_UNKNOWN_KEY = 'unknown';
+export const DOCUMENT_PROTECTION_REASON_MAX = 500;
+
+export const documentProtectionSettings = pgTable(
+  'document_protection_settings',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    scope: text('scope', { enum: DOCUMENT_PROTECTION_SCOPES }).notNull(),
+    key: text('key').notNull(),
+    restricted: boolean('restricted').notNull(),
+    reason: text('reason'),
+    changedByAccountId: uuid('changed_by_account_id').references(() => accounts.id, {
+      onDelete: 'set null',
+    }),
+    changedAt: timestamp('changed_at', { withTimezone: true }).notNull().defaultNow(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    unique('document_protection_settings_scope_key_unique').on(table.scope, table.key),
+    check(
+      'document_protection_settings_scope_valid',
+      sql`${table.scope} in ('CATEGORY', 'DOCUMENT_TYPE', 'UNKNOWN_TYPE')`,
+    ),
+    check(
+      'document_protection_settings_unknown_key',
+      sql`${table.scope} <> 'UNKNOWN_TYPE' or ${table.key} = 'unknown'`,
+    ),
+    check(
+      'document_protection_settings_key_length',
+      sql`char_length(${table.key}) between 1 and 120`,
+    ),
+    check(
+      'document_protection_settings_reason_length',
+      sql`${table.reason} is null or char_length(${table.reason}) <= 500`,
+    ),
+  ],
+);

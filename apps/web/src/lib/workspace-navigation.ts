@@ -33,6 +33,18 @@ export interface WorkspaceNavigation {
 
 const settings: readonly NavLink[] = [];
 
+/** The sections that make up a person's Record. Each is an existing page; none is new except the hub. */
+export function recordSections(applicantId: string): readonly NavLink[] {
+  const base = `/app/applicant/${applicantId}`;
+  return [
+    { href: `${base}/record`, label: 'All Records', exact: true },
+    { href: `${base}/profile`, label: 'My Profile' },
+    { href: `${base}/documents`, label: 'Documents' },
+    { href: `${base}/expiry`, label: 'Dates & Expiry' },
+    { href: `${base}/history`, label: 'History' },
+  ];
+}
+
 /** Navigation describes only the current server-authorized context list; it grants no access. */
 export function workspaceNavigation(
   pathname: string,
@@ -116,6 +128,12 @@ export function workspaceNavigation(
 
   if (segments[1] === 'applicant' && !person) return unavailable('Traveller Access Unavailable');
   const base = person ? `/app/applicant/${person.id}` : null;
+  // The Record tab stays lit on every one of its sections (all but the hub itself).
+  const recordPages = person
+    ? recordSections(person.id)
+        .slice(1)
+        .map((section) => section.href)
+    : [];
   return {
     kind: 'personal',
     name: person?.name ?? (casePath ? 'Visa Case' : 'Personal Space'),
@@ -125,18 +143,24 @@ export function workspaceNavigation(
         : person
           ? 'Managed Traveller'
           : 'Choose a Traveller',
+    // Four tabs (WP-V3 part 2): Home, Record, Cases, Sharing. Notifications and Countries follow,
+    // so on a phone they sit under More. Profile, Documents, Dates & Expiry and History are
+    // sections of Record: their pages keep their addresses and light up the Record tab.
     primary: base
       ? [
-          { href: base, label: 'Overview', exact: true, alsoExactFor: ['/app'] },
-          { href: `${base}/profile`, label: 'My Profile' },
-          { href: `${base}/documents`, label: 'Documents' },
-          { href: `${base}/missions`, label: 'Visa Cases', alsoCurrentFor: ['/app/mission/'] },
+          { href: base, label: 'Home', exact: true, alsoExactFor: ['/app'] },
+          {
+            href: `${base}/record`,
+            label: 'Record',
+            alsoCurrentFor: recordPages,
+          },
+          { href: `${base}/missions`, label: 'Cases', alsoCurrentFor: ['/app/mission/'] },
           { href: `${base}/sharing`, label: 'Sharing' },
           { href: '/app/notifications', label: 'Notifications' },
           { href: '/app/countries', label: 'Countries' },
         ]
       : [
-          { href: '/app', label: 'Overview', exact: true },
+          { href: '/app', label: 'Home', exact: true },
           {
             href: '/app/applicants',
             label: access.travellers.length ? 'Choose a Traveller' : 'Add a Traveller',
@@ -146,14 +170,10 @@ export function workspaceNavigation(
         ],
     tools: [
       { href: '/app/shared', label: 'Shared with Me' },
-      { href: '/app', label: 'Account Overview', exact: true },
-      ...(base
-        ? [
-            { href: `${base}/evidence`, label: 'Evidence Requests' },
-            { href: `${base}/expiry`, label: 'Dates & Expiry' },
-            { href: `${base}/history`, label: 'History' },
-          ]
-        : []),
+      // The account page is also Home's page, so this opens its permissions section; only one
+      // link (Home) is ever current on /app.
+      { href: '/app#permissions', label: 'Account and Permissions' },
+      ...(base ? [{ href: `${base}/evidence`, label: 'Evidence Requests' }] : []),
     ],
     settings,
   };

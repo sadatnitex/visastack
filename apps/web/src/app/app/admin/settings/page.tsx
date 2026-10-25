@@ -15,12 +15,13 @@ export default async function PlatformSettingsPage() {
   const access = await withSession(async ({ db, accountId, email }) => {
     const actor = { accountId, email };
     if (!(await isPlatformAdmin(db, actor))) return null;
-    const [owner, ai, retention] = await Promise.all([
+    const [owner, ai, retention, protection] = await Promise.all([
       isPlatformOwnerAccount(db, actor),
       hasPlatformPermission(db, actor, 'AI_SETTINGS_MANAGE'),
       hasPlatformPermission(db, actor, 'RETENTION_POLICY_SET'),
+      hasPlatformPermission(db, actor, 'DOCUMENT_PROTECTION_MANAGE'),
     ]);
-    return { owner, ai, retention };
+    return { owner, ai, retention, protection };
   });
   if (!access) return <AdminRestricted />;
   return (
@@ -46,13 +47,23 @@ export default async function PlatformSettingsPage() {
             <Link href="/app/admin/ai-settings">Manage Approved Provider Settings</Link>
           </article>
         ) : null}
+        {access.protection ? (
+          <article className="card">
+            <h2 className="card-title">Document Protection</h2>
+            <p className="card-body">
+              Choose which documents need a fresh sign-in check before anyone previews or downloads
+              them.
+            </p>
+            <Link href="/app/admin/document-protection">Manage Document Protection</Link>
+          </article>
+        ) : null}
         {access.retention ? (
           <article className="card">
             <h2 className="card-title">Retention Policy</h2>
             <Link href="/app/admin/privacy">Manage Privacy Policy Controls</Link>
           </article>
         ) : null}
-        {!access.owner && !access.ai && !access.retention ? (
+        {!access.owner && !access.ai && !access.retention && !access.protection ? (
           <article className="card">
             <h2 className="card-title">No Configuration Permission</h2>
             <p className="card-body">

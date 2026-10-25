@@ -153,3 +153,34 @@ describe('grant cards describe each grant in rows (WP-X2)', () => {
     expect(card).not.toMatch(/They can(?!not)/);
   });
 });
+
+describe('Share from the Record (WP-V3 part 2)', () => {
+  const renderWith = (document: string | string[]) =>
+    renderServer(
+      Page({
+        params: Promise.resolve({ id: 'owned' }),
+        searchParams: Promise.resolve({ document }),
+      }),
+    );
+  it('starts the new request with the one document chosen on the Record', async () => {
+    const [form] = stubProps<{ initialDocumentId?: string }>(
+      await renderWith('passport'),
+      'GrantForm',
+    );
+    expect(form?.initialDocumentId).toBe('passport');
+  });
+  it("ignores a document that is not this person's, or a repeated value", async () => {
+    for (const value of ['someone-else', ['passport', 'passport']]) {
+      const [form] = stubProps<{ initialDocumentId?: string }>(
+        await renderWith(value),
+        'GrantForm',
+      );
+      expect(form).toBeDefined();
+      expect(form?.initialDocumentId).toBeUndefined();
+    }
+  });
+  it('without a choice the form starts as before', async () => {
+    const [form] = stubProps<{ initialDocumentId?: string }>(await render(), 'GrantForm');
+    expect(form?.initialDocumentId).toBeUndefined();
+  });
+});
