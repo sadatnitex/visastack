@@ -1,0 +1,208 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { renderServer, stub, textOf } from '../../../../lib/next-mocks.test-support';
+
+const ok = <T,>(value: T) => ({ ok: true as const, value });
+
+const mocks = vi.hoisted(() => ({
+  computeReadiness: vi.fn(),
+  getApplicant: vi.fn(),
+  getEvidenceCandidates: vi.fn(),
+  getLatestExplanationForRequirement: vi.fn(),
+  getLiveAcknowledgement: vi.fn(),
+  getMissionForOwner: vi.fn(),
+  getPack: vi.fn(),
+  getPackVersion: vi.fn(),
+  listAccessForApplicant: vi.fn(),
+  listAcknowledgementsForMission: vi.fn(),
+  listAppointments: vi.fn(),
+  listComplaintEvents: vi.fn(),
+  listComplaintsForMission: vi.fn(),
+  listContributorRequests: vi.fn(),
+  listFeedbackForMission: vi.fn(),
+  listGeneratedOutputs: vi.fn(),
+  listMissionSnapshots: vi.fn(),
+  listMissionsByItineraryRef: vi.fn(),
+  listNotesForOwner: vi.fn(),
+  listOutcomesForMission: vi.fn(),
+  listPublishedPackVersions: vi.fn(),
+  listRequirements: vi.fn(),
+  listSelectedEvidence: vi.fn(),
+  listSubmissionsForMission: vi.fn(),
+  listTasks: vi.fn(),
+}));
+
+vi.mock('@visastack/services', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@visastack/services')>()),
+  ...mocks,
+}));
+vi.mock('../../../../lib/session', () => ({
+  withSession: async (fn: (ctx: unknown) => Promise<unknown>) =>
+    fn({ db: {}, accountId: 'synthetic-owner' }),
+}));
+vi.mock('../../../../lib/ai', () => ({ isExplanationConfigured: async () => false }));
+vi.mock('../../../../lib/locale', () => ({ getLocale: async () => 'en' }));
+vi.mock('./attach-pack-form', () => ({ AttachPackForm: stub('AttachPackForm') }));
+vi.mock('./collaboration-panels', () => ({
+  AppointmentsPanel: stub('AppointmentsPanel'),
+  EvidenceSelectionPanel: stub('EvidenceSelectionPanel'),
+  LettersPanel: stub('LettersPanel'),
+  TasksPanel: stub('TasksPanel'),
+}));
+vi.mock('./complaint-feedback-panel', () => ({
+  ComplaintPanel: stub('ComplaintPanel'),
+  FeedbackPanel: stub('FeedbackPanel'),
+}));
+vi.mock('./contributor-requests-panel', () => ({
+  ContributorRequestsPanel: stub('ContributorRequestsPanel'),
+}));
+vi.mock('./mission-buttons', () => ({
+  CaseDetailsForm: stub('CaseDetailsForm'),
+  ItineraryForm: stub('ItineraryForm'),
+  SnapshotButton: stub('SnapshotButton'),
+  TransitionButtons: stub('TransitionButtons'),
+}));
+vi.mock('./outcome-panel', () => ({ OutcomePanel: stub('OutcomePanel') }));
+vi.mock('./readiness-gap-explain', () => ({ ExplainGapButton: stub('ExplainGapButton') }));
+vi.mock('./submission-report-panel', () => ({
+  SubmissionReportPanel: stub('SubmissionReportPanel'),
+}));
+
+const { default: MissionPage } = await import('./page');
+
+const MISSION = {
+  id: 'synthetic-case',
+  applicantId: 'synthetic-family',
+  title: 'Japan visitor visa',
+  destination: 'Japan',
+  state: 'IN_PROGRESS',
+  packVersionId: null,
+  itineraryRef: null,
+  manualMode: false,
+};
+
+function setUp(
+  options: {
+    readonly dirty?: boolean;
+    readonly openTasks?: number;
+  } = {},
+) {
+  mocks.getMissionForOwner.mockResolvedValue(ok(MISSION));
+  mocks.getApplicant.mockResolvedValue({ id: 'synthetic-family', displayName: 'Rahman family' });
+  for (const name of [
+    'listMissionSnapshots',
+    'listGeneratedOutputs',
+    'listSelectedEvidence',
+    'getEvidenceCandidates',
+    'listAccessForApplicant',
+    'listContributorRequests',
+    'listAppointments',
+    'listOutcomesForMission',
+    'listSubmissionsForMission',
+    'listComplaintsForMission',
+    'listFeedbackForMission',
+  ] as const) {
+    mocks[name].mockResolvedValue(ok([]));
+  }
+  mocks.listPublishedPackVersions.mockResolvedValue([]);
+  mocks.listMissionsByItineraryRef.mockResolvedValue([]);
+  mocks.listNotesForOwner.mockResolvedValue([]);
+  mocks.listTasks.mockResolvedValue(
+    ok(
+      Array.from({ length: options.openTasks ?? 0 }, (_, i) => ({
+        id: `task-${i}`,
+        description: `Task ${i}`,
+        status: 'OPEN',
+        priority: 'NORMAL',
+        dueDate: null,
+        dueTimezone: null,
+      })),
+    ),
+  );
+  mocks.getLiveAcknowledgement.mockResolvedValue(undefined);
+  mocks.listAcknowledgementsForMission.mockResolvedValue(
+    ok(
+      options.dirty
+        ? [{ decision: 'ACKNOWLEDGED', invalidatedAt: new Date('2026-10-20T00:00:00Z') }]
+        : [],
+    ),
+  );
+}
+
+const render = async () =>
+  renderServer(await MissionPage({ params: Promise.resolve({ id: 'synthetic-case' }) }));
+
+/** Index of each marker in the page, in document order. */
+function order(html: string, markers: readonly string[]): number[] {
+  return markers.map((marker) => html.indexOf(marker));
+}
+
+beforeEach(() => {
+  vi.clearAllMocks();
+});
+
+describe('case page as it is today (WP-X1 characterization)', () => {
+  it('shows the stage tracker, the attention list and every section in order', async () => {
+    setUp();
+    const html = await render();
+    const text = textOf(html);
+    expect(text).toContain('Japan visitor visa');
+    expect(text).toContain('Applicant has not confirmed yet');
+    expect(text).toContain('Nothing needs attention right now');
+    expect(html).toContain('aria-label="Actual case workflow state"');
+    expect(html).toContain('aria-current="step"');
+    const sections = order(html, [
+      'aria-label="Actual case workflow state"',
+      'class="case-attention"',
+      'aria-label="Sections of this case"',
+      'id="readiness"',
+      'id="evidence"',
+      'id="work"',
+      'id="notes"',
+      'id="outcome"',
+      // The side column (snapshots) follows the main column in the markup.
+      'id="snapshots"',
+    ]);
+    expect(sections.every((index) => index >= 0)).toBe(true);
+    expect([...sections].sort((a, b) => a - b)).toEqual(sections);
+  });
+
+  it('keeps every control: add evidence, snapshot, transitions, case details and the panels', async () => {
+    setUp();
+    const html = await render();
+    expect(html).toContain('href="#evidence"');
+    for (const control of [
+      'SnapshotButton',
+      'TransitionButtons',
+      'CaseDetailsForm',
+      'ItineraryForm',
+      'TasksPanel',
+      'LettersPanel',
+      'AppointmentsPanel',
+      'ContributorRequestsPanel',
+      'OutcomePanel',
+      'SubmissionReportPanel',
+      'AttachPackForm',
+    ]) {
+      expect(html, control).toContain(`data-stub="${control}"`);
+    }
+  });
+
+  it('lists open tasks as needing attention, linked to the work section', async () => {
+    setUp({ openTasks: 2 });
+    const html = await render();
+    const text = textOf(html);
+    expect(text).toContain('open tasks');
+    expect(html).toContain('href="#work"');
+    expect(text).not.toContain('Nothing needs attention right now');
+  });
+
+  it('warns when the case changed since it was last acknowledged, keeping the wording', async () => {
+    setUp({ dirty: true });
+    const text = textOf(await render());
+    expect(text).toContain('This case has changed since it was last acknowledged.');
+    expect(text).toContain(
+      'A material edit invalidated the previous sign-off. Capture a new snapshot and acknowledge it again before relying on this case as submission-ready.',
+    );
+    expect(text).toContain('Changed since confirmed');
+  });
+});
