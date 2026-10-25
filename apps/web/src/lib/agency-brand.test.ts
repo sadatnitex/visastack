@@ -38,7 +38,7 @@ describe('colours that stay readable', () => {
       expect(contrast(accent, text), accent).toBeGreaterThanOrEqual(4.5);
     }
     expect(readableOn('#087a68')).toBe('#ffffff');
-    expect(readableOn('#ffd400')).toBe('#152b37');
+    expect(readableOn('#ffd400')).toBe('#13243d');
   });
 
   it('mixes an accent into white for a quiet background', () => {
@@ -70,7 +70,7 @@ describe('the whole brand', () => {
       const brand = agencyBrand({ name: 'Skyline', accentColor, logoUrl: null });
       expect(brand.accent).toBeNull();
       expect(brand.tint).toBeNull();
-      expect(brand.onAccent).toBe('#152b37');
+      expect(brand.onAccent).toBe('#13243d');
     }
   });
 });

@@ -8,7 +8,7 @@
  */
 
 /** The dark text colour of the product, used on a light accent. */
-const INK = '#152b37';
+const INK = '#13243d';
 const WHITE = '#ffffff';
 
 export interface AgencyBrandInput {
