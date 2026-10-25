@@ -681,11 +681,20 @@ describe('the person decides the kind and the name together', () => {
       docType: 'NID',
       name: 'National ID Card - Anna Eriksson.pdf',
     };
-    await quarantine(db, s.versionId);
-    const refused = await decideDocumentSuggestion(proof, accept);
-    expect(isErr(refused) && refused.error.message).toBe(
-      'this file has not finished its safety checks',
-    );
+    // A later scan flags the file while its reading is still waiting, and then it is moved aside.
+    for (const flagged of [
+      { safetyStatus: 'QUARANTINED' as const },
+      { safetyStatus: 'QUARANTINED' as const, processingStatus: 'NEEDS_ATTENTION' as const },
+    ]) {
+      await db
+        .update(schema.documentVersions)
+        .set(flagged)
+        .where(eq(schema.documentVersions.id, s.versionId));
+      const refused = await decideDocumentSuggestion(proof, accept);
+      expect(isErr(refused) && refused.error.message).toBe(
+        'this file has not finished its safety checks',
+      );
+    }
 
     // A newer, clean file replaces it: the older file's kind can no longer be decided.
     const newer = await addDocumentVersion(db, {

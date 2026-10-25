@@ -182,8 +182,7 @@ describe('asking the AI what a document is', () => {
     mocks.suggestDocumentKind.mockResolvedValue({ ok: true, value: { status: 'suggested' } });
     expect(await classify()).toEqual({
       ok: true,
-      message:
-        'It also suggested what kind of document this is and a name for it. Check them below.',
+      message: 'We suggested what kind of document this is and a name for it. Check them below.',
     });
     expect(mocks.requireAccess).toHaveBeenCalledWith(
       {},
