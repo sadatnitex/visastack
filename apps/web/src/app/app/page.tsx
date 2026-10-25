@@ -12,6 +12,7 @@ import {
 } from '@visastack/services';
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { redirect } from 'next/navigation';
 import {
   AttentionList,
   Checklist,
@@ -22,8 +23,10 @@ import {
 } from '../../components/ui';
 import { CONSENT_PLAIN } from '../../lib/labels';
 import { getLocale } from '../../lib/locale';
+import { safeReturnPath } from '../../lib/neon-recency';
 import { withSession } from '../../lib/session';
 import { ConsentButton } from './consent-button';
+import { FirstRunConsent, FirstRunName, FirstRunTask } from './first-run';
 
 export const metadata: Metadata = { title: 'Overview' };
 
@@ -127,12 +130,53 @@ async function loadDashboard(db: Db, accountId: string, email: string) {
   };
 }
 
-export default async function AppPage() {
+interface SearchParams {
+  readonly next?: string | string[];
+  readonly setup?: string | string[];
+  readonly welcome?: string | string[];
+}
+
+/** A same-site task to return to after first run, or null when there is none. */
+function returnTask(value: string | string[] | undefined): string | null {
+  if (typeof value !== 'string') return null;
+  const path = safeReturnPath(value);
+  return path === '/app' || path.startsWith('/app?') || path.startsWith('/app#') ? null : path;
+}
+
+export default async function AppPage({
+  searchParams,
+}: { readonly searchParams?: Promise<SearchParams> } = {}) {
+  const params: SearchParams = (await searchParams) ?? {};
   const locale = await getLocale();
   const t = createTranslator(locale);
   const data = await withSession(({ db, accountId, email }) => loadDashboard(db, accountId, email));
   const coreGranted = Boolean(data.consents.CORE_PROCESSING);
   const grantedCount = CONSENT_TYPES.filter((type) => Boolean(data.consents[type])).length;
+
+  // First run (WP-V3, D8) is for someone new: core processing off and no other consent on, or no
+  // applicant yet. Someone who turned core processing off later, with another consent still on,
+  // gets the ordinary home so every consent control stays in reach. "Not now" also leads there.
+  const task = returnTask(params.next);
+  const later = params.setup === 'later';
+  const newcomer = !coreGranted && grantedCount === 0;
+  if (!later && newcomer) return <FirstRunConsent locale={locale} />;
+  if (!later && coreGranted && data.applicants.length === 0) {
+    return <FirstRunName afterHref={task ?? '/app?welcome=1'} />;
+  }
+  if (coreGranted && data.applicants.length > 0) {
+    // Set up: go straight to the task someone came for, or ask what they want to do once.
+    if (task) redirect(task);
+    if (params.welcome === '1') {
+      const waiting = data.perApplicant.find((row) => row.openRequests > 0);
+      const first = data.perApplicant[0];
+      return (
+        <FirstRunTask
+          requestHref={waiting ? `/app/applicant/${waiting.applicant.id}/evidence` : null}
+          recordsHref={first ? `/app/applicant/${first.applicant.id}` : '/app/applicants'}
+        />
+      );
+    }
+  }
 
   const firstApplicant = data.perApplicant[0];
   const setupSteps = [

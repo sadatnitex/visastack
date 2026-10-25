@@ -12,12 +12,18 @@ export function ConsentButton({
   granted,
   locale,
   label,
+  text,
 }: {
   readonly type: string;
   readonly granted: boolean;
   readonly locale: Locale;
   /** The consent this button is for, so a list of identical "Grant" buttons can be told apart by ear. */
   readonly label?: string;
+  /**
+   * Visible words instead of Turn on / Turn off, for a screen that shows this one consent alone
+   * (first run: "Allow core processing"). The form and the values it sends are unchanged.
+   */
+  readonly text?: string;
 }) {
   const [state, formAction, pending] = useActionState(setConsentAction, INITIAL);
   const t = createTranslator(locale);
@@ -41,9 +47,9 @@ export function ConsentButton({
           pending={pending}
           className={`btn ${granted ? 'btn-secondary' : 'btn-primary'}`}
           style={{ padding: '0.35rem 1rem', fontSize: 'var(--text-small)' }}
-          idle={action}
+          idle={text ?? action}
           busy="Saving…"
-          {...(label ? { label: `${action}: ${label}` } : {})}
+          {...(label && !text ? { label: `${action}: ${label}` } : {})}
         />
       </form>
       <FormMessage result={state} />

@@ -5974,3 +5974,119 @@ body:has(.auth-shell) > .footer {
     display: none;
   }
 }
+
+/* WP-V3 first run (decision D8, preview approved 25 Oct 2026): one question per screen, task first.
+   Existing tokens only. */
+.first-run {
+  max-width: 34rem;
+}
+.first-run h1 em {
+  font-style: normal;
+  color: var(--accent);
+}
+.first-run-steps {
+  display: flex;
+  gap: 6px;
+  margin: 0.4rem 0 1rem;
+  padding: 0;
+  list-style: none;
+}
+.first-run-steps li {
+  flex: 1;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--hairline-soft);
+}
+.first-run-steps li.on {
+  background: var(--accent);
+}
+.first-run-notice {
+  margin: 1rem 0;
+  padding: 0.75rem 1rem;
+  border-left: 4px solid var(--accent);
+  background: var(--brand-bg);
+  color: var(--text);
+}
+.first-run-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+  margin-top: 1rem;
+}
+.first-run-form .input {
+  width: 100%;
+  margin-top: 0.35rem;
+}
+.first-run-choice {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.6rem;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.first-run-choice legend {
+  margin-bottom: 0.4rem;
+}
+.first-run-choice label {
+  display: flex;
+  gap: 0.5rem;
+  align-items: flex-start;
+  min-height: 44px;
+  padding: 0.7rem 0.8rem;
+  border: 1px solid var(--hairline-soft);
+  border-radius: 12px;
+  cursor: pointer;
+}
+.first-run-choice label:has(input:checked) {
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+.first-run-choice b,
+.first-run-tasks b {
+  display: block;
+}
+.first-run-choice small,
+.first-run-tasks span {
+  display: block;
+  color: var(--text-secondary);
+  font-size: var(--text-small);
+}
+.first-run-authority {
+  display: flex;
+  gap: 0.5rem;
+  align-items: flex-start;
+  font-size: var(--text-small);
+}
+.first-run-tasks {
+  display: grid;
+  gap: 0.6rem;
+  margin: 1rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+.first-run-tasks a {
+  display: block;
+  min-height: 44px;
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--hairline-soft);
+  border-radius: 12px;
+  color: inherit;
+  text-decoration: none;
+}
+.first-run-tasks a:hover,
+.first-run-tasks a:focus-visible {
+  border-color: var(--accent);
+}
+.first-run-later {
+  margin: 0.9rem 0 0;
+}
+.first-run-note {
+  margin: 0.6rem 0 0;
+  font-size: var(--text-small);
+}
+@media (max-width: 400px) {
+  .first-run-choice {
+    grid-template-columns: 1fr;
+  }
+}
