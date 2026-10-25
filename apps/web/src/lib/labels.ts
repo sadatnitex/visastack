@@ -1,4 +1,4 @@
-import type { MembershipRole, OrganizationStatus } from '@visastack/core';
+import type { MembershipRole, OrganizationStatus, PermissionAction } from '@visastack/core';
 import { documentTypeName } from '@visastack/core/catalogue/documents';
 import type { schema } from '@visastack/db';
 
@@ -101,6 +101,29 @@ export const AI_PROVIDER_LABELS: Readonly<Record<string, string>> = {
   anthropic: 'Anthropic',
   gemini: 'Gemini',
 };
+
+/**
+ * Sharing permissions, as a person reads them wherever a grant or invitation is shown. The
+ * stored key never changes: DOWNLOAD_REDACTED is a processed copy with hidden data removed
+ * (visa photo sizes now, redacted documents later), named "Download Safe Copies" (owner
+ * decision 25 Oct 2026).
+ */
+export const PERMISSION_ACTION_LABELS: Readonly<Record<PermissionAction, string>> = {
+  VIEW_METADATA: 'See Document Details',
+  PREVIEW: 'Preview Documents',
+  COMMENT: 'Comment',
+  PROPOSE_EDIT: 'Propose Edits',
+  APPROVE_EDIT: 'Approve Edits',
+  DOWNLOAD_ORIGINAL: 'Download Originals',
+  DOWNLOAD_REDACTED: 'Download Safe Copies',
+  DOWNLOAD_PACK: 'Download the Application Pack',
+  EXPORT_PROFILE: 'Export the Full Profile',
+  SHARE: 'Re-Share Access',
+  MANAGE: 'Manage the Case',
+};
+
+export const permissionActionLabel = (code: string) =>
+  (PERMISSION_ACTION_LABELS as Readonly<Record<string, string>>)[code] ?? titleCase(code);
 
 export const membershipRoleLabel = (code: string) => pick(MEMBERSHIP_ROLE_LABELS, code);
 export const organizationStatusLabel = (code: string) => pick(ORGANIZATION_STATUS_LABELS, code);

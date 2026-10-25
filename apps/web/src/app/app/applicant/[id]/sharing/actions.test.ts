@@ -8,7 +8,6 @@ const mocks = vi.hoisted(() => ({
   redirect: vi.fn(),
   createGrant: vi.fn(),
   getAccountByEmail: vi.fn(),
-  getPlatformCapabilities: vi.fn(),
 }));
 vi.mock('@visastack/services', async (original) => ({
   ...(await original<typeof import('@visastack/services')>()),
@@ -17,9 +16,6 @@ vi.mock('@visastack/services', async (original) => ({
   revokeGrant: mocks.revokeGrant,
   createGrant: mocks.createGrant,
   getAccountByEmail: mocks.getAccountByEmail,
-}));
-vi.mock('../../../../../lib/capabilities', () => ({
-  getPlatformCapabilities: mocks.getPlatformCapabilities,
 }));
 vi.mock('next/cache', () => ({ revalidatePath: mocks.revalidatePath }));
 vi.mock('next/navigation', () => ({ redirect: mocks.redirect }));
@@ -72,7 +68,7 @@ describe('sharing transition navigation', () => {
   });
 });
 
-describe('the redacted copy permission follows the platform capability', () => {
+describe('safe copies stay grantable (stored as DOWNLOAD_REDACTED)', () => {
   function grantForm(actions: readonly string[]) {
     const data = new FormData();
     data.set('applicantId', 'owned-person');
@@ -81,43 +77,12 @@ describe('the redacted copy permission follows the platform capability', () => {
     for (const action of actions) data.append('action', action);
     return data;
   }
-  function capability(redactedDownload: 'available' | 'disabled') {
-    mocks.getPlatformCapabilities.mockReturnValue({ redactedDownload });
-  }
   beforeEach(() => {
     mocks.getAccountByEmail.mockResolvedValue({ id: 'recipient' });
     mocks.createGrant.mockResolvedValue({ ok: true, value: {} });
   });
 
-  it('refuses a crafted request for redacted copies while they are not available', async () => {
-    capability('disabled');
-    const result = await createGrantAction(
-      { ok: true, message: '' },
-      grantForm(['VIEW_METADATA', 'PREVIEW', 'DOWNLOAD_REDACTED']),
-    );
-    expect(result).toEqual({
-      ok: false,
-      message: 'Downloading redacted copies is not available yet.',
-    });
-    expect(mocks.getAccountByEmail).not.toHaveBeenCalled();
-    expect(mocks.createGrant).not.toHaveBeenCalled();
-  });
-
-  it('still shares the other permissions while redacted copies are not available', async () => {
-    capability('disabled');
-    const result = await createGrantAction(
-      { ok: true, message: '' },
-      grantForm(['VIEW_METADATA', 'PREVIEW']),
-    );
-    expect(result.ok).toBe(true);
-    expect(mocks.createGrant).toHaveBeenCalledWith(
-      {},
-      expect.objectContaining({ actions: ['VIEW_METADATA', 'PREVIEW'] }),
-    );
-  });
-
-  it('grants redacted copies exactly as before once they are available', async () => {
-    capability('available');
+  it('accepts the action and passes it to the grant unchanged', async () => {
     const result = await createGrantAction(
       { ok: true, message: '' },
       grantForm(['VIEW_METADATA', 'PREVIEW', 'DOWNLOAD_REDACTED']),

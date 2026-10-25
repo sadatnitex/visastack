@@ -16,7 +16,6 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { after } from 'next/server';
 import { resolveBaseUrl } from '../../../../../lib/base-url';
-import { getPlatformCapabilities } from '../../../../../lib/capabilities';
 import { triggerNotificationWorker } from '../../../../../lib/jobs';
 import { createKeyManagementPort } from '../../../../../lib/providers';
 import { withSession } from '../../../../../lib/session';
@@ -54,14 +53,6 @@ export async function createGrantAction(
   if (recipientEmail.length === 0) return { ok: false, message: 'Enter a recipient email.' };
   if (purpose.length === 0) return { ok: false, message: 'Describe the purpose of this access.' };
   if (actions.length === 0) return { ok: false, message: 'Select at least one permission.' };
-  // The form shows this choice switched off while the platform cannot deliver
-  // redacted copies; refuse it here too, so a hand-made request cannot grant it.
-  if (
-    actions.includes('DOWNLOAD_REDACTED') &&
-    getPlatformCapabilities().redactedDownload !== 'available'
-  ) {
-    return { ok: false, message: 'Downloading redacted copies is not available yet.' };
-  }
 
   let expiryAt: Date | undefined;
   if (expiryDaysRaw.length > 0) {

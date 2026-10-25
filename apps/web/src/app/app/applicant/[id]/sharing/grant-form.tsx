@@ -1,5 +1,6 @@
 'use client';
 
+import type { PermissionAction } from '@visastack/core';
 import { useRouter } from 'next/navigation';
 import { Fragment, useActionState, useEffect, useRef, useState } from 'react';
 import { FormMessage, SubmitButton } from '../../../../../components/form-feedback';
@@ -8,6 +9,7 @@ import {
   SelectedScopeSummary,
   describeGrantScope,
 } from '../../../../../components/selected-scope-summary';
+import { PERMISSION_ACTION_LABELS } from '../../../../../lib/labels';
 import { PACK_LABELS, PACK_ORDER } from '../../../../../lib/profile-fields';
 import { type ActionState, createGrantAction } from './actions';
 
@@ -23,22 +25,23 @@ const END_DATE = new Intl.DateTimeFormat('en-GB', {
 
 /**
  * Curated, launch-safe permission set (read + collaborate; no original download / manage).
- * `needsRedactedDownload` marks the one choice that depends on the platform's
- * `redactedDownload` capability: while that is not available the box is shown
- * switched off with a note, and the server refuses it as well.
+ * Names come from the one permission table (`lib/labels.ts`). A `note` is shown under its
+ * box, outside the label, and tied to it with `aria-describedby`, so it is read once.
  */
 const SHAREABLE_ACTIONS: ReadonlyArray<{
-  value: string;
+  value: PermissionAction;
   label: string;
   defaultOn?: boolean;
-  needsRedactedDownload?: boolean;
-}> = [
-  { value: 'VIEW_METADATA', label: 'See Document Details', defaultOn: true },
-  { value: 'PREVIEW', label: 'Preview Documents', defaultOn: true },
-  { value: 'DOWNLOAD_REDACTED', label: 'Download Redacted Copies', needsRedactedDownload: true },
-  { value: 'COMMENT', label: 'Comment' },
-  { value: 'PROPOSE_EDIT', label: 'Propose Edits' },
-];
+  note?: string;
+}> = (
+  [
+    { value: 'VIEW_METADATA', defaultOn: true },
+    { value: 'PREVIEW', defaultOn: true },
+    { value: 'DOWNLOAD_REDACTED', note: 'Visa photo sizes now; redacted documents later' },
+    { value: 'COMMENT' },
+    { value: 'PROPOSE_EDIT' },
+  ] as const
+).map((action) => ({ ...action, label: PERMISSION_ACTION_LABELS[action.value] }));
 
 function toggled(current: readonly string[], value: string, on: boolean): string[] {
   return on ? [...current, value] : current.filter((v) => v !== value);
@@ -50,7 +53,6 @@ export function GrantForm({
   extraCategories = [],
   unsortedDocuments = 0,
   initialDocumentId,
-  redactedDownloadAvailable = false,
 }: {
   readonly applicantId: string;
   readonly documents: ReadonlyArray<{ readonly id: string; readonly displayName: string }>;
@@ -64,12 +66,6 @@ export function GrantForm({
    * confirms, and the server checks the scope as it always does.
    */
   readonly initialDocumentId?: string;
-  /**
-   * Whether the platform can deliver redacted copies yet (the server-side
-   * `redactedDownload` capability, read by the page). Off unless the page
-   * says so, so a missing value never offers a permission that does nothing.
-   */
-  readonly redactedDownloadAvailable?: boolean;
 }) {
   const preselected = documents.some((document) => document.id === initialDocumentId)
     ? initialDocumentId
@@ -218,8 +214,7 @@ export function GrantForm({
         <legend className="field-label">Permissions</legend>
         <div className="checks">
           {SHAREABLE_ACTIONS.map((action) => {
-            const unavailable = action.needsRedactedDownload === true && !redactedDownloadAvailable;
-            const noteId = `grant-action-${action.value}-note`;
+            const noteId = action.note ? `grant-action-${action.value}-note` : undefined;
             return (
               <Fragment key={action.value}>
                 <label className="check">
@@ -227,9 +222,8 @@ export function GrantForm({
                     type="checkbox"
                     name="action"
                     value={action.value}
-                    defaultChecked={!unavailable && (action.defaultOn ?? false)}
-                    disabled={unavailable}
-                    aria-describedby={unavailable ? noteId : undefined}
+                    defaultChecked={action.defaultOn ?? false}
+                    aria-describedby={noteId}
                     onChange={(e) =>
                       setActions((prev) => toggled(prev, action.value, e.target.checked))
                     }
@@ -237,9 +231,9 @@ export function GrantForm({
                   <span>{action.label}</span>
                 </label>
                 {/* Outside the label, so it is the description only and is not read twice. */}
-                {unavailable ? (
+                {action.note ? (
                   <p id={noteId} className="muted u-fs-075 u-m-0">
-                    Not available yet
+                    {action.note}
                   </p>
                 ) : null}
               </Fragment>
@@ -402,7 +396,7 @@ export function GrantForm({
         />
         <p className="scope-summary-note">
           {canDownload
-            ? 'Redacted copies may be downloaded; original downloads are not included. '
+            ? 'Safe copies may be downloaded; original downloads are not included. '
             : 'Downloads are not included. '}
           They must accept before anything is visible to them.{' '}
           {canDownload

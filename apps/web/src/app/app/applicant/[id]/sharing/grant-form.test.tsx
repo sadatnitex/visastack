@@ -18,7 +18,6 @@ beforeEach(() => {
     root.render(
       <GrantForm
         applicantId="owned-person"
-        redactedDownloadAvailable
         documents={[
           { id: 'passport', displayName: 'Passport summary' },
           { id: 'statement', displayName: 'Redacted statement' },
@@ -347,75 +346,48 @@ describe('a document chosen before arriving (WP-V3 part 2)', () => {
   });
 });
 
-describe('redacted copies while the platform cannot deliver them', () => {
-  function mountUnavailable() {
-    act(() =>
-      root.render(
-        <GrantForm
-          applicantId="owned-person"
-          redactedDownloadAvailable={false}
-          documents={[{ id: 'passport', displayName: 'Passport summary' }]}
-        />,
-      ),
-    );
-  }
-  const redacted = () =>
-    container.querySelector<HTMLInputElement>('input[value="DOWNLOAD_REDACTED"]');
+describe('safe copies (stored as DOWNLOAD_REDACTED)', () => {
+  const safe = () => container.querySelector<HTMLInputElement>('input[value="DOWNLOAD_REDACTED"]');
+  const note = () => document.getElementById(safe()?.getAttribute('aria-describedby') ?? '');
 
-  it('shows the choice switched off, unticked, with a note tied to it', () => {
-    mountUnavailable();
-    const box = redacted();
-    expect(box?.disabled).toBe(true);
+  it('is named Download Safe Copies, grantable, and off until ticked', () => {
+    const box = safe();
+    expect(box?.disabled).toBe(false);
     expect(box?.checked).toBe(false);
-    const noteId = box?.getAttribute('aria-describedby');
-    expect(noteId).toBeTruthy();
-    expect(document.getElementById(noteId ?? '')?.textContent).toBe('Not available yet');
+    expect(box?.labels?.[0]?.textContent).toBe('Download Safe Copies');
+    expect(container.textContent).not.toContain('Redacted Copies');
+  });
+
+  it('explains what a safe copy is in a note tied to the box', () => {
+    expect(note()?.textContent).toBe('Visa photo sizes now; redacted documents later');
   });
 
   it('keeps the note out of the accessible name, so it is read once, as the description', () => {
-    mountUnavailable();
-    const box = redacted();
+    const box = safe();
     const label = box?.labels?.[0];
-    const note = document.getElementById(box?.getAttribute('aria-describedby') ?? '');
     // A wrapping label gives the box its name from its text: the name alone, no note.
     expect(box?.labels).toHaveLength(1);
-    expect(label?.textContent).toBe('Download Redacted Copies');
-    expect(note).not.toBeNull();
-    expect(label?.contains(note)).toBe(false);
+    expect(label?.textContent).toBe('Download Safe Copies');
+    expect(note()).not.toBeNull();
+    expect(label?.contains(note())).toBe(false);
   });
 
-  it('never sends it, never lists it and never talks about downloads in the review', () => {
-    mountUnavailable();
+  it('is sent under its stored key and listed by its new name in the review', () => {
     ready();
-    act(() => redacted()?.click());
+    act(() => safe()?.click());
     review();
     const form = container.querySelector('form');
     if (!form) throw new Error('Form');
-    expect(new FormData(form).getAll('action')).toEqual(['VIEW_METADATA', 'PREVIEW']);
+    expect(new FormData(form).getAll('action')).toEqual([
+      'VIEW_METADATA',
+      'PREVIEW',
+      'DOWNLOAD_REDACTED',
+    ]);
     const summary = container.querySelector('.sharing-scope-review')?.textContent ?? '';
-    expect(summary).toContain('They can');
-    expect(summary.toLowerCase()).not.toContain('download redacted copies');
-    expect(summary).not.toContain('Redacted copies may be downloaded');
-    expect(container.querySelector('.scope-summary-download')).toBeNull();
-  });
-
-  it('is switched off when the page says nothing, so a missing value never offers it', () => {
-    act(() =>
-      root.render(
-        <GrantForm applicantId="owned-person" documents={[{ id: 'p', displayName: 'P' }]} />,
-      ),
+    expect(summary).toContain('download safe copies');
+    expect(summary).toContain(
+      'Safe copies may be downloaded; original downloads are not included.',
     );
-    expect(redacted()?.disabled).toBe(true);
-  });
-
-  it('works as before when available: ticking it is sent and listed', () => {
-    ready();
-    act(() => redacted()?.click());
-    review();
-    expect(redacted()?.disabled).toBe(false);
-    expect(redacted()?.hasAttribute('aria-describedby')).toBe(false);
-    expect(container.textContent).not.toContain('Not available yet');
-    const summary = container.querySelector('.sharing-scope-review')?.textContent ?? '';
-    expect(summary).toContain('download redacted copies');
+    expect(summary.toLowerCase()).not.toContain('redacted cop');
   });
 });

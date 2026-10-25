@@ -1,4 +1,4 @@
-import { MEMBERSHIP_ROLES, ORGANIZATION_STATUSES } from '@visastack/core';
+import { MEMBERSHIP_ROLES, ORGANIZATION_STATUSES, PERMISSION_ACTIONS } from '@visastack/core';
 import { schema } from '@visastack/db';
 import { describe, expect, it } from 'vitest';
 import {
@@ -10,11 +10,13 @@ import {
   INVOICE_STATUS_LABELS,
   MEMBERSHIP_ROLE_LABELS,
   ORGANIZATION_STATUS_LABELS,
+  PERMISSION_ACTION_LABELS,
   REVIEW_DECISION_LABELS,
   aiProviderLabel,
   documentTypeLabel,
   eventTypeLabel,
   membershipRoleLabel,
+  permissionActionLabel,
   titleCase,
 } from './labels';
 
@@ -83,5 +85,20 @@ describe('consent names', () => {
       expect(consentName(type)).toBe(entry?.name);
     }
     expect(consentName('SOMETHING_NEW')).toBe('Something New');
+  });
+});
+
+describe('sharing permission names', () => {
+  it('names every permission, in Title Case, and nothing else', () => {
+    expect(Object.keys(PERMISSION_ACTION_LABELS).sort()).toEqual([...PERMISSION_ACTIONS].sort());
+    for (const label of Object.values(PERMISSION_ACTION_LABELS)) {
+      expect(label).toBe(toTitleCase(label));
+    }
+  });
+
+  it('calls DOWNLOAD_REDACTED a safe copy everywhere, keeping the stored key', () => {
+    expect(permissionActionLabel('DOWNLOAD_REDACTED')).toBe('Download Safe Copies');
+    expect(Object.values(PERMISSION_ACTION_LABELS).join(' ')).not.toMatch(/redact/i);
+    expect(permissionActionLabel('SOMETHING_NEW')).toBe('Something New');
   });
 });
