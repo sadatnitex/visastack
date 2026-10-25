@@ -1,7 +1,5 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { notFound } from 'next/navigation';
-import { selectedIdentityProvider } from '../../../lib/identity-selection';
 import { safeReturnPath } from '../../../lib/neon-recency';
 import { signInAction } from '../actions';
 import { AuthShell, ErrorLine, Notice, TextField } from '../auth-ui';
@@ -24,7 +22,6 @@ const NOTICES: Record<string, string> = {
 export default async function SignInPage({
   searchParams,
 }: { searchParams: Promise<{ e?: string; n?: string; next?: string }> }) {
-  if (selectedIdentityProvider() !== 'neon_auth') notFound();
   const { e, n, next } = await searchParams;
   const error = e ? ERRORS[e] : undefined;
   const notice = n ? NOTICES[n] : undefined;

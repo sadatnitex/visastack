@@ -4,27 +4,20 @@ import {
   issueStepUpAssurance,
   verifyStepUpAssurance,
 } from '@visastack/services';
-import { checkRecentAuth, getSignInUrl } from '@workos-inc/authkit-nextjs';
-import { selectedIdentityProvider } from './identity-selection';
 import { neonReauthUrl, neonSessionAgeSeconds } from './neon-recency';
 
 /**
- * Genuine WorkOS-compatible step-up (master directive §7 "PR 5"; Build Spec
- * §14). `checkRecentAuth` reads the real `auth_time` claim off the signed
- * WorkOS access token server-side — never a client-supplied flag — so
- * "is this session recently authenticated" cannot be forged by the browser.
- * When it isn't, `getSignInUrl({ maxAge })` forwards OIDC `max_age` so
- * WorkOS's own IdP forces a fresh credential challenge, not a local-only
- * dialog standing in for one.
+ * Step-up for sensitive actions (master directive §7 "PR 5"; Build Spec §14). Recency comes from
+ * the Neon Auth session itself, read server-side (`./neon-recency.ts`), never a client-supplied
+ * flag, so "is this session recently authenticated" cannot be forged by the browser. When it is
+ * not, the caller is sent to the Neon password re-check page, a real credential challenge.
  *
- * A fresh WorkOS session only establishes recency in general; it says
- * nothing about *which* sensitive action it should cover. `establishStepUp`
- * converts that general signal into the actual assurance record this
- * request needs — action- and resource-bound, short-lived — via
- * `@visastack/services`'s `issueStepUpAssurance`/`verifyStepUpAssurance`
- * (mint and verify happen together here since the whole check completes
- * within one request; the same primitives support a mint-then-verify-later
- * split for a future multi-step confirmation flow).
+ * A fresh session only establishes recency in general; it says nothing about *which* sensitive
+ * action it should cover. `establishStepUp` converts that general signal into the actual
+ * assurance record this request needs (action- and resource-bound, short-lived) via
+ * `@visastack/services`'s `issueStepUpAssurance`/`verifyStepUpAssurance` (mint and verify happen
+ * together here since the whole check completes within one request; the same primitives support a
+ * mint-then-verify-later split for a future multi-step confirmation flow).
  */
 
 const STEP_UP_MAX_AGE_SECONDS = 5 * 60;
@@ -52,9 +45,9 @@ export type StepUpResult =
 
 /**
  * Establish step-up for exactly this account/action/resource, in one call.
- * Fresh WorkOS session → mints and immediately verifies a real assurance
- * record (never a boolean asserted by the caller). Stale → returns a
- * genuine WorkOS reauthentication URL (never a local substitute) for the
+ * Fresh session → mints and immediately verifies a real assurance
+ * record (never a boolean asserted by the caller). Stale → returns the
+ * Neon password re-check URL (a real credential challenge) for the
  * caller to redirect to; `returnTo` should be the same URL the caller is
  * currently serving, so completing reauth lands the user back here to
  * retry — this time fresh.
@@ -63,22 +56,14 @@ export async function establishStepUp(
   request: StepUpRequest,
   returnTo: string,
 ): Promise<StepUpResult> {
-  if (selectedIdentityProvider() === 'neon_auth') {
-    if ((await neonSessionAgeSeconds()) > STEP_UP_MAX_AGE_SECONDS) {
-      return { satisfied: false, reauthUrl: neonReauthUrl(returnTo) };
-    }
-  } else {
-    const { isStale } = await checkRecentAuth({ maxAge: STEP_UP_MAX_AGE_SECONDS });
-    if (isStale) {
-      const reauthUrl = await getSignInUrl({ maxAge: STEP_UP_MAX_AGE_SECONDS, returnTo });
-      return { satisfied: false, reauthUrl };
-    }
+  if ((await neonSessionAgeSeconds()) > STEP_UP_MAX_AGE_SECONDS) {
+    return { satisfied: false, reauthUrl: neonReauthUrl(returnTo) };
   }
   const secret = signingSecret();
   const token: StepUpAssuranceFields = issueStepUpAssurance(secret, request);
   // Self-verification of a token just minted, moments ago, from the same
   // secret and inputs, cannot fail from staleness — only from a broken
-  // signing invariant. That is not "please reauth" (a fresh WorkOS session
+  // signing invariant. That is not "please reauth" (a fresh session
   // wouldn't fix it); fail loudly rather than mis-report it as satisfied or
   // as a reauth prompt that cannot help.
   if (!verifyStepUpAssurance(secret, token, request)) {

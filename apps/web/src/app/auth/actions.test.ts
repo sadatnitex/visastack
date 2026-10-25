@@ -62,34 +62,6 @@ beforeEach(() => {
   vi.stubEnv('IDENTITY_PROVIDER', 'neon_auth');
 });
 
-describe('every action', () => {
-  it('does nothing and goes home when Neon Auth is not the selected provider', async () => {
-    vi.stubEnv('IDENTITY_PROVIDER', 'workos');
-    const a = await import('./actions');
-    const good = form({
-      email: 'a@b.co',
-      password: 'longenough',
-      confirm: 'longenough',
-      token: 't',
-    });
-    for (const run of [
-      () => a.signInAction(good),
-      () => a.signUpAction(good),
-      () => a.resendConfirmationAction(good),
-      () => a.requestPasswordResetAction(good),
-      () => a.resetPasswordAction(good),
-      () => a.reauthAction(good),
-    ]) {
-      expect(await destination(run)).toBe('/');
-    }
-    expect(signInEmail).not.toHaveBeenCalled();
-    expect(signUpEmail).not.toHaveBeenCalled();
-    expect(sendVerificationEmail).not.toHaveBeenCalled();
-    expect(requestPasswordReset).not.toHaveBeenCalled();
-    expect(resetPassword).not.toHaveBeenCalled();
-  });
-});
-
 describe('signInAction', () => {
   it.each([
     ['a bad email address', { email: 'nope', password: 'longenough' }],

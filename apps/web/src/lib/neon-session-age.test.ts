@@ -1,12 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const checkRecentAuth = vi.fn(async () => {
-  throw new Error('WorkOS must not be consulted when Neon Auth is selected');
-});
-vi.mock('@workos-inc/authkit-nextjs', () => ({
-  checkRecentAuth: () => checkRecentAuth(),
-  getSignInUrl: () => checkRecentAuth(),
-}));
 vi.mock('@visastack/services', async (importOriginal) => ({
   ...(await importOriginal<object>()),
   listMembershipsForAccount: vi.fn(async () => []),
@@ -23,7 +16,6 @@ const DAY = 24 * 60 * 60;
 
 beforeEach(() => {
   vi.clearAllMocks();
-  vi.stubEnv('IDENTITY_PROVIDER', 'neon_auth');
   vi.stubEnv('STEP_UP_SIGNING_SECRET', 'x'.repeat(40));
 });
 
@@ -47,7 +39,6 @@ describe('session age limit with Neon Auth', () => {
     expect((await enforceSessionAgeLimit(true, '/app')).satisfied).toBe(false);
     age.mockResolvedValue(Number.POSITIVE_INFINITY);
     expect((await enforceSessionAgeLimit(false, '/app')).satisfied).toBe(false);
-    expect(checkRecentAuth).not.toHaveBeenCalled();
   });
 });
 
@@ -63,7 +54,6 @@ describe('step-up with Neon Auth', () => {
       satisfied: false,
       reauthUrl: '/auth/reauth?returnTo=%2Fapp%2Fx',
     });
-    expect(checkRecentAuth).not.toHaveBeenCalled();
   });
 
   it('never trusts a return address that leaves the site', async () => {

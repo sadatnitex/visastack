@@ -1,10 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('@workos-inc/authkit-nextjs', () => ({
-  withAuth: vi.fn(async () => {
-    throw new Error('WorkOS must not be consulted when Neon Auth is selected');
-  }),
-}));
 const redirect = vi.fn((to: string) => {
   throw new Error(`REDIRECT:${to}`);
 });
@@ -31,7 +26,7 @@ beforeEach(() => {
 });
 
 describe('withSession with Neon Auth selected', () => {
-  it('sends a visitor with no session to sign-in, never reaching WorkOS or the database', async () => {
+  it('sends a visitor with no session to sign-in, never reaching the database', async () => {
     currentIdentity.mockResolvedValue(undefined);
     const { withSession } = await import('./session');
     const work = vi.fn();

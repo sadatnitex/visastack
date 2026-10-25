@@ -25,10 +25,6 @@ const state = vi.hoisted(() => ({
 vi.mock('next/font/local', () => ({
   default: () => ({ variable: 'font-variable', className: 'font-class' }),
 }));
-vi.mock('@workos-inc/authkit-nextjs', () => ({
-  withAuth: async () => ({ user: { email: 'traveller@example.com' } }),
-  signOut: async () => undefined,
-}));
 vi.mock('./locale', () => ({ getLocale: async () => 'en' }));
 vi.mock('./session', () => ({
   withSession: async (fn: (ctx: unknown) => Promise<unknown>) =>

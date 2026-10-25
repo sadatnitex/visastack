@@ -46,18 +46,6 @@ const SELF = "'self'";
 const NONE = "'none'";
 
 /**
- * Hosts a WorkOS-hosted sign-in or re-authentication redirect passes through.
- * `form-action` also governs the redirects that follow a form submission in
- * Chromium, and a step-up Server Action answers with a redirect to WorkOS. A
- * WorkOS custom AuthKit domain is not knowable here: list it in
- * `CSP_FORM_ACTION_EXTRA` (see `.env.example`).
- */
-const WORKOS_FORM_ACTION_ORIGINS: readonly string[] = [
-  'https://api.workos.com',
-  'https://*.authkit.app',
-];
-
-/**
  * Vercel's documented Content-Security-Policy allowances for its preview
  * toolbar (https://vercel.com/docs/vercel-toolbar/managing-toolbar). Added on
  * preview deployments only; never on production.
@@ -132,8 +120,6 @@ export function resolveAppOrigin(
   if (explicit) return toOrigin(explicit);
   const vercel = readEnv('VERCEL_PROJECT_PRODUCTION_URL');
   if (vercel) return toOrigin(`https://${vercel}`);
-  const redirect = readEnv('NEXT_PUBLIC_WORKOS_REDIRECT_URI');
-  if (redirect) return toOrigin(redirect);
   return undefined;
 }
 
@@ -207,15 +193,7 @@ export function buildContentSecurityPolicy(options: ContentSecurityPolicyOptions
     ['frame-src', toolbar ? VERCEL_TOOLBAR.frame : [NONE]],
     ['object-src', [NONE]],
     ['base-uri', [SELF]],
-    [
-      'form-action',
-      [
-        SELF,
-        ...appOrigin,
-        ...WORKOS_FORM_ACTION_ORIGINS,
-        ...(options.extraFormActionOrigins ?? []),
-      ],
-    ],
+    ['form-action', [SELF, ...appOrigin, ...(options.extraFormActionOrigins ?? [])]],
     ['frame-ancestors', [NONE]],
     ['report-uri', [CSP_REPORT_PATH]],
   ];

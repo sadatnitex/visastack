@@ -24,8 +24,7 @@ import {
   type PreviewRendererPort,
   loadUploadQuotaConfig,
 } from '@visastack/services';
-import { NeonIdentityPort, WorkosIdentityPort } from './identity-provider';
-import { selectedIdentityProvider } from './identity-selection';
+import { NeonIdentityPort } from './identity-provider';
 
 /**
  * The central provider registry (master directive §7 "PR 11"): the one place
@@ -54,7 +53,7 @@ function readEnv(name: string): string | undefined {
 }
 
 const KNOWN_PROVIDERS = {
-  IDENTITY_PROVIDER: ['workos', 'neon_auth'],
+  IDENTITY_PROVIDER: ['neon_auth'],
   STORAGE_PROVIDER: ['vercel_blob', 'neon', 'r2'],
   DATABASE_PROVIDER: ['neon'],
   MALWARE_SCANNER_PROVIDER: ['builtin', 'clamav', 'github_clamav'],
@@ -120,17 +119,13 @@ export function validateProviderEnv(): void {
 }
 
 /**
- * Identity provider: WorkOS AuthKit by default (master directive §7 "PR 11"
- * pilot provider list), or Neon Auth when `IDENTITY_PROVIDER=neon_auth` (phase 1:
- * sign-in pieces only; account linking is phase 2, see
- * docs/commercial-v1/neon-auth-migration-plan.md). See `IdentityPort`'s own doc comment (ports.ts) for what is and isn't
- * wired through it yet.
+ * Identity provider: Neon Auth, the only sign-in system (WorkOS retired in WP-P0). A leftover
+ * `IDENTITY_PROVIDER` set to anything other than `neon_auth` is refused loudly rather than
+ * ignored. See `IdentityPort`'s own doc comment (ports.ts) for what is wired through it.
  */
 export function createIdentityPort(): IdentityPort {
   checkKnownProvider('IDENTITY_PROVIDER');
-  return selectedIdentityProvider(readEnv) === 'neon_auth'
-    ? new NeonIdentityPort()
-    : new WorkosIdentityPort();
+  return new NeonIdentityPort();
 }
 
 /**

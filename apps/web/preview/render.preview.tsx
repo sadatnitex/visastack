@@ -42,12 +42,7 @@ vi.mock('../src/lib/public-db', () => ({
   withPublicDb: async (fn: (db: unknown) => Promise<unknown>) => fn(state.db),
 }));
 vi.mock('../src/app/actions', () => ({ setLocaleAction: async () => undefined }));
-vi.mock('@workos-inc/authkit-nextjs', () => ({
-  withAuth: async () => ({ user: state.signedIn ? { id: 'preview' } : null }),
-  signOut: async () => undefined,
-  getSignInUrl: async () => '/sign-in',
-  checkRecentAuth: async () => true,
-}));
+vi.mock('../src/lib/signed-in', () => ({ isSignedIn: async () => state.signedIn }));
 vi.mock('next/font/local', () => ({
   default: () => ({ variable: 'font-variable', className: 'font-class' }),
 }));

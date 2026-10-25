@@ -7,9 +7,8 @@ export interface SessionReader {
 }
 
 /**
- * Whether the visitor is signed in, for the public header, footer and home page. It asks the
- * sign-in system this deployment actually uses (WorkOS or Neon Auth), so the answer is right on
- * both. A read that fails counts as signed out: a hiccup must never break a public page, and the
+ * Whether the visitor is signed in, for the public header, footer and home page. It asks Neon
+ * Auth through the identity port. A read that fails counts as signed out: a hiccup must never break a public page, and the
  * workspace itself still checks the session on its own.
  */
 export async function isSignedIn(reader?: SessionReader): Promise<boolean> {

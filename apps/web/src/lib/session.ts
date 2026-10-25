@@ -6,15 +6,12 @@ import {
   type Db,
   attributeInvitation,
   claimInvitation,
-  provisionAccount,
   provisionNeonAccount,
   releaseInvitationClaim,
   touchAccountActivity,
 } from '@visastack/services';
-import { withAuth } from '@workos-inc/authkit-nextjs';
 import { redirect } from 'next/navigation';
 import { NeonIdentityPort } from './identity-provider';
-import { selectedIdentityProvider } from './identity-selection';
 import { checkPilotAccess } from './pilot-access';
 import { reportServerError } from './server-error';
 import { enforceSessionAgeLimit, isStaffContext } from './session-age';
@@ -63,11 +60,10 @@ async function releaseClaimBestEffort(db: Db, invitationId: string): Promise<voi
 }
 
 /**
- * The session→account bridge. WorkOS AuthKit owns authentication; this maps the
- * signed-in WorkOS user to the local VisaStack account (provisioning it on first
- * login, idempotently) and runs the given work on a transaction-capable pooled
- * connection, closing the pool afterwards. Unauthenticated callers are
- * redirected to sign-in by `ensureSignedIn`.
+ * The session→account bridge. Neon Auth owns authentication; this maps the signed-in user to the
+ * local VisaStack account (provisioning it on first login, idempotently) and runs the given work
+ * on a transaction-capable pooled connection, closing the pool afterwards. Unauthenticated callers
+ * are sent to sign-in; an unconfirmed address is sent to the confirmation page.
  */
 export async function withSession<T>(
   fn: (ctx: {
@@ -77,41 +73,22 @@ export async function withSession<T>(
     readonly displayName?: string;
   }) => Promise<T>,
 ): Promise<T> {
-  const neon = selectedIdentityProvider() === 'neon_auth';
-  // Who is signed in, from the server-side session only. With Neon Auth, an address that has not
-  // been confirmed yet is sent to the confirmation page and gets no account and no database work.
-  let user: {
+  // Who is signed in, from the server-side session only. An address that has not been confirmed
+  // yet is sent to the confirmation page and gets no account and no database work.
+  const identity = await new NeonIdentityPort().currentIdentity();
+  if (!identity) redirect('/auth/sign-in');
+  if (!identity.emailVerified) redirect('/auth/verify-email');
+  const user: {
     readonly id: string;
     readonly email: string;
     readonly emailVerified: boolean;
     readonly displayName?: string;
+  } = {
+    id: identity.providerId,
+    email: identity.email,
+    emailVerified: true,
+    ...(identity.displayName ? { displayName: identity.displayName } : {}),
   };
-  if (neon) {
-    const identity = await new NeonIdentityPort().currentIdentity();
-    if (!identity) redirect('/auth/sign-in');
-    if (!identity.emailVerified) redirect('/auth/verify-email');
-    user = {
-      id: identity.providerId,
-      email: identity.email,
-      emailVerified: true,
-      ...(identity.displayName ? { displayName: identity.displayName } : {}),
-    };
-  } else {
-    // Read-only: the middleware (with `middlewareAuth` enabled) has already
-    // enforced sign-in and refreshed the token, so this never writes cookies
-    // during the render. `ensureSignedIn` is intentionally NOT passed - forcing a
-    // refresh here is what threw "Cookies can only be modified in a Server Action
-    // or Route Handler" on protected pages.
-    const { user: workosUser } = await withAuth();
-    // A signed-in visit already passed middleware's sign-in check; landing here
-    // with no user means the session lapsed between that check and this render
-    // (or this action's submission) - e.g. an expired/revoked WorkOS session.
-    // That's routine, recoverable, and not a bug: send them back through the
-    // existing sign-in flow instead of surfacing the generic error boundary,
-    // which would misleadingly read as a server fault ("this is on our side").
-    if (!workosUser?.email) redirect('/app');
-    user = { id: workosUser.id, email: workosUser.email, emailVerified: workosUser.emailVerified };
-  }
 
   const connectionString = resolveDatabaseUrl(process.env);
   if (!connectionString) throw new Error('database not configured');
@@ -131,11 +108,11 @@ export async function withSession<T>(
     // Server-authoritative controlled-pilot access boundary (docs/audits/
     // post-programme-defect-register.md finding #2) — checked BEFORE
     // provisioning, every time. An authenticated-but-uninvited identity must
-    // never receive a local account, regardless of how far WorkOS itself let
+    // never receive a local account, regardless of how far the sign-in provider itself let
     // them get through sign-in.
     const access = await checkPilotAccess(handle, {
       email: user.email,
-      workosUserId: neon ? null : user.id,
+      workosUserId: null,
     });
     if (!access.allowed) {
       redirect('/pilot-access-denied');
@@ -159,26 +136,20 @@ export async function withSession<T>(
       }
     }
 
-    // Bind the local account to the immutable WorkOS user id from the trusted
+    // Bind the local account to the immutable Neon Auth user id from the trusted
     // server session (never a client-supplied id); email is mutable contact data.
     // If provisioning fails for ANY reason (an identity conflict, a transient
     // database/audit error) after the claim above already committed, the
     // claim must be released — otherwise the invitation is burned with no
     // account ever created, locking out a legitimate retry until an admin
     // issues another invitation (Codex review, PR #65).
-    let provisioned: Awaited<ReturnType<typeof provisionAccount>>;
+    let provisioned: Awaited<ReturnType<typeof provisionNeonAccount>>;
     try {
-      provisioned = neon
-        ? await provisionNeonAccount(handle, {
-            email: user.email,
-            neonUserId: user.id,
-            emailVerified: user.emailVerified,
-          })
-        : await provisionAccount(handle, {
-            email: user.email,
-            workosUserId: user.id,
-            emailVerified: user.emailVerified,
-          });
+      provisioned = await provisionNeonAccount(handle, {
+        email: user.email,
+        neonUserId: user.id,
+        emailVerified: user.emailVerified,
+      });
     } catch (error) {
       if (claimedInvitationId) await releaseClaimBestEffort(handle, claimedInvitationId);
       throw error;
@@ -225,7 +196,7 @@ export async function withSession<T>(
     if (isNextRedirectSignal(error)) throw error;
     // Surface the real cause in the server logs. Next.js masks render-time
     // exceptions behind an opaque digest in production, so without this the
-    // actual message (DB connectivity, a failing query, a WorkOS refresh) is
+    // actual message (DB connectivity, a failing query, a sign-in session refresh) is
     // invisible. This is the single log line that turns a digest into a
     // diagnosis.
     reportServerError('withSession', error, { subject: subjectRef(user.email) });

@@ -1,6 +1,6 @@
 import 'server-only';
 import { createAiExtractor } from './ai';
-import { isPresent, isSignInConfigured, isWorkosConfigured, readEnv } from './env';
+import { isPresent, isSignInConfigured, readEnv } from './env';
 
 /**
  * The commercial readiness guard (master directive §7 "PR 11"): every named
@@ -76,13 +76,12 @@ function buildGates(input: CommercialReadinessInput): readonly ReadinessGate[] {
       satisfied: readEnv('VERCEL_ENV') === 'production',
     },
     {
-      key: 'workosProduction',
-      label: 'WorkOS production',
-      // isWorkosConfigured() only proves SOME WorkOS project is wired up —
-      // it cannot distinguish a production project from the pilot's staging
-      // one from env var presence alone, so genuine production use is an
-      // explicit attestation on top.
-      satisfied: isWorkosConfigured() && attested('WORKOS_PRODUCTION'),
+      key: 'signInProduction',
+      label: 'production sign-in',
+      // isSignInConfigured() only proves SOME Neon Auth project is wired up;
+      // it cannot tell a production project from the staging one by presence
+      // alone, so genuine production use is an explicit attestation on top.
+      satisfied: isSignInConfigured() && attested('NEON_AUTH_PRODUCTION'),
     },
     {
       key: 'productionDatabase',

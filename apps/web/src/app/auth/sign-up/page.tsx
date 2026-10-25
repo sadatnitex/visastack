@@ -1,7 +1,5 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { notFound } from 'next/navigation';
-import { selectedIdentityProvider } from '../../../lib/identity-selection';
 import { safeReturnPath } from '../../../lib/neon-recency';
 import { isPublicBetaOpen } from '../../../lib/public-beta';
 import { createSignupForm } from '../../../lib/signup-form';
@@ -25,7 +23,6 @@ const ERRORS: Record<string, string> = {
 export default async function SignUpPage({
   searchParams,
 }: { searchParams: Promise<{ e?: string; next?: string }> }) {
-  if (selectedIdentityProvider() !== 'neon_auth') notFound();
   const { e, next } = await searchParams;
   const error = e ? ERRORS[e] : undefined;
   const signupForm = createSignupForm();

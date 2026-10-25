@@ -15,8 +15,7 @@
  * never drift apart — and, deliberately kept in its own module with no
  * Next.js/service imports (mirroring `./snapshots/[snapshotId]/snapshot-facts.ts`'s
  * identical reasoning), is what makes it unit-testable at all: importing
- * `page.tsx` directly into a plain Vitest run fails to resolve
- * (`@workos-inc/authkit-nextjs`'s own `next/cache` import) because of the
+ * `page.tsx` directly into a plain Vitest run fails to resolve because of the
  * `withSession`/`next/navigation` imports it drags in.
  */
 export function composeSelectionCandidateKey(

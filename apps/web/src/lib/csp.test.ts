@@ -97,7 +97,6 @@ describe('resolveAppOrigin', () => {
         envFrom({
           NEXT_PUBLIC_APP_URL: 'https://app.example.com/ignored',
           VERCEL_PROJECT_PRODUCTION_URL: 'prod.example.com',
-          NEXT_PUBLIC_WORKOS_REDIRECT_URI: 'https://redirect.example.com/callback',
         }),
       ),
     ).toBe('https://app.example.com');
@@ -108,18 +107,17 @@ describe('resolveAppOrigin', () => {
       resolveAppOrigin(
         envFrom({
           VERCEL_PROJECT_PRODUCTION_URL: 'prod.example.com',
-          NEXT_PUBLIC_WORKOS_REDIRECT_URI: 'https://redirect.example.com/callback',
         }),
       ),
     ).toBe('https://prod.example.com');
   });
 
-  it('then the WorkOS redirect URI origin', () => {
+  it('ignores the retired sign-in provider redirect address', () => {
     expect(
       resolveAppOrigin(
         envFrom({ NEXT_PUBLIC_WORKOS_REDIRECT_URI: 'https://redirect.example.com/callback' }),
       ),
-    ).toBe('https://redirect.example.com');
+    ).toBeUndefined();
   });
 
   it('is undefined when nothing usable is configured, or the value is unusable', () => {
@@ -135,7 +133,6 @@ describe('resolveAppOrigin stays in step with resolveBaseUrl', () => {
     'VERCEL_BRANCH_URL',
     'VERCEL_URL',
     'VERCEL_PROJECT_PRODUCTION_URL',
-    'NEXT_PUBLIC_WORKOS_REDIRECT_URI',
   ] as const;
   const original: Record<string, string | undefined> = {};
   for (const name of NAMES) original[name] = process.env[name];
@@ -151,15 +148,9 @@ describe('resolveAppOrigin stays in step with resolveBaseUrl', () => {
   const cases: ReadonlyArray<Record<string, string>> = [
     { NEXT_PUBLIC_APP_URL: 'https://a.example.com' },
     { VERCEL_PROJECT_PRODUCTION_URL: 'b.example.com' },
-    { NEXT_PUBLIC_WORKOS_REDIRECT_URI: 'https://c.example.com/callback' },
     {
       NEXT_PUBLIC_APP_URL: 'https://a.example.com',
       VERCEL_PROJECT_PRODUCTION_URL: 'b.example.com',
-      NEXT_PUBLIC_WORKOS_REDIRECT_URI: 'https://c.example.com/callback',
-    },
-    {
-      VERCEL_PROJECT_PRODUCTION_URL: 'b.example.com',
-      NEXT_PUBLIC_WORKOS_REDIRECT_URI: 'https://c.example.com/callback',
     },
   ];
 
@@ -278,17 +269,13 @@ describe('buildContentSecurityPolicy', () => {
     expect(CSP_REPORT_PATH).toBe('/api/csp-report');
   });
 
-  it('lets a form hand off to WorkOS, and only WorkOS', () => {
-    expect(production['form-action']).toEqual([
-      "'self'",
-      'https://api.workos.com',
-      'https://*.authkit.app',
-    ]);
+  it('lets a form post only to this site (sign-in posts to its own /api/auth)', () => {
+    expect(production['form-action']).toEqual(["'self'"]);
   });
 
-  it('has no wildcard other than the AuthKit subdomain, and no plain-http or data source', () => {
+  it('has no wildcard, and no plain-http or data source', () => {
     const policy = buildContentSecurityPolicy({ nonce: NONCE });
-    expect(policy.match(/\*/g)).toHaveLength(1);
+    expect(policy.match(/\*/g)).toBeNull();
     expect(policy).not.toMatch(/http:/);
     expect(policy).not.toMatch(/\bdata:/);
     expect(policy).not.toMatch(/\bblob:/);
@@ -312,12 +299,7 @@ describe('buildContentSecurityPolicy', () => {
         extraFormActionOrigins: ['https://auth.visastack.example'],
       }),
     );
-    expect(extra['form-action']).toEqual([
-      "'self'",
-      'https://api.workos.com',
-      'https://*.authkit.app',
-      'https://auth.visastack.example',
-    ]);
+    expect(extra['form-action']).toEqual(["'self'", 'https://auth.visastack.example']);
   });
 
   it('gives production no Vercel toolbar allowance at all', () => {

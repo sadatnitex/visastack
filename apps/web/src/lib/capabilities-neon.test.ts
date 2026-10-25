@@ -57,7 +57,7 @@ describe('public beta', () => {
     expect(capabilities.payments).toBe('unconfigured');
   });
 
-  it('stays closed without the switch, or with WorkOS selected', async () => {
+  it('stays closed without the switch, or when sign-in is not configured', async () => {
     useEnv({ ...NEON, DEPLOYMENT_MODE: 'controlled_pilot' });
     const { getPlatformCapabilities } = await import('./capabilities');
     expect(getPlatformCapabilities().publicSignup).toBe('disabled');

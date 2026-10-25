@@ -20,7 +20,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
  */
 
 const ATTEST_FLAGS = [
-  'WORKOS_PRODUCTION',
+  'NEON_AUTH_PRODUCTION',
   'EXTERNAL_DELETION_VERIFIED',
   'TENANT_ISOLATION_SUITE',
   'PERMISSION_MATRIX',
@@ -35,10 +35,8 @@ const ATTEST_FLAGS = [
 
 const ENV_KEYS = [
   'VERCEL_ENV',
-  'WORKOS_API_KEY',
-  'WORKOS_CLIENT_ID',
-  'WORKOS_COOKIE_PASSWORD',
-  'NEXT_PUBLIC_WORKOS_REDIRECT_URI',
+  'NEON_AUTH_BASE_URL',
+  'NEON_AUTH_COOKIE_SECRET',
   'BLOB_READ_WRITE_TOKEN',
   'STEP_UP_SIGNING_SECRET',
   'AI_ENABLED',
@@ -65,10 +63,8 @@ function unsetEnv(name: string): void {
 /** Sets every live gate and every attestation flag to its satisfied value — everything except realMalwareScanner. */
 function satisfyEveryGateExceptMalwareScanner(): void {
   setEnv('VERCEL_ENV', 'production');
-  setEnv('WORKOS_API_KEY', 'x');
-  setEnv('WORKOS_CLIENT_ID', 'x');
-  setEnv('WORKOS_COOKIE_PASSWORD', 'x');
-  setEnv('NEXT_PUBLIC_WORKOS_REDIRECT_URI', 'https://example.test/callback');
+  setEnv('NEON_AUTH_BASE_URL', 'https://auth.example.test/db');
+  setEnv('NEON_AUTH_COOKIE_SECRET', 'x'.repeat(40));
   setEnv('BLOB_READ_WRITE_TOKEN', 'x');
   setEnv('STEP_UP_SIGNING_SECRET', 'x');
   setEnv('EMAIL_PROVIDER', 'resend');
@@ -118,7 +114,7 @@ describe('evaluateCommercialReadiness', () => {
     const keys = evaluateCommercialReadiness({ databaseReady: true }).gates.map((g) => g.key);
     expect(keys).toEqual([
       'hosting',
-      'workosProduction',
+      'signInProduction',
       'productionDatabase',
       'privateProductionStorage',
       'realMalwareScanner',
@@ -208,14 +204,12 @@ describe('evaluateCommercialReadiness', () => {
     });
   });
 
-  it('never satisfies workosProduction from WorkOS config alone, without the explicit production attestation', async () => {
-    setEnv('WORKOS_API_KEY', 'x');
-    setEnv('WORKOS_CLIENT_ID', 'x');
-    setEnv('WORKOS_COOKIE_PASSWORD', 'x');
-    setEnv('NEXT_PUBLIC_WORKOS_REDIRECT_URI', 'https://example.test/callback');
+  it('never satisfies signInProduction from Neon Auth config alone, without the explicit production attestation', async () => {
+    setEnv('NEON_AUTH_BASE_URL', 'https://auth.example.test/db');
+    setEnv('NEON_AUTH_COOKIE_SECRET', 'x'.repeat(40));
     const { evaluateCommercialReadiness } = await import('./commercial-readiness');
     const result = evaluateCommercialReadiness({ databaseReady: true });
-    expect(result.gates.find((g) => g.key === 'workosProduction')?.satisfied).toBe(false);
+    expect(result.gates.find((g) => g.key === 'signInProduction')?.satisfied).toBe(false);
   });
 
   it('treats productionDatabase strictly as the caller-supplied live signal', async () => {
@@ -291,7 +285,7 @@ describe('commercialConfigurationReady', () => {
   });
 });
 
-it('evaluates real-record safeguards without requiring payment, commercial hosting certification or WorkOS', async () => {
+it('evaluates real-record safeguards without requiring payment, commercial hosting certification or a production sign-in attestation', async () => {
   const { evaluateOperationalReadiness } = await import('./commercial-readiness');
   const result = evaluateOperationalReadiness({ databaseReady: false });
   const keys = result.gates.map((gate) => gate.key);

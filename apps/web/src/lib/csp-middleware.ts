@@ -14,10 +14,10 @@ import {
 type MiddlewareResult = Awaited<ReturnType<NextMiddleware>>;
 
 export interface CspMiddlewareDeps {
-  /** The AuthKit middleware, wrapped unchanged. */
-  readonly authkit: NextMiddleware;
-  /** Whether AuthKit owns this path; see `authkit-paths.ts`. */
-  readonly isAuthkitPath: (pathname: string) => boolean;
+  /** The sign-in middleware (Neon Auth), wrapped unchanged. */
+  readonly auth: NextMiddleware;
+  /** Whether this path needs a signed-in session; see `identity-selection.ts`. */
+  readonly needsSignIn: (pathname: string) => boolean;
   /**
    * False outside a production build. The development server needs
    * `'unsafe-eval'` and a hot-reload socket, so the policy is not applied there.
@@ -31,25 +31,25 @@ export interface CspMiddlewareDeps {
 
 /**
  * Puts a per-request nonce and Content-Security-Policy on every page response
- * and runs AuthKit, untouched, for the paths that need it.
+ * and runs the sign-in middleware, untouched, for the paths that need it.
  *
  * The policy goes on the *request* as well as the response. Next.js reads the
  * nonce back out of the request's policy header and stamps it on the inline
  * scripts it renders, so a nonce that only reached the response would leave the
- * app's own scripts blocked. AuthKit builds its forwarded request headers from
- * the request it is given (`partitionAuthkitHeaders` copies them), so handing it
- * a copy that already carries the policy gets the headers through to the render.
- * The copy has no body: AuthKit never reads one, and building it from the
- * original would consume the stream a Server Action still needs.
+ * app's own scripts blocked. The sign-in middleware builds its forwarded request
+ * headers from the request it is given, so handing it a copy that already
+ * carries the policy gets the headers through to the render. The copy has no
+ * body: the sign-in check never reads one, and building it from the original
+ * would consume the stream a Server Action still needs.
  */
 export function createCspMiddleware(deps: CspMiddlewareDeps): NextMiddleware {
   const makeNonce = deps.makeNonce ?? generateNonce;
 
   return async function cspMiddleware(request, event) {
-    const runAuthkit = deps.isAuthkitPath(request.nextUrl.pathname);
+    const runAuth = deps.needsSignIn(request.nextUrl.pathname);
 
     if (!deps.enabled) {
-      return runAuthkit ? deps.authkit(request, event) : NextResponse.next();
+      return runAuth ? deps.auth(request, event) : NextResponse.next();
     }
 
     const nonce = makeNonce();
@@ -70,12 +70,12 @@ export function createCspMiddleware(deps: CspMiddlewareDeps): NextMiddleware {
     requestHeaders.delete(mode === 'report-only' ? CSP_HEADER_ENFORCE : CSP_HEADER_REPORT_ONLY);
 
     let response: MiddlewareResult = undefined;
-    if (runAuthkit) {
-      const authkitRequest = new NextRequest(request.url, {
+    if (runAuth) {
+      const authRequest = new NextRequest(request.url, {
         method: request.method,
         headers: requestHeaders,
       });
-      response = await deps.authkit(authkitRequest, event);
+      response = await deps.auth(authRequest, event);
     }
     if (!response) {
       response = NextResponse.next({ request: { headers: requestHeaders } });

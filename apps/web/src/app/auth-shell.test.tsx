@@ -5,15 +5,9 @@ import { renderServer } from '../lib/next-mocks.test-support';
 const mocks = vi.hoisted(() => ({
   currentIdentity: vi.fn(),
   signOutCurrentUser: vi.fn(),
-  workosWithAuth: vi.fn(),
-  workosSignOut: vi.fn(),
   reportServerError: vi.fn(),
 }));
 
-vi.mock('@workos-inc/authkit-nextjs', () => ({
-  withAuth: mocks.workosWithAuth,
-  signOut: mocks.workosSignOut,
-}));
 vi.mock('next/font/local', () => ({ default: () => ({ variable: 'test-font' }) }));
 vi.mock('../lib/providers', () => ({
   createIdentityPort: () => ({ currentIdentity: mocks.currentIdentity }),
@@ -63,11 +57,10 @@ beforeEach(() => {
   vi.resetAllMocks();
   mocks.currentIdentity.mockResolvedValue(undefined);
   mocks.signOutCurrentUser.mockResolvedValue(undefined);
-  mocks.workosWithAuth.mockRejectedValue(new Error('WorkOS must not read this Neon session'));
 });
 
 describe('selected identity in the application shell', () => {
-  it('shows Workspace for the selected provider session without reading WorkOS', async () => {
+  it('shows Workspace for a Neon session', async () => {
     mocks.currentIdentity.mockResolvedValue({
       providerId: 'neon-1',
       email: 'traveller@example.com',
@@ -76,14 +69,12 @@ describe('selected identity in the application shell', () => {
     const html = await renderServer(RootLayout({ children: null }));
     expect(html).toContain('Workspace');
     expect(html).not.toContain('>Sign in<');
-    expect(mocks.workosWithAuth).not.toHaveBeenCalled();
   });
 
   it('shows Sign in for an unsigned-in visitor without a provider fallback', async () => {
     const html = await renderServer(RootLayout({ children: null }));
     expect(html).toContain('Sign in');
     expect(html).not.toContain('Workspace');
-    expect(mocks.workosWithAuth).not.toHaveBeenCalled();
   });
 
   it('keeps public navigation signed out and reports a selected-provider outage', async () => {
@@ -93,7 +84,6 @@ describe('selected identity in the application shell', () => {
     expect(html).toContain('Sign in');
     expect(html).not.toContain('Workspace');
     expect(mocks.reportServerError).toHaveBeenCalledWith('public navigation identity', error);
-    expect(mocks.workosWithAuth).not.toHaveBeenCalled();
   });
 
   it('ends the selected provider session from the workspace sign-out form', async () => {
@@ -101,10 +91,9 @@ describe('selected identity in the application shell', () => {
     expect(action).toBeDefined();
     await action?.();
     expect(mocks.signOutCurrentUser).toHaveBeenCalledOnce();
-    expect(mocks.workosSignOut).not.toHaveBeenCalled();
   });
 
-  it('shows the denied selected identity without provisioning an account or reading WorkOS', async () => {
+  it('shows the denied identity without provisioning an account', async () => {
     mocks.currentIdentity.mockResolvedValue({
       providerId: 'neon-2',
       email: 'denied@example.com',
@@ -112,7 +101,6 @@ describe('selected identity in the application shell', () => {
     });
     const html = await renderServer(DeniedPage());
     expect(html).toContain('denied@example.com');
-    expect(mocks.workosWithAuth).not.toHaveBeenCalled();
   });
 
   it('keeps denial generic when the selected provider cannot be read', async () => {
@@ -122,6 +110,5 @@ describe('selected identity in the application shell', () => {
     expect(html).toContain('This account');
     expect(html).not.toContain('selected provider unavailable');
     expect(mocks.reportServerError).toHaveBeenCalledWith('pilot denial identity', error);
-    expect(mocks.workosWithAuth).not.toHaveBeenCalled();
   });
 });

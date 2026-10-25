@@ -8,9 +8,8 @@
  *
  * Deliberately its own module, with no Next.js/service imports: `page.tsx`
  * pulls in `withSession`/`next/navigation`, which drag in enough of the
- * Next.js/WorkOS stack that importing the page file directly from a plain
- * Vitest run fails to resolve (`@workos-inc/authkit-nextjs`'s own `next/cache`
- * import). Keeping the pure normalization logic here, with zero such
+ * Next.js and sign-in stack that importing the page file directly from a plain
+ * Vitest run fails to resolve. Keeping the pure normalization logic here, with zero such
  * imports, is what makes it actually testable in isolation.
  */
 export interface SnapshotFactEntry {

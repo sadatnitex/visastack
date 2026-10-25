@@ -1,6 +1,4 @@
 import type { Metadata } from 'next';
-import { notFound } from 'next/navigation';
-import { selectedIdentityProvider } from '../../../lib/identity-selection';
 import { safeReturnPath } from '../../../lib/neon-recency';
 import { reauthAction } from '../actions';
 import { AuthShell, ErrorLine, TextField } from '../auth-ui';
@@ -17,7 +15,6 @@ const ERRORS: Record<string, string> = {
 export default async function ReauthPage({
   searchParams,
 }: { searchParams: Promise<{ e?: string; returnTo?: string }> }) {
-  if (selectedIdentityProvider() !== 'neon_auth') notFound();
   const { e, returnTo } = await searchParams;
   const error = e ? ERRORS[e] : undefined;
   return (
