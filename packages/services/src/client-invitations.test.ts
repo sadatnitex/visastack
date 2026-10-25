@@ -18,6 +18,7 @@ import {
 } from './client-invitations';
 import { setConsent } from './consent';
 import { type Db, schema as dbSchema } from './db';
+import { EMAIL_PATTERN, isEmailAddress } from './email-address';
 import { addMembership, createOrganization, reviewOrganization } from './organizations';
 import { RATE_LIMITS } from './rate-limit';
 import { exhaustRateLimit } from './rate-limit.test-support';
@@ -243,12 +244,15 @@ describe('client invitations - agency invites a traveller as a new client (Comme
     it('previews a valid invitation read-only, without consuming it', async () => {
       const created = await invite();
       if (!isOk(created)) throw new Error('setup failed');
+      const janeId = await account(db, 'jane@example.com');
 
-      const first = await previewClientInvitation(db, created.value.rawToken);
+      const first = await previewClientInvitation(db, created.value.rawToken, janeId);
       expect(isOk(first)).toBe(true);
       if (!isOk(first)) return;
       expect(first.value.organizationName).toBe('Acme Visas');
-      expect(first.value.displayName).toBe('Jane Traveller');
+      // The agency-typed person name never appears in a preview (v1.2 B09).
+      expect(first.value).not.toHaveProperty('displayName');
+      expect(JSON.stringify(first.value)).not.toContain('Jane Traveller');
       expect(first.value.requestedRoute).toBe('US B1/B2 business visa');
       expect(first.value.grantActions).toEqual([
         'VIEW_METADATA',
@@ -259,7 +263,7 @@ describe('client invitations - agency invites a traveller as a new client (Comme
       ]);
 
       // A second preview (a link prefetch, a scanner) must not have spent it.
-      const second = await previewClientInvitation(db, created.value.rawToken);
+      const second = await previewClientInvitation(db, created.value.rawToken, janeId);
       expect(isOk(second)).toBe(true);
 
       const [row] = await db
@@ -270,7 +274,7 @@ describe('client invitations - agency invites a traveller as a new client (Comme
     });
 
     it('reports not_found for an unknown token', async () => {
-      const result = await previewClientInvitation(db, 'not-a-real-token-at-all');
+      const result = await previewClientInvitation(db, 'not-a-real-token-at-all', adminId);
       expect(isErr(result)).toBe(true);
     });
 
@@ -282,15 +286,17 @@ describe('client invitations - agency invites a traveller as a new client (Comme
         .set({ expiresAt: new Date(0) })
         .where(eq(dbSchema.clientInvitations.id, created.value.invitation.id));
 
-      const result = await previewClientInvitation(db, created.value.rawToken);
+      // Only the invited person learns the invitation's state.
+      const janeId = await consentedTraveller(db, 'jane@example.com');
+      const result = await previewClientInvitation(db, created.value.rawToken, janeId);
       expect(isErr(result)).toBe(true);
       if (isErr(result)) expect(result.error.message).toContain('expired');
-    });
+    }, 30_000);
 
     it('reports invalid for an already-accepted invitation', async () => {
       const created = await invite();
       if (!isOk(created)) throw new Error('setup failed');
-      const travellerId = await consentedTraveller(db, 'traveller-preview@example.com');
+      const travellerId = await consentedTraveller(db, 'jane@example.com');
       const accepted = await acceptClientInvitation(db, {
         actorAccountId: travellerId,
         rawToken: created.value.rawToken,
@@ -298,7 +304,7 @@ describe('client invitations - agency invites a traveller as a new client (Comme
       });
       expect(isOk(accepted)).toBe(true);
 
-      const result = await previewClientInvitation(db, created.value.rawToken);
+      const result = await previewClientInvitation(db, created.value.rawToken, travellerId);
       expect(isErr(result)).toBe(true);
       if (isErr(result)) expect(result.error.message).toContain('already been used');
     });
@@ -308,7 +314,7 @@ describe('client invitations - agency invites a traveller as a new client (Comme
     it('happy path (new applicant): creates the applicant, mission, an ACTIVE grant, and assigns the named case owner', async () => {
       const created = await invite();
       if (!isOk(created)) throw new Error('setup failed');
-      const travellerId = await consentedTraveller(db, 'traveller-new@example.com');
+      const travellerId = await consentedTraveller(db, 'jane@example.com');
 
       const result = await acceptClientInvitation(db, {
         actorAccountId: travellerId,
@@ -371,7 +377,7 @@ describe('client invitations - agency invites a traveller as a new client (Comme
     it('happy path (existing applicant): links to the chosen applicant instead of creating a new one', async () => {
       const created = await invite();
       if (!isOk(created)) throw new Error('setup failed');
-      const travellerId = await consentedTraveller(db, 'traveller-existing@example.com');
+      const travellerId = await consentedTraveller(db, 'jane@example.com');
       const existing = await createApplicant(db, {
         actorAccountId: travellerId,
         ownerAccountId: travellerId,
@@ -395,7 +401,7 @@ describe('client invitations - agency invites a traveller as a new client (Comme
     it('rejects selecting an existing applicant the actor does not own', async () => {
       const created = await invite();
       if (!isOk(created)) throw new Error('setup failed');
-      const travellerId = await consentedTraveller(db, 'traveller-idor@example.com');
+      const travellerId = await consentedTraveller(db, 'jane@example.com');
       const otherOwnerId = await consentedTraveller(db, 'other-owner@example.com');
       const othersApplicant = await createApplicant(db, {
         actorAccountId: otherOwnerId,
@@ -420,7 +426,7 @@ describe('client invitations - agency invites a traveller as a new client (Comme
     });
 
     it('rejects an unknown token, honestly, never inventing a match', async () => {
-      const travellerId = await consentedTraveller(db, 'traveller-unknown@example.com');
+      const travellerId = await consentedTraveller(db, 'jane@example.com');
       const result = await acceptClientInvitation(db, {
         actorAccountId: travellerId,
         rawToken: 'not-a-real-token-at-all',
@@ -436,7 +442,7 @@ describe('client invitations - agency invites a traveller as a new client (Comme
         .update(dbSchema.clientInvitations)
         .set({ expiresAt: new Date(0) })
         .where(eq(dbSchema.clientInvitations.id, created.value.invitation.id));
-      const travellerId = await consentedTraveller(db, 'traveller-expired@example.com');
+      const travellerId = await consentedTraveller(db, 'jane@example.com');
 
       const result = await acceptClientInvitation(db, {
         actorAccountId: travellerId,
@@ -450,7 +456,7 @@ describe('client invitations - agency invites a traveller as a new client (Comme
     it('is single-use: a second acceptance attempt with the same token fails (replay)', async () => {
       const created = await invite();
       if (!isOk(created)) throw new Error('setup failed');
-      const travellerId = await consentedTraveller(db, 'traveller-replay@example.com');
+      const travellerId = await consentedTraveller(db, 'jane@example.com');
 
       const firstAccept = await acceptClientInvitation(db, {
         actorAccountId: travellerId,
@@ -481,7 +487,7 @@ describe('client invitations - agency invites a traveller as a new client (Comme
       });
       expect(isOk(revoked)).toBe(true);
 
-      const travellerId = await consentedTraveller(db, 'traveller-revoked@example.com');
+      const travellerId = await consentedTraveller(db, 'jane@example.com');
       const result = await acceptClientInvitation(db, {
         actorAccountId: travellerId,
         rawToken: created.value.rawToken,
@@ -493,7 +499,7 @@ describe('client invitations - agency invites a traveller as a new client (Comme
     it('under real concurrency, two simultaneous accept attempts for the same token never both succeed (race safety, not sequentially simulated)', async () => {
       const created = await invite();
       if (!isOk(created)) throw new Error('setup failed');
-      const travellerId = await consentedTraveller(db, 'traveller-racer@example.com');
+      const travellerId = await consentedTraveller(db, 'jane@example.com');
 
       const [a, b] = await Promise.all([
         acceptClientInvitation(db, {
@@ -522,7 +528,7 @@ describe('client invitations - agency invites a traveller as a new client (Comme
       // CORE_PROCESSING only: createApplicant/createMission would succeed,
       // but createGrant requires SHARING, so it must fail and unwind
       // everything the earlier steps in this same transaction did.
-      const travellerId = await account(db, 'traveller-no-sharing@example.com');
+      const travellerId = await account(db, 'jane@example.com');
       await grantConsent(db, travellerId, 'CORE_PROCESSING');
 
       const result = await acceptClientInvitation(db, {
@@ -556,6 +562,201 @@ describe('client invitations - agency invites a traveller as a new client (Comme
     });
   });
 
+  describe('email address check', () => {
+    it('accepts ordinary addresses and refuses malformed ones', () => {
+      for (const ok of ['jane@example.com', 'jane.doe+visa@mail.example.co.uk', 'a@b.cd']) {
+        expect(isEmailAddress(ok)).toBe(true);
+      }
+      for (const bad of [
+        'jane',
+        'jane@',
+        '@example.com',
+        'jane@example',
+        'jane@@example.com',
+        'a b@example.com',
+        'jane@example..com',
+        'jane@.example.com',
+        '+880 1711 000000',
+      ]) {
+        expect(isEmailAddress(bad)).toBe(false);
+      }
+      expect(isEmailAddress(`${'a'.repeat(250)}@b.cd`)).toBe(false);
+    });
+
+    it('stays fast on hostile input (CodeQL polynomial regular expression)', () => {
+      const hostile = `!@!.${'!.'.repeat(20_000)}!`;
+      const started = performance.now();
+      EMAIL_PATTERN.test(`${hostile} `);
+      expect(performance.now() - started).toBeLessThan(200);
+    });
+  });
+
+  describe('intended-recipient binding (v1.2 PR1/S1, T03)', () => {
+    it('a forwarded link shows an unrelated account no details and cannot be claimed', async () => {
+      const created = await invite();
+      if (!isOk(created)) throw new Error('setup failed');
+      const strangerId = await consentedTraveller(db, 'someone-else@example.com');
+
+      const preview = await previewClientInvitation(db, created.value.rawToken, strangerId);
+      expect(isErr(preview)).toBe(true);
+      if (isErr(preview)) {
+        expect(preview.error.code).toBe('forbidden');
+        expect(preview.error.message).toBe('Use the email address that received this invitation.');
+        for (const secret of ['Jane', 'jane@example.com', 'US B1/B2', 'Acme Visas']) {
+          expect(preview.error.message).not.toContain(secret);
+        }
+      }
+
+      const accepted = await acceptClientInvitation(db, {
+        actorAccountId: strangerId,
+        rawToken: created.value.rawToken,
+        applicantChoice: { kind: 'new' },
+      });
+      expect(isErr(accepted)).toBe(true);
+      if (isErr(accepted)) expect(accepted.error.code).toBe('forbidden');
+
+      // Nothing was spent or created: the real recipient can still accept.
+      const [row] = await db
+        .select()
+        .from(dbSchema.clientInvitations)
+        .where(eq(dbSchema.clientInvitations.id, created.value.invitation.id));
+      expect(row?.status).toBe('PENDING');
+      expect(row?.acceptedByAccountId).toBeNull();
+      expect(await listApplicants(db, strangerId)).toHaveLength(0);
+      const janeId = await consentedTraveller(db, 'jane@example.com');
+      const real = await acceptClientInvitation(db, {
+        actorAccountId: janeId,
+        rawToken: created.value.rawToken,
+        applicantChoice: { kind: 'new' },
+      });
+      expect(isOk(real)).toBe(true);
+    }, 30_000);
+
+    it('matches the invited address regardless of letter case and surrounding spaces', async () => {
+      const created = await invite({ contactDestination: '  Jane.Doe@Example.COM ' });
+      if (!isOk(created)) throw new Error('setup failed');
+      const janeId = await consentedTraveller(db, 'jane.doe@example.com');
+      expect(isOk(await previewClientInvitation(db, created.value.rawToken, janeId))).toBe(true);
+      const accepted = await acceptClientInvitation(db, {
+        actorAccountId: janeId,
+        rawToken: created.value.rawToken,
+        applicantChoice: { kind: 'new' },
+      });
+      expect(isOk(accepted)).toBe(true);
+    }, 30_000);
+
+    it('refuses a malformed address when the invitation is created, and says no email was queued for a phone contact', async () => {
+      for (const contactDestination of [
+        'jane@example.com.',
+        'Jane <jane@example.com>',
+        'jane@example..com',
+        'jane@localhost',
+        'jane@example.com, bob@example.com',
+        'jane at example.com',
+        '12345',
+        'call me',
+      ]) {
+        const refused = await invite({ contactDestination });
+        expect(isErr(refused) && refused.error.code).toBe('invalid');
+      }
+      for (const contactDestination of ['+880 1711 000000', '(020) 7946-0958', '01711.000.000']) {
+        const phone = await invite({ contactDestination });
+        expect(isOk(phone) && phone.value.emailQueued).toBe(false);
+      }
+    }, 30_000);
+
+    it('binds a malformed stored address to nobody rather than opening it to anyone (fails closed)', async () => {
+      const created = await invite();
+      if (!isOk(created)) throw new Error('setup failed');
+      // An address stored before creation-time validation existed.
+      await db
+        .update(dbSchema.clientInvitations)
+        .set({ contactDestination: 'jane@example.com.' })
+        .where(eq(dbSchema.clientInvitations.id, created.value.invitation.id));
+      for (const email of ['jane@example.com', 'anyone@example.com']) {
+        const viewer = await consentedTraveller(db, email);
+        const preview = await previewClientInvitation(db, created.value.rawToken, viewer);
+        expect(isErr(preview) && preview.error.code).toBe('forbidden');
+      }
+    }, 30_000);
+
+    it('tells someone else nothing about whether the invitation was revoked, and audits the attempt without personal details', async () => {
+      const created = await invite();
+      if (!isOk(created)) throw new Error('setup failed');
+      await db
+        .update(dbSchema.clientInvitations)
+        .set({ status: 'REVOKED' })
+        .where(eq(dbSchema.clientInvitations.id, created.value.invitation.id));
+      const strangerId = await consentedTraveller(db, 'someone-else@example.com');
+      const preview = await previewClientInvitation(db, created.value.rawToken, strangerId);
+      const accepted = await acceptClientInvitation(db, {
+        actorAccountId: strangerId,
+        rawToken: created.value.rawToken,
+        applicantChoice: { kind: 'new' },
+      });
+      const neutral = 'Use the email address that received this invitation.';
+      expect(isErr(preview) && preview.error.message).toBe(neutral);
+      expect(isErr(accepted) && accepted.error.message).toBe(neutral);
+      const events = await db
+        .select()
+        .from(dbSchema.auditEvents)
+        .where(eq(dbSchema.auditEvents.eventType, 'CLIENT_INVITATION_WRONG_RECIPIENT'));
+      expect(events.map((e) => (e.metadata as { stage: string }).stage).sort()).toEqual([
+        'accept',
+        'preview',
+      ]);
+      expect(JSON.stringify(events)).not.toMatch(/jane|someone-else|Jane Traveller/i);
+
+      // Refreshing does not add rows: once per account, invitation and stage.
+      await previewClientInvitation(db, created.value.rawToken, strangerId);
+      await previewClientInvitation(db, created.value.rawToken, strangerId);
+      const after = await db
+        .select()
+        .from(dbSchema.auditEvents)
+        .where(eq(dbSchema.auditEvents.eventType, 'CLIENT_INVITATION_WRONG_RECIPIENT'));
+      expect(after).toHaveLength(2);
+    }, 30_000);
+
+    it('keeps a phone-contact invitation claimable by the signed-in holder (unverifiable contact, recorded residual)', async () => {
+      const created = await invite({ contactDestination: '+880 1711 000000' });
+      if (!isOk(created)) throw new Error('setup failed');
+      const holderId = await consentedTraveller(db, 'holder@example.com');
+      const accepted = await acceptClientInvitation(db, {
+        actorAccountId: holderId,
+        rawToken: created.value.rawToken,
+        applicantChoice: { kind: 'new' },
+      });
+      expect(isOk(accepted)).toBe(true);
+    }, 30_000);
+
+    it('an account already working with this agency still cannot claim an invitation sent to someone else (T04)', async () => {
+      const own = await invite({ contactDestination: 'client@example.com' });
+      const forJane = await invite();
+      if (!isOk(own) || !isOk(forJane)) throw new Error('setup failed');
+      const clientId = await consentedTraveller(db, 'client@example.com');
+      const first = await acceptClientInvitation(db, {
+        actorAccountId: clientId,
+        rawToken: own.value.rawToken,
+        applicantChoice: { kind: 'new' },
+      });
+      expect(isOk(first)).toBe(true);
+
+      const second = await acceptClientInvitation(db, {
+        actorAccountId: clientId,
+        rawToken: forJane.value.rawToken,
+        applicantChoice: { kind: 'new' },
+      });
+      expect(isErr(second)).toBe(true);
+      if (isErr(second)) expect(second.error.code).toBe('forbidden');
+      expect(await listApplicants(db, clientId)).toHaveLength(1);
+      const [row] = await db
+        .select()
+        .from(dbSchema.clientInvitations)
+        .where(eq(dbSchema.clientInvitations.id, forJane.value.invitation.id));
+      expect(row?.status).toBe('PENDING');
+    }, 30_000);
+  });
+
   describe('revokeClientInvitation', () => {
     it('refuses a non-admin actor', async () => {
       const created = await invite();
@@ -587,7 +788,7 @@ describe('client invitations - agency invites a traveller as a new client (Comme
       expect(isErr(result)).toBe(true);
 
       // Proves it was not actually revoked by the cross-tenant attempt.
-      const travellerId = await consentedTraveller(db, 'traveller-cross-tenant@example.com');
+      const travellerId = await consentedTraveller(db, 'jane@example.com');
       const accepted = await acceptClientInvitation(db, {
         actorAccountId: travellerId,
         rawToken: created.value.rawToken,
@@ -695,7 +896,7 @@ describe('client invitations - agency invites a traveller as a new client (Comme
     it('never sweeps an ACCEPTED invitation, regardless of age -- it is a legitimate historical record, not abandoned metadata', async () => {
       const created = await invite();
       if (!isOk(created)) throw new Error('setup failed');
-      const travellerId = await consentedTraveller(db, 'traveller-sweep@example.com');
+      const travellerId = await consentedTraveller(db, 'jane@example.com');
       const accepted = await acceptClientInvitation(db, {
         actorAccountId: travellerId,
         rawToken: created.value.rawToken,

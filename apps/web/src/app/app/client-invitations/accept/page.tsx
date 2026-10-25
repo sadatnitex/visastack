@@ -80,7 +80,7 @@ export default async function AcceptClientInvitationPage({
   }
 
   const data = await withSession(async ({ db, accountId }) => {
-    const preview = await previewClientInvitation(db, token);
+    const preview = await previewClientInvitation(db, token, accountId);
     if (!preview.ok) return { preview, consents: null, applicants: [], branding: undefined };
     const [consents, applicants, branding] = await Promise.all([
       getConsents(db, accountId),
@@ -117,7 +117,11 @@ export default async function AcceptClientInvitationPage({
             />
             <p className="card-body">
               <strong>{data.preview.value.organizationName}</strong> wants to work with you on{' '}
-              <strong>{data.preview.value.requestedRoute ?? data.preview.value.displayName}</strong>
+              {data.preview.value.requestedRoute ? (
+                <strong>{data.preview.value.requestedRoute}</strong>
+              ) : (
+                'a new case'
+              )}
               .
             </p>
             <p className="card-body" style={{ fontWeight: 600, marginBottom: '0.5rem' }}>

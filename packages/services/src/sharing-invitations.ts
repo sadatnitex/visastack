@@ -4,6 +4,7 @@ import { getApplicant } from './applicants';
 import { appendAuditEvent } from './audit';
 import { hasConsent } from './consent';
 import { type Db, first, required, schema } from './db';
+import { isEmailAddress } from './email-address';
 import { type ServiceError, serviceError } from './errors';
 import { queueInvitationEmail } from './invitation-email';
 import { generateInvitationToken, hashInvitationToken } from './invitation-tokens';
@@ -23,8 +24,7 @@ export async function createSharingInvitation(
   Result<{ readonly invitation: SharingInvitation; readonly rawToken: string }, ServiceError>
 > {
   const email = input.email.trim().toLowerCase();
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254)
-    return err(serviceError('invalid', 'Enter a valid recipient email.'));
+  if (!isEmailAddress(email)) return err(serviceError('invalid', 'Enter a valid recipient email.'));
   const account = first(
     await db
       .select()

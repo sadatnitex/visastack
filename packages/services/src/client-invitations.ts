@@ -1,10 +1,11 @@
 import type { PermissionAction } from '@visastack/core';
 import { type Result, err, ok } from '@visastack/core';
-import { and, desc, eq, lt, or } from 'drizzle-orm';
+import { and, desc, eq, lt, or, sql } from 'drizzle-orm';
 import { assignMember, isActiveMember } from './agency';
 import { createApplicant, getApplicant } from './applicants';
 import { appendAuditEvent } from './audit';
 import { type Db, first, required, schema } from './db';
+import { isEmailAddress } from './email-address';
 import { type ServiceError, serviceError } from './errors';
 import { queueInvitationEmail } from './invitation-email';
 import { generateInvitationToken, hashInvitationToken } from './invitation-tokens';
@@ -15,24 +16,119 @@ import { RATE_LIMITS, checkRateLimits } from './rate-limit';
 import { acceptGrant, createGrant } from './sharing';
 
 /**
- * Agency invites a traveller (Commercial V1 Part 4 §6, IAM-03 exactly).
+ * Agency invites a traveller (Commercial V1 Part 4 §6, IAM-03; v1.2 PR1/S1 B09).
  *
- * Deliberately never keyed by email at acceptance and never checked against
- * an existing account at creation, unlike `invitations.ts`'s organization
- * invitations: the PRD is explicit that an agency "may not... claim an
- * existing wallet" or "expose whether email already has VisaStack account."
- * Acceptance is gated purely on holding the token plus being authenticated
- * as ANY account, never on an email match, the only design that cannot
- * leak account-existence information back to the inviting agency. The
- * agency supplies only a minimal display name/contact/route/case-owner; the
- * accepting traveller alone chooses which of their own applicant profiles
- * (existing or newly created) the resulting grant and mission attach to,
- * so the agency can never claim or preload into a wallet it does not own.
+ * Never checked against an existing account at creation: the PRD is explicit that an agency "may
+ * not... claim an existing wallet" or "expose whether email already has VisaStack account", so the
+ * agency learns nothing about accounts from creating, previewing or the outcome of an invitation.
+ *
+ * Bound to its intended recipient (v1.2 PR1/S1): when the agency gave an email address, only an
+ * account signed in with that same address may see the invitation's details or accept it. A
+ * forwarded link or an unrelated account gets a neutral refusal that names no person, route or
+ * case, and the check happens at acceptance, never at creation, so it reveals nothing to the
+ * agency. A phone contact cannot be verified, so such an invitation stays claimable by any
+ * signed-in holder of the link (recorded in known-issues as a residual).
+ *
+ * The agency supplies only a minimal display name/contact/route/case-owner; the accepting
+ * traveller alone chooses which of their own applicant profiles (existing or newly created) the
+ * resulting grant and mission attach to, so the agency can never claim or preload into a wallet it
+ * does not own.
  */
 
 export type ClientInvitation = typeof schema.clientInvitations.$inferSelect;
 
 const DEFAULT_EXPIRY_DAYS = 7;
+
+/**
+ * The address an invitation is bound to, or undefined for a phone contact
+ * (not verifiable). Fails closed: any contact containing "@" is treated as an
+ * address and must match exactly, so a malformed one (a trailing dot, a name
+ * in angle brackets) binds to nobody instead of opening to anyone.
+ */
+function boundEmail(contactDestination: string): string | undefined {
+  const value = contactDestination.trim().toLowerCase();
+  return value.includes('@') ? value : undefined;
+}
+
+/**
+ * A contact is either an email address or something shaped like a phone
+ * number (digits with the usual +, spaces, dashes, dots and brackets; 7 to 15
+ * digits), so free text such as "jane at example.com" cannot slip through as
+ * an unbound contact.
+ */
+function isValidContact(contact: string): boolean {
+  if (contact.includes('@')) return isEmailAddress(contact.toLowerCase());
+  if (contact.length > 32 || !/^\+?[0-9\s().-]+$/.test(contact)) return false;
+  const digits = contact.replace(/[^0-9]/g, '').length;
+  return digits >= 7 && digits <= 15;
+}
+
+/** Whether `accountId` may see and accept an invitation sent to `contactDestination`. */
+async function isIntendedRecipient(
+  db: Db,
+  contactDestination: string,
+  accountId: string,
+): Promise<boolean> {
+  const bound = boundEmail(contactDestination);
+  if (!bound) return true;
+  const account = first(
+    await db
+      .select({ email: schema.accounts.email })
+      .from(schema.accounts)
+      .where(eq(schema.accounts.id, accountId))
+      .limit(1),
+  );
+  return account?.email.trim().toLowerCase() === bound;
+}
+
+/** The same neutral refusal sharing invitations give: it names no person, route or case. */
+const WRONG_RECIPIENT_MESSAGE = 'Use the email address that received this invitation.';
+
+/**
+ * Audits a refused wrong-account attempt: ids only, never an address or a
+ * name. Once per account, invitation and stage, so refreshing a page cannot
+ * fill the permanent audit log. A failure to record never changes the
+ * refusal the person sees.
+ */
+async function recordWrongRecipient(
+  db: Db,
+  actorAccountId: string,
+  invitationId: string,
+  organizationId: string,
+  stage: 'preview' | 'accept',
+): Promise<void> {
+  try {
+    const already = first(
+      await db
+        .select({ seq: schema.auditEvents.seq })
+        .from(schema.auditEvents)
+        .where(
+          and(
+            eq(schema.auditEvents.eventType, 'CLIENT_INVITATION_WRONG_RECIPIENT'),
+            eq(schema.auditEvents.actorAccountId, actorAccountId),
+            eq(schema.auditEvents.resourceId, invitationId),
+            sql`${schema.auditEvents.metadata}->>'stage' = ${stage}`,
+          ),
+        )
+        .limit(1),
+    );
+    if (already) return;
+    await db.transaction(async (tx) => {
+      await appendAuditEvent(tx, {
+        eventType: 'CLIENT_INVITATION_WRONG_RECIPIENT',
+        actorAccountId,
+        method: 'MANUAL',
+        result: 'DENIED',
+        resourceType: 'client_invitation',
+        resourceId: invitationId,
+        reason: 'wrong_recipient',
+        metadata: { organizationId, stage },
+      });
+    });
+  } catch {
+    // The refusal stands either way; only the record of it is missing.
+  }
+}
 
 /**
  * What an agency actually receives once a client invitation is accepted:
@@ -70,6 +166,8 @@ export interface CreatedClientInvitation {
   readonly invitation: ClientInvitation;
   /** The raw, unhashed token. Exists only here and in whatever link the caller hands to the invitee, never logged or persisted in plaintext. */
   readonly rawToken: string;
+  /** Whether an invitation email was queued; when false the agency shares the link itself. */
+  readonly emailQueued: boolean;
 }
 
 /** Invite a traveller as a new client (org OWNER/ADMIN only, matching `assignMember`'s own authority requirement for the case-owner assignment this invitation produces on acceptance). */
@@ -90,6 +188,11 @@ export async function createClientInvitation(
   const contactDestination = input.contactDestination.trim();
   if (contactDestination.length === 0) {
     return err(serviceError('invalid', 'a contact destination is required'));
+  }
+  // An address must be a real one: a malformed address would bind the
+  // invitation to nobody (see boundEmail) and no email could be sent.
+  if (!isValidContact(contactDestination)) {
+    return err(serviceError('invalid', 'Enter a valid email address, or a phone number.'));
   }
 
   const rateLimit = await checkRateLimits(db, [
@@ -144,7 +247,9 @@ export async function createClientInvitation(
       resourceId: invitation.id,
       metadata: { organizationId: input.organizationId },
     });
-    if (input.encryption && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contactDestination)) {
+    const emailQueued =
+      input.encryption !== undefined && isEmailAddress(contactDestination.toLowerCase());
+    if (input.encryption && emailQueued) {
       await queueInvitationEmail(tx, {
         kind: 'client',
         invitationId: invitation.id,
@@ -154,14 +259,17 @@ export async function createClientInvitation(
         encryption: input.encryption,
       });
     }
-    return ok({ invitation, rawToken });
+    return ok({ invitation, rawToken, emailQueued });
   });
 }
 
+/**
+ * What the intended recipient sees before deciding. The agency-typed person name is deliberately
+ * absent (v1.2 B09: no applicant name in a preview); the traveller names their own profile.
+ */
 export interface ClientInvitationPreview {
   readonly organizationId: string;
   readonly organizationName: string;
-  readonly displayName: string;
   readonly requestedRoute: string | null;
   readonly grantActions: readonly PermissionAction[];
   readonly expiresAt: Date;
@@ -170,19 +278,22 @@ export interface ClientInvitationPreview {
 /**
  * Read-only lookup, deliberately never consuming the token (same reasoning
  * as `invitations.ts`'s `previewOrganizationInvitation`): a GET request must
- * never spend a one-time token as a side effect of rendering.
+ * never spend a one-time token as a side effect of rendering. Only the
+ * intended recipient (`viewerAccountId`) sees the details.
  */
 export async function previewClientInvitation(
   db: Db,
   rawToken: string,
+  viewerAccountId: string,
 ): Promise<Result<ClientInvitationPreview, ServiceError>> {
   const tokenHash = hashInvitationToken(rawToken);
   const row = first(
     await db
       .select({
+        id: schema.clientInvitations.id,
         organizationId: schema.clientInvitations.organizationId,
         organizationName: schema.organizations.name,
-        displayName: schema.clientInvitations.displayName,
+        contactDestination: schema.clientInvitations.contactDestination,
         requestedRoute: schema.clientInvitations.requestedRoute,
         expiresAt: schema.clientInvitations.expiresAt,
         status: schema.clientInvitations.status,
@@ -196,6 +307,11 @@ export async function previewClientInvitation(
       .limit(1),
   );
   if (!row) return err(serviceError('not_found', 'invitation not found'));
+  // First, so someone else's link says nothing about whether it was used, revoked or expired.
+  if (!(await isIntendedRecipient(db, row.contactDestination, viewerAccountId))) {
+    await recordWrongRecipient(db, viewerAccountId, row.id, row.organizationId, 'preview');
+    return err(serviceError('forbidden', WRONG_RECIPIENT_MESSAGE));
+  }
   if (row.status !== 'PENDING') {
     return err(serviceError('invalid', 'this invitation has already been used or revoked'));
   }
@@ -205,7 +321,6 @@ export async function previewClientInvitation(
   return ok({
     organizationId: row.organizationId,
     organizationName: row.organizationName,
-    displayName: row.displayName,
     requestedRoute: row.requestedRoute,
     grantActions: DEFAULT_CLIENT_GRANT_ACTIONS,
     expiresAt: row.expiresAt,
@@ -258,6 +373,18 @@ export async function acceptClientInvitation(
       .limit(1),
   );
   if (!invitation) return err(serviceError('not_found', 'invitation not found'));
+  // Checked first, before anything is claimed or created: a forwarded link
+  // cannot spend the invitation or learn whether it was used, revoked or expired.
+  if (!(await isIntendedRecipient(db, invitation.contactDestination, input.actorAccountId))) {
+    await recordWrongRecipient(
+      db,
+      input.actorAccountId,
+      invitation.id,
+      invitation.organizationId,
+      'accept',
+    );
+    return err(serviceError('forbidden', WRONG_RECIPIENT_MESSAGE));
+  }
   if (invitation.status !== 'PENDING') {
     return err(serviceError('invalid', 'this invitation has already been used or revoked'));
   }

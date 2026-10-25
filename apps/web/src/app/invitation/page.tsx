@@ -59,7 +59,7 @@ export default async function InvitationPage({
             ? 'Use the email address that received the invitation. You will see the agency and your role before joining.'
             : kind === 'sharing'
               ? 'Use the email address that received this invitation. Review the purpose, permissions and expiry before accepting. No access is active until you agree.'
-              : 'You will see the agency and requested access, choose your own profile and confirm sharing before connecting.'}
+              : 'Use the email address that received this invitation. You will see the agency and requested access, choose your own profile and confirm sharing before connecting.'}
         </p>
         <div className="action-row">
           <Link className="btn btn-primary" href={`/auth/sign-up?next=${next}`}>
