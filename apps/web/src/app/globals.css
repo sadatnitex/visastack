@@ -5779,6 +5779,32 @@ body:has(.auth-shell) > .footer {
 .case-alert-body {
   color: var(--text);
 }
-.case-alert form {
-  display: inline-block;
+.case-next-step-kicker {
+  margin: 0;
+  font-weight: 400;
+  letter-spacing: 0;
+}
+/* Phones: the approved preview shows the stage strip as one compact line, so
+   the next step stays above the fold. The explanation stays for screen readers. */
+@media (max-width: 640px) {
+  .case-stage-region {
+    margin-bottom: 0.75rem;
+  }
+  .case-stage-tracker {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    gap: 0.75rem;
+    padding: 0.5rem 0;
+  }
+  .case-stage-tracker li {
+    font-size: var(--text-caption);
+  }
+  .case-stage-region > p {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
 }

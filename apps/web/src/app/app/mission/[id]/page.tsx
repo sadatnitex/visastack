@@ -150,21 +150,17 @@ type AttentionKind = 'changed' | 'missing' | 'unconfirmed' | 'tasks';
 
 const plural = (count: number, one: string, many: string) => `${count} ${count === 1 ? one : many}`;
 
-// WP-X1 next step card: wording for the first attention item. The changed
-// case is shown by its own alert, so it never needs card wording.
+// WP-X1 next step card: wording for the first attention item. A changed case
+// is shown by its own alert instead, so it has no card wording.
 const NEXT_STEP_COPY: Record<
-  AttentionKind,
+  Exclude<AttentionKind, 'changed'>,
   { readonly title: (count: number) => string; readonly body: string; readonly action: string }
 > = {
-  changed: {
-    title: () => 'This case has changed since it was last acknowledged',
-    body: 'Capture a new snapshot and acknowledge it again.',
-    action: 'Go to snapshots',
-  },
+  // Counts missing, out-of-date and mismatched required items together.
   missing: {
-    title: (count) => `Add ${plural(count, 'required item', 'required items')}`,
-    body: 'The case cannot move forward until these are on file.',
-    action: 'See what is missing',
+    title: (count) => `Fix ${plural(count, 'required item', 'required items')}`,
+    body: 'Some required items are missing, out of date or do not match.',
+    action: 'See what needs fixing',
   },
   unconfirmed: {
     title: (count) => `Confirm ${plural(count, 'item', 'items')}`,
@@ -173,7 +169,7 @@ const NEXT_STEP_COPY: Record<
   },
   tasks: {
     title: (count) => `Finish ${plural(count, 'open task', 'open tasks')}`,
-    body: 'Your open tasks are listed under Tasks and letters.',
+    body: 'Your open tasks are listed under Tasks, appointments and letters.',
     action: 'Open tasks',
   },
 };
@@ -609,19 +605,26 @@ export default async function MissionPage({
 
       {data.isDirty ? (
         // WP-V3 adds the list of changed details inside this alert.
-        <div className="case-alert" role="status">
+        <div className="case-alert">
           <p className="case-alert-title">This case has changed since it was last acknowledged.</p>
           <p className="case-alert-body">
             A material edit invalidated the previous sign-off. Capture a new snapshot and
             acknowledge it again before relying on this case as submission-ready.
           </p>
-          <SnapshotButton missionId={mission.id} />
+          <SnapshotButton
+            missionId={mission.id}
+            label="Take a new snapshot"
+            primary
+            align="start"
+          />
         </div>
       ) : null}
 
-      {nextStep ? (
-        <section className="case-next-step" aria-label="Next step">
-          <p className="case-next-step-kicker">Next step</p>
+      {nextStep && nextStep.kind !== 'changed' ? (
+        <section className="case-next-step" aria-labelledby="case-next-step-heading">
+          <h2 className="case-next-step-kicker" id="case-next-step-heading">
+            Next step
+          </h2>
           <p className="case-next-step-title">
             {NEXT_STEP_COPY[nextStep.kind].title(nextStep.count)}
           </p>

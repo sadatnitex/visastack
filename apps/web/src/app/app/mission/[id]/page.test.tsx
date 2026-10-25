@@ -84,9 +84,39 @@ function setUp(
   options: {
     readonly dirty?: boolean;
     readonly openTasks?: number;
+    /** Required requirement states; attaches a pack when given. */
+    readonly requirements?: readonly string[];
   } = {},
 ) {
-  mocks.getMissionForOwner.mockResolvedValue(ok(MISSION));
+  const results = (options.requirements ?? []).map((state, i) => ({
+    packRequirementId: `req-${i}`,
+    kind: 'DOCUMENT' as const,
+    key: 'bank_statement',
+    optional: false,
+    state,
+  }));
+  mocks.getMissionForOwner.mockResolvedValue(
+    ok(options.requirements ? { ...MISSION, packVersionId: 'pv-1' } : MISSION),
+  );
+  mocks.computeReadiness.mockResolvedValue(
+    ok({
+      overallState: 'NEEDS_ACTION',
+      requirementResults: results,
+      requiredCount: results.length,
+      satisfiedRequired: 0,
+    }),
+  );
+  mocks.listRequirements.mockResolvedValue(
+    results.map((r) => ({ id: r.packRequirementId, citation: 'rule', sourceInaccessibleAt: null })),
+  );
+  mocks.getPackVersion.mockResolvedValue({ packId: 'p1', effectiveDate: null });
+  mocks.getPack.mockResolvedValue({
+    name: 'Japan visitor',
+    authoritative: false,
+    route: 'visitor',
+    jurisdiction: 'JP',
+  });
+  mocks.getLatestExplanationForRequirement.mockResolvedValue(undefined);
   mocks.getApplicant.mockResolvedValue({ id: 'synthetic-family', displayName: 'Rahman family' });
   for (const name of [
     'listMissionSnapshots',
@@ -216,7 +246,7 @@ describe('case journey view (WP-X1)', () => {
     expect(text).toContain('Finish 2 open tasks');
     const [tracker, card, list] = order(html, [
       'aria-label="Actual case workflow state"',
-      'aria-label="Next step"',
+      'aria-labelledby="case-next-step-heading"',
       'class="case-attention"',
     ]);
     expect(tracker).toBeLessThan(card ?? -1);
@@ -230,19 +260,43 @@ describe('case journey view (WP-X1)', () => {
   it('shows no card when nothing needs attention, keeping the success badge', async () => {
     setUp();
     const html = await render();
-    expect(html).not.toContain('aria-label="Next step"');
+    expect(html).not.toContain('aria-labelledby="case-next-step-heading"');
     expect(textOf(html)).toContain('Nothing needs attention right now');
   });
 
   it('a changed case shows the alert with its snapshot button directly under the tracker, and no card', async () => {
     setUp({ dirty: true, openTasks: 1 });
     const html = await render();
-    expect(html).not.toContain('aria-label="Next step"');
+    expect(html).not.toContain('aria-labelledby="case-next-step-heading"');
     const tracker = html.indexOf('aria-label="Actual case workflow state"');
     const alert = html.indexOf('class="case-alert"');
     const strip = html.indexOf('class="case-context-strip"');
     expect(tracker).toBeLessThan(alert);
     expect(alert).toBeLessThan(strip);
     expect(html.slice(alert, strip)).toContain('data-stub="SnapshotButton"');
+  });
+
+  it('the first item wins: required items to fix come before open tasks, with plain counts', async () => {
+    setUp({ requirements: ['CRITICAL_GAP', 'EXPIRING_STALE'], openTasks: 1 });
+    const html = await render();
+    const card = html.indexOf('aria-labelledby="case-next-step-heading"');
+    const list = html.indexOf('class="case-attention"');
+    expect(card).toBeGreaterThan(-1);
+    const cardText = textOf(html.slice(card, list));
+    expect(cardText).toContain('Fix 2 required items');
+    expect(cardText).toContain('Some required items are missing, out of date or do not match.');
+    expect(cardText).not.toContain('open task');
+    expect(html.slice(card, list)).toContain('href="#readiness"');
+    // The attention list itself still lists both.
+    expect(textOf(html.slice(list))).toContain('open task');
+  });
+
+  it('uses the singular for one item, and names items to confirm', async () => {
+    setUp({ requirements: ['UNVERIFIED'] });
+    expect(textOf(await render())).toMatch(/Confirm 1 item(?!s)/);
+    setUp({ requirements: ['CRITICAL_GAP'] });
+    expect(textOf(await render())).toMatch(/Fix 1 required item(?!s)/);
+    setUp({ openTasks: 1 });
+    expect(textOf(await render())).toMatch(/Finish 1 open task(?!s)/);
   });
 });

@@ -8,3 +8,6 @@ apps/web/src/app/app/mission/[id]/page.test.tsx
 apps/web/src/app/globals.css
 docs/upgrades/programme/**
 docs/commercial-v1/known-issues.md
+# Added 25 Oct 2026 under the owner's autonomous-work mandate, from the independent pre-merge review: the alert's
+# snapshot button gets a clear name, the primary style and start alignment (label and style props only; the action is unchanged).
+apps/web/src/app/app/mission/[id]/mission-buttons.tsx

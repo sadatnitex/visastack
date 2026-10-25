@@ -153,19 +153,39 @@ export function ItineraryForm({
   );
 }
 
-export function SnapshotButton({ missionId }: { readonly missionId: string }) {
+/**
+ * The case snapshot action. The defaults are the page header's button; the
+ * changed-case alert (WP-X1) passes a clearer name, the primary style and
+ * start alignment. Same action either way.
+ */
+export function SnapshotButton({
+  missionId,
+  label = 'Snapshot',
+  primary = false,
+  align = 'end',
+}: {
+  readonly missionId: string;
+  readonly label?: string;
+  readonly primary?: boolean;
+  readonly align?: 'start' | 'end';
+}) {
   const [state, formAction, pending] = useActionState(snapshotMissionAction, INITIAL);
   return (
     <div
-      style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.3rem' }}
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: align === 'start' ? 'flex-start' : 'flex-end',
+        gap: '0.3rem',
+      }}
     >
       <form action={formAction}>
         <input type="hidden" name="missionId" value={missionId} />
         <SubmitButton
           pending={pending}
-          idle="Snapshot"
+          idle={label}
           busy="Capturing…"
-          className="btn btn-secondary"
+          className={primary ? 'btn btn-primary' : 'btn btn-secondary'}
         />
       </form>
       <FormMessage result={state} />
