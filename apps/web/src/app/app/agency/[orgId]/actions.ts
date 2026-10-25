@@ -314,7 +314,7 @@ export async function inviteClientAction(
   const requestedRoute = String(formData.get('requestedRoute') ?? '').trim();
   if (displayName.length === 0) return { ok: false, message: "Enter the traveller's name." };
   if (contactDestination.length === 0) {
-    return { ok: false, message: 'Enter a contact email or phone number.' };
+    return { ok: false, message: "Enter the client's email address." };
   }
   if (caseOwnerAccountId.length === 0) return { ok: false, message: 'Choose a case owner.' };
 
