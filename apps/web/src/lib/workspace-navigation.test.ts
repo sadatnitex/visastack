@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isCurrentPath } from './navigation';
+import { type NavLink, isCurrentPath } from './navigation';
 import { type WorkspaceAccess, workspaceNavigation } from './workspace-navigation';
 
 const p1 = '10000000-0000-4000-8000-000000000001';
@@ -154,5 +154,110 @@ describe('current contextual navigation contract', () => {
       true,
     );
     expect(providers && isCurrentPath('/app/admin', providers)).toBe(false);
+  });
+});
+
+/*
+ * Characterization of every link the workspace navigation offers, label and destination,
+ * for each kind of workspace. It pins the whole list so any change to the navigation is a
+ * deliberate, reviewed edit of this file rather than a side effect.
+ */
+
+const self = '10000000-0000-4000-8000-000000000001';
+const org = '20000000-0000-4000-8000-000000000001';
+const member = '20000000-0000-4000-8000-000000000002';
+const linkAccess: WorkspaceAccess = {
+  travellers: [{ id: self, name: 'Synthetic Self', relationship: 'SELF' }],
+  agencies: [
+    { id: org, name: 'Synthetic Agency', admin: true },
+    { id: member, name: 'Synthetic Member Agency', admin: false },
+  ],
+  platform: { owner: true, ai: true, complaints: true },
+};
+const none: WorkspaceAccess = { travellers: [], agencies: [], platform: null };
+
+const pairs = (links: readonly NavLink[]) => links.map((link) => [link.label, link.href]);
+const base = `/app/applicant/${self}`;
+
+describe('workspace navigation link list (characterization)', () => {
+  it('a traveller workspace', () => {
+    const nav = workspaceNavigation(base, linkAccess);
+    expect(pairs(nav.primary)).toEqual([
+      ['Overview', base],
+      ['My Profile', `${base}/profile`],
+      ['Documents', `${base}/documents`],
+      ['Visa Cases', `${base}/missions`],
+      ['Sharing', `${base}/sharing`],
+      ['Notifications', '/app/notifications'],
+      ['Countries', '/app/countries'],
+    ]);
+    expect(pairs(nav.tools)).toEqual([
+      ['Shared with Me', '/app/shared'],
+      ['Account Overview', '/app'],
+      ['Evidence Requests', `${base}/evidence`],
+      ['Dates & Expiry', `${base}/expiry`],
+      ['History', `${base}/history`],
+    ]);
+    expect(nav.settings).toEqual([]);
+  });
+
+  it('a personal space with no traveller yet', () => {
+    const nav = workspaceNavigation('/app', none);
+    expect(pairs(nav.primary)).toEqual([
+      ['Overview', '/app'],
+      ['Add a Traveller', '/app/applicants'],
+      ['Notifications', '/app/notifications'],
+      ['Countries', '/app/countries'],
+    ]);
+    expect(pairs(nav.tools)).toEqual([
+      ['Shared with Me', '/app/shared'],
+      ['Account Overview', '/app'],
+    ]);
+  });
+
+  it('an agency workspace, for an administrator and for a case worker', () => {
+    const admin = workspaceNavigation(`/app/agency/${org}`, linkAccess);
+    const a = `/app/agency/${org}`;
+    expect(pairs(admin.primary)).toEqual([
+      ['Overview', a],
+      ['Clients', `${a}/clients`],
+      ['Cases', `${a}/cases`],
+      ['Evidence Requests', `${a}/clients#agency-evidence-requests`],
+      ['Team', `${a}/team`],
+      ['Case Activity', `${a}/activity`],
+      ['Countries', `${a}/countries`],
+    ]);
+    expect(pairs(admin.tools)).toEqual([['Plan & Usage', `${a}/plan`]]);
+    expect(pairs(admin.settings)).toEqual([['Agency Settings', `${a}/settings`]]);
+    const m = `/app/agency/${member}`;
+    const worker = workspaceNavigation(m, linkAccess);
+    expect(pairs(worker.primary)).toEqual([
+      ['Overview', m],
+      ['Cases', `${m}/cases`],
+      ['Case Activity', `${m}/activity`],
+      ['Countries', `${m}/countries`],
+    ]);
+    expect(pairs(worker.settings)).toEqual([]);
+  });
+
+  it('the platform workspace', () => {
+    const nav = workspaceNavigation('/app/admin', linkAccess);
+    expect(pairs(nav.primary)).toEqual([
+      ['Overview', '/app/admin'],
+      ['Members', '/app/admin/members'],
+      ['Organizations', '/app/admin/organizations'],
+      ['Activity', '/app/admin/audit'],
+      ['Providers', '/app/admin#admin-provider-operations'],
+      ['Costs & Plans', '/app/admin#admin-usage'],
+      ['Security', '/app/admin/security'],
+    ]);
+    expect(pairs(nav.tools)).toEqual([
+      ['Rules & Packs', '/app/admin/packs'],
+      ['AI Settings', '/app/admin/ai-settings'],
+      ['Privacy Operations', '/app/admin/privacy'],
+      ['Platform Access', '/app/admin/access'],
+      ['Complaints', '/app/admin/complaints'],
+    ]);
+    expect(pairs(nav.settings)).toEqual([['Platform Settings', '/app/admin/settings']]);
   });
 });
