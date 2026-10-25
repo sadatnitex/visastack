@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { Checklist, EmptyState, StatusBadge } from '../../../../components/ui';
 import { humanizeCode } from '../../../../lib/format-code';
 import { formatDateOnly, formatTimestampDate } from '../../../../lib/format-date';
+import { agree, plural } from '../../../../lib/plural';
 import { withSession } from '../../../../lib/session';
 import { CaseSearchForm, STAGE_LABELS } from './case-search-form';
 import {
@@ -14,7 +15,14 @@ import {
   loadOrgAccess,
   loadUnassignedQueue,
 } from './console-data';
-import { countOverdueTasks, nextApproachingDate, summarizeAttention } from './console-format';
+import {
+  WAITING_ON_TRAVELLER_STATUSES,
+  countOverdueTasks,
+  nextApproachingDate,
+  summarizeAttention,
+} from './console-format';
+import { buildDoNext } from './do-next';
+import { DoNextList } from './do-next-list';
 
 function Stat({
   label,
@@ -74,13 +82,14 @@ export default async function AgencyDashboardPage({
     if (!access?.member) return null;
     const members = await loadMembers(db, accountId, orgId, access);
     const [requests, caseList, unassignedQueue, clients] = await Promise.all([
-      loadEvidenceRequests(db, accountId, orgId, access),
+      loadEvidenceRequests(db, accountId, orgId, access, { withFileStates: true }),
       loadCases(db, accountId, orgId, members),
       loadUnassignedQueue(db, orgId, access),
       loadApplicants(db, orgId, access),
     ]);
     return {
       admin: access.admin,
+      organizationName: access.org.name ?? null,
       clients,
       members,
       requests,
@@ -156,19 +165,24 @@ export default async function AgencyDashboardPage({
       }
       return true;
     })
-    .map((mission) => ({
-      mission,
-      openRequests: data.requests.filter(
-        (r) => r.applicantId === mission.applicantId && r.status === 'OPEN',
-      ).length,
-      // "Review issues": evidence a reviewer already looked at and sent back for replacement.
-      reviewIssues: data.requests.filter(
-        (r) => r.applicantId === mission.applicantId && r.status === 'NEEDS_REPLACEMENT',
-      ).length,
-      overdueTasks: countOverdueTasks(mission.tasks),
-      approaching: nextApproachingDate(mission.targetDeadline, mission.travelStartDate),
-      assignedToMe: mission.assignments.some((a) => a.memberAccountId === data.viewerAccountId),
-    }))
+    .map((mission) => {
+      // A request that names a case counts on that case only; one made for the traveller in
+      // general (no case) still shows on each of that traveller's cases (WP-V4 W0 flag 2).
+      const forCase = data.requests.filter((r) =>
+        r.missionId ? r.missionId === mission.missionId : r.applicantId === mission.applicantId,
+      );
+      return {
+        mission,
+        openRequests: forCase.filter((r) => r.status === 'OPEN').length,
+        // "Review issues": evidence a reviewer already looked at and sent back for replacement.
+        reviewIssues: forCase.filter((r) => r.status === 'NEEDS_REPLACEMENT').length,
+        waitingOnTraveller: forCase.filter((r) => WAITING_ON_TRAVELLER_STATUSES.has(r.status))
+          .length,
+        overdueTasks: countOverdueTasks(mission.tasks),
+        approaching: nextApproachingDate(mission.targetDeadline, mission.travelStartDate),
+        assignedToMe: mission.assignments.some((a) => a.memberAccountId === data.viewerAccountId),
+      };
+    })
     // Cases needing action float to the top.
     .sort((a, b) => {
       const weight = (x: typeof a) =>
@@ -188,7 +202,12 @@ export default async function AgencyDashboardPage({
   }[] = [
     { key: 'mine', label: 'Mine', test: (row) => row.assignedToMe },
     { key: 'overdue', label: 'Overdue', test: (row) => row.overdueTasks > 0 },
-    { key: 'waiting', label: 'Waiting on Traveller', test: (row) => row.openRequests > 0 },
+    // Both a first request and one sent back for a fix wait on the traveller.
+    {
+      key: 'waiting',
+      label: 'Waiting on Traveller',
+      test: (row) => row.waitingOnTraveller > 0,
+    },
     { key: 'unassigned', label: 'Unassigned', test: (row) => row.mission.assignments.length === 0 },
   ];
   const activeQuick = quickViews.find((view) => view.key === rawQuick);
@@ -203,6 +222,24 @@ export default async function AgencyDashboardPage({
     const query = params.toString();
     return `${base}${query ? `?${query}` : ''}`;
   };
+
+  const filtered =
+    q.length > 0 ||
+    stageFilter.length > 0 ||
+    destinationQuery.length > 0 ||
+    assigneeFilter.length > 0 ||
+    activeQuick !== undefined;
+  // Do Next ranks only what this page already loaded, narrowed to the cases in view.
+  const doNext = buildDoNext({
+    admin: data.admin,
+    viewerAccountId: data.viewerAccountId,
+    cases: searched.map((row) => row.mission),
+    requests: data.requests,
+    applicantWide: filtered ? 'travellers-in-view' : 'all',
+    members: data.members,
+    organizationName: data.organizationName,
+    base,
+  });
 
   const stageCounts = new Map<string, number>([
     ['DRAFT', 0],
@@ -284,6 +321,8 @@ export default async function AgencyDashboardPage({
           </p>
         </article>
       ) : null}
+
+      <DoNextList items={doNext} admin={data.admin} filtered={filtered} />
 
       <div className="agency-working-area">
         <div className="agency-case-column">
@@ -373,7 +412,7 @@ export default async function AgencyDashboardPage({
               <p className="card-body u-mt-100">No cases match that search.</p>
             ) : (
               <table className="data-table u-mt-100">
-                <caption className="sr-only">Cases, most urgent first</caption>
+                <caption className="sr-only">Cases, Most Urgent First</caption>
                 <thead>
                   <tr>
                     <th scope="col">Case</th>
@@ -412,14 +451,14 @@ export default async function AgencyDashboardPage({
                             }
                           >
                             {mission.manualMode
-                              ? 'Manual mode'
+                              ? 'Manual Mode'
                               : !mission.packVersionId
-                                ? 'No pack attached'
+                                ? 'No Pack Attached'
                                 : mission.readiness
                                   ? mission.readiness.ready
                                     ? 'Ready'
                                     : `${required - satisfied} missing`
-                                  : 'Readiness unavailable'}
+                                  : 'Readiness Unavailable'}
                           </StatusBadge>
                           {mission.readiness && required > 0 && !mission.manualMode ? (
                             <span className="cell-sub">
@@ -467,10 +506,10 @@ export default async function AgencyDashboardPage({
                         </td>
                         <td data-label="Assigned">
                           {row.assignedToMe ? (
-                            <StatusBadge tone="neutral">Assigned to you</StatusBadge>
+                            <StatusBadge tone="neutral">Assigned to You</StatusBadge>
                           ) : null}
                           {mission.assignments.length === 0 ? (
-                            <StatusBadge tone="warning">Needs assignment</StatusBadge>
+                            <StatusBadge tone="warning">Needs Assignment</StatusBadge>
                           ) : (
                             <span className="cell-sub">
                               {mission.assignments.map((a) => a.memberEmail).join(', ')}
@@ -528,7 +567,7 @@ export default async function AgencyDashboardPage({
                       <li key={request.id}>
                         <Link href={`${base}/clients#agency-evidence-requests`}>
                           <strong>
-                            {request.docType ?? request.fieldKey ?? 'Evidence request'}
+                            {request.docType ?? request.fieldKey ?? 'Evidence Request'}
                           </strong>
                           <span>
                             {request.applicantName ?? 'Traveller'} · {humanizeCode(request.status)}
@@ -593,7 +632,10 @@ export default async function AgencyDashboardPage({
         </aside>
       </div>
       <details className="agency-attention-disclosure">
-        <summary>Attention details: {needsYou} items need a response</summary>
+        <summary>
+          Attention Details: {plural(needsYou, 'item')} {agree(needsYou, 'needs', 'need')} a
+          response
+        </summary>
         <section aria-labelledby="today-heading" className="stat-section">
           <h2 className="section-label" id="today-heading">
             What Needs You First
@@ -616,7 +658,7 @@ export default async function AgencyDashboardPage({
             ) : null}
             <Stat label="Cases you can see" value={summary.cases} />
           </div>
-          {needsYou === 0 ? (
+          {needsYou === 0 && doNext.length === 0 ? (
             <p className="stat-note">
               Nothing is overdue, unassigned or waiting on an applicant right now.
             </p>

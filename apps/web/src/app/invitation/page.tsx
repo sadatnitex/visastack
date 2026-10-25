@@ -39,7 +39,7 @@ export default async function InvitationPage({
       <span className="eyebrow">VisaStack Invitation</span>
       <h1 className="section-title">
         {kind === 'team'
-          ? 'Join an agency team'
+          ? 'Join an Agency Team'
           : kind === 'sharing'
             ? 'Review Shared Access'
             : 'Work with an Agency'}

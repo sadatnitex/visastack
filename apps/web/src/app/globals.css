@@ -3595,35 +3595,6 @@ body:has(.auth-shell) > .footer {
   white-space: nowrap;
   font-size: var(--text-caption);
 }
-.record-account nav {
-  position: absolute;
-  right: 0;
-  top: calc(100% + 8px);
-  z-index: 60;
-  display: flex;
-  flex-direction: column;
-  width: min(280px, calc(100vw - 24px));
-  max-height: 65dvh;
-  overflow-y: auto;
-  padding: 10px;
-  border: 1px solid var(--hairline);
-  border-radius: 12px;
-  background: #fff;
-}
-.record-account nav a {
-  min-height: 44px;
-  padding: 10px;
-  font-size: var(--text-caption);
-  overflow-wrap: anywhere;
-}
-.record-account nav form {
-  margin-top: 8px;
-  padding: 8px 0;
-  border-top: 1px solid var(--hairline-soft);
-}
-.record-account nav button {
-  width: 100%;
-}
 @media (max-width: 960px) {
   .record-toolbar {
     padding-inline: 12px;
@@ -4211,22 +4182,6 @@ body:has(.auth-shell) > .footer {
 .wallet-document-actions {
   margin-bottom: 1rem;
 }
-.document-type-form {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.4rem;
-}
-.document-type-form > p {
-  flex-basis: 100%;
-  margin: 0;
-}
-.document-type-form .input {
-  width: auto;
-  max-width: 100%;
-  padding: 0.2rem 0.5rem;
-  font-size: var(--text-small);
-}
 .wallet-ai-notice {
   margin-top: 1rem;
   padding: 1rem;
@@ -4420,15 +4375,6 @@ body:has(.auth-shell) > .footer {
 .app-more-heading {
   display: none;
 }
-.record-menu-heading {
-  margin: 10px 10px 4px;
-  padding-top: 10px;
-  border-top: 1px solid var(--hairline-soft);
-  font-size: var(--text-caption);
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--text-tertiary);
-}
 @media (max-width: 1023px) {
   .app-shell-nav {
     min-height: 0;
@@ -4547,9 +4493,6 @@ body:has(.auth-shell) > .footer {
   }
   .record-toolbar-shortcuts {
     gap: 0;
-  }
-  .record-account nav {
-    max-height: calc(100dvh - 160px);
   }
 }
 
@@ -4851,12 +4794,6 @@ body:has(.auth-shell) > .footer {
   }
 }
 
-.record-menu-plan {
-  margin: 0 10px 4px;
-  font-size: var(--text-caption);
-  color: var(--text-secondary);
-}
-
 .auth-password-input {
   position: relative;
 }
@@ -5014,13 +4951,6 @@ body:has(.auth-shell) > .footer {
 /* Compact account trigger; complete identity stays in the menu and accessible label. */
 .record-toolbar .record-account summary .account-name-mobile {
   display: none;
-}
-.record-account .record-menu-identity {
-  margin: 4px 8px 8px;
-  color: var(--text);
-  font-size: var(--text-small);
-  font-weight: 600;
-  overflow-wrap: anywhere;
 }
 @media (max-width: 1023px) {
   .record-toolbar .record-account summary .account-name-desktop {
@@ -6512,6 +6442,944 @@ body:has(.auth-shell) > .footer {
   flex-wrap: wrap;
   align-items: center;
   gap: 8px;
+}
+
+/* WP-UI1 form controls and Title Case sweep: every single-line field is one family. Text
+   inputs, dropdowns and date fields share one height, border, radius and padding; a dropdown
+   draws its own arrow in the theme's secondary ink with room so a long choice never runs under
+   it; a field with its Save button beside it lines up and wraps cleanly on a 320px phone. The
+   height is 48px: above the 44px target, on the 8px rhythm, and within a pixel of the field
+   height in the approved reference. The arrow is two hard-edged gradient strokes rather than an
+   image, so it follows the colour tokens and needs no image source in the content policy. */
+:root {
+  --control-height: 48px;
+  --control-radius: 12px;
+  --control-padding-x: 0.8rem;
+  --control-arrow-room: 2.5rem;
+}
+.input {
+  border-radius: var(--control-radius);
+  padding-inline: var(--control-padding-x);
+}
+.input:where(
+    input:not([type="file"], [type="checkbox"], [type="radio"], [type="range"], [type="color"]),
+    select:not([multiple], [size])
+  ) {
+  height: var(--control-height);
+  min-height: var(--control-height);
+  padding-block: 0;
+  line-height: 1.25;
+}
+.input:where(select:not([multiple], [size])) {
+  appearance: none;
+  padding-inline-end: var(--control-arrow-room);
+  text-overflow: ellipsis;
+  background-color: var(--bg-elevated);
+  /* A same-site file (the security policy allows images from the site itself; the flat rule
+     allows no gradients). Drawn in the --text-secondary colour. */
+  background-image: url("/icons/select-chevron.svg");
+  background-position: right 16px center;
+  background-size: 12px 8px;
+  background-repeat: no-repeat;
+  cursor: pointer;
+}
+/* Windows high contrast drops background images: give the dropdown its native arrow back. */
+@media (forced-colors: active) {
+  .input:where(select:not([multiple], [size])) {
+    appearance: auto;
+    background-image: none;
+  }
+}
+.input:where(select:disabled) {
+  cursor: not-allowed;
+}
+/* A label, its field and a short hint, stacked with one gap. A grid, so a flex rule from the
+   surrounding panel (such as wrapping) cannot change how the rows measure. */
+.field-stack {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-2);
+  min-width: 0;
+}
+.field-stack + .field-stack {
+  margin-top: var(--space-4);
+}
+.field-stack > p {
+  margin: 0;
+}
+/* A field and the button that saves it, on one line; the button drops below on a narrow phone. */
+.field-inline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.field-inline > .input {
+  flex: 1 1 11rem;
+  width: auto;
+  min-width: 0;
+  margin: 0;
+}
+.field-inline > .btn {
+  flex: 0 0 auto;
+  min-height: var(--control-height);
+}
+.field-stack > .input {
+  width: 100%;
+  margin: 0;
+}
+/* Buttons that sit beside a field elsewhere match its height too. */
+.field-control > .btn,
+.profile-suggest-pick > .btn {
+  min-height: var(--control-height);
+}
+.field-hint {
+  margin: 0;
+  font-size: var(--text-caption);
+  color: var(--text-secondary);
+}
+/* Home permissions: the name of each permission, then what it means on its own line. */
+.consent-text {
+  display: flex;
+  flex: 1 1 18rem;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+.consent-name {
+  font-weight: 600;
+  color: var(--text);
+}
+.consent-meaning {
+  font-size: var(--text-small);
+  color: var(--text-secondary);
+}
+
+/* WP-V4 agency (Programme X): Do Next list, follow-up message, and where a
+   case stands in the triage groups. Existing tokens only, flat Harbor Blue,
+   44px targets, nothing wider than its container at 320px.
+   ========================================================================== */
+.do-next {
+  margin-block: 16px;
+}
+.do-next-intro {
+  margin-bottom: 12px;
+  color: var(--text-secondary);
+}
+.do-next-empty {
+  margin: 0;
+  color: var(--text-secondary);
+}
+.do-next-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0;
+}
+.do-next-item {
+  display: grid;
+  gap: 6px;
+  padding: 14px 0 14px 12px;
+  border-bottom: 1px solid var(--hairline-soft);
+  border-left: 3px solid var(--hairline);
+  min-width: 0;
+}
+.do-next-item:last-child {
+  border-bottom: 0;
+}
+.do-next-tier-1 {
+  border-left-color: var(--danger);
+}
+.do-next-tier-2 {
+  border-left-color: var(--accent);
+}
+.do-next-tier-3 {
+  border-left-color: var(--warning);
+}
+.do-next-item-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+  min-width: 0;
+}
+.do-next-tier {
+  font-size: var(--text-caption);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--text-secondary);
+}
+.do-next-title {
+  margin: 0;
+  font-size: var(--text-body);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.do-next-context {
+  margin: 0;
+  font-size: var(--text-small);
+  color: var(--text-secondary);
+  overflow-wrap: anywhere;
+}
+.do-next-facts {
+  margin: 0;
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 2px 12px;
+  font-size: var(--text-small);
+}
+.do-next-facts > div {
+  display: contents;
+}
+.do-next-facts dt {
+  color: var(--text-secondary);
+}
+.do-next-facts dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.do-next-action {
+  min-width: 0;
+}
+.do-next-link {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+}
+.do-next-more {
+  margin: 12px 0 0;
+  font-size: var(--text-small);
+}
+.do-next-follow-up {
+  min-width: 0;
+}
+.do-next-follow-up-toggle {
+  cursor: pointer;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  color: var(--selected-text);
+}
+.do-next-follow-up-toggle::before {
+  content: "+";
+}
+.do-next-follow-up[open] > .do-next-follow-up-toggle::before {
+  content: "-";
+}
+.do-next-follow-up-body {
+  display: grid;
+  gap: 8px;
+  margin-top: 8px;
+  padding: 12px;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-sm);
+  background: var(--bg-subtle);
+  min-width: 0;
+}
+.do-next-follow-up-hint {
+  margin: 0;
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--warning-bg);
+  color: var(--text);
+  font-size: var(--text-small);
+}
+.do-next-follow-up-text {
+  width: 100%;
+  max-width: 100%;
+  min-height: 10rem;
+  resize: vertical;
+  font: inherit;
+  font-size: var(--text-small);
+  line-height: 1.5;
+  white-space: pre-wrap;
+  user-select: text;
+}
+.do-next-follow-up-note {
+  margin: 0;
+  font-size: var(--text-small);
+}
+.do-next-follow-up .btn {
+  min-height: 44px;
+}
+.do-next-follow-up-status {
+  display: block;
+  min-height: 1.25rem;
+  font-size: var(--text-small);
+  color: var(--success);
+}
+.case-triage {
+  margin-top: 12px;
+  padding: 12px;
+  border: 1px solid var(--hairline-soft);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elevated);
+  min-width: 0;
+}
+.case-triage-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.case-triage-title {
+  margin: 0;
+  font-size: var(--text-small);
+  font-weight: 600;
+}
+.case-triage-empty {
+  margin: 8px 0 0;
+  font-size: var(--text-small);
+}
+.case-triage-groups,
+.case-triage-items {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.case-triage-groups {
+  display: grid;
+  gap: 10px;
+  margin-top: 10px;
+}
+.case-triage-group-name {
+  margin: 0 0 4px;
+  font-size: var(--text-small);
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+.case-triage-count {
+  display: inline-block;
+  min-width: 1.5rem;
+  padding: 0 6px;
+  border-radius: var(--radius-pill);
+  background: var(--brand-bg);
+  color: var(--selected-text);
+  text-align: center;
+}
+.case-triage-items li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 8px;
+  padding: 4px 0;
+  font-size: var(--text-small);
+  overflow-wrap: anywhere;
+}
+.case-triage-notes {
+  color: var(--text-secondary);
+}
+@media (max-width: 480px) {
+  .do-next-item {
+    padding-left: 10px;
+  }
+  .do-next-facts {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .do-next-facts dd {
+    margin-bottom: 4px;
+  }
+  .do-next-link,
+  .do-next-follow-up .btn {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+/* WP-V3 part 3: Application Memory and the then-and-now view (v1.2 B08, E03).
+   The changed-details list inside the WP-X1 changed-case alert, the case
+   timeline, and the side-by-side comparison of one detail. Flat Harbor style:
+   existing tokens only, no shadows, links and buttons at least 44px tall, and
+   long names wrap so nothing scrolls sideways at 320px. */
+.case-changes {
+  margin: 0 0 0.75rem;
+  padding-top: 0.65rem;
+  border-top: 1px solid var(--warning);
+}
+.case-changes-title {
+  font-weight: 600;
+  font-size: var(--text-small);
+  color: var(--text);
+}
+.case-changes-note {
+  font-size: var(--text-small);
+  color: var(--text);
+  margin-top: 0.25rem;
+}
+.case-changes-list,
+.then-now-changes {
+  list-style: none;
+  margin: 0.35rem 0 0;
+  padding: 0;
+}
+.case-changes-list li,
+.then-now-changes li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0 0.75rem;
+  min-height: 44px;
+  font-size: var(--text-small);
+  border-bottom: 1px solid var(--hairline-soft);
+}
+.case-changes-list li:last-child,
+.then-now-changes li:last-child {
+  border-bottom: 0;
+}
+.case-change-text {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.case-change-name {
+  font-weight: 600;
+}
+.case-change-link,
+.case-changes-all,
+.case-memory-link a,
+.memory-case .card-title a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--accent-strong);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.case-changes-all {
+  font-size: var(--text-small);
+}
+.case-memory-link {
+  font-size: var(--text-small);
+  color: var(--text-secondary);
+  margin: 0.25rem 0 0;
+}
+
+.memory-cases {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+.memory-case-meta,
+.memory-case-note {
+  font-size: var(--text-small);
+  color: var(--text-secondary);
+  margin: 0.25rem 0 0.75rem;
+  overflow-wrap: anywhere;
+}
+.memory-timeline {
+  list-style: none;
+  margin: 0;
+  padding: 0 0 0 1rem;
+  border-left: 2px solid var(--hairline);
+}
+.memory-event {
+  position: relative;
+  display: grid;
+  gap: 0.15rem;
+  padding: 0 0 1rem;
+}
+.memory-event::before {
+  content: "";
+  position: absolute;
+  left: calc(-1rem - 6px);
+  top: 0.35rem;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--bg-elevated);
+  border: 2px solid var(--brand);
+}
+.memory-event-confirmed::before {
+  background: var(--success);
+  border-color: var(--success);
+}
+.memory-event-reported_submitted::before,
+.memory-event-outcome::before {
+  background: var(--brand);
+}
+.memory-event-date {
+  font-size: var(--text-caption);
+  color: var(--text-secondary);
+}
+.memory-event-title {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.memory-event-note {
+  font-size: var(--text-small);
+  color: var(--text-secondary);
+  overflow-wrap: anywhere;
+}
+.memory-event-actions,
+.then-now-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.35rem;
+}
+
+.then-now-card,
+.then-now-result,
+.then-now-next {
+  margin-bottom: var(--space-4);
+}
+.then-now-kicker {
+  margin: 0;
+  font-size: var(--text-caption);
+  font-weight: 400;
+  color: var(--text-secondary);
+}
+.then-now-result-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0.35rem 0 0;
+}
+.then-now-review,
+.then-now-note {
+  font-size: var(--text-small);
+  color: var(--text-secondary);
+  margin: 0.5rem 0 0;
+}
+.then-now-sides {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr));
+  gap: var(--space-4);
+  margin-bottom: var(--space-4);
+}
+.then-now-facts {
+  display: grid;
+  grid-template-columns: minmax(0, 9rem) minmax(0, 1fr);
+  gap: 0.4rem 0.75rem;
+  margin: 0.5rem 0 0;
+  font-size: var(--text-small);
+}
+.then-now-facts dt {
+  color: var(--text-secondary);
+}
+.then-now-facts dd {
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.then-now-value {
+  font-weight: 600;
+}
+.then-now-assertion {
+  display: block;
+  font-size: var(--text-caption);
+  color: var(--text-secondary);
+}
+@media (max-width: 400px) {
+  .then-now-facts {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.1rem;
+  }
+  .then-now-facts dd {
+    margin-bottom: 0.4rem;
+  }
+}
+/* WP-V3 part 3 (review): shares of the whole record sit above the cases. */
+.memory-shares {
+  margin-bottom: var(--space-4);
+}
+
+/* WP-UI2 account menu: the signed-in account menu (src/app/app/account-menu.tsx). One flat panel
+   that sizes to its content: who is signed in and their plan, two labelled groups of 44px rows,
+   and Sign Out on its own below a hairline. It never scrolls inside itself at normal heights; only
+   a screen too short to show it all lets it scroll (short-viewport rule below). On a phone the same
+   rows open as a bottom sheet. Colours, spacing, radii and motion all come from the shared tokens. */
+.account-menu-panel {
+  position: absolute;
+  top: calc(100% + var(--space-2));
+  right: 0;
+  /* Above the phone search panel (60) and the context chip list (61). */
+  z-index: 62;
+  display: flex;
+  flex-direction: column;
+  width: min(300px, calc(100vw - 24px));
+  padding: var(--space-2);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius);
+  background: var(--bg-elevated);
+  color: var(--text);
+  font-size: var(--text-small);
+  text-align: left;
+}
+.account-menu-header {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2);
+}
+.account-menu-panel .account-menu-avatar {
+  width: 40px;
+  height: 40px;
+  overflow: hidden;
+  font-size: var(--text-small);
+}
+.account-menu-avatar img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.account-menu-who {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+.account-menu-name,
+.account-menu-email {
+  margin: 0;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+.account-menu-name {
+  color: var(--text);
+  font-size: var(--text-body);
+  font-weight: 650;
+}
+.account-menu-email {
+  color: var(--text-secondary);
+  font-size: var(--text-caption);
+}
+.account-menu-close {
+  display: none;
+  position: absolute;
+  top: 0;
+  right: 0;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: var(--bg-subtle);
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+.account-menu-close:hover {
+  color: var(--text);
+  background: var(--brand-tint-3);
+}
+.account-menu-plan {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: 0 0 var(--space-2) var(--space-2);
+}
+.account-menu-plan-name {
+  margin: 0;
+  min-width: 0;
+}
+.account-menu-chip {
+  display: inline-block;
+  max-width: 100%;
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-pill);
+  background: var(--brand-bg);
+  color: var(--selected-text);
+  font-size: var(--text-caption);
+  font-weight: 650;
+  overflow-wrap: anywhere;
+}
+.account-menu-plan-link {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-1);
+  min-height: 44px;
+  margin-left: auto;
+  padding: 0 var(--space-2) 0 var(--space-3);
+  border-radius: var(--radius-sm);
+  color: var(--accent);
+  font-size: var(--text-caption);
+  font-weight: 650;
+  text-decoration: none;
+  transition: background var(--motion-press) var(--motion-ease);
+}
+.account-menu-plan-link:hover {
+  background: var(--brand-bg);
+  color: var(--accent-hover);
+  text-decoration: none;
+}
+.account-menu-group,
+.account-menu-signout {
+  margin-top: var(--space-1);
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--hairline-soft);
+}
+.account-menu-label {
+  margin: 0;
+  padding: var(--space-1) var(--space-3) var(--space-2);
+  color: var(--text-tertiary);
+  font-size: var(--text-caption);
+  font-weight: 650;
+  letter-spacing: 0.06em;
+  line-height: 1.3;
+  text-transform: uppercase;
+}
+.account-menu-list {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: var(--space-1);
+}
+.account-menu-row,
+.account-menu-panel .account-menu-signout button {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: var(--space-3);
+  width: 100%;
+  min-height: 44px;
+  padding: 0 var(--space-3);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: var(--text-small);
+  font-weight: 550;
+  line-height: 1.3;
+  text-align: left;
+  text-decoration: none;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+  transition: background var(--motion-press) var(--motion-ease), color var(--motion-press)
+    var(--motion-ease);
+}
+.account-menu-row .icon,
+.account-menu-panel .account-menu-signout .icon {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  color: var(--text-tertiary);
+}
+.account-menu-row:hover,
+.account-menu-row:focus-visible {
+  background: var(--bg-subtle);
+  color: var(--text);
+  text-decoration: none;
+}
+.account-menu-row:hover .icon,
+.account-menu-row:focus-visible .icon {
+  color: var(--text-secondary);
+}
+.account-menu-row[aria-current="page"] {
+  background: var(--brand-bg);
+  color: var(--selected-text);
+  font-weight: 650;
+}
+.account-menu-row[aria-current="page"] .icon {
+  color: var(--brand);
+}
+/* Inset focus ring: rows sit edge to edge, so the ring stays inside its own row. */
+.account-menu-row:focus-visible,
+.account-menu-plan-link:focus-visible,
+.account-menu-close:focus-visible,
+.account-menu-panel .account-menu-signout button:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: -3px;
+}
+.account-menu-row:focus-visible,
+.account-menu-plan-link:focus-visible,
+.account-menu-panel .account-menu-signout button:focus-visible {
+  border-radius: var(--radius-sm);
+}
+.account-menu-close:focus-visible {
+  border-radius: var(--radius-pill);
+}
+.account-menu-signout form {
+  margin: 0;
+}
+/* Sign Out is quiet: neutral at rest, the danger tint only on hover or focus. */
+.account-menu-panel .account-menu-signout button {
+  color: var(--text-secondary);
+}
+.account-menu-panel .account-menu-signout button:hover,
+.account-menu-panel .account-menu-signout button:focus-visible {
+  background: var(--danger-bg);
+  color: var(--danger);
+}
+.account-menu-panel .account-menu-signout button:hover .icon,
+.account-menu-panel .account-menu-signout button:focus-visible .icon {
+  color: var(--danger);
+}
+/* Short screens only: the panel takes the room below the toolbar and scrolls within it. */
+@media (min-width: 761px) and (max-height: 640px) {
+  .account-menu-panel {
+    max-height: calc(100dvh - 80px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+}
+/* Phone: the same rows as a bottom sheet, clear of the home indicator. */
+@media (max-width: 760px) {
+  .account-menu-panel {
+    position: fixed;
+    inset: auto 0 0;
+    z-index: 70;
+    width: auto;
+    max-height: calc(100dvh - var(--space-4));
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: var(--space-3) calc(var(--space-3) + env(safe-area-inset-right, 0px))
+      calc(var(--space-4) + env(safe-area-inset-bottom, 0px))
+      calc(var(--space-3) + env(safe-area-inset-left, 0px));
+    border-width: 1px 0 0;
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  }
+  .account-menu-header {
+    padding-right: 52px;
+  }
+  .account-menu-close {
+    display: inline-flex;
+  }
+  .account-menu-row,
+  .account-menu-panel .account-menu-signout button {
+    min-height: 48px;
+    font-size: var(--text-body);
+  }
+}
+
+/* WP-AI3 naming and sorting: the one card that shows what we think a document is, its suggested
+   name and where the Record lists it. It reuses the Check What We Found card; only the two facts
+   and the button row are new. Buttons stay at least 44px tall and everything wraps on a phone. */
+.document-suggestion-facts {
+  display: grid;
+  gap: 4px;
+  margin: 8px 0;
+}
+.document-suggestion-facts > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 8px;
+  min-width: 0;
+}
+.document-suggestion-facts dt {
+  font-weight: 600;
+}
+.document-suggestion-facts dd {
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.document-suggestion-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.document-suggestion-actions .btn {
+  min-height: 44px;
+}
+
+/* WP-PH1 profile photos: a person's photo in the spots that show initials, and the Add, Replace
+   and Remove controls with the in-page square crop step. The photo fills its avatar shape; when
+   there is none the initials show exactly as before. */
+.person-avatar-photo {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: inherit;
+}
+.workspace-avatar[data-photo="true"],
+.profile-identity-avatar[data-photo="true"],
+.profile-photo-card-avatar[data-photo="true"] {
+  overflow: hidden;
+  background: var(--brand-bg);
+}
+.profile-photo-control {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.625rem;
+  flex: 0 0 auto;
+  min-width: 0;
+}
+.profile-photo-control .profile-identity-avatar {
+  flex: none;
+  width: 5rem;
+  height: 5rem;
+}
+.profile-photo-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.profile-photo-card-avatar {
+  display: grid;
+  place-items: center;
+  width: 4.5rem;
+  height: 4.5rem;
+  border-radius: 50%;
+  background: var(--brand-tint-4);
+  color: var(--accent);
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+.profile-photo-crop {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  max-width: 17.5rem;
+}
+.profile-photo-crop h3 {
+  margin: 0;
+  font-size: 1.05rem;
+}
+.profile-photo-crop p {
+  margin: 0;
+  font-size: var(--text-small);
+}
+.profile-photo-crop-area {
+  display: block;
+  width: 240px;
+  max-width: 100%;
+  aspect-ratio: 1;
+  padding: 0;
+  border: 1px solid var(--hairline);
+  border-radius: 1rem;
+  overflow: hidden;
+  background: #ffffff;
+  cursor: grab;
+  touch-action: none;
+}
+.profile-photo-crop-area:active {
+  cursor: grabbing;
+}
+.profile-photo-crop-area canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.profile-photo-crop input[type="range"] {
+  width: 100%;
+  min-height: 44px;
+}
+@media (max-width: 760px) {
+  .profile-photo-control .profile-identity-avatar {
+    width: 3rem;
+    height: 3rem;
+  }
+  .profile-identity-banner .profile-photo-control {
+    width: 100%;
+  }
+}
+.profile-photo-moves {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.375rem;
+  width: 100%;
 }
 
 /* WP-PH2 visa photo sizes: the Visa Photo Sizes section on a Photograph document (documents page

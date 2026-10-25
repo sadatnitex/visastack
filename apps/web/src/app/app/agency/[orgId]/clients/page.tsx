@@ -167,6 +167,8 @@ export default async function AgencyClientsPage({
                 <div
                   className="row"
                   key={req.id}
+                  // Do Next links straight to a request waiting for review.
+                  id={`request-${req.id}`}
                   style={{ flexDirection: 'column', alignItems: 'stretch', gap: '0.2rem' }}
                 >
                   <div

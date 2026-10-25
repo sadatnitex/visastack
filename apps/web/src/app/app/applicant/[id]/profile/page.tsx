@@ -12,9 +12,13 @@ import {
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { initialsOf } from '../../../../../components/profile-photo/crop';
+import { ProfilePhotoControl } from '../../../../../components/profile-photo/profile-photo-control';
 import { EmptyState, PageHeader } from '../../../../../components/ui';
 import { formatTimestampDate } from '../../../../../lib/format-date';
 import { buildMasterProfileView, fieldLabel } from '../../../../../lib/master-profile';
+import { agree, plural } from '../../../../../lib/plural';
+import { ownedPhotoUrl } from '../../../../../lib/profile-photos';
 import { withSession } from '../../../../../lib/session';
 import { type FieldAssurance, ProfileEditor } from '../profile-editor';
 
@@ -63,16 +67,18 @@ export default async function ApplicantProfilePage({
   const data = await withSession(async ({ db, accountId }) => {
     const applicant = await getApplicant(db, id);
     if (!applicant || applicant.ownerAccountId !== accountId) return null;
-    const [profile, coreGranted, assurance, sectionChoices, documents] = await Promise.all([
-      listApplicantProfile(db, id),
-      hasConsent(db, accountId, 'CORE_PROCESSING'),
-      listApplicantAssurance(db, { actorAccountId: accountId, applicantId: id }),
-      getProfileSectionState(db, id),
-      Promise.all([
-        getWalletView(db, { actorAccountId: accountId, applicantId: id }),
-        listDocumentsDetailed(db, accountId, id),
-      ]),
-    ]);
+    const [profile, coreGranted, assurance, sectionChoices, documents, photoUrl] =
+      await Promise.all([
+        listApplicantProfile(db, id),
+        hasConsent(db, accountId, 'CORE_PROCESSING'),
+        listApplicantAssurance(db, { actorAccountId: accountId, applicantId: id }),
+        getProfileSectionState(db, id),
+        Promise.all([
+          getWalletView(db, { actorAccountId: accountId, applicantId: id }),
+          listDocumentsDetailed(db, accountId, id),
+        ]),
+        ownedPhotoUrl(db, accountId, id),
+      ]);
     // How many usable copies of each kind are in the wallet, so each section can say what backs
     // it. Usable: shown in the wallet, not expired or replaced, and not failed or quarantined.
     // When either list cannot load, the counts stay unknown rather than reading as "none".
@@ -91,6 +97,7 @@ export default async function ApplicantProfilePage({
     }
     return {
       applicant,
+      photoUrl,
       profile,
       coreGranted,
       sectionChoices,
@@ -161,13 +168,6 @@ export default async function ApplicantProfilePage({
     .slice(0, 5);
   const confirmed = data.profile.filter((entry) => entry.status === 'APPLICANT_CONFIRMED').length;
   const supported = data.profile.filter((entry) => entry.status === 'DOCUMENT_SUPPORTED').length;
-  const initials = data.applicant.displayName
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0])
-    .join('')
-    .toUpperCase();
   return (
     <div className="master-profile">
       <PageHeader
@@ -178,7 +178,7 @@ export default async function ApplicantProfilePage({
         actions={
           data.coreGranted ? (
             <a href="#profile-editor" className="btn btn-primary">
-              + Add information
+              Add Information
             </a>
           ) : (
             <Link className="btn btn-secondary" href="/app#permissions">
@@ -191,9 +191,12 @@ export default async function ApplicantProfilePage({
         className="profile-identity-banner"
         aria-label="Selected traveller and profile completion"
       >
-        <span className="profile-identity-avatar" aria-hidden="true">
-          {initials}
-        </span>
+        <ProfilePhotoControl
+          applicantId={data.applicant.id}
+          initials={initialsOf(data.applicant.displayName)}
+          photoUrl={data.photoUrl}
+          avatarClassName="profile-identity-avatar"
+        />
         <div className="profile-identity-copy">
           <h3>{data.applicant.displayName}</h3>
           <p className="muted">
@@ -214,9 +217,9 @@ export default async function ApplicantProfilePage({
             <div className="meter-fill" style={{ width: `${completeness}%` }} />
           </div>
           <span className="muted">
-            {view.answered} of {view.total} details in your {view.openSections} open sections have
-            values. Opening a section adds its details to this number at once. This does not verify
-            identity.
+            {view.answered} of {view.total} details in your{' '}
+            {plural(view.openSections, 'open section')} have values. Opening a section adds its
+            details to this number at once. This does not verify identity.
           </span>
         </div>
       </section>
@@ -224,8 +227,9 @@ export default async function ApplicantProfilePage({
         <article className="card split-main">
           {conflictedCount > 0 ? (
             <p className="notice notice-warn" role="alert">
-              {conflictedCount} field{conflictedCount === 1 ? '' : 's'} have conflicting proposed
-              values. Review the fields marked <strong>Conflicted</strong> before relying on them.
+              {plural(conflictedCount, 'field')} {agree(conflictedCount, 'has', 'have')} conflicting
+              proposed values. Review the fields marked <strong>Conflicted</strong> before relying
+              on them.
             </p>
           ) : null}
           {data.coreGranted ? (
@@ -239,10 +243,10 @@ export default async function ApplicantProfilePage({
           ) : (
             <EmptyState
               icon="lock"
-              title="Choose whether to save your profile"
+              title="Choose Whether to Save Your Profile"
               action={{ href: '/app#permissions', label: 'Review Permissions' }}
             >
-              Turn on “Let VisaStack process my details” on Home to edit this profile. Existing
+              Turn on “Let VisaStack Process My Details” on Home to edit this profile. Existing
               values are not changed.
             </EmptyState>
           )}
@@ -279,8 +283,8 @@ export default async function ApplicantProfilePage({
                 {changes.map((entry) => (
                   <li key={entry.factId}>
                     <Link href={`/app/applicant/${id}/history`}>
-                      <strong>{fieldLabel(entry.fieldKey) ?? 'Profile detail'}</strong>
-                      <span>{entry.method ?? 'Recorded update'}</span>
+                      <strong>{fieldLabel(entry.fieldKey) ?? 'Profile Detail'}</strong>
+                      <span>{entry.method ?? 'Recorded Update'}</span>
                     </Link>
                     <time dateTime={entry.updatedAt as string}>
                       {formatTimestampDate(entry.updatedAt as string)}

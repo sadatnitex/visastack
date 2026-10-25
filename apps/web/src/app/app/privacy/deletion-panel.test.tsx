@@ -40,7 +40,7 @@ describe('DeletionPanel', () => {
     expect(find('Yes, Schedule Deletion')?.getAttribute('type')).toBe('submit');
 
     await act(async () => {
-      find('Keep my account')?.click();
+      find('Keep My Account')?.click();
     });
     expect(find('Yes, Schedule Deletion')).toBeUndefined();
     expect(find('Request Account Deletion')).toBeDefined();

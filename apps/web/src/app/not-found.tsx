@@ -24,7 +24,7 @@ export default function NotFound() {
             prefetch it with a script request that the redirect breaks.
             Crossing into the signed-in area is a full navigation. */}
         <a className="btn btn-primary" href="/app">
-          Go to workspace
+          Go to Workspace
         </a>
         <Link className="btn btn-secondary" href="/">
           Back to Home

@@ -43,7 +43,7 @@ beforeEach(() => {
         }}
         signOut={
           <form>
-            <button type="submit">Sign out</button>
+            <button type="submit">Sign Out</button>
           </form>
         }
       />,
@@ -67,7 +67,7 @@ async function query(value: string) {
 }
 describe('actual toolbar component behavior, without provider-backed acceptance claims', () => {
   it('keeps personal controls separate from workspace navigation and closes outside it', () => {
-    const menu = container.querySelector('nav[aria-label="Account menu"]');
+    const menu = container.querySelector('nav[aria-label="Account Menu"]');
     expect(menu?.querySelector(`a[href="/app/applicant/${person}"]`)).toBeNull();
     expect(menu?.querySelector('a[href="/app/applicants"]')?.textContent).toBe('Manage Travellers');
     expect(menu?.querySelector('a[href="/app/agency"]')?.textContent).toBe(
@@ -157,6 +157,6 @@ describe('actual toolbar component behavior, without provider-backed acceptance 
     ).toBe('/app/notifications');
     expect(container.textContent).toContain('Traveller Free');
     expect(container.textContent).not.toContain('Founding Access');
-    expect(container.querySelector('.record-account form button')?.textContent).toBe('Sign out');
+    expect(container.querySelector('.record-account form button')?.textContent).toBe('Sign Out');
   });
 });

@@ -394,14 +394,15 @@ describe('document intake pipeline', () => {
     expect(nameVersion?.proposedName.endsWith('.pdf')).toBe(true);
 
     // EVI-03: the same confident classification also populates the
-    // document's own metadata columns (previously dead for every real
-    // upload), using the MRZ's own parsed, check-digit-verified fields.
+    // document's own issuer and expiry columns, using the MRZ's own parsed,
+    // check-digit-verified fields. The kind itself waits for the person
+    // (owner request 2026-10-25), so docType stays unset.
     const mrz = parseTd3([L1, L2]);
     if (!mrz.ok) throw new Error('mrz');
     const updatedDocument = (
       await db.select().from(schema.documents).where(eq(schema.documents.id, document.id))
     )[0];
-    expect(updatedDocument?.docType).toBe('PASSPORT');
+    expect(updatedDocument?.docType).toBeNull();
     expect(updatedDocument?.issuer).toBe(mrz.value.issuingCountry);
     expect(updatedDocument?.expiresAt?.toISOString().slice(0, 10)).toBe(mrz.value.expiryDate);
 
@@ -414,7 +415,7 @@ describe('document intake pipeline', () => {
     expect(updatedVersion?.pages).toBe(1);
   });
 
-  it('populates docType from a confident keyword classification, but never issuer/expiry (no structured fields to draw from)', async () => {
+  it('leaves docType for the person after a confident keyword classification, and never fills issuer/expiry (no structured fields to draw from)', async () => {
     const { versionId } = await seedVersion(db, 'intake-bankstatement@example.com');
     const document = (
       await db
@@ -456,7 +457,8 @@ describe('document intake pipeline', () => {
     const updatedDocument = (
       await db.select().from(schema.documents).where(eq(schema.documents.id, document.id))
     )[0];
-    expect(updatedDocument?.docType).toBe('BANK_STATEMENT');
+    // Owner request 2026-10-25: the kind is suggested, never set by intake.
+    expect(updatedDocument?.docType).toBeNull();
     expect(updatedDocument?.issuer).toBeNull();
     expect(updatedDocument?.expiresAt).toBeNull();
 

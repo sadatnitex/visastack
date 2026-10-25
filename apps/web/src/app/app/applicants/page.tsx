@@ -67,7 +67,7 @@ export default async function ApplicantsPage() {
             <AddApplicantForm />
           ) : (
             <p className="card-body">
-              Turn on <strong>Let VisaStack process my details</strong> on{' '}
+              Turn on <strong>Let VisaStack Process My Details</strong> on{' '}
               <Link href="/app">Home</Link> to start adding applicant records.
             </p>
           )}

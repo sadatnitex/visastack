@@ -1,9 +1,11 @@
 import { listMembershipsForAccount } from '@visastack/services';
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { AccountPhotoCard } from '../../../components/profile-photo/account-photo-card';
 import { PageHeader } from '../../../components/ui';
 import { isPlatformAdmin } from '../../../lib/admin';
 import { getLocale } from '../../../lib/locale';
+import { loadOwnPhoto } from '../../../lib/profile-photos';
 import { withSession } from '../../../lib/session';
 import { signOutCurrentUser } from '../../../lib/sign-out';
 import { setLocaleAction } from '../../actions';
@@ -15,11 +17,12 @@ export const dynamic = 'force-dynamic';
 export default async function AccountPage() {
   const locale = await getLocale();
   const data = await withSession(async ({ db, accountId, email }) => {
-    const [isAdmin, memberships] = await Promise.all([
+    const [isAdmin, memberships, photo] = await Promise.all([
       isPlatformAdmin(db, { accountId, email }),
       listMembershipsForAccount(db, accountId),
+      loadOwnPhoto(db, accountId),
     ]);
-    return { email, isAdmin, hasAgencyAccess: memberships.length > 0 };
+    return { email, isAdmin, hasAgencyAccess: memberships.length > 0, photo };
   });
 
   return (
@@ -27,6 +30,8 @@ export default async function AccountPage() {
       <PageHeader eyebrow="Account" title={data.email} />
 
       <div className="grid">
+        {data.photo ? <AccountPhotoCard photo={data.photo} /> : null}
+
         <article className="card">
           <p className="card-kicker">Preferences</p>
           <h2 className="card-title">Language</h2>
@@ -53,7 +58,7 @@ export default async function AccountPage() {
         {data.hasAgencyAccess || data.isAdmin ? (
           <article className="card">
             <p className="card-kicker">Roles</p>
-            <h2 className="card-title">Other areas you can access</h2>
+            <h2 className="card-title">Other Areas You Can Access</h2>
             <div className="rows u-mt-050">
               {data.hasAgencyAccess ? (
                 <Link className="row row-link" href="/app/agency">
@@ -86,7 +91,7 @@ export default async function AccountPage() {
             }}
           >
             <button type="submit" className="btn btn-secondary">
-              Sign out
+              Sign Out
             </button>
           </form>
         </article>

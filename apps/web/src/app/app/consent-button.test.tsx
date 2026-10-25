@@ -9,13 +9,13 @@ const text = (html: string) => html.replace(/<[^>]*>/g, '|');
 describe('ConsentButton', () => {
   it('says Turn On and Turn Off in English and sends the same values as before', () => {
     const off = renderToStaticMarkup(
-      <ConsentButton type="SHARING" granted={false} locale="en" label="Let me share with others" />,
+      <ConsentButton type="SHARING" granted={false} locale="en" label="Let Me Share with Others" />,
     );
     expect(text(off)).toContain('Turn On');
     expect(off).toContain('name="granted" value="true"');
     expect(off).toContain('name="type" value="SHARING"');
     const on = renderToStaticMarkup(
-      <ConsentButton type="SHARING" granted locale="en" label="Let me share with others" />,
+      <ConsentButton type="SHARING" granted locale="en" label="Let Me Share with Others" />,
     );
     expect(text(on)).toContain('Turn Off');
     expect(on).toContain('name="granted" value="false"');

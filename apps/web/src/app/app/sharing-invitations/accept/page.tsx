@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { humanizeCode } from '../../../../lib/format-code';
 import { formatTimestampDate } from '../../../../lib/format-date';
+import { plural } from '../../../../lib/plural';
 import { withSession } from '../../../../lib/session';
 import { ConsentGate } from '../../client-invitations/accept/consent-gate';
 import { AcceptSharingInvitationForm } from './accept-form';
@@ -66,9 +67,9 @@ export default async function SharingInvitationPage({
               <dt>Documents</dt>
               <dd>
                 {invite.documentIds
-                  ? `${invite.documentIds.length} selected documents`
+                  ? plural(invite.documentIds.length, 'selected document')
                   : invite.documentScopeSnapshot
-                    ? `${invite.documentScopeSnapshot.length} documents captured when invited`
+                    ? `${plural(invite.documentScopeSnapshot.length, 'document')} captured when invited`
                     : 'All documents in this profile'}
               </dd>
             </div>

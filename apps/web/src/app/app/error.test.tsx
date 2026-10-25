@@ -22,7 +22,7 @@ describe('the error screen inside the signed-in area', () => {
     // It must not claim that nothing was lost: a half-typed form may be.
     expect(text).not.toContain('lost or damaged');
     expect(text).toContain('Try Again');
-    expect(text).toContain('Go to your overview');
+    expect(text).toContain('Go to Your Overview');
     expect(text).not.toContain('Back to Home');
     expect(text).toContain('Get help');
     expect(text).toContain('quote reference 99');

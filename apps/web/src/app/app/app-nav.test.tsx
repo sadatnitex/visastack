@@ -196,7 +196,9 @@ describe('the chip is a phone-only part of the stylesheet', () => {
     expect(css).toMatch(/\.record-toolbar-shortcuts a\[href="\/app\/help"\] \{\s*display: none;/);
     const { readFileSync: read } = await import('node:fs');
     const toolbar = read(`${process.cwd()}/src/app/app/workspace-record-toolbar.tsx`, 'utf8');
-    expect(toolbar).toContain('<Link href="/app/help">Help & Support</Link>');
+    expect(toolbar).toContain('<AccountMenu');
+    const menu = read(`${process.cwd()}/src/app/app/account-menu.tsx`, 'utf8');
+    expect(menu).toContain("{ href: '/app/help', label: 'Help & Support'");
     // The label trims by its own class, not by position after the initials.
     expect(css).toMatch(/\.workspace-chip \.workspace-chip-label \{\s*min-width: 0;\s*flex: 1;/);
   });

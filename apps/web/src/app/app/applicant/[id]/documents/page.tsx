@@ -1,6 +1,7 @@
 import { ORIGINAL_DOCUMENT_KEYS, resolveDocumentType } from '@visastack/core/catalogue';
 import { type MessageKey, type Translator, createTranslator } from '@visastack/i18n';
 import {
+  DEFAULT_DOCUMENT_PROTECTION,
   type DocumentLifecycleStatus,
   classifyExpiry,
   documentCategory,
@@ -10,6 +11,7 @@ import {
   getWalletView,
   hasConsent,
   isPassportPhotoType,
+  isRestrictedDocumentType,
   isServableProcessingState,
   listApplicantProfile,
   listDocumentsDetailed,
@@ -19,6 +21,7 @@ import {
   listPendingProposals,
   loadUploadQuotaConfig,
   mbLabel,
+  readDocumentProtectionSettings,
 } from '@visastack/services';
 import type { Metadata } from 'next';
 import Link from 'next/link';
@@ -49,7 +52,6 @@ import {
 } from '../actions';
 import {
   DocumentFindings,
-  DocumentTypeProposalReview,
   InconsistencyFlagReview,
   OcrResultView,
   RunAiExtractionButton,
@@ -57,10 +59,11 @@ import {
   RunInconsistencyCheckButton,
   RunOcrButton,
 } from '../ai-review';
+import { documentSuggestionView } from '../document-suggestion';
+import { DocumentSuggestionCard } from '../document-suggestion-card';
 import { DocumentTypeForm } from '../document-type-form';
 import { DocumentUploader } from '../document-uploader';
 import { downloadOriginalAction } from '../download-actions';
-import { NameReview } from '../name-review';
 import { UsageMeter } from '../usage-meter';
 
 const ORIGINAL_KINDS: readonly string[] = [...ORIGINAL_DOCUMENT_KEYS];
@@ -118,7 +121,7 @@ function processingTone(status: string | null): string {
 
 /** EVI-04 wallet lifecycle: current/expiring/expired/superseded, distinct from pipeline/safety status above. */
 const LIFECYCLE_BADGES: Record<DocumentLifecycleStatus, { label: string; tone: string }> = {
-  UNKNOWN: { label: 'Expiry not confirmed', tone: 'badge-neutral' },
+  UNKNOWN: { label: 'Expiry Not Confirmed', tone: 'badge-neutral' },
   CURRENT: { label: 'Current', tone: 'badge-success' },
   EXPIRING: { label: 'Expiring Soon', tone: 'badge-warning' },
   EXPIRED: { label: 'Expired', tone: 'badge-danger' },
@@ -218,7 +221,14 @@ export default async function ApplicantDocumentsPage({
     );
     const ocrRuns = new Map(documentRows.map((doc, i) => [doc.id, ocrRunLists[i]] as const));
     const confirmed = confirmedValues(profile, encryption !== undefined);
+    // The live protection rule, for the card's fresh sign-in warning. If it cannot be read, the
+    // built-in rule applies, which protects every file whose kind is not known yet.
+    const protection = await readDocumentProtectionSettings(db).catch(
+      () => DEFAULT_DOCUMENT_PROTECTION,
+    );
     return {
+      protection,
+      displayName: applicant.displayName ?? 'Unknown',
       documents: documentRows,
       recordsUnavailable: !documents.ok || !wallet.ok,
       coreGranted,
@@ -256,6 +266,10 @@ export default async function ApplicantDocumentsPage({
   // While the server is still scanning or reading a file, keep this page up to date by
   // itself: nobody has to reload, and nobody uploads the file again because nothing seemed
   // to happen (directive Part 9 section 3).
+  // Kinds that need a fresh sign-in check, for the card's warning while a person edits the kind.
+  const protectedKinds = documentGroups
+    .flatMap((group) => group.choices.map((choice) => choice.key))
+    .filter((key) => isRestrictedDocumentType(key, data.protection));
   const anyProcessing = data.documents.some((doc) => isStillProcessing(doc.processingStatus));
 
   return (
@@ -271,7 +285,7 @@ export default async function ApplicantDocumentsPage({
               See Document Insights
             </Link>
             <a className="btn btn-primary" href="#document-upload">
-              + Upload documents
+              Upload Document
             </a>
           </>
         }
@@ -332,12 +346,25 @@ export default async function ApplicantDocumentsPage({
             doc.processingStatus !== null &&
             isServableProcessingState(doc.processingStatus);
           const lifecycle = data.wallet.get(doc.id)?.status;
+          // A waiting AI kind for the file as it is now (an older file's suggestion no longer applies).
+          const waitingKind = data.pendingClassificationProposals.find(
+            (p) => p.documentVersionId === doc.latestVersionId,
+          );
+          // What we think this document is and what to call it: nothing is saved until the
+          // person accepts (owner request 2026-10-25).
+          const suggestion = documentSuggestionView(
+            doc,
+            waitingKind,
+            data.displayName,
+            data.protection,
+          );
           const needsReview =
             (doc.docType === 'PASSPORT' && lifecycle === 'UNKNOWN') ||
             doc.safetyStatus === 'QUARANTINED' ||
             doc.processingStatus === 'AWAITING_REVIEW' ||
             doc.classification?.reviewRequired === true ||
             doc.pendingNameVersion !== null ||
+            suggestion !== null ||
             ['QUARANTINED', 'REJECTED', 'FAILED', 'NEEDS_ATTENTION'].includes(
               doc.processingStatus ?? '',
             ) ||
@@ -345,11 +372,7 @@ export default async function ApplicantDocumentsPage({
               ({ proposal }) => proposal.documentVersionId === doc.latestVersionId,
             );
           const category = documentCategory(doc.docType);
-          const suggested = doc.docType
-            ? undefined
-            : data.pendingClassificationProposals.find(
-                (p) => p.documentVersionId === doc.latestVersionId,
-              );
+          const suggested = doc.docType ? undefined : waitingKind;
           return {
             id: doc.id,
             name: doc.approvedName ?? doc.originalName,
@@ -473,32 +496,27 @@ export default async function ApplicantDocumentsPage({
                     </p>
                   );
                 })()}
-                <form
-                  action={setDocumentDateAction}
-                  style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}
-                >
+                <form action={setDocumentDateAction} className="field-stack">
                   <input type="hidden" name="applicantId" value={id} />
                   <input type="hidden" name="documentId" value={doc.id} />
-                  <label className="muted u-fs-075" htmlFor={`date-${doc.id}`}>
+                  <label className="field-label" htmlFor={`date-${doc.id}`}>
                     Document Date
                   </label>
-                  <input
-                    id={`date-${doc.id}`}
-                    name="documentDate"
-                    type="date"
-                    defaultValue={doc.documentDate ?? ''}
-                    max={new Date().toISOString().slice(0, 10)}
-                    className="input"
-                    style={{
-                      padding: '0.2rem 0.5rem',
-                      fontSize: 'var(--text-small)',
-                      width: 'auto',
-                    }}
-                  />
-                  <button type="submit" className="btn btn-secondary u-btn-xs">
-                    Save
-                  </button>
-                  <span className="muted" style={{ fontSize: 'var(--text-caption)' }}>
+                  <div className="field-inline">
+                    <input
+                      id={`date-${doc.id}`}
+                      name="documentDate"
+                      type="date"
+                      defaultValue={doc.documentDate ?? ''}
+                      max={new Date().toISOString().slice(0, 10)}
+                      className="input"
+                      aria-describedby={`date-hint-${doc.id}`}
+                    />
+                    <button type="submit" className="btn btn-secondary">
+                      Save
+                    </button>
+                  </div>
+                  <span className="field-hint" id={`date-hint-${doc.id}`}>
                     Used to judge freshness for routes that require recently-dated evidence.
                   </span>
                 </form>
@@ -542,17 +560,16 @@ export default async function ApplicantDocumentsPage({
                     </details>
                   );
                 })()}
-                {doc.pendingNameVersion ? (
-                  <NameReview
+                {suggestion ? (
+                  <DocumentSuggestionCard
                     applicantId={id}
-                    nameVersionId={doc.pendingNameVersion.id}
-                    originalName={doc.originalName}
-                    proposedName={doc.pendingNameVersion.proposedName}
-                    classification={doc.classification}
+                    suggestion={suggestion}
+                    groups={documentGroups}
+                    protectedKinds={protectedKinds}
                   />
                 ) : doc.classification?.reviewRequired ? (
                   <p className="muted u-fs-075">
-                    Automatic classification needs review - not confident enough to propose a name.
+                    We could not tell what kind of document this is. Choose the kind above.
                   </p>
                 ) : null}
                 {(() => {
@@ -597,28 +614,9 @@ export default async function ApplicantDocumentsPage({
                   }
                   const versionId = doc.latestVersionId;
                   if (!versionId) return null;
-                  const classificationProposal = data.pendingClassificationProposals.find(
-                    (p) => p.documentVersionId === versionId,
-                  );
-                  return (
-                    <>
-                      {data.coreGranted && !classificationProposal ? (
-                        <RunClassificationButton applicantId={id} documentVersionId={versionId} />
-                      ) : null}
-                      {classificationProposal ? (
-                        <DocumentTypeProposalReview
-                          applicantId={id}
-                          canApprove={data.coreGranted}
-                          proposal={{
-                            id: classificationProposal.id,
-                            suggestedType: classificationProposal.suggestedType,
-                            confidence: classificationProposal.confidence,
-                            rationale: classificationProposal.rationale,
-                          }}
-                        />
-                      ) : null}
-                    </>
-                  );
+                  // A waiting AI kind is shown in the card above, decided with its name.
+                  if (waitingKind || !data.coreGranted || doc.docType) return null;
+                  return <RunClassificationButton applicantId={id} documentVersionId={versionId} />;
                 })()}
                 {(() => {
                   if (!data.ocrConfigured || !data.ocrGranted || !doc.classification) return null;
@@ -685,7 +683,7 @@ export default async function ApplicantDocumentsPage({
         })}
       />
       <details className="wallet-upload-disclosure" open={initialKind ? true : undefined}>
-        <summary className="btn btn-secondary">Upload a Document</summary>
+        <summary className="btn btn-secondary">Upload Document</summary>
         <div id="document-upload">
           {/*
            * Only upload and new processing/extraction are gated on core
@@ -697,7 +695,7 @@ export default async function ApplicantDocumentsPage({
           {!data.coreGranted ? (
             <article className="card u-mb-150">
               <p className="card-body">
-                Turn on <strong>Let VisaStack process my details</strong> on{' '}
+                Turn on <strong>Let VisaStack Process My Details</strong> on{' '}
                 <Link href="/app">Home</Link> to upload new documents or run processing. Your
                 existing documents remain visible above.
               </p>
@@ -707,7 +705,7 @@ export default async function ApplicantDocumentsPage({
               {data.aiConfigured && !data.aiGranted ? (
                 <div className="card u-mb-150">
                   <p className="card-body">
-                    Turn on <strong>Let AI read details from my documents</strong> on{' '}
+                    Turn on <strong>Let AI Read Details from My Documents</strong> on{' '}
                     <Link href="/app">Home</Link> to get automatic field suggestions from your
                     documents - every suggestion still requires your explicit approval before it
                     changes your profile.
@@ -718,7 +716,7 @@ export default async function ApplicantDocumentsPage({
               {data.ocrConfigured && !data.ocrGranted ? (
                 <div className="card u-mb-150">
                   <p className="card-body">
-                    Turn on <strong>Let AI read text from my scans</strong> on{' '}
+                    Turn on <strong>Let AI Read Text from My Scans</strong> on{' '}
                     <Link href="/app">Home</Link> to read text from scanned or photographed
                     documents. This sends the document's image, which shares more than text alone.
                   </p>

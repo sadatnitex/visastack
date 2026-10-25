@@ -90,7 +90,7 @@ export default async function PackDetailPage({
         title={data.pack.name}
         meta={
           <StatusBadge tone={data.pack.authoritative ? 'success' : 'neutral'}>
-            {data.pack.authoritative ? 'Official requirement pack' : 'Agency custom checklist'}
+            {data.pack.authoritative ? 'Official Requirement Pack' : 'Agency Custom Checklist'}
           </StatusBadge>
         }
         description={
@@ -188,7 +188,7 @@ export default async function PackDetailPage({
                         {req.sourceUrl ? (
                           <p className="muted">
                             <a href={req.sourceUrl} target="_blank" rel="noopener noreferrer">
-                              {req.sourceTitle ?? 'Source reference'}
+                              {req.sourceTitle ?? 'Source Reference'}
                             </a>
                             {req.publisher ? `, ${req.publisher}` : ''}
                             {req.observedDate
@@ -247,7 +247,7 @@ export default async function PackDetailPage({
                         className="btn btn-secondary u-btn-sm"
                         download
                       >
-                        Download manifest
+                        Download Manifest
                       </a>
                     </div>
                   </div>
@@ -325,7 +325,7 @@ export default async function PackDetailPage({
                             <span
                               className={`badge ${version.publicTrustPublishedAt ? 'badge-success' : 'badge-neutral'}`}
                             >
-                              {version.publicTrustPublishedAt ? 'Live' : 'Not published'}
+                              {version.publicTrustPublishedAt ? 'Live' : 'Not Published'}
                             </span>
                           </div>
                         </div>

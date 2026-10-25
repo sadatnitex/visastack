@@ -2,6 +2,7 @@ import { type ApplicantId, type FactStatus, type Result, err, ok } from '@visast
 import { TAX_BASIS, taxBasisKey } from '@visastack/core/catalogue';
 import { authorize } from '@visastack/policy';
 import { and, asc, eq, isNull } from 'drizzle-orm';
+import { AuthorizedApplicant } from './access';
 import { getApplicant } from './applicants';
 import { appendAuditEvent } from './audit';
 import { type Db, first, schema } from './db';
@@ -459,7 +460,51 @@ export async function compareFactVersions(
     });
     return err(serviceError('forbidden', 'You do not have access to this history.'));
   }
+  return compareExactVersions(db, input);
+}
 
+/**
+ * `compareFactVersions` behind the central access gate (WP-V3 part 3). Owner
+ * only, like the original: the proof must come from the applicant's owner,
+ * because an agency's access to a current case does not authorise unrelated
+ * old declarations (WP-V5 defines agency scope for both sides). MANAGE is the
+ * owner's own-record action, so an ordinary sharing grant never carries it.
+ */
+export async function compareAuthorizedFactVersions(
+  proof: AuthorizedApplicant<'MANAGE'>,
+  input: Omit<CompareFactVersionsInput, 'actorAccountId' | 'applicantId'>,
+): Promise<Result<DeclarationComparison, ServiceError>> {
+  const genuine = AuthorizedApplicant.isGenuine(proof, 'MANAGE');
+  if (!genuine || proof.actor.kind !== 'applicant_owner') {
+    if (genuine) {
+      const actorAccountId = 'accountId' in proof.actor ? proof.actor.accountId : null;
+      await proof.tx.transaction(async (tx) => {
+        await appendAuditEvent(tx, {
+          eventType: 'DECLARATION_COMPARISON_DENIED',
+          actorAccountId,
+          action: 'PREVIEW',
+          result: 'DENIED',
+          method: 'MANUAL',
+          applicantId: proof.applicant.id,
+          resourceType: 'fact_version',
+          reason: 'default_deny',
+        });
+      });
+    }
+    return err(serviceError('forbidden', 'You do not have access to this history.'));
+  }
+  return compareExactVersions(proof.tx, {
+    ...input,
+    actorAccountId: proof.applicant.ownerAccountId,
+    applicantId: proof.applicant.id,
+  });
+}
+
+/** The comparison itself, once the caller has been authorised as the owner. */
+async function compareExactVersions(
+  db: Db,
+  input: CompareFactVersionsInput,
+): Promise<Result<DeclarationComparison, ServiceError>> {
   if (
     !UUID.test(input.priorFactVersionId) ||
     (input.currentFactVersionId !== undefined && !UUID.test(input.currentFactVersionId))
