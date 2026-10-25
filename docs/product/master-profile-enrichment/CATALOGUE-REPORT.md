@@ -9,8 +9,8 @@ Nothing in this report is live yet. The catalogue is data only. No screen, rule,
 | Item | Count |
 |---|---|
 | Fields live today (frozen) | 81 |
-| Fields added by the catalogue | 801 |
-| Of these, Other text boxes and Other Items (never counted) | 141 |
+| Fields added by the catalogue | 804 |
+| Of these, Other text boxes, Other Items and amount details (never counted) | 144 |
 | Sections (opt-in) | 82 |
 | Sections open from the start | 10 |
 | Fields counted when only the default sections are open | 54 |
@@ -28,8 +28,8 @@ Nothing in this report is live yet. The catalogue is data only. No screen, rule,
 |---|---|---|---|
 | Identity and Civil Status | 11 | 129 | Names, birth, civil records, national identifiers and personal details. |
 | Travel Documents | 12 | 37 | Passports, identity cards, permits and visas held. |
-| Timelines | 22 | 61 | Where you lived, worked, studied and travelled, with dates. |
-| Money | 3 | 76 | Income, assets, tax, funding and sponsors. |
+| Timelines | 22 | 63 | Where you lived, worked, studied and travelled, with dates. |
+| Money | 3 | 77 | Income, assets, tax, funding and sponsors. |
 | People | 14 | 109 | Family, hosts, inviters, referees and guardians. |
 | Declarations and History | 3 | 106 | Refusals, bans, legal and security history. Wording needs adviser review. |
 | Health | 6 | 36 | Vaccinations, examinations, insurance and declared conditions. |
@@ -142,8 +142,8 @@ A sharing category decides what a grant can include. The five live categories al
 
 | Category | Status | Live fields | New fields | Document types | Why it is separate |
 |---|---|---|---|---|---|
-| universal | Live | 45 | 318 | 102 | Existing category |
-| professional | Live | 18 | 93 | 30 | Existing category |
+| universal | Live | 45 | 319 | 102 | Existing category |
+| professional | Live | 18 | 95 | 30 | Existing category |
 | business | Live | 6 | 26 | 8 | Existing category |
 | medical | Live | 6 | 51 | 14 | Existing category |
 | medical_attendant | Live | 6 | 5 | 0 | Existing category |
@@ -160,7 +160,7 @@ A sharing category decides what a grant can include. The five live categories al
 
 | Level | Live fields | New fields |
 |---|---|---|
-| STANDARD | 67 | 540 |
+| STANDARD | 67 | 543 |
 | SENSITIVE | 13 | 130 |
 | RESTRICTED | 1 | 131 |
 
@@ -788,7 +788,7 @@ Type is text or date. Records marked "extends" add fields to a record that is li
 | travel_insurance_coverage_countries | Countries Covered | text | STANDARD | universal | travel_insurance | Record: Travel Insurance | All purposes | bidesh365 |
 | travel_insurance_repatriation_covered | Repatriation Covered | text | STANDARD | universal | travel_insurance | Record: Travel Insurance | All purposes | bidesh365 |
 
-### Timelines (61)
+### Timelines (63)
 
 | Key | Label | Type | Protection | Category | Section | Block | Applies to | Origin |
 |---|---|---|---|---|---|---|---|---|
@@ -853,8 +853,10 @@ Type is text or date. Records marked "extends" add fields to a record that is li
 | application_record_certified_copies_count | Certified Copies Held | text | STANDARD | universal | applications_and_decisions | Record: Application Record | All purposes | owner_vision |
 | monthly_salary_currency_other | Other Monthly Salary Currency | text | STANDARD | professional | employment | Section: Other Salary Currency | All purposes | visastack |
 | self_employment_income_currency_other | Other Self-Employment Income Currency | text | STANDARD | professional | self_employment | Section: Other Self-Employment Currency | All purposes | visastack |
+| monthly_salary_tax_basis | Monthly Salary Before or After Tax | text | STANDARD | professional | employment | Section: Monthly Salary Tax Basis | All purposes | owner_vision |
+| self_employment_income_tax_basis | Self-Employment Income Before or After Tax | text | STANDARD | professional | self_employment | Section: Self-Employment Income Tax Basis | All purposes | owner_vision |
 
-### Money (76)
+### Money (77)
 
 | Key | Label | Type | Protection | Category | Section | Block | Applies to | Origin |
 |---|---|---|---|---|---|---|---|---|
@@ -934,6 +936,7 @@ Type is text or date. Records marked "extends" add fields to a record that is li
 | plan_cost_currency_other | Other Currency | text | STANDARD | universal | funding_and_costs | Record: Plan Cost | All purposes | owner_vision |
 | plan_cost_paid | Paid | text | STANDARD | universal | funding_and_costs | Record: Plan Cost | All purposes | owner_vision |
 | annual_income_currency_other | Other Annual Income Currency | text | STANDARD | universal | income_and_funding | Section: Other Income Currency | All purposes | visastack |
+| annual_income_tax_basis | Annual Income Before or After Tax | text | STANDARD | universal | income_and_funding | Section: Annual Income Tax Basis | All purposes | owner_vision |
 
 ### People (109)
 

@@ -80,7 +80,7 @@ export const CONSISTENCY_REASON_TEXT: Readonly<Record<ConsistencyReason, string>
 const FIXED_FIELDS: ReadonlySet<string> = new Set(['date_of_birth', 'place_of_birth']);
 /** Name fields an applicant's recorded other names (`name_alternate`) can explain. */
 const NAME_FIELDS: ReadonlySet<string> = new Set(['given_name', 'family_name']);
-/** Amount fields whose currency is a sibling `<key>_currency` field. */
+/** Amount fields whose currency and tax basis are sibling `<key>_currency` and `<key>_tax_basis` fields. */
 const AMOUNT_FIELDS: ReadonlySet<string> = new Set([
   'annual_income',
   'monthly_salary',
@@ -201,6 +201,8 @@ export interface ComparedVersion {
   /** The version's recorded reason: an assertion by whoever saved it, not proof. */
   readonly explanation: string | null;
   readonly currency: string | null;
+  /** Amount fields only: before (GROSS) or after (NET) tax, or null when not recorded. */
+  readonly basis: AmountBasis | null;
 }
 
 export interface DeclarationComparison {
@@ -253,14 +255,14 @@ function knownEffectiveDate(version: FactVersion): Date | null {
 }
 
 /**
- * The currency that went with an amount version: the one in force when the
+ * The companion detail (currency or tax basis) that went with an amount version: the one in force when the
  * amount was saved, or, when none was set yet (the form asks for the amount
  * first), the first one entered while that amount was still current. So both
  * save orders work, and a currency changed ahead of a new amount does not
  * leak back onto the old one. A caller with a snapshot time passes priorAsOf
  * instead, which is exact.
  */
-async function currencyDeclaredWith(
+async function valueDeclaredWith(
   db: Db,
   currencyFactId: string,
   amount: FactVersion,
@@ -278,6 +280,70 @@ async function currencyDeclaredWith(
       v.createdAt.getTime() > amount.createdAt.getTime() &&
       v.createdAt.getTime() <= until.getTime(),
   );
+}
+
+/** The stored answer of an amount's tax basis detail, or null when blank or unrecognised. */
+function basisOf(value: string | null): AmountBasis | null {
+  if (value === 'Before tax') return 'GROSS';
+  if (value === 'After tax') return 'NET';
+  return null;
+}
+
+/**
+ * The value of an amount's companion detail (its currency or tax basis) for each side. The prior
+ * side reads the value declared with that amount version, or as of priorAsOf when given; the
+ * current side reads the latest value when it is the amount's latest version, so a later
+ * correction counts.
+ */
+async function companionValues(
+  db: Db,
+  input: {
+    readonly applicantId: string;
+    readonly priorAsOf?: Date;
+    readonly encryption?: KeyManagementPort;
+  },
+  fact: { readonly currentVersionId: string | null; readonly repeatingRecordKey: string | null },
+  prior: FactVersion,
+  current: FactVersion,
+  companionKey: string,
+): Promise<
+  Result<{ readonly prior: string | null; readonly current: string | null }, ServiceError>
+> {
+  const [companion] = await siblingFacts(
+    db,
+    input.applicantId,
+    companionKey,
+    fact.repeatingRecordKey,
+  );
+  if (!companion) return ok({ prior: null, current: null });
+  const companionFactId = companion.fact.id;
+  const priorVersion = input.priorAsOf
+    ? await versionAsOf(db, companionFactId, input.priorAsOf)
+    : await valueDeclaredWith(db, companionFactId, prior);
+  const latestId = companion.fact.currentVersionId;
+  const currentVersion =
+    current.id === fact.currentVersionId && latestId
+      ? first(
+          await db
+            .select()
+            .from(schema.factVersions)
+            .where(eq(schema.factVersions.id, latestId))
+            .limit(1),
+        )
+      : await valueDeclaredWith(db, companionFactId, current);
+  let priorValue: string | null = null;
+  let currentValue: string | null = null;
+  if (priorVersion) {
+    const value = await reveal(db, priorVersion, input.encryption);
+    if (!value.ok) return value;
+    priorValue = value.value;
+  }
+  if (currentVersion) {
+    const value = await reveal(db, currentVersion, input.encryption);
+    if (!value.ok) return value;
+    currentValue = value.value;
+  }
+  return ok({ prior: priorValue, current: currentValue });
 }
 
 /** The last moment a version was the current one: just before the next version, or now. */
@@ -437,44 +503,20 @@ export async function compareFactVersions(
   const currentValue = await reveal(db, current, input.encryption);
   if (!currentValue.ok) return currentValue;
 
-  // Currency is its own detail; read the value in force for each side.
+  // Currency and tax basis are their own details; read the value in force for each side.
   let priorCurrency: string | null = null;
   let currentCurrency: string | null = null;
+  let priorBasis: AmountBasis | null = null;
+  let currentBasis: AmountBasis | null = null;
   if (AMOUNT_FIELDS.has(fieldKey)) {
-    const [currencyFact] = await siblingFacts(
-      db,
-      input.applicantId,
-      `${fieldKey}_currency`,
-      fact.repeatingRecordKey,
-    );
-    if (currencyFact) {
-      const currencyFactId = currencyFact.fact.id;
-      const priorCurrencyVersion = input.priorAsOf
-        ? await versionAsOf(db, currencyFactId, input.priorAsOf)
-        : await currencyDeclaredWith(db, currencyFactId, prior);
-      // The latest amount goes with the latest currency, so a later correction counts.
-      const latestCurrencyId = currencyFact.fact.currentVersionId;
-      const currentCurrencyVersion =
-        current.id === fact.currentVersionId && latestCurrencyId
-          ? first(
-              await db
-                .select()
-                .from(schema.factVersions)
-                .where(eq(schema.factVersions.id, latestCurrencyId))
-                .limit(1),
-            )
-          : await currencyDeclaredWith(db, currencyFactId, current);
-      if (priorCurrencyVersion) {
-        const value = await reveal(db, priorCurrencyVersion, input.encryption);
-        if (!value.ok) return value;
-        priorCurrency = value.value;
-      }
-      if (currentCurrencyVersion) {
-        const value = await reveal(db, currentCurrencyVersion, input.encryption);
-        if (!value.ok) return value;
-        currentCurrency = value.value;
-      }
-    }
+    const currency = await companionValues(db, input, fact, prior, current, `${fieldKey}_currency`);
+    if (!currency.ok) return currency;
+    priorCurrency = currency.value.prior;
+    currentCurrency = currency.value.current;
+    const basis = await companionValues(db, input, fact, prior, current, `${fieldKey}_tax_basis`);
+    if (!basis.ok) return basis;
+    priorBasis = basisOf(basis.value.prior);
+    currentBasis = basisOf(basis.value.current);
   }
 
   // Recorded other names explain a name difference.
@@ -507,11 +549,13 @@ export async function compareFactVersions(
       value: priorValue.value,
       effectiveFrom: knownEffectiveDate(prior),
       currency: priorCurrency,
+      basis: priorBasis,
     },
     current: {
       value: currentValue.value,
       effectiveFrom: knownEffectiveDate(current),
       currency: currentCurrency,
+      basis: currentBasis,
     },
     knownAliases,
   });
@@ -535,6 +579,7 @@ export async function compareFactVersions(
     version: FactVersion,
     value: string | null,
     currency: string | null,
+    basis: AmountBasis | null,
   ): ComparedVersion => ({
     factVersionId: version.id,
     value,
@@ -543,13 +588,14 @@ export async function compareFactVersions(
     status: version.status,
     explanation: version.reason,
     currency,
+    basis,
   });
 
   return ok({
     fieldKey,
     repeatingRecordKey: fact.repeatingRecordKey,
-    prior: side(prior, priorValue.value, priorCurrency),
-    current: side(current, currentValue.value, currentCurrency),
+    prior: side(prior, priorValue.value, priorCurrency, priorBasis),
+    current: side(current, currentValue.value, currentCurrency, currentBasis),
     result,
     label: CONSISTENCY_LABELS[result],
     reason,

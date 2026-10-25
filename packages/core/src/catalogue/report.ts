@@ -56,7 +56,7 @@ export function renderCatalogueReport(): string {
   push(`| Fields live today (frozen) | ${LEGACY_FIELD_SNAPSHOT.length} |`);
   push(`| Fields added by the catalogue | ${CATALOGUE_FIELDS.length} |`);
   push(
-    `| Of these, Other text boxes and Other Items (never counted) | ${count(CATALOGUE_FIELDS, (f) => f.role !== undefined)} |`,
+    `| Of these, Other text boxes, Other Items and amount details (never counted) | ${count(CATALOGUE_FIELDS, (f) => f.role !== undefined)} |`,
   );
   push(`| Sections (opt-in) | ${CATALOGUE_MODULES.filter((m) => !m.internal).length} |`);
   push(

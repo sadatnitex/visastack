@@ -188,6 +188,18 @@ export function buildMasterProfileView(input: MasterProfileInput): MasterProfile
           const resolved = resolveEditorField(field);
           if (resolved) singles.push(resolved);
         }
+        // An optional fact about an amount (before or after tax) sits right after the amount and
+        // its currency. It never counts toward completion.
+        for (const field of fields) {
+          if (field.role !== 'amount_detail' || field.group) continue;
+          const resolved = resolveBase(field.key);
+          if (!resolved) continue;
+          const amountKey = field.key.replace(/_tax_basis$/, '');
+          const after = singles.findLastIndex(
+            (single) => single.key === amountKey || single.key === `${amountKey}_currency`,
+          );
+          singles.splice(after < 0 ? singles.length : after + 1, 0, resolved);
+        }
       }
       const groups: EditorGroup[] = [...groupFields.entries()].map(([groupKey, members]) => ({
         key: groupKey,

@@ -143,7 +143,8 @@ export function buildFields(blocks: readonly FieldBlock[]): readonly UnplacedFie
     });
     for (const [suffix, label, type, kind, options] of rows) {
       // Every real choice ends with "Other", with a text box that opens beside it.
-      const wantsOther = options !== undefined && !ONLY_YES_NO(options);
+      // A role field is a fixed fact about another field, so it offers no Other.
+      const wantsOther = options !== undefined && !ONLY_YES_NO(options) && !block.role;
       const finalOptions =
         wantsOther && options
           ? [...options.filter((option) => option !== OTHER_OPTION), OTHER_OPTION]

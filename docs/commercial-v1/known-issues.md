@@ -5358,3 +5358,10 @@ Documentation only. The bidesh365 master profile (54 sections) was compared with
 - Owner request 25 Oct 2026: the header mark, the favicon and the other marks show the Sliced V, not the single bolder V. The brand pack reserved the sliced mark for 32px and up and used the single V below that (and in the landing header, decision D12); the owner's instruction replaces that choice.
 - Shipped: `BrandMark` draws the pack's `visastack-app-icon.svg` (blue tile, white V in slices; reversed on the dark sign-in panel by CSS as before); every placement is at least 32px (phone header, workspace and toolbar marks were 28px); `icon.svg` is the same sliced tile; `favicon.ico` holds 16 and 32 px drawn down from the pack's 512 px sliced icon plus the pack's 48 px file. Home-screen, apple and share images already used the sliced V and are unchanged.
 - Trade-off reported to the owner: at 16 px in a browser tab the slices are only a few pixels apart and can read as a solid V on low-density screens.
+
+### 2026-10-25, before or after tax for income amounts
+
+- Shipped (owner decision, 25 Oct 2026): the profile asks, right after annual income, monthly salary and self-employment income, whether the amount is before or after tax ("Before tax" or "After tax"; optional). It never changes the completion figure. It is shared only where the amount itself is shared.
+- Comparisons now use it: two amounts known to be on the same basis are compared as amounts; before against after reads Context difference ("One amount is before tax and the other after tax."); unknown stays Insufficient information.
+- No live field, data or migration changed. Details in `docs/product/master-profile-enrichment/HANDOFF.md` (session log of 25 Oct 2026).
+- Not verified: the signed-in profile screen on production (the live signed-in check opens the profile page but does not fill it in).

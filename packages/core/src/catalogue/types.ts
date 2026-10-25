@@ -187,17 +187,18 @@ export interface CatalogueField {
   /** The opt-in section this field belongs to. Set for every field once the catalogue is built. */
   readonly module: string;
   /**
-   * What the field is for beyond holding a value. Fields with a role are part of the "Other"
-   * mechanism and never count toward completion:
+   * What the field is for beyond holding a value. Fields with a role never count toward completion:
    * other_detail: the text box that opens when a choice is "Other".
    * other_item: a free entry for something the section has no field for.
+   * amount_detail: an optional fact about a live amount, shown beside it (whether it is before or
+   * after tax). Left blank, it reads as not recorded, never as a guess.
    */
   readonly role?: FieldRole;
   /** A choice field that accepts "Other" and then needs its companion `<key>_other` filled. */
   readonly allowOther?: boolean;
 }
 
-export const FIELD_ROLES = ['other_detail', 'other_item'] as const;
+export const FIELD_ROLES = ['other_detail', 'other_item', 'amount_detail'] as const;
 export type FieldRole = (typeof FIELD_ROLES)[number];
 
 /** The value a person picks when none of the listed choices fits. */
