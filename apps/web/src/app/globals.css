@@ -4504,9 +4504,12 @@ body:has(.auth-shell) > .footer {
     height: 32px;
   }
 }
-/* The sliced mark is 4px wider than the old one; on the narrowest phones the toolbar gives that
-   back from its own spacing, so the bar still fits 320px with enlarged text spacing. */
+/* The sliced mark is 4px wider than the old one; on the narrowest phones the toolbars give that
+   back from their own spacing, so they still fit 320px with enlarged text spacing. */
 @media (max-width: 360px) {
+  .workspace-toolbar {
+    padding-inline: 12px;
+  }
   .record-toolbar {
     padding-inline: 8px;
   }
