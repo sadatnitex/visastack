@@ -14,6 +14,27 @@
 export type { Actor } from '@visastack/policy';
 export { STEP_UP_ACTIONS } from '@visastack/policy';
 export type { Db, Schema } from './db';
+export {
+  type AccessActor,
+  type AccessPurpose,
+  type AccountPrincipal,
+  type ActingFor,
+  type ApplicantResourceRef,
+  type AuthorizedResource,
+  type Principal,
+  type RequireAccessOptions,
+  type SystemJob,
+  AuthorizedApplicant,
+  CONTRIBUTOR_ACTIONS,
+  StaffScope,
+  SystemScope,
+  EACH_GRANT,
+  SYSTEM_JOBS,
+  accountPrincipal,
+  requireAccess,
+  staffPrincipal,
+  systemPrincipal,
+} from './access';
 export { type ServiceError, type ServiceErrorCode, serviceError } from './errors';
 
 export {
