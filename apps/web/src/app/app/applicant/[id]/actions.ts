@@ -6,6 +6,7 @@ import type { Actor, Db } from '@visastack/services';
 import type { AddDocumentVersionResult } from '@visastack/services';
 import {
   acknowledgeInconsistencyFlag,
+  approveClearProposals,
   approveDocumentTypeProposal,
   approveProposal,
   decideDocumentName,
@@ -18,6 +19,7 @@ import {
   getApplicant,
   getLatestExtractedText,
   isAiDispatchAllowed,
+  isValidDocumentDateString,
   loadUploadQuotaConfig,
   mbLabel,
   prepareDocumentKind,
@@ -52,6 +54,7 @@ import { createKeyManagementPort, createPreviewRenderer } from '../../../../lib/
 import { withSession } from '../../../../lib/session';
 import { createStorage } from '../../../../lib/storage';
 import { permitsPdfAdmission, validateUploadBytes } from '../../../../lib/upload-preflight';
+import { describeClearAcceptance } from './ai-review-messages';
 
 /** Result surfaced back to the client for inline feedback. */
 export interface ActionState {
@@ -687,25 +690,61 @@ export async function decideProposalAction(
   const proposalId = String(formData.get('proposalId') ?? '');
   const decision = String(formData.get('proposalAction') ?? '');
   const correctedValue = String(formData.get('correctedValue') ?? '').trim();
+  const resolutionRaw = String(formData.get('resolution') ?? '');
+  const effectiveFromRaw = String(formData.get('effectiveFrom') ?? '').trim();
 
   if (decision !== 'approve' && decision !== 'reject') {
     return { ok: false, message: 'Unknown action.' };
+  }
+  if (resolutionRaw && !['use_document', 'changed', 'keep'].includes(resolutionRaw)) {
+    return { ok: false, message: 'Choose which value is right.', field: 'resolution' };
+  }
+  let effectiveFrom: Date | undefined;
+  if (decision === 'approve' && resolutionRaw === 'changed') {
+    // A real calendar day (no 31 February rolling into March), and not in the future.
+    const parsed = new Date(`${effectiveFromRaw}T00:00:00Z`);
+    if (
+      !isValidDocumentDateString(effectiveFromRaw) ||
+      parsed.toISOString().slice(0, 10) !== effectiveFromRaw
+    ) {
+      return {
+        ok: false,
+        message: 'Enter the date it changed. It cannot be in the future.',
+        field: 'effectiveFrom',
+      };
+    }
+    effectiveFrom = parsed;
   }
 
   const result = await withSession(async ({ db, accountId }) => {
     if (!(await assertOwned(db, accountId, applicantId))) {
       return { ok: false, message: 'Not authorized.' } satisfies ActionState;
     }
-    if (decision === 'reject') {
-      const rejected = await rejectProposal(db, { actorAccountId: accountId, proposalId });
+    // "Keep my current value" changes nothing: the reading is set aside like a skip.
+    if (decision === 'reject' || resolutionRaw === 'keep') {
+      const rejected = await rejectProposal(db, {
+        actorAccountId: accountId,
+        proposalId,
+        ...(resolutionRaw === 'keep' ? { reason: 'kept_existing' } : {}),
+      });
       if (!rejected.ok) return { ok: false, message: rejected.error.message } satisfies ActionState;
-      return { ok: true, message: 'Proposal rejected.' } satisfies ActionState;
+      return {
+        ok: true,
+        message:
+          resolutionRaw === 'keep'
+            ? 'Kept your current value. Nothing was changed.'
+            : 'Skipped. Nothing was saved.',
+      } satisfies ActionState;
     }
     const encryption = createKeyManagementPort();
     const approved = await approveProposal(db, {
       actorAccountId: accountId,
       proposalId,
       ...(correctedValue ? { correctedValue } : {}),
+      ...(resolutionRaw === 'use_document' || resolutionRaw === 'changed'
+        ? { resolution: resolutionRaw }
+        : {}),
+      ...(effectiveFrom ? { effectiveFrom } : {}),
       ...(encryption ? { encryption } : {}),
     });
     if (!approved.ok) return { ok: false, message: approved.error.message } satisfies ActionState;
@@ -713,9 +752,43 @@ export async function decideProposalAction(
       ok: true,
       message:
         approved.value.version.status === 'CONFLICTED'
-          ? 'Approved, but this conflicts with an already-confirmed value — flagged for review.'
-          : 'Proposal approved and saved to the profile.',
+          ? 'Saved, and marked to check: it differs from a detail you had confirmed.'
+          : resolutionRaw === 'changed'
+            ? 'Saved as the new value. The earlier one stays in your history.'
+            : 'Saved to your profile.',
     } satisfies ActionState;
+  });
+
+  if (result.ok) revalidatePath(`/app/applicant/${applicantId}`, 'layout');
+  return result;
+}
+
+/** "Accept all clear details" for one document; the service checks every rule again. */
+export async function acceptClearDetailsAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const applicantId = String(formData.get('applicantId') ?? '');
+  const proposalIds = formData
+    .getAll('proposalId')
+    .map((id) => String(id))
+    .filter((id) => id.length > 0)
+    .slice(0, 100);
+  if (proposalIds.length === 0) return { ok: false, message: 'Nothing to accept.' };
+
+  const result = await withSession(async ({ db, accountId }) => {
+    if (!(await assertOwned(db, accountId, applicantId))) {
+      return { ok: false, message: 'Not authorized.' } satisfies ActionState;
+    }
+    const encryption = createKeyManagementPort();
+    const accepted = await approveClearProposals(db, {
+      actorAccountId: accountId,
+      applicantId,
+      proposalIds,
+      ...(encryption ? { encryption } : {}),
+    });
+    if (!accepted.ok) return { ok: false, message: accepted.error.message } satisfies ActionState;
+    return { ok: true, message: describeClearAcceptance(accepted.value) } satisfies ActionState;
   });
 
   if (result.ok) revalidatePath(`/app/applicant/${applicantId}`, 'layout');

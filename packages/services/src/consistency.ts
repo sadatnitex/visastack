@@ -79,6 +79,11 @@ export const CONSISTENCY_REASON_TEXT: Readonly<Record<ConsistencyReason, string>
 
 /** Details that do not change over a lifetime: a difference always needs clarification. */
 const FIXED_FIELDS: ReadonlySet<string> = new Set(['date_of_birth', 'place_of_birth']);
+
+/** A detail that cannot legitimately change over a lifetime, such as a date of birth. */
+export function isFixedFieldKey(fieldKey: string): boolean {
+  return FIXED_FIELDS.has(fieldKey);
+}
 /** Name fields an applicant's recorded other names (`name_alternate`) can explain. */
 const NAME_FIELDS: ReadonlySet<string> = new Set(['given_name', 'family_name']);
 /** Amount fields whose currency and tax basis are sibling `<key>_currency` and `<key>_tax_basis` fields. */

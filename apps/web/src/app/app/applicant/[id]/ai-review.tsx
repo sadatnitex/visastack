@@ -1,11 +1,13 @@
 'use client';
 
-import { useActionState, useState } from 'react';
+import { useActionState, useCallback, useId, useState } from 'react';
 import { FormMessage, SubmitButton } from '../../../../components/form-feedback';
+import { humanizeFieldKey } from '../../../../lib/field-key-label';
 import { documentTypeLabel } from '../../../../lib/labels';
 import { profileField } from '../../../../lib/profile-fields';
 import {
   type ActionState,
+  acceptClearDetailsAction,
   decideClassificationProposalAction,
   decideInconsistencyFlagAction,
   decideProposalAction,
@@ -165,108 +167,308 @@ export interface AiProposalViewModel {
   readonly confidence: number;
   readonly rationale: string | null;
   readonly evidence: readonly AiEvidenceViewModel[];
+  /** Confident, and every quoted phrase was found word for word in the document (decided on the server). */
+  readonly clear?: boolean;
+  /** An ID number, income, health detail and the like: always decided one at a time. */
+  readonly sensitive?: boolean;
+  /**
+   * What the profile already holds for this detail when it differs from the reading: the value,
+   * or null when a value exists but is protected and not shown here.
+   */
+  readonly difference?: { readonly current: string | null };
+  /** A detail that never changes over time (a date of birth): "it changed" is not offered. */
+  readonly fixed?: boolean;
+  /** Part of a repeating record (one address among several): always decided one at a time. */
+  readonly repeating?: boolean;
 }
 
-/** A single PENDING AI field proposal awaiting an owner decision. */
+/** A reading still waiting for the person: accept, change, settle a difference, or skip. */
 export function AiProposalReview({
   applicantId,
   proposal,
   canApprove,
+  onEditedChange,
+  onResult,
 }: {
   readonly applicantId: string;
   readonly proposal: AiProposalViewModel;
+  /** Tells the list when the value was changed, so it is no longer accepted in bulk as read. */
+  readonly onEditedChange?: (id: string, edited: boolean) => void;
+  /** Hands the outcome to the list, which stays on screen after this card is gone. */
+  readonly onResult?: (result: ActionState) => void;
   /**
-   * Approving writes to the Master Profile (`approveProposal` →
-   * `editFact`), which the service layer already refuses without CORE_PROCESSING
-   * consent — this prop keeps the UI honest about that rather than showing an
-   * editable value and an Approve button that would just error (Codex
-   * review, PR #65). Rejecting never mutates the profile, so it stays
-   * available regardless.
+   * Approving writes to the Master Profile, which the service layer refuses without
+   * CORE_PROCESSING consent; this keeps the screen honest about that. Skipping never changes the
+   * profile, so it stays available.
    */
   readonly canApprove: boolean;
 }) {
-  const [state, formAction, pending] = useActionState(decideProposalAction, INITIAL);
+  const [state, formAction, pending] = useActionState(
+    async (previous: ActionState, formData: FormData) => {
+      const result = await decideProposalAction(previous, formData);
+      // A success removes this card; the list keeps the message. A refusal stays on the card.
+      if (result.ok) onResult?.(result);
+      return result;
+    },
+    INITIAL,
+  );
   const [editedValue, setEditedValue] = useState(proposal.value ?? '');
-  const mappable = canApprove && proposal.type !== 'UNMAPPED' && Boolean(proposal.fieldKey);
-  const label = proposal.fieldKey
-    ? (proposal.fieldLabel ?? profileField(proposal.fieldKey)?.label ?? proposal.fieldKey)
-    : 'Unmapped (no matching field)';
+  const [choice, setChoice] = useState('');
+  const headingId = useId();
+  const valueId = useId();
+  const dateId = useId();
+  const mappable = proposal.type !== 'UNMAPPED' && Boolean(proposal.fieldKey);
+  const label = mappable
+    ? (proposal.fieldLabel ??
+      profileField(proposal.fieldKey as string)?.label ??
+      humanizeFieldKey(proposal.fieldKey as string))
+    : 'Detail We Could Not Place';
+  const quote = proposal.evidence[0];
+  const unverified = quote?.verified === false;
+  const clear = proposal.clear === true && !unverified;
+  const difference = canApprove && mappable ? proposal.difference : undefined;
 
   return (
-    <div
-      className="card"
-      style={{
-        padding: '0.85rem',
-        marginTop: '0.5rem',
-        background: 'var(--bg-subtle)',
-        border: '1px solid var(--hairline-soft)',
-      }}
+    <article
+      className="finding-card"
+      data-clarity={clear ? 'clear' : 'check'}
+      aria-labelledby={headingId}
     >
-      <p className="muted" style={{ fontSize: 'var(--text-caption)', marginBottom: '0.4rem' }}>
-        <span className="badge badge-neutral">
-          {label} ({proposal.confidence}% confidence)
+      <header className="finding-card-head">
+        <h4 id={headingId}>{label}</h4>
+        <span className={`badge ${clear ? 'badge-success' : 'badge-warning'}`}>
+          {clear ? 'Clear' : 'Please Check'}
         </span>
-        {proposal.rationale ? ` - ${proposal.rationale}` : ''}
-      </p>
-      {proposal.evidence.length > 0 ? (
-        <p className="muted" style={{ fontSize: 'var(--text-caption)', marginBottom: '0.4rem' }}>
-          Evidence: <q>{proposal.evidence[0]?.snippet}</q>
-          {proposal.evidence[0]?.verified === false ? (
-            <span
-              className="badge badge-warning"
-              style={{ marginLeft: '0.4rem' }}
-              title="This exact quote could not be confirmed in the source document text."
-            >
-              Unverified Quote
-            </span>
-          ) : null}
+        {proposal.sensitive ? <span className="badge badge-neutral">Sensitive</span> : null}
+      </header>
+      {quote ? (
+        <p className="finding-source">
+          Found as <q>{quote.snippet}</q>
         </p>
       ) : null}
-      <form
-        action={formAction}
-        style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}
-      >
+      {unverified ? (
+        <p className="muted u-fs-085">
+          We could not find these exact words in the document. Look at the document before you
+          accept.
+        </p>
+      ) : null}
+      {!mappable ? (
+        <p className="muted u-fs-085">
+          We found {proposal.value ? <q>{proposal.value}</q> : 'this'}, but it does not match a
+          detail in your profile, so it cannot be saved.
+        </p>
+      ) : null}
+      {mappable && !canApprove ? (
+        <p className="muted u-fs-085">
+          Found: <q>{proposal.value ?? ''}</q>. Turn on processing on Home to save details to your
+          profile.
+        </p>
+      ) : null}
+      <form action={formAction} className="finding-form">
         <input type="hidden" name="applicantId" value={applicantId} />
         <input type="hidden" name="proposalId" value={proposal.id} />
-        {mappable ? (
-          <>
+        {mappable && canApprove ? (
+          <div className="finding-value">
+            <label className="field-label" htmlFor={valueId}>
+              Value to Save
+            </label>
             <input
+              id={valueId}
               type="text"
               name="correctedValue"
-              aria-label="Value to save, edit it if it is not right"
-              value={editedValue}
-              onChange={(e) => setEditedValue(e.target.value)}
               className="input"
-              style={{
-                flex: '1 1 260px',
-                fontSize: 'var(--text-small)',
-                padding: '0.4rem 0.65rem',
+              value={editedValue}
+              onChange={(event) => {
+                setEditedValue(event.target.value);
+                onEditedChange?.(proposal.id, event.target.value !== (proposal.value ?? ''));
               }}
             />
-            <SubmitButton
-              pending={pending}
-              idle="Approve"
-              busy="Saving…"
-              className="btn btn-primary"
-              style={{ padding: '0.35rem 0.9rem', fontSize: 'var(--text-small)' }}
-              name="proposalAction"
-              value="approve"
-            />
-          </>
-        ) : (
-          <span className="muted u-fs-085">{proposal.value ?? '(no value)'}</span>
-        )}
+            <small className="muted">Change it if it is not right before you accept.</small>
+          </div>
+        ) : null}
+        {difference ? (
+          <fieldset className="finding-difference">
+            <legend>
+              {difference.current === null ? (
+                'Your profile already has a different value for this, hidden here to keep it private. Which is right?'
+              ) : (
+                <>
+                  Your profile has <q>{difference.current}</q>. Which is right?
+                </>
+              )}
+            </legend>
+            <label>
+              <input
+                type="radio"
+                name="resolution"
+                value="use_document"
+                required
+                checked={choice === 'use_document'}
+                onChange={() => setChoice('use_document')}
+              />
+              Use This Document&rsquo;s Value
+            </label>
+            {proposal.fixed ? null : (
+              <label>
+                <input
+                  type="radio"
+                  name="resolution"
+                  value="changed"
+                  checked={choice === 'changed'}
+                  onChange={() => setChoice('changed')}
+                />
+                Both Are Right, It Changed
+              </label>
+            )}
+            {choice === 'changed' && !proposal.fixed ? (
+              <div className="finding-value">
+                <label className="field-label" htmlFor={dateId}>
+                  Date It Changed
+                </label>
+                <input
+                  id={dateId}
+                  type="date"
+                  name="effectiveFrom"
+                  className="input"
+                  max={new Date().toISOString().slice(0, 10)}
+                  required
+                />
+              </div>
+            ) : null}
+            <label>
+              <input
+                type="radio"
+                name="resolution"
+                value="keep"
+                checked={choice === 'keep'}
+                onChange={() => setChoice('keep')}
+              />
+              Keep My Current Value
+            </label>
+          </fieldset>
+        ) : null}
+        {mappable && canApprove ? (
+          <SubmitButton
+            pending={pending}
+            idle={difference ? 'Save My Choice' : 'Accept'}
+            busy="Saving…"
+            className="btn btn-primary"
+            name="proposalAction"
+            value="approve"
+            label={`${difference ? 'Save My Choice' : 'Accept'}: ${label}`}
+          />
+        ) : null}
+      </form>
+      {/* Skipping has its own form, so a choice the main form requires never blocks it. */}
+      <form action={formAction} className="finding-skip">
+        <input type="hidden" name="applicantId" value={applicantId} />
+        <input type="hidden" name="proposalId" value={proposal.id} />
         <SubmitButton
           pending={pending}
-          idle="Reject"
-          busy="Reject"
+          idle="Skip"
+          busy="Skipping…"
           className="btn btn-secondary"
-          style={{ padding: '0.35rem 0.9rem', fontSize: 'var(--text-small)' }}
           name="proposalAction"
           value="reject"
+          label={`Skip: ${label}`}
         />
       </form>
-      <FormMessage result={state} />
+      <FormMessage result={state.ok ? INITIAL : state} />
+    </article>
+  );
+}
+
+/**
+ * Everything read from one document, in the order a person should look at it: differences with
+ * the profile first, then readings to check, then clear ones. Nothing is saved until accepted.
+ */
+export function DocumentFindings({
+  applicantId,
+  proposals,
+  canApprove,
+}: {
+  readonly applicantId: string;
+  readonly proposals: readonly AiProposalViewModel[];
+  readonly canApprove: boolean;
+}) {
+  // The latest outcome, kept here: a card disappears once decided, and its message with it.
+  const [lastResult, setLastResult] = useState<ActionState>(INITIAL);
+  const [edited, setEdited] = useState<ReadonlySet<string>>(new Set());
+  const [, formAction, pending] = useActionState(
+    async (previous: ActionState, formData: FormData) => {
+      const result = await acceptClearDetailsAction(previous, formData);
+      setLastResult(result);
+      return result;
+    },
+    INITIAL,
+  );
+  const markEdited = useCallback((id: string, isEdited: boolean) => {
+    setEdited((previous) => {
+      if (previous.has(id) === isEdited) return previous;
+      const next = new Set(previous);
+      if (isEdited) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+  }, []);
+  if (proposals.length === 0) {
+    return lastResult === INITIAL ? null : (
+      <div className="document-findings">
+        <FormMessage result={lastResult} />
+      </div>
+    );
+  }
+  const rank = (proposal: AiProposalViewModel) =>
+    proposal.difference ? 0 : proposal.clear ? 2 : 1;
+  const ordered = [...proposals].sort((a, b) => rank(a) - rank(b));
+  const clearIds = proposals
+    .filter(
+      (proposal) =>
+        proposal.clear &&
+        !proposal.sensitive &&
+        !proposal.difference &&
+        !proposal.repeating &&
+        !edited.has(proposal.id),
+    )
+    .map((proposal) => proposal.id);
+  const count = proposals.length;
+  return (
+    // Not a landmark: several documents on one page each have one, all with this heading.
+    <div className="document-findings">
+      <h3>Check What We Found</h3>
+      <p className="muted">
+        We read this document and found {count === 1 ? 'one detail' : `${count} details`}. Nothing
+        is saved to your profile until you accept it.
+      </p>
+      {canApprove && clearIds.length >= 2 ? (
+        <form action={formAction} className="document-findings-bulk">
+          <input type="hidden" name="applicantId" value={applicantId} />
+          {clearIds.map((id) => (
+            <input key={id} type="hidden" name="proposalId" value={id} />
+          ))}
+          <SubmitButton
+            pending={pending}
+            idle={`Accept ${clearIds.length} Clear Details`}
+            busy="Saving…"
+            className="btn btn-primary"
+          />
+          <small className="muted">
+            Sensitive details, anything you changed, and anything that differs from your profile
+            stay here for you to check one by one.
+          </small>
+        </form>
+      ) : null}
+      <FormMessage result={lastResult} />
+      {ordered.map((proposal) => (
+        <AiProposalReview
+          key={proposal.id}
+          applicantId={applicantId}
+          proposal={proposal}
+          canApprove={canApprove}
+          onEditedChange={markEdited}
+          onResult={setLastResult}
+        />
+      ))}
     </div>
   );
 }

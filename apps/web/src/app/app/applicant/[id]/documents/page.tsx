@@ -10,6 +10,7 @@ import {
   getWalletView,
   hasConsent,
   isServableProcessingState,
+  listApplicantProfile,
   listDocumentsDetailed,
   listIssuerVerificationsForDocument,
   listPendingDocumentTypeProposals,
@@ -31,14 +32,12 @@ import {
   isOcrConfigured,
 } from '../../../../../lib/ai';
 import { getPlatformCapabilities } from '../../../../../lib/capabilities';
+import { confirmedValues, findingViewModel } from '../../../../../lib/document-findings';
 import { formatTimestampDate } from '../../../../../lib/format-date';
 import { documentTypeLabel } from '../../../../../lib/labels';
 import { getLocale } from '../../../../../lib/locale';
-import {
-  categoryLabel,
-  evidenceDocumentGroups,
-  fieldLabel,
-} from '../../../../../lib/master-profile';
+import { categoryLabel, evidenceDocumentGroups } from '../../../../../lib/master-profile';
+import { createKeyManagementPort } from '../../../../../lib/providers';
 import { isStillProcessing } from '../../../../../lib/resilience';
 import { withSession } from '../../../../../lib/session';
 import {
@@ -47,7 +46,7 @@ import {
   setDocumentDateAction,
 } from '../actions';
 import {
-  AiProposalReview,
+  DocumentFindings,
   DocumentTypeProposalReview,
   InconsistencyFlagReview,
   OcrResultView,
@@ -160,6 +159,7 @@ export default async function ApplicantDocumentsPage({
   const documentGroups = evidenceDocumentGroups();
 
   const data = await withSession(async ({ db, accountId }) => {
+    const encryption = createKeyManagementPort();
     const applicant = await getApplicant(db, id);
     if (!applicant || applicant.ownerAccountId !== accountId) return null;
     const [
@@ -171,7 +171,7 @@ export default async function ApplicantDocumentsPage({
       classificationConfigured,
       inconsistencyConfigured,
       evidenceBytes,
-      pendingProposals,
+      [pendingProposals, profile],
       pendingClassificationProposals,
       pendingInconsistencyFlags,
       wallet,
@@ -184,7 +184,14 @@ export default async function ApplicantDocumentsPage({
       isClassificationConfigured(db),
       isInconsistencyConfigured(db),
       getApplicantEvidenceBytes(db, id),
-      listPendingProposals(db, id),
+      // What the profile already holds, read only when there are readings to compare it with.
+      listPendingProposals(db, id).then(
+        async (proposals) =>
+          [
+            proposals,
+            proposals.length > 0 ? await listApplicantProfile(db, id, encryption) : [],
+          ] as const,
+      ),
       listPendingDocumentTypeProposals(db, id),
       listPendingInconsistencyFlags(db, id),
       getWalletView(db, { actorAccountId: accountId, applicantId: id }),
@@ -208,6 +215,7 @@ export default async function ApplicantDocumentsPage({
       ),
     );
     const ocrRuns = new Map(documentRows.map((doc, i) => [doc.id, ocrRunLists[i]] as const));
+    const confirmed = confirmedValues(profile, encryption !== undefined);
     return {
       documents: documentRows,
       recordsUnavailable: !documents.ok || !wallet.ok,
@@ -220,6 +228,7 @@ export default async function ApplicantDocumentsPage({
       inconsistencyConfigured,
       evidenceBytes,
       pendingProposals,
+      confirmed,
       pendingClassificationProposals,
       pendingInconsistencyFlags,
       quota: loadUploadQuotaConfig(),
@@ -549,28 +558,13 @@ export default async function ApplicantDocumentsPage({
                       {data.coreGranted ? (
                         <RunAiExtractionButton applicantId={id} documentVersionId={versionId} />
                       ) : null}
-                      {proposalsForDoc.map(({ proposal, evidence }) => (
-                        <AiProposalReview
-                          key={proposal.id}
-                          applicantId={id}
-                          canApprove={data.coreGranted}
-                          proposal={{
-                            id: proposal.id,
-                            type: proposal.type,
-                            fieldKey: proposal.fieldKey,
-                            ...(proposal.fieldKey && fieldLabel(proposal.fieldKey)
-                              ? { fieldLabel: fieldLabel(proposal.fieldKey) as string }
-                              : {}),
-                            value: proposal.value,
-                            confidence: proposal.confidence,
-                            rationale: proposal.rationale,
-                            evidence: evidence.map((e) => ({
-                              snippet: e.snippet,
-                              verified: e.verified,
-                            })),
-                          }}
-                        />
-                      ))}
+                      <DocumentFindings
+                        applicantId={id}
+                        canApprove={data.coreGranted}
+                        proposals={proposalsForDoc.map((reading) =>
+                          findingViewModel(reading, data.confirmed),
+                        )}
+                      />
                     </>
                   );
                 })()}
