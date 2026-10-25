@@ -16,8 +16,12 @@ import { type Page, expect, test } from '@playwright/test';
  * per hour, so repeated attempts would lock the test account out.
  */
 
-const email = process.env.LIVE_CHECK_EMAIL;
-const password = process.env.LIVE_CHECK_PASSWORD;
+function env(name: string): string | undefined {
+  return process.env[name];
+}
+
+const email = env('LIVE_CHECK_EMAIL');
+const password = env('LIVE_CHECK_PASSWORD');
 
 test.skip(!email || !password, 'LIVE_CHECK_EMAIL and LIVE_CHECK_PASSWORD are not set');
 test.use({ trace: 'off', screenshot: 'off', video: 'off' });
