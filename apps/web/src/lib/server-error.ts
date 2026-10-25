@@ -36,3 +36,22 @@ export function reportRenderFailure(contentType: string): void {
     }),
   );
 }
+
+/**
+ * Logs that the live AI capability could not be worked out (the status page then
+ * says "Switched Off for Now"), as a `capability_lookup_failed` warning. Carries
+ * the capability and the error class only: never the message, which can quote the
+ * query, and never a provider, model, key or setting.
+ */
+export function reportCapabilityLookupFailure(capability: string, error: unknown): void {
+  console.warn(
+    formatObservabilityLine({
+      name: 'capability_lookup_failed',
+      severity: 'warning',
+      metadata: {
+        capability,
+        errorName: error instanceof Error ? error.name : typeof error,
+      },
+    }),
+  );
+}

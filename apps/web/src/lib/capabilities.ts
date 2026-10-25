@@ -4,13 +4,17 @@ import {
   PLATFORM_CAPABILITY_KEYS,
   type PlatformCapabilities,
 } from '@visastack/core';
+import type { Db } from '@visastack/services';
+import { isEnvAiExtractionConfigured, resolveAiExtractionAvailability } from './ai';
 import {
   commercialConfigurationReady,
   operationalConfigurationReady,
 } from './commercial-readiness';
 import { getDeploymentMode } from './deployment-mode';
 import { isPresent, isSignInConfigured, readEnv } from './env';
+import { createKeyManagementPort } from './providers';
 import { isPublicBetaOpen } from './public-beta';
+import { reportCapabilityLookupFailure } from './server-error';
 
 export { isPresent, isSignInConfigured } from './env';
 
@@ -65,7 +69,10 @@ export function getPlatformCapabilities(): PlatformCapabilities {
   // (apps/web/src/lib/storage.ts) — the registry should say so honestly
   // rather than claim upload/preview are "available" when they'd throw.
   const blobConfigured = isDev || isPresent('BLOB_READ_WRITE_TOKEN');
-  const aiConfigured = readEnv('AI_ENABLED') === 'true' && isPresent('OPENAI_API_KEY');
+  // The environment-only view; the database-managed AI settings can change
+  // it, so anything that reports AI to a person reads
+  // `resolvePlatformCapabilities` instead (see below).
+  const aiConfigured = isEnvAiExtractionConfigured();
   // Same condition commercial-readiness.ts's `realMalwareScanner` gate and
   // providers.ts's `createMalwareScanner` both check, so all three can never
   // disagree about whether a real scanner is actually configured.
@@ -120,6 +127,59 @@ export function getPlatformCapabilities(): PlatformCapabilities {
     realApplicantData: !isDev && operationalConfigurationReady() ? 'available' : 'disabled',
     commercialClaims: isCommercial && commercialConfigurationReady() ? 'available' : 'disabled',
   };
+}
+
+/** How long one live answer about AI is reused before the database is asked again. */
+export const AI_CAPABILITY_TTL_MS = 60_000;
+
+let aiCapabilityCache:
+  | { readonly state: Promise<CapabilityState>; readonly expiresAt: number }
+  | undefined;
+
+/** Forget the cached AI answer (tests, and any code that has just changed AI settings). */
+export function clearAiCapabilityCache(): void {
+  aiCapabilityCache = undefined;
+}
+
+async function lookUpAiExtractionState(db: Db): Promise<CapabilityState> {
+  return resolveAiExtractionAvailability(db, createKeyManagementPort() !== undefined);
+}
+
+/**
+ * The live `aiExtraction` state: the same decision `resolveAiExtractor` makes
+ * before every AI call (database-managed settings first, then the environment
+ * with its `AI_ENABLED` switch), reused for `AI_CAPABILITY_TTL_MS` so a public
+ * page polled by many visitors does not query the database on every request.
+ * Concurrent callers share one lookup. With no database to ask, or when the
+ * lookup fails, it reports `disabled` (the product cannot run AI then either)
+ * and never throws; a failed lookup is not kept, so the next request asks again.
+ */
+export async function resolveAiExtractionCapability(
+  db: Db | undefined,
+  now: number = Date.now(),
+): Promise<CapabilityState> {
+  if (!db) return 'disabled';
+  const cached = aiCapabilityCache;
+  if (cached && cached.expiresAt > now) return cached.state;
+  const state: Promise<CapabilityState> = lookUpAiExtractionState(db).catch((error: unknown) => {
+    reportCapabilityLookupFailure('aiExtraction', error);
+    if (aiCapabilityCache?.state === state) aiCapabilityCache = undefined;
+    return 'disabled';
+  });
+  aiCapabilityCache = { state, expiresAt: now + AI_CAPABILITY_TTL_MS };
+  return state;
+}
+
+/**
+ * `getPlatformCapabilities` with the parts that depend on live,
+ * database-managed settings filled in. Use this wherever capability state is
+ * shown to a person (the readiness probe behind the public status page, the
+ * admin overview); the synchronous registry stays I/O-free for gates.
+ */
+export async function resolvePlatformCapabilities(
+  db: Db | undefined,
+): Promise<PlatformCapabilities> {
+  return { ...getPlatformCapabilities(), aiExtraction: await resolveAiExtractionCapability(db) };
 }
 
 /** True only when the named capability is fully, currently usable. */

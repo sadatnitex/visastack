@@ -345,3 +345,49 @@ describe('a document chosen before arriving (WP-V3 part 2)', () => {
     expect(summary).not.toContain('Passport summary');
   });
 });
+
+describe('safe copies (stored as DOWNLOAD_REDACTED)', () => {
+  const safe = () => container.querySelector<HTMLInputElement>('input[value="DOWNLOAD_REDACTED"]');
+  const note = () => document.getElementById(safe()?.getAttribute('aria-describedby') ?? '');
+
+  it('is named Download Safe Copies, grantable, and off until ticked', () => {
+    const box = safe();
+    expect(box?.disabled).toBe(false);
+    expect(box?.checked).toBe(false);
+    expect(box?.labels?.[0]?.textContent).toBe('Download Safe Copies');
+    expect(container.textContent).not.toContain('Redacted Copies');
+  });
+
+  it('explains what a safe copy is in a note tied to the box', () => {
+    expect(note()?.textContent).toBe('Visa photo sizes now; redacted documents later');
+  });
+
+  it('keeps the note out of the accessible name, so it is read once, as the description', () => {
+    const box = safe();
+    const label = box?.labels?.[0];
+    // A wrapping label gives the box its name from its text: the name alone, no note.
+    expect(box?.labels).toHaveLength(1);
+    expect(label?.textContent).toBe('Download Safe Copies');
+    expect(note()).not.toBeNull();
+    expect(label?.contains(note())).toBe(false);
+  });
+
+  it('is sent under its stored key and listed by its new name in the review', () => {
+    ready();
+    act(() => safe()?.click());
+    review();
+    const form = container.querySelector('form');
+    if (!form) throw new Error('Form');
+    expect(new FormData(form).getAll('action')).toEqual([
+      'VIEW_METADATA',
+      'PREVIEW',
+      'DOWNLOAD_REDACTED',
+    ]);
+    const summary = container.querySelector('.sharing-scope-review')?.textContent ?? '';
+    expect(summary).toContain('download safe copies');
+    expect(summary).toContain(
+      'Safe copies may be downloaded; original downloads are not included.',
+    );
+    expect(summary.toLowerCase()).not.toContain('redacted cop');
+  });
+});

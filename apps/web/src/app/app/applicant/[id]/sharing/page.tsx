@@ -19,6 +19,7 @@ import { EmptyState, PageHeader, StatusBadge } from '../../../../../components/u
 import { humanizeCode } from '../../../../../lib/format-code';
 import { formatTimestamp, formatTimestampDate } from '../../../../../lib/format-date';
 import { grantStatusBadge } from '../../../../../lib/grant-status';
+import { permissionActionLabel } from '../../../../../lib/labels';
 import { getLocale } from '../../../../../lib/locale';
 import { categoryLabel, newCategoriesWithData } from '../../../../../lib/master-profile';
 import { plural } from '../../../../../lib/plural';
@@ -33,21 +34,6 @@ const sharingInvitationFlag = 'PERSONAL_SHARING_INVITATIONS_ENABLED';
 export const metadata: Metadata = { title: 'Sharing' };
 
 export const dynamic = 'force-dynamic';
-
-/** Every PermissionAction this platform defines (@visastack/core), in plain language -- SHR-03's "show... scope," covering every grant regardless of which flow created it, not just this page's own curated share form. */
-const ACTION_LABELS: Record<string, string> = {
-  VIEW_METADATA: 'See Document Details',
-  PREVIEW: 'Preview Documents',
-  COMMENT: 'Comment',
-  PROPOSE_EDIT: 'Propose Edits',
-  APPROVE_EDIT: 'Approve Edits',
-  DOWNLOAD_ORIGINAL: 'Download Originals',
-  DOWNLOAD_REDACTED: 'Download Redacted Copies',
-  DOWNLOAD_PACK: 'Download the Application Pack',
-  EXPORT_PROFILE: 'Export the Full Profile',
-  SHARE: 'Re-Share Access',
-  MANAGE: 'Manage the Case',
-};
 
 export default async function SharingPage({
   params,
@@ -180,7 +166,7 @@ export default async function SharingPage({
                       <SelectedScopeSummary
                         purpose={grant.purpose}
                         permissions={grant.actions.map((a) =>
-                          (ACTION_LABELS[a] ?? a).toLowerCase(),
+                          permissionActionLabel(a).toLowerCase(),
                         )}
                         {...describeGrantScope({
                           actions: grant.actions,
