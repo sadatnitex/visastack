@@ -271,9 +271,11 @@ describe('account menu stylesheet (WP-UI2)', () => {
   const SHORT = '@media (min-width: 761px) and (max-height: 640px)';
   const PHONE = '@media (max-width: 760px)';
 
-  it('is one marked block at the end of the stylesheet', () => {
+  it('is one marked block in the stylesheet, ending at the next marked block', () => {
     expect(block.length).toBeGreaterThan(500);
-    expect(css.trimEnd().endsWith(block.trimEnd())).toBe(true);
+    expect(css.split('/* WP-UI2 account menu:').length - 1).toBe(1);
+    // Later features add their own marked blocks after this one; the block still stands alone.
+    expect(block.slice(1)).not.toMatch(/\/\* WP-[A-Z0-9]+/);
   });
 
   it('never scrolls inside itself at desktop heights', () => {
