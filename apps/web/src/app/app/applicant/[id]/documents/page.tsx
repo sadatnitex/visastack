@@ -1,4 +1,4 @@
-import { CATALOGUE_DOCUMENTS, resolveDocumentType } from '@visastack/core/catalogue';
+import { ORIGINAL_DOCUMENT_KEYS, resolveDocumentType } from '@visastack/core/catalogue';
 import { type MessageKey, type Translator, createTranslator } from '@visastack/i18n';
 import {
   type DocumentLifecycleStatus,
@@ -62,9 +62,7 @@ import { downloadOriginalAction } from '../download-actions';
 import { NameReview } from '../name-review';
 import { UsageMeter } from '../usage-meter';
 
-const ORIGINAL_KINDS: readonly string[] = CATALOGUE_DOCUMENTS.filter(
-  (document) => document.handling.original === true,
-).map((document) => document.key);
+const ORIGINAL_KINDS: readonly string[] = [...ORIGINAL_DOCUMENT_KEYS];
 
 export const metadata: Metadata = { title: 'Documents' };
 
@@ -139,8 +137,8 @@ export default async function ApplicantDocumentsPage({
     readonly reading_error?: string;
     readonly reading_queued?: string;
     readonly download_error?: string;
-    /** A document kind chosen from a profile section's Upload link. */
-    readonly type?: string;
+    /** A document kind chosen from a profile section's Upload link (repeated keys arrive as a list). */
+    readonly type?: string | string[];
   }>;
 }) {
   const { id } = await params;
@@ -155,7 +153,8 @@ export default async function ApplicantDocumentsPage({
     type: requestedType,
   } = await searchParams;
   // Only a kind the catalogue knows opens the upload form ready; anything else is ignored.
-  const initialKind = requestedType ? (resolveDocumentType(requestedType)?.key ?? '') : '';
+  const initialKind =
+    typeof requestedType === 'string' ? (resolveDocumentType(requestedType)?.key ?? '') : '';
   const locale = await getLocale();
   const t = createTranslator(locale);
   const documentGroups = evidenceDocumentGroups();
@@ -734,6 +733,7 @@ export default async function ApplicantDocumentsPage({
                   />
                 </div>
                 <DocumentUploader
+                  key={initialKind}
                   applicantId={id}
                   limitLabel={mbLabel(data.quota.maxUploadBytes)}
                   virusScanning={getPlatformCapabilities().malwareScanning === 'available'}

@@ -183,9 +183,37 @@ describe('section cards keep every real editing path', () => {
     expect(rows[0]?.querySelector('a')?.getAttribute('href')).toBe(
       '/app/applicant/synthetic-person/documents?type=TAX_ACKNOWLEDGEMENT_SLIP#document-upload',
     );
-    expect(rows[1]?.textContent).toContain('Uploaded');
+    expect(rows[0]?.querySelector('.badge')?.className).toContain('badge-neutral');
+    expect(rows[1]?.querySelector('.badge')?.textContent).toBe('Uploaded');
+    expect(rows[1]?.querySelector('.badge')?.className).toContain('badge-success');
     expect(rows[1]?.textContent).not.toContain('original');
     expect(rows[1]?.querySelector('a')?.textContent).toContain('Add Another');
+  });
+
+  it('shows no badge when the counts could not load, and hides documents a search rules out', () => {
+    render({
+      view: fixtureView({
+        layers: [
+          {
+            key: 'identity',
+            label: 'Identity and Civil Status',
+            description: 'Names.',
+            sections: [
+              {
+                ...FIXTURE_OPEN_SECTION,
+                documents: [
+                  { key: 'VISA_STAMP', label: 'Visa Stamp', original: false, uploaded: null },
+                ],
+              },
+            ],
+            openCount: 1,
+          },
+        ],
+      }),
+    });
+    const row = container.querySelector('.section-documents li');
+    expect(row?.querySelector('.badge')).toBeNull();
+    expect(row?.querySelector('a')?.textContent).toContain('Upload');
   });
 
   it('keeps the common sections open for everyone, with no way to close them', () => {

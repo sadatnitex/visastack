@@ -557,17 +557,20 @@ function OtherItems({
 function SectionDocuments({
   applicantId,
   documents,
+  search,
 }: {
   readonly applicantId: string;
   readonly documents: NonNullable<EditorSection['documents']>;
+  readonly search: string;
 }) {
   const headingId = useId();
-  if (documents.length === 0) return null;
+  const shown = documents.filter((document) => matchesSearch(document.label, search));
+  if (shown.length === 0) return null;
   return (
     <section className="section-documents" aria-labelledby={headingId}>
       <h5 id={headingId}>Documents for This Section</h5>
       <ul>
-        {documents.map((document) => (
+        {shown.map((document) => (
           <li key={document.key}>
             <div>
               <b>{document.label}</b>
@@ -578,14 +581,18 @@ function SectionDocuments({
                 </small>
               ) : null}
             </div>
-            <span className={`badge ${document.uploaded > 0 ? 'badge-success' : 'badge-neutral'}`}>
-              {document.uploaded > 0 ? 'Uploaded' : 'Not Uploaded Yet'}
-            </span>
+            {document.uploaded === null ? null : (
+              <span
+                className={`badge ${document.uploaded > 0 ? 'badge-success' : 'badge-neutral'}`}
+              >
+                {document.uploaded > 0 ? 'Uploaded' : 'Not Uploaded Yet'}
+              </span>
+            )}
             <Link
               className="btn btn-secondary"
               href={`/app/applicant/${applicantId}/documents?type=${document.key}#document-upload`}
             >
-              {document.uploaded > 0 ? 'Add Another' : 'Upload'}
+              {document.uploaded ? 'Add Another' : 'Upload'}
               <span className="sr-only"> {document.label}</span>
             </Link>
           </li>
@@ -780,9 +787,11 @@ function SectionCard({
           <p className="muted profile-section-progress">
             {section.answered} of {section.total} details counted
           </p>
-          {section.documents?.length ? (
-            <SectionDocuments applicantId={applicantId} documents={section.documents} />
-          ) : null}
+          <SectionDocuments
+            applicantId={applicantId}
+            documents={section.documents ?? []}
+            search={search}
+          />
           <SectionFields
             applicantId={applicantId}
             section={section}

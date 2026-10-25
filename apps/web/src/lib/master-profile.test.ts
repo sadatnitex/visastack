@@ -161,13 +161,13 @@ describe('master profile view', () => {
       original: true,
       uploaded: 2,
     });
-    // Nothing on file reads as zero, and a locked section lists no documents.
+    // Counts that were not loaded stay unknown, and a locked section lists no documents.
     const empty = sectionsOf(
       buildMasterProfileView({ ...none(), activated: new Set(['bangladesh_tax']) }),
     );
     expect(
       empty.find((section) => section.key === 'bangladesh_tax')?.documents?.[0]?.uploaded,
-    ).toBe(0);
+    ).toBeNull();
     for (const section of sectionsOf(buildMasterProfileView(none()))) {
       if (!section.open) expect(section.documents).toEqual([]);
     }

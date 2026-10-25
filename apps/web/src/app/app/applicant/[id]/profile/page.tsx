@@ -3,10 +3,11 @@ import {
   type FactAssuranceView,
   getApplicant,
   getProfileSectionState,
+  getWalletView,
   hasConsent,
   listApplicantAssurance,
   listApplicantProfile,
-  listDocuments,
+  listDocumentsDetailed,
 } from '@visastack/services';
 import type { Metadata } from 'next';
 import Link from 'next/link';
@@ -67,13 +68,26 @@ export default async function ApplicantProfilePage({
       hasConsent(db, accountId, 'CORE_PROCESSING'),
       listApplicantAssurance(db, { actorAccountId: accountId, applicantId: id }),
       getProfileSectionState(db, id),
-      listDocuments(db, accountId, id),
+      Promise.all([
+        getWalletView(db, { actorAccountId: accountId, applicantId: id }),
+        listDocumentsDetailed(db, accountId, id),
+      ]),
     ]);
-    // How many of each kind are on file, so each section can say what backs it.
-    const uploadedDocumentTypes = new Map<string, number>();
-    for (const document of documents.ok ? documents.value : []) {
-      const kind = document.docType ? resolveDocumentType(document.docType)?.key : undefined;
-      if (kind) uploadedDocumentTypes.set(kind, (uploadedDocumentTypes.get(kind) ?? 0) + 1);
+    // How many usable copies of each kind are in the wallet, so each section can say what backs
+    // it. Usable: shown in the wallet, not expired or replaced, and not failed or quarantined.
+    // When either list cannot load, the counts stay unknown rather than reading as "none".
+    const [wallet, detailed] = documents;
+    let uploadedDocumentTypes: Map<string, number> | undefined;
+    if (wallet.ok && detailed.ok) {
+      const safety = new Map(detailed.value.map((d) => [d.id, d.safetyStatus] as const));
+      uploadedDocumentTypes = new Map<string, number>();
+      for (const { document, status } of wallet.value) {
+        if (status === 'EXPIRED' || status === 'SUPERSEDED') continue;
+        const scan = safety.get(document.id);
+        if (!scan || scan === 'QUARANTINED' || scan === 'FAILED') continue;
+        const kind = document.docType ? resolveDocumentType(document.docType)?.key : undefined;
+        if (kind) uploadedDocumentTypes.set(kind, (uploadedDocumentTypes.get(kind) ?? 0) + 1);
+      }
     }
     return {
       applicant,

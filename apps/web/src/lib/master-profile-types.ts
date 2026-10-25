@@ -37,7 +37,8 @@ export interface SectionDocument {
   readonly label: string;
   /** Embassies usually want the original handed in; a scan here keeps it ready to share. */
   readonly original: boolean;
-  readonly uploaded: number;
+  /** How many usable copies are on file; null when that could not be checked. */
+  readonly uploaded: number | null;
 }
 
 export interface EditorSection {
