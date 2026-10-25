@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { Checklist, EmptyState, StatusBadge } from '../../../../components/ui';
 import { humanizeCode } from '../../../../lib/format-code';
 import { formatDateOnly, formatTimestampDate } from '../../../../lib/format-date';
+import { agree, plural } from '../../../../lib/plural';
 import { withSession } from '../../../../lib/session';
 import { CaseSearchForm, STAGE_LABELS } from './case-search-form';
 import {
@@ -373,7 +374,7 @@ export default async function AgencyDashboardPage({
               <p className="card-body u-mt-100">No cases match that search.</p>
             ) : (
               <table className="data-table u-mt-100">
-                <caption className="sr-only">Cases, most urgent first</caption>
+                <caption className="sr-only">Cases, Most Urgent First</caption>
                 <thead>
                   <tr>
                     <th scope="col">Case</th>
@@ -412,14 +413,14 @@ export default async function AgencyDashboardPage({
                             }
                           >
                             {mission.manualMode
-                              ? 'Manual mode'
+                              ? 'Manual Mode'
                               : !mission.packVersionId
-                                ? 'No pack attached'
+                                ? 'No Pack Attached'
                                 : mission.readiness
                                   ? mission.readiness.ready
                                     ? 'Ready'
                                     : `${required - satisfied} missing`
-                                  : 'Readiness unavailable'}
+                                  : 'Readiness Unavailable'}
                           </StatusBadge>
                           {mission.readiness && required > 0 && !mission.manualMode ? (
                             <span className="cell-sub">
@@ -467,10 +468,10 @@ export default async function AgencyDashboardPage({
                         </td>
                         <td data-label="Assigned">
                           {row.assignedToMe ? (
-                            <StatusBadge tone="neutral">Assigned to you</StatusBadge>
+                            <StatusBadge tone="neutral">Assigned to You</StatusBadge>
                           ) : null}
                           {mission.assignments.length === 0 ? (
-                            <StatusBadge tone="warning">Needs assignment</StatusBadge>
+                            <StatusBadge tone="warning">Needs Assignment</StatusBadge>
                           ) : (
                             <span className="cell-sub">
                               {mission.assignments.map((a) => a.memberEmail).join(', ')}
@@ -528,7 +529,7 @@ export default async function AgencyDashboardPage({
                       <li key={request.id}>
                         <Link href={`${base}/clients#agency-evidence-requests`}>
                           <strong>
-                            {request.docType ?? request.fieldKey ?? 'Evidence request'}
+                            {request.docType ?? request.fieldKey ?? 'Evidence Request'}
                           </strong>
                           <span>
                             {request.applicantName ?? 'Traveller'} · {humanizeCode(request.status)}
@@ -593,7 +594,10 @@ export default async function AgencyDashboardPage({
         </aside>
       </div>
       <details className="agency-attention-disclosure">
-        <summary>Attention details: {needsYou} items need a response</summary>
+        <summary>
+          Attention Details: {plural(needsYou, 'item')} {agree(needsYou, 'needs', 'need')} a
+          response
+        </summary>
         <section aria-labelledby="today-heading" className="stat-section">
           <h2 className="section-label" id="today-heading">
             What Needs You First

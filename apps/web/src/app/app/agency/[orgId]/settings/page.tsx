@@ -92,7 +92,7 @@ export default async function AgencySettingsPage({
             className="btn btn-primary"
             download
           >
-            Download bulk export
+            Download Bulk Export
           </a>
         ) : (
           <>

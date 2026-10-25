@@ -34,7 +34,7 @@ export default function WorkspaceError({
           Try Again
         </button>
         <a className="btn btn-secondary" href="/app">
-          Go to your overview
+          Go to Your Overview
         </a>
       </div>
       <p className="muted error-reference">

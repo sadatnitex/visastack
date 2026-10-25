@@ -18,7 +18,7 @@ export const dynamic = 'force-dynamic';
 
 const STATUS_LABELS: Record<string, string> = {
   DECLARED: 'Declared',
-  EXTRACTED_PENDING: 'Extracted (pending)',
+  EXTRACTED_PENDING: 'Extracted (Pending)',
   APPLICANT_CONFIRMED: 'Confirmed',
   DOCUMENT_SUPPORTED: 'Document-supported',
   AGENCY_REVIEWED: 'Agency-reviewed',

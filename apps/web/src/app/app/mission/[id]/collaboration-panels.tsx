@@ -251,7 +251,7 @@ export function AppointmentsPanel({
                     textDecoration: 'none',
                   }}
                 >
-                  Add to calendar
+                  Add to Calendar
                 </a>
                 <form action={decideAction} style={{ display: 'flex', gap: '0.4rem' }}>
                   <input type="hidden" name="missionId" value={missionId} />
@@ -462,7 +462,7 @@ export function EvidenceSelectionPanel({
   return (
     <article className="card">
       <p className="card-kicker">Precision</p>
-      <h2 className="card-title">Select evidence</h2>
+      <h2 className="card-title">Select Evidence</h2>
       <p className="muted" style={{ fontSize: 'var(--text-small)', marginBottom: '1rem' }}>
         More than one instance is on file for these requirements - pick exactly which one backs
         each. Until you select, any eligible instance may count.

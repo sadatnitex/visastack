@@ -66,7 +66,7 @@ export const READINESS_BADGE: Readonly<Record<CaseReadinessState, { label: strin
     READY_FOR_APPLICANT_REVIEW: { label: 'Ready for Review', tone: 'success' },
     NEEDS_REVIEW: { label: 'Needs Review', tone: 'warning' },
     NEEDS_ACTION: { label: 'Needs Action', tone: 'danger' },
-    MANUAL_ONLY: { label: 'Manual · not automatically assessed', tone: 'neutral' },
+    MANUAL_ONLY: { label: 'Manual · Not Automatically Assessed', tone: 'neutral' },
     NO_CHECKLIST: { label: 'No Checklist Yet', tone: 'neutral' },
     UNAVAILABLE: { label: 'Not Available Right Now', tone: 'neutral' },
   };

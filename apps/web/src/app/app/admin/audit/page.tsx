@@ -51,7 +51,7 @@ export default async function AdminAuditPage() {
               </EmptyState>
             ) : (
               <table className="data-table">
-                <caption className="sr-only">Recent audit events, newest first</caption>
+                <caption className="sr-only">Recent Audit Events, Newest First</caption>
                 <thead>
                   <tr>
                     <th scope="col">When</th>

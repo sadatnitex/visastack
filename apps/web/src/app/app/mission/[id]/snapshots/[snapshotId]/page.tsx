@@ -184,7 +184,7 @@ export default async function MissionSnapshotPage({
                       </span>
                     ) : (
                       <span className={`badge ${m.satisfied ? 'badge-success' : 'badge-warning'}`}>
-                        {m.satisfied ? 'Satisfied' : 'Not satisfied'}
+                        {m.satisfied ? 'Satisfied' : 'Not Satisfied'}
                       </span>
                     )}
                   </div>

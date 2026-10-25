@@ -130,7 +130,7 @@ export function AcknowledgementPanel({
         <input type="hidden" name="expectedSnapshotChecksum" value={checksum} />
         <div className="field-row">
           <label className="field-label" htmlFor="reason">
-            Reason (required to reject or request a correction)
+            Reason (Required to Reject or Request a Correction)
           </label>
           <textarea
             id="reason"

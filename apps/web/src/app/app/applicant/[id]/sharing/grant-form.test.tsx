@@ -198,7 +198,7 @@ describe('native scoped sharing confirmation', () => {
     const event = new Event('submit', { bubbles: true, cancelable: true });
     act(() => form.dispatchEvent(event));
     expect(event.defaultPrevented).toBe(true);
-    expect(container.textContent).toContain('Confirm this access');
+    expect(container.textContent).toContain('Confirm This Access');
   });
 });
 

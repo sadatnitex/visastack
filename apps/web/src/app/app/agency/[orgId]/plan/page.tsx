@@ -47,7 +47,7 @@ export default async function OrgPlanPage({
     <>
       <PageHeader
         eyebrow="Usage &amp; Billing"
-        title={<>Plan &amp; usage</>}
+        title={<>Plan &amp; Usage</>}
         description="Every entitlement below is plan configuration, not a hardcoded limit -- each meter names its own definition and what it currently counts."
         as="h2"
       />
@@ -63,7 +63,7 @@ export default async function OrgPlanPage({
           <article className="card u-mb-150">
             <p className="card-kicker">Current Plan</p>
             <h2 className="card-title">
-              {data.usage.plan ? data.usage.plan.name : 'Access offer not recorded'}
+              {data.usage.plan ? data.usage.plan.name : 'Access Offer Not Recorded'}
             </h2>
             {!data.usage.planAssigned || !data.usage.plan ? (
               <p className="card-body">

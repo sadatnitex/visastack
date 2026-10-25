@@ -236,14 +236,14 @@ describe('wallet ownership, explicit selection and truthful safety state', () =>
       ],
     });
     const html = await render('unsafe');
-    expect(html).toMatch(/Ready to use<\/span><strong>0<\/strong>/);
+    expect(html).toMatch(/Ready to Use<\/span><strong>0<\/strong>/);
     expect(textOf(html)).toContain('Preview is blocked');
     expect(html).not.toContain('>Preview</button>');
   });
   it('does not substitute an owned file for an unavailable explicit selection', async () => {
     mocks.listDocumentsDetailed.mockResolvedValue({ ok: true, value: [doc('owned', 'APPROVED')] });
     const html = await render('foreign-or-removed');
-    expect(textOf(html)).toContain('Selected document is unavailable');
+    expect(textOf(html)).toContain('Selected Document Is Unavailable');
     expect(html).not.toContain('name="documentId"');
   });
   it('reports failed reads as unavailable rather than an empty wallet', async () => {

@@ -278,7 +278,6 @@ export function MissionCollaboration({
                     <select
                       name="assigneeAccountId"
                       className="input"
-                      style={{ padding: '0.15rem 0.4rem', fontSize: 'var(--text-caption)' }}
                       defaultValue={t.assigneeAccountId ?? ''}
                       aria-label="Reassign task"
                     >

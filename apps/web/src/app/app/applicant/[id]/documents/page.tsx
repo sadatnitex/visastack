@@ -116,7 +116,7 @@ function processingTone(status: string | null): string {
 
 /** EVI-04 wallet lifecycle: current/expiring/expired/superseded, distinct from pipeline/safety status above. */
 const LIFECYCLE_BADGES: Record<DocumentLifecycleStatus, { label: string; tone: string }> = {
-  UNKNOWN: { label: 'Expiry not confirmed', tone: 'badge-neutral' },
+  UNKNOWN: { label: 'Expiry Not Confirmed', tone: 'badge-neutral' },
   CURRENT: { label: 'Current', tone: 'badge-success' },
   EXPIRING: { label: 'Expiring Soon', tone: 'badge-warning' },
   EXPIRED: { label: 'Expired', tone: 'badge-danger' },
@@ -269,7 +269,7 @@ export default async function ApplicantDocumentsPage({
               See Document Insights
             </Link>
             <a className="btn btn-primary" href="#document-upload">
-              + Upload documents
+              Upload Document
             </a>
           </>
         }
@@ -465,32 +465,27 @@ export default async function ApplicantDocumentsPage({
                     </p>
                   );
                 })()}
-                <form
-                  action={setDocumentDateAction}
-                  style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}
-                >
+                <form action={setDocumentDateAction} className="field-stack">
                   <input type="hidden" name="applicantId" value={id} />
                   <input type="hidden" name="documentId" value={doc.id} />
-                  <label className="muted u-fs-075" htmlFor={`date-${doc.id}`}>
+                  <label className="field-label" htmlFor={`date-${doc.id}`}>
                     Document Date
                   </label>
-                  <input
-                    id={`date-${doc.id}`}
-                    name="documentDate"
-                    type="date"
-                    defaultValue={doc.documentDate ?? ''}
-                    max={new Date().toISOString().slice(0, 10)}
-                    className="input"
-                    style={{
-                      padding: '0.2rem 0.5rem',
-                      fontSize: 'var(--text-small)',
-                      width: 'auto',
-                    }}
-                  />
-                  <button type="submit" className="btn btn-secondary u-btn-xs">
-                    Save
-                  </button>
-                  <span className="muted" style={{ fontSize: 'var(--text-caption)' }}>
+                  <div className="field-inline">
+                    <input
+                      id={`date-${doc.id}`}
+                      name="documentDate"
+                      type="date"
+                      defaultValue={doc.documentDate ?? ''}
+                      max={new Date().toISOString().slice(0, 10)}
+                      className="input"
+                      aria-describedby={`date-hint-${doc.id}`}
+                    />
+                    <button type="submit" className="btn btn-secondary">
+                      Save
+                    </button>
+                  </div>
+                  <span className="field-hint" id={`date-hint-${doc.id}`}>
                     Used to judge freshness for routes that require recently-dated evidence.
                   </span>
                 </form>
@@ -677,7 +672,7 @@ export default async function ApplicantDocumentsPage({
         })}
       />
       <details className="wallet-upload-disclosure" open={initialKind ? true : undefined}>
-        <summary className="btn btn-secondary">Upload a Document</summary>
+        <summary className="btn btn-secondary">Upload Document</summary>
         <div id="document-upload">
           {/*
            * Only upload and new processing/extraction are gated on core
@@ -689,7 +684,7 @@ export default async function ApplicantDocumentsPage({
           {!data.coreGranted ? (
             <article className="card u-mb-150">
               <p className="card-body">
-                Turn on <strong>Let VisaStack process my details</strong> on{' '}
+                Turn on <strong>Let VisaStack Process My Details</strong> on{' '}
                 <Link href="/app">Home</Link> to upload new documents or run processing. Your
                 existing documents remain visible above.
               </p>
@@ -699,7 +694,7 @@ export default async function ApplicantDocumentsPage({
               {data.aiConfigured && !data.aiGranted ? (
                 <div className="card u-mb-150">
                   <p className="card-body">
-                    Turn on <strong>Let AI read details from my documents</strong> on{' '}
+                    Turn on <strong>Let AI Read Details from My Documents</strong> on{' '}
                     <Link href="/app">Home</Link> to get automatic field suggestions from your
                     documents - every suggestion still requires your explicit approval before it
                     changes your profile.
@@ -710,7 +705,7 @@ export default async function ApplicantDocumentsPage({
               {data.ocrConfigured && !data.ocrGranted ? (
                 <div className="card u-mb-150">
                   <p className="card-body">
-                    Turn on <strong>Let AI read text from my scans</strong> on{' '}
+                    Turn on <strong>Let AI Read Text from My Scans</strong> on{' '}
                     <Link href="/app">Home</Link> to read text from scanned or photographed
                     documents. This sends the document's image, which shares more than text alone.
                   </p>
