@@ -77,7 +77,7 @@ const MONTHS = [
 
 /** "2026-10-25" as "25 Oct 2026", the same on server and browser (no time zone involved). */
 export function formatCheckedOn(iso: string): string {
-  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
+  const match = iso.match(/^(\d{4})-(\d{2})-(\d{2})$/);
   if (!match) return iso;
   const month = MONTHS[Number(match[2]) - 1];
   return month ? `${Number(match[3])} ${month} ${match[1]}` : iso;
