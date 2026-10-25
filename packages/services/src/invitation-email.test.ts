@@ -148,7 +148,7 @@ describe('invitation delivery before registration', () => {
     expect(sent).toHaveLength(0);
   });
 
-  it('drops revoked client email and never sends email to a phone number', async () => {
+  it('drops revoked client email and refuses a phone number outright, so nothing is queued for it', async () => {
     const details = {
       actorAccountId: owner,
       organizationId: org,
@@ -168,7 +168,7 @@ describe('invitation delivery before registration', () => {
     });
     expect(
       (await createClientInvitation(db, { ...details, contactDestination: '+1555010100' })).ok,
-    ).toBe(true);
+    ).toBe(false);
     expect((await run()).failed).toBe(1);
     expect(sent).toHaveLength(0);
   });

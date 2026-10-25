@@ -314,7 +314,7 @@ export async function inviteClientAction(
   const requestedRoute = String(formData.get('requestedRoute') ?? '').trim();
   if (displayName.length === 0) return { ok: false, message: "Enter the traveller's name." };
   if (contactDestination.length === 0) {
-    return { ok: false, message: 'Enter a contact email or phone number.' };
+    return { ok: false, message: "Enter the client's email address." };
   }
   if (caseOwnerAccountId.length === 0) return { ok: false, message: 'Choose a case owner.' };
 
@@ -335,7 +335,7 @@ export async function inviteClientAction(
       ok: true,
       message: invited.value.emailQueued
         ? 'Invitation created. Email queued. You can also copy the link below. It expires in 7 days.'
-        : 'Invitation created. Email is unavailable for this invitation. Copy and share the link below. It expires in 7 days.',
+        : 'Invitation created. Email sending is not set up on this server, so copy and share the link below. It expires in 7 days.',
       invitationUrl: acceptUrl,
     } satisfies ActionState;
   });

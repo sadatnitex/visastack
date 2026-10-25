@@ -45,16 +45,21 @@ export function ClientInvitationForm({
       </div>
       <div className="field-row">
         <label className="field-label" htmlFor="contactDestination">
-          Contact (email or phone)
+          Client email address
         </label>
         <input
           id="contactDestination"
           name="contactDestination"
-          type="text"
+          type="email"
+          autoComplete="off"
+          aria-describedby="contactDestination-hint"
           required
           className="input"
           placeholder="jane@example.com"
         />
+        <p id="contactDestination-hint" className="disclosure-hint">
+          Only someone signed in with this email address can accept the invitation.
+        </p>
       </div>
       <div className="field-row">
         <label className="field-label" htmlFor="requestedRoute">

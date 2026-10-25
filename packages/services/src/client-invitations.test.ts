@@ -640,7 +640,7 @@ describe('client invitations - agency invites a traveller as a new client (Comme
       expect(isOk(accepted)).toBe(true);
     }, 30_000);
 
-    it('refuses a malformed address when the invitation is created, and says no email was queued for a phone contact', async () => {
+    it('refuses a malformed address or a phone number when the invitation is created (email only)', async () => {
       for (const contactDestination of [
         'jane@example.com.',
         'Jane <jane@example.com>',
@@ -650,14 +650,18 @@ describe('client invitations - agency invites a traveller as a new client (Comme
         'jane at example.com',
         '12345',
         'call me',
+        '+880 1711 000000',
+        '(020) 7946-0958',
+        '01711.000.000',
       ]) {
         const refused = await invite({ contactDestination });
         expect(isErr(refused) && refused.error.code).toBe('invalid');
+        expect(isErr(refused) && refused.error.message).toBe(
+          'Enter a valid email address for the client, like name@example.com.',
+        );
       }
-      for (const contactDestination of ['+880 1711 000000', '(020) 7946-0958', '01711.000.000']) {
-        const phone = await invite({ contactDestination });
-        expect(isOk(phone) && phone.value.emailQueued).toBe(false);
-      }
+      const invitations = await db.select().from(dbSchema.clientInvitations);
+      expect(invitations).toHaveLength(0);
     }, 30_000);
 
     it('binds a malformed stored address to nobody rather than opening it to anyone (fails closed)', async () => {
@@ -712,16 +716,62 @@ describe('client invitations - agency invites a traveller as a new client (Comme
       expect(after).toHaveLength(2);
     }, 30_000);
 
-    it('keeps a phone-contact invitation claimable by the signed-in holder (unverifiable contact, recorded residual)', async () => {
-      const created = await invite({ contactDestination: '+880 1711 000000' });
+    it('an older invitation sent to a phone number can no longer be opened or accepted by anyone', async () => {
+      const created = await invite();
       if (!isOk(created)) throw new Error('setup failed');
+      // A phone contact stored before invitations became email-only.
+      await db
+        .update(dbSchema.clientInvitations)
+        .set({ contactDestination: '+880 1711 000000' })
+        .where(eq(dbSchema.clientInvitations.id, created.value.invitation.id));
+      const message =
+        'This invitation can no longer be used. Ask the agency to send you a new one by email.';
+      for (const email of ['jane@example.com', 'holder@example.com']) {
+        const holderId = await consentedTraveller(db, email);
+        const preview = await previewClientInvitation(db, created.value.rawToken, holderId);
+        expect(isErr(preview) && preview.error.code).toBe('forbidden');
+        expect(isErr(preview) && preview.error.message).toBe(message);
+        const accepted = await acceptClientInvitation(db, {
+          actorAccountId: holderId,
+          rawToken: created.value.rawToken,
+          applicantChoice: { kind: 'new' },
+        });
+        expect(isErr(accepted) && accepted.error.code).toBe('forbidden');
+      }
+      const [row] = await db
+        .select()
+        .from(dbSchema.clientInvitations)
+        .where(eq(dbSchema.clientInvitations.id, created.value.invitation.id));
+      expect(row?.status).toBe('PENDING');
+      expect(await db.select().from(dbSchema.missions)).toHaveLength(0);
+      const refusals = await db
+        .select()
+        .from(dbSchema.auditEvents)
+        .where(eq(dbSchema.auditEvents.eventType, 'CLIENT_INVITATION_WRONG_RECIPIENT'));
+      expect(refusals.length).toBeGreaterThan(0);
+      expect(refusals.every((e) => e.reason === 'phone_invitation')).toBe(true);
+    }, 30_000);
+
+    it('someone reopening an older phone invitation that was already accepted is told it was used', async () => {
+      const created = await invite();
+      if (!isOk(created)) throw new Error('setup failed');
+      await db
+        .update(dbSchema.clientInvitations)
+        .set({ contactDestination: '+880 1711 000000', status: 'ACCEPTED' })
+        .where(eq(dbSchema.clientInvitations.id, created.value.invitation.id));
       const holderId = await consentedTraveller(db, 'holder@example.com');
+      const preview = await previewClientInvitation(db, created.value.rawToken, holderId);
+      expect(isErr(preview) && preview.error.message).toBe(
+        'this invitation has already been used or revoked',
+      );
       const accepted = await acceptClientInvitation(db, {
         actorAccountId: holderId,
         rawToken: created.value.rawToken,
         applicantChoice: { kind: 'new' },
       });
-      expect(isOk(accepted)).toBe(true);
+      expect(isErr(accepted) && accepted.error.message).toBe(
+        'this invitation has already been used or revoked',
+      );
     }, 30_000);
 
     it('an account already working with this agency still cannot claim an invitation sent to someone else (T04)', async () => {
