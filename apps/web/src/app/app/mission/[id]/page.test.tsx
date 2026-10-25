@@ -206,3 +206,43 @@ describe('case page as it is today (WP-X1 characterization)', () => {
     expect(text).toContain('Changed since confirmed');
   });
 });
+
+describe('case journey view (WP-X1)', () => {
+  it('shows the first attention item as the next step, under the tracker and above the attention list', async () => {
+    setUp({ openTasks: 2 });
+    const html = await render();
+    const text = textOf(html);
+    expect(text).toContain('Next step');
+    expect(text).toContain('Finish 2 open tasks');
+    const [tracker, card, list] = order(html, [
+      'aria-label="Actual case workflow state"',
+      'aria-label="Next step"',
+      'class="case-attention"',
+    ]);
+    expect(tracker).toBeLessThan(card ?? -1);
+    expect(card).toBeLessThan(list ?? -1);
+    // One primary action, pointing where the attention item points.
+    const cardHtml = html.slice(card, list);
+    expect(cardHtml.match(/btn-primary/g)).toHaveLength(1);
+    expect(cardHtml).toContain('href="#work"');
+  });
+
+  it('shows no card when nothing needs attention, keeping the success badge', async () => {
+    setUp();
+    const html = await render();
+    expect(html).not.toContain('aria-label="Next step"');
+    expect(textOf(html)).toContain('Nothing needs attention right now');
+  });
+
+  it('a changed case shows the alert with its snapshot button directly under the tracker, and no card', async () => {
+    setUp({ dirty: true, openTasks: 1 });
+    const html = await render();
+    expect(html).not.toContain('aria-label="Next step"');
+    const tracker = html.indexOf('aria-label="Actual case workflow state"');
+    const alert = html.indexOf('class="case-alert"');
+    const strip = html.indexOf('class="case-context-strip"');
+    expect(tracker).toBeLessThan(alert);
+    expect(alert).toBeLessThan(strip);
+    expect(html.slice(alert, strip)).toContain('data-stub="SnapshotButton"');
+  });
+});

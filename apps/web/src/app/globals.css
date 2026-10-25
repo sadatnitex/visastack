@@ -5735,3 +5735,50 @@ body:has(.auth-shell) > .footer {
   flex: 1 1 14rem;
   min-width: 0;
 }
+
+/* WP-X1 case journey (approved preview: case journey, two states). Next step
+   card under the stage tracker, and the changed-since-acknowledged notice
+   restyled as the approved alert. Colours are existing Harbor tokens. */
+.case-next-step,
+.case-alert {
+  border-radius: var(--radius);
+  padding: 0.85rem 1rem;
+  margin-bottom: 1.25rem;
+}
+.case-next-step {
+  background: var(--bg-elevated);
+  border: 1px solid var(--hairline);
+}
+.case-alert {
+  background: var(--warning-bg);
+  border: 1px solid var(--warning);
+}
+.case-next-step p,
+.case-alert p {
+  margin: 0;
+}
+.case-next-step-kicker {
+  font-size: var(--text-caption);
+  color: var(--text-secondary);
+}
+.case-next-step-title,
+.case-alert-title {
+  font-weight: 600;
+  font-size: var(--text-body);
+  margin-top: 0.15rem;
+}
+.case-alert-title {
+  color: var(--warning);
+}
+.case-next-step-body,
+.case-alert-body {
+  font-size: var(--text-small);
+  color: var(--text-secondary);
+  margin: 0.15rem 0 0.65rem;
+}
+.case-alert-body {
+  color: var(--text);
+}
+.case-alert form {
+  display: inline-block;
+}
