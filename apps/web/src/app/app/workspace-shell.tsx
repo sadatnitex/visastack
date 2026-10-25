@@ -14,7 +14,13 @@ import {
 } from 'react';
 import { Icon } from '../../components/icons';
 import { isCurrentPath } from '../../lib/navigation';
-import { type WorkspaceAccess, workspaceNavigation } from '../../lib/workspace-navigation';
+import {
+  type WorkspaceAccess,
+  type WorkspaceNavigation,
+  workspaceNavigation,
+} from '../../lib/workspace-navigation';
+
+type WorkspaceKind = WorkspaceNavigation['kind'];
 import { AppNav } from './app-nav';
 import { WorkspaceRecordToolbar } from './workspace-record-toolbar';
 
@@ -43,11 +49,13 @@ function WorkspaceSelector({
   name,
   caption,
   compact = false,
+  kind = 'personal',
 }: {
   readonly access: WorkspaceAccess;
   readonly name: string;
   readonly caption: string;
   readonly compact?: boolean;
+  readonly kind?: WorkspaceKind;
 }) {
   const id = useId();
   const pathname = usePathname();
@@ -56,6 +64,27 @@ function WorkspaceSelector({
   useEffect(() => {
     if (selector.current) selector.current.open = false;
   }, [pathname]);
+  // The chip closes when someone taps anywhere else (another menu, the page),
+  // as the account menu and the More sheet do, so two menus never overlap.
+  useEffect(() => {
+    if (!compact) return;
+    const outside = (event: PointerEvent) => {
+      const details = selector.current;
+      if (details?.open && event.target instanceof Node && !details.contains(event.target)) {
+        details.open = false;
+      }
+    };
+    document.addEventListener('pointerdown', outside);
+    return () => document.removeEventListener('pointerdown', outside);
+  }, [compact]);
+  // A person's first name is enough to recognise them; an agency, the platform
+  // or an unavailable context keeps its full wording (shortened by the layout).
+  const isPerson = kind === 'personal' && access.travellers.some((t) => t.name === name);
+  const chipText = isPerson
+    ? firstWord(name)
+    : kind === 'platform' || kind === 'unavailable'
+      ? caption
+      : name;
   return (
     <details
       ref={selector}
@@ -79,14 +108,19 @@ function WorkspaceSelector({
             .toUpperCase()}
         </span>
         {compact ? (
-          // The chip shows the first name; screen readers hear "Acting as", the full name and context.
-          <span>
-            <span className="sr-only">Acting as </span>
-            <b>{firstWord(name)}</b>
-            <span className="sr-only">
-              {restOfName(name)}, {caption}
+          // Visible: a short label. Read aloud: the visible words first, then the full context.
+          <>
+            <span>
+              <b dir="auto">{chipText || caption}</b>
+              <span className="sr-only">
+                {isPerson
+                  ? `${restOfName(name)}, acting as this person, `
+                  : ', current workspace: '}
+                {isPerson ? caption : `${name}, ${caption}`}
+              </span>
             </span>
-          </span>
+            <Icon name="chevronDown" size={12} />
+          </>
         ) : (
           <>
             <span>
@@ -174,7 +208,13 @@ export function WorkspaceShell({
           <WorkspaceRecordToolbar
             key={`${nav.kind}:${nav.primary[0]?.href ?? 'none'}`}
             contextChip={
-              <WorkspaceSelector access={access} name={nav.name} caption={nav.caption} compact />
+              <WorkspaceSelector
+                access={access}
+                name={nav.name}
+                caption={nav.caption}
+                kind={nav.kind}
+                compact
+              />
             }
             accountName={accountName}
             access={access}

@@ -5897,6 +5897,8 @@ body:has(.auth-shell) > .footer {
     flex: 1 1 auto;
     min-width: 0;
     margin: 0;
+    /* The open list is placed against the whole top bar, so it fits any phone width. */
+    position: static;
     border-radius: var(--radius-pill);
   }
   .workspace-chip summary {
@@ -5917,9 +5919,9 @@ body:has(.auth-shell) > .footer {
   .workspace-chip nav {
     position: absolute;
     top: calc(100% + 6px);
-    left: 0;
-    z-index: 70;
-    width: min(18rem, calc(100vw - 24px));
+    left: 12px;
+    right: 12px;
+    z-index: 60;
     background: #ffffff;
     border: 1px solid var(--hairline-soft);
     border-radius: 14px;
