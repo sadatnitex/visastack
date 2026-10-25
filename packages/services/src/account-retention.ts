@@ -15,8 +15,9 @@ import { enqueueNotificationBothChannels } from './notifications';
  * this codebase (the directive's own table calls its numbers "PRD proposed
  * defaults -- not immutable legal facts").
  *
- * `accounts.lastActiveAt` (touched by `touchAccountActivity` on every
- * authenticated request) drives both sweeps below; see its schema comment
+ * `accounts.lastActiveAt` (touched by `touchAccountActivity` from signed-in
+ * requests, at most about once an hour per account, and at once when a
+ * notice is pending) drives both sweeps below; see its schema comment
  * for why the column defaults every pre-existing account to "active now"
  * rather than "already inactive" the moment it ships.
  *
