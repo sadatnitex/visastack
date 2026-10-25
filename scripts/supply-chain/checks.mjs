@@ -506,6 +506,8 @@ export const SECRET_WORKFLOW_ALLOWLIST = {
   'workos-staging-e2e.yml': 'legacy staging diagnostics only; never Neon acceptance',
   'neon-staging-routes.yml':
     'manual main-only reviewed revision, independent staging proof before synthetic credentials, no checkout credentials',
+  'live-signed-in-check.yml':
+    'production deployment or manual run only, live-check environment limited to main, read-only test account sign-in, no checkout credentials, no report upload',
 };
 
 export function checkPreviewCredentials(root, files = trackedFiles(root)) {
@@ -543,6 +545,23 @@ export function checkPreviewCredentials(root, files = trackedFiles(root)) {
       findings.push(
         `${f} must use manual main-only reviewed code, discard checkout credentials and verify staging before login`,
       );
+    }
+    if (base === 'live-signed-in-check.yml' && usesSecrets) {
+      const allowedSecrets = new Set(['LIVE_CHECK_EMAIL', 'LIVE_CHECK_PASSWORD']);
+      for (const match of text.matchAll(/\$\{\{\s*secrets\.([A-Z0-9_]+)/g)) {
+        if (!allowedSecrets.has(match[1] ?? ''))
+          findings.push(`${f} requests a secret outside the live test account`);
+      }
+      if (
+        !/^\s*environment:\s*live-check\s*$/m.test(text) ||
+        !/^\s*persist-credentials:\s*false\s*$/m.test(text) ||
+        /^\s*(?:push|pull_request|schedule|workflow_run)\s*:/m.test(text) ||
+        /upload-artifact/.test(text)
+      ) {
+        findings.push(
+          `${f} must run in the main-only live-check environment, discard checkout credentials, start only after a deployment or by hand, and upload nothing`,
+        );
+      }
     }
     if (base === 'database-restore-drill.yml') {
       const allowed = new Set([
