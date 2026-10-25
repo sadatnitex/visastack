@@ -5843,18 +5843,33 @@ body:has(.auth-shell) > .footer {
   margin: 0;
   overflow-wrap: anywhere;
 }
-.scope-row dd::first-letter {
+/* Capitalise only wording the summary writes itself, never what people typed. */
+.scope-phrase {
+  display: inline-block;
+}
+.scope-phrase::first-letter {
   text-transform: uppercase;
+}
+.scope-row-note {
+  display: block;
+  font-size: var(--text-caption);
+  color: var(--text-secondary);
+  font-weight: 400;
 }
 .scope-row-warning {
   background: var(--warning-bg);
+}
+.scope-summary-download {
+  color: var(--warning);
+  font-weight: 600;
 }
 .scope-row-warning dd {
   color: var(--warning);
   font-weight: 600;
 }
 .scope-summary-private,
-.scope-summary-note {
+.scope-summary-note,
+.scope-summary-download {
   margin: 0.6rem 0 0;
   font-size: var(--text-small);
   color: var(--text-secondary);

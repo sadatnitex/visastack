@@ -5,9 +5,8 @@ import { useActionState, useEffect, useRef, useState } from 'react';
 import { FormMessage, SubmitButton } from '../../../../../components/form-feedback';
 import { InvitationLink } from '../../../../../components/invitation-link';
 import {
-  type DocumentScope,
-  type ProfileScope,
   SelectedScopeSummary,
+  describeGrantScope,
 } from '../../../../../components/selected-scope-summary';
 import { PACK_LABELS, PACK_ORDER } from '../../../../../lib/profile-fields';
 import { type ActionState, createGrantAction } from './actions';
@@ -80,23 +79,25 @@ export function GrantForm({
       c,
   );
   const canDownload = actions.includes('DOWNLOAD_REDACTED');
-  const profileSummary: ProfileScope =
-    categories.length === 0 ? { kind: 'whole' } : { kind: 'parts', labels: categoryLabels };
-  const documentSummary: DocumentScope =
-    documents.length === 0
-      ? { kind: 'none' }
-      : selectedDocuments.length > 0
-        ? {
-            kind: 'chosen',
-            names: documents
-              .filter((document) => selectedDocuments.includes(document.id))
-              .map((document) => document.displayName),
-          }
-        : categories.length > 0
-          ? { kind: 'everyInParts' }
-          : { kind: 'every' };
+  const scope = describeGrantScope({
+    actions,
+    caseGrant: false,
+    partLabels: categoryLabels,
+    documentNames: documents
+      .filter((document) => selectedDocuments.includes(document.id))
+      .map((document) => document.displayName),
+    hasDocuments: documents.length > 0,
+    partsWhen: 'now',
+  });
+  // The calendar date is worked out in the browser after it loads, in the
+  // person's own time zone, so the server and the browser never disagree.
+  const [today, setToday] = useState<number | null>(null);
+  useEffect(() => setToday(Date.now()), []);
   const days = Number(expiryDays) > 0 ? Number(expiryDays) : DEFAULT_EXPIRY_DAYS;
-  const endsOn = END_DATE.format(new Date(Date.now() + days * 24 * 60 * 60 * 1000));
+  const endsOn =
+    today === null
+      ? `${days} day${days === 1 ? '' : 's'} from today`
+      : END_DATE.format(new Date(today + days * 24 * 60 * 60 * 1000));
   const endsNote = expiryDays
     ? `in ${expiryDays} day${expiryDays === '1' ? '' : 's'}`
     : `in ${DEFAULT_EXPIRY_DAYS} days, the default`;
@@ -348,8 +349,8 @@ export function GrantForm({
                   .map((a) => SHAREABLE_ACTIONS.find((s) => s.value === a)?.label.toLowerCase())
                   .filter((label): label is string => Boolean(label))
           }
-          profile={profileSummary}
-          documents={documentSummary}
+          profile={scope.profile}
+          documents={scope.documents}
           endsOn={endsOn}
           endsNote={endsNote}
         />
@@ -357,9 +358,18 @@ export function GrantForm({
           {canDownload
             ? 'Redacted copies may be downloaded; original downloads are not included. '
             : 'Downloads are not included. '}
-          They must accept before anything is visible to them. You can pause or revoke future access
-          at any time; copies already downloaded cannot be recalled.
+          They must accept before anything is visible to them.{' '}
+          {canDownload
+            ? 'You can pause or revoke access at any time.'
+            : 'You can pause or revoke future access at any time; copies already downloaded cannot be recalled.'}
         </p>
+        {canDownload ? (
+          // Owner-approved wording, 25 Oct 2026; shown only when downloads are allowed.
+          <p className="scope-summary-download">
+            Revoking ends access on VisaStack. It cannot take back copies someone already
+            downloaded.
+          </p>
+        ) : null}
       </div>
 
       {reviewError ? (

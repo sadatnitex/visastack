@@ -244,6 +244,12 @@ describe('grant review brief (WP-X2)', () => {
     expect(brief?.querySelector('.scope-row-warning dd')?.textContent).toBe('your whole profile');
     expect(brief?.querySelectorAll('.scope-row-warning')).toHaveLength(2);
     expect(brief?.textContent).toContain('in 30 days, the default');
+    const expected = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString('en-GB', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+    });
+    expect(brief?.textContent).toContain(`${expected} (in 30 days, the default)`);
     expect(brief?.textContent).toContain('Everything you did not select stays private.');
   });
 
@@ -255,5 +261,21 @@ describe('grant review brief (WP-X2)', () => {
     expect(submit?.disabled).toBe(false);
     change('purpose', 'Changed purpose');
     expect(submit?.disabled).toBe(true);
+  });
+
+  it('shows the approved download sentence only when downloads are allowed', () => {
+    const sentence =
+      'Revoking ends access on VisaStack. It cannot take back copies someone already downloaded.';
+    ready();
+    review();
+    expect(container.textContent).not.toContain(sentence);
+    act(() =>
+      container.querySelector<HTMLInputElement>('input[value="DOWNLOAD_REDACTED"]')?.click(),
+    );
+    expect(container.querySelector('.scope-summary-download')?.textContent).toBe(sentence);
+    act(() =>
+      container.querySelector<HTMLInputElement>('input[value="DOWNLOAD_REDACTED"]')?.click(),
+    );
+    expect(container.textContent).not.toContain(sentence);
   });
 });

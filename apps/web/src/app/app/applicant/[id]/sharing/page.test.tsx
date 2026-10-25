@@ -109,3 +109,35 @@ describe('actual authorized sharing composition', () => {
     expect(textOf(html)).toContain('Document records are unavailable');
   });
 });
+
+describe('grant cards describe each grant in rows (WP-X2)', () => {
+  it('reads live access in the present tense and ended access in the past, never as live', async () => {
+    mocks.listAccessForApplicantDetailed.mockResolvedValue({
+      ok: true,
+      value: [
+        {
+          ...grant('ACTIVE'),
+          actions: ['VIEW_METADATA', 'PREVIEW'],
+          expiryAt: new Date('2026-11-24'),
+        },
+        grant('PAUSED'),
+        { ...grant('REVOKED'), documentIds: null, actions: ['VIEW_METADATA', 'PREVIEW'] },
+      ],
+    });
+    const html = await render();
+    const cards = html.split('class="row sharing-grant"').slice(1);
+    expect(cards).toHaveLength(3);
+    const [active, paused, revoked] = cards.map((card) => textOf(card));
+    expect(active).toContain('They can');
+    expect(active).toContain('Can open');
+    expect(active).toContain('Passport summary');
+    // A document-limited grant shows no profile details.
+    expect(active).toContain('none of your profile details');
+    expect(paused).toContain('They could');
+    expect(paused).toContain('Details only. They cannot open these.');
+    expect(revoked).toContain('They could');
+    expect(revoked).toContain('Ended');
+    expect(revoked).not.toContain('They can');
+    expect(cards[2]).not.toContain('scope-row-warning');
+  });
+});

@@ -11,7 +11,10 @@ import {
 } from '@visastack/services';
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
-import { SelectedScopeSummary } from '../../../../../components/selected-scope-summary';
+import {
+  SelectedScopeSummary,
+  describeGrantScope,
+} from '../../../../../components/selected-scope-summary';
 import { EmptyState, PageHeader, StatusBadge } from '../../../../../components/ui';
 import { humanizeCode } from '../../../../../lib/format-code';
 import { formatTimestamp, formatTimestampDate } from '../../../../../lib/format-date';
@@ -170,39 +173,31 @@ export default async function SharingPage({
                         <span className={`badge ${badge.tone}`}>{badge.label}</span>
                       </div>
                       <SelectedScopeSummary
-                        recipient={`${grant.recipient.label}${grant.recipient.kind === 'organization' ? ' (organization)' : ''}`}
                         purpose={grant.purpose}
                         permissions={grant.actions.map((a) =>
                           (ACTION_LABELS[a] ?? a).toLowerCase(),
                         )}
-                        profile={
-                          grant.missionId
-                            ? { kind: 'case' }
-                            : grant.categories && grant.categories.length > 0
-                              ? {
-                                  kind: 'parts',
-                                  labels: grant.categories.map((c) => categoryLabel(c)),
-                                }
-                              : { kind: 'whole' }
-                        }
-                        documents={
-                          grant.documentIds && grant.documentIds.length > 0
-                            ? {
-                                kind: 'chosen',
-                                names: grant.documentIds.map((documentId) => {
-                                  const document = data.documents.find(
-                                    (record) => record.id === documentId,
-                                  );
-                                  return document
-                                    ? (document.approvedName ?? document.originalName)
-                                    : 'Document details unavailable';
-                                }),
-                              }
-                            : grant.missionId
-                              ? { kind: 'none' }
-                              : grant.categories && grant.categories.length > 0
-                                ? { kind: 'everyInParts' }
-                                : { kind: 'every' }
+                        {...describeGrantScope({
+                          actions: grant.actions,
+                          caseGrant: Boolean(grant.missionId),
+                          partLabels: (grant.categories ?? []).map((c) => categoryLabel(c)),
+                          documentNames: (grant.documentIds ?? []).map((documentId) => {
+                            const document = data.documents.find(
+                              (record) => record.id === documentId,
+                            );
+                            return document
+                              ? (document.approvedName ?? document.originalName)
+                              : 'Document details unavailable';
+                          }),
+                          hasDocuments: true,
+                          partsWhen: 'atSharing',
+                        })}
+                        tense={
+                          grant.status === 'ACTIVE'
+                            ? 'live'
+                            : grant.status === 'PAUSED' || grant.status === 'PENDING_ACCEPTANCE'
+                              ? 'notYet'
+                              : 'ended'
                         }
                         endsOn={grant.expiryAt ? formatTimestampDate(grant.expiryAt) : null}
                       />
