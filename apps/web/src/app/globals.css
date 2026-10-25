@@ -6376,6 +6376,128 @@ body:has(.auth-shell) > .footer {
   }
 }
 
+/* WP-AI2 insights (AI data plan Phase 2): Document Insights page (applicant/[id]/insights). Marked
+ * like the package blocks so each block's own guard test ends where the next block starts.
+ * Flat Harbor Blue cards from the shared tokens; every target at least 44px; rows wrap instead of
+ * scrolling sideways, down to 320px wide.
+ * ---------------------------------------------------------------------------------------------- */
+.insights-summary {
+  list-style: none;
+  margin: 0 0 16px;
+  padding: 0;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 140px), 1fr));
+}
+.insights-summary-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px 16px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--hairline-soft);
+  border-radius: var(--radius);
+  min-width: 0;
+}
+.insights-summary-value {
+  font-size: var(--text-title);
+  font-weight: 650;
+  line-height: 1.1;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+.insights-summary-label {
+  font-size: var(--text-small);
+  color: var(--text-secondary);
+  overflow-wrap: anywhere;
+}
+.insights-grid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr));
+  align-items: start;
+}
+.insights-card {
+  min-width: 0;
+}
+.insights-note {
+  margin: 0 0 8px;
+  font-size: var(--text-small);
+  color: var(--text-secondary);
+}
+.insights-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.insights-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+  min-height: 44px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--hairline-soft);
+}
+.insights-row:last-child {
+  border-bottom: none;
+}
+.insights-row-stack {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+.insights-row-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1 1 12rem;
+}
+.insights-row-link {
+  min-height: 44px;
+  justify-content: center;
+  color: var(--text);
+}
+.insights-row-link:hover {
+  text-decoration: none;
+}
+.insights-row-link:hover .insights-row-label {
+  text-decoration: underline;
+}
+.insights-row-label {
+  overflow-wrap: anywhere;
+}
+.insights-row-detail {
+  font-size: var(--text-small);
+  color: var(--text-secondary);
+  overflow-wrap: anywhere;
+}
+.insights-group + .insights-group {
+  margin-top: 12px;
+}
+.insights-group-title {
+  margin: 8px 0 0;
+  font-size: var(--text-small);
+  font-weight: 650;
+  color: var(--text-secondary);
+  overflow-wrap: anywhere;
+}
+.insights-action {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+}
+.insights-card > .insights-action {
+  margin-top: 12px;
+}
+.insights-row-end {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
 /* WP-UI1 form controls and Title Case sweep: every single-line field is one family. Text
    inputs, dropdowns and date fields share one height, border, radius and padding; a dropdown
    draws its own arrow in the theme's secondary ink with room so a long choice never runs under

@@ -270,3 +270,12 @@ describe('filing each document under a category', () => {
     expect(text).toContain('1 document has no kind set yet');
   });
 });
+
+describe('the way to the document insights', () => {
+  it('links from the documents page to the traveller insights page', async () => {
+    mocks.listDocumentsDetailed.mockResolvedValue({ ok: true, value: [] });
+    const html = await render();
+    expect(html).toContain('href="/app/applicant/a1/insights"');
+    expect(textOf(html)).toContain('See Document Insights');
+  });
+});

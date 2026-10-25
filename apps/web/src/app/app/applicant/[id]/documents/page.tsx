@@ -264,9 +264,14 @@ export default async function ApplicantDocumentsPage({
         title="Documents"
         description="Keep reusable evidence together. Processing, review and expiry are separate signals."
         actions={
-          <a className="btn btn-primary" href="#document-upload">
-            Upload Document
-          </a>
+          <>
+            <Link className="btn btn-secondary" href={`/app/applicant/${id}/insights`}>
+              See Document Insights
+            </Link>
+            <a className="btn btn-primary" href="#document-upload">
+              Upload Document
+            </a>
+          </>
         }
       />
       {downloadError ? (
