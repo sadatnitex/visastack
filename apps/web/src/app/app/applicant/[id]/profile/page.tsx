@@ -17,7 +17,7 @@ import { ProfilePhotoControl } from '../../../../../components/profile-photo/pro
 import { EmptyState, PageHeader } from '../../../../../components/ui';
 import { formatTimestampDate } from '../../../../../lib/format-date';
 import { buildMasterProfileView, fieldLabel } from '../../../../../lib/master-profile';
-import { displayPhotoUrl } from '../../../../../lib/profile-photos';
+import { ownedPhotoUrl } from '../../../../../lib/profile-photos';
 import { withSession } from '../../../../../lib/session';
 import { type FieldAssurance, ProfileEditor } from '../profile-editor';
 
@@ -66,17 +66,18 @@ export default async function ApplicantProfilePage({
   const data = await withSession(async ({ db, accountId }) => {
     const applicant = await getApplicant(db, id);
     if (!applicant || applicant.ownerAccountId !== accountId) return null;
-    const [profile, coreGranted, assurance, sectionChoices, documents] = await Promise.all([
-      listApplicantProfile(db, id),
-      hasConsent(db, accountId, 'CORE_PROCESSING'),
-      listApplicantAssurance(db, { actorAccountId: accountId, applicantId: id }),
-      getProfileSectionState(db, id),
-      Promise.all([
-        getWalletView(db, { actorAccountId: accountId, applicantId: id }),
-        listDocumentsDetailed(db, accountId, id),
-      ]),
-    ]);
-    const photoUrl = await displayPhotoUrl(db, accountId, id);
+    const [profile, coreGranted, assurance, sectionChoices, documents, photoUrl] =
+      await Promise.all([
+        listApplicantProfile(db, id),
+        hasConsent(db, accountId, 'CORE_PROCESSING'),
+        listApplicantAssurance(db, { actorAccountId: accountId, applicantId: id }),
+        getProfileSectionState(db, id),
+        Promise.all([
+          getWalletView(db, { actorAccountId: accountId, applicantId: id }),
+          listDocumentsDetailed(db, accountId, id),
+        ]),
+        ownedPhotoUrl(db, accountId, id),
+      ]);
     // How many usable copies of each kind are in the wallet, so each section can say what backs
     // it. Usable: shown in the wallet, not expired or replaced, and not failed or quarantined.
     // When either list cannot load, the counts stay unknown rather than reading as "none".

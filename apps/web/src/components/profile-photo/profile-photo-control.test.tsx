@@ -20,7 +20,9 @@ vi.mock('./photo-canvas', () => ({
   exportSquareJpeg: mocks.exportJpeg,
 }));
 
-const { ProfilePhotoControl, MAX_PHOTO_BYTES } = await import('./profile-photo-control');
+const { ProfilePhotoControl, MAX_ORIGINAL_BYTES, MAX_PHOTO_BYTES } = await import(
+  './profile-photo-control'
+);
 
 const APPLICANT = '11111111-2222-4333-8444-555555555555';
 const PHOTO = `/api/photos/applicant/${APPLICANT}?v=aaaa`;
@@ -77,7 +79,8 @@ async function key(target: Element, keyName: string) {
 }
 
 const lastCrop = () => mocks.draw.mock.calls.at(-1)?.[2] as { x: number; zoom: number };
-const status = () => host.querySelector('output')?.textContent ?? '';
+const status = () => host.querySelector('output.field-msg')?.textContent ?? '';
+const position = () => host.querySelector('output.profile-photo-position')?.textContent ?? '';
 const alertText = () => host.querySelector('[role="alert"]')?.textContent ?? '';
 
 beforeEach(() => {
@@ -118,11 +121,27 @@ describe('ProfilePhotoControl', () => {
     expect(host.querySelector('.profile-identity-avatar')?.textContent).toBe('RA');
   });
 
-  it('refuses a photo over 5 MB at once, with an announced message', async () => {
+  it('opens a large phone photo for cropping, and refuses one over 40 MB at once', async () => {
     await mount(null);
-    await choose(jpeg(MAX_PHOTO_BYTES + 1));
-    expect(mocks.decode).not.toHaveBeenCalled();
-    expect(alertText()).toBe('Choose a photo smaller than 5 MB.');
+    await choose(jpeg(MAX_PHOTO_BYTES * 3));
+    expect(mocks.decode).toHaveBeenCalledTimes(1);
+    expect(host.querySelector('.profile-photo-crop')).not.toBeNull();
+    await key(button('Photo Position'), 'Escape');
+    await choose(jpeg(MAX_ORIGINAL_BYTES + 1));
+    expect(mocks.decode).toHaveBeenCalledTimes(1);
+    expect(alertText()).toBe('Choose a photo smaller than 40 MB.');
+  });
+
+  it('refuses to send a cropped photo over 5 MB', async () => {
+    mocks.exportJpeg.mockResolvedValue(new Blob([new Uint8Array(MAX_PHOTO_BYTES + 1)]));
+    await mount(null);
+    await choose(jpeg());
+    await act(async () => {
+      button('Save Photo').click();
+    });
+    expect(mocks.save).not.toHaveBeenCalled();
+    expect(alertText()).toContain('larger than 5 MB');
+    expect(hasButton('Save Photo')).toBe(true);
   });
 
   it('says so plainly when the browser cannot open the photo', async () => {
@@ -148,11 +167,13 @@ describe('ProfilePhotoControl', () => {
     expect(section.querySelector(`label[for="${zoom.id}"]`)?.textContent).toBe('Zoom');
 
     expect(lastCrop()).toMatchObject({ x: -60, zoom: 1 });
+    expect(position()).toBe('Showing 50% from the left and the full height, zoom 1.0 times.');
     await key(area, 'ArrowLeft');
-    expect(lastCrop().x).toBe(-48);
-    await key(area, 'ArrowRight');
-    await key(area, 'ArrowRight');
     expect(lastCrop().x).toBe(-72);
+    await key(area, 'ArrowRight');
+    await key(area, 'ArrowRight');
+    expect(lastCrop().x).toBe(-48);
+    expect(position()).toBe('Showing 40% from the left and the full height, zoom 1.0 times.');
     await key(area, '+');
     expect(lastCrop().zoom).toBeCloseTo(1.1);
     await key(area, '-');
@@ -162,6 +183,27 @@ describe('ProfilePhotoControl', () => {
     expect(host.querySelector('.profile-photo-crop')).toBeNull();
     expect(document.activeElement).toBe(button('Add Photo'));
     expect(mocks.save).not.toHaveBeenCalled();
+  });
+
+  it('offers visible move buttons that move the photo and say where it is', async () => {
+    await mount(null);
+    await choose(jpeg());
+    await act(async () => {
+      button('Move Left').click();
+    });
+    expect(lastCrop().x).toBe(-84);
+    await act(async () => {
+      button('Move Right').click();
+      button('Move Right').click();
+    });
+    await act(async () => {
+      button('Move Right').click();
+    });
+    expect(lastCrop().x).toBe(-12);
+    expect(position()).toBe('Showing 10% from the left and the full height, zoom 1.0 times.');
+    for (const name of ['Move Up', 'Move Down']) {
+      expect(button(name).getAttribute('type')).toBe('button');
+    }
   });
 
   it('saves the cropped square JPEG, announces progress and success, and shows the new photo', async () => {

@@ -83,6 +83,20 @@ export function sourceRect(crop: Crop): SourceRect {
   };
 }
 
+function share(offset: number, room: number): number {
+  return Math.round((offset / room) * 20) * 5;
+}
+
+/** Where the square sits on the photo, in words, for people who cannot see the preview. */
+export function describeCrop(crop: Crop): string {
+  const { sx, sy, size } = sourceRect(crop);
+  const roomX = crop.imageWidth - size;
+  const roomY = crop.imageHeight - size;
+  const across = roomX < 1 ? 'the full width' : `${share(sx, roomX)}% from the left`;
+  const down = roomY < 1 ? 'the full height' : `${share(sy, roomY)}% from the top`;
+  return `Showing ${across} and ${down}, zoom ${crop.zoom.toFixed(1)} times.`;
+}
+
 /** Two letters for a name, shown when there is no photo. */
 export function initialsOf(name: string): string {
   return name

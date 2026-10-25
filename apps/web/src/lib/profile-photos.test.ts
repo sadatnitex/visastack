@@ -3,7 +3,7 @@ import { type WorkspaceAccess, workspaceNavigation } from './workspace-navigatio
 
 const mocks = vi.hoisted(() => ({
   requireAccess: vi.fn(),
-  getApplicantPhotoVersion: vi.fn(),
+  listApplicantPhotoVersions: vi.fn(),
   listApplicants: vi.fn(),
 }));
 vi.mock('@visastack/adapters', () => ({ SharpPhotoReencoder: class {} }));
@@ -11,67 +11,80 @@ vi.mock('@visastack/services', () => ({
   EACH_GRANT: Symbol('each'),
   accountPrincipal: (accountId: string) => ({ kind: 'account', accountId }),
   applicantPhotoPath: (id: string, version: string) => `/api/photos/applicant/${id}?v=${version}`,
-  getApplicantPhotoVersion: mocks.getApplicantPhotoVersion,
+  listApplicantPhotoVersions: mocks.listApplicantPhotoVersions,
   listApplicants: mocks.listApplicants,
   requireAccess: mocks.requireAccess,
 }));
 vi.mock('./providers', () => ({ createMalwareScanner: () => ({}) }));
 vi.mock('./storage', () => ({ createStorage: () => ({}) }));
 
-const { displayPhotoUrl, loadOwnPhoto, photoAccess } = await import('./profile-photos');
+const { loadOwnPhoto, loadOwnedTravellers, ownedPhotoUrl, photoAccess } = await import(
+  './profile-photos'
+);
 
 const DB = {} as never;
 const P1 = '10000000-0000-4000-8000-000000000001';
 const P2 = '10000000-0000-4000-8000-000000000002';
+const SELF = { id: P1, displayName: 'Rahima Akter', relationship: 'SELF' };
+const FAMILY = { id: P2, displayName: 'Family Member', relationship: 'FAMILY_MEMBER' };
 
 beforeEach(() => {
   vi.clearAllMocks();
   vi.spyOn(console, 'error').mockImplementation(() => undefined);
+  mocks.requireAccess.mockImplementation(async (_db, _principal, _action, ref) => ({
+    ok: true,
+    value: { proofFor: ref.applicantId },
+  }));
+  mocks.listApplicants.mockResolvedValue([SELF, FAMILY]);
+  mocks.listApplicantPhotoVersions.mockResolvedValue({ ok: true, value: new Map([[P1, 'abcd']]) });
 });
 
 describe('profile photo loading for pages', () => {
-  it('asks the gate for this person and record, and gives a versioned address only when there is a photo', async () => {
-    const proof = { proof: true };
-    mocks.requireAccess.mockResolvedValue({ ok: true, value: proof });
-    mocks.getApplicantPhotoVersion.mockResolvedValue({ ok: true, value: 'abcd' });
-    expect(await displayPhotoUrl(DB, 'acct-1', P1)).toBe(`/api/photos/applicant/${P1}?v=abcd`);
-    expect(mocks.requireAccess.mock.calls[0]?.slice(1, 4)).toEqual([
-      { kind: 'account', accountId: 'acct-1' },
-      'VIEW_METADATA',
-      { applicantId: P1 },
+  it('asks the gate about each owned traveller, then reads every photo version in one batched call', async () => {
+    const { people, photos } = await loadOwnedTravellers(DB, 'acct-1');
+    expect(people).toEqual([SELF, FAMILY]);
+    expect([...photos]).toEqual([[P1, `/api/photos/applicant/${P1}?v=abcd`]]);
+    expect(mocks.requireAccess.mock.calls.map((call) => call.slice(1, 4))).toEqual([
+      [{ kind: 'account', accountId: 'acct-1' }, 'VIEW_METADATA', { applicantId: P1 }],
+      [{ kind: 'account', accountId: 'acct-1' }, 'VIEW_METADATA', { applicantId: P2 }],
     ]);
-    expect(mocks.getApplicantPhotoVersion).toHaveBeenCalledWith(proof);
-    mocks.getApplicantPhotoVersion.mockResolvedValue({ ok: true, value: null });
-    expect(await displayPhotoUrl(DB, 'acct-1', P1)).toBeNull();
-    mocks.getApplicantPhotoVersion.mockResolvedValue({ ok: false, error: { code: 'forbidden' } });
-    expect(await displayPhotoUrl(DB, 'acct-1', P1)).toBeNull();
+    expect(mocks.listApplicantPhotoVersions).toHaveBeenCalledTimes(1);
+    expect(mocks.listApplicantPhotoVersions).toHaveBeenCalledWith(
+      { proofFor: P1 },
+      { proofFor: P2 },
+    );
   });
 
-  it('shows no photo, and reads nothing further, when the gate refuses', async () => {
+  it('passes only approved records to the batched read, and reads nothing when none is approved', async () => {
+    mocks.requireAccess.mockImplementation(async (_db, _principal, _action, ref) =>
+      ref.applicantId === P2
+        ? { ok: false, error: { code: 'forbidden' } }
+        : { ok: true, value: { proofFor: ref.applicantId } },
+    );
+    await loadOwnedTravellers(DB, 'acct-1');
+    expect(mocks.listApplicantPhotoVersions).toHaveBeenCalledWith({ proofFor: P1 });
+    mocks.listApplicantPhotoVersions.mockClear();
     mocks.requireAccess.mockResolvedValue({ ok: false, error: { code: 'forbidden' } });
     expect(await photoAccess(DB, 'acct-2', P1, 'MANAGE')).toBeNull();
-    expect(await displayPhotoUrl(DB, 'acct-2', P1)).toBeNull();
-    expect(mocks.getApplicantPhotoVersion).not.toHaveBeenCalled();
+    expect((await loadOwnedTravellers(DB, 'acct-2')).photos.size).toBe(0);
+    expect(mocks.listApplicantPhotoVersions).not.toHaveBeenCalled();
   });
 
-  it('shows initials instead of failing the page when the photo cannot be read', async () => {
-    mocks.requireAccess.mockRejectedValue(new Error('relation "applicant_photos" does not exist'));
-    expect(await displayPhotoUrl(DB, 'acct-1', P1)).toBeNull();
+  it('shows initials instead of failing the page when photos cannot be read', async () => {
+    mocks.listApplicantPhotoVersions.mockRejectedValue(new Error('connection lost'));
+    const { people, photos } = await loadOwnedTravellers(DB, 'acct-1');
+    expect(people).toHaveLength(2);
+    expect(photos.size).toBe(0);
+    expect(await ownedPhotoUrl(DB, 'acct-1', P1)).toBeNull();
+    mocks.listApplicants.mockRejectedValue(new Error('down'));
+    expect(await ownedPhotoUrl(DB, 'acct-1', P1)).toBeNull();
   });
 
   it('finds the own traveller record of the signed-in person for the account page, and leaves the card out on failure', async () => {
-    mocks.requireAccess.mockResolvedValue({ ok: true, value: {} });
-    mocks.getApplicantPhotoVersion.mockResolvedValue({ ok: true, value: 'v1' });
-    mocks.listApplicants.mockResolvedValue([
-      { id: P2, displayName: 'Family Member', relationship: 'FAMILY_MEMBER' },
-      { id: P1, displayName: 'Rahima Akter', relationship: 'SELF' },
-    ]);
     expect(await loadOwnPhoto(DB, 'acct-1')).toEqual({
-      self: { id: P1, name: 'Rahima Akter', photoUrl: `/api/photos/applicant/${P1}?v=v1` },
+      self: { id: P1, name: 'Rahima Akter', photoUrl: `/api/photos/applicant/${P1}?v=abcd` },
     });
-    mocks.listApplicants.mockResolvedValue([
-      { id: P2, displayName: 'Family Member', relationship: 'FAMILY_MEMBER' },
-    ]);
+    mocks.listApplicants.mockResolvedValue([FAMILY]);
     expect(await loadOwnPhoto(DB, 'acct-1')).toEqual({ self: null });
     mocks.listApplicants.mockRejectedValue(new Error('down'));
     expect(await loadOwnPhoto(DB, 'acct-1')).toBeNull();

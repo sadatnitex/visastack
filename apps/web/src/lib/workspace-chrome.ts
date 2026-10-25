@@ -2,12 +2,11 @@ import 'server-only';
 import {
   type Db,
   type WorkspaceToolbarState,
-  listApplicants,
   listMembershipsForAccount,
   loadWorkspaceToolbarState,
 } from '@visastack/services';
 import { hasPlatformPermission, isPlatformAdmin, isPlatformOwnerAccount } from './admin';
-import { displayPhotoUrl } from './profile-photos';
+import { loadOwnedTravellers } from './profile-photos';
 import type { WorkspaceAccess } from './workspace-navigation';
 
 /** Existing owner and active-membership reads, never an email-based permission shortcut. */
@@ -17,16 +16,14 @@ export async function loadWorkspaceChrome(
 ): Promise<
   WorkspaceAccess & { readonly accountName: string; readonly toolbar: WorkspaceToolbarState }
 > {
-  const [people, memberships, platform, toolbar] = await Promise.all([
-    listApplicants(db, actor.accountId),
+  // The owner's travellers and, in one batched read, their photos (WP-PH1); a photo failure
+  // only hides photos.
+  const [{ people, photos }, memberships, platform, toolbar] = await Promise.all([
+    loadOwnedTravellers(db, actor.accountId),
     listMembershipsForAccount(db, actor.accountId),
     isPlatformAdmin(db, actor),
     loadWorkspaceToolbarState(db, actor.accountId),
   ]);
-  // Shown where initials show; a failure only hides a photo (WP-PH1).
-  const photos = await Promise.all(
-    people.map((person) => displayPhotoUrl(db, actor.accountId, person.id)),
-  );
   const permissions = platform
     ? await Promise.all([
         isPlatformOwnerAccount(db, actor),
@@ -40,11 +37,11 @@ export async function loadWorkspaceChrome(
       actor.displayName?.trim() ||
       people.find((person) => person.relationship === 'SELF')?.displayName ||
       'Your Account',
-    travellers: people.map((person, index) => ({
+    travellers: people.map((person) => ({
       id: person.id,
       name: person.displayName,
       relationship: person.relationship,
-      photo: photos[index] ?? null,
+      photo: photos.get(person.id) ?? null,
     })),
     agencies: memberships
       .filter((membership) => membership.active)

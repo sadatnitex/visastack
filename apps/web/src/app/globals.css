@@ -6485,3 +6485,9 @@ body:has(.auth-shell) > .footer {
     width: 100%;
   }
 }
+.profile-photo-moves {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.375rem;
+  width: 100%;
+}

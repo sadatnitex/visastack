@@ -16,11 +16,21 @@ import {
   saveProfilePhotoAction,
 } from '../../app/app/profile-photo-actions';
 import { FormMessage, type FormResult, NO_RESULT } from '../form-feedback';
-import { type Crop, MAX_ZOOM, MIN_ZOOM, initialCrop, panCrop, zoomCrop } from './crop';
+import {
+  type Crop,
+  MAX_ZOOM,
+  MIN_ZOOM,
+  describeCrop,
+  initialCrop,
+  panCrop,
+  zoomCrop,
+} from './crop';
 import { PersonAvatar } from './person-avatar';
 import { type DecodedPhoto, decodePhoto, drawPreview, exportSquareJpeg } from './photo-canvas';
 
-/** The same 5 MB the server enforces, checked first so a large photo is refused at once. */
+/** The largest original photo the browser will open for cropping; phone photos can be large. */
+export const MAX_ORIGINAL_BYTES = 40 * 1024 * 1024;
+/** The same 5 MB the server enforces, checked on the cropped photo before it is sent. */
 export const MAX_PHOTO_BYTES = 5 * 1024 * 1024;
 const ACCEPT = 'image/jpeg,image/png,image/webp,image/heic,image/heif';
 const VIEW = 240;
@@ -28,6 +38,14 @@ const STEP = 12;
 const ZOOM_STEP = 0.1;
 
 type Phase = 'idle' | 'cropping' | 'saving' | 'removing';
+
+/** Visible move controls, so the photo can be placed without dragging or arrow keys. */
+const MOVE_BUTTONS: readonly (readonly [string, number, number])[] = [
+  ['Move Left', -STEP * 2, 0],
+  ['Move Right', STEP * 2, 0],
+  ['Move Up', 0, -STEP * 2],
+  ['Move Down', 0, STEP * 2],
+];
 
 /**
  * Add, replace or remove a traveller's profile photo (WP-PH1). Choosing a
@@ -89,8 +107,8 @@ export function ProfilePhotoControl({
   async function onFile(file: File | undefined) {
     if (fileInput.current) fileInput.current.value = '';
     if (!file) return;
-    if (file.size > MAX_PHOTO_BYTES) {
-      setResult({ ok: false, message: 'Choose a photo smaller than 5 MB.' });
+    if (file.size > MAX_ORIGINAL_BYTES) {
+      setResult({ ok: false, message: 'Choose a photo smaller than 40 MB.' });
       return;
     }
     if (file.type !== '' && !file.type.startsWith('image/')) {
@@ -125,6 +143,14 @@ export function ProfilePhotoControl({
     startTransition(async () => {
       try {
         const blob = await exportSquareJpeg(current, crop);
+        if (blob.size > MAX_PHOTO_BYTES) {
+          setResult({
+            ok: false,
+            message: 'The cropped photo is larger than 5 MB. Try another photo.',
+          });
+          setPhase('cropping');
+          return;
+        }
         const form = new FormData();
         form.set('applicantId', applicantId);
         form.set('photo', new File([blob], 'photo.jpg', { type: 'image/jpeg' }));
@@ -161,21 +187,21 @@ export function ProfilePhotoControl({
     if (!crop) return;
     const step = event.shiftKey ? STEP * 4 : STEP;
     const moves: Record<string, [number, number]> = {
-      ArrowLeft: [step, 0],
-      ArrowRight: [-step, 0],
-      ArrowUp: [0, step],
-      ArrowDown: [0, -step],
+      ArrowLeft: [-step, 0],
+      ArrowRight: [step, 0],
+      ArrowUp: [0, -step],
+      ArrowDown: [0, step],
     };
     const move = moves[event.key];
     if (move) {
       event.preventDefault();
-      setCrop(panCrop(crop, move[0], move[1]));
+      setCrop((current) => current && panCrop(current, move[0], move[1]));
     } else if (event.key === '+' || event.key === '=') {
       event.preventDefault();
-      setCrop(zoomCrop(crop, crop.zoom + ZOOM_STEP));
+      setCrop((current) => current && zoomCrop(current, current.zoom + ZOOM_STEP));
     } else if (event.key === '-' || event.key === '_') {
       event.preventDefault();
-      setCrop(zoomCrop(crop, crop.zoom - ZOOM_STEP));
+      setCrop((current) => current && zoomCrop(current, current.zoom - ZOOM_STEP));
     }
   }
 
@@ -189,7 +215,7 @@ export function ProfilePhotoControl({
     const dx = event.clientX - drag.current.x;
     const dy = event.clientY - drag.current.y;
     drag.current = { x: event.clientX, y: event.clientY };
-    setCrop(panCrop(crop, dx, dy));
+    setCrop((current) => current && panCrop(current, dx, dy));
   }
 
   const cropping = crop !== null && (phase === 'cropping' || phase === 'saving');
@@ -209,8 +235,8 @@ export function ProfilePhotoControl({
         >
           <h3 id={headingId}>Crop Your Photo</h3>
           <p id={helpId} className="muted">
-            Drag the photo or use the arrow keys to move it. Use the slider or the plus and minus
-            keys to zoom.
+            Drag the photo, use the arrow keys or the move buttons to move it. Use the slider or the
+            plus and minus keys to zoom.
           </p>
           {/* A button so it takes focus and keys natively; it has no click action of its own. */}
           <button
@@ -231,6 +257,23 @@ export function ProfilePhotoControl({
           >
             <canvas ref={canvas} width={VIEW} height={VIEW} />
           </button>
+          {/* Where the photo sits, read out after each move or zoom. */}
+          <output className="sr-only profile-photo-position">{describeCrop(crop)}</output>
+          <div className="profile-photo-moves">
+            {MOVE_BUTTONS.map(([label, dx, dy]) => (
+              <button
+                key={label}
+                type="button"
+                className="btn btn-secondary btn-compact"
+                aria-disabled={busy || undefined}
+                onClick={() => {
+                  if (!busy) setCrop((current) => current && panCrop(current, dx, dy));
+                }}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
           <label htmlFor={zoomId}>Zoom</label>
           <input
             id={zoomId}
@@ -239,7 +282,9 @@ export function ProfilePhotoControl({
             max={MAX_ZOOM}
             step={0.01}
             value={crop.zoom}
-            onChange={(event) => setCrop(zoomCrop(crop, Number(event.target.value)))}
+            onChange={(event) =>
+              setCrop((current) => current && zoomCrop(current, Number(event.target.value)))
+            }
           />
           <div className="profile-photo-actions">
             <button

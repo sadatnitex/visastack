@@ -78,6 +78,15 @@ beforeEach(() => {
       reason: 'RETENTION_PURGE',
       lastError: 'storage unreachable',
     },
+    {
+      id: 'e3',
+      objectKey: 'obj-3',
+      status: 'FAILED',
+      attempts: 5,
+      maxAttempts: 5,
+      reason: 'PROFILE_PHOTO_REMOVAL',
+      lastError: null,
+    },
   ]);
   mocks.listAllApplicants.mockResolvedValue([
     { id: 'ap1', displayName: 'Rahim Uddin' },
@@ -129,9 +138,10 @@ describe('Platform > Privacy', () => {
     expect(text).toContain('5/5 attempts');
     expect(text).toContain('Account deletion');
     expect(text).toContain('Retention purge');
+    expect(text).toContain('Photo Removal');
     expect(text).toContain('storage unreachable');
     expect(stubProps<{ jobId: string }>(html, 'RetryErasureJobButton').map((p) => p.jobId)).toEqual(
-      ['e1', 'e2'],
+      ['e1', 'e2', 'e3'],
     );
   });
 
