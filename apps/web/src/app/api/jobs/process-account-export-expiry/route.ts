@@ -1,3 +1,4 @@
+import { rejectUnauthorizedCron } from '../../../../lib/cron-auth';
 import { triggerAccountExportExpirySweep } from '../../../../lib/jobs';
 
 /**
@@ -14,22 +15,12 @@ import { triggerAccountExportExpirySweep } from '../../../../lib/jobs';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
-/** Variable-keyed env read (satisfies both TS index-signature and Biome rules). */
-function readEnv(name: string): string | undefined {
-  return process.env[name];
-}
-
 const MAX_BATCHES_PER_SWEEP = 20;
 const BATCH_SIZE = 50;
 
 export async function GET(request: Request): Promise<Response> {
-  const secret = readEnv('CRON_SECRET');
-  if (!secret) {
-    return new Response('CRON_SECRET not configured', { status: 503 });
-  }
-  if (request.headers.get('authorization') !== `Bearer ${secret}`) {
-    return new Response('forbidden', { status: 403 });
-  }
+  const denied = rejectUnauthorizedCron(request);
+  if (denied) return denied;
 
   let totalExpired = 0;
   for (let batch = 0; batch < MAX_BATCHES_PER_SWEEP; batch++) {
