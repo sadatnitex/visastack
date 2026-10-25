@@ -217,3 +217,82 @@ describe('agency Dashboard', () => {
     );
   });
 });
+
+describe('agency Dashboard: Do Next (WP-V4)', () => {
+  const pastDue = {
+    id: 'r-late',
+    applicantId: 'ap2',
+    applicantName: 'Nusrat Jahan',
+    missionId: 'm2',
+    kind: 'DOCUMENT',
+    docType: 'BANK_STATEMENT',
+    fieldKey: null,
+    message: null,
+    status: 'OPEN',
+    dueDate: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000),
+    respondedAt: null,
+    createdAt: new Date('2026-10-01T00:00:00.000Z'),
+    requestedByAccountId: 'acct-1',
+  };
+
+  it('shows an administrator a past-due request first, with owner, reason and a follow-up message to review', async () => {
+    mocks.loadEvidenceRequests.mockResolvedValue([pastDue]);
+    const html = await renderServer(Page(pageProps()));
+    const text = textOf(html);
+    expect(text).toContain('Do Next');
+    const doNext = html.slice(
+      html.indexOf('id="do-next-heading"'),
+      html.indexOf('id="pipeline-heading"'),
+    );
+    expect(doNext.indexOf('Bank Statement')).toBeGreaterThan(-1);
+    // Past due comes before the overdue-task case.
+    expect(doNext.indexOf('Bank Statement')).toBeLessThan(doNext.indexOf('UK Standard Visitor'));
+    // The viewer is assigned to that case, so they own it.
+    expect(textOf(doNext)).toContain('Owner You');
+    expect(textOf(doNext)).toMatch(/Why Was due .+ and has not arrived\./);
+    expect(textOf(doNext)).toContain('Review Follow-up Message');
+    expect(doNext).toContain('What we need: Bank Statement');
+    expect(doNext).not.toContain('r-late');
+  });
+
+  it('gives a member who is not an administrator no request items and no error, only their overdue tasks', async () => {
+    mocks.loadOrgAccess.mockResolvedValue({ org: { id: 'o1' }, admin: false, member: true });
+    mocks.loadMembers.mockResolvedValue([]);
+    // Even if a request reached the page, Do Next would not show it to a member.
+    mocks.loadEvidenceRequests.mockResolvedValue([pastDue]);
+    mocks.loadCases.mockResolvedValue({ admin: false, cases: [needsAttention] });
+    mocks.loadUnassignedQueue.mockResolvedValue([]);
+    const html = await renderServer(Page(pageProps()));
+    const doNext = textOf(
+      html.slice(html.indexOf('id="do-next-heading"'), html.indexOf('id="pipeline-heading"')),
+    );
+    expect(doNext).toContain('Overdue tasks on the cases assigned to you');
+    expect(doNext).toContain('UK Standard Visitor');
+    expect(doNext).toContain('1 task is past due.');
+    expect(doNext).not.toContain('Bank Statement');
+    expect(doNext).not.toContain('Review Follow-up Message');
+    expect(doNext).not.toContain('Assign Someone');
+  });
+
+  it('says plainly when nothing needs doing first', async () => {
+    mocks.loadEvidenceRequests.mockResolvedValue([]);
+    mocks.loadCases.mockResolvedValue({ admin: true, cases: [inGoodShape] });
+    expect(textOf(await renderServer(Page(pageProps())))).toContain(
+      'Nothing needs you first right now.',
+    );
+  });
+
+  it('counts a request that names a case on that case only, and a sent-back one as waiting on the traveller', async () => {
+    mocks.loadUnassignedQueue.mockResolvedValue([]);
+    const sibling = { ...needsAttention, missionId: 'm3', title: 'Canada Visitor', tasks: [] };
+    mocks.loadCases.mockResolvedValue({ admin: true, cases: [needsAttention, sibling] });
+    mocks.loadEvidenceRequests.mockResolvedValue([
+      { id: 'r1', applicantId: 'ap1', missionId: 'm3', status: 'NEEDS_REPLACEMENT' },
+    ]);
+    const text = textOf(await renderServer(Page(pageProps())));
+    expect(text).toContain('Waiting on Traveller 1');
+    const waiting = textOf(await renderServer(Page(pageProps({ quick: 'waiting' }))));
+    expect(waiting).toContain('Canada Visitor');
+    expect(waiting).not.toMatch(/Rahim Uddin · UK Standard Visitor/);
+  });
+});

@@ -58,14 +58,28 @@ export function nextApproachingDate(
   return soonest ? { label: soonest.label, date: soonest.date } : null;
 }
 
-/** How many of a case's tasks are still open and past their due date. */
+/**
+ * Task statuses that still need someone: not done and not cancelled. A started task past its due
+ * date is overdue too, the same rule the reminder emails use (WP-V4 W0 ledger H4).
+ */
+export const LIVE_TASK_STATUSES: ReadonlySet<string> = new Set(['OPEN', 'IN_PROGRESS']);
+
+/** A case's tasks that are still live and past their due date. */
+export function overdueTasks<
+  T extends { readonly status: string; readonly dueDate: string | null },
+>(tasks: readonly T[], now: Date = new Date()): T[] {
+  const nowIso = now.toISOString();
+  return tasks.filter(
+    (t) => LIVE_TASK_STATUSES.has(t.status) && t.dueDate !== null && t.dueDate < nowIso,
+  );
+}
+
+/** How many of a case's tasks are still live and past their due date. */
 export function countOverdueTasks(
   tasks: readonly { readonly status: string; readonly dueDate: string | null }[],
   now: Date = new Date(),
 ): number {
-  const nowIso = now.toISOString();
-  return tasks.filter((t) => t.status === 'OPEN' && t.dueDate !== null && t.dueDate < nowIso)
-    .length;
+  return overdueTasks(tasks, now).length;
 }
 
 export interface AttentionSummary {
@@ -75,14 +89,14 @@ export interface AttentionSummary {
   readonly needAssignment: number | null;
   /** Evidence requests still waiting on the applicant. Administrators only (the list is administrator data). */
   readonly openRequests: number | null;
-  /** Open tasks past their due date across the visible cases. */
+  /** Live (open or started) tasks past their due date across the visible cases. */
   readonly overdueTasks: number;
 }
 
 /**
  * The few counts shown at the top of the Dashboard. Each is computed from data
  * the console already loads, with the same definitions the per-case badges use
- * (overdue = open and past its due date; needs assignment = no assignee at all),
+ * (overdue = open or started and past its due date; needs assignment = no assignee at all),
  * so a number here always agrees with what the Cases tab shows.
  */
 export function summarizeAttention(input: {

@@ -15,6 +15,8 @@ import {
   loadUnassignedQueue,
 } from './console-data';
 import { countOverdueTasks, nextApproachingDate, summarizeAttention } from './console-format';
+import { buildDoNext } from './do-next';
+import { DoNextList } from './do-next-list';
 
 function Stat({
   label,
@@ -81,6 +83,7 @@ export default async function AgencyDashboardPage({
     ]);
     return {
       admin: access.admin,
+      organizationName: access.org.name ?? null,
       clients,
       members,
       requests,
@@ -156,19 +159,22 @@ export default async function AgencyDashboardPage({
       }
       return true;
     })
-    .map((mission) => ({
-      mission,
-      openRequests: data.requests.filter(
-        (r) => r.applicantId === mission.applicantId && r.status === 'OPEN',
-      ).length,
-      // "Review issues": evidence a reviewer already looked at and sent back for replacement.
-      reviewIssues: data.requests.filter(
-        (r) => r.applicantId === mission.applicantId && r.status === 'NEEDS_REPLACEMENT',
-      ).length,
-      overdueTasks: countOverdueTasks(mission.tasks),
-      approaching: nextApproachingDate(mission.targetDeadline, mission.travelStartDate),
-      assignedToMe: mission.assignments.some((a) => a.memberAccountId === data.viewerAccountId),
-    }))
+    .map((mission) => {
+      // A request that names a case counts on that case only; one made for the traveller in
+      // general (no case) still shows on each of that traveller's cases (WP-V4 W0 flag 2).
+      const forCase = data.requests.filter((r) =>
+        r.missionId ? r.missionId === mission.missionId : r.applicantId === mission.applicantId,
+      );
+      return {
+        mission,
+        openRequests: forCase.filter((r) => r.status === 'OPEN').length,
+        // "Review issues": evidence a reviewer already looked at and sent back for replacement.
+        reviewIssues: forCase.filter((r) => r.status === 'NEEDS_REPLACEMENT').length,
+        overdueTasks: countOverdueTasks(mission.tasks),
+        approaching: nextApproachingDate(mission.targetDeadline, mission.travelStartDate),
+        assignedToMe: mission.assignments.some((a) => a.memberAccountId === data.viewerAccountId),
+      };
+    })
     // Cases needing action float to the top.
     .sort((a, b) => {
       const weight = (x: typeof a) =>
@@ -188,7 +194,12 @@ export default async function AgencyDashboardPage({
   }[] = [
     { key: 'mine', label: 'Mine', test: (row) => row.assignedToMe },
     { key: 'overdue', label: 'Overdue', test: (row) => row.overdueTasks > 0 },
-    { key: 'waiting', label: 'Waiting on Traveller', test: (row) => row.openRequests > 0 },
+    // Both a first request and one sent back for a fix wait on the traveller.
+    {
+      key: 'waiting',
+      label: 'Waiting on Traveller',
+      test: (row) => row.openRequests + row.reviewIssues > 0,
+    },
     { key: 'unassigned', label: 'Unassigned', test: (row) => row.mission.assignments.length === 0 },
   ];
   const activeQuick = quickViews.find((view) => view.key === rawQuick);
@@ -203,6 +214,24 @@ export default async function AgencyDashboardPage({
     const query = params.toString();
     return `${base}${query ? `?${query}` : ''}`;
   };
+
+  const filtered =
+    q.length > 0 ||
+    stageFilter.length > 0 ||
+    destinationQuery.length > 0 ||
+    assigneeFilter.length > 0 ||
+    activeQuick !== undefined;
+  // Do Next ranks only what this page already loaded, narrowed to the cases in view.
+  const doNext = buildDoNext({
+    admin: data.admin,
+    viewerAccountId: data.viewerAccountId,
+    cases: searched.map((row) => row.mission),
+    requests: data.requests,
+    applicantWide: filtered ? 'travellers-in-view' : 'all',
+    members: data.members,
+    organizationName: data.organizationName,
+    base,
+  });
 
   const stageCounts = new Map<string, number>([
     ['DRAFT', 0],
@@ -284,6 +313,8 @@ export default async function AgencyDashboardPage({
           </p>
         </article>
       ) : null}
+
+      <DoNextList items={doNext} admin={data.admin} filtered={filtered} />
 
       <div className="agency-working-area">
         <div className="agency-case-column">

@@ -6,6 +6,7 @@ import {
   REQ_STATUS,
   countOverdueTasks,
   nextApproachingDate,
+  overdueTasks,
   summarizeAttention,
 } from './console-format';
 
@@ -123,5 +124,26 @@ describe('status vocabularies', () => {
       expect(REQ_STATUS[status]?.label, status).toBeTruthy();
     }
     expect([...EVIDENCE_DECIDABLE_STATUSES].sort()).toEqual(['RECEIVED', 'UNDER_REVIEW']);
+  });
+});
+
+describe('overdue tasks include started ones (WP-V4, W0 ledger H4)', () => {
+  it('counts a started task past its due date, as the reminder emails do', () => {
+    expect(
+      countOverdueTasks(
+        [
+          { status: 'IN_PROGRESS', dueDate: days(-1) },
+          { status: 'IN_PROGRESS', dueDate: days(1) },
+          { status: 'OPEN', dueDate: days(-3) },
+          { status: 'DONE', dueDate: days(-3) },
+        ],
+        NOW,
+      ),
+    ).toBe(2);
+  });
+
+  it('returns the overdue tasks themselves for callers that need their dates', () => {
+    const late = { status: 'IN_PROGRESS', dueDate: days(-4), id: 't1' };
+    expect(overdueTasks([late, { status: 'OPEN', dueDate: null, id: 't2' }], NOW)).toEqual([late]);
   });
 });
