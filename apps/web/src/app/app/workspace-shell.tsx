@@ -30,6 +30,9 @@ export function WorkspaceCaseSubject({ route, applicantId }: Subject) {
   return null;
 }
 
+const firstWord = (name: string) => name.trim().split(/\s+/)[0] ?? '';
+const restOfName = (name: string) => name.trim().slice(firstWord(name).length);
+
 /**
  * Who you are acting as, and the places you can switch to. The phone top bar
  * shows a compact copy (WP-X3) so this is visible without opening More; both
@@ -76,11 +79,12 @@ function WorkspaceSelector({
             .toUpperCase()}
         </span>
         {compact ? (
-          // The chip shows the first name; screen readers hear the full name and context.
+          // The chip shows the first name; screen readers hear "Acting as", the full name and context.
           <span>
-            <b aria-hidden="true">{name.trim().split(/\s+/)[0]}</b>
+            <span className="sr-only">Acting as </span>
+            <b>{firstWord(name)}</b>
             <span className="sr-only">
-              Acting as {name}, {caption}
+              {restOfName(name)}, {caption}
             </span>
           </span>
         ) : (

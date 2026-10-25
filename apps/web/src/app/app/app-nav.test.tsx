@@ -72,6 +72,12 @@ describe('phone navigation and the context chip (WP-X3)', () => {
     expect(more()?.getAttribute('aria-expanded')).toBe('false');
     const summary = chip()?.querySelector('summary');
     expect(summary?.textContent).toContain('Synthetic Self');
+    // Visible: the first name. Read aloud: who you are acting as, in full, and where.
+    expect(summary?.querySelector('b')?.textContent).toBe('Synthetic');
+    expect(summary?.querySelector('.workspace-avatar')?.getAttribute('aria-hidden')).toBe('true');
+    expect(summary?.textContent?.replace(/\s+/g, ' ')).toContain(
+      'Acting as Synthetic Self, Personal space',
+    );
     // The same places to switch to as the full selector, from the same data.
     const links = [...(chip()?.querySelectorAll('nav a') ?? [])].map((a) => a.getAttribute('href'));
     const full = [
