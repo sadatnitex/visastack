@@ -6,7 +6,7 @@ describe('i18n — bilingual translator', () => {
   it('translates in English and Bangla', () => {
     const en = createTranslator('en');
     const bn = createTranslator('bn');
-    expect(en('consent.core.title')).toBe('Core processing consent');
+    expect(en('consent.core.title')).toBe('Core Processing Consent');
     expect(bn('consent.core.title')).toBe('মূল প্রক্রিয়াকরণ সম্মতি');
   });
 

@@ -45,12 +45,12 @@ describe('choosing the kind of document on the upload form', () => {
     expect(other.querySelector('[data-testid="original-needed-note"]')).toBeNull();
   });
 
-  it('offers the kinds, optional, with "Not sure yet" first and a note on why to choose', async () => {
+  it('offers the kinds, optional, with "Not Sure Yet" first and a note on why to choose', async () => {
     const host = await mount({ kindGroups: groups });
     const select = host.querySelector('select[name="docType"]') as HTMLSelectElement;
     expect(select.required).toBe(false);
     expect([...select.options].map((o) => o.textContent)).toEqual([
-      'Not sure yet',
+      'Not Sure Yet',
       'Passport',
       'Other Document',
     ]);

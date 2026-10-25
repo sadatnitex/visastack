@@ -97,11 +97,11 @@ describe('agency Dashboard', () => {
     const html = await renderServer(Page(pageProps()));
     expect(html.indexOf('Rahim Uddin')).toBeLessThan(html.indexOf('Nusrat Jahan'));
     const text = textOf(html);
-    expect(text).toContain('Needs assignment');
+    expect(text).toContain('Needs Assignment');
     expect(text).toContain('1 open request');
     expect(text).toContain('1 needs replacement');
     expect(text).toContain('1 overdue task');
-    expect(text).toContain('Assigned to you');
+    expect(text).toContain('Assigned to You');
     expect(text).toContain('2 missing');
     expect(text).toContain('Ready');
   });

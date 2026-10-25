@@ -98,7 +98,7 @@ const OVERALL_STATE_META: Record<OverallReadinessState, { label: string; tone: s
   READY_FOR_APPLICANT_REVIEW: { label: 'Ready for Review', tone: 'badge-success' },
   NEEDS_REVIEW: { label: 'Needs Review', tone: 'badge-warning' },
   NEEDS_ACTION: { label: 'Needs Action', tone: 'badge-danger' },
-  MANUAL_ONLY: { label: 'Manual · not automatically assessed', tone: 'badge-neutral' },
+  MANUAL_ONLY: { label: 'Manual · Not Automatically Assessed', tone: 'badge-neutral' },
 };
 
 // RUL-04's seven per-requirement outcomes. Sort order surfaces what still
@@ -594,7 +594,7 @@ export default async function MissionPage({
         actions={
           <>
             <a className="btn btn-secondary" href="#evidence">
-              Add evidence
+              Add Evidence
             </a>
             <SnapshotButton missionId={mission.id} />
           </>
@@ -675,10 +675,10 @@ export default async function MissionPage({
       <nav className="jump-nav" aria-label="Sections of this case">
         <a href="#readiness">Readiness</a>
         <a href="#evidence">Evidence</a>
-        <a href="#work">Tasks and letters</a>
+        <a href="#work">Tasks and Letters</a>
         <a href="#snapshots">Snapshots</a>
-        <a href="#notes">Contributors and notes</a>
-        <a href="#outcome">Submission and outcome</a>
+        <a href="#notes">Contributors and Notes</a>
+        <a href="#outcome">Submission and Outcome</a>
       </nav>
 
       <div className="split">
@@ -779,7 +779,7 @@ export default async function MissionPage({
                                       r.state === 'EXPIRING_STALE' ? (
                                         <>
                                           {' '}
-                                          <a href="#evidence">Provide evidence ↓</a>
+                                          <a href="#evidence">Provide Evidence ↓</a>
                                         </>
                                       ) : null}
                                     </span>
@@ -837,7 +837,7 @@ export default async function MissionPage({
             )}
           </article>
 
-          <Disclosure title="Select or update evidence" hint="Open when you need to make a change">
+          <Disclosure title="Select or Update Evidence" hint="Open when you need to make a change">
             <div className="grid u-mt-150" id="evidence">
               <EvidenceSelectionPanel
                 missionId={mission.id}
@@ -1023,8 +1023,8 @@ export default async function MissionPage({
                     className={`badge ${data.packInfo.authoritative ? 'badge-success' : 'badge-neutral'}`}
                   >
                     {data.packInfo.authoritative
-                      ? 'Official requirement pack'
-                      : 'Agency custom checklist'}
+                      ? 'Official Requirement Pack'
+                      : 'Agency Custom Checklist'}
                   </span>
                 </div>
                 {data.packInfo.jurisdiction || data.packInfo.route ? (

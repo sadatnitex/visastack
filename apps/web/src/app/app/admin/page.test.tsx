@@ -252,7 +252,7 @@ describe('Platform > Operations', () => {
     );
     const html = await renderServer(Page());
     const text = textOf(html);
-    expect(text).toContain('Some sections could not be loaded');
+    expect(text).toContain('Some Sections Could Not Be Loaded');
     expect(text).toContain('AI cost');
     expect(text).toContain('product scorecard');
     // the rest of the page is still there

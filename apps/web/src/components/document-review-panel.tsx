@@ -50,7 +50,7 @@ export function DocumentReviewPanel({
       {selected ? (
         <>
           <label className="field-label" htmlFor="review-document">
-            Choose a document
+            Choose a Document
           </label>
           <select
             className="input"

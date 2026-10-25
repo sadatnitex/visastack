@@ -36,7 +36,7 @@ export const MEMBERSHIP_ROLE_LABELS: Readonly<Record<MembershipRole, string>> = 
 };
 
 export const ORGANIZATION_STATUS_LABELS: Readonly<Record<OrganizationStatus, string>> = {
-  PENDING_VERIFICATION: 'Waiting For Review',
+  PENDING_VERIFICATION: 'Waiting for Review',
   ACTIVE: 'Active',
   SUSPENDED: 'Suspended',
   REJECTED: 'Not Approved',
@@ -164,29 +164,29 @@ export const CONSENT_PLAIN: Readonly<
   Record<string, { readonly name: string; readonly meaning: string }>
 > = {
   CORE_PROCESSING: {
-    name: 'Let VisaStack process my details',
+    name: 'Let VisaStack Process My Details',
     meaning: 'Needed before documents are stored and your profile can be filled.',
   },
   AI_EXTRACTION: {
-    name: 'Let AI read details from my documents',
+    name: 'Let AI Read Details from My Documents',
     meaning:
       'The text of a document is sent to an AI service to suggest values. You approve each one.',
   },
   AI_OCR: {
-    name: 'Let AI read text from my scans',
+    name: 'Let AI Read Text from My Scans',
     meaning:
       'The picture of a scan is sent to an AI service to read it. This shares more than text alone.',
   },
   SHARING: {
-    name: 'Let me share with others',
+    name: 'Let Me Share with Others',
     meaning: 'Needed before anything is shared with an agency or another person.',
   },
   MARKETING: {
-    name: 'Send me news and offers',
+    name: 'Send Me News and Offers',
     meaning: 'Optional. You can use VisaStack without it.',
   },
   ISSUER_CONTACT: {
-    name: 'Let an agency check a document with its issuer',
+    name: 'Let an Agency Check a Document with Its Issuer',
     meaning:
       'An agency may contact a bank, university or other issuer to confirm a fact or document for you.',
   },

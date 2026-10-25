@@ -15,6 +15,7 @@ import { notFound } from 'next/navigation';
 import { EmptyState, PageHeader } from '../../../../../components/ui';
 import { formatTimestampDate } from '../../../../../lib/format-date';
 import { buildMasterProfileView, fieldLabel } from '../../../../../lib/master-profile';
+import { agree, plural } from '../../../../../lib/plural';
 import { withSession } from '../../../../../lib/session';
 import { type FieldAssurance, ProfileEditor } from '../profile-editor';
 
@@ -178,7 +179,7 @@ export default async function ApplicantProfilePage({
         actions={
           data.coreGranted ? (
             <a href="#profile-editor" className="btn btn-primary">
-              + Add information
+              Add Information
             </a>
           ) : (
             <Link className="btn btn-secondary" href="/app#permissions">
@@ -214,9 +215,9 @@ export default async function ApplicantProfilePage({
             <div className="meter-fill" style={{ width: `${completeness}%` }} />
           </div>
           <span className="muted">
-            {view.answered} of {view.total} details in your {view.openSections} open sections have
-            values. Opening a section adds its details to this number at once. This does not verify
-            identity.
+            {view.answered} of {view.total} details in your{' '}
+            {plural(view.openSections, 'open section')} have values. Opening a section adds its
+            details to this number at once. This does not verify identity.
           </span>
         </div>
       </section>
@@ -224,8 +225,9 @@ export default async function ApplicantProfilePage({
         <article className="card split-main">
           {conflictedCount > 0 ? (
             <p className="notice notice-warn" role="alert">
-              {conflictedCount} field{conflictedCount === 1 ? '' : 's'} have conflicting proposed
-              values. Review the fields marked <strong>Conflicted</strong> before relying on them.
+              {plural(conflictedCount, 'field')} {agree(conflictedCount, 'has', 'have')} conflicting
+              proposed values. Review the fields marked <strong>Conflicted</strong> before relying
+              on them.
             </p>
           ) : null}
           {data.coreGranted ? (
@@ -239,10 +241,10 @@ export default async function ApplicantProfilePage({
           ) : (
             <EmptyState
               icon="lock"
-              title="Choose whether to save your profile"
+              title="Choose Whether to Save Your Profile"
               action={{ href: '/app#permissions', label: 'Review Permissions' }}
             >
-              Turn on “Let VisaStack process my details” on Home to edit this profile. Existing
+              Turn on “Let VisaStack Process My Details” on Home to edit this profile. Existing
               values are not changed.
             </EmptyState>
           )}
@@ -279,8 +281,8 @@ export default async function ApplicantProfilePage({
                 {changes.map((entry) => (
                   <li key={entry.factId}>
                     <Link href={`/app/applicant/${id}/history`}>
-                      <strong>{fieldLabel(entry.fieldKey) ?? 'Profile detail'}</strong>
-                      <span>{entry.method ?? 'Recorded update'}</span>
+                      <strong>{fieldLabel(entry.fieldKey) ?? 'Profile Detail'}</strong>
+                      <span>{entry.method ?? 'Recorded Update'}</span>
                     </Link>
                     <time dateTime={entry.updatedAt as string}>
                       {formatTimestampDate(entry.updatedAt as string)}

@@ -73,7 +73,7 @@ export function RecordBrowser({
             >
               <span>{label}</span>
               {unavailable(key) ? (
-                <span className="record-hub-filter-unavailable">Not available right now</span>
+                <span className="record-hub-filter-unavailable">Not Available Right Now</span>
               ) : (
                 <strong>{counts[key]}</strong>
               )}

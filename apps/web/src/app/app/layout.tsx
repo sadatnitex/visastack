@@ -29,7 +29,7 @@ export default async function AppLayout({ children }: { readonly children: React
         >
           <button type="submit" className="btn btn-secondary nav-cta">
             <Icon name="logout" size={18} />
-            Sign out
+            Sign Out
           </button>
         </form>
       }

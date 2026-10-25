@@ -77,7 +77,7 @@ export function BrandingForm({
   return (
     <div className="brand-settings">
       <section className="brand-preview" aria-label="How your agency will look">
-        <p className="brand-preview-label">How it looks</p>
+        <p className="brand-preview-label">How It Looks</p>
         <AgencyBrandScope brand={brand} className="agency-hero agency-hero-preview">
           <AgencyMark brand={brand} size="lg" />
           <div className="agency-hero-text">
