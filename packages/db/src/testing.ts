@@ -1,9 +1,7 @@
 import { readFile } from 'node:fs/promises';
-import { fileURLToPath } from 'node:url';
 import { PGlite } from '@electric-sql/pglite';
-import { drizzle } from 'drizzle-orm/pglite';
-import { migrate } from 'drizzle-orm/pglite/migrator';
 import { inject } from 'vitest';
+import { buildMigratedSnapshot } from './migrated-snapshot';
 
 /**
  * Test support: fresh, fully migrated in-memory databases.
@@ -20,23 +18,13 @@ import { inject } from 'vitest';
  * Tests that exercise the migrations themselves (partial or older schemas) keep migrating by hand.
  */
 
-export const migrationsFolder = fileURLToPath(new URL('../migrations', import.meta.url));
+export { migrationsFolder } from './paths';
+export { buildMigratedSnapshot } from './migrated-snapshot';
 
 declare module 'vitest' {
   export interface ProvidedContext {
     /** Path of the migrated data-directory snapshot written by the global setup. */
     migratedPgliteSnapshot: string;
-  }
-}
-
-/** Migrates a throwaway database and returns its data directory as an uncompressed tarball. */
-export async function buildMigratedSnapshot(): Promise<Blob> {
-  const client = new PGlite();
-  try {
-    await migrate(drizzle(client), { migrationsFolder });
-    return await client.dumpDataDir('none');
-  } finally {
-    await client.close();
   }
 }
 

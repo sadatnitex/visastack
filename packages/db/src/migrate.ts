@@ -1,9 +1,9 @@
 import { readFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
 import { neon } from '@neondatabase/serverless';
 import { drizzle } from 'drizzle-orm/neon-http';
 import { migrate } from 'drizzle-orm/neon-http/migrator';
 import { DATABASE_URL_ENV_CANDIDATES, resolveDatabaseUrl } from './client';
+import { migrationsFolder } from './paths';
 
 /**
  * Applies the reviewed SQL migrations to Neon. Run deliberately (not on every
@@ -35,15 +35,11 @@ async function main(): Promise<void> {
     );
   }
   const db = drizzle(neon(connectionString));
-  const migrationsFolder = fileURLToPath(new URL('../migrations', import.meta.url));
   await migrate(db, { migrationsFolder });
   // The release record needs the migration version this run brought the database to.
-  const journal = JSON.parse(
-    readFileSync(
-      fileURLToPath(new URL('../migrations/meta/_journal.json', import.meta.url)),
-      'utf8',
-    ),
-  ) as { entries: { tag: string }[] };
+  const journal = JSON.parse(readFileSync(`${migrationsFolder}/meta/_journal.json`, 'utf8')) as {
+    entries: { tag: string }[];
+  };
   const newest = journal.entries.at(-1)?.tag ?? 'unknown';
   process.stdout.write(
     `migrations applied (credential: ${dedicated ? 'dedicated' : 'application'}); newest migration in this build: ${newest}\n`,

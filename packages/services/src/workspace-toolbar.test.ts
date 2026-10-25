@@ -1,14 +1,12 @@
-import { fileURLToPath } from 'node:url';
-import { PGlite } from '@electric-sql/pglite';
 import { schema } from '@visastack/db';
+import { createMigratedPglite } from '@visastack/db/testing';
 import { eq } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/pglite';
-import { migrate } from 'drizzle-orm/pglite/migrator';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Db } from './db';
 import { markNotificationRead } from './notifications';
 import { loadWorkspaceToolbarState } from './workspace-toolbar';
-const client = new PGlite();
+const client = await createMigratedPglite();
 const local = drizzle(client, { schema });
 const db = local as unknown as Db;
 let owner: string;
@@ -16,9 +14,6 @@ let stranger: string;
 let notice: string;
 let org: string;
 beforeAll(async () => {
-  await migrate(local, {
-    migrationsFolder: fileURLToPath(new URL('../../db/migrations', import.meta.url)),
-  });
   const accounts = await db
     .insert(schema.accounts)
     .values([{ email: 'toolbar-owner@example.test' }, { email: 'toolbar-stranger@example.test' }])

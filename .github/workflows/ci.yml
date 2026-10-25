@@ -225,9 +225,9 @@ jobs:
   verify:
     # The required status check. Keep this name: branch protection matches on it.
     name: Lint · Build · Typecheck · Test
-    # Runs even when a job failed or was skipped (so the check goes red), but not for a run that
-    # was cancelled because a newer commit superseded it.
-    if: ${{ !cancelled() }}
+    # Always runs, so a failed, skipped or cancelled job turns the check red. A skipped required
+    # check counts as passed, so this job must never be skipped itself.
+    if: always()
     needs: [static, build, test-services, test-packages]
     runs-on: ubuntu-latest
     timeout-minutes: 5

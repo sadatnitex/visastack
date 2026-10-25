@@ -1,14 +1,12 @@
 import { readFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
 import { PGlite } from '@electric-sql/pglite';
 import { sql } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/pglite';
 import { migrate } from 'drizzle-orm/pglite/migrator';
 import { describe, expect, it } from 'vitest';
 import { type MigrationJournalEntry, getMigrationStatus } from './migration-status';
+import { migrationsFolder } from './paths';
 import * as schema from './schema';
-
-const migrationsFolder = fileURLToPath(new URL('../migrations', import.meta.url));
 
 function shippedJournal(): MigrationJournalEntry[] {
   const raw = readFileSync(`${migrationsFolder}/meta/_journal.json`, 'utf8');
