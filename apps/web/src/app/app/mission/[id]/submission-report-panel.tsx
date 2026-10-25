@@ -109,7 +109,7 @@ export function SubmissionReportPanel({
           </div>
           <div className="field-row">
             <label className="field-label" htmlFor="submittedAt">
-              Submitted on (optional - defaults to now)
+              Submitted on (Optional - Defaults to Now)
             </label>
             <input id="submittedAt" name="submittedAt" type="datetime-local" className="input" />
           </div>

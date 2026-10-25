@@ -22,7 +22,7 @@ describe('REQUIREMENT_GROUPS', () => {
   it('puts what the person must do first and finished work last', () => {
     expect(REQUIREMENT_GROUPS.map((group) => group.heading)).toEqual([
       'Needs You',
-      'Needs A Check',
+      'Needs a Check',
       'Done',
     ]);
     expect(REQUIREMENT_GROUPS[0]?.states).toContain('CRITICAL_GAP');

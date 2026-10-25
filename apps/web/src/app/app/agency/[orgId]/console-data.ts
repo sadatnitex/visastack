@@ -1,6 +1,9 @@
 import 'server-only';
 import {
   type Db,
+  EACH_GRANT,
+  type TriageDocumentState,
+  accountPrincipal,
   computeReadiness,
   getLiveAcknowledgement,
   getOrganization,
@@ -18,10 +21,12 @@ import {
   listNotes,
   listOrgMemberships,
   listOrganizationInvitations,
+  listRespondingDocumentStatesForOrg,
   listSelectedEvidenceForOrg,
   listTasksForOrg,
   listUnassignedActiveMissions,
   listVisibleMissionsForMember,
+  requireAccess,
 } from '@visastack/services';
 import { fieldLabel } from '../../../../lib/master-profile';
 
@@ -39,7 +44,14 @@ type OkValue<R> = R extends { readonly ok: true; readonly value: infer V } ? V :
 export type OrgMember = OkValue<Awaited<ReturnType<typeof listOrgMemberships>>>[number];
 export type EvidenceRequestRow = OkValue<
   Awaited<ReturnType<typeof listEvidenceRequestsForOrgDetailed>>
->[number];
+>[number] & {
+  /**
+   * The answered file's newest version, for the triage groups. Present only for a received
+   * document request whose case (or traveller) this organization may still manage: `null` means
+   * the file can no longer be used. Absent means the request status alone decides.
+   */
+  readonly respondingDocumentState?: TriageDocumentState | null;
+};
 
 export interface OrgAccess {
   readonly org: Organization;
@@ -91,16 +103,52 @@ export async function loadMembers(
   return result.ok ? result.value : [];
 }
 
-/** Org-wide evidence requests: administrator data, empty for anyone else. */
+/**
+ * Org-wide evidence requests: administrator data, empty for anyone else. With `withFileStates`
+ * (only the screens that show triage ask for it), a received document request also carries its
+ * file's newest state (WP-V4), read through the central access gate one case (or one traveller)
+ * at a time, so a file this organization can no longer manage is never looked at.
+ */
 export async function loadEvidenceRequests(
   db: Db,
   accountId: string,
   orgId: string,
   access: Pick<OrgAccess, 'admin'>,
+  options: { readonly withFileStates?: boolean } = {},
 ): Promise<EvidenceRequestRow[]> {
   if (!access.admin) return [];
   const result = await listEvidenceRequestsForOrgDetailed(db, accountId, orgId);
-  return result.ok ? result.value : [];
+  if (!result.ok) return [];
+  if (options.withFileStates !== true) return result.value;
+  const answered = result.value.filter(
+    (r) =>
+      r.kind === 'DOCUMENT' &&
+      (r.status === 'RECEIVED' || r.status === 'UNDER_REVIEW') &&
+      r.respondingDocumentId,
+  );
+  if (answered.length === 0) return result.value;
+  const scopes = new Map<string, { applicantId: string } | { missionId: string }>();
+  for (const r of answered) {
+    if (r.missionId) scopes.set(`m:${r.missionId}`, { missionId: r.missionId });
+    else scopes.set(`a:${r.applicantId}`, { applicantId: r.applicantId });
+  }
+  const states = new Map<string, TriageDocumentState | null>();
+  await Promise.all(
+    [...scopes.values()].map(async (ref) => {
+      const proof = await requireAccess(db, accountPrincipal(accountId), 'MANAGE', ref, {
+        purpose: EACH_GRANT,
+        actingFor: { organizationId: orgId },
+      });
+      // Refused: the organization can no longer manage that case, so its files stay unread.
+      if (!proof.ok) return;
+      for (const [id, state] of await listRespondingDocumentStatesForOrg(proof.value, orgId)) {
+        states.set(id, state);
+      }
+    }),
+  );
+  return result.value.map((r) =>
+    states.has(r.id) ? { ...r, respondingDocumentState: states.get(r.id) ?? null } : r,
+  );
 }
 
 /** Pending team invitations: administrator data. */

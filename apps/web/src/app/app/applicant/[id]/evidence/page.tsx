@@ -12,6 +12,7 @@ import { EmptyState, PageHeader, StatusBadge, type Tone } from '../../../../../c
 import { humanizeCode } from '../../../../../lib/format-code';
 import { daysUntilDateOnly, formatDateOnly } from '../../../../../lib/format-date';
 import { fieldLabel } from '../../../../../lib/master-profile';
+import { plural } from '../../../../../lib/plural';
 import { withSession } from '../../../../../lib/session';
 import { SubmitResponseForm } from './submit-response-form';
 
@@ -53,10 +54,6 @@ function dueLabel(
   if (days === 0) return { label: 'Due Today', tone: 'warning' };
   if (days <= 7) return { label: `Due in ${plural(days, 'day')}`, tone: 'warning' };
   return { label: `Due in ${plural(days, 'day')}`, tone: 'neutral' };
-}
-
-function plural(count: number, noun: string): string {
-  return `${count} ${noun}${count === 1 ? '' : 's'}`;
 }
 
 /** A person-readable name for what is being asked for, never the stored key. */

@@ -13,11 +13,8 @@ import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { EmptyState, PageHeader, StatusBadge, type Tone } from '../../../../../components/ui';
 import { formatTimestampDate } from '../../../../../lib/format-date';
+import { plural } from '../../../../../lib/plural';
 import { withSession } from '../../../../../lib/session';
-
-function plural(count: number, noun: string): string {
-  return `${count} ${noun}${count === 1 ? '' : 's'}`;
-}
 
 export const metadata: Metadata = { title: 'Expiry' };
 
@@ -100,7 +97,7 @@ export default async function ExpiryCentrePage({
     <>
       <PageHeader
         eyebrow="Expiry Centre"
-        title={<>Expiry &amp; freshness</>}
+        title={<>Expiry &amp; Freshness</>}
         description="Three separate signals - a document's own expiry, whether a route needs it more recently dated, and how long an issuer confirmation stays valid. Never merged into one status."
         as="h2"
       />

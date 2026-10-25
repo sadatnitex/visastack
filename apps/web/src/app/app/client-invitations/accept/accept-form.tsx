@@ -36,7 +36,7 @@ export function AcceptClientInvitationForm({
               checked={selection === 'new'}
               onChange={() => setSelection('new')}
             />
-            Create a new profile
+            Create a New Profile
           </label>
           {applicants.map((a) => (
             <label key={a.id} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>

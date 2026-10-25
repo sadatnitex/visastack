@@ -77,9 +77,9 @@ describe('the scanner itself', () => {
       scan('const a = <button type="submit" disabled={pending || !ready}>Save</button>;'),
     ).toHaveLength(1);
     expect(scan('const a = <button type="submit" disabled={savePending} />;')).toHaveLength(1);
-    // Not only submit buttons: a "Check now" button that re-runs a check was missed once.
+    // Not only submit buttons: a "Check Now" button that re-runs a check was missed once.
     expect(
-      scan('const a = <button type="button" disabled={loading}>Check now</button>;'),
+      scan('const a = <button type="button" disabled={loading}>Check Now</button>;'),
     ).toHaveLength(1);
     expect(scan('const a = <button onClick={go} disabled={isLoading} />;')).toHaveLength(1);
   });

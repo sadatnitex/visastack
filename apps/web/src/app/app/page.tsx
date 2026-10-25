@@ -26,6 +26,7 @@ import { isPlatformAdmin } from '../../lib/admin';
 import { CONSENT_PLAIN } from '../../lib/labels';
 import { getLocale } from '../../lib/locale';
 import { safeReturnPath } from '../../lib/neon-recency';
+import { plural } from '../../lib/plural';
 import { withSession } from '../../lib/session';
 import { ConsentButton } from './consent-button';
 import { FirstRunConsent, FirstRunName, FirstRunTask, SETUP_LATER_HREF } from './first-run';
@@ -281,7 +282,7 @@ export default async function AppPage({
         title: 'Turn On Core Processing to Begin',
         why: 'VisaStack cannot create applicant or profile records until you allow this. You can turn it off again at any time.',
         href: '#permissions',
-        action: 'Choose permissions',
+        action: 'Choose Permissions',
         tone: 'warning' as const,
       }
     : first
@@ -300,7 +301,7 @@ export default async function AppPage({
             action: firstTodo.key === 'applicant' ? 'Add an Applicant' : 'Continue',
           }
         : {
-            title: 'You are up to date',
+            title: 'You Are Up to Date',
             why: 'Nothing is waiting for you. Open an applicant to add documents or start a case.',
             href: '/app/applicants',
             action: 'View Applicants',
@@ -372,7 +373,7 @@ export default async function AppPage({
                     </span>
                     <span className="attention-end">
                       {row.openRequests + row.pendingProposals > 0 ? (
-                        <StatusBadge tone="warning">Action needed</StatusBadge>
+                        <StatusBadge tone="warning">Action Needed</StatusBadge>
                       ) : null}
                       <span className="attention-chevron" aria-hidden="true">
                         ›
@@ -402,7 +403,7 @@ export default async function AppPage({
         >
           <p className="card-body u-mb-100">
             {locale === 'en'
-              ? 'Each one is on or off, and you can change it at any time. Turning one off never requires turning another back on. "Let VisaStack process my details" is needed before any applicant or profile can be created; the others are optional.'
+              ? 'Each one is on or off, and you can change it at any time. Turning one off never requires turning another back on. "Let VisaStack Process My Details" is needed before any applicant or profile can be created; the others are optional.'
               : 'Each purpose is granted and revoked independently, at any time. Turning one off never requires turning another back on. Core processing is required before any applicant or profile records can be created; the others are optional.'}
           </p>
           <div className="rows">
@@ -411,10 +412,15 @@ export default async function AppPage({
               const name = plain?.name ?? t(CONSENT_MESSAGE_KEYS[type]);
               const on = Boolean(data.consents[type]);
               return (
-                <div className="row" key={type}>
-                  <span className="row-key">
-                    {name}
-                    {plain ? <span className="cell-sub">{plain.meaning}</span> : null}
+                <div className="row consent-row" key={type}>
+                  <span className="row-key consent-text">
+                    <span className="consent-name">{name}</span>
+                    {plain ? (
+                      <>
+                        {' '}
+                        <span className="consent-meaning">{plain.meaning}</span>
+                      </>
+                    ) : null}
                   </span>
                   {plain ? (
                     <span className={`badge ${on ? 'badge-success' : 'badge-neutral'}`}>
@@ -430,8 +436,4 @@ export default async function AppPage({
       </div>
     </section>
   );
-}
-
-function plural(count: number, noun: string): string {
-  return `${count} ${noun}${count === 1 ? '' : 's'}`;
 }

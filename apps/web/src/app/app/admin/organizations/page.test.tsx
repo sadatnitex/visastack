@@ -88,7 +88,7 @@ describe('Platform > Organizations', () => {
       new Error('relation "organizations" does not exist'),
     );
     const html = await renderServer(Page());
-    expect(textOf(html)).toContain('Some sections could not be loaded');
+    expect(textOf(html)).toContain('Some Sections Could Not Be Loaded');
     expect(textOf(html)).toContain('organizations');
     expect(textOf(html)).toContain('No Organizations Yet');
   });

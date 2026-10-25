@@ -47,11 +47,11 @@ describe('first-run "Who is this record for?"', () => {
     expect(container.querySelector('button[type="submit"]')?.textContent).toBe('Continue');
   });
 
-  it('Someone I manage sends Family member or Minor and requires the authority confirmation', () => {
+  it('Someone I Manage sends Family Member or Minor and requires the authority confirmation', () => {
     act(() => root.render(<AddApplicantForm firstRun />));
-    act(() => radio('Someone I manage')?.click());
-    expect(container.textContent).toContain('Family member');
-    expect(container.textContent).toContain('Minor (guardian)');
+    act(() => radio('Someone I Manage')?.click());
+    expect(container.textContent).toContain('Family Member');
+    expect(container.textContent).toContain('Minor (Guardian)');
     expect(
       container.querySelector<HTMLInputElement>('input[name="authorityConfirmed"]')?.required,
     ).toBe(true);
@@ -59,7 +59,7 @@ describe('first-run "Who is this record for?"', () => {
       ['whoFor', 'MANAGED'],
       ['managedKind', 'FAMILY_MEMBER'],
     ]);
-    act(() => radio('Minor (guardian)')?.click());
+    act(() => radio('Minor (Guardian)')?.click());
     expect(posted()[1]).toEqual(['managedKind', 'MINOR_GUARDIAN']);
     act(() => radio('Me')?.click());
     expect(posted()[0]).toEqual(['whoFor', 'SELF']);

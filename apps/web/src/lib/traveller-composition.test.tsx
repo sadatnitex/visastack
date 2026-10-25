@@ -69,9 +69,9 @@ describe('traveller composition and independent record guards', () => {
   it('preserves all structural overview regions for an empty account without inventing a case', async () => {
     const html = renderToStaticMarkup(await overview(params));
     for (const text of [
-      'Active visa cases',
-      'Documents in your wallet',
-      'Items needing attention',
+      'Active Visa Cases',
+      'Documents in Your Wallet',
+      'Items Needing Attention',
       'Continue Where You Left Off',
       'Needs Your Attention',
       'Upcoming',
@@ -82,6 +82,19 @@ describe('traveller composition and independent record guards', () => {
       expect(html).toContain(text);
     expect(html).toContain('/app/applicant/person/missions');
     expect(html).not.toContain('Japan visitor');
+  });
+  it('counts what needs attention in agreeing words: "1 item needs", "2 items need"', async () => {
+    service.listPendingProposals.mockResolvedValue([{ id: 'p1', fieldKey: 'given_name' }]);
+    expect(renderToStaticMarkup(await overview(params))).toContain(
+      '1 item needs a decision or a closer look.',
+    );
+    service.listPendingProposals.mockResolvedValue([
+      { id: 'p1', fieldKey: 'given_name' },
+      { id: 'p2', fieldKey: 'family_name' },
+    ]);
+    const html = renderToStaticMarkup(await overview(params));
+    expect(html).toContain('2 items need a decision or a closer look.');
+    expect(html).not.toContain('1 items');
   });
   it('uses the newest active case and actual readiness, excluding closed cases', async () => {
     const now = new Date('2026-10-11');

@@ -12,7 +12,7 @@ export function FailedSectionsBanner({ sections }: { readonly sections: readonly
       style={{ marginBottom: '1.5rem', borderColor: 'var(--danger, #b42318)' }}
     >
       <p className="card-kicker">Incomplete Page</p>
-      <h2 className="card-title">Some sections could not be loaded</h2>
+      <h2 className="card-title">Some Sections Could Not Be Loaded</h2>
       <p className="card-body">
         {sections.join(', ')}. The sections on this page are shown empty or at zero because they
         could not be read, not because there is nothing there. This is most often a database

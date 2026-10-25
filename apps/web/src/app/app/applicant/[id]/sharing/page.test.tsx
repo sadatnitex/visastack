@@ -61,7 +61,7 @@ describe('actual authorized sharing composition', () => {
       value: [grant('ACTIVE'), grant('PENDING_ACCEPTANCE')],
     });
     const html = await render();
-    expect(textOf(html)).toContain('1 active grants');
+    expect(textOf(html)).toContain('1 active grant. ');
     expect(textOf(html)).toContain('Passport summary');
     const ops = stubProps<{ ops: { op: string }[] }>(html, 'GrantOpButtons');
     expect(ops[0]?.ops.map((op) => op.op)).toEqual(['pause', 'revoke']);
@@ -72,7 +72,7 @@ describe('actual authorized sharing composition', () => {
     mocks.listAccessForApplicantDetailed.mockResolvedValue({ ok: false });
     const text = textOf(await render());
     expect(text).toContain('This does not mean nobody has access');
-    expect(text).not.toContain('Nobody has access yet');
+    expect(text).not.toContain('Nobody Has Access Yet');
   });
   it('offers a new category only once it holds a saved detail, and never a category with nothing in it', async () => {
     const none = await render();

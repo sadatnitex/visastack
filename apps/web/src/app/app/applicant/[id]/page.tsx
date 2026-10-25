@@ -16,6 +16,7 @@ import { notFound } from 'next/navigation';
 import { EmptyState, NextStepCard, PageHeader, StatusBadge } from '../../../../components/ui';
 import { formatTimestampDate } from '../../../../lib/format-date';
 import { completionOf, fieldLabel } from '../../../../lib/master-profile';
+import { agree, plural } from '../../../../lib/plural';
 import { withSession } from '../../../../lib/session';
 import { STAGE_LABELS } from '../../agency/[orgId]/case-search-form';
 
@@ -156,7 +157,7 @@ export default async function ApplicantOverviewPage({
       .map((p) => ({
         key: `fact:${p.factId}`,
         label: 'Profile Fact Updated',
-        detail: fieldLabel(p.fieldKey) ?? 'Profile detail',
+        detail: fieldLabel(p.fieldKey) ?? 'Profile Detail',
         date: p.updatedAt as string,
         href: `/app/applicant/${id}/history`,
       })),
@@ -182,12 +183,12 @@ export default async function ApplicantOverviewPage({
           partial
             ? 'Some records could not be loaded. Try refreshing before relying on these totals.'
             : attention
-              ? `${attention} items need a decision or a closer look.`
+              ? `${plural(attention, 'item')} ${agree(attention, 'needs', 'need')} a decision or a closer look.`
               : 'Your next steps, documents and cases in one place.'
         }
         actions={
           <Link className="btn btn-primary" href={`/app/applicant/${id}/missions`}>
-            + New visa case
+            New Visa Case
           </Link>
         }
       />
@@ -198,17 +199,17 @@ export default async function ApplicantOverviewPage({
       ) : null}
       <div className="traveller-metrics">
         <Link className="card traveller-metric" href={`/app/applicant/${id}/missions`}>
-          <span>Active visa cases</span>
+          <span>Active Visa Cases</span>
           <strong>{data.missions.ok ? data.active.length : 'Unavailable'}</strong>
           <span className="muted">Closed and cancelled cases are excluded.</span>
         </Link>
         <Link className="card traveller-metric" href={`/app/applicant/${id}/documents`}>
-          <span>Documents in your wallet</span>
+          <span>Documents in Your Wallet</span>
           <strong>{data.documents.ok ? documents.length : 'Unavailable'}</strong>
           <span className="muted">Open documents to review processing and safety.</span>
         </Link>
         <Link className="card traveller-metric" href={`/app/applicant/${id}/evidence`}>
-          <span>Items needing attention</span>
+          <span>Items Needing Attention</span>
           <strong>{data.documents.ok && data.requests.ok ? attention : 'Unavailable'}</strong>
           <span className="muted">Requests, suggested details and flagged documents.</span>
         </Link>
@@ -221,7 +222,7 @@ export default async function ApplicantOverviewPage({
           </div>
           <article className="card traveller-featured-case">
             {!data.missions.ok ? (
-              <EmptyState icon="alert" title="Cases are unavailable">
+              <EmptyState icon="alert" title="Cases Are Unavailable">
                 Refresh to try again.
               </EmptyState>
             ) : data.featured ? (
@@ -333,7 +334,7 @@ export default async function ApplicantOverviewPage({
             ) : (
               <EmptyState
                 icon="alert"
-                title={data.missions.ok ? 'No Upcoming Case Dates' : 'Dates are unavailable'}
+                title={data.missions.ok ? 'No Upcoming Case Dates' : 'Dates Are Unavailable'}
               >
                 Set a target deadline or travel date in a case. Appointments remain in the
                 individual case calendar.
