@@ -80,6 +80,33 @@ function typeInto(input: HTMLInputElement | HTMLSelectElement, value: string) {
   });
 }
 
+describe('a link to one section (WP-V3 part 3)', () => {
+  afterEach(() => {
+    window.location.hash = '';
+  });
+
+  it('opens the area holding the section named in the address, and follows a later change', () => {
+    window.location.hash = '#section-passport';
+    render();
+    expect(tab('Travel Documents').getAttribute('aria-selected')).toBe('true');
+    expect(container.querySelector('#profile-panel-travel_documents')?.hasAttribute('hidden')).toBe(
+      false,
+    );
+    expect(container.querySelector('#section-passport')).not.toBeNull();
+    act(() => {
+      window.location.hash = '#section-identity_basics';
+      window.dispatchEvent(new HashChangeEvent('hashchange'));
+    });
+    expect(tab('Identity and Civil Status').getAttribute('aria-selected')).toBe('true');
+  });
+
+  it('ignores a section name that is not on the page', () => {
+    window.location.hash = '#section-nothing_here';
+    render();
+    expect(tab('Identity and Civil Status').getAttribute('aria-selected')).toBe('true');
+  });
+});
+
 describe('section cards keep every real editing path', () => {
   it('supports keyboard selection across the areas and shows only the chosen panel', () => {
     const first = tab('Identity and Civil Status');

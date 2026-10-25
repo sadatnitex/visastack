@@ -1,3 +1,4 @@
+import { CATALOGUE_MODULES, MODULE_FIELDS } from '@visastack/core/catalogue';
 import type {
   CaseDetailField,
   ConsistencyResult,
@@ -48,7 +49,9 @@ export function changeLine(change: MemoryChange): { readonly name: string; reado
             ? 'changed'
             : change.change === 'removed'
               ? 'removed'
-              : 'added to this case',
+              : change.change === 'not_used'
+                ? 'no longer used in this case'
+                : 'added to this case',
       };
     case 'document':
       return {
@@ -60,7 +63,9 @@ export function changeLine(change: MemoryChange): { readonly name: string; reado
               ? 'replaced by another document'
               : change.change === 'removed'
                 ? 'no longer available'
-                : 'added to this case',
+                : change.change === 'not_used'
+                  ? 'no longer used in this case'
+                  : 'added to this case',
       };
     case 'case':
       return { name: CASE_FIELD_LABELS[change.caseField], what: 'changed' };
@@ -74,6 +79,21 @@ export function comparableVersionId(change: MemoryChange): string | null {
     change.currentFactVersionId !== null
     ? change.priorFactVersionId
     : null;
+}
+
+const SHOWN_MODULES: ReadonlySet<string> = new Set(
+  CATALOGUE_MODULES.filter((module) => !module.internal).map((module) => module.key),
+);
+const MODULE_BY_FIELD: ReadonlyMap<string, string> = new Map(
+  MODULE_FIELDS.filter((field) => SHOWN_MODULES.has(field.module)).map(
+    (field) => [field.key, field.module] as const,
+  ),
+);
+
+/** The profile, opened at the section that holds this detail when there is one. */
+export function profileSectionHref(applicantId: string, fieldKey: string): string {
+  const section = MODULE_BY_FIELD.get(fieldKey);
+  return `/app/applicant/${applicantId}/profile#${section ? `section-${section}` : 'profile-editor'}`;
 }
 
 export function memoryHref(applicantId: string): string {
@@ -117,6 +137,11 @@ const SHARE_STATUS_LABELS: Readonly<Record<string, string>> = {
 
 const snapshotName = (version: number | null): string =>
   version === null ? 'a snapshot' : `snapshot ${version}`;
+
+/** A list key for one timeline record: its kind and record id, unique even at the same moment. */
+export function eventKey(event: MemoryEvent): string {
+  return `${event.kind}-${event.id}`;
+}
 
 /** One timeline record in plain words: a title and an optional second line. */
 export function eventLine(event: MemoryEvent): {
@@ -196,7 +221,7 @@ export const RESULT_NEXT_STEPS: Readonly<
 
 /** How a version was saved, in plain words. Never "verified": a status is not proof. */
 export const FACT_STATUS_LABELS: Readonly<Record<string, string>> = {
-  DECLARED: 'Entered by you',
+  DECLARED: 'Entered by hand',
   EXTRACTED_PENDING: 'Read from a document, not checked yet',
   APPLICANT_CONFIRMED: 'Confirmed by you',
   DOCUMENT_SUPPORTED: 'Backed by a document',

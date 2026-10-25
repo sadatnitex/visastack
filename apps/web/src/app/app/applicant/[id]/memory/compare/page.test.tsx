@@ -60,6 +60,7 @@ function detail(overrides: Record<string, unknown>) {
     snapshot: SNAPSHOT,
     review: REVIEW,
     valuesHidden: false,
+    notesSaved: { prior: false, current: true },
     comparison: {
       fieldKey: 'employer_name',
       repeatingRecordKey: null,
@@ -164,13 +165,16 @@ describe('then-and-now view (v1.2 E03, WP-V3 part 3)', () => {
             ...detail({}).comparison,
             fieldKey: 'passport_number',
             prior: side({ value: null }),
-            current: side({ factVersionId: CURRENT, value: null }),
+            current: side({ factVersionId: CURRENT, value: null, explanation: null }),
           },
         }),
       ),
     );
     const text = textOf(await render({ snapshot: SNAP, version: PRIOR }));
     expect(text.match(/Hidden here to keep it private/g)).toHaveLength(2);
+    // The note is hidden with the value; the page only says one was saved.
+    expect(text).toContain('A note was saved (hidden here to keep it private)');
+    expect(text).not.toContain('Changed jobs in March');
     expect(text).toContain('Legitimate change');
   });
 
@@ -191,7 +195,7 @@ describe('then-and-now view (v1.2 E03, WP-V3 part 3)', () => {
     const html = await render({ snapshot: SNAP, version: PRIOR });
     expect(textOf(html)).toContain('does not settle the difference');
     expect(html).toMatch(
-      /href="\/app\/applicant\/synthetic-family\/profile" class="btn btn-primary">Update This Detail/,
+      /href="\/app\/applicant\/synthetic-family\/profile#(section-[a-z0-9_]+|profile-editor)" class="btn btn-primary">Update This Detail/,
     );
   });
 

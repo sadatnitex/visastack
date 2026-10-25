@@ -35,6 +35,7 @@ describe('Application Memory page (v1.2 B08, WP-V3 part 3)', () => {
   it('shows each case with its records in order, prepared, confirmed and reported kept apart', async () => {
     mocks.getApplicationMemory.mockResolvedValue(
       ok({
+        recordShares: [],
         cases: [
           {
             missionId: 'case-1',
@@ -48,12 +49,14 @@ describe('Application Memory page (v1.2 B08, WP-V3 part 3)', () => {
             events: [
               {
                 kind: 'prepared',
+                id: SNAP_1,
                 at: '2026-09-10T10:00:00.000Z',
                 snapshotId: SNAP_1,
                 snapshotVersion: 1,
               },
               {
                 kind: 'confirmed',
+                id: 'ack-1',
                 at: '2026-09-11T10:00:00.000Z',
                 snapshotId: SNAP_1,
                 snapshotVersion: 1,
@@ -61,6 +64,7 @@ describe('Application Memory page (v1.2 B08, WP-V3 part 3)', () => {
               },
               {
                 kind: 'reported_submitted',
+                id: 'sub-1',
                 at: '2026-09-25T00:00:00.000Z',
                 recordedAt: '2026-09-26T10:00:00.000Z',
                 snapshotId: SNAP_1,
@@ -69,6 +73,7 @@ describe('Application Memory page (v1.2 B08, WP-V3 part 3)', () => {
               },
               {
                 kind: 'outcome',
+                id: 'out-1',
                 at: '2026-10-05T00:00:00.000Z',
                 recordedAt: '2026-10-06T10:00:00.000Z',
                 decision: 'APPROVED',
@@ -112,6 +117,7 @@ describe('Application Memory page (v1.2 B08, WP-V3 part 3)', () => {
   it('keeps the history of a removed case but offers no snapshot links', async () => {
     mocks.getApplicationMemory.mockResolvedValue(
       ok({
+        recordShares: [],
         cases: [
           {
             missionId: 'case-2',
@@ -125,6 +131,7 @@ describe('Application Memory page (v1.2 B08, WP-V3 part 3)', () => {
             events: [
               {
                 kind: 'prepared',
+                id: SNAP_1,
                 at: '2025-01-10T10:00:00.000Z',
                 snapshotId: SNAP_1,
                 snapshotVersion: 1,
@@ -140,7 +147,7 @@ describe('Application Memory page (v1.2 B08, WP-V3 part 3)', () => {
   });
 
   it('shows an empty state with no cases, and nothing at all to someone the gate refuses', async () => {
-    mocks.getApplicationMemory.mockResolvedValue(ok({ cases: [] }));
+    mocks.getApplicationMemory.mockResolvedValue(ok({ recordShares: [], cases: [] }));
     expect(textOf(await render())).toContain('No Cases Yet');
 
     mocks.requireAccess.mockResolvedValue({ ok: false, error: { code: 'forbidden' } });
@@ -148,5 +155,59 @@ describe('Application Memory page (v1.2 B08, WP-V3 part 3)', () => {
     mocks.requireAccess.mockResolvedValue(ok({ synthetic: 'proof' }));
     mocks.getApplicationMemory.mockResolvedValue({ ok: false, error: { code: 'forbidden' } });
     await expect(render()).rejects.toThrow('NEXT_NOT_FOUND');
+  });
+
+  it('lists shares of the whole record once, above the cases, and keeps keys unique at the same moment', async () => {
+    const at = '2026-09-10T10:00:00.000Z';
+    mocks.getApplicationMemory.mockResolvedValue(
+      ok({
+        recordShares: [
+          {
+            kind: 'shared',
+            id: 'grant-1',
+            at,
+            recipientName: 'Harbor Visas',
+            recipientKind: 'organization',
+            status: 'ACTIVE',
+          },
+        ],
+        cases: [
+          {
+            missionId: 'case-1',
+            title: 'Japan visitor visa',
+            destination: null,
+            purpose: null,
+            agencyName: null,
+            state: 'DRAFT',
+            createdAt: at,
+            removed: false,
+            events: [
+              {
+                kind: 'confirmed',
+                id: 'ack-1',
+                at,
+                snapshotId: SNAP_1,
+                snapshotVersion: 1,
+                setAsideAt: null,
+              },
+              {
+                kind: 'confirmed',
+                id: 'ack-2',
+                at,
+                snapshotId: SNAP_1,
+                snapshotVersion: 1,
+                setAsideAt: null,
+              },
+            ],
+          },
+        ],
+      }),
+    );
+    const html = await render();
+    const text = textOf(html);
+    expect(text).toContain('Shared Outside a Case');
+    expect(text.match(/Shared with Harbor Visas/g)).toHaveLength(1);
+    expect(text.indexOf('Shared Outside a Case')).toBeLessThan(text.indexOf('Japan visitor visa'));
+    expect(text.match(/Confirmed snapshot 1/g)).toHaveLength(2);
   });
 });

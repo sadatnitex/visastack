@@ -8,7 +8,9 @@ import {
   changeLine,
   comparableVersionId,
   compareHref,
+  eventKey,
   eventLine,
+  profileSectionHref,
   reviewSentence,
 } from './application-memory-labels';
 
@@ -38,6 +40,10 @@ describe('Application Memory wording (WP-V3 part 3)', () => {
     expect(
       changeLine({ kind: 'document', change: 'new_version', documentId: 'd', docType: null }),
     ).toEqual({ name: 'Document without a kind', what: 'new version added' });
+    expect(changeLine({ ...changed, change: 'not_used' }).what).toBe('no longer used in this case');
+    expect(
+      changeLine({ kind: 'document', change: 'not_used', documentId: 'd', docType: null }).what,
+    ).toBe('no longer used in this case');
     expect(changeLine({ kind: 'case', change: 'changed', caseField: 'travelStartDate' })).toEqual({
       name: 'Travel start date',
       what: 'changed',
@@ -47,12 +53,14 @@ describe('Application Memory wording (WP-V3 part 3)', () => {
   it('keeps prepared, confirmed and reported as submitted distinct, and never claims a submission', () => {
     const prepared = eventLine({
       kind: 'prepared',
+      id: 'row-1',
       at: '2026-10-01T10:00:00.000Z',
       snapshotId: SNAP,
       snapshotVersion: 2,
     });
     const confirmed = eventLine({
       kind: 'confirmed',
+      id: 'row-1',
       at: '2026-10-02T10:00:00.000Z',
       snapshotId: SNAP,
       snapshotVersion: 2,
@@ -60,6 +68,7 @@ describe('Application Memory wording (WP-V3 part 3)', () => {
     });
     const reported = eventLine({
       kind: 'reported_submitted',
+      id: 'row-1',
       at: '2026-10-03T00:00:00.000Z',
       recordedAt: '2026-10-04T10:00:00.000Z',
       snapshotId: SNAP,
@@ -104,6 +113,7 @@ describe('Application Memory wording (WP-V3 part 3)', () => {
       RESULT_NEXT_STEPS,
       eventLine({
         kind: 'outcome',
+        id: 'row-1',
         at: '2026-10-03T00:00:00.000Z',
         recordedAt: '2026-10-04T00:00:00.000Z',
         decision: 'APPROVED',
@@ -111,6 +121,29 @@ describe('Application Memory wording (WP-V3 part 3)', () => {
     ]);
     expect(all).not.toMatch(/verified|certified|guarantee/i);
     expect(all).not.toContain(String.fromCodePoint(0x2014));
+  });
+
+  it('says a typed value was entered by hand, and links a fix to the section that holds the detail', () => {
+    expect(FACT_STATUS_LABELS).toMatchObject({ DECLARED: 'Entered by hand' });
+    expect(profileSectionHref('a1', 'passport_number')).toMatch(
+      /^\/app\/applicant\/a1\/profile#section-[a-z0-9_]+$/,
+    );
+    expect(profileSectionHref('a1', 'not_a_field')).toBe(
+      '/app/applicant/a1/profile#profile-editor',
+    );
+  });
+
+  it('gives two records at the same moment different list keys', () => {
+    const at = '2026-10-01T10:00:00.000Z';
+    const one = {
+      kind: 'confirmed' as const,
+      id: 'ack-1',
+      at,
+      snapshotId: SNAP,
+      snapshotVersion: 1,
+      setAsideAt: null,
+    };
+    expect(eventKey(one)).not.toBe(eventKey({ ...one, id: 'ack-2' }));
   });
 
   it('builds the compare link with the snapshot and, when given, the exact version', () => {

@@ -8,7 +8,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { EmptyState, PageHeader } from '../../../../../components/ui';
-import { eventLine } from '../../../../../lib/application-memory-labels';
+import { eventKey, eventLine } from '../../../../../lib/application-memory-labels';
 import { humanizeCode } from '../../../../../lib/format-code';
 import { formatDateOnly, formatTimestampDate } from '../../../../../lib/format-date';
 import { withSession } from '../../../../../lib/session';
@@ -60,6 +60,32 @@ export default async function ApplicationMemoryPage({
         as="h2"
       />
 
+      {memory.recordShares.length > 0 ? (
+        <article className="card memory-shares" aria-labelledby="memory-shares-heading">
+          <h3 className="card-title" id="memory-shares-heading">
+            Shared Outside a Case
+          </h3>
+          <p className="memory-case-meta">
+            These shares are of this person's record, not of one case.
+          </p>
+          <ol className="memory-timeline">
+            {memory.recordShares.map((share) => {
+              const line = eventLine(share);
+              return (
+                <li className="memory-event memory-event-shared" key={eventKey(share)}>
+                  <span className="memory-event-date">{eventDate(share)}</span>
+                  <span className="memory-event-title">{line.title}</span>
+                  {line.note ? <span className="memory-event-note">{line.note}</span> : null}
+                </li>
+              );
+            })}
+          </ol>
+          <Link className="case-changes-all" href={`/app/applicant/${id}/sharing`}>
+            Open Sharing
+          </Link>
+        </article>
+      ) : null}
+
       {memory.cases.length === 0 ? (
         <article className="card">
           <EmptyState
@@ -102,7 +128,7 @@ export default async function ApplicationMemoryPage({
                       return (
                         <li
                           className={`memory-event memory-event-${event.kind}`}
-                          key={`${event.kind}-${event.at}-${'snapshotId' in event ? event.snapshotId : ''}`}
+                          key={eventKey(event)}
                         >
                           <span className="memory-event-date">{eventDate(event)}</span>
                           <span className="memory-event-title">{line.title}</span>

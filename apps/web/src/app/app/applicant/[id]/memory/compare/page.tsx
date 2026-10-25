@@ -21,6 +21,7 @@ import {
   compareHref,
   detailName,
   memoryHref,
+  profileSectionHref,
   reviewSentence,
 } from '../../../../../../lib/application-memory-labels';
 import { formatDateOnly, formatTimestampDate } from '../../../../../../lib/format-date';
@@ -205,11 +206,14 @@ function ChangesView({
 function SideFacts({
   side,
   hidden,
+  noteSaved,
   asOf,
   amount,
 }: {
   readonly side: ComparedVersion;
   readonly hidden: boolean;
+  /** Whether a note was saved with this side, said even when the note is hidden. */
+  readonly noteSaved: boolean;
   readonly asOf: string;
   readonly amount: boolean;
 }) {
@@ -237,7 +241,13 @@ function SideFacts({
       <dd>{FACT_STATUS_LABELS[side.status] ?? 'Recorded'}</dd>
       <dt>Note Saved with It</dt>
       <dd>
-        {side.explanation ? (
+        {hidden ? (
+          noteSaved ? (
+            'A note was saved (hidden here to keep it private)'
+          ) : (
+            'None'
+          )
+        ) : side.explanation ? (
           <>
             <q>{side.explanation}</q>
             <span className="then-now-assertion">
@@ -300,6 +310,7 @@ function DetailView({
           <SideFacts
             side={comparison.prior}
             hidden={valuesHidden}
+            noteSaved={detail.notesSaved.prior}
             amount={amount}
             asOf={`Snapshot taken ${formatTimestampDate(snapshot.takenAt)}`}
           />
@@ -311,6 +322,7 @@ function DetailView({
           <SideFacts
             side={comparison.current}
             hidden={valuesHidden}
+            noteSaved={detail.notesSaved.current}
             amount={amount}
             asOf="Your record today"
           />
@@ -325,7 +337,10 @@ function DetailView({
         <p>{next.text}</p>
         <div className="then-now-actions">
           {next.updateDetail ? (
-            <Link className="btn btn-primary" href={`/app/applicant/${applicantId}/profile`}>
+            <Link
+              className="btn btn-primary"
+              href={profileSectionHref(applicantId, comparison.fieldKey)}
+            >
               Update This Detail
             </Link>
           ) : null}

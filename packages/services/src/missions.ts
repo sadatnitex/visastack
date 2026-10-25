@@ -1534,12 +1534,12 @@ export async function listCaseEvidenceIds(
 /**
  * Capture an immutable, checksummed snapshot of the mission's current
  * evidence, per-requirement mapping, and readiness. Snapshots are never
- * mutated; versions increment. Every fact instance — including every
- * repeating-record instance (master directive §7 "PR 10") — and every
+ * mutated; versions increment. Every fact instance - including every
+ * repeating-record instance (master directive §7 "PR 10") - and every
  * current document version is captured by its exact id, never collapsed
  * into a single overwritable slot. Once a mission has reached
  * READY_TO_EXPORT or later, this snapshot IS the application packet (Build
- * Spec §4.5's "pack production") — the same immutable, checksummed capture,
+ * Spec §4.5's "pack production") - the same immutable, checksummed capture,
  * not a separate artifact.
  */
 export async function snapshotMission(

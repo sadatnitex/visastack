@@ -6441,3 +6441,7 @@ body:has(.auth-shell) > .footer {
     margin-bottom: 0.4rem;
   }
 }
+/* WP-V3 part 3 (review): shares of the whole record sit above the cases. */
+.memory-shares {
+  margin-bottom: var(--space-4);
+}
